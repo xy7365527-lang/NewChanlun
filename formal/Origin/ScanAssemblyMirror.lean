@@ -12,8 +12,8 @@ Origin/ScanAssemblyMirror.lean — 3a 统一扫描装配语义镜像（#1087 第
 * signal.rs:749-863、1150-1161、1911-1922：grade、PanDivCert 与冻结公式。
 
 ★D2 字段族边界（scan.rs:19-28）：CandDeltaEvent 与 cp_ownership 是独立于四件扫描输出的
-P1 侧车。本镜像分别钉住其事件装配和 stable-revision 生命周期投影，不从四件输出反推；
-pan_div_diag 仍是诊断字段，不进入事件判定或四件输出。
+P1 侧车。本镜像从 event 前 raw 分量判定产/拒事件，并从 closure 的 leave/retest 原始几何推进
+Pending→Closed、附着完整 P2/c_p 证据；pan_div_diag 不改变 Cand 真值，但逐字段核对。
 
 认识论等级 L0：这里只镜像既有确定性装配。lake build 证明 Lean 内部定义与定理成立，不等于
 Rust 已完成跨语言对拍，更不证明交易有效性；指定窗签收属于后续执行切片。
@@ -140,17 +140,117 @@ theorem episode_boundary_unique
 
 /-! ## §2 cand_delta 事件装配 -/
 
-/-- 生产结构候选门的提取结果；事件装配只消费既有门结果，不重裁判据。 -/
+structure ElementIdentity where
+  level : Nat
+  ordinal : Nat
+deriving DecidableEq, Repr
+
+structure ParentCenterIdentity where
+  centerIndex : Nat
+  centerId : ElementIdentity
+  sourceInterval : Interval
+  zd : Int
+  zg : Int
+deriving DecidableEq, Repr
+
+structure CpStructureIdentity where
+  level : Nat
+  bCenterId : ElementIdentity
+  departureMoveId : ElementIdentity
+  terminalMoveId : Option ElementIdentity
+  sourceStart : Nat
+  sourceEnd : Option Nat
+deriving DecidableEq, Repr
+
+structure ThirdClassInCp where
+  bCenterId : ElementIdentity
+  cpDepartureMoveId : ElementIdentity
+  departureMoveId : ElementIdentity
+  retestMoveId : ElementIdentity
+  departureInterval : Interval
+  retestInterval : Interval
+  pointSourceIndex : Nat
+  side : Side
+deriving DecidableEq, Repr
+
+structure TrendContext where
+  predecessorCenterId : ElementIdentity
+  bCenterId : ElementIdentity
+  direction : Direction
+deriving DecidableEq, Repr
+
+structure NewExtremeInDirection where
+  bCenterId : ElementIdentity
+  direction : Direction
+  referencePrice : Int
+  extremePrice : Int
+  extremeMoveId : ElementIdentity
+  confirmSrc : Nat
+deriving DecidableEq, Repr
+
+structure InternalSublevelCenters where
+  cLevel : Nat
+  centerIds : List ElementIdentity
+deriving DecidableEq, Repr
+
+structure CompletedTrendDecomposition where
+  direction : Direction
+  centerIds : List ElementIdentity
+  closingSuccessorMoveId : ElementIdentity
+  confirmSrc : Nat
+deriving DecidableEq, Repr
+
+structure FullTrendQualificationEvidence where
+  trendContext : Option TrendContext
+  newExtremeInDirection : Option NewExtremeInDirection
+  internalSublevelCenters : Option InternalSublevelCenters
+  completedTrendDecomposition : Option CompletedTrendDecomposition
+  decompositionReviewMoveId : Option ElementIdentity
+  decompositionReviewSrc : Option Nat
+deriving DecidableEq, Repr
+
+structure FullTrendCQualified where
+  trendContext : TrendContext
+  thirdClassInsideC : ThirdClassInCp
+  newExtremeInDirection : NewExtremeInDirection
+  internalSublevelCenters : InternalSublevelCenters
+  completedTrendDecomposition : CompletedTrendDecomposition
+  confirmSrc : Nat
+deriving DecidableEq, Repr
+
+structure CandDeltaCpEdge where
+  bCenterId : ElementIdentity
+  cpDepartureMoveId : ElementIdentity
+  cpSourceStart : Nat
+deriving DecidableEq, Repr
+
+inductive CandDeltaKind where
+  | trend
+  | pan
+deriving DecidableEq, Repr
+
+/-- event 之前的原始判据分量。`accepted` 不允许从 Rust 透传。 -/
 structure CandDeltaFacts where
-  accepted : Bool
+  kind : CandDeltaKind
+  structuralCandidate : Bool
+  direction : Bool
+  comparable : Bool
+  extreme : Bool
   buy1 : Bool
   sell1 : Bool
+  panDiverges : Bool
 deriving DecidableEq, Repr
+
+def CandDeltaFacts.accepted (facts : CandDeltaFacts) : Bool :=
+  match facts.kind with
+  | CandDeltaKind.trend =>
+      facts.structuralCandidate && facts.direction && facts.comparable && facts.extreme
+  | CandDeltaKind.pan => facts.structuralCandidate && facts.panDiverges
 
 def CandDeltaFacts.value (facts : CandDeltaFacts) : Bool :=
   facts.buy1 || facts.sell1
 
-/-- 事件装配输入与当前 self-anchor 段素材共用同一 `SegmentRow`。 -/
+/-- 事件装配输入来自 event 之前的结构腿/证据。P2 字段是 c_p 原始证据的投影。 -/
 structure EventAssemblyInput where
   level : Nat
   side : Side
@@ -162,9 +262,17 @@ structure EventAssemblyInput where
   triggerEnd : Nat
   rows : List SegmentRow
   predicate : CandDeltaFacts
+  cIntervalFull : Option Interval
+  bParent : Option ParentCenterIdentity
+  cStructure : Option CpStructureIdentity
+  thirdClassInC : Option ThirdClassInCp
+  fullTrendCQualified : Option FullTrendCQualified
+  fullTrendEvidence : Option FullTrendQualificationEvidence
+  cpOwnership : Option CandDeltaCpEdge
+  panDivDiag : Bool
 deriving DecidableEq, Repr
 
-/-- 3a/P1 侧车 `CandDeltaEvent` 的装配投影；兼容别名保留以供逐字段桥接。 -/
+/-- 生产 CandDeltaEvent 的 19 个顶层字段，逐字段镜像。 -/
 structure CandDeltaEvent where
   level : Nat
   side : Side
@@ -174,19 +282,30 @@ structure CandDeltaEvent where
   aInterval : EpisodeBounds
   cEpisodeStart : Nat
   cEpisodeInterval : EpisodeBounds
+  cIntervalFull : Option Interval
+  bParent : Option ParentCenterIdentity
+  cStructure : Option CpStructureIdentity
+  thirdClassInC : Option ThirdClassInCp
+  cpCertificateConfirmSrc : Option Nat
+  fullTrendCQualified : Option FullTrendCQualified
+  fullTrendEvidence : Option FullTrendQualificationEvidence
+  cpOwnership : Option CandDeltaCpEdge
   enterSrc : Nat
   candDelta : Bool
+  panDivDiag : Bool
 deriving DecidableEq, Repr
 
 /--
-结构候选门拒绝或 self-anchor episode 无来源时不产事件；成功时三个 C episode 别名只由
-`episodeBounds` 这一 writer 装配，确认时点保持为独立的 divergence checkpoint。
+拒绝原始判据不产事件；成功时 episode 只由 rows 独立定界。cp 证书确认点由完整区间和第三类证书
+共同推出，不接收 Rust 的成品字段。
 -/
 def assembleCandDelta (input : EventAssemblyInput) : Option CandDeltaEvent :=
   if input.predicate.accepted then
     match episodeBounds input.rows input.center input.departureDir input.untilStart input.triggerEnd with
     | none => none
     | some bounds =>
+        let cpCertificateConfirmSrc :=
+          input.cIntervalFull.bind (fun _ => input.thirdClassInC.map (fun third => third.pointSourceIndex))
         some
           { level := input.level
             side := input.side
@@ -196,8 +315,17 @@ def assembleCandDelta (input : EventAssemblyInput) : Option CandDeltaEvent :=
             aInterval := input.aInterval
             cEpisodeStart := bounds.left
             cEpisodeInterval := bounds
+            cIntervalFull := input.cIntervalFull
+            bParent := input.bParent
+            cStructure := input.cStructure
+            thirdClassInC := input.thirdClassInC
+            cpCertificateConfirmSrc := cpCertificateConfirmSrc
+            fullTrendCQualified := input.fullTrendCQualified
+            fullTrendEvidence := input.fullTrendEvidence
+            cpOwnership := input.cpOwnership
             enterSrc := bounds.left
-            candDelta := input.predicate.value }
+            candDelta := input.predicate.value
+            panDivDiag := input.panDivDiag }
   else
     none
 
@@ -464,6 +592,20 @@ inductive ObservedState where
   | confirmed
 deriving DecidableEq, Repr
 
+/-- 原始 Trend sink 腿。稳定 ID 是 post-scan 派生量，禁止从 Rust sink 透传。 -/
+structure CandidateLeg where
+  key : CandidateKey
+  kind : CandidateKind
+  centerIds : Option (Nat × Nat)
+  structuralPredicates : StructuralPredicates
+  extremeProof : Interval
+  thirdClassProof : Option Nat
+  interval : Interval
+  state : ObservedState
+  firstProvableAt : Option Nat
+  confirmedAt : Option Nat
+deriving DecidableEq, Repr
+
 structure CandidateObservation where
   key : CandidateKey
   kind : CandidateKind
@@ -540,7 +682,7 @@ structure ScanSinkEmission where
   bspPoints : List BspPoint
   panDivCerts : List PanDivCert
   firstClassGrades : List FirstClassGradeRecord
-  candidateLegs : List CandidateObservation
+  candidateLegs : List CandidateLeg
 deriving DecidableEq, Repr
 
 structure ScanSinks where
@@ -684,6 +826,17 @@ def productionPostScanOperators : PostScanOperators :=
     pairId := fun key => candidateStableId key pairIdSeed
     sortObservations := stableSortBy observationStrictlyBefore }
 
+/-- raw sink → observation 的唯一 writer；两个 ID 无条件由 CandidateKey 重算。 -/
+def CandidateLeg.toObservation (operators : PostScanOperators)
+    (leg : CandidateLeg) : CandidateObservation :=
+  { key := leg.key, kind := leg.kind, centerIds := leg.centerIds
+    candidateGroupId := operators.candidateGroupId leg.key
+    pairId := operators.pairId leg.key
+    structuralPredicates := leg.structuralPredicates
+    extremeProof := leg.extremeProof, thirdClassProof := leg.thirdClassProof
+    interval := leg.interval, state := leg.state
+    firstProvableAt := leg.firstProvableAt, confirmedAt := leg.confirmedAt }
+
 def candidateRuleVersion : Nat := 1
 
 /-- cand_event/observe.rs:235-277：从既有 PanDivCert 投影，不重判结构或力度。 -/
@@ -723,20 +876,23 @@ def assembleMergedOutput (operators : PostScanOperators) (level : Nat)
     (emissions : List PerSegmentEmission) : MergedScanOutput :=
   finalizeScanSinks operators level (collectScanSinks emissions)
 
-def collectScanSinkEmissions (emissions : List ScanSinkEmission) : ScanSinks :=
+def collectScanSinkEmissions (operators : PostScanOperators)
+    (emissions : List ScanSinkEmission) : ScanSinks :=
   emissions.foldl
     (fun acc emission =>
       { points := acc.points ++ emission.bspPoints
         panDivs := acc.panDivs ++ emission.panDivCerts
         grades := acc.grades ++ emission.firstClassGrades
-        candidateLegs := acc.candidateLegs ++ emission.candidateLegs })
+        candidateLegs := acc.candidateLegs ++
+          emission.candidateLegs.map (CandidateLeg.toObservation operators) })
     emptyScanSinks
 
 /--
 验收入口：只接收逐段、未排序、未归约的 sink 输入；最终四件输出完全由 Lean 镜像重算。
 -/
 def recomputeMergedOutput (level : Nat) (emissions : List ScanSinkEmission) : MergedScanOutput :=
-  finalizeScanSinks productionPostScanOperators level (collectScanSinkEmissions emissions)
+  finalizeScanSinks productionPostScanOperators level
+    (collectScanSinkEmissions productionPostScanOperators emissions)
 
 /-- scan.rs:127-218 的四件锁步 frontier cache；这里缓存的是候选腿，不是归约后 observation。 -/
 structure FrontierCache where
@@ -809,6 +965,70 @@ deriving DecidableEq, Repr
 def CpOwnership.advance (ownership : CpOwnership) (closureWitness : Bool) : CpOwnership :=
   { ownership with
       lifecycle := advanceLifecycleInStableRevision ownership.lifecycle closureWitness }
+
+
+/-- #1060 P2/c_p 完整附着对象；不是只看生命周期五元组。 -/
+structure CpObject where
+  bCenterIndex : Nat
+  bCenterId : ElementIdentity
+  bCenter : CenterFrame
+  departureMoveId : Option ElementIdentity
+  departureInterval : Option Interval
+  lifecycle : CpLifecycle
+  cpCertificateConfirmSrc : Option Nat
+  cStructure : Option CpStructureIdentity
+  thirdClassInC : Option ThirdClassInCp
+  fullTrendEvidence : Option FullTrendQualificationEvidence
+  fullTrendCQualified : Option FullTrendCQualified
+deriving DecidableEq, Repr
+
+/-- closure 之前可见的原始相邻单元证据。不存在 `closureWitness : Bool`。 -/
+structure CpClosureEvidence where
+  cpDepartureMoveId : ElementIdentity
+  cpStart : Nat
+  leave : SegmentRow
+  retest : SegmentRow
+  leaveAnchor : Option Direction
+  leaveMoveId : ElementIdentity
+  retestMoveId : ElementIdentity
+  fullTrendEvidence : Option FullTrendQualificationEvidence
+  fullTrendCQualified : Option FullTrendCQualified
+deriving DecidableEq, Repr
+
+def thirdClassFromClosure (before : CpObject) (raw : CpClosureEvidence) : Option ThirdClassInCp :=
+  let side :=
+    match raw.leaveAnchor, raw.retest.direction with
+    | some Direction.up, Direction.down =>
+        if before.bCenter.zg < raw.leave.endPrice && before.bCenter.zg < raw.retest.endPrice then
+          some Side.long
+        else none
+    | some Direction.down, Direction.up =>
+        if raw.leave.endPrice < before.bCenter.zd && raw.retest.endPrice < before.bCenter.zd then
+          some Side.short
+        else none
+    | _, _ => none
+  side.map fun side =>
+    { bCenterId := before.bCenterId, cpDepartureMoveId := raw.cpDepartureMoveId
+      departureMoveId := raw.leaveMoveId, retestMoveId := raw.retestMoveId
+      departureInterval := (raw.leave.startIndex, raw.leave.endIndex)
+      retestInterval := (raw.retest.startIndex, raw.retest.endIndex)
+      pointSourceIndex := raw.retest.endIndex, side := side }
+
+/-- Pending→Closed 由 Lean 从 leave/retest 几何判定，并一次写全 P2/c_p 附着字段。 -/
+def closeCpFromRaw (before : CpObject) (raw : CpClosureEvidence) : CpObject :=
+  match before.lifecycle, thirdClassFromClosure before raw with
+  | CpLifecycle.pending, some third =>
+      { before with
+          lifecycle := CpLifecycle.closed
+          cpCertificateConfirmSrc := some third.pointSourceIndex
+          cStructure := some
+            { level := raw.cpDepartureMoveId.level, bCenterId := before.bCenterId
+              departureMoveId := raw.cpDepartureMoveId, terminalMoveId := some raw.retestMoveId
+              sourceStart := raw.cpStart, sourceEnd := some raw.retest.endIndex }
+          thirdClassInC := some third
+          fullTrendEvidence := raw.fullTrendEvidence
+          fullTrendCQualified := raw.fullTrendCQualified }
+  | _, _ => before
 
 /--
 核对 recursive_tower.rs:1864-2015：同一 stable revision 内 Pending 只保持或闭合，Closed 吸收。

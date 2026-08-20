@@ -20,12 +20,12 @@ checkpoint 输出不是 delta，不暴露 cached_* 内部状态。末根也没�
 一次相同扫描语义的完整快照，外层 isTerminalRoot 只标提取位置、不改变 decode。
 
 ★D2/P1 边界（scan.rs:19-28）：CandDeltaEvent 与 cp_ownership 不在四件输出内；本桥为它们提供
-独立 wire 与逐字段检查，不从 scan wire 提取或推导。pan_div_diag 仍是诊断字段，不进入判定桥。
-c_p stable-revision 单调定理留在 ScanAssemblyMirror，c_p 不是 MergedScanOutput 的第五件输出。
+独立 wire 与逐字段检查。pan_div_diag 仍不改变 Cand 真值，但作为 19 字段事件的一员逐位核对。
+c_p stable-revision 单调定理留在 ScanAssemblyMirror；完整 P2/c_p 附着另走 raw closure 桥。
 
 本桥另把原始 rows/centers/blocks 交给 `recomputeRustPrelude`，不从 Rust prelude 输出回填 Lean；
-CandDelta 只给装配输入与 Rust 事件，c_p 只给 before+witness 与 Rust after。四输出只给生产扫描的
-逐段、未排序、未归约 sink，Lean 通过 `recomputeMergedOutput` 独立执行排序、同 key 腿归约、
+CandDelta 给 event 前 raw 判据分量与 Rust 事件；c_p 给 before、原始 leave/retest 几何与 Rust after，
+不存在 `accepted`/`closureWitness` 成品布尔输入。四输出只给生产扫描的逐段、未排序、未归约 sink，Lean 通过 `recomputeMergedOutput` 独立执行排序、同 key 腿归约、
 Pan 投影和 FNV 身份。桥中没有 Rust legacy oracle，也不接收预制的 Lean 期望输出。
 -/
 
@@ -189,14 +189,176 @@ instance preludeParityDecidable (rust : RustPreludeOutputExtraction) (lean : Pre
 
 /-! ## §3 event / cp_ownership 侧车 -/
 
+inductive RustCandDeltaKindTag where
+  | trend
+  | pan
+deriving DecidableEq, Repr
+
+def RustCandDeltaKindTag.toLean : RustCandDeltaKindTag → CandDeltaKind
+  | RustCandDeltaKindTag.trend => CandDeltaKind.trend
+  | RustCandDeltaKindTag.pan => CandDeltaKind.pan
+
+structure RustElementIdentityExtraction where
+  level : Nat
+  ordinal : Nat
+deriving DecidableEq, Repr
+
+def RustElementIdentityExtraction.toLean (value : RustElementIdentityExtraction) : ElementIdentity :=
+  { level := value.level, ordinal := value.ordinal }
+
+structure RustParentCenterIdentityExtraction where
+  centerIndex : Nat
+  centerId : RustElementIdentityExtraction
+  sourceInterval : RustIntervalExtraction
+  zd : Int
+  zg : Int
+deriving DecidableEq, Repr
+
+def RustParentCenterIdentityExtraction.toLean
+    (value : RustParentCenterIdentityExtraction) : ParentCenterIdentity :=
+  { centerIndex := value.centerIndex, centerId := value.centerId.toLean
+    sourceInterval := value.sourceInterval.toLean, zd := value.zd, zg := value.zg }
+
+structure RustCpStructureIdentityExtraction where
+  level : Nat
+  bCenterId : RustElementIdentityExtraction
+  departureMoveId : RustElementIdentityExtraction
+  terminalMoveId : Option RustElementIdentityExtraction
+  sourceStart : Nat
+  sourceEnd : Option Nat
+deriving DecidableEq, Repr
+
+def RustCpStructureIdentityExtraction.toLean
+    (value : RustCpStructureIdentityExtraction) : CpStructureIdentity :=
+  { level := value.level, bCenterId := value.bCenterId.toLean
+    departureMoveId := value.departureMoveId.toLean
+    terminalMoveId := value.terminalMoveId.map RustElementIdentityExtraction.toLean
+    sourceStart := value.sourceStart, sourceEnd := value.sourceEnd }
+
+structure RustThirdClassInCpExtraction where
+  bCenterId : RustElementIdentityExtraction
+  cpDepartureMoveId : RustElementIdentityExtraction
+  departureMoveId : RustElementIdentityExtraction
+  retestMoveId : RustElementIdentityExtraction
+  departureInterval : RustIntervalExtraction
+  retestInterval : RustIntervalExtraction
+  pointSourceIndex : Nat
+  side : RustSideTag
+deriving DecidableEq, Repr
+
+def RustThirdClassInCpExtraction.toLean (value : RustThirdClassInCpExtraction) : ThirdClassInCp :=
+  { bCenterId := value.bCenterId.toLean, cpDepartureMoveId := value.cpDepartureMoveId.toLean
+    departureMoveId := value.departureMoveId.toLean, retestMoveId := value.retestMoveId.toLean
+    departureInterval := value.departureInterval.toLean, retestInterval := value.retestInterval.toLean
+    pointSourceIndex := value.pointSourceIndex, side := value.side.toLean }
+
+structure RustTrendContextExtraction where
+  predecessorCenterId : RustElementIdentityExtraction
+  bCenterId : RustElementIdentityExtraction
+  direction : RustDirectionTag
+deriving DecidableEq, Repr
+
+def RustTrendContextExtraction.toLean (value : RustTrendContextExtraction) : TrendContext :=
+  { predecessorCenterId := value.predecessorCenterId.toLean, bCenterId := value.bCenterId.toLean
+    direction := value.direction.toLean }
+
+structure RustNewExtremeExtraction where
+  bCenterId : RustElementIdentityExtraction
+  direction : RustDirectionTag
+  referencePrice : Int
+  extremePrice : Int
+  extremeMoveId : RustElementIdentityExtraction
+  confirmSrc : Nat
+deriving DecidableEq, Repr
+
+def RustNewExtremeExtraction.toLean (value : RustNewExtremeExtraction) : NewExtremeInDirection :=
+  { bCenterId := value.bCenterId.toLean, direction := value.direction.toLean
+    referencePrice := value.referencePrice, extremePrice := value.extremePrice
+    extremeMoveId := value.extremeMoveId.toLean, confirmSrc := value.confirmSrc }
+
+structure RustInternalCentersExtraction where
+  cLevel : Nat
+  centerIds : List RustElementIdentityExtraction
+deriving DecidableEq, Repr
+
+def RustInternalCentersExtraction.toLean
+    (value : RustInternalCentersExtraction) : InternalSublevelCenters :=
+  { cLevel := value.cLevel, centerIds := value.centerIds.map RustElementIdentityExtraction.toLean }
+
+structure RustCompletedTrendExtraction where
+  direction : RustDirectionTag
+  centerIds : List RustElementIdentityExtraction
+  closingSuccessorMoveId : RustElementIdentityExtraction
+  confirmSrc : Nat
+deriving DecidableEq, Repr
+
+def RustCompletedTrendExtraction.toLean
+    (value : RustCompletedTrendExtraction) : CompletedTrendDecomposition :=
+  { direction := value.direction.toLean
+    centerIds := value.centerIds.map RustElementIdentityExtraction.toLean
+    closingSuccessorMoveId := value.closingSuccessorMoveId.toLean
+    confirmSrc := value.confirmSrc }
+
+structure RustFullTrendEvidenceExtraction where
+  trendContext : Option RustTrendContextExtraction
+  newExtremeInDirection : Option RustNewExtremeExtraction
+  internalSublevelCenters : Option RustInternalCentersExtraction
+  completedTrendDecomposition : Option RustCompletedTrendExtraction
+  decompositionReviewMoveId : Option RustElementIdentityExtraction
+  decompositionReviewSrc : Option Nat
+deriving DecidableEq, Repr
+
+def RustFullTrendEvidenceExtraction.toLean
+    (value : RustFullTrendEvidenceExtraction) : FullTrendQualificationEvidence :=
+  { trendContext := value.trendContext.map RustTrendContextExtraction.toLean
+    newExtremeInDirection := value.newExtremeInDirection.map RustNewExtremeExtraction.toLean
+    internalSublevelCenters := value.internalSublevelCenters.map RustInternalCentersExtraction.toLean
+    completedTrendDecomposition := value.completedTrendDecomposition.map RustCompletedTrendExtraction.toLean
+    decompositionReviewMoveId := value.decompositionReviewMoveId.map RustElementIdentityExtraction.toLean
+    decompositionReviewSrc := value.decompositionReviewSrc }
+
+structure RustFullTrendQualifiedExtraction where
+  trendContext : RustTrendContextExtraction
+  thirdClassInsideC : RustThirdClassInCpExtraction
+  newExtremeInDirection : RustNewExtremeExtraction
+  internalSublevelCenters : RustInternalCentersExtraction
+  completedTrendDecomposition : RustCompletedTrendExtraction
+  confirmSrc : Nat
+deriving DecidableEq, Repr
+
+def RustFullTrendQualifiedExtraction.toLean
+    (value : RustFullTrendQualifiedExtraction) : FullTrendCQualified :=
+  { trendContext := value.trendContext.toLean, thirdClassInsideC := value.thirdClassInsideC.toLean
+    newExtremeInDirection := value.newExtremeInDirection.toLean
+    internalSublevelCenters := value.internalSublevelCenters.toLean
+    completedTrendDecomposition := value.completedTrendDecomposition.toLean
+    confirmSrc := value.confirmSrc }
+
+structure RustCandDeltaCpEdgeExtraction where
+  bCenterId : RustElementIdentityExtraction
+  cpDepartureMoveId : RustElementIdentityExtraction
+  cpSourceStart : Nat
+deriving DecidableEq, Repr
+
+def RustCandDeltaCpEdgeExtraction.toLean (value : RustCandDeltaCpEdgeExtraction) : CandDeltaCpEdge :=
+  { bCenterId := value.bCenterId.toLean, cpDepartureMoveId := value.cpDepartureMoveId.toLean
+    cpSourceStart := value.cpSourceStart }
+
 structure RustPredicateExtraction where
-  accepted : Bool
+  kind : RustCandDeltaKindTag
+  structuralCandidate : Bool
+  direction : Bool
+  comparable : Bool
+  extreme : Bool
   buy1 : Bool
   sell1 : Bool
+  panDiverges : Bool
 deriving DecidableEq, Repr
 
 def RustPredicateExtraction.toLean (facts : RustPredicateExtraction) : CandDeltaFacts :=
-  { accepted := facts.accepted, buy1 := facts.buy1, sell1 := facts.sell1 }
+  { kind := facts.kind.toLean, structuralCandidate := facts.structuralCandidate
+    direction := facts.direction, comparable := facts.comparable, extreme := facts.extreme
+    buy1 := facts.buy1, sell1 := facts.sell1, panDiverges := facts.panDiverges }
 
 structure RustAssemblyInputExtraction where
   level : Nat
@@ -210,19 +372,31 @@ structure RustAssemblyInputExtraction where
   triggerEnd : Nat
   rows : List RustSegmentExtraction
   predicate : RustPredicateExtraction
+  cIntervalFull : Option RustIntervalExtraction
+  bParent : Option RustParentCenterIdentityExtraction
+  cStructure : Option RustCpStructureIdentityExtraction
+  thirdClassInC : Option RustThirdClassInCpExtraction
+  fullTrendCQualified : Option RustFullTrendQualifiedExtraction
+  fullTrendEvidence : Option RustFullTrendEvidenceExtraction
+  cpOwnership : Option RustCandDeltaCpEdgeExtraction
+  panDivDiag : Bool
 deriving DecidableEq, Repr
 
 def RustAssemblyInputExtraction.toLean (input : RustAssemblyInputExtraction) : EventAssemblyInput :=
-  { level := input.level
-    side := input.side.toLean
+  { level := input.level, side := input.side.toLean
     divergenceConfirmSrc := input.divergenceConfirmSrc
     aInterval := { left := input.aIntervalLeft, right := input.aIntervalRight }
-    center := input.center.toLean
-    departureDir := input.departureDir.toLean
-    untilStart := input.untilStart
-    triggerEnd := input.triggerEnd
-    rows := input.rows.map RustSegmentExtraction.toLean
-    predicate := input.predicate.toLean }
+    center := input.center.toLean, departureDir := input.departureDir.toLean
+    untilStart := input.untilStart, triggerEnd := input.triggerEnd
+    rows := input.rows.map RustSegmentExtraction.toLean, predicate := input.predicate.toLean
+    cIntervalFull := input.cIntervalFull.map RustIntervalExtraction.toLean
+    bParent := input.bParent.map RustParentCenterIdentityExtraction.toLean
+    cStructure := input.cStructure.map RustCpStructureIdentityExtraction.toLean
+    thirdClassInC := input.thirdClassInC.map RustThirdClassInCpExtraction.toLean
+    fullTrendCQualified := input.fullTrendCQualified.map RustFullTrendQualifiedExtraction.toLean
+    fullTrendEvidence := input.fullTrendEvidence.map RustFullTrendEvidenceExtraction.toLean
+    cpOwnership := input.cpOwnership.map RustCandDeltaCpEdgeExtraction.toLean
+    panDivDiag := input.panDivDiag }
 
 structure RustEventExtraction where
   level : Nat
@@ -236,59 +410,44 @@ structure RustEventExtraction where
   cEpisodeStart : Nat
   cEpisodeLeft : Nat
   cEpisodeRight : Nat
+  cIntervalFull : Option RustIntervalExtraction
+  bParent : Option RustParentCenterIdentityExtraction
+  cStructure : Option RustCpStructureIdentityExtraction
+  thirdClassInC : Option RustThirdClassInCpExtraction
+  cpCertificateConfirmSrc : Option Nat
+  fullTrendCQualified : Option RustFullTrendQualifiedExtraction
+  fullTrendEvidence : Option RustFullTrendEvidenceExtraction
+  cpOwnership : Option RustCandDeltaCpEdgeExtraction
   enterSrc : Nat
   candDelta : Bool
+  panDivDiag : Bool
 deriving DecidableEq, Repr
 
-/-- 事件字段逐项比对；不用事件结构整体相等掩盖漏字段。 -/
+/-- 19 个生产字段逐项比对；嵌套证据也走完整结构等式。 -/
 def EventParity (rust : RustEventExtraction) (lean : CandDeltaEvent) : Prop :=
-  rust.level = lean.level ∧
-  rust.side.toLean = lean.side ∧
-  rust.divergenceConfirmSrc = lean.divergenceConfirmSrc ∧
-  rust.confirmSrc = lean.confirmSrc ∧
-  rust.intervalLeft = lean.interval.left ∧
-  rust.intervalRight = lean.interval.right ∧
-  rust.aIntervalLeft = lean.aInterval.left ∧
-  rust.aIntervalRight = lean.aInterval.right ∧
-  rust.cEpisodeStart = lean.cEpisodeStart ∧
-  rust.cEpisodeLeft = lean.cEpisodeInterval.left ∧
+  rust.level = lean.level ∧ rust.side.toLean = lean.side ∧
+  rust.divergenceConfirmSrc = lean.divergenceConfirmSrc ∧ rust.confirmSrc = lean.confirmSrc ∧
+  rust.intervalLeft = lean.interval.left ∧ rust.intervalRight = lean.interval.right ∧
+  rust.aIntervalLeft = lean.aInterval.left ∧ rust.aIntervalRight = lean.aInterval.right ∧
+  rust.cEpisodeStart = lean.cEpisodeStart ∧ rust.cEpisodeLeft = lean.cEpisodeInterval.left ∧
   rust.cEpisodeRight = lean.cEpisodeInterval.right ∧
-  rust.enterSrc = lean.enterSrc ∧
-  rust.candDelta = lean.candDelta
+  rust.cIntervalFull.map RustIntervalExtraction.toLean = lean.cIntervalFull ∧
+  rust.bParent.map RustParentCenterIdentityExtraction.toLean = lean.bParent ∧
+  rust.cStructure.map RustCpStructureIdentityExtraction.toLean = lean.cStructure ∧
+  rust.thirdClassInC.map RustThirdClassInCpExtraction.toLean = lean.thirdClassInC ∧
+  rust.cpCertificateConfirmSrc = lean.cpCertificateConfirmSrc ∧
+  rust.fullTrendCQualified.map RustFullTrendQualifiedExtraction.toLean = lean.fullTrendCQualified ∧
+  rust.fullTrendEvidence.map RustFullTrendEvidenceExtraction.toLean = lean.fullTrendEvidence ∧
+  rust.cpOwnership.map RustCandDeltaCpEdgeExtraction.toLean = lean.cpOwnership ∧
+  rust.enterSrc = lean.enterSrc ∧ rust.candDelta = lean.candDelta ∧
+  rust.panDivDiag = lean.panDivDiag
 
 instance eventParityDecidable (rust : RustEventExtraction) (lean : CandDeltaEvent) :
     Decidable (EventParity rust lean) := by
   unfold EventParity
   infer_instance
 
-structure RustCpExtraction where
-  level : Nat
-  bCenterOrdinal : Nat
-  departureMoveOrdinal : Option Nat
-  sourceStart : Option Nat
-  lifecycle : RustCpLifecycleTag
-deriving DecidableEq, Repr
-
-def RustCpExtraction.toLean (value : RustCpExtraction) : CpOwnership :=
-  { level := value.level, bCenterOrdinal := value.bCenterOrdinal
-    departureMoveOrdinal := value.departureMoveOrdinal, sourceStart := value.sourceStart
-    lifecycle := value.lifecycle.toLean }
-
-/-- c_p 稳定身份四字段与生命周期逐项比对。 -/
-def CpParity (rust : RustCpExtraction) (lean : CpOwnership) : Prop :=
-  rust.level = lean.level ∧
-  rust.bCenterOrdinal = lean.bCenterOrdinal ∧
-  rust.departureMoveOrdinal = lean.departureMoveOrdinal ∧
-  rust.sourceStart = lean.sourceStart ∧
-  rust.lifecycle.toLean = lean.lifecycle
-
-def CpListParity : List RustCpExtraction → List CpOwnership → Prop
-  | [], [] => True
-  | rust :: rustRest, lean :: leanRest =>
-      CpParity rust lean ∧ CpListParity rustRest leanRest
-  | _, _ => False
-
-/-- Lean 事件必须从提取输入现算；两侧同缺省或逐字段相等。 -/
+/-- raw 判据由 Lean 决定产/拒；Rust 事件只在右侧作为被检输出。 -/
 def EventCheck (rustInput : RustAssemblyInputExtraction)
     (rustEvent : Option RustEventExtraction) : Prop :=
   match rustEvent, assembleCandDelta rustInput.toLean with
@@ -308,36 +467,61 @@ def EventListCheck :
       EventCheck input output ∧ EventListCheck inputRest outputRest
   | _, _ => False
 
-/-- dirty invalidation 不得走此关系；after 必须是同一 stable revision 的镜像推进结果。 -/
-def StableCpCheck (rustBefore rustAfter : RustCpExtraction) (leanBefore : CpOwnership)
-    (closureWitness : Bool) : Prop :=
-  CpParity rustBefore leanBefore ∧ CpParity rustAfter (leanBefore.advance closureWitness)
+structure RustCpObjectExtraction where
+  bCenterIndex : Nat
+  bCenterId : RustElementIdentityExtraction
+  bCenter : RustCenterExtraction
+  departureMoveId : Option RustElementIdentityExtraction
+  departureInterval : Option RustIntervalExtraction
+  lifecycle : RustCpLifecycleTag
+  cpCertificateConfirmSrc : Option Nat
+  cStructure : Option RustCpStructureIdentityExtraction
+  thirdClassInC : Option RustThirdClassInCpExtraction
+  fullTrendEvidence : Option RustFullTrendEvidenceExtraction
+  fullTrendCQualified : Option RustFullTrendQualifiedExtraction
+deriving DecidableEq, Repr
 
-/-- 验收入口只给 Rust before 原始对象与 closure witness；Lean 自己推进，Rust after 是被检侧。 -/
-def RecomputeStableCpCheck (rustBefore rustAfter : RustCpExtraction)
-    (closureWitness : Bool) : Prop :=
-  CpParity rustAfter (rustBefore.toLean.advance closureWitness)
+def RustCpObjectExtraction.toLean (value : RustCpObjectExtraction) : CpObject :=
+  { bCenterIndex := value.bCenterIndex, bCenterId := value.bCenterId.toLean
+    bCenter := value.bCenter.toLean
+    departureMoveId := value.departureMoveId.map RustElementIdentityExtraction.toLean
+    departureInterval := value.departureInterval.map RustIntervalExtraction.toLean
+    lifecycle := value.lifecycle.toLean, cpCertificateConfirmSrc := value.cpCertificateConfirmSrc
+    cStructure := value.cStructure.map RustCpStructureIdentityExtraction.toLean
+    thirdClassInC := value.thirdClassInC.map RustThirdClassInCpExtraction.toLean
+    fullTrendEvidence := value.fullTrendEvidence.map RustFullTrendEvidenceExtraction.toLean
+    fullTrendCQualified := value.fullTrendCQualified.map RustFullTrendQualifiedExtraction.toLean }
 
-instance recomputeStableCpCheckDecidable (rustBefore rustAfter : RustCpExtraction)
-    (closureWitness : Bool) : Decidable (RecomputeStableCpCheck rustBefore rustAfter closureWitness) := by
-  unfold RecomputeStableCpCheck CpParity
+structure RustCpClosureEvidenceExtraction where
+  cpDepartureMoveId : RustElementIdentityExtraction
+  cpStart : Nat
+  leave : RustSegmentExtraction
+  retest : RustSegmentExtraction
+  leaveAnchor : Option RustDirectionTag
+  leaveMoveId : RustElementIdentityExtraction
+  retestMoveId : RustElementIdentityExtraction
+  fullTrendEvidence : Option RustFullTrendEvidenceExtraction
+  fullTrendCQualified : Option RustFullTrendQualifiedExtraction
+deriving DecidableEq, Repr
+
+def RustCpClosureEvidenceExtraction.toLean
+    (value : RustCpClosureEvidenceExtraction) : CpClosureEvidence :=
+  { cpDepartureMoveId := value.cpDepartureMoveId.toLean, cpStart := value.cpStart
+    leave := value.leave.toLean, retest := value.retest.toLean
+    leaveAnchor := value.leaveAnchor.map RustDirectionTag.toLean
+    leaveMoveId := value.leaveMoveId.toLean, retestMoveId := value.retestMoveId.toLean
+    fullTrendEvidence := value.fullTrendEvidence.map RustFullTrendEvidenceExtraction.toLean
+    fullTrendCQualified := value.fullTrendCQualified.map RustFullTrendQualifiedExtraction.toLean }
+
+def RecomputeCpClosureCheck (rustBefore rustAfter : RustCpObjectExtraction)
+    (raw : RustCpClosureEvidenceExtraction) : Prop :=
+  rustAfter.toLean = closeCpFromRaw rustBefore.toLean raw.toLean
+
+instance recomputeCpClosureCheckDecidable (rustBefore rustAfter : RustCpObjectExtraction)
+    (raw : RustCpClosureEvidenceExtraction) :
+    Decidable (RecomputeCpClosureCheck rustBefore rustAfter raw) := by
+  unfold RecomputeCpClosureCheck
   infer_instance
-
-def StableCpListCheck :
-    List RustCpExtraction → List RustCpExtraction → List CpOwnership → List Bool → Prop
-  | [], [], [], [] => True
-  | rustBefore :: rustBeforeRest, rustAfter :: rustAfterRest,
-      leanBefore :: leanBeforeRest, witness :: witnessRest =>
-      StableCpCheck rustBefore rustAfter leanBefore witness ∧
-        StableCpListCheck rustBeforeRest rustAfterRest leanBeforeRest witnessRest
-  | _, _, _, _ => False
-
-def CheckpointSidecarCheck (rustInputs : List RustAssemblyInputExtraction)
-    (rustEvents : List (Option RustEventExtraction))
-    (rustCpBefore rustCpAfter : List RustCpExtraction)
-    (leanCpBefore : List CpOwnership) (closureWitnesses : List Bool) : Prop :=
-  EventListCheck rustInputs rustEvents ∧
-    StableCpListCheck rustCpBefore rustCpAfter leanCpBefore closureWitnesses
 
 /-! ## §4 points / BspPoint -/
 
@@ -527,12 +711,35 @@ def RustCandidateObservationExtraction.toLean
     state := observation.state.toLean, firstProvableAt := observation.firstProvableAt
     confirmedAt := observation.confirmedAt }
 
+/-- raw sink 腿不含 Rust 派生 ID；ID 只在 Lean post-scan 由 key 生成。 -/
+structure RustCandidateLegExtraction where
+  key : RustCandidateKeyExtraction
+  kind : RustCandidateKindTag
+  centerIds : Option RustIntervalExtraction
+  structuralPredicates : RustStructuralPredicatesExtraction
+  extremeProof : RustIntervalExtraction
+  thirdClassProof : Option Nat
+  interval : RustIntervalExtraction
+  state : RustObservedStateTag
+  firstProvableAt : Option Nat
+  confirmedAt : Option Nat
+deriving DecidableEq, Repr
+
+def RustCandidateLegExtraction.toLean
+    (leg : RustCandidateLegExtraction) : CandidateLeg :=
+  { key := leg.key.toLean, kind := leg.kind.toLean
+    centerIds := leg.centerIds.map RustIntervalExtraction.toLean
+    structuralPredicates := leg.structuralPredicates.toLean
+    extremeProof := leg.extremeProof.toLean, thirdClassProof := leg.thirdClassProof
+    interval := leg.interval.toLean, state := leg.state.toLean
+    firstProvableAt := leg.firstProvableAt, confirmedAt := leg.confirmedAt }
+
 /-- Rust 生产扫描逐段发出的未排序、未归约 sink；不是 legacy oracle 或最终输出。 -/
 structure RustScanSinkEmissionExtraction where
   bspPoints : List RustBspPointExtraction
   panDivCerts : List RustPanDivCertExtraction
   firstClassGrades : List RustFirstClassGradeExtraction
-  candidateLegs : List RustCandidateObservationExtraction
+  candidateLegs : List RustCandidateLegExtraction
 deriving DecidableEq, Repr
 
 def RustScanSinkEmissionExtraction.toLean
@@ -540,7 +747,7 @@ def RustScanSinkEmissionExtraction.toLean
   { bspPoints := emission.bspPoints.map RustBspPointExtraction.toLean
     panDivCerts := emission.panDivCerts.map RustPanDivCertExtraction.toLean
     firstClassGrades := emission.firstClassGrades.map RustFirstClassGradeExtraction.toLean
-    candidateLegs := emission.candidateLegs.map RustCandidateObservationExtraction.toLean }
+    candidateLegs := emission.candidateLegs.map RustCandidateLegExtraction.toLean }
 
 def recomputeRustScanSinkEmissions (level : Nat)
     (emissions : List RustScanSinkEmissionExtraction) : MergedScanOutput :=

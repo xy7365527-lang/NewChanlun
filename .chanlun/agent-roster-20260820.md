@@ -34,3 +34,6 @@
 - [ ] 2026-08-20 | Prime 子代理（GPT-5.6 Sol，high，只读）| #1139 task-05 多接口设计候选：session reader 用例级深 seam（文件读取+信任策略内聚）；caller-first，不实现 | 运行中：sub-193811ec
 - [ ] 2026-08-20 | Prime 子代理（GPT-5.6 Sol，high，只读）| #1139 task-05 多接口设计候选：session reader 记录流+证据规则 seam（来源可替换）；caller-first，不实现 | 运行中：sub-05f96598
 - [ ] 2026-08-20 | Prime 子代理（GPT-5.6 Sol，high，只读）| #1139 task-05 多接口设计候选：session reader 一次编译、多次查询 evidence index seam；caller-first，不实现 | 运行中：sub-44a8961e
+- [x] 2026-08-20 | Prime 子代理（GPT-5.6 Sol，high，workspace-write）| #1087 双轴评审阻断修复：ID 独立重算、19 字段事件、raw c_p closure、checkpoint/末根/cache 回缩、CI negative 锁 | 完成：三窗重型 1 passed（192.83s），lake 155 jobs、fmt、两档 check 绿；session prime-1087-repair1
+- [ ] 2026-08-20 | Codex CLI（GPT-5.6 Sol，high，read-only）| #1087 修复 diff 独立评审：聚焦五个双轴阻断是否仍可假绿、Lean/Rust wire 字段漂移、checkpoint/cache 测试漏洞 | 失败：PID 90639 运行约 5 分钟仍停留在大面读取，按超时纪律终止；artifact=/private/tmp/issue1087-repair-codex-review.md
+- [ ] 2026-08-20 | Codex CLI（GPT-5.6 Sol，high，read-only）| #1087 修复独立评审重试：仅核 formal 三文件 + parity test/probe 的五项假绿风险 | 失败：PID 94753 窄域重试 3 分钟仍未产最终 finding（MCP 认证噪声/只读大面探索），按单次重试上限终止；artifact=/private/tmp/issue1087-repair-codex-review-narrow.md

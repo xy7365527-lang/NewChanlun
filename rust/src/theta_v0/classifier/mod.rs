@@ -120,8 +120,8 @@ mod scan;
 pub mod issue1087_parity {
     pub use super::scan::issue1087_probe::{
         begin, finish, EpisodeCase, ScanParityRecord, WireASegmentEnvelope, WireBspBits,
-        WireBspPoint, WireCandDeltaCase, WireCandidateKey, WireCandidateKind,
-        WireCandidateObservation, WireCenter, WireCpLifecycle, WireCpOwnership, WireCpTransition,
+        WireBspPoint, WireCandDeltaCase, WireCandidateKey, WireCandidateKind, WireCandidateLeg,
+        WireCandidateObservation, WireCenter, WireCpClosureEvidence, WireCpTransition,
         WireDirection, WireFirstClassGradeRecord, WireForceFeatures, WireForceProxies,
         WireInterval, WireMergedScanOutput, WireMoveBlock, WireMoveKind, WireObservedState,
         WireOwner, WirePanDivCert, WireParentFingerprint, WirePreludeInput, WirePreludeOutput,

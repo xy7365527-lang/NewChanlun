@@ -162,6 +162,9 @@ name = "p915_capacity_frequency"
 path = "src/bin/p915_capacity_frequency.rs"
 required-features = ["backtest_bin"]
 
+# #1087 重型真实签收（3×200k trades，l_max=8；显式命令运行，不进普通 CI）。
+# 无数据的 ID/event/c_p/cache negative 锁在 formal/Origin/ScanAssemblyNegative.lean，
+# 已列入 Origin default root，CI `lake build` 每次真实执行。
 [[test]]
 name = "issue1087_scan_lean_parity"
 path = "tests/issue1087_scan_lean_parity.rs"

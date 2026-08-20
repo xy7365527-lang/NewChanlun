@@ -2015,12 +2015,24 @@ pub fn advance_cp_lifecycles(
         object.full_trend_evidence = evidence;
         object.full_trend_c_qualified = qualification;
         #[cfg(feature = "issue1087_parity")]
-        super::scan::issue1087_probe::record_cp_transition(&issue1087_cp_before, object, true);
+        super::scan::issue1087_probe::record_cp_transition(
+            &issue1087_cp_before,
+            object,
+            cp_departure_move_id,
+            cp_start,
+            &leave,
+            &retest,
+            leave_anchor,
+            leave_move.id,
+            retest_move.id,
+            object.full_trend_evidence.clone(),
+            object.full_trend_c_qualified.clone(),
+        );
     }
 }
 
 #[allow(clippy::too_many_arguments)]
-fn cp_event_objects(
+pub(crate) fn cp_event_objects(
     level: u32,
     centers: &[Center],
     cp_scan: &[CpScanOwnership],

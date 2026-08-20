@@ -2,10 +2,19 @@
 //! rows/centers/blocks 重算 prelude，从逐段 sink 重算四输出，并重算 CandDelta 装配与 c_p
 //! stable-revision 推进。三标的各 200k bars，L0/L1/L2 逐字段硬门；无 legacy oracle。
 use newchan_rust::theta_v0::{
-    classifier::{self, issue1087_parity},
+    classifier::{
+        self, issue1087_parity,
+        recursive_tower::{
+            CandDeltaCpEdge, CandDeltaEvent, CompletedTrendDecomposition, CpLifecycleStatus,
+            CpScanOwnership, CpStructureIdentity, ElementId, FullTrendCQualified,
+            FullTrendQualificationEvidence, InternalSublevelCenters, NewExtremeInDirection,
+            ParentCenterIdentity, ThirdClassInCp, TrendContext,
+        },
+        TowerCache,
+    },
     config::ThetaConfig,
     parser,
-    types::Bar,
+    types::{Bar, Direction, Side},
 };
 use std::{
     collections::BTreeMap,
@@ -435,6 +444,22 @@ fn observation(value: &issue1087_parity::WireCandidateObservation, rust: bool) -
     )
 }
 
+fn candidate_leg(value: &issue1087_parity::WireCandidateLeg) -> String {
+    format!(
+        "{{ key := {}, kind := {}, centerIds := {}, structuralPredicates := {}, extremeProof := {}, thirdClassProof := {}, interval := {}, state := {}, firstProvableAt := {}, confirmedAt := {} }}",
+        key(&value.key, true),
+        kind(value.kind, true),
+        option(&value.center_ids, |value| interval(value, true)),
+        predicates(&value.structural_predicates),
+        interval(&value.extreme_proof, true),
+        option(&value.third_class_proof, |value| value.to_string()),
+        interval(&value.interval, true),
+        state(value.state, true),
+        option(&value.first_provable_at, |value| value.to_string()),
+        option(&value.confirmed_at, |value| value.to_string())
+    )
+}
+
 fn output(value: &issue1087_parity::WireMergedScanOutput, rust: bool) -> String {
     format!(
         "{{ points := {}, panDivs := {}, grades := {}, observations := {} }}",
@@ -451,7 +476,7 @@ fn emission(value: &issue1087_parity::WireScanSinkEmission) -> String {
         list(&value.points, |value| point(value, true)),
         list(&value.pan_divs, |value| pan(value, true)),
         list(&value.grades, |value| grade_record(value, true)),
-        list(&value.candidate_legs, |value| observation(value, true))
+        list(&value.candidate_legs, candidate_leg)
     )
 }
 
@@ -512,21 +537,225 @@ fn prelude_output(value: &issue1087_parity::WirePreludeOutput) -> String {
     )
 }
 
-fn cp_lifecycle(value: issue1087_parity::WireCpLifecycle) -> &'static str {
+fn actual_direction(value: Direction) -> &'static str {
     match value {
-        issue1087_parity::WireCpLifecycle::Pending => "RustCpLifecycleTag.pending",
-        issue1087_parity::WireCpLifecycle::Closed => "RustCpLifecycleTag.closed",
+        Direction::Up => "RustDirectionTag.up",
+        Direction::Down => "RustDirectionTag.down",
     }
 }
 
-fn cp_ownership(value: &issue1087_parity::WireCpOwnership) -> String {
+fn actual_side(value: Side) -> &'static str {
+    match value {
+        Side::Long => "RustSideTag.long",
+        Side::Short => "RustSideTag.short",
+    }
+}
+
+fn element_id(value: &ElementId) -> String {
     format!(
-        "{{ level := {}, bCenterOrdinal := {}, departureMoveOrdinal := {}, sourceStart := {}, lifecycle := {} }}",
+        "{{ level := {}, ordinal := {} }}",
+        value.level, value.ordinal
+    )
+}
+
+fn element_ids(values: &[ElementId]) -> String {
+    list(values, element_id)
+}
+
+fn parent_center_identity(value: &ParentCenterIdentity) -> String {
+    format!(
+        "{{ centerIndex := {}, centerId := {}, sourceInterval := {{ left := {}, right := {} }}, zd := {}, zg := {} }}",
+        value.center_index,
+        element_id(&value.center_id),
+        value.source_interval.0,
+        value.source_interval.1,
+        value.zd,
+        value.zg
+    )
+}
+
+fn cp_structure_identity(value: &CpStructureIdentity) -> String {
+    format!(
+        "{{ level := {}, bCenterId := {}, departureMoveId := {}, terminalMoveId := {}, sourceStart := {}, sourceEnd := {} }}",
         value.level,
-        value.b_center_ordinal,
-        option(&value.departure_move_ordinal, |ordinal| ordinal.to_string()),
-        option(&value.source_start, |source| source.to_string()),
-        cp_lifecycle(value.lifecycle)
+        element_id(&value.b_center_id),
+        element_id(&value.departure_move_id),
+        option(&value.terminal_move_id, element_id),
+        value.source_start,
+        option(&value.source_end, |value| value.to_string())
+    )
+}
+
+fn third_class_in_cp(value: &ThirdClassInCp) -> String {
+    format!(
+        "{{ bCenterId := {}, cpDepartureMoveId := {}, departureMoveId := {}, retestMoveId := {}, departureInterval := {{ left := {}, right := {} }}, retestInterval := {{ left := {}, right := {} }}, pointSourceIndex := {}, side := {} }}",
+        element_id(&value.b_center_id),
+        element_id(&value.cp_departure_move_id),
+        element_id(&value.departure_move_id),
+        element_id(&value.retest_move_id),
+        value.departure_interval.0,
+        value.departure_interval.1,
+        value.retest_interval.0,
+        value.retest_interval.1,
+        value.point_source_index,
+        actual_side(value.side)
+    )
+}
+
+fn trend_context(value: &TrendContext) -> String {
+    format!(
+        "{{ predecessorCenterId := {}, bCenterId := {}, direction := {} }}",
+        element_id(&value.predecessor_center_id),
+        element_id(&value.b_center_id),
+        actual_direction(value.direction)
+    )
+}
+
+fn new_extreme(value: &NewExtremeInDirection) -> String {
+    format!(
+        "{{ bCenterId := {}, direction := {}, referencePrice := {}, extremePrice := {}, extremeMoveId := {}, confirmSrc := {} }}",
+        element_id(&value.b_center_id),
+        actual_direction(value.direction),
+        value.reference_price,
+        value.extreme_price,
+        element_id(&value.extreme_move_id),
+        value.confirm_src
+    )
+}
+
+fn internal_centers(value: &InternalSublevelCenters) -> String {
+    format!(
+        "{{ cLevel := {}, centerIds := {} }}",
+        value.c_level,
+        element_ids(&value.center_ids)
+    )
+}
+
+fn completed_trend(value: &CompletedTrendDecomposition) -> String {
+    format!(
+        "{{ direction := {}, centerIds := {}, closingSuccessorMoveId := {}, confirmSrc := {} }}",
+        actual_direction(value.direction),
+        element_ids(&value.center_ids),
+        element_id(&value.closing_successor_move_id),
+        value.confirm_src
+    )
+}
+
+fn full_trend_evidence(value: &FullTrendQualificationEvidence) -> String {
+    format!(
+        "{{ trendContext := {}, newExtremeInDirection := {}, internalSublevelCenters := {}, completedTrendDecomposition := {}, decompositionReviewMoveId := {}, decompositionReviewSrc := {} }}",
+        option(&value.trend_context, trend_context),
+        option(&value.new_extreme_in_direction, new_extreme),
+        option(&value.internal_sublevel_centers, internal_centers),
+        option(&value.completed_trend_decomposition, completed_trend),
+        option(&value.decomposition_review_move_id, element_id),
+        option(&value.decomposition_review_src, |value| value.to_string())
+    )
+}
+
+fn full_trend_qualified(value: &FullTrendCQualified) -> String {
+    format!(
+        "{{ trendContext := {}, thirdClassInsideC := {}, newExtremeInDirection := {}, internalSublevelCenters := {}, completedTrendDecomposition := {}, confirmSrc := {} }}",
+        trend_context(&value.trend_context),
+        third_class_in_cp(&value.third_class_inside_c),
+        new_extreme(&value.new_extreme_in_direction),
+        internal_centers(&value.internal_sublevel_centers),
+        completed_trend(&value.completed_trend_decomposition),
+        value.confirm_src
+    )
+}
+
+fn cp_edge(value: &CandDeltaCpEdge) -> String {
+    format!(
+        "{{ bCenterId := {}, cpDepartureMoveId := {}, cpSourceStart := {} }}",
+        element_id(&value.b_center_id),
+        element_id(&value.cp_departure_move_id),
+        value.cp_source_start
+    )
+}
+
+fn event_extraction(value: &CandDeltaEvent) -> String {
+    format!(
+        "{{ level := {}, side := {}, divergenceConfirmSrc := {}, confirmSrc := {}, intervalLeft := {}, intervalRight := {}, aIntervalLeft := {}, aIntervalRight := {}, cEpisodeStart := {}, cEpisodeLeft := {}, cEpisodeRight := {}, cIntervalFull := {}, bParent := {}, cStructure := {}, thirdClassInC := {}, cpCertificateConfirmSrc := {}, fullTrendCQualified := {}, fullTrendEvidence := {}, cpOwnership := {}, enterSrc := {}, candDelta := {}, panDivDiag := {} }}",
+        value.level,
+        actual_side(value.side),
+        value.divergence_confirm_src,
+        value.confirm_src,
+        value.interval.0,
+        value.interval.1,
+        value.a_interval.0,
+        value.a_interval.1,
+        value.c_episode_start,
+        value.c_episode_interval.0,
+        value.c_episode_interval.1,
+        option(&value.c_interval_full, |value| format!("{{ left := {}, right := {} }}", value.0, value.1)),
+        option(&value.b_parent, parent_center_identity),
+        option(&value.c_structure, cp_structure_identity),
+        option(&value.third_class_in_c, third_class_in_cp),
+        option(&value.cp_certificate_confirm_src, |value| value.to_string()),
+        option(&value.full_trend_c_qualified, full_trend_qualified),
+        option(&value.full_trend_evidence, full_trend_evidence),
+        option(&value.cp_ownership, cp_edge),
+        value.enter_src,
+        value.cand_delta,
+        value.pan_div_diag
+    )
+}
+
+fn actual_cp_lifecycle(value: CpLifecycleStatus) -> &'static str {
+    match value {
+        CpLifecycleStatus::Pending => "RustCpLifecycleTag.pending",
+        CpLifecycleStatus::Closed => "RustCpLifecycleTag.closed",
+    }
+}
+
+fn actual_center(value: &newchan_rust::theta_v0::types::Center) -> String {
+    format!(
+        "{{ zd := {}, zg := {}, dd := {}, gg := {}, startIndex := {}, endIndex := {} }}",
+        value.zd, value.zg, value.dd, value.gg, value.start_index, value.end_index
+    )
+}
+
+fn actual_segment(value: &newchan_rust::theta_v0::types::Segment) -> String {
+    format!(
+        "{{ direction := {}, startIndex := {}, endIndex := {}, startPrice := {}, endPrice := {} }}",
+        actual_direction(value.direction),
+        value.start_index,
+        value.end_index,
+        value.start_price,
+        value.end_price
+    )
+}
+
+fn cp_object(value: &CpScanOwnership) -> String {
+    format!(
+        "{{ bCenterIndex := {}, bCenterId := {}, bCenter := {}, departureMoveId := {}, departureInterval := {}, lifecycle := {}, cpCertificateConfirmSrc := {}, cStructure := {}, thirdClassInC := {}, fullTrendEvidence := {}, fullTrendCQualified := {} }}",
+        value.b_center_index,
+        element_id(&value.b_center_id),
+        actual_center(&value.b_center),
+        option(&value.departure_move_id, element_id),
+        option(&value.departure_interval, |value| format!("{{ left := {}, right := {} }}", value.0, value.1)),
+        actual_cp_lifecycle(value.lifecycle),
+        option(&value.cp_certificate_confirm_src, |value| value.to_string()),
+        option(&value.c_structure, cp_structure_identity),
+        option(&value.third_class_in_c, third_class_in_cp),
+        option(&value.full_trend_evidence, full_trend_evidence),
+        option(&value.full_trend_c_qualified, full_trend_qualified)
+    )
+}
+
+fn cp_closure(value: &issue1087_parity::WireCpClosureEvidence) -> String {
+    format!(
+        "{{ cpDepartureMoveId := {}, cpStart := {}, leave := {}, retest := {}, leaveAnchor := {}, leaveMoveId := {}, retestMoveId := {}, fullTrendEvidence := {}, fullTrendCQualified := {} }}",
+        element_id(&value.cp_departure_move_id),
+        value.cp_start,
+        actual_segment(&value.leave),
+        actual_segment(&value.retest),
+        option(&value.leave_anchor, |value| actual_direction(*value).to_string()),
+        element_id(&value.leave_move_id),
+        element_id(&value.retest_move_id),
+        option(&value.full_trend_evidence, full_trend_evidence),
+        option(&value.full_trend_c_qualified, full_trend_qualified)
     )
 }
 
@@ -606,32 +835,53 @@ fn write_fixture(path: &Path, records: &[issue1087_parity::ScanParityRecord]) {
         }
 
         for (case_index, case) in record.cand_delta_cases.iter().enumerate() {
-            writeln!(out, "def candInput{record_index}_{case_index} : RustAssemblyInputExtraction := {{ level := {}, side := {}, divergenceConfirmSrc := {}, aIntervalLeft := {}, aIntervalRight := {}, center := {}, departureDir := {}, untilStart := {}, triggerEnd := {}, rows := preludeInput{record_index}.rows, predicate := {{ accepted := {}, buy1 := {}, sell1 := {} }} }}",
+            let event_kind = match case.kind {
+                issue1087_parity::WireCandidateKind::Trend => "RustCandDeltaKindTag.trend",
+                issue1087_parity::WireCandidateKind::Pan => "RustCandDeltaKindTag.pan",
+            };
+            writeln!(out, "def candInput{record_index}_{case_index} : RustAssemblyInputExtraction := {{ level := {}, side := {}, divergenceConfirmSrc := {}, aIntervalLeft := {}, aIntervalRight := {}, center := {}, departureDir := {}, untilStart := {}, triggerEnd := {}, rows := preludeInput{record_index}.rows, predicate := {{ kind := {}, structuralCandidate := {}, direction := {}, comparable := {}, extreme := {}, buy1 := {}, sell1 := {}, panDiverges := {} }}, cIntervalFull := {}, bParent := {}, cStructure := {}, thirdClassInC := {}, fullTrendCQualified := {}, fullTrendEvidence := {}, cpOwnership := {}, panDivDiag := {} }}",
                 record.level, side(case.side, true), case.divergence_confirm_src,
                 case.a_interval.left, case.a_interval.right, center(&case.center), rust_dir(case.departure_dir),
-                case.until_start, case.trigger_end, case.accepted, case.buy1, case.sell1).unwrap();
-            writeln!(out, "def candExpected{record_index}_{case_index} : RustEventExtraction := {{ level := {}, side := {}, divergenceConfirmSrc := {}, confirmSrc := {}, intervalLeft := {}, intervalRight := {}, aIntervalLeft := {}, aIntervalRight := {}, cEpisodeStart := {}, cEpisodeLeft := {}, cEpisodeRight := {}, enterSrc := {}, candDelta := {} }}",
-                record.level, side(case.side, true), case.divergence_confirm_src, case.confirm_src,
-                case.interval.left, case.interval.right, case.a_interval.left, case.a_interval.right,
-                case.c_episode_start, case.c_episode_interval.left, case.c_episode_interval.right,
-                case.enter_src, case.cand_delta).unwrap();
-            writeln!(out, "example : EventCheck candInput{record_index}_{case_index} (some candExpected{record_index}_{case_index}) := by native_decide").unwrap();
+                case.until_start, case.trigger_end, event_kind, case.structural_candidate,
+                case.direction, case.comparable, case.extreme, case.buy1, case.sell1,
+                case.pan_diverges,
+                option(&case.c_interval_full, |value| format!("{{ left := {}, right := {} }}", value.0, value.1)),
+                option(&case.b_parent, parent_center_identity),
+                option(&case.c_structure, cp_structure_identity),
+                option(&case.third_class_in_c, third_class_in_cp),
+                option(&case.full_trend_c_qualified, full_trend_qualified),
+                option(&case.full_trend_evidence, full_trend_evidence),
+                option(&case.cp_ownership, cp_edge),
+                case.pan_div_diag).unwrap();
+            writeln!(
+                out,
+                "def candExpected{record_index}_{case_index} : Option RustEventExtraction := {}",
+                option(&case.rust_event, event_extraction)
+            )
+            .unwrap();
+            writeln!(out, "example : EventCheck candInput{record_index}_{case_index} candExpected{record_index}_{case_index} := by native_decide").unwrap();
         }
 
         for (transition_index, transition) in record.cp_transitions.iter().enumerate() {
             writeln!(
                 out,
-                "def cpBefore{record_index}_{transition_index} : RustCpExtraction := {}",
-                cp_ownership(&transition.before)
+                "def cpBefore{record_index}_{transition_index} : RustCpObjectExtraction := {}",
+                cp_object(&transition.before)
             )
             .unwrap();
             writeln!(
                 out,
-                "def cpAfter{record_index}_{transition_index} : RustCpExtraction := {}",
-                cp_ownership(&transition.after)
+                "def cpAfter{record_index}_{transition_index} : RustCpObjectExtraction := {}",
+                cp_object(&transition.after)
             )
             .unwrap();
-            writeln!(out, "example : RecomputeStableCpCheck cpBefore{record_index}_{transition_index} cpAfter{record_index}_{transition_index} {} := by native_decide", transition.closure_witness).unwrap();
+            writeln!(
+                out,
+                "def cpRaw{record_index}_{transition_index} : RustCpClosureEvidenceExtraction := {}",
+                cp_closure(&transition.raw)
+            )
+            .unwrap();
+            writeln!(out, "example : RecomputeCpClosureCheck cpBefore{record_index}_{transition_index} cpAfter{record_index}_{transition_index} cpRaw{record_index}_{transition_index} := by native_decide").unwrap();
         }
     }
     writeln!(out, "end Issue1087Generated").unwrap();
@@ -656,6 +906,68 @@ fn equs_mini_root() -> PathBuf {
         .parent()
         .expect("git common dir 没有仓库父目录")
         .join("analysis/data_cache/equs_mini")
+}
+
+fn verify_records_in_lean(
+    formal: &Path,
+    window: WindowSpec,
+    stage: &str,
+    records: &[issue1087_parity::ScanParityRecord],
+) {
+    assert!(!records.is_empty(), "{window:?} {stage} 不得无快照");
+    let mut levels: Vec<_> = records.iter().map(|record| record.level).collect();
+    levels.sort_unstable();
+    levels.dedup();
+    assert_eq!(
+        levels.len(),
+        records.len(),
+        "{window:?} {stage} 每级必须恰一份快照"
+    );
+    for record in records {
+        assert!(
+            !record.prelude_input.rows.is_empty(),
+            "{window:?} {stage} L{} rows 空",
+            record.level
+        );
+        if record.level <= 2 {
+            assert!(
+                !record.prelude_input.centers.is_empty(),
+                "{window:?} {stage} L{} centers 空",
+                record.level
+            );
+            assert!(
+                !record.episode_cases.is_empty(),
+                "{window:?} {stage} L{} λ_C 空",
+                record.level
+            );
+        }
+    }
+    let fixture = std::env::temp_dir().join(format!(
+        "issue1087-{}-{}-{}-{}-{}.lean",
+        window.symbol,
+        window.start,
+        window.end,
+        stage,
+        std::process::id()
+    ));
+    write_fixture(&fixture, records);
+    let lean = Command::new("lake")
+        .current_dir(formal)
+        .args(["env", "lean"])
+        .arg(&fixture)
+        .output()
+        .expect("无法执行 lake env lean");
+    assert!(
+        lean.status.success(),
+        "{window:?} {stage} Lean prelude/四输出/CandDelta/c_p mismatch：
+{}
+{}
+fixture={}",
+        String::from_utf8_lossy(&lean.stdout),
+        String::from_utf8_lossy(&lean.stderr),
+        fixture.display()
+    );
+    fs::remove_file(&fixture).unwrap();
 }
 
 #[test]
@@ -687,8 +999,14 @@ fn three_real_windows_recompute_in_lean_and_match_every_field() {
         String::from_utf8_lossy(&build.stderr)
     );
 
-    let config = ThetaConfig::default();
-    for window in WINDOWS {
+    let mut config = ThetaConfig::default();
+    config.level.l_max = 8;
+    let symbol_filter = std::env::var("ISSUE1087_SYMBOL").ok();
+    for window in WINDOWS.into_iter().filter(|window| {
+        symbol_filter
+            .as_deref()
+            .is_none_or(|symbol| symbol == window.symbol)
+    }) {
         let all_bars = load_bars(&root, window.symbol, window.end);
         let bars = &all_bars[window.start..window.end];
         assert_eq!(bars.len(), BAR_COUNT);
@@ -698,99 +1016,91 @@ fn three_real_windows_recompute_in_lean_and_match_every_field() {
             .windows(2)
             .all(|pair| pair[0].timestamp < pair[1].timestamp));
 
-        issue1087_parity::begin();
-        let layer = parser::parse_layer(bars, &config);
-        let _ = classifier::classify(&layer, &config, &[]);
-        let records = issue1087_parity::finish();
-        for level in 0..=2 {
-            let matches: Vec<_> = records
+        // checkpoint → 末根 → 回缩 → 末根恢复。四次都复用同一 TowerCache，真实穿过
+        // cache/frontier resume 与 shrink invalidation；每次 Rust 快照都由 fresh raw sink 喂 Lean。
+        let stages = [
+            ("checkpoint", BAR_COUNT / 2),
+            ("terminal", BAR_COUNT),
+            ("shrink", BAR_COUNT / 2),
+            ("terminal_resume", BAR_COUNT),
+        ];
+        let mut cache = TowerCache::new();
+        let mut saw_cand = false;
+        let mut saw_rejected = false;
+        let mut saw_cp_close = false;
+        for (stage, prefix) in stages {
+            issue1087_parity::begin();
+            let layer = parser::parse_layer(&bars[..prefix], &config);
+            let _ = classifier::classify_incremental(&layer, &config, &mut cache, &[]);
+            let records = issue1087_parity::finish();
+            verify_records_in_lean(&formal, window, stage, &records);
+
+            if stage == "terminal" || stage == "terminal_resume" {
+                let mut levels: Vec<_> = records.iter().map(|record| record.level).collect();
+                levels.sort_unstable();
+                let reached = *levels.last().expect("terminal 至少 L0");
+                assert_eq!(
+                    levels,
+                    (0_u32..=reached).collect::<Vec<_>>(),
+                    "{window:?} {stage} 级别快照必须连续"
+                );
+                assert!(reached <= 8, "l_max=8 不得越界");
+            }
+            saw_cand |= records
                 .iter()
-                .filter(|record| record.level == level)
-                .collect();
-            assert_eq!(matches.len(), 1, "{window:?} L{level} 必须恰有一份末端快照");
-            let record = matches[0];
-            assert!(
-                !record.prelude_input.rows.is_empty(),
-                "{window:?} L{level} prelude rows 不得空"
-            );
-            assert!(
-                !record.prelude_input.centers.is_empty(),
-                "{window:?} L{level} prelude centers 不得空"
-            );
-            assert!(
-                !record.episode_cases.is_empty(),
-                "{window:?} L{level} λ_C 实例不得空"
-            );
-        }
-        let signed_levels: Vec<_> = records.iter().filter(|record| record.level <= 2).collect();
-        assert!(signed_levels
-            .iter()
-            .any(|record| !record.rust_output.points.is_empty()));
-        assert!(signed_levels
-            .iter()
-            .any(|record| !record.rust_output.pan_divs.is_empty()));
-        assert!(signed_levels
-            .iter()
-            .any(|record| !record.rust_output.grades.is_empty()));
-        assert!(signed_levels
-            .iter()
-            .any(|record| !record.rust_output.observations.is_empty()));
-        assert!(
-            records
+                .any(|record| !record.cand_delta_cases.is_empty());
+            saw_rejected |= records
                 .iter()
-                .any(|record| !record.cand_delta_cases.is_empty()),
-            "{window:?} 真实 CandDelta 装配实例不得空"
-        );
-        assert!(
-            records
+                .flat_map(|record| &record.cand_delta_cases)
+                .any(|case| {
+                    !(case.structural_candidate
+                        && case.direction
+                        && case.comparable
+                        && case.extreme)
+                        && case.rust_event.is_none()
+                });
+            saw_cp_close |= records
                 .iter()
                 .flat_map(|record| &record.cp_transitions)
-                .any(|transition| transition.closure_witness),
-            "{window:?} 必须实际覆盖至少一条 c_p Pending→Closed"
-        );
-
-        let fixture = std::env::temp_dir().join(format!(
-            "issue1087-{}-{}-{}-{}.lean",
-            window.symbol,
-            window.start,
-            window.end,
-            std::process::id()
-        ));
-        write_fixture(&fixture, &records);
-        let lean = Command::new("lake")
-            .current_dir(&formal)
-            .args(["env", "lean"])
-            .arg(&fixture)
-            .output()
-            .expect("无法执行 lake env lean");
-        assert!(
-            lean.status.success(),
-            "{window:?} Lean prelude/四输出/CandDelta/c_p 独立重算 mismatch：\n{}\n{}\nfixture={}",
-            String::from_utf8_lossy(&lean.stdout),
-            String::from_utf8_lossy(&lean.stderr),
-            fixture.display()
-        );
-        fs::remove_file(&fixture).unwrap();
-
-        for level in 0..=2 {
-            let record = records.iter().find(|record| record.level == level).unwrap();
+                .any(|transition| {
+                    transition.before.lifecycle == CpLifecycleStatus::Pending
+                        && transition.after.lifecycle == CpLifecycleStatus::Closed
+                });
             eprintln!(
-                "#1087 {} bars=[{},{}) L{} PASS points={} pan_divs={} grades={} observations={} emissions={} prelude_rows={} λ_C_cases={} cand_delta_cases={} cp_transitions={} cp_closed={}",
+                "#1087 {} stage={} prefix={} levels={} cand_cases={} rejected={} cp_closed={} PASS",
                 window.symbol,
-                window.start,
-                window.end,
-                level,
-                record.rust_output.points.len(),
-                record.rust_output.pan_divs.len(),
-                record.rust_output.grades.len(),
-                record.rust_output.observations.len(),
-                record.emissions.len(),
-                record.prelude_input.rows.len(),
-                record.episode_cases.len(),
-                record.cand_delta_cases.len(),
-                record.cp_transitions.len(),
-                record.cp_transitions.iter().filter(|transition| transition.closure_witness).count(),
+                stage,
+                prefix,
+                records.len(),
+                records
+                    .iter()
+                    .map(|record| record.cand_delta_cases.len())
+                    .sum::<usize>(),
+                records
+                    .iter()
+                    .flat_map(|record| &record.cand_delta_cases)
+                    .filter(|case| {
+                        !(case.structural_candidate
+                            && case.direction
+                            && case.comparable
+                            && case.extreme)
+                    })
+                    .count(),
+                records
+                    .iter()
+                    .flat_map(|record| &record.cp_transitions)
+                    .filter(|transition| {
+                        transition.before.lifecycle == CpLifecycleStatus::Pending
+                            && transition.after.lifecycle == CpLifecycleStatus::Closed
+                    })
+                    .count(),
             );
         }
+        assert!(saw_cand, "{window:?} 必须有 event 前 raw CandDelta case");
+        assert!(saw_rejected, "{window:?} 必须覆盖至少一个 Lean 判拒样本");
+        assert!(
+            saw_cp_close,
+            "{window:?} 必须覆盖 raw closure 判定的 Pending→Closed"
+        );
     }
 }
