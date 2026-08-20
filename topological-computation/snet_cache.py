@@ -23,9 +23,9 @@ import hashlib
 import json
 import math
 import os
+import secrets
 import stat
 import sys
-import tempfile
 import time
 from pathlib import Path
 from typing import Iterator, Optional
@@ -54,15 +54,29 @@ _CACHE_FORMAT = "snet-jsonl-gzip"
 _JSONL_FORMAT = "snet-jsonl"
 _CACHE_SCHEMA_VERSION = 1
 
-# Resource ceilings are intentionally well above the documented 778K-edge corpus.
-# They turn malformed JSONL and gzip bombs into cache misses instead of unbounded work.
-_MAX_MANIFEST_BYTES = 64 * 1024 * 1024
-_MAX_COMPRESSED_BYTES = 4 * 1024 * 1024 * 1024
-_MAX_UNCOMPRESSED_BYTES = 8 * 1024 * 1024 * 1024
-_MAX_RECORD_BYTES = 16 * 1024 * 1024
-_MAX_RECORDS = 5_000_000
-_MAX_STRING_CHARS = 8 * 1024 * 1024
-_MAX_LIST_ITEMS = 1_000_000
+# 2026-08-20 measurement: the checked-in production corpus is 538 files,
+# 9,924,711 lines and 552,802,053 bytes; the production graph is about 778K
+# edges. A production-format 100,003-record sample measured 14,544,739 raw
+# bytes and 120,537,088-byte peak RSS. Its calibrated base estimate
+# (raw + 1 KiB/record) is 116,947,739 bytes, within 3.1% of measured RSS.
+# A worst-shape 200K-item surface_forms record measured ~235 bytes of extra
+# RSS per decoded item, so the global budget charges 256 bytes per list item.
+# The settled large-graph observation records 263K signifiers; together with
+# ~778K edges plus header/footer, the known floor is 1,041,002 records.  The
+# measured 14,544,739 bytes / 100,003 records projects to 151,406,482 bytes
+# (144.39 MiB), leaving 15.61 MiB (10.8%) below the 160 MiB stream cap.  A
+# 1.2M record ceiling leaves 15% record headroom, while the calibrated
+# 1.25 GiB object budget keeps decoded-object growth bounded.
+_MAX_MANIFEST_BYTES = 1024 * 1024
+_MAX_COMPRESSED_BYTES = 64 * 1024 * 1024
+_MAX_UNCOMPRESSED_BYTES = 160 * 1024 * 1024
+_MAX_RECORD_BYTES = 4 * 1024 * 1024
+_MAX_RECORDS = 1_200_000
+_MAX_STRING_CHARS = 2 * 1024 * 1024
+_MAX_LIST_ITEMS = 200_000
+_ESTIMATED_RECORD_OVERHEAD = 1024
+_ESTIMATED_LIST_ITEM_BYTES = 256
+_MAX_ESTIMATED_LOAD_BYTES = 1280 * 1024 * 1024
 
 
 # ---------------------------------------------------------------------------
@@ -190,73 +204,12 @@ def manifests_match(cached: dict, current: dict) -> bool:
     return True
 
 
-def diff_manifests(
-    cached: dict,
-    current: dict,
-) -> dict:
-    """计算两个 manifest 之间的差异（增量摄入用）。
-
-    返回:
-    {
-        "new_dicts": [path, ...],       # 新增或变更的字典文件
-        "removed_dicts": [path, ...],   # 删除的字典文件
-        "new_corpora": [{"path": ..., "domain": ...}, ...],  # 新增或变更的语料文件
-        "removed_corpora": [path, ...], # 删除的语料文件
-        "surface_forms_changed": bool,  # surface_forms 是否变更
-    }
-    """
-    diff: dict = {
-        "new_dicts": [],
-        "removed_dicts": [],
-        "new_corpora": [],
-        "removed_corpora": [],
-        "surface_forms_changed": False,
-    }
-
-    # Surface forms
-    cs = cached.get("surface_forms")
-    ns = current.get("surface_forms")
-    if (cs is None) != (ns is None):
-        diff["surface_forms_changed"] = True
-    elif cs and ns and cs.get("hash") != ns.get("hash"):
-        diff["surface_forms_changed"] = True
-
-    # Dictionaries
-    cached_dict_map = {d["path"]: d["hash"] for d in cached.get("dictionaries", [])}
-    current_dict_map = {d["path"]: d["hash"] for d in current.get("dictionaries", [])}
-
-    for path, h in current_dict_map.items():
-        if path not in cached_dict_map or cached_dict_map[path] != h:
-            diff["new_dicts"].append(path)
-    for path in cached_dict_map:
-        if path not in current_dict_map:
-            diff["removed_dicts"].append(path)
-
-    # Corpora
-    cached_corpus_map = {c["path"]: c["hash"] for c in cached.get("corpora", [])}
-    current_corpus_entries = {c["path"]: c for c in current.get("corpora", [])}
-
-    for path, entry in current_corpus_entries.items():
-        if path not in cached_corpus_map or cached_corpus_map[path] != entry["hash"]:
-            diff["new_corpora"].append({"path": path, "domain": entry["domain"]})
-    for path in cached_corpus_map:
-        if path not in current_corpus_entries:
-            diff["removed_corpora"].append(path)
-
-    return diff
-
-
 # ---------------------------------------------------------------------------
 # 缓存读写
 # ---------------------------------------------------------------------------
 
 class _CacheFormatError(ValueError):
     """Cache bytes or metadata do not satisfy the closed schema."""
-
-
-def _path_exists(path: Path) -> bool:
-    """Return True for regular files and dangling symlinks alike."""
-    return os.path.lexists(path)
 
 
 def _reject_duplicate_keys(pairs):
@@ -291,7 +244,7 @@ def _checked_int(value, label: str, *, maximum: int | None = None) -> int:
 
 
 def _checked_number(value, label: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if type(value) not in (int, float):
         raise _CacheFormatError(f"{label} must be a finite number")
     result = float(value)
     if not math.isfinite(result):
@@ -312,21 +265,42 @@ def _checked_string_list(value, label: str) -> list[str]:
         raise _CacheFormatError(f"{label} must be an array")
     if len(value) > _MAX_LIST_ITEMS:
         raise _CacheFormatError(f"{label} item limit exceeded")
-    return [
+    checked = [
         _checked_string(item, f"{label}[{index}]")
         for index, item in enumerate(value)
     ]
+    if len(set(checked)) != len(checked):
+        raise _CacheFormatError(f"{label} must not contain duplicates")
+    return checked
+
+
+def _count_decoded_list_items(value) -> int:
+    """Count all nested JSON array items for the calibrated object budget."""
+    total = 0
+    pending = [value]
+    while pending:
+        current = pending.pop()
+        if type(current) is list:
+            total += len(current)
+            pending.extend(current)
+        elif type(current) is dict:
+            pending.extend(current.values())
+    return total
 
 
 def _validate_source_manifest(manifest: dict) -> None:
     """Validate fields consumed later by manifests_match/diff_manifests."""
-    if manifest.get("version") != 2:
+    if type(manifest.get("version")) is not int or manifest["version"] != 2:
         raise _CacheFormatError("unsupported source manifest version")
+    allowed = {"version", "created", "surface_forms", "dictionaries", "corpora", "cache_info"}
+    if not set(manifest).issubset(allowed) or not {"version", "created", "surface_forms", "dictionaries", "corpora"}.issubset(manifest):
+        raise _CacheFormatError("manifest keys mismatch")
     _checked_number(manifest.get("created"), "manifest.created")
 
     surface_forms = manifest.get("surface_forms")
     if surface_forms is not None:
         surface_forms = _expect_object(surface_forms, "manifest.surface_forms")
+        _expect_exact_keys(surface_forms, {"path", "hash"}, "manifest.surface_forms")
         _checked_string(surface_forms.get("path"), "manifest.surface_forms.path")
         _checked_string(surface_forms.get("hash"), "manifest.surface_forms.hash")
 
@@ -339,10 +313,18 @@ def _validate_source_manifest(manifest: dict) -> None:
             raise _CacheFormatError(f"manifest.{field} must be an array")
         if len(entries) > _MAX_LIST_ITEMS:
             raise _CacheFormatError(f"manifest.{field} item limit exceeded")
+        seen_paths: set[str] = set()
         for index, entry in enumerate(entries):
             entry = _expect_object(entry, f"manifest.{field}[{index}]")
+            allowed_entry = set(required) | {"mtime"}
+            if set(entry) != allowed_entry:
+                raise _CacheFormatError(f"manifest.{field}[{index}] keys mismatch")
             for key in required:
                 _checked_string(entry.get(key), f"manifest.{field}[{index}].{key}")
+            path = entry["path"]
+            if path in seen_paths:
+                raise _CacheFormatError(f"manifest.{field} contains duplicate path: {path!r}")
+            seen_paths.add(path)
             if "mtime" in entry:
                 _checked_number(entry["mtime"], f"manifest.{field}[{index}].mtime")
 
@@ -350,9 +332,22 @@ def _validate_source_manifest(manifest: dict) -> None:
 def _validate_cache_info(manifest: dict) -> dict:
     _validate_source_manifest(manifest)
     info = _expect_object(manifest.get("cache_info"), "manifest.cache_info")
+    required_info = {
+        "format", "schema_version", "sha256", "compressed_bytes",
+        "uncompressed_bytes", "record_count", "n_signifiers", "n_edges",
+        "n_morphemes", "n_hyperedges",
+    }
+    optional_info = {"save_time", "cache_path"}
+    if not required_info.issubset(info) or not set(info).issubset(required_info | optional_info):
+        raise _CacheFormatError("manifest.cache_info keys mismatch")
+    if "save_time" in info:
+        _checked_number(info["save_time"], "manifest.cache_info.save_time")
+    if "cache_path" in info:
+        _checked_string(info["cache_path"], "manifest.cache_info.cache_path")
     if info.get("format") != _CACHE_FORMAT:
         raise _CacheFormatError("unsupported cache format")
-    if info.get("schema_version") != _CACHE_SCHEMA_VERSION:
+    if (type(info.get("schema_version")) is not int
+            or info["schema_version"] != _CACHE_SCHEMA_VERSION):
         raise _CacheFormatError("unsupported cache schema version")
 
     digest = _checked_string(info.get("sha256"), "manifest.cache_info.sha256")
@@ -401,12 +396,96 @@ def _validate_cache_info(manifest: dict) -> dict:
     }
 
 
-def _load_manifest() -> dict:
-    size = _MANIFEST_PATH.stat().st_size
+def _open_cache_dir(*, create: bool = False) -> int:
+    """Open every path component with openat/O_NOFOLLOW."""
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    path = _CACHE_DIR if _CACHE_DIR.is_absolute() else _CACHE_DIR.absolute()
+    current_fd: int | None = None
+    try:
+        current_fd = os.open(path.anchor or ".", flags)
+        parts = path.parts[1:] if path.anchor else path.parts
+        for part in parts:
+            if part in ("", "."):
+                continue
+            if part == "..":
+                raise _CacheFormatError("cache directory contains parent traversal")
+            if create:
+                try:
+                    os.mkdir(part, mode=0o700, dir_fd=current_fd)
+                except FileExistsError:
+                    pass
+            next_fd = os.open(part, flags, dir_fd=current_fd)
+            try:
+                info = os.fstat(next_fd)
+                if not stat.S_ISDIR(info.st_mode):
+                    raise _CacheFormatError("cache path component is not a directory")
+            except Exception:
+                os.close(next_fd)
+                raise
+            os.close(current_fd)
+            current_fd = next_fd
+        return current_fd
+    except Exception as exc:
+        if current_fd is not None:
+            os.close(current_fd)
+        if isinstance(exc, _CacheFormatError):
+            raise
+        raise _CacheFormatError("cache directory is unavailable or unsafe") from exc
+
+
+def _reject_unsafe_target_at(dir_fd: int, name: str) -> None:
+    try:
+        info = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    if not stat.S_ISREG(info.st_mode):
+        raise _CacheFormatError(f"{name} target must be a regular file")
+
+
+def _open_regular_at(dir_fd: int, name: str) -> tuple[int, os.stat_result]:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(name, flags, dir_fd=dir_fd)
+    try:
+        info = os.fstat(fd)
+    except Exception:
+        os.close(fd)
+        raise
+    if not stat.S_ISREG(info.st_mode):
+        os.close(fd)
+        raise _CacheFormatError(f"{name} must be a regular file")
+    return fd, info
+
+
+def _read_bounded_fd(fd: int, expected_size: int, maximum: int) -> bytes:
+    if expected_size <= 0 or expected_size > maximum:
+        raise _CacheFormatError("cache manifest size limit exceeded")
+    chunks: list[bytes] = []
+    remaining = expected_size
+    while remaining:
+        chunk = os.read(fd, min(remaining, 1024 * 1024))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    if remaining or os.read(fd, 1):
+        raise _CacheFormatError("cache manifest changed while reading")
+    return b"".join(chunks)
+
+
+def _load_manifest(dir_fd: int) -> dict:
+    fd, before = _open_regular_at(dir_fd, _MANIFEST_PATH.name)
+    try:
+        raw = _read_bounded_fd(fd, before.st_size, _MAX_MANIFEST_BYTES)
+        after = os.fstat(fd)
+    finally:
+        os.close(fd)
+    size = before.st_size
     if size <= 0 or size > _MAX_MANIFEST_BYTES:
         raise _CacheFormatError("cache manifest size limit exceeded")
-    raw = _MANIFEST_PATH.read_bytes()
-    if len(raw) != size:
+    identity = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+    if any(getattr(before, key) != getattr(after, key) for key in identity):
         raise _CacheFormatError("cache manifest changed while reading")
     manifest = json.loads(
         raw.decode("utf-8"),
@@ -415,32 +494,89 @@ def _load_manifest() -> dict:
     return _expect_object(manifest, "manifest")
 
 
-def _sha256_stream(stream) -> str:
+class _HardLimitReader:
+    """Seekable view that never reads beyond the initial regular-file size."""
+
+    def __init__(self, stream, hard_limit: int) -> None:
+        self._stream = stream
+        self._hard_limit = hard_limit
+
+    def read(self, size: int = -1) -> bytes:
+        remaining = self._hard_limit - self._stream.tell()
+        if remaining <= 0:
+            return b""
+        if size is None or size < 0 or size > remaining:
+            size = remaining
+        return self._stream.read(size)
+
+    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
+        if whence == os.SEEK_SET:
+            target = offset
+        elif whence == os.SEEK_CUR:
+            target = self._stream.tell() + offset
+        elif whence == os.SEEK_END:
+            target = self._hard_limit + offset
+        else:
+            raise ValueError("invalid whence")
+        if target < 0 or target > self._hard_limit:
+            raise _CacheFormatError("cache read attempted outside initial file window")
+        return self._stream.seek(target, os.SEEK_SET)
+
+    def tell(self) -> int:
+        return self._stream.tell()
+
+    def fileno(self) -> int:
+        return self._stream.fileno()
+
+
+def _sha256_stream(stream, hard_limit: int) -> str:
     digest = hashlib.sha256()
     stream.seek(0)
-    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+    remaining = hard_limit
+    while remaining:
+        chunk = stream.read(min(remaining, 1024 * 1024))
+        if not chunk:
+            raise _CacheFormatError("cache truncated while hashing")
         digest.update(chunk)
+        remaining -= len(chunk)
     stream.seek(0)
     return digest.hexdigest()
 
 
-def _sha256_file(path: Path) -> str:
-    with path.open("rb") as stream:
-        return _sha256_stream(stream)
-
-
-def _retire_legacy_cache() -> bool:
+def _retire_legacy_cache(dir_fd: int) -> bool:
     """Delete the old executable cache without opening its contents."""
-    if not _path_exists(_LEGACY_CACHE_PATH):
+    try:
+        os.stat(_LEGACY_CACHE_PATH.name, dir_fd=dir_fd, follow_symlinks=False)
+    except FileNotFoundError:
         return False
-    _LEGACY_CACHE_PATH.unlink()
-    if not _path_exists(_CACHE_PATH) and _path_exists(_MANIFEST_PATH):
-        _MANIFEST_PATH.unlink()
+    os.unlink(_LEGACY_CACHE_PATH.name, dir_fd=dir_fd)
+    try:
+        os.stat(_CACHE_PATH.name, dir_fd=dir_fd, follow_symlinks=False)
+        cache_exists = True
+    except FileNotFoundError:
+        cache_exists = False
+    if not cache_exists:
+        try:
+            os.unlink(_MANIFEST_PATH.name, dir_fd=dir_fd)
+        except FileNotFoundError:
+            pass
     print(
         "S_net cache: retired legacy pickle without deserializing",
         file=sys.stderr,
     )
     return True
+
+
+def retire_legacy_cache() -> bool:
+    """Securely unlink the retired pickle artifact; never open its contents."""
+    try:
+        dir_fd = _open_cache_dir()
+    except _CacheFormatError:
+        return False
+    try:
+        return _retire_legacy_cache(dir_fd)
+    finally:
+        os.close(dir_fd)
 
 
 def _iter_snet_edges(snet: SNet) -> Iterator[SignifierEdge]:
@@ -543,28 +679,31 @@ def _write_jsonl_cache(stream, snet: SNet) -> tuple[int, int, dict[str, int]]:
     return uncompressed_bytes, record_count, counts
 
 
-def _atomic_write_json(path: Path, value: dict) -> None:
-    temp_path: Path | None = None
+def _atomic_write_json(path: Path, value: dict, dir_fd: int) -> None:
+    encoded = (json.dumps(
+        value, ensure_ascii=False, indent=2, allow_nan=False
+    ) + "\n").encode("utf-8")
+    temp_name = f".{path.name}.{secrets.token_hex(8)}.tmp"
+    fd: int | None = None
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as stream:
-            temp_path = Path(stream.name)
-            os.fchmod(stream.fileno(), 0o600)
-            json.dump(value, stream, ensure_ascii=False, indent=2, allow_nan=False)
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temp_path, path)
-        temp_path = None
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(temp_name, flags, 0o600, dir_fd=dir_fd)
+        view = memoryview(encoded)
+        while view:
+            view = view[os.write(fd, view):]
+        os.fsync(fd)
+        os.close(fd)
+        fd = None
+        os.replace(temp_name, path.name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+        os.fsync(dir_fd)
     finally:
-        if temp_path is not None and _path_exists(temp_path):
-            temp_path.unlink()
+        if fd is not None:
+            os.close(fd)
+        try:
+            os.unlink(temp_name, dir_fd=dir_fd)
+        except FileNotFoundError:
+            pass
 
 
 def save_snet_cache(snet: SNet, manifest: dict) -> Path:
@@ -573,22 +712,21 @@ def save_snet_cache(snet: SNet, manifest: dict) -> Path:
     The cache file is replaced before the manifest. A crash between the two
     replacements leaves a digest mismatch, which the loader treats as a miss.
     """
-    _CACHE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(_CACHE_DIR, 0o700)
-    _retire_legacy_cache()
-
     t0 = time.time()
-    temp_path: Path | None = None
+    temp_name = f".snet-cache.{secrets.token_hex(8)}.tmp"
+    temp_exists = False
+    temp_fd: int | None = None
+    dir_fd = _open_cache_dir(create=True)
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w+b",
-            dir=_CACHE_DIR,
-            prefix=".snet-cache.",
-            suffix=".tmp",
-            delete=False,
-        ) as raw_stream:
-            temp_path = Path(raw_stream.name)
-            os.fchmod(raw_stream.fileno(), 0o600)
+        os.fchmod(dir_fd, 0o700)
+        _retire_legacy_cache(dir_fd)
+        _reject_unsafe_target_at(dir_fd, _CACHE_PATH.name)
+        _reject_unsafe_target_at(dir_fd, _MANIFEST_PATH.name)
+        flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        temp_fd = os.open(temp_name, flags, 0o600, dir_fd=dir_fd)
+        temp_exists = True
+        with os.fdopen(temp_fd, "w+b", closefd=False) as raw_stream:
             with gzip.GzipFile(
                 filename="",
                 mode="wb",
@@ -601,13 +739,15 @@ def save_snet_cache(snet: SNet, manifest: dict) -> Path:
                 )
             raw_stream.flush()
             os.fsync(raw_stream.fileno())
-
-        compressed_bytes = temp_path.stat().st_size
+            compressed_bytes = os.fstat(raw_stream.fileno()).st_size
+            digest = _sha256_stream(raw_stream, compressed_bytes)
         if compressed_bytes <= 0 or compressed_bytes > _MAX_COMPRESSED_BYTES:
             raise ValueError("S_net cache exceeds the configured compressed size limit")
-        digest = _sha256_file(temp_path)
-        os.replace(temp_path, _CACHE_PATH)
-        temp_path = None
+        os.close(temp_fd)
+        temp_fd = None
+        os.replace(temp_name, _CACHE_PATH.name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+        temp_exists = False
+        os.fsync(dir_fd)
 
         elapsed = time.time() - t0
         stored_manifest = dict(manifest)
@@ -625,11 +765,17 @@ def save_snet_cache(snet: SNet, manifest: dict) -> Path:
             "save_time": elapsed,
             "cache_path": str(_CACHE_PATH),
         }
-        _atomic_write_json(_MANIFEST_PATH, stored_manifest)
+        _atomic_write_json(_MANIFEST_PATH, stored_manifest, dir_fd)
         return _CACHE_PATH
     finally:
-        if temp_path is not None and _path_exists(temp_path):
-            temp_path.unlink()
+        if temp_fd is not None:
+            os.close(temp_fd)
+        if temp_exists:
+            try:
+                os.unlink(temp_name, dir_fd=dir_fd)
+            except FileNotFoundError:
+                pass
+        os.close(dir_fd)
 
 
 def _parse_signifier(record: dict) -> tuple[str, Signifier]:
@@ -641,8 +787,11 @@ def _parse_signifier(record: dict) -> tuple[str, Signifier]:
         {"id", "surface_forms", "source", "lang", "domain"},
         "signifier.value",
     )
+    identifier = _checked_string(value["id"], "signifier.id")
+    if identifier != key:
+        raise _CacheFormatError("signifier.key must equal signifier.id")
     return key, Signifier(
-        id=_checked_string(value["id"], "signifier.id"),
+        id=identifier,
         surface_forms=tuple(
             _checked_string_list(value["surface_forms"], "signifier.surface_forms")
         ),
@@ -744,8 +893,12 @@ def _parse_jsonl_cache(info: dict, raw_stream) -> SNet:
     hyperedges = []
     actual_counts = {"signifiers": 0, "edges": 0, "morphemes": 0, "hyperedges": 0}
     footer_counts: dict | None = None
+    signifier_ids: set[str] = set()
+    edge_ids: set[tuple[str, str, AxisType]] = set()
+    hyperedge_ids: set[tuple] = set()
     total_bytes = 0
     record_count = 0
+    decoded_list_items = 0
 
     raw_stream.seek(0)
     with gzip.GzipFile(fileobj=raw_stream, mode="rb") as stream:
@@ -767,9 +920,16 @@ def _parse_jsonl_cache(info: dict, raw_stream) -> SNet:
                 raise _CacheFormatError("cache record count limit exceeded")
             if record_count > info["record_count"]:
                 raise _CacheFormatError("cache exceeds manifest record count")
-
             record = json.loads(line, object_pairs_hook=_reject_duplicate_keys)
             record = _expect_object(record, f"record {record_count}")
+            decoded_list_items += _count_decoded_list_items(record)
+            estimated_load = (
+                total_bytes
+                + record_count * _ESTIMATED_RECORD_OVERHEAD
+                + decoded_list_items * _ESTIMATED_LIST_ITEM_BYTES
+            )
+            if estimated_load > _MAX_ESTIMATED_LOAD_BYTES:
+                raise _CacheFormatError("cache estimated memory limit exceeded")
             kind = record.get("kind")
 
             if record_count == 1:
@@ -781,6 +941,7 @@ def _parse_jsonl_cache(info: dict, raw_stream) -> SNet:
                 if (
                     kind != "header"
                     or record["format"] != _JSONL_FORMAT
+                    or type(record["schema_version"]) is not int
                     or record["schema_version"] != _CACHE_SCHEMA_VERSION
                 ):
                     raise _CacheFormatError("invalid cache header")
@@ -793,10 +954,18 @@ def _parse_jsonl_cache(info: dict, raw_stream) -> SNet:
                 key, signifier = _parse_signifier(record)
                 if key in signifiers:
                     raise _CacheFormatError(f"duplicate signifier key: {key!r}")
+                if signifier.id in signifier_ids:
+                    raise _CacheFormatError(f"duplicate signifier id: {signifier.id!r}")
                 signifiers[key] = signifier
+                signifier_ids.add(signifier.id)
                 actual_counts["signifiers"] += 1
             elif kind == "edge":
-                edges.append(_parse_edge(record))
+                edge = _parse_edge(record)
+                edge_id = (edge.source, edge.target, edge.axis)
+                if edge_id in edge_ids:
+                    raise _CacheFormatError(f"duplicate edge id: {edge_id!r}")
+                edge_ids.add(edge_id)
+                edges.append(edge)
                 actual_counts["edges"] += 1
             elif kind == "morpheme":
                 key, structure = _parse_morpheme(record)
@@ -805,7 +974,16 @@ def _parse_jsonl_cache(info: dict, raw_stream) -> SNet:
                 morphemes[key] = structure
                 actual_counts["morphemes"] += 1
             elif kind == "hyperedge":
-                hyperedges.append(_parse_hyperedge(record))
+                hyperedge = _parse_hyperedge(record)
+                hyperedge_id = (
+                    hyperedge.vertices, hyperedge.source, hyperedge.domain,
+                    hyperedge.timestamp, hyperedge.ingest_param_refs,
+                    hyperedge.evidence_tag,
+                )
+                if hyperedge_id in hyperedge_ids:
+                    raise _CacheFormatError("duplicate hyperedge id")
+                hyperedge_ids.add(hyperedge_id)
+                hyperedges.append(hyperedge)
                 actual_counts["hyperedges"] += 1
             elif kind == "footer":
                 _expect_exact_keys(record, {"kind", "counts"}, "cache footer")
@@ -835,6 +1013,22 @@ def _parse_jsonl_cache(info: dict, raw_stream) -> SNet:
     if actual_counts != info["counts"]:
         raise _CacheFormatError("cache counts do not match manifest")
 
+    for edge in edges:
+        if edge.source not in signifier_ids or edge.target not in signifier_ids:
+            raise _CacheFormatError("edge references unknown signifier")
+    for key, structure in morphemes.items():
+        if key != structure.signifier_id or key not in signifier_ids:
+            raise _CacheFormatError("morpheme references unknown or mismatched signifier")
+        if any(
+            ref not in signifier_ids
+            for morpheme in structure.morphemes
+            for ref in morpheme.shared_with
+        ):
+            raise _CacheFormatError("morpheme.shared_with references unknown signifier")
+    for hyperedge in hyperedges:
+        if not hyperedge.vertices.issubset(signifier_ids):
+            raise _CacheFormatError("hyperedge references unknown signifier")
+
     # This constructor rebuilds all Was indexes from the validated Dass records.
     return SNet(
         signifiers=signifiers,
@@ -846,41 +1040,32 @@ def _parse_jsonl_cache(info: dict, raw_stream) -> SNet:
 
 def load_snet_cache() -> tuple[Optional[SNet], Optional[dict]]:
     """Load a validated JSONL cache, otherwise return a fail-closed miss."""
+    dir_fd: int | None = None
     try:
-        retired = _retire_legacy_cache()
-    except OSError as exc:
-        print(f"S_net legacy cache retirement failed: {exc}", file=sys.stderr)
-        return None, None
-
-    if retired and not _path_exists(_CACHE_PATH):
-        print("S_net cache: full rebuild required after legacy retirement", file=sys.stderr)
-        return None, None
-    if not _path_exists(_CACHE_PATH) or not _path_exists(_MANIFEST_PATH):
-        return None, None
-
-    try:
-        manifest = _load_manifest()
+        dir_fd = _open_cache_dir()
+        retired = _retire_legacy_cache(dir_fd)
+        try:
+            os.stat(_CACHE_PATH.name, dir_fd=dir_fd, follow_symlinks=False)
+            os.stat(_MANIFEST_PATH.name, dir_fd=dir_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            if retired:
+                print("S_net cache: full rebuild required after legacy retirement", file=sys.stderr)
+            return None, None
+        manifest = _load_manifest(dir_fd)
         info = _validate_cache_info(manifest)
-        open_flags = (
-            os.O_RDONLY
-            | getattr(os, "O_CLOEXEC", 0)
-            | getattr(os, "O_NONBLOCK", 0)
-        )
-        cache_fd = os.open(_CACHE_PATH, open_flags)
+        cache_fd, before = _open_regular_at(dir_fd, _CACHE_PATH.name)
         with os.fdopen(cache_fd, "rb") as cache_stream:
-            before = os.fstat(cache_stream.fileno())
-            if not stat.S_ISREG(before.st_mode):
-                raise _CacheFormatError("cache path must resolve to a regular file")
             compressed_bytes = before.st_size
             if compressed_bytes != info["compressed_bytes"]:
                 raise _CacheFormatError("cache compressed size does not match manifest")
             if compressed_bytes > _MAX_COMPRESSED_BYTES:
                 raise _CacheFormatError("cache compressed size limit exceeded")
-            if _sha256_stream(cache_stream) != info["sha256"]:
+            if _sha256_stream(cache_stream, compressed_bytes) != info["sha256"]:
                 raise _CacheFormatError("cache digest mismatch")
 
             t0 = time.time()
-            snet = _parse_jsonl_cache(info, cache_stream)
+            bounded_stream = _HardLimitReader(cache_stream, compressed_bytes)
+            snet = _parse_jsonl_cache(info, bounded_stream)
             after = os.fstat(cache_stream.fileno())
             identity_fields = (
                 "st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns"
@@ -901,109 +1086,28 @@ def load_snet_cache() -> tuple[Optional[SNet], Optional[dict]]:
     except Exception as exc:
         print(f"S_net cache load failed (fail-closed): {exc}", file=sys.stderr)
         return None, None
+    finally:
+        if dir_fd is not None:
+            os.close(dir_fd)
 
 
 def invalidate_cache() -> None:
     """Delete current, legacy, and manifest artifacts to force a full ingest."""
-    for path in (_CACHE_PATH, _LEGACY_CACHE_PATH, _MANIFEST_PATH):
-        try:
-            if _path_exists(path):
-                path.unlink()
-        except OSError as exc:
-            print(f"S_net cache invalidation failed for {path}: {exc}", file=sys.stderr)
-
-
-# ---------------------------------------------------------------------------
-# 增量摄入（方案2）
-# ---------------------------------------------------------------------------
-
-def incremental_ingest_dicts(
-    snet: SNet,
-    new_dict_paths: list[str],
-    graph=None,
-) -> SNet:
-    """增量摄入新增/变更的字典文件。
-
-    只处理 new_dict_paths 中列出的文件，不重新摄入已有文件。
-    """
-    from signifier_net_ingest import (
-        ingest_all_dictionaries,
-        ingest_bilingual_dict,
-        ingest_morpheme_dict,
-        ingest_synonym_dict,
-        ingest_collocation_dict,
-        ingest_thesaurus_dict,
-        ingest_wiktionary_dict,
-        ingest_idiom_dict,
-        ingest_wortschatz_dict,
-        ingest_code_dict,
-    )
-
-    _type_dispatch: dict[str, callable] = {
-        "bilingual_": ingest_bilingual_dict,
-        "morpheme_": ingest_morpheme_dict,
-        "synonym_": ingest_synonym_dict,
-        "collocations_": ingest_collocation_dict,
-        "thesaurus_": ingest_thesaurus_dict,
-        "wiktionary_": ingest_wiktionary_dict,
-        "idioms_": ingest_idiom_dict,
-        "wortschatz_": ingest_wortschatz_dict,
-    }
-
-    for path_str in new_dict_paths:
-        fpath = Path(path_str)
-        if not fpath.exists():
-            continue
-        fname = fpath.name
-
-        try:
-            if fname.startswith("code_dict_"):
-                snet, _ = ingest_code_dict(snet, fpath, graph=graph)
-            elif fname.startswith("dict_") or fname.startswith("text_"):
-                # Monolingual dict or text passage: ingest individually
-                from signifier_net_ingest import ingest_dictionary
-                snet, _ = ingest_dictionary(snet, fpath)
-            else:
-                matched = False
-                for prefix, ingest_fn in _type_dispatch.items():
-                    if fname.startswith(prefix):
-                        snet, _ = ingest_fn(snet, fpath)
-                        matched = True
-                        break
-                if not matched:
-                    # Unknown dict type, try generic monolingual ingest
-                    from signifier_net_ingest import ingest_dictionary
-                    snet, _ = ingest_dictionary(snet, fpath)
-            print(f"  incremental dict: {fname} OK", file=sys.stderr)
-        except Exception as exc:
-            print(f"  incremental dict: {fname} ERROR - {exc}", file=sys.stderr)
-
-    return snet
-
-
-def incremental_ingest_corpora(
-    snet: SNet,
-    new_corpora: list[dict],
-) -> SNet:
-    """增量摄入新增/变更的语料文件。
-
-    new_corpora: [{"path": str, "domain": str}, ...]
-    """
-    from text_corpus_loader import load_text_file
-
-    for entry in new_corpora:
-        fpath = Path(entry["path"])
-        domain = entry["domain"]
-        if not fpath.exists():
-            continue
-        try:
-            snet, log_entries = load_text_file(snet, fpath, domain)
-            n = len(log_entries)
-            print(f"  incremental corpus: {fpath.name} ({domain}): {n} entries", file=sys.stderr)
-        except Exception as exc:
-            print(f"  incremental corpus: {fpath.name} ERROR - {exc}", file=sys.stderr)
-
-    return snet
+    try:
+        dir_fd = _open_cache_dir()
+    except _CacheFormatError as exc:
+        print(f"S_net cache invalidation refused unsafe directory: {exc}", file=sys.stderr)
+        return
+    try:
+        for path in (_CACHE_PATH, _LEGACY_CACHE_PATH, _MANIFEST_PATH):
+            try:
+                os.unlink(path.name, dir_fd=dir_fd)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                print(f"S_net cache invalidation failed for {path}: {exc}", file=sys.stderr)
+    finally:
+        os.close(dir_fd)
 
 
 # ---------------------------------------------------------------------------
@@ -1023,10 +1127,7 @@ def try_load_cached_snet(
       - snet: 加载的 SNet（缓存命中时），或 None（缓存未命中）
       - used_cache: 是否使用了缓存
 
-    如果缓存存在但 manifest 不完全匹配，尝试增量摄入:
-      - 加载缓存的 SNet
-      - 只摄入新增/变更的文件
-      - 保存更新后的缓存
+    任何 manifest 不匹配都返回 miss，由 daemon 执行完整重建。
     """
     # 构建当前 manifest
     current_manifest = build_manifest(dict_dir, corpus_root, surface_forms_path)
@@ -1041,65 +1142,8 @@ def try_load_cached_snet(
         print("S_net cache: manifest match, using cached S_net", file=sys.stderr)
         return cached_snet, True
 
-    # 部分匹配: 增量摄入
-    if not current_manifest.get("surface_forms"):
-        sf_changed = False
-    else:
-        sf_changed = False
-        cs = cached_manifest.get("surface_forms")
-        ns = current_manifest.get("surface_forms")
-        if (cs is None) != (ns is None):
-            sf_changed = True
-        elif cs and ns and cs.get("hash") != ns.get("hash"):
-            sf_changed = True
-
-    if sf_changed:
-        # surface_forms 变更 => 需要完整重建（bootstrap_layer_b 依赖它）
-        print("S_net cache: surface_forms changed, full rebuild needed", file=sys.stderr)
-        return None, False
-
-    diff = diff_manifests(cached_manifest, current_manifest)
-    has_changes = (
-        diff["new_dicts"]
-        or diff["removed_dicts"]
-        or diff["new_corpora"]
-        or diff["removed_corpora"]
-    )
-
-    if not has_changes:
-        # manifest format changed but content identical
-        print("S_net cache: content match, using cached S_net", file=sys.stderr)
-        return cached_snet, True
-
-    # 增量摄入
-    n_new_dicts = len(diff["new_dicts"])
-    n_new_corpora = len(diff["new_corpora"])
-    n_removed = len(diff["removed_dicts"]) + len(diff["removed_corpora"])
-
-    if n_removed > 0:
-        # 有文件被删除: stale signifiers 不删除（方案2 要求），但需要标记
-        print(
-            f"S_net cache: {n_removed} files removed (stale signifiers kept)",
-            file=sys.stderr,
-        )
-
-    print(
-        f"S_net cache: incremental ingest — {n_new_dicts} dict(s), "
-        f"{n_new_corpora} corpus file(s)",
-        file=sys.stderr,
-    )
-
-    snet = cached_snet
-    if diff["new_dicts"]:
-        snet = incremental_ingest_dicts(snet, diff["new_dicts"], graph=graph)
-    if diff["new_corpora"]:
-        snet = incremental_ingest_corpora(snet, diff["new_corpora"])
-
-    # 保存更新后的缓存
-    save_snet_cache(snet, current_manifest)
-    print("S_net cache: incremental update saved", file=sys.stderr)
-
-    return snet, True
+    print("S_net cache: manifest mismatch, full rebuild needed", file=sys.stderr)
+    return None, False
 
 
 def save_after_full_ingest(

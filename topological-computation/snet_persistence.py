@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import sqlite3
 import sys
 import time
@@ -30,6 +31,7 @@ from signifier_net import (
     Morpheme,
     MorphemeStructure,
 )
+from cooccurrence_hyperedge import CooccurrenceHyperedge
 
 
 # ---------------------------------------------------------------------------
@@ -38,6 +40,67 @@ from signifier_net import (
 
 _DEFAULT_DB_DIR = Path.home() / ".swarm" / "persist"
 _DEFAULT_DB_PATH = _DEFAULT_DB_DIR / "snet.db"
+_MAX_HYPEREDGE_ITEMS = 200_000
+_MAX_HYPEREDGE_STRING_CHARS = 2 * 1024 * 1024
+
+
+def encode_hyperedge_row(
+    hyperedge: CooccurrenceHyperedge,
+) -> tuple[str, str, str, str, str, str]:
+    """将超边无损编码为 ``hyperedges`` 表的一行。"""
+    return (
+        json.dumps(sorted(hyperedge.vertices), ensure_ascii=False),
+        hyperedge.source,
+        hyperedge.domain,
+        hyperedge.timestamp,
+        json.dumps(list(hyperedge.ingest_param_refs), ensure_ascii=False),
+        hyperedge.evidence_tag,
+    )
+
+
+def _reject_duplicate_keys(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON key: {key!r}")
+        value[key] = item
+    return value
+
+
+def _decode_string_list(raw: str, label: str) -> list[str]:
+    if type(raw) is not str or len(raw) > _MAX_HYPEREDGE_STRING_CHARS:
+        raise ValueError(f"invalid {label} JSON")
+    value = json.loads(raw)
+    if type(value) is not list or len(value) > _MAX_HYPEREDGE_ITEMS:
+        raise ValueError(f"invalid {label} list")
+    if any(type(item) is not str or len(item) > _MAX_HYPEREDGE_STRING_CHARS for item in value):
+        raise ValueError(f"invalid {label} item")
+    if len(set(value)) != len(value):
+        raise ValueError(f"duplicate {label} item")
+    return value
+
+
+def _decode_morphemes(raw: str) -> tuple[Morpheme, ...]:
+    if type(raw) is not str or len(raw) > _MAX_HYPEREDGE_STRING_CHARS:
+        raise ValueError("invalid morphemes JSON")
+    value = json.loads(raw, object_pairs_hook=_reject_duplicate_keys)
+    if type(value) is not list or len(value) > _MAX_HYPEREDGE_ITEMS:
+        raise ValueError("invalid morphemes list")
+    result = []
+    for item in value:
+        if type(item) is not dict or set(item) != {"form", "meaning", "lang", "shared_with"}:
+            raise ValueError("invalid morpheme object")
+        if any(type(item[name]) is not str for name in ("form", "meaning", "lang")):
+            raise ValueError("invalid morpheme text field")
+        refs = _decode_string_list(
+            json.dumps(item["shared_with"], ensure_ascii=False),
+            "morpheme shared_with",
+        )
+        result.append(Morpheme(
+            form=item["form"], meaning=item["meaning"], lang=item["lang"],
+            shared_with=tuple(refs),
+        ))
+    return tuple(result)
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +135,16 @@ CREATE TABLE IF NOT EXISTS morphemes (
     signifier_id TEXT PRIMARY KEY,
     morphemes_json TEXT NOT NULL,
     etymology TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS hyperedges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vertices_json TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT '',
+    domain TEXT NOT NULL DEFAULT '',
+    timestamp TEXT NOT NULL DEFAULT '',
+    ingest_param_refs_json TEXT NOT NULL DEFAULT '[]',
+    evidence_tag TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS metadata (
@@ -156,6 +229,7 @@ class SNetPersistence:
             conn.execute("DELETE FROM signifiers")
             conn.execute("DELETE FROM edges")
             conn.execute("DELETE FROM morphemes")
+            conn.execute("DELETE FROM hyperedges")
 
             # Signifiers
             sig_rows = []
@@ -221,6 +295,15 @@ class SNetPersistence:
                     morph_rows,
                 )
 
+            hyperedge_rows = [encode_hyperedge_row(he) for he in snet._hyperedges]
+            if hyperedge_rows:
+                conn.executemany(
+                    "INSERT INTO hyperedges "
+                    "(vertices_json, source, domain, timestamp, ingest_param_refs_json, evidence_tag) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    hyperedge_rows,
+                )
+
             conn.execute("COMMIT")
         except Exception:
             conn.execute("ROLLBACK")
@@ -230,9 +313,11 @@ class SNetPersistence:
         n_sig = len(sig_rows)
         n_edge = len(edge_rows)
         n_morph = len(morph_rows)
+        n_hyperedge = len(hyperedge_rows)
         print(
             f"S_net SQLite save_full: {n_sig} signifiers, {n_edge} edges, "
-            f"{n_morph} morphemes ({elapsed:.1f}s) → {self._db_path}",
+            f"{n_morph} morphemes, {n_hyperedge} hyperedges "
+            f"({elapsed:.1f}s) → {self._db_path}",
             file=sys.stderr,
         )
 
@@ -257,20 +342,7 @@ class SNetPersistence:
         if row is None or row[0] == 0:
             return None
 
-        # Load signifiers
-        signifiers: dict[str, Signifier] = {}
-        cursor = conn.execute(
-            "SELECT id, surface_forms, source, lang, domain FROM signifiers"
-        )
-        for sid, sf_json, source, lang, domain in cursor:
-            surface_forms = tuple(json.loads(sf_json))
-            signifiers[sid] = Signifier(
-                id=sid,
-                surface_forms=surface_forms,
-                source=source,
-                lang=lang,
-                domain=domain,
-            )
+        signifiers = self.load_signifiers()
 
         # Load edges
         edges: list[SignifierEdge] = []
@@ -289,28 +361,13 @@ class SNetPersistence:
                 differential=differential,
             ))
 
-        # Load morphemes
-        morphemes: dict[str, MorphemeStructure] = {}
-        cursor = conn.execute(
-            "SELECT signifier_id, morphemes_json, etymology FROM morphemes"
+        morphemes = self.load_morphemes()
+        hyperedges = self.load_hyperedges()
+        self.validate_graph(signifiers, morphemes, hyperedges)
+        snet = SNet(
+            signifiers=signifiers, edges=edges, morphemes=morphemes,
+            hyperedges=hyperedges,
         )
-        for sig_id, morph_json, etymology in cursor:
-            morph_list = tuple(
-                Morpheme(
-                    form=m["form"],
-                    meaning=m["meaning"],
-                    lang=m["lang"],
-                    shared_with=tuple(m.get("shared_with", ())),
-                )
-                for m in json.loads(morph_json)
-            )
-            morphemes[sig_id] = MorphemeStructure(
-                signifier_id=sig_id,
-                morphemes=morph_list,
-                etymology=etymology,
-            )
-
-        snet = SNet(signifiers=signifiers, edges=edges, morphemes=morphemes)
         elapsed = time.time() - t0
 
         print(
@@ -329,6 +386,7 @@ class SNetPersistence:
         new_signifiers: Optional[list[Signifier]] = None,
         new_edges: Optional[list[SignifierEdge]] = None,
         new_morphemes: Optional[list[MorphemeStructure]] = None,
+        new_hyperedges: Optional[list[CooccurrenceHyperedge]] = None,
     ) -> int:
         """增量保存（穿越步进时调用）。
 
@@ -431,6 +489,21 @@ class SNetPersistence:
                 conn.execute("ROLLBACK")
                 raise
 
+        if new_hyperedges:
+            rows = [encode_hyperedge_row(he) for he in new_hyperedges]
+            conn.execute("BEGIN")
+            try:
+                conn.executemany(
+                    "INSERT INTO hyperedges "
+                    "(vertices_json, source, domain, timestamp, ingest_param_refs_json, evidence_tag) "
+                    "VALUES (?, ?, ?, ?, ?, ?)", rows,
+                )
+                conn.execute("COMMIT")
+                inserted += len(rows)
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
+
         return inserted
 
     # ------------------------------------------------------------------
@@ -525,11 +598,13 @@ class SNetPersistence:
         n_sig = conn.execute("SELECT COUNT(*) FROM signifiers").fetchone()[0]
         n_edge = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
         n_morph = conn.execute("SELECT COUNT(*) FROM morphemes").fetchone()[0]
+        n_hyperedge = conn.execute("SELECT COUNT(*) FROM hyperedges").fetchone()[0]
         db_size = self._db_path.stat().st_size if self._db_path.exists() else 0
         return {
             "signifiers": n_sig,
             "edges": n_edge,
             "morphemes": n_morph,
+            "hyperedges": n_hyperedge,
             "db_size_mb": round(db_size / (1024 * 1024), 2),
             "db_path": str(self._db_path),
         }
@@ -546,7 +621,9 @@ class SNetPersistence:
             "SELECT id, surface_forms, source, lang, domain FROM signifiers"
         )
         for sid, sf_json, source, lang, domain in cursor:
-            surface_forms = tuple(json.loads(sf_json))
+            if any(type(value) is not str for value in (sid, source, lang, domain)):
+                raise ValueError("invalid SQLite signifier text field")
+            surface_forms = tuple(_decode_string_list(sf_json, "signifier surface_forms"))
             signifiers[sid] = Signifier(
                 id=sid,
                 surface_forms=surface_forms,
@@ -564,21 +641,104 @@ class SNetPersistence:
             "SELECT signifier_id, morphemes_json, etymology FROM morphemes"
         )
         for sig_id, morph_json, etymology in cursor:
-            morph_list = tuple(
-                Morpheme(
-                    form=m["form"],
-                    meaning=m["meaning"],
-                    lang=m["lang"],
-                    shared_with=tuple(m.get("shared_with", ())),
-                )
-                for m in json.loads(morph_json)
-            )
+            if type(sig_id) is not str or type(etymology) is not str:
+                raise ValueError("invalid SQLite morpheme text field")
+            morph_list = _decode_morphemes(morph_json)
             morphemes[sig_id] = MorphemeStructure(
                 signifier_id=sig_id,
                 morphemes=morph_list,
                 etymology=etymology,
             )
         return morphemes
+
+    def load_hyperedges(self) -> list[CooccurrenceHyperedge]:
+        """加载安全 JSON 列编码的共现超边；旧库由 schema migration 得到空表。"""
+        cursor = self._conn.execute(
+            "SELECT vertices_json, source, domain, timestamp, "
+            "ingest_param_refs_json, evidence_tag FROM hyperedges ORDER BY id"
+        )
+        result = []
+        for vertices_json, source, domain, timestamp, refs_json, evidence_tag in cursor:
+            text_fields = (source, domain, timestamp, evidence_tag)
+            if any(type(value) is not str or len(value) > _MAX_HYPEREDGE_STRING_CHARS
+                   for value in text_fields):
+                raise ValueError("invalid hyperedge text field")
+            result.append(CooccurrenceHyperedge(
+                vertices=frozenset(_decode_string_list(vertices_json, "hyperedge vertices")),
+                source=source,
+                domain=domain,
+                timestamp=timestamp,
+                ingest_param_refs=tuple(_decode_string_list(refs_json, "hyperedge refs")),
+                evidence_tag=evidence_tag,
+            ))
+        return result
+
+    def validate_graph(
+        self,
+        signifiers: dict[str, Signifier],
+        morphemes: dict[str, MorphemeStructure],
+        hyperedges: list[CooccurrenceHyperedge],
+    ) -> None:
+        """Stream-validate the complete SQLite graph before lazy publication."""
+        integrity = self._conn.execute("PRAGMA quick_check").fetchone()
+        if integrity is None or integrity[0] != "ok":
+            raise ValueError("SQLite integrity check failed")
+        duplicate_edge = self._conn.execute(
+            "SELECT 1 FROM edges GROUP BY source, target, axis HAVING COUNT(*) > 1 LIMIT 1"
+        ).fetchone()
+        if duplicate_edge is not None:
+            raise ValueError("duplicate SQLite edge id")
+
+        signifier_ids = set(signifiers)
+        for key, sig in signifiers.items():
+            text_fields = (key, sig.id, sig.source, sig.lang, sig.domain)
+            if any(type(value) is not str for value in text_fields) or key != sig.id:
+                raise ValueError("invalid SQLite signifier")
+            if type(sig.surface_forms) is not tuple:
+                raise ValueError("invalid SQLite signifier surface forms")
+            if any(type(value) is not str for value in sig.surface_forms):
+                raise ValueError("invalid SQLite signifier surface form")
+            if len(set(sig.surface_forms)) != len(sig.surface_forms):
+                raise ValueError("duplicate SQLite signifier surface form")
+
+        for key, structure in morphemes.items():
+            if key != structure.signifier_id or key not in signifier_ids:
+                raise ValueError("SQLite morpheme references unknown signifier")
+            for morpheme in structure.morphemes:
+                if any(type(value) is not str for value in (
+                    morpheme.form, morpheme.meaning, morpheme.lang,
+                )):
+                    raise ValueError("invalid SQLite morpheme")
+                if len(set(morpheme.shared_with)) != len(morpheme.shared_with):
+                    raise ValueError("duplicate SQLite morpheme reference")
+                if any(ref not in signifier_ids for ref in morpheme.shared_with):
+                    raise ValueError("SQLite morpheme references unknown signifier")
+
+        hyperedge_ids: set[tuple] = set()
+        for hyperedge in hyperedges:
+            if not hyperedge.vertices.issubset(signifier_ids):
+                raise ValueError("SQLite hyperedge references unknown signifier")
+            identity = (
+                hyperedge.vertices, hyperedge.source, hyperedge.domain,
+                hyperedge.timestamp, hyperedge.ingest_param_refs,
+                hyperedge.evidence_tag,
+            )
+            if identity in hyperedge_ids:
+                raise ValueError("duplicate SQLite hyperedge")
+            hyperedge_ids.add(identity)
+
+        for edge in self.iter_all_edges():
+            if edge.source not in signifier_ids or edge.target not in signifier_ids:
+                raise ValueError("SQLite edge references unknown signifier")
+            if type(edge.axis) is not AxisType:
+                raise ValueError("invalid SQLite edge axis")
+            if type(edge.weight) not in (int, float) or not math.isfinite(edge.weight):
+                raise ValueError("invalid SQLite edge weight")
+            if any(type(value) is not str for value in (
+                edge.source, edge.target, edge.evidence,
+                edge.relation, edge.differential,
+            )):
+                raise ValueError("invalid SQLite edge field")
 
     def query_edges_by_source(self, source: str) -> list[SignifierEdge]:
         """按 source 查询边（组合轴邻居查询的核心路径）。"""

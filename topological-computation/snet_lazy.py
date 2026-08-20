@@ -36,6 +36,7 @@ from signifier_net import (
     AxisType,
     MorphemeStructure,
 )
+from cooccurrence_hyperedge import CooccurrenceHyperedge, hyperedge_to_dict
 
 
 class _LRUCache:
@@ -86,6 +87,7 @@ class SNetLazy(SNet):
         self,
         signifiers: dict[str, Signifier] | None = None,
         morphemes: dict[str, MorphemeStructure] | None = None,
+        hyperedges: list[CooccurrenceHyperedge] | None = None,
         persistence=None,
         cache_size: int = 10000,
     ) -> None:
@@ -94,8 +96,11 @@ class SNetLazy(SNet):
         self._signifiers: dict[str, Signifier] = dict(signifiers) if signifiers else {}
         self._edges: list[SignifierEdge] = []  # 空，不用
         self._morphemes: dict[str, MorphemeStructure] = dict(morphemes) if morphemes else {}
-        self._hyperedges: list = []  # 超边（SNetLazy 暂不持久化超边到 SQLite）
+        self._hyperedges: list[CooccurrenceHyperedge] = list(hyperedges or [])
         self._vertex_to_hyperedges: dict[str, list[int]] = {}
+        for index, hyperedge in enumerate(self._hyperedges):
+            for vertex in hyperedge.vertices:
+                self._vertex_to_hyperedges.setdefault(vertex, []).append(index)
         self._syn_out: dict[str, list[SignifierEdge]] = {}
         self._par_out: dict[str, list[SignifierEdge]] = {}
         self._morpheme_out: dict[str, list[SignifierEdge]] = {}
@@ -120,6 +125,7 @@ class SNetLazy(SNet):
         persistence,
         signifiers: dict[str, Signifier] | None = None,
         morphemes: dict[str, MorphemeStructure] | None = None,
+        hyperedges: list[CooccurrenceHyperedge] | None = None,
         cache_size: int = 10000,
     ) -> "SNetLazy":
         """从 SNetPersistence 实例创建 SNetLazy。
@@ -130,9 +136,15 @@ class SNetLazy(SNet):
             signifiers = persistence.load_signifiers()
         if morphemes is None:
             morphemes = persistence.load_morphemes()
+        if hyperedges is None:
+            hyperedges = persistence.load_hyperedges()
+        validate_graph = getattr(persistence, "validate_graph", None)
+        if validate_graph is not None:
+            validate_graph(signifiers, morphemes, hyperedges)
         return cls(
             signifiers=signifiers,
             morphemes=morphemes,
+            hyperedges=hyperedges,
             persistence=persistence,
             cache_size=cache_size,
         )
@@ -316,6 +328,20 @@ class SNetLazy(SNet):
             self._persistence.save_incremental(new_morphemes=[ms])
         return self
 
+    def add_hyperedge(self, hyperedge: CooccurrenceHyperedge) -> "SNetLazy":
+        if self._persistence is not None:
+            self._persistence.save_incremental(new_hyperedges=[hyperedge])
+        index = len(self._hyperedges)
+        self._hyperedges.append(hyperedge)
+        for vertex in hyperedge.vertices:
+            self._vertex_to_hyperedges.setdefault(vertex, []).append(index)
+        return self
+
+    def add_hyperedges(self, hyperedges: list[CooccurrenceHyperedge]) -> "SNetLazy":
+        for hyperedge in hyperedges:
+            self.add_hyperedge(hyperedge)
+        return self
+
     def merge_edge_weights(self) -> "SNetLazy":
         """SNetLazy 不支持 merge_edge_weights（SQLite 中边已通过 UNIQUE INDEX 去重）。
 
@@ -391,6 +417,7 @@ class SNetLazy(SNet):
                 }
                 for sid, ms in self._morphemes.items()
             },
+            "hyperedges": [hyperedge_to_dict(he) for he in self._hyperedges],
         }
 
     def __repr__(self) -> str:
