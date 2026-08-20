@@ -10,7 +10,12 @@ import type {
   WsMessage,
 } from "../types";
 import type { DaemonInstance } from "../tokens";
-import { DEFAULT_INSTANCES, INSTANCE_STORAGE_KEY, INSTANCE_COLORS } from "../tokens";
+import { DAEMON_HTTP, DEFAULT_INSTANCES, INSTANCE_STORAGE_KEY, INSTANCE_COLORS } from "../tokens";
+import {
+  loadPersistedDaemonInstances,
+  savePersistedDaemonInstances,
+  validateDaemonInstance,
+} from "../daemonConfig";
 
 interface Beta1Point {
   step: number;
@@ -25,6 +30,7 @@ export interface InstanceState {
   currentPositionLabel: string;
   currentPositionId: string;
   beta1History: Beta1Point[];
+  connectionError: string | null;
 }
 
 // ── Filter state ──────────────────────────────────────────────────
@@ -71,30 +77,16 @@ function saveFilters(f: FilterState): void {
   }));
 }
 
-const INSTANCE_VERSION = 4; // bump to force reset cached instances
+// Version 5 invalidates version-4 caches that may contain the former public
+// HTTP/WS defaults. Current-version caches are still validated on every load.
+const INSTANCE_VERSION = 5;
 
-function loadInstances(): DaemonInstance[] {
-  try {
-    const ver = localStorage.getItem(INSTANCE_STORAGE_KEY + "_v");
-    if (ver !== String(INSTANCE_VERSION)) {
-      localStorage.removeItem(INSTANCE_STORAGE_KEY);
-      localStorage.setItem(INSTANCE_STORAGE_KEY + "_v", String(INSTANCE_VERSION));
-      return DEFAULT_INSTANCES;
-    }
-    const raw = localStorage.getItem(INSTANCE_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as DaemonInstance[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(({ id, name, httpBase, wsUrl }) => ({ id, name, httpBase, wsUrl }));
-      }
-    }
-  } catch { /* ignore */ }
-  return DEFAULT_INSTANCES;
-}
-
-function saveInstances(instances: DaemonInstance[]): void {
-  localStorage.setItem(INSTANCE_STORAGE_KEY, JSON.stringify(instances));
-}
+const initialInstanceConfig = loadPersistedDaemonInstances(
+  localStorage,
+  INSTANCE_STORAGE_KEY,
+  INSTANCE_VERSION,
+  DEFAULT_INSTANCES,
+);
 
 function assignInstanceColor(index: number): string {
   return INSTANCE_COLORS[index % INSTANCE_COLORS.length];
@@ -104,6 +96,7 @@ interface DaemonStore {
   // ── Multi-instance config ──────────────────────────────────
   instances: DaemonInstance[];
   instanceStates: Record<string, InstanceState>;
+  instanceConfigError: string | null;
   addInstance: (inst: DaemonInstance) => void;
   removeInstance: (id: string) => void;
   updateInstanceState: (id: string, partial: Partial<InstanceState>) => void;
@@ -173,14 +166,19 @@ interface DaemonStore {
 
 export const useStore = create<DaemonStore>((set, get) => ({
   // ── Multi-instance ──────────────────────────────────────────
-  instances: loadInstances(),
+  instances: initialInstanceConfig.instances,
   instanceStates: {},
+  instanceConfigError: initialInstanceConfig.rejection,
 
   addInstance: (inst) =>
     set((state) => {
-      const updated = [...state.instances, inst];
-      saveInstances(updated);
-      return { instances: updated };
+      const validated = validateDaemonInstance(inst);
+      const updated = savePersistedDaemonInstances(
+        localStorage,
+        INSTANCE_STORAGE_KEY,
+        [...state.instances, validated],
+      );
+      return { instances: updated, instanceConfigError: null };
     }),
 
   removeInstance: (id) =>
@@ -188,8 +186,8 @@ export const useStore = create<DaemonStore>((set, get) => ({
       const updated = state.instances.filter((i) => i.id !== id);
       if (updated.length === 0) return state; // don't remove last
       const { [id]: _removed, ...restStates } = state.instanceStates;
-      saveInstances(updated);
-      return { instances: updated, instanceStates: restStates };
+      const validated = savePersistedDaemonInstances(localStorage, INSTANCE_STORAGE_KEY, updated);
+      return { instances: validated, instanceStates: restStates };
     }),
 
   updateInstanceState: (id, partial) =>
@@ -436,8 +434,8 @@ export const useStore = create<DaemonStore>((set, get) => ({
       const s = state.instanceStates[inst.id];
       if (s?.reachable) return inst.httpBase;
     }
-    // Fallback: first instance
-    return state.instances[0]?.httpBase ?? "http://46.225.187.39:9765";
+    // The store normally cannot be empty; retain the validated TLS default if it is.
+    return state.instances[0]?.httpBase ?? DAEMON_HTTP;
   },
 }));
 
@@ -449,5 +447,6 @@ function defaultInstanceState(): InstanceState {
     currentPositionLabel: "",
     currentPositionId: "",
     beta1History: [],
+    connectionError: null,
   };
 }

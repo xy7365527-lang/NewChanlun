@@ -10,6 +10,10 @@
 import { useState, useCallback } from "react";
 import { T, FONT, INSTANCE_COLORS } from "../tokens";
 import type { DaemonInstance } from "../tokens";
+import {
+  deriveWebSocketUrl,
+  validateDaemonInstance,
+} from "../daemonConfig";
 import { useStore } from "../hooks/useStore";
 import type { InstanceState } from "../hooks/useStore";
 
@@ -18,26 +22,40 @@ export function InstanceManager() {
   const instanceStates = useStore((s) => s.instanceStates);
   const addInstance = useStore((s) => s.addInstance);
   const removeInstance = useStore((s) => s.removeInstance);
+  const instanceConfigError = useStore((s) => s.instanceConfigError);
 
   const [expanded, setExpanded] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newHttp, setNewHttp] = useState("");
   const [newWs, setNewWs] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleAdd = useCallback(() => {
     if (!newName.trim() || !newHttp.trim()) return;
 
-    const id = newName.toLowerCase().replace(/\s+/g, "-") + "-" + Date.now().toString(36);
-    const httpBase = newHttp.trim().replace(/\/+$/, "");
-    const wsUrl = newWs.trim() || httpBase.replace(/^http/, "ws").replace(/:9765/, ":8765") + "/ws";
+    try {
+      const id = newName.toLowerCase().replace(/\s+/g, "-") + "-" + Date.now().toString(36);
+      const httpBase = newHttp.trim();
+      const wsUrl = newWs.trim() || deriveWebSocketUrl(httpBase);
+      const instance = validateDaemonInstance({
+        id,
+        name: newName.trim(),
+        httpBase,
+        wsUrl,
+      });
 
-    addInstance({ id, name: newName.trim(), httpBase, wsUrl });
-
-    setNewName("");
-    setNewHttp("");
-    setNewWs("");
-    setShowAddForm(false);
+      // The store validates again before persistence: UI validation is for prompt
+      // quality, while store validation is the fail-closed trust boundary.
+      addInstance(instance);
+      setNewName("");
+      setNewHttp("");
+      setNewWs("");
+      setFormError(null);
+      setShowAddForm(false);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : String(error));
+    }
   }, [newName, newHttp, newWs, addInstance]);
 
   return (
@@ -82,7 +100,16 @@ export function InstanceManager() {
           })}
         </div>
 
-        <span style={{ color: T.textMuted, marginLeft: "auto" }}>
+        {instanceConfigError && (
+          <span
+            role="alert"
+            title={instanceConfigError}
+            style={{ color: T.fHigh, marginLeft: "auto" }}
+          >
+            ⚠ 配置已拒绝
+          </span>
+        )}
+        <span style={{ color: T.textMuted, marginLeft: instanceConfigError ? 0 : "auto" }}>
           {instances.length}
         </span>
       </div>
@@ -90,6 +117,14 @@ export function InstanceManager() {
       {/* Expanded panel */}
       {expanded && (
         <div style={{ padding: "0 12px 8px" }}>
+          {instanceConfigError && (
+            <div
+              role="alert"
+              style={{ color: T.fHigh, padding: "4px 0", lineHeight: 1.4 }}
+            >
+              {instanceConfigError}
+            </div>
+          )}
           {/* Instance list */}
           {instances.map((inst, idx) => {
             const state: InstanceState | undefined = instanceStates[inst.id];
@@ -140,11 +175,16 @@ export function InstanceManager() {
                 )}
 
                 {/* Status indicators */}
-                <span style={{ color: T.textMuted, fontSize: 8 }}>
+                <span
+                  title={state?.connectionError ?? undefined}
+                  style={{ color: state?.connectionError ? T.fHigh : T.textMuted, fontSize: 8 }}
+                >
                   {connected ? (
                     <>
                       V{status?.vertices ?? "?"} E{status?.edges ?? "?"} s{status?.steps ?? "?"}
                     </>
+                  ) : state?.connectionError ? (
+                    state.connectionError.startsWith("安全") ? "安全连接失败" : "连接失败"
                   ) : (
                     "断开"
                   )}
@@ -199,7 +239,7 @@ export function InstanceManager() {
               <input
                 value={newHttp}
                 onChange={(e) => setNewHttp(e.target.value)}
-                placeholder="HTTP (如: http://1.2.3.4:9765)"
+                placeholder="HTTPS (如: https://daemon.example.com:9765)"
                 style={{
                   background: T.bg, color: T.text,
                   border: `1px solid ${T.border}`,
@@ -211,7 +251,7 @@ export function InstanceManager() {
               <input
                 value={newWs}
                 onChange={(e) => setNewWs(e.target.value)}
-                placeholder="WS (留空自动推导)"
+                placeholder="WSS (留空从 HTTPS 自动推导)"
                 style={{
                   background: T.bg, color: T.text,
                   border: `1px solid ${T.border}`,
@@ -220,9 +260,17 @@ export function InstanceManager() {
                   outline: "none",
                 }}
               />
+              {formError && (
+                <div role="alert" style={{ color: T.fHigh, lineHeight: 1.4 }}>
+                  {formError}
+                </div>
+              )}
               <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                 <button
-                  onClick={() => setShowAddForm(false)}
+                  onClick={() => {
+                    setFormError(null);
+                    setShowAddForm(false);
+                  }}
                   style={{
                     background: "transparent", border: `1px solid ${T.border}`,
                     borderRadius: 2, color: T.textDim,
@@ -247,7 +295,10 @@ export function InstanceManager() {
             </div>
           ) : (
             <button
-              onClick={() => setShowAddForm(true)}
+              onClick={() => {
+                setFormError(null);
+                setShowAddForm(true);
+              }}
               style={{
                 marginTop: 4, width: "100%",
                 background: "transparent",

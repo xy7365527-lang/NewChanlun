@@ -81,8 +81,31 @@ npm run build
 # dist/ 目录部署到 web server
 ```
 
-Dashboard 地址：`http://your-vps:5173`（dev）或 nginx 配置的地址
-WebSocket 自动连接 `ws://localhost:8765/ws`
+Dashboard 本地开发地址：`http://127.0.0.1:5173`。公网部署必须由 nginx/caddy
+等 TLS 终止层同时代理 daemon HTTP 与 WebSocket，不得直接暴露 daemon 的明文端口。
+
+前端内置公网实例使用 `https://` / `wss://`。如部署使用域名或不同端口，在构建时提供
+完整实例列表（Vite 会把它编入静态产物）：
+
+```bash
+export VITE_FENGLIANG_DAEMON_INSTANCES='[{"id":"prod","name":"Production","httpBase":"https://daemon.example.com:9765","wsUrl":"wss://daemon.example.com:8765/ws"}]'
+npm run build
+```
+
+传输安全语义：
+
+- 公网 HTTP/WS 配置在默认值、构建时覆盖、浏览器持久化和用户新增四个入口统一校验；
+  非 `https://` / `wss://` 会被拒绝，不能进入连接或持久化路径。
+- 仅精确的 `localhost`、`127.0.0.1`、`::1` 可在本地开发时使用 `http://` / `ws://`；
+  私网地址、相似域名和其他主机均不属于例外。
+- HTTPS/WSS 直接交给浏览器原生 `fetch` / `WebSocket`。浏览器校验证书信任链、有效期及
+  主机名/IP SAN；证书自签、不受信、过期或名称不匹配时连接失败。前端没有、也不提供
+  关闭证书校验的开关。
+- 显式构建配置若格式错误或含明文公网端点，应用启动即报错，不回退；旧版或不安全的
+  `localStorage` 配置会被删除、切回已校验默认值，并在实例面板显示拒绝原因。
+
+因此，使用 IP 形式的内置公网地址时，证书必须把该 IP 写入 SAN；更常见的做法是通过上面
+的构建配置改成有受信证书的域名。
 
 ## 观察与调试
 

@@ -16,9 +16,11 @@
 
 import { useEffect, useMemo } from "react";
 import { STATUS_POLL_MS, INSTANCE_COLORS } from "../tokens";
+import { describeDaemonConnectionError } from "../daemonConfig";
 import type { WsMessage } from "../types";
 import { createDaemonAPI } from "./useDaemonAPI";
 import { useStore } from "./useStore";
+import type { InstanceState } from "./useStore";
 import type { InstanceTraversal } from "../components/TopologyView";
 
 /**
@@ -30,7 +32,7 @@ function connectInstanceWS(
   instanceId: string,
   handleBatch: (instanceId: string, msgs: WsMessage[]) => void,
   setWsConnected: (v: boolean) => void,
-  updateInstanceState: (id: string, partial: { wsConnected: boolean }) => void,
+  updateInstanceState: (id: string, partial: Partial<InstanceState>) => void,
 ): () => void {
   let destroyed = false;
   let ws: WebSocket | null = null;
@@ -46,11 +48,21 @@ function connectInstanceWS(
 
   function connect() {
     if (destroyed) return;
-    ws = new WebSocket(wsUrl);
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch (error) {
+      setWsConnected(false);
+      updateInstanceState(instanceId, {
+        wsConnected: false,
+        connectionError: describeDaemonConnectionError(wsUrl, error),
+      });
+      reconnectTimer = setTimeout(connect, 3000);
+      return;
+    }
 
     ws.onopen = () => {
       setWsConnected(true);
-      updateInstanceState(instanceId, { wsConnected: true });
+      updateInstanceState(instanceId, { wsConnected: true, connectionError: null });
     };
 
     ws.onmessage = (event) => {
@@ -67,14 +79,23 @@ function connectInstanceWS(
     };
 
     ws.onclose = () => {
-      updateInstanceState(instanceId, { wsConnected: false });
+      updateInstanceState(instanceId, {
+        wsConnected: false,
+        connectionError: destroyed ? null : describeDaemonConnectionError(wsUrl),
+      });
       ws = null;
       if (!destroyed) {
         reconnectTimer = setTimeout(connect, 3000);
       }
     };
 
-    ws.onerror = () => { ws?.close(); };
+    ws.onerror = () => {
+      updateInstanceState(instanceId, {
+        wsConnected: false,
+        connectionError: describeDaemonConnectionError(wsUrl),
+      });
+      ws?.close();
+    };
   }
 
   connect();
@@ -148,9 +169,13 @@ export function useMultiDaemon(): void {
             status: s,
             currentPositionLabel: s.position_label || "",
             currentPositionId: s.position || "",
+            connectionError: null,
           });
-        } catch {
-          updateInstanceState(inst.id, { reachable: false });
+        } catch (error) {
+          updateInstanceState(inst.id, {
+            reachable: false,
+            connectionError: describeDaemonConnectionError(inst.httpBase, error),
+          });
         }
       }
       if (!sharedStatusSet) {

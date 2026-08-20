@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { DAEMON_WS, WS_THROTTLE_MS } from "../tokens";
+import { describeDaemonConnectionError } from "../daemonConfig";
 import type { WsMessage } from "../types";
 import { useStore } from "./useStore";
 
@@ -37,12 +38,23 @@ export function useDaemonWS(
     function connect() {
       if (destroyed) return;
 
-      const ws = new WebSocket(wsUrl);
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (error) {
+        setWsConnected(false);
+        updateInstanceState(instanceId, {
+          wsConnected: false,
+          connectionError: describeDaemonConnectionError(wsUrl, error),
+        });
+        reconnectTimerRef.current = setTimeout(connect, 3000);
+        return;
+      }
       wsRef.current = ws;
 
       ws.onopen = () => {
         setWsConnected(true);
-        updateInstanceState(instanceId, { wsConnected: true });
+        updateInstanceState(instanceId, { wsConnected: true, connectionError: null });
       };
 
       ws.onmessage = (event) => {
@@ -63,7 +75,10 @@ export function useDaemonWS(
 
       ws.onclose = () => {
         setWsConnected(false);
-        updateInstanceState(instanceId, { wsConnected: false });
+        updateInstanceState(instanceId, {
+          wsConnected: false,
+          connectionError: destroyed ? null : describeDaemonConnectionError(wsUrl),
+        });
         wsRef.current = null;
         if (!destroyed) {
           reconnectTimerRef.current = setTimeout(connect, 3000);
@@ -71,6 +86,10 @@ export function useDaemonWS(
       };
 
       ws.onerror = () => {
+        updateInstanceState(instanceId, {
+          wsConnected: false,
+          connectionError: describeDaemonConnectionError(wsUrl),
+        });
         ws.close();
       };
     }
