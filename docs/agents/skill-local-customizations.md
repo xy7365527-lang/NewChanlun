@@ -1,15 +1,53 @@
-# 本地 Skill 定制总表
+# skills-lock 本机定制清单
 
-> 本文件是本仓 Skill 的**本地定制与来源登记总表**（人读索引）：登记哪些 Skill 是对上游的
-> 分叉/适配（有本地改写），记录上游来源、固定版本、许可证与本地差异。**纯导入未改写的**
-> Skill 由 `skills-lock.json` 记录来源与哈希，不在本表重复登记；本表只登记「改了上游内容」
-> 或「新增本地内容」的项。
->
-> 机器可复现的发现/零 warning 检查见 `scripts/pstack-lite/check-skills.mjs`。
+> 正本：本文件是 `.agents/skills/` 相对上游「本机定制」的唯一清单。
+> 最后更新：#1070（2026-08-18）
+> 关联台账：`skills-lock.json`（记上游原件哈希）
 
-## 登记口径
+## 口径
 
-每项必须记录：
+- `skills-lock.json` 的 `computedHash` 是**同步时上游原件**的哈希，用于检测上游更新；
+- 本仓 `.agents/skills/` 是「上游 + 本机定制」的合成形态，凡下表所列 skill，其哈希与台账**失配是合法状态**（失配=定制，不是漂移）；
+- 下表之外任何 skill 的哈希失配都按漂移对待，应排查。
+
+## 现行定制（2026-08-18 实测 HEAD vs 上游形态逐字节 diff，共 9 处）
+
+| skill | 差异文件 | 定制内容 | 定制日期 |
+|---|---|---|---|
+| grilling | SKILL.md, agents/openai.yaml | 提问风格保留「一次一问」，不用上游「一轮多问/frontier」 | 2026-08-14 |
+| triage | SKILL.md | 同上（一次一问） | 2026-08-14 |
+| loop-me | SKILL.md | 同上（一次一问） | 2026-08-14 |
+| wayfinder | SKILL.md | 同上（一次一问）；另含本仓 wayfinder 纪律对齐 | 2026-08-14 |
+| code-review | SKILL.md | 术语用「PRD」，不用上游「spec」 | 2026-08-14 |
+| to-spec | SKILL.md | 同上（PRD 术语） | 2026-08-14 |
+| claude-handoff | SKILL.md | 同上（PRD 术语） | 2026-08-14 |
+| setup-matt-pocock-skills | SKILL.md, issue-tracker-github/gitlab/local.md | 同上（PRD 术语） | 2026-08-14 |
+| implement | SKILL.md | 去掉 `disable-model-invocation: true`（本仓要求 implement 进模型目录） | 2026-08-14 |
+
+## 已追平的历史定制（3 处，截至 2026-08 全局同步不再有差异）
+
+| skill | 当时定制 | 现状 |
+|---|---|---|
+| codebase-design | Agent 工具族本机定制 | 已与上游一致 |
+| improve-codebase-architecture | 同上 | 已与上游一致 |
+| wizard | disable-model-invocation 定制 | 已与上游一致 |
+
+## 操作纪律
+
+- 上游同步（`setup-matt-pocock-skills`）后必须重新跑一遍本清单的 diff 核验，把「现行」与「已追平」两表更新到最新事实；新钦定的定制同步登记到「现行」表。
+- 上游形态参照物（2026-08-06 全局同步副本）现备份于 `~/.agents/skill-conflict-backup-20260818/`（不入仓）。
+- 同步来源与流程见 #2026-08-14 roster 记录（`.chanlun/agent-roster-20260814.md`「Matt Pocock skills 更新」行）。
+
+## pstack-lite 适配登记（#1130）
+
+pstack-lite 是对上游 `cursor/plugins`（`pstack/` 目录）的 Prime 适配族，共用一个固定上游
+SHA 与「不自动跟随上游 `main`」的同步策略。机器可复现的发现/零 warning 检查见
+`scripts/pstack-lite/check-skills.mjs`；触发夹具 runner 见
+`scripts/pstack-lite/run-trigger-fixtures.mjs`。
+
+### 登记口径
+
+pstack-lite 每项登记必须记录：
 
 - **Skill 名**：`.agents/skills/<name>/`（或明确写「用户级全局」）。
 - **上游仓库 + 固定 SHA**：适配所基于的确切快照。
@@ -17,7 +55,7 @@
 - **本地改写**：相对上游改了什么、为什么。
 - **许可证**：上游许可证（pstack 为 MIT，Copyright (c) 2026 Lauren Tan）。
 
-## 通用策略：不自动跟随上游 `main`
+### 同步策略：不自动跟随上游 `main`
 
 - pstack-lite 所有适配固定到上游 SHA `fd6dd6f7276956a532bb78a748a8d2818b6eb5f4`
   （仓库 `cursor/plugins`，`pstack/` 目录）。**不得自动跟随上游 `main`，不设同步机器人。**
@@ -26,7 +64,7 @@
   （如适用）。
 - 上游删除或改名不影响本地已固定版本；`unslop` 独立升级，不随项目 pstack-lite 更新。
 
-## pstack-lite 索引（首批）
+### pstack-lite 索引（首批）
 
 固定上游：`cursor/plugins@fd6dd6f7276956a532bb78a748a8d2818b6eb5f4`，`pstack/` 目录，MIT。
 
@@ -53,15 +91,10 @@
 - 全局 `unslop` 保持唯一用户级副本；**项目中不得创建同名副本**（项目级会遮蔽用户级全局，
   见 `check-skills.mjs --self-test` 的同名 shadow 断言）。
 
-## 固定 SHA 记录
+### 固定 SHA 记录
 
 - 上游仓库：`https://github.com/cursor/plugins`
 - 固定 SHA：`fd6dd6f7276956a532bb78a748a8d2818b6eb5f4`
 - 固定范围：`pstack/` 目录；许可证 `pstack/LICENSE`（MIT，Copyright (c) 2026 Lauren Tan，
   SHA-256 `bc957ca6bee02792566a1a028d105e02e247c6e77cf057061674273da77b200e`，
   逐字复制于 `docs/agents/pstack-lite/LICENSE.MIT`）
-
-## 存量定制条目
-
-> 主机工作副本另有 9 条存量定制登记（见 #1121 决议「当前清单只承认 9 项定制」），尚未纳入
-> 版本控制。合入本文件时须与主机那份逐条对账，避免覆盖。当前只登记 pstack-lite 新增面。
