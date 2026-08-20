@@ -2035,6 +2035,209 @@ pub(super) fn build_xzd_fallback(
 // σ_higher_at 已上移 selector.rs（codex-q1 G2 单一来源）：z 构造（第 9 维）与信号分解
 // （SignalDecomp.sigma_higher，666 号）共用同一函数，防训练/查询口径分叉。本文件顶部导入消费。
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// #1147 探针（#[cfg(test)]，env 驱动）：门拒候选的旧臂 StepFail 归因（#846 A/B/C 三分 +
+// div_cand 四条件 cond1-4）。只读、零生产影响；未设 env（P1147_STEPFAIL_DUMP_PATH）时全方法 no-op。
+//
+// 归因口径 = 复刻生产旧臂 build_nest_certificate 的失败分支（base gate / per-rung），
+// **不另造判据**：Type2/3 base gate = descend_type1_anchor_depth（A/B/C）；Type1 per-rung =
+// cand_delta → div_cand_fail（cond 0..=4）；基例 Conf^δ_e 单列（base_confirm_false）。
+// 与生产判据同一函数（div_cand_fail / descend_type1_anchor_depth 即生产本体），parity 由
+// 构造保证，无镜像体对拍锁。dump 只落「旧臂 StepFail 桶 + admit + channel」，不进任何判定。
+// ═══════════════════════════════════════════════════════════════════════════════
+#[cfg(test)]
+pub(super) mod stepfail_probe {
+    use super::super::super::classifier::cand_predicate::{
+        div_cand_fail, parent_last_center, DivCandInput,
+    };
+    use super::super::super::classifier::recursive_tower::{
+        find_move_by_end_index, find_move_containing_index,
+    };
+    use super::super::super::strategy::interp::Candidate;
+    use super::super::super::strategy::voice::VoiceSide;
+    use super::super::super::types::Side;
+    use super::*;
+    use std::io::Write;
+
+    thread_local! {
+        static WRITER: std::cell::RefCell<Option<std::io::BufWriter<std::fs::File>>> =
+            std::cell::RefCell::new(None);
+    }
+
+    fn lazy_open() {
+        WRITER.with(|w| {
+            if w.borrow().is_some() {
+                return;
+            }
+            if let Ok(path) = std::env::var("P1147_STEPFAIL_DUMP_PATH") {
+                if path.is_empty() {
+                    return;
+                }
+                match std::fs::File::create(&path) {
+                    Ok(f) => *w.borrow_mut() = Some(std::io::BufWriter::new(f)),
+                    Err(e) => eprintln!("[p1147] stepfail dump 创建失败 {path}：{e}（no-op 继续）"),
+                }
+            }
+        });
+    }
+
+    /// 门拒候选的旧臂 StepFail 归因（纯读数；与 build_nest_certificate 同判据，不参与判定）。
+    fn classify(
+        tower: &[std::rc::Rc<Vec<super::super::super::classifier::recursive_tower::LeveledMove>>],
+        c: &Candidate,
+        hist: &[f64],
+        classification: &super::super::super::classifier::Classification,
+        strokes: &[crate::theta_v0::types::Stroke],
+        gauge: super::super::super::classifier::divergence::DivergenceGauge,
+    ) -> String {
+        let delta = match c.dir {
+            VoiceSide::Long => Side::Long,
+            VoiceSide::Short => Side::Short,
+            VoiceSide::Flat => return "flat_dir".to_string(),
+        };
+        let lvl = c.level as usize;
+        if classification.levels.get(lvl).is_none() {
+            return "no_level".to_string();
+        }
+        let Some(exec_moves) = tower.get(lvl) else {
+            return "base_none".to_string();
+        };
+        let Some(si) = find_move_containing_index(exec_moves.as_slice(), c.source_index) else {
+            return "base_none".to_string();
+        };
+        let cand_type = super::bsp_cand_type(&c.bits, delta);
+        match cand_type {
+            BspCandType::StructBreak => "struct_break".to_string(),
+            BspCandType::Type1 => {
+                // base gate（Type1 恒 true，下钻只做 NoAlign 守卫）→ per-rung div_cand 归因。
+                let max_k = tower.len();
+                for k in (lvl + 1)..max_k {
+                    let k_moves = tower[k].as_slice();
+                    let ki = k_moves.partition_point(|m| m.end_index < c.source_index);
+                    let Some(knode) = k_moves.get(ki).filter(|m| m.start_index <= c.source_index)
+                    else {
+                        break; // 无 k 级包含段（partial chain 合法）
+                    };
+                    let ok = super::cand_delta(
+                        cand_type,
+                        knode.sub_moves.as_slice(),
+                        c.source_index,
+                        delta,
+                        hist,
+                        strokes,
+                        parent_last_center(knode),
+                        gauge,
+                    );
+                    if !ok {
+                        match find_move_containing_index(knode.sub_moves.as_slice(), c.source_index)
+                        {
+                            Some(tidx) => {
+                                let cond = div_cand_fail(&DivCandInput {
+                                    context: knode.sub_moves.as_slice(),
+                                    target_idx: tidx,
+                                    hist,
+                                    delta,
+                                    strokes,
+                                    parent_center: parent_last_center(knode),
+                                    gauge,
+                                });
+                                return format!("type1_div_fail_{cond:?}");
+                            }
+                            None => return "type1_rung_no_loc".to_string(),
+                        }
+                    }
+                }
+                if !c.bits.confirm_side(delta) {
+                    "type1_base_confirm_false".to_string()
+                } else {
+                    "type1_pass".to_string()
+                }
+            }
+            BspCandType::Type2 | BspCandType::Type3 => {
+                let s = &exec_moves[si];
+                // 生产 base gate（cand_delta_type2/3_*）：lvl==0 免门（L0 天花板，#520），
+                // 否则 descend_type1_anchor_depth 的 `.anchored()` 即门。归因照此复刻，不另造。
+                if lvl == 0 {
+                    return "type23_l0_exempt".to_string();
+                }
+                let locator = super::descend_type1_anchor_depth(
+                    s,
+                    c.source_index,
+                    delta,
+                    hist,
+                    strokes,
+                    gauge,
+                );
+                let stop = locator.stop();
+                match stop {
+                    DescendStop::BaseL0 => {
+                        format!("type23_descend_anchor_baseL0(d={})", locator.depth())
+                    }
+                    DescendStop::NoAlign => "type23_descend_noalign".to_string(),
+                    DescendStop::NoDivergence => {
+                        // C 桶再归因：首级对齐/包含段的 div_cand_fail 条件号（1=方向 / 2=D-3取段 /
+                        // 3=Extreme / 4=Weak）。与 descend 同一对齐口径（end== → 区间包含回退）。
+                        let subs = s.sub_moves.as_slice();
+                        let tidx = find_move_by_end_index(subs, c.source_index)
+                            .or_else(|| find_move_containing_index(subs, c.source_index));
+                        match tidx {
+                            Some(t) => {
+                                let cond = div_cand_fail(&DivCandInput {
+                                    context: subs,
+                                    target_idx: t,
+                                    hist,
+                                    delta,
+                                    strokes,
+                                    parent_center: parent_last_center(s),
+                                    gauge,
+                                });
+                                format!("type23_descend_nodiv_cond{cond:?}")
+                            }
+                            None => "type23_descend_nodiv_noalign".to_string(),
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn record(
+        bar: usize,
+        c: &Candidate,
+        tower: &[std::rc::Rc<Vec<super::super::super::classifier::recursive_tower::LeveledMove>>],
+        hist: &[f64],
+        classification: &super::super::super::classifier::Classification,
+        strokes: &[crate::theta_v0::types::Stroke],
+        gauge: super::super::super::classifier::divergence::DivergenceGauge,
+        admit: bool,
+        channel: &str,
+        would_close: bool,
+    ) {
+        lazy_open();
+        WRITER.with(|w| {
+            let mut slot = w.borrow_mut();
+            let Some(writer) = slot.as_mut() else { return };
+            let bucket = classify(tower, c, hist, classification, strokes, gauge);
+            let dir = match c.dir {
+                VoiceSide::Long => "Long",
+                VoiceSide::Short => "Short",
+                VoiceSide::Flat => "Flat",
+            };
+            let line = serde_json::json!({
+                "bar": bar,
+                "level": c.level,
+                "source_index": c.source_index,
+                "dir": dir,
+                "stepfail": bucket,
+                "admit": admit,
+                "channel": channel,
+                "would_close": would_close,
+            });
+            let _ = writeln!(writer, "{line}");
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::super::classifier::divergence::DivergenceGauge;

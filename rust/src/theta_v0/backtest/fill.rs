@@ -5376,6 +5376,22 @@ where
                             super::admission::t5a_chain_dump::record(i, c, &obs, admit, channel);
                             let would_close =
                                 exit_candidate_would_close(c.level, c.dir, &prev_active);
+                            // #1147 StepFail 归因 dump（#[cfg(test)]，env 未设 = no-op）：
+                            // 逐候选落旧臂 StepFail 桶（#846 A/B/C + div_cand cond1-4）+ admit/channel
+                            // + would_close（出场侧 χ^{σ_p} 反向项，N7 消费线重叠面读数）。
+                            #[cfg(test)]
+                            super::econ_positive::stepfail_probe::record(
+                                i,
+                                c,
+                                &tower_i,
+                                hist,
+                                &classification_i,
+                                &strokes_i,
+                                gate.gauge,
+                                admit,
+                                channel,
+                                would_close,
+                            );
                             nest_gate_stats.observe_exit_candidate(admit, would_close);
                             nest_gate_stats.observe(admit, channel, obs);
                             admit
