@@ -13,7 +13,7 @@ test("status forwards the caller's AbortSignal to the browser fetch boundary", a
     globalThis.fetch = originalFetch;
   });
 
-  const baseUrl = `http:${"//"}localhost:9765`;
+  const baseUrl = "http://localhost:9765";
   const controller = new AbortController();
   let callCount = 0;
 
@@ -45,7 +45,7 @@ test("HTTP status failures preserve the real response status and path", async (t
   }) as Response;
 
   await assert.rejects(
-    createDaemonAPI(`https:${"//"}daemon.example.test`).status(),
+    createDaemonAPI("https://daemon.example.test").status(),
     (error: unknown) => error instanceof DaemonHttpError
       && error.status === 503
       && error.path === "/status",
@@ -65,7 +65,7 @@ test("JSON parse failures retain response metadata instead of becoming network f
   }) as Response;
 
   await assert.rejects(
-    createDaemonAPI(`https:${"//"}daemon.example.test`).status(),
+    createDaemonAPI("https://daemon.example.test").status(),
     (error: unknown) => error instanceof DaemonJsonResponseError
       && error.status === 200
       && error.path === "/status"

@@ -16,12 +16,10 @@ import {
   DaemonJsonResponseError,
 } from "../src/hooks/daemonApi.ts";
 
-// Keep negative plaintext cases mechanically visible to the tests without
-// turning those fixtures into scanner URL/debug findings themselves.
-const localHostname = ["local", "host"].join("");
-const loopbackIpv4 = ["127", "0", "0", "1"].join(".");
+const localHostname = "localhost";
+const loopbackIpv4 = "127.0.0.1";
 const endpoint = (protocol: "http" | "https" | "ws" | "wss", authority: string, path = "") =>
-  `${protocol}:${"//"}${authority}${path}`;
+  `${protocol}://${authority}${path}`;
 
 function equal(actual: unknown, expected: unknown): void {
   if (actual !== expected) throw new Error(`expected ${String(expected)}, got ${String(actual)}`);
@@ -340,8 +338,8 @@ test("public HTTP and WS are rejected for IPs, hostnames, and loopback lookalike
     [endpoint("http", "public.example:9765"), endpoint("wss", "public.example:8765", "/ws")],
     [endpoint("https", "daemon.example.com:9765"), endpoint("ws", "daemon.example.com:8765", "/ws")],
     [endpoint("http", `${localHostname}.evil.example:9765`), endpoint("ws", `${localHostname}.evil.example:8765`, "/ws")],
-    [endpoint("http", `${["192", "168", "1", "8"].join(".")}:9765`), endpoint("wss", "daemon.example.com:8765", "/ws")],
-    [endpoint("http", `${["127", "0", "0", "2"].join(".")}:9765`), endpoint("wss", "daemon.example.com:8765", "/ws")],
+    [endpoint("http", "192.168.1.8:9765"), endpoint("wss", "daemon.example.com:8765", "/ws")],
+    [endpoint("http", "127.0.0.2:9765"), endpoint("wss", "daemon.example.com:8765", "/ws")],
   ];
 
   for (const [httpBase, wsUrl] of cases) {

@@ -45,8 +45,8 @@ async function waitFor(predicate: () => boolean, timeoutMs = 1_000): Promise<voi
 }
 
 const instances: StatusPollingInstance[] = [
-  { id: "alpha", httpBase: `http:${"//"}localhost:9765` },
-  { id: "beta", httpBase: `http:${"//"}127.0.0.1:9766` },
+  { id: "alpha", httpBase: "http://localhost:9765" },
+  { id: "beta", httpBase: "http://127.0.0.1:9766" },
 ];
 
 test("status polling starts immediately, polls peers concurrently, and never overlaps cycles", async (t) => {

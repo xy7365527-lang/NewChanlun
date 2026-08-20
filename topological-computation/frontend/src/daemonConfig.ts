@@ -31,8 +31,8 @@ export class DaemonConfigError extends Error {
   }
 }
 
-const LOOPBACK_HOSTNAME = ["local", "host"].join("");
-const LOOPBACK_IPV4 = ["127", "0", "0", "1"].join(".");
+const LOOPBACK_HOSTNAME = "localhost";
+const LOOPBACK_IPV4 = "127.0.0.1";
 const LOOPBACK_IPV6 = "::1";
 const EXACT_LOOPBACK_HOSTS = new Set([
   LOOPBACK_HOSTNAME,
@@ -187,8 +187,8 @@ const BUILT_IN_INPUTS: DaemonInstance[] = [
   {
     id: "local",
     name: "本地",
-    httpBase: ["http:", "//", LOOPBACK_HOSTNAME, ":9765"].join(""),
-    wsUrl: ["ws:", "//", LOOPBACK_HOSTNAME, ":8765/ws"].join(""),
+    httpBase: "http://localhost:9765",
+    wsUrl: "ws://localhost:8765/ws",
   },
 ];
 

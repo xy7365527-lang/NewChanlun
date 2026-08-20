@@ -72,7 +72,7 @@ function installFakeWebSocket(t: TestContext): void {
   });
 }
 
-const wsUrl = `ws:${"//"}localhost:8765/ws`;
+const wsUrl = "ws://localhost:8765/ws";
 
 test("WebSocket target defaults to the first configured instance and preserves explicit overrides", () => {
   const defaults = [{ id: "local", wsUrl }];
@@ -81,7 +81,7 @@ test("WebSocket target defaults to the first configured instance and preserves e
     wsUrl,
   });
 
-  const explicitWsUrl = `wss:${"//"}daemon.example.test/ws`;
+  const explicitWsUrl = "wss://daemon.example.test/ws";
   assert.deepEqual(resolveDaemonWebSocketTarget(defaults, {
     instanceId: "explicit",
     wsUrl: explicitWsUrl,
@@ -212,8 +212,8 @@ test("instance churn retains stable sockets and their throttled messages", async
   const connections: DaemonWebSocketConnections = new Map();
   const batches: Array<{ id: string; messages: unknown[] }> = [];
   const alphaUrl = wsUrl;
-  const betaUrl = `ws:${"//"}localhost:8766/ws`;
-  const replacementAlphaUrl = `ws:${"//"}localhost:8767/ws`;
+  const betaUrl = "ws://localhost:8766/ws";
+  const replacementAlphaUrl = "ws://localhost:8767/ws";
 
   const connect = (target: { id: string; wsUrl: string }) => connectDaemonWebSocket({
     wsUrl: target.wsUrl,

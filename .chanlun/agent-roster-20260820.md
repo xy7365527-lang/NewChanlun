@@ -13,3 +13,4 @@
 - [x] 2026-08-20 09:13–09:40 | codex（GPT-5.6 Sol，read-only）| #1117 最终候选 fe3e9cbade Standards 复审：核先前 1H/2M/2L、轮询/WS 状态机、依赖/文档/生成物 | 首次 20 分钟超时；缩小重试提出 2M/1L，经本工位逐条复现核实后结束并清理进程
 - [x] 2026-08-20 09:16–09:34 | codex（GPT-5.6 Sol，read-only）| #1117 最终候选 fe3e9cbade Spec/安全独立复审，重点验证前次阻断、双协议 fail-closed 与 poll/WS 状态语义 | 完成：3 findings（2 MED/1 LOW）；主控复核后按 Spec 口径归并为 3 项行为回归
 - [x] 2026-08-20 09:50–10:02 | Prime child agent（继承会话模型）| 修复 #1117 fe3e9cbade 最终复审 2M/1L：status poll 兼容、WS 实例 churn/buffer、真实错误分类；补测试并完成全验证/回票 | 完成：TDD red 5 项失败、green 33/33；tsc/build、固定 DevSkim 与安全机械检查通过；未派生 nested agent
+- [x] 2026-08-20 11:20–11:25 | Prime child agent（继承会话模型）| #1117 Actions 独立裁定阻断：清除 changed files 内 scanner-aware URL/loopback 字符串拆分，保持 TLS、loopback、Abort、WS 与错误分类语义；固定 DevSkim、33 tests、tsc/build 验证后追加 fix、回票 | 完成：scanner-aware 审计 0 残留；33/33、tsc/build 通过；固定 DevSkim 268→274，仅新增 6 条 DS162092 ManualReview note，DS137138 仍 12；提交=本提交；未派生 nested agent
