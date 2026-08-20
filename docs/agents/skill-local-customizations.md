@@ -86,6 +86,9 @@ pstack-lite 每项登记必须记录：
   设计红旗、实施中复核；**不并入**上游 orchestrator 流程
   （how→arena→agree→implement→scrap）与多模型 runner 面板。两 Skill 的
   `description`/触发契约未改，仅新增正文方法并互指「多方案探索 vs 单方案深模块」分工。
+  #1138 行为门后续修复仍归 #1136：多方案入口已从旧同步 `Task tool` 改成 Prime RLM
+  admission + 消息/根结果文件/child 最终 JSONL 三路回流；确定性契约见
+  `scripts/pstack-lite/check-design-interface-contract.mjs`，不改变 `codebase-design` 单方案路径。
 - `interrogate` 的独立 reviewer / agreement map / lead judgment → 并入
   `.agents/skills/code-review/` 的可选 adversarial 模式（**已实现 #1137**：SKILL.md
   「两种模式与升级判定」「对抗评审模式」节 + `ADVERSARIAL-MODE.md` /

@@ -40,6 +40,11 @@
   同题 bakeoff 扇出重复——本 Skill 只做接口形状的多方案探索，不覆盖实现竞争。
 - **与 `codebase-design` 分工写明**：本 Skill = 多方案探索；`codebase-design` =
   单方案深模块设计。两处 SKILL.md 的 scope 声明互指，避免同题双触发。
+- **Prime 异步结果修复（#1136 后续行为门）**：删除旧 `Task tool` 同步语义，改为根代理
+  持有 3+ 个独立 RLM admission；每个 child 在 admission 前取得根 session-dir 内唯一绝对
+  结果文件与显式读/工具/时间/输出预算。结果按完整消息 → 同内容文件 → child 最终 JSONL 回收；
+  admission handle 不算结果，缺任一结果即停止比较，父不得代写。此段及确定性契约夹具是
+  本地 Prime 改写，不是上游借用片段。
 
 ## 未借用（有意排除）
 
