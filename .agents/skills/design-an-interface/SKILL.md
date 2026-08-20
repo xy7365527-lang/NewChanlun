@@ -52,8 +52,8 @@ Output format (usage first — see codebase-design's caller-first sketch):
 
 Show each design with:
 
-1. **Interface signature** - types, methods, params
-2. **Usage examples** - how callers actually use it in practice
+1. **Usage examples** - how callers actually use it in practice
+2. **Interface signature** - types, methods, params
 3. **What it hides** - complexity kept internal
 
 Present designs sequentially so user can absorb each approach before comparison.
