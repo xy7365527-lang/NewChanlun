@@ -54,7 +54,8 @@
     {
       "id": "pstack-how",
       "skill": "pstack-how",
-      "status": "draft",
+      "skill_dir": "../../../.agents/skills/pstack-how",
+      "status": "active",
       "note": "触发：运行机制 / 调用链 / 模块归属 / 层次问题。反例覆盖 codebase-memory 原始图查询、codebase-design 设计建议、普通事实查询。",
       "positive": [
         {

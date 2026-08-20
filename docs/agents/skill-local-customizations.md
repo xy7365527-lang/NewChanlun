@@ -70,7 +70,7 @@ pstack-lite 每项登记必须记录：
 
 | Skill | 原始 Skill | 上游路径（固定 SHA 下） | 状态 | 本地改写 |
 |---|---|---|---|---|
-| `pstack-how` | `how` | `pstack/skills/how/SKILL.md`（+`references/`×4） | 待实现 | 待后续票填写 |
+| `pstack-how` | `how` | `pstack/skills/how/SKILL.md`（+`references/`×4） | 已实现（#1131） | 删除 Cursor model slug / 同步 `Task` 返回 / `readonly`；根代理 `rlm` 扇出 + `agent_message`/文件回流，admission handle 不算结果；explainer 收敛到根代理；简单问题 inline |
 | `pstack-arena` | `arena` | `pstack/skills/arena/SKILL.md` | 待实现 | 待后续票填写 |
 | `pstack-blast-radius` | `blast-radius` | `pstack/skills/blast-radius/SKILL.md` | 待实现 | 待后续票填写 |
 | `pstack-create-verification` | `create-verification-skill` | `pstack/skills/create-verification-skill/SKILL.md`（+`references/`） | 待实现 | 待后续票填写 |
