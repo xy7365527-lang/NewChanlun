@@ -20,53 +20,174 @@
     "{RETURN_TOOL_RESERVE}",
     "{CONTEXT_STOP_PERCENT}"
   ],
+  "required_headings": [
+    "Caller's usage",
+    "Interface signature",
+    "What it hides",
+    "Trade-offs",
+    "Red-flag screen",
+    "Open questions"
+  ],
+  "payloads": {
+    "complete": "## Caller's usage\n\n调用示例\n\n## Interface signature\n\n接口签名\n\n## What it hides\n\n隐藏策略\n\n## Trade-offs\n\n权衡说明\n\n## Red-flag screen\n\n四类检查均已完成\n\n## Open questions\n\nNone",
+    "partial": "## Caller's usage\n\n调用示例\n\n## Interface signature\n\n接口签名\n\n## What it hides\n\n隐藏策略\n\n## Trade-offs\n\n\n## Red-flag screen\n\n四类检查均已完成\n\n## Open questions\n\nNone"
+  },
   "completion_cases": [
     {
       "id": "complete-message",
       "channel": "agent_message",
-      "complete": true,
+      "payload_ref": "complete",
       "expect": true
     },
     {
       "id": "complete-result-file",
       "channel": "result_file",
-      "complete": true,
+      "payload_ref": "complete",
       "expect": true
     },
     {
       "id": "complete-final-jsonl",
       "channel": "final_jsonl",
-      "complete": true,
+      "jsonl_file_count": 1,
+      "jsonl_records": [
+        {
+          "type": "message",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "payload_ref": "complete"
+              }
+            ]
+          }
+        },
+        {
+          "type": "message",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "发送成功后的简短确认，不是完整结果"
+              }
+            ]
+          }
+        },
+        {
+          "type": "message",
+          "message": {
+            "role": "toolResult",
+            "content": [
+              {
+                "type": "text",
+                "payload_ref": "complete"
+              }
+            ]
+          }
+        }
+      ],
       "expect": true
     },
     {
       "id": "admission-handle-only",
       "channel": "admission_handle",
-      "complete": true,
+      "payload_ref": "complete",
       "expect": false
     },
     {
       "id": "rollout-preview-only",
       "channel": "rollout_preview",
-      "complete": true,
+      "payload_ref": "complete",
       "expect": false
     },
     {
       "id": "source-tool-tail",
       "channel": "toolResult",
-      "complete": true,
+      "jsonl_records": [
+        {
+          "type": "message",
+          "message": {
+            "role": "toolResult",
+            "content": [
+              {
+                "type": "text",
+                "payload_ref": "complete"
+              }
+            ]
+          }
+        }
+      ],
+      "expect": false
+    },
+    {
+      "id": "assistant-non-text-content",
+      "channel": "final_jsonl",
+      "jsonl_file_count": 1,
+      "jsonl_records": [
+        {
+          "type": "message",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "toolResult",
+                "payload_ref": "complete"
+              },
+              {
+                "type": "thinking",
+                "payload_ref": "complete"
+              }
+            ]
+          }
+        }
+      ],
       "expect": false
     },
     {
       "id": "partial-message",
       "channel": "agent_message",
-      "complete": false,
+      "payload_ref": "partial",
       "expect": false
     },
     {
       "id": "partial-final-jsonl",
       "channel": "final_jsonl",
-      "complete": false,
+      "jsonl_file_count": 1,
+      "jsonl_records": [
+        {
+          "type": "message",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "payload_ref": "partial"
+              }
+            ]
+          }
+        }
+      ],
+      "expect": false
+    },
+    {
+      "id": "multiple-final-jsonl-files",
+      "channel": "final_jsonl",
+      "jsonl_file_count": 2,
+      "jsonl_records": [
+        {
+          "type": "message",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "payload_ref": "complete"
+              }
+            ]
+          }
+        }
+      ],
       "expect": false
     }
   ],
@@ -76,15 +197,29 @@
       "candidates": [
         {
           "channel": "agent_message",
-          "complete": true
+          "payload_ref": "complete"
         },
         {
           "channel": "result_file",
-          "complete": true
+          "payload_ref": "complete"
         },
         {
           "channel": "final_jsonl",
-          "complete": true
+          "jsonl_file_count": 1,
+          "jsonl_records": [
+            {
+              "type": "message",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "payload_ref": "complete"
+                  }
+                ]
+              }
+            }
+          ]
         }
       ],
       "expect_compare": true
@@ -94,15 +229,15 @@
       "candidates": [
         {
           "channel": "agent_message",
-          "complete": true
+          "payload_ref": "complete"
         },
         {
           "channel": "result_file",
-          "complete": true
+          "payload_ref": "complete"
         },
         {
           "channel": "admission_handle",
-          "complete": true
+          "payload_ref": "complete"
         }
       ],
       "expect_compare": false
@@ -112,18 +247,91 @@
       "candidates": [
         {
           "channel": "agent_message",
-          "complete": true
+          "payload_ref": "complete"
         },
         {
           "channel": "final_jsonl",
-          "complete": true
+          "jsonl_file_count": 1,
+          "jsonl_records": [
+            {
+              "type": "message",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "payload_ref": "complete"
+                  }
+                ]
+              }
+            }
+          ]
         },
         {
-          "channel": "missing",
-          "complete": false
+          "channel": "missing"
         }
       ],
       "expect_compare": false
+    }
+  ],
+  "result_path_cases": [
+    {
+      "id": "absolute-inside-root-unique",
+      "root_session_dir": "/tmp/prime-root",
+      "result_files": [
+        "/tmp/prime-root/candidate-a.md",
+        "/tmp/prime-root/candidate-b.md",
+        "/tmp/prime-root/nested/candidate-c.md"
+      ],
+      "expect": true
+    },
+    {
+      "id": "relative-path-rejected",
+      "root_session_dir": "/tmp/prime-root",
+      "result_files": [
+        "candidate-a.md",
+        "/tmp/prime-root/candidate-b.md",
+        "/tmp/prime-root/candidate-c.md"
+      ],
+      "expect": false
+    },
+    {
+      "id": "outside-root-rejected",
+      "root_session_dir": "/tmp/prime-root",
+      "result_files": [
+        "/tmp/prime-root/candidate-a.md",
+        "/tmp/elsewhere/candidate-b.md",
+        "/tmp/prime-root/candidate-c.md"
+      ],
+      "expect": false
+    },
+    {
+      "id": "duplicate-path-rejected",
+      "root_session_dir": "/tmp/prime-root",
+      "result_files": [
+        "/tmp/prime-root/candidate-a.md",
+        "/tmp/prime-root/candidate-a.md",
+        "/tmp/prime-root/candidate-c.md"
+      ],
+      "expect": false
+    }
+  ],
+  "render_cases": [
+    {
+      "id": "all-placeholders-rendered",
+      "values": {
+        "MODULE_DESCRIPTION": "订单模块",
+        "REQUIREMENTS": "支持批量提交",
+        "DESIGN_PRESSURE": "最少方法数",
+        "READ_BUDGET": 8,
+        "TOOL_BUDGET": 10,
+        "TIME_BUDGET": 6,
+        "OUTPUT_BUDGET": 1200,
+        "RESULT_FILE": "/tmp/prime-root/candidate-a.md",
+        "RETURN_TOOL_RESERVE": 2,
+        "CONTEXT_STOP_PERCENT": 70
+      },
+      "expect_no_placeholders": true
     }
   ]
 }
