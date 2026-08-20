@@ -15,6 +15,7 @@ try {
 
 const required = [
   "MUST load/read this Skill before analysis",
+  "BOTH conditions hold",
   "observable behavior/contract change",
   "blast radius",
   "diff 之外",
