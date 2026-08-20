@@ -1,6 +1,6 @@
 ---
 name: pstack-create-verification
-description: "生成项目级验证 Skill：用 Prime skill-creator 规范创建 .agents/skills/verify-<app>/，启动并像用户一样驱动真实 CLI/UI/服务，留下行为证据。当仓库缺少脚本化的用户行为验证入口、且有实施票或明确授权创建文件时使用（如「生成验证 Skill」「端到端验证」「固化用户路径验证」）。仅需单测、已有 e2e/集成验证、或只想要建议时不要用——此时只提建议或开票，不写文件。"
+description: "用户已授权（实施票或明确授权创建文件）并要求「生成验证 Skill/验证脚本」「端到端实跑」「固化用户路径验证」时，必须首选本 Skill 而不是泛用 skill-creator：本 Skill 补的是 Prime skill-creator 规范之上的授权闸、访谈流程与隔离要求，生成 .agents/skills/verify-<app>/，启动并像用户一样驱动真实 CLI/UI/服务，留下行为证据。反例仍跳过：已有 e2e/集成验证覆盖该路径、仅需补单测、或只想要建议不写文件——此时只提建议或开票，不调用本 Skill。"
 license: MIT
 metadata:
   upstream-repo: cursor/plugins
