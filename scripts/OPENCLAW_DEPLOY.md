@@ -73,8 +73,8 @@ cd /root/NewChanlun/topological-computation/frontend
 # 安装依赖（首次）
 npm install
 
-# 开发模式
-npm run dev -- --host 0.0.0.0
+# 开发模式（仅监听本机）
+npm run dev -- --host 127.0.0.1
 
 # 或构建后用 nginx/caddy 静态服务
 npm run build
@@ -84,8 +84,13 @@ npm run build
 Dashboard 本地开发地址：`http://127.0.0.1:5173`。公网部署必须由 nginx/caddy
 等 TLS 终止层同时代理 daemon HTTP 与 WebSocket，不得直接暴露 daemon 的明文端口。
 
-前端内置公网实例使用 `https://` / `wss://`。如部署使用域名或不同端口，在构建时提供
-完整实例列表（Vite 会把它编入静态产物）：
+前端唯一内置实例是精确 loopback 开发端点，不会在启动时探测或等待任何公网地址。
+公网实例必须通过以下任一方式显式配置：
+
+1. 构建时提供 `VITE_FENGLIANG_DAEMON_INSTANCES`（Vite 会把完整列表编入静态产物）；
+2. 在 Dashboard 的实例面板中由用户显式添加 HTTPS/WSS 端点。
+
+构建时配置示例：
 
 ```bash
 export VITE_FENGLIANG_DAEMON_INSTANCES='[{"id":"prod","name":"Production","httpBase":"https://daemon.example.com:9765","wsUrl":"wss://daemon.example.com:8765/ws"}]'
@@ -94,18 +99,20 @@ npm run build
 
 传输安全语义：
 
-- 公网 HTTP/WS 配置在默认值、构建时覆盖、浏览器持久化和用户新增四个入口统一校验；
-  非 `https://` / `wss://` 会被拒绝，不能进入连接或持久化路径。
+- 内置 loopback、构建时覆盖、浏览器持久化和用户新增四个入口共用同一份列表校验；
+  重复实例 ID、查询参数、fragment 和不支持的 URL 形状都会被拒绝。
+- 公网端点必须成对使用 `https://` / `wss://`，HTTP 与 WebSocket 的主机、协议族及端口
+  映射必须匹配；不安全配置不能进入连接或持久化路径。
 - 仅精确的 `localhost`、`127.0.0.1`、`::1` 可在本地开发时使用 `http://` / `ws://`；
   私网地址、相似域名和其他主机均不属于例外。
+- HTTP base 只接受根路径（尾部 `/` 会被归一化），WebSocket 路径必须为 `/ws`。
+  只有 `9765→8765`、`9766→8766`、`9767→8767` 三组端口可从 HTTP 自动推导；
+  HTTP 使用其他端口时必须显式填写 `wsUrl`。
 - HTTPS/WSS 直接交给浏览器原生 `fetch` / `WebSocket`。浏览器校验证书信任链、有效期及
-  主机名/IP SAN；证书自签、不受信、过期或名称不匹配时连接失败。前端没有、也不提供
+  主机身份；证书自签、不受信、过期或名称不匹配时连接失败。前端没有、也不提供
   关闭证书校验的开关。
 - 显式构建配置若格式错误或含明文公网端点，应用启动即报错，不回退；旧版或不安全的
-  `localStorage` 配置会被删除、切回已校验默认值，并在实例面板显示拒绝原因。
-
-因此，使用 IP 形式的内置公网地址时，证书必须把该 IP 写入 SAN；更常见的做法是通过上面
-的构建配置改成有受信证书的域名。
+  `localStorage` 配置会被删除、切回唯一的 loopback 开发实例，并在实例面板显示拒绝原因。
 
 ## 观察与调试
 
@@ -160,3 +167,4 @@ scheduler (切分端-机器部分, 定期循环)
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `FENGLIANG_API` | `http://localhost:9765` | Daemon HTTP API 地址 |
+| `VITE_FENGLIANG_DAEMON_INSTANCES` | 未设置（仅使用内置 loopback 开发实例） | Dashboard 构建时公网实例 JSON 列表；公网端点须显式使用 HTTPS/WSS |

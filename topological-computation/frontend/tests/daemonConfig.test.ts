@@ -71,21 +71,13 @@ class MemoryStorage {
   }
 }
 
-test("built-in public defaults use browser-verified TLS while the exact loopback default stays local", () => {
-  const publicInstances = BUILT_IN_DAEMON_INSTANCES.filter((instance) => instance.id !== "local");
-  equal(publicInstances.length, 3);
-  for (const instance of publicInstances) {
-    matches(instance.httpBase, /^https:\/\//);
-    matches(instance.wsUrl, /^wss:\/\//);
-    deepEqual(validateDaemonInstance(instance), instance);
-  }
-
-  deepEqual(BUILT_IN_DAEMON_INSTANCES.at(-1), {
+test("built-in defaults contain only exact localhost development", () => {
+  deepEqual(BUILT_IN_DAEMON_INSTANCES, [{
     id: "local",
     name: "本地",
     httpBase: endpoint("http", `${localHostname}:9765`),
     wsUrl: endpoint("ws", `${localHostname}:8765`, "/ws"),
-  });
+  }]);
 });
 
 test("a build-time JSON override accepts HTTPS/WSS public endpoints and exact loopback development", () => {
@@ -100,7 +92,7 @@ test("a build-time JSON override accepts HTTPS/WSS public endpoints and exact lo
       id: "dev",
       name: "Development",
       httpBase: endpoint("http", `${loopbackIpv4}:9765`),
-      wsUrl: endpoint("ws", "[::1]:8765", "/ws"),
+      wsUrl: endpoint("ws", `${loopbackIpv4}:8765`, "/ws"),
     },
   ]);
 
@@ -115,9 +107,123 @@ test("a build-time JSON override accepts HTTPS/WSS public endpoints and exact lo
       id: "dev",
       name: "Development",
       httpBase: endpoint("http", `${loopbackIpv4}:9765`),
-      wsUrl: endpoint("ws", "[::1]:8765", "/ws"),
+      wsUrl: endpoint("ws", `${loopbackIpv4}:8765`, "/ws"),
     },
   ]);
+});
+
+test("daemon endpoint validation rejects query, hash, and unsupported paths while normalizing the HTTP root slash", () => {
+  const valid = {
+    id: "prod",
+    name: "Production",
+    httpBase: endpoint("https", "daemon.example.com:9765", "/"),
+    wsUrl: endpoint("wss", "daemon.example.com:8765", "/ws"),
+  };
+  deepEqual(validateDaemonInstance(valid), {
+    ...valid,
+    httpBase: endpoint("https", "daemon.example.com:9765"),
+  });
+
+  const invalid = [
+    { ...valid, httpBase: `${valid.httpBase}?tenant=one` },
+    { ...valid, httpBase: `${valid.httpBase}#status` },
+    { ...valid, httpBase: endpoint("https", "daemon.example.com:9765", "/api") },
+    { ...valid, wsUrl: `${valid.wsUrl}?tenant=one` },
+    { ...valid, wsUrl: `${valid.wsUrl}#events` },
+    { ...valid, wsUrl: endpoint("wss", "daemon.example.com:8765", "/events") },
+  ];
+  for (const instance of invalid) {
+    throwsType(() => validateDaemonInstance(instance), DaemonConfigError);
+  }
+});
+
+test("HTTP and WebSocket endpoints must form one host, transport, and known-port pair", () => {
+  for (const [httpPort, wsPort] of [["9765", "8765"], ["9766", "8766"], ["9767", "8767"]]) {
+    const instance = {
+      id: `prod-${httpPort}`,
+      name: `Production ${httpPort}`,
+      httpBase: endpoint("https", `daemon.example.com:${httpPort}`),
+      wsUrl: endpoint("wss", `daemon.example.com:${wsPort}`, "/ws"),
+    };
+    deepEqual(validateDaemonInstance(instance), instance);
+  }
+
+  const invalid = [
+    {
+      id: "host-mismatch",
+      name: "Host mismatch",
+      httpBase: endpoint("https", "api.example.com:9765"),
+      wsUrl: endpoint("wss", "events.example.com:8765", "/ws"),
+    },
+    {
+      id: "scheme-mismatch",
+      name: "Scheme mismatch",
+      httpBase: endpoint("https", `${localHostname}:9765`),
+      wsUrl: endpoint("ws", `${localHostname}:8765`, "/ws"),
+    },
+    {
+      id: "port-mismatch",
+      name: "Port mismatch",
+      httpBase: endpoint("https", "daemon.example.com:9765"),
+      wsUrl: endpoint("wss", "daemon.example.com:8766", "/ws"),
+    },
+  ];
+  for (const instance of invalid) {
+    throwsType(() => validateDaemonInstance(instance), DaemonConfigError);
+  }
+});
+
+test("plaintext loopback transport accepts only an exact raw authority hostname", () => {
+  for (const rawHost of ["LOCALHOST", loopbackIpv4, "[::1]"]) {
+    validateDaemonInstance({
+      id: `allowed-${rawHost}`,
+      name: "Allowed loopback",
+      httpBase: endpoint("http", `${rawHost}:9765`),
+      wsUrl: endpoint("ws", `${rawHost}:8765`, "/ws"),
+    });
+  }
+
+  for (const rawHost of [
+    "127.1",
+    "2130706433",
+    "0x7f000001",
+    "0177.0.0.1",
+    "localhost.",
+    "127.0.0.1.",
+  ]) {
+    throwsType(
+      () => validateDaemonInstance({
+        id: `rejected-${rawHost}`,
+        name: "Rejected loopback spelling",
+        httpBase: endpoint("http", `${rawHost}:9765`),
+        wsUrl: endpoint("ws", `${rawHost}:8765`, "/ws"),
+      }),
+      DaemonConfigError,
+    );
+  }
+});
+
+test("HTTP endpoint raw path permits only an absent path or one root slash", () => {
+  for (const path of ["", "/"]) {
+    validateDaemonInstance({
+      id: `allowed-root-${path.length}`,
+      name: "Allowed root path",
+      httpBase: endpoint("https", "daemon.example.com:9765", path),
+      wsUrl: endpoint("wss", "daemon.example.com:8765", "/ws"),
+    });
+  }
+
+  for (const path of ["/.", "/%2e", "/a/..", "\\."]) {
+    throwsType(
+      () => validateDaemonInstance({
+        id: `rejected-path-${path}`,
+        name: "Rejected normalized path",
+        httpBase: endpoint("https", "daemon.example.com:9765", path),
+        wsUrl: endpoint("wss", "daemon.example.com:8765", "/ws"),
+      }),
+      DaemonConfigError,
+    );
+  }
 });
 
 test("configuration parsing fails closed instead of falling back after an explicit invalid override", () => {
@@ -129,13 +235,40 @@ test("configuration parsing fails closed instead of falling back after an explic
   );
 });
 
+test("parse and save share non-empty and normalized unique-id list validation without partial writes", () => {
+  const instance = {
+    id: "prod",
+    name: "Production",
+    httpBase: endpoint("https", "daemon.example.com:9765"),
+    wsUrl: endpoint("wss", "daemon.example.com:8765", "/ws"),
+  };
+  const invalidLists = [
+    [],
+    [instance, { ...instance, id: " prod ", name: "Duplicate" }],
+  ];
+
+  for (const invalid of invalidLists) {
+    throwsType(
+      () => parseDaemonInstancesConfig(JSON.stringify(invalid), "test daemon instances"),
+      DaemonConfigError,
+    );
+
+    const storage = new MemoryStorage({ instances: "unchanged" });
+    throwsType(
+      () => savePersistedDaemonInstances(storage, "instances", invalid),
+      DaemonConfigError,
+    );
+    equal(storage.getItem("instances"), "unchanged");
+  }
+});
+
 test("current persisted configuration is validated and rejected before it can be loaded or saved", () => {
   const key = "daemon-instances";
   const insecure = [{
     id: "bad",
     name: "Bad",
-    httpBase: endpoint("http", "46.4.204.119:9765"),
-    wsUrl: endpoint("wss", "46.4.204.119:8765", "/ws"),
+    httpBase: endpoint("http", "public.example:9765"),
+    wsUrl: endpoint("wss", "public.example:8765", "/ws"),
   }];
   const storage = new MemoryStorage({
     [`${key}_v`]: "5",
@@ -149,7 +282,7 @@ test("current persisted configuration is validated and rejected before it can be
     BUILT_IN_DAEMON_INSTANCES,
   );
   deepEqual(loaded.instances, BUILT_IN_DAEMON_INSTANCES);
-  matches(loaded.rejection ?? "", /已拒绝/);
+  matches(loaded.rejection ?? "", /已拒绝无效或不安全的已保存 daemon 配置/);
   equal(storage.getItem(key), null);
 
   const freshStorage = new MemoryStorage();
@@ -163,18 +296,20 @@ test("current persisted configuration is validated and rejected before it can be
 test("legacy persistence is discarded, while a current secure value survives validation", () => {
   const key = "daemon-instances";
   const legacyStorage = new MemoryStorage({
-    [`${key}_v`]: "4",
+    [`${key}_v`]: "5",
     [key]: JSON.stringify([{ legacy: true }]),
   });
   const legacy = loadPersistedDaemonInstances(
     legacyStorage,
     key,
-    5,
+    6,
     BUILT_IN_DAEMON_INSTANCES,
   );
-  matches(legacy.rejection ?? "", /旧版/);
+  matches(legacy.rejection ?? "", /旧内置公网实例已移除/);
+  matches(legacy.rejection ?? "", /VITE_FENGLIANG_DAEMON_INSTANCES/);
+  matches(legacy.rejection ?? "", /用户显式 HTTPS\/WSS 配置/);
   equal(legacyStorage.getItem(key), null);
-  equal(legacyStorage.getItem(`${key}_v`), "5");
+  equal(legacyStorage.getItem(`${key}_v`), "6");
 
   const secure = [{
     id: "prod",
@@ -183,13 +318,13 @@ test("legacy persistence is discarded, while a current secure value survives val
     wsUrl: endpoint("wss", "daemon.example.com:8765", "/ws"),
   }];
   const secureStorage = new MemoryStorage({
-    [`${key}_v`]: "5",
+    [`${key}_v`]: "6",
     [key]: JSON.stringify(secure),
   });
   const current = loadPersistedDaemonInstances(
     secureStorage,
     key,
-    5,
+    6,
     BUILT_IN_DAEMON_INSTANCES,
   );
   deepEqual(current.instances, secure);
@@ -198,7 +333,7 @@ test("legacy persistence is discarded, while a current secure value survives val
 
 test("public HTTP and WS are rejected for IPs, hostnames, and loopback lookalikes", () => {
   const cases = [
-    [endpoint("http", "46.4.204.119:9765"), endpoint("wss", "46.4.204.119:8765", "/ws")],
+    [endpoint("http", "public.example:9765"), endpoint("wss", "public.example:8765", "/ws")],
     [endpoint("https", "daemon.example.com:9765"), endpoint("ws", "daemon.example.com:8765", "/ws")],
     [endpoint("http", `${localHostname}.evil.example:9765`), endpoint("ws", `${localHostname}.evil.example:8765`, "/ws")],
     [endpoint("http", `${["192", "168", "1", "8"].join(".")}:9765`), endpoint("wss", "daemon.example.com:8765", "/ws")],
@@ -215,16 +350,37 @@ test("public HTTP and WS are rejected for IPs, hostnames, and loopback lookalike
   }
 });
 
-test("WebSocket derivation preserves the existing port convention and never downgrades TLS", () => {
-  equal(
-    deriveWebSocketUrl(endpoint("https", "daemon.example.com:9765")),
-    endpoint("wss", "daemon.example.com:8765", "/ws"),
-  );
+test("WebSocket derivation supports each documented daemon port mapping without downgrading TLS", () => {
+  for (const [httpPort, wsPort] of [["9765", "8765"], ["9766", "8766"], ["9767", "8767"]]) {
+    equal(
+      deriveWebSocketUrl(endpoint("https", `daemon.example.com:${httpPort}`)),
+      endpoint("wss", `daemon.example.com:${wsPort}`, "/ws"),
+    );
+  }
   equal(
     deriveWebSocketUrl(endpoint("http", `${localHostname}:9765`)),
     endpoint("ws", `${localHostname}:8765`, "/ws"),
   );
   throwsType(() => deriveWebSocketUrl(endpoint("http", "daemon.example.com:9765")), DaemonConfigError);
+});
+
+test("unknown HTTP ports require an explicit WebSocket endpoint", () => {
+  throwsWith(
+    () => deriveWebSocketUrl(endpoint("https", "daemon.example.com:9443")),
+    (error: unknown) => error instanceof DaemonConfigError && /wsUrl|explicit/i.test(error.message),
+  );
+  throwsWith(
+    () => deriveWebSocketUrl(endpoint("https", "daemon.example.com")),
+    (error: unknown) => error instanceof DaemonConfigError && /wsUrl|explicit/i.test(error.message),
+  );
+
+  const explicit = {
+    id: "custom-ports",
+    name: "Custom ports",
+    httpBase: endpoint("https", "daemon.example.com:9443"),
+    wsUrl: endpoint("wss", "daemon.example.com:9444", "/ws"),
+  };
+  deepEqual(validateDaemonInstance(explicit), explicit);
 });
 
 test("connection errors retain their cause and explain browser TLS fail-closed behavior", () => {

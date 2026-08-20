@@ -251,7 +251,7 @@ export function InstanceManager() {
               <input
                 value={newWs}
                 onChange={(e) => setNewWs(e.target.value)}
-                placeholder="WSS (留空从 HTTPS 自动推导)"
+                placeholder="WSS (9765/9766/9767 可留空；其他端口必填)"
                 style={{
                   background: T.bg, color: T.text,
                   border: `1px solid ${T.border}`,

@@ -16,6 +16,12 @@ import {
   savePersistedDaemonInstances,
   validateDaemonInstance,
 } from "../daemonConfig";
+import {
+  removeConfiguredInstanceState,
+  updateConfiguredInstanceState,
+  type ConnectionStateFields,
+  type ConnectionStatePatch,
+} from "./connectionState";
 
 interface Beta1Point {
   step: number;
@@ -23,15 +29,15 @@ interface Beta1Point {
 }
 
 // Per-instance connection/status state
-export interface InstanceState {
-  wsConnected: boolean;
+export interface InstanceState extends ConnectionStateFields {
   reachable: boolean;
   status: StatusResponse | null;
   currentPositionLabel: string;
   currentPositionId: string;
   beta1History: Beta1Point[];
-  connectionError: string | null;
 }
+
+export type InstanceStatePatch = ConnectionStatePatch<InstanceState>;
 
 // ── Filter state ──────────────────────────────────────────────────
 export interface FilterState {
@@ -77,9 +83,9 @@ function saveFilters(f: FilterState): void {
   }));
 }
 
-// Version 5 invalidates version-4 caches that may contain the former public
-// HTTP/WS defaults. Current-version caches are still validated on every load.
-const INSTANCE_VERSION = 5;
+// Version 6 invalidates version-5 caches that may retain the former built-in
+// public daemon configuration. Current-version caches are validated on every load.
+const INSTANCE_VERSION = 6;
 
 const initialInstanceConfig = loadPersistedDaemonInstances(
   localStorage,
@@ -99,10 +105,11 @@ interface DaemonStore {
   instanceConfigError: string | null;
   addInstance: (inst: DaemonInstance) => void;
   removeInstance: (id: string) => void;
-  updateInstanceState: (id: string, partial: Partial<InstanceState>) => void;
+  updateInstanceState: (id: string, partial: InstanceStatePatch) => void;
 
   // ── Connection (any reachable instance) ─────────────────────
   wsConnected: boolean;
+  connectionError: string | null;
   daemonReachable: boolean;
 
   // Metrics (from first reachable instance — shared K_active)
@@ -146,7 +153,6 @@ interface DaemonStore {
   toggleFilterInstance: (instanceId: string) => void;
 
   // Actions
-  setWsConnected: (v: boolean) => void;
   setDaemonReachable: (v: boolean) => void;
   setStatus: (s: StatusResponse) => void;
   setTopology: (t: TopologyResponse) => void;
@@ -185,21 +191,23 @@ export const useStore = create<DaemonStore>((set, get) => ({
     set((state) => {
       const updated = state.instances.filter((i) => i.id !== id);
       if (updated.length === 0) return state; // don't remove last
-      const { [id]: _removed, ...restStates } = state.instanceStates;
       const validated = savePersistedDaemonInstances(localStorage, INSTANCE_STORAGE_KEY, updated);
-      return { instances: validated, instanceStates: restStates };
+      const aggregate = removeConfiguredInstanceState(validated, state.instanceStates, id);
+      return { instances: validated, ...aggregate };
     }),
 
   updateInstanceState: (id, partial) =>
-    set((state) => ({
-      instanceStates: {
-        ...state.instanceStates,
-        [id]: { ...defaultInstanceState(), ...state.instanceStates[id], ...partial },
-      },
-    })),
+    set((state) => updateConfiguredInstanceState(
+      state.instances,
+      state.instanceStates,
+      id,
+      defaultInstanceState,
+      partial,
+    )),
 
   // ── Aggregated fields ─────────────────────────────────────────
   wsConnected: false,
+  connectionError: null,
   daemonReachable: false,
   status: null,
   beta1History: [],
@@ -264,7 +272,6 @@ export const useStore = create<DaemonStore>((set, get) => ({
       return { filters: f };
     }),
 
-  setWsConnected: (v) => set({ wsConnected: v }),
   setDaemonReachable: (v) => set({ daemonReachable: v }),
 
   setStatus: (s) =>
@@ -297,6 +304,8 @@ export const useStore = create<DaemonStore>((set, get) => ({
   // Narrative/gap/feed/pressure events are merged into the shared stream.
   handleWsBatch: (instanceId, msgs) =>
     set((state) => {
+      if (!state.instances.some((instance) => instance.id === instanceId)) return state;
+
       let history = [...state.beta1History];
       let expressionPressure = state.expressionPressure;
       const newNarrative: NarrativeEvent[] = [];
@@ -442,6 +451,8 @@ export const useStore = create<DaemonStore>((set, get) => ({
 function defaultInstanceState(): InstanceState {
   return {
     wsConnected: false,
+    httpError: null,
+    wsError: null,
     reachable: false,
     status: null,
     currentPositionLabel: "",

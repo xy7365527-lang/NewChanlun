@@ -35,15 +35,44 @@ const EXACT_LOOPBACK_HOSTS = new Set([
   LOOPBACK_IPV6,
   `[${LOOPBACK_IPV6}]`,
 ]);
+const WS_PORT_BY_HTTP_PORT = new Map([
+  ["9765", "8765"],
+  ["9766", "8766"],
+  ["9767", "8767"],
+]);
 
-function endpointUrl(raw: string, field: "HTTP" | "WebSocket"): URL {
+interface ParsedEndpointUrl {
+  url: URL;
+  rawHostname: string;
+  rawPath: string;
+}
+
+function rawAuthorityHostname(
+  authority: string,
+  field: "HTTP" | "WebSocket",
+): string {
+  const bracketed = authority.match(/^(\[[^\]]+\])(?::\d+)?$/);
+  if (bracketed) {
+    return bracketed[1];
+  }
+
+  const named = authority.match(/^([^:\\]+)(?::\d+)?$/);
+  if (named) {
+    return named[1];
+  }
+
+  throw new DaemonConfigError(`${field} endpoint authority has an unsupported shape`);
+}
+
+function endpointUrl(raw: string, field: "HTTP" | "WebSocket"): ParsedEndpointUrl {
   if (typeof raw !== "string" || raw.trim() === "") {
     throw new DaemonConfigError(`${field} endpoint must be a non-empty URL`);
   }
 
+  const input = raw.trim();
   let url: URL;
   try {
-    url = new URL(raw.trim());
+    url = new URL(input);
   } catch {
     throw new DaemonConfigError(`${field} endpoint is not a valid absolute URL: ${raw}`);
   }
@@ -51,7 +80,20 @@ function endpointUrl(raw: string, field: "HTTP" | "WebSocket"): URL {
   if (url.username || url.password) {
     throw new DaemonConfigError(`${field} endpoint must not contain credentials`);
   }
-  return url;
+  if (url.search || url.hash || input.includes("?") || input.includes("#")) {
+    throw new DaemonConfigError(`${field} endpoint must not contain a query or hash`);
+  }
+
+  const rawShape = input.match(/^[A-Za-z][A-Za-z\d+.-]*:\/\/([^/?#]*)([^?#]*)$/);
+  if (!rawShape) {
+    throw new DaemonConfigError(`${field} endpoint must use an absolute URL with // authority`);
+  }
+
+  return {
+    url,
+    rawHostname: rawAuthorityHostname(rawShape[1], field),
+    rawPath: rawShape[2],
+  };
 }
 
 export function isExactLoopbackHost(hostname: string): boolean {
@@ -59,14 +101,15 @@ export function isExactLoopbackHost(hostname: string): boolean {
 }
 
 function requireSecureTransport(
-  url: URL,
+  endpoint: ParsedEndpointUrl,
   field: "HTTP" | "WebSocket",
 ): void {
+  const { url, rawHostname } = endpoint;
   const requiredScheme = field === "HTTP" ? "https:" : "wss:";
   const loopbackProtocol = field === "HTTP" ? "http:" : "ws:";
 
   if (url.protocol === requiredScheme) return;
-  if (url.protocol === loopbackProtocol && isExactLoopbackHost(url.hostname)) return;
+  if (url.protocol === loopbackProtocol && isExactLoopbackHost(rawHostname)) return;
 
   throw new DaemonConfigError(
     `${field} endpoint must use ${field === "HTTP" ? "HTTPS" : "WSS"}; `
@@ -83,6 +126,26 @@ function normalizeHttpBase(url: URL): string {
     : normalized.replace(/\/+$/, "");
 }
 
+function requirePairedEndpoints(http: URL, ws: URL): void {
+  if (http.hostname !== ws.hostname) {
+    throw new DaemonConfigError("HTTP and WebSocket endpoints must use the same hostname");
+  }
+
+  const expectedWsProtocol = http.protocol === "https:" ? "wss:" : "ws:";
+  if (ws.protocol !== expectedWsProtocol) {
+    throw new DaemonConfigError(
+      `WebSocket endpoint must use ${expectedWsProtocol}// with ${http.protocol}// HTTP`,
+    );
+  }
+
+  const expectedWsPort = WS_PORT_BY_HTTP_PORT.get(http.port);
+  if (expectedWsPort && ws.port !== expectedWsPort) {
+    throw new DaemonConfigError(
+      `HTTP port ${http.port} must pair with WebSocket port ${expectedWsPort}`,
+    );
+  }
+}
+
 export function validateDaemonInstance(instance: DaemonInstance): DaemonInstance {
   if (!instance || typeof instance !== "object") {
     throw new DaemonConfigError("daemon instance must be an object");
@@ -93,10 +156,19 @@ export function validateDaemonInstance(instance: DaemonInstance): DaemonInstance
   if (!id) throw new DaemonConfigError("daemon instance id must not be empty");
   if (!name) throw new DaemonConfigError(`daemon instance ${id || "<unknown>"} name must not be empty`);
 
-  const http = endpointUrl(instance.httpBase, "HTTP");
-  const ws = endpointUrl(instance.wsUrl, "WebSocket");
-  requireSecureTransport(http, "HTTP");
-  requireSecureTransport(ws, "WebSocket");
+  const httpEndpoint = endpointUrl(instance.httpBase, "HTTP");
+  const wsEndpoint = endpointUrl(instance.wsUrl, "WebSocket");
+  const http = httpEndpoint.url;
+  const ws = wsEndpoint.url;
+  requireSecureTransport(httpEndpoint, "HTTP");
+  requireSecureTransport(wsEndpoint, "WebSocket");
+  if ((httpEndpoint.rawPath !== "" && httpEndpoint.rawPath !== "/") || http.pathname !== "/") {
+    throw new DaemonConfigError("HTTP endpoint path must be / (or omitted)");
+  }
+  if (wsEndpoint.rawPath !== "/ws" || ws.pathname !== "/ws") {
+    throw new DaemonConfigError("WebSocket endpoint path must be /ws");
+  }
+  requirePairedEndpoints(http, ws);
 
   return {
     id,
@@ -107,24 +179,6 @@ export function validateDaemonInstance(instance: DaemonInstance): DaemonInstance
 }
 
 const BUILT_IN_INPUTS: DaemonInstance[] = [
-  {
-    id: "vps-0",
-    name: "VPS-0",
-    httpBase: "https://46.4.204.119:9765",
-    wsUrl: "wss://46.4.204.119:8765/ws",
-  },
-  {
-    id: "vps-1",
-    name: "VPS-1",
-    httpBase: "https://46.4.204.119:9766",
-    wsUrl: "wss://46.4.204.119:8766/ws",
-  },
-  {
-    id: "vps-2",
-    name: "VPS-2",
-    httpBase: "https://46.4.204.119:9767",
-    wsUrl: "wss://46.4.204.119:8767/ws",
-  },
   {
     id: "local",
     name: "本地",
@@ -137,28 +191,16 @@ export const BUILT_IN_DAEMON_INSTANCES: DaemonInstance[] = BUILT_IN_INPUTS.map(
   validateDaemonInstance,
 );
 
-/**
- * Parse the optional Vite build-time override or a persisted instance list.
- * An explicitly supplied invalid value throws; callers must not silently retain
- * or connect to the invalid endpoints.
- */
-export function parseDaemonInstancesConfig(raw: string, source: string): DaemonInstance[] {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new DaemonConfigError(`${source} must be a valid JSON array of daemon instances`);
-  }
-
-  if (!Array.isArray(parsed) || parsed.length === 0) {
+function validateDaemonInstancesList(value: unknown, source: string): DaemonInstance[] {
+  if (!Array.isArray(value) || value.length === 0) {
     throw new DaemonConfigError(`${source} must be a non-empty JSON array of daemon instances`);
   }
 
-  const instances = parsed.map((value, index) => {
-    if (!value || typeof value !== "object") {
+  const instances = value.map((item, index) => {
+    if (!item || typeof item !== "object") {
       throw new DaemonConfigError(`${source}[${index}] must be a daemon instance object`);
     }
-    const candidate = value as Partial<DaemonInstance>;
+    const candidate = item as Partial<DaemonInstance>;
     try {
       return validateDaemonInstance({
         id: candidate.id as string,
@@ -180,6 +222,22 @@ export function parseDaemonInstancesConfig(raw: string, source: string): DaemonI
     ids.add(instance.id);
   }
   return instances;
+}
+
+/**
+ * Parse the optional Vite build-time override or a persisted instance list.
+ * An explicitly supplied invalid value throws; callers must not silently retain
+ * or connect to the invalid endpoints.
+ */
+export function parseDaemonInstancesConfig(raw: string, source: string): DaemonInstance[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new DaemonConfigError(`${source} must be a valid JSON array of daemon instances`);
+  }
+
+  return validateDaemonInstancesList(parsed, source);
 }
 
 export interface DaemonConfigStorage {
@@ -217,7 +275,8 @@ export function loadPersistedDaemonInstances(
       return {
         instances: cloneInstances(defaults),
         rejection: discardedLegacyConfig
-          ? "已拒绝旧版 daemon 配置：公网 HTTP/WS 端点必须改用 HTTPS/WSS"
+          ? "已拒绝旧版 daemon 配置：旧内置公网实例已移除；公网须使用 "
+            + "VITE_FENGLIANG_DAEMON_INSTANCES 或用户显式 HTTPS/WSS 配置"
           : null,
       };
     }
@@ -234,7 +293,7 @@ export function loadPersistedDaemonInstances(
         const detail = error instanceof Error ? error.message : String(error);
         return {
           instances: cloneInstances(defaults),
-          rejection: `已拒绝不安全的已保存 daemon 配置：${detail}`,
+          rejection: `已拒绝无效或不安全的已保存 daemon 配置：${detail}`,
         };
       }
     }
@@ -250,17 +309,28 @@ export function savePersistedDaemonInstances(
   instances: readonly DaemonInstance[],
 ): DaemonInstance[] {
   // Validate the entire next state before writing any part of it.
-  const validated = instances.map(validateDaemonInstance);
+  const validated = validateDaemonInstancesList(instances, "daemon instances to save");
   storage.setItem(storageKey, JSON.stringify(validated));
   return validated;
 }
 
 export function deriveWebSocketUrl(httpBase: string): string {
-  const http = endpointUrl(httpBase, "HTTP");
-  requireSecureTransport(http, "HTTP");
+  const httpEndpoint = endpointUrl(httpBase, "HTTP");
+  const http = httpEndpoint.url;
+  requireSecureTransport(httpEndpoint, "HTTP");
+  if ((httpEndpoint.rawPath !== "" && httpEndpoint.rawPath !== "/") || http.pathname !== "/") {
+    throw new DaemonConfigError("HTTP endpoint path must be / (or omitted)");
+  }
+
+  const wsPort = WS_PORT_BY_HTTP_PORT.get(http.port);
+  if (!wsPort) {
+    throw new DaemonConfigError(
+      `WebSocket endpoint cannot be derived from HTTP port ${http.port || "<default>"}; provide wsUrl explicitly`,
+    );
+  }
 
   http.protocol = http.protocol === "https:" ? "wss:" : "ws:";
-  if (http.port === "9765") http.port = "8765";
+  http.port = wsPort;
   http.pathname = "/ws";
   http.search = "";
   http.hash = "";
