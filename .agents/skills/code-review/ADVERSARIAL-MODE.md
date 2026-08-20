@@ -1,8 +1,9 @@
 # 对抗评审模式（interrogate 移植）
 
 本文件是 `code-review` 可选对抗评审的完整流程，移植自 pstack `interrogate`，并按 Prime
-RLM 异步子代理语义改写。SKILL.md 的「升级判定」决定何时进入本模式；本文件描述进入之后
-如何执行。
+RLM 异步子代理语义改写。当前是 explicit-only 试点：只有用户通过 `/skill:code-review` 显式
+调用并明确要求 adversarial 子模式时才尝试进入；高风险、争议或关键词本身不自动触发。本文件
+描述显式进入之后如何执行。
 
 原则：对抗信号来自**模型多样性**，不是分配人设。每个 reviewer 拿到相同的意图、diff 与
 rubric；不同模型在盲点、先验、推理模式上各不相同。跨模型一致是高置信信号，单模型发现
@@ -24,7 +25,7 @@ rubric；不同模型在盲点、先验、推理模式上各不相同。跨模�
 
 ## 步骤 3：模型多样性前置门与独立 reviewer（Prime 语义）
 
-### 3.1 前置门（自动升级与显式请求一视同仁）
+### 3.1 前置门（显式请求也不豁免）
 
 1. **先发现再选择**：必须先执行 `await rlm.find_models(limit=8)`，不可凭记忆硬编码 slug，
    更不可运行真实模型探针来猜凭据状态。
@@ -163,6 +164,7 @@ code-quality lens。**不要把其他 reviewer 的结论转给它**。三个 rev
 - **disable-model-invocation**：上游 interrogate 是 `disable-model-invocation: true`
   （只能显式调用）；合并后作为 code-review 的可选模式，跟随 code-review 的模型可见契约，
   不设该字段。
-- **升级判定并入 code-review**：上游独立 Skill 的触发短语并入 code-review description；
-  自动升级由「高风险/有争议/非小型 diff」判定门驱动，低风险小 diff 保持标准双轴评审。
+- **explicit-only 试点**：上游独立 Skill 不再通过触发短语或高风险语义自动升级；仅保留
+  `/skill:code-review` 显式调试入口，且仍受 3-selector/2-owner 多样性门约束。自动 3+3
+  夹具稳定前，高风险/有争议/非小型 diff 继续走标准双轴。
 - 本仓不创建 `pstack-interrogate` Skill。
