@@ -18,6 +18,13 @@ const fixtures = JSON.parse(read("docs", "agents", "pstack-lite", "fixtures.json
 const fixture = fixtures.items?.find((item) => item.id === "pstack-blast-radius");
 const customizations = read("docs", "agents", "skill-local-customizations.md");
 const triggerDocs = read("docs", "agents", "pstack-lite", "TRIGGER-FIXTURES.md");
+const triggerSection = triggerDocs.match(
+  /(?:^|\n)## pstack-blast-radius 降级记录（#1138）\n[\s\S]*?(?=\n## |$)/,
+)?.[0] ?? "";
+const customizationRow = customizations
+  .split("\n")
+  .find((line) => line.startsWith("| `pstack-blast-radius` |")) ?? "";
+const behaviorBody = skill.split("\n## 本地 Prime 改写")[0];
 const failures = [];
 const requireCheck = (condition, message) => {
   if (!condition) failures.push(message);
@@ -25,17 +32,33 @@ const requireCheck = (condition, message) => {
 
 // user-only 路由契约：flag + 显式入口，description 不再承诺自动加载。
 requireCheck(/^disable-model-invocation: true$/m.test(frontmatter), "frontmatter 缺 disable-model-invocation: true");
-requireCheck(description.includes("User-only"), "description 未声明 User-only");
+requireCheck(description.includes("仅限用户显式调用（user-only）"), "description 未声明 user-only");
 requireCheck(description.includes("/skill:pstack-blast-radius"), "description 缺显式 /skill 入口");
-requireCheck(description.includes("automatic model invocation is disabled"), "description 未声明禁用自动模型调用");
-requireCheck(!/MUST load|自动调用|自动语义加载/.test(description), "description 仍承诺自动加载");
+requireCheck(description.includes("已禁用模型自动调用"), "description 未声明禁用自动模型调用");
+for (const promise of ["MUST load", "必须加载", "自动加载本 Skill", "可自动调用", "自动语义加载"]) {
+  requireCheck(!description.includes(promise), `description 仍承诺自动加载：${promise}`);
+}
 requireCheck(skill.includes("仅通过 `/skill:pstack-blast-radius` 显式调用"), "正文缺显式调用入口");
 
-// 原 3+3 保留为 draft，重启条件必须写死。
+// 原 3+3 保留为 draft，重启条件必须写死；快照防止只保留数量却替换语料。
+const expectedCases = {
+  positive: [
+    ["blast-pos-1", "我改了这个返回类型的字段，帮我找出 diff 之外还会被影响的调用者和依赖。", "loaded"],
+    ["blast-pos-2", "这个非小型行为变更会影响哪些其他路径？跑一条能证明安全性的靶向验证。", "loaded"],
+    ["blast-pos-3", "改了错误码的语义，列出所有依赖这个错误码的位置，并给出跨模块的证明。", "loaded"],
+  ],
+  negative: [
+    ["blast-neg-1", "把这个函数重命名，批量替换一下引用。", "skipped"],
+    ["blast-neg-2", "按 rustfmt 格式化这个文件。", "skipped"],
+    ["blast-neg-3", "给这段注释改个错别字。", "skipped"],
+  ],
+};
+const caseSnapshot = (cases) => cases?.map(({ id, prompt, expect }) => [id, prompt, expect]);
+requireCheck(fixture?.skill === "pstack-blast-radius", "fixture skill 指向错误");
+requireCheck(fixture?.skill_dir === "../../../.agents/skills/pstack-blast-radius", "fixture skill_dir 指向错误");
 requireCheck(fixture?.status === "draft", "pstack-blast-radius fixture 必须为 draft");
-requireCheck(fixture?.positive?.length === 3 && fixture?.negative?.length === 3, "原 3+3 fixture 未完整保留");
-requireCheck(fixture?.positive?.every((c) => c.expect === "loaded"), "正例预期应继续保留 loaded");
-requireCheck(fixture?.negative?.every((c) => c.expect === "skipped"), "反例预期应继续保留 skipped");
+requireCheck(JSON.stringify(caseSnapshot(fixture?.positive)) === JSON.stringify(expectedCases.positive), "原 3 条正例 fixture 未逐字保留");
+requireCheck(JSON.stringify(caseSnapshot(fixture?.negative)) === JSON.stringify(expectedCases.negative), "原 3 条反例 fixture 未逐字保留");
 requireCheck(fixture?.note?.includes("#1138") && fixture.note.includes("至少两个模型") && fixture.note.includes("重复稳定通过"), "fixture note 缺 #1138 降级原因或双模型重启条件");
 
 // 降级只改路由，不回滚行为能力。
@@ -48,10 +71,13 @@ for (const phrase of [
   "靶向验证命令要在错时大声失败",
   "grep 零命中（未发现，非行为证明）",
 ]) {
-  requireCheck(skill.includes(phrase), `行为正文缺契约：${phrase}`);
+  requireCheck(behaviorBody.includes(phrase), `行为正文缺契约：${phrase}`);
 }
-requireCheck(customizations.includes("已实现、user-only（#1133/#1138）"), "本地定制表未记录 user-only 降级");
-requireCheck(triggerDocs.includes("pstack-blast-radius 降级记录（#1138）") && triggerDocs.includes("至少两个模型上重复稳定通过"), "TRIGGER-FIXTURES 未记录降级或重启条件");
+requireCheck(customizationRow.includes("已实现、user-only（#1133/#1138）"), "本地定制表对应行未记录 user-only 降级");
+requireCheck(customizationRow.includes("fixture 降为 draft") && customizationRow.includes("行为能力不回滚"), "本地定制表对应行未记录 draft 或能力保留");
+requireCheck(triggerSection.includes("`disable-model-invocation: true` 的 user-only 能力"), "TRIGGER-FIXTURES 降级节未记录 user-only flag");
+requireCheck(triggerSection.includes("至少两个模型上重复稳定通过"), "TRIGGER-FIXTURES 降级节缺双模型重启条件");
+requireCheck(triggerSection.includes("#1139 十任务试点不计其自动触发"), "TRIGGER-FIXTURES 降级节未排除 #1139 自动触发");
 
 const report = { mode: "pstack-blast-radius-user-only-contract", ok: failures.length === 0, failures };
 console.log(JSON.stringify(report, null, 2));

@@ -1,6 +1,6 @@
 ---
 name: pstack-blast-radius
-description: "User-only blast-radius analysis for non-trivial behavior or contract changes. Invoke explicitly with `/skill:pstack-blast-radius`; automatic model invocation is disabled after #1138 routing instability."
+description: "仅限用户显式调用（user-only）：用于非小型行为或契约变更的爆炸半径分析。请通过 `/skill:pstack-blast-radius` 显式调用；因 #1138 路由不稳定，已禁用模型自动调用。"
 disable-model-invocation: true
 license: MIT
 metadata:
