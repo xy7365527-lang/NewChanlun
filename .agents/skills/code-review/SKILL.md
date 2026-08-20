@@ -12,8 +12,6 @@ Both axes run as **parallel sub-agents** so they don't pollute each other's cont
 
 The issue tracker should have been provided to you — run `/setup-matt-pocock-skills` if `docs/agents/issue-tracker.md` is missing.
 
-
-
 ## 两种模式与升级判定
 
 本 skill 有两种模式：
@@ -113,7 +111,6 @@ A change can pass one axis and fail the other:
 - Code that does exactly what the issue asked but breaks the project's conventions → **Spec pass, Standards fail.**
 
 Reporting them separately stops one axis from masking the other.
-
 
 ## 对抗评审模式（可选升级）
 
