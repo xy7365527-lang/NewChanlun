@@ -1,6 +1,6 @@
 ---
 name: pstack-create-verification
-description: "用户已授权（实施票或明确授权创建文件）并要求「生成验证 Skill/验证脚本」「端到端实跑」「固化用户路径验证」时，必须首选本 Skill：生成 .agents/skills/verify-<app>/，启动并像用户一样驱动真实 CLI/UI/服务，留下行为证据，覆盖授权闸、访谈流程与隔离要求。"
+description: "仅当三项同时成立才首选本 Skill：①已获实施票或用户明确授权可创建文件；②用户明确要求新建一个可复用的验证 Skill/验证脚本（不是补单测、不是仅口头建议）；③要求实际驱动一遍真实用户路径（CLI/UI/服务）并留下行为证据。三项缺一律不加载。命中时生成 .agents/skills/verify-<app>/，覆盖授权闸、访谈流程与隔离要求。"
 license: MIT
 metadata:
   upstream-repo: cursor/plugins
