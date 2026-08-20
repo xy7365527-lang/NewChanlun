@@ -14,9 +14,8 @@ try {
 } catch {}
 
 const required = [
+  "Whenever a request explicitly includes any of these literal phrases",
   "MUST load/read this Skill before analysis",
-  "BOTH conditions hold",
-  "observable behavior/contract change",
   "blast radius",
   "diff 之外",
   "证明安全性",
@@ -24,11 +23,22 @@ const required = [
   "outside the diff",
   "cross-module proof",
   "If none of those literal phrases is present, MUST NOT load this Skill.",
-  "可观察行为/契约变化",
-  "未出现上述任一字面词组时，禁止加载本 Skill",
+  "请求中只要明确出现上述任一字面词组",
+  "一个都未出现时，禁止加载本 Skill",
   "必须在分析前加载并阅读本 Skill",
 ];
-const forbidden = ["重命名", "格式化", "注释订正", "pstack-how", "pstack-arena", "Serena", "codebase-memory"];
+const forbidden = [
+  "BOTH conditions hold",
+  "observable behavior/contract change",
+  "可观察行为/契约变化",
+  "重命名",
+  "格式化",
+  "注释订正",
+  "pstack-how",
+  "pstack-arena",
+  "Serena",
+  "codebase-memory",
+];
 const failures = [];
 for (const phrase of required) {
   if (!description.includes(phrase)) failures.push(`description 缺必需词组：${phrase}`);

@@ -1,6 +1,6 @@
 ---
 name: pstack-blast-radius
-description: "MUST load/read this Skill before analysis when BOTH conditions hold: the request involves an observable behavior/contract change, and it explicitly includes `blast radius`, `diff 之外`, `证明安全性`, `跨模块的证明`, `outside the diff`, or `cross-module proof`. If none of those literal phrases is present, MUST NOT load this Skill. 当请求涉及可观察行为/契约变化，并明确出现上述任一词组时，必须在分析前加载并阅读本 Skill；未出现上述任一字面词组时，禁止加载本 Skill。"
+description: "Whenever a request explicitly includes any of these literal phrases — `blast radius`, `diff 之外`, `证明安全性`, `跨模块的证明`, `outside the diff`, or `cross-module proof` — MUST load/read this Skill before analysis. If none of those literal phrases is present, MUST NOT load this Skill. 请求中只要明确出现上述任一字面词组，就必须在分析前加载并阅读本 Skill；一个都未出现时，禁止加载本 Skill。"
 license: MIT
 metadata:
   upstream-repo: cursor/plugins
