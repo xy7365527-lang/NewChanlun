@@ -95,8 +95,9 @@
     {
       "id": "pstack-arena",
       "skill": "pstack-arena",
-      "status": "draft",
-      "note": "触发：存在 ≥2 个真实候选、单次尝试会过早锁死形态，且没有更窄并行 Skill。反例覆盖接口设计（归 design-an-interface）、trivial 改动、单候选。",
+      "skill_dir": "../../../.agents/skills/pstack-arena",
+      "status": "active",
+      "note": "触发：存在 ≥2 个真实候选、单次尝试会过早锁死形态，且没有更窄并行 Skill。反例覆盖接口设计（归 design-an-interface）、trivial 改动、单候选。已激活，skill_dir 指向已安装的项目级 Skill。",
       "positive": [
         {
           "id": "arena-pos-1",
