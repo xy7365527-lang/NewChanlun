@@ -3,7 +3,9 @@
 > 名分：工作草稿，绑定 [#1141](https://github.com/xy7365527-lang/NewChanlun/issues/1141)。
 > 日期：2026-08-20。
 > 基线：`88d75076419670b210f16453855ea805dfbf6566`。
-> 实现边界：CI 行为只改 `.github/workflows/ci.yml`，本稿仅同步证据边界；不改 Rust 业务代码、测试、linker 或 runner/toolchain 选择。
+> 实现边界：CI 行为只改 `.github/workflows/ci.yml` 与 `.github/scripts/run-cargo-with-telemetry.sh`，另以 `.github/scripts/test-run-cargo-with-telemetry.sh` 锁定脚本边界；本稿仅同步证据边界；不改 Rust 业务代码、测试、linker 或 runner/toolchain 选择。
+
+**统计口径**: 对象=三轮 `rust-check` 失败及其 Cargo cache、受害目标、时间戳与磁盘证据；范围=文中列出的三个完整 GitHub Actions job log，逐行全量枚举相关记录并跨轮对照，无抽样推断；时点=截至 2026-08-20 本草稿落盘；来源=三轮 job 一手日志、Actions cache 输出与候选 workflow 本地 diff；排除=尚未执行的候选合入后 telemetry、未分项的旧 registry/git/target 合包及任何由合包总量外推的 target 节省量。
 
 ## 结论
 
