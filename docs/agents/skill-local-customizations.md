@@ -73,7 +73,7 @@ pstack-lite 每项登记必须记录：
 | `pstack-how` | `how` | `pstack/skills/how/SKILL.md`（+`references/`×4） | 待实现 | 待后续票填写 |
 | `pstack-arena` | `arena` | `pstack/skills/arena/SKILL.md` | 待实现 | 待后续票填写 |
 | `pstack-blast-radius` | `blast-radius` | `pstack/skills/blast-radius/SKILL.md` | 待实现 | 待后续票填写 |
-| `pstack-create-verification` | `create-verification-skill` | `pstack/skills/create-verification-skill/SKILL.md`（+`references/`） | 待实现 | 待后续票填写 |
+| `pstack-create-verification` | `create-verification-skill` | `pstack/skills/create-verification-skill/SKILL.md`（+`references/feature-map-example/`×3） | 已实现（#1134） | 命名 pstack-*；移除 `disable-model-invocation` 用 `both`；生成路径 `.agents/skills/verify-<app>/`；接 Prime `skill-creator`；新增授权闸与隔离；维护命令改写。详见 SKILL.md「本地 Prime 改写」节 |
 | `pstack-technical-writing` | `technical-writing` | `pstack/skills/technical-writing/SKILL.md` | 待实现 | 待后续票填写 |
 | `unslop`（用户级全局 `~/.agents/skills/unslop/`） | `unslop` | `pstack/skills/unslop/SKILL.md` | 已安装（#1127） | 上游逐字一致；SKILL.md SHA-256 `181883e539caec8258ec9129e3ba5f133409144a2cbf2aa361158ab94cfc3441` |
 
