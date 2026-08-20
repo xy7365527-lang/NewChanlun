@@ -12,6 +12,12 @@ const skill = readFileSync(join(root, ".agents/skills/code-review/SKILL.md"), "u
 const retryForResult = (reviewer) =>
   `${reviewer} 能经 agent_message、session-dir 结果文件或最终 JSONL 返回可解析真实 child 产物后重试`;
 
+const aggregateProviders = new Set(["prime-inference"]);
+
+// 直连 provider 自己就是模型所有者；聚合 provider 按其承载的基础模型所有者分桶。
+const ownerBucket = ({ provider, base_family }) =>
+  aggregateProviders.has(provider) ? base_family : provider;
+
 function decide(c) {
   const candidates = c.candidates ?? [];
   const uniqueBySelector = new Map();
@@ -30,7 +36,7 @@ function decide(c) {
     }
   }
   const uniqueCandidates = [...uniqueBySelector.values()];
-  const ownerBuckets = new Set(uniqueCandidates.map(({ provider }) => provider));
+  const ownerBuckets = new Set(uniqueCandidates.map(ownerBucket));
 
   // 发现集必须提供至少三个 selector、两个基础模型所有者桶。
   if (malformed || conflictingMetadata || uniqueCandidates.length < 3 || ownerBuckets.size < 2) {
@@ -41,7 +47,9 @@ function decide(c) {
   const launchItems = c.launches ?? [];
   const selectedSelectors = new Set(launchItems.map(({ selector }) => selector));
   const selectedCandidates = launchItems.map(({ selector }) => uniqueBySelector.get(selector));
-  const selectedOwnerBuckets = new Set(selectedCandidates.map((candidate) => candidate?.provider));
+  const selectedOwnerBuckets = new Set(
+    selectedCandidates.filter(Boolean).map(ownerBucket),
+  );
   if (launchItems.length !== 3 || selectedSelectors.size !== 3 ||
       selectedCandidates.some((candidate) => !candidate) || selectedOwnerBuckets.size < 2) {
     return { status: "unavailable" };
