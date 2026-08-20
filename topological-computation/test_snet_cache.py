@@ -3,18 +3,22 @@
 验证:
   1. SNet.to_dict() / SNet.from_dict() round-trip 等价
   2. manifest 构建 + 匹配逻辑
-  3. cache save / load round-trip
-  4. diff_manifests 增量检测
+  3. 安全 JSONL cache round-trip、摘要与 schema 校验
+  4. 恶意旧 pickle 不执行、损坏/超限 cache fail-closed
+  5. cache miss/拒绝后的完整重建协议
 
 认识论等级: L1（管线正确性验证）
 """
 
 from __future__ import annotations
 
+import gzip
+import hashlib
 import json
-import os
+import pickle
 import sys
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 # Add topological-computation to path
@@ -30,6 +34,89 @@ from signifier_net import (
 # ---------------------------------------------------------------------------
 # Test helpers
 # ---------------------------------------------------------------------------
+
+_MISSING = object()
+
+
+@contextmanager
+def _redirect_cache(snet_cache, cache_dir: Path):
+    """Redirect every cache artifact to an isolated directory."""
+    replacements = {
+        "_CACHE_DIR": cache_dir,
+        "_CACHE_PATH": cache_dir / "snet_cache.jsonl.gz",
+        "_LEGACY_CACHE_PATH": cache_dir / "snet_cache.pkl.gz",
+        "_MANIFEST_PATH": cache_dir / "manifest.json",
+    }
+    originals = {
+        name: getattr(snet_cache, name, _MISSING)
+        for name in replacements
+    }
+    for name, value in replacements.items():
+        setattr(snet_cache, name, value)
+    try:
+        yield
+    finally:
+        for name, value in originals.items():
+            if value is _MISSING:
+                delattr(snet_cache, name)
+            else:
+                setattr(snet_cache, name, value)
+
+
+def _base_manifest() -> dict:
+    return {
+        "version": 2,
+        "created": 0,
+        "surface_forms": None,
+        "dictionaries": [],
+        "corpora": [],
+    }
+
+
+class _TouchOnUnpickle:
+    """Benign exploit probe: unsafe deserialization touches a marker file."""
+
+    def __init__(self, marker: Path) -> None:
+        self.marker = marker
+
+    def __reduce__(self):
+        return Path.touch, (self.marker,)
+
+
+def _write_raw_jsonl_cache(snet_cache, records: list[dict]) -> None:
+    """Write a cache with a matching digest so schema/size checks are exercised."""
+    raw = b"".join(
+        json.dumps(
+            record,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8") + b"\n"
+        for record in records
+    )
+    with gzip.open(snet_cache._CACHE_PATH, "wb", compresslevel=4) as stream:
+        stream.write(raw)
+    footer = records[-1] if records and records[-1].get("kind") == "footer" else {}
+    counts = footer.get("counts", {})
+    manifest = _base_manifest()
+    manifest["cache_info"] = {
+        "format": "snet-jsonl-gzip",
+        "schema_version": 1,
+        "sha256": hashlib.sha256(snet_cache._CACHE_PATH.read_bytes()).hexdigest(),
+        "compressed_bytes": snet_cache._CACHE_PATH.stat().st_size,
+        "uncompressed_bytes": len(raw),
+        "record_count": len(records),
+        "n_signifiers": counts.get("signifiers", 0),
+        "n_edges": counts.get("edges", 0),
+        "n_morphemes": counts.get("morphemes", 0),
+        "n_hyperedges": counts.get("hyperedges", 0),
+    }
+    snet_cache._MANIFEST_PATH.write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+
 
 def _build_test_snet() -> SNet:
     """Build a non-trivial SNet for testing."""
@@ -208,86 +295,207 @@ def test_diff_manifests():
 
 
 def test_cache_save_load_roundtrip():
-    """save + load cache 应产生等价 SNet。"""
+    """save + load cache 应产生等价 SNet，并写入完整性元数据。"""
     import snet_cache
 
-    # Temporarily redirect cache to temp dir
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
-        original_cache_dir = snet_cache._CACHE_DIR
-        original_cache_path = snet_cache._CACHE_PATH
-        original_manifest_path = snet_cache._MANIFEST_PATH
+    with tempfile.TemporaryDirectory() as tmpdir, _redirect_cache(snet_cache, Path(tmpdir)):
+        snet = _build_test_snet()
+        cache_path = snet_cache.save_snet_cache(snet, _base_manifest())
+        assert cache_path == snet_cache._CACHE_PATH
+        assert cache_path.name == "snet_cache.jsonl.gz"
 
-        snet_cache._CACHE_DIR = tmpdir
-        snet_cache._CACHE_PATH = tmpdir / "snet_cache.pkl.gz"
-        snet_cache._MANIFEST_PATH = tmpdir / "manifest.json"
+        persisted_manifest = json.loads(snet_cache._MANIFEST_PATH.read_text(encoding="utf-8"))
+        cache_info = persisted_manifest["cache_info"]
+        assert cache_info["format"] == "snet-jsonl-gzip"
+        assert cache_info["schema_version"] == 1
+        assert cache_info["sha256"] == hashlib.sha256(cache_path.read_bytes()).hexdigest()
+        assert cache_info["compressed_bytes"] == cache_path.stat().st_size
+        assert cache_info["uncompressed_bytes"] > cache_info["compressed_bytes"]
 
-        try:
-            snet = _build_test_snet()
-            manifest = {"version": 2, "created": 0, "surface_forms": None, "dictionaries": [], "corpora": []}
+        loaded_snet, loaded_manifest = snet_cache.load_snet_cache()
+        assert loaded_snet is not None, "Should load SNet from cache"
+        assert loaded_manifest is not None, "Should load manifest from cache"
+        assert len(loaded_snet._signifiers) == len(snet._signifiers)
+        assert len(loaded_snet._edges) == len(snet._edges)
+        assert len(loaded_snet._morphemes) == len(snet._morphemes)
 
-            # Save
-            cache_path = snet_cache.save_snet_cache(snet, manifest)
-            assert cache_path.exists(), "Cache file should exist after save"
-
-            # Load
-            loaded_snet, loaded_manifest = snet_cache.load_snet_cache()
-            assert loaded_snet is not None, "Should load SNet from cache"
-            assert loaded_manifest is not None, "Should load manifest from cache"
-
-            # Verify counts
-            assert len(loaded_snet._signifiers) == len(snet._signifiers), \
-                f"Signifier count: {len(loaded_snet._signifiers)} != {len(snet._signifiers)}"
-            assert len(loaded_snet._edges) == len(snet._edges), \
-                f"Edge count: {len(loaded_snet._edges)} != {len(snet._edges)}"
-            assert len(loaded_snet._morphemes) == len(snet._morphemes), \
-                f"Morpheme count: {len(loaded_snet._morphemes)} != {len(snet._morphemes)}"
-
-            # Verify cache size is reasonable
-            cache_size = cache_path.stat().st_size
-            assert cache_size > 0, "Cache file should not be empty"
-            assert cache_size < 1_000_000, "Test cache should be small"
-
-        finally:
-            snet_cache._CACHE_DIR = original_cache_dir
-            snet_cache._CACHE_PATH = original_cache_path
-            snet_cache._MANIFEST_PATH = original_manifest_path
+        cache_size = cache_path.stat().st_size
+        assert 0 < cache_size < 1_000_000
 
     print("test_cache_save_load_roundtrip: PASSED")
 
 
 def test_invalidate_cache():
-    """invalidate_cache 应删除缓存文件。"""
+    """invalidate_cache 应删除安全缓存、旧 pickle 和 manifest。"""
     import snet_cache
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
-        original_cache_dir = snet_cache._CACHE_DIR
-        original_cache_path = snet_cache._CACHE_PATH
-        original_manifest_path = snet_cache._MANIFEST_PATH
+    with tempfile.TemporaryDirectory() as tmpdir, _redirect_cache(snet_cache, Path(tmpdir)):
+        snet_cache.save_snet_cache(_build_test_snet(), _base_manifest())
+        snet_cache._LEGACY_CACHE_PATH.write_bytes(b"retired")
 
-        snet_cache._CACHE_DIR = tmpdir
-        snet_cache._CACHE_PATH = tmpdir / "snet_cache.pkl.gz"
-        snet_cache._MANIFEST_PATH = tmpdir / "manifest.json"
-
-        try:
-            snet = _build_test_snet()
-            manifest = {"version": 2, "created": 0, "surface_forms": None, "dictionaries": [], "corpora": []}
-
-            snet_cache.save_snet_cache(snet, manifest)
-            assert snet_cache._CACHE_PATH.exists()
-            assert snet_cache._MANIFEST_PATH.exists()
-
-            snet_cache.invalidate_cache()
-            assert not snet_cache._CACHE_PATH.exists(), "Cache file should be deleted"
-            assert not snet_cache._MANIFEST_PATH.exists(), "Manifest file should be deleted"
-
-        finally:
-            snet_cache._CACHE_DIR = original_cache_dir
-            snet_cache._CACHE_PATH = original_cache_path
-            snet_cache._MANIFEST_PATH = original_manifest_path
+        snet_cache.invalidate_cache()
+        assert not snet_cache._CACHE_PATH.exists()
+        assert not snet_cache._LEGACY_CACHE_PATH.exists()
+        assert not snet_cache._MANIFEST_PATH.exists()
 
     print("test_invalidate_cache: PASSED")
+
+
+def test_legacy_pickle_is_retired_without_deserialization():
+    """旧 pickle 只失效删除；任何构造期 payload 都不得执行。"""
+    import snet_cache
+
+    has_legacy_path = hasattr(snet_cache, "_LEGACY_CACHE_PATH")
+    with tempfile.TemporaryDirectory() as tmpdir, _redirect_cache(snet_cache, Path(tmpdir)):
+        marker = Path(tmpdir) / "payload-executed"
+        with gzip.open(snet_cache._LEGACY_CACHE_PATH, "wb") as stream:
+            pickle.dump(_TouchOnUnpickle(marker), stream)
+        snet_cache._MANIFEST_PATH.write_text(json.dumps(_base_manifest()), encoding="utf-8")
+
+        # On the vulnerable implementation the legacy artifact was the active path.
+        if not has_legacy_path:
+            snet_cache._CACHE_PATH = snet_cache._LEGACY_CACHE_PATH
+
+        loaded, used_cache = snet_cache.try_load_cached_snet(None, None, None)
+        assert loaded is None
+        assert used_cache is False
+        assert not marker.exists(), "legacy cache payload executed"
+        assert not snet_cache._LEGACY_CACHE_PATH.exists()
+        assert not snet_cache._MANIFEST_PATH.exists()
+
+
+def test_cache_corruption_fails_closed_and_requests_full_rebuild():
+    """摘要不匹配时不解析 cache，并回退到完整重建。"""
+    import snet_cache
+
+    with tempfile.TemporaryDirectory() as tmpdir, _redirect_cache(snet_cache, Path(tmpdir)):
+        snet_cache.save_snet_cache(_build_test_snet(), _base_manifest())
+        damaged = bytearray(snet_cache._CACHE_PATH.read_bytes())
+        damaged[len(damaged) // 2] ^= 0x01
+        snet_cache._CACHE_PATH.write_bytes(damaged)
+
+        loaded, used_cache = snet_cache.try_load_cached_snet(None, None, None)
+        assert loaded is None
+        assert used_cache is False
+
+
+def test_cache_schema_rejects_unknown_record_kind():
+    """摘要正确也不能绕过严格 JSONL schema。"""
+    import snet_cache
+
+    records = [
+        {"kind": "header", "format": "snet-jsonl", "schema_version": 1},
+        {"kind": "execute", "command": "touch /tmp/never"},
+        {
+            "kind": "footer",
+            "counts": {"signifiers": 0, "edges": 0, "morphemes": 0, "hyperedges": 0},
+        },
+    ]
+    with tempfile.TemporaryDirectory() as tmpdir, _redirect_cache(snet_cache, Path(tmpdir)):
+        _write_raw_jsonl_cache(snet_cache, records)
+        loaded, manifest = snet_cache.load_snet_cache()
+        assert loaded is None
+        assert manifest is None
+
+
+def test_cache_path_swap_after_digest_cannot_change_loaded_bytes():
+    """摘要校验与解析必须绑定同一已打开文件，消除路径替换 TOCTOU。"""
+    import snet_cache
+
+    def records(identifier: str) -> list[dict]:
+        return [
+            {"kind": "header", "format": "snet-jsonl", "schema_version": 1},
+            {
+                "kind": "signifier",
+                "key": identifier,
+                "value": {
+                    "id": identifier,
+                    "surface_forms": [],
+                    "source": "test",
+                    "lang": "",
+                    "domain": "",
+                },
+            },
+            {
+                "kind": "footer",
+                "counts": {"signifiers": 1, "edges": 0, "morphemes": 0, "hyperedges": 0},
+            },
+        ]
+
+    with tempfile.TemporaryDirectory() as tmpdir, _redirect_cache(snet_cache, Path(tmpdir)):
+        _write_raw_jsonl_cache(snet_cache, records("safe"))
+        original_manifest = snet_cache._MANIFEST_PATH.read_bytes()
+        replacement_path = Path(tmpdir) / "replacement.jsonl.gz"
+        active_path = snet_cache._CACHE_PATH
+        snet_cache._CACHE_PATH = replacement_path
+        _write_raw_jsonl_cache(snet_cache, records("evil"))
+        snet_cache._CACHE_PATH = active_path
+        snet_cache._MANIFEST_PATH.write_bytes(original_manifest)
+
+        original_hash = snet_cache._sha256_file
+
+        def hash_then_swap(path: Path) -> str:
+            digest = original_hash(path)
+            path.write_bytes(replacement_path.read_bytes())
+            return digest
+
+        snet_cache._sha256_file = hash_then_swap
+        try:
+            loaded, manifest = snet_cache.load_snet_cache()
+        finally:
+            snet_cache._sha256_file = original_hash
+
+        assert loaded is not None
+        assert manifest is not None
+        assert "safe" in loaded._signifiers
+        assert "evil" not in loaded._signifiers
+
+
+def test_cache_uncompressed_size_limit_blocks_compression_bomb_shape():
+    """即使压缩体积很小，解压上限也必须 fail-closed。"""
+    import snet_cache
+
+    records = [
+        {"kind": "header", "format": "snet-jsonl", "schema_version": 1},
+        {
+            "kind": "signifier",
+            "key": "x",
+            "value": {
+                "id": "x",
+                "surface_forms": ["a" * 4096],
+                "source": "test",
+                "lang": "",
+                "domain": "",
+            },
+        },
+        {
+            "kind": "footer",
+            "counts": {"signifiers": 1, "edges": 0, "morphemes": 0, "hyperedges": 0},
+        },
+    ]
+    original_limit = getattr(snet_cache, "_MAX_UNCOMPRESSED_BYTES", _MISSING)
+    with tempfile.TemporaryDirectory() as tmpdir, _redirect_cache(snet_cache, Path(tmpdir)):
+        _write_raw_jsonl_cache(snet_cache, records)
+        snet_cache._MAX_UNCOMPRESSED_BYTES = 512
+        try:
+            loaded, manifest = snet_cache.load_snet_cache()
+        finally:
+            if original_limit is _MISSING:
+                delattr(snet_cache, "_MAX_UNCOMPRESSED_BYTES")
+            else:
+                snet_cache._MAX_UNCOMPRESSED_BYTES = original_limit
+        assert loaded is None
+        assert manifest is None
+
+
+def test_cache_miss_requests_full_rebuild():
+    """无 cache 时保持现有完整重建协议。"""
+    import snet_cache
+
+    with tempfile.TemporaryDirectory() as tmpdir, _redirect_cache(snet_cache, Path(tmpdir)):
+        loaded, used_cache = snet_cache.try_load_cached_snet(None, None, None)
+        assert loaded is None
+        assert used_cache is False
 
 
 if __name__ == "__main__":
@@ -298,4 +506,10 @@ if __name__ == "__main__":
     test_diff_manifests()
     test_cache_save_load_roundtrip()
     test_invalidate_cache()
+    test_legacy_pickle_is_retired_without_deserialization()
+    test_cache_corruption_fails_closed_and_requests_full_rebuild()
+    test_cache_schema_rejects_unknown_record_kind()
+    test_cache_path_swap_after_digest_cannot_change_loaded_bytes()
+    test_cache_uncompressed_size_limit_blocks_compression_bomb_shape()
+    test_cache_miss_requests_full_rebuild()
     print("\n=== All tests PASSED ===")

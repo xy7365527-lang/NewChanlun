@@ -388,7 +388,7 @@ class SNet:
     # ------------------------------------------------------------------
 
     def to_dict(self) -> dict:
-        """将 SNet 序列化为纯 Python dict（可 JSON / pickle）。
+        """将 SNet 序列化为 JSON-compatible 的纯 Python dict。
 
         包含所有数据：signifiers、edges、morphemes。
         索引（_syn_out 等）不序列化——从 edges 重建。

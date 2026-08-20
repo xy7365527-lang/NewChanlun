@@ -1,15 +1,19 @@
-"""snet_cache.py -- S_net 持久化缓存 + 增量摄入。
+"""snet_cache.py -- S_net 安全持久化缓存 + 增量摄入。
 
-方案1: 序列化/反序列化 S_net 到磁盘，跳过重复摄入。
-方案2: manifest 驱动增量摄入——只处理新增/变更文件。
+方案1: 将 S_net 的 Dass 记录流式写为 gzip JSONL，加载时重建运行时索引。
+方案2: manifest 驱动增量摄入，只处理新增/变更文件。
 
 缓存目录: ~/.swarm/persist/snet_cache/
-  snet_cache.pkl.gz   — gzip 压缩的 pickle（S_net 完整快照）
-  manifest.json       — 文件列表 + hash + mtime，用于判断缓存有效性
+  snet_cache.jsonl.gz — 有界、严格 schema 的 gzip JSONL 记录
+  manifest.json       — 来源清单 + cache SHA-256/大小/记录数
 
-认识论等级: L0（序列化/反序列化是无损代数操作）
+旧 ``snet_cache.pkl.gz`` 永不反序列化。首次发现时直接删除并完整重建。
+SHA-256 防止损坏文件进入解析；JSONL 本身不含可执行对象。相邻 manifest
+不提供对同一用户攻击者的真实性保证，因此加载器仍按非信任输入校验。
 
-谱系引用: 首次实装。
+认识论等级: L0（只持久化 Dass；Was/索引由正常构造流程重建）
+
+谱系引用: #456（放弃 pickle）/ #1116（安全迁移）。
 """
 
 from __future__ import annotations
@@ -17,14 +21,24 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import math
 import os
-import pickle
+import stat
 import sys
+import tempfile
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
-from signifier_net import SNet
+from cooccurrence_hyperedge import hyperedge_from_dict, hyperedge_to_dict
+from signifier_net import (
+    AxisType,
+    Morpheme,
+    MorphemeStructure,
+    SNet,
+    Signifier,
+    SignifierEdge,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -32,8 +46,23 @@ from signifier_net import SNet
 # ---------------------------------------------------------------------------
 
 _CACHE_DIR = Path.home() / ".swarm" / "persist" / "snet_cache"
-_CACHE_PATH = _CACHE_DIR / "snet_cache.pkl.gz"
+_CACHE_PATH = _CACHE_DIR / "snet_cache.jsonl.gz"
+_LEGACY_CACHE_PATH = _CACHE_DIR / "snet_cache.pkl.gz"
 _MANIFEST_PATH = _CACHE_DIR / "manifest.json"
+
+_CACHE_FORMAT = "snet-jsonl-gzip"
+_JSONL_FORMAT = "snet-jsonl"
+_CACHE_SCHEMA_VERSION = 1
+
+# Resource ceilings are intentionally well above the documented 778K-edge corpus.
+# They turn malformed JSONL and gzip bombs into cache misses instead of unbounded work.
+_MAX_MANIFEST_BYTES = 64 * 1024 * 1024
+_MAX_COMPRESSED_BYTES = 4 * 1024 * 1024 * 1024
+_MAX_UNCOMPRESSED_BYTES = 8 * 1024 * 1024 * 1024
+_MAX_RECORD_BYTES = 16 * 1024 * 1024
+_MAX_RECORDS = 5_000_000
+_MAX_STRING_CHARS = 8 * 1024 * 1024
+_MAX_LIST_ITEMS = 1_000_000
 
 
 # ---------------------------------------------------------------------------
@@ -221,58 +250,647 @@ def diff_manifests(
 # 缓存读写
 # ---------------------------------------------------------------------------
 
-def save_snet_cache(snet: SNet, manifest: dict) -> Path:
-    """将 S_net 序列化到缓存文件。
+class _CacheFormatError(ValueError):
+    """Cache bytes or metadata do not satisfy the closed schema."""
 
-    使用 pickle + gzip 压缩。pickle 序列化 SNet.to_dict() 的纯 Python dict
-    （不直接 pickle SNet 对象，避免类结构变更导致反序列化失败）。
 
-    返回缓存文件路径。
-    """
-    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+def _path_exists(path: Path) -> bool:
+    """Return True for regular files and dangling symlinks alike."""
+    return os.path.lexists(path)
 
-    # 序列化 SNet 为 dict，再 pickle + gzip
-    snet_data = snet.to_dict()
-    t0 = time.time()
-    with gzip.open(_CACHE_PATH, "wb", compresslevel=4) as f:
-        pickle.dump(snet_data, f, protocol=pickle.HIGHEST_PROTOCOL)
-    elapsed = time.time() - t0
 
-    # 保存 manifest
-    n_edges = snet.edge_count if hasattr(snet, 'edge_count') else len(snet._edges)
-    manifest["cache_info"] = {
-        "n_signifiers": len(snet._signifiers),
-        "n_edges": n_edges,
-        "n_morphemes": len(snet._morphemes),
-        "save_time": elapsed,
-        "cache_path": str(_CACHE_PATH),
+def _reject_duplicate_keys(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise _CacheFormatError(f"duplicate JSON key: {key!r}")
+        result[key] = value
+    return result
+
+
+def _expect_object(value, label: str) -> dict:
+    if type(value) is not dict:
+        raise _CacheFormatError(f"{label} must be an object")
+    return value
+
+
+def _expect_exact_keys(value: dict, keys: set[str], label: str) -> None:
+    actual = set(value)
+    if actual != keys:
+        raise _CacheFormatError(
+            f"{label} keys mismatch: expected {sorted(keys)}, got {sorted(actual)}"
+        )
+
+
+def _checked_int(value, label: str, *, maximum: int | None = None) -> int:
+    if type(value) is not int or value < 0:
+        raise _CacheFormatError(f"{label} must be a non-negative integer")
+    if maximum is not None and value > maximum:
+        raise _CacheFormatError(f"{label} limit exceeded")
+    return value
+
+
+def _checked_number(value, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise _CacheFormatError(f"{label} must be a finite number")
+    result = float(value)
+    if not math.isfinite(result):
+        raise _CacheFormatError(f"{label} must be a finite number")
+    return result
+
+
+def _checked_string(value, label: str) -> str:
+    if type(value) is not str:
+        raise _CacheFormatError(f"{label} must be a string")
+    if len(value) > _MAX_STRING_CHARS:
+        raise _CacheFormatError(f"{label} string limit exceeded")
+    return value
+
+
+def _checked_string_list(value, label: str) -> list[str]:
+    if type(value) is not list:
+        raise _CacheFormatError(f"{label} must be an array")
+    if len(value) > _MAX_LIST_ITEMS:
+        raise _CacheFormatError(f"{label} item limit exceeded")
+    return [
+        _checked_string(item, f"{label}[{index}]")
+        for index, item in enumerate(value)
+    ]
+
+
+def _validate_source_manifest(manifest: dict) -> None:
+    """Validate fields consumed later by manifests_match/diff_manifests."""
+    if manifest.get("version") != 2:
+        raise _CacheFormatError("unsupported source manifest version")
+    _checked_number(manifest.get("created"), "manifest.created")
+
+    surface_forms = manifest.get("surface_forms")
+    if surface_forms is not None:
+        surface_forms = _expect_object(surface_forms, "manifest.surface_forms")
+        _checked_string(surface_forms.get("path"), "manifest.surface_forms.path")
+        _checked_string(surface_forms.get("hash"), "manifest.surface_forms.hash")
+
+    for field, required in (
+        ("dictionaries", ("path", "hash")),
+        ("corpora", ("path", "hash", "domain")),
+    ):
+        entries = manifest.get(field)
+        if type(entries) is not list:
+            raise _CacheFormatError(f"manifest.{field} must be an array")
+        if len(entries) > _MAX_LIST_ITEMS:
+            raise _CacheFormatError(f"manifest.{field} item limit exceeded")
+        for index, entry in enumerate(entries):
+            entry = _expect_object(entry, f"manifest.{field}[{index}]")
+            for key in required:
+                _checked_string(entry.get(key), f"manifest.{field}[{index}].{key}")
+            if "mtime" in entry:
+                _checked_number(entry["mtime"], f"manifest.{field}[{index}].mtime")
+
+
+def _validate_cache_info(manifest: dict) -> dict:
+    _validate_source_manifest(manifest)
+    info = _expect_object(manifest.get("cache_info"), "manifest.cache_info")
+    if info.get("format") != _CACHE_FORMAT:
+        raise _CacheFormatError("unsupported cache format")
+    if info.get("schema_version") != _CACHE_SCHEMA_VERSION:
+        raise _CacheFormatError("unsupported cache schema version")
+
+    digest = _checked_string(info.get("sha256"), "manifest.cache_info.sha256")
+    if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+        raise _CacheFormatError("manifest.cache_info.sha256 must be lowercase SHA-256")
+
+    compressed_bytes = _checked_int(
+        info.get("compressed_bytes"),
+        "cache compressed size",
+        maximum=_MAX_COMPRESSED_BYTES,
+    )
+    uncompressed_bytes = _checked_int(
+        info.get("uncompressed_bytes"),
+        "cache uncompressed size",
+        maximum=_MAX_UNCOMPRESSED_BYTES,
+    )
+    record_count = _checked_int(
+        info.get("record_count"),
+        "cache record count",
+        maximum=_MAX_RECORDS,
+    )
+    counts = {
+        "signifiers": _checked_int(
+            info.get("n_signifiers"), "cache signifier count", maximum=_MAX_RECORDS
+        ),
+        "edges": _checked_int(
+            info.get("n_edges"), "cache edge count", maximum=_MAX_RECORDS
+        ),
+        "morphemes": _checked_int(
+            info.get("n_morphemes"), "cache morpheme count", maximum=_MAX_RECORDS
+        ),
+        "hyperedges": _checked_int(
+            info.get("n_hyperedges"), "cache hyperedge count", maximum=_MAX_RECORDS
+        ),
     }
-    with open(_MANIFEST_PATH, "w", encoding="utf-8") as f:
-        json.dump(manifest, f, ensure_ascii=False, indent=2)
+    if sum(counts.values()) + 2 != record_count:
+        raise _CacheFormatError("cache record count does not match manifest counts")
+    if compressed_bytes == 0 or uncompressed_bytes == 0:
+        raise _CacheFormatError("cache sizes must be non-zero")
+    return {
+        "sha256": digest,
+        "compressed_bytes": compressed_bytes,
+        "uncompressed_bytes": uncompressed_bytes,
+        "record_count": record_count,
+        "counts": counts,
+    }
 
-    return _CACHE_PATH
+
+def _load_manifest() -> dict:
+    size = _MANIFEST_PATH.stat().st_size
+    if size <= 0 or size > _MAX_MANIFEST_BYTES:
+        raise _CacheFormatError("cache manifest size limit exceeded")
+    raw = _MANIFEST_PATH.read_bytes()
+    if len(raw) != size:
+        raise _CacheFormatError("cache manifest changed while reading")
+    manifest = json.loads(
+        raw.decode("utf-8"),
+        object_pairs_hook=_reject_duplicate_keys,
+    )
+    return _expect_object(manifest, "manifest")
+
+
+def _sha256_stream(stream) -> str:
+    digest = hashlib.sha256()
+    stream.seek(0)
+    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+        digest.update(chunk)
+    stream.seek(0)
+    return digest.hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    with path.open("rb") as stream:
+        return _sha256_stream(stream)
+
+
+def _retire_legacy_cache() -> bool:
+    """Delete the old executable cache without opening its contents."""
+    if not _path_exists(_LEGACY_CACHE_PATH):
+        return False
+    _LEGACY_CACHE_PATH.unlink()
+    if not _path_exists(_CACHE_PATH) and _path_exists(_MANIFEST_PATH):
+        _MANIFEST_PATH.unlink()
+    print(
+        "S_net cache: retired legacy pickle without deserializing",
+        file=sys.stderr,
+    )
+    return True
+
+
+def _iter_snet_edges(snet: SNet) -> Iterator[SignifierEdge]:
+    """Stream edges from either in-memory SNet or SQLite-backed SNetLazy."""
+    persistence = getattr(snet, "_persistence", None)
+    if persistence is not None and hasattr(persistence, "iter_all_edges"):
+        yield from persistence.iter_all_edges()
+    else:
+        yield from snet._edges
+
+
+def _write_jsonl_record(stream, record: dict) -> int:
+    encoded = json.dumps(
+        record,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8") + b"\n"
+    if len(encoded) > _MAX_RECORD_BYTES:
+        raise ValueError("S_net cache record exceeds the configured size limit")
+    stream.write(encoded)
+    return len(encoded)
+
+
+def _write_jsonl_cache(stream, snet: SNet) -> tuple[int, int, dict[str, int]]:
+    counts = {"signifiers": 0, "edges": 0, "morphemes": 0, "hyperedges": 0}
+    uncompressed_bytes = 0
+    record_count = 0
+
+    def write(record: dict) -> None:
+        nonlocal uncompressed_bytes, record_count
+        uncompressed_bytes += _write_jsonl_record(stream, record)
+        record_count += 1
+        if uncompressed_bytes > _MAX_UNCOMPRESSED_BYTES:
+            raise ValueError("S_net cache exceeds the configured uncompressed size limit")
+        if record_count > _MAX_RECORDS:
+            raise ValueError("S_net cache exceeds the configured record limit")
+
+    write({
+        "kind": "header",
+        "format": _JSONL_FORMAT,
+        "schema_version": _CACHE_SCHEMA_VERSION,
+    })
+
+    for key, sig in snet._signifiers.items():
+        write({
+            "kind": "signifier",
+            "key": key,
+            "value": {
+                "id": sig.id,
+                "surface_forms": list(sig.surface_forms),
+                "source": sig.source,
+                "lang": sig.lang,
+                "domain": sig.domain,
+            },
+        })
+        counts["signifiers"] += 1
+
+    for edge in _iter_snet_edges(snet):
+        write({
+            "kind": "edge",
+            "value": {
+                "source": edge.source,
+                "target": edge.target,
+                "axis": edge.axis.value,
+                "weight": edge.weight,
+                "evidence": edge.evidence,
+                "relation": edge.relation,
+                "differential": edge.differential,
+            },
+        })
+        counts["edges"] += 1
+
+    for key, structure in snet._morphemes.items():
+        write({
+            "kind": "morpheme",
+            "key": key,
+            "value": {
+                "signifier_id": structure.signifier_id,
+                "morphemes": [
+                    {
+                        "form": morpheme.form,
+                        "meaning": morpheme.meaning,
+                        "lang": morpheme.lang,
+                        "shared_with": list(morpheme.shared_with),
+                    }
+                    for morpheme in structure.morphemes
+                ],
+                "etymology": structure.etymology,
+            },
+        })
+        counts["morphemes"] += 1
+
+    for hyperedge in snet._hyperedges:
+        write({"kind": "hyperedge", "value": hyperedge_to_dict(hyperedge)})
+        counts["hyperedges"] += 1
+
+    write({"kind": "footer", "counts": counts})
+    return uncompressed_bytes, record_count, counts
+
+
+def _atomic_write_json(path: Path, value: dict) -> None:
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as stream:
+            temp_path = Path(stream.name)
+            os.fchmod(stream.fileno(), 0o600)
+            json.dump(value, stream, ensure_ascii=False, indent=2, allow_nan=False)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp_path, path)
+        temp_path = None
+    finally:
+        if temp_path is not None and _path_exists(temp_path):
+            temp_path.unlink()
+
+
+def save_snet_cache(snet: SNet, manifest: dict) -> Path:
+    """Stream S_net Dass to integrity-checked gzip JSONL.
+
+    The cache file is replaced before the manifest. A crash between the two
+    replacements leaves a digest mismatch, which the loader treats as a miss.
+    """
+    _CACHE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(_CACHE_DIR, 0o700)
+    _retire_legacy_cache()
+
+    t0 = time.time()
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w+b",
+            dir=_CACHE_DIR,
+            prefix=".snet-cache.",
+            suffix=".tmp",
+            delete=False,
+        ) as raw_stream:
+            temp_path = Path(raw_stream.name)
+            os.fchmod(raw_stream.fileno(), 0o600)
+            with gzip.GzipFile(
+                filename="",
+                mode="wb",
+                compresslevel=4,
+                fileobj=raw_stream,
+                mtime=0,
+            ) as compressed_stream:
+                uncompressed_bytes, record_count, counts = _write_jsonl_cache(
+                    compressed_stream, snet
+                )
+            raw_stream.flush()
+            os.fsync(raw_stream.fileno())
+
+        compressed_bytes = temp_path.stat().st_size
+        if compressed_bytes <= 0 or compressed_bytes > _MAX_COMPRESSED_BYTES:
+            raise ValueError("S_net cache exceeds the configured compressed size limit")
+        digest = _sha256_file(temp_path)
+        os.replace(temp_path, _CACHE_PATH)
+        temp_path = None
+
+        elapsed = time.time() - t0
+        stored_manifest = dict(manifest)
+        stored_manifest["cache_info"] = {
+            "format": _CACHE_FORMAT,
+            "schema_version": _CACHE_SCHEMA_VERSION,
+            "sha256": digest,
+            "compressed_bytes": compressed_bytes,
+            "uncompressed_bytes": uncompressed_bytes,
+            "record_count": record_count,
+            "n_signifiers": counts["signifiers"],
+            "n_edges": counts["edges"],
+            "n_morphemes": counts["morphemes"],
+            "n_hyperedges": counts["hyperedges"],
+            "save_time": elapsed,
+            "cache_path": str(_CACHE_PATH),
+        }
+        _atomic_write_json(_MANIFEST_PATH, stored_manifest)
+        return _CACHE_PATH
+    finally:
+        if temp_path is not None and _path_exists(temp_path):
+            temp_path.unlink()
+
+
+def _parse_signifier(record: dict) -> tuple[str, Signifier]:
+    _expect_exact_keys(record, {"kind", "key", "value"}, "signifier record")
+    key = _checked_string(record["key"], "signifier.key")
+    value = _expect_object(record["value"], "signifier.value")
+    _expect_exact_keys(
+        value,
+        {"id", "surface_forms", "source", "lang", "domain"},
+        "signifier.value",
+    )
+    return key, Signifier(
+        id=_checked_string(value["id"], "signifier.id"),
+        surface_forms=tuple(
+            _checked_string_list(value["surface_forms"], "signifier.surface_forms")
+        ),
+        source=_checked_string(value["source"], "signifier.source"),
+        lang=_checked_string(value["lang"], "signifier.lang"),
+        domain=_checked_string(value["domain"], "signifier.domain"),
+    )
+
+
+def _parse_edge(record: dict) -> SignifierEdge:
+    _expect_exact_keys(record, {"kind", "value"}, "edge record")
+    value = _expect_object(record["value"], "edge.value")
+    _expect_exact_keys(
+        value,
+        {"source", "target", "axis", "weight", "evidence", "relation", "differential"},
+        "edge.value",
+    )
+    axis_value = _checked_string(value["axis"], "edge.axis")
+    try:
+        axis = AxisType(axis_value)
+    except ValueError as exc:
+        raise _CacheFormatError(f"unsupported edge axis: {axis_value!r}") from exc
+    return SignifierEdge(
+        source=_checked_string(value["source"], "edge.source"),
+        target=_checked_string(value["target"], "edge.target"),
+        axis=axis,
+        weight=_checked_number(value["weight"], "edge.weight"),
+        evidence=_checked_string(value["evidence"], "edge.evidence"),
+        relation=_checked_string(value["relation"], "edge.relation"),
+        differential=_checked_string(value["differential"], "edge.differential"),
+    )
+
+
+def _parse_morpheme(record: dict) -> tuple[str, MorphemeStructure]:
+    _expect_exact_keys(record, {"kind", "key", "value"}, "morpheme record")
+    key = _checked_string(record["key"], "morpheme.key")
+    value = _expect_object(record["value"], "morpheme.value")
+    _expect_exact_keys(
+        value,
+        {"signifier_id", "morphemes", "etymology"},
+        "morpheme.value",
+    )
+    items = value["morphemes"]
+    if type(items) is not list:
+        raise _CacheFormatError("morpheme.morphemes must be an array")
+    if len(items) > _MAX_LIST_ITEMS:
+        raise _CacheFormatError("morpheme.morphemes item limit exceeded")
+    morphemes = []
+    for index, item in enumerate(items):
+        item = _expect_object(item, f"morpheme.morphemes[{index}]")
+        _expect_exact_keys(
+            item,
+            {"form", "meaning", "lang", "shared_with"},
+            f"morpheme.morphemes[{index}]",
+        )
+        morphemes.append(Morpheme(
+            form=_checked_string(item["form"], f"morpheme[{index}].form"),
+            meaning=_checked_string(item["meaning"], f"morpheme[{index}].meaning"),
+            lang=_checked_string(item["lang"], f"morpheme[{index}].lang"),
+            shared_with=tuple(
+                _checked_string_list(item["shared_with"], f"morpheme[{index}].shared_with")
+            ),
+        ))
+    return key, MorphemeStructure(
+        signifier_id=_checked_string(value["signifier_id"], "morpheme.signifier_id"),
+        morphemes=tuple(morphemes),
+        etymology=_checked_string(value["etymology"], "morpheme.etymology"),
+    )
+
+
+def _parse_hyperedge(record: dict):
+    _expect_exact_keys(record, {"kind", "value"}, "hyperedge record")
+    value = _expect_object(record["value"], "hyperedge.value")
+    _expect_exact_keys(
+        value,
+        {"vertices", "source", "domain", "timestamp", "ingest_param_refs", "evidence_tag"},
+        "hyperedge.value",
+    )
+    vertices = _checked_string_list(value["vertices"], "hyperedge.vertices")
+    if len(set(vertices)) != len(vertices):
+        raise _CacheFormatError("hyperedge.vertices must not contain duplicates")
+    checked = {
+        "vertices": vertices,
+        "source": _checked_string(value["source"], "hyperedge.source"),
+        "domain": _checked_string(value["domain"], "hyperedge.domain"),
+        "timestamp": _checked_string(value["timestamp"], "hyperedge.timestamp"),
+        "ingest_param_refs": _checked_string_list(
+            value["ingest_param_refs"], "hyperedge.ingest_param_refs"
+        ),
+        "evidence_tag": _checked_string(value["evidence_tag"], "hyperedge.evidence_tag"),
+    }
+    return hyperedge_from_dict(checked)
+
+
+def _parse_jsonl_cache(info: dict, raw_stream) -> SNet:
+    signifiers: dict[str, Signifier] = {}
+    edges: list[SignifierEdge] = []
+    morphemes: dict[str, MorphemeStructure] = {}
+    hyperedges = []
+    actual_counts = {"signifiers": 0, "edges": 0, "morphemes": 0, "hyperedges": 0}
+    footer_counts: dict | None = None
+    total_bytes = 0
+    record_count = 0
+
+    raw_stream.seek(0)
+    with gzip.GzipFile(fileobj=raw_stream, mode="rb") as stream:
+        while True:
+            line = stream.readline(_MAX_RECORD_BYTES + 1)
+            if not line:
+                break
+            if len(line) > _MAX_RECORD_BYTES:
+                raise _CacheFormatError("cache record size limit exceeded")
+            if not line.endswith(b"\n"):
+                raise _CacheFormatError("cache record is not newline terminated")
+            total_bytes += len(line)
+            record_count += 1
+            if total_bytes > _MAX_UNCOMPRESSED_BYTES:
+                raise _CacheFormatError("cache uncompressed size limit exceeded")
+            if total_bytes > info["uncompressed_bytes"]:
+                raise _CacheFormatError("cache exceeds manifest uncompressed size")
+            if record_count > _MAX_RECORDS:
+                raise _CacheFormatError("cache record count limit exceeded")
+            if record_count > info["record_count"]:
+                raise _CacheFormatError("cache exceeds manifest record count")
+
+            record = json.loads(line, object_pairs_hook=_reject_duplicate_keys)
+            record = _expect_object(record, f"record {record_count}")
+            kind = record.get("kind")
+
+            if record_count == 1:
+                _expect_exact_keys(
+                    record,
+                    {"kind", "format", "schema_version"},
+                    "cache header",
+                )
+                if (
+                    kind != "header"
+                    or record["format"] != _JSONL_FORMAT
+                    or record["schema_version"] != _CACHE_SCHEMA_VERSION
+                ):
+                    raise _CacheFormatError("invalid cache header")
+                continue
+
+            if footer_counts is not None:
+                raise _CacheFormatError("cache contains records after footer")
+
+            if kind == "signifier":
+                key, signifier = _parse_signifier(record)
+                if key in signifiers:
+                    raise _CacheFormatError(f"duplicate signifier key: {key!r}")
+                signifiers[key] = signifier
+                actual_counts["signifiers"] += 1
+            elif kind == "edge":
+                edges.append(_parse_edge(record))
+                actual_counts["edges"] += 1
+            elif kind == "morpheme":
+                key, structure = _parse_morpheme(record)
+                if key in morphemes:
+                    raise _CacheFormatError(f"duplicate morpheme key: {key!r}")
+                morphemes[key] = structure
+                actual_counts["morphemes"] += 1
+            elif kind == "hyperedge":
+                hyperedges.append(_parse_hyperedge(record))
+                actual_counts["hyperedges"] += 1
+            elif kind == "footer":
+                _expect_exact_keys(record, {"kind", "counts"}, "cache footer")
+                footer = _expect_object(record["counts"], "cache footer counts")
+                _expect_exact_keys(
+                    footer,
+                    {"signifiers", "edges", "morphemes", "hyperedges"},
+                    "cache footer counts",
+                )
+                footer_counts = {
+                    name: _checked_int(
+                        footer[name], f"cache footer {name}", maximum=_MAX_RECORDS
+                    )
+                    for name in actual_counts
+                }
+            else:
+                raise _CacheFormatError(f"unknown cache record kind: {kind!r}")
+
+    if footer_counts is None:
+        raise _CacheFormatError("cache footer missing")
+    if total_bytes != info["uncompressed_bytes"]:
+        raise _CacheFormatError("cache uncompressed size does not match manifest")
+    if record_count != info["record_count"]:
+        raise _CacheFormatError("cache record count does not match manifest")
+    if actual_counts != footer_counts:
+        raise _CacheFormatError("cache footer counts do not match records")
+    if actual_counts != info["counts"]:
+        raise _CacheFormatError("cache counts do not match manifest")
+
+    # This constructor rebuilds all Was indexes from the validated Dass records.
+    return SNet(
+        signifiers=signifiers,
+        edges=edges,
+        morphemes=morphemes,
+        hyperedges=hyperedges,
+    )
 
 
 def load_snet_cache() -> tuple[Optional[SNet], Optional[dict]]:
-    """从缓存文件加载 S_net。
+    """Load a validated JSONL cache, otherwise return a fail-closed miss."""
+    try:
+        retired = _retire_legacy_cache()
+    except OSError as exc:
+        print(f"S_net legacy cache retirement failed: {exc}", file=sys.stderr)
+        return None, None
 
-    返回 (snet, manifest) 或 (None, None) 如果缓存不存在或损坏。
-    """
-    if not _CACHE_PATH.exists() or not _MANIFEST_PATH.exists():
+    if retired and not _path_exists(_CACHE_PATH):
+        print("S_net cache: full rebuild required after legacy retirement", file=sys.stderr)
+        return None, None
+    if not _path_exists(_CACHE_PATH) or not _path_exists(_MANIFEST_PATH):
         return None, None
 
     try:
-        # 加载 manifest
-        with open(_MANIFEST_PATH, "r", encoding="utf-8") as f:
-            manifest = json.load(f)
+        manifest = _load_manifest()
+        info = _validate_cache_info(manifest)
+        open_flags = (
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NONBLOCK", 0)
+        )
+        cache_fd = os.open(_CACHE_PATH, open_flags)
+        with os.fdopen(cache_fd, "rb") as cache_stream:
+            before = os.fstat(cache_stream.fileno())
+            if not stat.S_ISREG(before.st_mode):
+                raise _CacheFormatError("cache path must resolve to a regular file")
+            compressed_bytes = before.st_size
+            if compressed_bytes != info["compressed_bytes"]:
+                raise _CacheFormatError("cache compressed size does not match manifest")
+            if compressed_bytes > _MAX_COMPRESSED_BYTES:
+                raise _CacheFormatError("cache compressed size limit exceeded")
+            if _sha256_stream(cache_stream) != info["sha256"]:
+                raise _CacheFormatError("cache digest mismatch")
 
-        # 加载 SNet
-        t0 = time.time()
-        with gzip.open(_CACHE_PATH, "rb") as f:
-            snet_data = pickle.load(f)
-        snet = SNet.from_dict(snet_data)
-        elapsed = time.time() - t0
-
+            t0 = time.time()
+            snet = _parse_jsonl_cache(info, cache_stream)
+            after = os.fstat(cache_stream.fileno())
+            identity_fields = (
+                "st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns"
+            )
+            if any(
+                getattr(before, field) != getattr(after, field)
+                for field in identity_fields
+            ):
+                raise _CacheFormatError("cache changed while reading")
+            elapsed = time.time() - t0
         print(
             f"S_net cache loaded: {len(snet._signifiers)} signifiers, "
             f"{len(snet._edges)} edges, {len(snet._morphemes)} morphemes "
@@ -280,21 +898,19 @@ def load_snet_cache() -> tuple[Optional[SNet], Optional[dict]]:
             file=sys.stderr,
         )
         return snet, manifest
-
     except Exception as exc:
-        print(f"S_net cache load failed: {exc}", file=sys.stderr)
+        print(f"S_net cache load failed (fail-closed): {exc}", file=sys.stderr)
         return None, None
 
 
 def invalidate_cache() -> None:
-    """删除缓存文件（强制下次完整摄入）。"""
-    try:
-        if _CACHE_PATH.exists():
-            _CACHE_PATH.unlink()
-        if _MANIFEST_PATH.exists():
-            _MANIFEST_PATH.unlink()
-    except OSError as exc:
-        print(f"S_net cache invalidation failed: {exc}", file=sys.stderr)
+    """Delete current, legacy, and manifest artifacts to force a full ingest."""
+    for path in (_CACHE_PATH, _LEGACY_CACHE_PATH, _MANIFEST_PATH):
+        try:
+            if _path_exists(path):
+                path.unlink()
+        except OSError as exc:
+            print(f"S_net cache invalidation failed for {path}: {exc}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
