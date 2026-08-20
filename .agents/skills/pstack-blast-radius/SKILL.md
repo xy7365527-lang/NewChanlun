@@ -1,6 +1,6 @@
 ---
 name: pstack-blast-radius
-description: 本 Skill 是任何非小型行为变更（改返回类型/字段/语义/错误码/协议/常量）评审「diff 之外影响、调用者、依赖、错误码语义变化、跨模块证明」的首选编排器：应先加载本 Skill 再调用 Serena/codebase-memory 做结构查询，二者是证据工具、不是替代品。触发短语：blast radius、破坏面、跨模块影响、这个改动会破坏什么、diff 之外还会影响谁、找调用者和依赖、错误码语义影响、跨模块证明安全性、非小型行为变更评审。结构查询复用 Serena（find_referencing_symbols/find_symbol/search_for_pattern）与 codebase-memory（trace_path/search_graph/detect_changes），必要时补代码搜索；不得只复述 diff。普通改名、格式化、注释订正等无行为变化的改动跳过。
+description: 本 Skill 是任何非小型行为变更（改返回类型/字段/语义/错误码/协议/常量）评审「diff 之外影响、调用者、依赖、错误码语义变化、跨模块证明」的首选编排器：应先加载本 Skill 再调用 Serena/codebase-memory 做结构查询，二者是证据工具、不是替代品。触发短语：blast radius、破坏面、跨模块影响、这个改动会破坏什么、diff 之外还会影响谁、找调用者和依赖、错误码语义影响、跨模块证明安全性、非小型行为变更评审、靶向验证。结构查询复用 Serena（find_referencing_symbols/find_symbol/search_for_pattern）与 codebase-memory（trace_path/search_graph/detect_changes），必要时补代码搜索；不得只复述 diff。
 license: MIT
 metadata:
   upstream-repo: cursor/plugins
