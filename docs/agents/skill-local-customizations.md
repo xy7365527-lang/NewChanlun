@@ -73,7 +73,7 @@ pstack-lite 每项登记必须记录：
 | `pstack-how` | `how` | `pstack/skills/how/SKILL.md`（+`references/`×4） | 待实现 | 待后续票填写 |
 | `pstack-arena` | `arena` | `pstack/skills/arena/SKILL.md` | 已实现（#1132） | 调用契约 `both`（删 `disable-model-invocation`）；Cursor Task 后台改 RLM 异步 admission + 消息/文件回流；模型池与 Cursor slug 改 `rlm.find_models(...)`；只读候选走 RLM、写码候选走 Sandcastle 隔离 + 人工合入闸；按默认递归深度 1 做扁平扇出（Pick/Graft/Verify 归根代理）；其余流程原样保留 |
 | `pstack-blast-radius` | `blast-radius` | `pstack/skills/blast-radius/SKILL.md` | 待实现 | 待后续票填写 |
-| `pstack-create-verification` | `create-verification-skill` | `pstack/skills/create-verification-skill/SKILL.md`（+`references/`） | 待实现 | 待后续票填写 |
+| `pstack-create-verification` | `create-verification-skill` | `pstack/skills/create-verification-skill/SKILL.md`（+`references/feature-map-example/`×3） | 已实现（#1134） | 命名 pstack-*；移除 `disable-model-invocation` 用 `both`；生成路径 `.agents/skills/verify-<app>/`；接 Prime `skill-creator`；新增授权闸与隔离；维护命令改写。详见 SKILL.md「本地 Prime 改写」节 |
 | `pstack-technical-writing` | `technical-writing` | `pstack/skills/technical-writing/SKILL.md` | 待实现 | 待后续票填写 |
 | `unslop`（用户级全局 `~/.agents/skills/unslop/`） | `unslop` | `pstack/skills/unslop/SKILL.md` | 已安装（#1127） | 上游逐字一致；SKILL.md SHA-256 `181883e539caec8258ec9129e3ba5f133409144a2cbf2aa361158ab94cfc3441` |
 

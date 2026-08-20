@@ -178,8 +178,9 @@
     {
       "id": "pstack-create-verification",
       "skill": "pstack-create-verification",
-      "status": "draft",
-      "note": "触发：项目缺少真实行为验证入口，且有实施票授权。反例覆盖无授权只建议、修 bug、无关文档。",
+      "skill_dir": "../../../.agents/skills/pstack-create-verification",
+      "status": "active",
+      "note": "触发：项目缺少真实行为验证入口，且有实施票/明确授权创建文件。反例覆盖已有足够 e2e/集成验证、仅需单测、无授权只建议。",
       "positive": [
         {
           "id": "cv-pos-1",
@@ -200,17 +201,17 @@
       "negative": [
         {
           "id": "cv-neg-1",
-          "prompt": "项目缺验证入口，帮我提个建议就行，不要写文件。",
+          "prompt": "这个项目已经有完整的 e2e 和集成测试覆盖这条用户路径，不需要再生成验证 Skill。",
           "expect": "skipped"
         },
         {
           "id": "cv-neg-2",
-          "prompt": "帮我修这个 bug。",
+          "prompt": "这个纯函数逻辑只需要补一个单元测试，帮我写单测。",
           "expect": "skipped"
         },
         {
           "id": "cv-neg-3",
-          "prompt": "给这个仓库加个 README。",
+          "prompt": "项目缺验证入口，帮我提个建议就行，不要写文件。",
           "expect": "skipped"
         }
       ],
