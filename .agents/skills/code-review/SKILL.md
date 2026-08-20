@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes — Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/PRD asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to "review since X". High-risk or controversial diffs escalate to an optional adversarial mode only when its model-diversity gate is satisfied; otherwise the review degrades explicitly to the standard Standards/Spec axes. The adversarial mode uses independent multi-model reviewers, an agreement map, and lead judgment; also use for "interrogate", "adversarial review", "multi-model review", "challenge this", "stress test this code", "find blind spots", or "tear this apart".
+description: Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes — Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/PRD asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to "review since X".
 ---
 
 Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
@@ -12,29 +12,23 @@ Both axes run as **parallel sub-agents** so they don't pollute each other's cont
 
 The issue tracker should have been provided to you — run `/setup-matt-pocock-skills` if `docs/agents/issue-tracker.md` is missing.
 
-## 两种模式与升级判定
+## 两种模式与试点边界
 
 本 skill 有两种模式：
 
 - **标准评审（默认，轻量）**：下方 `## Process` 的双轴流程，输出固定为 `## Standards` 与
   `## Spec` 两节，此输出契约不变。
-- **对抗评审（可选升级）**：高风险或有争议的 diff 自动升级，或用户显式要求。流程见文末
-  `## 对抗评审模式`，细节见 [ADVERSARIAL-MODE.md](ADVERSARIAL-MODE.md)。
+- **对抗评审（pilot，explicit-only）**：仅在用户通过 `/skill:code-review` 显式调用本 skill，
+  并明确要求使用 adversarial 子模式时尝试。流程见文末 `## 对抗评审模式`，细节见
+  [ADVERSARIAL-MODE.md](ADVERSARIAL-MODE.md)。普通语义路由不自动进入此子模式。
 
-先执行 `## Process` 的步骤 1 固定基线并取得 diff 与提交列表，然后据此判定：
+高风险、有争议或非小型 diff 若没有上述显式入口，仍执行标准 Standards/Spec 双轴；可以提示
+`Adversarial status: explicit-only`，但不得自动扇出 reviewer，也不得把标准双轴说成多模型
+对抗评审。显式进入后仍必须通过模型多样性门：门不足报告 `adversarial unavailable`，启动或
+真实回流失败报告 `adversarial degraded`，随后回退标准双轴。低风险小 diff 始终走标准路径。
 
-**升级到对抗评审**（满足任一）：
-- 高风险：安全敏感路径、鉴权/授权、并发与共享可变状态、数据迁移、破坏性 API/契约变更、
-  账本/资金逻辑、核心不变量。
-- 有争议：diff 改变存在两种合理解读的语义；原始 issue/PRD 含糊；diff 覆盖了文档化标准。
-- 非小型：改动跨模块边界、触及大量调用方、行数/文件数显著。
-- 显式触发：用户提到 interrogate / adversarial review / multi-model review /
-  challenge this / stress test / find blind spots / tear this apart 等。
-
-**保持标准评审**（低风险小 diff）：纯重命名、格式化、注释/拼写订正、单行配置、纯文档、
-有明确 spec 的孤立小修。
-
-判定为升级候选后，必须先执行 `## 对抗评审模式` 的模型多样性前置门。只有门通过才进入对抗流程；门不通过（包括显式触发）则从标准评审步骤 2 继续，并显式报告 `adversarial unavailable` 或 `adversarial degraded`，不得静默改用同厂三模型。非升级候选直接继续标准评审步骤 2。
+重新启用自动升级前，`code-review-adversarial` 3+3 夹具必须在至少两个模型上重复稳定触发，
+并且 3-selector/2-owner 行为门可真实运行；在此之前 frontmatter 不承诺高风险或关键词自动升级。
 
 ## Process
 
@@ -112,15 +106,16 @@ A change can pass one axis and fail the other:
 
 Reporting them separately stops one axis from masking the other.
 
-## 对抗评审模式（可选升级）
+## 对抗评审模式（explicit-only pilot）
 
-升级判定见文首「两种模式与升级判定」。此模式把 pstack `interrogate` 的独立 reviewer、
-统一 rubric、agreement map 与 lead judgment 并入本 skill，并按 Prime RLM 异步子代理语义
-改写。完整流程与输出格式见 [ADVERSARIAL-MODE.md](ADVERSARIAL-MODE.md)，要点：
+试点边界见文首「两种模式与试点边界」。只有 `/skill:code-review` 显式调用并明确要求
+adversarial 子模式时才尝试进入。此模式把 pstack `interrogate` 的独立 reviewer、统一 rubric、
+agreement map 与 lead judgment 并入本 skill，并按 Prime RLM 异步子代理语义改写。完整流程与
+输出格式见 [ADVERSARIAL-MODE.md](ADVERSARIAL-MODE.md)，要点：
 
-1. **写明意图**：一段话说明这段改动想达成什么；reviewer 只挑战「实现是否达成意图」，
-   不挑战意图本身。
-2. **模型多样性门 + 独立 reviewer**：升级候选先调用 `await rlm.find_models(limit=8)`；
+1. **确认显式入口并写明意图**：一段话说明这段改动想达成什么；reviewer 只挑战
+   「实现是否达成意图」，不挑战意图本身。
+2. **模型多样性门 + 独立 reviewer**：显式进入后先调用 `await rlm.find_models(limit=8)`；
    只有至少 3 个可启动 selector 且覆盖至少 2 个 vendor/family 才准拉起 3 名 reviewer。
    任一跨厂 selector 启动失败即停止对抗流程并回退标准双轴，不得用同厂模型补足。每个
    reviewer 用 `await rlm('task', name='adversarial-reviewer-<A/B/C>', model=<selector>)`

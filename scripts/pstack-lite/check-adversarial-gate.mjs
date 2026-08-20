@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const fixture = JSON.parse(readFileSync(join(root, "docs/agents/pstack-lite/adversarial-gate-fixtures.json"), "utf8"));
+const triggerFixtures = JSON.parse(readFileSync(join(root, "docs/agents/pstack-lite/fixtures.json"), "utf8"));
 const mode = readFileSync(join(root, ".agents/skills/code-review/ADVERSARIAL-MODE.md"), "utf8");
 const skill = readFileSync(join(root, ".agents/skills/code-review/SKILL.md"), "utf8");
 
@@ -114,8 +115,23 @@ for (const token of [
 ]) {
   if (!mode.includes(token) && !skill.includes(token)) failures.push(`文档缺契约：${token}`);
 }
-if (!/only when its model-diversity gate is satisfied/.test(skill.split("---")[1] ?? "")) {
-  failures.push("description 未声明多样性降级门");
+const frontmatter = skill.split("---")[1] ?? "";
+for (const forbidden of ["adversarial", "interrogate", "high-risk", "controversial", "multi-model"]) {
+  if (frontmatter.toLowerCase().includes(forbidden)) {
+    failures.push(`description 仍承诺 adversarial 自动路由：${forbidden}`);
+  }
+}
+for (const token of [
+  "explicit-only", "/skill:code-review", "普通语义路由不自动进入此子模式",
+  "Adversarial status: explicit-only", "至少两个模型上重复稳定触发",
+  "3-selector/2-owner 行为门可真实运行",
+]) {
+  if (!mode.includes(token) && !skill.includes(token)) failures.push(`文档缺 pilot 契约：${token}`);
+}
+const adversarialTrigger = triggerFixtures.items.find(({ id }) => id === "code-review-adversarial");
+if (adversarialTrigger?.status !== "draft") failures.push("code-review-adversarial fixture 未降为 draft");
+if (!adversarialTrigger?.note?.includes("4/6") || !adversarialTrigger.note.includes("explicit-only")) {
+  failures.push("code-review-adversarial fixture 未记录 4/6 降级证据");
 }
 const report = { ok: failures.length === 0, cases: fixture.cases.length, failures };
 console.log(JSON.stringify(report, null, 2));

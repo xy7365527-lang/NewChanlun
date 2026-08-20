@@ -55,8 +55,8 @@
       "id": "code-review-adversarial",
       "skill": "code-review",
       "skill_dir": "../../../.agents/skills/code-review",
-      "status": "active",
-      "note": "合并能力（#1137）：interrogate 对抗模式并入 code-review。触发=高风险/有争议 diff 评审 + 显式对抗短语（interrogate/adversarial review/challenge this/stress test/find blind spots/tear this apart）。反例覆盖算术、写代码、重命名格式化（非评审）。",
+      "status": "draft",
+      "note": "#1137 当前宿主真实 3+3 为 4/6：三个反例正确跳过，但两个显式语义正例漏加载；adversarial 子模式降为 /skill:code-review explicit-only pilot。保留原 3+3 作为重启语料；至少两个模型重复稳定触发且 3-selector/2-owner 行为门可实跑后，才可恢复 active/自动升级。",
       "positive": [
         {
           "id": "cr-adv-pos-1",

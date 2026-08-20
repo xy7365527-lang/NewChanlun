@@ -68,6 +68,16 @@ provider/model 默认 `deepseek` / `deepseek-v4-pro`（沙盒内可用）；主�
 原 3+3 不删除，作为未来重新启用语料；只有在**至少两个模型上重复稳定通过**后，才可恢复
 自动路由。#1139 十任务试点不计其自动触发，只能把显式调用作为对照。
 
+## code-review adversarial 路由降级记录（#1137）
+
+`code-review-adversarial` 的自动 3+3 夹具已从 `active` 降为 `draft`。当前宿主真实读数为 4/6：
+三个反例都正确跳过，但 `adversarial review` 与 `challenge/stress test` 两个显式语义正例未加载，
+只有 `tear this apart: multi-model review` 加载。因此 adversarial 子模式在首批改为
+`/skill:code-review` **explicit-only pilot**；高风险、争议或关键词不再自动升级，标准
+Standards/Spec 双轴仍正常自动路由。原 3+3 保留为重启语料；只有在至少两个模型上重复稳定
+触发、且 3-selector/2-owner 行为门可真实运行后，才可恢复 `active` 与自动升级。#1139 只试点
+标准 code-review；显式 adversarial 调用仅作对照。
+
 ## code-review 模型多样性门夹具（#1137）
 
 `adversarial-gate-fixtures.json` 用结构化的 `selector` / `provider` / `base_family` 候选
