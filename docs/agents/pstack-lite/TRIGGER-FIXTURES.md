@@ -63,10 +63,10 @@ provider/model 默认 `deepseek` / `deepseek-v4-pro`（沙盒内可用）；主�
 ## code-review 模型多样性门夹具（#1137）
 
 `adversarial-gate-fixtures.json` 用结构化的 `selector` / `provider` / `base_family` 候选
-锁定八条纯确定性场景：3 selector / 2 个基础模型所有者桶成功、4 输入含 1 个精确重复并
-去重为 3 个成功、同厂 OpenAI 仍只有 1 桶而不可用、跨两个所有者桶时同 family 的不同
-版本与推理档均合法、同 selector 元数据冲突不可用、跨厂启动失败，以及 admission 已成功
-但缺真实 child 结果。运行：
+锁定九条纯确定性场景：从 4 个不同候选中选择 3 个且覆盖 2 个基础模型所有者桶成功、
+4 输入含 1 个精确重复并去重为 3 个成功、同厂 OpenAI 仍只有 1 桶而不可用、跨两个所有者
+桶时同 family 的不同版本与推理档均合法、同 selector 元数据冲突不可用、发现集跨桶但选中
+三名 reviewer 同桶时不可用、跨厂启动失败，以及 admission 已成功但缺真实 child 结果。运行：
 
 ```bash
 node scripts/pstack-lite/check-adversarial-gate.mjs

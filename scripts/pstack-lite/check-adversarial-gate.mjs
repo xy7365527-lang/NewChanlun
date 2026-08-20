@@ -32,13 +32,23 @@ function decide(c) {
   const uniqueCandidates = [...uniqueBySelector.values()];
   const ownerBuckets = new Set(uniqueCandidates.map(({ provider }) => provider));
 
-  // 正文只要求去重后 3 个 selector、2 个基础模型所有者 vendor/family 桶。
+  // 发现集必须提供至少三个 selector、两个基础模型所有者桶。
   if (malformed || conflictingMetadata || uniqueCandidates.length < 3 || ownerBuckets.size < 2) {
     return { status: "unavailable" };
   }
 
-  const launches = new Map((c.launches ?? []).map((item) => [item.selector, item]));
-  for (const candidate of uniqueCandidates) {
+  // 只评估实际选中的三名 reviewer；未选候选不应被误判为启动失败。
+  const launchItems = c.launches ?? [];
+  const selectedSelectors = new Set(launchItems.map(({ selector }) => selector));
+  const selectedCandidates = launchItems.map(({ selector }) => uniqueBySelector.get(selector));
+  const selectedOwnerBuckets = new Set(selectedCandidates.map((candidate) => candidate?.provider));
+  if (launchItems.length !== 3 || selectedSelectors.size !== 3 ||
+      selectedCandidates.some((candidate) => !candidate) || selectedOwnerBuckets.size < 2) {
+    return { status: "unavailable" };
+  }
+
+  const launches = new Map(launchItems.map((item) => [item.selector, item]));
+  for (const candidate of selectedCandidates) {
     const item = launches.get(candidate.selector);
     if (!item?.ok) {
       const reviewer = item?.reviewer ?? `未分配 reviewer（${candidate.selector}）`;
@@ -56,11 +66,11 @@ function decide(c) {
   }
 
   const results = new Map((c.results ?? []).map((item) => [item.selector, item]));
-  for (const candidate of uniqueCandidates) {
+  for (const candidate of selectedCandidates) {
+    const launch = launches.get(candidate.selector);
     const item = results.get(candidate.selector);
-    if (!item?.ok) {
-      const launch = launches.get(candidate.selector);
-      const reviewer = item?.reviewer ?? launch?.reviewer ?? `未知 reviewer（${candidate.selector}）`;
+    if (!item?.ok || item.reviewer !== launch.reviewer) {
+      const reviewer = item?.reviewer ?? launch.reviewer ?? `未知 reviewer（${candidate.selector}）`;
       const channel = item?.channel ?? "agent_message/session-dir/final-jsonl（均未回流）";
       return {
         status: "degraded",

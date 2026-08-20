@@ -1,10 +1,10 @@
 {
   "issue": 1137,
   "contract": "对抗评审模型多样性门；纯确定性夹具，不启动模型",
-  "metadata_semantics": "candidate.selector 按完全相同的 selector + metadata 精确去重；同 selector 的 provider/base_family 冲突则 invalid/unavailable。provider 是基础模型所有者的规范化 vendor/family 桶（不是网关/endpoint），base_family 记录该所有者内的基础模型家族。准入只要求去重后至少 3 个不同 selector、至少 2 个所有者桶；同一 owner 的版本、产品线和推理档不产生新桶。",
+  "metadata_semantics": "candidate.selector 按完全相同的 selector + metadata 精确去重；同 selector 的 provider/base_family 冲突则 invalid/unavailable。provider 是基础模型所有者的规范化 vendor/family 桶（不是网关/endpoint），base_family 记录该所有者内的基础模型家族。发现集须有至少 3 个不同 selector、至少 2 个所有者桶；launches 表示从发现集中实际选中的恰好 3 个 selector，且所选集合仍须覆盖至少 2 个所有者桶。未选候选不参与启动或结果判定。同一 owner 的版本、产品线和推理档不产生新桶。",
   "cases": [
     {
-      "id": "three-independent-families-two-vendors-success",
+      "id": "choose-three-from-four-two-vendors-success",
       "requested": "auto",
       "candidates": [
         {
@@ -21,6 +21,11 @@
           "selector": "openai/o-reasoning",
           "provider": "openai",
           "base_family": "o-series"
+        },
+        {
+          "selector": "openai/gpt-unselected",
+          "provider": "openai",
+          "base_family": "gpt"
         }
       ],
       "launches": [
@@ -289,6 +294,51 @@
         }
       ],
       "launches": [],
+      "results": [],
+      "expect": "unavailable"
+    },
+    {
+      "id": "selected-reviewers-lose-owner-diversity-unavailable",
+      "requested": "auto",
+      "candidates": [
+        {
+          "selector": "anthropic/claude",
+          "provider": "anthropic",
+          "base_family": "claude"
+        },
+        {
+          "selector": "openai/gpt",
+          "provider": "openai",
+          "base_family": "gpt"
+        },
+        {
+          "selector": "openai/o",
+          "provider": "openai",
+          "base_family": "o-series"
+        },
+        {
+          "selector": "openai/codex",
+          "provider": "openai",
+          "base_family": "codex"
+        }
+      ],
+      "launches": [
+        {
+          "reviewer": "reviewer-a",
+          "selector": "openai/gpt",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-b",
+          "selector": "openai/o",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-c",
+          "selector": "openai/codex",
+          "ok": true
+        }
+      ],
       "results": [],
       "expect": "unavailable"
     },
