@@ -1,0 +1,129 @@
+{
+  "defaults": {
+    "read_budget": 8,
+    "tool_budget": 10,
+    "time_budget_minutes": 6,
+    "context_stop_percent": 70,
+    "return_tool_reserve": 2,
+    "minimum_candidates": 3,
+    "output_budget_words": 1200
+  },
+  "required_placeholders": [
+    "{MODULE_DESCRIPTION}",
+    "{REQUIREMENTS}",
+    "{DESIGN_PRESSURE}",
+    "{READ_BUDGET}",
+    "{TOOL_BUDGET}",
+    "{TIME_BUDGET}",
+    "{OUTPUT_BUDGET}",
+    "{RESULT_FILE}",
+    "{RETURN_TOOL_RESERVE}",
+    "{CONTEXT_STOP_PERCENT}"
+  ],
+  "completion_cases": [
+    {
+      "id": "complete-message",
+      "channel": "agent_message",
+      "complete": true,
+      "expect": true
+    },
+    {
+      "id": "complete-result-file",
+      "channel": "result_file",
+      "complete": true,
+      "expect": true
+    },
+    {
+      "id": "complete-final-jsonl",
+      "channel": "final_jsonl",
+      "complete": true,
+      "expect": true
+    },
+    {
+      "id": "admission-handle-only",
+      "channel": "admission_handle",
+      "complete": true,
+      "expect": false
+    },
+    {
+      "id": "rollout-preview-only",
+      "channel": "rollout_preview",
+      "complete": true,
+      "expect": false
+    },
+    {
+      "id": "source-tool-tail",
+      "channel": "toolResult",
+      "complete": true,
+      "expect": false
+    },
+    {
+      "id": "partial-message",
+      "channel": "agent_message",
+      "complete": false,
+      "expect": false
+    },
+    {
+      "id": "partial-final-jsonl",
+      "channel": "final_jsonl",
+      "complete": false,
+      "expect": false
+    }
+  ],
+  "candidate_sets": [
+    {
+      "id": "three-complete-mixed-channels",
+      "candidates": [
+        {
+          "channel": "agent_message",
+          "complete": true
+        },
+        {
+          "channel": "result_file",
+          "complete": true
+        },
+        {
+          "channel": "final_jsonl",
+          "complete": true
+        }
+      ],
+      "expect_compare": true
+    },
+    {
+      "id": "handle-is-not-third-result",
+      "candidates": [
+        {
+          "channel": "agent_message",
+          "complete": true
+        },
+        {
+          "channel": "result_file",
+          "complete": true
+        },
+        {
+          "channel": "admission_handle",
+          "complete": true
+        }
+      ],
+      "expect_compare": false
+    },
+    {
+      "id": "missing-result-degrades-without-comparison",
+      "candidates": [
+        {
+          "channel": "agent_message",
+          "complete": true
+        },
+        {
+          "channel": "final_jsonl",
+          "complete": true
+        },
+        {
+          "channel": "missing",
+          "complete": false
+        }
+      ],
+      "expect_compare": false
+    }
+  ]
+}
