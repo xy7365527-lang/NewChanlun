@@ -19,6 +19,33 @@ export interface StatusPollingOptions {
   onCycleComplete: (reachable: boolean) => void;
 }
 
+interface CompatibleAbortScope {
+  signal: AbortSignal;
+  cleanup: () => void;
+}
+
+function createCompatibleAbortScope(
+  timeoutMs: number,
+  externalSignal?: AbortSignal,
+): CompatibleAbortScope {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timeout = setTimeout(abort, timeoutMs);
+
+  if (externalSignal) {
+    if (externalSignal.aborted) abort();
+    else externalSignal.addEventListener("abort", abort, { once: true });
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timeout);
+      externalSignal?.removeEventListener("abort", abort);
+    },
+  };
+}
+
 export function startStatusPolling(options: StatusPollingOptions): () => void {
   const {
     instances,
@@ -32,42 +59,54 @@ export function startStatusPolling(options: StatusPollingOptions): () => void {
   let nextCycleTimer: ReturnType<typeof setTimeout> | null = null;
   let activeController: AbortController | null = null;
 
+  function startCycle(): void {
+    void runCycle().catch(() => {
+      // Callback failures must not become unhandled rejections or stop polling.
+    });
+  }
+
+  function scheduleNextCycle(): void {
+    if (disposed || nextCycleTimer !== null) return;
+    nextCycleTimer = setTimeout(() => {
+      nextCycleTimer = null;
+      startCycle();
+    }, intervalMs);
+  }
+
   async function runCycle(): Promise<void> {
-    if (disposed) return;
+    if (disposed || activeController !== null) return;
 
     const controller = new AbortController();
     activeController = controller;
-    const signal = AbortSignal.any([
-      controller.signal,
-      AbortSignal.timeout(timeoutMs),
-    ]);
+    const abortScope = createCompatibleAbortScope(timeoutMs, controller.signal);
     let reachable = false;
 
-    await Promise.all(instances.map(async (instance) => {
+    try {
+      await Promise.allSettled(instances.map(async (instance) => {
+        try {
+          const status = await createDaemonAPI(instance.httpBase).status(abortScope.signal);
+          if (disposed || activeController !== controller) return;
+          const firstReachable = !reachable;
+          reachable = true;
+          onStatus(instance, status, firstReachable);
+        } catch (error) {
+          if (disposed || activeController !== controller) return;
+          onError(instance, error);
+        }
+      }));
+    } finally {
+      abortScope.cleanup();
+      if (disposed || activeController !== controller) return;
+      activeController = null;
       try {
-        const status = await createDaemonAPI(instance.httpBase).status(signal);
-        if (disposed || activeController !== controller) return;
-        const firstReachable = !reachable;
-        reachable = true;
-        onStatus(instance, status, firstReachable);
-      } catch (error) {
-        if (disposed || activeController !== controller) return;
-        onError(instance, error);
+        onCycleComplete(reachable);
+      } finally {
+        scheduleNextCycle();
       }
-    }));
-
-    if (disposed || activeController !== controller) return;
-    activeController = null;
-    onCycleComplete(reachable);
-    if (!disposed) {
-      nextCycleTimer = setTimeout(() => {
-        nextCycleTimer = null;
-        void runCycle();
-      }, intervalMs);
     }
   }
 
-  void runCycle();
+  startCycle();
 
   return () => {
     if (disposed) return;

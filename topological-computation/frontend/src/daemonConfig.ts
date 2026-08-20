@@ -1,3 +1,8 @@
+import {
+  DaemonHttpError,
+  DaemonJsonResponseError,
+} from "./hooks/daemonApi.ts";
+
 /**
  * FengLiang daemon transport configuration.
  *
@@ -337,12 +342,38 @@ export function deriveWebSocketUrl(httpBase: string): string {
   return http.toString();
 }
 
+interface WebSocketCloseDetails {
+  code: number;
+  reason: string;
+  wasClean: boolean;
+}
+
+function isWebSocketCloseDetails(value: unknown): value is WebSocketCloseDetails {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<WebSocketCloseDetails>;
+  return typeof candidate.code === "number"
+    && typeof candidate.reason === "string"
+    && typeof candidate.wasClean === "boolean";
+}
+
 /**
- * Browsers deliberately hide the exact TLS failure from application code.
- * Preserve the available cause while explaining that HTTPS/WSS failures are
- * fail-closed and can include certificate or host-identity rejection.
+ * Browser network errors deliberately hide whether DNS, TCP, TLS, or another
+ * transport step failed. Application-level HTTP/JSON and WebSocket close data
+ * remain distinguishable and must not be rewritten as certificate failures.
  */
 export function describeDaemonConnectionError(endpoint: string, cause?: unknown): string {
+  if (cause instanceof DaemonHttpError) {
+    return `Daemon HTTP 请求失败: ${cause.message}`;
+  }
+  if (cause instanceof DaemonJsonResponseError) {
+    return `Daemon 响应 JSON 解析失败: ${cause.message}`;
+  }
+  if (isWebSocketCloseDetails(cause)) {
+    const reason = cause.reason.trim() ? `, reason: ${cause.reason.trim()}` : "";
+    const closeKind = cause.wasClean ? "clean" : "unclean";
+    return `WebSocket 已关闭 (code ${cause.code}, ${closeKind}${reason})`;
+  }
+
   let usesTls = false;
   try {
     const protocol = new URL(endpoint).protocol;
@@ -356,8 +387,6 @@ export function describeDaemonConnectionError(endpoint: string, cause?: unknown)
     : cause === undefined
       ? ""
       : String(cause);
-  const summary = usesTls
-    ? "安全连接失败（浏览器已拒绝网络连接或 TLS 证书/主机名校验未通过）"
-    : "连接失败";
+  const summary = usesTls ? "安全网络连接失败" : "网络连接失败";
   return detail ? `${summary}: ${detail}` : summary;
 }

@@ -11,6 +11,10 @@ import {
   savePersistedDaemonInstances,
   validateDaemonInstance,
 } from "../src/daemonConfig.ts";
+import {
+  DaemonHttpError,
+  DaemonJsonResponseError,
+} from "../src/hooks/daemonApi.ts";
 
 // Keep negative plaintext cases mechanically visible to the tests without
 // turning those fixtures into scanner URL/debug findings themselves.
@@ -383,20 +387,44 @@ test("unknown HTTP ports require an explicit WebSocket endpoint", () => {
   deepEqual(validateDaemonInstance(explicit), explicit);
 });
 
-test("connection errors retain their cause and explain browser TLS fail-closed behavior", () => {
-  const tlsMessage = describeDaemonConnectionError(
+test("connection errors distinguish HTTP, JSON, WebSocket close, and generic network failures", () => {
+  const httpMessage = describeDaemonConnectionError(
+    endpoint("https", "daemon.example.com:9765"),
+    new DaemonHttpError(503, "/status"),
+  );
+  matches(httpMessage, /HTTP 503/);
+  matches(httpMessage, /\/status/);
+  doesNotMatch(httpMessage, /TLS|证书/);
+
+  const jsonMessage = describeDaemonConnectionError(
+    endpoint("https", "daemon.example.com:9765"),
+    new DaemonJsonResponseError(200, "/status", new SyntaxError("Unexpected token")),
+  );
+  matches(jsonMessage, /JSON/);
+  matches(jsonMessage, /Unexpected token/);
+  doesNotMatch(jsonMessage, /TLS|证书/);
+
+  const closeMessage = describeDaemonConnectionError(
+    endpoint("wss", "daemon.example.com:8765", "/ws"),
+    { code: 1006, reason: "upstream restart", wasClean: false },
+  );
+  matches(closeMessage, /1006/);
+  matches(closeMessage, /upstream restart/);
+  doesNotMatch(closeMessage, /TLS|证书/);
+
+  const secureNetworkMessage = describeDaemonConnectionError(
     endpoint("https", "daemon.example.com:9765"),
     new TypeError("Failed to fetch"),
   );
-  matches(tlsMessage, /TLS/);
-  matches(tlsMessage, /证书/);
-  matches(tlsMessage, /Failed to fetch/);
+  matches(secureNetworkMessage, /安全网络连接失败/);
+  matches(secureNetworkMessage, /Failed to fetch/);
+  doesNotMatch(secureNetworkMessage, /证书|主机名/);
 
   const localMessage = describeDaemonConnectionError(
     endpoint("http", `${localHostname}:9765`),
     new Error("ECONNREFUSED"),
   );
-  matches(localMessage, /连接失败/);
+  matches(localMessage, /网络连接失败/);
   matches(localMessage, /ECONNREFUSED/);
   doesNotMatch(localMessage, /证书/);
 });

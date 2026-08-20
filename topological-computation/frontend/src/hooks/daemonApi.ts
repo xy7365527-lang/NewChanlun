@@ -11,13 +11,43 @@ import type {
   PersistenceResponse,
 } from "../types";
 
+export class DaemonHttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly path: string,
+  ) {
+    super(`HTTP ${status} for ${path}`);
+    this.name = "DaemonHttpError";
+  }
+}
+
+export class DaemonJsonResponseError extends Error {
+  constructor(
+    readonly status: number,
+    readonly path: string,
+    cause: unknown,
+  ) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    super(`Invalid JSON response (HTTP ${status}) for ${path}: ${detail}`);
+    this.name = "DaemonJsonResponseError";
+  }
+}
+
+async function readJsonResponse<T>(response: Response, path: string): Promise<T> {
+  try {
+    return await response.json() as T;
+  } catch (error) {
+    throw new DaemonJsonResponseError(response.status, path, error);
+  }
+}
+
 function makeGet(baseUrl: string) {
   return async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
     const res = await fetch(`${baseUrl}${path}`, { signal });
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status} for ${path}`);
+      throw new DaemonHttpError(res.status, path);
     }
-    return res.json() as Promise<T>;
+    return readJsonResponse<T>(res, path);
   };
 }
 
@@ -29,9 +59,9 @@ function makePost(baseUrl: string) {
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status} for ${path}`);
+      throw new DaemonHttpError(res.status, path);
     }
-    return res.json() as Promise<T>;
+    return readJsonResponse<T>(res, path);
   };
 }
 

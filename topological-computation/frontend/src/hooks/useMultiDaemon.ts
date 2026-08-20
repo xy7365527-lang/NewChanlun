@@ -14,13 +14,16 @@
  * (they all see the same K_active via IPFS sync).
  */
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { STATUS_POLL_MS, WS_THROTTLE_MS, INSTANCE_COLORS } from "../tokens";
 import { describeDaemonConnectionError } from "../daemonConfig";
 import { createDaemonAPI } from "./useDaemonAPI";
 import {
   connectDaemonWebSocket,
   DEFAULT_WS_RECONNECT_MS,
+  disposeDaemonWebSocketConnections,
+  reconcileDaemonWebSocketConnections,
+  type DaemonWebSocketConnections,
 } from "./daemonWebSocket";
 import { startStatusPolling } from "./statusPolling";
 import { useStore } from "./useStore";
@@ -41,13 +44,12 @@ export function useMultiDaemon(): void {
   const instancesKey = instances.map((i) => `${i.id}:${i.httpBase}:${i.wsUrl}`).join("|");
 
   // ── WebSocket connections for all instances ──
-  // All WS connections feed into the same handleBatch
+  // Reconcile by stable id + WS endpoint so list churn does not tear down peers.
+  const wsConnections = useRef<DaemonWebSocketConnections>(new Map());
   useEffect(() => {
-    const cleanups: (() => void)[] = [];
-
-    for (const inst of instances) {
+    reconcileDaemonWebSocketConnections(wsConnections.current, instances, (inst) => {
       updateInstanceState(inst.id, { wsConnected: false });
-      const cleanup = connectDaemonWebSocket({
+      return connectDaemonWebSocket({
         wsUrl: inst.wsUrl,
         instanceId: inst.id,
         throttleMs: WS_THROTTLE_MS,
@@ -56,11 +58,12 @@ export function useMultiDaemon(): void {
         onBatch: handleBatch,
         onState: updateInstanceState,
       });
-      cleanups.push(cleanup);
-    }
+    });
+  }, [instancesKey, handleBatch, updateInstanceState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    return () => { cleanups.forEach((fn) => fn()); };
-  }, [instancesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => {
+    disposeDaemonWebSocketConnections(wsConnections.current);
+  }, []);
 
   // ── Status poll for ALL instances (every 1s) ──
   // First reachable instance's status goes to store-level (shared K_active)

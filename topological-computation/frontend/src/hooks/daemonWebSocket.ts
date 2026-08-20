@@ -40,6 +40,51 @@ export interface DaemonWebSocketOptions {
   onState: (instanceId: string, state: DaemonWebSocketState) => void;
 }
 
+export interface DaemonWebSocketConnectionTarget {
+  id: string;
+  wsUrl: string;
+}
+
+interface DaemonWebSocketConnection {
+  wsUrl: string;
+  dispose: () => void;
+}
+
+export type DaemonWebSocketConnections = Map<string, DaemonWebSocketConnection>;
+
+export function reconcileDaemonWebSocketConnections(
+  connections: DaemonWebSocketConnections,
+  targets: readonly DaemonWebSocketConnectionTarget[],
+  connect: (target: DaemonWebSocketConnectionTarget) => () => void,
+): void {
+  const nextById = new Map(targets.map((target) => [target.id, target]));
+
+  for (const [id, connection] of connections) {
+    const target = nextById.get(id);
+    if (!target || target.wsUrl !== connection.wsUrl) {
+      connections.delete(id);
+      connection.dispose();
+    }
+  }
+
+  for (const target of targets) {
+    if (connections.has(target.id)) continue;
+    connections.set(target.id, {
+      wsUrl: target.wsUrl,
+      dispose: connect(target),
+    });
+  }
+}
+
+export function disposeDaemonWebSocketConnections(
+  connections: DaemonWebSocketConnections,
+): void {
+  for (const [id, connection] of connections) {
+    connections.delete(id);
+    connection.dispose();
+  }
+}
+
 export function connectDaemonWebSocket(options: DaemonWebSocketOptions): () => void {
   const {
     wsUrl,
@@ -143,12 +188,12 @@ export function connectDaemonWebSocket(options: DaemonWebSocketOptions): () => v
       scheduleReconnect();
     };
 
-    next.onclose = () => {
+    next.onclose = (event) => {
       if (!isCurrent(next, targetGeneration)) return;
       retire(next, false);
       onState(instanceId, {
         wsConnected: false,
-        wsError: describeError(wsUrl),
+        wsError: event.code === 1000 ? null : describeError(wsUrl, event),
       });
       scheduleReconnect();
     };
@@ -158,17 +203,21 @@ export function connectDaemonWebSocket(options: DaemonWebSocketOptions): () => v
 
   return () => {
     if (disposed) return;
-    disposed = true;
-    generation += 1;
     if (flushTimer !== null) {
       clearTimeout(flushTimer);
       flushTimer = null;
     }
+    try {
+      flush();
+    } catch {
+      // Cleanup and socket close must still complete if a consumer rejects a batch.
+    }
+    disposed = true;
+    generation += 1;
     if (reconnectTimer !== null) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    buffer.length = 0;
     const current = socket;
     socket = null;
     if (current) retire(current, true);

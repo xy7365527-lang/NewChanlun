@@ -135,6 +135,113 @@ test("a status cycle times out through AbortSignal and reports one failed cycle"
   assert.deepEqual(cycles, [false]);
 });
 
+test("polling remains compatible when AbortSignal.any and AbortSignal.timeout are unavailable", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const anyDescriptor = Object.getOwnPropertyDescriptor(AbortSignal, "any");
+  const timeoutDescriptor = Object.getOwnPropertyDescriptor(AbortSignal, "timeout");
+  Object.defineProperty(AbortSignal, "any", { configurable: true, value: undefined });
+  Object.defineProperty(AbortSignal, "timeout", { configurable: true, value: undefined });
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    if (anyDescriptor) Object.defineProperty(AbortSignal, "any", anyDescriptor);
+    else Reflect.deleteProperty(AbortSignal, "any");
+    if (timeoutDescriptor) Object.defineProperty(AbortSignal, "timeout", timeoutDescriptor);
+    else Reflect.deleteProperty(AbortSignal, "timeout");
+  });
+
+  let fetchCalls = 0;
+  globalThis.fetch = async (_input, init) => {
+    fetchCalls += 1;
+    assert.ok(init?.signal);
+    return response({ steps: fetchCalls });
+  };
+
+  const cycles: boolean[] = [];
+  const stop = startStatusPolling({
+    instances: instances.slice(0, 1),
+    intervalMs: 1_000,
+    timeoutMs: 1_000,
+    onStatus: () => {},
+    onError: () => {},
+    onCycleComplete: (reachable) => cycles.push(reachable),
+  });
+  t.after(stop);
+
+  await waitFor(() => cycles.length === 1);
+  assert.equal(fetchCalls, 1, "the first request still reaches fetch without newer AbortSignal APIs");
+  assert.deepEqual(cycles, [true]);
+});
+
+test("a transient polling error settles before the next non-overlapping cycle", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  let fetchCalls = 0;
+  let activeFetches = 0;
+  let maximumActiveFetches = 0;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    activeFetches += 1;
+    maximumActiveFetches = Math.max(maximumActiveFetches, activeFetches);
+    try {
+      if (fetchCalls === 1) throw new TypeError("temporary network failure");
+      return response({ steps: fetchCalls });
+    } finally {
+      activeFetches -= 1;
+    }
+  };
+
+  const errors: unknown[] = [];
+  const cycles: boolean[] = [];
+  const stop = startStatusPolling({
+    instances: instances.slice(0, 1),
+    intervalMs: 5,
+    timeoutMs: 1_000,
+    onStatus: () => {},
+    onError: (_instance, error) => errors.push(error),
+    onCycleComplete: (reachable) => cycles.push(reachable),
+  });
+  t.after(stop);
+
+  await waitFor(() => fetchCalls >= 2 && cycles.length >= 2);
+  assert.equal(errors.length, 1);
+  assert.deepEqual(cycles.slice(0, 2), [false, true]);
+  assert.equal(maximumActiveFetches, 1);
+});
+
+test("callback failures cannot overlap an unfinished peer request or stop later cycles", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const slowPeer = deferred<Response>();
+  let fetchCalls = 0;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    if (fetchCalls === 1) throw new Error("alpha failed");
+    if (fetchCalls === 2) return slowPeer.promise;
+    return response({ steps: fetchCalls });
+  };
+
+  const stop = startStatusPolling({
+    instances,
+    intervalMs: 5,
+    timeoutMs: 1_000,
+    onStatus: () => {},
+    onError: () => { throw new Error("consumer failed"); },
+    onCycleComplete: () => {},
+  });
+  t.after(stop);
+
+  await wait(20);
+  assert.equal(fetchCalls, 2, "the next cycle waits for every request despite callback errors");
+  slowPeer.resolve(response({ steps: 2 }));
+  await waitFor(() => fetchCalls >= 4);
+});
+
 test("dispose aborts the active signal and suppresses late results and future cycles", async (t) => {
   const originalFetch = globalThis.fetch;
   t.after(() => {
