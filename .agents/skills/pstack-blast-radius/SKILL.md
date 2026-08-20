@@ -1,6 +1,6 @@
 ---
 name: pstack-blast-radius
-description: 本 Skill 是评审「diff 之外影响、调用者、依赖、错误码语义变化、跨模块证明」的首选编排器，仅当同时满足两个必要条件才加载：① 改动使某段代码可观测的运行行为或契约语义发生变化（返回值/数据形状、错误语义、算法结果、序列化格式、协议或常量取值等对调用方可见的差异）；② 请求明确要求 diff 之外的跨边界影响核查或安全性证明，而不只是复述改了什么。二者缺一不加载。满足时应先加载本 Skill 再调用 Serena/codebase-memory 做结构查询，二者是证据工具、不是替代品。触发短语：blast radius、破坏面、跨模块影响、这个改动会破坏什么、diff 之外还会影响谁、找调用者和依赖、错误码语义影响、跨模块证明安全性、行为或契约语义变化评审、靶向验证。结构查询复用 Serena（find_referencing_symbols/find_symbol/search_for_pattern）与 codebase-memory（trace_path/search_graph/detect_changes），必要时补代码搜索；不得只复述 diff。
+description: "Use only when BOTH are explicit: an observable behavior/contract change (return value, data shape, error semantics, algorithm result, serialization, or protocol/constant change), and a request for impact outside the diff or a cross-module safety proof — not merely restating what changed. 仅当「可观测的行为或契约语义变化」与「明确要求 diff 之外的跨边界影响核查或安全性证明」两者同时成立时才加载。"
 license: MIT
 metadata:
   upstream-repo: cursor/plugins
