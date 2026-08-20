@@ -1,6 +1,6 @@
 ---
 name: pstack-arena
-description: 仅在用户显式调用 /skill:pstack-arena（或明确说「arena this」「扔进竞技场」）时，对确有多个真实候选的高杠杆任务执行一轮独立候选择优。只读候选仅走 RLM；获票据授权的写代码候选仅走 Sandcastle 隔离。模型不得自动调用。
+description: 仅在用户显式调用 /skill:pstack-arena 时，对确有多个真实候选的高杠杆任务执行一轮独立候选择优。只读候选仅走 RLM；获票据授权的写代码候选仅走 Sandcastle 隔离。模型不得自动调用。
 license: MIT
 disable-model-invocation: true
 metadata:
@@ -12,7 +12,7 @@ metadata:
 
 # pstack-arena（多候选竞技择优，user-only）
 
-本 Skill 已按 #1132/#1139 的真实任务裁决降为 **user-only**：只有用户显式调用 `/skill:pstack-arena`（或明确使用「arena this」「扔进竞技场」）才执行。模型不得自动路由到本 Skill。
+本 Skill 已按 #1132/#1139 的真实任务裁决降为 **user-only**：只有用户显式调用 `/skill:pstack-arena` 才执行。模型不得自动路由到本 Skill。
 
 对同一任务只扇出一轮 N 个并行候选，逐个通读后选最强者为基底，把落选者最有价值的部分 graft 进基底，最后验证合成结果。
 
@@ -24,9 +24,10 @@ metadata:
 {
   "version": 1,
   "invocation": "user-only",
-  "explicit_entries": ["/skill:pstack-arena", "arena this", "扔进竞技场"],
+  "explicit_entries": ["/skill:pstack-arena"],
   "candidate_fanout_rounds": 1,
   "candidate_failure": "drop-out",
+  "valid_candidate_requires": ["artifact", "rationale"],
   "minimum_valid_candidates": 2,
   "read_only_executor": "RLM",
   "write_executor": "Sandcastle",

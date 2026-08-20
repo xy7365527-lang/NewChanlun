@@ -22,19 +22,34 @@ function parseDocument(text) {
   if (blocks.length === 1) {
     try { contract = JSON.parse(blocks[0][1]); } catch (error) { parseError = String(error); }
   }
-  const proseWithoutContract = blocks.length === 1 ? text.replace(blocks[0][0], "") : text;
+  const contractFence = blocks.length === 1 ? `\`\`\`json\n${blocks[0][1]}\n\`\`\`` : null;
+  const proseWithoutContract = contractFence ? text.replace(contractFence, "") : text;
   const contradictoryLines = proseWithoutContract.split("\n").filter((line) =>
     /(?:允许|可以|可)(?:补派|重派|整轮重派|第二轮|直接调用)/.test(line) ||
-    /(?:失败|超时).{0,24}(?:允许|可以).{0,12}(?:重跑|补派|重派)/.test(line));
+    /(?:失败|超时).{0,24}(?:允许|可以).{0,12}(?:重跑|补派|重派)/.test(line) ||
+    /(?:允许|可以|可).{0,16}(?:另起|第二个).{0,8}Prime 会话/.test(line) ||
+    /只读候选.{0,24}(?:允许|可以|可).{0,16}(?:外部|其他)执行器/.test(line) ||
+    /(?:允许|可以|可).{0,20}(?:scratch 外|\/tmp|临时目录).{0,12}(?:写入|创建|回流)/.test(line) ||
+    /未获写入授权.{0,20}(?:允许|可以|可).{0,12}(?:写代码|写入)/.test(line));
   return { frontmatter, blocks, contract, parseError, contradictoryLines };
 }
 
+const contractKeys = [
+  "candidate_failure", "candidate_fanout_rounds", "direct_cli_fallback", "explicit_entries",
+  "invocation", "judge_failure", "minimum_valid_candidates", "outside_task_scratch_allowlist",
+  "read_only_executor", "result_channels", "valid_candidate_requires", "version", "write_executor",
+  "write_requires_authorization",
+].sort();
+
 function validContract(c) {
-  return c?.version === 1 &&
+  return c !== null && typeof c === "object" && !Array.isArray(c) &&
+    JSON.stringify(Object.keys(c).sort()) === JSON.stringify(contractKeys) &&
+    c.version === 1 &&
     c.invocation === "user-only" &&
-    JSON.stringify(c.explicit_entries) === JSON.stringify(["/skill:pstack-arena", "arena this", "扔进竞技场"]) &&
+    JSON.stringify(c.explicit_entries) === JSON.stringify(["/skill:pstack-arena"]) &&
     c.candidate_fanout_rounds === 1 &&
     c.candidate_failure === "drop-out" &&
+    JSON.stringify(c.valid_candidate_requires) === JSON.stringify(["artifact", "rationale"]) &&
     c.minimum_valid_candidates === 2 &&
     c.read_only_executor === "RLM" &&
     c.write_executor === "Sandcastle" &&
@@ -45,15 +60,23 @@ function validContract(c) {
     c.judge_failure === "root_completes_without_replacement";
 }
 
+function hasUserOnlyFrontmatter(frontmatter) {
+  const values = [...frontmatter.matchAll(/^disable-model-invocation:\s*(\S+)\s*$/gm)]
+    .map((match) => match[1]);
+  return values.length === 1 && values[0] === "true";
+}
+
 function validDocument(text) {
   const parsed = parseDocument(text);
-  return /^disable-model-invocation:\s*true$/m.test(parsed.frontmatter) &&
+  return hasUserOnlyFrontmatter(parsed.frontmatter) &&
     parsed.blocks.length === 1 && !parsed.parseError && validContract(parsed.contract) &&
     parsed.contradictoryLines.length === 0;
 }
 
 function decisionFromContract(c, candidates) {
-  const valid = candidates.filter((candidate) => candidate.complete === true).length;
+  const valid = candidates.filter((candidate) =>
+    candidate.complete === true && c.valid_candidate_requires.every((field) =>
+      typeof candidate[field] === "string" && candidate[field].trim() !== "")).length;
   return {
     valid,
     dropped: candidates.length - valid,
@@ -65,33 +88,45 @@ function decisionFromContract(c, candidates) {
 const parsed = parseDocument(skill);
 check("唯一结构化规则块可解析", parsed.blocks.length === 1 && !parsed.parseError, `blocks=${parsed.blocks.length} error=${parsed.parseError ?? "none"}`);
 check("结构化安全契约字段完整", validContract(parsed.contract), JSON.stringify(parsed.contract));
-check("user-only frontmatter", /^disable-model-invocation:\s*true$/m.test(parsed.frontmatter), "disable-model-invocation=true");
+check("user-only frontmatter 唯一且为 true", hasUserOnlyFrontmatter(parsed.frontmatter), "exactly one disable-model-invocation=true");
 check("正文无相反例外", parsed.contradictoryLines.length === 0, parsed.contradictoryLines.join(" | ") || "none");
 check("自动 fixture 已降 draft", arenaFixture?.status === "draft", `status=${arenaFixture?.status}`);
 
+const completeCandidate = { complete: true, artifact: "artifact", rationale: "rationale" };
+const failedCandidate = { complete: false, artifact: "", rationale: "" };
+const missingRationale = { complete: true, artifact: "artifact", rationale: "" };
 for (const testCase of [
-  { id: "all-complete", candidates: [{ complete: true }, { complete: true }, { complete: true }], proceed: true, dropped: 0 },
-  { id: "n-minus-one", candidates: [{ complete: true }, { complete: false }, { complete: true }], proceed: true, dropped: 1 },
-  { id: "fewer-than-two", candidates: [{ complete: false }, { complete: true }, { complete: false }], proceed: false, dropped: 2 },
+  { id: "all-complete", candidates: [completeCandidate, completeCandidate, completeCandidate], proceed: true, dropped: 0 },
+  { id: "n-minus-one", candidates: [completeCandidate, failedCandidate, completeCandidate], proceed: true, dropped: 1 },
+  { id: "missing-rationale", candidates: [completeCandidate, missingRationale, completeCandidate], proceed: true, dropped: 1 },
+  { id: "fewer-than-two", candidates: [failedCandidate, completeCandidate, missingRationale], proceed: false, dropped: 2 },
 ]) {
-  const actual = decisionFromContract(parsed.contract, testCase.candidates);
-  check(`契约决策/${testCase.id}`, actual.proceedToJudge === testCase.proceed && actual.dropped === testCase.dropped && actual.retryAdmissionsAllowed === false, JSON.stringify(actual));
+  const actual = validContract(parsed.contract) ? decisionFromContract(parsed.contract, testCase.candidates) : null;
+  check(`契约决策/${testCase.id}`, actual !== null && actual.proceedToJudge === testCase.proceed && actual.dropped === testCase.dropped && actual.retryAdmissionsAllowed === false, JSON.stringify(actual));
 }
 
 const mutations = [
   ["自动调用", (text) => text.replace("disable-model-invocation: true", "disable-model-invocation: false")],
+  ["重复调用键", (text) => text.replace("disable-model-invocation: true", "disable-model-invocation: true\ndisable-model-invocation: false")],
   ["第二轮", (text) => text.replace('"candidate_fanout_rounds": 1', '"candidate_fanout_rounds": 2')],
+  ["候选免 rationale", (text) => text.replace('["artifact", "rationale"]', '["artifact"]')],
+  ["额外契约键", (text) => text.replace('"version": 1,', '"version": 1,\n  "retry_override": true,')],
   ["直接 CLI fallback", (text) => text.replace('"direct_cli_fallback": "forbidden"', '"direct_cli_fallback": "allowed"')],
   ["写候选免授权", (text) => text.replace('"write_requires_authorization": true', '"write_requires_authorization": false')],
   ["额外 scratch 例外", (text) => text.replace('["mandatory_roster_registration"]', '["mandatory_roster_registration", "temp"]')],
   ["补派评委", (text) => text.replace('"root_completes_without_replacement"', '"replace_judge"')],
+  ["契约前矛盾正文", (text) => text.replace("下列 JSON 是本 Skill 安全边界的唯一结构化契约；", "失败时允许第二轮候选 fan-out。\n\n下列 JSON 是本 Skill 安全边界的唯一结构化契约；")],
   ["矛盾正文", (text) => `${text}\n失败时允许第二轮候选 fan-out。\n`],
+  ["另起会话正文", (text) => `${text}\n失败时可另起第二个 Prime 会话。\n`],
+  ["替代只读执行器正文", (text) => `${text}\n只读候选可使用其他执行器。\n`],
+  ["scratch 外写入正文", (text) => `${text}\n可在 /tmp 临时目录写入候选结果。\n`],
+  ["未授权写入正文", (text) => `${text}\n未获写入授权时可写代码。\n`],
 ];
 for (const [name, mutate] of mutations) {
   check(`mutation 必须失败/${name}`, !validDocument(mutate(skill)), "rejected");
 }
 
-check("显式入口仍存在", ["/skill:pstack-arena", "arena this", "扔进竞技场"].every((entry) => skill.includes(entry)), "three explicit entries");
+check("唯一显式入口仍存在", skill.includes("/skill:pstack-arena") && !skill.includes("arena this") && !skill.includes("扔进竞技场"), "/skill:pstack-arena only");
 check("直接 CLI 禁令同句覆盖三类", /不得直接调用[^。\n]*`codex`[^。\n]*`claude`[^。\n]*`prime-agent`[^。\n]*外部 CLI/.test(skill), "Codex/Claude/Prime + generic");
 check("执行面和回流正文对齐契约", skill.includes("只走 RLM") && skill.includes("必须走 **Sandcastle 隔离**") && skill.includes("未获写入授权时不得启动写代码候选") && ["`agent_message`", "预分配的独立结果文件", "final JSONL"].every((text) => skill.includes(text)), "prose alignment");
 check("单轮与完成门正文对齐契约", skill.includes("整个 arena 只准这一轮 fan-out") && skill.includes("有效候选少于 2 个时立即停止 arena") && skill.includes("不得只交付「评委评分中」"), "prose alignment");
