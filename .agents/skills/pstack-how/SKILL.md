@@ -42,7 +42,7 @@ metadata:
 - **根代理持有扇出**：需要并行探索时，由根代理（你）自己 spawn 子代理并汇总，不要委托给另一个编排层。
 - `await rlm('sub-task', name='<稳定名>')` **只返回 admission handle**（`rlm_child_id` / `name` / `session_dir` / `model`），**不等待、不返回子代理答案**。**永远不要把 admission handle 当成研究结果。**
 - 子代理结果**只通过两种方式回流**：`await agent_message.send(message, receiver_role='parent')` 回复，或子代理写入根代理预先指定的结果文件后由根代理读取。没有第三种「同步返回值」。
-- 每次 spawn 前，根代理必须给 explorer prompt 填入**明确的读文件数、工具调用数、墙钟时间预算和绝对结果文件路径**。默认小预算为：最多读 **8 个文件**、最多 **10 次工具调用**（其中最后 **2 次**预留给消息回流及失败后的文件 fallback）、最多 **6 分钟**；根代理可按切片缩小，扩大时须仍为最终回流预留余量。结果文件应是根代理在自己的 session-dir（或会话专用临时目录）中为该 explorer 预先分配的唯一文件，不能等 admission 后才猜子代理目录。
+- 每次 spawn 前，根代理必须给 explorer prompt 填入**明确的读文件数、工具调用数、墙钟时间预算和绝对结果文件路径**。默认小预算为：最多读 **8 个文件**、最多 **10 次工具调用**（其中最后 **2 次**预留给消息回流及失败后的文件 fallback）、最多 **6 分钟**；根代理可按切片缩小，扩大时须仍为最终回流预留余量。结果文件应是根代理在自己的 session-dir 中为该 explorer 预先分配的唯一文件，不能等 admission 后才猜子代理目录。
 - 子代理达到读文件或时间预算、工具调用预算仅剩最后 **2 次**，或约 **70% context** 时，必须立即停止探索，先生成结构化结果并回流；未知处写进 `Open Questions`，不得为补全貌继续读或编造。子代理不能以源码 `toolResult` 作为最后事件。
 - 相互独立的子代理要**在各自单独的 `rlm()` 调用里 spawn，然后结束本回合**；回复会在后续回合以普通 agent message 到达。用 `await rlm.list_subagents()` 找回子代理句柄。`agent_observe` 的 rollout preview 只用于诊断，**不算结果证据**。
 - 子代理继承你的模型；如需不同模型，用 `await rlm.find_models(...)` 取精确 selector 再传 `model=`。**没有 Cursor model slug**（如 `grok-*`、`claude-*` 之类），一律从 Prime 实际模型目录里选。
@@ -94,7 +94,7 @@ spawn 方式（Prime）：每个 explorer 一个独立的 `rlm('sub-task', name=
 
 ### 第 3 步：汇总（仅复杂问题）
 
-等所有 explorer 的 `agent_message` 回复到齐后，由你（根代理）把发现汇总成一份连贯解释。按 `references/explainer-prompt.md` 的完整格式写：调和重叠发现、用重读代码解决矛盾、把各切片织成统一图景。**汇总由根代理完成**——不再 spawn 第二个「explainer」子代理（这是相对上游的 Prime 改写）。
+等每个 explorer 都通过完成门（收到完整 `agent_message`，或读到指定 `{RESULT_FILE}` 中的同一份完整结果）后，由你（根代理）把发现汇总成一份连贯解释。按 `references/explainer-prompt.md` 的完整格式写：调和重叠发现、用重读代码解决矛盾、把各切片织成统一图景。**汇总由根代理完成**——不再 spawn 第二个「explainer」子代理（这是相对上游的 Prime 改写）。
 
 ### 第 4 步：呈现
 
