@@ -17,8 +17,9 @@
 | `../skill-local-customizations.md` | 本地定制总表（pstack-lite 索引 + 固定 SHA） | ⑤ |
 | `scripts/pstack-lite/check-skills.mjs` | Prime 递归发现 + 诊断分类（宿主 symlink 投影计入 expected，合入门 unexpected=0） | ②⑥ |
 | `scripts/pstack-lite/run-trigger-fixtures.mjs` | 触发夹具 runner + 会话记录证据分析 | ③④⑥ |
+| `scripts/pstack-lite/check-pstack-arena-contract.mjs` | arena user-only / 单轮 drop-out / no-direct-CLI 确定性契约 | #1132 回退 |
 
-## 两条靶向验证命令（不跑与 Skills 无关的全仓重放）
+## 三组靶向验证命令（不跑与 Skills 无关的全仓重放）
 
 ```bash
 # ① 发现 + 诊断分类（宿主 symlink 投影归 expected；合入门 unexpected=0）+ shadow/投影自测
@@ -28,6 +29,9 @@ node scripts/pstack-lite/check-skills.mjs --self-test
 # ② 触发夹具（证据来自新会话记录，不采信模型自报）
 node scripts/pstack-lite/run-trigger-fixtures.mjs --self-test
 node scripts/pstack-lite/run-trigger-fixtures.mjs --item probe-fixture
+
+# ③ pstack-arena 回退后的确定性行为契约（不启动模型）
+node scripts/pstack-lite/check-pstack-arena-contract.mjs
 ```
 
 ## 各实施票接缝
@@ -41,5 +45,5 @@ node scripts/pstack-lite/run-trigger-fixtures.mjs --item probe-fixture
   `expectedProjectionCollisions`、不判失败；真实 shadow 与 `unslop`/`pstack-*` 碰撞仍失败）。
 - **验证触发**：`fixtures.json` 对应 item 改 `active` 并校准 prompt，跑
   `node scripts/pstack-lite/run-trigger-fixtures.mjs --item <id>`。
-- **升级上游**：开票 → 比较旧/新 SHA diff → 重做适配 → 更新总表固定 SHA → 重跑两条命令。
+- **升级上游**：开票 → 比较旧/新 SHA diff → 重做适配 → 更新总表固定 SHA → 重跑上述三组命令。
   不得自动跟随上游 `main`。
