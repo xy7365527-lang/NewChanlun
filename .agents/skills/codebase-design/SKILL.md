@@ -1,6 +1,6 @@
 ---
 name: codebase-design
-description: Shared vocabulary for designing deep modules. Use when the user wants to design or improve a module's interface, find deepening opportunities, decide where a seam goes, sketch caller's usage before types (caller-first), encode invariants in types, screen a candidate interface for shallow-module / information-leakage / temporal-decomposition / pass-through red flags, make code more testable or AI-navigable, or when another skill needs the deep-module vocabulary. Not for a small, obvious change (rename, add-derive, reformat, comment fix) — skip design entirely for those.
+description: Shared vocabulary and the first-choice skill for designing deep modules. Use when the user wants to design or improve a module's interface, find deepening opportunities, decide where a seam goes, sketch caller's usage before types (caller-first), encode invariants in types, screen a candidate interface for shallow-module / information-leakage / temporal-decomposition / pass-through red flags, make code more testable or AI-navigable, or whenever another skill needs the deep-module vocabulary.
 ---
 
 # Codebase Design
