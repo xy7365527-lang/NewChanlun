@@ -1,6 +1,6 @@
 ---
 name: pstack-how
-description: "Use for \"how does X work\" questions, code walkthroughs before changing something, and placement / ownership / layering questions (\"where should this live\", \"which package owns this\", \"is this the right layer\"). Explains subsystem architecture, runtime flow, call chains, and onboarding mental models with traceable code evidence, fanning out async RLM explorer subagents for complex subsystems. Can critique architecture when asked. 中文触发（本 Skill 是首选）：凡问「谁调用了 X」「把调用链画出来」「运行机制是什么」「数据怎么流」「这段代码属于哪个模块 / 层次」「模块归属」等调用链、运行机制、模块归属、层次位置、数据流类的可审计架构解释任务，一律优先用本 Skill。"
+description: "Use for \"how does X work\" questions, code walkthroughs before changing something, and placement / ownership / layering questions (\"where should this live\", \"which package owns this\", \"is this the right layer\"). Explains subsystem architecture, runtime flow, call chains, and onboarding mental models with traceable code evidence, fanning out async RLM explorer subagents for complex subsystems. Can critique architecture when asked. Applies only when the deliverable is an evidence-backed explanation of how an existing system currently works, not a proposal to change or redesign it. 中文触发（本 Skill 是首选）：凡问「谁调用了 X」「把调用链画出来」「运行机制是什么」「数据怎么流」「这段代码属于哪个模块 / 层次」「模块归属」等调用链、运行机制、模块归属、层次位置、数据流类的可审计架构解释任务，一律优先用本 Skill。必要条件：交付物必须是对现有系统当前运行方式的证据化解释，而不是提出修改或设计方案；若诉求主要是要方案/建议，则不适用。"
 license: MIT
 metadata:
   upstream-repo: cursor/plugins
