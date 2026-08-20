@@ -18,7 +18,7 @@
 | triage | SKILL.md | 同上（一次一问） | 2026-08-14 |
 | loop-me | SKILL.md | 同上（一次一问） | 2026-08-14 |
 | wayfinder | SKILL.md | 同上（一次一问）；另含本仓 wayfinder 纪律对齐 | 2026-08-14 |
-| code-review | SKILL.md | 术语用「PRD」，不用上游「spec」 | 2026-08-14 |
+| code-review | SKILL.md + ADVERSARIAL-*.md | 术语用「PRD」，不用上游「spec」；并入 pstack `interrogate` 可选对抗评审模式（#1137：独立 reviewer / 统一 rubric / agreement map / lead judgment，Prime RLM 异步改写） | 2026-08-14 / 2026-08-20 |
 | to-spec | SKILL.md | 同上（PRD 术语） | 2026-08-14 |
 | claude-handoff | SKILL.md | 同上（PRD 术语） | 2026-08-14 |
 | setup-matt-pocock-skills | SKILL.md, issue-tracker-github/gitlab/local.md | 同上（PRD 术语） | 2026-08-14 |
@@ -87,7 +87,11 @@ pstack-lite 每项登记必须记录：
   （how→arena→agree→implement→scrap）与多模型 runner 面板。两 Skill 的
   `description`/触发契约未改，仅新增正文方法并互指「多方案探索 vs 单方案深模块」分工。
 - `interrogate` 的独立 reviewer / agreement map / lead judgment → 并入
-  `.agents/skills/code-review/` 的可选 adversarial 模式。
+  `.agents/skills/code-review/` 的可选 adversarial 模式（**已实现 #1137**：SKILL.md
+  「两种模式与升级判定」「对抗评审模式」节 + `ADVERSARIAL-MODE.md` /
+  `ADVERSARIAL-REVIEWER-PROMPT.md` / `ADVERSARIAL-RUBRIC.md` /
+  `ADVERSARIAL-CODE-QUALITY.md` / `ADVERSARIAL-LEAD-JUDGMENT.md`，固定上游 SHA
+  `fd6dd6f7276956a532bb78a748a8d2818b6eb5f4`，MIT，未创建 `pstack-interrogate`）。
 
 ### 不移植 / 复用现役（首批）
 

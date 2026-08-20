@@ -52,6 +52,48 @@
       "assertions": []
     },
     {
+      "id": "code-review-adversarial",
+      "skill": "code-review",
+      "skill_dir": "../../../.agents/skills/code-review",
+      "status": "active",
+      "note": "合并能力（#1137）：interrogate 对抗模式并入 code-review。触发=高风险/有争议 diff 评审 + 显式对抗短语（interrogate/adversarial review/challenge this/stress test/find blind spots/tear this apart）。反例覆盖算术、写代码、重命名格式化（非评审）。",
+      "positive": [
+        {
+          "id": "cr-adv-pos-1",
+          "prompt": "adversarial review this diff against main and find blind spots.",
+          "expect": "loaded"
+        },
+        {
+          "id": "cr-adv-pos-2",
+          "prompt": "challenge this change and stress test the code.",
+          "expect": "loaded"
+        },
+        {
+          "id": "cr-adv-pos-3",
+          "prompt": "tear this apart: multi-model review of this branch's changes.",
+          "expect": "loaded"
+        }
+      ],
+      "negative": [
+        {
+          "id": "cr-adv-neg-1",
+          "prompt": "Reply with exactly the number 42 and nothing else.",
+          "expect": "skipped"
+        },
+        {
+          "id": "cr-adv-neg-2",
+          "prompt": "Write a hello-world function in Python.",
+          "expect": "skipped"
+        },
+        {
+          "id": "cr-adv-neg-3",
+          "prompt": "Rename this variable and format the file with rustfmt.",
+          "expect": "skipped"
+        }
+      ],
+      "assertions": []
+    },
+    {
       "id": "pstack-how",
       "skill": "pstack-how",
       "status": "draft",
