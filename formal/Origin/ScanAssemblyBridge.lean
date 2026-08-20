@@ -19,9 +19,13 @@ ForceProxies 在 divergence.rs:417-440，CandidateKey/状态/结构谓词在 can
 checkpoint 输出不是 delta，不暴露 cached_* 内部状态。末根也没有特殊 flush/finalize：它只是最后
 一次相同扫描语义的完整快照，外层 isTerminalRoot 只标提取位置、不改变 decode。
 
-★D2/P1 边界（scan.rs:19-28）：CandDeltaEvent 快照字段与 pan_div_diag 不在四件输出内；它们由
-P1/cp_ownership 独立计算。本桥不从 scan wire 提取或推导它们。c_p stable-revision 单调定理留在
-ScanAssemblyMirror，但 c_p 不是 MergedScanOutput 的第五件输出。
+★D2/P1 边界（scan.rs:19-28）：CandDeltaEvent 与 cp_ownership 不在四件输出内；本桥为它们提供
+独立 wire 与逐字段检查，不从 scan wire 提取或推导。pan_div_diag 仍是诊断字段，不进入判定桥。
+c_p stable-revision 单调定理留在 ScanAssemblyMirror，c_p 不是 MergedScanOutput 的第五件输出。
+
+本桥只验证 Rust wire decode 后与调用方给定 `MergedScanOutput` 的逐字段一致，不等于调用
+`assembleMergedOutput` 从独立输入重算。#1087 当前最小切片尚未把 scan prelude emissions 或
+sidecar 的 Rust 提取接入一条 Lean 执行链，因此不得把本桥的通过表述成完整扫描独立重算通过。
 -/
 
 import Origin.ScanAssemblyMirror
@@ -61,6 +65,13 @@ def RustObservedStateTag.toLean : RustObservedStateTag → ObservedState
   | RustObservedStateTag.unresolved => ObservedState.unresolved
   | RustObservedStateTag.confirmed => ObservedState.confirmed
 
+inductive RustCpLifecycleTag where | pending | closed
+deriving DecidableEq, Repr
+
+def RustCpLifecycleTag.toLean : RustCpLifecycleTag → CpLifecycle
+  | RustCpLifecycleTag.pending => CpLifecycle.pending
+  | RustCpLifecycleTag.closed => CpLifecycle.closed
+
 inductive RustT3InCGradeReasonTag where
   | missingLeave | missingRetest | sameDirection | leaveNotOutside | retestReentered
 deriving DecidableEq, Repr
@@ -95,7 +106,150 @@ def RustCenterExtraction.toLean (center : RustCenterExtraction) : CenterFrame :=
   { zd := center.zd, zg := center.zg, dd := center.dd, gg := center.gg
     startIndex := center.startIndex, endIndex := center.endIndex }
 
-/-! ## §3 points / BspPoint -/
+/-- Rust prelude 排序后的 segment 行；方向锚按生产契约由本行 direction 唯一导出。 -/
+structure RustSegmentExtraction where
+  direction : RustDirectionTag
+  startIndex : Nat
+  endIndex : Nat
+  startPrice : Int
+  endPrice : Int
+deriving DecidableEq, Repr
+
+def RustSegmentExtraction.toLean (row : RustSegmentExtraction) : SegmentRow :=
+  { direction := row.direction.toLean
+    startIndex := row.startIndex
+    endIndex := row.endIndex
+    startPrice := row.startPrice
+    endPrice := row.endPrice }
+
+/-! ## §3 event / cp_ownership 侧车 -/
+
+structure RustPredicateExtraction where
+  accepted : Bool
+  buy1 : Bool
+  sell1 : Bool
+deriving DecidableEq, Repr
+
+def RustPredicateExtraction.toLean (facts : RustPredicateExtraction) : CandDeltaFacts :=
+  { accepted := facts.accepted, buy1 := facts.buy1, sell1 := facts.sell1 }
+
+structure RustAssemblyInputExtraction where
+  level : Nat
+  side : RustSideTag
+  divergenceConfirmSrc : Nat
+  aIntervalLeft : Nat
+  aIntervalRight : Nat
+  center : RustCenterExtraction
+  departureDir : RustDirectionTag
+  untilStart : Nat
+  triggerEnd : Nat
+  rows : List RustSegmentExtraction
+  predicate : RustPredicateExtraction
+deriving DecidableEq, Repr
+
+def RustAssemblyInputExtraction.toLean (input : RustAssemblyInputExtraction) : EventAssemblyInput :=
+  { level := input.level
+    side := input.side.toLean
+    divergenceConfirmSrc := input.divergenceConfirmSrc
+    aInterval := { left := input.aIntervalLeft, right := input.aIntervalRight }
+    center := input.center.toLean
+    departureDir := input.departureDir.toLean
+    untilStart := input.untilStart
+    triggerEnd := input.triggerEnd
+    rows := input.rows.map RustSegmentExtraction.toLean
+    predicate := input.predicate.toLean }
+
+structure RustEventExtraction where
+  level : Nat
+  side : RustSideTag
+  divergenceConfirmSrc : Nat
+  confirmSrc : Nat
+  intervalLeft : Nat
+  intervalRight : Nat
+  aIntervalLeft : Nat
+  aIntervalRight : Nat
+  cEpisodeStart : Nat
+  cEpisodeLeft : Nat
+  cEpisodeRight : Nat
+  enterSrc : Nat
+  candDelta : Bool
+deriving DecidableEq, Repr
+
+/-- 事件字段逐项比对；不用事件结构整体相等掩盖漏字段。 -/
+def EventParity (rust : RustEventExtraction) (lean : CandDeltaEvent) : Prop :=
+  rust.level = lean.level ∧
+  rust.side.toLean = lean.side ∧
+  rust.divergenceConfirmSrc = lean.divergenceConfirmSrc ∧
+  rust.confirmSrc = lean.confirmSrc ∧
+  rust.intervalLeft = lean.interval.left ∧
+  rust.intervalRight = lean.interval.right ∧
+  rust.aIntervalLeft = lean.aInterval.left ∧
+  rust.aIntervalRight = lean.aInterval.right ∧
+  rust.cEpisodeStart = lean.cEpisodeStart ∧
+  rust.cEpisodeLeft = lean.cEpisodeInterval.left ∧
+  rust.cEpisodeRight = lean.cEpisodeInterval.right ∧
+  rust.enterSrc = lean.enterSrc ∧
+  rust.candDelta = lean.candDelta
+
+structure RustCpExtraction where
+  level : Nat
+  bCenterOrdinal : Nat
+  departureMoveOrdinal : Option Nat
+  sourceStart : Option Nat
+  lifecycle : RustCpLifecycleTag
+deriving DecidableEq, Repr
+
+/-- c_p 稳定身份四字段与生命周期逐项比对。 -/
+def CpParity (rust : RustCpExtraction) (lean : CpOwnership) : Prop :=
+  rust.level = lean.level ∧
+  rust.bCenterOrdinal = lean.bCenterOrdinal ∧
+  rust.departureMoveOrdinal = lean.departureMoveOrdinal ∧
+  rust.sourceStart = lean.sourceStart ∧
+  rust.lifecycle.toLean = lean.lifecycle
+
+def CpListParity : List RustCpExtraction → List CpOwnership → Prop
+  | [], [] => True
+  | rust :: rustRest, lean :: leanRest =>
+      CpParity rust lean ∧ CpListParity rustRest leanRest
+  | _, _ => False
+
+/-- Lean 事件必须从提取输入现算；两侧同缺省或逐字段相等。 -/
+def EventCheck (rustInput : RustAssemblyInputExtraction)
+    (rustEvent : Option RustEventExtraction) : Prop :=
+  match rustEvent, assembleCandDelta rustInput.toLean with
+  | none, none => True
+  | some rust, some lean => EventParity rust lean
+  | _, _ => False
+
+def EventListCheck :
+    List RustAssemblyInputExtraction → List (Option RustEventExtraction) → Prop
+  | [], [] => True
+  | input :: inputRest, output :: outputRest =>
+      EventCheck input output ∧ EventListCheck inputRest outputRest
+  | _, _ => False
+
+/-- dirty invalidation 不得走此关系；after 必须是同一 stable revision 的镜像推进结果。 -/
+def StableCpCheck (rustBefore rustAfter : RustCpExtraction) (leanBefore : CpOwnership)
+    (closureWitness : Bool) : Prop :=
+  CpParity rustBefore leanBefore ∧ CpParity rustAfter (leanBefore.advance closureWitness)
+
+def StableCpListCheck :
+    List RustCpExtraction → List RustCpExtraction → List CpOwnership → List Bool → Prop
+  | [], [], [], [] => True
+  | rustBefore :: rustBeforeRest, rustAfter :: rustAfterRest,
+      leanBefore :: leanBeforeRest, witness :: witnessRest =>
+      StableCpCheck rustBefore rustAfter leanBefore witness ∧
+        StableCpListCheck rustBeforeRest rustAfterRest leanBeforeRest witnessRest
+  | _, _, _, _ => False
+
+def CheckpointSidecarCheck (rustInputs : List RustAssemblyInputExtraction)
+    (rustEvents : List (Option RustEventExtraction))
+    (rustCpBefore rustCpAfter : List RustCpExtraction)
+    (leanCpBefore : List CpOwnership) (closureWitnesses : List Bool) : Prop :=
+  EventListCheck rustInputs rustEvents ∧
+    StableCpListCheck rustCpBefore rustCpAfter leanCpBefore closureWitnesses
+
+/-! ## §4 points / BspPoint -/
 
 structure RustThirdClassEntryExtraction where
   centerSi : Nat
@@ -175,7 +329,7 @@ def RustBspPointExtraction.toLean (point : RustBspPointExtraction) : BspPoint :=
     force := point.force.map RustForceProxiesExtraction.toLean
     retraceBreaksType1 := point.retraceBreaksType1 }
 
-/-! ## §4 panDivs / PanDivCert -/
+/-! ## §5 panDivs / PanDivCert -/
 
 structure RustPanDivCertExtraction where
   sourceIndex : Nat
@@ -189,7 +343,7 @@ def RustPanDivCertExtraction.toLean (cert : RustPanDivCertExtraction) : PanDivCe
   { sourceIndex := cert.sourceIndex, side := cert.side.toLean, center := cert.center.toLean
     segA := cert.segA.toLean, segC := cert.segC.toLean }
 
-/-! ## §5 grades / FirstClassGradeRecord -/
+/-! ## §6 grades / FirstClassGradeRecord -/
 
 inductive RustT3InCGradeExtraction where
   | present (leaveInterval retestInterval : RustIntervalExtraction)
@@ -218,7 +372,7 @@ def RustFirstClassGradeExtraction.toLean
     centerStartIndex := record.centerStartIndex, centerEndIndex := record.centerEndIndex
     centerZd := record.centerZd, centerZg := record.centerZg, grade := record.grade.toLean }
 
-/-! ## §6 observations / CandidateObservation -/
+/-! ## §7 observations / CandidateObservation -/
 
 structure RustParentFingerprintExtraction where
   centerStart : Nat
@@ -283,7 +437,7 @@ def RustCandidateObservationExtraction.toLean
     state := observation.state.toLean, firstProvableAt := observation.firstProvableAt
     confirmedAt := observation.confirmedAt }
 
-/-! ## §7 checkpoint / 末根完整快照 -/
+/-! ## §8 checkpoint / 末根完整快照 -/
 
 structure RustMergedScanOutputExtraction where
   points : List RustBspPointExtraction
@@ -317,9 +471,104 @@ def RustScanSnapshotExtraction.toLean (snapshot : RustScanSnapshotExtraction) : 
   { checkpointSrc := snapshot.checkpointSrc, level := snapshot.level
     isTerminalRoot := snapshot.isTerminalRoot, output := snapshot.output.toLean }
 
-/-- 四列表的长度、顺序、嵌套字段全部参与相等。 -/
+/-- points 单项逐字段桥；所有嵌套值均走 `DecidableEq`，不使用 Rust 手写 PartialEq。 -/
+def PointParity (rust : RustBspPointExtraction) (lean : BspPoint) : Bool :=
+  decide
+    (rust.sourceIndex = lean.sourceIndex ∧
+      rust.bits.toLean = lean.bits ∧
+      rust.pivotLow = lean.pivotLow ∧
+      rust.pivotHigh = lean.pivotHigh ∧
+      rust.center.map RustOwnerExtraction.toLean = lean.center ∧
+      rust.structBreakDir.map RustSideTag.toLean = lean.structBreakDir ∧
+      rust.force.map RustForceProxiesExtraction.toLean = lean.force ∧
+      rust.retraceBreaksType1 = lean.retraceBreaksType1)
+
+/-- panDivs 单项逐字段桥。 -/
+def PanDivParity (rust : RustPanDivCertExtraction) (lean : PanDivCert) : Bool :=
+  decide
+    (rust.sourceIndex = lean.sourceIndex ∧
+      rust.side.toLean = lean.side ∧
+      rust.center.toLean = lean.center ∧
+      rust.segA.toLean = lean.segA ∧
+      rust.segC.toLean = lean.segC)
+
+/-- grades 单项逐字段桥。 -/
+def GradeParity (rust : RustFirstClassGradeExtraction) (lean : FirstClassGradeRecord) : Bool :=
+  decide
+    (rust.level = lean.level ∧
+      rust.sourceIndex = lean.sourceIndex ∧
+      rust.side.toLean = lean.side ∧
+      rust.centerStartIndex = lean.centerStartIndex ∧
+      rust.centerEndIndex = lean.centerEndIndex ∧
+      rust.centerZd = lean.centerZd ∧
+      rust.centerZg = lean.centerZg ∧
+      rust.grade.toLean = lean.grade)
+
+/-- observations 单项逐字段桥。 -/
+def ObservationParity
+    (rust : RustCandidateObservationExtraction) (lean : CandidateObservation) : Bool :=
+  decide
+    (rust.key.toLean = lean.key ∧
+      rust.kind.toLean = lean.kind ∧
+      rust.centerIds.map RustIntervalExtraction.toLean = lean.centerIds ∧
+      rust.candidateGroupId = lean.candidateGroupId ∧
+      rust.pairId = lean.pairId ∧
+      rust.structuralPredicates.toLean = lean.structuralPredicates ∧
+      rust.extremeProof.toLean = lean.extremeProof ∧
+      rust.thirdClassProof = lean.thirdClassProof ∧
+      rust.interval.toLean = lean.interval ∧
+      rust.state.toLean = lean.state ∧
+      rust.firstProvableAt = lean.firstProvableAt ∧
+      rust.confirmedAt = lean.confirmedAt)
+
+/-- 四类列表均为同长、同序的逐项协议；任一侧多项即失败。 -/
+def PointsParity : List RustBspPointExtraction → List BspPoint → Bool
+  | [], [] => true
+  | rust :: rustRest, lean :: leanRest =>
+      PointParity rust lean && PointsParity rustRest leanRest
+  | _, _ => false
+
+def PanDivsParity : List RustPanDivCertExtraction → List PanDivCert → Bool
+  | [], [] => true
+  | rust :: rustRest, lean :: leanRest =>
+      PanDivParity rust lean && PanDivsParity rustRest leanRest
+  | _, _ => false
+
+def GradesParity : List RustFirstClassGradeExtraction → List FirstClassGradeRecord → Bool
+  | [], [] => true
+  | rust :: rustRest, lean :: leanRest =>
+      GradeParity rust lean && GradesParity rustRest leanRest
+  | _, _ => false
+
+def ObservationsParity :
+    List RustCandidateObservationExtraction → List CandidateObservation → Bool
+  | [], [] => true
+  | rust :: rustRest, lean :: leanRest =>
+      ObservationParity rust lean && ObservationsParity rustRest leanRest
+  | _, _ => false
+
+/--
+四件输出不经整体结构等式捷径，分别走各自同长同序、逐字段列表桥。这里只比较 Rust wire
+decode 与调用方给定的 Lean 输出；不调用 `assembleMergedOutput`，不构成 scan prelude 独立重算。
+-/
+def MergedOutputParity
+    (rust : RustMergedScanOutputExtraction) (lean : MergedScanOutput) : Prop :=
+  PointsParity rust.points lean.points = true ∧
+  PanDivsParity rust.panDivs lean.panDivs = true ∧
+  GradesParity rust.grades lean.grades = true ∧
+  ObservationsParity rust.observations lean.observations = true
+
+instance mergedOutputParityDecidable
+    (rust : RustMergedScanOutputExtraction) (lean : MergedScanOutput) :
+    Decidable (MergedOutputParity rust lean) := by
+  unfold MergedOutputParity
+  infer_instance
+
 def SnapshotParity (rust : RustScanSnapshotExtraction) (lean : ScanSnapshot) : Prop :=
-  rust.toLean = lean
+  rust.checkpointSrc = lean.checkpointSrc ∧
+  rust.level = lean.level ∧
+  rust.isTerminalRoot = lean.isTerminalRoot ∧
+  MergedOutputParity rust.output lean.output
 
 def SnapshotListParity : List RustScanSnapshotExtraction → List ScanSnapshot → Prop
   | [], [] => True

@@ -11,13 +11,16 @@ Origin/ScanAssemblyMirror.lean — 3a 统一扫描装配语义镜像（#1087 第
 * signal.rs:221-228、242-257、266-325：最近 confirmed 中枢与 FirstStructuralGates；
 * signal.rs:749-863、1150-1161、1911-1922：grade、PanDivCert 与冻结公式。
 
-★D2 字段族边界（scan.rs:19-28）：CandDeltaEvent 的 c_interval_full/b_parent/c_structure/
-third_class_in_c/cp_certificate_confirm_src/full_trend_c_qualified/full_trend_evidence 与
-pan_div_diag 在 3a 期间由 P1/cp_ownership 侧车独立计算，不经本生产扫描。本镜像不从四件输出
-臆造这些字段，也不替 P1 定义独立事件装配器。
+★D2 字段族边界（scan.rs:19-28）：CandDeltaEvent 与 cp_ownership 是独立于四件扫描输出的
+P1 侧车。本镜像分别钉住其事件装配和 stable-revision 生命周期投影，不从四件输出反推；
+pan_div_diag 仍是诊断字段，不进入事件判定或四件输出。
 
 认识论等级 L0：这里只镜像既有确定性装配。lake build 证明 Lean 内部定义与定理成立，不等于
 Rust 已完成跨语言对拍，更不证明交易有效性；指定窗签收属于后续执行切片。
+
+本文件对 3a prelude 的覆盖限于装配语义：共享 `PerSegmentMaterial`、逐段 `PerSegmentEmission`、
+双域 `ScanSinks`、扫描后归约与 `resumeMergedOutput`。`PostScanOperators` 的排序、分组和 pair-id
+函数仍由调用方供给；这里没有从完整 Rust 原始输入独立重算这些算子或完整扫描执行链。
 -/
 
 namespace NewChanlun.Origin.ScanAssemblyMirror
@@ -120,7 +123,70 @@ theorem episode_boundary_unique
   unfold EpisodeDelimitedBy at hFirst hSecond
   exact Option.some.inj (hFirst.symm.trans hSecond)
 
-/-! ## §2 共享 per-segment 中间记录 -/
+/-! ## §2 cand_delta 事件装配 -/
+
+/-- 生产结构候选门的提取结果；事件装配只消费既有门结果，不重裁判据。 -/
+structure CandDeltaFacts where
+  accepted : Bool
+  buy1 : Bool
+  sell1 : Bool
+deriving DecidableEq, Repr
+
+def CandDeltaFacts.value (facts : CandDeltaFacts) : Bool :=
+  facts.buy1 || facts.sell1
+
+/-- 事件装配输入与当前 self-anchor 段素材共用同一 `SegmentRow`。 -/
+structure EventAssemblyInput where
+  level : Nat
+  side : Side
+  divergenceConfirmSrc : Nat
+  aInterval : EpisodeBounds
+  center : CenterFrame
+  departureDir : Direction
+  untilStart : Nat
+  triggerEnd : Nat
+  rows : List SegmentRow
+  predicate : CandDeltaFacts
+deriving DecidableEq, Repr
+
+/-- 3a/P1 侧车 `CandDeltaEvent` 的装配投影；兼容别名保留以供逐字段桥接。 -/
+structure CandDeltaEvent where
+  level : Nat
+  side : Side
+  divergenceConfirmSrc : Nat
+  confirmSrc : Nat
+  interval : EpisodeBounds
+  aInterval : EpisodeBounds
+  cEpisodeStart : Nat
+  cEpisodeInterval : EpisodeBounds
+  enterSrc : Nat
+  candDelta : Bool
+deriving DecidableEq, Repr
+
+/--
+结构候选门拒绝或 self-anchor episode 无来源时不产事件；成功时三个 C episode 别名只由
+`episodeBounds` 这一 writer 装配，确认时点保持为独立的 divergence checkpoint。
+-/
+def assembleCandDelta (input : EventAssemblyInput) : Option CandDeltaEvent :=
+  if input.predicate.accepted then
+    match episodeBounds input.rows input.center input.departureDir input.untilStart input.triggerEnd with
+    | none => none
+    | some bounds =>
+        some
+          { level := input.level
+            side := input.side
+            divergenceConfirmSrc := input.divergenceConfirmSrc
+            confirmSrc := input.divergenceConfirmSrc
+            interval := bounds
+            aInterval := input.aInterval
+            cEpisodeStart := bounds.left
+            cEpisodeInterval := bounds
+            enterSrc := bounds.left
+            candDelta := input.predicate.value }
+  else
+    none
+
+/-! ## §3 共享 per-segment 中间记录 -/
 
 /-- `ASegCache` 的值：I(A) span 与同一 span 的 b 价格包络。 -/
 structure ASegmentEnvelope where
@@ -159,7 +225,7 @@ deriving DecidableEq, Repr
 def PerSegmentMaterial.productionAnchorAligned (material : PerSegmentMaterial) : Prop :=
   material.directionAnchor = some material.segment.direction
 
-/-! ## §3 四件输出的字段形状 -/
+/-! ## §4 四件输出的字段形状 -/
 
 structure ThirdClassEntryIdentity where
   centerSi : Nat
@@ -331,7 +397,7 @@ def upsertCandidateLeg (leg : CandidateObservation) :
 def reduceStructuralLegs (legs : List CandidateObservation) : List CandidateObservation :=
   legs.foldl (fun reduced leg => upsertCandidateLeg leg reduced) []
 
-/-! ## §4 双域 sink 与扫描后归约 -/
+/-! ## §5 双域 sink 与扫描后归约 -/
 
 /-- 每段共享 material 喂出的两域结果；candidateLegs 是未经同 episode 归约的 Trend 腿。 -/
 structure PerSegmentEmission where
@@ -463,7 +529,7 @@ theorem scan_assembly_deterministic
   unfold AssembledFrom at hFirst hSecond
   exact hFirst.symm.trans hSecond
 
-/-! ## §5 c_p 生命周期（D2/P1 侧车边界，不是四件输出） -/
+/-! ## §6 c_p 生命周期与 ownership 投影（P1 侧车，不是四件输出） -/
 
 inductive CpLifecycle where
   | pending
@@ -484,6 +550,19 @@ def advanceLifecycleInStableRevision
 /-- dirty/cascade 依赖失效开启新 revision，因此不构造 `StableAdvance`。 -/
 def StableAdvance (before after : CpLifecycle) : Prop :=
   ∃ closureWitness, after = advanceLifecycleInStableRevision before closureWitness
+
+/-- `LevelState.cp_ownership` 单项的稳定对象身份与生命周期。 -/
+structure CpOwnership where
+  level : Nat
+  bCenterOrdinal : Nat
+  departureMoveOrdinal : Option Nat
+  sourceStart : Option Nat
+  lifecycle : CpLifecycle
+deriving DecidableEq, Repr
+
+def CpOwnership.advance (ownership : CpOwnership) (closureWitness : Bool) : CpOwnership :=
+  { ownership with
+      lifecycle := advanceLifecycleInStableRevision ownership.lifecycle closureWitness }
 
 /--
 核对 recursive_tower.rs:1864-2015：同一 stable revision 内 Pending 只保持或闭合，Closed 吸收。

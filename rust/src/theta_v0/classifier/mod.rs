@@ -115,6 +115,18 @@ pub mod level_view_store;
 pub mod projection;
 /// 3a 生产单扫描（SPEC #1077 S1）：一趟段扫描合并 BSP 三投影与候选观察（私有模块，经 pipeline 消费）。
 mod scan;
+/// #1087 Rust merged↔legacy full oracle + Lean wire bridge 验收探针；feature 关闭时不进构建。
+#[cfg(feature = "issue1087_parity")]
+pub mod issue1087_parity {
+    pub use super::scan::issue1087_probe::{
+        begin, finish, EpisodeCase, ScanParityRecord, WireBspBits, WireBspPoint, WireCandidateKey,
+        WireCandidateKind, WireCandidateObservation, WireCenter, WireDirection,
+        WireFirstClassGradeRecord, WireForceFeatures, WireForceProxies, WireInterval,
+        WireMergedScanOutput, WireObservedState, WireOwner, WirePanDivCert, WireParentFingerprint,
+        WireSegmentRow, WireSide, WireStructuralPredicates, WireT3InCGrade, WireT3InCGradeReason,
+        WireThirdClassEntry,
+    };
+}
 pub mod signal;
 pub mod six_state;
 pub mod voice_eat;
