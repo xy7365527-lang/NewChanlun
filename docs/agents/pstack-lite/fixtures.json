@@ -311,6 +311,90 @@
         }
       ],
       "assertions": []
+    },
+    {
+      "id": "architect-merge-design-an-interface",
+      "skill": "design-an-interface",
+      "skill_dir": "../../../.agents/skills/design-an-interface",
+      "status": "active",
+      "note": "合并能力（#1136）：接口多方案探索。正例 = 非小型接口设计/多方案探索（采用新增 caller-first 与设计红旗筛查）；反例 = 普通小改动（跳过设计）。",
+      "positive": [
+        {
+          "id": "arch-dai-pos-1",
+          "prompt": "Design the interface for a position-sizing module. Explore several radically different interface options, show each candidate's usage example first, and compare them.",
+          "expect": "loaded"
+        },
+        {
+          "id": "arch-dai-pos-2",
+          "prompt": "I'm designing a config loader. Design it twice: give me multiple module shapes with their callers' usage and trade-offs.",
+          "expect": "loaded"
+        },
+        {
+          "id": "arch-dai-pos-3",
+          "prompt": "Compare different interface designs for a ledger API before I pick one. Write the caller's usage first, then the types.",
+          "expect": "loaded"
+        }
+      ],
+      "negative": [
+        {
+          "id": "arch-dai-neg-1",
+          "prompt": "Rename this function and update its call sites, nothing else.",
+          "expect": "skipped"
+        },
+        {
+          "id": "arch-dai-neg-2",
+          "prompt": "Run cargo fmt on this file.",
+          "expect": "skipped"
+        },
+        {
+          "id": "arch-dai-neg-3",
+          "prompt": "Fix the typo in this comment line.",
+          "expect": "skipped"
+        }
+      ],
+      "assertions": []
+    },
+    {
+      "id": "architect-merge-codebase-design",
+      "skill": "codebase-design",
+      "skill_dir": "../../../.agents/skills/codebase-design",
+      "status": "active",
+      "note": "合并能力（#1136）：单方案深模块设计。正例 = 非小型单模块接口/深模块设计（采用新增 caller-first 草图、设计红旗与实施中复核）；反例 = 普通小改动（跳过设计）。",
+      "positive": [
+        {
+          "id": "arch-cbd-pos-1",
+          "prompt": "Design a deep module for persisting trading positions: sketch its interface caller-first, name the invariants, and flag any shallow-module or information-leakage risks.",
+          "expect": "loaded"
+        },
+        {
+          "id": "arch-cbd-pos-2",
+          "prompt": "This cluster of modules is shallow. Find deepening opportunities: where should the seam go, and what should hide behind it?",
+          "expect": "loaded"
+        },
+        {
+          "id": "arch-cbd-pos-3",
+          "prompt": "Sketch the types and signatures for a risk-limit module before implementing: write the caller's usage first and encode the invariants in the types.",
+          "expect": "loaded"
+        }
+      ],
+      "negative": [
+        {
+          "id": "arch-cbd-neg-1",
+          "prompt": "Rename this local variable, nothing else.",
+          "expect": "skipped"
+        },
+        {
+          "id": "arch-cbd-neg-2",
+          "prompt": "Add #[derive(Debug)] to this struct.",
+          "expect": "skipped"
+        },
+        {
+          "id": "arch-cbd-neg-3",
+          "prompt": "Format this file with rustfmt.",
+          "expect": "skipped"
+        }
+      ],
+      "assertions": []
     }
   ]
 }

@@ -1,11 +1,13 @@
 ---
 name: codebase-design
-description: Shared vocabulary for designing deep modules. Use when the user wants to design or improve a module's interface, find deepening opportunities, decide where a seam goes, make code more testable or AI-navigable, or when another skill needs the deep-module vocabulary.
+description: Shared vocabulary and the first-choice skill for designing deep modules. Use when the user wants to design or improve a module's interface, find deepening opportunities, decide where a seam goes, sketch caller's usage before types (caller-first), encode invariants in types, screen a candidate interface for shallow-module / information-leakage / temporal-decomposition / pass-through red flags, make code more testable or AI-navigable, or whenever another skill needs the deep-module vocabulary.
 ---
 
 # Codebase Design
 
 Design **deep modules**: a lot of behaviour behind a small interface, placed at a clean seam, testable through that interface. Use this language and these principles wherever code is being designed or restructured. The aim is leverage for callers, locality for maintainers, and testability for everyone.
+
+**Scope: single-scheme deep-module design** — one module, its interface, and the principles that make it deep. For **multi-scheme interface exploration** (generate several radically different interfaces in parallel, then compare), use `design-an-interface`; the pattern in [DESIGN-IT-TWICE.md](DESIGN-IT-TWICE.md) applies the same exploration once a deepening candidate is already chosen. Both skills share the caller-first and design-red-flag checks below. For a small, obvious change (rename, reformat, comment fix), skip design entirely and just make the change.
 
 ## Glossary
 
@@ -57,12 +59,39 @@ When designing an interface, ask:
 - Can I simplify the parameters?
 - Can I hide more complexity inside?
 
+## Design red flags
+
+Screen every candidate interface against these four tells before committing. A red flag is a reason to revise or reject the shape. (Borrowed and adapted from pstack `architect/references/design-red-flags.md` — see [ARCHITECT-MERGE.md](ARCHITECT-MERGE.md).)
+
+- **Shallow module.** A large interface hiding little complexity. Judge depth by the capability and policy hidden behind the public surface relative to the size of that surface. Don't confuse a deep module with a deep call chain: a deep call chain scatters understanding across layers, while a deep module concentrates capability behind one interface. Signs: callers coordinate several methods to complete one operation; public options expose internal stages or implementation choices; learning the interface doesn't save the caller from learning the implementation.
+- **Information leakage.** Several modules depend on the same internal decision — a representation, policy, or protocol detail appears in more than one place, so changing it needs coordinated edits. Public re-exports of transport or wire types are leakage; parse external data into domain types behind the interface and keep storage schemas, framework objects, and protocol details private.
+- **Temporal decomposition.** Modules organized by execution order (load, validate, transform, save) instead of the knowledge they own, so one representation and its invariants repeat across several boundaries. Group code around domain knowledge and ownership — methods that run at different times can still live in one module when they protect the same decisions.
+- **Pass-through method.** Forwards the same arguments to another method with the same shape, adding a layer without hiding complexity. Remove it, or move responsibility to the module that can complete the operation. Keep a forwarding boundary only when it adds policy, adaptation, or a distinct abstraction.
+
 ## Principles
 
 - **Depth is a property of the interface, not the implementation.** A deep module can be internally composed of small, mockable, swappable parts — they just aren't part of the interface. A module can have **internal seams** (private to its implementation, used by its own tests) as well as the **external seam** at its interface.
 - **The deletion test.** Imagine deleting the module. If complexity vanishes, it was a pass-through. If complexity reappears across N callers, it was earning its keep.
 - **The interface is the test surface.** Callers and tests cross the same seam. If you want to test *past* the interface, the module is probably the wrong shape.
 - **One adapter means a hypothetical seam. Two adapters means a real one.** Don't introduce a seam unless something actually varies across it.
+
+## Caller-first sketch
+
+When you sketch a module's interface, write the **caller's usage first**, then derive the types from it. (Borrowed and adapted from pstack `architect` — see [ARCHITECT-MERGE.md](ARCHITECT-MERGE.md).)
+
+1. **Usage before types.** Write the README-style usage plus two or three realistic call sites — what callers import, what they call, what comes back. The usage is the spec: when sketch and usage diverge, reconcile the sketch to the usage, not the reverse.
+2. **Data structures first.** Get the core types right and the code becomes obvious. Trace each dominant access pattern through the proposed structure; if the answer is "we'll add a map / index / cache later," the structure is wrong.
+3. **Make boundaries visible.** `not implemented` errors for bodies, `// TODO` pseudocode for tricky logic, doc comments stating intent and invariants. A reader should trace data from input to output by reading types and signatures alone.
+4. **Encode invariants in types.** Hard-to-misuse types beat runtime checks beat prose comments.
+5. **Validate at boundaries, trust types inside.** Business logic as pure functions; the shell stays thin. Keep a single source of truth per invariant — derive instead of sync.
+
+## Design-to-implementation loop
+
+A design is a hypothesis; carry it into implementation and re-check it there. (Borrowed and adapted from pstack `architect` Phases D/E — see [ARCHITECT-MERGE.md](ARCHITECT-MERGE.md).)
+
+- **Deviations are signal, not friction to absorb silently.** If a function needs a parameter the sketch didn't anticipate, ask whether the sketch was wrong, the requirement was missed, or the implementation is overreaching. Surface it; don't bolt it on.
+- **Scrap on a pattern, not single instances.** The rewrite signal is repeated friction of the same shape: the same workaround reappearing across unrelated code; unrelated edge cases all needing special-case branches; types needing escape hatches (`any`, casts, always-set optional fields) to compile; callers having to know the abstraction's internal rules to use it; two or more independent deviations of the same shape. A few edge cases don't condemn a design — some problems are legitimately complex, and complexity in the data is not complexity in the design.
+- **When you scrap:** re-ground on what was actually built, redesign as if the new constraints had been day-one assumptions, subtract before adding (the new sketch should be smaller than the old before it grows), then return to the sketch.
 
 ## Designing for testability
 
@@ -112,3 +141,4 @@ Good interfaces make testing natural:
 
 - **Deepening a cluster given its dependencies** — see [DEEPENING.md](DEEPENING.md): dependency categories, seam discipline, and replace-don't-layer testing.
 - **Exploring alternative interfaces** — see [DESIGN-IT-TWICE.md](DESIGN-IT-TWICE.md): spin up parallel sub-agents to design the interface several radically different ways, then compare on depth, locality, and seam placement.
+- **Provenance of the architect merge** — see [ARCHITECT-MERGE.md](ARCHITECT-MERGE.md): fixed upstream SHA, borrowed fragments (caller-first sketch, design red flags, design-to-implementation loop), and local Prime rewrites.

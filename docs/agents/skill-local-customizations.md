@@ -79,8 +79,13 @@ pstack-lite 每项登记必须记录：
 
 ### 合并能力（不新建 pstack-* Skill）
 
-- `architect` 的设计片段 → 并入 `.agents/skills/design-an-interface/` 与
-  `.agents/skills/codebase-design/`（保留等价来源说明）。
+- `architect` 的设计片段 → **已并入**（#1136）`.agents/skills/design-an-interface/` 与
+  `.agents/skills/codebase-design/`，等价来源说明见两 Skill 根目录的
+  `ARCHITECT-MERGE.md`（固定 SHA、借用片段、本地改写；MIT 指向
+  `docs/agents/pstack-lite/LICENSE.MIT`）。借用范围：调用方优先、接口草图、
+  设计红旗、实施中复核；**不并入**上游 orchestrator 流程
+  （how→arena→agree→implement→scrap）与多模型 runner 面板。两 Skill 的
+  `description`/触发契约未改，仅新增正文方法并互指「多方案探索 vs 单方案深模块」分工。
 - `interrogate` 的独立 reviewer / agreement map / lead judgment → 并入
   `.agents/skills/code-review/` 的可选 adversarial 模式。
 
