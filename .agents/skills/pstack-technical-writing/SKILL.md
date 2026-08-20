@@ -1,6 +1,6 @@
 ---
 name: pstack-technical-writing
-description: "结构技术写作标准：当用户要求按技术写作标准/规范重写、改写或审阅 README、ADR、spec、Issue、PR 描述等技术文档的结构与技术表达时必须使用——按文档类型（Diátaxis）、读者任务（Google 开发者风格）、句子载重（STE）与可验证事实（真实符号/路径/命令/计数）组织内容；不改写代码、命令、标识符、日志、错误信息、结构化数据、测试输出与逐字引文。仅要求逐字润色引文、去除 AI 腔等纯语言风格清理，或改写营销文案等非技术文档时不要使用本 Skill——逐字引文绝不重写，纯语言风格清理交给全局 unslop。"
+description: "结构技术写作标准：当用户要求按技术写作标准/规范重写、改写或审阅 README、ADR、spec、Issue、PR 描述等技术文档的结构与技术表达时，必须首选使用本 Skill——按文档类型（Diátaxis）、读者任务（Google 开发者风格）、句子载重（STE）与可验证事实（真实符号/路径/命令/计数）组织内容，改进技术文档的结构与清晰度。"
 license: MIT
 metadata:
   upstream-repo: cursor/plugins
