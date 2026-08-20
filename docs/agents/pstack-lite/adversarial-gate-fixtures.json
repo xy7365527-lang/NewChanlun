@@ -1,0 +1,409 @@
+{
+  "issue": 1137,
+  "contract": "对抗评审模型多样性门；纯确定性夹具，不启动模型",
+  "metadata_semantics": "candidate.selector 按完全相同的 selector + metadata 精确去重；同 selector 的 provider/base_family 冲突则 invalid/unavailable。provider 是基础模型所有者的规范化 vendor/family 桶（不是网关/endpoint），base_family 记录该所有者内的基础模型家族。准入只要求去重后至少 3 个不同 selector、至少 2 个所有者桶；同一 owner 的版本、产品线和推理档不产生新桶。",
+  "cases": [
+    {
+      "id": "three-independent-families-two-vendors-success",
+      "requested": "auto",
+      "candidates": [
+        {
+          "selector": "anthropic/claude-sonnet",
+          "provider": "anthropic",
+          "base_family": "claude"
+        },
+        {
+          "selector": "openai/gpt-standard",
+          "provider": "openai",
+          "base_family": "gpt"
+        },
+        {
+          "selector": "openai/o-reasoning",
+          "provider": "openai",
+          "base_family": "o-series"
+        }
+      ],
+      "launches": [
+        {
+          "reviewer": "reviewer-a",
+          "selector": "anthropic/claude-sonnet",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-b",
+          "selector": "openai/gpt-standard",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-c",
+          "selector": "openai/o-reasoning",
+          "ok": true
+        }
+      ],
+      "results": [
+        {
+          "reviewer": "reviewer-a",
+          "selector": "anthropic/claude-sonnet",
+          "channel": "agent_message",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-b",
+          "selector": "openai/gpt-standard",
+          "channel": "session-dir",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-c",
+          "selector": "openai/o-reasoning",
+          "channel": "final-jsonl",
+          "ok": true
+        }
+      ],
+      "expect": "adversarial"
+    },
+    {
+      "id": "exact-duplicate-deduplicates-to-three-success",
+      "requested": "auto",
+      "candidates": [
+        {
+          "selector": "anthropic/claude",
+          "provider": "anthropic",
+          "base_family": "claude"
+        },
+        {
+          "selector": "openai/gpt",
+          "provider": "openai",
+          "base_family": "gpt"
+        },
+        {
+          "selector": "openai/o",
+          "provider": "openai",
+          "base_family": "o-series"
+        },
+        {
+          "selector": "openai/gpt",
+          "provider": "openai",
+          "base_family": "gpt"
+        }
+      ],
+      "launches": [
+        {
+          "reviewer": "reviewer-a",
+          "selector": "anthropic/claude",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-b",
+          "selector": "openai/gpt",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-c",
+          "selector": "openai/o",
+          "ok": true
+        }
+      ],
+      "results": [
+        {
+          "reviewer": "reviewer-a",
+          "selector": "anthropic/claude",
+          "channel": "agent_message",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-b",
+          "selector": "openai/gpt",
+          "channel": "session-dir",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-c",
+          "selector": "openai/o",
+          "channel": "final-jsonl",
+          "ok": true
+        }
+      ],
+      "expect": "adversarial"
+    },
+    {
+      "id": "same-vendor-different-families-unavailable",
+      "requested": "explicit",
+      "candidates": [
+        {
+          "selector": "openai/gpt",
+          "provider": "openai",
+          "base_family": "gpt"
+        },
+        {
+          "selector": "openai/o-mini",
+          "provider": "openai",
+          "base_family": "o-series"
+        },
+        {
+          "selector": "openai/codex",
+          "provider": "openai",
+          "base_family": "codex"
+        }
+      ],
+      "launches": [],
+      "results": [],
+      "expect": "unavailable"
+    },
+    {
+      "id": "same-family-versions-two-owner-buckets-success",
+      "requested": "auto",
+      "candidates": [
+        {
+          "selector": "anthropic/claude-v1",
+          "provider": "anthropic",
+          "base_family": "claude"
+        },
+        {
+          "selector": "anthropic/claude-v2",
+          "provider": "anthropic",
+          "base_family": "claude"
+        },
+        {
+          "selector": "openai/gpt",
+          "provider": "openai",
+          "base_family": "gpt"
+        }
+      ],
+      "launches": [
+        {
+          "reviewer": "reviewer-a",
+          "selector": "anthropic/claude-v1",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-b",
+          "selector": "anthropic/claude-v2",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-c",
+          "selector": "openai/gpt",
+          "ok": true
+        }
+      ],
+      "results": [
+        {
+          "reviewer": "reviewer-a",
+          "selector": "anthropic/claude-v1",
+          "channel": "agent_message",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-b",
+          "selector": "anthropic/claude-v2",
+          "channel": "session-dir",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-c",
+          "selector": "openai/gpt",
+          "channel": "final-jsonl",
+          "ok": true
+        }
+      ],
+      "expect": "adversarial"
+    },
+    {
+      "id": "same-family-reasoning-tier-two-owner-buckets-success",
+      "requested": "auto",
+      "candidates": [
+        {
+          "selector": "anthropic/claude",
+          "provider": "anthropic",
+          "base_family": "claude"
+        },
+        {
+          "selector": "openai/gpt-standard",
+          "provider": "openai",
+          "base_family": "gpt"
+        },
+        {
+          "selector": "openai/gpt-thinking",
+          "provider": "openai",
+          "base_family": "gpt"
+        }
+      ],
+      "launches": [
+        {
+          "reviewer": "reviewer-a",
+          "selector": "anthropic/claude",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-b",
+          "selector": "openai/gpt-standard",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-c",
+          "selector": "openai/gpt-thinking",
+          "ok": true
+        }
+      ],
+      "results": [
+        {
+          "reviewer": "reviewer-a",
+          "selector": "anthropic/claude",
+          "channel": "agent_message",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-b",
+          "selector": "openai/gpt-standard",
+          "channel": "session-dir",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-c",
+          "selector": "openai/gpt-thinking",
+          "channel": "final-jsonl",
+          "ok": true
+        }
+      ],
+      "expect": "adversarial"
+    },
+    {
+      "id": "duplicate-selector-unavailable",
+      "requested": "auto",
+      "candidates": [
+        {
+          "selector": "anthropic/claude",
+          "provider": "anthropic",
+          "base_family": "claude"
+        },
+        {
+          "selector": "openai/gpt",
+          "provider": "openai",
+          "base_family": "gpt"
+        },
+        {
+          "selector": "openai/gpt",
+          "provider": "openai",
+          "base_family": "o-series"
+        }
+      ],
+      "launches": [],
+      "results": [],
+      "expect": "unavailable"
+    },
+    {
+      "id": "cross-vendor-launch-fails",
+      "requested": "auto",
+      "candidates": [
+        {
+          "selector": "anthropic/claude",
+          "provider": "anthropic",
+          "base_family": "claude"
+        },
+        {
+          "selector": "openai/gpt",
+          "provider": "openai",
+          "base_family": "gpt"
+        },
+        {
+          "selector": "openai/o",
+          "provider": "openai",
+          "base_family": "o-series"
+        }
+      ],
+      "launches": [
+        {
+          "reviewer": "reviewer-a",
+          "selector": "anthropic/claude",
+          "ok": false
+        },
+        {
+          "reviewer": "reviewer-b",
+          "selector": "openai/gpt",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-c",
+          "selector": "openai/o",
+          "ok": true
+        }
+      ],
+      "results": [],
+      "expect": "degraded",
+      "expect_detail": {
+        "reviewer": "reviewer-a",
+        "selector": "anthropic/claude",
+        "stage": "launch",
+        "channel": "rlm admission",
+        "retry_when": "reviewer-a 的 anthropic/claude 可成功启动后重试"
+      }
+    },
+    {
+      "id": "real-child-artifact-missing",
+      "requested": "explicit",
+      "candidates": [
+        {
+          "selector": "anthropic/claude",
+          "provider": "anthropic",
+          "base_family": "claude"
+        },
+        {
+          "selector": "openai/gpt",
+          "provider": "openai",
+          "base_family": "gpt"
+        },
+        {
+          "selector": "openai/o",
+          "provider": "openai",
+          "base_family": "o-series"
+        }
+      ],
+      "launches": [
+        {
+          "reviewer": "reviewer-a",
+          "selector": "anthropic/claude",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-b",
+          "selector": "openai/gpt",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-c",
+          "selector": "openai/o",
+          "ok": true
+        }
+      ],
+      "results": [
+        {
+          "reviewer": "reviewer-a",
+          "selector": "anthropic/claude",
+          "channel": "agent_message",
+          "ok": true
+        },
+        {
+          "reviewer": "reviewer-b",
+          "selector": "openai/gpt",
+          "channel": "session-dir",
+          "ok": false
+        },
+        {
+          "reviewer": "reviewer-c",
+          "selector": "openai/o",
+          "channel": "final-jsonl",
+          "ok": true
+        }
+      ],
+      "expect": "degraded",
+      "expect_detail": {
+        "reviewer": "reviewer-b",
+        "selector": "openai/gpt",
+        "stage": "result",
+        "channel": "session-dir",
+        "retry_when": "reviewer-b 能经 agent_message、session-dir 结果文件或最终 JSONL 返回可解析真实 child 产物后重试"
+      }
+    }
+  ]
+}

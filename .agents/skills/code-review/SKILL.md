@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes — Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/PRD asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to "review since X". High-risk or controversial diffs escalate to an optional adversarial mode (independent multi-model reviewers, agreement map, lead judgment); also use for "interrogate", "adversarial review", "multi-model review", "challenge this", "stress test this code", "find blind spots", or "tear this apart".
+description: Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes — Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/PRD asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to "review since X". High-risk or controversial diffs escalate to an optional adversarial mode only when its model-diversity gate is satisfied; otherwise the review degrades explicitly to the standard Standards/Spec axes. The adversarial mode uses independent multi-model reviewers, an agreement map, and lead judgment; also use for "interrogate", "adversarial review", "multi-model review", "challenge this", "stress test this code", "find blind spots", or "tear this apart".
 ---
 
 Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
@@ -34,7 +34,7 @@ The issue tracker should have been provided to you — run `/setup-matt-pocock-s
 **保持标准评审**（低风险小 diff）：纯重命名、格式化、注释/拼写订正、单行配置、纯文档、
 有明确 spec 的孤立小修。
 
-判定升级则跳转 `## 对抗评审模式`；否则继续标准评审步骤 2。
+判定为升级候选后，必须先执行 `## 对抗评审模式` 的模型多样性前置门。只有门通过才进入对抗流程；门不通过（包括显式触发）则从标准评审步骤 2 继续，并显式报告 `adversarial unavailable` 或 `adversarial degraded`，不得静默改用同厂三模型。非升级候选直接继续标准评审步骤 2。
 
 ## Process
 
@@ -120,11 +120,14 @@ Reporting them separately stops one axis from masking the other.
 
 1. **写明意图**：一段话说明这段改动想达成什么；reviewer 只挑战「实现是否达成意图」，
    不挑战意图本身。
-2. **独立 reviewer**：`await rlm.find_models(limit=8)` 枚举可用模型，选 3 个跨厂商/家族
-   的模型，每个 reviewer 用 `await rlm('task', name='adversarial-reviewer-<A/B/C>',
-   model=<selector>)` 独立拉起；每个 reviewer 拿到相同的意图 + diff + rubric，**绝不把
-   其他 reviewer 的结论转给它**。结果经 `agent_message` 回复或文件回流——admission 只
-   返回句柄，不是结果。
+2. **模型多样性门 + 独立 reviewer**：升级候选先调用 `await rlm.find_models(limit=8)`；
+   只有至少 3 个可启动 selector 且覆盖至少 2 个 vendor/family 才准拉起 3 名 reviewer。
+   任一跨厂 selector 启动失败即停止对抗流程并回退标准双轴，不得用同厂模型补足。每个
+   reviewer 用 `await rlm('task', name='adversarial-reviewer-<A/B/C>', model=<selector>)`
+   独立拉起，拿到相同的意图 + diff + rubric，**绝不把其他 reviewer 的结论转给它**。
+   结果经 `agent_message`、约定的 session-dir 文件或最终 JSONL 回流；根代理必须读取真实
+   child 产物，admission handle 不是结果。门不足报告 `adversarial unavailable`，启动或
+   真实结果回流失败报告 `adversarial degraded`，随后仍输出标准 `Standards`/`Spec` 双轴。
 3. **统一 rubric**：每个 reviewer 都用 [ADVERSARIAL-RUBRIC.md](ADVERSARIAL-RUBRIC.md)
    （正确性 / 根因 vs 症状 / 结构完整 / 验证 / 复杂度预算 / 安全）与
    [ADVERSARIAL-CODE-QUALITY.md](ADVERSARIAL-CODE-QUALITY.md)（结构简化 / 1k 行门槛 /

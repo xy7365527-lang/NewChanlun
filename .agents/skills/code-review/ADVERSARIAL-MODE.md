@@ -22,20 +22,48 @@ rubric；不同模型在盲点、先验、推理模式上各不相同。跨模�
 描述、代码本身。reviewer 只挑战「实现是否把意图做好」，不挑战意图本身。意图不确定就先
 问用户。
 
-## 步骤 3：拉起独立 reviewer（Prime 语义）
+## 步骤 3：模型多样性前置门与独立 reviewer（Prime 语义）
 
-**模型选择**：`await rlm.find_models(limit=8)` 枚举有活跃凭据的模型，选 3 个跨厂商/家族
-的模型（默认 3 个；家族与推理档位尽量不同，如 Claude / DeepSeek / 其他）。若某个
-selector 拉起失败，从同一家族换最近可用档，不要因 slug 问题阻塞评审。
+### 3.1 前置门（自动升级与显式请求一视同仁）
 
-**拉起方式**：为每个 reviewer 独立 `await rlm('task', name='adversarial-reviewer-<A/B/C>',
-model=<selector>)`，任务文本就是填好的 reviewer prompt（模板见
-[ADVERSARIAL-REVIEWER-PROMPT.md](ADVERSARIAL-REVIEWER-PROMPT.md)）。admission 只返回句柄
-（rlm_child_id/name/session_dir/model），**不是结果**。
+1. **先发现再选择**：必须先执行 `await rlm.find_models(limit=8)`，不可凭记忆硬编码 slug，
+   更不可运行真实模型探针来猜凭据状态。
+2. **准入下限**：先按 selector 精确去重；重复 selector 只能算一个。去重后必须能选出
+   至少 3 个不同、可启动的 selector，并覆盖至少 2 个 vendor/family 桶。桶表示基础模型的
+   **所有者 vendor/family**：直连 provider 就是所有者时以 provider 为准，该 provider 下
+   的产品线、版本与推理档全部算同一桶（例如三个 OpenAI selector 仍只有一个桶）；只有
+   Prime Inference 一类聚合 provider 才按其承载的基础模型所有者 family 分桶。因此聚合
+   provider 下 ZAI 与 Alibaba 可算两桶，而同 family 的不同版本/推理档不能。
+3. **不足即 unavailable**：selector 少于 3 或多样性少于 2 桶时，不进入对抗模式，不得
+   用三个同厂/同家族模型冒充通过。回到 `SKILL.md` 的标准 Standards/Spec 双轴，并在报告
+   开头显式写 `Adversarial status: unavailable`、缺口、已发现数量/桶数和稍后重试条件。
+4. **显式请求不豁免**：用户明确要求 adversarial 时仍执行同一门；门不通过必须报告缺口，
+   不能静默给出看似对抗评审的绿色结果。
 
-**独立性**：每个 reviewer 的 prompt 只含三样——(1) 意图、(2) diff/文件、(3) rubric 与
-code-quality lens。**不要把其他 reviewer 的结论转给它**。所有 reviewer 同一时刻独立拉起，
-结果经 `agent_message` 回复或文件回流（`await rlm.list_subagents()` 可恢复直接子代理句柄）。
+### 3.2 拉起与启动失败降级
+
+为三个已选 selector 分别执行 `await rlm('task', name='adversarial-reviewer-<A/B/C>',
+model=<selector>)`。任务文本是填好的 reviewer prompt（模板见
+[ADVERSARIAL-REVIEWER-PROMPT.md](ADVERSARIAL-REVIEWER-PROMPT.md)）。
+
+- 任一 selector 启动失败，或启动成功者不再满足 3 个 selector / 2 个 vendor/family 桶，
+  立即停止对抗汇总。**不得从同厂/同家族补位**。
+- 回到标准 Standards/Spec 双轴，在报告开头显式写
+  `Adversarial status: degraded`、失败 selector/阶段和稍后重试条件。
+- admission 只返回 `rlm_child_id/name/session_dir/model` 句柄，**不是 reviewer 结果**，不能
+  用 admission 成功数生成 findings 或 agreement map。
+
+### 3.3 独立性与真实结果回流
+
+每个 reviewer 的 prompt 只含三样——(1) 意图、(2) diff/文件、(3) rubric 与
+code-quality lens。**不要把其他 reviewer 的结论转给它**。三个 reviewer 独立拉起。
+
+结果优先经 `agent_message` 回复；桥不可用时，任务可约定 child 在自己的 `session_dir`
+写结果文件，根代理读取该文件，或读取 child 最终 JSONL 中的最终产出。无论哪条通道，根
+代理都必须实际读取并解析真实 child 产物。若任一 reviewer 在约定等待/重试后仍无真实产物，
+按 `Adversarial status: degraded` 回退标准双轴；报告必须点名具体 reviewer label/selector、
+尝试过的回流通道、缺失或不可读的证据，以及稍后重试条件。不得把 admission handle 当作
+结果继续汇总。
 
 **填充 reviewer prompt**：读
 [ADVERSARIAL-REVIEWER-PROMPT.md](ADVERSARIAL-REVIEWER-PROMPT.md) 模板，填入：
@@ -130,8 +158,8 @@ code-quality lens。**不要把其他 reviewer 的结论转给它**。所有 rev
   readonly true」改为 `await rlm('task', …)` 独立拉起 + `agent_message`/文件异步回流；
   admission 只返回句柄不是结果。
 - **模型 slug → find_models**：上游 `~/.cursor/rules/pstack-models.mdc` 配置与
-  `claude-fable-5-thinking-max` 等 Cursor slug 改为 `await rlm.find_models()` 枚举活跃
-  凭据模型、跨厂商选 3 个。
+  `claude-fable-5-thinking-max` 等 Cursor slug 改为先用 `await rlm.find_models()` 发现候选，
+  再执行 3 selector / 2 vendor-family 的准入门和启动失败降级；发现结果不冒充启动成功。
 - **disable-model-invocation**：上游 interrogate 是 `disable-model-invocation: true`
   （只能显式调用）；合并后作为 code-review 的可选模式，跟随 code-review 的模型可见契约，
   不设该字段。
