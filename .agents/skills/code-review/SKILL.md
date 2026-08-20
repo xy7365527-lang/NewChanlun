@@ -25,7 +25,8 @@ The issue tracker should have been provided to you — run `/setup-matt-pocock-s
 高风险、有争议或非小型 diff 若没有上述显式入口，仍执行标准 Standards/Spec 双轴；可以提示
 `Adversarial status: explicit-only`，但不得自动扇出 reviewer，也不得把标准双轴说成多模型
 对抗评审。显式进入后仍必须通过模型多样性门：门不足报告 `adversarial unavailable`，启动或
-真实回流失败报告 `adversarial degraded`，随后回退标准双轴。低风险小 diff 始终走标准路径。
+真实回流失败报告 `adversarial degraded`，随后回退标准双轴。低风险小 diff 在未显式要求
+adversarial 子模式时走标准路径。
 
 重新启用自动升级前，`code-review-adversarial` 3+3 夹具必须在至少两个模型上重复稳定触发，
 并且 3-selector/2-owner 行为门可真实运行；在此之前 frontmatter 不承诺高风险或关键词自动升级。

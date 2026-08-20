@@ -124,7 +124,7 @@ for (const forbidden of ["adversarial", "interrogate", "high-risk", "controversi
 for (const token of [
   "explicit-only", "/skill:code-review", "普通语义路由不自动进入此子模式",
   "Adversarial status: explicit-only", "至少两个模型上重复稳定触发",
-  "3-selector/2-owner 行为门可真实运行",
+  "3-selector/2-owner 行为门可真实运行", "低风险小 diff 在未显式要求",
 ]) {
   if (!mode.includes(token) && !skill.includes(token)) failures.push(`文档缺 pilot 契约：${token}`);
 }
