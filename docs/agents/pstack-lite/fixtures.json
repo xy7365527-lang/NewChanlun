@@ -218,8 +218,8 @@
     {
       "id": "pstack-technical-writing",
       "skill": "pstack-technical-writing",
-      "status": "draft",
-      "note": "触发：README/ADR/spec/Issue/PR 文案的结构与技术表达。反例覆盖 unslop 纯语言润色、逐字引文、营销文案。",
+      "status": "active",
+      "note": "触发：README/ADR/spec/Issue/PR 文案的结构与技术表达（本 Skill 管结构与技术表达+句子清晰度+可验证事实，最终风格交 unslop）。反例覆盖 unslop 纯语言润色、逐字引文、营销文案。",
       "positive": [
         {
           "id": "tw-pos-1",
@@ -254,7 +254,19 @@
           "expect": "skipped"
         }
       ],
-      "assertions": []
+      "assertions": [
+        {
+          "id": "tw-assert-protected-verbatim",
+          "type": "behavior",
+          "desc": "端到端样本中受保护内容（代码/命令/标识符/日志/错误信息/结构化数据/测试输出/逐字引文）逐字不变。"
+        },
+        {
+          "id": "tw-assert-structure-clarity",
+          "type": "behavior",
+          "desc": "技术结构（文档类型/读者任务/可验证事实）与句子清晰度得到改善。"
+        }
+      ],
+      "skill_dir": "../../../.agents/skills/pstack-technical-writing"
     },
     {
       "id": "unslop",

@@ -74,7 +74,7 @@ pstack-lite 每项登记必须记录：
 | `pstack-arena` | `arena` | `pstack/skills/arena/SKILL.md` | 待实现 | 待后续票填写 |
 | `pstack-blast-radius` | `blast-radius` | `pstack/skills/blast-radius/SKILL.md` | 待实现 | 待后续票填写 |
 | `pstack-create-verification` | `create-verification-skill` | `pstack/skills/create-verification-skill/SKILL.md`（+`references/`） | 待实现 | 待后续票填写 |
-| `pstack-technical-writing` | `technical-writing` | `pstack/skills/technical-writing/SKILL.md` | 待实现 | 待后续票填写 |
+| `pstack-technical-writing` | `technical-writing` | `pstack/skills/technical-writing/SKILL.md` | 已实现（#1135） | 见 `.agents/skills/pstack-technical-writing/SKILL.md`「本地 Prime 改写」；`both` 契约（移除 disable-model-invocation）；正文四层原样保留 |
 | `unslop`（用户级全局 `~/.agents/skills/unslop/`） | `unslop` | `pstack/skills/unslop/SKILL.md` | 已安装（#1127） | 上游逐字一致；SKILL.md SHA-256 `181883e539caec8258ec9129e3ba5f133409144a2cbf2aa361158ab94cfc3441` |
 
 ### 合并能力（不新建 pstack-* Skill）
