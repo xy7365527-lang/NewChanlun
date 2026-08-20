@@ -171,6 +171,43 @@ function runCase(fixtureCwd, prompt) {
 }
 
 // ---------------------------------------------------------------------------
+// 证据判定（#1130 评论 2 修复）：有 sessionFile 时无论进程 status 是否 ok 都先分析证据；
+// 正例出现 loaded=true 硬证据即使 timeout/exit 也 PASS；反例出现 loaded=true 无论 status 都 FAIL；
+// 非正常退出且无 loaded=true 硬证据时仍 ERROR（不得把不完整运行的 loaded=false 当 skipped PASS）。
+// ---------------------------------------------------------------------------
+function judgeCase(run, skillDir, expect) {
+  let verdict = "ERROR";
+  let loaded = null;
+  let detail = run.status;
+  if (run.sessionFile) {
+    const a = analyzeSession(run.sessionFile, skillDir);
+    if (a.error) {
+      detail = a.error;
+    } else {
+      loaded = a.loaded;
+      const expected = expect === "loaded";
+      if (run.status === "ok") {
+        verdict = a.loaded === expected ? "PASS" : "FAIL";
+        detail = `loaded=${a.loaded} expect=${expect} run.status=${run.status}`;
+      } else if (a.loaded === true) {
+        // 硬证据：session 记录里已出现读取 SKILL.md 的 toolCall/toolResult，
+        // 即使进程随后 timeout/非零退出（如后续任务执行较慢），触发判定仍成立。
+        verdict = a.loaded === expected ? "PASS" : "FAIL";
+        detail = `loaded=${a.loaded} expect=${expect} run.status=${run.status}（硬证据，忽略非正常退出）`;
+      } else {
+        verdict = "ERROR";
+        detail = `run.status=${run.status} 且无 loaded=true 硬证据，不完整运行不计 skipped PASS: ${(run.stderr ?? "").slice(0, 300)}`;
+      }
+    }
+  } else if (run.status !== "ok") {
+    detail = `prime-agent 运行失败（status=${run.status}）: ${(run.stderr ?? "").slice(0, 300)}`;
+  } else {
+    detail = `no session record (status=${run.status}): ${(run.stderr ?? "").slice(0, 300)}`;
+  }
+  return { verdict, loaded, detail };
+}
+
+// ---------------------------------------------------------------------------
 // 自测：用合成会话记录验证证据分析器（不依赖模型）
 // ---------------------------------------------------------------------------
 function runSelfTest() {
@@ -223,6 +260,25 @@ function runSelfTest() {
     writeFileSync(p3, linesOf([header, readResult]));
     const r3 = analyzeSession(p3, skillDir);
     checks.push({ name: "toolResult 含 Skill 路径 → loaded", ok: r3.loaded === true, detail: `loaded=${r3.loaded}` });
+
+    // 4) timeout 但 session 已留下 loaded=true 硬证据 → 正例仍 PASS（不得因进程未 ok 误判失败）
+    const timeoutLoadedRun = { status: "timeout", sessionFile: p1, stderr: "" };
+    const j4pos = judgeCase(timeoutLoadedRun, skillDir, "loaded");
+    checks.push({ name: "timeout+loaded=true 硬证据 → 正例 PASS", ok: j4pos.verdict === "PASS" && j4pos.loaded === true, detail: JSON.stringify(j4pos) });
+
+    // 5) 同一份硬证据用于反例 → 无论 status 都判 FAIL（不是误判为 skipped）
+    const j5neg = judgeCase(timeoutLoadedRun, skillDir, "skipped");
+    checks.push({ name: "timeout+loaded=true 硬证据 → 反例 FAIL", ok: j5neg.verdict === "FAIL", detail: JSON.stringify(j5neg) });
+
+    // 6) exit 非零且无 loaded=true 硬证据 → ERROR，不得当 skipped PASS 放行
+    const exitNoEvidenceRun = { status: "exit-1", sessionFile: p2, stderr: "boom" };
+    const j6 = judgeCase(exitNoEvidenceRun, skillDir, "skipped");
+    checks.push({ name: "exit-1+无 loaded=true 硬证据 → ERROR（非假绿 PASS）", ok: j6.verdict === "ERROR", detail: JSON.stringify(j6) });
+
+    // 7) 正常退出（status=ok）回归：既有行为不变
+    const okLoadedRun = { status: "ok", sessionFile: p1, stderr: "" };
+    const j7 = judgeCase(okLoadedRun, skillDir, "loaded");
+    checks.push({ name: "ok+loaded=true → 正例 PASS（回归）", ok: j7.verdict === "PASS", detail: JSON.stringify(j7) });
 
     const allOk = checks.every((c) => c.ok);
     const report = { mode: "self-test", ok: allOk, checks };
@@ -305,25 +361,9 @@ for (const item of items) {
   ];
   for (const c of cases) {
     const run = runCase(fixtureCwd, c.prompt);
-    let verdict = "ERROR";
-    let loaded = null;
-    let detail = run.status;
+    let verdict, loaded, detail;
     try {
-      if (run.status === "ok" && run.sessionFile) {
-        const a = analyzeSession(run.sessionFile, installedSkillDir);
-        if (a.error) {
-          detail = a.error;
-        } else {
-          loaded = a.loaded;
-          const expected = c.expect === "loaded";
-          verdict = a.loaded === expected ? "PASS" : "FAIL";
-          detail = `loaded=${a.loaded} expect=${c.expect}`;
-        }
-      } else if (run.status !== "ok") {
-        detail = `prime-agent 运行失败（status=${run.status}）: ${run.stderr.slice(0, 300)}`;
-      } else {
-        detail = `no session record (status=${run.status}): ${run.stderr.slice(0, 300)}`;
-      }
+      ({ verdict, loaded, detail } = judgeCase(run, installedSkillDir, c.expect));
     } finally {
       run.cleanup();
     }
