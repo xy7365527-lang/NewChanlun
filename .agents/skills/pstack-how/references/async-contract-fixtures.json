@@ -1,0 +1,55 @@
+{
+  "defaults": {
+    "read_budget": 8,
+    "tool_budget": 10,
+    "time_budget_minutes": 6,
+    "context_stop_percent": 70,
+    "return_tool_reserve": 2
+  },
+  "required_placeholders": [
+    "{QUESTION}",
+    "{EXPLORATION_ANGLE}",
+    "{READ_BUDGET}",
+    "{TOOL_BUDGET}",
+    "{TIME_BUDGET}",
+    "{RESULT_FILE}"
+  ],
+  "completion_cases": [
+    {
+      "id": "complete-agent-message",
+      "evidence": "agent_message",
+      "complete": true,
+      "expect": true
+    },
+    {
+      "id": "complete-result-file",
+      "evidence": "result_file",
+      "complete": true,
+      "expect": true
+    },
+    {
+      "id": "admission-handle-only",
+      "evidence": "admission_handle",
+      "complete": true,
+      "expect": false
+    },
+    {
+      "id": "rollout-preview-only",
+      "evidence": "rollout_preview",
+      "complete": true,
+      "expect": false
+    },
+    {
+      "id": "tool-result-tail",
+      "evidence": "toolResult",
+      "complete": true,
+      "expect": false
+    },
+    {
+      "id": "partial-message",
+      "evidence": "agent_message",
+      "complete": false,
+      "expect": false
+    }
+  ]
+}
