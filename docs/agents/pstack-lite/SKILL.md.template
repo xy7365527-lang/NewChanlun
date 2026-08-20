@@ -1,0 +1,36 @@
+---
+name: pstack-<原名>
+description: <做什么 + 何时触发；写明触发条件、任务、工具与短语>
+license: MIT
+metadata:
+  upstream-repo: cursor/plugins
+  upstream-sha: fd6dd6f7276956a532bb78a748a8d2818b6eb5f4
+  upstream-path: pstack/skills/<原名>/SKILL.md
+  license-file: LICENSE.MIT
+---
+
+# <Skill 显示名>
+
+<技能正文：决策流、常用命令、契约。保持简短，详尽内容放 `references/`，按需渐进加载。>
+
+## 来源
+
+- **上游仓库**：`cursor/plugins`（GitHub，`pstack/` 目录）
+- **固定 SHA**：`fd6dd6f7276956a532bb78a748a8d2818b6eb5f4`（不自动跟随上游 `main`）
+- **原始 Skill**：`pstack/skills/<原名>/SKILL.md`（连同 `references/`、`scripts/` 相对文件）
+
+## 本地 Prime 改写
+
+- <逐条列出相对上游的改动与原因；与上游逐字一致的部分写「原样保留」。>
+
+## 许可证
+
+MIT（Copyright (c) 2026 Lauren Tan），见同目录 `LICENSE.MIT`。
+
+---
+
+> 使用说明：复制本模板到 `.agents/skills/pstack-<原名>/`，删掉本行与所有 `<…>` 占位；
+> 把 `LICENSE.MIT` 复制进同目录；在 `docs/agents/skill-local-customizations.md` 的
+> pstack-lite 索引把状态改为「已实现」并填改写摘要；跑
+> `node scripts/pstack-lite/check-skills.mjs` 确认 `unexpectedDiagnostics=0`、无 shadow
+> （宿主既定 symlink 投影计入 `expectedProjectionCollisions`，不判失败）。

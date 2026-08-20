@@ -1,0 +1,302 @@
+{
+  "version": 1,
+  "schema": "docs/agents/pstack-lite/TRIGGER-FIXTURES.md",
+  "fixed_upstream": {
+    "repo": "cursor/plugins",
+    "sha": "fd6dd6f7276956a532bb78a748a8d2818b6eb5f4",
+    "base_path": "pstack/skills",
+    "license": "MIT (Copyright (c) 2026 Lauren Tan)"
+  },
+  "note": "status=active 且 skill 目录存在的条目会实跑；draft 条目只校验 schema（≥3 正例 + ≥3 反例），由后续票在业务 Skill 落地后改成 active 并校准 prompt。",
+  "items": [
+    {
+      "id": "probe-fixture",
+      "skill": "probe-fixture",
+      "skill_dir": "fixtures/probe-fixture",
+      "status": "active",
+      "note": "探针夹具：验证「从新会话记录判断加载、不依赖模型自报」的机制本身。正例要求模型真的读取 SKILL.md 才拿得到 token 值。",
+      "positive": [
+        {
+          "id": "probe-pos-1",
+          "prompt": "Read the probe-fixture skill and reply with its exact marker token.",
+          "expect": "loaded"
+        },
+        {
+          "id": "probe-pos-2",
+          "prompt": "I need the PROBE_MARKER token from the probe fixture. Load it and give me the exact token.",
+          "expect": "loaded"
+        },
+        {
+          "id": "probe-pos-3",
+          "prompt": "What is the probe fixture marker token? Read the skill to find out.",
+          "expect": "loaded"
+        }
+      ],
+      "negative": [
+        {
+          "id": "probe-neg-1",
+          "prompt": "Reply with exactly the number 42 and nothing else.",
+          "expect": "skipped"
+        },
+        {
+          "id": "probe-neg-2",
+          "prompt": "What is 7 times 6? Answer in one word.",
+          "expect": "skipped"
+        },
+        {
+          "id": "probe-neg-3",
+          "prompt": "List the files in the current working directory.",
+          "expect": "skipped"
+        }
+      ],
+      "assertions": []
+    },
+    {
+      "id": "pstack-how",
+      "skill": "pstack-how",
+      "status": "draft",
+      "note": "触发：运行机制 / 调用链 / 模块归属 / 层次问题。反例覆盖 codebase-memory 原始图查询、codebase-design 设计建议、普通事实查询。",
+      "positive": [
+        {
+          "id": "how-pos-1",
+          "prompt": "解释 theta_v0 分类器里中枢构造的运行机制，从入口到输出串一遍，并说明每一层在做什么。",
+          "expect": "loaded"
+        },
+        {
+          "id": "how-pos-2",
+          "prompt": "谁调用了 consume_at？把调用链画出来，说明每一层在干什么、数据怎么流。",
+          "expect": "loaded"
+        },
+        {
+          "id": "how-pos-3",
+          "prompt": "这段代码属于哪个模块层次？它在整体架构里处在什么位置，对上有哪些依赖。",
+          "expect": "loaded"
+        }
+      ],
+      "negative": [
+        {
+          "id": "how-neg-1",
+          "prompt": "用 codebase-memory 查 consume_at 的直接调用者列表，只给图查询结果，不要解释。",
+          "expect": "skipped"
+        },
+        {
+          "id": "how-neg-2",
+          "prompt": "这个函数的接口应该怎么改？给我一个深模块设计建议。",
+          "expect": "skipped"
+        },
+        {
+          "id": "how-neg-3",
+          "prompt": "这个仓库的 README 主要讲了什么？",
+          "expect": "skipped"
+        }
+      ],
+      "assertions": []
+    },
+    {
+      "id": "pstack-arena",
+      "skill": "pstack-arena",
+      "status": "draft",
+      "note": "触发：存在 ≥2 个真实候选、单次尝试会过早锁死形态，且没有更窄并行 Skill。反例覆盖接口设计（归 design-an-interface）、trivial 改动、单候选。",
+      "positive": [
+        {
+          "id": "arena-pos-1",
+          "prompt": "有两个候选实现方案 A/B，帮我并行比较，选出基底方案并把落选方案的长处 graft 进去。",
+          "expect": "loaded"
+        },
+        {
+          "id": "arena-pos-2",
+          "prompt": "对同一个配置解析需求，起三个独立候选各出一版，再由统一评委选一个并吸收优点。",
+          "expect": "loaded"
+        },
+        {
+          "id": "arena-pos-3",
+          "prompt": "这个算法有多个合理写法，帮我在隔离环境里各写一版再择优合并。",
+          "expect": "loaded"
+        }
+      ],
+      "negative": [
+        {
+          "id": "arena-neg-1",
+          "prompt": "给我设计一下这个模块的接口，多给几个草图对比。",
+          "expect": "skipped"
+        },
+        {
+          "id": "arena-neg-2",
+          "prompt": "把这个变量重命名并格式化一下。",
+          "expect": "skipped"
+        },
+        {
+          "id": "arena-neg-3",
+          "prompt": "只有一个方案，直接按这个实现。",
+          "expect": "skipped"
+        }
+      ],
+      "assertions": []
+    },
+    {
+      "id": "pstack-blast-radius",
+      "skill": "pstack-blast-radius",
+      "status": "draft",
+      "note": "触发：非小型行为变更 / 可能影响其他路径的 diff 评审。反例覆盖改名、格式化、注释订正。",
+      "positive": [
+        {
+          "id": "blast-pos-1",
+          "prompt": "我改了这个返回类型的字段，帮我找出 diff 之外还会被影响的调用者和依赖。",
+          "expect": "loaded"
+        },
+        {
+          "id": "blast-pos-2",
+          "prompt": "这个非小型行为变更会影响哪些其他路径？跑一条能证明安全性的靶向验证。",
+          "expect": "loaded"
+        },
+        {
+          "id": "blast-pos-3",
+          "prompt": "改了错误码的语义，列出所有依赖这个错误码的位置，并给出跨模块的证明。",
+          "expect": "loaded"
+        }
+      ],
+      "negative": [
+        {
+          "id": "blast-neg-1",
+          "prompt": "把这个函数重命名，批量替换一下引用。",
+          "expect": "skipped"
+        },
+        {
+          "id": "blast-neg-2",
+          "prompt": "按 rustfmt 格式化这个文件。",
+          "expect": "skipped"
+        },
+        {
+          "id": "blast-neg-3",
+          "prompt": "给这段注释改个错别字。",
+          "expect": "skipped"
+        }
+      ],
+      "assertions": []
+    },
+    {
+      "id": "pstack-create-verification",
+      "skill": "pstack-create-verification",
+      "status": "draft",
+      "note": "触发：项目缺少真实行为验证入口，且有实施票授权。反例覆盖无授权只建议、修 bug、无关文档。",
+      "positive": [
+        {
+          "id": "cv-pos-1",
+          "prompt": "这个 CLI 没有行为验证入口，我有实施票授权，帮我生成一个验证 Skill 并在隔离目录实跑。",
+          "expect": "loaded"
+        },
+        {
+          "id": "cv-pos-2",
+          "prompt": "项目缺一个端到端验证来证明这个功能可用，授权生成验证脚本并驱动它跑通。",
+          "expect": "loaded"
+        },
+        {
+          "id": "cv-pos-3",
+          "prompt": "为这个 API 固化一条用户路径验证，生成验证 Skill 并在隔离目录实跑。",
+          "expect": "loaded"
+        }
+      ],
+      "negative": [
+        {
+          "id": "cv-neg-1",
+          "prompt": "项目缺验证入口，帮我提个建议就行，不要写文件。",
+          "expect": "skipped"
+        },
+        {
+          "id": "cv-neg-2",
+          "prompt": "帮我修这个 bug。",
+          "expect": "skipped"
+        },
+        {
+          "id": "cv-neg-3",
+          "prompt": "给这个仓库加个 README。",
+          "expect": "skipped"
+        }
+      ],
+      "assertions": []
+    },
+    {
+      "id": "pstack-technical-writing",
+      "skill": "pstack-technical-writing",
+      "status": "draft",
+      "note": "触发：README/ADR/spec/Issue/PR 文案的结构与技术表达。反例覆盖 unslop 纯语言润色、逐字引文、营销文案。",
+      "positive": [
+        {
+          "id": "tw-pos-1",
+          "prompt": "帮我按技术写作标准重写这段 README 的结构和技术表达。",
+          "expect": "loaded"
+        },
+        {
+          "id": "tw-pos-2",
+          "prompt": "这份 ADR 的表达太散，按技术文档标准改进结构，保留技术事实。",
+          "expect": "loaded"
+        },
+        {
+          "id": "tw-pos-3",
+          "prompt": "这个 PR 文案帮我按技术写作规范改写，术语和代码保持不变。",
+          "expect": "loaded"
+        }
+      ],
+      "negative": [
+        {
+          "id": "tw-neg-1",
+          "prompt": "把这段自然语言里的 AI 腔去掉。",
+          "expect": "skipped"
+        },
+        {
+          "id": "tw-neg-2",
+          "prompt": "下面这段原文帮我逐字润色一下：'…'",
+          "expect": "skipped"
+        },
+        {
+          "id": "tw-neg-3",
+          "prompt": "帮我把这篇营销文案写得更有感染力。",
+          "expect": "skipped"
+        }
+      ],
+      "assertions": []
+    },
+    {
+      "id": "unslop",
+      "skill": "unslop",
+      "scope": "user",
+      "status": "draft",
+      "note": "用户级全局（~/.agents/skills/unslop/）。触发：普通可见自然语言的 AI 腔清理，保留代码/命令/日志/数据/逐字引文。反例覆盖代码、结构化数据、逐字引用。",
+      "positive": [
+        {
+          "id": "unslop-pos-1",
+          "prompt": "把这段介绍里的 AI 腔去掉，保留代码和命令不变。",
+          "expect": "loaded"
+        },
+        {
+          "id": "unslop-pos-2",
+          "prompt": "这段回复太像模板了，帮我改写得更自然，术语不动。",
+          "expect": "loaded"
+        },
+        {
+          "id": "unslop-pos-3",
+          "prompt": "润色这段普通文字，去掉空话，但保留其中的日志输出原文。",
+          "expect": "loaded"
+        }
+      ],
+      "negative": [
+        {
+          "id": "unslop-neg-1",
+          "prompt": "帮我重写这段代码。",
+          "expect": "skipped"
+        },
+        {
+          "id": "unslop-neg-2",
+          "prompt": "把这段 JSON 数据格式化。",
+          "expect": "skipped"
+        },
+        {
+          "id": "unslop-neg-3",
+          "prompt": "逐字引用下面这段原文，不要改动：'……'",
+          "expect": "skipped"
+        }
+      ],
+      "assertions": []
+    }
+  ]
+}
