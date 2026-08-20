@@ -136,7 +136,8 @@
     {
       "id": "pstack-blast-radius",
       "skill": "pstack-blast-radius",
-      "status": "draft",
+      "skill_dir": "../../../.agents/skills/pstack-blast-radius",
+      "status": "active",
       "note": "触发：非小型行为变更 / 可能影响其他路径的 diff 评审。反例覆盖改名、格式化、注释订正。",
       "positive": [
         {

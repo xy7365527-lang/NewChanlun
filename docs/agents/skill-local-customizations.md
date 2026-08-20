@@ -72,7 +72,7 @@ pstack-lite 每项登记必须记录：
 |---|---|---|---|---|
 | `pstack-how` | `how` | `pstack/skills/how/SKILL.md`（+`references/`×4） | 待实现 | 待后续票填写 |
 | `pstack-arena` | `arena` | `pstack/skills/arena/SKILL.md` | 待实现 | 待后续票填写 |
-| `pstack-blast-radius` | `blast-radius` | `pstack/skills/blast-radius/SKILL.md` | 待实现 | 待后续票填写 |
+| `pstack-blast-radius` | `blast-radius` | `pstack/skills/blast-radius/SKILL.md` | 已实现（#1133） | 去 `disable-model-invocation` 改 `both` 契约；`why`/`arena` 引用改 `git`/`gh` 与 `pstack-arena` 转交口径；结构查询接 Serena+codebase-memory，补代码搜索；新增「潜在破坏面」与「实际验证证据」两节分离，grep 零命中不冒充行为证明 |
 | `pstack-create-verification` | `create-verification-skill` | `pstack/skills/create-verification-skill/SKILL.md`（+`references/`） | 待实现 | 待后续票填写 |
 | `pstack-technical-writing` | `technical-writing` | `pstack/skills/technical-writing/SKILL.md` | 待实现 | 待后续票填写 |
 | `unslop`（用户级全局 `~/.agents/skills/unslop/`） | `unslop` | `pstack/skills/unslop/SKILL.md` | 已安装（#1127） | 上游逐字一致；SKILL.md SHA-256 `181883e539caec8258ec9129e3ba5f133409144a2cbf2aa361158ab94cfc3441` |
