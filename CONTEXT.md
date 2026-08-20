@@ -51,6 +51,20 @@ _Avoid_: 信号（指未确认的候选）；笼统的"买卖点"；"下跌升�
 父声部终结时，其全部后代声部被 AncOK 剪除。属活动集层结构不变量，**不是**通道谓词。
 _Avoid_: "父亡子清"（口语，仅解释用）
 
+### 验证编排
+
+**候选证据包（Candidate Evidence Bundle）**（2026-08-21 [#1145](https://github.com/xy7365527-lang/NewChanlun/issues/1145) 裁定）:
+恰好一个实现候选及其确定性证据齐备后才冻结的评审单元；它不可变、按内容寻址且已经脱敏，冻结不等于候选通过。
+_Avoid_: 通过证书、验收证书
+
+**旁路排序器（Shadow Ranker）**（同上）:
+项目内，LAV（llm-as-a-verifier）仅指旁路排序器（Shadow Ranker），这是它唯一的角色与名称。它消费两个或以上候选证据包，唯一合法输出是这些包的标识符相对排序及显式不确定性／基础设施元数据；即使声称仅供建议或不具权威，也不得作任何正确性判断、通过／不通过、批准／拒绝，或验证器（verifier）、裁判（judge）、闸门（gate）式主张。它不改变 map／ticket／branch／merge／test 状态；只有 Lead 可拒绝全部候选或作出决定。
+_Avoid_: 任何正确性、通过／不通过、批准／拒绝或验证器／裁判／闸门主张（含建议性、非权威）
+
+**实现后／评审前接缝（Post-implement / pre-review seam）**（同上）:
+唯一允许的 LAV 入口：候选实现及确定性过滤完成后、标准 Code Review 前；N < 2 时跳过，未通过确定性过滤的候选不得进入。Code Review、CI／形式化／行为证据与 Lead 保持权威；本裁定不使用 pstack，LAV 不进入 Spec、实施执行或 Code Review 本身。
+_Avoid_: LAV 阶段、Spec 接缝、实现中接缝、Code Review 内接缝、权威闸门
+
 ### 级别与代际
 
 **级别（Level, ℓ）**:
