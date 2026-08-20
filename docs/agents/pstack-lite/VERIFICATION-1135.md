@@ -37,7 +37,7 @@ warning，`unslop: absent` 是本沙盒既有边界（全局 `unslop` 装在主�
 node scripts/pstack-lite/check-skills.mjs --self-test
 ```
 
-结果（exit 0）：11 项全 PASS（合法 Skill 零诊断加载、命名/描述违规产生 warning、同名
+结果（exit 0）：10 项全 PASS（合法 Skill 零诊断加载、命名/描述违规产生 warning、同名
 shadow 判 collision 且项目级胜出、`unslop`/`pstack-*` 的碰撞一律不享受投影例外）。
 
 ## ③ 触发夹具分析器自测
