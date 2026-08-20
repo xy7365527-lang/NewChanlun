@@ -181,8 +181,8 @@
       "id": "pstack-blast-radius",
       "skill": "pstack-blast-radius",
       "skill_dir": "../../../.agents/skills/pstack-blast-radius",
-      "status": "active",
-      "note": "触发：非小型行为变更 / 可能影响其他路径的 diff 评审。反例覆盖改名、格式化、注释订正。",
+      "status": "draft",
+      "note": "#1138 多轮真实 3+3 在可用宿主模型上反复误触发/漏触发，已降为 user-only；保留原 3+3 作为重启语料。仅在至少两个模型上重复稳定通过后，才可重新启用自动路由并改回 active。",
       "positive": [
         {
           "id": "blast-pos-1",
