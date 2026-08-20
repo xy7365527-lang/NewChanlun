@@ -895,7 +895,6 @@ def _parse_jsonl_cache(info: dict, raw_stream) -> SNet:
     footer_counts: dict | None = None
     signifier_ids: set[str] = set()
     edge_ids: set[tuple[str, str, AxisType]] = set()
-    hyperedge_ids: set[tuple] = set()
     total_bytes = 0
     record_count = 0
     decoded_list_items = 0
@@ -975,14 +974,6 @@ def _parse_jsonl_cache(info: dict, raw_stream) -> SNet:
                 actual_counts["morphemes"] += 1
             elif kind == "hyperedge":
                 hyperedge = _parse_hyperedge(record)
-                hyperedge_id = (
-                    hyperedge.vertices, hyperedge.source, hyperedge.domain,
-                    hyperedge.timestamp, hyperedge.ingest_param_refs,
-                    hyperedge.evidence_tag,
-                )
-                if hyperedge_id in hyperedge_ids:
-                    raise _CacheFormatError("duplicate hyperedge id")
-                hyperedge_ids.add(hyperedge_id)
                 hyperedges.append(hyperedge)
                 actual_counts["hyperedges"] += 1
             elif kind == "footer":

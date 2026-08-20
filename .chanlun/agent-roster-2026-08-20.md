@@ -8,3 +8,4 @@
 - [x] 2026-08-20 | codex（GPT-5.6 Sol，high，danger-full-access）| #1116 收敛最终复审 LOW：去除 hyperedge row 编码重复并全验 | 完成：76 passed；py_compile/diff-check/生产 pickle grep 通过；Docker DevSkim 266 results，DS425000=0
 - [x] 2026-08-20 | codex 实施工位（GPT-5.6 Sol，high）| #1116 hyperedge 编码去重 TDD 实施 | 完成：现状 2 passed；共享 encoder seam RED→GREEN；保持 76-test 总数
 - [x] 2026-08-20 | codex 复核工位（GPT-5.6 Sol，high）| #1116 hyperedge 编码去重独立只读复核 | 完成：PASS，0 Standards / 安全 / 可维护性 finding
+- [x] 2026-08-20 | RLM 子代理（继承当前会话模型）| 修复 #1116 终复审 hyperedge 重复事件与 lazy 共现语义 findings | 完成：TDD 修复 2→2 与 lazy 权重/缓存语义；相关 81 passed；py_compile/diff-check/性能探针通过；DevSkim 改动文件 0 finding

@@ -320,6 +320,168 @@ def test_cache_save_load_roundtrip():
     print("test_cache_save_load_roundtrip: PASSED")
 
 
+def test_duplicate_hyperedges_roundtrip_through_jsonl_sqlite_and_lazy():
+    """字段完全相同的超边是两个有序事件，所有持久化路径必须保持 2→2。"""
+    import snet_cache
+    from snet_lazy import SNetLazy
+    from snet_persistence import SNetPersistence
+
+    original = _build_test_snet()
+    duplicate = original.hyperedges[0]
+    original = original.add_hyperedge(duplicate)
+
+    with tempfile.TemporaryDirectory() as tmpdir, _redirect_cache(snet_cache, Path(tmpdir)):
+        snet_cache.save_snet_cache(original, _base_manifest())
+        jsonl, _manifest = snet_cache.load_snet_cache()
+        assert jsonl is not None
+        assert jsonl.hyperedges == [duplicate, duplicate]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        persistence = SNetPersistence(Path(tmpdir) / "snet.db")
+        try:
+            persistence.save_full(original)
+            full = persistence.load_full()
+            lazy = SNetLazy.from_persistence(persistence)
+            assert full is not None
+            assert full.hyperedges == [duplicate, duplicate]
+            assert lazy.hyperedges == [duplicate, duplicate]
+        finally:
+            persistence.close()
+
+
+def test_jsonl_duplicate_vertices_inside_one_hyperedge_remain_invalid():
+    """超边事件可重复，但单条 hyperedge.vertices 内部仍不得重复。"""
+    import snet_cache
+
+    records = [
+        {"kind": "header", "format": "snet-jsonl", "schema_version": 1},
+        {
+            "kind": "signifier", "key": "A",
+            "value": {"id": "A", "surface_forms": [], "source": "", "lang": "", "domain": ""},
+        },
+        {
+            "kind": "hyperedge",
+            "value": {
+                "vertices": ["A", "A"], "source": "corpus.md", "domain": "test",
+                "timestamp": "0", "ingest_param_refs": [], "evidence_tag": "",
+            },
+        },
+        {
+            "kind": "footer",
+            "counts": {"signifiers": 1, "edges": 0, "morphemes": 0, "hyperedges": 1},
+        },
+    ]
+    with tempfile.TemporaryDirectory() as tmpdir, _redirect_cache(snet_cache, Path(tmpdir)):
+        _write_raw_jsonl_cache(snet_cache, records)
+        assert snet_cache.load_snet_cache() == (None, None)
+
+
+def test_lazy_cooccurrence_matches_eager_hyperedge_priority_and_multiplicity():
+    """lazy、SQLite 全量回读与 eager 都先数共同超边，零共同超边才查成对边。"""
+    from snet_lazy import SNetLazy
+    from snet_persistence import SNetPersistence
+
+    signifiers = {
+        sid: Signifier(id=sid)
+        for sid in ("A", "B", "C", "D")
+    }
+    pairwise = SignifierEdge(
+        source="C", target="D", axis=AxisType.SYNTAGMATIC, weight=7.0,
+    )
+    base = SNet(signifiers=signifiers, edges=[pairwise])
+    hyperedge = CooccurrenceHyperedge(
+        vertices=frozenset({"A", "B"}),
+        source="corpus.md",
+        domain="test",
+        timestamp="2026-08-20T00:00:00Z",
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        persistence = SNetPersistence(Path(tmpdir) / "snet.db")
+        try:
+            for count, eager in (
+                (1, base.add_hyperedge(hyperedge)),
+                (2, base.add_hyperedges([hyperedge, hyperedge])),
+            ):
+                persistence.save_full(eager)
+                sqlite_eager = persistence.load_full()
+                lazy = SNetLazy.from_persistence(persistence)
+                assert sqlite_eager is not None
+                assert eager.cooccurrence_weight("A", "B") == float(count)
+                assert sqlite_eager.cooccurrence_weight("A", "B") == float(count)
+                assert lazy.cooccurrence_weight("A", "B") == float(count)
+                assert eager.cooccurrence_weight("B", "A") == float(count)
+                assert lazy.cooccurrence_weight("B", "A") == float(count)
+                assert eager.cooccurrence_weight("C", "D") == 7.0
+                assert sqlite_eager.cooccurrence_weight("C", "D") == 7.0
+                assert lazy.cooccurrence_weight("C", "D") == 7.0
+        finally:
+            persistence.close()
+
+
+def test_lazy_runtime_hyperedge_add_invalidates_all_ordered_pair_caches():
+    """已缓存的零值必须在运行时追加一条/重复两条超边后更新为 1/2。"""
+    from snet_lazy import SNetLazy
+    from snet_persistence import SNetPersistence
+
+    signifiers = {sid: Signifier(id=sid) for sid in ("A", "B", "C")}
+    hyperedge = CooccurrenceHyperedge(
+        vertices=frozenset(signifiers), source="runtime", domain="test", timestamp="0",
+    )
+    ordered_pairs = [
+        ("A", "B"), ("B", "A"),
+        ("A", "C"), ("C", "A"),
+        ("B", "C"), ("C", "B"),
+    ]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        persistence = SNetPersistence(Path(tmpdir) / "snet.db")
+        try:
+            persistence.save_full(SNet(signifiers=signifiers))
+            lazy = SNetLazy.from_persistence(persistence)
+            assert [lazy.cooccurrence_weight(a, b) for a, b in ordered_pairs] == [0.0] * 6
+
+            lazy.add_hyperedge(hyperedge)
+            assert [lazy.cooccurrence_weight(a, b) for a, b in ordered_pairs] == [1.0] * 6
+
+            lazy.add_hyperedges([hyperedge])
+            assert [lazy.cooccurrence_weight(a, b) for a, b in ordered_pairs] == [2.0] * 6
+            persisted = persistence.load_full()
+            assert persisted is not None
+            assert persisted.cooccurrence_weight("A", "B") == 2.0
+        finally:
+            persistence.close()
+
+
+def test_corpus_hyperedge_only_cooccurrence_survives_lazy_persistence():
+    """语料摄入只产超边时，切换 lazy 后共现权重不得归零。"""
+    from signifier_net_ingest import ingest_text_passage_batch
+    from snet_lazy import SNetLazy
+    from snet_persistence import SNetPersistence
+
+    signifiers = {
+        sid: Signifier(id=sid, surface_forms=(sid,))
+        for sid in ("走势", "级别", "中枢")
+    }
+    eager, _log = ingest_text_passage_batch(
+        SNet(signifiers=signifiers),
+        ["走势由多个级别的中枢构成。"],
+        "chanlun",
+        "corpus.md",
+    )
+    assert eager.edges == []
+    assert eager.cooccurrence_weight("走势", "级别") == 1.0
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        persistence = SNetPersistence(Path(tmpdir) / "snet.db")
+        try:
+            persistence.save_full(eager)
+            lazy = SNetLazy.from_persistence(persistence)
+            assert lazy.cooccurrence_weight("走势", "级别") == 1.0
+        finally:
+            persistence.close()
+
+
 def test_invalidate_cache():
     """invalidate_cache 应删除安全缓存、旧 pickle 和 manifest。"""
     import snet_cache

@@ -714,18 +714,9 @@ class SNetPersistence:
                 if any(ref not in signifier_ids for ref in morpheme.shared_with):
                     raise ValueError("SQLite morpheme references unknown signifier")
 
-        hyperedge_ids: set[tuple] = set()
         for hyperedge in hyperedges:
             if not hyperedge.vertices.issubset(signifier_ids):
                 raise ValueError("SQLite hyperedge references unknown signifier")
-            identity = (
-                hyperedge.vertices, hyperedge.source, hyperedge.domain,
-                hyperedge.timestamp, hyperedge.ingest_param_refs,
-                hyperedge.evidence_tag,
-            )
-            if identity in hyperedge_ids:
-                raise ValueError("duplicate SQLite hyperedge")
-            hyperedge_ids.add(identity)
 
         for edge in self.iter_all_edges():
             if edge.source not in signifier_ids or edge.target not in signifier_ids:
