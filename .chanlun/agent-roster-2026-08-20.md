@@ -1,0 +1,11 @@
+- [x] 2026-08-20 | codex（GPT-5.6 Sol，high）| 修复 #1116 候选 46f343ce34 双轴评审全部 findings，TDD、验证并提交 | 完成：790243f807；靶向 75 passed；双轴复审 PASS（DevSkim 待独立补验）
+- [x] 2026-08-20 | codex 内部评审工位（GPT-5.6 Sol，high）| #1116 Standards 轴复审 | 完成：PASS，无可执行 finding
+- [x] 2026-08-20 | codex 内部评审工位（GPT-5.6 Sol，high）| #1116 Spec 轴复审 | 完成：PASS，无可执行 finding
+- [x] 2026-08-20 | codex（GPT-5.6 Sol，high，danger-full-access）| #1116 独立验收：补跑 DevSkim、核 DS425000、复核提交并收口 roster | 完成：发现 production record cap 缺陷并按 TDD 修复；靶向 76 passed；最终 amend/clean 验证通过
+- [x] 2026-08-20 | codex 独立评审工位（GPT-5.6 Sol，high）| #1116 最终 Standards 轴只读复审 | 完成：发现 1 MED（900K cap 低于已知 1,041,002 records），已按 TDD 修复；另 1 LOW smell 不阻断
+- [x] 2026-08-20 | codex 独立评审工位（GPT-5.6 Sol，high）| #1116 最终 Spec 轴只读复审 | 完成：PASS，0 finding；四项 Acceptance 逐项覆盖
+- [x] 2026-08-20 | codex 独立验收工位（GPT-5.6 Sol，high）| #1116 标准 Docker DevSkim + DS425000 证据 | 完成：最终 HEAD fresh 扫描 266 results；DS425000=0，DS197836=0；无 allowlist/阈值/gate 变更
+- [x] 2026-08-20 | codex（GPT-5.6 Sol，high，danger-full-access）| #1116 收敛最终复审 LOW：去除 hyperedge row 编码重复并全验 | 完成：76 passed；py_compile/diff-check/生产 pickle grep 通过；Docker DevSkim 266 results，DS425000=0
+- [x] 2026-08-20 | codex 实施工位（GPT-5.6 Sol，high）| #1116 hyperedge 编码去重 TDD 实施 | 完成：现状 2 passed；共享 encoder seam RED→GREEN；保持 76-test 总数
+- [x] 2026-08-20 | codex 复核工位（GPT-5.6 Sol，high）| #1116 hyperedge 编码去重独立只读复核 | 完成：PASS，0 Standards / 安全 / 可维护性 finding
+- [x] 2026-08-20 | RLM 子代理（继承当前会话模型）| 修复 #1116 终复审 hyperedge 重复事件与 lazy 共现语义 findings | 完成：TDD 修复 2→2 与 lazy 权重/缓存语义；相关 81 passed；py_compile/diff-check/性能探针通过；DevSkim 改动文件 0 finding

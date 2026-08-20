@@ -10,7 +10,18 @@ import type {
   WsMessage,
 } from "../types";
 import type { DaemonInstance } from "../tokens";
-import { DEFAULT_INSTANCES, INSTANCE_STORAGE_KEY, INSTANCE_COLORS } from "../tokens";
+import { DAEMON_HTTP, DEFAULT_INSTANCES, INSTANCE_STORAGE_KEY, INSTANCE_COLORS } from "../tokens";
+import {
+  loadPersistedDaemonInstances,
+  savePersistedDaemonInstances,
+  validateDaemonInstance,
+} from "../daemonConfig";
+import {
+  removeConfiguredInstanceState,
+  updateConfiguredInstanceState,
+  type ConnectionStateFields,
+  type ConnectionStatePatch,
+} from "./connectionState";
 
 interface Beta1Point {
   step: number;
@@ -18,14 +29,15 @@ interface Beta1Point {
 }
 
 // Per-instance connection/status state
-export interface InstanceState {
-  wsConnected: boolean;
+export interface InstanceState extends ConnectionStateFields {
   reachable: boolean;
   status: StatusResponse | null;
   currentPositionLabel: string;
   currentPositionId: string;
   beta1History: Beta1Point[];
 }
+
+export type InstanceStatePatch = ConnectionStatePatch<InstanceState>;
 
 // ── Filter state ──────────────────────────────────────────────────
 export interface FilterState {
@@ -71,30 +83,16 @@ function saveFilters(f: FilterState): void {
   }));
 }
 
-const INSTANCE_VERSION = 4; // bump to force reset cached instances
+// Version 6 invalidates version-5 caches that may retain the former built-in
+// public daemon configuration. Current-version caches are validated on every load.
+const INSTANCE_VERSION = 6;
 
-function loadInstances(): DaemonInstance[] {
-  try {
-    const ver = localStorage.getItem(INSTANCE_STORAGE_KEY + "_v");
-    if (ver !== String(INSTANCE_VERSION)) {
-      localStorage.removeItem(INSTANCE_STORAGE_KEY);
-      localStorage.setItem(INSTANCE_STORAGE_KEY + "_v", String(INSTANCE_VERSION));
-      return DEFAULT_INSTANCES;
-    }
-    const raw = localStorage.getItem(INSTANCE_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as DaemonInstance[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(({ id, name, httpBase, wsUrl }) => ({ id, name, httpBase, wsUrl }));
-      }
-    }
-  } catch { /* ignore */ }
-  return DEFAULT_INSTANCES;
-}
-
-function saveInstances(instances: DaemonInstance[]): void {
-  localStorage.setItem(INSTANCE_STORAGE_KEY, JSON.stringify(instances));
-}
+const initialInstanceConfig = loadPersistedDaemonInstances(
+  localStorage,
+  INSTANCE_STORAGE_KEY,
+  INSTANCE_VERSION,
+  DEFAULT_INSTANCES,
+);
 
 function assignInstanceColor(index: number): string {
   return INSTANCE_COLORS[index % INSTANCE_COLORS.length];
@@ -104,12 +102,14 @@ interface DaemonStore {
   // ── Multi-instance config ──────────────────────────────────
   instances: DaemonInstance[];
   instanceStates: Record<string, InstanceState>;
+  instanceConfigError: string | null;
   addInstance: (inst: DaemonInstance) => void;
   removeInstance: (id: string) => void;
-  updateInstanceState: (id: string, partial: Partial<InstanceState>) => void;
+  updateInstanceState: (id: string, partial: InstanceStatePatch) => void;
 
   // ── Connection (any reachable instance) ─────────────────────
   wsConnected: boolean;
+  connectionError: string | null;
   daemonReachable: boolean;
 
   // Metrics (from first reachable instance — shared K_active)
@@ -153,7 +153,6 @@ interface DaemonStore {
   toggleFilterInstance: (instanceId: string) => void;
 
   // Actions
-  setWsConnected: (v: boolean) => void;
   setDaemonReachable: (v: boolean) => void;
   setStatus: (s: StatusResponse) => void;
   setTopology: (t: TopologyResponse) => void;
@@ -173,35 +172,42 @@ interface DaemonStore {
 
 export const useStore = create<DaemonStore>((set, get) => ({
   // ── Multi-instance ──────────────────────────────────────────
-  instances: loadInstances(),
+  instances: initialInstanceConfig.instances,
   instanceStates: {},
+  instanceConfigError: initialInstanceConfig.rejection,
 
   addInstance: (inst) =>
     set((state) => {
-      const updated = [...state.instances, inst];
-      saveInstances(updated);
-      return { instances: updated };
+      const validated = validateDaemonInstance(inst);
+      const updated = savePersistedDaemonInstances(
+        localStorage,
+        INSTANCE_STORAGE_KEY,
+        [...state.instances, validated],
+      );
+      return { instances: updated, instanceConfigError: null };
     }),
 
   removeInstance: (id) =>
     set((state) => {
       const updated = state.instances.filter((i) => i.id !== id);
       if (updated.length === 0) return state; // don't remove last
-      const { [id]: _removed, ...restStates } = state.instanceStates;
-      saveInstances(updated);
-      return { instances: updated, instanceStates: restStates };
+      const validated = savePersistedDaemonInstances(localStorage, INSTANCE_STORAGE_KEY, updated);
+      const aggregate = removeConfiguredInstanceState(validated, state.instanceStates, id);
+      return { instances: validated, ...aggregate };
     }),
 
   updateInstanceState: (id, partial) =>
-    set((state) => ({
-      instanceStates: {
-        ...state.instanceStates,
-        [id]: { ...defaultInstanceState(), ...state.instanceStates[id], ...partial },
-      },
-    })),
+    set((state) => updateConfiguredInstanceState(
+      state.instances,
+      state.instanceStates,
+      id,
+      defaultInstanceState,
+      partial,
+    )),
 
   // ── Aggregated fields ─────────────────────────────────────────
   wsConnected: false,
+  connectionError: null,
   daemonReachable: false,
   status: null,
   beta1History: [],
@@ -266,7 +272,6 @@ export const useStore = create<DaemonStore>((set, get) => ({
       return { filters: f };
     }),
 
-  setWsConnected: (v) => set({ wsConnected: v }),
   setDaemonReachable: (v) => set({ daemonReachable: v }),
 
   setStatus: (s) =>
@@ -299,6 +304,8 @@ export const useStore = create<DaemonStore>((set, get) => ({
   // Narrative/gap/feed/pressure events are merged into the shared stream.
   handleWsBatch: (instanceId, msgs) =>
     set((state) => {
+      if (!state.instances.some((instance) => instance.id === instanceId)) return state;
+
       let history = [...state.beta1History];
       let expressionPressure = state.expressionPressure;
       const newNarrative: NarrativeEvent[] = [];
@@ -436,18 +443,21 @@ export const useStore = create<DaemonStore>((set, get) => ({
       const s = state.instanceStates[inst.id];
       if (s?.reachable) return inst.httpBase;
     }
-    // Fallback: first instance
-    return state.instances[0]?.httpBase ?? "http://46.225.187.39:9765";
+    // The store normally cannot be empty; retain the validated TLS default if it is.
+    return state.instances[0]?.httpBase ?? DAEMON_HTTP;
   },
 }));
 
 function defaultInstanceState(): InstanceState {
   return {
     wsConnected: false,
+    httpError: null,
+    wsError: null,
     reachable: false,
     status: null,
     currentPositionLabel: "",
     currentPositionId: "",
     beta1History: [],
+    connectionError: null,
   };
 }

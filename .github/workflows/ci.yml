@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -133,6 +134,8 @@ jobs:
   #     "静默跳过"变成"可见地失败"，并让修复状态随复验同步更新。
   rust-check:
     runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
     defaults:
       run:
         working-directory: rust
@@ -140,58 +143,117 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache cargo registry + target（backtest_bin 拉 nautilus 系依赖较重）
+      - name: Test cargo telemetry wrapper (#1141)
+        run: ../.github/scripts/test-run-cargo-with-telemetry.sh
+
+      - name: Record runner, toolchain, linker, and initial resources (#1141)
+        run: |
+          set -x
+          echo "github_sha=$GITHUB_SHA"
+          echo "runner_os=$RUNNER_OS runner_arch=$RUNNER_ARCH"
+          echo "image_os=${ImageOS:-unset} image_version=${ImageVersion:-unset} image_release=${ImageRelease:-unset}"
+          cat /etc/os-release
+          uname -a
+          rustc -vV
+          cargo -V
+          rustup show active-toolchain
+          command -v cc
+          readlink -f "$(command -v cc)"
+          cc --version
+          rust_sysroot="$(rustc --print sysroot)"
+          rust_host="$(rustc -vV | awk '/^host:/ {print $2}')"
+          rust_lld="$rust_sysroot/lib/rustlib/$rust_host/bin/rust-lld"
+          if test -x "$rust_lld"; then
+            "$rust_lld" -flavor gnu --version
+          else
+            echo "bundled_rust_lld=not-found path=$rust_lld"
+          fi
+          if command -v ld.bfd; then
+            ld.bfd --version
+          fi
+          printf 'fn main() {}\n' > "$RUNNER_TEMP/rust-linker-probe.rs"
+          rustc --print link-args "$RUNNER_TEMP/rust-linker-probe.rs" -o "$RUNNER_TEMP/rust-linker-probe"
+          nproc
+          lscpu
+          free -b
+          df -B1 -T .
+          du -sx -B1 target 2>/dev/null || true
+
+      # #1141：三轮都在 default-target test 链接阶段失败，且受害 bin 每轮漂移；
+      # run 32315548218 在 rust-lld signal 7 后明确报 ENOSPC。根因是磁盘耗尽，
+      # 不是已证实的固定对象损坏或 rust-lld regression。处置只压低磁盘峰值：
+      # 不恢复 target、不生成 incremental、两档测试串行；runner/toolchain/linker 不钉死。
+      - name: Cache cargo registry + git only (#1141)
+        id: cargo-cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            rust/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('rust/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-registry-v1-
+
+      - name: Record cache result and post-cache resources (#1141)
+        run: |
+          echo "cache_primary_key=${{ runner.os }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}"
+          echo "cache_hit=${{ steps.cargo-cache.outputs.cache-hit }}"
+          free -b
+          df -B1 -T .
+          du -sx -B1 target 2>/dev/null || true
 
       - name: cargo check — default targets（required-features 未启用的 bin 不在内）
-        run: cargo check --all-targets
+        run: |
+          set -x
+          free -b
+          df -B1 -T .
+          du -sx -B1 target 2>/dev/null || true
+          cargo check --all-targets
+          free -b
+          df -B1 -T .
+          du -sx -B1 target 2>/dev/null || true
 
       - name: cargo check — backtest_bin feature（#438：闭合 required-features 盲区）
-        run: cargo check --all-targets --features backtest_bin
+        run: |
+          set -x
+          free -b
+          df -B1 -T .
+          du -sx -B1 target 2>/dev/null || true
+          cargo check --all-targets --features backtest_bin
+          free -b
+          df -B1 -T .
+          du -sx -B1 target 2>/dev/null || true
 
       - name: cargo fmt --check（#611：归零后防回潮）
         run: |
+          set -x
+          free -b
+          df -B1 -T .
+          du -sx -B1 target 2>/dev/null || true
           rustup component add rustfmt
           cargo fmt --all -- --check
+          free -b
+          df -B1 -T .
+          du -sx -B1 target 2>/dev/null || true
 
       # #810：`cargo check` 只保证编译、从不执行——34 个 Lean↔Rust parity 断言与
       # `rust/tests/nest_isolation_guard.rs` 的「违规即测试红」此前只编译不运行，
       # 锁形同虚设（成因定案见 #799 净发现①、#806）。
       #
-      # ⚠ 本步落地时的诚实状态（2026-07-30，090 照实）：当前主线上
-      #   `theta_v0_classifier_parity` 有 **2 条断言为红**
-      #   （`type1_buy_broke_and_diverge_matches_lean_istype1` /
-      #    `signal_extraction_emits_no_second_class_only`）——Lean 与 Rust 对
-      #   「一类买点」判得不一样。**这是教义分歧不是实现 bug**，已立 #811，
-      #   在 map #787 第二批买卖点概念票裁定之前 **不许修绿、不许加 #[ignore]、
-      #   不许把它踢出本命令**。⟹ 本步接入后 CI 会红，且是**有意为之的红**：
-      #   从「绿但测的是旧树」变成「红但是真的」。
-      #
-      # 耗时（本地实测，另一棵树上量得，量级参考）：default 干净重建 ~40s、
-      # 增量 ~7s；backtest_bin 增量 ~59s（含 nautilus 依赖）。两步合计 <2min，
-      # 与既有两步 cargo check 同预算 ⟹ 不做慢测试分层、不做仅 main 触发。
+      # #993 已把历史上的两条 parity 失败修绿；当前本步预期全绿，任何失败都是真回归。
+      # 本候选尚未完成两次远端 workflow_dispatch 验证，也没有当前 runner 上的可靠耗时；
+      # 须逐轮记录 rust-check job 与两档 cargo test 的实际耗时，再据此裁 timeout。
       # 既有 #[ignore]（theta_v0_fixture_drift、profile_*、oddeven_*_diagnosis 等
       # 需要 BTC 全量数据或 --release 的用例）维持现状，不在 #810 范围内摘除。
       - name: cargo test — default targets
-        run: cargo test --all-targets
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --all-targets --jobs 1
 
       - name: cargo test — backtest_bin feature（econ_oddeven_diagnosis.rs 仅在此 feature 下编译）
         # 2026-08-16 磁盘实撞（#993 收口轮）：三轮 runner 爆盘（No space left on device）——
         # --all-targets 在 feature 下额外编 56 个探针 bin 的 test 目标（各链 nautilus 套件，
         # 本地实测 debug 全 target 55G ⟹ 14G 盘必爆）。改 --lib：backtest 模块测试（含
         # econ_oddeven_diagnosis）全在 lib 内；tests/ 与 bins 已由 default 步覆盖——零覆盖损失。
-        run: |
-          du -sh target 2>/dev/null || true
-          rm -rf target/debug/incremental
-          cargo test --lib --features backtest_bin
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --lib --features backtest_bin --jobs 1
 
   fixture-drift:
     # #265（#245 裁定）：Lean 源 → parity fixture 双向闭环的 CI 腿。

@@ -1,6 +1,11 @@
-import { useEffect, useRef } from "react";
-import { DAEMON_WS, WS_THROTTLE_MS } from "../tokens";
-import type { WsMessage } from "../types";
+import { useEffect } from "react";
+import { DEFAULT_INSTANCES, WS_THROTTLE_MS } from "../tokens";
+import { describeDaemonConnectionError } from "../daemonConfig";
+import {
+  connectDaemonWebSocket,
+  DEFAULT_WS_RECONNECT_MS,
+  resolveDaemonWebSocketTarget,
+} from "./daemonWebSocket";
 import { useStore } from "./useStore";
 
 /**
@@ -9,84 +14,27 @@ import { useStore } from "./useStore";
  *
  * All instances are peers — every WS connection feeds into handleWsBatch(instanceId, msgs).
  *
- * @param wsUrl - WebSocket URL (defaults to DAEMON_WS from tokens)
- * @param instanceId - Instance ID for attribution in the shared store
+ * @param wsUrl - Optional explicit WebSocket URL; defaults to the first configured instance
+ * @param instanceId - Optional explicit instance ID; defaults to the same configured instance
  */
 export function useDaemonWS(
-  wsUrl: string = DAEMON_WS,
-  instanceId: string = "default",
+  wsUrl?: string,
+  instanceId?: string,
 ): void {
-  const wsRef = useRef<WebSocket | null>(null);
-  const bufferRef = useRef<WsMessage[]>([]);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const handleBatch = useStore((s) => s.handleWsBatch);
-  const setWsConnected = useStore((s) => s.setWsConnected);
   const updateInstanceState = useStore((s) => s.updateInstanceState);
+  const target = resolveDaemonWebSocketTarget(DEFAULT_INSTANCES, { wsUrl, instanceId });
 
   useEffect(() => {
-    let destroyed = false;
-
-    function flush() {
-      if (bufferRef.current.length === 0) return;
-      const batch = bufferRef.current.splice(0);
-      handleBatch(instanceId, batch);
-    }
-
-    function connect() {
-      if (destroyed) return;
-
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setWsConnected(true);
-        updateInstanceState(instanceId, { wsConnected: true });
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data as string) as WsMessage;
-          bufferRef.current.push(msg);
-
-          if (timerRef.current === null) {
-            timerRef.current = setTimeout(() => {
-              timerRef.current = null;
-              flush();
-            }, WS_THROTTLE_MS);
-          }
-        } catch {
-          // ignore malformed messages
-        }
-      };
-
-      ws.onclose = () => {
-        setWsConnected(false);
-        updateInstanceState(instanceId, { wsConnected: false });
-        wsRef.current = null;
-        if (!destroyed) {
-          reconnectTimerRef.current = setTimeout(connect, 3000);
-        }
-      };
-
-      ws.onerror = () => {
-        ws.close();
-      };
-    }
-
-    connect();
-
-    return () => {
-      destroyed = true;
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current);
-        flush();
-      }
-      if (reconnectTimerRef.current !== null) {
-        clearTimeout(reconnectTimerRef.current);
-      }
-      wsRef.current?.close();
-    };
-  }, [wsUrl, instanceId, handleBatch, setWsConnected, updateInstanceState]);
+    updateInstanceState(target.instanceId, { wsConnected: false });
+    return connectDaemonWebSocket({
+      wsUrl: target.wsUrl,
+      instanceId: target.instanceId,
+      throttleMs: WS_THROTTLE_MS,
+      reconnectMs: DEFAULT_WS_RECONNECT_MS,
+      describeError: describeDaemonConnectionError,
+      onBatch: handleBatch,
+      onState: updateInstanceState,
+    });
+  }, [target.wsUrl, target.instanceId, handleBatch, updateInstanceState]);
 }

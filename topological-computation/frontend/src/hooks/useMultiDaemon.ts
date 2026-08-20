@@ -14,78 +14,20 @@
  * (they all see the same K_active via IPFS sync).
  */
 
-import { useEffect, useMemo } from "react";
-import { STATUS_POLL_MS, INSTANCE_COLORS } from "../tokens";
-import type { WsMessage } from "../types";
+import { useEffect, useMemo, useRef } from "react";
+import { STATUS_POLL_MS, WS_THROTTLE_MS, INSTANCE_COLORS } from "../tokens";
+import { describeDaemonConnectionError } from "../daemonConfig";
 import { createDaemonAPI } from "./useDaemonAPI";
+import {
+  connectDaemonWebSocket,
+  DEFAULT_WS_RECONNECT_MS,
+  disposeDaemonWebSocketConnections,
+  reconcileDaemonWebSocketConnections,
+  type DaemonWebSocketConnections,
+} from "./daemonWebSocket";
+import { startStatusPolling } from "./statusPolling";
 import { useStore } from "./useStore";
 import type { InstanceTraversal } from "../components/TopologyView";
-
-/**
- * Manages a single WS connection imperatively. Returns cleanup function.
- * All instances feed into handleBatch (no distinction between active/non-active).
- */
-function connectInstanceWS(
-  wsUrl: string,
-  instanceId: string,
-  handleBatch: (instanceId: string, msgs: WsMessage[]) => void,
-  setWsConnected: (v: boolean) => void,
-  updateInstanceState: (id: string, partial: { wsConnected: boolean }) => void,
-): () => void {
-  let destroyed = false;
-  let ws: WebSocket | null = null;
-  const buffer: WsMessage[] = [];
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
-  function flush() {
-    if (buffer.length === 0) return;
-    const batch = buffer.splice(0);
-    handleBatch(instanceId, batch);
-  }
-
-  function connect() {
-    if (destroyed) return;
-    ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      setWsConnected(true);
-      updateInstanceState(instanceId, { wsConnected: true });
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data as string) as WsMessage;
-        buffer.push(msg);
-        if (timer === null) {
-          timer = setTimeout(() => {
-            timer = null;
-            flush();
-          }, 100);
-        }
-      } catch { /* ignore */ }
-    };
-
-    ws.onclose = () => {
-      updateInstanceState(instanceId, { wsConnected: false });
-      ws = null;
-      if (!destroyed) {
-        reconnectTimer = setTimeout(connect, 3000);
-      }
-    };
-
-    ws.onerror = () => { ws?.close(); };
-  }
-
-  connect();
-
-  return () => {
-    destroyed = true;
-    if (timer !== null) { clearTimeout(timer); flush(); }
-    if (reconnectTimer !== null) clearTimeout(reconnectTimer);
-    ws?.close();
-  };
-}
 
 export function useMultiDaemon(): void {
   const instances = useStore((s) => s.instances);
@@ -94,7 +36,6 @@ export function useMultiDaemon(): void {
   const setNarrative = useStore((s) => s.setNarrative);
   const setGaps = useStore((s) => s.setGaps);
   const setOperations = useStore((s) => s.setOperations);
-  const setWsConnected = useStore((s) => s.setWsConnected);
   const setDaemonReachable = useStore((s) => s.setDaemonReachable);
   const handleBatch = useStore((s) => s.handleWsBatch);
   const updateInstanceState = useStore((s) => s.updateInstanceState);
@@ -103,64 +44,52 @@ export function useMultiDaemon(): void {
   const instancesKey = instances.map((i) => `${i.id}:${i.httpBase}:${i.wsUrl}`).join("|");
 
   // ── WebSocket connections for all instances ──
-  // All WS connections feed into the same handleBatch
+  // Reconcile by stable id + WS endpoint so list churn does not tear down peers.
+  const wsConnections = useRef<DaemonWebSocketConnections>(new Map());
   useEffect(() => {
-    const cleanups: (() => void)[] = [];
+    reconcileDaemonWebSocketConnections(wsConnections.current, instances, (inst) => {
+      updateInstanceState(inst.id, { wsConnected: false });
+      return connectDaemonWebSocket({
+        wsUrl: inst.wsUrl,
+        instanceId: inst.id,
+        throttleMs: WS_THROTTLE_MS,
+        reconnectMs: DEFAULT_WS_RECONNECT_MS,
+        describeError: describeDaemonConnectionError,
+        onBatch: handleBatch,
+        onState: updateInstanceState,
+      });
+    });
+  }, [instancesKey, handleBatch, updateInstanceState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    for (const inst of instances) {
-      const cleanup = connectInstanceWS(
-        inst.wsUrl,
-        inst.id,
-        handleBatch,
-        setWsConnected,
-        updateInstanceState,
-      );
-      cleanups.push(cleanup);
-    }
-
-    return () => { cleanups.forEach((fn) => fn()); };
-  }, [instancesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => {
+    disposeDaemonWebSocketConnections(wsConnections.current);
+  }, []);
 
   // ── Status poll for ALL instances (every 1s) ──
   // First reachable instance's status goes to store-level (shared K_active)
   useEffect(() => {
-    let alive = true;
-    const apis = instances.map((inst) => ({
-      inst,
-      api: createDaemonAPI(inst.httpBase),
-    }));
-
-    async function poll() {
-      let sharedStatusSet = false;
-      for (const { inst, api } of apis) {
-        if (!alive) break;
-        try {
-          const s = await api.status();
-          if (!alive) break;
-          // First reachable instance provides the shared status
-          if (!sharedStatusSet) {
-            setStatus(s);
-            setDaemonReachable(true);
-            sharedStatusSet = true;
-          }
-          updateInstanceState(inst.id, {
-            reachable: true,
-            status: s,
-            currentPositionLabel: s.position_label || "",
-            currentPositionId: s.position || "",
-          });
-        } catch {
-          updateInstanceState(inst.id, { reachable: false });
-        }
-      }
-      if (!sharedStatusSet) {
-        setDaemonReachable(false);
-      }
-    }
-
-    poll();
-    const id = setInterval(poll, STATUS_POLL_MS);
-    return () => { alive = false; clearInterval(id); };
+    return startStatusPolling({
+      instances,
+      intervalMs: STATUS_POLL_MS,
+      timeoutMs: STATUS_POLL_MS * 3,
+      onStatus: (inst, s, firstReachable) => {
+        if (firstReachable) setStatus(s);
+        updateInstanceState(inst.id, {
+          reachable: true,
+          status: s,
+          currentPositionLabel: s.position_label || "",
+          currentPositionId: s.position || "",
+          httpError: null,
+        });
+      },
+      onError: (inst, error) => {
+        updateInstanceState(inst.id, {
+          reachable: false,
+          httpError: describeDaemonConnectionError(inst.httpBase, error),
+        });
+      },
+      onCycleComplete: setDaemonReachable,
+    });
   }, [instancesKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Shared K_active polls: topology (5s), narrative (3s fallback), gaps (10s), operations (5s) ──

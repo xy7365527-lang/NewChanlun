@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --experimental-loader ./tests/typescript-loader.mjs --test tests/*.test.ts"
   },
   "dependencies": {
     "@types/three": "^0.183.1",

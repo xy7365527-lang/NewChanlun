@@ -373,7 +373,7 @@ class TopologicalDaemon:
         # S_net (signifier network) — initialized during _initialize_engine
         self.snet: SNet = SNet()
 
-        # S_net SQLite persistence layer (423号: replace pickle with SQLite)
+        # S_net SQLite persistence layer (423号: primary store)
         self._snet_persistence = None  # initialized in _bootstrap_snet
 
         # S_net → block topology watermark: tracks edge count at last block write
@@ -620,10 +620,10 @@ class TopologicalDaemon:
 
         Persistence strategy (priority order):
           1. SQLite (snet_persistence.py) — primary, WAL mode, incremental updates
-          2. pickle+gzip (snet_cache.py) — fallback if SQLite fails
+          2. bounded gzip JSONL (snet_cache.py) — integrity-checked fallback
           3. Full ingest from source files
 
-        Cache validation uses manifest hash (same as snet_cache.py).
+        The fallback validates its manifest, sizes, record schema, and SHA-256.
 
         Graceful degradation: if data file is missing or bootstrap fails,
         self.snet remains an empty SNet and daemon continues normally.
@@ -649,8 +649,17 @@ class TopologicalDaemon:
             except Exception:
                 pass
 
+            # Retirement is independent of cache selection: even a healthy
+            # SQLite early return must remove the executable legacy artifact.
+            try:
+                from snet_cache import retire_legacy_cache
+                retire_legacy_cache()
+            except Exception as retire_exc:
+                print(f"S_net legacy cache retirement failed: {retire_exc}", file=sys.stderr)
+
             # --- Try SQLite persistence first (primary) ---
             # SNetLazy mode: load signifiers+morphemes to memory, edges stay in SQLite
+            sqlite_allows_jsonl_fallback = True
             try:
                 from snet_persistence import SNetPersistence
                 from snet_lazy import SNetLazy
@@ -661,39 +670,37 @@ class TopologicalDaemon:
                 has_data = db_stats.get("signifiers", 0) > 0
 
                 if has_data:
-                    t0 = _time.time()
-                    # Lazy load: only signifiers + morphemes to memory
-                    lazy_snet = SNetLazy.from_persistence(persistence)
-                    self.snet = lazy_snet
-                    elapsed = _time.time() - t0
-                    n_sigs = len(self.snet._signifiers)
-                    n_edges = db_stats.get("edges", 0)
-
                     manifest_ok = (
                         current_manifest is not None
                         and persistence.manifest_valid(current_manifest)
                     )
-                    reason = "match" if manifest_ok else (
-                        "missing" if current_manifest is None else "mismatch"
-                    )
-                    print(
-                        f"S_net lazy from SQLite (manifest {reason}): "
-                        f"{n_sigs} signifiers, {n_edges} edges "
-                        f"({elapsed:.1f}s — edges stay in SQLite)",
-                        file=sys.stderr,
-                    )
-                    # Update manifest to current so next restart is clean
-                    if not manifest_ok and current_manifest is not None:
-                        persistence.set_manifest(current_manifest)
-                    return
+                    if manifest_ok:
+                        t0 = _time.time()
+                        # Publish only after the complete lazy view validates.
+                        lazy_snet = SNetLazy.from_persistence(persistence)
+                        elapsed = _time.time() - t0
+                        self.snet = lazy_snet
+                        print(
+                            f"S_net lazy from SQLite (manifest match): "
+                            f"{len(lazy_snet._signifiers)} signifiers, "
+                            f"{db_stats.get('edges', 0)} edges "
+                            f"({elapsed:.1f}s — edges stay in SQLite)",
+                            file=sys.stderr,
+                        )
+                        return
+                    print("S_net SQLite validation failed; full rebuild required", file=sys.stderr)
+                    sqlite_allows_jsonl_fallback = False
                 else:
                     print("S_net SQLite: DB empty, proceeding to fallback", file=sys.stderr)
             except Exception as sqlite_exc:
-                print(f"S_net SQLite load failed (trying pickle fallback): {sqlite_exc}", file=sys.stderr)
+                sqlite_allows_jsonl_fallback = False
+                print(f"S_net SQLite validation failed; full rebuild required: {sqlite_exc}", file=sys.stderr)
 
-            # --- Try pickle cache as fallback ---
+            # --- Try validated JSONL cache as fallback ---
             try:
-                from snet_cache import try_load_cached_snet, save_after_full_ingest
+                if not sqlite_allows_jsonl_fallback:
+                    raise RuntimeError("SQLite validation requires full rebuild")
+                from snet_cache import try_load_cached_snet
 
                 t0 = _time.time()
                 cached_snet, used_cache = try_load_cached_snet(
@@ -707,17 +714,18 @@ class TopologicalDaemon:
                     n_sigs = len(cached_snet._signifiers)
                     n_edges = len(cached_snet._edges)
                     print(
-                        f"S_net from pickle cache: {n_sigs} signifiers, {n_edges} edges "
+                        f"S_net from JSONL cache: {n_sigs} signifiers, {n_edges} edges "
                         f"({elapsed:.1f}s — migrating to SQLite lazy mode)",
                         file=sys.stderr,
                     )
-                    # Migrate pickle cache to SQLite, then switch to SNetLazy
-                    self.snet = cached_snet  # temp: full SNet for migration
-                    self._migrate_snet_to_sqlite(current_manifest)
+                    # Migrate validated JSONL cache to SQLite, then switch to SNetLazy
+                    migration_ok = self._migrate_snet_to_sqlite(
+                        cached_snet, current_manifest
+                    )
                     # Now switch to lazy mode
                     try:
                         from snet_lazy import SNetLazy
-                        if self._snet_persistence is not None:
+                        if migration_ok and self._snet_persistence is not None:
                             lazy_snet = SNetLazy.from_persistence(
                                 self._snet_persistence,
                                 signifiers=dict(cached_snet._signifiers),
@@ -725,14 +733,16 @@ class TopologicalDaemon:
                             )
                             self.snet = lazy_snet
                             print(
-                                f"S_net switched to lazy mode after pickle→SQLite migration",
+                                "S_net switched to lazy mode after JSONL→SQLite migration",
                                 file=sys.stderr,
                             )
+                            return
                     except Exception as lazy_exc:
-                        print(f"S_net lazy switch failed (keeping full SNet): {lazy_exc}", file=sys.stderr)
-                    return
+                        print(f"S_net lazy validation failed; performing full rebuild: {lazy_exc}", file=sys.stderr)
+                    if not migration_ok:
+                        print("S_net migration failed; performing full rebuild", file=sys.stderr)
             except Exception as cache_exc:
-                print(f"S_net pickle cache failed (proceeding with full ingest): {cache_exc}", file=sys.stderr)
+                print(f"S_net JSONL cache failed (proceeding with full ingest): {cache_exc}", file=sys.stderr)
 
             # --- Full ingest (both caches missed) ---
             t0 = _time.time()
@@ -778,18 +788,20 @@ class TopologicalDaemon:
             print(f"S_net full ingest completed in {elapsed:.1f}s", file=sys.stderr)
 
             # --- Save to SQLite (primary) ---
+            sqlite_ready = False
             try:
                 if self._snet_persistence is not None:
                     self._snet_persistence.save_full(self.snet)
                     if current_manifest is not None:
                         self._snet_persistence.set_manifest(current_manifest)
+                    sqlite_ready = True
             except Exception as sqlite_save_exc:
                 print(f"S_net SQLite save failed (non-fatal): {sqlite_save_exc}", file=sys.stderr)
 
             # --- Switch to lazy mode after full ingest + SQLite save ---
             try:
                 from snet_lazy import SNetLazy
-                if self._snet_persistence is not None:
+                if sqlite_ready and self._snet_persistence is not None:
                     lazy_snet = SNetLazy.from_persistence(
                         self._snet_persistence,
                         signifiers=dict(self.snet._signifiers),
@@ -803,7 +815,7 @@ class TopologicalDaemon:
             except Exception as lazy_exc:
                 print(f"S_net lazy switch failed (keeping full SNet): {lazy_exc}", file=sys.stderr)
 
-            # --- Also save pickle cache (fallback) ---
+            # --- Also save bounded JSONL cache (fallback) ---
             try:
                 from snet_cache import save_after_full_ingest
                 save_after_full_ingest(
@@ -813,33 +825,35 @@ class TopologicalDaemon:
                     surface_forms_path=sf_path if sf_path.exists() else None,
                 )
             except Exception as save_exc:
-                print(f"S_net pickle cache save failed (non-fatal): {save_exc}", file=sys.stderr)
+                print(f"S_net JSONL cache save failed (non-fatal): {save_exc}", file=sys.stderr)
 
         except Exception as exc:
             print(f"S_net bootstrap failed (graceful degradation): {exc}", file=sys.stderr)
             self.snet = SNet()
 
-    def _migrate_snet_to_sqlite(self, manifest: dict | None) -> None:
-        """Migrate S_net from pickle cache to SQLite (one-time migration).
+    def _migrate_snet_to_sqlite(self, snet: SNet, manifest: dict | None) -> bool:
+        """Migrate S_net from validated JSONL cache to SQLite.
 
-        Called when pickle cache hit but SQLite was empty/stale.
+        Called when JSONL cache hit but SQLite was empty/stale.
         Non-fatal: if migration fails, SQLite will be populated on next full ingest.
         """
         try:
             if self._snet_persistence is None:
                 from snet_persistence import SNetPersistence
                 self._snet_persistence = SNetPersistence()
-            self._snet_persistence.save_full(self.snet)
+            self._snet_persistence.save_full(snet)
             if manifest is not None:
                 self._snet_persistence.set_manifest(manifest)
-            n_sigs = len(self.snet._signifiers)
-            n_edges = len(self.snet._edges)
+            n_sigs = len(snet._signifiers)
+            n_edges = len(snet._edges)
             print(
-                f"S_net migrated pickle→SQLite: {n_sigs} signifiers, {n_edges} edges",
+                f"S_net migrated JSONL→SQLite: {n_sigs} signifiers, {n_edges} edges",
                 file=sys.stderr,
             )
+            return True
         except Exception as exc:
-            print(f"S_net pickle→SQLite migration failed (non-fatal): {exc}", file=sys.stderr)
+            print(f"S_net JSONL→SQLite migration failed (non-fatal): {exc}", file=sys.stderr)
+            return False
 
     def _ingest_dictionaries(self) -> None:
         """Ingest dictionary JSONL files into S_net after bootstrap.

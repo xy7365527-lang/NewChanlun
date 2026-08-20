@@ -27,6 +27,7 @@ from __future__ import annotations
 import sys
 import warnings
 from collections import OrderedDict
+from collections.abc import Callable, Hashable
 from typing import Optional
 
 from signifier_net import (
@@ -36,6 +37,7 @@ from signifier_net import (
     AxisType,
     MorphemeStructure,
 )
+from cooccurrence_hyperedge import CooccurrenceHyperedge, hyperedge_to_dict
 
 
 class _LRUCache:
@@ -43,15 +45,15 @@ class _LRUCache:
 
     def __init__(self, maxsize: int = 10000) -> None:
         self._maxsize = maxsize
-        self._cache: OrderedDict[str, object] = OrderedDict()
+        self._cache: OrderedDict[Hashable, object] = OrderedDict()
 
-    def get(self, key: str) -> object | None:
+    def get(self, key: Hashable) -> object | None:
         if key in self._cache:
             self._cache.move_to_end(key)
             return self._cache[key]
         return None
 
-    def put(self, key: str, value: object) -> None:
+    def put(self, key: Hashable, value: object) -> None:
         if key in self._cache:
             self._cache.move_to_end(key)
         else:
@@ -59,8 +61,13 @@ class _LRUCache:
                 self._cache.popitem(last=False)
         self._cache[key] = value
 
-    def invalidate(self, key: str) -> None:
+    def invalidate(self, key: Hashable) -> None:
         self._cache.pop(key, None)
+
+    def invalidate_where(self, predicate: Callable[[Hashable], bool]) -> None:
+        for key in list(self._cache):
+            if predicate(key):
+                self._cache.pop(key, None)
 
     def clear(self) -> None:
         self._cache.clear()
@@ -86,6 +93,7 @@ class SNetLazy(SNet):
         self,
         signifiers: dict[str, Signifier] | None = None,
         morphemes: dict[str, MorphemeStructure] | None = None,
+        hyperedges: list[CooccurrenceHyperedge] | None = None,
         persistence=None,
         cache_size: int = 10000,
     ) -> None:
@@ -94,8 +102,11 @@ class SNetLazy(SNet):
         self._signifiers: dict[str, Signifier] = dict(signifiers) if signifiers else {}
         self._edges: list[SignifierEdge] = []  # 空，不用
         self._morphemes: dict[str, MorphemeStructure] = dict(morphemes) if morphemes else {}
-        self._hyperedges: list = []  # 超边（SNetLazy 暂不持久化超边到 SQLite）
+        self._hyperedges: list[CooccurrenceHyperedge] = list(hyperedges or [])
         self._vertex_to_hyperedges: dict[str, list[int]] = {}
+        for index, hyperedge in enumerate(self._hyperedges):
+            for vertex in hyperedge.vertices:
+                self._vertex_to_hyperedges.setdefault(vertex, []).append(index)
         self._syn_out: dict[str, list[SignifierEdge]] = {}
         self._par_out: dict[str, list[SignifierEdge]] = {}
         self._morpheme_out: dict[str, list[SignifierEdge]] = {}
@@ -107,7 +118,7 @@ class SNetLazy(SNet):
         self._edge_cache = _LRUCache(maxsize=cache_size)
         # degree 缓存: key = sid -> int
         self._degree_cache = _LRUCache(maxsize=cache_size)
-        # cooccurrence 缓存: key = f"{a}:{b}" -> float
+        # cooccurrence 缓存: key = (a, b) -> float
         self._cooccurrence_cache = _LRUCache(maxsize=cache_size * 2)
         # 边总数缓存
         self._edge_count_cache: int | None = None
@@ -120,6 +131,7 @@ class SNetLazy(SNet):
         persistence,
         signifiers: dict[str, Signifier] | None = None,
         morphemes: dict[str, MorphemeStructure] | None = None,
+        hyperedges: list[CooccurrenceHyperedge] | None = None,
         cache_size: int = 10000,
     ) -> "SNetLazy":
         """从 SNetPersistence 实例创建 SNetLazy。
@@ -130,9 +142,15 @@ class SNetLazy(SNet):
             signifiers = persistence.load_signifiers()
         if morphemes is None:
             morphemes = persistence.load_morphemes()
+        if hyperedges is None:
+            hyperedges = persistence.load_hyperedges()
+        validate_graph = getattr(persistence, "validate_graph", None)
+        if validate_graph is not None:
+            validate_graph(signifiers, morphemes, hyperedges)
         return cls(
             signifiers=signifiers,
             morphemes=morphemes,
+            hyperedges=hyperedges,
             persistence=persistence,
             cache_size=cache_size,
         )
@@ -193,16 +211,24 @@ class SNetLazy(SNet):
         return list(edges)
 
     def cooccurrence_weight(self, sid_a: str, sid_b: str) -> float:
-        """返回两个能指之间的组合轴共现权重（无边则 0.0）。"""
-        cache_key = f"{sid_a}:{sid_b}"
+        """返回共现权重：共同超边计数优先，无共同超边才查组合轴边。"""
+        cache_key = (sid_a, sid_b)
         cached = self._cooccurrence_cache.get(cache_key)
         if cached is not None:
             return cached
 
-        if self._persistence is None:
-            return 0.0
+        a_indices = set(self._vertex_to_hyperedges.get(sid_a, []))
+        shared_count = 0
+        if a_indices:
+            b_indices = set(self._vertex_to_hyperedges.get(sid_b, []))
+            shared_count = len(a_indices & b_indices)
 
-        weight = self._persistence.query_cooccurrence_weight(sid_a, sid_b)
+        if shared_count > 0:
+            weight = float(shared_count)
+        elif self._persistence is None:
+            weight = 0.0
+        else:
+            weight = self._persistence.query_cooccurrence_weight(sid_a, sid_b)
         self._cooccurrence_cache.put(cache_key, weight)
         return weight
 
@@ -316,6 +342,21 @@ class SNetLazy(SNet):
             self._persistence.save_incremental(new_morphemes=[ms])
         return self
 
+    def add_hyperedge(self, hyperedge: CooccurrenceHyperedge) -> "SNetLazy":
+        if self._persistence is not None:
+            self._persistence.save_incremental(new_hyperedges=[hyperedge])
+        index = len(self._hyperedges)
+        self._hyperedges.append(hyperedge)
+        for vertex in hyperedge.vertices:
+            self._vertex_to_hyperedges.setdefault(vertex, []).append(index)
+        self._invalidate_hyperedge_caches(hyperedge)
+        return self
+
+    def add_hyperedges(self, hyperedges: list[CooccurrenceHyperedge]) -> "SNetLazy":
+        for hyperedge in hyperedges:
+            self.add_hyperedge(hyperedge)
+        return self
+
     def merge_edge_weights(self) -> "SNetLazy":
         """SNetLazy 不支持 merge_edge_weights（SQLite 中边已通过 UNIQUE INDEX 去重）。
 
@@ -342,9 +383,21 @@ class SNetLazy(SNet):
         if edge.axis == AxisType.SYNTAGMATIC:
             self._degree_cache.invalidate(edge.source)
             self._degree_cache.invalidate(edge.target)
-            self._cooccurrence_cache.invalidate(f"{edge.source}:{edge.target}")
-            self._cooccurrence_cache.invalidate(f"{edge.target}:{edge.source}")
+            self._cooccurrence_cache.invalidate((edge.source, edge.target))
+            self._cooccurrence_cache.invalidate((edge.target, edge.source))
         self._edge_count_cache = None
+
+    def _invalidate_hyperedge_caches(self, hyperedge: CooccurrenceHyperedge) -> None:
+        """失效新超边覆盖的所有有序顶点对缓存，包括反向与自配对。"""
+        vertices = hyperedge.vertices
+        self._cooccurrence_cache.invalidate_where(
+            lambda key: (
+                type(key) is tuple
+                and len(key) == 2
+                and key[0] in vertices
+                and key[1] in vertices
+            )
+        )
 
     # ------------------------------------------------------------------
     # 序列化
@@ -391,6 +444,7 @@ class SNetLazy(SNet):
                 }
                 for sid, ms in self._morphemes.items()
             },
+            "hyperedges": [hyperedge_to_dict(he) for he in self._hyperedges],
         }
 
     def __repr__(self) -> str:
