@@ -60,6 +60,24 @@ node scripts/pstack-lite/run-trigger-fixtures.mjs --self-test
 provider/model 默认 `deepseek` / `deepseek-v4-pro`（沙盒内可用）；主机环境用
 `PRIME_AGENT_PROVIDER` / `PRIME_AGENT_MODEL` 或 `--provider` / `--model` 指定实际可用档。
 
+## code-review 模型多样性门夹具（#1137）
+
+`adversarial-gate-fixtures.json` 用结构化的 `selector` / `provider` / `base_family` 候选
+锁定十一条纯确定性场景：从 4 个不同候选中选择 3 个且覆盖 2 个基础模型所有者桶成功、
+4 输入含 1 个精确重复并去重为 3 个成功、同厂 OpenAI 仍只有 1 桶而不可用、跨两个所有者
+桶时同 family 的不同版本与推理档均合法、同 selector 元数据冲突不可用、发现集跨桶但选中
+三名 reviewer 同桶时不可用、跨厂启动失败，以及 admission 已成功但缺真实 child 结果。
+另以两条 Prime Inference 聚合 provider 场景锁定 owner 分桶：ZAI 与 Alibaba 算两桶，同一
+基础 owner 的不同版本与推理档不重复计数。运行：
+
+```bash
+node scripts/pstack-lite/check-adversarial-gate.mjs
+```
+
+该检查只读取 JSON 与 `code-review` 文档，不调用 `rlm`、`prime-agent`、网络或真实模型；它
+同时锁定 `unavailable` / `degraded` 显式状态、标准 Standards/Spec 回退、session-dir/最终
+JSONL 回流和「admission 不是结果」契约。
+
 ## 后续票接缝
 
 1. 业务 Skill 落地后，把 `fixtures.json` 里对应 item 的 `status` 改为 `active`，
