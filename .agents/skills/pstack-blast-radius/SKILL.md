@@ -1,6 +1,7 @@
 ---
 name: pstack-blast-radius
-description: "Whenever a request explicitly includes any of these literal phrases — `blast radius`, `diff 之外`, `证明安全性`, `跨模块的证明`, `outside the diff`, or `cross-module proof` — MUST load/read this Skill before analysis. If none of those literal phrases is present, MUST NOT load this Skill. 请求中只要明确出现上述任一字面词组，就必须在分析前加载并阅读本 Skill；一个都未出现时，禁止加载本 Skill。"
+description: "仅限用户显式调用（user-only）：用于非小型行为或契约变更的爆炸半径分析。请通过 `/skill:pstack-blast-radius` 显式调用；因 #1138 路由不稳定，已禁用模型自动调用。"
+disable-model-invocation: true
 license: MIT
 metadata:
   upstream-repo: cursor/plugins
@@ -17,8 +18,9 @@ metadata:
 `pstack-how` 告诉你代码在做什么；本 skill 告诉你它在别处会破坏什么。**列出调用者不是任务**——
 那 grep 一秒就能干。任务是找出 grep 不会显示的破坏。
 
-## 触发与跳过
+## 调用、触发与跳过
 
+- **调用**：本 Skill 已降为 user-only；仅通过 `/skill:pstack-blast-radius` 显式调用，不承诺自动语义加载。
 - **触发**：非小型行为变更（改返回类型/字段/语义/错误码/协议/常量），或可能影响其他路径的可疑 diff 评审。
 - **跳过**：普通改名、格式化、注释订正等无行为变化的改动，不启动本 skill。
 
@@ -90,8 +92,9 @@ import 应用实际发布的同一个库，调用你担心的那个确切函数�
 
 ## 本地 Prime 改写
 
-- **调用契约**：上游 `disable-model-invocation: true`（Cursor Task 流）→ Prime 移除，采用 `both`
-  （模型可见可自动调用 + `/skill:pstack-blast-radius` 显式入口）。
+- **调用契约**：最初采用 Prime `both`，但 #1138 多轮真实 3+3 路由在可用宿主模型上反复误触发/漏触发，
+  已按 #1129 降级条款恢复 `disable-model-invocation: true`，改为 user-only；保留
+  `/skill:pstack-blast-radius` 显式入口，不再承诺自动语义加载。
 - **名称**：`blast-radius` → `pstack-blast-radius`（首批统一 `pstack-` 前缀，避免与未来用户级
   Skill 同名 shadow）。
 - **结构查询工具**：上游依赖 Cursor 代码库导航 → 改为优先复用 Serena

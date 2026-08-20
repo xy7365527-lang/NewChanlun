@@ -60,6 +60,14 @@ node scripts/pstack-lite/run-trigger-fixtures.mjs --self-test
 provider/model 默认 `deepseek` / `deepseek-v4-pro`（沙盒内可用）；主机环境用
 `PRIME_AGENT_PROVIDER` / `PRIME_AGENT_MODEL` 或 `--provider` / `--model` 指定实际可用档。
 
+## pstack-blast-radius 降级记录（#1138）
+
+`pstack-blast-radius` 的原 3+3 自动触发夹具已从 `active` 降为 `draft`。多轮真实宿主测试在
+修正漏触发后仍随机误加载不同反例，超过 #1129 的单项降级阈值；因此 Skill 现为
+`disable-model-invocation: true` 的 user-only 能力，只保留 `/skill:pstack-blast-radius` 显式入口。
+原 3+3 不删除，作为未来重新启用语料；只有在**至少两个模型上重复稳定通过**后，才可恢复
+自动路由。#1139 十任务试点不计其自动触发，只能把显式调用作为对照。
+
 ## code-review 模型多样性门夹具（#1137）
 
 `adversarial-gate-fixtures.json` 用结构化的 `selector` / `provider` / `base_family` 候选
