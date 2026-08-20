@@ -18,9 +18,10 @@ pan_div_diag 仍是诊断字段，不进入事件判定或四件输出。
 认识论等级 L0：这里只镜像既有确定性装配。lake build 证明 Lean 内部定义与定理成立，不等于
 Rust 已完成跨语言对拍，更不证明交易有效性；指定窗签收属于后续执行切片。
 
-本文件对 3a prelude 的覆盖限于装配语义：共享 `PerSegmentMaterial`、逐段 `PerSegmentEmission`、
-双域 `ScanSinks`、扫描后归约与 `resumeMergedOutput`。`PostScanOperators` 的排序、分组和 pair-id
-函数仍由调用方供给；这里没有从完整 Rust 原始输入独立重算这些算子或完整扫描执行链。
+本文件从原始 SegmentRow/CenterFrame/MoveBlockFrame 独立重算 prelude 的排序守卫、方向锚、
+ownership 趋势门、first_match_idx、A episode+包络缓存与 λ_C episode；从逐段未后处理 sink 独立
+重算四输出的稳定排序、候选 FNV 身份、同 key 归约和 Pan 投影。验收桥不提供 Lean 期望输出。
+底层线段/中枢构造与 MACD 力度判据仍由 Rust 生产扫描形成逐段 sink，不在 Lean 中重裁交易判据。
 -/
 
 namespace NewChanlun.Origin.ScanAssemblyMirror
@@ -36,6 +37,20 @@ deriving DecidableEq, Repr
 inductive Side where
   | long
   | short
+deriving DecidableEq, Repr
+
+inductive MoveKind where
+  | trend
+  | consolidation
+deriving DecidableEq, Repr
+
+/-- Rust `decompose::MoveBlock` 中 prelude ownership 查询消费的字段。 -/
+structure MoveBlockFrame where
+  startCenter : Nat
+  endCenter : Nat
+  kind : MoveKind
+  direction : Option Direction
+  levelLift : Nat
 deriving DecidableEq, Repr
 
 /-- Rust `Center` 的六个可观察字段。 -/
@@ -225,6 +240,115 @@ deriving DecidableEq, Repr
 def PerSegmentMaterial.productionAnchorAligned (material : PerSegmentMaterial) : Prop :=
   material.directionAnchor = some material.segment.direction
 
+/-! ## §3a prelude 的独立重算 -/
+
+def segmentRowsSorted : List SegmentRow → Bool
+  | [] | [_] => true
+  | first :: second :: rest =>
+      decide (first.startIndex ≤ second.startIndex) && segmentRowsSorted (second :: rest)
+
+def centerFramesSorted : List CenterFrame → Bool
+  | [] | [_] => true
+  | first :: second :: rest =>
+      decide (first.endIndex < second.endIndex) && centerFramesSorted (second :: rest)
+
+def directionAnchors (rows : List SegmentRow) : List (Option Direction) :=
+  rows.map (fun row => some row.direction)
+
+def ownershipBlockAt (blocks : List MoveBlockFrame) (centerIndex : Nat) : Option MoveBlockFrame :=
+  if centerIndex = 0 then
+    blocks.head?
+  else
+    blocks.find? fun block => decide (block.startCenter < centerIndex ∧ centerIndex ≤ block.endCenter)
+
+def trendGateAt (blocks : List MoveBlockFrame) (centerIndex : Nat) : Option Direction :=
+  if centerIndex = 0 then none else (ownershipBlockAt blocks centerIndex).bind (·.direction)
+
+def trendGates (centerCount : Nat) (blocks : List MoveBlockFrame) : List (Option Direction) :=
+  (List.range centerCount).map (trendGateAt blocks)
+
+def sameCenterTriple (left right : CenterFrame) : Bool :=
+  decide (left.endIndex = right.endIndex ∧ left.zd = right.zd ∧ left.zg = right.zg)
+
+def firstCenterMatchIndex (centers : List CenterFrame) (target : CenterFrame) : Option Nat :=
+  let rec go (index : Nat) : List CenterFrame → Option Nat
+    | [] => none
+    | current :: rest =>
+        if sameCenterTriple current target then some index else go (index + 1) rest
+  go 0 centers
+
+def firstMatchIndices (centers : List CenterFrame) : List (Option Nat) :=
+  centers.map (firstCenterMatchIndex centers)
+
+def aEpisodeWindow (rows : List SegmentRow) (previous current : CenterFrame) : List SegmentRow :=
+  rows.filter fun row =>
+    decide (previous.endIndex ≤ row.startIndex ∧ row.startIndex < current.endIndex)
+
+def matchingEpisodeSpan (rows : List SegmentRow) (direction : Direction)
+    (lambda : Nat) : Option Interval :=
+  rows.foldl
+    (fun span row =>
+      if row.direction = direction ∧ lambda ≤ row.startIndex then
+        match span with
+        | none => some (row.startIndex, row.endIndex)
+        | some current => some (current.1, row.endIndex)
+      else span)
+    none
+
+def moveRangeEnvelope (rows : List SegmentRow) (span : Interval) : Option (Int × Int) :=
+  rows.foldl
+    (fun envelope row =>
+      if span.1 ≤ row.startIndex ∧ row.endIndex ≤ span.2 then
+        let low := min row.startPrice row.endPrice
+        let high := max row.startPrice row.endPrice
+        match envelope with
+        | none => some (low, high)
+        | some current => some (min current.1 low, max current.2 high)
+      else envelope)
+    none
+
+def locateASegmentEnvelope (rows : List SegmentRow) (previous current : CenterFrame)
+    (direction : Direction) : Option ASegmentEnvelope :=
+  let window := aEpisodeWindow rows previous current
+  let lambda := firstSelfAnchoredStartAfter window direction
+    (lastReentryBoundary window previous direction)
+  lambda.bind fun start =>
+    (matchingEpisodeSpan window direction start).bind fun span =>
+      (moveRangeEnvelope rows span).map fun envelope => { span := span, bEnvelope := envelope }
+
+def aSegmentEntries (rows : List SegmentRow) (centers : List CenterFrame)
+    (gates : List (Option Direction)) : List (Option ASegmentEnvelope) :=
+  let rec go (previous : CenterFrame) : List CenterFrame → List (Option Direction) →
+      List (Option ASegmentEnvelope)
+    | [], _ => []
+    | _ :: rest, [] => none :: go previous rest []
+    | current :: rest, gate :: gateRest =>
+        let value := gate.bind (locateASegmentEnvelope rows previous current)
+        value :: go current rest gateRest
+  match centers, gates with
+  | [], _ => []
+  | _ :: rest, [] => none :: rest.map (fun _ => none)
+  | first :: rest, _ :: gateRest => none :: go first rest gateRest
+
+structure PreludeOutput where
+  segmentsSorted : Bool
+  centersSorted : Bool
+  anchors : List (Option Direction)
+  trendGate : List (Option Direction)
+  firstMatchIdx : List (Option Nat)
+  aSegments : List (Option ASegmentEnvelope)
+deriving DecidableEq, Repr
+
+def recomputePrelude (rows : List SegmentRow) (centers : List CenterFrame)
+    (blocks : List MoveBlockFrame) : PreludeOutput :=
+  let gates := trendGates centers.length blocks
+  { segmentsSorted := segmentRowsSorted rows
+    centersSorted := centerFramesSorted centers
+    anchors := directionAnchors rows
+    trendGate := gates
+    firstMatchIdx := firstMatchIndices centers
+    aSegments := aSegmentEntries rows centers gates }
+
 /-! ## §4 四件输出的字段形状 -/
 
 structure ThirdClassEntryIdentity where
@@ -408,6 +532,17 @@ structure PerSegmentEmission where
   candidateLegs : List CandidateObservation
 deriving DecidableEq, Repr
 
+/--
+跨语言签收的最小输入。Rust 生产扫描按段暴露四个尚未后处理的 sink；Lean 自己完成排序、
+同 key 腿归约、Pan 投影和 FNV 身份。它不是 Rust legacy oracle，也不包含期望的最终输出。
+-/
+structure ScanSinkEmission where
+  bspPoints : List BspPoint
+  panDivCerts : List PanDivCert
+  firstClassGrades : List FirstClassGradeRecord
+  candidateLegs : List CandidateObservation
+deriving DecidableEq, Repr
+
 structure ScanSinks where
   points : List BspPoint
   panDivs : List PanDivCert
@@ -453,6 +588,102 @@ structure PostScanOperators where
   pairId : CandidateKey → Nat
   sortObservations : List CandidateObservation → List CandidateObservation
 
+/-! ## §5a 生产后处理算子的独立 Lean 实现 -/
+
+/-- 严格比较下的稳定插入排序；相等项后插，保持 Rust `sort_by_key` 的到达顺序。 -/
+def orderedInsert {α : Type} (strictlyBefore : α → α → Bool) (value : α) : List α → List α
+  | [] => [value]
+  | current :: rest =>
+      if strictlyBefore value current then
+        value :: current :: rest
+      else
+        current :: orderedInsert strictlyBefore value rest
+
+def stableSortBy {α : Type} (strictlyBefore : α → α → Bool) (values : List α) : List α :=
+  values.foldl (fun sorted value => orderedInsert strictlyBefore value sorted) []
+
+def compareThen (first second : Ordering) : Ordering :=
+  match first with
+  | Ordering.eq => second
+  | other => other
+
+def compareOptionNat : Option Nat → Option Nat → Ordering
+  | none, none => Ordering.eq
+  | none, some _ => Ordering.lt
+  | some _, none => Ordering.gt
+  | some left, some right => compare left right
+
+def CandidateKind.rank : CandidateKind → Nat
+  | CandidateKind.trend => 0
+  | CandidateKind.pan => 1
+
+def Side.rank : Side → Nat
+  | Side.long => 0
+  | Side.short => 1
+
+/-- Rust `#[derive(Ord)] CandidateKey` 的字段序；Int 按有符号顺序比较。 -/
+def compareCandidateKey (left right : CandidateKey) : Ordering :=
+  compareThen (compare left.ruleVersion right.ruleVersion)
+    (compareThen (compare left.level right.level)
+      (compareThen (compare left.kind.rank right.kind.rank)
+        (compareThen (compare left.side.rank right.side.rank)
+          (compareThen (compareOptionNat left.previousCenterStart right.previousCenterStart)
+            (compareThen (compare left.parent.centerStart right.parent.centerStart)
+              (compareThen (compare left.parent.zd right.parent.zd)
+                (compareThen (compare left.parent.zg right.parent.zg)
+                  (compareThen (compare left.segA.1 right.segA.1)
+                    (compareThen (compare left.segA.2 right.segA.2)
+                      (compare left.cStart right.cStart))))))))))
+
+def compareInterval (left right : Interval) : Ordering :=
+  compareThen (compare left.1 right.1) (compare left.2 right.2)
+
+def observationStrictlyBefore (left right : CandidateObservation) : Bool :=
+  compareThen (compareInterval left.interval right.interval)
+    (compareCandidateKey left.key right.key) == Ordering.lt
+
+/-- Rust `u64` wrapping domain represented as a bounded Nat. -/
+def u64Modulus : Nat := 18446744073709551616
+
+def fnvPrime : Nat := 1099511628211
+
+def fnvOffsetBasis : Nat := 14695981039346656037
+
+def pairIdSeed : Nat := 9521211207457086692
+
+def intAsU64 (value : Int) : Nat :=
+  Int.toNat (value % (Int.ofNat u64Modulus))
+
+def fnvMixByte (hash byte : Nat) : Nat :=
+  ((Nat.xor hash byte) * fnvPrime) % u64Modulus
+
+def fnvMixU64 (hash value : Nat) : Nat :=
+  (List.range 8).foldl
+    (fun acc byteIndex => fnvMixByte acc ((value / (256 ^ byteIndex)) % 256))
+    hash
+
+def candidateStableId (key : CandidateKey) (seed : Nat) : Nat :=
+  [ key.level,
+    key.kind.rank,
+    key.side.rank,
+    if key.previousCenterStart.isSome then 1 else 0,
+    key.previousCenterStart.getD 0,
+    key.parent.centerStart,
+    intAsU64 key.parent.zd,
+    intAsU64 key.parent.zg,
+    key.segA.1,
+    key.segA.2,
+    key.cStart ].foldl fnvMixU64 seed
+
+/-- scan.rs/observe.rs 的排序与 FNV 身份算法；不从 Rust 期望输出注入函数值。 -/
+def productionPostScanOperators : PostScanOperators :=
+  { sortPoints := stableSortBy (fun left right => left.sourceIndex < right.sourceIndex)
+    sortPanDivs := stableSortBy (fun left right => left.sourceIndex < right.sourceIndex)
+    sortGrades := stableSortBy (fun left right => left.sourceIndex < right.sourceIndex)
+    candidateGroupId := fun key => candidateStableId key fnvOffsetBasis
+    pairId := fun key => candidateStableId key pairIdSeed
+    sortObservations := stableSortBy observationStrictlyBefore }
+
 def candidateRuleVersion : Nat := 1
 
 /-- cand_event/observe.rs:235-277：从既有 PanDivCert 投影，不重判结构或力度。 -/
@@ -491,6 +722,21 @@ cache 算法和一套 tail 算法。
 def assembleMergedOutput (operators : PostScanOperators) (level : Nat)
     (emissions : List PerSegmentEmission) : MergedScanOutput :=
   finalizeScanSinks operators level (collectScanSinks emissions)
+
+def collectScanSinkEmissions (emissions : List ScanSinkEmission) : ScanSinks :=
+  emissions.foldl
+    (fun acc emission =>
+      { points := acc.points ++ emission.bspPoints
+        panDivs := acc.panDivs ++ emission.panDivCerts
+        grades := acc.grades ++ emission.firstClassGrades
+        candidateLegs := acc.candidateLegs ++ emission.candidateLegs })
+    emptyScanSinks
+
+/--
+验收入口：只接收逐段、未排序、未归约的 sink 输入；最终四件输出完全由 Lean 镜像重算。
+-/
+def recomputeMergedOutput (level : Nat) (emissions : List ScanSinkEmission) : MergedScanOutput :=
+  finalizeScanSinks productionPostScanOperators level (collectScanSinkEmissions emissions)
 
 /-- scan.rs:127-218 的四件锁步 frontier cache；这里缓存的是候选腿，不是归约后 observation。 -/
 structure FrontierCache where

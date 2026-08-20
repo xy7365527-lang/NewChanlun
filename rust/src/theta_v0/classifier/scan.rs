@@ -36,8 +36,9 @@ use super::divergence::{
 use super::signal::{self, BspPoint, FirstClassGradeRecord, PanDivCert};
 use std::collections::HashMap;
 
-/// #1087 重型签收只读观测面：比较 Rust merged 与 Rust legacy full oracle；Lean 只验 wire bridge。
-/// feature 关闭时不编译，显式 begin 才重跑神谕。
+/// #1087 重型签收只读观测面：提取 Rust 生产四件输出与逐段未后处理 sink。
+/// Lean 从 sink 独立重算排序、归约、Pan 投影和 FNV 身份；不调用 Rust legacy oracle。
+/// feature 关闭时不编译，显式 begin 才提取。
 #[cfg(feature = "issue1087_parity")]
 pub(crate) mod issue1087_probe {
     use super::super::bsp::OwnerRef;
@@ -45,10 +46,10 @@ pub(crate) mod issue1087_probe {
         CandidateKey, CandidateKind, ObservedState, ParentFingerprint, StructuralPredicates,
     };
     use super::super::divergence::{ForceFeatures, ForceProxies};
+    use super::super::recursive_tower::{level_cand_delta, CpLifecycleStatus, CpScanOwnership};
     use super::super::signal::{T3InCGrade, T3InCGradeReason};
     use super::*;
     use crate::theta_v0::types::{BspBits, Side, ThirdClassEntryIdentity};
-    use std::fmt::Debug;
     use std::sync::{
         atomic::{AtomicBool, Ordering},
         Mutex,
@@ -521,6 +522,30 @@ pub(crate) mod issue1087_probe {
         pub grades: Vec<WireFirstClassGradeRecord>,
         pub observations: Vec<WireCandidateObservation>,
     }
+
+    /// 生产扫描某一段发出的原始 sink。列表尚未排序，候选腿尚未归约，也未加入 Pan 投影。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireScanSinkEmission {
+        pub points: Vec<WireBspPoint>,
+        pub pan_divs: Vec<WirePanDivCert>,
+        pub grades: Vec<WireFirstClassGradeRecord>,
+        pub candidate_legs: Vec<WireCandidateObservation>,
+    }
+
+    pub(super) fn wire_emission(
+        points: &[BspPoint],
+        pan_divs: &[PanDivCert],
+        grades: &[FirstClassGradeRecord],
+        candidate_legs: &[CandidateObservation],
+    ) -> WireScanSinkEmission {
+        WireScanSinkEmission {
+            points: points.iter().copied().map(Into::into).collect(),
+            pan_divs: pan_divs.iter().copied().map(Into::into).collect(),
+            grades: grades.iter().copied().map(Into::into).collect(),
+            candidate_legs: candidate_legs.iter().map(Into::into).collect(),
+        }
+    }
+
     fn wire_output(
         points: &[BspPoint],
         pan_divs: &[PanDivCert],
@@ -554,58 +579,178 @@ pub(crate) mod issue1087_probe {
         pub until_start: usize,
         pub rust_lambda_c: Option<usize>,
     }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum WireMoveKind {
+        Trend,
+        Consolidation,
+    }
+    impl From<MoveKind> for WireMoveKind {
+        fn from(value: MoveKind) -> Self {
+            match value {
+                MoveKind::Trend => Self::Trend,
+                MoveKind::Consolidation => Self::Consolidation,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireMoveBlock {
+        pub start_center: usize,
+        pub end_center: usize,
+        pub kind: WireMoveKind,
+        pub direction: Option<WireDirection>,
+        pub level_lift: u8,
+    }
+    impl From<MoveBlock> for WireMoveBlock {
+        fn from(value: MoveBlock) -> Self {
+            Self {
+                start_center: value.start_center,
+                end_center: value.end_center,
+                kind: value.kind.into(),
+                direction: value.dir.map(Into::into),
+                level_lift: value.level_lift,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireASegmentEnvelope {
+        pub span: WireInterval,
+        pub low: Tick,
+        pub high: Tick,
+    }
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WirePreludeInput {
+        pub rows: Vec<WireSegmentRow>,
+        pub centers: Vec<WireCenter>,
+        pub blocks: Vec<WireMoveBlock>,
+    }
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WirePreludeOutput {
+        pub segments_sorted: bool,
+        pub centers_sorted: bool,
+        pub anchors: Vec<Option<WireDirection>>,
+        pub trend_gate: Vec<Option<WireDirection>>,
+        pub first_match_idx: Vec<Option<usize>>,
+        pub a_segments: Vec<Option<WireASegmentEnvelope>>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireCandDeltaCase {
+        pub side: WireSide,
+        pub divergence_confirm_src: usize,
+        pub a_interval: WireInterval,
+        pub center: WireCenter,
+        pub departure_dir: WireDirection,
+        pub until_start: usize,
+        pub trigger_end: usize,
+        pub accepted: bool,
+        pub buy1: bool,
+        pub sell1: bool,
+        pub confirm_src: usize,
+        pub interval: WireInterval,
+        pub c_episode_start: usize,
+        pub c_episode_interval: WireInterval,
+        pub enter_src: usize,
+        pub cand_delta: bool,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum WireCpLifecycle {
+        Pending,
+        Closed,
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireCpOwnership {
+        pub level: u32,
+        pub b_center_ordinal: u64,
+        pub departure_move_ordinal: Option<u64>,
+        pub source_start: Option<usize>,
+        pub lifecycle: WireCpLifecycle,
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireCpTransition {
+        pub before: WireCpOwnership,
+        pub after: WireCpOwnership,
+        pub closure_witness: bool,
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ScanParityRecord {
         pub level: u32,
-        pub merged: WireMergedScanOutput,
-        pub oracle: WireMergedScanOutput,
-        pub point_mismatches: usize,
-        pub pan_div_mismatches: usize,
-        pub grade_mismatches: usize,
-        pub observation_mismatches: usize,
-        pub first_mismatch: Option<String>,
+        /// Rust 生产合并扫描的最终四件输出，只作为被检侧。
+        pub rust_output: WireMergedScanOutput,
+        /// Rust 生产路径逐段 sink；Lean 从这里独立重算最终输出。
+        pub emissions: Vec<WireScanSinkEmission>,
+        pub prelude_input: WirePreludeInput,
+        pub prelude_output: WirePreludeOutput,
         pub rows: Vec<WireSegmentRow>,
         pub episode_cases: Vec<EpisodeCase>,
+        pub cand_delta_cases: Vec<WireCandDeltaCase>,
+        /// 每窗只在首条 level record 携带全塔 stable-revision 生命周期转移，避免重复 fixture。
+        pub cp_transitions: Vec<WireCpTransition>,
     }
-    impl ScanParityRecord {
-        pub fn total_mismatches(&self) -> usize {
-            self.point_mismatches
-                + self.pan_div_mismatches
-                + self.grade_mismatches
-                + self.observation_mismatches
+    fn wire_cp_lifecycle(value: CpLifecycleStatus) -> WireCpLifecycle {
+        match value {
+            CpLifecycleStatus::Pending => WireCpLifecycle::Pending,
+            CpLifecycleStatus::Closed => WireCpLifecycle::Closed,
         }
     }
+
+    fn wire_cp_ownership(value: &CpScanOwnership) -> WireCpOwnership {
+        WireCpOwnership {
+            level: value.b_center_id.level,
+            b_center_ordinal: value.b_center_id.ordinal,
+            departure_move_ordinal: value.departure_move_id.map(|id| id.ordinal),
+            source_start: value.departure_interval.map(|interval| interval.0),
+            lifecycle: wire_cp_lifecycle(value.lifecycle),
+        }
+    }
+
     static ACTIVE: AtomicBool = AtomicBool::new(false);
     static RECORDS: Mutex<Vec<ScanParityRecord>> = Mutex::new(Vec::new());
+    static CP_TRANSITIONS: Mutex<Vec<WireCpTransition>> = Mutex::new(Vec::new());
     pub fn begin() {
         RECORDS.lock().expect("#1087 probe mutex poisoned").clear();
+        CP_TRANSITIONS
+            .lock()
+            .expect("#1087 cp probe mutex poisoned")
+            .clear();
         ACTIVE.store(true, Ordering::SeqCst);
     }
     pub fn finish() -> Vec<ScanParityRecord> {
         ACTIVE.store(false, Ordering::SeqCst);
-        std::mem::take(&mut *RECORDS.lock().expect("#1087 probe mutex poisoned"))
-    }
-    pub(super) fn active() -> bool {
-        ACTIVE.load(Ordering::SeqCst)
+        let mut records = std::mem::take(&mut *RECORDS.lock().expect("#1087 probe mutex poisoned"));
+        let transitions = std::mem::take(
+            &mut *CP_TRANSITIONS
+                .lock()
+                .expect("#1087 cp probe mutex poisoned"),
+        );
+        if let Some(first) = records.first_mut() {
+            first.cp_transitions = transitions;
+        }
+        records
     }
 
-    fn snapshot_mismatches<T: Debug + Eq>(
-        left: &[T],
-        right: &[T],
-        label: &str,
-    ) -> (usize, Option<String>) {
-        let mut count = left.len().abs_diff(right.len());
-        let mut first = (left.len() != right.len())
-            .then(|| format!("{label}.len: merged={} oracle={}", left.len(), right.len()));
-        for (index, (merged, oracle)) in left.iter().zip(right).enumerate() {
-            if merged != oracle {
-                count += 1;
-                first.get_or_insert_with(|| {
-                    format!("{label}[{index}] wire mismatch: merged={merged:?}; oracle={oracle:?}")
-                });
-            }
+    pub(crate) fn record_cp_transition(
+        before: &CpScanOwnership,
+        after: &CpScanOwnership,
+        closure_witness: bool,
+    ) {
+        if !ACTIVE.load(Ordering::SeqCst) {
+            return;
         }
-        (count, first)
+        CP_TRANSITIONS
+            .lock()
+            .expect("#1087 cp probe mutex poisoned")
+            .push(WireCpTransition {
+                before: wire_cp_ownership(before),
+                after: wire_cp_ownership(after),
+                closure_witness,
+            });
+    }
+
+    pub(super) fn active() -> bool {
+        ACTIVE.load(Ordering::SeqCst)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -614,7 +759,6 @@ pub(crate) mod issue1087_probe {
         centers: &[Center],
         segments: &[Segment],
         anchor_dirs: Option<&[Option<Direction>]>,
-        departure_ends: Option<&[usize]>,
         blocks: &[MoveBlock],
         hist: &[f64],
         dif: &[f64],
@@ -626,55 +770,13 @@ pub(crate) mod issue1087_probe {
         pan_divs: &[PanDivCert],
         grades: &[FirstClassGradeRecord],
         observations: &[CandidateObservation],
+        emissions: Vec<WireScanSinkEmission>,
     ) {
         let anchors_self: Vec<Option<Direction>> = segments
             .iter()
             .map(|segment| Some(segment.direction))
             .collect();
         let anchors = anchor_dirs.unwrap_or(&anchors_self);
-        let mut full_grades = Vec::new();
-        let (full_points, full_pan_divs) = signal::extract_signals_with_hist_anchored(
-            centers,
-            segments,
-            anchor_dirs,
-            departure_ends,
-            hist,
-            dif,
-            closes_tick,
-            close_src,
-            gauge,
-            strokes,
-            &mut full_grades,
-        );
-        for grade in &mut full_grades {
-            grade.level = level;
-        }
-        let full_observations = cand_event::observations_for_level(
-            level,
-            centers,
-            blocks,
-            segments,
-            anchors,
-            close_src,
-            &full_pan_divs,
-        );
-
-        let merged = wire_output(points, pan_divs, grades, observations);
-        let oracle = wire_output(
-            &full_points,
-            &full_pan_divs,
-            &full_grades,
-            &full_observations,
-        );
-        let (point_mismatches, point_first) =
-            snapshot_mismatches(&merged.points, &oracle.points, "points");
-        let (pan_div_mismatches, pan_first) =
-            snapshot_mismatches(&merged.pan_divs, &oracle.pan_divs, "pan_divs");
-        let (grade_mismatches, grade_first) =
-            snapshot_mismatches(&merged.grades, &oracle.grades, "grades");
-        let (observation_mismatches, observation_first) =
-            snapshot_mismatches(&merged.observations, &oracle.observations, "observations");
-
         let any_trend = blocks.iter().any(|block| block.kind == MoveKind::Trend);
         let episode_cases = segments
             .iter()
@@ -704,7 +806,7 @@ pub(crate) mod issue1087_probe {
                 })
             })
             .collect();
-        let rows = segments
+        let rows: Vec<_> = segments
             .iter()
             .map(|segment| WireSegmentRow {
                 direction: segment.direction.into(),
@@ -714,23 +816,119 @@ pub(crate) mod issue1087_probe {
                 end_price: segment.end_price,
             })
             .collect();
+        let wire_centers: Vec<_> = centers.iter().copied().map(Into::into).collect();
+        let wire_blocks: Vec<_> = blocks.iter().copied().map(Into::into).collect();
+        let trend_gate: Vec<Option<WireDirection>> = (0..centers.len())
+            .map(|index| center_own_dir_at(blocks, index).map(Into::into))
+            .collect();
+        let first_match_idx = centers
+            .iter()
+            .map(|center| {
+                centers.iter().position(|candidate| {
+                    candidate.end_index == center.end_index
+                        && candidate.zd == center.zd
+                        && candidate.zg == center.zg
+                })
+            })
+            .collect();
+        let a_segments = centers
+            .iter()
+            .enumerate()
+            .map(|(index, center)| {
+                let direction = center_own_dir_at(blocks, index)?;
+                let previous = centers.get(index.checked_sub(1)?)?;
+                locate_departure_move_a(segments, &anchors_self, previous, center, direction)
+                    .and_then(|span| {
+                        move_range_envelope(segments, span).map(|(low, high)| {
+                            WireASegmentEnvelope {
+                                span: span.into(),
+                                low,
+                                high,
+                            }
+                        })
+                    })
+            })
+            .collect();
+        let prelude_input = WirePreludeInput {
+            rows: rows.clone(),
+            centers: wire_centers,
+            blocks: wire_blocks,
+        };
+        let prelude_output = WirePreludeOutput {
+            segments_sorted: segments
+                .windows(2)
+                .all(|pair| pair[0].start_index <= pair[1].start_index),
+            centers_sorted: centers
+                .windows(2)
+                .all(|pair| pair[0].end_index < pair[1].end_index),
+            anchors: anchors.iter().map(|value| value.map(Into::into)).collect(),
+            trend_gate,
+            first_match_idx,
+            a_segments,
+        };
+
+        // 在真实窗口上显式执行现役 CandDelta provider。它只产侧车验收案例，不作四输出 oracle。
+        let cand_events = level_cand_delta(
+            level,
+            centers,
+            None,
+            segments,
+            None,
+            anchor_dirs,
+            hist,
+            dif,
+            closes_tick,
+            close_src,
+            gauge,
+            strokes,
+        );
+        let cand_delta_cases = cand_events
+            .into_iter()
+            .filter_map(|event| {
+                let segment = segments
+                    .iter()
+                    .find(|segment| segment.end_index == event.divergence_confirm_src)?;
+                let center_index =
+                    signal::nearest_confirmed_center_idx(centers, segment.start_index)?;
+                let center = centers.get(center_index)?;
+                let departure_dir = match event.side {
+                    Side::Long => Direction::Down,
+                    Side::Short => Direction::Up,
+                };
+                Some(WireCandDeltaCase {
+                    side: event.side.into(),
+                    divergence_confirm_src: event.divergence_confirm_src,
+                    a_interval: event.a_interval.into(),
+                    center: (*center).into(),
+                    departure_dir: departure_dir.into(),
+                    until_start: segment.start_index,
+                    trigger_end: segment.end_index,
+                    accepted: true,
+                    buy1: event.cand_delta && event.side == Side::Long,
+                    sell1: event.cand_delta && event.side == Side::Short,
+                    confirm_src: event.confirm_src,
+                    interval: event.interval.into(),
+                    c_episode_start: event.c_episode_start,
+                    c_episode_interval: event.c_episode_interval.into(),
+                    enter_src: event.enter_src,
+                    cand_delta: event.cand_delta,
+                })
+            })
+            .collect();
+
         RECORDS
             .lock()
             .expect("#1087 probe mutex poisoned")
             .push(ScanParityRecord {
                 level,
-                merged,
-                oracle,
-                point_mismatches,
-                pan_div_mismatches,
-                grade_mismatches,
-                observation_mismatches,
-                first_mismatch: point_first
-                    .or(pan_first)
-                    .or(grade_first)
-                    .or(observation_first),
+                rust_output: wire_output(points, pan_divs, grades, observations),
+                emissions,
+                prelude_input,
+                prelude_output,
                 rows,
                 episode_cases,
+                cand_delta_cases,
+                cp_transitions: Vec::new(),
             });
     }
 }
@@ -745,6 +943,86 @@ pub(crate) struct MergedScanOutput {
     pub pan_divs: Vec<PanDivCert>,
     pub grades: Vec<FirstClassGradeRecord>,
     pub observations: Vec<CandidateObservation>,
+}
+
+/// 为 #1087 提取一次 fresh 生产扫描的逐段原始 sink。这里只调用合并扫描的单段核，
+/// 不调用 `extract_signals_with_hist_anchored` 或 `observations_for_level` legacy oracle。
+#[cfg(feature = "issue1087_parity")]
+#[allow(clippy::too_many_arguments)]
+fn issue1087_scan_sink_emissions(
+    level: u32,
+    centers: &[Center],
+    segments: &[Segment],
+    anchor_dirs: Option<&[Option<Direction>]>,
+    departure_ends: Option<&[usize]>,
+    blocks: &[MoveBlock],
+    hist: &[f64],
+    dif: &[f64],
+    closes_tick: &[Tick],
+    close_src: &[usize],
+    gauge: DivergenceGauge,
+    strokes: &[Stroke],
+) -> Vec<issue1087_probe::WireScanSinkEmission> {
+    let anchors_self: Vec<Option<Direction>> = segments
+        .iter()
+        .map(|segment| Some(segment.direction))
+        .collect();
+    let anchors = anchor_dirs.unwrap_or(&anchors_self);
+    let any_trend = blocks.iter().any(|block| block.kind == MoveKind::Trend);
+    let any_consol = blocks
+        .iter()
+        .any(|block| block.kind == MoveKind::Consolidation && block.level_lift == 0);
+    let mut a_seg_cache: ASegCache = HashMap::new();
+    let mut emissions = Vec::with_capacity(segments.len());
+    for (index, segment) in segments.iter().enumerate() {
+        let Some(center_index) = signal::nearest_confirmed_center_idx(centers, segment.start_index)
+        else {
+            continue;
+        };
+        let gate_dir = if any_trend {
+            center_own_dir_at(blocks, center_index).map(|direction| (center_index, direction))
+        } else {
+            None
+        };
+        let kind_consol = any_consol
+            && center_block_kind_at(blocks, center_index) == Some(MoveKind::Consolidation)
+            && center_block_lift_at(blocks, center_index) == Some(0);
+        let mut points = Vec::new();
+        let mut pan_divs = Vec::new();
+        let mut grades = Vec::new();
+        let mut candidate_legs = Vec::new();
+        merged_judge_segment(
+            index,
+            segment,
+            center_index,
+            gate_dir,
+            kind_consol,
+            segments,
+            anchors,
+            &anchors_self,
+            centers,
+            &mut a_seg_cache,
+            hist,
+            dif,
+            closes_tick,
+            close_src,
+            gauge,
+            strokes,
+            level,
+            departure_ends,
+            &mut points,
+            &mut pan_divs,
+            &mut grades,
+            &mut candidate_legs,
+        );
+        emissions.push(issue1087_probe::wire_emission(
+            &points,
+            &pan_divs,
+            &grades,
+            &candidate_legs,
+        ));
+    }
+    emissions
 }
 
 /// ★3a 生产合并扫描的 frontier-resume 入口（替代旧 `extract_first_third_resume` +
@@ -928,7 +1206,7 @@ pub(crate) fn merged_scan_resume(
 
     #[cfg(feature = "issue1087_parity")]
     if issue1087_probe::active() {
-        issue1087_probe::record(
+        let emissions = issue1087_scan_sink_emissions(
             level,
             centers,
             segments,
@@ -941,10 +1219,24 @@ pub(crate) fn merged_scan_resume(
             close_src,
             gauge,
             strokes,
+        );
+        issue1087_probe::record(
+            level,
+            centers,
+            segments,
+            anchor_dirs,
+            blocks,
+            hist,
+            dif,
+            closes_tick,
+            close_src,
+            gauge,
+            strokes,
             &points,
             &pan_divs,
             &grades,
             &observations,
+            emissions,
         );
     }
 

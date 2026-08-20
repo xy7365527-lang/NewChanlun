@@ -2006,12 +2006,16 @@ pub fn advance_cp_lifecycles(
             third,
             unit_moves,
         );
+        #[cfg(feature = "issue1087_parity")]
+        let issue1087_cp_before = object.clone();
         object.lifecycle = CpLifecycleStatus::Closed;
         object.cp_certificate_confirm_src = Some(cert.point.source_index);
         object.c_structure = Some(structure);
         object.third_class_in_c = Some(third);
         object.full_trend_evidence = evidence;
         object.full_trend_c_qualified = qualification;
+        #[cfg(feature = "issue1087_parity")]
+        super::scan::issue1087_probe::record_cp_transition(&issue1087_cp_before, object, true);
     }
 }
 

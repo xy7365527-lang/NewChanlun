@@ -23,9 +23,10 @@ checkpoint 输出不是 delta，不暴露 cached_* 内部状态。末根也没�
 独立 wire 与逐字段检查，不从 scan wire 提取或推导。pan_div_diag 仍是诊断字段，不进入判定桥。
 c_p stable-revision 单调定理留在 ScanAssemblyMirror，c_p 不是 MergedScanOutput 的第五件输出。
 
-本桥只验证 Rust wire decode 后与调用方给定 `MergedScanOutput` 的逐字段一致，不等于调用
-`assembleMergedOutput` 从独立输入重算。#1087 当前最小切片尚未把 scan prelude emissions 或
-sidecar 的 Rust 提取接入一条 Lean 执行链，因此不得把本桥的通过表述成完整扫描独立重算通过。
+本桥另把原始 rows/centers/blocks 交给 `recomputeRustPrelude`，不从 Rust prelude 输出回填 Lean；
+CandDelta 只给装配输入与 Rust 事件，c_p 只给 before+witness 与 Rust after。四输出只给生产扫描的
+逐段、未排序、未归约 sink，Lean 通过 `recomputeMergedOutput` 独立执行排序、同 key 腿归约、
+Pan 投影和 FNV 身份。桥中没有 Rust legacy oracle，也不接收预制的 Lean 期望输出。
 -/
 
 import Origin.ScanAssemblyMirror
@@ -122,6 +123,70 @@ def RustSegmentExtraction.toLean (row : RustSegmentExtraction) : SegmentRow :=
     startPrice := row.startPrice
     endPrice := row.endPrice }
 
+inductive RustMoveKindTag where | trend | consolidation
+deriving DecidableEq, Repr
+
+def RustMoveKindTag.toLean : RustMoveKindTag → MoveKind
+  | RustMoveKindTag.trend => MoveKind.trend
+  | RustMoveKindTag.consolidation => MoveKind.consolidation
+
+structure RustMoveBlockExtraction where
+  startCenter : Nat
+  endCenter : Nat
+  kind : RustMoveKindTag
+  direction : Option RustDirectionTag
+  levelLift : Nat
+deriving DecidableEq, Repr
+
+def RustMoveBlockExtraction.toLean (block : RustMoveBlockExtraction) : MoveBlockFrame :=
+  { startCenter := block.startCenter, endCenter := block.endCenter, kind := block.kind.toLean
+    direction := block.direction.map RustDirectionTag.toLean, levelLift := block.levelLift }
+
+structure RustASegmentEnvelopeExtraction where
+  span : RustIntervalExtraction
+  low : Int
+  high : Int
+deriving DecidableEq, Repr
+
+def RustASegmentEnvelopeExtraction.toLean
+    (value : RustASegmentEnvelopeExtraction) : ASegmentEnvelope :=
+  { span := value.span.toLean, bEnvelope := (value.low, value.high) }
+
+structure RustPreludeInputExtraction where
+  rows : List RustSegmentExtraction
+  centers : List RustCenterExtraction
+  blocks : List RustMoveBlockExtraction
+deriving DecidableEq, Repr
+
+structure RustPreludeOutputExtraction where
+  segmentsSorted : Bool
+  centersSorted : Bool
+  anchors : List (Option RustDirectionTag)
+  trendGate : List (Option RustDirectionTag)
+  firstMatchIdx : List (Option Nat)
+  aSegments : List (Option RustASegmentEnvelopeExtraction)
+deriving DecidableEq, Repr
+
+def RustPreludeOutputExtraction.toLean (output : RustPreludeOutputExtraction) : PreludeOutput :=
+  { segmentsSorted := output.segmentsSorted, centersSorted := output.centersSorted
+    anchors := output.anchors.map (Option.map RustDirectionTag.toLean)
+    trendGate := output.trendGate.map (Option.map RustDirectionTag.toLean)
+    firstMatchIdx := output.firstMatchIdx
+    aSegments := output.aSegments.map (Option.map RustASegmentEnvelopeExtraction.toLean) }
+
+def recomputeRustPrelude (input : RustPreludeInputExtraction) : PreludeOutput :=
+  recomputePrelude (input.rows.map RustSegmentExtraction.toLean)
+    (input.centers.map RustCenterExtraction.toLean)
+    (input.blocks.map RustMoveBlockExtraction.toLean)
+
+def PreludeParity (rust : RustPreludeOutputExtraction) (lean : PreludeOutput) : Prop :=
+  rust.toLean = lean
+
+instance preludeParityDecidable (rust : RustPreludeOutputExtraction) (lean : PreludeOutput) :
+    Decidable (PreludeParity rust lean) := by
+  unfold PreludeParity
+  infer_instance
+
 /-! ## §3 event / cp_ownership 侧车 -/
 
 structure RustPredicateExtraction where
@@ -191,6 +256,11 @@ def EventParity (rust : RustEventExtraction) (lean : CandDeltaEvent) : Prop :=
   rust.enterSrc = lean.enterSrc ∧
   rust.candDelta = lean.candDelta
 
+instance eventParityDecidable (rust : RustEventExtraction) (lean : CandDeltaEvent) :
+    Decidable (EventParity rust lean) := by
+  unfold EventParity
+  infer_instance
+
 structure RustCpExtraction where
   level : Nat
   bCenterOrdinal : Nat
@@ -198,6 +268,11 @@ structure RustCpExtraction where
   sourceStart : Option Nat
   lifecycle : RustCpLifecycleTag
 deriving DecidableEq, Repr
+
+def RustCpExtraction.toLean (value : RustCpExtraction) : CpOwnership :=
+  { level := value.level, bCenterOrdinal := value.bCenterOrdinal
+    departureMoveOrdinal := value.departureMoveOrdinal, sourceStart := value.sourceStart
+    lifecycle := value.lifecycle.toLean }
 
 /-- c_p 稳定身份四字段与生命周期逐项比对。 -/
 def CpParity (rust : RustCpExtraction) (lean : CpOwnership) : Prop :=
@@ -221,6 +296,11 @@ def EventCheck (rustInput : RustAssemblyInputExtraction)
   | some rust, some lean => EventParity rust lean
   | _, _ => False
 
+instance eventCheckDecidable (rustInput : RustAssemblyInputExtraction)
+    (rustEvent : Option RustEventExtraction) : Decidable (EventCheck rustInput rustEvent) := by
+  cases rustEvent <;> cases hLean : assembleCandDelta rustInput.toLean <;>
+    simp only [EventCheck, hLean] <;> infer_instance
+
 def EventListCheck :
     List RustAssemblyInputExtraction → List (Option RustEventExtraction) → Prop
   | [], [] => True
@@ -232,6 +312,16 @@ def EventListCheck :
 def StableCpCheck (rustBefore rustAfter : RustCpExtraction) (leanBefore : CpOwnership)
     (closureWitness : Bool) : Prop :=
   CpParity rustBefore leanBefore ∧ CpParity rustAfter (leanBefore.advance closureWitness)
+
+/-- 验收入口只给 Rust before 原始对象与 closure witness；Lean 自己推进，Rust after 是被检侧。 -/
+def RecomputeStableCpCheck (rustBefore rustAfter : RustCpExtraction)
+    (closureWitness : Bool) : Prop :=
+  CpParity rustAfter (rustBefore.toLean.advance closureWitness)
+
+instance recomputeStableCpCheckDecidable (rustBefore rustAfter : RustCpExtraction)
+    (closureWitness : Bool) : Decidable (RecomputeStableCpCheck rustBefore rustAfter closureWitness) := by
+  unfold RecomputeStableCpCheck CpParity
+  infer_instance
 
 def StableCpListCheck :
     List RustCpExtraction → List RustCpExtraction → List CpOwnership → List Bool → Prop
@@ -437,6 +527,25 @@ def RustCandidateObservationExtraction.toLean
     state := observation.state.toLean, firstProvableAt := observation.firstProvableAt
     confirmedAt := observation.confirmedAt }
 
+/-- Rust 生产扫描逐段发出的未排序、未归约 sink；不是 legacy oracle 或最终输出。 -/
+structure RustScanSinkEmissionExtraction where
+  bspPoints : List RustBspPointExtraction
+  panDivCerts : List RustPanDivCertExtraction
+  firstClassGrades : List RustFirstClassGradeExtraction
+  candidateLegs : List RustCandidateObservationExtraction
+deriving DecidableEq, Repr
+
+def RustScanSinkEmissionExtraction.toLean
+    (emission : RustScanSinkEmissionExtraction) : ScanSinkEmission :=
+  { bspPoints := emission.bspPoints.map RustBspPointExtraction.toLean
+    panDivCerts := emission.panDivCerts.map RustPanDivCertExtraction.toLean
+    firstClassGrades := emission.firstClassGrades.map RustFirstClassGradeExtraction.toLean
+    candidateLegs := emission.candidateLegs.map RustCandidateObservationExtraction.toLean }
+
+def recomputeRustScanSinkEmissions (level : Nat)
+    (emissions : List RustScanSinkEmissionExtraction) : MergedScanOutput :=
+  recomputeMergedOutput level (emissions.map RustScanSinkEmissionExtraction.toLean)
+
 /-! ## §8 checkpoint / 末根完整快照 -/
 
 structure RustMergedScanOutputExtraction where
@@ -548,8 +657,8 @@ def ObservationsParity :
   | _, _ => false
 
 /--
-四件输出不经整体结构等式捷径，分别走各自同长同序、逐字段列表桥。这里只比较 Rust wire
-decode 与调用方给定的 Lean 输出；不调用 `assembleMergedOutput`，不构成 scan prelude 独立重算。
+四件输出不经整体结构等式捷径，分别走各自同长同序、逐字段列表桥。验收调用方必须把
+`recomputeRustScanSinkEmissions` 的 Lean 重算结果放在右侧，不能把 Rust 最终输出 decode 后回填。
 -/
 def MergedOutputParity
     (rust : RustMergedScanOutputExtraction) (lean : MergedScanOutput) : Prop :=

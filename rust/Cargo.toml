@@ -44,7 +44,7 @@ nautilus = ["dep:nautilus-model", "dep:nautilus-common", "dep:nautilus-trading",
 # CLI 生产入口：解 theta_v0::backtest 的 #[cfg(test)] 门控为公开 API，链接 run_theta_v0_pi/load_by_symbol。
 #   含 nautilus：CLI ⑥ 用真实 BacktestEngine（task#8 acceptance[5]）。
 backtest_bin = ["nautilus", "dep:sha2"]
-# #1087 Rust merged↔legacy full oracle + Lean wire bridge 验收探针。只打开只读诊断面；普通构建不编译。
+# #1087 Rust 生产输出 + 逐段 sink → Lean 独立重算逐字段对拍。只打开只读诊断面；普通构建不编译。
 issue1087_parity = []
 
 # ── CLI 生产入口（goal acceptance[5]：CLI 能驱动 S_Θ 产回测结果）。 ──

@@ -1,5 +1,6 @@
-//! #1087 真实 EQUS.MINI 窗口签收：Rust merged 对 Rust legacy full oracle，Lean 验完整 wire
-//! 逐字段 bridge parity 与 λ_C（显式 ignored 重型测试；Lean 不独立重算四输出）。
+//! #1087 真实 EQUS.MINI 窗口签收：Rust 生产 merged 是被检侧；Lean 从原始
+//! rows/centers/blocks 重算 prelude，从逐段 sink 重算四输出，并重算 CandDelta 装配与 c_p
+//! stable-revision 推进。三标的各 200k bars，L0/L1/L2 逐字段硬门；无 legacy oracle。
 use newchan_rust::theta_v0::{
     classifier::{self, issue1087_parity},
     config::ThetaConfig,
@@ -7,15 +8,14 @@ use newchan_rust::theta_v0::{
     types::Bar,
 };
 use std::{
-    fs::{self, File, OpenOptions},
+    collections::BTreeMap,
+    fs::{self, File},
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::Command,
 };
 
 const BAR_COUNT: usize = 200_000;
-const TOTAL_BAR_COUNT: usize = 3 * BAR_COUNT;
-const SYMBOL: &str = "COST";
 const YEARS: [u32; 4] = [2023, 2024, 2025, 2026];
 const NS_PER_MINUTE: i64 = 60_000_000_000;
 const NANOS_PER_CENT: i64 = 10_000_000;
@@ -23,6 +23,8 @@ const NANOS_PER_CENT: i64 = 10_000_000;
 #[derive(Clone, Copy)]
 struct MinuteBar {
     minute: i64,
+    first_event: i64,
+    last_event: i64,
     open: i64,
     high: i64,
     low: i64,
@@ -39,19 +41,19 @@ struct WindowSpec {
 
 const WINDOWS: [WindowSpec; 3] = [
     WindowSpec {
-        symbol: SYMBOL,
+        symbol: "AAPL",
         start: 0,
         end: BAR_COUNT,
     },
     WindowSpec {
-        symbol: SYMBOL,
-        start: BAR_COUNT,
-        end: 2 * BAR_COUNT,
+        symbol: "MSFT",
+        start: 0,
+        end: BAR_COUNT,
     },
     WindowSpec {
-        symbol: SYMBOL,
-        start: 2 * BAR_COUNT,
-        end: 3 * BAR_COUNT,
+        symbol: "NVDA",
+        start: 0,
+        end: BAR_COUNT,
     },
 ];
 
@@ -65,35 +67,15 @@ fn windows_are_pairwise_disjoint(windows: &[WindowSpec]) -> bool {
 }
 
 #[test]
-fn three_acceptance_windows_are_same_symbol_contiguous_and_disjoint() {
+fn three_acceptance_windows_are_three_symbols_and_pairwise_disjoint() {
     assert!(windows_are_pairwise_disjoint(&WINDOWS));
+    assert!(WINDOWS.iter().enumerate().all(|(index, left)| WINDOWS
+        .iter()
+        .skip(index + 1)
+        .all(|right| left.symbol != right.symbol)));
     assert!(WINDOWS
-        .windows(2)
-        .all(|pair| { pair[0].symbol == pair[1].symbol && pair[0].end == pair[1].start }));
-    assert_eq!(WINDOWS[0].start, 0);
-    assert_eq!(WINDOWS[2].end, TOTAL_BAR_COUNT);
-}
-
-/// 确定性锯齿，仅用于执行 wire 序列化/Lean bridge smoke；不冒充真实行情或独立语义 oracle。
-fn synthetic_bridge_bars() -> Vec<Bar> {
-    let mut bars = Vec::with_capacity(480);
-    let mut close = 100_000i64;
-    for source_index in 0..480usize {
-        let swing = source_index / 7;
-        let direction = if swing % 2 == 0 { 1 } else { -1 };
-        close += direction * (300 + (swing % 7) as i64 * 10);
-        bars.push(Bar {
-            source_index,
-            timestamp: source_index as i64 * NS_PER_MINUTE,
-            open: close,
-            high: close + 50,
-            low: close - 50,
-            close,
-            volume: 1_000.0,
-            untradable: false,
-        });
-    }
-    bars
+        .iter()
+        .all(|window| window.start == 0 && window.end - window.start == BAR_COUNT));
 }
 
 fn parse_trade(line: &str, path: &Path, line_no: usize) -> (i64, i64, f64) {
@@ -112,55 +94,61 @@ fn parse_trade(line: &str, path: &Path, line_no: usize) -> (i64, i64, f64) {
 
 fn load_bars(root: &Path, symbol: &str, required: usize) -> Vec<Bar> {
     let mut completed = Vec::with_capacity(required);
-    let mut active: Option<MinuteBar> = None;
-    'years: for year in YEARS {
+    for year in YEARS {
         let path = root.join(format!("{symbol}_{year}_trades.json"));
         let mut lines = BufReader::new(
-            File::open(&path).unwrap_or_else(|e| panic!("无法读取 {}: {e}", path.display())),
+            File::open(&path)
+                .unwrap_or_else(|error| panic!("无法读取 {}: {error}", path.display())),
         )
         .lines();
         assert_eq!(lines.next().unwrap().unwrap(), "ts_recv,ts_event,rtype,publisher_id,instrument_id,action,side,depth,price,size,flags,ts_in_delta,sequence");
+        // Databento 文件按接收序落行，ts_event 可小幅倒序。按 event-time 分钟聚合，禁止把行序
+        // 当作行情时序；OHLC 的 open/close 也由分钟内首末 ts_event 决定。
+        let mut minutes: BTreeMap<i64, MinuteBar> = BTreeMap::new();
         for (offset, line) in lines.enumerate() {
             let (timestamp, raw_price, size) = parse_trade(&line.unwrap(), &path, offset + 2);
             let minute = timestamp.div_euclid(NS_PER_MINUTE);
             assert!(raw_price >= 0, "价格必须非负");
             let price = (raw_price + NANOS_PER_CENT / 2) / NANOS_PER_CENT;
-            match active.as_mut() {
-                Some(bar) if bar.minute == minute => {
+            minutes
+                .entry(minute)
+                .and_modify(|bar| {
                     bar.high = bar.high.max(price);
                     bar.low = bar.low.min(price);
-                    bar.close = price;
                     bar.volume += size;
-                }
-                Some(bar) => {
-                    assert!(minute > bar.minute, "{} 时间戳非单调", path.display());
-                    completed.push(*bar);
-                    if completed.len() == required {
-                        break 'years;
+                    if timestamp < bar.first_event {
+                        bar.first_event = timestamp;
+                        bar.open = price;
                     }
-                    active = Some(MinuteBar {
-                        minute,
-                        open: price,
-                        high: price,
-                        low: price,
-                        close: price,
-                        volume: size,
-                    });
-                }
-                None => {
-                    active = Some(MinuteBar {
-                        minute,
-                        open: price,
-                        high: price,
-                        low: price,
-                        close: price,
-                        volume: size,
-                    })
-                }
-            }
+                    if timestamp >= bar.last_event {
+                        bar.last_event = timestamp;
+                        bar.close = price;
+                    }
+                })
+                .or_insert(MinuteBar {
+                    minute,
+                    first_event: timestamp,
+                    last_event: timestamp,
+                    open: price,
+                    high: price,
+                    low: price,
+                    close: price,
+                    volume: size,
+                });
+        }
+        completed.extend(minutes.into_values());
+        if completed.len() >= required {
+            break;
         }
     }
-    assert_eq!(completed.len(), required, "{symbol} 可用完整 1m bars 不足");
+    assert!(
+        completed.len() >= required,
+        "{symbol} 可用完整 1m bars 不足"
+    );
+    completed.truncate(required);
+    assert!(completed
+        .windows(2)
+        .all(|pair| pair[0].minute < pair[1].minute));
     completed
         .into_iter()
         .enumerate()
@@ -181,6 +169,13 @@ fn lean_dir(direction: issue1087_parity::WireDirection) -> &'static str {
     match direction {
         issue1087_parity::WireDirection::Up => "Direction.up",
         issue1087_parity::WireDirection::Down => "Direction.down",
+    }
+}
+
+fn rust_dir(direction: issue1087_parity::WireDirection) -> &'static str {
+    match direction {
+        issue1087_parity::WireDirection::Up => "RustDirectionTag.up",
+        issue1087_parity::WireDirection::Down => "RustDirectionTag.down",
     }
 }
 
@@ -450,155 +445,228 @@ fn output(value: &issue1087_parity::WireMergedScanOutput, rust: bool) -> String 
     )
 }
 
+fn emission(value: &issue1087_parity::WireScanSinkEmission) -> String {
+    format!(
+        "{{ bspPoints := {}, panDivCerts := {}, firstClassGrades := {}, candidateLegs := {} }}",
+        list(&value.points, |value| point(value, true)),
+        list(&value.pan_divs, |value| pan(value, true)),
+        list(&value.grades, |value| grade_record(value, true)),
+        list(&value.candidate_legs, |value| observation(value, true))
+    )
+}
+
+fn segment_extraction(value: &issue1087_parity::WireSegmentRow) -> String {
+    format!(
+        "{{ direction := {}, startIndex := {}, endIndex := {}, startPrice := {}, endPrice := {} }}",
+        rust_dir(value.direction),
+        value.start_index,
+        value.end_index,
+        value.start_price,
+        value.end_price
+    )
+}
+
+fn move_block(value: &issue1087_parity::WireMoveBlock) -> String {
+    let kind = match value.kind {
+        issue1087_parity::WireMoveKind::Trend => "RustMoveKindTag.trend",
+        issue1087_parity::WireMoveKind::Consolidation => "RustMoveKindTag.consolidation",
+    };
+    format!(
+        "{{ startCenter := {}, endCenter := {}, kind := {}, direction := {}, levelLift := {} }}",
+        value.start_center,
+        value.end_center,
+        kind,
+        option(&value.direction, |direction| rust_dir(*direction)
+            .to_string()),
+        value.level_lift
+    )
+}
+
+fn a_segment(value: &issue1087_parity::WireASegmentEnvelope) -> String {
+    format!(
+        "{{ span := {}, low := {}, high := {} }}",
+        interval(&value.span, true),
+        value.low,
+        value.high
+    )
+}
+
+fn prelude_input(value: &issue1087_parity::WirePreludeInput) -> String {
+    format!(
+        "{{ rows := {}, centers := {}, blocks := {} }}",
+        list(&value.rows, segment_extraction),
+        list(&value.centers, center),
+        list(&value.blocks, move_block)
+    )
+}
+
+fn prelude_output(value: &issue1087_parity::WirePreludeOutput) -> String {
+    format!(
+        "{{ segmentsSorted := {}, centersSorted := {}, anchors := {}, trendGate := {}, firstMatchIdx := {}, aSegments := {} }}",
+        value.segments_sorted,
+        value.centers_sorted,
+        list(&value.anchors, |entry| option(entry, |direction| rust_dir(*direction).to_string())),
+        list(&value.trend_gate, |entry| option(entry, |direction| rust_dir(*direction).to_string())),
+        list(&value.first_match_idx, |entry| option(entry, |index| index.to_string())),
+        list(&value.a_segments, |entry| option(entry, a_segment))
+    )
+}
+
+fn cp_lifecycle(value: issue1087_parity::WireCpLifecycle) -> &'static str {
+    match value {
+        issue1087_parity::WireCpLifecycle::Pending => "RustCpLifecycleTag.pending",
+        issue1087_parity::WireCpLifecycle::Closed => "RustCpLifecycleTag.closed",
+    }
+}
+
+fn cp_ownership(value: &issue1087_parity::WireCpOwnership) -> String {
+    format!(
+        "{{ level := {}, bCenterOrdinal := {}, departureMoveOrdinal := {}, sourceStart := {}, lifecycle := {} }}",
+        value.level,
+        value.b_center_ordinal,
+        option(&value.departure_move_ordinal, |ordinal| ordinal.to_string()),
+        option(&value.source_start, |source| source.to_string()),
+        cp_lifecycle(value.lifecycle)
+    )
+}
+
 fn write_fixture(path: &Path, records: &[issue1087_parity::ScanParityRecord]) {
     let mut out = File::create(path).unwrap();
     writeln!(out, "import Origin.ScanAssemblyBridge\nset_option maxRecDepth 1000000\nset_option maxHeartbeats 0\nnamespace Issue1087Generated\nopen NewChanlun.Origin.ScanAssemblyMirror\nopen NewChanlun.Origin.ScanAssemblyBridge").unwrap();
     for (record_index, record) in records.iter().enumerate() {
         writeln!(
             out,
-            "def rustMerged{record_index} : RustMergedScanOutputExtraction := {}",
-            output(&record.merged, true)
+            "def preludeInput{record_index} : RustPreludeInputExtraction := {}",
+            prelude_input(&record.prelude_input)
         )
         .unwrap();
         writeln!(
             out,
-            "def oracleMerged{record_index} : MergedScanOutput := {}",
-            output(&record.oracle, false)
+            "def rustPrelude{record_index} : RustPreludeOutputExtraction := {}",
+            prelude_output(&record.prelude_output)
         )
         .unwrap();
-        writeln!(out, "example : MergedOutputParity rustMerged{record_index} oracleMerged{record_index} := by native_decide").unwrap();
-        writeln!(out, "abbrev rows{record_index} : List SegmentRow := [").unwrap();
-        for row in &record.rows {
-            writeln!(out, "{{ direction := {}, startIndex := {}, endIndex := {}, startPrice := {}, endPrice := {} }},",
-                lean_dir(row.direction), row.start_index, row.end_index, row.start_price, row.end_price).unwrap();
+        writeln!(
+            out,
+            "def leanPrelude{record_index} : PreludeOutput := recomputeRustPrelude preludeInput{record_index}"
+        )
+        .unwrap();
+        writeln!(out, "example : PreludeParity rustPrelude{record_index} leanPrelude{record_index} := by native_decide").unwrap();
+        writeln!(out, "abbrev rows{record_index} : List SegmentRow := preludeInput{record_index}.rows.map RustSegmentExtraction.toLean").unwrap();
+
+        writeln!(
+            out,
+            "def rustMerged{record_index} : RustMergedScanOutputExtraction := {}",
+            output(&record.rust_output, true)
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "def rustEmissions{record_index} : List RustScanSinkEmissionExtraction := ["
+        )
+        .unwrap();
+        for value in &record.emissions {
+            writeln!(out, "{},", emission(value)).unwrap();
         }
         writeln!(out, "]").unwrap();
-        for (chunk_index, chunk) in record.episode_cases.chunks(128).enumerate() {
+        writeln!(
+            out,
+            "def leanRecomputed{record_index} : MergedScanOutput := recomputeRustScanSinkEmissions {} rustEmissions{record_index}",
+            record.level
+        )
+        .unwrap();
+        // 四件分别立门；任何一个字段、长度或顺序 mismatch 都使 Lean 编译 FAIL。
+        writeln!(out, "example : PointsParity rustMerged{record_index}.points leanRecomputed{record_index}.points = true := by native_decide").unwrap();
+        writeln!(out, "example : PanDivsParity rustMerged{record_index}.panDivs leanRecomputed{record_index}.panDivs = true := by native_decide").unwrap();
+        writeln!(out, "example : GradesParity rustMerged{record_index}.grades leanRecomputed{record_index}.grades = true := by native_decide").unwrap();
+        writeln!(out, "example : ObservationsParity rustMerged{record_index}.observations leanRecomputed{record_index}.observations = true := by native_decide").unwrap();
+        writeln!(out, "example : MergedOutputParity rustMerged{record_index} leanRecomputed{record_index} := by native_decide").unwrap();
+
+        let episode_sample: Vec<_> = record.episode_cases.iter().collect();
+        if !episode_sample.is_empty() {
             write!(out, "example : [").unwrap();
-            for case in chunk {
+            for case in &episode_sample {
                 write!(out, "episodeStart rows{record_index} {{ zd := {}, zg := {}, dd := {}, gg := {}, startIndex := {}, endIndex := {} }} {} {},",
                     case.center_zd, case.center_zg, case.center_dd, case.center_gg,
                     case.center_start_index, case.center_end_index, lean_dir(case.departure_dir), case.until_start).unwrap();
             }
             writeln!(out, "] = [").unwrap();
-            for case in chunk {
+            for case in &episode_sample {
                 match case.rust_lambda_c {
-                    Some(v) => write!(out, "some {v},").unwrap(),
+                    Some(value) => write!(out, "some {value},").unwrap(),
                     None => write!(out, "none,").unwrap(),
                 }
             }
             writeln!(
                 out,
-                "] := by native_decide -- level={} chunk={chunk_index}",
+                "] := by native_decide -- level={} all deterministic λ_C cases",
                 record.level
             )
             .unwrap();
+        }
+
+        for (case_index, case) in record.cand_delta_cases.iter().enumerate() {
+            writeln!(out, "def candInput{record_index}_{case_index} : RustAssemblyInputExtraction := {{ level := {}, side := {}, divergenceConfirmSrc := {}, aIntervalLeft := {}, aIntervalRight := {}, center := {}, departureDir := {}, untilStart := {}, triggerEnd := {}, rows := preludeInput{record_index}.rows, predicate := {{ accepted := {}, buy1 := {}, sell1 := {} }} }}",
+                record.level, side(case.side, true), case.divergence_confirm_src,
+                case.a_interval.left, case.a_interval.right, center(&case.center), rust_dir(case.departure_dir),
+                case.until_start, case.trigger_end, case.accepted, case.buy1, case.sell1).unwrap();
+            writeln!(out, "def candExpected{record_index}_{case_index} : RustEventExtraction := {{ level := {}, side := {}, divergenceConfirmSrc := {}, confirmSrc := {}, intervalLeft := {}, intervalRight := {}, aIntervalLeft := {}, aIntervalRight := {}, cEpisodeStart := {}, cEpisodeLeft := {}, cEpisodeRight := {}, enterSrc := {}, candDelta := {} }}",
+                record.level, side(case.side, true), case.divergence_confirm_src, case.confirm_src,
+                case.interval.left, case.interval.right, case.a_interval.left, case.a_interval.right,
+                case.c_episode_start, case.c_episode_interval.left, case.c_episode_interval.right,
+                case.enter_src, case.cand_delta).unwrap();
+            writeln!(out, "example : EventCheck candInput{record_index}_{case_index} (some candExpected{record_index}_{case_index}) := by native_decide").unwrap();
+        }
+
+        for (transition_index, transition) in record.cp_transitions.iter().enumerate() {
+            writeln!(
+                out,
+                "def cpBefore{record_index}_{transition_index} : RustCpExtraction := {}",
+                cp_ownership(&transition.before)
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "def cpAfter{record_index}_{transition_index} : RustCpExtraction := {}",
+                cp_ownership(&transition.after)
+            )
+            .unwrap();
+            writeln!(out, "example : RecomputeStableCpCheck cpBefore{record_index}_{transition_index} cpAfter{record_index}_{transition_index} {} := by native_decide", transition.closure_witness).unwrap();
         }
     }
     writeln!(out, "end Issue1087Generated").unwrap();
 }
 
-/// synthetic 分类未必产信号；追加一条明确标注为 serializer-only 的非空 Pan 列表，锁住非空 wire。
-fn append_nonempty_wire_serializer_case(path: &Path) {
-    let pan = issue1087_parity::WirePanDivCert {
-        source_index: 13,
-        side: issue1087_parity::WireSide::Long,
-        center: issue1087_parity::WireCenter {
-            zd: 100,
-            zg: 110,
-            dd: 90,
-            gg: 120,
-            start_index: 3,
-            end_index: 9,
-        },
-        seg_a: issue1087_parity::WireInterval { left: 1, right: 2 },
-        seg_c: issue1087_parity::WireInterval {
-            left: 10,
-            right: 13,
-        },
-    };
-    let value = issue1087_parity::WireMergedScanOutput {
-        points: Vec::new(),
-        pan_divs: vec![pan],
-        grades: Vec::new(),
-        observations: Vec::new(),
-    };
-    let mut out = OpenOptions::new().append(true).open(path).unwrap();
-    writeln!(out, "namespace Issue1087SyntheticSerializerOnly\nopen NewChanlun.Origin.ScanAssemblyMirror\nopen NewChanlun.Origin.ScanAssemblyBridge").unwrap();
-    writeln!(
-        out,
-        "def rustNonempty : RustMergedScanOutputExtraction := {}",
-        output(&value, true)
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "def leanNonempty : MergedScanOutput := {}",
-        output(&value, false)
-    )
-    .unwrap();
-    writeln!(out, "example : MergedOutputParity rustNonempty leanNonempty := by native_decide\nend Issue1087SyntheticSerializerOnly").unwrap();
-}
-
-#[test]
-fn synthetic_wire_execution_smoke() {
-    let config = ThetaConfig::default();
-    let bars = synthetic_bridge_bars();
-    issue1087_parity::begin();
-    let layer = parser::parse_layer(&bars, &config);
-    let _ = classifier::classify(&layer, &config, &[]);
-    let records = issue1087_parity::finish();
-    assert!(!records.is_empty(), "synthetic 分类必须经过统一扫描探针");
-    assert!(
-        records.iter().all(|record| record.total_mismatches() == 0),
-        "synthetic Rust merged 必须逐字段等于 Rust legacy full oracle"
-    );
-    assert!(
-        records.iter().any(|record| !record.rows.is_empty()),
-        "synthetic 分类至少应产一条 SegmentRow serializer payload"
-    );
-
-    let formal = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("formal");
-    let fixture = std::env::temp_dir().join(format!(
-        "issue1087-synthetic-wire-{}.lean",
-        std::process::id()
-    ));
-    write_fixture(&fixture, &records);
-    append_nonempty_wire_serializer_case(&fixture);
-    let lean = Command::new("lake")
-        .current_dir(&formal)
-        .args(["env", "lean"])
-        .arg(&fixture)
-        .output()
-        .expect("无法执行 lake env lean");
-    fs::remove_file(&fixture).expect("synthetic Lean fixture 删除失败");
-    assert!(
-        lean.status.success(),
-        "synthetic Lean wire bridge parity/λ_C 执行失败：\n{}",
-        String::from_utf8_lossy(&lean.stderr)
-    );
-}
-
-#[test]
-#[ignore = "#1087 重型签收：需 EQUS_MINI_DIR 和 lake；3×200k 真实 1m bars"]
-fn three_real_windows_match_rust_oracle_and_pass_lean_wire_bridge() {
-    let root = PathBuf::from(std::env::var("EQUS_MINI_DIR").expect("须设置 EQUS_MINI_DIR"));
-    assert!(root.is_dir());
-    assert!(windows_are_pairwise_disjoint(&WINDOWS));
-    let all_bars = load_bars(&root, SYMBOL, TOTAL_BAR_COUNT);
-    assert_eq!(all_bars.len(), TOTAL_BAR_COUNT);
-    assert!(all_bars
-        .windows(2)
-        .all(|pair| pair[0].timestamp < pair[1].timestamp));
-    for pair in WINDOWS.windows(2) {
-        assert!(
-            all_bars[pair[0].end - 1].timestamp < all_bars[pair[1].start].timestamp,
-            "真实 timestamp 窗口必须严格分离"
-        );
+fn equs_mini_root() -> PathBuf {
+    if let Some(root) = std::env::var_os("EQUS_MINI_DIR") {
+        return PathBuf::from(root);
     }
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let output = Command::new("git")
+        .current_dir(manifest)
+        .args(["rev-parse", "--path-format=absolute", "--git-common-dir"])
+        .output()
+        .expect("无法定位 git common dir；可显式设置 EQUS_MINI_DIR");
+    assert!(
+        output.status.success(),
+        "无法定位 git common dir；可显式设置 EQUS_MINI_DIR"
+    );
+    let common = PathBuf::from(String::from_utf8(output.stdout).unwrap().trim());
+    common
+        .parent()
+        .expect("git common dir 没有仓库父目录")
+        .join("analysis/data_cache/equs_mini")
+}
+
+#[test]
+fn three_real_windows_recompute_in_lean_and_match_every_field() {
+    let root = equs_mini_root();
+    assert!(
+        root.is_dir(),
+        "真实 EQUS.MINI 目录不存在：{}；可设置 EQUS_MINI_DIR",
+        root.display()
+    );
+    assert!(windows_are_pairwise_disjoint(&WINDOWS));
     let formal = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
@@ -614,16 +682,22 @@ fn three_real_windows_match_rust_oracle_and_pass_lean_wire_bridge() {
         .expect("无法执行 lake build");
     assert!(
         build.status.success(),
-        "Lean 构建失败：\n{}",
+        "Lean 构建失败：\n{}\n{}",
+        String::from_utf8_lossy(&build.stdout),
         String::from_utf8_lossy(&build.stderr)
     );
+
     let config = ThetaConfig::default();
     for window in WINDOWS {
+        let all_bars = load_bars(&root, window.symbol, window.end);
         let bars = &all_bars[window.start..window.end];
         assert_eq!(bars.len(), BAR_COUNT);
         assert_eq!(bars[0].source_index, window.start);
         assert_eq!(bars[BAR_COUNT - 1].source_index, window.end - 1);
-        assert!(bars.windows(2).all(|p| p[0].timestamp < p[1].timestamp));
+        assert!(bars
+            .windows(2)
+            .all(|pair| pair[0].timestamp < pair[1].timestamp));
+
         issue1087_parity::begin();
         let layer = parser::parse_layer(bars, &config);
         let _ = classifier::classify(&layer, &config, &[]);
@@ -635,12 +709,46 @@ fn three_real_windows_match_rust_oracle_and_pass_lean_wire_bridge() {
                 .collect();
             assert_eq!(matches.len(), 1, "{window:?} L{level} 必须恰有一份末端快照");
             let record = matches[0];
-            assert_eq!(
-                record.total_mismatches(),
-                0,
-                "{window:?} L{level}: {record:#?}"
+            assert!(
+                !record.prelude_input.rows.is_empty(),
+                "{window:?} L{level} prelude rows 不得空"
+            );
+            assert!(
+                !record.prelude_input.centers.is_empty(),
+                "{window:?} L{level} prelude centers 不得空"
+            );
+            assert!(
+                !record.episode_cases.is_empty(),
+                "{window:?} L{level} λ_C 实例不得空"
             );
         }
+        let signed_levels: Vec<_> = records.iter().filter(|record| record.level <= 2).collect();
+        assert!(signed_levels
+            .iter()
+            .any(|record| !record.rust_output.points.is_empty()));
+        assert!(signed_levels
+            .iter()
+            .any(|record| !record.rust_output.pan_divs.is_empty()));
+        assert!(signed_levels
+            .iter()
+            .any(|record| !record.rust_output.grades.is_empty()));
+        assert!(signed_levels
+            .iter()
+            .any(|record| !record.rust_output.observations.is_empty()));
+        assert!(
+            records
+                .iter()
+                .any(|record| !record.cand_delta_cases.is_empty()),
+            "{window:?} 真实 CandDelta 装配实例不得空"
+        );
+        assert!(
+            records
+                .iter()
+                .flat_map(|record| &record.cp_transitions)
+                .any(|transition| transition.closure_witness),
+            "{window:?} 必须实际覆盖至少一条 c_p Pending→Closed"
+        );
+
         let fixture = std::env::temp_dir().join(format!(
             "issue1087-{}-{}-{}-{}.lean",
             window.symbol,
@@ -649,20 +757,40 @@ fn three_real_windows_match_rust_oracle_and_pass_lean_wire_bridge() {
             std::process::id()
         ));
         write_fixture(&fixture, &records);
-        let output = Command::new("lake")
+        let lean = Command::new("lake")
             .current_dir(&formal)
             .args(["env", "lean"])
             .arg(&fixture)
             .output()
             .expect("无法执行 lake env lean");
         assert!(
-            output.status.success(),
-            "{window:?} Lean wire bridge parity/λ_C 验证失败：\n{}\n{}",
-            String::from_utf8_lossy(&output.stderr),
+            lean.status.success(),
+            "{window:?} Lean prelude/四输出/CandDelta/c_p 独立重算 mismatch：\n{}\n{}\nfixture={}",
+            String::from_utf8_lossy(&lean.stdout),
+            String::from_utf8_lossy(&lean.stderr),
             fixture.display()
         );
         fs::remove_file(&fixture).unwrap();
-        eprintln!("#1087 {} bars=[{},{}) levels={} Rust merged↔legacy oracle 四输出=0 mismatch；Lean wire bridge parity + λ_C={} cases verified",
-            window.symbol, window.start, window.end, records.len(), records.iter().map(|r| r.episode_cases.len()).sum::<usize>());
+
+        for level in 0..=2 {
+            let record = records.iter().find(|record| record.level == level).unwrap();
+            eprintln!(
+                "#1087 {} bars=[{},{}) L{} PASS points={} pan_divs={} grades={} observations={} emissions={} prelude_rows={} λ_C_cases={} cand_delta_cases={} cp_transitions={} cp_closed={}",
+                window.symbol,
+                window.start,
+                window.end,
+                level,
+                record.rust_output.points.len(),
+                record.rust_output.pan_divs.len(),
+                record.rust_output.grades.len(),
+                record.rust_output.observations.len(),
+                record.emissions.len(),
+                record.prelude_input.rows.len(),
+                record.episode_cases.len(),
+                record.cand_delta_cases.len(),
+                record.cp_transitions.len(),
+                record.cp_transitions.iter().filter(|transition| transition.closure_witness).count(),
+            );
+        }
     }
 }
