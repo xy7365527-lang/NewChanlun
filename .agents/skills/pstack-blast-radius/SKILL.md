@@ -1,6 +1,6 @@
 ---
 name: pstack-blast-radius
-description: "Use only when BOTH are explicit: an observable behavior/contract change (return value, data shape, error semantics, algorithm result, serialization, or protocol/constant change), and a request for impact outside the diff or a cross-module safety proof — not merely restating what changed. 仅当「可观测的行为或契约语义变化」与「明确要求 diff 之外的跨边界影响核查或安全性证明」两者同时成立时才加载。"
+description: "Use only when BOTH are explicit: an observable behavior/contract change, and the request explicitly asks for impact outside the diff / cross-module proof / proof of safety — e.g. contains one of \"diff 之外影响\", \"跨模块证明\", \"证明安全性\", \"blast radius\", \"outside the diff\", \"cross-module proof\". 仅当「可观测的行为/契约变化」且请求明确出现「diff 之外影响／跨模块证明／证明安全性／blast radius／outside the diff／cross-module proof」之一时才加载。"
 license: MIT
 metadata:
   upstream-repo: cursor/plugins
