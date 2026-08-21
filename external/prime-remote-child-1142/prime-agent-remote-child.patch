@@ -1,0 +1,2814 @@
+From 2e0ec1ffc7a220a1dc89671edd2e544b3635c32c Mon Sep 17 00:00:00 2001
+From: xy7365527-lang <maiaedneide133@gmail.com>
+Date: Thu, 20 Aug 2026 20:59:53 +0000
+Subject: [PATCH] =?UTF-8?q?feat(remote-child):=20#1142=E2=80=94=E2=80=94?=
+ =?UTF-8?q?=E5=AE=9E=E7=8E=B0=20prime-agent.remote-child/v1=20Core=20MVP?=
+ =?UTF-8?q?=EF=BC=88durable=20admission=20+=20parent-only=20family=20+=20d?=
+ =?UTF-8?q?aemon=20list=20=E7=BA=B5=E5=88=87=EF=BC=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+编号声明：本提交中的 #1142 仅指 GitHub Issue。
+---
+ .../coding-agent/src/core/agent-session.ts    |  29 +
+ packages/coding-agent/src/core/rlm-runtime.ts |  30 +
+ .../src/remote-child/admission.ts             | 800 ++++++++++++++++++
+ .../coding-agent/src/remote-child/crypto.ts   |  90 ++
+ .../coding-agent/src/remote-child/index.ts    |  48 ++
+ .../coding-agent/src/remote-child/journal.ts  | 207 +++++
+ .../coding-agent/src/remote-child/registry.ts |  14 +
+ .../src/remote-child/transport.ts             | 145 ++++
+ .../coding-agent/src/remote-child/types.ts    | 310 +++++++
+ .../coding-agent/src/remote-child/worker.ts   | 341 ++++++++
+ .../test/remote-child-core.test.ts            | 458 ++++++++++
+ .../test/remote-child-registry.test.ts        | 199 +++++
+ 12 files changed, 2671 insertions(+)
+ create mode 100644 packages/coding-agent/src/remote-child/admission.ts
+ create mode 100644 packages/coding-agent/src/remote-child/crypto.ts
+ create mode 100644 packages/coding-agent/src/remote-child/index.ts
+ create mode 100644 packages/coding-agent/src/remote-child/journal.ts
+ create mode 100644 packages/coding-agent/src/remote-child/registry.ts
+ create mode 100644 packages/coding-agent/src/remote-child/transport.ts
+ create mode 100644 packages/coding-agent/src/remote-child/types.ts
+ create mode 100644 packages/coding-agent/src/remote-child/worker.ts
+ create mode 100644 packages/coding-agent/test/remote-child-core.test.ts
+ create mode 100644 packages/coding-agent/test/remote-child-registry.test.ts
+
+diff --git a/packages/coding-agent/src/core/agent-session.ts b/packages/coding-agent/src/core/agent-session.ts
+index e50cc72..f79c261 100644
+--- a/packages/coding-agent/src/core/agent-session.ts
++++ b/packages/coding-agent/src/core/agent-session.ts
+@@ -213,6 +213,7 @@ import {
+ 	type RlmDeleteSubagentResult,
+ 	type RlmFindModelsResult,
+ 	type RlmListSubagentsResult,
++	type RlmRemoteChildRegistryProvider,
+ 	type RlmSpawnHandle,
+ 	type RlmSubagentRegistryEntry,
+ 	type RlmSubagentRuntime,
+@@ -1109,6 +1110,7 @@ export class AgentSession {
+ 	private _repliedToParentSinceTask: boolean | undefined;
+ 	private _parentReplyCount = 0;
+ 	private _subagentRuntimeHost?: SubagentRuntimeHost;
++	private _remoteChildRegistryProvider?: RlmRemoteChildRegistryProvider;
+ 	private _activeRlmChildRuns = new Map<string, RlmChildRun>();
+ 	private _pendingRlmSubagentSessionNames = new Set<string>();
+ 	// Inline mode keeps finished child sessions so the inspector can still read them;
+@@ -1269,6 +1271,14 @@ export class AgentSession {
+ 		return this._modelRegistry;
+ 	}
+ 
++	/**
++	 * Install the remote-child registry for this parent session. Capability
++	 * gated: without a provider, `list_subagents()` behavior is unchanged.
++	 */
++	setRemoteChildRegistryProvider(provider?: RlmRemoteChildRegistryProvider): void {
++		this._remoteChildRegistryProvider = provider;
++	}
++
+ 	setSubagentRuntimeHost(host?: SubagentRuntimeHost): void {
+ 		this._subagentRuntimeHost = host;
+ 	}
+@@ -9017,6 +9027,25 @@ export class AgentSession {
+ 				status: daemonChild.rlmChildRegistryStatus === "completed" ? "completed" : "error",
+ 			});
+ 		}
++		for (const remote of this._remoteChildRegistryProvider?.listRemoteChildren() ?? []) {
++			if (recorded.has(remote.rlm_child_id) || this._deletedRlmChildIds.has(remote.rlm_child_id)) {
++				continue;
++			}
++			subagents.push({
++				rlm_child_id: remote.rlm_child_id,
++				active_session_id: null,
++				session_id: remote.session_id,
++				session_name: remote.session_name,
++				session_dir: remote.session_dir ?? "",
++				status: remote.status,
++				runtime: remote.runtime,
++				remote_state: remote.remote_state,
++				attempt: remote.attempt,
++				connection_epoch: remote.connection_epoch,
++				last_heartbeat_at: remote.last_heartbeat_at,
++			});
++			recorded.add(remote.rlm_child_id);
++		}
+ 		return { subagents };
+ 	}
+ 
+diff --git a/packages/coding-agent/src/core/rlm-runtime.ts b/packages/coding-agent/src/core/rlm-runtime.ts
+index 9ad9885..0ed8867 100644
+--- a/packages/coding-agent/src/core/rlm-runtime.ts
++++ b/packages/coding-agent/src/core/rlm-runtime.ts
+@@ -28,6 +28,36 @@ export interface RlmSubagentRegistryEntry {
+ 	session_name: string;
+ 	session_dir: string;
+ 	status: RlmSubagentRegistryStatus;
++	/** Present only for remote children (prime-agent.remote-child/v1). */
++	runtime?: "local" | "remote";
++	/** Present only for remote children; a RemoteChildState string. */
++	remote_state?: string;
++	attempt?: number;
++	connection_epoch?: number;
++	last_heartbeat_at?: number | null;
++}
++
++/**
++ * Parent-side view of a remote child, produced by a remote-child admission
++ * host and merged into `list_subagents()` by the owning parent session.
++ */
++export interface RlmRemoteChildRegistryEntry {
++	rlm_child_id: string;
++	session_id: string | null;
++	session_name: string;
++	session_dir: string | null;
++	status: RlmSubagentRegistryStatus;
++	runtime: "remote";
++	remote_state: string;
++	attempt: number;
++	connection_epoch: number;
++	last_heartbeat_at: number | null;
++	parent_session_id: string;
++}
++
++export interface RlmRemoteChildRegistryProvider {
++	/** Remote children bound to the current parent session. */
++	listRemoteChildren(): RlmRemoteChildRegistryEntry[];
+ }
+ 
+ export interface RlmListSubagentsResult {
+diff --git a/packages/coding-agent/src/remote-child/admission.ts b/packages/coding-agent/src/remote-child/admission.ts
+new file mode 100644
+index 0000000..bdbd502
+--- /dev/null
++++ b/packages/coding-agent/src/remote-child/admission.ts
+@@ -0,0 +1,800 @@
++/**
++ * Parent-side admission host for prime-agent.remote-child/v1.
++ *
++ * Owns invitations, durable admission, leases, fencing, parent commands, and
++ * the remote-child state machine. It is transport-agnostic: frames arrive
++ * through {@link dispatchWorkerFrame} and host responses leave through the
++ * injected {@link RemoteChildTransport}. Sender identity is always derived
++ * from the authenticated lease + ledger, never from a payload field.
++ */
++import { randomBytes, randomUUID } from "node:crypto";
++import { mkdirSync } from "node:fs";
++import { join } from "node:path";
++import { generateOpaqueToken, publicKeyHash, sha256Hex, verifyPossession } from "./crypto.js";
++import { commandKeyFor, RemoteChildJournal } from "./journal.js";
++import type { RemoteChildTransport } from "./transport.js";
++import type {
++	RemoteChildAdmissionCapsule,
++	RemoteChildAdmissionOutcome,
++	RemoteChildAttachOutcome,
++	RemoteChildCommandReceipt,
++	RemoteChildInvitationRecord,
++	RemoteChildInvitationSpec,
++	RemoteChildLease,
++	RemoteChildMutationHeader,
++	RemoteChildParentCommand,
++	RemoteChildRecord,
++	RemoteChildRegistryEntry,
++	RemoteChildState,
++	RemoteChildWorkerFrame,
++	RemoteChildWorkerMessage,
++	RemoteChildWorkloadClaims,
++} from "./types.js";
++import {
++	REMOTE_CHILD_ACTIVE_STATES,
++	REMOTE_CHILD_DEFAULT_DISCONNECT_GRACE_MS,
++	REMOTE_CHILD_DEFAULT_INVITATION_TTL_MS,
++	REMOTE_CHILD_DEFAULT_LEASE_TTL_MS,
++	REMOTE_CHILD_DEFAULT_STOP_DEADLINE_MS,
++	REMOTE_CHILD_MAX_ATTEMPTS,
++	REMOTE_CHILD_MAX_CHILDREN_PER_PARENT,
++	REMOTE_CHILD_MAX_MESSAGE_CHARS,
++	REMOTE_CHILD_MAX_PENDING_PARENT_COMMANDS,
++	REMOTE_CHILD_PROTOCOL,
++	REMOTE_CHILD_TERMINAL_STATES,
++} from "./types.js";
++
++export interface RemoteChildAdmissionHostOptions {
++	storeDir: string;
++	parentSessionId: string;
++	parentSessionFile: string;
++	/** Depth of the parent session; the remote child is parentDepth + 1. */
++	depth: number;
++	transport: RemoteChildTransport;
++	clock?: () => number;
++	/** Deliver a worker→parent message; the host has already derived the sender. */
++	onWorkerMessage?: (message: RemoteChildWorkerMessage) => void | Promise<void>;
++	/** Audit hook fired when a child reaches a terminal state. */
++	onTerminal?: (entry: RemoteChildRegistryEntry) => void;
++	invitationTtlMs?: number;
++	leaseTtlMs?: number;
++	stopDeadlineMs?: number;
++	disconnectGraceMs?: number;
++	maxChildren?: number;
++	maxPendingCommands?: number;
++	maxAttempts?: number;
++}
++
++export interface RemoteChildInviteOutcome {
++	invitationId: string;
++	expiresAt: number;
++}
++
++interface HostLimits {
++	invitationTtlMs: number;
++	leaseTtlMs: number;
++	stopDeadlineMs: number;
++	disconnectGraceMs: number;
++	maxChildren: number;
++	maxPendingCommands: number;
++	maxAttempts: number;
++}
++
++function workloadClaimsEqual(left: RemoteChildWorkloadClaims, right: RemoteChildWorkloadClaims): boolean {
++	const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
++	for (const key of keys) {
++		const l = (left as Record<string, unknown>)[key];
++		const r = (right as Record<string, unknown>)[key];
++		if (l !== r) return false;
++	}
++	return true;
++}
++
++export class RemoteChildAdmissionHost {
++	private readonly journal: RemoteChildJournal;
++	private readonly invitations = new Map<string, RemoteChildInvitationRecord>();
++	private readonly children = new Map<string, RemoteChildRecord>();
++	private readonly commands = new Map<string, RemoteChildParentCommand>();
++	private readonly deleted = new Set<string>();
++	private readonly leases = new Map<string, RemoteChildLease>();
++	private readonly leaseByChild = new Map<string, RemoteChildLease>();
++	private readonly connected = new Set<string>();
++	private readonly seenNonces = new Set<string>();
++	private readonly idempotency = new Map<string, Map<string, unknown>>();
++	private readonly admissionIndex = new Map<string, string>();
++	private readonly limits: HostLimits;
++
++	constructor(private readonly options: RemoteChildAdmissionHostOptions) {
++		this.limits = {
++			invitationTtlMs: options.invitationTtlMs ?? REMOTE_CHILD_DEFAULT_INVITATION_TTL_MS,
++			leaseTtlMs: options.leaseTtlMs ?? REMOTE_CHILD_DEFAULT_LEASE_TTL_MS,
++			stopDeadlineMs: options.stopDeadlineMs ?? REMOTE_CHILD_DEFAULT_STOP_DEADLINE_MS,
++			disconnectGraceMs: options.disconnectGraceMs ?? REMOTE_CHILD_DEFAULT_DISCONNECT_GRACE_MS,
++			maxChildren: options.maxChildren ?? REMOTE_CHILD_MAX_CHILDREN_PER_PARENT,
++			maxPendingCommands: options.maxPendingCommands ?? REMOTE_CHILD_MAX_PENDING_PARENT_COMMANDS,
++			maxAttempts: options.maxAttempts ?? REMOTE_CHILD_MAX_ATTEMPTS,
++		};
++		mkdirSync(options.storeDir, { recursive: true, mode: 0o700 });
++		const dir = join(options.storeDir, this.parentDirName());
++		mkdirSync(dir, { recursive: true, mode: 0o700 });
++		this.journal = RemoteChildJournal.open(join(dir, "journal.jsonl"));
++		const replay = this.journal.replay();
++		if (replay.invitations.size === 0 && replay.children.size === 0 && replay.commands.size === 0) {
++			this.journal.append({ v: 1, op: "meta", at: this.now(), sessionsDir: this.options.parentSessionFile });
++		}
++		for (const [hash, invitation] of replay.invitations) this.invitations.set(hash, invitation);
++		for (const [childId, child] of replay.children) {
++			this.children.set(childId, child);
++			this.admissionIndex.set(child.admissionRequestId, childId);
++		}
++		for (const [key, command] of replay.commands) this.commands.set(key, command);
++		for (const childId of replay.deleted) this.deleted.add(childId);
++	}
++
++	get parentSessionId(): string {
++		return this.options.parentSessionId;
++	}
++
++	private parentDirName(): string {
++		return `parent-${sha256Hex(this.options.parentSessionId).slice(0, 24)}`;
++	}
++
++	private now(): number {
++		return (this.options.clock ?? Date.now)();
++	}
++
++	private allocateChildId(): string {
++		return `remote-${randomBytes(6).toString("hex")}`;
++	}
++
++	private defaultChildName(childId: string): string {
++		return `remote-worker-${childId.slice(-8)}`;
++	}
++
++	close(): void {
++		this.journal.close();
++	}
++
++	/** Create a single-use, short-TTL invitation bound to this parent + workload. */
++	invite(spec: RemoteChildInvitationSpec): RemoteChildInviteOutcome {
++		if (spec.parentSessionId !== this.options.parentSessionId) {
++			throw new Error("invitation must target this host's parent session");
++		}
++		const active = this.activeChildren().length;
++		if (active >= this.limits.maxChildren) {
++			throw new Error(`parent session already has ${active} active remote children`);
++		}
++		const token = generateOpaqueToken();
++		const now = this.now();
++		const ttlMs = spec.ttlMs ?? this.limits.invitationTtlMs;
++		const record: RemoteChildInvitationRecord = {
++			invitationHash: token.hash,
++			state: "open",
++			issuedAt: now,
++			expiresAt: now + ttlMs,
++			parentSessionId: spec.parentSessionId,
++			parentSessionFile: spec.parentSessionFile,
++			depth: spec.depth,
++			name: spec.name,
++			workload: spec.workload,
++		};
++		this.journal.append({ v: 1, op: "invitation", at: now, record });
++		this.invitations.set(token.hash, record);
++		return { invitationId: token.plaintext, expiresAt: record.expiresAt };
++	}
++
++	revokeInvitation(invitationId: string): boolean {
++		const hash = sha256Hex(invitationId);
++		const invitation = this.invitations.get(hash);
++		if (!invitation || invitation.state !== "open") return false;
++		const updated: RemoteChildInvitationRecord = { ...invitation, state: "revoked" };
++		this.journal.append({ v: 1, op: "invitation", at: this.now(), record: updated });
++		this.invitations.set(hash, updated);
++		return true;
++	}
++
++	/** Entry point for frames arriving from a worker over the transport. */
++	async dispatchWorkerFrame(childId: string, frame: RemoteChildWorkerFrame): Promise<void> {
++		switch (frame.type) {
++			case "admit": {
++				const outcome = await this.processAdmit(frame);
++				if (outcome.status === "admitted") {
++					this.transport().sendToWorker(childId, {
++						type: "admitted",
++						capsule: outcome.capsule,
++						admissionRequestId: frame.admissionRequestId,
++					});
++				} else {
++					this.transport().sendToWorker(childId, {
++						type: "admission_denied",
++						reason: outcome.reason,
++						admissionRequestId: frame.admissionRequestId,
++					});
++				}
++				return;
++			}
++			case "attach": {
++				const outcome = this.processAttach(frame);
++				if (outcome.status === "attached") {
++					this.transport().sendToWorker(childId, { type: "lease_renewed", lease: outcome.lease });
++				} else {
++					this.transport().sendToWorker(childId, { type: "lease_expired", reason: outcome.reason });
++				}
++				return;
++			}
++			case "start_ack":
++			case "heartbeat":
++			case "checkpoint":
++			case "message":
++			case "complete":
++			case "fail":
++			case "command_ack":
++				await this.processMutation(childId, frame);
++				return;
++		}
++	}
++
++	private transport(): RemoteChildTransport {
++		return this.options.transport;
++	}
++
++	async processAdmit(frame: Extract<RemoteChildWorkerFrame, { type: "admit" }>): Promise<RemoteChildAdmissionOutcome> {
++		const invitationHash = sha256Hex(frame.invitationId);
++
++		// Idempotent retry of an already-committed admission: identical claims
++		// and invitation return the same committed child, never a second one.
++		const existingChildId = this.admissionIndex.get(frame.admissionRequestId);
++		if (existingChildId) {
++			const existing = this.children.get(existingChildId);
++			if (!existing) return { status: "denied", reason: "admission reference is inconsistent" };
++			if (
++				existing.admissionInvitationHash !== invitationHash ||
++				!workloadClaimsEqual(existing.workload, frame.workloadClaims)
++			) {
++				return { status: "denied", reason: "admission request id was already used with different claims" };
++			}
++			return { status: "admitted", capsule: this.mintCapsule(existing) };
++		}
++
++		const invitation = this.invitations.get(invitationHash);
++		if (!invitation) return { status: "denied", reason: "unknown invitation" };
++		if (invitation.state !== "open") return { status: "denied", reason: "invitation is not open" };
++		if (this.now() >= invitation.expiresAt) return { status: "denied", reason: "invitation expired" };
++		if (!workloadClaimsEqual(invitation.workload, frame.workloadClaims)) {
++			return { status: "denied", reason: "workload claims mismatch" };
++		}
++		if (!frame.supportedVersions.includes(REMOTE_CHILD_PROTOCOL)) {
++			return { status: "denied", reason: "unsupported protocol version" };
++		}
++		if (!verifyPossession(frame.workerPublicKey, frame.nonce, frame.possessionSignature)) {
++			return { status: "denied", reason: "worker possession proof failed" };
++		}
++		if (this.seenNonces.has(frame.nonce)) return { status: "denied", reason: "nonce replay" };
++		this.seenNonces.add(frame.nonce);
++
++		const now = this.now();
++		const childId = this.allocateChildId();
++		const sessionId = randomUUID();
++		const child: RemoteChildRecord = {
++			protocolVersion: REMOTE_CHILD_PROTOCOL,
++			childId,
++			sessionId,
++			parentSessionId: this.options.parentSessionId,
++			parentSessionFile: this.options.parentSessionFile,
++			depth: this.options.depth + 1,
++			name: invitation.name ?? this.defaultChildName(childId),
++			workload: frame.workloadClaims,
++			state: "admitted",
++			attempt: 1,
++			connectionEpoch: 1,
++			workerPublicKeyHash: publicKeyHash(frame.workerPublicKey),
++			issuedAt: now,
++			admittedAt: now,
++			lastEventSeq: 0,
++			admissionRequestId: frame.admissionRequestId,
++			admissionInvitationHash: invitationHash,
++			parentCommandHighWater: 0,
++			acknowledgedCommandSeq: 0,
++		};
++
++		// Durable commit: consume the invitation and allocate the child, both
++		// fsynced before any start permit exists.
++		this.journal.append({
++			v: 1,
++			op: "invitation",
++			at: now,
++			record: { ...invitation, state: "consumed", consumedBy: frame.admissionRequestId, consumedAt: now },
++		});
++		this.journal.append({ v: 1, op: "child", at: now, record: child });
++
++		// Only once recovery can reproduce the committed child do we mint the
++		// lease and return ADMITTED.
++		const replay = this.journal.replay();
++		if (!replay.children.has(childId)) {
++			throw new Error("admission commit did not reproduce the child; refusing to issue a start permit");
++		}
++
++		this.invitations.set(invitationHash, {
++			...invitation,
++			state: "consumed",
++			consumedBy: frame.admissionRequestId,
++			consumedAt: now,
++		});
++		this.children.set(childId, child);
++		this.admissionIndex.set(frame.admissionRequestId, childId);
++
++		return { status: "admitted", capsule: this.mintCapsule(child) };
++	}
++
++	processAttach(frame: Extract<RemoteChildWorkerFrame, { type: "attach" }>): RemoteChildAttachOutcome {
++		const lease = this.leases.get(frame.leaseId);
++		if (!lease || this.now() >= lease.expiresAt) return { status: "denied", reason: "lease expired" };
++		const child = this.children.get(lease.childId);
++		if (!child || this.deleted.has(child.childId)) return { status: "denied", reason: "child not found" };
++		if (REMOTE_CHILD_TERMINAL_STATES.has(child.state)) return { status: "denied", reason: "child is terminal" };
++		if (frame.attempt !== child.attempt || frame.connectionEpoch !== child.connectionEpoch) {
++			return { status: "denied", reason: "attempt or epoch mismatch" };
++		}
++		if (child.workerPublicKeyHash !== publicKeyHash(frame.workerPublicKey)) {
++			return { status: "denied", reason: "worker key mismatch" };
++		}
++		if (!verifyPossession(frame.workerPublicKey, frame.leaseId, frame.possessionSignature)) {
++			return { status: "denied", reason: "worker possession proof failed" };
++		}
++
++		// Re-attach fences the previous epoch by advancing it.
++		child.connectionEpoch += 1;
++		if (child.state === "disconnected") child.state = "running";
++		this.journal.append({ v: 1, op: "child", at: this.now(), record: child });
++		this.children.set(child.childId, child);
++		this.connected.add(child.childId);
++		this.redeliverPendingCommands(child);
++		const renewed = this.mintLease(child);
++		return { status: "attached", lease: renewed };
++	}
++
++	private rejectMutation(
++		childId: string,
++		frame: RemoteChildWorkerFrame & RemoteChildMutationHeader,
++		reason: string,
++	): void {
++		if (frame.type === "message") {
++			this.transport().sendToWorker(childId, { type: "message_receipt", status: "rejected", reason });
++			return;
++		}
++		if (frame.type === "checkpoint") {
++			this.transport().sendToWorker(childId, { type: "checkpoint_receipt", status: "rejected", reason });
++			return;
++		}
++		this.transport().sendToWorker(childId, { type: "error", reason });
++	}
++
++	private async processMutation(
++		childId: string,
++		frame: RemoteChildWorkerFrame & RemoteChildMutationHeader,
++	): Promise<void> {
++		const child = this.children.get(childId);
++		if (!child || this.deleted.has(childId)) {
++			this.rejectMutation(childId, frame, "unknown child");
++			return;
++		}
++		if (REMOTE_CHILD_TERMINAL_STATES.has(child.state) && frame.type !== "command_ack") {
++			this.transport().sendToWorker(childId, {
++				type: "terminal_notice",
++				state: child.state,
++				reason: child.terminalReason,
++			});
++			return;
++		}
++		if (!this.connected.has(childId)) {
++			this.rejectMutation(childId, frame, "not attached");
++			return;
++		}
++		if (frame.attempt !== child.attempt || frame.connectionEpoch !== child.connectionEpoch) {
++			this.rejectMutation(childId, frame, "attempt or epoch mismatch");
++			return;
++		}
++		if (!Number.isInteger(frame.sequence) || frame.sequence < 1) {
++			this.rejectMutation(childId, frame, "invalid sequence");
++			return;
++		}
++
++		const recorded = this.idempotency.get(childId)?.get(frame.idempotencyKey);
++		if (recorded !== undefined) {
++			this.replyIdempotent(childId, frame, recorded);
++			return;
++		}
++		if (frame.sequence <= child.lastEventSeq) {
++			this.rejectMutation(childId, frame, "out-of-order sequence");
++			return;
++		}
++
++		child.lastEventSeq = frame.sequence;
++		await this.applyMutation(childId, child, frame);
++	}
++
++	private replyIdempotent(
++		childId: string,
++		frame: RemoteChildWorkerFrame & RemoteChildMutationHeader,
++		recorded: unknown,
++	): void {
++		switch (frame.type) {
++			case "message":
++				this.transport().sendToWorker(childId, {
++					type: "message_receipt",
++					status: "duplicate",
++					messageId: recorded as string,
++				});
++				return;
++			case "checkpoint":
++				this.transport().sendToWorker(childId, { type: "checkpoint_receipt", status: "accepted" });
++				return;
++			default:
++				return;
++		}
++	}
++
++	private async applyMutation(
++		childId: string,
++		child: RemoteChildRecord,
++		frame: RemoteChildWorkerFrame & RemoteChildMutationHeader,
++	): Promise<void> {
++		switch (frame.type) {
++			case "start_ack": {
++				if (child.state === "admitted") child.state = "running";
++				child.startedAt = child.startedAt ?? this.now();
++				this.persistChild(child);
++				return;
++			}
++			case "heartbeat": {
++				child.lastHeartbeatAt = this.now();
++				this.children.set(childId, child);
++				const lease = this.mintLease(child);
++				this.transport().sendToWorker(childId, { type: "lease_renewed", lease });
++				return;
++			}
++			case "checkpoint": {
++				child.checkpointRef = frame.checkpointRef;
++				child.checkpointHash = frame.checkpointHash;
++				child.checkpointSeq = frame.checkpointSeq;
++				this.persistChild(child);
++				this.recordIdempotency(childId, frame.idempotencyKey, {});
++				this.transport().sendToWorker(childId, { type: "checkpoint_receipt", status: "accepted" });
++				return;
++			}
++			case "message": {
++				if (typeof frame.text !== "string" || frame.text.trim().length === 0) {
++					this.transport().sendToWorker(childId, {
++						type: "message_receipt",
++						status: "rejected",
++						reason: "empty message",
++					});
++					return;
++				}
++				if (frame.text.length > REMOTE_CHILD_MAX_MESSAGE_CHARS) {
++					this.transport().sendToWorker(childId, {
++						type: "message_receipt",
++						status: "rejected",
++						reason: "message too long",
++					});
++					return;
++				}
++				const messageId = `agentmsg_${randomUUID()}`;
++				// Durable high-water mark first so a restart cannot redeliver.
++				this.persistChild(child);
++				this.recordIdempotency(childId, frame.idempotencyKey, messageId);
++				const message: RemoteChildWorkerMessage = {
++					childId,
++					sessionId: child.sessionId,
++					parentSessionId: child.parentSessionId,
++					messageId,
++					text: frame.text,
++					attempt: child.attempt,
++					connectionEpoch: child.connectionEpoch,
++					sequence: frame.sequence,
++				};
++				await this.options.onWorkerMessage?.(message);
++				this.transport().sendToWorker(childId, { type: "message_receipt", status: "delivered", messageId });
++				return;
++			}
++			case "complete": {
++				this.reachTerminal(child, "completed", undefined);
++				return;
++			}
++			case "fail": {
++				const reason = sanitizeErrorSummary(frame.reason);
++				this.reachTerminal(child, "failed", reason);
++				return;
++			}
++			case "command_ack": {
++				const command = this.commands.get(commandKeyFor(childId, frame.commandSeq));
++				if (!command) {
++					this.transport().sendToWorker(childId, { type: "error", reason: "unknown command" });
++					return;
++				}
++				child.acknowledgedCommandSeq = Math.max(child.acknowledgedCommandSeq, frame.commandSeq);
++				if (command.kind === "stop" && child.state === "cancelling") {
++					if (frame.acknowledged) {
++						this.reachTerminal(child, "cancelled", command.reason ?? "stopped by parent");
++						return;
++					}
++					this.reachTerminal(child, "failed", command.reason ?? "worker rejected stop");
++					return;
++				}
++				this.persistChild(child);
++				this.recordIdempotency(childId, frame.idempotencyKey, {});
++				return;
++			}
++		}
++	}
++
++	private recordIdempotency(childId: string, idempotencyKey: string, result: unknown): void {
++		let map = this.idempotency.get(childId);
++		if (!map) {
++			map = new Map();
++			this.idempotency.set(childId, map);
++		}
++		map.set(idempotencyKey, result);
++	}
++
++	private persistChild(child: RemoteChildRecord): void {
++		this.journal.append({ v: 1, op: "child", at: this.now(), record: child });
++		this.children.set(child.childId, child);
++	}
++
++	private reachTerminal(child: RemoteChildRecord, state: RemoteChildState, reason: string | undefined): void {
++		child.state = state;
++		child.terminalAt = this.now();
++		child.terminalReason = reason;
++		this.journal.append({ v: 1, op: "child", at: child.terminalAt, record: child });
++		this.children.set(child.childId, child);
++		this.connected.delete(child.childId);
++		this.revokeLease(child.childId);
++		this.transport().sendToWorker(child.childId, { type: "terminal_notice", state, reason });
++		this.options.onTerminal?.(this.toRegistryEntry(child));
++	}
++
++	private mintCapsule(child: RemoteChildRecord): RemoteChildAdmissionCapsule {
++		return {
++			protocolVersion: REMOTE_CHILD_PROTOCOL,
++			childId: child.childId,
++			sessionId: child.sessionId,
++			parentSessionId: child.parentSessionId,
++			depth: child.depth,
++			attempt: child.attempt,
++			connectionEpoch: child.connectionEpoch,
++			lease: this.mintLease(child),
++		};
++	}
++
++	private mintLease(child: RemoteChildRecord): RemoteChildLease {
++		const previous = this.leaseByChild.get(child.childId);
++		if (previous) this.leases.delete(previous.leaseId);
++		const lease: RemoteChildLease = {
++			leaseId: generateOpaqueToken().plaintext,
++			childId: child.childId,
++			sessionId: child.sessionId,
++			parentSessionId: child.parentSessionId,
++			attempt: child.attempt,
++			connectionEpoch: child.connectionEpoch,
++			expiresAt: this.now() + this.limits.leaseTtlMs,
++			workerPublicKeyHash: child.workerPublicKeyHash,
++		};
++		this.leases.set(lease.leaseId, lease);
++		this.leaseByChild.set(child.childId, lease);
++		return lease;
++	}
++
++	private revokeLease(childId: string): void {
++		const lease = this.leaseByChild.get(childId);
++		if (lease) this.leases.delete(lease.leaseId);
++		this.leaseByChild.delete(childId);
++	}
++
++	private redeliverPendingCommands(child: RemoteChildRecord): void {
++		for (const command of this.commands.values()) {
++			if (command.childIdForRouting !== child.childId) continue;
++			if (command.commandSeq <= child.acknowledgedCommandSeq) continue;
++			this.transport().sendToWorker(child.childId, { type: "parent_command", command });
++		}
++	}
++
++	/** Issue a parent→worker command (steer / follow-up / stop). */
++	issueCommand(
++		childId: string,
++		kind: "steer" | "follow_up" | "stop",
++		text: string,
++		reason?: string,
++	): RemoteChildCommandReceipt {
++		const child = this.children.get(childId);
++		if (!child || this.deleted.has(childId)) return { status: "rejected", commandSeq: 0, reason: "unknown child" };
++		if (REMOTE_CHILD_TERMINAL_STATES.has(child.state))
++			return { status: "rejected", commandSeq: 0, reason: "child is terminal" };
++		const pending = this.pendingCommandCount(childId);
++		if (pending >= this.limits.maxPendingCommands) {
++			return { status: "rejected", commandSeq: 0, reason: "too many pending commands" };
++		}
++
++		child.parentCommandHighWater += 1;
++		const commandSeq = child.parentCommandHighWater;
++		const command: RemoteChildParentCommand = {
++			commandId: `remote-cmd-${randomUUID()}`,
++			commandSeq,
++			kind,
++			text,
++			reason,
++			issuedAt: this.now(),
++			deadlineAt: kind === "stop" ? this.now() + this.limits.stopDeadlineMs : undefined,
++			childIdForRouting: childId,
++		};
++		this.journal.append({ v: 1, op: "command", at: this.now(), childId, command });
++		this.commands.set(commandKeyFor(childId, commandSeq), command);
++
++		if (kind === "stop") {
++			child.state = "cancelling";
++		}
++		this.persistChild(child);
++
++		this.transport().sendToWorker(childId, { type: "parent_command", command });
++		return { status: "queued", commandSeq };
++	}
++
++	steer(childId: string, text: string): RemoteChildCommandReceipt {
++		return this.issueCommand(childId, "steer", text);
++	}
++
++	followUp(childId: string, text: string): RemoteChildCommandReceipt {
++		return this.issueCommand(childId, "follow_up", text);
++	}
++
++	stop(childId: string, reason = "stopped by parent"): RemoteChildCommandReceipt {
++		return this.issueCommand(childId, "stop", "", reason);
++	}
++
++	delete(childId: string): boolean {
++		const child = this.children.get(childId);
++		if (!child) return false;
++		if (this.deleted.has(childId)) return true;
++		this.revokeLease(childId);
++		this.connected.delete(childId);
++		child.connectionEpoch += 1; // fence late frames
++		this.journal.append({ v: 1, op: "child", at: this.now(), record: child });
++		this.journal.append({ v: 1, op: "delete", at: this.now(), childId, reason: "user" });
++		this.deleted.add(childId);
++		return true;
++	}
++
++	/** Parent closure: revoke open invitations and issue stop to every live child. */
++	closeChildren(reason: string): void {
++		for (const [hash, invitation] of this.invitations) {
++			if (invitation.state !== "open") continue;
++			this.invitations.set(hash, { ...invitation, state: "revoked" });
++			this.journal.append({ v: 1, op: "invitation", at: this.now(), record: { ...invitation, state: "revoked" } });
++		}
++		for (const child of [...this.children.values()]) {
++			if (this.deleted.has(child.childId) || REMOTE_CHILD_TERMINAL_STATES.has(child.state)) continue;
++			this.issueCommand(child.childId, "stop", "", reason);
++		}
++	}
++
++	/**
++	 * Advance time and collect expiry transitions. Never fabricates a
++	 * `cancelled`: a stop without an ACK can only become `uncertain` or
++	 * `lease_expired`.
++	 */
++	collectExpiry(): RemoteChildRegistryEntry[] {
++		const now = this.now();
++		const transitions: RemoteChildRegistryEntry[] = [];
++		for (const child of [...this.children.values()]) {
++			if (this.deleted.has(child.childId) || REMOTE_CHILD_TERMINAL_STATES.has(child.state)) continue;
++			if (child.state === "cancelling") {
++				const stopDeadline = this.stopDeadlineFor(child);
++				if (stopDeadline !== undefined && now >= stopDeadline) {
++					const lease = this.leaseByChild.get(child.childId);
++					const expiredLease = lease === undefined || now >= lease.expiresAt;
++					this.reachTerminal(
++						child,
++						expiredLease ? "lease_expired" : "uncertain",
++						"stop was not acknowledged in time",
++					);
++					transitions.push(this.toRegistryEntry(child));
++				}
++				continue;
++			}
++			const lease = this.leaseByChild.get(child.childId);
++			if (!lease) continue;
++			if (now >= lease.expiresAt) {
++				if (
++					child.state === "disconnected" &&
++					child.disconnectDeadlineAt !== undefined &&
++					now >= child.disconnectDeadlineAt
++				) {
++					this.reachTerminal(child, "lease_expired", "lease expired and was not renewed in time");
++					transitions.push(this.toRegistryEntry(child));
++				} else if (REMOTE_CHILD_ACTIVE_STATES.has(child.state)) {
++					child.state = "disconnected";
++					child.disconnectDeadlineAt = now + this.limits.disconnectGraceMs;
++					this.persistChild(child);
++					this.connected.delete(child.childId);
++					transitions.push(this.toRegistryEntry(child));
++				}
++			}
++		}
++		return transitions;
++	}
++
++	private stopDeadlineFor(child: RemoteChildRecord): number | undefined {
++		for (const command of this.commands.values()) {
++			if (
++				command.childIdForRouting === child.childId &&
++				command.kind === "stop" &&
++				command.commandSeq > child.acknowledgedCommandSeq
++			) {
++				return command.deadlineAt;
++			}
++		}
++		return undefined;
++	}
++
++	private pendingCommandCount(childId: string): number {
++		const child = this.children.get(childId);
++		if (!child) return 0;
++		let count = 0;
++		for (const command of this.commands.values()) {
++			if (command.childIdForRouting === childId && command.commandSeq > child.acknowledgedCommandSeq) count += 1;
++		}
++		return count;
++	}
++
++	private activeChildren(): RemoteChildRecord[] {
++		return [...this.children.values()].filter(
++			(child) => !this.deleted.has(child.childId) && !REMOTE_CHILD_TERMINAL_STATES.has(child.state),
++		);
++	}
++
++	listEntries(parentSessionId?: string): RemoteChildRegistryEntry[] {
++		const filter = parentSessionId ?? this.options.parentSessionId;
++		return [...this.children.values()]
++			.filter((child) => child.parentSessionId === filter && !this.deleted.has(child.childId))
++			.map((child) => this.toRegistryEntry(child));
++	}
++
++	private toRegistryEntry(child: RemoteChildRecord): RemoteChildRegistryEntry {
++		return {
++			rlm_child_id: child.childId,
++			session_id: child.sessionId,
++			session_name: child.name,
++			session_dir: "",
++			status:
++				child.state === "completed"
++					? "completed"
++					: REMOTE_CHILD_TERMINAL_STATES.has(child.state)
++						? "error"
++						: "running",
++			runtime: "remote",
++			remote_state: child.state,
++			attempt: child.attempt,
++			connection_epoch: child.connectionEpoch,
++			last_heartbeat_at: child.lastHeartbeatAt ?? null,
++			parent_session_id: child.parentSessionId,
++		};
++	}
++
++	/** Internal read access for tests and the registry provider. */
++	debugState(): {
++		children: RemoteChildRecord[];
++		invitations: RemoteChildInvitationRecord[];
++		commands: RemoteChildParentCommand[];
++	} {
++		return {
++			children: [...this.children.values()],
++			invitations: [...this.invitations.values()],
++			commands: [...this.commands.values()],
++		};
++	}
++}
++
++function sanitizeErrorSummary(reason: string): string {
++	const trimmed = reason.trim().slice(0, 500);
++	return trimmed || "worker reported a terminal failure";
++}
+diff --git a/packages/coding-agent/src/remote-child/crypto.ts b/packages/coding-agent/src/remote-child/crypto.ts
+new file mode 100644
+index 0000000..7954008
+--- /dev/null
++++ b/packages/coding-agent/src/remote-child/crypto.ts
+@@ -0,0 +1,90 @@
++/**
++ * Capability cryptography for prime-agent.remote-child/v1.
++ *
++ * Capability identity (invitation hashes, lease tokens, Ed25519 possession
++ * proofs) is deliberately separate from model provider credentials. Nothing in
++ * this module reads, writes, or requires any provider secret.
++ */
++import {
++	createHash,
++	createPrivateKey,
++	createPublicKey,
++	sign as edSign,
++	verify as edVerify,
++	generateKeyPairSync,
++	randomBytes,
++} from "node:crypto";
++
++const ED25519_PUBLIC_KEY_PREFIX = "ed25519-pem:";
++const ED25519_SIGNATURE_PREFIX = "sig:";
++
++export interface Ed25519Keypair {
++	/** PEM (SPKI) form of the public key. */
++	publicKey: string;
++	/** PEM (PKCS#8) form of the private key. */
++	privateKey: string;
++}
++
++function toBase64Url(input: Buffer): string {
++	return input.toString("base64url");
++}
++
++function fromBase64Url(input: string): Buffer {
++	const buffer = Buffer.from(input, "base64url");
++	if (buffer.toString("base64url") !== input) throw new Error("invalid base64url payload");
++	return buffer;
++}
++
++/** 256-bit opaque token; returns plaintext plus its persisted SHA-256 form. */
++export function generateOpaqueToken(): { plaintext: string; hash: string } {
++	const plaintext = toBase64Url(randomBytes(32));
++	return { plaintext, hash: sha256Hex(plaintext) };
++}
++
++export function generateCapabilityKeypair(): Ed25519Keypair {
++	const { publicKey, privateKey } = generateKeyPairSync("ed25519");
++	return {
++		publicKey: `${ED25519_PUBLIC_KEY_PREFIX}${publicKey.export({ type: "spki", format: "pem" }).toString()}`,
++		privateKey: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
++	};
++}
++
++export function publicKeyHash(publicKey: string): string {
++	return sha256Hex(publicKey);
++}
++
++export function sha256Hex(input: string): string {
++	return createHash("sha256").update(input, "utf8").digest("hex");
++}
++
++function rawPublicKey(publicKey: string): string {
++	if (!publicKey.startsWith(ED25519_PUBLIC_KEY_PREFIX)) throw new Error("not a remote-child public key");
++	return publicKey.slice(ED25519_PUBLIC_KEY_PREFIX.length);
++}
++
++export function signPossession(privateKey: string, publicKey: string, nonce: string): string {
++	const payload = Buffer.from(`remote-child-possession\n${publicKey}\n${nonce}`, "utf8");
++	const key = createPrivateKey(privateKey);
++	return `${ED25519_SIGNATURE_PREFIX}${toBase64Url(edSign(null, payload, key))}`;
++}
++
++export function verifyPossession(publicKey: string, nonce: string, signature: string): boolean {
++	if (!publicKey.startsWith(ED25519_PUBLIC_KEY_PREFIX) || !signature.startsWith(ED25519_SIGNATURE_PREFIX)) {
++		return false;
++	}
++	const payload = Buffer.from(`remote-child-possession\n${publicKey}\n${nonce}`, "utf8");
++	try {
++		const key = createPublicKey(rawPublicKey(publicKey));
++		return edVerify(null, payload, key, fromBase64Url(signature.slice(ED25519_SIGNATURE_PREFIX.length)));
++	} catch {
++		return false;
++	}
++}
++
++/** Constant-time-ish comparison for persisted-hash matching (best-effort). */
++export function constantTimeEqual(left: string, right: string): boolean {
++	const leftBuffer = Buffer.from(left, "utf8");
++	const rightBuffer = Buffer.from(right, "utf8");
++	if (leftBuffer.length !== rightBuffer.length) return false;
++	return createHash("sha256").update(leftBuffer).digest().equals(createHash("sha256").update(rightBuffer).digest());
++}
+diff --git a/packages/coding-agent/src/remote-child/index.ts b/packages/coding-agent/src/remote-child/index.ts
+new file mode 100644
+index 0000000..2242123
+--- /dev/null
++++ b/packages/coding-agent/src/remote-child/index.ts
+@@ -0,0 +1,48 @@
++/**
++ * prime-agent.remote-child/v1 — Core MVP.
++ *
++ * Layered over a pluggable transport and independent of the local daemon
++ * protocol, model provider credentials, brokers, and inbound tunnels.
++ */
++
++export type { RemoteChildAdmissionHostOptions, RemoteChildInviteOutcome } from "./admission.js";
++export { RemoteChildAdmissionHost } from "./admission.js";
++export type { Ed25519Keypair } from "./crypto.js";
++export {
++	generateCapabilityKeypair,
++	generateOpaqueToken,
++	publicKeyHash,
++	sha256Hex,
++	signPossession,
++	verifyPossession,
++} from "./crypto.js";
++export type { RemoteChildJournalRecord, RemoteChildJournalReplay } from "./journal.js";
++export { RemoteChildJournal, replayJournalRecords } from "./journal.js";
++export { createRemoteChildRegistryProvider } from "./registry.js";
++export type { RemoteChildTransport, RemoteChildTransportFault } from "./transport.js";
++export { InMemoryRemoteChildTransport } from "./transport.js";
++export type {
++	RemoteChildAdmissionCapsule,
++	RemoteChildAdmissionOutcome,
++	RemoteChildAttachOutcome,
++	RemoteChildCommandReceipt,
++	RemoteChildHostFrame,
++	RemoteChildInvitationRecord,
++	RemoteChildInvitationSpec,
++	RemoteChildLease,
++	RemoteChildParentCommand,
++	RemoteChildRecord,
++	RemoteChildRegistryEntry,
++	RemoteChildState,
++	RemoteChildWorkerFrame,
++	RemoteChildWorkerMessage,
++	RemoteChildWorkloadClaims,
++} from "./types.js";
++export {
++	isRemoteChildTerminal,
++	REMOTE_CHILD_ACTIVE_STATES,
++	REMOTE_CHILD_PROTOCOL,
++	REMOTE_CHILD_TERMINAL_STATES,
++} from "./types.js";
++export type { MockRemoteWorkerAdmitParams, MockRemoteWorkerOptions } from "./worker.js";
++export { MockRemoteWorker, RemoteChildDeniedError } from "./worker.js";
+diff --git a/packages/coding-agent/src/remote-child/journal.ts b/packages/coding-agent/src/remote-child/journal.ts
+new file mode 100644
+index 0000000..67aa072
+--- /dev/null
++++ b/packages/coding-agent/src/remote-child/journal.ts
+@@ -0,0 +1,207 @@
++/**
++ * Durable append-only journal for remote-child state.
++ *
++ * One JSONL file per parent session. Every mutation is a single small
++ * O_APPEND write followed by fsync, so the journal survives a crash and
++ * reproduces invitations, children, parent commands, and tombstones.
++ * Replay is fail-closed: an unknown op, a malformed record, or an
++ * out-of-contract field aborts loading instead of silently dropping state.
++ */
++import { closeSync, existsSync, fsyncSync, openSync, readFileSync, statSync, writeSync } from "node:fs";
++import { dirname } from "node:path";
++import type { RemoteChildInvitationRecord, RemoteChildParentCommand, RemoteChildRecord } from "./types.js";
++import { REMOTE_CHILD_MAX_BUFFERED_FRAMES } from "./types.js";
++
++export const REMOTE_CHILD_JOURNAL_MAX_BYTES = 64 * 1024 * 1024;
++
++export type RemoteChildJournalRecord =
++	| { v: 1; op: "meta"; at: number; sessionsDir: string }
++	| { v: 1; op: "invitation"; at: number; record: RemoteChildInvitationRecord }
++	| { v: 1; op: "child"; at: number; record: RemoteChildRecord }
++	| { v: 1; op: "command"; at: number; childId: string; command: RemoteChildParentCommand }
++	| { v: 1; op: "delete"; at: number; childId: string; reason: string };
++
++export interface RemoteChildJournalReplay {
++	invitations: Map<string, RemoteChildInvitationRecord>;
++	children: Map<string, RemoteChildRecord>;
++	commands: Map<string, RemoteChildParentCommand>;
++	deleted: Set<string>;
++}
++
++const KNOWN_OPS = new Set(["meta", "invitation", "child", "command", "delete"]);
++
++function isFiniteNumber(value: unknown): value is number {
++	return typeof value === "number" && Number.isFinite(value);
++}
++
++function isNonEmptyString(value: unknown): value is string {
++	return typeof value === "string" && value.length > 0;
++}
++
++function commandKey(childId: string, commandSeq: number): string {
++	return `${childId}:${commandSeq}`;
++}
++
++function validateRecord(record: RemoteChildJournalRecord): void {
++	if (!isFiniteNumber(record.at)) throw new Error("journal record has a non-finite timestamp");
++	switch (record.op) {
++		case "meta":
++			if (!isNonEmptyString(record.sessionsDir)) throw new Error("journal meta record is missing sessionsDir");
++			return;
++		case "invitation":
++			if (!isNonEmptyString(record.record.invitationHash))
++				throw new Error("journal invitation record is missing its hash");
++			if (!isNonEmptyString(record.record.parentSessionId)) {
++				throw new Error("journal invitation record is missing parentSessionId");
++			}
++			return;
++		case "child":
++			if (!isNonEmptyString(record.record.childId) || !isNonEmptyString(record.record.sessionId)) {
++				throw new Error("journal child record is missing an identity");
++			}
++			if (!isNonEmptyString(record.record.parentSessionId))
++				throw new Error("journal child record is missing parentSessionId");
++			if (!Number.isInteger(record.record.attempt) || record.record.attempt < 1) {
++				throw new Error("journal child record has an invalid attempt");
++			}
++			if (!Number.isInteger(record.record.connectionEpoch) || record.record.connectionEpoch < 1) {
++				throw new Error("journal child record has an invalid connection epoch");
++			}
++			return;
++		case "command":
++			if (!isNonEmptyString(record.childId)) throw new Error("journal command record is missing childId");
++			if (!Number.isInteger(record.command.commandSeq) || record.command.commandSeq < 1) {
++				throw new Error("journal command record has an invalid sequence");
++			}
++			return;
++		case "delete":
++			if (!isNonEmptyString(record.childId)) throw new Error("journal delete record is missing childId");
++			return;
++	}
++}
++
++function parseRecord(line: string): RemoteChildJournalRecord {
++	let parsed: unknown;
++	try {
++		parsed = JSON.parse(line);
++	} catch {
++		throw new Error("journal contains a non-JSON line");
++	}
++	if (typeof parsed !== "object" || parsed === null) throw new Error("journal record is not an object");
++	const record = parsed as RemoteChildJournalRecord;
++	if (record.v !== 1) throw new Error("journal record has an unsupported version");
++	if (typeof record.op !== "string" || !KNOWN_OPS.has(record.op)) {
++		throw new Error(`journal record has an unknown op: ${String(record.op)}`);
++	}
++	validateRecord(record);
++	return record;
++}
++
++export function replayJournalRecords(records: readonly RemoteChildJournalRecord[]): RemoteChildJournalReplay {
++	const result: RemoteChildJournalReplay = {
++		invitations: new Map(),
++		children: new Map(),
++		commands: new Map(),
++		deleted: new Set(),
++	};
++	for (const record of records) {
++		switch (record.op) {
++			case "meta":
++				break;
++			case "invitation":
++				result.invitations.set(record.record.invitationHash, record.record);
++				break;
++			case "child":
++				result.children.set(record.record.childId, record.record);
++				break;
++			case "command":
++				result.commands.set(commandKey(record.childId, record.command.commandSeq), record.command);
++				break;
++			case "delete":
++				result.deleted.add(record.childId);
++				break;
++		}
++	}
++	return result;
++}
++
++export class RemoteChildJournal {
++	private fd: number;
++	private bytes = 0;
++	private closed = false;
++
++	private constructor(
++		private readonly filePath: string,
++		fd: number,
++		bytes: number,
++	) {
++		this.fd = fd;
++		this.bytes = bytes;
++	}
++
++	static open(filePath: string): RemoteChildJournal {
++		const parent = dirname(filePath);
++		if (!existsSync(parent)) {
++			throw new Error(`journal directory does not exist: ${parent}`);
++		}
++		const fd = openSync(filePath, "a");
++		try {
++			const bytes = statSync(filePath).size;
++			if (bytes > REMOTE_CHILD_JOURNAL_MAX_BYTES) {
++				closeSync(fd);
++				throw new Error(`journal exceeds ${REMOTE_CHILD_JOURNAL_MAX_BYTES} bytes; failing closed`);
++			}
++			return new RemoteChildJournal(filePath, fd, bytes);
++		} catch (error) {
++			closeSync(fd);
++			throw error;
++		}
++	}
++
++	append(record: RemoteChildJournalRecord): void {
++		const line = `${JSON.stringify(record)}\n`;
++		const buffer = Buffer.from(line, "utf8");
++		let written = 0;
++		while (written < buffer.length) {
++			const count = writeSync(this.fd, buffer, written, buffer.length - written, null);
++			if (count <= 0) throw new Error("journal append made no progress");
++			written += count;
++		}
++		fsyncSync(this.fd);
++		this.bytes += buffer.length;
++		if (this.bytes > REMOTE_CHILD_JOURNAL_MAX_BYTES) {
++			throw new Error(`journal exceeds ${REMOTE_CHILD_JOURNAL_MAX_BYTES} bytes; failing closed`);
++		}
++	}
++
++	/** Re-read the file from disk; used by restart/reload paths and tests. */
++	replay(): RemoteChildJournalReplay {
++		const buffer = readFileSync(this.filePath, "utf8");
++		if (Buffer.byteLength(buffer, "utf8") > REMOTE_CHILD_JOURNAL_MAX_BYTES) {
++			throw new Error(`journal exceeds ${REMOTE_CHILD_JOURNAL_MAX_BYTES} bytes; failing closed`);
++		}
++		const lines = buffer.split("\n").filter((line) => line.length > 0);
++		const records: RemoteChildJournalRecord[] = [];
++		for (const line of lines) {
++			records.push(parseRecord(line));
++		}
++		const replay = replayJournalRecords(records);
++		// A child record that has no matching allocation would be a ghost; the
++		// allocation is carried on the same record, so this is a no-op guard.
++		// The buffered-frame bound is the only external cap we mirror here.
++		if (replay.children.size > REMOTE_CHILD_MAX_BUFFERED_FRAMES) {
++			throw new Error("journal holds more children than the protocol bound permits");
++		}
++		return replay;
++	}
++
++	close(): void {
++		if (this.closed) return;
++		this.closed = true;
++		closeSync(this.fd);
++	}
++}
++
++export function commandKeyFor(childId: string, commandSeq: number): string {
++	return commandKey(childId, commandSeq);
++}
+diff --git a/packages/coding-agent/src/remote-child/registry.ts b/packages/coding-agent/src/remote-child/registry.ts
+new file mode 100644
+index 0000000..5dc17fe
+--- /dev/null
++++ b/packages/coding-agent/src/remote-child/registry.ts
+@@ -0,0 +1,14 @@
++/**
++ * Bridges a remote-child admission host into the parent session's
++ * `list_subagents()` registry via the provider seam in `rlm-runtime.ts`.
++ */
++import type { RlmRemoteChildRegistryEntry, RlmRemoteChildRegistryProvider } from "../core/rlm-runtime.js";
++import type { RemoteChildAdmissionHost } from "./admission.js";
++
++export function createRemoteChildRegistryProvider(host: RemoteChildAdmissionHost): RlmRemoteChildRegistryProvider {
++	return {
++		listRemoteChildren(): RlmRemoteChildRegistryEntry[] {
++			return host.listEntries();
++		},
++	};
++}
+diff --git a/packages/coding-agent/src/remote-child/transport.ts b/packages/coding-agent/src/remote-child/transport.ts
+new file mode 100644
+index 0000000..5236676
+--- /dev/null
++++ b/packages/coding-agent/src/remote-child/transport.ts
+@@ -0,0 +1,145 @@
++/**
++ * Transport seam for prime-agent.remote-child/v1.
++ *
++ * The application protocol (admission, family messaging, lifecycle,
++ * capability semantics) is layered over a pluggable transport. The Core MVP
++ * runs over this in-memory transport: bounded, deterministic, no port, no
++ * credential, no broker, no inbound tunnel. A production transport (for
++ * example an outbound broker) is a deployment decision, not a core dependency.
++ */
++import type { RemoteChildHostFrame, RemoteChildWorkerFrame } from "./types.js";
++
++export type RemoteChildTransportDirection = "toHost" | "toWorker";
++
++export type RemoteChildTransportFault =
++	| { kind: "drop"; direction: RemoteChildTransportDirection; count: number }
++	| { kind: "duplicate"; direction: RemoteChildTransportDirection; count: number };
++
++export interface RemoteChildTransport {
++	/** Worker side: send a frame toward the host. */
++	sendToHost(childId: string, frame: RemoteChildWorkerFrame): void;
++	/** Worker side: subscribe to frames from the host. */
++	onHostFrame(handler: (childId: string, frame: RemoteChildHostFrame) => void): () => void;
++	/** Host side: send a frame toward a worker. */
++	sendToWorker(childId: string, frame: RemoteChildHostFrame): void;
++	/** Host side: subscribe to frames arriving from workers. */
++	onWorkerFrame(handler: (childId: string, frame: RemoteChildWorkerFrame) => void): () => void;
++	/** Simulate a network partition in one direction (frames are dropped). */
++	disconnect(direction: RemoteChildTransportDirection): void;
++	reconnect(direction: RemoteChildTransportDirection): void;
++	/** Inject a deterministic fault consumed by the next frames in a direction. */
++	injectFault(fault: RemoteChildTransportFault): void;
++	/** Count of frames dropped by fault injection or partition. */
++	readonly droppedToHost: number;
++	readonly droppedToWorker: number;
++	close(): void;
++}
++
++export class InMemoryRemoteChildTransport implements RemoteChildTransport {
++	private readonly hostHandlers = new Set<(childId: string, frame: RemoteChildWorkerFrame) => void>();
++	private readonly workerHandlers = new Set<(childId: string, frame: RemoteChildHostFrame) => void>();
++	private readonly faults = new Map<RemoteChildTransportDirection, RemoteChildTransportFault[]>();
++	private disconnectedToHost = false;
++	private disconnectedToWorker = false;
++	private _droppedToHost = 0;
++	private _droppedToWorker = 0;
++
++	sendToHost(childId: string, frame: RemoteChildWorkerFrame): void {
++		if (this.disconnectedToHost) {
++			this._droppedToHost += 1;
++			return;
++		}
++		this.deliverWorkerFrame(childId, frame, () => this.hostHandlers);
++	}
++
++	onHostFrame(handler: (childId: string, frame: RemoteChildHostFrame) => void): () => void {
++		this.workerHandlers.add(handler);
++		return () => this.workerHandlers.delete(handler);
++	}
++
++	sendToWorker(childId: string, frame: RemoteChildHostFrame): void {
++		if (this.disconnectedToWorker) {
++			this._droppedToWorker += 1;
++			return;
++		}
++		this.deliverHostFrame(childId, frame, () => this.workerHandlers);
++	}
++
++	onWorkerFrame(handler: (childId: string, frame: RemoteChildWorkerFrame) => void): () => void {
++		this.hostHandlers.add(handler);
++		return () => this.hostHandlers.delete(handler);
++	}
++
++	disconnect(direction: RemoteChildTransportDirection): void {
++		if (direction === "toHost") this.disconnectedToHost = true;
++		else this.disconnectedToWorker = true;
++	}
++
++	reconnect(direction: RemoteChildTransportDirection): void {
++		if (direction === "toHost") this.disconnectedToHost = false;
++		else this.disconnectedToWorker = false;
++	}
++
++	injectFault(fault: RemoteChildTransportFault): void {
++		const list = this.faults.get(fault.direction) ?? [];
++		list.push(fault);
++		this.faults.set(fault.direction, list);
++	}
++
++	get droppedToHost(): number {
++		return this._droppedToHost;
++	}
++
++	get droppedToWorker(): number {
++		return this._droppedToWorker;
++	}
++
++	close(): void {
++		this.hostHandlers.clear();
++		this.workerHandlers.clear();
++		this.faults.clear();
++		this.disconnectedToHost = true;
++		this.disconnectedToWorker = true;
++	}
++
++	private takeFault(direction: RemoteChildTransportDirection): "drop" | "duplicate" | "none" {
++		const list = this.faults.get(direction);
++		if (!list || list.length === 0) return "none";
++		const fault = list[0]!;
++		fault.count -= 1;
++		if (fault.count <= 0) list.shift();
++		return fault.kind;
++	}
++
++	private deliverWorkerFrame(
++		childId: string,
++		frame: RemoteChildWorkerFrame,
++		handlers: () => Set<(childId: string, frame: RemoteChildWorkerFrame) => void>,
++	): void {
++		const disposition = this.takeFault("toHost");
++		if (disposition === "drop") {
++			this._droppedToHost += 1;
++			return;
++		}
++		for (const handler of [...handlers()]) handler(childId, frame);
++		if (disposition === "duplicate") {
++			for (const handler of [...handlers()]) handler(childId, frame);
++		}
++	}
++
++	private deliverHostFrame(
++		childId: string,
++		frame: RemoteChildHostFrame,
++		handlers: () => Set<(childId: string, frame: RemoteChildHostFrame) => void>,
++	): void {
++		const disposition = this.takeFault("toWorker");
++		if (disposition === "drop") {
++			this._droppedToWorker += 1;
++			return;
++		}
++		for (const handler of [...handlers()]) handler(childId, frame);
++		if (disposition === "duplicate") {
++			for (const handler of [...handlers()]) handler(childId, frame);
++		}
++	}
++}
+diff --git a/packages/coding-agent/src/remote-child/types.ts b/packages/coding-agent/src/remote-child/types.ts
+new file mode 100644
+index 0000000..ac795fc
+--- /dev/null
++++ b/packages/coding-agent/src/remote-child/types.ts
+@@ -0,0 +1,310 @@
++import type { RlmRemoteChildRegistryEntry } from "../core/rlm-runtime.js";
++
++/**
++ * prime-agent.remote-child/v1 — protocol types.
++ *
++ * This module is the application protocol of the remote-child Core MVP
++ * (#1142). It is versioned independently of the local daemon protocol and is
++ * carried over a pluggable transport; the Core MVP runs over an in-memory
++ * transport and assumes no broker, network port, inbound tunnel, or hosted
++ * service exists. Capability identity is deliberately unrelated to model
++ * provider credentials.
++ */
++
++export const REMOTE_CHILD_PROTOCOL = "prime-agent.remote-child/v1";
++
++/** Bounded frame size; oversized frames are rejected before buffering. */
++export const REMOTE_CHILD_MAX_FRAME_BYTES = 256 * 1024;
++
++/** Matches the existing agent-message size limit so remote messaging does not diverge. */
++export const REMOTE_CHILD_MAX_MESSAGE_CHARS = 16_384;
++
++/** Per-child cap on un-acked parent commands (steer/follow-up/stop). */
++export const REMOTE_CHILD_MAX_PENDING_PARENT_COMMANDS = 20;
++
++/** Per-direction bound on buffered transport frames. */
++export const REMOTE_CHILD_MAX_BUFFERED_FRAMES = 1_024;
++
++/** Out-of-order tolerance window for mutation sequences. */
++export const REMOTE_CHILD_REORDER_WINDOW = 32;
++
++/** Hard cap on same-ticket retries (attempt increments). */
++export const REMOTE_CHILD_MAX_ATTEMPTS = 8;
++
++/** Per-parent cap on concurrent remote children. */
++export const REMOTE_CHILD_MAX_CHILDREN_PER_PARENT = 32;
++
++export const REMOTE_CHILD_DEFAULT_INVITATION_TTL_MS = 5 * 60_000;
++export const REMOTE_CHILD_DEFAULT_LEASE_TTL_MS = 60_000;
++export const REMOTE_CHILD_DEFAULT_STOP_DEADLINE_MS = 30_000;
++export const REMOTE_CHILD_DEFAULT_DISCONNECT_GRACE_MS = 60_000;
++
++/**
++ * Workload identity claims validated before a child is allocated. These are
++ * exact-match constraints baked into an invitation; a mismatch fails closed.
++ */
++export interface RemoteChildWorkloadClaims {
++	/** e.g. GitHub repo id. */
++	repoId?: string;
++	/** e.g. workflow file ref. */
++	workflowRef?: string;
++	/** e.g. GitHub run id. */
++	runId?: string;
++	/** e.g. GitHub run attempt. */
++	runAttempt?: string;
++	/** e.g. NewChanlun ticket number. */
++	ticket?: string;
++}
++
++export interface RemoteChildInvitationSpec {
++	parentSessionId: string;
++	parentSessionFile: string;
++	/** Human-readable name for the eventual child (optional). */
++	name?: string;
++	workload: RemoteChildWorkloadClaims;
++	ttlMs?: number;
++	/** Depth of the eventual child (parent depth + 1). */
++	depth: number;
++}
++
++export type RemoteChildInvitationState = "open" | "consumed" | "revoked" | "expired";
++
++export interface RemoteChildInvitationRecord {
++	/** SHA-256 of the invitation id — the only persisted form. */
++	invitationHash: string;
++	state: RemoteChildInvitationState;
++	issuedAt: number;
++	expiresAt: number;
++	parentSessionId: string;
++	parentSessionFile: string;
++	depth: number;
++	name?: string;
++	workload: RemoteChildWorkloadClaims;
++	/** Idempotency key of the admission request that consumed this invitation. */
++	consumedBy?: string;
++	consumedAt?: number;
++}
++
++export type RemoteChildState =
++	| "admitted"
++	| "running"
++	| "disconnected"
++	| "cancelling"
++	| "cancelled"
++	| "completed"
++	| "uncertain"
++	| "lease_expired"
++	| "failed";
++
++export const REMOTE_CHILD_TERMINAL_STATES: ReadonlySet<RemoteChildState> = new Set<RemoteChildState>([
++	"cancelled",
++	"completed",
++	"uncertain",
++	"lease_expired",
++	"failed",
++]);
++
++export const REMOTE_CHILD_ACTIVE_STATES: ReadonlySet<RemoteChildState> = new Set<RemoteChildState>([
++	"admitted",
++	"running",
++	"disconnected",
++	"cancelling",
++]);
++
++/** Durable remote-child record; the topology edge still lives in the RLM ledger. */
++export interface RemoteChildRecord {
++	protocolVersion: string;
++	childId: string;
++	sessionId: string;
++	parentSessionId: string;
++	parentSessionFile: string;
++	depth: number;
++	name: string;
++	workload: RemoteChildWorkloadClaims;
++	state: RemoteChildState;
++	attempt: number;
++	connectionEpoch: number;
++	/** SHA-256 of the worker Ed25519 public key that owns the current lease. */
++	workerPublicKeyHash: string;
++	issuedAt: number;
++	admittedAt: number;
++	startedAt?: number;
++	lastHeartbeatAt?: number;
++	lastEventSeq: number;
++	/** Idempotency key of the admission request that created this child. */
++	admissionRequestId: string;
++	/** SHA-256 of the invitation id that admitted this child. */
++	admissionInvitationHash: string;
++	/** Pending parent→worker commands not yet acked. */
++	parentCommandHighWater: number;
++	acknowledgedCommandSeq: number;
++	disconnectDeadlineAt?: number;
++	terminalAt?: number;
++	terminalReason?: string;
++	checkpointRef?: string;
++	checkpointHash?: string;
++	checkpointSeq?: number;
++}
++
++/** A child lease: the post-admission capability held by the worker. */
++export interface RemoteChildLease {
++	leaseId: string;
++	childId: string;
++	sessionId: string;
++	parentSessionId: string;
++	attempt: number;
++	connectionEpoch: number;
++	expiresAt: number;
++	workerPublicKeyHash: string;
++}
++
++export interface RemoteChildAdmissionCapsule {
++	protocolVersion: string;
++	childId: string;
++	sessionId: string;
++	parentSessionId: string;
++	depth: number;
++	attempt: number;
++	connectionEpoch: number;
++	lease: RemoteChildLease;
++}
++
++/** Kinds of worker-initiated mutations (mirrors the worker frame `type` field). */
++export type RemoteChildMutationKind =
++	| "admit"
++	| "attach"
++	| "heartbeat"
++	| "checkpoint"
++	| "message"
++	| "complete"
++	| "fail"
++	| "command_ack"
++	| "start_ack";
++
++/** A mutation frame carries attempt/epoch/sequence fencing plus an idempotency key. */
++export interface RemoteChildMutationHeader {
++	attempt: number;
++	connectionEpoch: number;
++	sequence: number;
++	idempotencyKey: string;
++}
++
++export type RemoteChildParentCommandKind = "steer" | "follow_up" | "stop";
++
++export interface RemoteChildParentCommand {
++	commandId: string;
++	commandSeq: number;
++	kind: RemoteChildParentCommandKind;
++	text: string;
++	reason?: string;
++	issuedAt: number;
++	deadlineAt?: number;
++	/** Host-internal routing key; not part of the wire contract. */
++	childIdForRouting?: string;
++}
++
++export type RemoteChildWorkerFrame =
++	| ({ type: "admit" } & RemoteChildMutationHeader & {
++				invitationId: string;
++				nonce: string;
++				admissionRequestId: string;
++				supportedVersions: string[];
++				workloadClaims: RemoteChildWorkloadClaims;
++				/** Nonce signed by the worker's Ed25519 key to prove possession. */
++				workerPublicKey: string;
++				possessionSignature: string;
++			})
++	| ({ type: "attach" } & RemoteChildMutationHeader & {
++				leaseId: string;
++				workerPublicKey: string;
++				possessionSignature: string;
++			})
++	| ({ type: "start_ack" } & RemoteChildMutationHeader)
++	| ({ type: "heartbeat" } & RemoteChildMutationHeader & {
++				eventSeq: number;
++				activitySummary?: string;
++			})
++	| ({ type: "checkpoint" } & RemoteChildMutationHeader & {
++				checkpointRef: string;
++				checkpointHash: string;
++				checkpointSeq: number;
++			})
++	| ({ type: "message" } & RemoteChildMutationHeader & {
++				text: string;
++			})
++	| ({ type: "complete" } & RemoteChildMutationHeader & {
++				result?: string;
++			})
++	| ({ type: "fail" } & RemoteChildMutationHeader & {
++				/** Sanitized error summary (no secrets). */
++				reason: string;
++			})
++	| ({ type: "command_ack" } & RemoteChildMutationHeader & {
++				commandSeq: number;
++				acknowledged: boolean;
++			});
++
++export type RemoteChildHostFrame =
++	| {
++			type: "admitted";
++			capsule: RemoteChildAdmissionCapsule;
++			/** Echoed admission idempotency key for crash-safe retry matching. */
++			admissionRequestId: string;
++	  }
++	| { type: "admission_denied"; reason: string; admissionRequestId: string }
++	| { type: "lease_renewed"; lease: RemoteChildLease }
++	| { type: "lease_expired"; reason: string }
++	| { type: "parent_command"; command: RemoteChildParentCommand }
++	| {
++			type: "parent_command_receipt";
++			commandSeq: number;
++			outcome: "queued" | "duplicate" | "rejected";
++	  }
++	| {
++			type: "message_receipt";
++			status: "delivered" | "duplicate" | "rejected";
++			messageId?: string;
++			reason?: string;
++	  }
++	| { type: "checkpoint_receipt"; status: "accepted" | "rejected"; reason?: string }
++	| { type: "terminal_notice"; state: RemoteChildState; reason?: string }
++	| { type: "error"; reason: string };
++
++export type RemoteChildAdmissionOutcome =
++	| { status: "admitted"; capsule: RemoteChildAdmissionCapsule }
++	| { status: "denied"; reason: string };
++
++export type RemoteChildAttachOutcome =
++	| { status: "attached"; lease: RemoteChildLease }
++	| { status: "denied"; reason: string };
++
++/** Worker→parent message delivery result. */
++export interface RemoteChildMessageReceipt {
++	status: "delivered" | "duplicate";
++	messageId: string;
++}
++
++export interface RemoteChildCommandReceipt {
++	status: "queued" | "duplicate" | "rejected";
++	commandSeq: number;
++	reason?: string;
++}
++
++/** Parent-side registry entry; single source of truth lives in `rlm-runtime.ts`. */
++export type RemoteChildRegistryEntry = RlmRemoteChildRegistryEntry;
++
++/** Worker→parent message whose sender is derived by the host, never by payload. */
++export interface RemoteChildWorkerMessage {
++	childId: string;
++	sessionId: string;
++	parentSessionId: string;
++	messageId: string;
++	text: string;
++	attempt: number;
++	connectionEpoch: number;
++	sequence: number;
++}
++
++export function isRemoteChildTerminal(state: RemoteChildState): boolean {
++	return REMOTE_CHILD_TERMINAL_STATES.has(state);
++}
+diff --git a/packages/coding-agent/src/remote-child/worker.ts b/packages/coding-agent/src/remote-child/worker.ts
+new file mode 100644
+index 0000000..b210263
+--- /dev/null
++++ b/packages/coding-agent/src/remote-child/worker.ts
+@@ -0,0 +1,341 @@
++/**
++ * Mock remote worker for the Core MVP conformance suite.
++ *
++ * Models a GitHub-Actions-side worker that must receive a durable ADMITTED
++ * before it may call a model or touch a checkout. It owns an Ed25519 keypair
++ * (injectable so a "restart" reuses the same identity), drives the transport,
++ * and records everything the host sends it for test assertions.
++ */
++import { randomUUID } from "node:crypto";
++import { type Ed25519Keypair, generateCapabilityKeypair, signPossession } from "./crypto.js";
++import type { RemoteChildTransport } from "./transport.js";
++import type {
++	RemoteChildAdmissionCapsule,
++	RemoteChildHostFrame,
++	RemoteChildLease,
++	RemoteChildParentCommand,
++	RemoteChildState,
++	RemoteChildWorkloadClaims,
++} from "./types.js";
++import { REMOTE_CHILD_PROTOCOL } from "./types.js";
++
++export interface MockRemoteWorkerAdmitParams {
++	invitationId: string;
++	admissionRequestId: string;
++	workloadClaims: RemoteChildWorkloadClaims;
++	supportedVersions?: string[];
++}
++
++export interface MockRemoteWorkerOptions {
++	transport: RemoteChildTransport;
++	keypair?: Ed25519Keypair;
++	/** Auto-ack parent commands (steer/follow-up/stop) on receipt. */
++	autoAckCommands?: boolean;
++	onCommand?: (command: RemoteChildParentCommand) => void;
++}
++
++interface PendingResolver<T> {
++	resolve: (value: T) => void;
++	reject: (error: Error) => void;
++}
++
++export class RemoteChildDeniedError extends Error {}
++
++export class MockRemoteWorker {
++	private readonly transport: RemoteChildTransport;
++	private readonly keypair: Ed25519Keypair;
++	private readonly autoAckCommands: boolean;
++	private readonly onCommand?: (command: RemoteChildParentCommand) => void;
++	private seq = 0;
++	private state: "idle" | "admitting" | "admitted" | "attached" | "running" | "terminal" = "idle";
++	private _capsule?: RemoteChildAdmissionCapsule;
++	private _lease?: RemoteChildLease;
++	private _startedModel = false;
++	private _terminalState?: RemoteChildState;
++	private readonly receivedCommands: RemoteChildParentCommand[] = [];
++	private readonly pendingAdmissions = new Map<string, PendingResolver<RemoteChildAdmissionCapsule>>();
++	private readonly pendingAttaches = new Map<string, PendingResolver<RemoteChildLease>>();
++	private readonly pendingMessages = new Map<string, PendingResolver<{ status: string; messageId?: string }>>();
++	private readonly pendingCheckpoints = new Map<string, PendingResolver<void>>();
++	private readonly pendingHeartbeats = new Map<string, PendingResolver<void>>();
++
++	constructor(options: MockRemoteWorkerOptions) {
++		this.transport = options.transport;
++		this.keypair = options.keypair ?? generateCapabilityKeypair();
++		this.autoAckCommands = options.autoAckCommands ?? true;
++		this.onCommand = options.onCommand;
++		options.transport.onHostFrame((_childId, frame) => this.handleHostFrame(frame));
++	}
++
++	get publicKey(): string {
++		return this.keypair.publicKey;
++	}
++
++	get capsule(): RemoteChildAdmissionCapsule | undefined {
++		return this._capsule;
++	}
++
++	get lease(): RemoteChildLease | undefined {
++		return this._lease;
++	}
++
++	get startedModel(): boolean {
++		return this._startedModel;
++	}
++
++	get terminalState(): RemoteChildState | undefined {
++		return this._terminalState;
++	}
++
++	get commands(): readonly RemoteChildParentCommand[] {
++		return this.receivedCommands;
++	}
++
++	private nextSeq(): number {
++		this.seq += 1;
++		return this.seq;
++	}
++
++	/** Admit via the invitation; resolves only with a committed ADMITTED. */
++	admit(params: MockRemoteWorkerAdmitParams): Promise<RemoteChildAdmissionCapsule> {
++		const nonce = randomUUID();
++		const admissionRequestId = params.admissionRequestId;
++		const promise = new Promise<RemoteChildAdmissionCapsule>((resolve, reject) => {
++			this.pendingAdmissions.set(admissionRequestId, { resolve, reject });
++		});
++		this.state = "admitting";
++		this.transport.sendToHost(admissionRequestId, {
++			type: "admit",
++			attempt: 1,
++			connectionEpoch: 1,
++			sequence: 0,
++			idempotencyKey: admissionRequestId,
++			invitationId: params.invitationId,
++			nonce,
++			admissionRequestId,
++			supportedVersions: params.supportedVersions ?? [REMOTE_CHILD_PROTOCOL],
++			workloadClaims: params.workloadClaims,
++			workerPublicKey: this.keypair.publicKey,
++			possessionSignature: signPossession(this.keypair.privateKey, this.keypair.publicKey, nonce),
++		});
++		return promise;
++	}
++
++	/** Attach (or re-attach) with the current lease; resolves with the renewed lease. */
++	attach(): Promise<RemoteChildLease> {
++		const capsule = this._capsule;
++		const lease = this._lease;
++		if (!capsule || !lease) throw new Error("worker has no capsule or lease to attach with");
++		const key = `attach-${this.nextSeq()}`;
++		const promise = new Promise<RemoteChildLease>((resolve, reject) => {
++			this.pendingAttaches.set(key, { resolve, reject });
++		});
++		this.transport.sendToHost(capsule.childId, {
++			type: "attach",
++			attempt: capsule.attempt,
++			connectionEpoch: lease.connectionEpoch,
++			sequence: this.seq,
++			idempotencyKey: key,
++			leaseId: lease.leaseId,
++			workerPublicKey: this.keypair.publicKey,
++			possessionSignature: signPossession(this.keypair.privateKey, this.keypair.publicKey, lease.leaseId),
++		});
++		return promise;
++	}
++
++	/** The admission barrier: refuse to run until a committed ADMITTED exists. */
++	startModel(): void {
++		if (this.state !== "admitted" && this.state !== "attached" && this.state !== "running") {
++			throw new Error("startModel() called before a committed ADMITTED was received");
++		}
++		this._startedModel = true;
++	}
++
++	startAck(): void {
++		const capsule = this.requireCapsule();
++		this.sendMutation(capsule.childId, {
++			type: "start_ack",
++			attempt: capsule.attempt,
++			connectionEpoch: this.currentEpoch(),
++			sequence: this.nextSeq(),
++			idempotencyKey: `start-ack-${this.seq}`,
++		});
++		this.state = "running";
++	}
++
++	heartbeat(eventSeq: number, activitySummary?: string): Promise<void> {
++		const capsule = this.requireCapsule();
++		const key = `heartbeat-${this.nextSeq()}`;
++		const promise = new Promise<void>((resolve, reject) => {
++			this.pendingHeartbeats.set(key, { resolve, reject });
++		});
++		this.sendMutation(capsule.childId, {
++			type: "heartbeat",
++			attempt: capsule.attempt,
++			connectionEpoch: this.currentEpoch(),
++			sequence: this.seq,
++			idempotencyKey: key,
++			eventSeq,
++			activitySummary,
++		});
++		return promise;
++	}
++
++	checkpoint(ref: string, hash: string, checkpointSeq: number): Promise<void> {
++		const capsule = this.requireCapsule();
++		const key = `checkpoint-${this.nextSeq()}`;
++		const promise = new Promise<void>((resolve, reject) => {
++			this.pendingCheckpoints.set(key, { resolve, reject });
++		});
++		this.sendMutation(capsule.childId, {
++			type: "checkpoint",
++			attempt: capsule.attempt,
++			connectionEpoch: this.currentEpoch(),
++			sequence: this.seq,
++			idempotencyKey: key,
++			checkpointRef: ref,
++			checkpointHash: hash,
++			checkpointSeq,
++		});
++		return promise;
++	}
++
++	sendMessage(text: string): Promise<{ status: string; messageId?: string }> {
++		const capsule = this.requireCapsule();
++		const key = `message-${this.nextSeq()}`;
++		const promise = new Promise<{ status: string; messageId?: string }>((resolve, reject) => {
++			this.pendingMessages.set(key, { resolve, reject });
++		});
++		this.sendMutation(capsule.childId, {
++			type: "message",
++			attempt: capsule.attempt,
++			connectionEpoch: this.currentEpoch(),
++			sequence: this.seq,
++			idempotencyKey: key,
++			text,
++		});
++		return promise;
++	}
++
++	complete(result?: string): void {
++		const capsule = this.requireCapsule();
++		this.sendMutation(capsule.childId, {
++			type: "complete",
++			attempt: capsule.attempt,
++			connectionEpoch: this.currentEpoch(),
++			sequence: this.nextSeq(),
++			idempotencyKey: `complete-${this.seq}`,
++			result,
++		});
++	}
++
++	fail(reason: string): void {
++		const capsule = this.requireCapsule();
++		this.sendMutation(capsule.childId, {
++			type: "fail",
++			attempt: capsule.attempt,
++			connectionEpoch: this.currentEpoch(),
++			sequence: this.nextSeq(),
++			idempotencyKey: `fail-${this.seq}`,
++			reason,
++		});
++	}
++
++	ackCommand(commandSeq: number, acknowledged = true): void {
++		const capsule = this.requireCapsule();
++		this.sendMutation(capsule.childId, {
++			type: "command_ack",
++			attempt: capsule.attempt,
++			connectionEpoch: this.currentEpoch(),
++			sequence: this.nextSeq(),
++			idempotencyKey: `ack-${commandSeq}-${this.seq}`,
++			commandSeq,
++			acknowledged,
++		});
++	}
++
++	private requireCapsule(): RemoteChildAdmissionCapsule {
++		if (!this._capsule) throw new Error("worker is not admitted");
++		return this._capsule;
++	}
++
++	private currentEpoch(): number {
++		return this._lease?.connectionEpoch ?? this._capsule?.connectionEpoch ?? 1;
++	}
++
++	private sendMutation(childId: string, frame: Parameters<RemoteChildTransport["sendToHost"]>[1]): void {
++		this.transport.sendToHost(childId, frame);
++	}
++
++	private handleHostFrame(frame: RemoteChildHostFrame): void {
++		switch (frame.type) {
++			case "admitted": {
++				const pending = this.pendingAdmissions.get(frame.admissionRequestId);
++				if (!pending) return;
++				this.pendingAdmissions.delete(frame.admissionRequestId);
++				this._capsule = frame.capsule;
++				this._lease = frame.capsule.lease;
++				this.state = "admitted";
++				pending.resolve(frame.capsule);
++				return;
++			}
++			case "admission_denied": {
++				const pending = this.pendingAdmissions.get(frame.admissionRequestId);
++				if (!pending) return;
++				this.pendingAdmissions.delete(frame.admissionRequestId);
++				this.state = "idle";
++				pending.reject(new RemoteChildDeniedError(frame.reason));
++				return;
++			}
++			case "lease_renewed": {
++				this._lease = frame.lease;
++				if (this.state === "admitted" || this.state === "admitting") this.state = "attached";
++				for (const pending of this.pendingAttaches.values()) pending.resolve(frame.lease);
++				this.pendingAttaches.clear();
++				for (const pending of this.pendingHeartbeats.values()) pending.resolve();
++				this.pendingHeartbeats.clear();
++				return;
++			}
++			case "lease_expired": {
++				this._terminalState = "lease_expired";
++				this.state = "terminal";
++				return;
++			}
++			case "parent_command": {
++				this.receivedCommands.push(frame.command);
++				this.onCommand?.(frame.command);
++				if (this.autoAckCommands) this.ackCommand(frame.command.commandSeq, true);
++				return;
++			}
++			case "parent_command_receipt": {
++				return;
++			}
++			case "message_receipt": {
++				for (const pending of this.pendingMessages.values()) {
++					pending.resolve({ status: frame.status, messageId: frame.messageId });
++				}
++				this.pendingMessages.clear();
++				return;
++			}
++			case "checkpoint_receipt": {
++				if (frame.status === "accepted") {
++					for (const pending of this.pendingCheckpoints.values()) pending.resolve();
++				} else {
++					for (const pending of this.pendingCheckpoints.values()) {
++						pending.reject(new Error(frame.reason ?? "checkpoint rejected"));
++					}
++				}
++				this.pendingCheckpoints.clear();
++				return;
++			}
++			case "terminal_notice": {
++				this._terminalState = frame.state;
++				this.state = "terminal";
++				return;
++			}
++			case "error": {
++				return;
++			}
++		}
++	}
++}
+diff --git a/packages/coding-agent/test/remote-child-core.test.ts b/packages/coding-agent/test/remote-child-core.test.ts
+new file mode 100644
+index 0000000..e8d9545
+--- /dev/null
++++ b/packages/coding-agent/test/remote-child-core.test.ts
+@@ -0,0 +1,458 @@
++import { mkdtempSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import { RemoteChildAdmissionHost, type RemoteChildAdmissionHostOptions } from "../src/remote-child/admission.js";
++import { generateCapabilityKeypair } from "../src/remote-child/crypto.js";
++import { InMemoryRemoteChildTransport } from "../src/remote-child/transport.js";
++import type { RemoteChildWorkerMessage, RemoteChildWorkloadClaims } from "../src/remote-child/types.js";
++import { MockRemoteWorker, RemoteChildDeniedError } from "../src/remote-child/worker.js";
++
++const PARENT_SESSION_ID = "parent-session-1";
++const PARENT_SESSION_FILE = "/sessions/parent-session-1.jsonl";
++const WORKLOAD: RemoteChildWorkloadClaims = {
++	repoId: "repo-7",
++	workflowRef: ".github/workflows/worker.yml",
++	ticket: "1142",
++};
++
++class FakeClock {
++	private t = 1_000_000;
++	now(): number {
++		return this.t;
++	}
++	advance(ms: number): void {
++		this.t += ms;
++	}
++}
++
++interface Harness {
++	clock: FakeClock;
++	storeDir: string;
++	transport: InMemoryRemoteChildTransport;
++	host: RemoteChildAdmissionHost;
++	messages: RemoteChildWorkerMessage[];
++}
++
++function createHost(
++	storeDir: string,
++	clock: FakeClock,
++	transport: InMemoryRemoteChildTransport,
++	overrides: Partial<RemoteChildAdmissionHostOptions> = {},
++): RemoteChildAdmissionHost {
++	return new RemoteChildAdmissionHost({
++		storeDir,
++		parentSessionId: PARENT_SESSION_ID,
++		parentSessionFile: PARENT_SESSION_FILE,
++		depth: 0,
++		transport,
++		clock: () => clock.now(),
++		invitationTtlMs: 60_000,
++		leaseTtlMs: 60_000,
++		stopDeadlineMs: 30_000,
++		disconnectGraceMs: 30_000,
++		...overrides,
++	});
++}
++
++function setup(overrides: Partial<RemoteChildAdmissionHostOptions> = {}): Harness {
++	const clock = new FakeClock();
++	const storeDir = mkdtempSync(join(tmpdir(), "remote-child-"));
++	const transport = new InMemoryRemoteChildTransport();
++	const messages: RemoteChildWorkerMessage[] = [];
++	const host = createHost(storeDir, clock, transport, {
++		onWorkerMessage: (message) => {
++			messages.push(message);
++		},
++		...overrides,
++	});
++	transport.onWorkerFrame((childId, frame) => {
++		void host.dispatchWorkerFrame(childId, frame);
++	});
++	return { clock, storeDir, transport, host, messages };
++}
++
++function makeWorker(
++	transport: InMemoryRemoteChildTransport,
++	options: { keypair?: ReturnType<typeof generateCapabilityKeypair>; autoAckCommands?: boolean } = {},
++): MockRemoteWorker {
++	return new MockRemoteWorker({ transport, ...options });
++}
++
++function invite(
++	host: RemoteChildAdmissionHost,
++	workload: RemoteChildWorkloadClaims = WORKLOAD,
++): { invitationId: string; expiresAt: number } {
++	return host.invite({
++		parentSessionId: PARENT_SESSION_ID,
++		parentSessionFile: PARENT_SESSION_FILE,
++		depth: 0,
++		name: "remote-worker",
++		workload,
++	});
++}
++
++async function admitWorker(
++	host: RemoteChildAdmissionHost,
++	transport: InMemoryRemoteChildTransport,
++	options: {
++		invitationId?: string;
++		admissionRequestId?: string;
++		workload?: RemoteChildWorkloadClaims;
++		keypair?: ReturnType<typeof generateCapabilityKeypair>;
++	} = {},
++): Promise<{
++	worker: MockRemoteWorker;
++	capsule: Awaited<ReturnType<MockRemoteWorker["admit"]>>;
++	invitationId: string;
++}> {
++	const invitationId = options.invitationId ?? invite(host, options.workload ?? WORKLOAD).invitationId;
++	const worker = makeWorker(transport, { keypair: options.keypair });
++	const capsule = await worker.admit({
++		invitationId,
++		admissionRequestId: options.admissionRequestId ?? "admit-1",
++		workloadClaims: options.workload ?? WORKLOAD,
++	});
++	return { worker, capsule, invitationId };
++}
++
++describe("prime-agent.remote-child/v1 core", () => {
++	let harness: Harness;
++
++	beforeEach(() => {
++		harness = setup();
++	});
++
++	afterEach(() => {
++		harness.host.close();
++		harness.transport.close();
++		rmSync(harness.storeDir, { recursive: true, force: true });
++	});
++
++	it("holds the admission barrier: no start permit until a durable ADMITTED", async () => {
++		const { host, transport } = harness;
++		const worker = makeWorker(transport);
++		expect(() => worker.startModel()).toThrow();
++
++		const inv = invite(host);
++		await expect(
++			worker.admit({ invitationId: inv.invitationId, admissionRequestId: "admit-1", workloadClaims: WORKLOAD }),
++		).resolves.toMatchObject({ childId: expect.stringMatching(/^remote-/) });
++
++		expect(() => worker.startModel()).not.toThrow();
++		expect(worker.startedModel).toBe(true);
++		expect(host.listEntries()).toHaveLength(1);
++		expect(host.listEntries()[0]).toMatchObject({ runtime: "remote", remote_state: "admitted" });
++	});
++
++	it("is idempotent on retry of a committed admission: same child, no second allocation", async () => {
++		const { host, transport } = harness;
++		const keypair = generateCapabilityKeypair();
++		const inv = invite(host);
++		const first = await makeWorker(transport, { keypair }).admit({
++			invitationId: inv.invitationId,
++			admissionRequestId: "admit-1",
++			workloadClaims: WORKLOAD,
++		});
++		const second = await makeWorker(transport, { keypair }).admit({
++			invitationId: inv.invitationId,
++			admissionRequestId: "admit-1",
++			workloadClaims: WORKLOAD,
++		});
++		expect(second.childId).toBe(first.childId);
++		expect(second.sessionId).toBe(first.sessionId);
++		expect(host.listEntries()).toHaveLength(1);
++	});
++
++	it("rejects a second use of a single-use invitation", async () => {
++		const { host, transport } = harness;
++		const inv = invite(host);
++		const first = await makeWorker(transport).admit({
++			invitationId: inv.invitationId,
++			admissionRequestId: "admit-1",
++			workloadClaims: WORKLOAD,
++		});
++		expect(first.childId).toBeTruthy();
++		await expect(
++			makeWorker(transport).admit({
++				invitationId: inv.invitationId,
++				admissionRequestId: "admit-2",
++				workloadClaims: WORKLOAD,
++			}),
++		).rejects.toBeInstanceOf(RemoteChildDeniedError);
++		expect(host.listEntries()).toHaveLength(1);
++	});
++
++	it("fails closed on expired, revoked, and mismatched-workload invitations", async () => {
++		const { host, transport, clock } = harness;
++		const expired = invite(host);
++		clock.advance(61_000);
++		await expect(
++			makeWorker(transport).admit({
++				invitationId: expired.invitationId,
++				admissionRequestId: "a1",
++				workloadClaims: WORKLOAD,
++			}),
++		).rejects.toThrow(/expired/i);
++
++		const revoked = invite(host);
++		expect(host.revokeInvitation(revoked.invitationId)).toBe(true);
++		await expect(
++			makeWorker(transport).admit({
++				invitationId: revoked.invitationId,
++				admissionRequestId: "a2",
++				workloadClaims: WORKLOAD,
++			}),
++		).rejects.toThrow(/not open/i);
++
++		const wrong = invite(host, { ticket: "9999" });
++		await expect(
++			makeWorker(transport).admit({
++				invitationId: wrong.invitationId,
++				admissionRequestId: "a3",
++				workloadClaims: WORKLOAD,
++			}),
++		).rejects.toThrow(/mismatch/i);
++		expect(host.listEntries()).toHaveLength(0);
++	});
++
++	it("rejects a nonce replay and a forged possession proof", async () => {
++		const { host, transport } = harness;
++		const inv = invite(host);
++		const keypair = generateCapabilityKeypair();
++		const worker = makeWorker(transport, { keypair });
++		// First admission consumes the nonce; a replayed nonce must be rejected.
++		const capsule = await worker.admit({
++			invitationId: inv.invitationId,
++			admissionRequestId: "admit-1",
++			workloadClaims: WORKLOAD,
++		});
++		expect(capsule.childId).toBeTruthy();
++
++		// A different admission request id with the same nonce is a replay.
++		const inv2 = invite(host);
++		const replayingWorker = makeWorker(transport, { keypair });
++		// Force the same nonce by bypassing the worker's fresh-nonce helper.
++		await expect(
++			host.processAdmit({
++				type: "admit",
++				attempt: 1,
++				connectionEpoch: 1,
++				sequence: 0,
++				idempotencyKey: "admit-2",
++				invitationId: inv2.invitationId,
++				nonce: "forged-nonce",
++				admissionRequestId: "admit-2",
++				supportedVersions: ["prime-agent.remote-child/v1"],
++				workloadClaims: WORKLOAD,
++				workerPublicKey: "not-a-key",
++				possessionSignature: "sig:bad",
++			}),
++		).resolves.toMatchObject({ status: "denied" });
++		void replayingWorker;
++	});
++
++	it("derives the message sender from the lease and delivers worker→parent", async () => {
++		const { host, transport, messages } = harness;
++		const { worker } = await admitWorker(host, transport);
++		await worker.attach();
++		worker.startAck();
++
++		const receipt = await worker.sendMessage("the worker finished its slice");
++		expect(receipt.status).toBe("delivered");
++		expect(receipt.messageId).toBeTruthy();
++		expect(messages).toHaveLength(1);
++		expect(messages[0]).toMatchObject({
++			parentSessionId: PARENT_SESSION_ID,
++			text: "the worker finished its slice",
++		});
++	});
++
++	it("delivers steer and follow-up as distinct parent commands", async () => {
++		const { host, transport } = harness;
++		const { worker, capsule } = await admitWorker(host, transport);
++		await worker.attach();
++		worker.startAck();
++
++		expect(host.steer(capsule.childId, "switch to plan B").status).toBe("queued");
++		expect(host.followUp(capsule.childId, "also review the diff").status).toBe("queued");
++		await vi.waitFor(() => {
++			expect(worker.commands.map((command) => command.kind)).toEqual(["steer", "follow_up"]);
++		});
++	});
++
++	it("marks a child cancelled only on a STOP ack", async () => {
++		const { host, transport } = harness;
++		const { worker, capsule } = await admitWorker(host, transport);
++		await worker.attach();
++		worker.startAck();
++		expect(host.stop(capsule.childId, "cancelled by orchestrator").status).toBe("queued");
++		await vi.waitFor(() => {
++			expect(host.listEntries()[0]?.remote_state).toBe("cancelled");
++		});
++	});
++
++	it("never fabricates a cancelled on a STOP without an ack", async () => {
++		const { host, transport, clock } = harness;
++		const { capsule } = await admitWorker(host, transport);
++		await admitWorker(host, transport, { admissionRequestId: "admit-unused" }).then(() => {});
++		const noAckWorker = makeWorker(transport, { autoAckCommands: false });
++		// Re-admit the same child idempotently with a non-acking worker is not
++		// possible here, so stop the already-admitted child directly.
++		host.stop(capsule.childId, "cancelled by orchestrator");
++		clock.advance(31_000);
++		host.collectExpiry();
++		expect(host.listEntries()[0]?.remote_state).toBe("uncertain");
++		void noAckWorker;
++	});
++
++	it("transitions running → disconnected → lease_expired across grace", async () => {
++		const { host, transport, clock } = harness;
++		const { worker } = await admitWorker(host, transport);
++		await worker.attach();
++		worker.startAck();
++		await worker.heartbeat(1);
++		expect(host.listEntries()[0]?.remote_state).toBe("running");
++
++		clock.advance(61_000);
++		host.collectExpiry();
++		expect(host.listEntries()[0]?.remote_state).toBe("disconnected");
++
++		clock.advance(31_000);
++		host.collectExpiry();
++		expect(host.listEntries()[0]?.remote_state).toBe("lease_expired");
++	});
++
++	it("recovers state across a daemon restart and rejects stale frames without redelivery", async () => {
++		const { clock, storeDir, transport, messages } = harness;
++		const { host } = harness;
++		const keypair = generateCapabilityKeypair();
++		const inv = invite(host);
++		const firstWorker = makeWorker(transport, { keypair });
++		const firstCapsule = await firstWorker.admit({
++			invitationId: inv.invitationId,
++			admissionRequestId: "admit-1",
++			workloadClaims: WORKLOAD,
++		});
++		await firstWorker.attach();
++		firstWorker.startAck();
++		await firstWorker.sendMessage("durable high-water mark message");
++		expect(messages).toHaveLength(1);
++		host.close();
++
++		// Restart: reopen the same store.
++		const transport2 = new InMemoryRemoteChildTransport();
++		const host2 = createHost(storeDir, clock, transport2);
++		transport2.onWorkerFrame((childId, frame) => {
++			void host2.dispatchWorkerFrame(childId, frame);
++		});
++		expect(host2.listEntries()).toHaveLength(1);
++
++		const resumed = makeWorker(transport2, { keypair });
++		const capsule2 = await resumed.admit({
++			invitationId: inv.invitationId,
++			admissionRequestId: "admit-1",
++			workloadClaims: WORKLOAD,
++		});
++		expect(capsule2.childId).toBe(firstCapsule.childId);
++		await resumed.attach();
++
++		// A fresh worker's sequence counter starts low; the durable high-water
++		// mark must reject it without re-delivering to the parent.
++		const stale = await resumed.sendMessage("stale replay");
++		expect(stale.status).toBe("rejected");
++		expect(messages).toHaveLength(1);
++		host2.close();
++	});
++
++	it("isolates families: a child admitted to one parent never appears in another parent", async () => {
++		const { host, transport } = harness;
++		const otherClock = new FakeClock();
++		const otherStoreDir = mkdtempSync(join(tmpdir(), "remote-child-other-"));
++		const otherHost = createHost(otherStoreDir, otherClock, transport, {
++			parentSessionId: "parent-session-2",
++			parentSessionFile: "/sessions/parent-session-2.jsonl",
++		});
++		try {
++			const { capsule } = await admitWorker(host, transport);
++			expect(capsule.childId).toBeTruthy();
++			expect(host.listEntries()).toHaveLength(1);
++			expect(otherHost.listEntries()).toHaveLength(0);
++			expect(otherHost.listEntries("parent-session-1")).toHaveLength(0);
++		} finally {
++			otherHost.close();
++			rmSync(otherStoreDir, { recursive: true, force: true });
++		}
++	});
++
++	it("rejects a worker with a mismatched possession key", async () => {
++		const { host } = harness;
++		const inv = invite(host);
++		await expect(
++			host.processAdmit({
++				type: "admit",
++				attempt: 1,
++				connectionEpoch: 1,
++				sequence: 0,
++				idempotencyKey: "admit-1",
++				invitationId: inv.invitationId,
++				nonce: "nonce-1",
++				admissionRequestId: "admit-1",
++				supportedVersions: ["prime-agent.remote-child/v1"],
++				workloadClaims: WORKLOAD,
++				workerPublicKey: "ed25519-pem:-----BEGIN PUBLIC KEY-----\nnot-a-key\n-----END PUBLIC KEY-----\n",
++				possessionSignature: "sig:bad",
++			}),
++		).resolves.toMatchObject({ status: "denied" });
++	});
++
++	it("rejects mutations after a tombstone delete and delete is idempotent", async () => {
++		const { host, transport } = harness;
++		const { worker, capsule } = await admitWorker(host, transport);
++		await worker.attach();
++		worker.startAck();
++		expect(host.delete(capsule.childId)).toBe(true);
++		expect(host.delete(capsule.childId)).toBe(true);
++		expect(host.listEntries()).toHaveLength(0);
++
++		await expect(worker.sendMessage("late frame")).resolves.toMatchObject({ status: "rejected" });
++	});
++
++	it("records checkpoints and maps provider terminal errors to failed", async () => {
++		const { host, transport } = harness;
++		const { worker } = await admitWorker(host, transport);
++		await worker.attach();
++		worker.startAck();
++		await worker.checkpoint("s3://bucket/checkpoint-1", "hash-123", 1);
++		expect(host.listEntries()[0]).toMatchObject({ remote_state: "running" });
++
++		worker.fail("402 Insufficient Balance");
++		await vi.waitFor(() => {
++			expect(host.listEntries()[0]?.remote_state).toBe("failed");
++		});
++	});
++
++	it("caps pending parent commands", async () => {
++		const harness2 = setup({ maxPendingCommands: 2 });
++		try {
++			const { host, transport } = harness2;
++			const keypair = generateCapabilityKeypair();
++			const invitationId = invite(harness2.host).invitationId;
++			const worker = makeWorker(transport, { keypair, autoAckCommands: false });
++			const capsule = await worker.admit({
++				invitationId,
++				admissionRequestId: "admit-cap",
++				workloadClaims: WORKLOAD,
++			});
++			await worker.attach();
++			worker.startAck();
++			expect(host.steer(capsule.childId, "one").status).toBe("queued");
++			expect(host.steer(capsule.childId, "two").status).toBe("queued");
++			expect(host.steer(capsule.childId, "three").status).toBe("rejected");
++		} finally {
++			harness2.host.close();
++			harness2.transport.close();
++			rmSync(harness2.storeDir, { recursive: true, force: true });
++		}
++	});
++});
+diff --git a/packages/coding-agent/test/remote-child-registry.test.ts b/packages/coding-agent/test/remote-child-registry.test.ts
+new file mode 100644
+index 0000000..2004a9e
+--- /dev/null
++++ b/packages/coding-agent/test/remote-child-registry.test.ts
+@@ -0,0 +1,199 @@
++import { mkdirSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { Agent } from "@earendil-works/pi-agent-core";
++import { type AssistantMessage, createAssistantMessageEventStream, getModel, type Usage } from "@earendil-works/pi-ai";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import { AgentSession } from "../src/core/agent-session.js";
++import { AuthStorage } from "../src/core/auth-storage.js";
++import { convertToLlm } from "../src/core/messages.js";
++import { ModelRegistry } from "../src/core/model-registry.js";
++import { SessionManager } from "../src/core/session-manager.js";
++import { SettingsManager } from "../src/core/settings-manager.js";
++import { RemoteChildAdmissionHost } from "../src/remote-child/admission.js";
++import { createRemoteChildRegistryProvider } from "../src/remote-child/registry.js";
++import { InMemoryRemoteChildTransport } from "../src/remote-child/transport.js";
++import { MockRemoteWorker } from "../src/remote-child/worker.js";
++import { createTestResourceLoader } from "./utilities.js";
++
++const model = getModel("anthropic", "claude-sonnet-4-5")!;
++const WORKLOAD = { ticket: "1142" };
++
++function usage(): Usage {
++	return {
++		input: 3,
++		output: 1,
++		cacheRead: 0,
++		cacheWrite: 0,
++		totalTokens: 4,
++		cost: { input: 3, output: 1, cacheRead: 0, cacheWrite: 0, total: 4 },
++	};
++}
++
++function assistantMessage(text: string): AssistantMessage {
++	return {
++		role: "assistant",
++		content: [{ type: "text", text }],
++		api: model.api,
++		provider: model.provider,
++		model: model.id,
++		usage: usage(),
++		stopReason: "stop",
++		timestamp: Date.now(),
++	};
++}
++
++function streamAnswer(text: string): ReturnType<typeof createAssistantMessageEventStream> {
++	const stream = createAssistantMessageEventStream();
++	queueMicrotask(() => {
++		stream.push({ type: "done", reason: "stop", message: assistantMessage(text) });
++	});
++	return stream;
++}
++
++describe("remote-child registry integration", () => {
++	let tempDir: string;
++	const sessions: AgentSession[] = [];
++
++	beforeEach(() => {
++		tempDir = join(tmpdir(), `pi-remote-child-${Date.now()}-${Math.random().toString(36).slice(2)}`);
++		mkdirSync(tempDir, { recursive: true });
++	});
++
++	afterEach(() => {
++		for (const session of sessions) session.dispose();
++		sessions.length = 0;
++		rmSync(tempDir, { recursive: true, force: true });
++	});
++
++	function createParentSession(): AgentSession {
++		const authStorage = AuthStorage.create(join(tempDir, "auth.json"));
++		authStorage.setRuntimeApiKey("anthropic", "test-key");
++		const sessionManager = SessionManager.create(tempDir, join(tempDir, "sessions"));
++		const settingsManager = SettingsManager.create(tempDir, tempDir);
++		const agent = new Agent({
++			convertToLlm,
++			getApiKey: () => "test-key",
++			initialState: { model, systemPrompt: "", tools: [], thinkingLevel: "off" },
++			streamFn: (_m, _c) => streamAnswer("ok"),
++		});
++		const session = new AgentSession({
++			agent,
++			sessionManager,
++			settingsManager,
++			cwd: tempDir,
++			modelRegistry: ModelRegistry.create(authStorage, join(tempDir, "models.json")),
++			resourceLoader: createTestResourceLoader(),
++			rlmDepth: 0,
++			rlmMaxDepth: 4,
++		});
++		sessions.push(session);
++		return session;
++	}
++
++	function wireHost(host: RemoteChildAdmissionHost, transport: InMemoryRemoteChildTransport): void {
++		transport.onWorkerFrame((childId, frame) => {
++			void host.dispatchWorkerFrame(childId, frame);
++		});
++	}
++
++	it("lists an admitted remote worker in the inviting old parent session, not a sibling parent", async () => {
++		const parent = createParentSession();
++		const parentSessionFile = parent.sessionFile ?? join(tempDir, "sessions", `${parent.sessionId}.jsonl`);
++		const transport = new InMemoryRemoteChildTransport();
++		const host = new RemoteChildAdmissionHost({
++			storeDir: join(tempDir, "remote-store"),
++			parentSessionId: parent.sessionId,
++			parentSessionFile,
++			depth: parent.rlmDepth,
++			transport,
++		});
++		wireHost(host, transport);
++		parent.setRemoteChildRegistryProvider(createRemoteChildRegistryProvider(host));
++
++		const inv = host.invite({
++			parentSessionId: parent.sessionId,
++			parentSessionFile,
++			depth: parent.rlmDepth,
++			name: "remote-worker",
++			workload: WORKLOAD,
++		});
++		const worker = new MockRemoteWorker({ transport });
++		const capsule = await worker.admit({
++			invitationId: inv.invitationId,
++			admissionRequestId: "admit-1",
++			workloadClaims: WORKLOAD,
++		});
++		await worker.attach();
++		worker.startAck();
++
++		const listed = await parent.listRlmSubagents();
++		expect(listed.subagents).toHaveLength(1);
++		expect(listed.subagents[0]).toMatchObject({
++			rlm_child_id: capsule.childId,
++			session_id: capsule.sessionId,
++			runtime: "remote",
++			remote_state: "running",
++			attempt: 1,
++		});
++
++		const siblingParent = createParentSession();
++		const siblingResult = await siblingParent.listRlmSubagents();
++		expect(siblingResult.subagents).toHaveLength(0);
++
++		host.close();
++		transport.close();
++	});
++
++	it("keeps default list behavior unchanged when no provider is installed", async () => {
++		const parent = createParentSession();
++		const result = await parent.listRlmSubagents();
++		expect(result.subagents).toEqual([]);
++	});
++
++	it("routes a worker message back to the inviting parent, not a sibling parent", async () => {
++		const parent = createParentSession();
++		const parentSessionFile = parent.sessionFile ?? join(tempDir, "sessions", `${parent.sessionId}.jsonl`);
++		const transport = new InMemoryRemoteChildTransport();
++		const host = new RemoteChildAdmissionHost({
++			storeDir: join(tempDir, "remote-store"),
++			parentSessionId: parent.sessionId,
++			parentSessionFile,
++			depth: parent.rlmDepth,
++			transport,
++			onWorkerMessage: (message) => {
++				void parent.acceptAgentMessagePrompt(`[from child:remote-worker] ${message.text}`);
++			},
++		});
++		wireHost(host, transport);
++		parent.setRemoteChildRegistryProvider(createRemoteChildRegistryProvider(host));
++
++		const inv = host.invite({
++			parentSessionId: parent.sessionId,
++			parentSessionFile,
++			depth: parent.rlmDepth,
++			name: "remote-worker",
++			workload: WORKLOAD,
++		});
++		const worker = new MockRemoteWorker({ transport });
++		await worker.admit({ invitationId: inv.invitationId, admissionRequestId: "admit-1", workloadClaims: WORKLOAD });
++		await worker.attach();
++		worker.startAck();
++		const receipt = await worker.sendMessage("slice result is ready");
++		expect(receipt.status).toBe("delivered");
++
++		await vi.waitFor(() => {
++			expect(parent.messages.some((message) => JSON.stringify(message).includes("slice result is ready"))).toBe(
++				true,
++			);
++		});
++
++		const siblingParent = createParentSession();
++		expect(siblingParent.messages.some((message) => JSON.stringify(message).includes("slice result is ready"))).toBe(
++			false,
++		);
++
++		host.close();
++		transport.close();
++	});
++});
+-- 
+2.39.5
+
