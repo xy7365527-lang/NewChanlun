@@ -53,8 +53,8 @@ _Avoid_: "父亡子清"（口语，仅解释用）
 
 ### 验证编排
 
-**候选证据包（Candidate Evidence Bundle）**（2026-08-21 [#1145](https://github.com/xy7365527-lang/NewChanlun/issues/1145) 裁定）:
-恰好一个实现候选及其确定性证据齐备后才冻结的评审单元；它不可变、按内容寻址且已经脱敏，冻结不等于候选通过。
+**候选证据包（Candidate Evidence Bundle）**（2026-08-21 [#1145](https://github.com/xy7365527-lang/NewChanlun/issues/1145) 裁定；证据边界由 [ADR 0025](docs/adr/0025-lav-shadow-ranking-evidence-contract.md)、[#1148](https://github.com/xy7365527-lang/NewChanlun/issues/1148) 精化）:
+恰好一个实现候选及其确定性证据齐备后才冻结的评审单元；它不可变、按内容寻址，内含位于 Lead-only evidence plane 的原始证据（证据封存器仅可为确定性封存校验读取）与单独生成的 canonical redacted `ranking_view`；LAV 只能读取后者，冻结不等于候选通过。
 _Avoid_: 通过证书、验收证书
 
 **旁路排序器（Shadow Ranker）**（同上）:
@@ -64,6 +64,10 @@ _Avoid_: 任何正确性、通过／不通过、批准／拒绝或验证器／�
 **实现后／评审前接缝（Post-implement / pre-review seam）**（同上）:
 唯一允许的 LAV 入口：候选实现及确定性过滤完成后、标准 Code Review 前；N < 2 时跳过，未通过确定性过滤的候选不得进入。Code Review、CI／形式化／行为证据与 Lead 保持权威；本裁定不使用 pstack，LAV 不进入 Spec、实施执行或 Code Review 本身。
 _Avoid_: LAV 阶段、Spec 接缝、实现中接缝、Code Review 内接缝、权威闸门
+
+**证据封存器（Bundle Sealer）**（2026-08-21 [ADR 0025](docs/adr/0025-lav-shadow-ranking-evidence-contract.md)，[#1148](https://github.com/xy7365527-lang/NewChanlun/issues/1148) 裁定）:
+唯一获准校验候选原始证据、必需闸门与脱敏结果，并在 Evidence Store 原子创建、发布 `SEALED` 候选证据包与 Comparison Set Manifest 的非模型角色；候选、旁路排序器与 Lead 均无创建、补写、改写或发布权。确定性 GC 仅有 ADR 0025 所列的删除敏感对象与追加删除凭据窄权，不具封存发布权。
+_Avoid_: 候选、评审器、旁路排序器；把确定性封存误作评审、排序或裁决
 
 ### 级别与代际
 
