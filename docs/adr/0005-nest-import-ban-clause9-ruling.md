@@ -28,3 +28,13 @@
 - **DRAFT 标注**：原 DRAFT 待裁清单已标明条款 9 已批及去向（本 ADR）；待裁项 1（塔内原生实装立项）维持待裁。
 - **level0 免门暴露为独立问题**：84.11% 信号证书为空、99.42% 三类走 level0 免门，留 map #59 后续票处置，不属本批复范围。
 - **程序性**：本 ADR = 条款 9 的首次正式批准记录；批准对象为修订版文本，非 DRAFT 原文。
+
+## 修订（[#1061](https://github.com/xy7365527-lang/NewChanlun/issues/1061)，2026-08-18）：条款 9 理由 A 退役与对照臂退役依据
+
+（append-only：条款 9 批复文本与理由 B 原文一字不动，本节为现行修订。）
+
+- **对照臂退役**：map [#1055](https://github.com/xy7365527-lang/NewChanlun/issues/1055) 已裁「生产扫描成为唯一扫描」——3a 合并生产两路（`extract_signals_with_hist_anchored` + `observations_for_level`），3b P1 对照臂退役（前置 = Lean 镜像签收，[ADR 0025](docs/adr/0026-scan-unify-defense-lean-mirror.md) 裁定三）。
+- **理由 A 退役**：理由 A 的前提「两套 Rust 实现互相独立（judge 层读证书则三套塌两套、毁掉唯一对照面）」随第二套实现（P1 装配线）在 3b 删除而物理消失。**禁令维持**，理由收敛为**理由 B 单腿**（依赖方向/未来函数防线，独立成立，与对照臂存废无关）。
+- **对照面使命移交**：原「唯一对照面」的防 drift 使命由 **Lean 形式化镜像 + Rust↔Lean 提取对拍**接管（ADR 0025 裁定一/二；执行器 = strict_nest_check 转型为镜像对拍执行器，见 ADR 0025 #1060 补充节）；nest 对照侧 CandDeltaEvent 面保留为**纯投影审计面**（[#1059](https://github.com/xy7365527-lang/NewChanlun/issues/1059)，nest.rs + 8 审计 bin 零改动，诊断余量、非对照面）。
+- **#799 裁定六例外面更新**：其援引的「已声明的独立对照臂」（本 ADR 条款 9）现役主体已退役——例外面作为**历史记录**保留（无现役主体），读者转读 ADR 0025（新防线）与 #1059（投影审计面）。
+- **退役依据三件**：① 3a 合线结构性消灭装配 drift 类（[#1056](https://github.com/xy7365527-lang/NewChanlun/issues/1056) 考古：P1 独有射程 = 两条镜像线改不同步）；② 镜像签收为 3b 前置、无空窗期（ADR 0025）；③ 投影零改动延续消费面（#1059）。纯文书决策，代码零改动。
