@@ -7,9 +7,10 @@
   2. issue shape 检测脚本（detect-issue-shape.sh）在 mock gh 下四形态对拍。
   3. 禁入模式扫描（不读本机 Prime/Codex auth；不复用 watcher/harvest/main-loop；
      #1002 旧 Kimi 常量/票面模型路由不复活）。
-  4. #1128 模型 registry 机械锁：event payload 接线、固定 Secret allowlist、
+  4. #1128 模型 registry 机械锁：精确数组 label 路由（禁止 toJSON+contains 子串）、
+     最小 EVENT_PAYLOAD 接线（只传 labels.*.name）、固定 Secret allowlist、
      票面字符串不成为 env/secret key、remote-child identity 与模型凭据分离、
-     事件 fixture 覆盖（默认 Claude / 显式 DeepSeek / 冲突 / 未知 / 缺 secret）。
+     事件 fixture 覆盖（默认 Claude / 显式 DeepSeek / 冲突 / 未知 / 缺 secret / P1 敌对标签）。
 
 用法：python3 .sandcastle/verify-workflows.py
 退出码 0 = 全过；非 0 = 首条失败（附可读信息）。
@@ -39,7 +40,7 @@ WORKFLOWS = [
     "agent-update-branch.yml",
 ]
 
-# #1128 事件 fixture 覆盖表：文件名 → 必须出现的标签集合（含触发标签与模型标签）。
+# #1128 事件 fixture 覆盖表（含 P1 敌对标签）：文件名 → 必须出现的标签集合（含触发标签与模型标签）。
 FIXTURE_REQUIREMENTS = {
     "issue-labeled-default-claude.json": {"agent:implement"},
     "issue-labeled-deepseek-v4-pro.json": {
@@ -63,6 +64,14 @@ FIXTURE_REQUIREMENTS = {
         "agent:implement",
         "agent:model:deepseek-v4-pro",
     },
+    "issue-labeled-not-deepseek-substring.json": {
+        "agent:implement",
+        "not-agent:model:deepseek-v4-pro",
+    },
+    "issue-labeled-deepseek-v4-pro-legacy.json": {
+        "agent:implement",
+        "agent:model:deepseek-v4-pro-legacy",
+    },
     "pr-labeled-review.json": {
         "agent:review",
         "agent:model:deepseek-v4-pro",
@@ -71,6 +80,39 @@ FIXTURE_REQUIREMENTS = {
         "agent:implement",
         "agent:model:deepseek-v4-pro",
     },
+    "pr-labeled-implement-pr-not-deepseek-substring.json": {
+        "agent:implement",
+        "not-agent:model:deepseek-v4-pro",
+    },
+    "pr-labeled-implement-pr-deepseek-v4-pro-legacy.json": {
+        "agent:implement",
+        "agent:model:deepseek-v4-pro-legacy",
+    },
+}
+
+# P1：两个实装 workflow 的 label 路由必须是数组元素精确匹配（GitHub 表达式
+# `contains(array, item)`），不得用 toJSON 把数组序列化成字符串后做子串匹配。
+ISSUE_EXACT_LABEL_ROUTE = (
+    "contains(github.event.issue.labels.*.name, 'agent:model:deepseek-v4-pro')"
+)
+PR_EXACT_LABEL_ROUTE = (
+    "contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')"
+)
+LABEL_ROUTE_COUNTS = {
+    "agent-implement.yml": (ISSUE_EXACT_LABEL_ROUTE, 4),
+    "agent-implement-pr.yml": (PR_EXACT_LABEL_ROUTE, 4),
+}
+
+# P2：EVENT_PAYLOAD 只传模型选择所需的最小 labels 载荷（label name 数组），
+# 不传完整 github.event（issue/PR body 等无关字段不得进入进程 env）。
+ISSUE_EVENT_PAYLOAD = "EVENT_PAYLOAD: ${{ toJSON(github.event.issue.labels.*.name) }}"
+PR_EVENT_PAYLOAD = "EVENT_PAYLOAD: ${{ toJSON(github.event.pull_request.labels.*.name) }}"
+EVENT_PAYLOAD_RULES = {
+    "agent-implement.yml": (ISSUE_EVENT_PAYLOAD, 2),
+    "agent-review.yml": (PR_EVENT_PAYLOAD, 1),
+    "agent-implement-pr.yml": (PR_EVENT_PAYLOAD, 2),
+    "agent-explore.yml": (ISSUE_EVENT_PAYLOAD, 1),
+    "agent-update-branch.yml": (PR_EVENT_PAYLOAD, 1),
 }
 
 ALLOWED_SECRET_REFS = {
@@ -255,11 +297,42 @@ def main() -> int:
     agent_ts = (AW_DIR / "shared" / "agent.ts").read_text()
     registry_all_text = all_text
 
+    # P2 机械锁：每个 workflow 的 EVENT_PAYLOAD 接线必须全部是最小 labels 载荷。
     for name in WORKFLOWS:
         raw = raw_wf(name)
+        expected_payload, expected_count = EVENT_PAYLOAD_RULES[name]
         check(
-            "EVENT_PAYLOAD: ${{ toJSON(github.event) }}" in raw,
-            f"{name} 必须把 toJSON(github.event) 作为 EVENT_PAYLOAD 传给 agent 步",
+            "EVENT_PAYLOAD: ${{ toJSON(github.event) }}" not in raw,
+            f"{name} 不得把完整 toJSON(github.event) 作为 EVENT_PAYLOAD（P2：只传 labels）",
+        )
+        payload_lines = [
+            line.strip()
+            for line in raw.splitlines()
+            if line.strip().startswith("EVENT_PAYLOAD: ${{")
+        ]
+        check(
+            len(payload_lines) == expected_count
+            and all(line == expected_payload for line in payload_lines),
+            f"{name} EVENT_PAYLOAD 必须且只能是 {expected_payload}（实为 {payload_lines}）",
+        )
+
+    # P1 机械锁：label 路由条件的 contains 必须作用于 labels.*.name 数组；
+    # toJSON+contains 是 JSON 字符串子串匹配，敌对标签会误入 DeepSeek 分支。
+    for name, (exact_route, expected_count) in LABEL_ROUTE_COUNTS.items():
+        raw = raw_wf(name)
+        label_route_conditions = [
+            line.strip()
+            for line in raw.splitlines()
+            if line.strip().startswith("if:")
+            and "contains(" in line
+            and "labels" in line
+        ]
+        check(
+            len(label_route_conditions) == expected_count
+            and all(exact_route in condition for condition in label_route_conditions)
+            and all("toJSON(" not in condition for condition in label_route_conditions),
+            f"{name} label 路由条件必须且只能是精确数组匹配 {exact_route} "
+            f"（实为 {label_route_conditions}）",
         )
 
     # 固定 Secret allowlist：workflow 里出现的每个 secrets.X 都必须在白名单内。
@@ -308,7 +381,7 @@ def main() -> int:
             "remote-child invitation/lease allowlist 不得包含模型凭据名",
         )
 
-    # 事件 fixture：存在、合法 JSON、覆盖四种必需场景（默认 Claude / DeepSeek / 冲突+未知 / 缺 secret）。
+    # 事件 fixture：存在、合法 JSON、覆盖必需场景（默认 Claude / DeepSeek / 冲突+未知 / 缺 secret / P1 敌对标签）。
     for filename, required_labels in FIXTURE_REQUIREMENTS.items():
         path = FIXTURE_DIR / filename
         check(path.is_file(), f"缺少 #1128 事件 fixture {filename}")
@@ -340,9 +413,13 @@ def main() -> int:
         "issue-labeled-conflict.json",
         "issue-labeled-unknown.json",
         "issue-labeled-deepseek-missing-secret.json",
+        "issue-labeled-not-deepseek-substring.json",
+        "issue-labeled-deepseek-v4-pro-legacy.json",
+        "pr-labeled-implement-pr-not-deepseek-substring.json",
+        "pr-labeled-implement-pr-deepseek-v4-pro-legacy.json",
     }
     check(required_fixtures <= set(FIXTURE_REQUIREMENTS),
-          "必需事件 fixture 集合缺失（默认 Claude/DeepSeek/冲突/未知/缺 secret）")
+          "必需事件 fixture 集合缺失（默认 Claude/DeepSeek/冲突/未知/缺 secret/P1 敌对标签）")
 
     # 票面字符串不成为 Secret/env key：除了 registry allowlist 与测试反例，
     # 工作流和 agent 代码里不得出现 `secrets.<任意标签>` 或 `process.env[<动态>]`。

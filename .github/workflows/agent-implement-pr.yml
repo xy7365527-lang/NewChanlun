@@ -7,7 +7,8 @@ name: Agent Implement PR
 #
 # #1128：implement-pr 与 issue implement 共用同一模型 registry（默认 Claude /
 # 显式 `agent:model:deepseek-v4-pro`）。下面的 contains() 只选择注入哪一条固定
-# Secret；allowlist 与未知/冲突标签的 fail-loud 在 shared/agent.ts。
+# Secret（labels.*.name 数组元素精确匹配，不用 toJSON 子串）；EVENT_PAYLOAD 只传该数组；
+# allowlist 与未知/冲突标签的 fail-loud 在 shared/agent.ts。
 
 on:
   pull_request_target:
@@ -76,29 +77,29 @@ jobs:
         run: npm run typecheck
 
       - name: Install Claude Code (default route)
-        if: github.event.pull_request.state == 'open' && ! contains(toJSON(github.event.pull_request.labels.*.name), 'agent:model:deepseek-v4-pro')
+        if: github.event.pull_request.state == 'open' && ! contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
         run: npm install -g @anthropic-ai/claude-code
 
       # DeepSeek 工蜂 = Prime Agent CLI（与 .sandcastle/Dockerfile 同版本/同 tarball）。
       - name: Install Prime Agent (DeepSeek v4-pro route)
-        if: github.event.pull_request.state == 'open' && contains(toJSON(github.event.pull_request.labels.*.name), 'agent:model:deepseek-v4-pro')
+        if: github.event.pull_request.state == 'open' && contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
         run: npm install -g https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.7.2/prime-agent-0.7.2.tgz
 
       # 两个 run step 互斥，只把所选模型的固定 Secret 注入进程 env；
       # 未选中的模型凭据不进入 agent 子进程，也不会被转发给 remote-child。
       - name: Run implement-PR agent (Claude default)
-        if: github.event.pull_request.state == 'open' && ! contains(toJSON(github.event.pull_request.labels.*.name), 'agent:model:deepseek-v4-pro')
+        if: github.event.pull_request.state == 'open' && ! contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          EVENT_PAYLOAD: ${{ toJSON(github.event) }}
+          EVENT_PAYLOAD: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           OUTPUT_DIR: ${{ runner.temp }}
         run: npx tsx .sandcastle/agent-workflows/implement-pr/implement-pr.ts
 
       - name: Run implement-PR agent (DeepSeek v4-pro)
-        if: github.event.pull_request.state == 'open' && contains(toJSON(github.event.pull_request.labels.*.name), 'agent:model:deepseek-v4-pro')
+        if: github.event.pull_request.state == 'open' && contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          EVENT_PAYLOAD: ${{ toJSON(github.event) }}
+          EVENT_PAYLOAD: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           OUTPUT_DIR: ${{ runner.temp }}
         run: npx tsx .sandcastle/agent-workflows/implement-pr/implement-pr.ts
 

@@ -289,7 +289,7 @@ test("remote-child invitation/lease 与模型凭据分离：identity env 不夹�
   assert.ok(!("CLAUDE_CODE_OAUTH_TOKEN" in identity));
 });
 
-test("modelLabelsFromEvent 支持 issue 与 pull_request labeled payload", () => {
+test("modelLabelsFromEvent 支持 issue/pull_request labeled payload 与最小 labels 数组", () => {
   assert.deepEqual(
     modelLabelsFromEvent(
       fixture("issue-labeled-default-claude.json"),
@@ -301,6 +301,23 @@ test("modelLabelsFromEvent 支持 issue 与 pull_request labeled payload", () =>
       fixture("pr-labeled-implement-pr-deepseek-v4-pro.json"),
     ),
     ["agent:implement", "agent:model:deepseek-v4-pro"],
+  );
+  // P2：workflow 最小 EVENT_PAYLOAD 是 labels.*.name 的字符串数组。
+  assert.deepEqual(
+    modelLabelsFromEvent(["agent:implement", "agent:model:deepseek-v4-pro"]),
+    ["agent:implement", "agent:model:deepseek-v4-pro"],
+  );
+  // 兼容只传 github.event.*.labels 数组（label 对象带 name）的形态。
+  assert.deepEqual(
+    modelLabelsFromEvent([
+      { name: "agent:implement" },
+      { name: "agent:model:deepseek-v4-pro" },
+    ]),
+    ["agent:implement", "agent:model:deepseek-v4-pro"],
+  );
+  assert.throws(
+    () => modelLabelsFromEvent([{ name: "" }]),
+    /non-empty string name/,
   );
 });
 
@@ -314,6 +331,16 @@ test("readModelLabelsFromEnv 解析 EVENT_PAYLOAD；缺省按无标签处理", (
     "agent:implement",
     "agent:model:deepseek-v4-pro",
   ]);
+  // P2：EVENT_PAYLOAD 只传 label name 数组（workflow 接线形态）。
+  assert.deepEqual(
+    readModelLabelsFromEnv({
+      EVENT_PAYLOAD: JSON.stringify([
+        "agent:implement",
+        "agent:model:deepseek-v4-pro",
+      ]),
+    }),
+    ["agent:implement", "agent:model:deepseek-v4-pro"],
+  );
   assert.deepEqual(readModelLabelsFromEnv({}), []);
 });
 
@@ -370,6 +397,56 @@ test("#1128 事件 fixture：默认 Claude / 显式 DeepSeek / 冲突 / 未知 /
         {},
       ),
     /DEEPSEEK_API_KEY is not set or is empty/,
+  );
+});
+
+test("#1128 P1 敌对标签：not-* 子串默认 Claude；-legacy fail-loud 不选中 DeepSeek", () => {
+  // 旧 toJSON+contains 子串路由会误命中这两个标签；TS 层必须保持精确前缀语义。
+  const notSubstringLabels = modelLabelsFromEvent(
+    fixture("issue-labeled-not-deepseek-substring.json"),
+  );
+  assert.deepEqual(resolveModelSelection(notSubstringLabels), {
+    label: null,
+    entry: null,
+  });
+  const defaultProvider = selectedAgent("implement", notSubstringLabels, {
+    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
+    DEEPSEEK_API_KEY: "deepseek-token",
+  });
+  assert.equal(defaultProvider.name, "claude-code");
+  assert.ok(!("DEEPSEEK_API_KEY" in defaultProvider.env));
+
+  const legacyLabels = modelLabelsFromEvent(
+    fixture("issue-labeled-deepseek-v4-pro-legacy.json"),
+  );
+  assert.throws(
+    () =>
+      selectedAgent("implement", legacyLabels, {
+        DEEPSEEK_API_KEY: "deepseek-token",
+      }),
+    (error: unknown) =>
+      error instanceof ModelRegistryError &&
+      /Unknown model label/.test(error.message) &&
+      /agent:model:deepseek-v4-pro-legacy/.test(error.message),
+  );
+
+  const prNotSubstringLabels = modelLabelsFromEvent(
+    fixture("pr-labeled-implement-pr-not-deepseek-substring.json"),
+  );
+  assert.deepEqual(resolveModelSelection(prNotSubstringLabels), {
+    label: null,
+    entry: null,
+  });
+
+  const prLegacyLabels = modelLabelsFromEvent(
+    fixture("pr-labeled-implement-pr-deepseek-v4-pro-legacy.json"),
+  );
+  assert.throws(
+    () =>
+      selectedAgent("implement-pr", prLegacyLabels, {
+        DEEPSEEK_API_KEY: "deepseek-token",
+      }),
+    /Unknown model label/,
   );
 });
 

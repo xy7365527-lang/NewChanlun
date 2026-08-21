@@ -158,40 +158,58 @@ export const resolveModelSelection = (
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** 从 GitHub `labeled` 事件（issue 或 pull_request）读取标签名数组。 */
-export const modelLabelsFromEvent = (event: unknown): string[] => {
-  if (!isRecord(event)) {
+const parseLabelName = (label: unknown): string => {
+  if (typeof label === "string") {
+    const name = label.trim();
+    if (name !== "") return name;
+  } else if (isRecord(label) && typeof label.name === "string") {
+    const name = label.name.trim();
+    if (name !== "") return name;
+  }
+  throw new ModelRegistryError(
+    "EVENT_PAYLOAD label entries must have a non-empty string name or be { name: string } objects.",
+  );
+};
+
+const labelsFromContainer = (container: Record<string, unknown>): string[] => {
+  const labels = container.labels;
+  if (labels === undefined) return [];
+  if (!Array.isArray(labels)) {
+    throw new ModelRegistryError("EVENT_PAYLOAD labels must be an array.");
+  }
+  return labels.map(parseLabelName);
+};
+
+/**
+ * 从最小 EVENT_PAYLOAD 或 GitHub `labeled` 事件读取标签名数组。
+ * P2 接线：workflow 只传 `toJSON(github.event.*.labels.*.name)`（标签名字符串数组）；
+ * 完整事件与 label 对象数组仍兼容，供本地 fixtures/直接入口对拍使用。
+ */
+export const modelLabelsFromEvent = (payload: unknown): string[] => {
+  if (Array.isArray(payload)) {
+    return payload.map(parseLabelName);
+  }
+  if (!isRecord(payload)) {
     throw new ModelRegistryError(
-      "EVENT_PAYLOAD must be a JSON object (toJSON(github.event)).",
+      "EVENT_PAYLOAD must be a JSON array of label names " +
+        "(toJSON(github.event.issue.labels.*.name) / pull_request counterpart) " +
+        "or a GitHub labeled event.",
     );
   }
-  const container = isRecord(event.issue) ? event.issue : event.pull_request;
+  const container = isRecord(payload.issue) ? payload.issue : payload.pull_request;
   if (!isRecord(container)) {
     throw new ModelRegistryError(
       "EVENT_PAYLOAD must be a GitHub labeled event containing issue or pull_request labels.",
     );
   }
-  const labels = container.labels;
-  if (labels === undefined) return [];
-  if (!Array.isArray(labels)) {
-    throw new ModelRegistryError(
-      "EVENT_PAYLOAD labels must be an array of { name: string } objects.",
-    );
-  }
-  return labels.map((label) => {
-    if (!isRecord(label) || typeof label.name !== "string" || label.name === "") {
-      throw new ModelRegistryError(
-        "EVENT_PAYLOAD label entries must have a non-empty string name.",
-      );
-    }
-    return label.name;
-  });
+  return labelsFromContainer(container);
 };
 
 export const parseEventPayload = (raw: string | undefined): unknown => {
   if (!raw) {
     throw new ModelRegistryError(
-      "EVENT_PAYLOAD is not set. Workflows must pass toJSON(github.event) to the agent step.",
+      "EVENT_PAYLOAD is not set. Workflows must pass only labels to the agent step " +
+        "(toJSON(github.event.issue.labels.*.name) / pull_request counterpart).",
     );
   }
   try {
@@ -201,7 +219,7 @@ export const parseEventPayload = (raw: string | undefined): unknown => {
   }
 };
 
-/** 从进程环境读取模型标签（缺少 EVENT_PAYLOAD 时按无标签处理，便于本地直跑）。 */
+/** 从进程环境读取模型标签（最小 labels EVENT_PAYLOAD；缺少时按无标签处理，便于本地直跑）。 */
 export const readModelLabelsFromEnv = (
   env: NodeJS.ProcessEnv = process.env,
 ): string[] => {

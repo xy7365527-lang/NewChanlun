@@ -53,7 +53,7 @@ jobs:
       - name: Run explore agent
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          EVENT_PAYLOAD: ${{ toJSON(github.event) }}
+          EVENT_PAYLOAD: ${{ toJSON(github.event.issue.labels.*.name) }}
           OUTPUT_DIR: ${{ runner.temp }}
         run: npx tsx .sandcastle/agent-workflows/explore/explore.ts
 
