@@ -5504,6 +5504,44 @@ fn nest_gate_env_gate_off_bitexact_on_shrinks_only() {
     );
 }
 
+/// #1147 gate-on 重测驱动（`#[ignore]` 探针，同 #846 `type1_descend_continuity_dx` 先例）：
+/// 现役判定链（锚修复后代码）在 BTC 窗上门开跑一次 π 路径，逐候选落
+/// 旧臂 StepFail 归因 dump（env `P1147_STEPFAIL_DUMP_PATH`，未设 = 零输出纯读数）。
+/// 窗口默认 = #796 同窗（2024-01-01..07）；env `P1147_WINDOW_START`/
+/// `P1147_WINDOW_END` 可换窗（ISO 闭区间）。
+/// 零断言——只驱动读数落盘供报告消费；无 BTC 数据时 `load_by_symbol` fail-loud。
+///
+/// 跑法：
+/// `P1147_STEPFAIL_DUMP_PATH=/tmp/p1147_stepfail.jsonl cargo test --release --lib \\
+///   theta_v0::backtest::runner::tests::gate_on_stepfail_composition_dx -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn gate_on_stepfail_composition_dx() {
+    let config = ThetaConfig::default();
+    let ds = super::super::data::load_by_symbol("BTC", &config)
+        .expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
+    let start = std::env::var("P1147_WINDOW_START").unwrap_or_else(|_| "2024-01-01".to_string());
+    let end = std::env::var("P1147_WINDOW_END").unwrap_or_else(|_| "2024-01-07".to_string());
+    let window = ds.slice_date_window(&start, &end);
+    assert!(!window.bars.is_empty(), "窗口 {start}..{end} 非空");
+    let years = window.bars.len() as f64 / (365.25 * 24.0 * 60.0);
+    let first_px = window
+        .bars
+        .iter()
+        .find(|b| !b.untradable && b.close > 0)
+        .map(|b| b.close as f64 * config.tick.tick_size)
+        .unwrap_or(1.0);
+    let initial_nav = (first_px * 10_000.0).max(1.0e6);
+    // 门开（线程局部注入，优先于进程级 env；与既有 gate 测试同惯例）。
+    NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
+    let r = run_theta_v0_pi(&window, &config, years, initial_nav);
+    NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
+    eprintln!(
+        "[p1147] gate-on 窗口 {start}..{end} 内 n_orders={} n_trades={} strat_return={:.6}",
+        r.n_orders, r.metrics.n_trades, r.metrics.strat_return
+    );
+}
+
 // ───────────── #75（N3-T2 进场门真链切换）─────────────
 
 /// #75 夹具：合成 typed nest 事件（nest_index.rs 测试同型；`b_center_start`=20 配合
