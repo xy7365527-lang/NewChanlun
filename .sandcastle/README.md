@@ -26,11 +26,35 @@ npx tsx .sandcastle/main.mts
 
 跑之前确保有可领的票：open + 带 `sandcastle` label + 未 assign。镜像变更后用 sandcastle 的 build-image 重建 `sandcastle:newchanlun`。
 
+## wayfinder_engine 控制面（#1084）
+
+`scripts/wayfinder_engine.mts` 是图清自动汇入主干的常驻控制面（tracker 即账本，stateless）：
+每 4 分钟一轮，跑三件事——
+
+1. **DAG 走查**：图清 → 起草 spec 草案开票（@编排者批【闸一】）；spec 批准 → 拆实装票（blocking 边 + 逐条挂裁定票）；实装全关 → 起草图关 comment + close map。
+2. **队列交棒**：只给合资格实装票（已批准 spec/DAG + 未 assign + 无 open blocker）挂 `sandcastle`，不把全部历史 `ready-for-agent` 无差别放行；每轮五桶分明（ready-for-agent / sandcastle 拾取权 / blocked / claimed / running）。
+3. **状态页**：写 `.sandcastle/logs/wayfinder-status.md`，不再把 `sandcastle` 空误写成 `ready-for-agent` 全空。
+
+gh 查询有限重试 + 指数退避 + fail-loud；无 runnable 票 sleep 后重查、不退出。人工闸三处不动（spec 批准 / 不预授权决策票 / 合入 main）。
+
+**部署成受管常驻服务**（launchd KeepAlive，默认真实执行 `--live`）：
+
+```bash
+bash .sandcastle/install-wayfinder-engine.sh install   # 安装并加载
+bash .sandcastle/install-wayfinder-engine.sh status    # 查状态
+bash .sandcastle/install-wayfinder-engine.sh uninstall # 卸载
+```
+
+手工调试（仓库根，不写 tracker）：`npx tsx scripts/wayfinder_engine.mts --once --dry-run`。
+
 ## 文件地图
 
 | 文件 | 作用 |
 |---|---|
-| `main.mts` | 管线入口。两段循环：frontier 取票+claim → 起沙盒 → Phase 1 实装 → Phase 2 评审；模型面常量（实装/评审模型、provider、迭代数）集中在文件顶部，升档改这里重跑。 |
+| `main.mts` | 管线入口。两段循环：frontier 取票+claim → 起沙盒 → Phase 1 实装 → Phase 2 评审；模型面常量（实装/评审模型、provider、迭代数）集中在文件顶部，升档改这里重跑。sandcastle 专属队列空时分开报全仓 `ready-for-agent` 数（#1084 追加，不把专属空误写成全空）。 |
+| `run-wayfinder-engine.sh` | wayfinder_engine 控制面常驻壳（#1084 追加）：前台 exec `npx tsx scripts/wayfinder_engine.mts`，launchd KeepAlive 调用。 |
+| `install-wayfinder-engine.sh` | 控制面 launchd 任务的安装/卸载/查状态（#1084 追加）。 |
+| `launchd/com.newchanlun.wayfinder-engine.plist` | 控制面 launchd 任务定义：KeepAlive + RunAtLoad + `--live`（#1084 追加）。 |
 | `prime-agent-provider.ts` | prime-agent 的自定义 AgentProvider。无头模式 `prime-agent -p --mode json` 输出 NDJSON 事件流，prompt 走 stdin（避开 Linux 128 KB argv 上限），事件映射到 sandcastle 的 stream 协议。 |
 | `implement-prompt.md` | Phase 1 实装工蜂的 prompt 模板（`{{ISSUE_NUMBER}}` 注入）：Explore→Plan→Execute→Verify→Commit 流程 + 硬性规则（不关票不合 main 不 push、被卡留评论收工）。 |
 | `review-prompt.md` | Phase 2 评审工蜂的 prompt 模板（`{{BRANCH}}`/`{{ISSUE_NUMBER}}` 注入）：看分支 diff 与原始 issue，保持功能语义前提下直接在分支上修正。 |

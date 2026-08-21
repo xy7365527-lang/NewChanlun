@@ -16,8 +16,21 @@ import {
   isSpecTicket,
   isImplTicket,
   isPureDecisionMap,
+  classifyTicket,
+  openBlockerCount,
+  buildSpecApprovalIndex,
+  withSpecApproval,
+  summarizeQueue,
+  planReleases,
+  renderStatus,
 } from "./wayfinder_engine.mts";
-import type { ChildIssue, IssueComment, MapState, WalkOptions } from "./wayfinder_engine.mts";
+import type {
+  ChildIssue,
+  IssueComment,
+  MapState,
+  WalkOptions,
+  ReadyTicket,
+} from "./wayfinder_engine.mts";
 
 const ORCH = "xy7365527-lang";
 const OPTS: WalkOptions = { orchestrator: ORCH };
@@ -268,4 +281,124 @@ test("parseSplitPlan：无标记时兜底扫全文；无票时返回 null", () =
   assert.equal(parseSplitPlan(body)!.length, 1);
   assert.equal(parseSplitPlan("没有 json"), null);
   assert.equal(parseSplitPlan("```json\n{\"other\":1}\n```"), null);
+});
+
+// ── #1084 追加：队列分类与 sandcastle 释放规划 ─────────────────────────────────
+
+function ready(partial: Partial<ReadyTicket> & { number: number }): ReadyTicket {
+  return {
+    title: `#${partial.number} 测试票`,
+    labels: [],
+    assignees: [],
+    blockedBy: 0,
+    specApproved: null,
+    ...partial,
+  };
+}
+
+test("classifyTicket：五桶判据逐项", () => {
+  assert.equal(classifyTicket(ready({ number: 1, blockedBy: 1 })), "blocked");
+  assert.equal(classifyTicket(ready({ number: 2, assignees: ["me"] })), "claimed");
+  assert.equal(
+    classifyTicket(ready({ number: 3, assignees: ["me"], labels: ["sandcastle"] })),
+    "running",
+  );
+  assert.equal(classifyTicket(ready({ number: 4, labels: ["sandcastle"] })), "released");
+  assert.equal(
+    classifyTicket(ready({ number: 5, title: "[impl] S1 x", specApproved: true })),
+    "eligible",
+  );
+  // 合资格实装票但已 assign / 已 blocked → 不判 eligible
+  assert.equal(
+    classifyTicket(ready({ number: 6, title: "[impl] S1 x", specApproved: true, assignees: ["me"] })),
+    "claimed",
+  );
+  assert.equal(
+    classifyTicket(ready({ number: 7, title: "[impl] S1 x", specApproved: true, blockedBy: 1 })),
+    "blocked",
+  );
+  // 不合资格：非实装票 / 实装票但 spec 未批准 / 不在任何 open map
+  assert.equal(classifyTicket(ready({ number: 8, title: "[task] 探针" })), "held");
+  assert.equal(
+    classifyTicket(ready({ number: 9, title: "[impl] S1 x", specApproved: false })),
+    "held",
+  );
+  assert.equal(
+    classifyTicket(ready({ number: 10, title: "[impl] S1 x", specApproved: null })),
+    "held",
+  );
+});
+
+test("openBlockerCount：只计 OPEN blocker，totalCount 含已关不算", () => {
+  assert.equal(openBlockerCount(undefined), 0);
+  assert.equal(openBlockerCount({ totalCount: 0 }), 0);
+  assert.equal(
+    openBlockerCount({ nodes: [{ state: "CLOSED" }], totalCount: 1 }),
+    0,
+  );
+  assert.equal(
+    openBlockerCount({ nodes: [{ state: "OPEN" }, { state: "CLOSED" }], totalCount: 2 }),
+    1,
+  );
+});
+
+test("buildSpecApprovalIndex + withSpecApproval：父图 spec 批准态并入", () => {
+  const approvedMap = map({
+    number: 42,
+    children: [decision(101), spec(500, "OPEN", [approvalComment()]), impl(201)],
+  });
+  const pendingMap = map({
+    number: 43,
+    children: [decision(102), spec(501, "OPEN", []), impl(202)],
+  });
+  const idx = buildSpecApprovalIndex([approvedMap, pendingMap], ORCH);
+  assert.equal(idx.get(201), true);
+  assert.equal(idx.get(202), false);
+
+  const tickets = withSpecApproval(
+    [ready({ number: 201, title: "[impl] S1 x" }), ready({ number: 999, title: "[impl] S9 x" })],
+    idx,
+  );
+  assert.equal(tickets[0]!.specApproved, true);
+  assert.equal(tickets[1]!.specApproved, null);
+});
+
+test("planReleases：只放行合资格实装票，不无差别放行历史 ready-for-agent", () => {
+  const tickets = [
+    ready({ number: 1, title: "[impl] S1 a", specApproved: true }),        // eligible
+    ready({ number: 2, title: "[impl] S2 b", specApproved: true }),        // eligible
+    ready({ number: 3, title: "[impl] S3 c", specApproved: true, blockedBy: 1 }), // blocked
+    ready({ number: 4, title: "[impl] S4 d", specApproved: true, assignees: ["me"] }), // claimed
+    ready({ number: 5, title: "[impl] S5 e", specApproved: false }),       // 未批准 spec
+    ready({ number: 6, title: "[impl] S6 f", specApproved: null }),        // 不在 open map
+    ready({ number: 7, title: "📋 SPEC：x", specApproved: true }),          // 非实装票
+    ready({ number: 8, title: "[task] 探针", specApproved: true }),        // 非实装票
+    ready({ number: 9, title: "[impl] S9 g", specApproved: true, labels: ["sandcastle"] }), // 已释放
+  ];
+  assert.deepEqual(planReleases(tickets), [1, 2]);
+  const summary = summarizeQueue(tickets);
+  assert.equal(summary.buckets.eligible, 2);
+  assert.equal(summary.buckets.blocked, 1);
+  assert.equal(summary.buckets.claimed, 1);
+  assert.equal(summary.buckets.released, 1);
+  assert.equal(summary.buckets.held, 4);
+  assert.deepEqual(summary.eligible, [1, 2]);
+});
+
+test("renderStatus：五桶分明，不把 sandcastle 空误写成 ready-for-agent 空", () => {
+  const tickets = [
+    ready({ number: 1, title: "[impl] S1 a", specApproved: true }),
+    ready({ number: 2, title: "📋 SPEC：x", specApproved: true }),
+  ];
+  const summary = summarizeQueue(tickets);
+  const text = renderStatus(
+    { dryRun: true, stamp: "2026-08-21 00:00:00" },
+    [],
+    tickets,
+    summary,
+  );
+  assert.equal(text.includes("全仓 ready-for-agent（open）：2 张"), true);
+  assert.equal(text.includes("已获 sandcastle 拾取权（可拾取）：0"), true);
+  assert.equal(text.includes("待释放（合资格实装票，本轮挂 sandcastle）：1 → #1"), true);
+  assert.equal(text.includes("不合资格（决策/spec/未批准 spec 等，不放行）：1"), true);
 });
