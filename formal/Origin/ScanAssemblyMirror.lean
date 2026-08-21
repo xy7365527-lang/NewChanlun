@@ -1,0 +1,1396 @@
+/-
+Origin/ScanAssemblyMirror.lean — 3a 统一扫描装配语义镜像（#1087 第二切片）
+
+本模块只钉生产 Rust 在 main @ 355b839c29 已有的装配语义，不增删任何交易判据，也不参与
+生产判定。事实锚均按该提交逐行复核：
+* scan.rs:8-28：共享 per-segment 素材、双域 sink、扫描后候选归约与 D2/P1 边界；
+* scan.rs:39-49：MergedScanOutput 的四件输出；
+* scan.rs:95-125、137-228：结构方向锚、冻结边界、共享逐段扫描、prefix/tail 与最终归约；
+* scan.rs:276-390：第一类/盘背/第三类与候选腿的唯一逐段装配核；
+* decompose.rs:45-63、198-254：MoveBlock 与三项 pointwise ownership 查询；
+* signal.rs:221-228、242-257、266-325：最近 confirmed 中枢与 FirstStructuralGates；
+* signal.rs:749-863、1150-1161、1911-1922：grade、PanDivCert 与冻结公式。
+
+★D2 字段族边界（scan.rs:19-28）：CandDeltaEvent 与 cp_ownership 是独立于四件扫描输出的
+P1 侧车。本镜像从 event 前 raw 分量判定产/拒事件，并从 closure 的 leave/retest 原始几何推进
+Pending→Closed、附着完整 P2/c_p 证据；pan_div_diag 不改变 Cand 真值，但逐字段核对。
+
+认识论等级 L0：这里只镜像既有确定性装配。lake build 证明 Lean 内部定义与定理成立，不等于
+Rust 已完成跨语言对拍，更不证明交易有效性；指定窗签收属于后续执行切片。
+
+本文件从原始 SegmentRow/CenterFrame/MoveBlockFrame 独立重算 prelude 的排序守卫、方向锚、
+ownership 趋势门、first_match_idx、A episode+包络缓存与 λ_C episode；从逐段未后处理 sink 独立
+重算四输出的稳定排序、候选 FNV 身份、同 key 归约和 Pan 投影。验收桥不提供 Lean 期望输出。
+底层线段/中枢构造与 MACD 力度判据仍由 Rust 生产扫描形成逐段 sink，不在 Lean 中重裁交易判据。
+-/
+
+namespace NewChanlun.Origin.ScanAssemblyMirror
+
+abbrev Interval := Nat × Nat
+abbrev FloatBits := Nat
+
+inductive Direction where
+  | up
+  | down
+deriving DecidableEq, Repr
+
+inductive Side where
+  | long
+  | short
+deriving DecidableEq, Repr
+
+inductive MoveKind where
+  | trend
+  | consolidation
+deriving DecidableEq, Repr
+
+/-- Rust `decompose::MoveBlock` 中 prelude ownership 查询消费的字段。 -/
+structure MoveBlockFrame where
+  startCenter : Nat
+  endCenter : Nat
+  kind : MoveKind
+  direction : Option Direction
+  levelLift : Nat
+deriving DecidableEq, Repr
+
+/-- Rust `Center` 的六个可观察字段。 -/
+structure CenterFrame where
+  zd : Int
+  zg : Int
+  dd : Int
+  gg : Int
+  startIndex : Nat
+  endIndex : Nat
+deriving DecidableEq, Repr
+
+/-- 稳定时间序的一行段素材；生产方向锚由本行 direction 唯一导出。 -/
+structure SegmentRow where
+  direction : Direction
+  startIndex : Nat
+  endIndex : Nat
+  startPrice : Int
+  endPrice : Int
+deriving DecidableEq, Repr
+
+/-! ## §1 λ_C episode 定界 -/
+
+def reenters (center : CenterFrame) (departureDir : Direction) (row : SegmentRow) : Prop :=
+  row.direction ≠ departureDir ∧
+    match departureDir with
+    | Direction.down => center.zd ≤ row.endPrice
+    | Direction.up => row.endPrice ≤ center.zg
+
+instance (center : CenterFrame) (departureDir : Direction) (row : SegmentRow) :
+    Decidable (reenters center departureDir row) := by
+  cases departureDir <;> unfold reenters <;> infer_instance
+
+def episodeWindow (rows : List SegmentRow) (center : CenterFrame) (untilStart : Nat) :
+    List SegmentRow :=
+  rows.filter fun row => decide (center.endIndex ≤ row.startIndex ∧ row.startIndex ≤ untilStart)
+
+def lastReentryBoundary (rows : List SegmentRow) (center : CenterFrame)
+    (departureDir : Direction) : Nat :=
+  rows.foldl
+    (fun boundary row => if reenters center departureDir row then row.endIndex else boundary)
+    0
+
+/--
+scan.rs:95-113 的生产契约把 anchor 固定为 `Some(row.direction)`，所以这里只保留 self-anchor
+算法，不再接受一份可与段方向分叉的外部 anchor 列表。
+-/
+def firstSelfAnchoredStartAfter (rows : List SegmentRow) (departureDir : Direction)
+    (boundary : Nat) : Option Nat :=
+  match rows with
+  | [] => none
+  | row :: rest =>
+      if row.direction = departureDir ∧ boundary ≤ row.startIndex then
+        some row.startIndex
+      else
+        firstSelfAnchoredStartAfter rest departureDir boundary
+
+def episodeStart (rows : List SegmentRow) (center : CenterFrame)
+    (departureDir : Direction) (untilStart : Nat) : Option Nat :=
+  let window := episodeWindow rows center untilStart
+  firstSelfAnchoredStartAfter window departureDir
+    (lastReentryBoundary window center departureDir)
+
+structure EpisodeBounds where
+  left : Nat
+  right : Nat
+deriving DecidableEq, Repr
+
+def episodeBounds (rows : List SegmentRow) (center : CenterFrame)
+    (departureDir : Direction) (untilStart triggerEnd : Nat) : Option EpisodeBounds :=
+  (episodeStart rows center departureDir untilStart).map fun lambdaC =>
+    { left := lambdaC, right := triggerEnd }
+
+def EpisodeDelimitedBy (rows : List SegmentRow) (center : CenterFrame)
+    (departureDir : Direction) (untilStart triggerEnd : Nat) (bounds : EpisodeBounds) : Prop :=
+  episodeBounds rows center departureDir untilStart triggerEnd = some bounds
+
+/-- 动机：同一段序列、中枢、方向与触发段不能装配出两个 λ_C episode。 -/
+theorem episode_boundary_unique
+    (rows : List SegmentRow) (center : CenterFrame) (departureDir : Direction)
+    (untilStart triggerEnd : Nat) (first second : EpisodeBounds)
+    (hFirst : EpisodeDelimitedBy rows center departureDir untilStart triggerEnd first)
+    (hSecond : EpisodeDelimitedBy rows center departureDir untilStart triggerEnd second) :
+    first = second := by
+  unfold EpisodeDelimitedBy at hFirst hSecond
+  exact Option.some.inj (hFirst.symm.trans hSecond)
+
+/-! ## §2 cand_delta 事件装配 -/
+
+structure ElementIdentity where
+  level : Nat
+  ordinal : Nat
+deriving DecidableEq, Repr
+
+structure ParentCenterIdentity where
+  centerIndex : Nat
+  centerId : ElementIdentity
+  sourceInterval : Interval
+  zd : Int
+  zg : Int
+deriving DecidableEq, Repr
+
+structure CpStructureIdentity where
+  level : Nat
+  bCenterId : ElementIdentity
+  departureMoveId : ElementIdentity
+  terminalMoveId : Option ElementIdentity
+  sourceStart : Nat
+  sourceEnd : Option Nat
+deriving DecidableEq, Repr
+
+structure ThirdClassInCp where
+  bCenterId : ElementIdentity
+  cpDepartureMoveId : ElementIdentity
+  departureMoveId : ElementIdentity
+  retestMoveId : ElementIdentity
+  departureInterval : Interval
+  retestInterval : Interval
+  pointSourceIndex : Nat
+  side : Side
+deriving DecidableEq, Repr
+
+structure TrendContext where
+  predecessorCenterId : ElementIdentity
+  bCenterId : ElementIdentity
+  direction : Direction
+deriving DecidableEq, Repr
+
+structure NewExtremeInDirection where
+  bCenterId : ElementIdentity
+  direction : Direction
+  referencePrice : Int
+  extremePrice : Int
+  extremeMoveId : ElementIdentity
+  confirmSrc : Nat
+deriving DecidableEq, Repr
+
+structure InternalSublevelCenters where
+  cLevel : Nat
+  centerIds : List ElementIdentity
+deriving DecidableEq, Repr
+
+structure CompletedTrendDecomposition where
+  direction : Direction
+  centerIds : List ElementIdentity
+  closingSuccessorMoveId : ElementIdentity
+  confirmSrc : Nat
+deriving DecidableEq, Repr
+
+structure FullTrendQualificationEvidence where
+  trendContext : Option TrendContext
+  newExtremeInDirection : Option NewExtremeInDirection
+  internalSublevelCenters : Option InternalSublevelCenters
+  completedTrendDecomposition : Option CompletedTrendDecomposition
+  decompositionReviewMoveId : Option ElementIdentity
+  decompositionReviewSrc : Option Nat
+deriving DecidableEq, Repr
+
+structure FullTrendCQualified where
+  trendContext : TrendContext
+  thirdClassInsideC : ThirdClassInCp
+  newExtremeInDirection : NewExtremeInDirection
+  internalSublevelCenters : InternalSublevelCenters
+  completedTrendDecomposition : CompletedTrendDecomposition
+  confirmSrc : Nat
+deriving DecidableEq, Repr
+
+structure CandDeltaCpEdge where
+  bCenterId : ElementIdentity
+  cpDepartureMoveId : ElementIdentity
+  cpSourceStart : Nat
+deriving DecidableEq, Repr
+
+inductive CandDeltaKind where
+  | trend
+  | pan
+deriving DecidableEq, Repr
+
+/-- event 之前的原始判据分量。`accepted` 不允许从 Rust 透传。 -/
+structure CandDeltaFacts where
+  kind : CandDeltaKind
+  structuralCandidate : Bool
+  direction : Bool
+  comparable : Bool
+  extreme : Bool
+  buy1 : Bool
+  sell1 : Bool
+  panDiverges : Bool
+deriving DecidableEq, Repr
+
+def CandDeltaFacts.accepted (facts : CandDeltaFacts) : Bool :=
+  match facts.kind with
+  | CandDeltaKind.trend =>
+      facts.structuralCandidate && facts.direction && facts.comparable && facts.extreme
+  | CandDeltaKind.pan => facts.structuralCandidate && facts.panDiverges
+
+def CandDeltaFacts.value (facts : CandDeltaFacts) : Bool :=
+  facts.buy1 || facts.sell1
+
+/-- 事件装配输入来自 event 之前的结构腿/证据。P2 字段是 c_p 原始证据的投影。 -/
+structure EventAssemblyInput where
+  level : Nat
+  side : Side
+  divergenceConfirmSrc : Nat
+  aInterval : EpisodeBounds
+  center : CenterFrame
+  departureDir : Direction
+  untilStart : Nat
+  triggerEnd : Nat
+  rows : List SegmentRow
+  predicate : CandDeltaFacts
+  cIntervalFull : Option Interval
+  bParent : Option ParentCenterIdentity
+  cStructure : Option CpStructureIdentity
+  thirdClassInC : Option ThirdClassInCp
+  fullTrendCQualified : Option FullTrendCQualified
+  fullTrendEvidence : Option FullTrendQualificationEvidence
+  cpOwnership : Option CandDeltaCpEdge
+  panDivDiag : Bool
+deriving DecidableEq, Repr
+
+/-- `cp_event_objects` 所需的 c_p 扫描基础事实；故意不含任何事件成品投影。 -/
+structure CpScanBase where
+  bCenterIndex : Nat
+  bCenterId : ElementIdentity
+  bCenter : CenterFrame
+  departureMoveId : Option ElementIdentity
+  departureInterval : Option Interval
+deriving DecidableEq, Repr
+
+/-- 走势单元的低层几何/分解事实。`center` 仅为 Compose 末位中枢。 -/
+structure UnitMoveFact where
+  id : ElementIdentity
+  startIndex : Nat
+  endIndex : Nat
+  low : Int
+  high : Int
+  center : Option CenterFrame
+deriving DecidableEq, Repr
+
+/-- 同一 level 的 raw 事实上下文；多个 case 共享，不携带 production event 字段。 -/
+structure EventRawContext where
+  centers : List CenterFrame
+  rows : List SegmentRow
+  anchors : List (Option Direction)
+  cpScan : List CpScanBase
+  unitMoves : List UnitMoveFact
+deriving DecidableEq, Repr
+
+/-- CandDelta case 仅指向 raw 上下文中的中枢/段，P2/c_p 全部由 Lean 重算。 -/
+structure EventRawInput where
+  context : EventRawContext
+  centerIndex : Nat
+  segmentIndex : Nat
+  level : Nat
+  side : Side
+  divergenceConfirmSrc : Nat
+  aInterval : EpisodeBounds
+  predicate : CandDeltaFacts
+  panDivDiag : Bool
+deriving DecidableEq, Repr
+
+inductive CenterRelation where
+  | upContinuation
+  | downContinuation
+  | levelExpansion
+  | coreOverlap
+deriving DecidableEq, Repr
+
+def classifyCenterRelation (previous next : CenterFrame) : CenterRelation :=
+  if previous.gg < next.dd then CenterRelation.upContinuation
+  else if next.gg < previous.dd then CenterRelation.downContinuation
+  else if (next.zg < previous.zd ∧ previous.dd ≤ next.gg) ∨
+      (previous.zg < next.zd ∧ next.dd ≤ previous.gg) then CenterRelation.levelExpansion
+  else CenterRelation.coreOverlap
+
+def CenterRelation.trendDirection : CenterRelation → Option Direction
+  | CenterRelation.upContinuation => some Direction.up
+  | CenterRelation.downContinuation => some Direction.down
+  | CenterRelation.levelExpansion | CenterRelation.coreOverlap => none
+
+def findIndexBy? {alpha : Type} (predicate : alpha → Bool) (values : List alpha) : Option Nat :=
+  go values 0
+where
+  go : List alpha → Nat → Option Nat
+    | [], _ => none
+    | value :: rest, index =>
+        if predicate value then some index else go rest (index + 1)
+
+/-- `nearest_confirmed_center_idx`：按 endIndex 有序前缀取最后一项。 -/
+def nearestConfirmedCenterIndex (centers : List CenterFrame) (segmentStart : Nat) : Option Nat :=
+  (List.range centers.length).foldl
+    (fun found index =>
+      match centers[index]? with
+      | some center => if center.endIndex ≤ segmentStart then some index else found
+      | none => found)
+    none
+
+def thirdClassSide (center : CenterFrame) (leaveAnchor : Option Direction)
+    (leave retest : SegmentRow) : Option Side :=
+  match leaveAnchor, retest.direction with
+  | some Direction.up, Direction.down =>
+      if center.zg < leave.endPrice ∧ center.zg < retest.endPrice then some Side.long else none
+  | some Direction.down, Direction.up =>
+      if leave.endPrice < center.zd ∧ retest.endPrice < center.zd then some Side.short else none
+  | _, _ => none
+
+def thirdClassAtOffset (context : EventRawContext) (centerIndex eventSegmentIndex eventEnd : Nat)
+    (center : CenterFrame) (scan : CpScanBase) (departureMoveId : ElementIdentity)
+    (cpStart offset : Nat) : Option ThirdClassInCp := do
+  let pairIndex := offset + 1
+  if eventSegmentIndex < pairIndex then none else
+  let leave ← context.rows[pairIndex - 1]?
+  let retest ← context.rows[pairIndex]?
+  if leave.startIndex < cpStart ∨ eventEnd < retest.endIndex then none else
+  if nearestConfirmedCenterIndex context.centers leave.startIndex ≠ some centerIndex then none else
+  let leaveAnchor ← context.anchors[pairIndex - 1]?
+  let side ← thirdClassSide center leaveAnchor leave retest
+  let leaveMove ← context.unitMoves[pairIndex - 1]?
+  let retestMove ← context.unitMoves[pairIndex]?
+  some
+    { bCenterId := scan.bCenterId
+      cpDepartureMoveId := departureMoveId
+      departureMoveId := leaveMove.id
+      retestMoveId := retestMove.id
+      departureInterval := (leave.startIndex, leave.endIndex)
+      retestInterval := (retest.startIndex, retest.endIndex)
+      pointSourceIndex := retest.endIndex
+      side := side }
+
+def firstThirdClass (context : EventRawContext) (centerIndex eventSegmentIndex eventEnd : Nat)
+    (center : CenterFrame) (scan : CpScanBase) (departureMoveId : ElementIdentity)
+    (cpStart : Nat) : Option ThirdClassInCp :=
+  ((List.range eventSegmentIndex).filterMap fun offset =>
+    thirdClassAtOffset context centerIndex eventSegmentIndex eventEnd center scan departureMoveId
+      cpStart offset).head?
+
+def moveIdsConsecutive (moves : List UnitMoveFact) : Bool :=
+  (moves.zip (moves.drop 1)).all fun pair =>
+    pair.1.id.level == pair.2.id.level && pair.1.id.ordinal + 1 == pair.2.id.ordinal
+
+def collectMoveCenters : List UnitMoveFact → Option (List CenterFrame)
+  | [] => some []
+  | movement :: rest => do
+      let center ← movement.center
+      let centers ← collectMoveCenters rest
+      some (center :: centers)
+
+def trendContextFrom (centers : List CenterFrame) (bCenterIndex : Nat)
+    (bCenterId : ElementIdentity) : Option TrendContext := do
+  if bCenterIndex = 0 ∨ bCenterId.ordinal = 0 then none else
+  let previous ← centers[bCenterIndex - 1]?
+  let b ← centers[bCenterIndex]?
+  let direction ← (classifyCenterRelation previous b).trendDirection
+  some
+    { predecessorCenterId := { level := bCenterId.level, ordinal := bCenterId.ordinal - 1 }
+      bCenterId := bCenterId
+      direction := direction }
+
+/-- `recursive_tower.rs:1711-1848` 的 Lean 独立镜像。 -/
+def fullTrendQualificationEvidenceFromFacts (centers : List CenterFrame) (bCenterIndex : Nat)
+    (bCenterId : ElementIdentity) (cpStructure : CpStructureIdentity) (third : ThirdClassInCp)
+    (unitMoves : List UnitMoveFact) : Option FullTrendQualificationEvidence := do
+  let b ← centers[bCenterIndex]?
+  if cpStructure.bCenterId ≠ bCenterId ∨ third.bCenterId ≠ bCenterId ∨
+      third.cpDepartureMoveId ≠ cpStructure.departureMoveId then none else
+  let terminalMoveId ← cpStructure.terminalMoveId
+  let sourceEnd ← cpStructure.sourceEnd
+  let startIndex ← findIndexBy? (fun movement => decide (movement.id = cpStructure.departureMoveId)) unitMoves
+  let endIndex ← findIndexBy? (fun movement => decide (movement.id = terminalMoveId)) unitMoves
+  if endIndex < startIndex then none else
+  let components := (unitMoves.drop startIndex).take (endIndex - startIndex + 1)
+  let first ← components.head?
+  let last ← components.getLast?
+  if first.startIndex ≠ cpStructure.sourceStart ∨ last.endIndex ≠ sourceEnd ∨
+      !moveIdsConsecutive components then none else
+  let trendContext := trendContextFrom centers bCenterIndex bCenterId
+  let newExtremeInDirection := trendContext.bind fun context => do
+    let extremeMove ← components.find? fun movement =>
+      match context.direction with
+      | Direction.up => b.gg < movement.high
+      | Direction.down => movement.low < b.dd
+    some
+      { bCenterId := bCenterId
+        direction := context.direction
+        referencePrice := match context.direction with
+          | Direction.up => b.gg
+          | Direction.down => b.dd
+        extremePrice := match context.direction with
+          | Direction.up => extremeMove.high
+          | Direction.down => extremeMove.low
+        extremeMoveId := extremeMove.id
+        confirmSrc := extremeMove.endIndex }
+  let internalCenters := collectMoveCenters components
+  let internalSublevelCenters := internalCenters.bind fun values =>
+    if 2 ≤ values.length then
+      some { cLevel := cpStructure.level, centerIds := components.map (fun movement => movement.id) }
+    else none
+  let allInternalCenters := collectMoveCenters unitMoves
+  let successorMove := unitMoves[endIndex + 1]?
+  let successorCenter := allInternalCenters.bind fun values => values[endIndex + 1]?
+  let successor := successorMove.bind fun movement =>
+    successorCenter.map fun center => (movement, center)
+  let decompositionReviewMoveId := successor.map (fun pair => pair.1.id)
+  let decompositionReviewSrc := successor.map (fun pair => pair.1.endIndex)
+  let completedTrendDecomposition := trendContext.bind fun context =>
+    internalSublevelCenters.bind fun internal =>
+    allInternalCenters.bind fun allCenters =>
+    successor.bind fun successorPair =>
+      let successor := successorPair.1
+      let nextCenter := successorPair.2
+      let expected := match context.direction with
+        | Direction.up => CenterRelation.upContinuation
+        | Direction.down => CenterRelation.downContinuation
+      let componentCenters := (allCenters.drop startIndex).take (endIndex - startIndex + 1)
+      let chainIsTrend := (componentCenters.zip (componentCenters.drop 1)).all fun pair =>
+        decide (classifyCenterRelation pair.1 pair.2 = expected)
+      let startsAtBoundary : Bool :=
+        startIndex == 0 ||
+          match allCenters[startIndex - 1]?, allCenters[startIndex]? with
+          | some previous, some firstCenter => decide (classifyCenterRelation previous firstCenter ≠ expected)
+          | _, _ => false
+      let endsAtBoundary : Bool := match allCenters[endIndex]? with
+        | some endCenter => decide (classifyCenterRelation endCenter nextCenter ≠ expected)
+        | none => false
+      if chainIsTrend && startsAtBoundary && endsAtBoundary then
+        some
+          { direction := context.direction
+            centerIds := internal.centerIds
+            closingSuccessorMoveId := successor.id
+            confirmSrc := successor.endIndex }
+      else none
+  some
+    { trendContext := trendContext
+      newExtremeInDirection := newExtremeInDirection
+      internalSublevelCenters := internalSublevelCenters
+      completedTrendDecomposition := completedTrendDecomposition
+      decompositionReviewMoveId := decompositionReviewMoveId
+      decompositionReviewSrc := decompositionReviewSrc }
+
+def fullTrendQualificationFromFacts (centers : List CenterFrame) (bCenterIndex : Nat)
+    (bCenterId : ElementIdentity) (cpStructure : CpStructureIdentity) (third : ThirdClassInCp)
+    (unitMoves : List UnitMoveFact) : Option FullTrendCQualified := do
+  let evidence ← fullTrendQualificationEvidenceFromFacts centers bCenterIndex bCenterId cpStructure third unitMoves
+  let trendContext ← evidence.trendContext
+  let newExtreme ← evidence.newExtremeInDirection
+  let internalCenters ← evidence.internalSublevelCenters
+  let completedTrend ← evidence.completedTrendDecomposition
+  some
+    { trendContext := trendContext
+      thirdClassInsideC := third
+      newExtremeInDirection := newExtreme
+      internalSublevelCenters := internalCenters
+      completedTrendDecomposition := completedTrend
+      confirmSrc := max third.pointSourceIndex (max newExtreme.confirmSrc completedTrend.confirmSrc) }
+
+structure CpEventProjection where
+  cIntervalFull : Option Interval := none
+  bParent : Option ParentCenterIdentity := none
+  cStructure : Option CpStructureIdentity := none
+  thirdClassInC : Option ThirdClassInCp := none
+  fullTrendCQualified : Option FullTrendCQualified := none
+  fullTrendEvidence : Option FullTrendQualificationEvidence := none
+  cpOwnership : Option CandDeltaCpEdge := none
+deriving DecidableEq, Repr
+
+def recomputeCpEventProjection (input : EventRawInput) : CpEventProjection :=
+  match input.context.centers[input.centerIndex]? with
+  | none => {}
+  | some center =>
+      match input.context.cpScan.find? (fun scan =>
+          decide (scan.bCenterIndex = input.centerIndex ∧ scan.bCenter = center)) with
+      | none => {}
+      | some scan =>
+          let parent : ParentCenterIdentity :=
+            { centerIndex := scan.bCenterIndex
+              centerId := scan.bCenterId
+              sourceInterval := (scan.bCenter.startIndex, scan.bCenter.endIndex)
+              zd := scan.bCenter.zd
+              zg := scan.bCenter.zg }
+          match scan.departureMoveId, scan.departureInterval with
+          | some departureMoveId, some departureInterval =>
+              let eventEnd := (input.context.rows[input.segmentIndex]?).map
+                (fun row => row.endIndex) |>.getD 0
+              let third := firstThirdClass input.context input.centerIndex input.segmentIndex eventEnd
+                center scan departureMoveId departureInterval.1
+              let complete := input.predicate.value
+              let thirdInside :=
+                match third, input.context.unitMoves[input.segmentIndex]? with
+                | some value, some endMove =>
+                    decide (value.departureMoveId.level = departureMoveId.level ∧
+                      value.retestMoveId.level = departureMoveId.level ∧
+                      departureMoveId.ordinal ≤ value.departureMoveId.ordinal ∧
+                      value.departureMoveId.ordinal ≤ value.retestMoveId.ordinal ∧
+                      value.retestMoveId.ordinal ≤ endMove.id.ordinal)
+                | _, _ => false
+              let cEnd := if complete && thirdInside then third.map (fun value => value.retestInterval.2) else none
+              let terminalMoveId :=
+                if complete && thirdInside then third.map (fun value => value.retestMoveId) else none
+              let cpStructure : CpStructureIdentity :=
+                { level := input.level
+                  bCenterId := scan.bCenterId
+                  departureMoveId := departureMoveId
+                  terminalMoveId := terminalMoveId
+                  sourceStart := departureInterval.1
+                  sourceEnd := cEnd }
+              let visibleMoves := input.context.unitMoves.take (input.segmentIndex + 1)
+              let evidence := third.bind fun thirdValue =>
+                fullTrendQualificationEvidenceFromFacts input.context.centers input.centerIndex
+                  scan.bCenterId cpStructure thirdValue visibleMoves
+              let qualified := third.bind fun thirdValue =>
+                fullTrendQualificationFromFacts input.context.centers input.centerIndex scan.bCenterId
+                  cpStructure thirdValue visibleMoves
+              { cIntervalFull := cEnd.map (fun endIndex => (departureInterval.1, endIndex))
+                bParent := some parent
+                cStructure := some cpStructure
+                thirdClassInC := third
+                fullTrendCQualified := qualified
+                fullTrendEvidence := evidence
+                cpOwnership := if complete then some
+                  { bCenterId := scan.bCenterId, cpDepartureMoveId := departureMoveId
+                    cpSourceStart := departureInterval.1 } else none }
+          | _, _ => { bParent := some parent }
+
+def EventRawInput.toAssemblyInput (input : EventRawInput) : Option EventAssemblyInput := do
+  let center ← input.context.centers[input.centerIndex]?
+  let row ← input.context.rows[input.segmentIndex]?
+  let projection := match input.predicate.kind with
+    | CandDeltaKind.trend => recomputeCpEventProjection input
+    | CandDeltaKind.pan => {}
+  some
+    { level := input.level
+      side := input.side
+      divergenceConfirmSrc := input.divergenceConfirmSrc
+      aInterval := input.aInterval
+      center := center
+      departureDir := match input.side with | Side.long => Direction.down | Side.short => Direction.up
+      untilStart := row.startIndex
+      triggerEnd := row.endIndex
+      rows := input.context.rows
+      predicate := input.predicate
+      cIntervalFull := projection.cIntervalFull
+      bParent := projection.bParent
+      cStructure := projection.cStructure
+      thirdClassInC := projection.thirdClassInC
+      fullTrendCQualified := projection.fullTrendCQualified
+      fullTrendEvidence := projection.fullTrendEvidence
+      cpOwnership := projection.cpOwnership
+      panDivDiag := input.panDivDiag }
+
+/-- 生产 CandDeltaEvent 的 19 个顶层字段，逐字段镜像。 -/
+structure CandDeltaEvent where
+  level : Nat
+  side : Side
+  divergenceConfirmSrc : Nat
+  confirmSrc : Nat
+  interval : EpisodeBounds
+  aInterval : EpisodeBounds
+  cEpisodeStart : Nat
+  cEpisodeInterval : EpisodeBounds
+  cIntervalFull : Option Interval
+  bParent : Option ParentCenterIdentity
+  cStructure : Option CpStructureIdentity
+  thirdClassInC : Option ThirdClassInCp
+  cpCertificateConfirmSrc : Option Nat
+  fullTrendCQualified : Option FullTrendCQualified
+  fullTrendEvidence : Option FullTrendQualificationEvidence
+  cpOwnership : Option CandDeltaCpEdge
+  enterSrc : Nat
+  candDelta : Bool
+  panDivDiag : Bool
+deriving DecidableEq, Repr
+
+/--
+拒绝原始判据不产事件；成功时 episode 只由 rows 独立定界。cp 证书确认点由完整区间和第三类证书
+共同推出，不接收 Rust 的成品字段。
+-/
+def assembleCandDelta (input : EventAssemblyInput) : Option CandDeltaEvent :=
+  if input.predicate.accepted then
+    match episodeBounds input.rows input.center input.departureDir input.untilStart input.triggerEnd with
+    | none => none
+    | some bounds =>
+        let cpCertificateConfirmSrc :=
+          input.cIntervalFull.bind (fun _ => input.thirdClassInC.map (fun third => third.pointSourceIndex))
+        some
+          { level := input.level
+            side := input.side
+            divergenceConfirmSrc := input.divergenceConfirmSrc
+            confirmSrc := input.divergenceConfirmSrc
+            interval := bounds
+            aInterval := input.aInterval
+            cEpisodeStart := bounds.left
+            cEpisodeInterval := bounds
+            cIntervalFull := input.cIntervalFull
+            bParent := input.bParent
+            cStructure := input.cStructure
+            thirdClassInC := input.thirdClassInC
+            cpCertificateConfirmSrc := cpCertificateConfirmSrc
+            fullTrendCQualified := input.fullTrendCQualified
+            fullTrendEvidence := input.fullTrendEvidence
+            cpOwnership := input.cpOwnership
+            enterSrc := bounds.left
+            candDelta := input.predicate.value
+            panDivDiag := input.panDivDiag }
+  else
+    none
+
+/-! ## §3 共享 per-segment 中间记录 -/
+
+/-- `ASegCache` 的值：I(A) span 与同一 span 的 b 价格包络。 -/
+structure ASegmentEnvelope where
+  span : Interval
+  bEnvelope : Int × Int
+deriving DecidableEq, Repr
+
+/-- `signal::FirstStructuralGates` 的逐字段镜像。 -/
+structure FirstStructuralGates where
+  side : Side
+  segA : Interval
+  lambdaC : Nat
+  aIdx : Option Interval
+  cIdx : Option Interval
+  extreme : Bool
+deriving DecidableEq, Repr
+
+/--
+scan.rs:137-185/307-332 在一次逐段判定内唯一算出的共享素材。`directionAnchor` 在生产路径必须
+等于 `some segment.direction`；第三类的 leave 锚从前一条记录的该字段读取（scan.rs:373-383）。
+`aSegmentEnvelope` 以 nearestConfirmedCenterIdx 为 cache key；候选归约结果不在本记录中。
+-/
+structure PerSegmentMaterial where
+  segIdx : Nat
+  segment : SegmentRow
+  nearestConfirmedCenterIdx : Nat
+  trendGate : Option (Nat × Direction)
+  currentLevelConsolidation : Bool
+  aSegmentEnvelope : Option ASegmentEnvelope
+  lambdaC : Option Nat
+  firstStructuralGates : Option FirstStructuralGates
+  directionAnchor : Option Direction
+  departureEnd : Option Nat
+deriving DecidableEq, Repr
+
+def PerSegmentMaterial.productionAnchorAligned (material : PerSegmentMaterial) : Prop :=
+  material.directionAnchor = some material.segment.direction
+
+/-! ## §3a prelude 的独立重算 -/
+
+def segmentRowsSorted : List SegmentRow → Bool
+  | [] | [_] => true
+  | first :: second :: rest =>
+      decide (first.startIndex ≤ second.startIndex) && segmentRowsSorted (second :: rest)
+
+def centerFramesSorted : List CenterFrame → Bool
+  | [] | [_] => true
+  | first :: second :: rest =>
+      decide (first.endIndex < second.endIndex) && centerFramesSorted (second :: rest)
+
+def directionAnchors (rows : List SegmentRow) : List (Option Direction) :=
+  rows.map (fun row => some row.direction)
+
+def ownershipBlockAt (blocks : List MoveBlockFrame) (centerIndex : Nat) : Option MoveBlockFrame :=
+  if centerIndex = 0 then
+    blocks.head?
+  else
+    blocks.find? fun block => decide (block.startCenter < centerIndex ∧ centerIndex ≤ block.endCenter)
+
+def trendGateAt (blocks : List MoveBlockFrame) (centerIndex : Nat) : Option Direction :=
+  if centerIndex = 0 then none else (ownershipBlockAt blocks centerIndex).bind (·.direction)
+
+def trendGates (centerCount : Nat) (blocks : List MoveBlockFrame) : List (Option Direction) :=
+  (List.range centerCount).map (trendGateAt blocks)
+
+def sameCenterTriple (left right : CenterFrame) : Bool :=
+  decide (left.endIndex = right.endIndex ∧ left.zd = right.zd ∧ left.zg = right.zg)
+
+def firstCenterMatchIndex (centers : List CenterFrame) (target : CenterFrame) : Option Nat :=
+  let rec go (index : Nat) : List CenterFrame → Option Nat
+    | [] => none
+    | current :: rest =>
+        if sameCenterTriple current target then some index else go (index + 1) rest
+  go 0 centers
+
+def firstMatchIndices (centers : List CenterFrame) : List (Option Nat) :=
+  centers.map (firstCenterMatchIndex centers)
+
+def aEpisodeWindow (rows : List SegmentRow) (previous current : CenterFrame) : List SegmentRow :=
+  rows.filter fun row =>
+    decide (previous.endIndex ≤ row.startIndex ∧ row.startIndex < current.endIndex)
+
+def matchingEpisodeSpan (rows : List SegmentRow) (direction : Direction)
+    (lambda : Nat) : Option Interval :=
+  rows.foldl
+    (fun span row =>
+      if row.direction = direction ∧ lambda ≤ row.startIndex then
+        match span with
+        | none => some (row.startIndex, row.endIndex)
+        | some current => some (current.1, row.endIndex)
+      else span)
+    none
+
+def moveRangeEnvelope (rows : List SegmentRow) (span : Interval) : Option (Int × Int) :=
+  rows.foldl
+    (fun envelope row =>
+      if span.1 ≤ row.startIndex ∧ row.endIndex ≤ span.2 then
+        let low := min row.startPrice row.endPrice
+        let high := max row.startPrice row.endPrice
+        match envelope with
+        | none => some (low, high)
+        | some current => some (min current.1 low, max current.2 high)
+      else envelope)
+    none
+
+def locateASegmentEnvelope (rows : List SegmentRow) (previous current : CenterFrame)
+    (direction : Direction) : Option ASegmentEnvelope :=
+  let window := aEpisodeWindow rows previous current
+  let lambda := firstSelfAnchoredStartAfter window direction
+    (lastReentryBoundary window previous direction)
+  lambda.bind fun start =>
+    (matchingEpisodeSpan window direction start).bind fun span =>
+      (moveRangeEnvelope rows span).map fun envelope => { span := span, bEnvelope := envelope }
+
+def aSegmentEntries (rows : List SegmentRow) (centers : List CenterFrame)
+    (gates : List (Option Direction)) : List (Option ASegmentEnvelope) :=
+  let rec go (previous : CenterFrame) : List CenterFrame → List (Option Direction) →
+      List (Option ASegmentEnvelope)
+    | [], _ => []
+    | _ :: rest, [] => none :: go previous rest []
+    | current :: rest, gate :: gateRest =>
+        let value := gate.bind (locateASegmentEnvelope rows previous current)
+        value :: go current rest gateRest
+  match centers, gates with
+  | [], _ => []
+  | _ :: rest, [] => none :: rest.map (fun _ => none)
+  | first :: rest, _ :: gateRest => none :: go first rest gateRest
+
+structure PreludeOutput where
+  segmentsSorted : Bool
+  centersSorted : Bool
+  anchors : List (Option Direction)
+  trendGate : List (Option Direction)
+  firstMatchIdx : List (Option Nat)
+  aSegments : List (Option ASegmentEnvelope)
+deriving DecidableEq, Repr
+
+def recomputePrelude (rows : List SegmentRow) (centers : List CenterFrame)
+    (blocks : List MoveBlockFrame) : PreludeOutput :=
+  let gates := trendGates centers.length blocks
+  { segmentsSorted := segmentRowsSorted rows
+    centersSorted := centerFramesSorted centers
+    anchors := directionAnchors rows
+    trendGate := gates
+    firstMatchIdx := firstMatchIndices centers
+    aSegments := aSegmentEntries rows centers gates }
+
+/-! ## §4 四件输出的字段形状 -/
+
+structure ThirdClassEntryIdentity where
+  centerSi : Nat
+  centerZd : Int
+  centerZg : Int
+  leaveInterval : Interval
+  retestInterval : Interval
+deriving DecidableEq, Repr
+
+structure BspBits where
+  buy1 : Bool
+  buy2 : Bool
+  buy3 : Bool
+  sell1 : Bool
+  sell2 : Bool
+  sell3 : Bool
+  thirdClassEntry : Option ThirdClassEntryIdentity
+deriving DecidableEq, Repr
+
+inductive OwnerRef where
+  | center (value : CenterFrame)
+  | type1Anchor (sourceIndex : Nat)
+deriving DecidableEq, Repr
+
+/-- f64 经桥以 IEEE-754 原始位模式提取，避免十进制往返改变 payload。 -/
+structure ForceFeatures where
+  macdAreaBits : FloatBits
+  difPeakBits : FloatBits
+  priceAmplitude : Int
+  priceSpeedBits : FloatBits
+deriving DecidableEq, Repr
+
+structure ForceProxies where
+  segA : ForceFeatures
+  segC : ForceFeatures
+deriving DecidableEq, Repr
+
+structure BspPoint where
+  sourceIndex : Nat
+  bits : BspBits
+  pivotLow : Int
+  pivotHigh : Int
+  center : Option OwnerRef
+  structBreakDir : Option Side
+  force : Option ForceProxies
+  retraceBreaksType1 : Option Bool
+deriving DecidableEq, Repr
+
+structure PanDivCert where
+  sourceIndex : Nat
+  side : Side
+  center : CenterFrame
+  segA : Interval
+  segC : Interval
+deriving DecidableEq, Repr
+
+inductive T3InCGradeReason where
+  | missingLeave
+  | missingRetest
+  | sameDirection
+  | leaveNotOutside
+  | retestReentered
+deriving DecidableEq, Repr
+
+inductive T3InCGrade where
+  | present (leaveInterval retestInterval : Interval)
+  | missing (reason : T3InCGradeReason)
+deriving DecidableEq, Repr
+
+structure FirstClassGradeRecord where
+  level : Nat
+  sourceIndex : Nat
+  side : Side
+  centerStartIndex : Nat
+  centerEndIndex : Nat
+  centerZd : Int
+  centerZg : Int
+  grade : T3InCGrade
+deriving DecidableEq, Repr
+
+inductive CandidateKind where
+  | trend
+  | pan
+deriving DecidableEq, Repr
+
+structure ParentFingerprint where
+  centerStart : Nat
+  zd : Int
+  zg : Int
+deriving DecidableEq, Repr
+
+structure CandidateKey where
+  ruleVersion : Nat
+  level : Nat
+  kind : CandidateKind
+  side : Side
+  previousCenterStart : Option Nat
+  parent : ParentFingerprint
+  segA : Interval
+  cStart : Nat
+deriving DecidableEq, Repr
+
+structure StructuralPredicates where
+  direction : Bool
+  comparable : Bool
+  extreme : Bool
+deriving DecidableEq, Repr
+
+inductive ObservedState where
+  | provisional
+  | unresolved
+  | confirmed
+deriving DecidableEq, Repr
+
+/-- 原始 Trend sink 腿。稳定 ID 是 post-scan 派生量，禁止从 Rust sink 透传。 -/
+structure CandidateLeg where
+  key : CandidateKey
+  kind : CandidateKind
+  centerIds : Option (Nat × Nat)
+  structuralPredicates : StructuralPredicates
+  extremeProof : Interval
+  thirdClassProof : Option Nat
+  interval : Interval
+  state : ObservedState
+  firstProvableAt : Option Nat
+  confirmedAt : Option Nat
+deriving DecidableEq, Repr
+
+structure CandidateObservation where
+  key : CandidateKey
+  kind : CandidateKind
+  centerIds : Option (Nat × Nat)
+  candidateGroupId : Nat
+  pairId : Nat
+  structuralPredicates : StructuralPredicates
+  extremeProof : Interval
+  thirdClassProof : Option Nat
+  interval : Interval
+  state : ObservedState
+  firstProvableAt : Option Nat
+  confirmedAt : Option Nat
+deriving DecidableEq, Repr
+
+def StructuralPredicates.resolvedState (predicates : StructuralPredicates) : ObservedState :=
+  if predicates.direction && predicates.comparable && predicates.extreme then
+    ObservedState.provisional
+  else
+    ObservedState.unresolved
+
+def firstSome {α : Type} (left right : Option α) : Option α :=
+  match left with
+  | some value => some value
+  | none => right
+
+/-- cand_event/observe.rs:121-146 的同 key 两腿归约。 -/
+def mergeCandidateLegs (acc leg : CandidateObservation) : CandidateObservation :=
+  let carrier := if leg.interval.2 > acc.interval.2 then leg else acc
+  let predicates : StructuralPredicates :=
+    { direction := carrier.structuralPredicates.direction
+      comparable := carrier.structuralPredicates.comparable
+      extreme := acc.structuralPredicates.extreme || leg.structuralPredicates.extreme }
+  let state := predicates.resolvedState
+  let inheritedClock := firstSome acc.firstProvableAt leg.firstProvableAt
+  let firstProvableAt :=
+    match state with
+    | ObservedState.provisional => firstSome inheritedClock (some carrier.interval.2)
+    | _ => inheritedClock
+  { carrier with
+      structuralPredicates := predicates
+      state := state
+      firstProvableAt := firstProvableAt }
+
+def upsertCandidateLeg (leg : CandidateObservation) :
+    List CandidateObservation → List CandidateObservation
+  | [] => [leg]
+  | current :: rest =>
+      if current.key = leg.key then
+        mergeCandidateLegs current leg :: rest
+      else
+        current :: upsertCandidateLeg leg rest
+
+/-- 同 key 左折叠；最终 `(interval,key)` 排序仍由唯一 post-scan sort 算子执行。 -/
+def reduceStructuralLegs (legs : List CandidateObservation) : List CandidateObservation :=
+  legs.foldl (fun reduced leg => upsertCandidateLeg leg reduced) []
+
+/-! ## §5 双域 sink 与扫描后归约 -/
+
+/-- 每段共享 material 喂出的两域结果；candidateLegs 是未经同 episode 归约的 Trend 腿。 -/
+structure PerSegmentEmission where
+  material : PerSegmentMaterial
+  bspPoints : List BspPoint
+  panDivCerts : List PanDivCert
+  firstClassGrades : List FirstClassGradeRecord
+  candidateLegs : List CandidateObservation
+deriving DecidableEq, Repr
+
+/--
+跨语言签收的最小输入。Rust 生产扫描按段暴露四个尚未后处理的 sink；Lean 自己完成排序、
+同 key 腿归约、Pan 投影和 FNV 身份。它不是 Rust legacy oracle，也不包含期望的最终输出。
+-/
+structure ScanSinkEmission where
+  bspPoints : List BspPoint
+  panDivCerts : List PanDivCert
+  firstClassGrades : List FirstClassGradeRecord
+  candidateLegs : List CandidateLeg
+deriving DecidableEq, Repr
+
+structure ScanSinks where
+  points : List BspPoint
+  panDivs : List PanDivCert
+  grades : List FirstClassGradeRecord
+  candidateLegs : List CandidateObservation
+deriving DecidableEq, Repr
+
+def emptyScanSinks : ScanSinks :=
+  { points := [], panDivs := [], grades := [], candidateLegs := [] }
+
+def appendScanSinks (left right : ScanSinks) : ScanSinks :=
+  { points := left.points ++ right.points
+    panDivs := left.panDivs ++ right.panDivs
+    grades := left.grades ++ right.grades
+    candidateLegs := left.candidateLegs ++ right.candidateLegs }
+
+/-- 逐段阶段只 append 四个 sink；不在此归约 CandidateObservation。 -/
+def collectScanSinks (emissions : List PerSegmentEmission) : ScanSinks :=
+  emissions.foldl
+    (fun acc emission =>
+      { points := acc.points ++ emission.bspPoints
+        panDivs := acc.panDivs ++ emission.panDivCerts
+        grades := acc.grades ++ emission.firstClassGrades
+        candidateLegs := acc.candidateLegs ++ emission.candidateLegs })
+    emptyScanSinks
+
+structure MergedScanOutput where
+  points : List BspPoint
+  panDivs : List PanDivCert
+  grades : List FirstClassGradeRecord
+  observations : List CandidateObservation
+deriving DecidableEq, Repr
+
+/--
+生产已有的规范化算子接口。它们分别对应 scan.rs:220-228 的三项 source_index 排序、
+reduce_structural_legs、PanDivCert 投影与最终 (interval,key) 排序；本镜像不重裁这些判据。
+-/
+structure PostScanOperators where
+  sortPoints : List BspPoint → List BspPoint
+  sortPanDivs : List PanDivCert → List PanDivCert
+  sortGrades : List FirstClassGradeRecord → List FirstClassGradeRecord
+  candidateGroupId : CandidateKey → Nat
+  pairId : CandidateKey → Nat
+  sortObservations : List CandidateObservation → List CandidateObservation
+
+/-! ## §5a 生产后处理算子的独立 Lean 实现 -/
+
+/-- 严格比较下的稳定插入排序；相等项后插，保持 Rust `sort_by_key` 的到达顺序。 -/
+def orderedInsert {α : Type} (strictlyBefore : α → α → Bool) (value : α) : List α → List α
+  | [] => [value]
+  | current :: rest =>
+      if strictlyBefore value current then
+        value :: current :: rest
+      else
+        current :: orderedInsert strictlyBefore value rest
+
+def stableSortBy {α : Type} (strictlyBefore : α → α → Bool) (values : List α) : List α :=
+  values.foldl (fun sorted value => orderedInsert strictlyBefore value sorted) []
+
+def compareThen (first second : Ordering) : Ordering :=
+  match first with
+  | Ordering.eq => second
+  | other => other
+
+def compareOptionNat : Option Nat → Option Nat → Ordering
+  | none, none => Ordering.eq
+  | none, some _ => Ordering.lt
+  | some _, none => Ordering.gt
+  | some left, some right => compare left right
+
+def CandidateKind.rank : CandidateKind → Nat
+  | CandidateKind.trend => 0
+  | CandidateKind.pan => 1
+
+def Side.rank : Side → Nat
+  | Side.long => 0
+  | Side.short => 1
+
+/-- Rust `#[derive(Ord)] CandidateKey` 的字段序；Int 按有符号顺序比较。 -/
+def compareCandidateKey (left right : CandidateKey) : Ordering :=
+  compareThen (compare left.ruleVersion right.ruleVersion)
+    (compareThen (compare left.level right.level)
+      (compareThen (compare left.kind.rank right.kind.rank)
+        (compareThen (compare left.side.rank right.side.rank)
+          (compareThen (compareOptionNat left.previousCenterStart right.previousCenterStart)
+            (compareThen (compare left.parent.centerStart right.parent.centerStart)
+              (compareThen (compare left.parent.zd right.parent.zd)
+                (compareThen (compare left.parent.zg right.parent.zg)
+                  (compareThen (compare left.segA.1 right.segA.1)
+                    (compareThen (compare left.segA.2 right.segA.2)
+                      (compare left.cStart right.cStart))))))))))
+
+def compareInterval (left right : Interval) : Ordering :=
+  compareThen (compare left.1 right.1) (compare left.2 right.2)
+
+def observationStrictlyBefore (left right : CandidateObservation) : Bool :=
+  compareThen (compareInterval left.interval right.interval)
+    (compareCandidateKey left.key right.key) == Ordering.lt
+
+/-- Rust `u64` wrapping domain represented as a bounded Nat. -/
+def u64Modulus : Nat := 18446744073709551616
+
+def fnvPrime : Nat := 1099511628211
+
+def fnvOffsetBasis : Nat := 14695981039346656037
+
+def pairIdSeed : Nat := 9521211207457086692
+
+def intAsU64 (value : Int) : Nat :=
+  Int.toNat (value % (Int.ofNat u64Modulus))
+
+def fnvMixByte (hash byte : Nat) : Nat :=
+  ((Nat.xor hash byte) * fnvPrime) % u64Modulus
+
+def fnvMixU64 (hash value : Nat) : Nat :=
+  (List.range 8).foldl
+    (fun acc byteIndex => fnvMixByte acc ((value / (256 ^ byteIndex)) % 256))
+    hash
+
+def candidateStableId (key : CandidateKey) (seed : Nat) : Nat :=
+  [ key.level,
+    key.kind.rank,
+    key.side.rank,
+    if key.previousCenterStart.isSome then 1 else 0,
+    key.previousCenterStart.getD 0,
+    key.parent.centerStart,
+    intAsU64 key.parent.zd,
+    intAsU64 key.parent.zg,
+    key.segA.1,
+    key.segA.2,
+    key.cStart ].foldl fnvMixU64 seed
+
+/-- scan.rs/observe.rs 的排序与 FNV 身份算法；不从 Rust 期望输出注入函数值。 -/
+def productionPostScanOperators : PostScanOperators :=
+  { sortPoints := stableSortBy (fun left right => left.sourceIndex < right.sourceIndex)
+    sortPanDivs := stableSortBy (fun left right => left.sourceIndex < right.sourceIndex)
+    sortGrades := stableSortBy (fun left right => left.sourceIndex < right.sourceIndex)
+    candidateGroupId := fun key => candidateStableId key fnvOffsetBasis
+    pairId := fun key => candidateStableId key pairIdSeed
+    sortObservations := stableSortBy observationStrictlyBefore }
+
+/-- raw sink → observation 的唯一 writer；两个 ID 无条件由 CandidateKey 重算。 -/
+def CandidateLeg.toObservation (operators : PostScanOperators)
+    (leg : CandidateLeg) : CandidateObservation :=
+  { key := leg.key, kind := leg.kind, centerIds := leg.centerIds
+    candidateGroupId := operators.candidateGroupId leg.key
+    pairId := operators.pairId leg.key
+    structuralPredicates := leg.structuralPredicates
+    extremeProof := leg.extremeProof, thirdClassProof := leg.thirdClassProof
+    interval := leg.interval, state := leg.state
+    firstProvableAt := leg.firstProvableAt, confirmedAt := leg.confirmedAt }
+
+def candidateRuleVersion : Nat := 1
+
+/-- cand_event/observe.rs:235-277：从既有 PanDivCert 投影，不重判结构或力度。 -/
+def panObservation (operators : PostScanOperators) (level : Nat)
+    (cert : PanDivCert) : CandidateObservation :=
+  let parent : ParentFingerprint :=
+    { centerStart := cert.center.startIndex, zd := cert.center.zd, zg := cert.center.zg }
+  let key : CandidateKey :=
+    { ruleVersion := candidateRuleVersion, level := level, kind := CandidateKind.pan
+      side := cert.side, previousCenterStart := none, parent := parent
+      segA := cert.segA, cStart := cert.segC.1 }
+  { key := key, kind := CandidateKind.pan, centerIds := none
+    candidateGroupId := operators.candidateGroupId key
+    pairId := operators.pairId key
+    structuralPredicates := { direction := true, comparable := true, extreme := true }
+    extremeProof := cert.segA, thirdClassProof := none, interval := cert.segC
+    state := ObservedState.confirmed, firstProvableAt := some cert.sourceIndex
+    confirmedAt := none }
+
+def finalizeScanSinks (operators : PostScanOperators) (level : Nat)
+    (sinks : ScanSinks) : MergedScanOutput :=
+  let panDivs := operators.sortPanDivs sinks.panDivs
+  let observations :=
+    operators.sortObservations
+      (reduceStructuralLegs sinks.candidateLegs ++ panDivs.map (panObservation operators level))
+  { points := operators.sortPoints sinks.points
+    panDivs := panDivs
+    grades := operators.sortGrades sinks.grades
+    observations := observations }
+
+/--
+唯一四件装配：先完整收集逐段 sink，再排序 BSP 三投影；候选腿只在扫描完成后归约，并在归约后
+并入从 PanDivCert 投影的观察。prefix cache 与 frontier tail 都先表现为 emissions，故不会出现一套
+cache 算法和一套 tail 算法。
+-/
+def assembleMergedOutput (operators : PostScanOperators) (level : Nat)
+    (emissions : List PerSegmentEmission) : MergedScanOutput :=
+  finalizeScanSinks operators level (collectScanSinks emissions)
+
+def collectScanSinkEmissions (operators : PostScanOperators)
+    (emissions : List ScanSinkEmission) : ScanSinks :=
+  emissions.foldl
+    (fun acc emission =>
+      { points := acc.points ++ emission.bspPoints
+        panDivs := acc.panDivs ++ emission.panDivCerts
+        grades := acc.grades ++ emission.firstClassGrades
+        candidateLegs := acc.candidateLegs ++
+          emission.candidateLegs.map (CandidateLeg.toObservation operators) })
+    emptyScanSinks
+
+/--
+验收入口：只接收逐段、未排序、未归约的 sink 输入；最终四件输出完全由 Lean 镜像重算。
+-/
+def recomputeMergedOutput (level : Nat) (emissions : List ScanSinkEmission) : MergedScanOutput :=
+  finalizeScanSinks productionPostScanOperators level
+    (collectScanSinkEmissions productionPostScanOperators emissions)
+
+/-- scan.rs:127-218 的四件锁步 frontier cache；这里缓存的是候选腿，不是归约后 observation。 -/
+structure FrontierCache where
+  cachedCount : Nat
+  sinks : ScanSinks
+deriving DecidableEq, Repr
+
+/--
+调用方按 scan.rs 的区间提供 `newlyStable` 与 `frontierTail`：前者对应
+[cachedCount,stableSeg)，后者对应 [stableSeg,segments.len)。当冻结边界回缩时先锁步清空四 sink；
+新稳定段推进进 cache，tail 只参与本次完整快照，不写 cache。
+-/
+def resumeMergedOutput (operators : PostScanOperators) (level stableSeg : Nat)
+    (cache : FrontierCache) (newlyStable frontierTail : List PerSegmentEmission) :
+    FrontierCache × MergedScanOutput :=
+  let base := if cache.cachedCount > stableSeg then emptyScanSinks else cache.sinks
+  let advanced := appendScanSinks base (collectScanSinks newlyStable)
+  let nextCache : FrontierCache := { cachedCount := stableSeg, sinks := advanced }
+  let snapshotSinks := appendScanSinks advanced (collectScanSinks frontierTail)
+  (nextCache, finalizeScanSinks operators level snapshotSinks)
+
+def AssembledFrom (operators : PostScanOperators) (level : Nat)
+    (emissions : List PerSegmentEmission) (output : MergedScanOutput) : Prop :=
+  assembleMergedOutput operators level emissions = output
+
+/--
+动机：共享逐段记录只能喂唯一双 sink，且候选归约只在扫描后走唯一 writer；同一完整输入不能
+装配出两个不同四件快照。
+-/
+theorem scan_assembly_deterministic
+    (operators : PostScanOperators) (level : Nat) (emissions : List PerSegmentEmission)
+    (first second : MergedScanOutput)
+    (hFirst : AssembledFrom operators level emissions first)
+    (hSecond : AssembledFrom operators level emissions second) :
+    first = second := by
+  unfold AssembledFrom at hFirst hSecond
+  exact hFirst.symm.trans hSecond
+
+/-! ## §6 c_p 生命周期与 ownership 投影（P1 侧车，不是四件输出） -/
+
+inductive CpLifecycle where
+  | pending
+  | closed
+deriving DecidableEq, Repr
+
+def CpLifecycle.rank : CpLifecycle → Nat
+  | CpLifecycle.pending => 0
+  | CpLifecycle.closed => 1
+
+/-- 同一对象、同一 stable revision 内的唯一合法 writer；dirty invalidation 不调用本函数。 -/
+def advanceLifecycleInStableRevision
+    (current : CpLifecycle) (closureWitness : Bool) : CpLifecycle :=
+  match current with
+  | CpLifecycle.pending => if closureWitness then CpLifecycle.closed else CpLifecycle.pending
+  | CpLifecycle.closed => CpLifecycle.closed
+
+/-- dirty/cascade 依赖失效开启新 revision，因此不构造 `StableAdvance`。 -/
+def StableAdvance (before after : CpLifecycle) : Prop :=
+  ∃ closureWitness, after = advanceLifecycleInStableRevision before closureWitness
+
+/-- `LevelState.cp_ownership` 单项的稳定对象身份与生命周期。 -/
+structure CpOwnership where
+  level : Nat
+  bCenterOrdinal : Nat
+  departureMoveOrdinal : Option Nat
+  sourceStart : Option Nat
+  lifecycle : CpLifecycle
+deriving DecidableEq, Repr
+
+def CpOwnership.advance (ownership : CpOwnership) (closureWitness : Bool) : CpOwnership :=
+  { ownership with
+      lifecycle := advanceLifecycleInStableRevision ownership.lifecycle closureWitness }
+
+
+/-- #1060 P2/c_p 完整附着对象；不是只看生命周期五元组。 -/
+structure CpObject where
+  bCenterIndex : Nat
+  bCenterId : ElementIdentity
+  bCenter : CenterFrame
+  departureMoveId : Option ElementIdentity
+  departureInterval : Option Interval
+  lifecycle : CpLifecycle
+  cpCertificateConfirmSrc : Option Nat
+  cStructure : Option CpStructureIdentity
+  thirdClassInC : Option ThirdClassInCp
+  fullTrendEvidence : Option FullTrendQualificationEvidence
+  fullTrendCQualified : Option FullTrendCQualified
+deriving DecidableEq, Repr
+
+/-- closure 之前可见的原始相邻单元证据。不存在 `closureWitness : Bool`。 -/
+structure CpClosureEvidence where
+  context : EventRawContext
+  visibleUnitMoveCount : Nat
+  cpDepartureMoveId : ElementIdentity
+  cpStart : Nat
+  leave : SegmentRow
+  retest : SegmentRow
+  leaveAnchor : Option Direction
+  leaveMoveId : ElementIdentity
+  retestMoveId : ElementIdentity
+deriving DecidableEq, Repr
+
+/--
+`recursive_tower.rs:1941-1959` 在调用第三类几何判定前的完整资格门。raw 证据必须属于
+对象当前的 departure move/interval，且相邻 leave/retest 的 move 级别与 ordinal 不得倒退。
+-/
+def CpClosureEligible (before : CpObject) (raw : CpClosureEvidence) : Prop :=
+  before.departureMoveId = some raw.cpDepartureMoveId ∧
+  before.departureInterval.map Prod.fst = some raw.cpStart ∧
+  raw.context.centers[before.bCenterIndex]? = some before.bCenter ∧
+  nearestConfirmedCenterIndex raw.context.centers raw.leave.startIndex = some before.bCenterIndex ∧
+  raw.cpStart ≤ raw.leave.startIndex ∧
+  raw.leaveMoveId.level = raw.cpDepartureMoveId.level ∧
+  raw.retestMoveId.level = raw.cpDepartureMoveId.level ∧
+  raw.cpDepartureMoveId.ordinal ≤ raw.leaveMoveId.ordinal ∧
+  raw.leaveMoveId.ordinal ≤ raw.retestMoveId.ordinal
+
+instance cpClosureEligibleDecidable (before : CpObject) (raw : CpClosureEvidence) :
+    Decidable (CpClosureEligible before raw) := by
+  unfold CpClosureEligible
+  infer_instance
+
+def thirdClassFromClosure (before : CpObject) (raw : CpClosureEvidence) : Option ThirdClassInCp :=
+  if CpClosureEligible before raw then
+    let side :=
+      match raw.leaveAnchor, raw.retest.direction with
+      | some Direction.up, Direction.down =>
+          if before.bCenter.zg < raw.leave.endPrice && before.bCenter.zg < raw.retest.endPrice then
+            some Side.long
+          else none
+      | some Direction.down, Direction.up =>
+          if raw.leave.endPrice < before.bCenter.zd && raw.retest.endPrice < before.bCenter.zd then
+            some Side.short
+          else none
+      | _, _ => none
+    side.map fun side =>
+      { bCenterId := before.bCenterId, cpDepartureMoveId := raw.cpDepartureMoveId
+        departureMoveId := raw.leaveMoveId, retestMoveId := raw.retestMoveId
+        departureInterval := (raw.leave.startIndex, raw.leave.endIndex)
+        retestInterval := (raw.retest.startIndex, raw.retest.endIndex)
+        pointSourceIndex := raw.retest.endIndex, side := side }
+  else none
+
+/-- Pending→Closed 由 Lean 从 leave/retest 几何判定，并一次写全 P2/c_p 附着字段。 -/
+def closeCpFromRaw (before : CpObject) (raw : CpClosureEvidence) : CpObject :=
+  match before.lifecycle, thirdClassFromClosure before raw with
+  | CpLifecycle.pending, some third =>
+      let cpStructure : CpStructureIdentity :=
+        { level := raw.cpDepartureMoveId.level, bCenterId := before.bCenterId
+          departureMoveId := raw.cpDepartureMoveId, terminalMoveId := some raw.retestMoveId
+          sourceStart := raw.cpStart, sourceEnd := some raw.retest.endIndex }
+      let visibleMoves := raw.context.unitMoves.take raw.visibleUnitMoveCount
+      { before with
+          lifecycle := CpLifecycle.closed
+          cpCertificateConfirmSrc := some third.pointSourceIndex
+          cStructure := some cpStructure
+          thirdClassInC := some third
+          fullTrendEvidence := fullTrendQualificationEvidenceFromFacts raw.context.centers
+            before.bCenterIndex before.bCenterId cpStructure third visibleMoves
+          fullTrendCQualified := fullTrendQualificationFromFacts raw.context.centers
+            before.bCenterIndex before.bCenterId cpStructure third visibleMoves }
+  | _, _ => before
+
+/--
+核对 recursive_tower.rs:1864-2015：同一 stable revision 内 Pending 只保持或闭合，Closed 吸收。
+recursive_tower.rs:1595-1666 的 dirty 回退属于新 revision，明确不在此前提中。
+-/
+theorem stable_advance_monotone (before after : CpLifecycle) (h : StableAdvance before after) :
+    before.rank ≤ after.rank := by
+  rcases h with ⟨closureWitness, rfl⟩
+  cases before <;> cases closureWitness <;> decide
+end NewChanlun.Origin.ScanAssemblyMirror

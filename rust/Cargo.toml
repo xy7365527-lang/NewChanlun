@@ -44,6 +44,8 @@ nautilus = ["dep:nautilus-model", "dep:nautilus-common", "dep:nautilus-trading",
 # CLI 生产入口：解 theta_v0::backtest 的 #[cfg(test)] 门控为公开 API，链接 run_theta_v0_pi/load_by_symbol。
 #   含 nautilus：CLI ⑥ 用真实 BacktestEngine（task#8 acceptance[5]）。
 backtest_bin = ["nautilus", "dep:sha2"]
+# #1087 Rust 生产输出 + 逐段 sink → Lean 独立重算逐字段对拍。只打开只读诊断面；普通构建不编译。
+issue1087_parity = []
 
 # ── CLI 生产入口（goal acceptance[5]：CLI 能驱动 S_Θ 产回测结果）。 ──
 # required-features：默认 cargo build 不编译它（cdylib 构建不受影响）。
@@ -159,6 +161,14 @@ required-features = ["backtest_bin"]
 name = "p915_capacity_frequency"
 path = "src/bin/p915_capacity_frequency.rs"
 required-features = ["backtest_bin"]
+
+# #1087 重型真实签收（3×200k trades，l_max=8；显式命令运行，不进普通 CI）。
+# 无数据的 ID/event/c_p/cache negative 锁在 formal/Origin/ScanAssemblyNegative.lean，
+# 已列入 Origin default root，CI `lake build` 每次真实执行。
+[[test]]
+name = "issue1087_scan_lean_parity"
+path = "tests/issue1087_scan_lean_parity.rs"
+required-features = ["issue1087_parity"]
 
 # 仅测试期依赖：T 回测全量 runner 读取 analysis/data_cache/*.json（8 标的 OHLC）。
 # 放 dev-dependencies ⇒ cdylib（Python 扩展）构建不受影响，零运行时依赖膨胀。

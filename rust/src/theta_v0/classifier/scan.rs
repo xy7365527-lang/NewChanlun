@@ -36,6 +36,1088 @@ use super::divergence::{
 use super::signal::{self, BspPoint, FirstClassGradeRecord, PanDivCert};
 use std::collections::HashMap;
 
+/// #1087 重型签收只读观测面：提取 Rust 生产四件输出与逐段未后处理 sink。
+/// Lean 从 sink 独立重算排序、归约、Pan 投影和 FNV 身份；不调用 Rust legacy oracle。
+/// feature 关闭时不编译，显式 begin 才提取。
+#[cfg(feature = "issue1087_parity")]
+pub(crate) mod issue1087_probe {
+    use super::super::bsp::OwnerRef;
+    use super::super::cand_event::{
+        CandidateKey, CandidateKind, ObservedState, ParentFingerprint, StructuralPredicates,
+    };
+    use super::super::descend::RMove;
+    use super::super::divergence::{ForceFeatures, ForceProxies};
+    use super::super::recursive_tower::{
+        level_cand_delta, CandDeltaEvent, CpScanOwnership, ElementId,
+    };
+    use super::super::signal::{T3InCGrade, T3InCGradeReason};
+    use super::*;
+    use crate::theta_v0::types::{BspBits, Side, ThirdClassEntryIdentity};
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    };
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum WireDirection {
+        Up,
+        Down,
+    }
+    impl From<Direction> for WireDirection {
+        fn from(value: Direction) -> Self {
+            match value {
+                Direction::Up => Self::Up,
+                Direction::Down => Self::Down,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum WireSide {
+        Long,
+        Short,
+    }
+    impl From<Side> for WireSide {
+        fn from(value: Side) -> Self {
+            match value {
+                Side::Long => Self::Long,
+                Side::Short => Self::Short,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum WireCandidateKind {
+        Trend,
+        Pan,
+    }
+    impl From<CandidateKind> for WireCandidateKind {
+        fn from(value: CandidateKind) -> Self {
+            match value {
+                CandidateKind::Trend => Self::Trend,
+                CandidateKind::Pan => Self::Pan,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum WireObservedState {
+        Provisional,
+        Unresolved,
+        Confirmed,
+    }
+    impl From<ObservedState> for WireObservedState {
+        fn from(value: ObservedState) -> Self {
+            match value {
+                ObservedState::Provisional => Self::Provisional,
+                ObservedState::Unresolved => Self::Unresolved,
+                ObservedState::Confirmed => Self::Confirmed,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireCenter {
+        pub zd: Tick,
+        pub zg: Tick,
+        pub dd: Tick,
+        pub gg: Tick,
+        pub start_index: usize,
+        pub end_index: usize,
+    }
+    impl From<Center> for WireCenter {
+        fn from(value: Center) -> Self {
+            let Center {
+                zd,
+                zg,
+                dd,
+                gg,
+                start_index,
+                end_index,
+            } = value;
+            Self {
+                zd,
+                zg,
+                dd,
+                gg,
+                start_index,
+                end_index,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireInterval {
+        pub left: usize,
+        pub right: usize,
+    }
+    impl From<(usize, usize)> for WireInterval {
+        fn from((left, right): (usize, usize)) -> Self {
+            Self { left, right }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireThirdClassEntry {
+        pub center_si: usize,
+        pub center_zd: Tick,
+        pub center_zg: Tick,
+        pub leave_interval: WireInterval,
+        pub retest_interval: WireInterval,
+    }
+    impl From<ThirdClassEntryIdentity> for WireThirdClassEntry {
+        fn from(value: ThirdClassEntryIdentity) -> Self {
+            let ThirdClassEntryIdentity {
+                center_si,
+                center_zd,
+                center_zg,
+                leave_interval,
+                retest_interval,
+            } = value;
+            Self {
+                center_si,
+                center_zd,
+                center_zg,
+                leave_interval: leave_interval.into(),
+                retest_interval: retest_interval.into(),
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireBspBits {
+        pub buy1: bool,
+        pub buy2: bool,
+        pub buy3: bool,
+        pub sell1: bool,
+        pub sell2: bool,
+        pub sell3: bool,
+        pub third_class_entry: Option<WireThirdClassEntry>,
+    }
+    impl From<BspBits> for WireBspBits {
+        fn from(value: BspBits) -> Self {
+            let BspBits {
+                buy1,
+                buy2,
+                buy3,
+                sell1,
+                sell2,
+                sell3,
+                third_class_entry,
+            } = value;
+            Self {
+                buy1,
+                buy2,
+                buy3,
+                sell1,
+                sell2,
+                sell3,
+                third_class_entry: third_class_entry.map(Into::into),
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum WireOwner {
+        Center(WireCenter),
+        Type1Anchor(usize),
+    }
+    impl From<OwnerRef> for WireOwner {
+        fn from(value: OwnerRef) -> Self {
+            match value {
+                OwnerRef::Center(center) => Self::Center(center.into()),
+                OwnerRef::Type1Anchor(source_index) => Self::Type1Anchor(source_index),
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireForceFeatures {
+        pub macd_area_bits: u64,
+        pub dif_peak_bits: u64,
+        pub price_amplitude: i64,
+        pub price_speed_bits: u64,
+    }
+    impl From<ForceFeatures> for WireForceFeatures {
+        fn from(value: ForceFeatures) -> Self {
+            let ForceFeatures {
+                macd_area,
+                dif_peak,
+                price_amplitude,
+                price_speed,
+            } = value;
+            Self {
+                macd_area_bits: macd_area.to_bits(),
+                dif_peak_bits: dif_peak.to_bits(),
+                price_amplitude,
+                price_speed_bits: price_speed.to_bits(),
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireForceProxies {
+        pub seg_a: WireForceFeatures,
+        pub seg_c: WireForceFeatures,
+    }
+    impl From<ForceProxies> for WireForceProxies {
+        fn from(value: ForceProxies) -> Self {
+            let ForceProxies { seg_a, seg_c } = value;
+            Self {
+                seg_a: seg_a.into(),
+                seg_c: seg_c.into(),
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireBspPoint {
+        pub source_index: usize,
+        pub bits: WireBspBits,
+        pub pivot_low: Tick,
+        pub pivot_high: Tick,
+        pub center: Option<WireOwner>,
+        pub struct_break_dir: Option<WireSide>,
+        pub force: Option<WireForceProxies>,
+        pub retrace_breaks_type1: Option<bool>,
+    }
+    impl From<BspPoint> for WireBspPoint {
+        fn from(value: BspPoint) -> Self {
+            let BspPoint {
+                source_index,
+                bits,
+                pivot_low,
+                pivot_high,
+                center,
+                struct_break_dir,
+                force,
+                retrace_breaks_type1,
+            } = value;
+            Self {
+                source_index,
+                bits: bits.into(),
+                pivot_low,
+                pivot_high,
+                center: center.map(Into::into),
+                struct_break_dir: struct_break_dir.map(Into::into),
+                force: force.map(Into::into),
+                retrace_breaks_type1,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WirePanDivCert {
+        pub source_index: usize,
+        pub side: WireSide,
+        pub center: WireCenter,
+        pub seg_a: WireInterval,
+        pub seg_c: WireInterval,
+    }
+    impl From<PanDivCert> for WirePanDivCert {
+        fn from(value: PanDivCert) -> Self {
+            let PanDivCert {
+                source_index,
+                side,
+                center,
+                seg_a,
+                seg_c,
+            } = value;
+            Self {
+                source_index,
+                side: side.into(),
+                center: center.into(),
+                seg_a: seg_a.into(),
+                seg_c: seg_c.into(),
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum WireT3InCGradeReason {
+        MissingLeave,
+        MissingRetest,
+        SameDirection,
+        LeaveNotOutside,
+        RetestReentered,
+    }
+    impl From<T3InCGradeReason> for WireT3InCGradeReason {
+        fn from(value: T3InCGradeReason) -> Self {
+            match value {
+                T3InCGradeReason::MissingLeave => Self::MissingLeave,
+                T3InCGradeReason::MissingRetest => Self::MissingRetest,
+                T3InCGradeReason::SameDirection => Self::SameDirection,
+                T3InCGradeReason::LeaveNotOutside => Self::LeaveNotOutside,
+                T3InCGradeReason::RetestReentered => Self::RetestReentered,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum WireT3InCGrade {
+        Present {
+            leave_interval: WireInterval,
+            retest_interval: WireInterval,
+        },
+        Missing(WireT3InCGradeReason),
+    }
+    impl From<T3InCGrade> for WireT3InCGrade {
+        fn from(value: T3InCGrade) -> Self {
+            match value {
+                T3InCGrade::Present {
+                    leave_interval,
+                    retest_interval,
+                } => Self::Present {
+                    leave_interval: leave_interval.into(),
+                    retest_interval: retest_interval.into(),
+                },
+                T3InCGrade::Missing(reason) => Self::Missing(reason.into()),
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireFirstClassGradeRecord {
+        pub level: u32,
+        pub source_index: usize,
+        pub side: WireSide,
+        pub center_start_index: usize,
+        pub center_end_index: usize,
+        pub center_zd: Tick,
+        pub center_zg: Tick,
+        pub grade: WireT3InCGrade,
+    }
+    impl From<FirstClassGradeRecord> for WireFirstClassGradeRecord {
+        fn from(value: FirstClassGradeRecord) -> Self {
+            let FirstClassGradeRecord {
+                level,
+                source_index,
+                side,
+                center_start_index,
+                center_end_index,
+                center_zd,
+                center_zg,
+                grade,
+            } = value;
+            Self {
+                level,
+                source_index,
+                side: side.into(),
+                center_start_index,
+                center_end_index,
+                center_zd,
+                center_zg,
+                grade: grade.into(),
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireParentFingerprint {
+        pub center_start: usize,
+        pub zd: i64,
+        pub zg: i64,
+    }
+    impl From<ParentFingerprint> for WireParentFingerprint {
+        fn from(value: ParentFingerprint) -> Self {
+            let ParentFingerprint {
+                center_start,
+                zd,
+                zg,
+            } = value;
+            Self {
+                center_start,
+                zd,
+                zg,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireCandidateKey {
+        pub rule_version: u32,
+        pub level: u32,
+        pub kind: WireCandidateKind,
+        pub side: WireSide,
+        pub previous_center_start: Option<usize>,
+        pub parent: WireParentFingerprint,
+        pub seg_a: WireInterval,
+        pub c_start: usize,
+    }
+    impl From<CandidateKey> for WireCandidateKey {
+        fn from(value: CandidateKey) -> Self {
+            let CandidateKey {
+                rule_version,
+                level,
+                kind,
+                side,
+                previous_center_start,
+                parent,
+                seg_a,
+                c_start,
+            } = value;
+            Self {
+                rule_version,
+                level,
+                kind: kind.into(),
+                side: side.into(),
+                previous_center_start,
+                parent: parent.into(),
+                seg_a: seg_a.into(),
+                c_start,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireStructuralPredicates {
+        pub direction: bool,
+        pub comparable: bool,
+        pub extreme: bool,
+    }
+    impl From<StructuralPredicates> for WireStructuralPredicates {
+        fn from(value: StructuralPredicates) -> Self {
+            let StructuralPredicates {
+                direction,
+                comparable,
+                extreme,
+            } = value;
+            Self {
+                direction,
+                comparable,
+                extreme,
+            }
+        }
+    }
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireCandidateObservation {
+        pub key: WireCandidateKey,
+        pub kind: WireCandidateKind,
+        pub center_ids: Option<WireInterval>,
+        pub candidate_group_id: u64,
+        pub pair_id: u64,
+        pub structural_predicates: WireStructuralPredicates,
+        pub extreme_proof: WireInterval,
+        pub third_class_proof: Option<usize>,
+        pub interval: WireInterval,
+        pub state: WireObservedState,
+        pub first_provable_at: Option<usize>,
+        pub confirmed_at: Option<usize>,
+    }
+    impl From<&CandidateObservation> for WireCandidateObservation {
+        fn from(value: &CandidateObservation) -> Self {
+            let CandidateObservation {
+                key,
+                kind,
+                center_ids,
+                candidate_group_id,
+                pair_id,
+                structural_predicates,
+                extreme_proof,
+                third_class_proof,
+                interval,
+                state,
+                first_provable_at,
+                confirmed_at,
+            } = value;
+            Self {
+                key: (*key).into(),
+                kind: (*kind).into(),
+                center_ids: center_ids.map(Into::into),
+                candidate_group_id: *candidate_group_id,
+                pair_id: *pair_id,
+                structural_predicates: (*structural_predicates).into(),
+                extreme_proof: (*extreme_proof).into(),
+                third_class_proof: *third_class_proof,
+                interval: (*interval).into(),
+                state: (*state).into(),
+                first_provable_at: *first_provable_at,
+                confirmed_at: *confirmed_at,
+            }
+        }
+    }
+    /// 原始 Trend sink 腿。candidate_group_id/pair_id 是 post-scan 派生量，禁止出现在此 wire。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireCandidateLeg {
+        pub key: WireCandidateKey,
+        pub kind: WireCandidateKind,
+        pub center_ids: Option<WireInterval>,
+        pub structural_predicates: WireStructuralPredicates,
+        pub extreme_proof: WireInterval,
+        pub third_class_proof: Option<usize>,
+        pub interval: WireInterval,
+        pub state: WireObservedState,
+        pub first_provable_at: Option<usize>,
+        pub confirmed_at: Option<usize>,
+    }
+    impl From<&CandidateObservation> for WireCandidateLeg {
+        fn from(value: &CandidateObservation) -> Self {
+            Self {
+                key: value.key.into(),
+                kind: value.kind.into(),
+                center_ids: value.center_ids.map(Into::into),
+                structural_predicates: value.structural_predicates.into(),
+                extreme_proof: value.extreme_proof.into(),
+                third_class_proof: value.third_class_proof,
+                interval: value.interval.into(),
+                state: value.state.into(),
+                first_provable_at: value.first_provable_at,
+                confirmed_at: value.confirmed_at,
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireMergedScanOutput {
+        pub points: Vec<WireBspPoint>,
+        pub pan_divs: Vec<WirePanDivCert>,
+        pub grades: Vec<WireFirstClassGradeRecord>,
+        pub observations: Vec<WireCandidateObservation>,
+    }
+
+    /// 生产扫描某一段发出的原始 sink。列表尚未排序，候选腿尚未归约，也未加入 Pan 投影。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireScanSinkEmission {
+        pub points: Vec<WireBspPoint>,
+        pub pan_divs: Vec<WirePanDivCert>,
+        pub grades: Vec<WireFirstClassGradeRecord>,
+        pub candidate_legs: Vec<WireCandidateLeg>,
+    }
+
+    pub(super) fn wire_emission(
+        points: &[BspPoint],
+        pan_divs: &[PanDivCert],
+        grades: &[FirstClassGradeRecord],
+        candidate_legs: &[CandidateObservation],
+    ) -> WireScanSinkEmission {
+        WireScanSinkEmission {
+            points: points.iter().copied().map(Into::into).collect(),
+            pan_divs: pan_divs.iter().copied().map(Into::into).collect(),
+            grades: grades.iter().copied().map(Into::into).collect(),
+            candidate_legs: candidate_legs.iter().map(Into::into).collect(),
+        }
+    }
+
+    fn wire_output(
+        points: &[BspPoint],
+        pan_divs: &[PanDivCert],
+        grades: &[FirstClassGradeRecord],
+        observations: &[CandidateObservation],
+    ) -> WireMergedScanOutput {
+        WireMergedScanOutput {
+            points: points.iter().copied().map(Into::into).collect(),
+            pan_divs: pan_divs.iter().copied().map(Into::into).collect(),
+            grades: grades.iter().copied().map(Into::into).collect(),
+            observations: observations.iter().map(Into::into).collect(),
+        }
+    }
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireSegmentRow {
+        pub direction: WireDirection,
+        pub start_index: usize,
+        pub end_index: usize,
+        pub start_price: Tick,
+        pub end_price: Tick,
+    }
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct EpisodeCase {
+        pub center_start_index: usize,
+        pub center_end_index: usize,
+        pub center_zd: Tick,
+        pub center_zg: Tick,
+        pub center_dd: Tick,
+        pub center_gg: Tick,
+        pub departure_dir: WireDirection,
+        pub until_start: usize,
+        pub rust_lambda_c: Option<usize>,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum WireMoveKind {
+        Trend,
+        Consolidation,
+    }
+    impl From<MoveKind> for WireMoveKind {
+        fn from(value: MoveKind) -> Self {
+            match value {
+                MoveKind::Trend => Self::Trend,
+                MoveKind::Consolidation => Self::Consolidation,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireMoveBlock {
+        pub start_center: usize,
+        pub end_center: usize,
+        pub kind: WireMoveKind,
+        pub direction: Option<WireDirection>,
+        pub level_lift: u8,
+    }
+    impl From<MoveBlock> for WireMoveBlock {
+        fn from(value: MoveBlock) -> Self {
+            Self {
+                start_center: value.start_center,
+                end_center: value.end_center,
+                kind: value.kind.into(),
+                direction: value.dir.map(Into::into),
+                level_lift: value.level_lift,
+            }
+        }
+    }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct WireASegmentEnvelope {
+        pub span: WireInterval,
+        pub low: Tick,
+        pub high: Tick,
+    }
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WirePreludeInput {
+        pub rows: Vec<WireSegmentRow>,
+        pub centers: Vec<WireCenter>,
+        pub blocks: Vec<WireMoveBlock>,
+    }
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WirePreludeOutput {
+        pub segments_sorted: bool,
+        pub centers_sorted: bool,
+        pub anchors: Vec<Option<WireDirection>>,
+        pub trend_gate: Vec<Option<WireDirection>>,
+        pub first_match_idx: Vec<Option<usize>>,
+        pub a_segments: Vec<Option<WireASegmentEnvelope>>,
+    }
+
+    /// `cp_event_objects` 所需的 c_p 扫描基础事实；故意不携带成品事件投影。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireCpScanBase {
+        pub b_center_index: usize,
+        pub b_center_id: ElementId,
+        pub b_center: WireCenter,
+        pub departure_move_id: Option<ElementId>,
+        pub departure_interval: Option<WireInterval>,
+    }
+
+    /// `LeveledMove` 的低层几何/分解事实；`center` 仅为 Compose 末位中枢。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireUnitMoveFact {
+        pub id: ElementId,
+        pub start_index: usize,
+        pub end_index: usize,
+        pub low: Tick,
+        pub high: Tick,
+        pub center: Option<WireCenter>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireEventRawContext {
+        pub centers: Vec<WireCenter>,
+        pub rows: Vec<WireSegmentRow>,
+        pub anchors: Vec<Option<WireDirection>>,
+        pub cp_scan: Vec<WireCpScanBase>,
+        pub unit_moves: Vec<WireUnitMoveFact>,
+    }
+
+    /// event 之前的 raw 判据输入 + Rust 生产事件（被检侧）。accepted 不在 wire 中。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireCandDeltaCase {
+        pub kind: WireCandidateKind,
+        pub side: WireSide,
+        pub divergence_confirm_src: usize,
+        pub a_interval: WireInterval,
+        pub center_index: usize,
+        pub segment_index: usize,
+        pub structural_candidate: bool,
+        pub direction: bool,
+        pub comparable: bool,
+        pub extreme: bool,
+        pub buy1: bool,
+        pub sell1: bool,
+        pub pan_diverges: bool,
+        pub pan_div_diag: bool,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireCpClosureEvidence {
+        pub visible_unit_move_count: usize,
+        pub cp_departure_move_id: super::super::recursive_tower::ElementId,
+        pub cp_start: usize,
+        pub leave: Segment,
+        pub retest: Segment,
+        pub leave_anchor: Option<Direction>,
+        pub leave_move_id: super::super::recursive_tower::ElementId,
+        pub retest_move_id: super::super::recursive_tower::ElementId,
+    }
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireCpTransition {
+        pub before: CpScanOwnership,
+        pub after: CpScanOwnership,
+        pub raw: WireCpClosureEvidence,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct ScanParityRecord {
+        pub level: u32,
+        /// Rust 生产合并扫描的最终四件输出，只作为被检侧。
+        pub rust_output: WireMergedScanOutput,
+        /// Rust 生产路径逐段 sink；Lean 从这里独立重算最终输出。
+        pub emissions: Vec<WireScanSinkEmission>,
+        pub prelude_input: WirePreludeInput,
+        pub prelude_output: WirePreludeOutput,
+        /// CandDelta cases 共享的 raw 低层上下文。
+        pub event_context: WireEventRawContext,
+        pub rows: Vec<WireSegmentRow>,
+        pub episode_cases: Vec<EpisodeCase>,
+        pub cand_delta_cases: Vec<WireCandDeltaCase>,
+        /// Rust 生产 event 的完整列表；Lean 列表级门与 raw cases 做 fail-closed 双射。
+        pub cand_delta_events: Vec<CandDeltaEvent>,
+        /// 本 level 的 stable-revision 生命周期转移；raw 复用同 record 上下文。
+        pub cp_transitions: Vec<WireCpTransition>,
+    }
+    static ACTIVE: AtomicBool = AtomicBool::new(false);
+    static RECORDS: Mutex<Vec<ScanParityRecord>> = Mutex::new(Vec::new());
+    static CP_TRANSITIONS: Mutex<Vec<WireCpTransition>> = Mutex::new(Vec::new());
+    pub fn begin() {
+        RECORDS.lock().expect("#1087 probe mutex poisoned").clear();
+        CP_TRANSITIONS
+            .lock()
+            .expect("#1087 cp probe mutex poisoned")
+            .clear();
+        ACTIVE.store(true, Ordering::SeqCst);
+    }
+    pub fn finish() -> Vec<ScanParityRecord> {
+        ACTIVE.store(false, Ordering::SeqCst);
+        let mut records = std::mem::take(&mut *RECORDS.lock().expect("#1087 probe mutex poisoned"));
+        let transitions = std::mem::take(
+            &mut *CP_TRANSITIONS
+                .lock()
+                .expect("#1087 cp probe mutex poisoned"),
+        );
+        for transition in transitions {
+            let level = transition.raw.cp_departure_move_id.level;
+            records
+                .iter_mut()
+                .find(|record| record.level == level)
+                .unwrap_or_else(|| panic!("#1087 cp transition 缺 L{level} raw context"))
+                .cp_transitions
+                .push(transition);
+        }
+        records
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn record_cp_transition(
+        before: &CpScanOwnership,
+        after: &CpScanOwnership,
+        cp_departure_move_id: super::super::recursive_tower::ElementId,
+        cp_start: usize,
+        leave: &Segment,
+        retest: &Segment,
+        leave_anchor: Option<Direction>,
+        leave_move_id: super::super::recursive_tower::ElementId,
+        retest_move_id: super::super::recursive_tower::ElementId,
+        visible_unit_move_count: usize,
+    ) {
+        if !ACTIVE.load(Ordering::SeqCst) {
+            return;
+        }
+        CP_TRANSITIONS
+            .lock()
+            .expect("#1087 cp probe mutex poisoned")
+            .push(WireCpTransition {
+                before: before.clone(),
+                after: after.clone(),
+                raw: WireCpClosureEvidence {
+                    visible_unit_move_count,
+                    cp_departure_move_id,
+                    cp_start,
+                    leave: leave.clone(),
+                    retest: retest.clone(),
+                    leave_anchor,
+                    leave_move_id,
+                    retest_move_id,
+                },
+            });
+    }
+
+    pub(super) fn active() -> bool {
+        ACTIVE.load(Ordering::SeqCst)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn record(
+        level: u32,
+        centers: &[Center],
+        segments: &[Segment],
+        anchor_dirs: Option<&[Option<Direction>]>,
+        departure_ends: Option<&[usize]>,
+        cp_scan: &[CpScanOwnership],
+        unit_moves: &[super::super::recursive_tower::LeveledMove],
+        blocks: &[MoveBlock],
+        hist: &[f64],
+        dif: &[f64],
+        closes_tick: &[Tick],
+        close_src: &[usize],
+        gauge: DivergenceGauge,
+        strokes: &[Stroke],
+        points: &[BspPoint],
+        pan_divs: &[PanDivCert],
+        grades: &[FirstClassGradeRecord],
+        observations: &[CandidateObservation],
+        emissions: Vec<WireScanSinkEmission>,
+    ) {
+        let anchors_self: Vec<Option<Direction>> = segments
+            .iter()
+            .map(|segment| Some(segment.direction))
+            .collect();
+        let anchors = anchor_dirs.unwrap_or(&anchors_self);
+        let any_trend = blocks.iter().any(|block| block.kind == MoveKind::Trend);
+        // CandDelta sidecar consumes every consolidation ownership at this level; `level_lift == 0`
+        // is only the merged four-output projection gate and must not narrow the event raw-case domain.
+        let any_event_consol = blocks
+            .iter()
+            .any(|block| block.kind == MoveKind::Consolidation);
+        let episode_cases = segments
+            .iter()
+            .filter_map(|segment| {
+                let center_index =
+                    signal::nearest_confirmed_center_idx(centers, segment.start_index)?;
+                let direction = any_trend
+                    .then(|| center_own_dir_at(blocks, center_index))
+                    .flatten()?;
+                let center = &centers[center_index];
+                Some(EpisodeCase {
+                    center_start_index: center.start_index,
+                    center_end_index: center.end_index,
+                    center_zd: center.zd,
+                    center_zg: center.zg,
+                    center_dd: center.dd,
+                    center_gg: center.gg,
+                    departure_dir: direction.into(),
+                    until_start: segment.start_index,
+                    rust_lambda_c: departure_move_c_start(
+                        segments,
+                        &anchors_self,
+                        center,
+                        direction,
+                        segment.start_index,
+                    ),
+                })
+            })
+            .collect();
+        let rows: Vec<_> = segments
+            .iter()
+            .map(|segment| WireSegmentRow {
+                direction: segment.direction.into(),
+                start_index: segment.start_index,
+                end_index: segment.end_index,
+                start_price: segment.start_price,
+                end_price: segment.end_price,
+            })
+            .collect();
+        let wire_centers: Vec<_> = centers.iter().copied().map(Into::into).collect();
+        let wire_blocks: Vec<_> = blocks.iter().copied().map(Into::into).collect();
+        let trend_gate: Vec<Option<WireDirection>> = (0..centers.len())
+            .map(|index| center_own_dir_at(blocks, index).map(Into::into))
+            .collect();
+        let first_match_idx = centers
+            .iter()
+            .map(|center| {
+                centers.iter().position(|candidate| {
+                    candidate.end_index == center.end_index
+                        && candidate.zd == center.zd
+                        && candidate.zg == center.zg
+                })
+            })
+            .collect();
+        let a_segments = centers
+            .iter()
+            .enumerate()
+            .map(|(index, center)| {
+                let direction = center_own_dir_at(blocks, index)?;
+                let previous = centers.get(index.checked_sub(1)?)?;
+                locate_departure_move_a(segments, &anchors_self, previous, center, direction)
+                    .and_then(|span| {
+                        move_range_envelope(segments, span).map(|(low, high)| {
+                            WireASegmentEnvelope {
+                                span: span.into(),
+                                low,
+                                high,
+                            }
+                        })
+                    })
+            })
+            .collect();
+        let prelude_input = WirePreludeInput {
+            rows: rows.clone(),
+            centers: wire_centers,
+            blocks: wire_blocks,
+        };
+        let prelude_output = WirePreludeOutput {
+            segments_sorted: segments
+                .windows(2)
+                .all(|pair| pair[0].start_index <= pair[1].start_index),
+            centers_sorted: centers
+                .windows(2)
+                .all(|pair| pair[0].end_index < pair[1].end_index),
+            anchors: anchors.iter().map(|value| value.map(Into::into)).collect(),
+            trend_gate,
+            first_match_idx,
+            a_segments,
+        };
+        let event_context = WireEventRawContext {
+            centers: prelude_input.centers.clone(),
+            rows: rows.clone(),
+            anchors: anchors.iter().map(|value| value.map(Into::into)).collect(),
+            cp_scan: cp_scan
+                .iter()
+                .map(|scan| WireCpScanBase {
+                    b_center_index: scan.b_center_index,
+                    b_center_id: scan.b_center_id,
+                    b_center: scan.b_center.into(),
+                    departure_move_id: scan.departure_move_id,
+                    departure_interval: scan.departure_interval.map(Into::into),
+                })
+                .collect(),
+            unit_moves: unit_moves
+                .iter()
+                .map(|movement| {
+                    let (low, high) = movement.envelope();
+                    let center = match &movement.rmove {
+                        RMove::Compose { centers, .. } => centers.last().copied().map(Into::into),
+                        RMove::Segment { .. } => None,
+                    };
+                    WireUnitMoveFact {
+                        id: movement.id,
+                        start_index: movement.start_index,
+                        end_index: movement.end_index,
+                        low,
+                        high,
+                        center,
+                    }
+                })
+                .collect(),
+        };
+
+        // event 之前的 raw Trend 腿是验收输入；Rust CandDeltaEvent 只作为被检侧。
+        let cand_events = level_cand_delta(
+            level,
+            centers,
+            Some(cp_scan),
+            segments,
+            Some(unit_moves),
+            anchor_dirs,
+            hist,
+            dif,
+            closes_tick,
+            close_src,
+            gauge,
+            strokes,
+        );
+        let mut cand_delta_cases: Vec<WireCandDeltaCase> = emissions
+            .iter()
+            .flat_map(|emission| emission.candidate_legs.iter())
+            .filter(|leg| leg.kind == WireCandidateKind::Trend)
+            .filter_map(|leg| {
+                let segment_index = segments
+                    .iter()
+                    .position(|segment| segment.end_index == leg.interval.right)?;
+                let segment = segments.get(segment_index)?;
+                let center_index = centers.iter().position(|center| {
+                    center.start_index == leg.key.parent.center_start
+                        && center.zd == leg.key.parent.zd
+                        && center.zg == leg.key.parent.zg
+                })?;
+                let center = centers.get(center_index)?;
+                let side = match leg.key.side {
+                    WireSide::Long => Side::Long,
+                    WireSide::Short => Side::Short,
+                };
+                let divergence_confirm_src = departure_ends
+                    .and_then(|values| values.get(segment_index).copied())
+                    .unwrap_or(segment.end_index);
+                // buy/sell 来自 event 之前的 BSP 判据输出，不从最终 cand_delta 反推。
+                let point = points.iter().find(|point| {
+                    point.source_index == divergence_confirm_src
+                        && point.struct_break_dir == Some(side)
+                });
+                let buy1 = point.is_some_and(|point| point.bits.buy1);
+                let sell1 = point.is_some_and(|point| point.bits.sell1);
+                // level_cand_delta 的事件侧车按完整 consolidation ownership 诊断，
+                // 不套 merged 四输出的 lift==0 投影门。
+                let kind_consol = any_event_consol
+                    && center_block_kind_at(blocks, center_index) == Some(MoveKind::Consolidation);
+                let pan_div_diag = kind_consol
+                    && signal::judge_pan_div_observation(
+                        center,
+                        segment,
+                        segments,
+                        &anchors_self,
+                        hist,
+                        dif,
+                        close_src,
+                    )
+                    .is_some();
+                Some(WireCandDeltaCase {
+                    kind: WireCandidateKind::Trend,
+                    side: leg.key.side,
+                    divergence_confirm_src,
+                    a_interval: leg.key.seg_a,
+                    center_index,
+                    segment_index,
+                    structural_candidate: true,
+                    direction: leg.structural_predicates.direction,
+                    comparable: leg.structural_predicates.comparable,
+                    extreme: leg.structural_predicates.extreme,
+                    buy1,
+                    sell1,
+                    pan_diverges: false,
+                    pan_div_diag,
+                })
+            })
+            .collect();
+        // Pan 诊断事件也从 event 前的 observation 判据输入枚举；不得只遍历已产 event。
+        for (segment_index, segment) in segments.iter().enumerate() {
+            let Some(center_index) =
+                signal::nearest_confirmed_center_idx(centers, segment.start_index)
+            else {
+                continue;
+            };
+            // 与 level_cand_delta 的 Pan event 前门逐字同口径；lift==0 只属于 merged 四输出。
+            let kind_consol = any_event_consol
+                && center_block_kind_at(blocks, center_index) == Some(MoveKind::Consolidation);
+            if !kind_consol {
+                continue;
+            }
+            let center = &centers[center_index];
+            let Some(cert) = signal::judge_pan_div_observation(
+                center,
+                segment,
+                segments,
+                &anchors_self,
+                hist,
+                dif,
+                close_src,
+            ) else {
+                continue;
+            };
+            cand_delta_cases.push(WireCandDeltaCase {
+                kind: WireCandidateKind::Pan,
+                side: cert.side.into(),
+                divergence_confirm_src: cert.source_index,
+                a_interval: cert.seg_a.into(),
+                center_index,
+                segment_index,
+                structural_candidate: true,
+                direction: true,
+                comparable: true,
+                extreme: true,
+                buy1: false,
+                sell1: false,
+                pan_diverges: true,
+                pan_div_diag: true,
+            });
+        }
+
+        RECORDS
+            .lock()
+            .expect("#1087 probe mutex poisoned")
+            .push(ScanParityRecord {
+                level,
+                rust_output: wire_output(points, pan_divs, grades, observations),
+                emissions,
+                prelude_input,
+                prelude_output,
+                event_context,
+                rows,
+                episode_cases,
+                cand_delta_cases,
+                cand_delta_events: cand_events,
+                cp_transitions: Vec::new(),
+            });
+    }
+}
+
 /// A 段区间 + b 包络缓存（键 = 最近 confirmed 中枢下标 c_idx；值 = I(A) span 与其包络）。
 /// 热点②：趋势 τ 下多段共享同一 (prev_center, last_center) 对 ⟹ 每 c_idx 至多算一次。
 type ASegCache = HashMap<usize, Option<((usize, usize), (Tick, Tick))>>;
@@ -46,6 +1128,86 @@ pub(crate) struct MergedScanOutput {
     pub pan_divs: Vec<PanDivCert>,
     pub grades: Vec<FirstClassGradeRecord>,
     pub observations: Vec<CandidateObservation>,
+}
+
+/// 为 #1087 提取一次 fresh 生产扫描的逐段原始 sink。这里只调用合并扫描的单段核，
+/// 不调用 `extract_signals_with_hist_anchored` 或 `observations_for_level` legacy oracle。
+#[cfg(feature = "issue1087_parity")]
+#[allow(clippy::too_many_arguments)]
+fn issue1087_scan_sink_emissions(
+    level: u32,
+    centers: &[Center],
+    segments: &[Segment],
+    anchor_dirs: Option<&[Option<Direction>]>,
+    departure_ends: Option<&[usize]>,
+    blocks: &[MoveBlock],
+    hist: &[f64],
+    dif: &[f64],
+    closes_tick: &[Tick],
+    close_src: &[usize],
+    gauge: DivergenceGauge,
+    strokes: &[Stroke],
+) -> Vec<issue1087_probe::WireScanSinkEmission> {
+    let anchors_self: Vec<Option<Direction>> = segments
+        .iter()
+        .map(|segment| Some(segment.direction))
+        .collect();
+    let anchors = anchor_dirs.unwrap_or(&anchors_self);
+    let any_trend = blocks.iter().any(|block| block.kind == MoveKind::Trend);
+    let any_consol = blocks
+        .iter()
+        .any(|block| block.kind == MoveKind::Consolidation && block.level_lift == 0);
+    let mut a_seg_cache: ASegCache = HashMap::new();
+    let mut emissions = Vec::with_capacity(segments.len());
+    for (index, segment) in segments.iter().enumerate() {
+        let Some(center_index) = signal::nearest_confirmed_center_idx(centers, segment.start_index)
+        else {
+            continue;
+        };
+        let gate_dir = if any_trend {
+            center_own_dir_at(blocks, center_index).map(|direction| (center_index, direction))
+        } else {
+            None
+        };
+        let kind_consol = any_consol
+            && center_block_kind_at(blocks, center_index) == Some(MoveKind::Consolidation)
+            && center_block_lift_at(blocks, center_index) == Some(0);
+        let mut points = Vec::new();
+        let mut pan_divs = Vec::new();
+        let mut grades = Vec::new();
+        let mut candidate_legs = Vec::new();
+        merged_judge_segment(
+            index,
+            segment,
+            center_index,
+            gate_dir,
+            kind_consol,
+            segments,
+            anchors,
+            &anchors_self,
+            centers,
+            &mut a_seg_cache,
+            hist,
+            dif,
+            closes_tick,
+            close_src,
+            gauge,
+            strokes,
+            level,
+            departure_ends,
+            &mut points,
+            &mut pan_divs,
+            &mut grades,
+            &mut candidate_legs,
+        );
+        emissions.push(issue1087_probe::wire_emission(
+            &points,
+            &pan_divs,
+            &grades,
+            &candidate_legs,
+        ));
+    }
+    emissions
 }
 
 /// ★3a 生产合并扫描的 frontier-resume 入口（替代旧 `extract_first_third_resume` +
@@ -69,6 +1231,8 @@ pub(crate) fn merged_scan_resume(
     segments: &[Segment],
     anchor_dirs: Option<&[Option<Direction>]>,
     departure_ends: Option<&[usize]>,
+    #[cfg(feature = "issue1087_parity")] cp_scan: &[super::recursive_tower::CpScanOwnership],
+    #[cfg(feature = "issue1087_parity")] unit_moves: &[super::recursive_tower::LeveledMove],
     blocks: &[MoveBlock],
     prefix_count: usize,
     dirty_e: usize,
@@ -226,6 +1390,45 @@ pub(crate) fn merged_scan_resume(
     let mut observations = cand_event::reduce_structural_legs(legs);
     observations.extend(cand_event::pan_observations_for_level(level, &pan_divs));
     observations.sort_by_key(|observation| (observation.interval, observation.key));
+
+    #[cfg(feature = "issue1087_parity")]
+    if issue1087_probe::active() {
+        let emissions = issue1087_scan_sink_emissions(
+            level,
+            centers,
+            segments,
+            anchor_dirs,
+            departure_ends,
+            blocks,
+            hist,
+            dif,
+            closes_tick,
+            close_src,
+            gauge,
+            strokes,
+        );
+        issue1087_probe::record(
+            level,
+            centers,
+            segments,
+            anchor_dirs,
+            departure_ends,
+            cp_scan,
+            unit_moves,
+            blocks,
+            hist,
+            dif,
+            closes_tick,
+            close_src,
+            gauge,
+            strokes,
+            &points,
+            &pan_divs,
+            &grades,
+            &observations,
+            emissions,
+        );
+    }
 
     debug_assert!(
         {

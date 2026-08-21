@@ -115,6 +115,21 @@ pub mod level_view_store;
 pub mod projection;
 /// 3a 生产单扫描（SPEC #1077 S1）：一趟段扫描合并 BSP 三投影与候选观察（私有模块，经 pipeline 消费）。
 mod scan;
+/// #1087 Rust 生产输出 + 逐段 sink → Lean 独立重算逐字段对拍探针；feature 关闭时不进构建。
+#[cfg(feature = "issue1087_parity")]
+pub mod issue1087_parity {
+    pub use super::scan::issue1087_probe::{
+        begin, finish, EpisodeCase, ScanParityRecord, WireASegmentEnvelope, WireBspBits,
+        WireBspPoint, WireCandDeltaCase, WireCandidateKey, WireCandidateKind, WireCandidateLeg,
+        WireCandidateObservation, WireCenter, WireCpClosureEvidence, WireCpScanBase,
+        WireCpTransition, WireDirection, WireEventRawContext, WireFirstClassGradeRecord,
+        WireForceFeatures, WireForceProxies, WireInterval, WireMergedScanOutput, WireMoveBlock,
+        WireMoveKind, WireObservedState, WireOwner, WirePanDivCert, WireParentFingerprint,
+        WirePreludeInput, WirePreludeOutput, WireScanSinkEmission, WireSegmentRow, WireSide,
+        WireStructuralPredicates, WireT3InCGrade, WireT3InCGradeReason, WireThirdClassEntry,
+        WireUnitMoveFact,
+    };
+}
 pub mod signal;
 pub mod six_state;
 pub mod voice_eat;
