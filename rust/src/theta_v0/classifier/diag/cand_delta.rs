@@ -1,7 +1,9 @@
-//! P1 谓词闭包驱动器（strict-nesting-divergence-plan-20260708 §P1）：cand_delta 三驱动器。
+//! Cand^δ 事件驱动器：cand_delta 三驱动器（3b 起驱动对象 = 纯投影，P1 谓词闭包退役）。
 //!
 //! #748（C4）纯移动自 `classifier/mod.rs`（原 `cand_delta_tower` / `cand_delta_tower_cached` /
-//! `cand_delta_entry_tower` 一带）。
+//! `cand_delta_entry_tower` 一带）。3b（ADR 0026 裁定三 / #1059 路线 A）：`cand_delta_tower*`
+//! 签名不动（8 处审计消费面零改动），内部驱动对象从退役的 `recursive_tower::level_cand_delta`
+//! 换成 `scan::project_cand_delta_events` 纯投影。
 
 use std::rc::Rc;
 
@@ -9,26 +11,28 @@ use crate::theta_v0::classifier::recursive_tower::{
     self, project_to_units, CandDeltaEntryEvent, CandDeltaEvent, LeveledMove,
 };
 use crate::theta_v0::classifier::{
-    decompose, divergence, unit_to_segment, Classification, TowerCache,
+    cand_predicate, divergence, scan, unit_to_segment, Classification, TowerCache,
 };
 use crate::theta_v0::config::ThetaConfig;
 use crate::theta_v0::env_registry;
 use crate::theta_v0::parser::ParseLayer;
 use crate::theta_v0::types::{Direction, Segment, Tick};
 
-/// P1 谓词闭包驱动器（strict-nesting-divergence-plan-20260708 §P1）：对既有分类输出逐级跑
-/// [`recursive_tower::level_cand_delta`]（Cand^δ_ℓ 背驰段谓词，「级别→A/C 定位配对」层）。
+/// Cand^δ 事件驱动器（3b 起 = 纯投影驱动器）：对既有分类输出逐级跑
+/// [`scan::project_cand_delta_events`]（Cand^δ_ℓ 背驰段谓词，「级别→A/C 定位配对」层的投影接任者）。
 ///
 /// 每级输入重建与 `classify_impl` 单一来源同构：
 /// - ℓ0：`l0.segments`（L0 线段账本；anchor=None ⟹ 段方向即锚方向，L0 域定理）；
 /// - ℓ≥1：`units = project_to_units(&tower_snapshots[ℓ], &levels[ℓ-1].moves)`
 ///   （`tower_snapshots[ℓ]` = 第 ℓ 级输入塔 = 第 ℓ-1 级 upper_moves，classify_impl 同步
-///   index 不变量）+ `anchors[i] = center_own_dir_at(levels[ℓ-1].moves, i)`（Q7-#1 裁定C
-///   同一 provenance）+ `unit_to_segment` 还原（与 `extract_first_third_for_level` 同口径）；
+///   index 不变量）+ `anchors[i] = Some(units[i].direction)`（3b 口径：生产结构方向锚，
+///   #1052 点锚迁移同源——旧 `center_own_dir_at(levels[ℓ-1].moves, i)` 的中心域/单元域错位
+///   随 P1 退役收口）+ `unit_to_segment` 还原（与 `extract_first_third_for_level` 同口径）；
 /// - hist/dif/closes_tick/close_src：与 classify_impl 同一 `compute_macd` 路径重建。
 ///
-/// ★纯增量只读层：不改 classify 任何行为；判据零分叉见 recursive_tower.rs P1 段头铁律。
-/// 全量/增量分类输出均适用（增量塔 bit-exact 于全量 ⟹ 重建输入逐值相同）。
+/// ★纯增量只读层：不改 classify 任何行为；判据零分叉见 scan.rs 投影段头（判据单一 =
+/// 生产合并扫描逐段素材读回）。全量/增量分类输出均适用（增量塔 bit-exact 于全量 ⟹ 重建输入
+/// 逐值相同）。
 pub fn cand_delta_tower(
     l0: &ParseLayer,
     classification: &Classification,
@@ -152,12 +156,13 @@ fn cand_delta_tower_with_series(
             "tower_snapshots 与 levels 同构（classify_impl 不变量）"
         );
         let evs = if lvl == 0 {
-            recursive_tower::level_cand_delta(
+            scan::project_cand_delta_events(
                 0,
                 &ls.centers[..],
-                Some(&ls.cp_ownership[..]),
+                &ls.cp_ownership[..],
                 &l0.segments,
                 Some(&tower_snapshots[lvl]),
+                None,
                 None,
                 hist,
                 dif,
@@ -169,17 +174,32 @@ fn cand_delta_tower_with_series(
         } else {
             let pb = &classification.levels[lvl - 1].moves;
             let units = project_to_units(&tower_snapshots[lvl], pb);
-            let anchors: Vec<Option<Direction>> = (0..units.len())
-                .map(|i| decompose::center_own_dir_at(pb, i))
-                .collect();
+            // ★3b 口径订正（P1 退役收口）：旧 P1 镜像的 `center_own_dir_at(pb, i)` 用单元下标
+            // i 去查**上一级中枢**的 ownership 方向（中心域 vs 单元域错位——units.len() ≥
+            // centers.len()，超出部分恒 None ⟹ 破中枢门 (None, trend) 恒拒 ⟹ 高级别第一类事件
+            // 大量漏产，strict_nest_check 250k BTC 前缀实测 138 bar ℓ1 不一致，旧 P1 硬门 FAIL）。
+            // 投影锚 = 生产结构方向锚（unit.direction，#1052 点锚迁移口径；管线层
+            // structural_anchors 同一来源）——与 Lean 镜像（fixture context.anchors = 生产
+            // anchor_dirs）逐位同源，#1060「转镜像锚定」。pb 仅剩 project_to_units 消费。
+            let anchors: Vec<Option<Direction>> = units.iter().map(|u| Some(u.direction)).collect();
             let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
-            recursive_tower::level_cand_delta(
+            // ★#1028 裁定 A：一类点点锚 = departure 单元终点（与管线层 merged_scan_resume
+            // 同一公式、同一单一来源；无趋势方向子走势 ⟹ 回退单元自身 end_index）。
+            let departure_ends: Vec<usize> = units
+                .iter()
+                .zip(tower_snapshots[lvl].iter())
+                .map(|(u, m)| {
+                    cand_predicate::departure_unit_end(m, u.direction).unwrap_or(u.end_index)
+                })
+                .collect();
+            scan::project_cand_delta_events(
                 lvl as u32,
                 &ls.centers[..],
-                Some(&ls.cp_ownership[..]),
+                &ls.cp_ownership[..],
                 &segs,
                 Some(&tower_snapshots[lvl]),
                 Some(&anchors),
+                Some(&departure_ends),
                 hist,
                 dif,
                 closes_tick,

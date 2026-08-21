@@ -536,9 +536,11 @@ pub(crate) fn judge_first_from_gates(
     let t3_in_c_present = t3_in_c_skip_enabled() || matches!(t3_grade, T3InCGrade::Present { .. });
     // ★#607 S2 D4：观测面 sidecar 挂点移入判据本体（D2 后 bits 已被 T3-in-c 二次门控，仅凭
     // `pf.bits` 观测会漏记否则域点——须在门控**之前**按 `diverged` 捕获，见 #606 S1 报告
-    // §8.3 教训同源）。生产 `judge_segment`（level=Some，incremental resume 传参穿透）与诊断
-    // `level_cand_delta`（level=None，#529 塔地盘不参与捕获，同 #606 S1 既有边界）两条调用
-    // 路径共享同一挂点。仅 sidecar 已打开（env 门控，`otherwise_domain_sidecar_begin`）时捕获。
+    // §8.3 教训同源）。生产 `judge_segment`（level=Some，incremental resume 传参穿透）与
+    // 3b 投影 `scan::project_cand_delta_events`（经同一单段核 `merged_judge_segment`，同携
+    // level=Some）共享同一挂点——P1 的 `level_cand_delta`（level=None，#529 塔地盘不参与捕获）
+    // 已随 3b 退役（ADR 0026）。仅 sidecar 已打开（env 门控，`otherwise_domain_sidecar_begin`）
+    // 时捕获；投影重跑同核捕获的记录与生产帧逐值相同（upsert 幂等）。
     // ★#607 F4 登记：sidecar 记的是**真实** `t3_grade`（Present/Missing 如实反映 T3-in-c 判据），
     // 不受 `THETA_T3INC_SKIP` 影响；但 `THETA_T3INC_SKIP=1` 时下方 `below_last_center`（一类 bit）
     // 强制按 `diverged` 置（跳过 T3-in-c 二次门控，见上）。两者在 skip 臂下脱钩——bit 驱动的

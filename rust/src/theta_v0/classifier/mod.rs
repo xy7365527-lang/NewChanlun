@@ -130,6 +130,10 @@ pub mod issue1087_parity {
         WireUnitMoveFact,
     };
 }
+/// #1087/#1080 Rust↔Lean 提取对拍共享面（fixture 写盘 + Lean 复核；strict_nest_check 镜像对拍
+/// 执行器与重型签收测试共用单一渲染口径）。feature 关闭时不进构建。
+#[cfg(feature = "issue1087_parity")]
+pub mod lean_mirror;
 pub mod signal;
 pub mod six_state;
 pub mod voice_eat;

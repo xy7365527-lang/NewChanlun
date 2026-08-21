@@ -709,13 +709,16 @@ mod tests {
             // 2026-08-19 #1079：3a 合并扫描把 `judge_first_cached` 门判定后半段抽取为
             // `judge_first_from_gates`（纯函数抽取，判据零改动）⟹ 七处夹具点统一 +44，
             // 逐条重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。
-            "theta_v0/classifier/signal.rs:2718",
-            "theta_v0/classifier/signal.rs:3078",
-            "theta_v0/classifier/signal.rs:3451",
-            "theta_v0/classifier/signal.rs:3591",
-            "theta_v0/classifier/signal.rs:3624",
-            "theta_v0/classifier/signal.rs:3880",
-            "theta_v0/classifier/signal.rs:3947",
+            // 2026-08-22 #1081 3b：judge_first_from_gates 头注释更新 P1→投影挂点说明（+2 行，
+            // 纯注释、零判据）⟹ 七处夹具点统一 +2，逐条重核内容不变（同为测试夹具
+            // source_index 过滤），同条目重登记。
+            "theta_v0/classifier/signal.rs:2720",
+            "theta_v0/classifier/signal.rs:3080",
+            "theta_v0/classifier/signal.rs:3453",
+            "theta_v0/classifier/signal.rs:3593",
+            "theta_v0/classifier/signal.rs:3626",
+            "theta_v0/classifier/signal.rs:3882",
+            "theta_v0/classifier/signal.rs:3949",
             // （2026-08-16 #648 T1：classifier/mod.rs 内联测试 4273 行抽离至 classifier/tests/
             // 主题件 ⟹ 该夹具点同内容随迁 mod.rs:4574 → tests/pipeline_geometry.rs:1565，
             // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。

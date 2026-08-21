@@ -1,4 +1,5 @@
-//! P52 只读召回上界：不经过 `level_cand_delta` / `cand_delta` 事件入口，直接在每级稳定
+//! P52 只读召回上界：不经过 Cand^δ 事件入口（旧 P1 `level_cand_delta` 已随 3b 退役，
+//! 本审计自始不依赖事件面），直接在每级稳定
 //! `B_p/c_p` 对象全集上重判 leave/retest 几何。
 //!
 //! #748（C4）纯移动自 `classifier/mod.rs`（原 `cp_recall_upper_bound_audit`）。

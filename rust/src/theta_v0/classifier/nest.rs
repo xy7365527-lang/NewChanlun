@@ -1053,8 +1053,9 @@ where
 /// `Cand^δ_ℓ` 定义式（P2 落定，补 spec 疑点2 的缺口；裁决① strict-nesting-rulings-20260708）：
 ///
 /// > **`Cand^δ_ℓ(x) ≔ 塔上 per-level 背驰段谓词`** = [`CandDeltaEvent::cand_delta`]
-/// > （`recursive_tower::level_cand_delta`：A/C 段按该级 tower 段结构定位（跨中枢趋势配对，
-/// > 0016:62），gauge 复用 divergence.rs MacdArea 默认路径，严格 `curr < prev`）。
+/// > （3b 起 = `scan::project_cand_delta_events` 纯投影——A/C 段按该级 tower 段结构定位
+/// > （跨中枢趋势配对，0016:62），gauge 复用 divergence.rs MacdArea 默认路径，严格
+/// > `curr < prev`；P1 装配线 `level_cand_delta` 已随 3b 退役，ADR 0026）。
 ///
 /// - 盘整背驰当前**不入谓词**（只出 [`CandDeltaEvent::pan_div_diag`] 诊断位，不参与本装配）——
 ///   此系**实装态而非裁定态**：0708「盘背不入链」裁决已由正式文书

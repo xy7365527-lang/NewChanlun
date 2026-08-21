@@ -1,22 +1,32 @@
-//! strict_nest_check：严格区间套 P1/P2 校验 bin。
+//! strict_nest_check：3b 镜像对拍执行器（#1060 / ADR 0026 补充节，SPEC #1077 D5）。
 //!
-//! 规格冻结（只读，主仓）：
-//! - `chanlun/review-results/strict-nesting-divergence-plan-20260708.md`（P1/P2 规格与验收门）
-//! - `chanlun/escalate/strict-nesting-rulings-20260708.md`（三裁决：Cand^δ≔背驰段谓词、
-//!   盘整背驰不入链、确认时点=完成时）
+//! 裁决链（已全裁，本 bin 只执行）：
+//! - #1058/ADR 0026：P1 对照臂退役前置 = Lean 完整语义镜像签收（#1080/#1087 已 CLOSED）——
+//!   签收在先、退役在后，无空窗期。
+//! - #1060：strict_nest_check 转型为**镜像对拍执行器**——P1 硬门位（cand_delta≟buy1/sell1
+//!   逐级多重集对拍）换成 **Rust↔Lean 提取对拍门**；「每 checkpoint + 末根终态、逐级全
+//!   比对、FAIL 停线」硬门机器原样保留，只换对拍对象（P1 线 → Lean 镜像）。逐 bar 因果
+//!   诊断（非门）保留，转镜像锚定。P2 面校验并入镜像对拍面（c_p 附着即镜像靶子组成
+//!   部分），不另立 P2 专项校验；P2 证据载体 = 统一记录 + cp_ownership 投影。
+//! - #1059：CandDeltaEvent 改库内纯投影（scan::project_cand_delta_events：生产合并扫描
+//!   逐段素材 + LevelState.cp_ownership 合成），本 bin 自重放时经
+//!   `cand_delta_tower_cached`（签名不变）调用；P1 对照装配线（level_cand_delta/
+//!   cp_event_objects）随 3b 退役。
 //!
-//! ## P1 硬门（本 bin 主判）
-//! 默认（全量档）：因果重放下，每 STRICT_NEST_P1_CHECKPOINT（默认 1000）bar 对当前快照
-//! 做一次每级全比对——`cand_delta_tower`（P1 谓词层）cand_delta=true 事件
-//! (confirm_src, side) 多重集 ≟ `Classification.levels[ℓ].bsp` buy1/sell1 背驰确认支
-//! (source_index, side) 多重集**逐 bit 一致**——末 bar 终态必判。任何 checkpoint / 终态
-//! 不一致 ⟹ FAIL + 差异样例，停线（判据不可调）。另有逐 bar 因果诊断（非门）：确认支
-//! 累积集 vs 终态集——「确认撤回」= 上游结构修订时两侧锁步撤回（实测存在，250k 前缀
-//! 8 处；同前缀逐 bar 档 0 mismatch 证明两侧每 bar 仍 bit-exact），由 checkpoint 比对覆盖。
-//! `STRICT_NEST_P1_PERBAR=1`：每 bar 每级全比对档（谓词层逐 bar 重算 ⟹ O(n²)，实测分段
-//! 耗时线性增长、全量外推 20h+；只配 STRICT_NEST_MAX_BARS 做前缀逐 bar 证据——已留
-//! 250k DIAG_CANDCACHE 对拍 + 600k 前缀 0 mismatch 证据）。两档判据同源
-//! （`cand_delta_tower_cached`，零分叉）。
+//! ## 镜像对拍门（本 bin 主判；需 `--features issue1087_parity` 构建）
+//! 默认档：因果重放下，每 STRICT_NEST_MIRROR_CHECKPOINT（默认 1000）bar 对**该前缀**做
+//! 一次 fresh 全量分类 + issue1087_probe 捕获（每级恰一份快照），经
+//! classifier::lean_mirror 写 Lean fixture 并 `lake env lean` 逐字段复核（prelude / 四输出
+//! / CandDelta 装配 / c_p 附着）；末 bar 终态必判。任何 checkpoint / 终态任一 mismatch
+//! ⟹ FAIL + 差异，停线（判据不可调）。逐级全比对 = fixture 内每级立四件输出门 + 事件
+//! 双射门 + c_p 闭包复核门。镜像门每次 fresh 全量分类 O(prefix) ⟹ 全史运行按窗口规模
+//! 评估 checkpoint 间隔（STRICT_NEST_MIRROR_CHECKPOINT=0 ⟹ 只跑末根终态；诊断截断窗口
+//! 用 STRICT_NEST_MAX_BARS）。STRICT_NEST_MIRROR=0 ⟹ 本构建内停跑镜像门（诊断模式）。
+//!
+//! ## 逐 bar 因果诊断（非门，镜像锚定）
+//! 生产 bsp buy1/sell1 确认支的逐 bar 累积 vs 终态集——「确认撤回」/「因果漏捕获」=
+//! 上游结构修订的单线行为（3b 前是 P1 两侧锁步行为；P1 线退役后本累积面 = 镜像捕获的
+//! 同一生产提取面）。只计数报告，不入门（#799 限定词二：诊断模式 ≠ 生产模式）。
 //!
 //! ## 基线 sanity（每次必带）
 //! 发射跟踪五元组 = P7-RESULT 头部（raw seen 29088 / conf 键 27152 / type3 键 15165 /
@@ -28,7 +38,7 @@
 //! 只保留「是否匹配」布尔——bps 统计列非 P2 门，不复算）。
 //!
 //! 骨架逐行复制自 `/tmp/codex-work-p7/rust/src/bin/e1_tri_anchor.rs`（因果重放模式）。
-//! 不改任何已有库判据；P1 层为纯增量代码（见 recursive_tower.rs P1 段头铁律）。
+//! 不改任何已有库判据；3b 起事件面由纯投影供给（见 scan.rs 投影段头）。
 
 use newchan_rust::theta_v0::classifier;
 use newchan_rust::theta_v0::classifier::nest::{
@@ -416,19 +426,16 @@ fn compute_trade(t: &Trade, idx: &EventIndex) -> TradeCalc {
     TradeCalc { a2, b, c: best }
 }
 
-// ═══════════════════════ P1 逐 bit 校验器 ═══════════════════════
+// ═══════════════════════ 3b：逐 bar 因果诊断 + 镜像对拍门 ═══════════════════════
 
-/// P1 硬门：每 bar 每级，谓词层 cand_delta=true 事件 (confirm_src, side) 多重集 ≟
-/// levels[ℓ].bsp 的 buy1/sell1 (source_index, side) 多重集。
-struct P1Checker {
+/// 逐 bar 因果诊断（非门，#1060 裁定三保留）：生产 bsp buy1/sell1 确认支的逐 bar 累积
+/// vs 终态集。「确认撤回」/「因果漏捕获」= 上游结构修订的单线行为（3b 前是 P1 两侧锁步
+/// 行为；P1 线退役后本累积面 = 镜像对拍捕获的同一生产提取面 ⟹ 转镜像锚定）。只计数报告，
+/// 不入门（#799 限定词二：诊断模式 ≠ 生产模式）。窗口只影响首见 bar 诊断值，不影响判定
+/// （完成时语义下前缀确认支冻结；任何违背都在镜像门的 Lean 逐字段复核中暴露）。
+struct CausalDiagnosis {
     bars_checked: usize,
-    comparisons: usize,
-    mismatch_bars: usize,
-    per_level_mismatch: HashMap<usize, usize>,
-    samples: Vec<String>,
-    /// 末 bar 快照：每级 (buy1/sell1 bit 数, 事件总数, cand_delta=true 数, pan_div_diag=true 数)。
-    final_snapshot: Vec<(usize, usize, usize, usize)>,
-    /// 因果累积（默认档）：每级 (source_index, side) → 首见 bar。
+    /// 因果累积：每级 (source_index, side) → 首见 bar。
     seen: Vec<HashMap<(usize, i8), usize>>,
     /// 每级 bsp 指纹 (Rc 指针, len, 尾元素 (source_index, buy1, sell1))——未变则 O(1) 跳过。
     fps: Vec<(usize, usize, Option<(usize, bool, bool)>)>,
@@ -440,8 +447,8 @@ struct P1Checker {
     uncaptured: usize,
     /// 诊断（非门）：确认支首见 bar 相对 source_index 的最大滞后。
     max_confirm_delay: usize,
-    /// 默认档 checkpoint 全比对次数。
-    checkpoints: usize,
+    /// 末 bar 快照：每级 (buy1/sell1 bit 数, 事件总数, cand_delta=true 数, pan_div_diag=true 数)。
+    final_snapshot: Vec<(usize, usize, usize, usize)>,
 }
 
 fn side_i8(s: Side) -> i8 {
@@ -452,28 +459,23 @@ fn side_i8(s: Side) -> i8 {
     }
 }
 
-impl P1Checker {
+impl CausalDiagnosis {
     fn new() -> Self {
         Self {
             bars_checked: 0,
-            comparisons: 0,
-            mismatch_bars: 0,
-            per_level_mismatch: HashMap::new(),
-            samples: Vec::new(),
-            final_snapshot: Vec::new(),
             seen: Vec::new(),
             fps: Vec::new(),
             scanned_len: Vec::new(),
             retracted: 0,
             uncaptured: 0,
             max_confirm_delay: 0,
-            checkpoints: 0,
+            final_snapshot: Vec::new(),
         }
     }
 
     /// 默认档逐 bar 累积（无谓词层重算）：bsp 指纹未变则 O(1) 跳过；变则从
     /// `scanned_len - OVERLAP` 起只扫尾部窗。完成时语义下前缀确认支冻结；任何违背都会在
-    /// [`Self::finalize`] 的全量审计中以 FAIL 暴露，故窗口只影响首见 bar 诊断值，不影响判定。
+    /// 镜像门的 Lean 逐字段复核中以 FAIL 暴露，故窗口只影响首见 bar 诊断值，不影响判定。
     fn accumulate(&mut self, bar: usize, classification: &classifier::Classification) {
         const OVERLAP: usize = 64;
         self.bars_checked += 1;
@@ -510,9 +512,8 @@ impl P1Checker {
         }
     }
 
-    /// 终态定判：谓词层单次重算（rhs）≟ 终态确认支全量扫描（lhs）逐 bit——不一致 ⟹
-    /// mismatch（P1 FAIL）。另做因果诊断（非门）：累积集 vs 终态集——撤回/漏捕获为上游
-    /// 结构修订的两侧锁步行为（checkpoint 逐 bit 比对已覆盖），只计数报告不入门。
+    /// 终态诊断（非门）+ 末 bar 快照：累积集 vs 终态确认支——撤回/漏捕获只计数报告，
+    /// 不入门（判据面由镜像门接管）。cand 事件只用于快照表（投影读数），不参与任何比对。
     fn finalize(
         &mut self,
         _bar: usize,
@@ -531,36 +532,13 @@ impl P1Checker {
                 }
             }
             let evs = &cand[lvl];
-            let mut rhs: Vec<(usize, i8)> = evs
-                .iter()
-                .filter(|e| e.cand_delta)
-                .map(|e| (e.confirm_src, side_i8(e.side)))
-                .collect();
-            lhs.sort_unstable();
-            rhs.sort_unstable();
-            self.comparisons += 1;
             self.final_snapshot.push((
                 lhs.len(),
                 evs.len(),
-                rhs.len(),
+                evs.iter().filter(|e| e.cand_delta).count(),
                 evs.iter().filter(|e| e.pan_div_diag).count(),
             ));
-            let mut level_bad = false;
-            if lhs != rhs {
-                level_bad = true;
-                if self.samples.len() < 10 {
-                    let only_l: Vec<_> = lhs.iter().filter(|k| !rhs.contains(k)).take(4).collect();
-                    let only_r: Vec<_> = rhs.iter().filter(|k| !lhs.contains(k)).take(4).collect();
-                    self.samples.push(format!(
-                        "终态 ℓ{lvl}: bsp={} cand={}；仅 bsp 侧 {:?}，仅谓词侧 {:?}",
-                        lhs.len(),
-                        rhs.len(),
-                        only_l,
-                        only_r
-                    ));
-                }
-            }
-            // 因果审计：默认档才有累积集（perbar 档 seen 为空 ⟹ 跳过，逐 bar 比对已覆盖）。
+            // 因果审计（非门）：默认档才有累积集。
             if let Some(seen) = self.seen.get(lvl) {
                 if !seen.is_empty() || !lhs.is_empty() {
                     let fset: HashSet<(usize, i8)> = lhs.iter().copied().collect();
@@ -569,116 +547,99 @@ impl P1Checker {
                             self.max_confirm_delay =
                                 self.max_confirm_delay.max(first_bar.saturating_sub(k.0));
                         } else {
-                            // 上游结构修订的锁步撤回（两侧同步，checkpoint 比对覆盖）——诊断非门。
+                            // 上游结构修订的锁步撤回（单线口径；镜像门逐字段覆盖）——诊断非门。
                             self.retracted += 1;
-                            if self.samples.len() < 10 {
-                                self.samples.push(format!(
-                                    "诊断·确认撤回 ℓ{lvl}: {k:?} 首见 bar={first_bar}，终态无"
-                                ));
-                            }
                         }
                     }
                     for k in &fset {
                         if !seen.contains_key(k) {
                             self.uncaptured += 1;
-                            if self.samples.len() < 10 {
-                                self.samples.push(format!(
-                                    "诊断·因果漏捕获 ℓ{lvl}: {k:?} 终态有，重放累积无"
-                                ));
-                            }
                         }
                     }
                 }
             }
-            if level_bad {
-                *self.per_level_mismatch.entry(lvl).or_insert(0) += 1;
-                self.mismatch_bars += 1;
-            }
         }
     }
+}
 
-    /// 逐 bar 档（STRICT_NEST_P1_PERBAR=1）：每 bar 全比对。
-    fn compare(
-        &mut self,
-        bar: usize,
-        classification: &classifier::Classification,
-        cand: &[Vec<CandDeltaEvent>],
-    ) {
-        self.bars_checked += 1;
-        self.compare_inner(bar, classification, cand);
-    }
+// ═══════════════════════ 镜像对拍门（Rust↔Lean 提取对拍，feature 门控） ═══════════════════════
 
-    /// 默认档 checkpoint：每 STRICT_NEST_P1_CHECKPOINT bar 一次全比对（bar 数由
-    /// [`Self::accumulate`] 计，不重复计入）。
-    fn checkpoint(
-        &mut self,
-        bar: usize,
-        classification: &classifier::Classification,
-        cand: &[Vec<CandDeltaEvent>],
-    ) {
-        self.checkpoints += 1;
-        self.compare_inner(bar, classification, cand);
-    }
+/// 镜像对拍门的单次 stage 报告（checkpoint / 末根终态）。
+#[cfg(feature = "issue1087_parity")]
+struct MirrorStageReport {
+    stage: String,
+    levels: usize,
+    /// stage_event_domain_counts：Lean 可接受 raw 数 / production event 数。
+    accepted_raw: usize,
+    production_events: usize,
+}
 
-    /// 单 bar 快照全比对核心（P1 硬门本体）：该 bar 下每级 bsp buy1/sell1 多重集 ≟ 谓词
-    /// cand_delta 多重集，逐 bit。
-    fn compare_inner(
-        &mut self,
-        bar: usize,
-        classification: &classifier::Classification,
-        cand: &[Vec<CandDeltaEvent>],
-    ) {
-        let mut bar_bad = false;
-        self.final_snapshot.clear();
-        for (lvl, ls) in classification.levels.iter().enumerate() {
-            let mut lhs: Vec<(usize, i8)> = Vec::new();
-            for p in ls.bsp.iter() {
-                if p.bits.buy1 {
-                    lhs.push((p.source_index, 1));
-                }
-                if p.bits.sell1 {
-                    lhs.push((p.source_index, -1));
-                }
-            }
-            let evs = &cand[lvl];
-            let mut rhs: Vec<(usize, i8)> = evs
-                .iter()
-                .filter(|e| e.cand_delta)
-                .map(|e| (e.confirm_src, side_i8(e.side)))
-                .collect();
-            lhs.sort_unstable();
-            rhs.sort_unstable();
-            self.comparisons += 1;
-            self.final_snapshot.push((
-                lhs.len(),
-                evs.len(),
-                rhs.len(),
-                evs.iter().filter(|e| e.pan_div_diag).count(),
-            ));
-            if lhs != rhs {
-                bar_bad = true;
-                *self.per_level_mismatch.entry(lvl).or_insert(0) += 1;
-                if self.samples.len() < 10 {
-                    let only_l: Vec<_> = lhs.iter().filter(|k| !rhs.contains(k)).take(4).collect();
-                    let only_r: Vec<_> = rhs.iter().filter(|k| !lhs.contains(k)).take(4).collect();
-                    self.samples.push(format!(
-                        "bar={bar} ℓ{lvl}: bsp={} cand={}；仅 bsp 侧 {:?}，仅谓词侧 {:?}",
-                        lhs.len(),
-                        rhs.len(),
-                        only_l,
-                        only_r
-                    ));
-                }
-            }
-        }
-        if bar_bad {
-            self.mismatch_bars += 1;
+/// 镜像对拍门累积状态（「每 checkpoint + 末根终态、逐级全比对、FAIL 停线」硬门机器）。
+#[cfg(feature = "issue1087_parity")]
+struct MirrorGate {
+    comparisons: usize,
+    stages: Vec<MirrorStageReport>,
+    /// 首次 FAIL（停线后不再跑后续 checkpoint；None = 未触发）。
+    failed: Option<String>,
+}
+
+#[cfg(feature = "issue1087_parity")]
+impl MirrorGate {
+    fn new() -> Self {
+        Self {
+            comparisons: 0,
+            stages: Vec::new(),
+            failed: None,
         }
     }
 
     fn pass(&self) -> bool {
-        self.mismatch_bars == 0
+        self.failed.is_none()
     }
+}
+
+/// 单 stage 镜像对拍：fresh 全量分类该前缀（新 TowerCache，穿透 memo ⟹ 每级恰一份快照），
+/// issue1087_probe 捕获 → classifier::lean_mirror 写 fixture → `lake env lean` 逐字段复核。
+/// 任一 mismatch ⟹ Err（停线）。对拍对象 = 现役 parity 面（rust/tests/issue1087_scan_lean_parity.rs
+/// + formal/Origin/ScanAssemblyMirror.lean/ScanAssemblyBridge.lean 共享同一渲染口径）。
+#[cfg(feature = "issue1087_parity")]
+fn mirror_stage(
+    formal: &Path,
+    window: &newchan_rust::theta_v0::classifier::lean_mirror::MirrorWindow,
+    stage: &str,
+    bars: &[Bar],
+    config: &ThetaConfig,
+) -> Result<MirrorStageReport, String> {
+    use newchan_rust::theta_v0::classifier::{issue1087_parity, lean_mirror, TowerCache};
+    issue1087_parity::begin();
+    let layer = parser::parse_layer(bars, config);
+    let mut cache = TowerCache::new();
+    let _ = classifier::classify_incremental(&layer, config, &mut cache, &[]);
+    let mut records = issue1087_parity::finish();
+    // 诊断负控（仅验证 FAIL 停线行为用，STRICT_NEST_MIRROR_NEGCTL=1）：翻转首个事件的一条
+    // 字段 ⟹ Lean 逐字段复核必 mismatch ⟹ 镜像门 FAIL 停线。默认关闭，零影响。
+    if std::env::var("STRICT_NEST_MIRROR_NEGCTL").as_deref() == Ok("1") {
+        if let Some(event) = records
+            .iter_mut()
+            .flat_map(|record| record.cand_delta_events.iter_mut())
+            .next()
+        {
+            event.cand_delta = !event.cand_delta;
+            eprintln!(
+                "★负控：已翻转首个 CandDeltaEvent.cand_delta（expect Lean mismatch → FAIL 停线）"
+            );
+        }
+    }
+    let (accepted_raw, production_events) = lean_mirror::stage_event_domain_counts(&records);
+    // checkpoint 前缀可能未到 L2（浅前缀逐级全比对即可，不套 #1087 签收窗的
+    // L2 下限——require_l2=false；末根终态若仍浅则如实 PASS 已比对的级）。
+    lean_mirror::verify_records_in_lean(formal, window.clone(), stage, &records, false, false)?;
+    Ok(MirrorStageReport {
+        stage: stage.to_string(),
+        levels: records.len(),
+        accepted_raw,
+        production_events,
+    })
 }
 
 // ═══════════════════════ 主流程 ═══════════════════════
@@ -1320,10 +1281,10 @@ fn run() -> Result<bool, String> {
         trades.len()
     );
 
-    // ── 全量因果重放：发射跟踪 + P1 逐 bit 校验（同一快照内） ──
+    // ── 全量因果重放：发射跟踪 + 逐 bar 因果诊断（镜像门在 checkpoint/终态跑 fresh 捕获） ──
     let mut classifier_incr = IncrementalClassifier::new(&loaded.bars, &config);
     let mut tracker = EmissionTracker::new();
-    let mut p1 = P1Checker::new();
+    let mut diag = CausalDiagnosis::new();
     let t_replay = Instant::now();
     // 诊断用重放上限（DIAG_CANDCACHE 对拍短跑）；正式判定必须全量（未设 = total_bars）。
     let replay_bars: usize = std::env::var("STRICT_NEST_MAX_BARS")
@@ -1333,29 +1294,75 @@ fn run() -> Result<bool, String> {
     if replay_bars < total_bars {
         eprintln!("★诊断截断：只重放前 {replay_bars}/{total_bars} bar（判定不作数）");
     }
-    // P1 档位：默认 = 因果累积 + checkpoint 全比对 + 终态定判（摊还 O(n) + O(n/K) 次谓词
-    // 重算）；STRICT_NEST_P1_PERBAR=1 = 每 bar 每级全比对（谓词层逐 bar 重算
-    // level_cand_delta，实测分段耗时线性增长 ⟹ O(n²)，全量外推 20h+——只配
-    // STRICT_NEST_MAX_BARS 做前缀逐 bar 证据）。判据同源零分叉。
-    let perbar = std::env::var("STRICT_NEST_P1_PERBAR").is_ok();
-    let ckpt_every: usize = std::env::var("STRICT_NEST_P1_CHECKPOINT")
+    // 镜像门档位：默认 = checkpoint 全比对 + 末根终态（每 checkpoint 一次 fresh 全量分类 +
+    // Lean 复核，O(prefix)）；STRICT_NEST_MIRROR_CHECKPOINT=0 ⟹ 只跑末根终态；
+    // STRICT_NEST_MIRROR=0 ⟹ 停跑镜像门（诊断模式）。镜像门需 --features issue1087_parity
+    // 构建；默认构建下门体不编译，报告 SKIPPED（照实，不伪造）。
+    let ckpt_every: usize = std::env::var("STRICT_NEST_MIRROR_CHECKPOINT")
         .ok()
         .and_then(|s| s.parse().ok())
-        .filter(|&k| k > 0)
         .unwrap_or(1000);
-    if perbar {
-        eprintln!("★P1 逐 bar 档（O(n²)）：仅限前缀诊断");
+    let mirror_enabled = std::env::var("STRICT_NEST_MIRROR")
+        .map(|v| !matches!(v.as_str(), "0" | "off" | "OFF"))
+        .unwrap_or(true);
+    if mirror_enabled && ckpt_every > 0 {
+        eprintln!("镜像对拍门 checkpoint 间隔 = {ckpt_every} bar（末根终态必判）");
+    } else if mirror_enabled {
+        eprintln!("镜像对拍门：仅末根终态（checkpoint 间隔 = 0）");
     } else {
-        eprintln!("P1 checkpoint 间隔 = {ckpt_every} bar");
+        eprintln!("★镜像对拍门停跑（STRICT_NEST_MIRROR=0，诊断模式）");
     }
+    #[cfg(feature = "issue1087_parity")]
+    let formal_root = {
+        let mut formal = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        formal.pop();
+        formal.push("formal");
+        // 镜像依赖先构建（同 #1087 签收测试口径：Origin.ScanAssemblyMirror/Bridge olean 必须
+        // 在 `lake env lean` 前就位）。构建失败 = 环境卡点，如实报错退出。
+        let build = std::process::Command::new("lake")
+            .current_dir(&formal)
+            .args([
+                "build",
+                "Origin.ScanAssemblyMirror",
+                "Origin.ScanAssemblyBridge",
+            ])
+            .output()
+            .map_err(|error| format!("无法执行 lake build: {error}"))?;
+        if !build.status.success() {
+            return Err(format!(
+                "Lean 构建失败：\n{}\n{}",
+                String::from_utf8_lossy(&build.stdout),
+                String::from_utf8_lossy(&build.stderr)
+            ));
+        }
+        formal
+    };
+    #[cfg(feature = "issue1087_parity")]
+    let (mirror_window, mirror_bars, mirror_config) = {
+        // 镜像门窗口 = 本 bin 原生数据（BTC 1m 全史）的前缀；对拍对象 = 现役 parity 面
+        // （fixture 渲染/Lean 复核 = classifier::lean_mirror，与 rust/tests/issue1087_scan_lean_parity.rs
+        // 同一单一渲染口径——EQUS.MINI 面由该重型签收测试覆盖）。
+        (
+            newchan_rust::theta_v0::classifier::lean_mirror::MirrorWindow {
+                symbol: "BTC".to_string(),
+                start: 0,
+                end: replay_bars,
+            },
+            loaded.bars[..replay_bars].to_vec(),
+            config.clone(),
+        )
+    };
+    #[cfg(feature = "issue1087_parity")]
+    let mut mirror = MirrorGate::new();
     // 注意：ParseLayer（l0_i）不得跨 bar 持有——parser append 的 Rc::make_mut 折回
     // （parser/mod.rs:215）在强引用 >1 时退化为全量深拷贝（O(n)/bar ⟹ O(n²) 总量，
-    // 450k 前缀实测 append 157.4s/165s）。故 l0 仅末 bar 保留；checkpoint 用当轮 l0_i。
+    // 450k 前缀实测 append 157.4s/165s）。故 l0 仅末 bar 保留；镜像门 checkpoint 用独立
+    // fresh 全量分类（不共享本循环的增量状态）。
     let mut last_state = None;
     let mut last_l0 = None;
     // 分项计时（诊断用，STRICT_NEST_PROFILE=1 时随 200k 心跳打印；不改判据路径）。
     let profile = std::env::var("STRICT_NEST_PROFILE").is_ok();
-    let (mut t_cls, mut t_scan, mut t_p1) = (
+    let (mut t_cls, mut t_scan, mut t_diag) = (
         std::time::Duration::ZERO,
         std::time::Duration::ZERO,
         std::time::Duration::ZERO,
@@ -1372,47 +1379,53 @@ fn run() -> Result<bool, String> {
             t_scan += t0.elapsed();
         }
         let t0 = std::time::Instant::now();
-        if perbar {
-            // 缓存序列变体（判据零分叉，见 mod.rs cand_delta_tower_cached 文档）。
-            let cand = classifier::cand_delta_tower_cached(
-                &l0_i,
-                &classification,
-                &tower,
-                &config,
-                &classifier_incr.tower_cache,
-            );
-            p1.compare(i, &classification, &cand);
-        } else {
-            p1.accumulate(i, &classification);
-            if i % ckpt_every == 0 && i > 0 {
-                let cand = classifier::cand_delta_tower_cached(
-                    &l0_i,
-                    &classification,
-                    &tower,
-                    &config,
-                    &classifier_incr.tower_cache,
-                );
-                p1.checkpoint(i, &classification, &cand);
+        diag.accumulate(i, &classification);
+        // 镜像对拍门 checkpoint（fresh 全量分类 + Lean 复核；FAIL ⟹ 停线，不再跑后续 bar）。
+        #[cfg(feature = "issue1087_parity")]
+        if mirror_enabled && ckpt_every > 0 && i % ckpt_every == 0 && i > 0 {
+            let prefix = i + 1;
+            let stage = format!("checkpoint_{prefix}");
+            match mirror_stage(
+                &formal_root,
+                &mirror_window,
+                &stage,
+                &mirror_bars[..prefix.min(mirror_bars.len())],
+                &mirror_config,
+            ) {
+                Ok(report) => {
+                    mirror.comparisons += 1;
+                    eprintln!(
+                        "  镜像门 {stage} PASS（levels={} accepted_raw={} production_events={}）",
+                        report.levels, report.accepted_raw, report.production_events
+                    );
+                    mirror.stages.push(report);
+                }
+                Err(error) => {
+                    mirror.failed = Some(format!("镜像门 {stage}：{error}"));
+                    eprintln!("★镜像门 {stage} FAIL ⟹ 停线：{error}");
+                    last_l0 = Some(l0_i);
+                    last_state = Some((classification, tower));
+                    break;
+                }
             }
         }
         if profile {
-            t_p1 += t0.elapsed();
+            t_diag += t0.elapsed();
         }
         if i % 200_000 == 0 && i > 0 {
             eprintln!(
-                "  replay {}/{}（{:.1}s，t1_keys={}，P1 mismatch bars={}）",
+                "  replay {}/{}（{:.1}s，t1_keys={}）",
                 i,
                 total_bars,
                 t_replay.elapsed().as_secs_f64(),
                 tracker.first_t1.len(),
-                p1.mismatch_bars
             );
             if profile {
                 eprintln!(
-                    "    profile：classify_at={:.1}s scan={:.1}s p1={:.1}s",
+                    "    profile：classify_at={:.1}s scan={:.1}s diag={:.1}s",
                     t_cls.as_secs_f64(),
                     t_scan.as_secs_f64(),
-                    t_p1.as_secs_f64()
+                    t_diag.as_secs_f64()
                 );
             }
             // THETA_PROFILE_STAGES=1 时打印 classify 内部阶段累计（未启用零开销直通）。
@@ -1423,7 +1436,32 @@ fn run() -> Result<bool, String> {
         }
         last_state = Some((classification, tower));
     }
-    // 终态谓词层单次重算 + P1 定判（默认档主判；perbar 档下为幂等复核）。
+    // 镜像对拍门末根终态（必判；若 checkpoint 已 FAIL 停线则不再跑——保持停线语义）。
+    #[cfg(feature = "issue1087_parity")]
+    if mirror_enabled && mirror.failed.is_none() {
+        let stage = "terminal";
+        match mirror_stage(
+            &formal_root,
+            &mirror_window,
+            stage,
+            &mirror_bars[..replay_bars.min(mirror_bars.len())],
+            &mirror_config,
+        ) {
+            Ok(report) => {
+                mirror.comparisons += 1;
+                eprintln!(
+                    "  镜像门 {stage} PASS（levels={} accepted_raw={} production_events={}）",
+                    report.levels, report.accepted_raw, report.production_events
+                );
+                mirror.stages.push(report);
+            }
+            Err(error) => {
+                mirror.failed = Some(format!("镜像门 {stage}：{error}"));
+                eprintln!("★镜像门 {stage} FAIL ⟹ 停线");
+            }
+        }
+    }
+    // 终态投影快照（GATED-3 口径）+ 终态诊断（非门）。
     let (cls_f, tower_f) = last_state.ok_or("重放为空")?;
     let l0_f = last_l0.ok_or("重放为空")?;
     let event_time_cand_f = classifier::cand_delta_tower_cached(
@@ -1433,7 +1471,7 @@ fn run() -> Result<bool, String> {
         &config,
         &classifier_incr.tower_cache,
     );
-    // GATED-3：后续结构/区间套诊断显式选择 terminal；P1 finalize 仍只读 event-time 快照。
+    // GATED-3：后续结构/区间套诊断显式选择 terminal；终态诊断只读 event-time 快照。
     let cand_f = terminal_event_projection(&cls_f, &event_time_cand_f);
     let objects_by_level: Vec<&[CpScanOwnership]> = cls_f
         .levels
@@ -1442,9 +1480,9 @@ fn run() -> Result<bool, String> {
         .collect();
     // 冻结诊断不变量：release 复跑也必须实际检查，不能只依赖 debug_assert。
     let dparent_enter_mismatch = dparent_enter_mismatches(&cand_f);
-    p1.finalize(replay_bars - 1, &cls_f, &event_time_cand_f);
+    diag.finalize(replay_bars - 1, &cls_f, &event_time_cand_f);
     let replay_sec = t_replay.elapsed().as_secs_f64();
-    eprintln!("重放完成 {replay_sec:.1}s（含终态谓词定判）");
+    eprintln!("重放完成 {replay_sec:.1}s（含终态投影快照）");
 
     // ── sanity 五元组 ──
     let entry_eq_close = trades
@@ -1570,7 +1608,6 @@ fn run() -> Result<bool, String> {
     let mut old_cert_per_top: Vec<(usize, usize)> = Vec::new();
     let mut cert_samples: Vec<String> = Vec::new();
     let mut cert_total = 0usize;
-    let mut new_assembler_matches = true;
     for top in 1..cand_f.len() {
         let old_count = count_certificates_for_mode(
             &cand_f,
@@ -1586,9 +1623,8 @@ fn run() -> Result<bool, String> {
                     .get(&(b.confirm_src, side_i8(b.side)))
                     .copied()
             });
-        let replay_count =
-            count_certificates_for_mode(&cand_f, &terminal_by_key, top, ParentWindowMode::FullCp);
-        new_assembler_matches &= replay_count == certs.len();
+        // P2 面校验并入镜像对拍面（#1060）——本 bin 不再跑装配镜像对拍（不另立 P2 专项
+        // 校验）；cert 装配仅作证据打印（投影喂 nest.rs 装配面的读数照实）。
         cert_total += certs.len();
         for c in &certs {
             if cert_samples.len() < 10 {
@@ -1624,25 +1660,25 @@ fn run() -> Result<bool, String> {
         cert_per_top.push((top, certs.len()));
         funnel_levels[top].certificates = certs.len();
     }
-    // 裁决：产量不作定义闸门；硬门只检查 terminal 与正式装配/重放镜像一致。
+    // 裁决：产量不作定义闸门；P2 硬门位已并入镜像对拍面（c_p 附着即镜像靶子组成部分，
+    // #1060）——本 bin 不再单跑 P2 专项校验（同物两查撞 #799 收敛通则）。
     let l01_certificates = cert_per_top
         .iter()
         .find(|&&(top, _)| top == 1)
         .map_or(0, |&(_, n)| n);
     let l01_regression_expected = l01_certificates >= 3;
-    let p2_pass = cert_missing_terminal == 0 && new_assembler_matches;
 
     // ── 报告 ──
     let mut out = String::new();
     let w = &mut out;
     let _ = writeln!(
         w,
-        "# STRICT-NEST-CHECK（P1 逐 bit 校验 + 基线 sanity + E1 三元组复算 + P2 证书装配）"
+        "# STRICT-NEST-CHECK（3b 镜像对拍执行器：Rust↔Lean 提取对拍门 + 基线 sanity + E1 三元组 + P43 证据重放）"
     );
     let _ = writeln!(w);
     let _ = writeln!(
         w,
-        "数据：`{}`，{} bar（{} .. {}）；交易：`{}`，{} 笔。全量因果重放 {:.1}s（P1 确认支逐 bar 因果累积，谓词层终态单次重算定判）。",
+        "数据：`{}`，{} bar（{} .. {}）；交易：`{}`，{} 笔。全量因果重放 {:.1}s（镜像门 checkpoint fresh 捕获 + 逐 bar 因果累积，终态投影快照）。",
         data_path.display(),
         total_bars,
         loaded.first_date,
@@ -1674,51 +1710,79 @@ fn run() -> Result<bool, String> {
         if hdr_ok { "一致" } else { "**不一致（骨架漂移，判读作废）**" }
     );
     let _ = writeln!(w);
-    let _ = writeln!(w, "## P1 硬门：谓词输出 ≟ extract_signals buy1/sell1 背驰确认支（checkpoint 逐 bit 全比对 + 终态定判）");
+    let _ = writeln!(
+        w,
+        "## 镜像对拍门：Rust↔Lean 提取对拍（每 checkpoint + 末根终态、逐级全比对、FAIL 停线）"
+    );
     let _ = writeln!(w);
-    let _ = writeln!(
-        w,
-        "- 校验 bar 数 = {}；checkpoint 全比对 = {} 次；(bar/终态,级) 比较次数 = {}；不一致数 = **{}**。",
-        p1.bars_checked, p1.checkpoints, p1.comparisons, p1.mismatch_bars
-    );
-    let _ = writeln!(
-        w,
-        "- 因果诊断（非门）：确认撤回 = {}，因果漏捕获 = {}（上游结构修订的两侧锁步行为，由 checkpoint 逐 bit 比对覆盖）；确认支首见滞后 max = {} bar。",
-        p1.retracted, p1.uncaptured, p1.max_confirm_delay
-    );
-    if p1.per_level_mismatch.is_empty() {
-        let _ = writeln!(w, "- 每级不一致：无。");
-    } else {
-        let mut ks: Vec<_> = p1.per_level_mismatch.iter().collect();
-        ks.sort();
-        for (lvl, n) in ks {
-            let _ = writeln!(w, "- ℓ{lvl}：{n} 个 bar 不一致。");
+    #[cfg(feature = "issue1087_parity")]
+    {
+        if mirror.failed.is_none() {
+            let _ = writeln!(
+                w,
+                "- 对拍 stage = {} 次（checkpoint 间隔 = {} bar + 末根终态必判）；窗口 = {:?}；全部 0 mismatch。",
+                mirror.comparisons, ckpt_every, mirror_window
+            );
+        } else {
+            let _ = writeln!(
+                w,
+                "- 对拍 stage = {} 次（checkpoint 间隔 = {} bar + 末根终态必判）；窗口 = {:?}；**FAIL 停线**。",
+                mirror.comparisons, ckpt_every, mirror_window
+            );
         }
-        let _ = writeln!(w, "- 差异样例（前 {}）：", p1.samples.len());
-        for s in &p1.samples {
-            let _ = writeln!(w, "  - {s}");
+        for report in &mirror.stages {
+            let _ = writeln!(
+                w,
+                "- stage `{}`：levels={}（逐级全比对），Lean 可接受 raw={}，production events={} → PASS。",
+                report.stage, report.levels, report.accepted_raw, report.production_events
+            );
+        }
+        if let Some(failure) = &mirror.failed {
+            let _ = writeln!(w, "- **停线样例：{failure}**");
         }
     }
+    #[cfg(not(feature = "issue1087_parity"))]
+    {
+        let _ = writeln!(
+            w,
+            "- 本构建未启用 `issue1087_parity` feature ⟹ 镜像对拍门未编译，本报告无门体读数（SKIPPED，照实）。"
+        );
+    }
     let _ = writeln!(w);
-    let _ = writeln!(w, "末 bar 快照（每级：buy1/sell1 bit 数 | 谓词事件数 | cand_delta=true | pan_div_diag=true）：");
+    let _ = writeln!(
+        w,
+        "- 逐 bar 因果诊断（非门，镜像锚定）：确认撤回 = {}，因果漏捕获 = {}（上游结构修订的单线行为，判定面由镜像门覆盖）；确认支首见滞后 max = {} bar。",
+        diag.retracted, diag.uncaptured, diag.max_confirm_delay
+    );
+    let _ = writeln!(w);
+    let _ = writeln!(w, "末 bar 快照（每级：buy1/sell1 bit 数 | 投影事件数 | cand_delta=true | pan_div_diag=true）：");
     let _ = writeln!(w);
     let _ = writeln!(
         w,
         "| 级别 ℓ | buy1/sell1 bits | Cand 事件 | cand_delta=true | pan_div_diag |"
     );
     let _ = writeln!(w, "|---:|---:|---:|---:|---:|");
-    for (lvl, (bits, evs, cd, pd)) in p1.final_snapshot.iter().enumerate() {
+    for (lvl, (bits, evs, cd, pd)) in diag.final_snapshot.iter().enumerate() {
         let _ = writeln!(w, "| {lvl} | {bits} | {evs} | {cd} | {pd} |");
     }
     let _ = writeln!(w);
-    let p1_pass = p1.pass();
+    let mirror_pass = {
+        #[cfg(feature = "issue1087_parity")]
+        {
+            mirror_enabled && mirror.pass()
+        }
+        #[cfg(not(feature = "issue1087_parity"))]
+        {
+            false
+        }
+    };
     let _ = writeln!(
         w,
-        "**P1 硬门：{}**",
-        if p1_pass {
-            "PASS（逐 bit 一致）"
+        "**镜像对拍门：{}**",
+        if mirror_pass {
+            "PASS（Rust↔Lean 逐字段 0 mismatch）"
         } else {
-            "**FAIL（停线：报告差异样例，判据不可调）**"
+            "**FAIL（停线：对拍对象换成 Lean 镜像；判据不可调）**"
         }
     );
     let _ = writeln!(w);
@@ -1753,7 +1817,7 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(w);
     let _ = writeln!(
         w,
-        "## P2：D_parent 证书生产装配（N^δ_{{ℓ↓0}}，终态 cand_delta=true）"
+        "## P2 证据（非门）：D_parent 证书生产装配读数（N^δ_{{ℓ↓0}}，终态 cand_delta=true；投影喂 nest.rs 装配面）"
     );
     let _ = writeln!(w);
     let _ = writeln!(w, "| 目标级 ℓ | 证书数（ℓ↓0 完整链） |");
@@ -1764,7 +1828,7 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(w);
     let _ = writeln!(
         w,
-        "- 基例（ℓ0 终态 cand_delta=true）= {}；terminal 查无（唯一基例数）= {}（须 0，P1 一致性推论）；证书合计 = **{}**。",
+        "- 基例（ℓ0 终态 cand_delta=true）= {}；terminal 查无（唯一基例数）= {}（须 0，投影构造性推论）；证书合计 = **{}**。",
         n_base, cert_missing_terminal, cert_total
     );
     let _ = writeln!(
@@ -1784,23 +1848,17 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(w);
     let _ = writeln!(
         w,
-        "**P2 硬门：{}**",
-        if p2_pass {
-            "PASS（terminal 对账；产量预期不作硬闸门）"
-        } else {
-            "**FAIL（terminal 查无）**"
-        }
+        "**P2 面：校验并入镜像对拍面（c_p 附着即镜像靶子组成部分，#1060）——本 bin 不另立 P2 专项校验。证据载体 = 统一记录 + cp_ownership 投影；上方证书表为投影喂 nest.rs 装配面的读数照实。**"
     );
     let _ = writeln!(w);
-    let overall = hdr_ok && p1_pass && triple_ok && p2_pass;
+    let overall = hdr_ok && mirror_pass && triple_ok;
     let _ = writeln!(
         w,
-        "## 总判：**{}**（sanity {} / P1 {} / E1 三元组 {} / P2 证书 {}）",
+        "## 总判：**{}**（sanity {} / 镜像对拍门 {} / E1 三元组 {}）",
         if overall { "PASS" } else { "FAIL" },
         if hdr_ok { "✓" } else { "✗" },
-        if p1_pass { "✓" } else { "✗" },
-        if triple_ok { "✓" } else { "✗" },
-        if p2_pass { "✓" } else { "✗" }
+        if mirror_pass { "✓" } else { "✗" },
+        if triple_ok { "✓" } else { "✗" }
     );
 
     // ── #43 v2 正式隔离重放报告：只写新产物，不覆盖 2026-07-10 冻结报告。──
@@ -1989,12 +2047,11 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(rw, "\n## 1. 重放与旧基线门");
     let _ = writeln!(
         rw,
-        "- sanity / P1 / E1 / terminal / 装配镜像：{} / {} / {} / {} / {}。",
+        "- sanity / 镜像对拍门 / E1 / terminal：{} / {} / {} / {}。",
         hdr_ok,
-        p1_pass,
+        mirror_pass,
         triple_ok,
-        cert_missing_terminal == 0,
-        new_assembler_matches
+        cert_missing_terminal == 0
     );
     let _ = writeln!(rw, "- 旧基线复核：L1 partial chain={}（期望 3），L2 cand_delta=true={}（期望 13），L1→L2 同向可达候选对={}（期望 22）→ **{}**。", old_funnel.get(1).map_or(0, |l| l.reachable_candidates), old_funnel.get(2).map_or(0, |l| l.cand_candidates), old_funnel.get(2).map_or(0, |l| l.lag_considered.len()), if old_baseline_ok { "无漂移，允许横比" } else { "漂移，停止横比" });
 

@@ -53,7 +53,7 @@
 
 use std::rc::Rc;
 
-use super::super::types::{Center, Direction, Stroke, Tick};
+use super::super::types::{Center, Direction, Tick};
 use super::center::{classify_relation, CenterRelation, UnitRange};
 use super::decompose::{center_own_dir_at, MoveBlock};
 use super::descend::RMove;
@@ -1158,25 +1158,19 @@ pub fn map_src_to_close_idx(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
-//  P1 谓词闭包层（strict-nesting-divergence-plan-20260708 §P1 + strict-nesting-rulings-20260708
-//  三裁决：① Cand^δ ≔ 背驰段谓词（per-level A/C 定位配对，gauge 复用 divergence.rs MacdArea
-//  默认路径，严格 curr < prev）；② 盘整背驰不入链（单独诊断标志位）；③ confirm_src 为独立
-//  算法确认时点。P0 D_parent 复议后，完整 c 与局部 episode 分离；confirm_src 仅登记延迟。
+//  CandDeltaEvent 载体层（strict-nesting-divergence-plan-20260708 三裁决：① Cand^δ ≔ 背驰段
+//  谓词（per-level A/C 定位配对，gauge 复用 divergence.rs MacdArea 默认路径，严格 curr <
+//  prev）；② 盘整背驰不入链（单独诊断标志位）；③ confirm_src 为独立算法确认时点。P0
+//  D_parent 复议后，完整 c 与局部 episode 分离；confirm_src 仅登记延迟）。
 //
-//  ★铁律（判据零分叉）：本层**不含任何判据代码**——判定全部经 signal.rs 同一函数
-//  （`judge_first_cached`/`judge_pan_div`，仅 pub(crate) 可见性加宽，行为零改动）；prelude
-//  （排序守卫/局部趋势门/first_match_idx/A 段缓存/λ_C）与 `extract_signals_with_hist_anchored`
-//  逐行同构（注释见原函数 signal.rs:771-906）。事件字段全部从 judge 的入参/返回值派生 ⟹
-//  ℓ0 谓词输出与 extract_signals 的 buy1/sell1 背驰确认支**构造性 bit-exact**（P1 硬门由
-//  `src/bin/strict_nest_check.rs` 全量重放逐 bit 校验，不一致 ⟹ 停线报 FAIL）。
+//  3b（ADR 0026 裁定三 / #1059 路线 A）：本层原 P1 谓词闭包（level_cand_delta 独立扫描 +
+//  cp_event_objects 快照合成）退役——事件生产改由 scan.rs 纯投影
+//  [`crate::theta_v0::classifier::scan::project_cand_delta_events`] 从生产合并扫描逐段素材 +
+//  `LevelState.cp_ownership` 读回（判据单一，见 scan.rs 投影段头）；本层只保留 CandDeltaEvent
+//  载体与 c_p 生命周期对象（advance_cp_lifecycles / relaxed_cand_delta_entries 等）。
 // ═══════════════════════════════════════════════════════════════════════════════════════
 
-use super::super::types::{MoveKind, Segment, Side};
-use super::cand_predicate;
-use super::decompose::{center_block_kind, center_trend_gate, decompose};
-use super::divergence::{
-    departure_move_c_start, locate_departure_move_a, move_range_envelope, DivergenceGauge,
-};
+use super::super::types::{Segment, Side};
 use super::signal;
 
 /// 父事件所归属的最后同级别中枢 `B_p` 的确定性身份。
@@ -1674,7 +1668,7 @@ fn center_of_move(movement: &LeveledMove) -> Option<Center> {
 }
 
 /// 按 R3 五分量构造完整趋势资格。这里只读取已经闭合的 `c_p` 组件，不改变 third 判据。
-fn full_trend_c_qualification(
+pub(crate) fn full_trend_c_qualification(
     centers: &[Center],
     b_center_index: usize,
     b_center_id: ElementId,
@@ -1708,7 +1702,7 @@ fn full_trend_c_qualification(
     })
 }
 
-fn full_trend_qualification_evidence(
+pub(crate) fn full_trend_qualification_evidence(
     centers: &[Center],
     b_center_index: usize,
     b_center_id: ElementId,
@@ -2030,635 +2024,11 @@ pub fn advance_cp_lifecycles(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn cp_event_objects(
-    level: u32,
-    centers: &[Center],
-    cp_scan: &[CpScanOwnership],
-    segments: &[Segment],
-    anchors: &[Option<Direction>],
-    unit_moves: &[LeveledMove],
-    c_idx: usize,
-    event_seg_idx: usize,
-    event_end: usize,
-    is_complete_divergence: bool,
-) -> (
-    Option<ParentCenterIdentity>,
-    Option<CpStructureIdentity>,
-    Option<ThirdClassInCp>,
-    Option<CandDeltaCpEdge>,
-    Option<(usize, usize)>,
-    Option<FullTrendQualificationEvidence>,
-    Option<FullTrendCQualified>,
-) {
-    let Some(c) = centers.get(c_idx) else {
-        return (None, None, None, None, None, None, None);
-    };
-    let Some(scan) = cp_scan
-        .iter()
-        .find(|o| o.b_center_index == c_idx && o.b_center == *c)
-    else {
-        return (None, None, None, None, None, None, None);
-    };
-    let b = ParentCenterIdentity {
-        center_index: scan.b_center_index,
-        center_id: scan.b_center_id,
-        source_interval: (scan.b_center.start_index, scan.b_center.end_index),
-        zd: scan.b_center.zd,
-        zg: scan.b_center.zg,
-    };
-    let (Some(departure_move_id), Some((c_start_full, _))) =
-        (scan.departure_move_id, scan.departure_interval)
-    else {
-        return (Some(b), None, None, None, None, None, None);
-    };
-
-    // 第三类判据只调用 signal.rs 的单一真值函数；这里仅增加 B/c 所有权与区间边界。
-    let third = (1..=event_seg_idx).find_map(|i| {
-        let leave = &segments[i - 1];
-        let retest = &segments[i];
-        if leave.start_index < c_start_full || retest.end_index > event_end {
-            return None;
-        }
-        if signal::nearest_confirmed_center_idx(centers, leave.start_index) != Some(c_idx) {
-            return None;
-        }
-        let cert = signal::judge_third_cert(c, leave, anchors[i - 1], retest)?;
-        Some((i, cert))
-    });
-    let third_obj = third.and_then(|(i, cert)| {
-        Some(ThirdClassInCp {
-            b_center_id: scan.b_center_id,
-            cp_departure_move_id: departure_move_id,
-            departure_move_id: unit_moves.get(i - 1)?.id,
-            retest_move_id: unit_moves.get(i)?.id,
-            departure_interval: cert.departure_interval,
-            retest_interval: cert.retest_interval,
-            point_source_index: cert.point.source_index,
-            side: if cert.point.bits.buy3 {
-                Side::Long
-            } else {
-                Side::Short
-            },
-        })
-    });
-    // 确认时快照的完整右端只能取第三类 retest 首次可证点，禁止取当前/后续 Cand 事件 seg.end。
-    let third_inside_component_span = third_obj.is_some_and(|third| {
-        third.departure_move_id.level == departure_move_id.level
-            && third.retest_move_id.level == departure_move_id.level
-            && departure_move_id.ordinal <= third.departure_move_id.ordinal
-            && third.departure_move_id.ordinal <= third.retest_move_id.ordinal
-            && unit_moves
-                .get(event_seg_idx)
-                .is_some_and(|end_move| third.retest_move_id.ordinal <= end_move.id.ordinal)
-    });
-    let c_end_full = (is_complete_divergence && third_inside_component_span).then(|| {
-        third_obj
-            .expect("third_inside_component_span 蕴含 third_obj Some")
-            .retest_interval
-            .1
-    });
-    let terminal_move_id = (is_complete_divergence && third_inside_component_span).then(|| {
-        third_obj
-            .expect("third_inside_component_span 蕴含 third_obj Some")
-            .retest_move_id
-    });
-    let c_structure = Some(CpStructureIdentity {
-        level,
-        b_center_id: scan.b_center_id,
-        departure_move_id,
-        terminal_move_id,
-        source_start: c_start_full,
-        source_end: c_end_full,
-    });
-    let c_interval_full = c_end_full.map(|end| (c_start_full, end));
-    let edge = is_complete_divergence.then_some(CandDeltaCpEdge {
-        b_center_id: scan.b_center_id,
-        cp_departure_move_id: departure_move_id,
-        cp_source_start: c_start_full,
-    });
-    // 事件证书只能消费事件时已经存在的走势；尤其不得提前看见 terminal 的未来后继。
-    let visible_moves = unit_moves.get(..=event_seg_idx);
-    let full_trend_evidence = c_structure.zip(third_obj).zip(visible_moves).and_then(
-        |((structure, third), visible_moves)| {
-            full_trend_qualification_evidence(
-                centers,
-                c_idx,
-                scan.b_center_id,
-                structure,
-                third,
-                visible_moves,
-            )
-        },
-    );
-    let full_trend_c_qualified = c_structure.zip(third_obj).zip(visible_moves).and_then(
-        |((structure, third), visible_moves)| {
-            full_trend_c_qualification(
-                centers,
-                c_idx,
-                scan.b_center_id,
-                structure,
-                third,
-                visible_moves,
-            )
-        },
-    );
-    (
-        Some(b),
-        c_structure,
-        third_obj,
-        edge,
-        c_interval_full,
-        full_trend_evidence,
-        full_trend_c_qualified,
-    )
-}
-
-/// 级别 ℓ 的 Cand^δ 谓词提取（P1 层单一入口；入参口径与
-/// [`signal::extract_signals_with_hist_anchored`] 完全一致）。
-///
-/// prelude 与 signal.rs full 路径逐行同构（见上方段头铁律；行为注释不在此重复）。
-/// 每个破中枢结构候选产一个事件，沿用 `(episode, I(A), enter_src, side, 诊断位)` 结构键稳定排序；
-/// `confirm_src` 不参与排序。
-#[allow(clippy::too_many_arguments)]
-pub fn level_cand_delta(
-    level: u32,
-    centers: &[Center],
-    cp_scan: Option<&[CpScanOwnership]>,
-    segments: &[Segment],
-    unit_moves: Option<&[LeveledMove]>,
-    anchor_dirs: Option<&[Option<Direction>]>,
-    hist: &[f64],
-    dif: &[f64],
-    closes_tick: &[Tick],
-    close_src: &[usize],
-    gauge: DivergenceGauge,
-    strokes: &[Stroke],
-) -> Vec<CandDeltaEvent> {
-    // ── 以下 prelude 与 signal::extract_signals_with_hist_anchored 逐行同构 ──
-    let sorted_owned: Vec<Segment>;
-    let anchors_perm: Vec<Option<Direction>>;
-    let (sorted, anchors_in): (&[Segment], Option<&[Option<Direction>]>) = if segments
-        .windows(2)
-        .all(|w| w[0].start_index <= w[1].start_index)
-    {
-        (segments, anchor_dirs)
-    } else {
-        let mut idx: Vec<usize> = (0..segments.len()).collect();
-        idx.sort_by_key(|&i| segments[i].start_index);
-        sorted_owned = idx.iter().map(|&i| segments[i].clone()).collect();
-        match anchor_dirs {
-            Some(a) => {
-                anchors_perm = idx.iter().map(|&i| a[i]).collect();
-                (&sorted_owned[..], Some(&anchors_perm[..]))
-            }
-            None => (&sorted_owned[..], None),
-        }
-    };
-    let anchors_self: Vec<Option<Direction>> = sorted.iter().map(|s| Some(s.direction)).collect();
-    let anchors: &[Option<Direction>] = anchors_in.unwrap_or(&anchors_self);
-    debug_assert_eq!(
-        anchors.len(),
-        sorted.len(),
-        "anchor_dirs 与 segments 必等长"
-    );
-
-    let centers_owned: Vec<Center>;
-    let centers_sorted: &[Center] = if centers.windows(2).all(|w| w[0].end_index <= w[1].end_index)
-    {
-        centers
-    } else {
-        centers_owned = {
-            let mut v = centers.to_vec();
-            v.sort_by_key(|c| c.end_index);
-            v
-        };
-        &centers_owned
-    };
-
-    let blocks = decompose(centers_sorted);
-    let center_gate = center_trend_gate(centers_sorted.len(), &blocks);
-    let any_trend = center_gate.iter().any(|g| g.is_some());
-    let center_kind = center_block_kind(centers_sorted.len(), &blocks);
-    let any_consol = center_kind
-        .iter()
-        .any(|k| *k == Some(MoveKind::Consolidation));
-
-    let mut first_match_idx: std::collections::HashMap<(usize, Tick, Tick), usize> =
-        std::collections::HashMap::new();
-    if any_trend {
-        first_match_idx.reserve(centers_sorted.len());
-        for (idx, c) in centers_sorted.iter().enumerate() {
-            first_match_idx
-                .entry((c.end_index, c.zd, c.zg))
-                .or_insert(idx);
-        }
-    }
-    let mut a_seg_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
-        std::collections::HashMap::new();
-
-    // ── 事件收集（判定全部经 signal::judge_* 同一函数，与 judge_segment 第一类支同构） ──
-    let mut events: Vec<CandDeltaEvent> = Vec::new();
-    for (i, seg) in sorted.iter().enumerate() {
-        let Some(c_idx) = signal::nearest_confirmed_center_idx(centers_sorted, seg.start_index)
-        else {
-            continue;
-        };
-        let gate_dir = if any_trend {
-            first_match_idx
-                .get(&{
-                    let c = &centers_sorted[c_idx];
-                    (c.end_index, c.zd, c.zg)
-                })
-                .and_then(|&pos| center_gate[pos].map(|d| (pos, d)))
-        } else {
-            None
-        };
-        let Some((pos, dir)) = gate_dir else {
-            // cert F-02（诊断可达性）：旧实现把 pan_div_diag 挂在趋势门之后，而趋势门与
-            // Consolidation ownership 在同一中枢上互斥 ⟹ 诊断恒 false（死分支）。此处对
-            // 「最近中枢按 ownership 属盘整块」的非趋势门段独立调用 judge_pan_div，产
-            // cand_delta=false 的**纯诊断**事件：装配器基例过滤（`b.cand_delta`）与链攀升
-            // （`!ev.cand_delta ⟹ continue`）双重跳过 ⟹ 结构性不入链——实装态边界
-            // （0708「盘背不入链」裁决已被 0716 裁决⑤「盘背入链」supersede，provider 扩域缺口
-            // 在 nest-migration-ruling-20260716.md §三附带发现登记在案，#726 清理）；不产 BspPoint、不置一类 bit。
-            if any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation) {
-                let c = &centers_sorted[c_idx];
-                if let Some(cert) = signal::judge_pan_div_observation(
-                    c,
-                    seg,
-                    sorted,
-                    &anchors_self,
-                    hist,
-                    dif,
-                    close_src,
-                ) {
-                    events.push(CandDeltaEvent {
-                        level,
-                        side: cert.side,
-                        divergence_confirm_src: cert.source_index,
-                        confirm_src: cert.source_index,
-                        interval: cert.seg_c,
-                        a_interval: cert.seg_a,
-                        c_episode_start: cert.seg_c.0,
-                        c_episode_interval: cert.seg_c,
-                        c_interval_full: None,
-                        b_parent: None,
-                        c_structure: None,
-                        third_class_in_c: None,
-                        cp_certificate_confirm_src: None,
-                        full_trend_c_qualified: None,
-                        full_trend_evidence: None,
-                        cp_ownership: None,
-                        enter_src: cert.seg_c.0,
-                        cand_delta: false,
-                        pan_div_diag: true,
-                    });
-                }
-            }
-            continue; // 非趋势块 ⟹ 无第一类候选 ⟹ 无 Cand^δ 事件（谓词=第一类背驰段谓词）。
-        };
-        let c = &centers_sorted[c_idx];
-        let prev_center = &centers_sorted[pos - 1];
-        // ★p117 037:20（裁定 T3）：b 包络随 I(A) 同槽缓存（`move_range_envelope` 单一来源）。
-        // 本 provider 是诊断消费点——provenance 锚保留（T2 窄域授权仅限生产第一类路径
-        // `judge_segment`，不及此）；判据函数 037:20 合取随签名类型同步收缩。
-        let a_seg_entry = *a_seg_cache.entry(c_idx).or_insert_with(|| {
-            locate_departure_move_a(sorted, anchors, prev_center, c, dir)
-                .and_then(|span| move_range_envelope(sorted, span).map(|env| (span, env)))
-        });
-        let c_start_entry = departure_move_c_start(sorted, anchors, c, dir, seg.start_index);
-        // ★#1028 裁定 A：诊断 provider 与生产同口径取 departure 单元终点（unit_moves 与 sorted
-        // 平行——生产路径 sorted 恒有序，`unit_moves[i]` 即本段走势单元）。无预算/无趋势方向
-        // 子走势 ⟹ None ⟹ judge 回退 seg.end_index 旧锚。
-        let departure_end = unit_moves
-            .and_then(|um| um.get(i))
-            .and_then(|m| cand_predicate::departure_unit_end(m, dir));
-        let Some(pf) = signal::judge_first_cached(
-            c,
-            dir,
-            seg,
-            anchors[i],
-            hist,
-            dif,
-            closes_tick,
-            close_src,
-            a_seg_entry,
-            c_start_entry,
-            departure_end,
-            gauge,
-            strokes,
-            sorted,
-            None,
-            // #885：本 provider 是 #529 诊断路径（level=None），分级记录不进 Classification
-            // （生产可查载体只由 classify 装配链填充），sink 落即弃——与「level=None 不参与
-            // sidecar 捕获」同一边界。
-            &mut Vec::new(),
-        ) else {
-            continue; // 未破中枢/未破 b 极值（037:20）/A 不可配对/不可映射 ⟹ 非结构候选（与生产路径同一 gate）。
-        };
-        // 事件字段全部从 judge 的入参/返回值派生（无第二套判据）：
-        // judge Some ⟹ broke ∧ A 配对 ∧ 映射成立 ⟹ λ_C/I(A) 必 Some（judge 内部同断言）。
-        let lambda_c = c_start_entry.expect("judge Some ⟹ λ_C Some");
-        let a_interval = a_seg_entry
-            .map(|(span, _env)| span)
-            .expect("judge Some ⟹ I(A) Some");
-        let side = pf
-            .struct_break_dir
-            .expect("第一类结构候选必携 struct_break_dir（P2-R2 无条件置）");
-        let kind_consol = any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation);
-        let pan_div_diag = kind_consol
-            && signal::judge_pan_div_observation(
-                c,
-                seg,
-                sorted,
-                &anchors_self,
-                hist,
-                dif,
-                close_src,
-            )
-            .is_some();
-        let confirm_src = pf.source_index;
-        let interval_end = seg.end_index;
-        // #607 D2 登记：pf.bits.buy1/sell1 与生产路径同受 T3-in-c 否则域大闸门控
-        // （Missing ⟹ 二次门控清零，见 signal.rs judge_first_cached）——cand_delta 事件
-        // 集合随之缩小。D2 之前的 strict_nest_check/p107/p124 等诊断 bin 历史读数是旧口径
-        // （否则域点仍计入 cand_delta），不得与 D2 之后的读数直接混比；如需复现旧口径，
-        // 用 THETA_T3INC_SKIP=1 重跑（见 issue607-impl 报告 §5）。
-        let cand_delta = pf.bits.buy1 || pf.bits.sell1;
-        let (
-            b_parent,
-            c_structure,
-            third_class_in_c,
-            cp_ownership,
-            c_interval_full,
-            full_trend_evidence,
-            full_trend_c_qualified,
-        ) = cp_event_objects(
-            level,
-            centers_sorted,
-            cp_scan.unwrap_or(&[]),
-            sorted,
-            anchors,
-            unit_moves.unwrap_or(&[]),
-            c_idx,
-            i,
-            interval_end,
-            cand_delta,
-        );
-        let cp_certificate_confirm_src =
-            c_interval_full.and_then(|_| third_class_in_c.map(|third| third.point_source_index));
-        events.push(CandDeltaEvent {
-            level,
-            side,
-            divergence_confirm_src: confirm_src,
-            confirm_src,
-            interval: (lambda_c, interval_end),
-            a_interval,
-            c_episode_start: lambda_c,
-            c_episode_interval: (lambda_c, interval_end),
-            c_interval_full,
-            b_parent,
-            c_structure,
-            third_class_in_c,
-            cp_certificate_confirm_src,
-            full_trend_c_qualified,
-            full_trend_evidence,
-            cp_ownership,
-            enter_src: lambda_c,
-            cand_delta,
-            pan_div_diag,
-        });
-    }
-    // 确认时点只作诊断，不能直接或间接参与候选排序。
-    // 完全相同的结构键保留上游 Segment 的稳定结构顺序。
-    events.sort_by_key(|e| {
-        (
-            e.interval,
-            e.a_interval,
-            e.enter_src,
-            match e.side {
-                Side::Long => 0_u8,
-                Side::Short => 1_u8,
-            },
-            e.cand_delta,
-            e.pan_div_diag,
-        )
-    });
-    events
-}
-
-#[cfg(test)]
-mod p1_tests {
-    use super::super::super::config::MacdConfig;
-    use super::super::super::types::{Center, Direction, Segment, Side, Tick};
-    use super::super::divergence::{compute_macd, DivergenceGauge};
-    use super::super::signal::extract_signals_with_hist;
-    use super::level_cand_delta;
-
-    fn dc(zd: Tick, zg: Tick, dd: Tick, gg: Tick, ei: usize) -> Center {
-        Center {
-            zd,
-            zg,
-            dd,
-            gg,
-            start_index: 0,
-            end_index: ei,
-        }
-    }
-    fn seg(direction: Direction, s: usize, e: usize, sp: Tick, ep: Tick) -> Segment {
-        Segment {
-            direction,
-            start_index: s,
-            end_index: e,
-            start_price: sp,
-            end_price: ep,
-        }
-    }
-
-    /// P1 对拍（fixture 移植自 signal.rs::first_buy_extracted_with_trend_divergence，合成数据）：
-    /// ℓ0 谓词输出与 extract_signals 的 buy1/sell1 背驰确认支逐 bit 一致 + 事件字段见证。
-    #[test]
-    fn cand_delta_bit_exact_with_extract_signals_buy1() {
-        let c0 = dc(300, 400, 290, 410, 2);
-        let c1 = dc(100, 200, 90, 210, 8);
-        let segs = vec![
-            seg(Direction::Down, 3, 5, 350, 250),
-            seg(Direction::Up, 5, 7, 250, 280),
-            seg(Direction::Down, 9, 11, 150, 80),
-            seg(Direction::Up, 11, 13, 80, 90), // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
-        ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
-        let closes: Vec<f64> = prices.iter().map(|&p| p as f64).collect();
-        let src: Vec<usize> = (0..prices.len()).collect();
-        let series = compute_macd(&closes, &MacdConfig::default());
-        let centers = [c0, c1];
-        let (points, _pan) = extract_signals_with_hist(
-            &centers,
-            &segs,
-            &series.hist,
-            &series.dif,
-            &prices,
-            &src,
-            DivergenceGauge::MacdArea,
-            &[],
-            &mut Vec::new(),
-        );
-        let events = level_cand_delta(
-            0,
-            &centers,
-            None,
-            &segs,
-            None,
-            None,
-            &series.hist,
-            &series.dif,
-            &prices,
-            &src,
-            DivergenceGauge::MacdArea,
-            &[],
-        );
-        // 逐 bit：buy1/sell1 背驰确认支 ⟺ cand_delta=true 事件（(src, side) 多重集相等）。
-        let mut lhs: Vec<(usize, i8)> = points
-            .iter()
-            .flat_map(|p| {
-                let mut v = Vec::new();
-                if p.bits.buy1 {
-                    v.push((p.source_index, 1i8));
-                }
-                if p.bits.sell1 {
-                    v.push((p.source_index, -1i8));
-                }
-                v
-            })
-            .collect();
-        let mut rhs: Vec<(usize, i8)> = events
-            .iter()
-            .filter(|e| e.cand_delta)
-            .map(|e| (e.confirm_src, if e.side == Side::Long { 1i8 } else { -1i8 }))
-            .collect();
-        lhs.sort_unstable();
-        rhs.sort_unstable();
-        assert!(!lhs.is_empty(), "fixture 必产 buy1（非空对拍）");
-        assert_eq!(
-            lhs, rhs,
-            "P1 铁律：谓词 cand_delta 与 buy1/sell1 背驰确认支逐 bit 一致"
-        );
-        assert_eq!(events.len(), 1, "唯一破中枢结构候选（C 段）");
-        let e = &events[0];
-        assert!(e.cand_delta, "C<A 背驰确认 ⟹ Cand^δ=true");
-        assert_eq!(e.side, Side::Long);
-        assert_eq!(e.confirm_src, 11, "确认时点=完成时（破中枢段端点，裁决③）");
-        assert_eq!(e.interval, (9, 11), "I(C) = [λ_C, seg.end]（Q5 区间口径）");
-        assert_eq!(e.a_interval, (3, 5), "I(A) = 前中枢离开 episode");
-        assert_eq!(e.enter_src, 9, "兼容别名 = c_episode_start");
-        assert!(!e.pan_div_diag, "趋势路径无盘整背驰诊断（盘背当前实装态不入链；0708 文书裁决 2 已被 0716 裁决⑤ supersede，#726）");
-    }
-
-    /// cert F-02 回归：非趋势门段（最近中枢按 ownership 落 Consolidation 块）的盘整背驰诊断
-    /// 独立可达——fixture 移植自 signal.rs::pan_div_cert_emitted_in_consolidation_block_zero_
-    /// first_class_bits。修复前 pan_div_diag 挂在趋势门之后，与盘整 ownership 在同一中枢上
-    /// 互斥 ⟹ 恒 false 死分支；修复后产恰一条 cand_delta=false 的**纯诊断**事件（装配器基例
-    /// 过滤与链攀升双重跳过 ⟹ 结构性不入链＝实装态边界，0708 文书裁决 2 已被 0716 裁决⑤ supersede，#726）。
-    #[test]
-    fn pan_div_diag_reachable_in_consolidation_without_trend_gate() {
-        let c0 = dc(100, 200, 90, 210, 2);
-        let c1 = dc(300, 400, 290, 410, 5); // c0→c1 上涨（趋势块）
-        let c2 = dc(350, 450, 250, 460, 8); // c1→c2 扩张 ⟹ c2 按 ownership 落盘整块
-        let segs = vec![
-            seg(Direction::Down, 9, 11, 460, 330), // A：第一次离开（330 < zd=350 破核心）
-            seg(Direction::Up, 11, 13, 330, 380),  // 回中枢段（380 ≥ 350 回核心内侧）
-            seg(Direction::Down, 13, 15, 380, 300), // C：第二次离开破核心（C<A 背驰）
-        ];
-        let prices: Vec<Tick> = vec![
-            100, 100, 100, 100, 60, 140, 100, 95, 105, 105, 60, 90, 95, 93, 91, 89,
-        ];
-        let closes: Vec<f64> = prices.iter().map(|&p| p as f64).collect();
-        let src: Vec<usize> = (0..prices.len()).collect();
-        let series = compute_macd(&closes, &MacdConfig::default());
-        let centers = [c0, c1, c2];
-        let events = level_cand_delta(
-            0,
-            &centers,
-            None,
-            &segs,
-            None,
-            None,
-            &series.hist,
-            &series.dif,
-            &prices,
-            &src,
-            DivergenceGauge::MacdArea,
-            &[],
-        );
-        // 恰一条纯诊断事件；零 cand_delta=true（诊断不入谓词）。
-        assert_eq!(
-            events.len(),
-            1,
-            "盘整块内恰一张 PanDivCert ⟹ 恰一条诊断事件"
-        );
-        let e = &events[0];
-        assert!(
-            e.pan_div_diag,
-            "cert F-02：盘整背驰诊断可达（修复前死分支恒 false）"
-        );
-        assert!(
-            !e.cand_delta,
-            "盘整背驰不入谓词（实装态；0708 文书裁决 2 已被 0716 裁决⑤ supersede，#726）⟹ cand_delta=false（装配器双重跳过 ⟹ 不入链）"
-        );
-        assert_eq!(e.side, Side::Long, "向下破 ⟹ Long 候选（仅诊断标注）");
-        assert_eq!(e.confirm_src, 15, "因果触发点 = 破中枢段端点");
-        assert_eq!(e.interval, (13, 15), "I(C) = 当前离开走势区间");
-        assert_eq!(e.a_interval, (9, 11), "I(A) = 前一次同向离开末段");
-        assert_eq!(e.enter_src, 13, "enter_src = λ_C = I(C) 起点");
-    }
-
-    /// #483：24 课 C 不破核心 + 同色柱面积 C<A 也必须抵达纯诊断通道；仍然
-    /// cand_delta=false，因而不入链、不置买卖点 bit。
-    #[test]
-    fn pan_div_diag_reaches_unbroken_core_area_branch_without_entering_chain() {
-        let c0 = dc(100, 200, 90, 210, 2);
-        let c1 = dc(300, 400, 290, 410, 5);
-        let c2 = dc(350, 450, 250, 460, 8);
-        let segs = vec![
-            seg(Direction::Down, 9, 11, 460, 330),
-            seg(Direction::Up, 11, 13, 330, 380),
-            seg(Direction::Down, 13, 15, 380, 360), // C：核心内
-        ];
-        let mut hist = vec![0.0; 16];
-        hist[9..=11].copy_from_slice(&[-4.0, -3.0, -2.0]);
-        hist[13..=15].copy_from_slice(&[-1.0, -1.0, -1.0]);
-        let prices = vec![100; hist.len()];
-        let src: Vec<usize> = (0..hist.len()).collect();
-
-        let events = level_cand_delta(
-            0,
-            &[c0, c1, c2],
-            None,
-            &segs,
-            None,
-            None,
-            &hist,
-            &[],
-            &prices,
-            &src,
-            DivergenceGauge::MacdArea,
-            &[],
-        );
-
-        assert_eq!(events.len(), 1, "不破核心面积背驰应产恰一条诊断事件");
-        let event = &events[0];
-        assert!(event.pan_div_diag, "新分支必须进入 pan_div_diag");
-        assert!(!event.cand_delta, "纯诊断事件不得进入 Cand^δ 链");
-        assert_eq!(event.interval, (13, 15));
-        assert_eq!(event.a_interval, (9, 11));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::super::types::Tick;
     use super::super::descend::descend;
+    use super::super::scan::cp_event_projection;
     use super::*;
 
     fn unit(si: usize, ei: usize, dir: Direction, lo: Tick, hi: Tick) -> UnitRange {
@@ -3308,7 +2678,7 @@ mod tests {
                 )
             })
             .collect();
-        cp_event_objects(
+        cp_event_projection(
             0, &centers, &cp, &segments, &anchors, &moves, 1, 3, 15, true,
         )
     }
@@ -3373,7 +2743,7 @@ mod tests {
                 )
             })
             .collect();
-        let (_, c, third, edge, interval, _, _) = cp_event_objects(
+        let (_, c, third, edge, interval, _, _) = cp_event_projection(
             0, &centers, &cp, &segments, &anchors, &moves, 1, 3, 15, true,
         );
         assert!(third.is_none());
@@ -3718,7 +3088,7 @@ mod tests {
             snapshot_interval,
             snapshot_evidence,
             snapshot_full,
-        ) = cp_event_objects(
+        ) = cp_event_projection(
             1,
             &[center],
             &objects,
