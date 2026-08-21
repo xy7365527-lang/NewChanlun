@@ -118,6 +118,82 @@ def review3GarbageEvidenceAfter : CpObject :=
 example : closeCpFromRaw cpBeforeFull cpRawValid ≠ review3GarbageEvidenceAfter := by
   native_decide
 
+/-! ### #1087 review4：full-trend builder 的正向与两类反向锁 -/
+
+def review4PrevCenter : CenterFrame :=
+  { zd := 20, zg := 40, dd := 10, gg := 50, startIndex := 0, endIndex := 4 }
+
+def review4BCenter : CenterFrame :=
+  { zd := 120, zg := 180, dd := 100, gg := 210, startIndex := 5, endIndex := 8 }
+
+def review4Internal0 : CenterFrame :=
+  { zd := 12, zg := 18, dd := 10, gg := 20, startIndex := 9, endIndex := 10 }
+
+def review4Internal1 : CenterFrame :=
+  { zd := 32, zg := 38, dd := 30, gg := 40, startIndex := 11, endIndex := 12 }
+
+def review4SuccessorStop : CenterFrame :=
+  { zd := 34, zg := 39, dd := 35, gg := 45, startIndex := 13, endIndex := 14 }
+
+def review4SuccessorContinue : CenterFrame :=
+  { zd := 52, zg := 58, dd := 50, gg := 60, startIndex := 13, endIndex := 14 }
+
+def review4Move0 : UnitMoveFact :=
+  { id := cpId 1 3, startIndex := 9, endIndex := 11, low := 80, high := 150,
+    center := some review4Internal0 }
+
+def review4Move1 : UnitMoveFact :=
+  { id := cpId 1 4, startIndex := 11, endIndex := 13, low := 80, high := 250,
+    center := some review4Internal1 }
+
+def review4Move2 : UnitMoveFact :=
+  { id := cpId 1 5, startIndex := 13, endIndex := 15, low := 70, high := 170,
+    center := some review4SuccessorStop }
+
+def review4Before : CpObject :=
+  { bCenterIndex := 1, bCenterId := cpId 2 1, bCenter := review4BCenter
+    departureMoveId := some (cpId 1 3), departureInterval := some (9, 11)
+    lifecycle := CpLifecycle.pending, cpCertificateConfirmSrc := none
+    cStructure := none, thirdClassInC := none, fullTrendEvidence := none
+    fullTrendCQualified := none }
+
+def review4ClosureRaw (moves : List UnitMoveFact) : CpClosureEvidence :=
+  { context := { centers := [review4PrevCenter, review4BCenter], rows := [], anchors := [],
+                 cpScan := [], unitMoves := moves }
+    visibleUnitMoveCount := 3, cpDepartureMoveId := cpId 1 3, cpStart := 9
+    leave := cpLeave, retest := cpRetest, leaveAnchor := some Direction.down
+    leaveMoveId := cpId 1 3, retestMoveId := cpId 1 4 }
+
+def review4AfterGood : CpObject :=
+  closeCpFromRaw review4Before (review4ClosureRaw [review4Move0, review4Move1, review4Move2])
+
+def review4LowExtreme : UnitMoveFact := { review4Move1 with high := 205 }
+def review4Continuing : UnitMoveFact :=
+  { review4Move2 with center := some review4SuccessorContinue }
+
+def review4AfterNoExtreme : CpObject :=
+  closeCpFromRaw review4Before
+    (review4ClosureRaw [review4Move0, review4LowExtreme, review4Move2])
+
+def review4AfterNoCompletion : CpObject :=
+  closeCpFromRaw review4Before
+    (review4ClosureRaw [review4Move0, review4Move1, review4Continuing])
+
+/-- 有效几何必须真正走到 evidence/qualified 正向分支，防 builder 退化为恒 `none`。 -/
+example : review4AfterGood.lifecycle = CpLifecycle.closed ∧
+    review4AfterGood.fullTrendEvidence.isSome ∧ review4AfterGood.fullTrendCQualified.isSome := by
+  native_decide
+
+/-- 未创新极值时 evidence 仍可诊断，但 qualified 必须失败。 -/
+example : review4AfterNoExtreme.fullTrendEvidence.isSome ∧
+    review4AfterNoExtreme.fullTrendCQualified = none ∧ review4AfterGood ≠ review4AfterNoExtreme := by
+  native_decide
+
+/-- successor 仍同向延续时未完成趋势分解，qualified 必须失败。 -/
+example : review4AfterNoCompletion.fullTrendEvidence.isSome ∧
+    review4AfterNoCompletion.fullTrendCQualified = none ∧
+    review4AfterGood ≠ review4AfterNoCompletion := by
+  native_decide
 
 /-- #1087 review2 RED-3c：raw retest ID 的 level/ordinal 早于 c_p 离开 move 时保持 Pending。 -/
 example : (closeCpFromRaw cpBeforeFull
@@ -252,6 +328,21 @@ example : ¬ EventBijectionCheck [rustRejectedInput] [correctRustEvent] := by
 
 /-- #1087 review2 RED-2i：即使另一 accepted case 消费了 event，rejected case 也不能共用同一槽。 -/
 example : ¬ EventBijectionCheck [rustEventInput, rustRejectedInput] [correctRustEvent] := by
+  native_decide
+
+/-- #1087 review4：生产 event 的稳定结构顺序必须逐位锁住，不能只验无序双射。 -/
+def orderedSecondInput : RustAssemblyInputExtraction :=
+  { rustEventInput with divergenceConfirmSrc := 14 }
+
+def orderedSecondEvent : RustEventExtraction :=
+  { correctRustEvent with divergenceConfirmSrc := 14, confirmSrc := 14 }
+
+example : EventBijectionCheck [rustEventInput, orderedSecondInput]
+    [correctRustEvent, orderedSecondEvent] := by
+  native_decide
+
+example : ¬ EventBijectionCheck [rustEventInput, orderedSecondInput]
+    [orderedSecondEvent, correctRustEvent] := by
   native_decide
 
 /-- #1087 review3 HIGH-1：production event 伪造的 B_p 必须被 Lean 从 raw 低层事实独立重算拒绝。 -/

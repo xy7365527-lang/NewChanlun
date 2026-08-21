@@ -515,14 +515,6 @@ def sameRawEventSlot (input : RustAssemblyInputExtraction) (rust : RustEventExtr
       | none => basic && rust.intervalRight == leanInput.triggerEnd
   | none => false
 
-/-- 从生产 event 列表中恰好消费一个与 Lean 重算 event 全字段相等的元素。 -/
-def consumeEvent (expected : CandDeltaEvent) :
-    List RustEventExtraction → Option (List RustEventExtraction)
-  | [] => none
-  | rust :: rest =>
-      if EventParity rust expected then some rest
-      else (consumeEvent expected rest).map (fun remaining => rust :: remaining)
-
 /-- 所有 rejected raw case 都必须在原始 production event 列表中找不到同一结构槽。 -/
 def rejectedRawCasesHaveNoEvents (inputs : List RustAssemblyInputExtraction)
     (rustEvents : List RustEventExtraction) : Bool :=
@@ -531,28 +523,50 @@ def rejectedRawCasesHaveNoEvents (inputs : List RustAssemblyInputExtraction)
     | none => !(rustEvents.any (sameRawEventSlot input))
     | some _ => true
 
-/--
-列表级 fail-closed 双射门：accepted raw case 各消费一个 event，rejected case 不消费；所有 raw case
-处理完成后生产 event 列表必须为空。因此重复、额外、漏产和一份 event 被多 case 共用都失败。
--/
-def eventBijectionCheckBool :
-    List RustAssemblyInputExtraction → List RustEventExtraction → Bool
-  | [], rustEvents => rustEvents.isEmpty
-  | input :: inputRest, rustEvents =>
-      match assembleRustInput input with
-      | none =>
-          if rustEvents.any (sameRawEventSlot input) then false
-          else eventBijectionCheckBool inputRest rustEvents
-      | some expected =>
-          match consumeEvent expected rustEvents with
-          | none => false
-          | some remaining => eventBijectionCheckBool inputRest remaining
+/-! ### 生产 event 稳定顺序的独立 Lean 镜像 -/
 
-/-- 列表级双射本体；供单层投影使用，允许该层合法地没有候选或事件。 -/
+/-- Rust tuple `Ord` 的 Bool 分量：`false < true`。 -/
+def eventBoolRank : Bool → Nat
+  | false => 0
+  | true => 1
+
+/--
+阶段聚合先按 level 保持逐级容器顺序；同一级内严格镜像 `recursive_tower.rs:2435-2446`
+的结构 sort key，不含诊断 confirm 时点。
+-/
+def compareEventStructureKey (left right : CandDeltaEvent) : Ordering :=
+  compareThen (compare left.level right.level)
+    (compareThen (compare left.interval.left right.interval.left)
+      (compareThen (compare left.interval.right right.interval.right)
+        (compareThen (compare left.aInterval.left right.aInterval.left)
+          (compareThen (compare left.aInterval.right right.aInterval.right)
+            (compareThen (compare left.enterSrc right.enterSrc)
+              (compareThen (compare left.side.rank right.side.rank)
+                (compareThen (compare (eventBoolRank left.candDelta) (eventBoolRank right.candDelta))
+                  (compare (eventBoolRank left.panDivDiag) (eventBoolRank right.panDivDiag)))))))))
+
+def eventStrictlyBefore (left right : CandDeltaEvent) : Bool :=
+  compareEventStructureKey left right == Ordering.lt
+
+/-- raw accepted cases 先由 Lean 独立装配，再按生产结构键稳定排序。 -/
+def expectedOrderedEvents (inputs : List RustAssemblyInputExtraction) : List CandDeltaEvent :=
+  stableSortBy eventStrictlyBefore (inputs.filterMap assembleRustInput)
+
+/-- 与 Rust 被检列表同长、同序、逐字段比较；不得排序 Rust 输出掩盖生产排序回归。 -/
+def orderedEventListParityBool : List CandDeltaEvent → List RustEventExtraction → Bool
+  | [], [] => true
+  | expected :: expectedRest, rust :: rustRest =>
+      decide (EventParity rust expected) && orderedEventListParityBool expectedRest rustRest
+  | _, _ => false
+
+/--
+列表级 fail-closed 门：保留 rejected-slot/Nodup 约束，并把 Lean 重算后的稳定有序列表与生产输出
+逐位比较。因此重复、额外、漏产、共用 event 与结构排序漂移都会失败。
+-/
 def EventBijectionCoreCheck (inputs : List RustAssemblyInputExtraction)
     (rustEvents : List RustEventExtraction) : Prop :=
   rustEvents.Nodup ∧ rejectedRawCasesHaveNoEvents inputs rustEvents = true ∧
-  eventBijectionCheckBool inputs rustEvents = true
+  orderedEventListParityBool (expectedOrderedEvents inputs) rustEvents = true
 
 instance eventBijectionCoreCheckDecidable (inputs : List RustAssemblyInputExtraction)
     (rustEvents : List RustEventExtraction) :
