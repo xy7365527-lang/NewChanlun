@@ -1,9 +1,13 @@
 {
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.12.0",
+    "@standard-schema/spec": "^1.1.0",
     "@types/node": "^26.2.0",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2",
     "zod": "^4.4.3"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.sandcastle.json"
   }
 }

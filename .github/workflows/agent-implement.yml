@@ -1,0 +1,202 @@
+name: Agent Implement
+
+# #1110 AC-2：issue 上 `agent:implement` label 触发一张独立 issue 的实装。
+# 一张 event 只处理一张 issue/PR（不复用 watcher/harvest/main-loop，模型不自寻下一票）。
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  implement:
+    if: github.event.label.name == 'agent:implement'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: agent-implement-issue-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    env:
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      ISSUE_TITLE: ${{ github.event.issue.title }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      # shape 检测脚本在本仓 .sandcastle/ 下，先 checkout main 才能执行；
+      # 拒绝路径（map/blocked/existing PR）只多付一次只读 checkout，随后即返。
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.AGENT_PAT || secrets.GITHUB_TOKEN }}
+
+      # #1110 AC-4 第一处适配：issue shape。
+      #   - map/PRD（有子票）拒绝；leaf sub-issue 允许（上游原版拒绝一切 sub-issue，这里改判）；
+      #   - 原生 open blocker（issue_dependencies_summary.blocked_by > 0）拒绝并标 blocked。
+      - name: Detect issue shape
+        id: shape
+        run: bash .sandcastle/agent-workflows/shared/detect-issue-shape.sh
+
+      - name: Refuse map/PRD issue
+        if: steps.shape.outputs.shape == 'map'
+        env:
+          SUB_TOTAL: ${{ steps.shape.outputs.sub_total }}
+        run: |
+          gh issue edit "$ISSUE_NUMBER" --remove-label "agent:implement" || true
+          gh issue comment "$ISSUE_NUMBER" --body "Refused to run: issue #${ISSUE_NUMBER} is a map/PRD with ${SUB_TOTAL} sub-issue(s). Label its leaf sub-issues instead."
+
+      - name: Refuse blocked issue
+        if: steps.shape.outputs.shape == 'blocked'
+        env:
+          BLOCKED_BY: ${{ steps.shape.outputs.blocked_by }}
+        run: |
+          gh issue edit "$ISSUE_NUMBER" --remove-label "agent:implement" || true
+          gh issue edit "$ISSUE_NUMBER" --add-label "agent:blocked" || true
+          gh issue comment "$ISSUE_NUMBER" --body "Refused to run: issue #${ISSUE_NUMBER} has ${BLOCKED_BY} open blocker(s). Resolve them, then re-add \`agent:implement\`."
+
+      - name: Preflight existing PR
+        if: steps.shape.outputs.shape == 'leaf'
+        id: preflight
+        run: |
+          set -euo pipefail
+          existing=$(gh pr list \
+            --state open \
+            --search "in:body \"#${ISSUE_NUMBER}\"" \
+            --json number,url,body,author \
+            --jq "[.[] | select(.body | test(\"(?i)(closes|fixes|resolves)\\s+#${ISSUE_NUMBER}\\b\"))]")
+          count=$(echo "$existing" | jq 'length')
+          refused=false
+          existing_pr_url=""
+          for i in $(seq 0 $((count - 1))); do
+            author=$(echo "$existing" | jq -r ".[$i].author.login")
+            # Only PRs from collaborators block the agent; outside contributors don't count.
+            if gh api "repos/${GH_REPO}/collaborators/${author}" --silent 2>/dev/null; then
+              refused=true
+              existing_pr_url=$(echo "$existing" | jq -r ".[$i].url")
+              break
+            fi
+          done
+          echo "refused=$refused" >> "$GITHUB_OUTPUT"
+          echo "existing_pr_url=$existing_pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse existing PR
+        if: steps.preflight.outputs.refused == 'true'
+        env:
+          EXISTING_PR_URL: ${{ steps.preflight.outputs.existing_pr_url }}
+        run: |
+          gh issue edit "$ISSUE_NUMBER" --remove-label "agent:implement" || true
+          gh issue comment "$ISSUE_NUMBER" --body "Refused to run: $EXISTING_PR_URL already targets this issue. Close it first, then re-add \`agent:implement\`."
+
+      - name: Transition labels
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true'
+        run: |
+          gh issue edit "$ISSUE_NUMBER" --remove-label "agent:implement" || true
+          gh issue edit "$ISSUE_NUMBER" --remove-label "agent:blocked" || true
+          gh issue edit "$ISSUE_NUMBER" --add-label "agent:in-progress"
+
+      - name: Compute branch name
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true'
+        id: branch
+        run: |
+          slug=$(echo "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-50)
+          branch="agent/issue-${ISSUE_NUMBER}-${slug}"
+          echo "name=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Create branch
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true'
+        env:
+          BRANCH: ${{ steps.branch.outputs.name }}
+        run: |
+          git config user.name "sandcastle-agent[bot]"
+          git config user.email "sandcastle-agent[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+
+      - name: Setup Node.js
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true'
+        run: npm ci
+
+      - name: Typecheck agent-workflows
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true'
+        run: npm run typecheck
+
+      - name: Install Claude Code
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run implementation agent
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          OUTPUT_DIR: ${{ runner.temp }}
+        run: npx tsx .sandcastle/agent-workflows/implement/implement.ts
+
+      - name: Push branch
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true' && success()
+        env:
+          BRANCH: ${{ steps.branch.outputs.name }}
+        run: git push --force origin "$BRANCH"
+
+      - name: Open draft PR
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true' && success()
+        id: open_pr
+        env:
+          BRANCH: ${{ steps.branch.outputs.name }}
+        run: |
+          title="Fix #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
+          title="${title:0:256}"
+          body_file="${RUNNER_TEMP}/pr-body.md"
+          {
+            echo "Closes #${ISSUE_NUMBER}"
+            echo
+            echo "Implemented by the Sandcastle agent workflow."
+          } > "$body_file"
+          pr_url=$(gh pr create --draft --base main --head "$BRANCH" --title "$title" --body-file "$body_file" | tail -n1)
+          echo "pr_number=$(basename "$pr_url")" >> "$GITHUB_OUTPUT"
+
+      - name: Request automated review
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true' && success()
+        env:
+          PR_NUMBER: ${{ steps.open_pr.outputs.pr_number }}
+          AGENT_PAT: ${{ secrets.AGENT_PAT }}
+          GITHUB_TOKEN_FALLBACK: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          if [ -n "$AGENT_PAT" ]; then
+            GH_TOKEN="$AGENT_PAT" gh pr edit "$PR_NUMBER" --add-label "agent:review"
+            status=$?
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+          fi
+          GH_TOKEN="$GITHUB_TOKEN_FALLBACK" gh pr edit "$PR_NUMBER" --add-label "agent:review"
+
+      - name: Mark blocked on failure
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true' && failure()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          reason="(no reason file written; check workflow logs)"
+          if [ -f "${RUNNER_TEMP}/failure_reason.txt" ]; then
+            reason=$(cat "${RUNNER_TEMP}/failure_reason.txt")
+          fi
+          body_file="${RUNNER_TEMP}/failure-comment.md"
+          printf '`agent:implement` run failed.\n\n**Reason:** %s\n\n**Workflow run:** %s\n\nRe-add `agent:implement` to retry.\n' "$reason" "$RUN_URL" > "$body_file"
+          gh issue edit "$ISSUE_NUMBER" --add-label "agent:blocked" || true
+          gh issue comment "$ISSUE_NUMBER" --body-file "$body_file"
+
+      - name: Always remove in-progress
+        if: always() && steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true'
+        run: gh issue edit "$ISSUE_NUMBER" --remove-label "agent:in-progress" || true
