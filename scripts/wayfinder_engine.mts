@@ -18,14 +18,27 @@
  * 不碰决策票（v1）：决策票（含 Notes N-k 预授权）一律人工；纯决策图（spec 出图）也人工。
  * 人工闸三处不动：spec 批准（闸一）/ 不预授权决策票 / 合入 main（闸二，本引擎不碰 main）。
  *
- * 跑法（仓库根）：
+ * #1084 追加（2026-08-19 打回复核）——常驻控制面成为活机制：
+ *   - 每轮区分五桶：全仓 ready-for-agent / 已获 sandcastle 拾取权 / blocked / claimed / running；
+ *   - 只由本控制面给合资格实装票（已批准 spec/DAG + 未 assign + 无 blocker）挂 sandcastle，
+ *     不把全部历史 ready-for-agent 无差别放行（planReleases / classifyTicket 纯函数）；
+ *   - gh 查询有限重试 + 指数退避 + fail-loud（单次网络失败不永久停摆）；
+ *   - 无 runnable 票 sleep 后重查、不退出（常驻 for(;;)）；
+ *   - 每轮写状态页 .sandcastle/logs/wayfinder-status.md（五桶分明）。
+ *
+ * 部署（受管常驻，launchd KeepAlive）：
+ *   bash .sandcastle/install-wayfinder-engine.sh install   # 安装并加载
+ *   bash .sandcastle/install-wayfinder-engine.sh status    # 查状态
+ *   launchd 跑 .sandcastle/run-wayfinder-engine.sh --live  # 真实执行（--live 显式，默认仍 dry-run）
+ *
+ * 跑法（仓库根，手工调试）：
  *   npx tsx scripts/wayfinder_engine.mts --once --dry-run   单轮演练（只打印动作，不执行）
  *   npx tsx scripts/wayfinder_engine.mts                    常驻轮询（默认 dry-run，4 分钟一轮）
  *   npx tsx scripts/wayfinder_engine.mts --live --once      真实执行一轮
  */
 
 import { execSync } from "node:child_process";
-import { rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -365,14 +378,146 @@ export function walkGraphs(maps: MapState[], opts: WalkOptions): Action[] {
   return maps.flatMap((m) => analyzeMap(m, opts).actions);
 }
 
+// ── 队列分类与 sandcastle 释放规划（#1084 追加：控制面交棒链，纯函数） ─────────
+
+/** 全仓 ready-for-agent 票的归一化视图（含父图 spec 批准态）。 */
+export interface ReadyTicket {
+  number: number;
+  title: string;
+  labels: string[];
+  assignees: string[];
+  /** open 阻塞边数量（只计 state=OPEN 的 blocker）。 */
+  blockedBy: number;
+  /** 所属 open map 的 spec 是否已批准；null = 不在任何 open map 下（含图外 spec/无主票）。 */
+  specApproved: boolean | null;
+}
+
+/** 每轮五桶 + 待释放清单，一次算清（分类判据见 classifyTicket）。 */
+export type TicketBucket =
+  | "blocked"   // 有 open blocker，工蜂不可拾取
+  | "claimed"   // 已 assign（人工认领或工蜂运行中，无 sandcastle）
+  | "running"   // 已 assign 且仍带 sandcastle（claim 与摘 label 之间的瞬态）
+  | "released"  // 未 assign + 无 blocker + 带 sandcastle（工蜂可拾取）
+  | "eligible"  // 未 assign + 无 blocker + 无 sandcastle + 合资格实装票（待释放）
+  | "held";     // 未 assign + 无 blocker + 无 sandcastle + 不合资格（决策/spec/未批准 spec 等）
+
+/** gh issue list 的 blockedBy 结构：totalCount 含已关 blocker，须按 nodes.state 数 open。 */
+export interface BlockedBySummary {
+  nodes?: Array<{ state?: string }>;
+  totalCount?: number;
+}
+
+/** open blocker 数量（纯函数）。 */
+export function openBlockerCount(b: BlockedBySummary | undefined): number {
+  if (!b) return 0;
+  if (Array.isArray(b.nodes)) return b.nodes.filter((n) => n.state === "OPEN").length;
+  return b.totalCount ?? 0;
+}
+
+/** 单票分类（纯函数）：五桶判据，只吃归一化视图。 */
+export function classifyTicket(t: ReadyTicket): TicketBucket {
+  const hasSandcastle = t.labels.includes("sandcastle");
+  if (t.blockedBy > 0) return "blocked";
+  if (t.assignees.length > 0) return hasSandcastle ? "running" : "claimed";
+  if (hasSandcastle) return "released";
+  if (isImplTicket(t) && t.specApproved === true) return "eligible";
+  return "held";
+}
+
+/** 图内子票号 → 所属 open map 的 spec 是否已批准（纯函数）。 */
+export function buildSpecApprovalIndex(
+  maps: MapState[],
+  orchestrator: string,
+): Map<number, boolean> {
+  const idx = new Map<number, boolean>();
+  for (const m of maps) {
+    if (m.state !== "OPEN") continue;
+    const spec = m.children.find(isSpecTicket);
+    const approved =
+      spec !== undefined && spec.state === "OPEN" && isSpecApproved(spec, orchestrator);
+    for (const c of m.children) idx.set(c.number, approved);
+  }
+  return idx;
+}
+
+/** 把 spec 批准态并入 ready 视图（纯函数）。 */
+export function withSpecApproval(
+  ready: ReadyTicket[],
+  specIdx: Map<number, boolean>,
+): ReadyTicket[] {
+  return ready.map((t) => ({ ...t, specApproved: specIdx.get(t.number) ?? null }));
+}
+
+/** 队列汇总（纯函数）：五桶计数 + 待释放（合资格实装票）号码清单。 */
+export function summarizeQueue(tickets: ReadyTicket[]): {
+  buckets: Record<TicketBucket, number>;
+  eligible: number[];
+} {
+  const buckets: Record<TicketBucket, number> = {
+    blocked: 0,
+    claimed: 0,
+    running: 0,
+    released: 0,
+    eligible: 0,
+    held: 0,
+  };
+  const eligible: number[] = [];
+  for (const t of tickets) {
+    const b = classifyTicket(t);
+    buckets[b]++;
+    if (b === "eligible") eligible.push(t.number);
+  }
+  return { buckets, eligible };
+}
+
+/** 控制面释放计划：合资格实装票 → 挂 sandcastle（不无差别放行历史 ready-for-agent）。 */
+export function planReleases(tickets: ReadyTicket[]): number[] {
+  return summarizeQueue(tickets).eligible;
+}
+
 // ── gh 封装（IO 层，非纯） ─────────────────────────────────────────────────────
 
-function gh(args: string): string {
+// #1084 追加：GitHub 查询有限重试 + 指数退避 + fail-loud。单次网络超时/瞬时失败
+// 不得杀死整轮——读路径重试，耗尽后才 fail-loud（抛错），由轮询壳 catch 后继续下一轮。
+// 写路径（ghOnce）不重试：issue create 非幂等，重试会造重复票；幂等性交给
+// stateless 每轮重算（本轮失败下一轮自然补做）。
+const GH_MAX_ATTEMPTS = Number(process.env.WAYFINDER_GH_MAX_ATTEMPTS ?? 4);
+const GH_BASE_BACKOFF_MS = Number(process.env.WAYFINDER_GH_BASE_BACKOFF_MS ?? 1000);
+
+function sleepSync(ms: number): void {
+  // execSync 是同步调用；退避用 Atomics.wait 做可中断的同步睡眠（无 TTY 也可用）。
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** 单次 gh 调用（写路径用；读路径走 gh() 重试）。 */
+function ghOnce(args: string): string {
   return execSync(`gh ${args}`, {
     encoding: "utf8",
     env: GH_ENV,
     maxBuffer: 32 * 1024 * 1024,
   }).trim();
+}
+
+/** 读路径 gh 调用：有限重试 + 指数退避，耗尽后 fail-loud。 */
+function gh(args: string): string {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= GH_MAX_ATTEMPTS; attempt++) {
+    try {
+      return ghOnce(args);
+    } catch (e) {
+      lastErr = e;
+      if (attempt < GH_MAX_ATTEMPTS) {
+        const backoff = GH_BASE_BACKOFF_MS * 2 ** (attempt - 1);
+        console.error(
+          `[wayfinder_engine] gh 查询失败（第 ${attempt}/${GH_MAX_ATTEMPTS} 次，${backoff}ms 后重试）：${String(e).slice(0, 200)}`,
+        );
+        sleepSync(backoff);
+      }
+    }
+  }
+  throw new Error(
+    `gh 查询重试 ${GH_MAX_ATTEMPTS} 次后仍失败（fail-loud）：${String(lastErr).slice(0, 500)}`,
+  );
 }
 
 function shellQuote(s: string): string {
@@ -457,6 +602,74 @@ function fetchOpenMaps(): MapState[] {
   }));
 }
 
+/** 全仓 ready-for-agent 票（spec 批准态由 withSpecApproval 并入）。 */
+function fetchReadyTickets(): ReadyTicket[] {
+  const out = gh(
+    `issue list --label ready-for-agent --state open --limit 200 --json number,title,labels,assignees,blockedBy`,
+  );
+  const raw = JSON.parse(out) as Array<{
+    number: number;
+    title: string;
+    labels?: Array<{ name: string }>;
+    assignees?: Array<{ login: string }>;
+    blockedBy?: BlockedBySummary;
+  }>;
+  return raw.map((r) => ({
+    number: r.number,
+    title: r.title,
+    labels: (r.labels ?? []).map((l) => l.name),
+    assignees: (r.assignees ?? []).map((a) => a.login),
+    blockedBy: openBlockerCount(r.blockedBy),
+    specApproved: null,
+  }));
+}
+
+/** 释放一张合资格实装票：挂 sandcastle（add-label 幂等，写路径 ghOnce）。 */
+function releaseTicket(number: number): void {
+  ghOnce(`issue edit ${number} --add-label sandcastle`);
+}
+
+// ── 状态页（#1084 追加：五桶分明，不把 sandcastle 空误写成 ready-for-agent 空） ──
+
+const STATUS_PATH = ".sandcastle/logs/wayfinder-status.md";
+
+/** 状态页正文（纯函数渲染，便于测试）。 */
+export function renderStatus(
+  opts: { dryRun: boolean; stamp: string },
+  maps: MapState[],
+  ready: ReadyTicket[],
+  summary: ReturnType<typeof summarizeQueue>,
+): string {
+  const b = summary.buckets;
+  const eligibleList = summary.eligible.length
+    ? ` → ${summary.eligible.map((n) => `#${n}`).join(" ")}`
+    : "";
+  return [
+    `# wayfinder_engine 控制面状态（${opts.stamp}，${opts.dryRun ? "dry-run" : "live"}）`,
+    "",
+    `- open wayfinder:map：${maps.length} 张`,
+    `- 全仓 ready-for-agent（open）：${ready.length} 张`,
+    `  - 已获 sandcastle 拾取权（可拾取）：${b.released}`,
+    `  - blocked（有 open blocker）：${b.blocked}`,
+    `  - claimed（已 assign）：${b.claimed}`,
+    `  - running（已 assign 且带 sandcastle）：${b.running}`,
+    `  - 待释放（合资格实装票，本轮挂 sandcastle）：${b.eligible}${eligibleList}`,
+    `  - 不合资格（决策/spec/未批准 spec 等，不放行）：${b.held}`,
+    "",
+  ].join("\n");
+}
+
+function writeStatus(
+  cfg: EngineConfig,
+  stamp: string,
+  maps: MapState[],
+  ready: ReadyTicket[],
+  summary: ReturnType<typeof summarizeQueue>,
+): void {
+  mkdirSync(".sandcastle/logs", { recursive: true });
+  writeFileSync(STATUS_PATH, renderStatus({ dryRun: cfg.dryRun, stamp }, maps, ready, summary) + "\n", "utf8");
+}
+
 // ── 动作执行器（IO 层；dry-run 下不调用） ──────────────────────────────────────
 
 export interface EngineConfig {
@@ -480,10 +693,10 @@ function createIssue(
   writeFileSync(tmp, body, "utf8");
   try {
     const labelArgs = labels.map((l) => `--label ${shellQuote(l)}`).join(" ");
-    const out = execSync(
-      `gh issue create --title ${shellQuote(title)} --body-file ${shellQuote(tmp)} ${labelArgs}`,
-      { encoding: "utf8", env: GH_ENV, maxBuffer: 32 * 1024 * 1024 },
-    ).trim();
+    // ghOnce：issue create 非幂等，不重试（重试会造重复票）。
+    const out = ghOnce(
+      `issue create --title ${shellQuote(title)} --body-file ${shellQuote(tmp)} ${labelArgs}`,
+    );
     const m = out.match(/issues\/(\d+)\s*$/);
     if (!m) throw new Error(`无法从 gh issue create 输出解析票号：${out}`);
     const number = Number(m[1]);
@@ -496,13 +709,14 @@ function createIssue(
 
 function addSubIssue(mapNumber: number, childId: number): void {
   // sub_issue_id 须为整型（数据库 id），用 -F（typed）而非 -f（string），否则 422。
-  gh(
+  // ghOnce：写路径不重试（幂等性交给下一轮 stateless 重算）。
+  ghOnce(
     `api --method POST repos/${GH_ENV.GH_REPO}/issues/${mapNumber}/sub_issues -F sub_issue_id=${childId}`,
   );
 }
 
 function addBlockingEdge(childNumber: number, blockerDbId: number): void {
-  gh(
+  ghOnce(
     `api --method POST repos/${GH_ENV.GH_REPO}/issues/${childNumber}/dependencies/blocked_by -F issue_id=${blockerDbId}`,
   );
 }
@@ -701,10 +915,10 @@ function actCloseGraph(a: Extract<Action, { kind: "close_graph" }>, _cfg: Engine
   const comment = lines.join("\n");
   // spec 非持久：实装落地即关。
   if (spec && spec.state === "OPEN") {
-    gh(`issue close ${spec.number} --comment "实施票已全关，spec 落地即关（非持久件）。"`);
+    ghOnce(`issue close ${spec.number} --comment "实施票已全关，spec 落地即关（非持久件）。"`);
     console.log(`  ✓ 关闭 spec #${spec.number}`);
   }
-  gh(`issue close ${mapNumber} --comment ${shellQuote(comment)}`);
+  ghOnce(`issue close ${mapNumber} --comment ${shellQuote(comment)}`);
   console.log(`  ✓ 关闭 map #${mapNumber}（comment 已附）`);
 }
 
@@ -736,12 +950,17 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
   const stamp = new Date().toISOString().slice(0, 19).replace("T", " ");
   console.log(`\n[wayfinder_engine] ${stamp} 一轮开始（${cfg.dryRun ? "dry-run" : "live"}）`);
   let maps: MapState[];
+  let ready: ReadyTicket[];
   try {
     maps = fetchOpenMaps();
+    // 队列交棒视图：全仓 ready-for-agent × 父图 spec 批准态。
+    ready = withSpecApproval(fetchReadyTickets(), buildSpecApprovalIndex(maps, cfg.orchestrator));
   } catch (e) {
-    console.error(`[wayfinder_engine] 拉取 tracker 状态失败（网络/鉴权？）：${e}`);
+    console.error(`[wayfinder_engine] 拉取 tracker 状态失败（网络/鉴权？已重试，本轮跳过）：${e}`);
     return;
   }
+
+  // 1) DAG 走查动作（draft_spec / split_impl_tickets / close_graph）。
   console.log(`  open 的 wayfinder:map 共 ${maps.length} 张`);
   for (const m of maps) {
     const analysis = analyzeMap(m, { orchestrator: cfg.orchestrator });
@@ -758,6 +977,29 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
       }
     }
   }
+
+  // 2) 队列交棒：只给合资格实装票（已批准 spec/DAG + 未 assign + 无 blocker）挂 sandcastle，
+  //    不把全部历史 ready-for-agent 无差别放行。
+  const summary = summarizeQueue(ready);
+  console.log(
+    `  全仓 ready-for-agent ${ready.length} 张：可拾取 ${summary.buckets.released} / blocked ${summary.buckets.blocked} / ` +
+      `claimed ${summary.buckets.claimed} / running ${summary.buckets.running} / 待释放 ${summary.buckets.eligible} / 不放行 ${summary.buckets.held}`,
+  );
+  for (const n of summary.eligible) {
+    if (cfg.dryRun) {
+      console.log(`    [dry-run] 将释放（挂 sandcastle）：#${n}`);
+    } else {
+      try {
+        releaseTicket(n);
+        console.log(`    ✓ 已释放（挂 sandcastle）：#${n}`);
+      } catch (e) {
+        console.error(`    ✗ 释放失败（#${n}）：${e}`);
+      }
+    }
+  }
+
+  // 3) 状态页：五桶分明落盘，供宿主/roster 读（不把 sandcastle 空误写成全空）。
+  writeStatus(cfg, stamp, maps, ready, summary);
   console.log(`[wayfinder_engine] 一轮结束`);
 }
 

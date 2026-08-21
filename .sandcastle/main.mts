@@ -65,6 +65,16 @@ function pickIssue(): number | null {
   return null;
 }
 
+// #1084 追加：sandcastle 专属队列空 ≠ 全仓 ready-for-agent 空。分开报，
+// 状态页不再把「专属队列为空」误写成「全仓 AFK 做完」。
+function repoReadyForAgentCount(): number {
+  const out = execSync(
+    `gh issue list --label ready-for-agent --state open --limit 1000 --json number --jq length`,
+    { encoding: "utf8", env: GH_CLEAN_ENV },
+  ).trim();
+  return Number(out);
+}
+
 // ── 多轮续跑（#1066）：同一票的 implementer/reviewer 续跑必须复用原 prime-agent 会话。
 // sandcastle 的 maxIterations>1 是「多轮各自全新会话」，不构成续跑（#1066 评论查实）；
 // 故每轮 maxIterations=1，靠 provider 会话捕获 + resumeSession 显式续同一 session。
@@ -134,7 +144,17 @@ if (REVIEW_ONLY) {
 for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
   const issue = pickIssue();
   if (!issue) {
-    console.log("无 ready-for-agent 未认领 issue，停。");
+    let readyForAgent: number | null = null;
+    try {
+      readyForAgent = repoReadyForAgentCount();
+    } catch (e) {
+      console.error(`sandcastle 专属队列空；全仓 ready-for-agent 计数查询失败（忽略，不阻断收尾）：${String(e).slice(0, 200)}`);
+    }
+    console.log(
+      `sandcastle 专属队列空（无可拾取 issue），停。全仓 ready-for-agent open ≈ ${
+        readyForAgent === null ? "未知" : readyForAgent
+      } 张（含未交棒/blocked/claimed，由控制面 wayfinder_engine 交棒，非全空）。`,
+    );
     break;
   }
 

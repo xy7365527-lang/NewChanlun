@@ -110,6 +110,7 @@ tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令�
   2. spec 批准 → 自动拆 tracer-bullet 实装票（blocking 边 + 票面逐条挂裁定票）+ `sandcastle` 标签 → 工蜂拾取 `/implement`；合入 main 人工闸不动【闸二】；
   3. 实装票全关 + 图关判据满足（destination 达成、残雾三去处核实）→ 自动起草图关 comment + close。
 - **不碰决策票（v1）**：决策票（含 Notes N-k 预授权照判）一律人工——机器不替人裁；v2 观察项 = 预授权影子模式（自动起草 resolution、不关票，人批才发）。
+- **队列交棒（#1084 追加）**：控制面每轮只给合资格实装票（已批准 spec/DAG + 未 assign + 无 open blocker）挂 `sandcastle`，不把全部历史 `ready-for-agent` 无差别放行；每轮五桶分明（全仓 `ready-for-agent` / 已获 `sandcastle` 拾取权 / blocked / claimed / running）。控制面为受管常驻服务（launchd KeepAlive，`.sandcastle/install-wayfinder-engine.sh`），gh 查询有限重试 + 指数退避 + fail-loud，无 runnable 票 sleep 后重查、不退出。
 - 实装票：[#1084](https://github.com/xy7365527-lang/NewChanlun/issues/1084)（sandcastle 通道）。
 
 ## 一票一会话与并行纪律
