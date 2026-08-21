@@ -2025,8 +2025,7 @@ pub fn advance_cp_lifecycles(
             leave_anchor,
             leave_move.id,
             retest_move.id,
-            object.full_trend_evidence.clone(),
-            object.full_trend_c_qualified.clone(),
+            unit_moves.len(),
         );
     }
 }

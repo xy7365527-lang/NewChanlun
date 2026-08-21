@@ -272,6 +272,335 @@ structure EventAssemblyInput where
   panDivDiag : Bool
 deriving DecidableEq, Repr
 
+/-- `cp_event_objects` 所需的 c_p 扫描基础事实；故意不含任何事件成品投影。 -/
+structure CpScanBase where
+  bCenterIndex : Nat
+  bCenterId : ElementIdentity
+  bCenter : CenterFrame
+  departureMoveId : Option ElementIdentity
+  departureInterval : Option Interval
+deriving DecidableEq, Repr
+
+/-- 走势单元的低层几何/分解事实。`center` 仅为 Compose 末位中枢。 -/
+structure UnitMoveFact where
+  id : ElementIdentity
+  startIndex : Nat
+  endIndex : Nat
+  low : Int
+  high : Int
+  center : Option CenterFrame
+deriving DecidableEq, Repr
+
+/-- 同一 level 的 raw 事实上下文；多个 case 共享，不携带 production event 字段。 -/
+structure EventRawContext where
+  centers : List CenterFrame
+  rows : List SegmentRow
+  anchors : List (Option Direction)
+  cpScan : List CpScanBase
+  unitMoves : List UnitMoveFact
+deriving DecidableEq, Repr
+
+/-- CandDelta case 仅指向 raw 上下文中的中枢/段，P2/c_p 全部由 Lean 重算。 -/
+structure EventRawInput where
+  context : EventRawContext
+  centerIndex : Nat
+  segmentIndex : Nat
+  level : Nat
+  side : Side
+  divergenceConfirmSrc : Nat
+  aInterval : EpisodeBounds
+  predicate : CandDeltaFacts
+  panDivDiag : Bool
+deriving DecidableEq, Repr
+
+inductive CenterRelation where
+  | upContinuation
+  | downContinuation
+  | levelExpansion
+  | coreOverlap
+deriving DecidableEq, Repr
+
+def classifyCenterRelation (previous next : CenterFrame) : CenterRelation :=
+  if previous.gg < next.dd then CenterRelation.upContinuation
+  else if next.gg < previous.dd then CenterRelation.downContinuation
+  else if (next.zg < previous.zd ∧ previous.dd ≤ next.gg) ∨
+      (previous.zg < next.zd ∧ next.dd ≤ previous.gg) then CenterRelation.levelExpansion
+  else CenterRelation.coreOverlap
+
+def CenterRelation.trendDirection : CenterRelation → Option Direction
+  | CenterRelation.upContinuation => some Direction.up
+  | CenterRelation.downContinuation => some Direction.down
+  | CenterRelation.levelExpansion | CenterRelation.coreOverlap => none
+
+def findIndexBy? {alpha : Type} (predicate : alpha → Bool) (values : List alpha) : Option Nat :=
+  go values 0
+where
+  go : List alpha → Nat → Option Nat
+    | [], _ => none
+    | value :: rest, index =>
+        if predicate value then some index else go rest (index + 1)
+
+/-- `nearest_confirmed_center_idx`：按 endIndex 有序前缀取最后一项。 -/
+def nearestConfirmedCenterIndex (centers : List CenterFrame) (segmentStart : Nat) : Option Nat :=
+  (List.range centers.length).foldl
+    (fun found index =>
+      match centers[index]? with
+      | some center => if center.endIndex ≤ segmentStart then some index else found
+      | none => found)
+    none
+
+def thirdClassSide (center : CenterFrame) (leaveAnchor : Option Direction)
+    (leave retest : SegmentRow) : Option Side :=
+  match leaveAnchor, retest.direction with
+  | some Direction.up, Direction.down =>
+      if center.zg < leave.endPrice ∧ center.zg < retest.endPrice then some Side.long else none
+  | some Direction.down, Direction.up =>
+      if leave.endPrice < center.zd ∧ retest.endPrice < center.zd then some Side.short else none
+  | _, _ => none
+
+def thirdClassAtOffset (context : EventRawContext) (centerIndex eventSegmentIndex eventEnd : Nat)
+    (center : CenterFrame) (scan : CpScanBase) (departureMoveId : ElementIdentity)
+    (cpStart offset : Nat) : Option ThirdClassInCp := do
+  let pairIndex := offset + 1
+  if eventSegmentIndex < pairIndex then none else
+  let leave ← context.rows[pairIndex - 1]?
+  let retest ← context.rows[pairIndex]?
+  if leave.startIndex < cpStart ∨ eventEnd < retest.endIndex then none else
+  if nearestConfirmedCenterIndex context.centers leave.startIndex ≠ some centerIndex then none else
+  let leaveAnchor ← context.anchors[pairIndex - 1]?
+  let side ← thirdClassSide center leaveAnchor leave retest
+  let leaveMove ← context.unitMoves[pairIndex - 1]?
+  let retestMove ← context.unitMoves[pairIndex]?
+  some
+    { bCenterId := scan.bCenterId
+      cpDepartureMoveId := departureMoveId
+      departureMoveId := leaveMove.id
+      retestMoveId := retestMove.id
+      departureInterval := (leave.startIndex, leave.endIndex)
+      retestInterval := (retest.startIndex, retest.endIndex)
+      pointSourceIndex := retest.endIndex
+      side := side }
+
+def firstThirdClass (context : EventRawContext) (centerIndex eventSegmentIndex eventEnd : Nat)
+    (center : CenterFrame) (scan : CpScanBase) (departureMoveId : ElementIdentity)
+    (cpStart : Nat) : Option ThirdClassInCp :=
+  ((List.range eventSegmentIndex).filterMap fun offset =>
+    thirdClassAtOffset context centerIndex eventSegmentIndex eventEnd center scan departureMoveId
+      cpStart offset).head?
+
+def moveIdsConsecutive (moves : List UnitMoveFact) : Bool :=
+  (moves.zip (moves.drop 1)).all fun pair =>
+    pair.1.id.level == pair.2.id.level && pair.1.id.ordinal + 1 == pair.2.id.ordinal
+
+def collectMoveCenters : List UnitMoveFact → Option (List CenterFrame)
+  | [] => some []
+  | movement :: rest => do
+      let center ← movement.center
+      let centers ← collectMoveCenters rest
+      some (center :: centers)
+
+def trendContextFrom (centers : List CenterFrame) (bCenterIndex : Nat)
+    (bCenterId : ElementIdentity) : Option TrendContext := do
+  if bCenterIndex = 0 ∨ bCenterId.ordinal = 0 then none else
+  let previous ← centers[bCenterIndex - 1]?
+  let b ← centers[bCenterIndex]?
+  let direction ← (classifyCenterRelation previous b).trendDirection
+  some
+    { predecessorCenterId := { level := bCenterId.level, ordinal := bCenterId.ordinal - 1 }
+      bCenterId := bCenterId
+      direction := direction }
+
+/-- `recursive_tower.rs:1711-1848` 的 Lean 独立镜像。 -/
+def fullTrendQualificationEvidenceFromFacts (centers : List CenterFrame) (bCenterIndex : Nat)
+    (bCenterId : ElementIdentity) (cpStructure : CpStructureIdentity) (third : ThirdClassInCp)
+    (unitMoves : List UnitMoveFact) : Option FullTrendQualificationEvidence := do
+  let b ← centers[bCenterIndex]?
+  if cpStructure.bCenterId ≠ bCenterId ∨ third.bCenterId ≠ bCenterId ∨
+      third.cpDepartureMoveId ≠ cpStructure.departureMoveId then none else
+  let terminalMoveId ← cpStructure.terminalMoveId
+  let sourceEnd ← cpStructure.sourceEnd
+  let startIndex ← findIndexBy? (fun movement => decide (movement.id = cpStructure.departureMoveId)) unitMoves
+  let endIndex ← findIndexBy? (fun movement => decide (movement.id = terminalMoveId)) unitMoves
+  if endIndex < startIndex then none else
+  let components := (unitMoves.drop startIndex).take (endIndex - startIndex + 1)
+  let first ← components.head?
+  let last ← components.getLast?
+  if first.startIndex ≠ cpStructure.sourceStart ∨ last.endIndex ≠ sourceEnd ∨
+      !moveIdsConsecutive components then none else
+  let trendContext := trendContextFrom centers bCenterIndex bCenterId
+  let newExtremeInDirection := trendContext.bind fun context => do
+    let extremeMove ← components.find? fun movement =>
+      match context.direction with
+      | Direction.up => b.gg < movement.high
+      | Direction.down => movement.low < b.dd
+    some
+      { bCenterId := bCenterId
+        direction := context.direction
+        referencePrice := match context.direction with
+          | Direction.up => b.gg
+          | Direction.down => b.dd
+        extremePrice := match context.direction with
+          | Direction.up => extremeMove.high
+          | Direction.down => extremeMove.low
+        extremeMoveId := extremeMove.id
+        confirmSrc := extremeMove.endIndex }
+  let internalCenters := collectMoveCenters components
+  let internalSublevelCenters := internalCenters.bind fun values =>
+    if 2 ≤ values.length then
+      some { cLevel := cpStructure.level, centerIds := components.map (fun movement => movement.id) }
+    else none
+  let allInternalCenters := collectMoveCenters unitMoves
+  let successorMove := unitMoves[endIndex + 1]?
+  let successorCenter := allInternalCenters.bind fun values => values[endIndex + 1]?
+  let successor := successorMove.bind fun movement =>
+    successorCenter.map fun center => (movement, center)
+  let decompositionReviewMoveId := successor.map (fun pair => pair.1.id)
+  let decompositionReviewSrc := successor.map (fun pair => pair.1.endIndex)
+  let completedTrendDecomposition := trendContext.bind fun context =>
+    internalSublevelCenters.bind fun internal =>
+    allInternalCenters.bind fun allCenters =>
+    successor.bind fun successorPair =>
+      let successor := successorPair.1
+      let nextCenter := successorPair.2
+      let expected := match context.direction with
+        | Direction.up => CenterRelation.upContinuation
+        | Direction.down => CenterRelation.downContinuation
+      let componentCenters := (allCenters.drop startIndex).take (endIndex - startIndex + 1)
+      let chainIsTrend := (componentCenters.zip (componentCenters.drop 1)).all fun pair =>
+        decide (classifyCenterRelation pair.1 pair.2 = expected)
+      let startsAtBoundary : Bool :=
+        startIndex == 0 ||
+          match allCenters[startIndex - 1]?, allCenters[startIndex]? with
+          | some previous, some firstCenter => decide (classifyCenterRelation previous firstCenter ≠ expected)
+          | _, _ => false
+      let endsAtBoundary : Bool := match allCenters[endIndex]? with
+        | some endCenter => decide (classifyCenterRelation endCenter nextCenter ≠ expected)
+        | none => false
+      if chainIsTrend && startsAtBoundary && endsAtBoundary then
+        some
+          { direction := context.direction
+            centerIds := internal.centerIds
+            closingSuccessorMoveId := successor.id
+            confirmSrc := successor.endIndex }
+      else none
+  some
+    { trendContext := trendContext
+      newExtremeInDirection := newExtremeInDirection
+      internalSublevelCenters := internalSublevelCenters
+      completedTrendDecomposition := completedTrendDecomposition
+      decompositionReviewMoveId := decompositionReviewMoveId
+      decompositionReviewSrc := decompositionReviewSrc }
+
+def fullTrendQualificationFromFacts (centers : List CenterFrame) (bCenterIndex : Nat)
+    (bCenterId : ElementIdentity) (cpStructure : CpStructureIdentity) (third : ThirdClassInCp)
+    (unitMoves : List UnitMoveFact) : Option FullTrendCQualified := do
+  let evidence ← fullTrendQualificationEvidenceFromFacts centers bCenterIndex bCenterId cpStructure third unitMoves
+  let trendContext ← evidence.trendContext
+  let newExtreme ← evidence.newExtremeInDirection
+  let internalCenters ← evidence.internalSublevelCenters
+  let completedTrend ← evidence.completedTrendDecomposition
+  some
+    { trendContext := trendContext
+      thirdClassInsideC := third
+      newExtremeInDirection := newExtreme
+      internalSublevelCenters := internalCenters
+      completedTrendDecomposition := completedTrend
+      confirmSrc := max third.pointSourceIndex (max newExtreme.confirmSrc completedTrend.confirmSrc) }
+
+structure CpEventProjection where
+  cIntervalFull : Option Interval := none
+  bParent : Option ParentCenterIdentity := none
+  cStructure : Option CpStructureIdentity := none
+  thirdClassInC : Option ThirdClassInCp := none
+  fullTrendCQualified : Option FullTrendCQualified := none
+  fullTrendEvidence : Option FullTrendQualificationEvidence := none
+  cpOwnership : Option CandDeltaCpEdge := none
+deriving DecidableEq, Repr
+
+def recomputeCpEventProjection (input : EventRawInput) : CpEventProjection :=
+  match input.context.centers[input.centerIndex]? with
+  | none => {}
+  | some center =>
+      match input.context.cpScan.find? (fun scan =>
+          decide (scan.bCenterIndex = input.centerIndex ∧ scan.bCenter = center)) with
+      | none => {}
+      | some scan =>
+          let parent : ParentCenterIdentity :=
+            { centerIndex := scan.bCenterIndex
+              centerId := scan.bCenterId
+              sourceInterval := (scan.bCenter.startIndex, scan.bCenter.endIndex)
+              zd := scan.bCenter.zd
+              zg := scan.bCenter.zg }
+          match scan.departureMoveId, scan.departureInterval with
+          | some departureMoveId, some departureInterval =>
+              let eventEnd := (input.context.rows[input.segmentIndex]?).map
+                (fun row => row.endIndex) |>.getD 0
+              let third := firstThirdClass input.context input.centerIndex input.segmentIndex eventEnd
+                center scan departureMoveId departureInterval.1
+              let complete := input.predicate.value
+              let thirdInside :=
+                match third, input.context.unitMoves[input.segmentIndex]? with
+                | some value, some endMove =>
+                    decide (value.departureMoveId.level = departureMoveId.level ∧
+                      value.retestMoveId.level = departureMoveId.level ∧
+                      departureMoveId.ordinal ≤ value.departureMoveId.ordinal ∧
+                      value.departureMoveId.ordinal ≤ value.retestMoveId.ordinal ∧
+                      value.retestMoveId.ordinal ≤ endMove.id.ordinal)
+                | _, _ => false
+              let cEnd := if complete && thirdInside then third.map (fun value => value.retestInterval.2) else none
+              let terminalMoveId :=
+                if complete && thirdInside then third.map (fun value => value.retestMoveId) else none
+              let cpStructure : CpStructureIdentity :=
+                { level := input.level
+                  bCenterId := scan.bCenterId
+                  departureMoveId := departureMoveId
+                  terminalMoveId := terminalMoveId
+                  sourceStart := departureInterval.1
+                  sourceEnd := cEnd }
+              let visibleMoves := input.context.unitMoves.take (input.segmentIndex + 1)
+              let evidence := third.bind fun thirdValue =>
+                fullTrendQualificationEvidenceFromFacts input.context.centers input.centerIndex
+                  scan.bCenterId cpStructure thirdValue visibleMoves
+              let qualified := third.bind fun thirdValue =>
+                fullTrendQualificationFromFacts input.context.centers input.centerIndex scan.bCenterId
+                  cpStructure thirdValue visibleMoves
+              { cIntervalFull := cEnd.map (fun endIndex => (departureInterval.1, endIndex))
+                bParent := some parent
+                cStructure := some cpStructure
+                thirdClassInC := third
+                fullTrendCQualified := qualified
+                fullTrendEvidence := evidence
+                cpOwnership := if complete then some
+                  { bCenterId := scan.bCenterId, cpDepartureMoveId := departureMoveId
+                    cpSourceStart := departureInterval.1 } else none }
+          | _, _ => { bParent := some parent }
+
+def EventRawInput.toAssemblyInput (input : EventRawInput) : Option EventAssemblyInput := do
+  let center ← input.context.centers[input.centerIndex]?
+  let row ← input.context.rows[input.segmentIndex]?
+  let projection := match input.predicate.kind with
+    | CandDeltaKind.trend => recomputeCpEventProjection input
+    | CandDeltaKind.pan => {}
+  some
+    { level := input.level
+      side := input.side
+      divergenceConfirmSrc := input.divergenceConfirmSrc
+      aInterval := input.aInterval
+      center := center
+      departureDir := match input.side with | Side.long => Direction.down | Side.short => Direction.up
+      untilStart := row.startIndex
+      triggerEnd := row.endIndex
+      rows := input.context.rows
+      predicate := input.predicate
+      cIntervalFull := projection.cIntervalFull
+      bParent := projection.bParent
+      cStructure := projection.cStructure
+      thirdClassInC := projection.thirdClassInC
+      fullTrendCQualified := projection.fullTrendCQualified
+      fullTrendEvidence := projection.fullTrendEvidence
+      cpOwnership := projection.cpOwnership
+      panDivDiag := input.panDivDiag }
+
 /-- 生产 CandDeltaEvent 的 19 个顶层字段，逐字段镜像。 -/
 structure CandDeltaEvent where
   level : Nat
@@ -984,6 +1313,8 @@ deriving DecidableEq, Repr
 
 /-- closure 之前可见的原始相邻单元证据。不存在 `closureWitness : Bool`。 -/
 structure CpClosureEvidence where
+  context : EventRawContext
+  visibleUnitMoveCount : Nat
   cpDepartureMoveId : ElementIdentity
   cpStart : Nat
   leave : SegmentRow
@@ -991,8 +1322,6 @@ structure CpClosureEvidence where
   leaveAnchor : Option Direction
   leaveMoveId : ElementIdentity
   retestMoveId : ElementIdentity
-  fullTrendEvidence : Option FullTrendQualificationEvidence
-  fullTrendCQualified : Option FullTrendCQualified
 deriving DecidableEq, Repr
 
 /--
@@ -1002,6 +1331,8 @@ deriving DecidableEq, Repr
 def CpClosureEligible (before : CpObject) (raw : CpClosureEvidence) : Prop :=
   before.departureMoveId = some raw.cpDepartureMoveId ∧
   before.departureInterval.map Prod.fst = some raw.cpStart ∧
+  raw.context.centers[before.bCenterIndex]? = some before.bCenter ∧
+  nearestConfirmedCenterIndex raw.context.centers raw.leave.startIndex = some before.bCenterIndex ∧
   raw.cpStart ≤ raw.leave.startIndex ∧
   raw.leaveMoveId.level = raw.cpDepartureMoveId.level ∧
   raw.retestMoveId.level = raw.cpDepartureMoveId.level ∧
@@ -1038,16 +1369,20 @@ def thirdClassFromClosure (before : CpObject) (raw : CpClosureEvidence) : Option
 def closeCpFromRaw (before : CpObject) (raw : CpClosureEvidence) : CpObject :=
   match before.lifecycle, thirdClassFromClosure before raw with
   | CpLifecycle.pending, some third =>
+      let cpStructure : CpStructureIdentity :=
+        { level := raw.cpDepartureMoveId.level, bCenterId := before.bCenterId
+          departureMoveId := raw.cpDepartureMoveId, terminalMoveId := some raw.retestMoveId
+          sourceStart := raw.cpStart, sourceEnd := some raw.retest.endIndex }
+      let visibleMoves := raw.context.unitMoves.take raw.visibleUnitMoveCount
       { before with
           lifecycle := CpLifecycle.closed
           cpCertificateConfirmSrc := some third.pointSourceIndex
-          cStructure := some
-            { level := raw.cpDepartureMoveId.level, bCenterId := before.bCenterId
-              departureMoveId := raw.cpDepartureMoveId, terminalMoveId := some raw.retestMoveId
-              sourceStart := raw.cpStart, sourceEnd := some raw.retest.endIndex }
+          cStructure := some cpStructure
           thirdClassInC := some third
-          fullTrendEvidence := raw.fullTrendEvidence
-          fullTrendCQualified := raw.fullTrendCQualified }
+          fullTrendEvidence := fullTrendQualificationEvidenceFromFacts raw.context.centers
+            before.bCenterIndex before.bCenterId cpStructure third visibleMoves
+          fullTrendCQualified := fullTrendQualificationFromFacts raw.context.centers
+            before.bCenterIndex before.bCenterId cpStructure third visibleMoves }
   | _, _ => before
 
 /--

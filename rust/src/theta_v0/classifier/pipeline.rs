@@ -1314,7 +1314,9 @@ fn classify_incremental_inner(
                         &l0.segments,
                         None,
                         None,
+                        #[cfg(feature = "issue1087_parity")]
                         &lc.cp_ownership,
+                        #[cfg(feature = "issue1087_parity")]
                         &tower_snapshots[level_idx],
                         &moves,
                         prefix_count,
@@ -1360,7 +1362,9 @@ fn classify_incremental_inner(
                         &segs,
                         Some(&structural_anchors),
                         Some(&departure_ends),
+                        #[cfg(feature = "issue1087_parity")]
                         &lc.cp_ownership,
+                        #[cfg(feature = "issue1087_parity")]
                         &tower_snapshots[level_idx],
                         &moves,
                         prefix_count,

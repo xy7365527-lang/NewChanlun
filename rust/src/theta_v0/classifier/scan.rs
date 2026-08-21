@@ -45,11 +45,10 @@ pub(crate) mod issue1087_probe {
     use super::super::cand_event::{
         CandidateKey, CandidateKind, ObservedState, ParentFingerprint, StructuralPredicates,
     };
+    use super::super::descend::RMove;
     use super::super::divergence::{ForceFeatures, ForceProxies};
     use super::super::recursive_tower::{
-        cp_event_objects, level_cand_delta, CandDeltaCpEdge, CandDeltaEvent, CpScanOwnership,
-        CpStructureIdentity, FullTrendCQualified, FullTrendQualificationEvidence,
-        ParentCenterIdentity, ThirdClassInCp,
+        level_cand_delta, CandDeltaEvent, CpScanOwnership, ElementId,
     };
     use super::super::signal::{T3InCGrade, T3InCGradeReason};
     use super::*;
@@ -669,6 +668,36 @@ pub(crate) mod issue1087_probe {
         pub a_segments: Vec<Option<WireASegmentEnvelope>>,
     }
 
+    /// `cp_event_objects` 所需的 c_p 扫描基础事实；故意不携带成品事件投影。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireCpScanBase {
+        pub b_center_index: usize,
+        pub b_center_id: ElementId,
+        pub b_center: WireCenter,
+        pub departure_move_id: Option<ElementId>,
+        pub departure_interval: Option<WireInterval>,
+    }
+
+    /// `LeveledMove` 的低层几何/分解事实；`center` 仅为 Compose 末位中枢。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireUnitMoveFact {
+        pub id: ElementId,
+        pub start_index: usize,
+        pub end_index: usize,
+        pub low: Tick,
+        pub high: Tick,
+        pub center: Option<WireCenter>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct WireEventRawContext {
+        pub centers: Vec<WireCenter>,
+        pub rows: Vec<WireSegmentRow>,
+        pub anchors: Vec<Option<WireDirection>>,
+        pub cp_scan: Vec<WireCpScanBase>,
+        pub unit_moves: Vec<WireUnitMoveFact>,
+    }
+
     /// event 之前的 raw 判据输入 + Rust 生产事件（被检侧）。accepted 不在 wire 中。
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct WireCandDeltaCase {
@@ -676,10 +705,8 @@ pub(crate) mod issue1087_probe {
         pub side: WireSide,
         pub divergence_confirm_src: usize,
         pub a_interval: WireInterval,
-        pub center: WireCenter,
-        pub departure_dir: WireDirection,
-        pub until_start: usize,
-        pub trigger_end: usize,
+        pub center_index: usize,
+        pub segment_index: usize,
         pub structural_candidate: bool,
         pub direction: bool,
         pub comparable: bool,
@@ -687,18 +714,12 @@ pub(crate) mod issue1087_probe {
         pub buy1: bool,
         pub sell1: bool,
         pub pan_diverges: bool,
-        pub c_interval_full: Option<(usize, usize)>,
-        pub b_parent: Option<ParentCenterIdentity>,
-        pub c_structure: Option<CpStructureIdentity>,
-        pub third_class_in_c: Option<ThirdClassInCp>,
-        pub full_trend_c_qualified: Option<FullTrendCQualified>,
-        pub full_trend_evidence: Option<FullTrendQualificationEvidence>,
-        pub cp_ownership: Option<CandDeltaCpEdge>,
         pub pan_div_diag: bool,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct WireCpClosureEvidence {
+        pub visible_unit_move_count: usize,
         pub cp_departure_move_id: super::super::recursive_tower::ElementId,
         pub cp_start: usize,
         pub leave: Segment,
@@ -706,8 +727,6 @@ pub(crate) mod issue1087_probe {
         pub leave_anchor: Option<Direction>,
         pub leave_move_id: super::super::recursive_tower::ElementId,
         pub retest_move_id: super::super::recursive_tower::ElementId,
-        pub full_trend_evidence: Option<FullTrendQualificationEvidence>,
-        pub full_trend_c_qualified: Option<FullTrendCQualified>,
     }
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct WireCpTransition {
@@ -725,12 +744,14 @@ pub(crate) mod issue1087_probe {
         pub emissions: Vec<WireScanSinkEmission>,
         pub prelude_input: WirePreludeInput,
         pub prelude_output: WirePreludeOutput,
+        /// CandDelta cases 共享的 raw 低层上下文。
+        pub event_context: WireEventRawContext,
         pub rows: Vec<WireSegmentRow>,
         pub episode_cases: Vec<EpisodeCase>,
         pub cand_delta_cases: Vec<WireCandDeltaCase>,
         /// Rust 生产 event 的完整列表；Lean 列表级门与 raw cases 做 fail-closed 双射。
         pub cand_delta_events: Vec<CandDeltaEvent>,
-        /// 每窗只在首条 level record 携带全塔 stable-revision 生命周期转移，避免重复 fixture。
+        /// 本 level 的 stable-revision 生命周期转移；raw 复用同 record 上下文。
         pub cp_transitions: Vec<WireCpTransition>,
     }
     static ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -752,8 +773,14 @@ pub(crate) mod issue1087_probe {
                 .lock()
                 .expect("#1087 cp probe mutex poisoned"),
         );
-        if let Some(first) = records.first_mut() {
-            first.cp_transitions = transitions;
+        for transition in transitions {
+            let level = transition.raw.cp_departure_move_id.level;
+            records
+                .iter_mut()
+                .find(|record| record.level == level)
+                .unwrap_or_else(|| panic!("#1087 cp transition 缺 L{level} raw context"))
+                .cp_transitions
+                .push(transition);
         }
         records
     }
@@ -769,8 +796,7 @@ pub(crate) mod issue1087_probe {
         leave_anchor: Option<Direction>,
         leave_move_id: super::super::recursive_tower::ElementId,
         retest_move_id: super::super::recursive_tower::ElementId,
-        full_trend_evidence: Option<FullTrendQualificationEvidence>,
-        full_trend_c_qualified: Option<FullTrendCQualified>,
+        visible_unit_move_count: usize,
     ) {
         if !ACTIVE.load(Ordering::SeqCst) {
             return;
@@ -782,6 +808,7 @@ pub(crate) mod issue1087_probe {
                 before: before.clone(),
                 after: after.clone(),
                 raw: WireCpClosureEvidence {
+                    visible_unit_move_count,
                     cp_departure_move_id,
                     cp_start,
                     leave: leave.clone(),
@@ -789,8 +816,6 @@ pub(crate) mod issue1087_probe {
                     leave_anchor,
                     leave_move_id,
                     retest_move_id,
-                    full_trend_evidence,
-                    full_trend_c_qualified,
                 },
             });
     }
@@ -920,6 +945,39 @@ pub(crate) mod issue1087_probe {
             first_match_idx,
             a_segments,
         };
+        let event_context = WireEventRawContext {
+            centers: prelude_input.centers.clone(),
+            rows: rows.clone(),
+            anchors: anchors.iter().map(|value| value.map(Into::into)).collect(),
+            cp_scan: cp_scan
+                .iter()
+                .map(|scan| WireCpScanBase {
+                    b_center_index: scan.b_center_index,
+                    b_center_id: scan.b_center_id,
+                    b_center: scan.b_center.into(),
+                    departure_move_id: scan.departure_move_id,
+                    departure_interval: scan.departure_interval.map(Into::into),
+                })
+                .collect(),
+            unit_moves: unit_moves
+                .iter()
+                .map(|movement| {
+                    let (low, high) = movement.envelope();
+                    let center = match &movement.rmove {
+                        RMove::Compose { centers, .. } => centers.last().copied().map(Into::into),
+                        RMove::Segment { .. } => None,
+                    };
+                    WireUnitMoveFact {
+                        id: movement.id,
+                        start_index: movement.start_index,
+                        end_index: movement.end_index,
+                        low,
+                        high,
+                        center,
+                    }
+                })
+                .collect(),
+        };
 
         // event 之前的 raw Trend 腿是验收输入；Rust CandDeltaEvent 只作为被检侧。
         let cand_events = level_cand_delta(
@@ -955,10 +1013,6 @@ pub(crate) mod issue1087_probe {
                     WireSide::Long => Side::Long,
                     WireSide::Short => Side::Short,
                 };
-                let departure_dir = match side {
-                    Side::Long => Direction::Down,
-                    Side::Short => Direction::Up,
-                };
                 let divergence_confirm_src = departure_ends
                     .and_then(|values| values.get(segment_index).copied())
                     .unwrap_or(segment.end_index);
@@ -969,33 +1023,6 @@ pub(crate) mod issue1087_probe {
                 });
                 let buy1 = point.is_some_and(|point| point.bits.buy1);
                 let sell1 = point.is_some_and(|point| point.bits.sell1);
-                let accepted = leg.structural_predicates.direction
-                    && leg.structural_predicates.comparable
-                    && leg.structural_predicates.extreme;
-                let (
-                    b_parent,
-                    c_structure,
-                    third_class_in_c,
-                    cp_ownership,
-                    c_interval_full,
-                    full_trend_evidence,
-                    full_trend_c_qualified,
-                ) = if accepted {
-                    cp_event_objects(
-                        level,
-                        centers,
-                        cp_scan,
-                        segments,
-                        anchors,
-                        unit_moves,
-                        center_index,
-                        segment_index,
-                        segment.end_index,
-                        buy1 || sell1,
-                    )
-                } else {
-                    (None, None, None, None, None, None, None)
-                };
                 // level_cand_delta 的事件侧车按完整 consolidation ownership 诊断，
                 // 不套 merged 四输出的 lift==0 投影门。
                 let kind_consol = any_event_consol
@@ -1016,10 +1043,8 @@ pub(crate) mod issue1087_probe {
                     side: leg.key.side,
                     divergence_confirm_src,
                     a_interval: leg.key.seg_a,
-                    center: (*center).into(),
-                    departure_dir: departure_dir.into(),
-                    until_start: segment.start_index,
-                    trigger_end: segment.end_index,
+                    center_index,
+                    segment_index,
                     structural_candidate: true,
                     direction: leg.structural_predicates.direction,
                     comparable: leg.structural_predicates.comparable,
@@ -1027,19 +1052,12 @@ pub(crate) mod issue1087_probe {
                     buy1,
                     sell1,
                     pan_diverges: false,
-                    c_interval_full,
-                    b_parent,
-                    c_structure,
-                    third_class_in_c,
-                    full_trend_c_qualified,
-                    full_trend_evidence,
-                    cp_ownership,
                     pan_div_diag,
                 })
             })
             .collect();
         // Pan 诊断事件也从 event 前的 observation 判据输入枚举；不得只遍历已产 event。
-        for segment in segments {
+        for (segment_index, segment) in segments.iter().enumerate() {
             let Some(center_index) =
                 signal::nearest_confirmed_center_idx(centers, segment.start_index)
             else {
@@ -1063,19 +1081,13 @@ pub(crate) mod issue1087_probe {
             ) else {
                 continue;
             };
-            let departure_dir = match cert.side {
-                Side::Long => Direction::Down,
-                Side::Short => Direction::Up,
-            };
             cand_delta_cases.push(WireCandDeltaCase {
                 kind: WireCandidateKind::Pan,
                 side: cert.side.into(),
                 divergence_confirm_src: cert.source_index,
                 a_interval: cert.seg_a.into(),
-                center: (*center).into(),
-                departure_dir: departure_dir.into(),
-                until_start: segment.start_index,
-                trigger_end: segment.end_index,
+                center_index,
+                segment_index,
                 structural_candidate: true,
                 direction: true,
                 comparable: true,
@@ -1083,13 +1095,6 @@ pub(crate) mod issue1087_probe {
                 buy1: false,
                 sell1: false,
                 pan_diverges: true,
-                c_interval_full: None,
-                b_parent: None,
-                c_structure: None,
-                third_class_in_c: None,
-                full_trend_c_qualified: None,
-                full_trend_evidence: None,
-                cp_ownership: None,
                 pan_div_diag: true,
             });
         }
@@ -1103,6 +1108,7 @@ pub(crate) mod issue1087_probe {
                 emissions,
                 prelude_input,
                 prelude_output,
+                event_context,
                 rows,
                 episode_cases,
                 cand_delta_cases,
@@ -1225,8 +1231,8 @@ pub(crate) fn merged_scan_resume(
     segments: &[Segment],
     anchor_dirs: Option<&[Option<Direction>]>,
     departure_ends: Option<&[usize]>,
-    cp_scan: &[super::recursive_tower::CpScanOwnership],
-    unit_moves: &[super::recursive_tower::LeveledMove],
+    #[cfg(feature = "issue1087_parity")] cp_scan: &[super::recursive_tower::CpScanOwnership],
+    #[cfg(feature = "issue1087_parity")] unit_moves: &[super::recursive_tower::LeveledMove],
     blocks: &[MoveBlock],
     prefix_count: usize,
     dirty_e: usize,

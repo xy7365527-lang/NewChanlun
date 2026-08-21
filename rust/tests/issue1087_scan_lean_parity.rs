@@ -611,6 +611,43 @@ fn prelude_output(value: &issue1087_parity::WirePreludeOutput) -> String {
     )
 }
 
+fn cp_scan_base(value: &issue1087_parity::WireCpScanBase) -> String {
+    format!(
+        "{{ bCenterIndex := {}, bCenterId := {}, bCenter := {}, departureMoveId := {}, departureInterval := {} }}",
+        value.b_center_index,
+        element_id(&value.b_center_id),
+        center(&value.b_center),
+        option(&value.departure_move_id, element_id),
+        option(&value.departure_interval, |value| interval(value, true))
+    )
+}
+
+fn unit_move_fact(value: &issue1087_parity::WireUnitMoveFact) -> String {
+    format!(
+        "{{ id := {}, startIndex := {}, endIndex := {}, low := {}, high := {}, center := {} }}",
+        element_id(&value.id),
+        value.start_index,
+        value.end_index,
+        value.low,
+        value.high,
+        option(&value.center, center)
+    )
+}
+
+fn event_raw_context(value: &issue1087_parity::WireEventRawContext) -> String {
+    format!(
+        "{{ centers := {}, rows := {}, anchors := {}, cpScan := {}, unitMoves := {} }}",
+        list(&value.centers, center),
+        list(&value.rows, segment_extraction),
+        list(&value.anchors, |entry| option(entry, |direction| rust_dir(
+            *direction
+        )
+        .to_string())),
+        list(&value.cp_scan, cp_scan_base),
+        list(&value.unit_moves, unit_move_fact)
+    )
+}
+
 fn actual_direction(value: Direction) -> &'static str {
     match value {
         Direction::Up => "RustDirectionTag.up",
@@ -818,9 +855,10 @@ fn cp_object(value: &CpScanOwnership) -> String {
     )
 }
 
-fn cp_closure(value: &issue1087_parity::WireCpClosureEvidence) -> String {
+fn cp_closure(value: &issue1087_parity::WireCpClosureEvidence, context_name: &str) -> String {
     format!(
-        "{{ cpDepartureMoveId := {}, cpStart := {}, leave := {}, retest := {}, leaveAnchor := {}, leaveMoveId := {}, retestMoveId := {}, fullTrendEvidence := {}, fullTrendCQualified := {} }}",
+        "{{ context := {context_name}, visibleUnitMoveCount := {}, cpDepartureMoveId := {}, cpStart := {}, leave := {}, retest := {}, leaveAnchor := {}, leaveMoveId := {}, retestMoveId := {} }}",
+        value.visible_unit_move_count,
         element_id(&value.cp_departure_move_id),
         value.cp_start,
         actual_segment(&value.leave),
@@ -828,8 +866,6 @@ fn cp_closure(value: &issue1087_parity::WireCpClosureEvidence) -> String {
         option(&value.leave_anchor, |value| actual_direction(*value).to_string()),
         element_id(&value.leave_move_id),
         element_id(&value.retest_move_id),
-        option(&value.full_trend_evidence, full_trend_evidence),
-        option(&value.full_trend_c_qualified, full_trend_qualified)
     )
 }
 
@@ -847,6 +883,12 @@ fn write_fixture(path: &Path, records: &[issue1087_parity::ScanParityRecord]) {
             out,
             "def rustPrelude{record_index} : RustPreludeOutputExtraction := {}",
             prelude_output(&record.prelude_output)
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "def candContext{record_index} : RustEventRawContextExtraction := {}",
+            event_raw_context(&record.event_context)
         )
         .unwrap();
         writeln!(
@@ -913,19 +955,12 @@ fn write_fixture(path: &Path, records: &[issue1087_parity::ScanParityRecord]) {
                 issue1087_parity::WireCandidateKind::Trend => "RustCandDeltaKindTag.trend",
                 issue1087_parity::WireCandidateKind::Pan => "RustCandDeltaKindTag.pan",
             };
-            writeln!(out, "def candInput{record_index}_{case_index} : RustAssemblyInputExtraction := {{ level := {}, side := {}, divergenceConfirmSrc := {}, aIntervalLeft := {}, aIntervalRight := {}, center := {}, departureDir := {}, untilStart := {}, triggerEnd := {}, rows := preludeInput{record_index}.rows, predicate := {{ kind := {}, structuralCandidate := {}, direction := {}, comparable := {}, extreme := {}, buy1 := {}, sell1 := {}, panDiverges := {} }}, cIntervalFull := {}, bParent := {}, cStructure := {}, thirdClassInC := {}, fullTrendCQualified := {}, fullTrendEvidence := {}, cpOwnership := {}, panDivDiag := {} }}",
+            writeln!(out, "def candInput{record_index}_{case_index} : RustAssemblyInputExtraction := {{ context := candContext{record_index}, centerIndex := {}, segmentIndex := {}, level := {}, side := {}, divergenceConfirmSrc := {}, aIntervalLeft := {}, aIntervalRight := {}, predicate := {{ kind := {}, structuralCandidate := {}, direction := {}, comparable := {}, extreme := {}, buy1 := {}, sell1 := {}, panDiverges := {} }}, panDivDiag := {} }}",
+                case.center_index, case.segment_index,
                 record.level, side(case.side, true), case.divergence_confirm_src,
-                case.a_interval.left, case.a_interval.right, center(&case.center), rust_dir(case.departure_dir),
-                case.until_start, case.trigger_end, event_kind, case.structural_candidate,
+                case.a_interval.left, case.a_interval.right, event_kind, case.structural_candidate,
                 case.direction, case.comparable, case.extreme, case.buy1, case.sell1,
                 case.pan_diverges,
-                option(&case.c_interval_full, |value| format!("{{ left := {}, right := {} }}", value.0, value.1)),
-                option(&case.b_parent, parent_center_identity),
-                option(&case.c_structure, cp_structure_identity),
-                option(&case.third_class_in_c, third_class_in_cp),
-                option(&case.full_trend_c_qualified, full_trend_qualified),
-                option(&case.full_trend_evidence, full_trend_evidence),
-                option(&case.cp_ownership, cp_edge),
                 case.pan_div_diag).unwrap();
         }
         write!(
@@ -948,7 +983,7 @@ fn write_fixture(path: &Path, records: &[issue1087_parity::ScanParityRecord]) {
         writeln!(out, "]").unwrap();
         writeln!(
             out,
-            "example : EventBijectionCheck candInputs{record_index} candEvents{record_index} := by native_decide"
+            "example : EventBijectionCoreCheck candInputs{record_index} candEvents{record_index} := by native_decide"
         )
         .unwrap();
 
@@ -968,12 +1003,31 @@ fn write_fixture(path: &Path, records: &[issue1087_parity::ScanParityRecord]) {
             writeln!(
                 out,
                 "def cpRaw{record_index}_{transition_index} : RustCpClosureEvidenceExtraction := {}",
-                cp_closure(&transition.raw)
+                cp_closure(&transition.raw, &format!("candContext{record_index}"))
             )
             .unwrap();
             writeln!(out, "example : RecomputeCpClosureCheck cpBefore{record_index}_{transition_index} cpAfter{record_index}_{transition_index} cpRaw{record_index}_{transition_index} := by native_decide").unwrap();
         }
     }
+    write!(
+        out,
+        "def allCandInputs : List RustAssemblyInputExtraction := "
+    )
+    .unwrap();
+    for record_index in 0..records.len() {
+        write!(out, "candInputs{record_index} ++ ").unwrap();
+    }
+    writeln!(out, "[]").unwrap();
+    write!(out, "def allCandEvents : List RustEventExtraction := ").unwrap();
+    for record_index in 0..records.len() {
+        write!(out, "candEvents{record_index} ++ ").unwrap();
+    }
+    writeln!(out, "[]").unwrap();
+    writeln!(
+        out,
+        "example : EventBijectionCheck allCandInputs allCandEvents := by native_decide"
+    )
+    .unwrap();
     writeln!(out, "end Issue1087Generated").unwrap();
 }
 
@@ -998,6 +1052,28 @@ fn equs_mini_root() -> PathBuf {
         .join("analysis/data_cache/equs_mini")
 }
 
+fn cand_case_is_accepted(case: &issue1087_parity::WireCandDeltaCase) -> bool {
+    match case.kind {
+        issue1087_parity::WireCandidateKind::Trend => {
+            case.structural_candidate && case.direction && case.comparable && case.extreme
+        }
+        issue1087_parity::WireCandidateKind::Pan => case.structural_candidate && case.pan_diverges,
+    }
+}
+
+fn stage_event_domain_counts(records: &[issue1087_parity::ScanParityRecord]) -> (usize, usize) {
+    let accepted_raw = records
+        .iter()
+        .flat_map(|record| &record.cand_delta_cases)
+        .filter(|case| cand_case_is_accepted(case))
+        .count();
+    let production_events = records
+        .iter()
+        .map(|record| record.cand_delta_events.len())
+        .sum();
+    (accepted_raw, production_events)
+}
+
 fn verify_records_in_lean(
     formal: &Path,
     window: WindowSpec,
@@ -1014,6 +1090,15 @@ fn verify_records_in_lean(
         "{window:?} {stage} 每级必须恰一份快照"
     );
     assert_complete_level_ladder(window, stage, &levels);
+    let (accepted_raw, production_events) = stage_event_domain_counts(records);
+    assert!(
+        accepted_raw > 0,
+        "{window:?} {stage} 必须至少有一个 Lean 可接受 raw，实际 0"
+    );
+    assert!(
+        production_events > 0,
+        "{window:?} {stage} 必须至少有一个 production event，实际 0"
+    );
     for record in records {
         assert!(
             !record.prelude_input.rows.is_empty(),
@@ -1120,6 +1205,7 @@ fn three_real_windows_recompute_in_lean_and_match_every_field() {
             let _ = classifier::classify_incremental(&layer, &config, &mut cache, &[]);
             let records = issue1087_parity::finish();
             verify_records_in_lean(&formal, window, stage, &records);
+            let (accepted_raw, production_events) = stage_event_domain_counts(&records);
 
             saw_cand |= records
                 .iter()
@@ -1127,12 +1213,7 @@ fn three_real_windows_recompute_in_lean_and_match_every_field() {
             saw_rejected |= records
                 .iter()
                 .flat_map(|record| &record.cand_delta_cases)
-                .any(|case| {
-                    !(case.structural_candidate
-                        && case.direction
-                        && case.comparable
-                        && case.extreme)
-                });
+                .any(|case| !cand_case_is_accepted(case));
             saw_cp_close |= records
                 .iter()
                 .flat_map(|record| &record.cp_transitions)
@@ -1141,7 +1222,7 @@ fn three_real_windows_recompute_in_lean_and_match_every_field() {
                         && transition.after.lifecycle == CpLifecycleStatus::Closed
                 });
             eprintln!(
-                "#1087 {} stage={} prefix={} levels={} cand_cases={} rejected={} cp_closed={} PASS",
+                "#1087 {} stage={} prefix={} levels={} cand_cases={} accepted_raw={} production_events={} rejected={} cp_closed={} PASS",
                 window.symbol,
                 stage,
                 prefix,
@@ -1150,15 +1231,12 @@ fn three_real_windows_recompute_in_lean_and_match_every_field() {
                     .iter()
                     .map(|record| record.cand_delta_cases.len())
                     .sum::<usize>(),
+                accepted_raw,
+                production_events,
                 records
                     .iter()
                     .flat_map(|record| &record.cand_delta_cases)
-                    .filter(|case| {
-                        !(case.structural_candidate
-                            && case.direction
-                            && case.comparable
-                            && case.extreme)
-                    })
+                    .filter(|case| !cand_case_is_accepted(case))
                     .count(),
                 records
                     .iter()

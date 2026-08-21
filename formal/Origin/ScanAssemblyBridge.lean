@@ -344,6 +344,55 @@ def RustCandDeltaCpEdgeExtraction.toLean (value : RustCandDeltaCpEdgeExtraction)
   { bCenterId := value.bCenterId.toLean, cpDepartureMoveId := value.cpDepartureMoveId.toLean
     cpSourceStart := value.cpSourceStart }
 
+/-- c_p 扫描的低层基础事实；不得携带事件投影或趋势资格成品。 -/
+structure RustCpScanBaseExtraction where
+  bCenterIndex : Nat
+  bCenterId : RustElementIdentityExtraction
+  bCenter : RustCenterExtraction
+  departureMoveId : Option RustElementIdentityExtraction
+  departureInterval : Option RustIntervalExtraction
+deriving DecidableEq, Repr
+
+def RustCpScanBaseExtraction.toLean (value : RustCpScanBaseExtraction) : CpScanBase :=
+  { bCenterIndex := value.bCenterIndex
+    bCenterId := value.bCenterId.toLean
+    bCenter := value.bCenter.toLean
+    departureMoveId := value.departureMoveId.map RustElementIdentityExtraction.toLean
+    departureInterval := value.departureInterval.map RustIntervalExtraction.toLean }
+
+/-- `LeveledMove` 对验收可见的低层几何/分解事实。 -/
+structure RustUnitMoveFactExtraction where
+  id : RustElementIdentityExtraction
+  startIndex : Nat
+  endIndex : Nat
+  low : Int
+  high : Int
+  center : Option RustCenterExtraction
+deriving DecidableEq, Repr
+
+def RustUnitMoveFactExtraction.toLean (value : RustUnitMoveFactExtraction) : UnitMoveFact :=
+  { id := value.id.toLean
+    startIndex := value.startIndex
+    endIndex := value.endIndex
+    low := value.low
+    high := value.high
+    center := value.center.map RustCenterExtraction.toLean }
+
+structure RustEventRawContextExtraction where
+  centers : List RustCenterExtraction
+  rows : List RustSegmentExtraction
+  anchors : List (Option RustDirectionTag)
+  cpScan : List RustCpScanBaseExtraction
+  unitMoves : List RustUnitMoveFactExtraction
+deriving DecidableEq, Repr
+
+def RustEventRawContextExtraction.toLean (value : RustEventRawContextExtraction) : EventRawContext :=
+  { centers := value.centers.map RustCenterExtraction.toLean
+    rows := value.rows.map RustSegmentExtraction.toLean
+    anchors := value.anchors.map (Option.map RustDirectionTag.toLean)
+    cpScan := value.cpScan.map RustCpScanBaseExtraction.toLean
+    unitMoves := value.unitMoves.map RustUnitMoveFactExtraction.toLean }
+
 structure RustPredicateExtraction where
   kind : RustCandDeltaKindTag
   structuralCandidate : Bool
@@ -361,42 +410,30 @@ def RustPredicateExtraction.toLean (facts : RustPredicateExtraction) : CandDelta
     buy1 := facts.buy1, sell1 := facts.sell1, panDiverges := facts.panDiverges }
 
 structure RustAssemblyInputExtraction where
+  context : RustEventRawContextExtraction
+  centerIndex : Nat
+  segmentIndex : Nat
   level : Nat
   side : RustSideTag
   divergenceConfirmSrc : Nat
   aIntervalLeft : Nat
   aIntervalRight : Nat
-  center : RustCenterExtraction
-  departureDir : RustDirectionTag
-  untilStart : Nat
-  triggerEnd : Nat
-  rows : List RustSegmentExtraction
   predicate : RustPredicateExtraction
-  cIntervalFull : Option RustIntervalExtraction
-  bParent : Option RustParentCenterIdentityExtraction
-  cStructure : Option RustCpStructureIdentityExtraction
-  thirdClassInC : Option RustThirdClassInCpExtraction
-  fullTrendCQualified : Option RustFullTrendQualifiedExtraction
-  fullTrendEvidence : Option RustFullTrendEvidenceExtraction
-  cpOwnership : Option RustCandDeltaCpEdgeExtraction
   panDivDiag : Bool
 deriving DecidableEq, Repr
 
-def RustAssemblyInputExtraction.toLean (input : RustAssemblyInputExtraction) : EventAssemblyInput :=
-  { level := input.level, side := input.side.toLean
+def RustAssemblyInputExtraction.toLean (input : RustAssemblyInputExtraction) : EventRawInput :=
+  { context := input.context.toLean
+    centerIndex := input.centerIndex
+    segmentIndex := input.segmentIndex
+    level := input.level, side := input.side.toLean
     divergenceConfirmSrc := input.divergenceConfirmSrc
     aInterval := { left := input.aIntervalLeft, right := input.aIntervalRight }
-    center := input.center.toLean, departureDir := input.departureDir.toLean
-    untilStart := input.untilStart, triggerEnd := input.triggerEnd
-    rows := input.rows.map RustSegmentExtraction.toLean, predicate := input.predicate.toLean
-    cIntervalFull := input.cIntervalFull.map RustIntervalExtraction.toLean
-    bParent := input.bParent.map RustParentCenterIdentityExtraction.toLean
-    cStructure := input.cStructure.map RustCpStructureIdentityExtraction.toLean
-    thirdClassInC := input.thirdClassInC.map RustThirdClassInCpExtraction.toLean
-    fullTrendCQualified := input.fullTrendCQualified.map RustFullTrendQualifiedExtraction.toLean
-    fullTrendEvidence := input.fullTrendEvidence.map RustFullTrendEvidenceExtraction.toLean
-    cpOwnership := input.cpOwnership.map RustCandDeltaCpEdgeExtraction.toLean
+    predicate := input.predicate.toLean
     panDivDiag := input.panDivDiag }
+
+def assembleRustInput (input : RustAssemblyInputExtraction) : Option CandDeltaEvent :=
+  input.toLean.toAssemblyInput.bind assembleCandDelta
 
 structure RustEventExtraction where
   level : Nat
@@ -450,14 +487,14 @@ instance eventParityDecidable (rust : RustEventExtraction) (lean : CandDeltaEven
 /-- raw 判据由 Lean 决定产/拒；Rust 事件只在右侧作为被检输出。 -/
 def EventCheck (rustInput : RustAssemblyInputExtraction)
     (rustEvent : Option RustEventExtraction) : Prop :=
-  match rustEvent, assembleCandDelta rustInput.toLean with
+  match rustEvent, assembleRustInput rustInput with
   | none, none => True
   | some rust, some lean => EventParity rust lean
   | _, _ => False
 
 instance eventCheckDecidable (rustInput : RustAssemblyInputExtraction)
     (rustEvent : Option RustEventExtraction) : Decidable (EventCheck rustInput rustEvent) := by
-  cases rustEvent <;> cases hLean : assembleCandDelta rustInput.toLean <;>
+  cases rustEvent <;> cases hLean : assembleRustInput rustInput <;>
     simp only [EventCheck, hLean] <;> infer_instance
 
 /-- rejected raw case 的结构槽；判据真假不参与，防止 event 被另一 accepted case 消费后假绿。 -/
@@ -467,13 +504,16 @@ def sameRawEventSlot (input : RustAssemblyInputExtraction) (rust : RustEventExtr
     rust.divergenceConfirmSrc == input.divergenceConfirmSrc &&
     rust.confirmSrc == input.divergenceConfirmSrc &&
     rust.aIntervalLeft == input.aIntervalLeft && rust.aIntervalRight == input.aIntervalRight
-  match episodeBounds input.toLean.rows input.toLean.center input.toLean.departureDir
-      input.untilStart input.triggerEnd with
-  | some bounds =>
-      basic && rust.intervalLeft == bounds.left && rust.intervalRight == bounds.right &&
-      rust.cEpisodeStart == bounds.left && rust.cEpisodeLeft == bounds.left &&
-      rust.cEpisodeRight == bounds.right && rust.enterSrc == bounds.left
-  | none => basic && rust.intervalRight == input.triggerEnd
+  match input.toLean.toAssemblyInput with
+  | some leanInput =>
+      match episodeBounds leanInput.rows leanInput.center leanInput.departureDir
+          leanInput.untilStart leanInput.triggerEnd with
+      | some bounds =>
+          basic && rust.intervalLeft == bounds.left && rust.intervalRight == bounds.right &&
+          rust.cEpisodeStart == bounds.left && rust.cEpisodeLeft == bounds.left &&
+          rust.cEpisodeRight == bounds.right && rust.enterSrc == bounds.left
+      | none => basic && rust.intervalRight == leanInput.triggerEnd
+  | none => false
 
 /-- 从生产 event 列表中恰好消费一个与 Lean 重算 event 全字段相等的元素。 -/
 def consumeEvent (expected : CandDeltaEvent) :
@@ -487,7 +527,7 @@ def consumeEvent (expected : CandDeltaEvent) :
 def rejectedRawCasesHaveNoEvents (inputs : List RustAssemblyInputExtraction)
     (rustEvents : List RustEventExtraction) : Bool :=
   inputs.all fun input =>
-    match assembleCandDelta input.toLean with
+    match assembleRustInput input with
     | none => !(rustEvents.any (sameRawEventSlot input))
     | some _ => true
 
@@ -499,7 +539,7 @@ def eventBijectionCheckBool :
     List RustAssemblyInputExtraction → List RustEventExtraction → Bool
   | [], rustEvents => rustEvents.isEmpty
   | input :: inputRest, rustEvents =>
-      match assembleCandDelta input.toLean with
+      match assembleRustInput input with
       | none =>
           if rustEvents.any (sameRawEventSlot input) then false
           else eventBijectionCheckBool inputRest rustEvents
@@ -508,15 +548,34 @@ def eventBijectionCheckBool :
           | none => false
           | some remaining => eventBijectionCheckBool inputRest remaining
 
-/-- Production CandDelta event 列表与 event 前 raw case 列表的 fail-closed 双射。 -/
-def EventBijectionCheck (inputs : List RustAssemblyInputExtraction)
+/-- 列表级双射本体；供单层投影使用，允许该层合法地没有候选或事件。 -/
+def EventBijectionCoreCheck (inputs : List RustAssemblyInputExtraction)
     (rustEvents : List RustEventExtraction) : Prop :=
   rustEvents.Nodup ∧ rejectedRawCasesHaveNoEvents inputs rustEvents = true ∧
   eventBijectionCheckBool inputs rustEvents = true
 
+instance eventBijectionCoreCheckDecidable (inputs : List RustAssemblyInputExtraction)
+    (rustEvents : List RustEventExtraction) :
+    Decidable (EventBijectionCoreCheck inputs rustEvents) := by
+  unfold EventBijectionCoreCheck
+  infer_instance
+
+/-- 阶段级 accepted raw 存在性由 Lean 自己重算，不接受 Rust 回声计数。 -/
+def acceptedRawCasesExist (inputs : List RustAssemblyInputExtraction) : Bool :=
+  inputs.any fun input => (assembleRustInput input).isSome
+
+/--
+Production CandDelta event 与 event 前 raw case 的真实验收门。除了完整双射，还机械要求
+本窗口、本阶段至少一个 accepted raw 且至少一个 production event，禁止空域真空假绿。
+-/
+def EventBijectionCheck (inputs : List RustAssemblyInputExtraction)
+    (rustEvents : List RustEventExtraction) : Prop :=
+  acceptedRawCasesExist inputs = true ∧ rustEvents.isEmpty = false ∧
+  EventBijectionCoreCheck inputs rustEvents
+
 instance eventBijectionCheckDecidable (inputs : List RustAssemblyInputExtraction)
     (rustEvents : List RustEventExtraction) : Decidable (EventBijectionCheck inputs rustEvents) := by
-  unfold EventBijectionCheck
+  unfold EventBijectionCheck EventBijectionCoreCheck
   infer_instance
 
 structure RustCpObjectExtraction where
@@ -545,6 +604,8 @@ def RustCpObjectExtraction.toLean (value : RustCpObjectExtraction) : CpObject :=
     fullTrendCQualified := value.fullTrendCQualified.map RustFullTrendQualifiedExtraction.toLean }
 
 structure RustCpClosureEvidenceExtraction where
+  context : RustEventRawContextExtraction
+  visibleUnitMoveCount : Nat
   cpDepartureMoveId : RustElementIdentityExtraction
   cpStart : Nat
   leave : RustSegmentExtraction
@@ -552,18 +613,16 @@ structure RustCpClosureEvidenceExtraction where
   leaveAnchor : Option RustDirectionTag
   leaveMoveId : RustElementIdentityExtraction
   retestMoveId : RustElementIdentityExtraction
-  fullTrendEvidence : Option RustFullTrendEvidenceExtraction
-  fullTrendCQualified : Option RustFullTrendQualifiedExtraction
 deriving DecidableEq, Repr
 
 def RustCpClosureEvidenceExtraction.toLean
     (value : RustCpClosureEvidenceExtraction) : CpClosureEvidence :=
-  { cpDepartureMoveId := value.cpDepartureMoveId.toLean, cpStart := value.cpStart
+  { context := value.context.toLean
+    visibleUnitMoveCount := value.visibleUnitMoveCount
+    cpDepartureMoveId := value.cpDepartureMoveId.toLean, cpStart := value.cpStart
     leave := value.leave.toLean, retest := value.retest.toLean
     leaveAnchor := value.leaveAnchor.map RustDirectionTag.toLean
-    leaveMoveId := value.leaveMoveId.toLean, retestMoveId := value.retestMoveId.toLean
-    fullTrendEvidence := value.fullTrendEvidence.map RustFullTrendEvidenceExtraction.toLean
-    fullTrendCQualified := value.fullTrendCQualified.map RustFullTrendQualifiedExtraction.toLean }
+    leaveMoveId := value.leaveMoveId.toLean, retestMoveId := value.retestMoveId.toLean }
 
 def RecomputeCpClosureCheck (rustBefore rustAfter : RustCpObjectExtraction)
     (raw : RustCpClosureEvidenceExtraction) : Prop :=

@@ -77,11 +77,18 @@ def cpRetest : SegmentRow :=
   { direction := Direction.up, startIndex := 11, endIndex := 13,
     startPrice := 80, endPrice := 90 }
 
+def cpClosureRawContext : EventRawContext :=
+  { centers := [rawCenter]
+    rows := []
+    anchors := []
+    cpScan := []
+    unitMoves := [] }
+
 def cpRawValid : CpClosureEvidence :=
-  { cpDepartureMoveId := cpId 1 3, cpStart := 9
+  { context := cpClosureRawContext, visibleUnitMoveCount := 0
+    cpDepartureMoveId := cpId 1 3, cpStart := 9
     leave := cpLeave, retest := cpRetest
-    leaveAnchor := some Direction.down, leaveMoveId := cpId 1 3, retestMoveId := cpId 1 4
-    fullTrendEvidence := none, fullTrendCQualified := none }
+    leaveAnchor := some Direction.down, leaveMoveId := cpId 1 3, retestMoveId := cpId 1 4 }
 
 /-- #1087 RED-3a：Lean 从原始 leave/retest 几何判定 Pending→Closed，并附着完整结构。 -/
 example : (closeCpFromRaw cpBeforeFull cpRawValid).lifecycle = CpLifecycle.closed ∧
@@ -93,6 +100,22 @@ example : (closeCpFromRaw cpBeforeFull cpRawValid).lifecycle = CpLifecycle.close
 /-- #1087 RED-3b：回试重入中枢时必须保持 Pending；不能靠 witness=true 强闭合。 -/
 example : closeCpFromRaw cpBeforeFull
     { cpRawValid with retest := { cpRawValid.retest with endPrice := 150 } } = cpBeforeFull := by
+  native_decide
+
+/-- #1087 review3 HIGH-2：raw 不得把任意 full-trend 成品证据回灌到 after。 -/
+def review3ImpossibleEvidence : FullTrendQualificationEvidence :=
+  { trendContext := none
+    newExtremeInDirection := none
+    internalSublevelCenters := none
+    completedTrendDecomposition := none
+    decompositionReviewMoveId := none
+    decompositionReviewSrc := some 999999 }
+
+def review3GarbageEvidenceAfter : CpObject :=
+  { closeCpFromRaw cpBeforeFull cpRawValid with
+      fullTrendEvidence := some review3ImpossibleEvidence }
+
+example : closeCpFromRaw cpBeforeFull cpRawValid ≠ review3GarbageEvidenceAfter := by
   native_decide
 
 
@@ -171,15 +194,19 @@ def rustPredicate : RustPredicateExtraction :=
     direction := true, comparable := true, extreme := true, buy1 := true,
     sell1 := false, panDiverges := false }
 
-def rustEventInput : RustAssemblyInputExtraction :=
-  { level := 0, side := RustSideTag.long, divergenceConfirmSrc := 11
-    aIntervalLeft := 3, aIntervalRight := 5
-    center := { zd := 100, zg := 200, dd := 90, gg := 210, startIndex := 3, endIndex := 8 }
-    departureDir := RustDirectionTag.down, untilStart := 9, triggerEnd := 11
+def rustEventContext : RustEventRawContextExtraction :=
+  { centers :=
+      [{ zd := 100, zg := 200, dd := 90, gg := 210, startIndex := 3, endIndex := 8 }]
     rows := [rustRow]
+    anchors := [some RustDirectionTag.down]
+    cpScan := []
+    unitMoves := [] }
+
+def rustEventInput : RustAssemblyInputExtraction :=
+  { context := rustEventContext, centerIndex := 0, segmentIndex := 0
+    level := 0, side := RustSideTag.long, divergenceConfirmSrc := 11
+    aIntervalLeft := 3, aIntervalRight := 5
     predicate := rustPredicate
-    cIntervalFull := none, bParent := none, cStructure := none, thirdClassInC := none
-    fullTrendCQualified := none, fullTrendEvidence := none, cpOwnership := none
     panDivDiag := true }
 
 def wrongPanField : RustEventExtraction :=
@@ -225,6 +252,39 @@ example : ¬ EventBijectionCheck [rustRejectedInput] [correctRustEvent] := by
 
 /-- #1087 review2 RED-2i：即使另一 accepted case 消费了 event，rejected case 也不能共用同一槽。 -/
 example : ¬ EventBijectionCheck [rustEventInput, rustRejectedInput] [correctRustEvent] := by
+  native_decide
+
+/-- #1087 review3 HIGH-1：production event 伪造的 B_p 必须被 Lean 从 raw 低层事实独立重算拒绝。 -/
+def review3ImpossibleParent : RustParentCenterIdentityExtraction :=
+  { centerIndex := 999
+    centerId := { level := 9, ordinal := 999 }
+    sourceInterval := { left := 888, right := 777 }
+    zd := -42
+    zg := -41 }
+
+def review3ValidParent : RustCpScanBaseExtraction :=
+  { bCenterIndex := 0
+    bCenterId := { level := 0, ordinal := 42 }
+    bCenter := { zd := 100, zg := 200, dd := 90, gg := 210, startIndex := 3, endIndex := 8 }
+    departureMoveId := none
+    departureInterval := none }
+
+def review3ForgedParentInput : RustAssemblyInputExtraction :=
+  { rustEventInput with
+      context := { rustEventContext with cpScan := [review3ValidParent] } }
+
+def review3ForgedParentEvent : RustEventExtraction :=
+  { correctRustEvent with bParent := some review3ImpossibleParent }
+
+example : ¬ EventBijectionCheck [review3ForgedParentInput] [review3ForgedParentEvent] := by
+  native_decide
+
+/-- 单层内部双射允许合法空层；非空覆盖只在窗口/阶段聚合门强制。 -/
+example : EventBijectionCoreCheck [] [] := by
+  native_decide
+
+/-- #1087 review3 HIGH-3：真实验收域不得让空 raw/空 event 的真空双射假绿。 -/
+example : ¬ EventBijectionCheck [] [] := by
   native_decide
 
 end NewChanlun.Origin.ScanAssemblyNegative
