@@ -1,0 +1,135 @@
+name: Agent Review
+# #1110 AC-3：PR 上 `agent:review` label 触发独立评审（评审工蜂可修正同一分支）。
+# `pull_request_target` + `types: [labeled]`：label 事件在 base 上下文、带 secret、不依赖
+# PR merge commit（过时/冲突 PR 也能可靠触发）。信任闸 = 只有仓库写权限者（maintainer）
+# 能打 label；本仓私有、issue-tracker 口径「PRs as a request surface: no」⟹ 无外部/fork
+# PR 面，label 事件不会被不可信 PR 内容自动触发。评审工蜂 checkout head.sha 是有意的：
+# 评审需要看并修正 PR 分支。
+
+on:
+  pull_request_target:
+    types: [labeled]
+
+jobs:
+  review:
+    if: github.event.label.name == 'agent:review'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: agent-mutate-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      BRANCH: ${{ github.event.pull_request.head.ref }}
+      BRANCH_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Transition labels
+        run: |
+          gh pr edit "$PR_NUMBER" --remove-label "agent:review" || true
+          gh pr edit "$PR_NUMBER" --remove-label "agent:blocked" || true
+          gh pr edit "$PR_NUMBER" --add-label "agent:in-progress"
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Prepare branch
+        run: |
+          git fetch origin main:main || git fetch origin main
+          git checkout "$BRANCH" 2>/dev/null || git checkout -B "$BRANCH"
+          git config user.name "sandcastle-agent[bot]"
+          git config user.email "sandcastle-agent[bot]@users.noreply.github.com"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck agent-workflows
+        run: npm run typecheck
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run review agent
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OUTPUT_DIR: ${{ runner.temp }}
+        run: npx tsx .sandcastle/agent-workflows/review/review.ts
+
+      - name: Push branch
+        if: success()
+        run: |
+          set +e
+          git push --force-with-lease="refs/heads/$BRANCH:$BRANCH_HEAD_SHA" origin "$BRANCH" 2> push_err.txt
+          status=$?
+          set -e
+          if [ $status -ne 0 ]; then
+            if grep -qiE "non-fast-forward|rejected|fetch first|stale info" push_err.txt; then
+              echo "Branch advanced during review run." > "${RUNNER_TEMP}/failure_reason.txt"
+              cat push_err.txt
+              exit 1
+            fi
+            cat push_err.txt
+            exit $status
+          fi
+
+      - name: Post PR review
+        if: success()
+        env:
+          PAYLOAD: ${{ runner.temp }}/review_payload.json
+        run: gh api --method POST "repos/{owner}/{repo}/pulls/${PR_NUMBER}/reviews" --input "$PAYLOAD"
+
+      - name: Mark PR ready
+        if: success()
+        run: gh pr ready "$PR_NUMBER" || true
+
+      - name: Post thread replies
+        if: success()
+        env:
+          REPLIES: ${{ runner.temp }}/replies.json
+        run: |
+          count=$(jq 'length' "$REPLIES")
+          if [ "$count" -eq 0 ]; then
+            exit 0
+          fi
+          for i in $(seq 0 $((count - 1))); do
+            commentId=$(jq -r ".[$i].commentId" "$REPLIES")
+            body=$(jq -r ".[$i].body" "$REPLIES")
+            rest_id=$(gh api graphql -f query="query(\$id:ID!){ node(id:\$id){ ... on PullRequestReviewComment { databaseId } } }" -F id="$commentId" --jq '.data.node.databaseId')
+            if [ -z "$rest_id" ] || [ "$rest_id" = "null" ]; then
+              echo "Could not resolve REST id for $commentId; skipping" >&2
+              continue
+            fi
+            gh api --method POST "repos/{owner}/{repo}/pulls/${PR_NUMBER}/comments/${rest_id}/replies" -f body="$body"
+          done
+
+      - name: Mark blocked on failure
+        if: failure()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          reason="(no reason file written; check workflow logs)"
+          if [ -f "${RUNNER_TEMP}/failure_reason.txt" ]; then
+            reason=$(cat "${RUNNER_TEMP}/failure_reason.txt")
+          fi
+          body_file="${RUNNER_TEMP}/failure-comment.md"
+          printf '`agent:review` run failed.\n\n**Reason:** %s\n\n**Workflow run:** %s\n\nRe-add `agent:review` to retry.\n' "$reason" "$RUN_URL" > "$body_file"
+          gh pr edit "$PR_NUMBER" --add-label "agent:blocked" || true
+          gh pr comment "$PR_NUMBER" --body-file "$body_file"
+
+      - name: Always remove in-progress
+        if: always()
+        run: gh pr edit "$PR_NUMBER" --remove-label "agent:in-progress" || true

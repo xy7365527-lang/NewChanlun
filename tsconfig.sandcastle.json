@@ -13,6 +13,7 @@
   },
   "include": [
     ".sandcastle/*.ts",
-    ".sandcastle/*.mts"
+    ".sandcastle/*.mts",
+    ".sandcastle/agent-workflows/**/*.ts"
   ]
 }
