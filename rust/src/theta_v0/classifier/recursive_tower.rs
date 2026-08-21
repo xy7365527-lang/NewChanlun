@@ -1599,10 +1599,13 @@ pub(crate) fn invalidate_cp_lifecycle_dirty_dependencies(
     objects: &mut [CpScanOwnership],
     dirty_from: usize,
 ) -> CpDirtyInvalidation {
+    let capture_changes = super::diag::s2_mirror_capture::lifecycle_capture_enabled();
+    let mut changed_before = Vec::new();
+    let mut changed_after = Vec::new();
     let mut lifecycle_scan_from = dirty_from;
     let mut pending_fallbacks = 0_u64;
     let mut certificate_clear_recomputes = 0_u64;
-    for object in objects {
+    for object in objects.iter_mut() {
         if object.lifecycle != CpLifecycleStatus::Closed
             || cp_lifecycle_dependencies_stable_before(object, dirty_from)
         {
@@ -1613,6 +1616,9 @@ pub(crate) fn invalidate_cp_lifecycle_dirty_dependencies(
             .and_then(|structure| structure.terminal_move_id)
             .is_none_or(|terminal| terminal.ordinal >= dirty_from as u64);
         if terminal_is_dirty {
+            if capture_changes {
+                changed_before.push(object.clone());
+            }
             pending_fallbacks += 1;
             certificate_clear_recomputes += 1;
             if let Some(departure) = object.departure_move_id {
@@ -1633,6 +1639,9 @@ pub(crate) fn invalidate_cp_lifecycle_dirty_dependencies(
             object.third_class_in_c = None;
             object.full_trend_evidence = None;
             object.full_trend_c_qualified = None;
+            if capture_changes {
+                changed_after.push(object.clone());
+            }
             continue;
         }
 
@@ -1642,6 +1651,9 @@ pub(crate) fn invalidate_cp_lifecycle_dirty_dependencies(
             .and_then(|evidence| evidence.decomposition_review_move_id)
             .filter(|successor| successor.ordinal >= dirty_from as u64);
         if let Some(successor) = dirty_review {
+            if capture_changes {
+                changed_before.push(object.clone());
+            }
             certificate_clear_recomputes += 1;
             lifecycle_scan_from = lifecycle_scan_from.min(successor.ordinal as usize);
             if let Some(evidence) = object.full_trend_evidence.as_mut() {
@@ -1650,13 +1662,29 @@ pub(crate) fn invalidate_cp_lifecycle_dirty_dependencies(
                 evidence.decomposition_review_src = None;
             }
             object.full_trend_c_qualified = None;
+            if capture_changes {
+                changed_after.push(object.clone());
+            }
         }
     }
-    CpDirtyInvalidation {
+    let result = CpDirtyInvalidation {
         scan_from: lifecycle_scan_from,
         pending_fallbacks,
         certificate_clear_recomputes,
+    };
+    if !changed_before.is_empty() {
+        super::diag::s2_mirror_capture::record_cp_dirty(
+            super::diag::s2_mirror_capture::CpDirtyCapture {
+                dirty_from,
+                before: changed_before,
+                after: changed_after,
+                scan_from: result.scan_from,
+                pending_fallbacks: result.pending_fallbacks,
+                certificate_clear_recomputes: result.certificate_clear_recomputes,
+            },
+        );
     }
+    result
 }
 
 fn center_of_move(movement: &LeveledMove) -> Option<Center> {
@@ -1898,6 +1926,8 @@ pub fn advance_cp_lifecycles(
             {
                 continue;
             }
+            let capture_before =
+                super::diag::s2_mirror_capture::lifecycle_capture_enabled().then(|| object.clone());
             object.full_trend_evidence = full_trend_qualification_evidence(
                 centers,
                 object.b_center_index,
@@ -1914,6 +1944,16 @@ pub fn advance_cp_lifecycles(
                 third,
                 visible_moves,
             );
+            if let Some(before) = capture_before {
+                super::diag::s2_mirror_capture::record_cp_review(
+                    super::diag::s2_mirror_capture::CpReviewCapture {
+                        before,
+                        centers: centers.to_vec(),
+                        visible_moves: visible_moves.to_vec(),
+                        after: object.clone(),
+                    },
+                );
+            }
         }
 
         let leave_idx = retest_idx - 1;
@@ -1962,6 +2002,8 @@ pub fn advance_cp_lifecycles(
         else {
             continue;
         };
+        let capture_before =
+            super::diag::s2_mirror_capture::lifecycle_capture_enabled().then(|| object.clone());
         let third = ThirdClassInCp {
             b_center_id: object.b_center_id,
             cp_departure_move_id,
@@ -2020,7 +2062,399 @@ pub fn advance_cp_lifecycles(
             leave_move.id,
             retest_move.id,
             unit_moves.len(),
-        );
+        if let Some(before) = capture_before {
+            super::diag::s2_mirror_capture::record_cp_advance(
+                super::diag::s2_mirror_capture::CpAdvanceCapture {
+                    before,
+                    leave,
+                    leave_anchor,
+                    retest,
+                    leave_move_id: leave_move.id,
+                    retest_move_id: retest_move.id,
+                    centers: centers.to_vec(),
+                    visible_moves: unit_moves.to_vec(),
+                    after: object.clone(),
+                },
+            );
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn cp_event_objects(
+    level: u32,
+    centers: &[Center],
+    cp_scan: &[CpScanOwnership],
+    segments: &[Segment],
+    anchors: &[Option<Direction>],
+    unit_moves: &[LeveledMove],
+    c_idx: usize,
+    event_seg_idx: usize,
+    event_end: usize,
+    is_complete_divergence: bool,
+) -> (
+    Option<ParentCenterIdentity>,
+    Option<CpStructureIdentity>,
+    Option<ThirdClassInCp>,
+    Option<CandDeltaCpEdge>,
+    Option<(usize, usize)>,
+    Option<FullTrendQualificationEvidence>,
+    Option<FullTrendCQualified>,
+) {
+    let Some(c) = centers.get(c_idx) else {
+        return (None, None, None, None, None, None, None);
+    };
+    let Some(scan) = cp_scan
+        .iter()
+        .find(|o| o.b_center_index == c_idx && o.b_center == *c)
+    else {
+        return (None, None, None, None, None, None, None);
+    };
+    let b = ParentCenterIdentity {
+        center_index: scan.b_center_index,
+        center_id: scan.b_center_id,
+        source_interval: (scan.b_center.start_index, scan.b_center.end_index),
+        zd: scan.b_center.zd,
+        zg: scan.b_center.zg,
+    };
+    let (Some(departure_move_id), Some((c_start_full, _))) =
+        (scan.departure_move_id, scan.departure_interval)
+    else {
+        return (Some(b), None, None, None, None, None, None);
+    };
+
+    // 第三类判据只调用 signal.rs 的单一真值函数；这里仅增加 B/c 所有权与区间边界。
+    let third = (1..=event_seg_idx).find_map(|i| {
+        let leave = &segments[i - 1];
+        let retest = &segments[i];
+        if leave.start_index < c_start_full || retest.end_index > event_end {
+            return None;
+        }
+        if signal::nearest_confirmed_center_idx(centers, leave.start_index) != Some(c_idx) {
+            return None;
+        }
+        let cert = signal::judge_third_cert(c, leave, anchors[i - 1], retest)?;
+        Some((i, cert))
+    });
+    let third_obj = third.and_then(|(i, cert)| {
+        Some(ThirdClassInCp {
+            b_center_id: scan.b_center_id,
+            cp_departure_move_id: departure_move_id,
+            departure_move_id: unit_moves.get(i - 1)?.id,
+            retest_move_id: unit_moves.get(i)?.id,
+            departure_interval: cert.departure_interval,
+            retest_interval: cert.retest_interval,
+            point_source_index: cert.point.source_index,
+            side: if cert.point.bits.buy3 {
+                Side::Long
+            } else {
+                Side::Short
+            },
+        })
+    });
+    // 确认时快照的完整右端只能取第三类 retest 首次可证点，禁止取当前/后续 Cand 事件 seg.end。
+    let third_inside_component_span = third_obj.is_some_and(|third| {
+        third.departure_move_id.level == departure_move_id.level
+            && third.retest_move_id.level == departure_move_id.level
+            && departure_move_id.ordinal <= third.departure_move_id.ordinal
+            && third.departure_move_id.ordinal <= third.retest_move_id.ordinal
+            && unit_moves
+                .get(event_seg_idx)
+                .is_some_and(|end_move| third.retest_move_id.ordinal <= end_move.id.ordinal)
+    });
+    let c_end_full = (is_complete_divergence && third_inside_component_span).then(|| {
+        third_obj
+            .expect("third_inside_component_span 蕴含 third_obj Some")
+            .retest_interval
+            .1
+    });
+    let terminal_move_id = (is_complete_divergence && third_inside_component_span).then(|| {
+        third_obj
+            .expect("third_inside_component_span 蕴含 third_obj Some")
+            .retest_move_id
+    });
+    let c_structure = Some(CpStructureIdentity {
+        level,
+        b_center_id: scan.b_center_id,
+        departure_move_id,
+        terminal_move_id,
+        source_start: c_start_full,
+        source_end: c_end_full,
+    });
+    let c_interval_full = c_end_full.map(|end| (c_start_full, end));
+    let edge = is_complete_divergence.then_some(CandDeltaCpEdge {
+        b_center_id: scan.b_center_id,
+        cp_departure_move_id: departure_move_id,
+        cp_source_start: c_start_full,
+    });
+    // 事件证书只能消费事件时已经存在的走势；尤其不得提前看见 terminal 的未来后继。
+    let visible_moves = unit_moves.get(..=event_seg_idx);
+    let full_trend_evidence = c_structure.zip(third_obj).zip(visible_moves).and_then(
+        |((structure, third), visible_moves)| {
+            full_trend_qualification_evidence(
+                centers,
+                c_idx,
+                scan.b_center_id,
+                structure,
+                third,
+                visible_moves,
+            )
+        },
+    );
+    let full_trend_c_qualified = c_structure.zip(third_obj).zip(visible_moves).and_then(
+        |((structure, third), visible_moves)| {
+            full_trend_c_qualification(
+                centers,
+                c_idx,
+                scan.b_center_id,
+                structure,
+                third,
+                visible_moves,
+            )
+        },
+    );
+    (
+        Some(b),
+        c_structure,
+        third_obj,
+        edge,
+        c_interval_full,
+        full_trend_evidence,
+        full_trend_c_qualified,
+    )
+}
+
+/// 级别 ℓ 的 Cand^δ 谓词提取（P1 层单一入口；入参口径与
+/// [`signal::extract_signals_with_hist_anchored`] 完全一致）。
+///
+/// prelude 与 signal.rs full 路径逐行同构（见上方段头铁律；行为注释不在此重复）。
+/// 每个破中枢结构候选产一个事件，沿用 `(episode, I(A), enter_src, side, 诊断位)` 结构键稳定排序；
+/// `confirm_src` 不参与排序。
+#[allow(clippy::too_many_arguments)]
+pub fn level_cand_delta(
+    level: u32,
+    centers: &[Center],
+    cp_scan: Option<&[CpScanOwnership]>,
+    segments: &[Segment],
+    unit_moves: Option<&[LeveledMove]>,
+    anchor_dirs: Option<&[Option<Direction>]>,
+    hist: &[f64],
+    dif: &[f64],
+    closes_tick: &[Tick],
+    close_src: &[usize],
+    gauge: DivergenceGauge,
+    strokes: &[Stroke],
+) -> Vec<CandDeltaEvent> {
+    // ── 以下 prelude 与 signal::extract_signals_with_hist_anchored 逐行同构 ──
+    let sorted_owned: Vec<Segment>;
+    let anchors_perm: Vec<Option<Direction>>;
+    let (sorted, anchors_in): (&[Segment], Option<&[Option<Direction>]>) = if segments
+        .windows(2)
+        .all(|w| w[0].start_index <= w[1].start_index)
+    {
+        (segments, anchor_dirs)
+    } else {
+        let mut idx: Vec<usize> = (0..segments.len()).collect();
+        idx.sort_by_key(|&i| segments[i].start_index);
+        sorted_owned = idx.iter().map(|&i| segments[i].clone()).collect();
+        match anchor_dirs {
+            Some(a) => {
+                anchors_perm = idx.iter().map(|&i| a[i]).collect();
+                (&sorted_owned[..], Some(&anchors_perm[..]))
+            }
+            None => (&sorted_owned[..], None),
+        }
+    };
+    let anchors_self: Vec<Option<Direction>> = sorted.iter().map(|s| Some(s.direction)).collect();
+    let anchors: &[Option<Direction>] = anchors_in.unwrap_or(&anchors_self);
+    debug_assert_eq!(
+        anchors.len(),
+        sorted.len(),
+        "anchor_dirs 与 segments 必等长"
+    );
+
+    let centers_owned: Vec<Center>;
+    let centers_sorted: &[Center] = if centers.windows(2).all(|w| w[0].end_index <= w[1].end_index)
+    {
+        centers
+    } else {
+        centers_owned = {
+            let mut v = centers.to_vec();
+            v.sort_by_key(|c| c.end_index);
+            v
+        };
+        &centers_owned
+    };
+
+    let blocks = decompose(centers_sorted);
+    let center_gate = center_trend_gate(centers_sorted.len(), &blocks);
+    let any_trend = center_gate.iter().any(|g| g.is_some());
+    let center_kind = center_block_kind(centers_sorted.len(), &blocks);
+    let any_consol = center_kind
+        .iter()
+        .any(|k| *k == Some(MoveKind::Consolidation));
+
+    let mut first_match_idx: std::collections::HashMap<(usize, Tick, Tick), usize> =
+        std::collections::HashMap::new();
+    if any_trend {
+        first_match_idx.reserve(centers_sorted.len());
+        for (idx, c) in centers_sorted.iter().enumerate() {
+            first_match_idx
+                .entry((c.end_index, c.zd, c.zg))
+                .or_insert(idx);
+        }
+    }
+    let mut a_seg_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
+        std::collections::HashMap::new();
+
+    // ── 事件收集（判定全部经 signal::judge_* 同一函数，与 judge_segment 第一类支同构） ──
+    let mut events: Vec<CandDeltaEvent> = Vec::new();
+    for (i, seg) in sorted.iter().enumerate() {
+        let Some(c_idx) = signal::nearest_confirmed_center_idx(centers_sorted, seg.start_index)
+        else {
+            continue;
+        };
+        let gate_dir = if any_trend {
+            first_match_idx
+                .get(&{
+                    let c = &centers_sorted[c_idx];
+                    (c.end_index, c.zd, c.zg)
+                })
+                .and_then(|&pos| center_gate[pos].map(|d| (pos, d)))
+        } else {
+            None
+        };
+        let Some((pos, dir)) = gate_dir else {
+            // cert F-02（诊断可达性）：旧实现把 pan_div_diag 挂在趋势门之后，而趋势门与
+            // Consolidation ownership 在同一中枢上互斥 ⟹ 诊断恒 false（死分支）。此处对
+            // 「最近中枢按 ownership 属盘整块」的非趋势门段独立调用 judge_pan_div，产
+            // cand_delta=false 的**纯诊断**事件：装配器基例过滤（`b.cand_delta`）与链攀升
+            // （`!ev.cand_delta ⟹ continue`）双重跳过 ⟹ 结构性不入链——实装态边界
+            // （0708「盘背不入链」裁决已被 0716 裁决⑤「盘背入链」supersede，provider 扩域缺口
+            // 在 nest-migration-ruling-20260716.md §三附带发现登记在案，#726 清理）；不产 BspPoint、不置一类 bit。
+            if any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation) {
+                let c = &centers_sorted[c_idx];
+                if let Some(cert) = signal::judge_pan_div_observation(
+                    c,
+                    seg,
+                    sorted,
+                    &anchors_self,
+                    hist,
+                    dif,
+                    close_src,
+                ) {
+                    events.push(CandDeltaEvent {
+                        level,
+                        side: cert.side,
+                        divergence_confirm_src: cert.source_index,
+                        confirm_src: cert.source_index,
+                        interval: cert.seg_c,
+                        a_interval: cert.seg_a,
+                        c_episode_start: cert.seg_c.0,
+                        c_episode_interval: cert.seg_c,
+                        c_interval_full: None,
+                        b_parent: None,
+                        c_structure: None,
+                        third_class_in_c: None,
+                        cp_certificate_confirm_src: None,
+                        full_trend_c_qualified: None,
+                        full_trend_evidence: None,
+                        cp_ownership: None,
+                        enter_src: cert.seg_c.0,
+                        cand_delta: false,
+                        pan_div_diag: true,
+                    });
+                }
+            }
+            continue; // 非趋势块 ⟹ 无第一类候选 ⟹ 无 Cand^δ 事件（谓词=第一类背驰段谓词）。
+        };
+        let c = &centers_sorted[c_idx];
+        let prev_center = &centers_sorted[pos - 1];
+        // ★p117 037:20（裁定 T3）：b 包络随 I(A) 同槽缓存（`move_range_envelope` 单一来源）。
+        // 本 provider 是诊断消费点——provenance 锚保留（T2 窄域授权仅限生产第一类路径
+        // `judge_segment`，不及此）；判据函数 037:20 合取随签名类型同步收缩。
+        let a_seg_entry = *a_seg_cache.entry(c_idx).or_insert_with(|| {
+            locate_departure_move_a(sorted, anchors, prev_center, c, dir)
+                .and_then(|span| move_range_envelope(sorted, span).map(|env| (span, env)))
+        });
+        let c_start_entry = departure_move_c_start(sorted, anchors, c, dir, seg.start_index);
+        // ★#1028 裁定 A：诊断 provider 与生产同口径取 departure 单元终点（unit_moves 与 sorted
+        // 平行——生产路径 sorted 恒有序，`unit_moves[i]` 即本段走势单元）。无预算/无趋势方向
+        // 子走势 ⟹ None ⟹ judge 回退 seg.end_index 旧锚。
+        let departure_end = unit_moves
+            .and_then(|um| um.get(i))
+            .and_then(|m| cand_predicate::departure_unit_end(m, dir));
+        let Some(pf) = signal::judge_first_cached(
+            c,
+            dir,
+            seg,
+            anchors[i],
+            hist,
+            dif,
+            closes_tick,
+            close_src,
+            a_seg_entry,
+            c_start_entry,
+            departure_end,
+            gauge,
+            strokes,
+            sorted,
+            None,
+            // #885：本 provider 是 #529 诊断路径（level=None），分级记录不进 Classification
+            // （生产可查载体只由 classify 装配链填充），sink 落即弃——与「level=None 不参与
+            // sidecar 捕获」同一边界。
+            &mut Vec::new(),
+        ) else {
+            continue; // 未破中枢/未破 b 极值（037:20）/A 不可配对/不可映射 ⟹ 非结构候选（与生产路径同一 gate）。
+        };
+        // 事件字段全部从 judge 的入参/返回值派生（无第二套判据）：
+        // judge Some ⟹ broke ∧ A 配对 ∧ 映射成立 ⟹ λ_C/I(A) 必 Some（judge 内部同断言）。
+        let lambda_c = c_start_entry.expect("judge Some ⟹ λ_C Some");
+        let a_interval = a_seg_entry
+            .map(|(span, _env)| span)
+            .expect("judge Some ⟹ I(A) Some");
+        let side = pf
+            .struct_break_dir
+            .expect("第一类结构候选必携 struct_break_dir（P2-R2 无条件置）");
+        let kind_consol = any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation);
+        let pan_div_diag = kind_consol
+            && signal::judge_pan_div_observation(
+                c,
+                seg,
+                sorted,
+                &anchors_self,
+                hist,
+                dif,
+                close_src,
+            )
+            .is_some();
+        let confirm_src = pf.source_index;
+        let interval_end = seg.end_index;
+        // #607 D2 登记：pf.bits.buy1/sell1 与生产路径同受 T3-in-c 否则域大闸门控
+        // （Missing ⟹ 二次门控清零，见 signal.rs judge_first_cached）——cand_delta 事件
+        // 集合随之缩小。D2 之前的 strict_nest_check/p107/p124 等诊断 bin 历史读数是旧口径
+        // （否则域点仍计入 cand_delta），不得与 D2 之后的读数直接混比；如需复现旧口径，
+        // 用 THETA_T3INC_SKIP=1 重跑（见 issue607-impl 报告 §5）。
+        let cand_delta = pf.bits.buy1 || pf.bits.sell1;
+        let (
+            b_parent,
+            c_structure,
+            third_class_in_c,
+            cp_ownership,
+            c_interval_full,
+            full_trend_evidence,
+            full_trend_c_qualified,
+        ) = cp_event_objects(
+            level,
+            centers_sorted,
+            cp_scan.unwrap_or(&[]),
+            sorted,
+            anchors,
+            unit_moves.unwrap_or(&[]),
+            c_idx,
+            i,
+            interval_end,
+            cand_delta,        );
     }
 }
 
@@ -2398,8 +2832,25 @@ mod tests {
             "frontier 后继改写为同向延续后，原 CompletedTrendDecomposition 必须失效"
         );
 
-        let mut retained_prefix = objects.clone();
+        let mut stable_neighbor = objects[0].clone();
+        stable_neighbor.b_center_index = 2;
+        stable_neighbor.b_center_id = eid(2, 2);
+        stable_neighbor.lifecycle = CpLifecycleStatus::Pending;
+        let mut retained_prefix = vec![objects[0].clone(), stable_neighbor.clone()];
+        crate::theta_v0::classifier::diag::s2_mirror_capture::begin_cp_probe();
         let invalidation = invalidate_cp_lifecycle_dirty_dependencies(&mut retained_prefix, 2);
+        let dirty_capture = crate::theta_v0::classifier::diag::s2_mirror_capture::take_capture();
+        assert_eq!(dirty_capture.cp_dirty.len(), 1);
+        assert_eq!(dirty_capture.cp_dirty[0].before.len(), 1);
+        assert_eq!(dirty_capture.cp_dirty[0].after.len(), 1);
+        assert_eq!(
+            dirty_capture.cp_dirty[0].before[0].b_center_id, objects[0].b_center_id,
+            "dirty 证书只克隆实际变化对象"
+        );
+        assert_eq!(
+            retained_prefix[1], stable_neighbor,
+            "retained prefix 不应进 dirty 证书"
+        );
         assert_eq!(invalidation.scan_from, 2);
         assert_eq!(invalidation.pending_fallbacks, 0);
         assert_eq!(invalidation.certificate_clear_recomputes, 1);

@@ -469,9 +469,43 @@ pub(crate) fn judge_first_from_gates(
     grade_sink: &mut Vec<FirstClassGradeRecord>,
 ) -> Option<BspPoint> {
     if !gates.extreme {
+        super::diag::s2_mirror_capture::record_first_assembly(
+            level.unwrap_or(0),
+            last_center,
+            trend_dir,
+            seg,
+            departure_end,
+            gates,
+            gauge,
+            hist,
+            dif,
+            closes_tick,
+            strokes,
+            sorted,
+            None,
+            None,
+            None,
+        );
         return None; // 未破 b 包络极值 ⟹ 非趋势背驰 c（061:28：未创新极值不构成背驰）。
     }
     let (Some(c_idx), Some(a_idx)) = (gates.c_idx, gates.a_idx) else {
+        super::diag::s2_mirror_capture::record_first_assembly(
+            level.unwrap_or(0),
+            last_center,
+            trend_dir,
+            seg,
+            departure_end,
+            gates,
+            gauge,
+            hist,
+            dif,
+            closes_tick,
+            strokes,
+            sorted,
+            None,
+            None,
+            None,
+        );
         // 区间无法映射到 closes（越界/空）⟹ 无 MACD 面积 ⟹ 无法算 C<A ⟹ 无 struct_break 候选。
         return None;
     };
@@ -552,7 +586,7 @@ pub(crate) fn judge_first_from_gates(
     // `Classification` 装配方按真实级别盖章（见 [`FirstClassGradeRecord`] 文档）。sidecar 捕获
     // 维持原契约不变：仅 `level=Some`（生产 resume 路径）且 sidecar 已打开时写入——
     // `fallback_full_recompute_does_not_capture_grade_sidecar` 锁的就是这条边界。
-    if diverged {
+    let grade_output = if diverged {
         let rec = FirstClassGradeRecord {
             level: level.unwrap_or(0),
             source_index: point_src,
@@ -571,7 +605,10 @@ pub(crate) fn judge_first_from_gates(
                 }
             });
         }
-    }
+        Some(rec)
+    } else {
+        None
+    };
     // buy1/sell1 保严格「趋势背驰 ∧ T3-in-c」语义：仅背驰确认（D 成立）∧ T3-in-c 判 `Present`
     // 才置第一类 bit。否则（未背驰，或否则域 T3-in-c `Missing`）的破中枢候选进样本但**零
     // buy1/sell1**（Flat/否则域候选，assemble_gamma 归 𝒦 不冒充第一类，codex 语义纪律 + #607 D2）。
@@ -611,10 +648,14 @@ pub(crate) fn judge_first_from_gates(
         departure_end,
         gates,
         gauge,
+        hist,
+        dif,
+        closes_tick,
         strokes,
         sorted,
-        t3_grade,
-        &point,
+        grade_output,
+        Some(t3_grade),
+        Some(&point),
     );
     Some(point)
 }

@@ -1295,6 +1295,18 @@ pub(crate) fn merged_scan_resume(
     let e_src = signal::freeze_boundary_src(centers, prefix_count, dirty_e);
     let stable_seg = segments.partition_point(|s| s.end_index < e_src);
 
+    // #1080 S2 Phase 3：只在显式捕获会话内复制进入回缩守卫前的四缓存。关闭时为 None，
+    // 不分配、不克隆，也不改变下面任何缓存推进/排序语义。
+    let capture_cache_before = super::diag::s2_mirror_capture::data_capture_enabled().then(|| {
+        super::diag::s2_mirror_capture::FourCacheCapture {
+            points: cached_pts.clone(),
+            pan_divs: cached_pans.clone(),
+            grades: cached_grades.clone(),
+            candidate_legs: cached_legs.clone(),
+            cached_count: *cached_count,
+        }
+    });
+
     // 单调守卫（confirmed 前缀单调非降 ⟹ 正常永不触发；cascade 前缀回缩由 caller 别处 clear +
     // 本守卫兜底）：缓存越过本 bar 冻结边界 ⟹ 保守清空重判（四件产出锁步清空）。
     if *cached_count > stable_seg {
@@ -1304,6 +1316,12 @@ pub(crate) fn merged_scan_resume(
         cached_legs.clear();
         *cached_count = 0;
     }
+    let confirmed_base_lengths = (
+        cached_pts.len(),
+        cached_pans.len(),
+        cached_grades.len(),
+        cached_legs.len(),
+    );
 
     // 逐段判定核（advance 与 tail 共享）：pointwise 解析门/类别后共享 per-segment 素材喂两域 sink。
     let mut a_seg_cache: ASegCache = HashMap::new();
@@ -1370,11 +1388,32 @@ pub(crate) fn merged_scan_resume(
         *cached_count = stable_seg;
     }
 
+    let capture_confirmed_append = capture_cache_before.as_ref().map(|_| {
+        super::diag::s2_mirror_capture::ScanEmissionCapture {
+            points: cached_pts[confirmed_base_lengths.0..].to_vec(),
+            pan_divs: cached_pans[confirmed_base_lengths.1..].to_vec(),
+            grades: cached_grades[confirmed_base_lengths.2..].to_vec(),
+            candidate_legs: cached_legs[confirmed_base_lengths.3..].to_vec(),
+            observations: Vec::new(),
+        }
+    });
+    let capture_cache_after =
+        capture_cache_before
+            .as_ref()
+            .map(|_| super::diag::s2_mirror_capture::FourCacheCapture {
+                points: cached_pts.clone(),
+                pan_divs: cached_pans.clone(),
+                grades: cached_grades.clone(),
+                candidate_legs: cached_legs.clone(),
+                cached_count: *cached_count,
+            });
+
     // 结果 = confirmed 前缀产出（缓存 clone）+ frontier tail 产出（每 bar 重判，tail 小）。push 序拼接。
     let mut points = cached_pts.clone();
     let mut pan_divs = cached_pans.clone();
     let mut grades = cached_grades.clone();
     let mut legs = cached_legs.clone();
+    let tail_base_lengths = (points.len(), pan_divs.len(), grades.len(), legs.len());
     // tail 的 a_seg_cache 独立（advance 已消耗，tail 段最近中枢多在 frontier）——新建，与 full
     // 路径每调用一份 a_seg_cache 同语义（key=c_idx，命中即复用；跨 advance/tail 不复用不影响 bit）。
     let mut tail_a_cache: ASegCache = HashMap::new();
@@ -1387,6 +1426,15 @@ pub(crate) fn merged_scan_resume(
         &mut legs,
         &mut tail_a_cache,
     );
+    let capture_tail = capture_cache_before.as_ref().map(|_| {
+        super::diag::s2_mirror_capture::ScanEmissionCapture {
+            points: points[tail_base_lengths.0..].to_vec(),
+            pan_divs: pan_divs[tail_base_lengths.1..].to_vec(),
+            grades: grades[tail_base_lengths.2..].to_vec(),
+            candidate_legs: legs[tail_base_lengths.3..].to_vec(),
+            observations: Vec::new(),
+        }
+    });
 
     points.sort_by_key(|p: &BspPoint| p.source_index);
     pan_divs.sort_by_key(|p: &PanDivCert| p.source_index);
@@ -1394,7 +1442,8 @@ pub(crate) fn merged_scan_resume(
 
     // 候选域归约层（merged/首证钟/state）留在扫描之后：prefix+tail 腿全量重跑归约（O(observations)
     // 轻量），再并入 Pan 域投影（从 BSP pan_div 证书投影，不重判结构或力度），统一 (interval,key) 排序。
-    let captured_legs = super::diag::s2_mirror_capture::capture_enabled().then(|| legs.clone());
+    let captured_legs =
+        super::diag::s2_mirror_capture::data_capture_enabled().then(|| legs.clone());
     let mut observations = cand_event::reduce_structural_legs(legs);
     if let Some(captured_legs) = captured_legs {
         super::diag::s2_mirror_capture::record_reduction(level, captured_legs, &observations);
@@ -1485,6 +1534,46 @@ pub(crate) fn merged_scan_resume(
         grades,
         observations,
     };
+    if let (Some(cache_before), Some(confirmed_append), Some(cache_after), Some(tail)) = (
+        capture_cache_before,
+        capture_confirmed_append,
+        capture_cache_after,
+        capture_tail,
+    ) {
+        super::diag::s2_mirror_capture::record_frontier(
+            super::diag::s2_mirror_capture::FrontierCapture {
+                level,
+                prefix_count,
+                dirty_e,
+                freeze_boundary_src: e_src,
+                stable_seg,
+                segment_count: segments.len(),
+                centers: centers.to_vec(),
+                segments: segments.to_vec(),
+                anchors: anchors.to_vec(),
+                anchor_dirs: anchor_dirs.map(<[Option<Direction>]>::to_vec),
+                departure_ends: departure_ends.map(<[usize]>::to_vec),
+                blocks: blocks.to_vec(),
+                cache_before,
+                confirmed_append,
+                cache_after,
+                tail,
+                final_output: super::diag::s2_mirror_capture::ScanEmissionCapture {
+                    points: output.points.clone(),
+                    pan_divs: output.pan_divs.clone(),
+                    grades: output.grades.clone(),
+                    candidate_legs: Vec::new(),
+                    observations: output.observations.clone(),
+                },
+            },
+            hist,
+            dif,
+            closes_tick,
+            close_src,
+            gauge,
+            strokes,
+        );
+    }
     // #1080 S2：默认关闭的只读验收捕获。只复制本次 3a 原始输入/四产口；位于 07b 二类
     // 并入前，不参与判定、排序、缓存或返回值。
     super::diag::s2_mirror_capture::record_scan(
@@ -1608,10 +1697,17 @@ fn merged_judge_segment(
             let c_leave = &centers_sorted[c_leave_idx];
             let first_retrace_pair = i == 1 || sorted[i - 2].start_index < c_leave.end_index;
             if first_retrace_pair {
-                if let Some(p) = signal::judge_third_cert(c_leave, leave_seg, anchors[i - 1], seg)
-                    .map(|cert| cert.point)
-                {
-                    points.push(p);
+                let cert = signal::judge_third_cert(c_leave, leave_seg, anchors[i - 1], seg);
+                super::diag::s2_mirror_capture::record_third_assembly(
+                    level,
+                    c_leave,
+                    leave_seg,
+                    anchors[i - 1],
+                    seg,
+                    cert.as_ref().map(|cert| &cert.point),
+                );
+                if let Some(cert) = cert {
+                    points.push(cert.point);
                 }
             }
         }

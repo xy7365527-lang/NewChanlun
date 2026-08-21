@@ -1125,6 +1125,20 @@ fn classify_incremental_inner(
             let prior_is_stable = prior.is_some_and(|prior| {
                 recursive_tower::cp_lifecycle_dependencies_stable_before(prior, dirty_from)
             });
+            // #1080 Phase 3：构造器调用可能只是 frontier 重算的临时对象；只有进入
+            // `tail_cp` 并将在下方 extend 落账的对象才记 Init。先保存 Pending 原像，随后
+            // Reinherit/Advance 按真实 writer 顺序追加，避免把临时 Init 冒充生产提交。
+            let capture_rebuilt =
+                super::diag::s2_mirror_capture::lifecycle_capture_enabled().then(|| object.clone());
+            if let Some(rebuilt_before) = capture_rebuilt.as_ref() {
+                super::diag::s2_mirror_capture::record_cp_init(
+                    rebuilt_before.b_center_id,
+                    rebuilt_before.b_center,
+                    rebuilt_before.departure_move_id,
+                    rebuilt_before.departure_interval,
+                    rebuilt_before,
+                );
+            }
             if prior_is_stable {
                 let prior = prior.expect("prior_is_stable 蕴含 prior Some");
                 cp_replay_diagnostics::record_tail_reinherit(level_idx);
@@ -1136,6 +1150,17 @@ fn classify_incremental_inner(
                 object.full_trend_c_qualified = prior.full_trend_c_qualified.clone();
             } else if let Some(departure) = object.departure_move_id {
                 lifecycle_scan_from = lifecycle_scan_from.min(departure.ordinal as usize + 1);
+            }
+            if let Some(rebuilt_before) = capture_rebuilt {
+                super::diag::s2_mirror_capture::record_cp_reinherit(
+                    super::diag::s2_mirror_capture::CpReinheritCapture {
+                        dirty_from,
+                        rebuilt_before,
+                        prior: prior.cloned(),
+                        prior_is_stable,
+                        after: object.clone(),
+                    },
+                );
             }
         }
 
@@ -1272,12 +1297,30 @@ fn classify_incremental_inner(
             units.len()
         };
         let bsp_key = (lc.centers.len(), lc.upper_moves.len(), struct_len);
+        let memo_hit = lc.cached_bsp_key == Some(bsp_key);
+        // #1080 S2 Phase 3：单键四件 Rc 的只读镜像。显式捕获会话外不做 Rc clone；
+        // 会话内只保留进入 memo 分支前的四个指针，供分支后验证 hit 同批复用 / miss 同批刷新。
+        let memo_capture_before = (super::diag::s2_mirror_capture::memo_capture_enabled()
+            && (super::diag::s2_mirror_capture::full_capture_enabled() || !memo_hit))
+            .then(|| {
+                (
+                    lc.cached_bsp_key,
+                    Rc::clone(&lc.cached_bsp),
+                    Rc::clone(&lc.cached_pan_div),
+                    Rc::clone(&lc.cached_first_class_grades),
+                    Rc::clone(&lc.cached_candidates),
+                )
+            });
+        // #1080 Phase3：组成锁的两半必须来自各自产口。hit 不重算，runner 按
+        // `(level, bsp_key)` 复用最近一次 miss 见证；绝不从最终 pipeline BSP 反筛。
+        let mut captured_direct_3a = Vec::new();
+        let mut captured_second_07b = None;
         let (bsp, pan_div, first_class_grades, candidates): (
             Rc<Vec<BspPoint>>,
             Rc<Vec<signal::PanDivCert>>,
             Rc<Vec<signal::FirstClassGradeRecord>>,
             Rc<Vec<cand_event::CandidateObservation>>,
-        ) = if lc.cached_bsp_key == Some(bsp_key) {
+        ) = if memo_hit {
             // 07c：memo 命中 ⟹ `Rc::clone`（引用计数 O(1)），替代全量 `cached_bsp.clone()`。
             // Q4：pan_div 同批命中（同 key 守卫 ⟹ 同一 extract 产出的两半锁步复用）。
             // #885：first_class_grades 同批命中（同一 extract 产出的第三半，同 key 同批锁步）。
@@ -1291,6 +1334,7 @@ fn classify_incremental_inner(
                 )
             })
         } else {
+            let restore_cp_only = super::diag::s2_mirror_capture::enter_memo_miss_data_capture();
             // ★3a 生产单扫描（SPEC #1077 D1）：一趟段扫描产 BSP 三投影 + 候选观察。confirmed 前缀
             // 段素材缓存复用（BSP 域冻一/三类点+证书+分级记录，候选域冻结构宽候选腿），只重判
             // frontier tail；候选归约层（merged/首证钟/state）在扫描末尾对 prefix+tail 全量重跑。
@@ -1393,6 +1437,11 @@ fn classify_incremental_inner(
                     stable_len,
                 )
             });
+            if super::diag::s2_mirror_capture::memo_capture_enabled() {
+                captured_direct_3a = b.clone();
+                captured_second_07b = Some(second.clone());
+            }
+            super::diag::s2_mirror_capture::exit_memo_miss_data_capture(restore_cp_only);
             b.extend(second);
             b.sort_by_key(|p| p.source_index);
             // miss 路径：`Rc::new` 一次，cache 与 LevelState 共享同一 buffer（消除旧 `b.clone()`）。
@@ -1407,6 +1456,49 @@ fn classify_incremental_inner(
             lc.cached_bsp_key = Some(bsp_key);
             (rc, rc_pan, rc_grades, rc_candidates)
         };
+
+        if let Some((cached_key_before, old_bsp, old_pan, old_grades, old_candidates)) =
+            memo_capture_before
+        {
+            super::diag::s2_mirror_capture::record_four_rc_memo(
+                super::diag::s2_mirror_capture::FourRcMemoCapture {
+                    level: level_idx as u32,
+                    key: bsp_key,
+                    cached_key_before,
+                    hit: memo_hit,
+                    prior_reused: [
+                        Rc::ptr_eq(&bsp, &old_bsp),
+                        Rc::ptr_eq(&pan_div, &old_pan),
+                        Rc::ptr_eq(&first_class_grades, &old_grades),
+                        Rc::ptr_eq(&candidates, &old_candidates),
+                    ],
+                    cache_after_matches_return: [
+                        Rc::ptr_eq(&bsp, &lc.cached_bsp),
+                        Rc::ptr_eq(&pan_div, &lc.cached_pan_div),
+                        Rc::ptr_eq(&first_class_grades, &lc.cached_first_class_grades),
+                        Rc::ptr_eq(&candidates, &lc.cached_candidates),
+                    ],
+                    before_lengths: [
+                        old_bsp.len(),
+                        old_pan.len(),
+                        old_grades.len(),
+                        old_candidates.len(),
+                    ],
+                    lengths: [
+                        bsp.len(),
+                        pan_div.len(),
+                        first_class_grades.len(),
+                        candidates.len(),
+                    ],
+                    pipeline_points: Rc::clone(&bsp),
+                    direct_3a_points: captured_direct_3a,
+                    second_07b_points: captured_second_07b,
+                    pan_divs: Rc::clone(&pan_div),
+                    grades: Rc::clone(&first_class_grades),
+                    candidates: Rc::clone(&candidates),
+                },
+            );
+        }
 
         candidate_observations.extend(candidates.iter().cloned());
 
