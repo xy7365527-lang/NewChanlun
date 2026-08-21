@@ -6,6 +6,7 @@
 
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { primeAgent } from "./prime-agent-provider.ts";
 import { execSync } from "node:child_process";
 import { appendFileSync, mkdirSync } from "node:fs";
@@ -15,7 +16,13 @@ import { appendFileSync, mkdirSync } from "node:fs";
 const IMPLEMENTER_MODEL = "deepseek-v4-pro";
 const REVIEWER_MODEL = "deepseek-v4-pro";
 const PROVIDER = "deepseek";
-const MAX_ITERATIONS = 1;
+// #1066：每票每阶段（implementer/reviewer）最多续跑轮数；续跑复用原 prime-agent 会话
+// （runWithResume），而非 sandcastle 内建 maxIterations 的「多轮各自全新会话」。
+const MAX_ITERATIONS = 3;
+// 每次运行认领并处理的最大票数（与每阶段续跑轮数无关；本票不扩大取票吞吐，#1066 未涉此闸）。
+const MAX_TICKETS_PER_RUN = 1;
+// #1066：implementer 数据拉取/长静默任务不被默认 600s idle fail 误杀（#1044 第一次空转形态）。
+const IMPLEMENTER_IDLE_TIMEOUT_SECONDS = 1800;
 
 // ── frontier 查询（host 侧）：open + sandcastle label + 未 assign + 无 open blocker ──
 // blocker 过滤吃 tracker 原生依赖边（#1005 补齐；与 prompt 层判定叠加，#1007 裁 3）。
@@ -58,6 +65,42 @@ function pickIssue(): number | null {
   return null;
 }
 
+// ── 多轮续跑（#1066）：同一票的 implementer/reviewer 续跑必须复用原 prime-agent 会话。
+// sandcastle 的 maxIterations>1 是「多轮各自全新会话」，不构成续跑（#1066 评论查实）；
+// 故每轮 maxIterations=1，靠 provider 会话捕获 + resumeSession 显式续同一 session。
+// 终止：出现完成信号（<promise>COMPLETE</promise>）或拿不到可恢复的 session id。
+// sandbox.run 抛错（如工蜂被 SIGKILL、exit 137）按原样上抛：沙盒 close 由主循环 finally
+// 兜底，票由宿主 re-queue 纪律接管（TROUBLESHOOTING #10/#11）。
+async function runWithResume(
+  sandbox: Sandbox,
+  options: {
+    name: string;
+    agent: AgentProvider;
+    promptFile: string;
+    promptArgs: Record<string, string>;
+    idleTimeoutSeconds?: number;
+  },
+): Promise<SandboxRunResult> {
+  let resumeSession: string | undefined;
+  let result: SandboxRunResult | undefined;
+  for (let round = 1; round <= MAX_ITERATIONS; round++) {
+    result = await sandbox.run({
+      name: options.name,
+      maxIterations: 1,
+      agent: options.agent,
+      promptFile: options.promptFile,
+      promptArgs: options.promptArgs,
+      ...(options.idleTimeoutSeconds !== undefined ? { idleTimeoutSeconds: options.idleTimeoutSeconds } : {}),
+      ...(resumeSession !== undefined ? { resumeSession } : {}),
+    });
+    const lastId = result.iterations.at(-1)?.sessionId;
+    if (lastId) resumeSession = lastId;
+    if (result.completionSignal || resumeSession === undefined) break;
+  }
+  if (!result) throw new Error(`runWithResume: ${options.name} 未产生运行结果`);
+  return result;
+}
+
 // ── REVIEW_ONLY 模式（#879 补派 Phase 2 引入）：env SANDCASTLE_REVIEW_ONLY="分支名:票号" 时
 // 跳过 pickIssue 与 Phase 1，对既有分支直接跑 Phase 2 评审（宿主驱动中断后的补派路径，
 // TROUBLESHOOTING #11）。分支须已存在且含实装 commit。
@@ -76,9 +119,8 @@ if (REVIEW_ONLY) {
     sandbox: docker({ imageName: "sandcastle:newchanlun" }),
   });
   logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
-  await sandbox.run({
+  await runWithResume(sandbox, {
     name: "reviewer",
-    maxIterations: 1,
     agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
     promptFile: "./.sandcastle/review-prompt.md",
     promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
@@ -89,7 +131,7 @@ if (REVIEW_ONLY) {
   process.exit(0);
 }
 
-for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
+for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
   const issue = pickIssue();
   if (!issue) {
     console.log("无 ready-for-agent 未认领 issue，停。");
@@ -100,7 +142,7 @@ for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
   execSync(`gh issue edit ${issue} --remove-label sandcastle --add-assignee @me`);
   const branch = `sandcastle/issue-${issue}`;
   logWorker({ ticket: issue, branch, phase: "claim", status: "claimed" });
-  console.log(`\n=== Iteration ${iter}/${MAX_ITERATIONS}: issue #${issue} → ${branch} ===\n`);
+  console.log(`\n=== Iteration ${iter}/${MAX_TICKETS_PER_RUN}: issue #${issue} → ${branch} ===\n`);
 
   const sandbox = await sandcastle.createSandbox({
     branch,
@@ -108,14 +150,14 @@ for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
     sandbox: docker({ imageName: "sandcastle:newchanlun" }),
   });
   try {
-    // Phase 1：实装
+    // Phase 1：实装（#1066：多轮续跑同一会话 + idle 1800s 防长静默误杀）
     logWorker({ ticket: issue, branch, phase: "implementer", status: "started" });
-    const implement = await sandbox.run({
+    const implement = await runWithResume(sandbox, {
       name: "implementer",
-      maxIterations: 1,
       agent: primeAgent(IMPLEMENTER_MODEL, { provider: PROVIDER }),
       promptFile: "./.sandcastle/implement-prompt.md",
       promptArgs: { ISSUE_NUMBER: String(issue) },
+      idleTimeoutSeconds: IMPLEMENTER_IDLE_TIMEOUT_SECONDS,
     });
     if (!implement.commits.length) {
       logWorker({ ticket: issue, branch, phase: "implementer", status: "no_commit" });
@@ -125,11 +167,10 @@ for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
     logWorker({ ticket: issue, branch, phase: "implementer", status: "completed", commits: implement.commits.length });
     console.log(`实装完成：${implement.commits.length} 个 commit`);
 
-    // Phase 2：独立评审（不同子代理，#1001 裁 1；直接在分支上修正）
+    // Phase 2：独立评审（不同子代理，#1001 裁 1；直接在分支上修正；#1066 多轮续跑）
     logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
-    await sandbox.run({
+    await runWithResume(sandbox, {
       name: "reviewer",
-      maxIterations: 1,
       agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
       promptFile: "./.sandcastle/review-prompt.md",
       promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
