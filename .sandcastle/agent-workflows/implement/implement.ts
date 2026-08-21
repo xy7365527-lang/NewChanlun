@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
-import { claudeAgent } from "../shared/agent.ts";
+import { readModelLabelsFromEnv, selectedAgent } from "../shared/agent.ts";
 import { fail, required, safeSh, sh } from "../shared/common.ts";
 
 const ISSUE_NUMBER = required("ISSUE_NUMBER");
@@ -9,13 +9,16 @@ const ISSUE_TITLE = required("ISSUE_TITLE");
 const BRANCH = required("BRANCH");
 
 try {
+  const modelLabels = readModelLabelsFromEnv();
+  const agent = selectedAgent("implement", modelLabels);
+
   const issueContext =
     safeSh(`gh issue view ${ISSUE_NUMBER} --comments`) ||
     `Issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}`;
 
   const result = await sandcastle.run({
     name: `implement-#${ISSUE_NUMBER}`,
-    agent: claudeAgent("implement"),
+    agent,
     sandbox: noSandbox(),
     logging: { type: "stdout" },
     promptFile: path.join(import.meta.dirname, "prompt.md"),

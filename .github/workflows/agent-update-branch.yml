@@ -4,6 +4,9 @@ name: Agent Update Branch
 # /fork PR 面，label 事件不会被不可信 PR 内容自动触发（下游注释解释为何用 pull_request_target）。
 
 on:
+  # #1128：update-branch 固定 Claude Opus，不消费 `agent:model:*`；未知/冲突模型标签仍由
+  # update-branch.ts 入口 fail-loud 并标 blocked。
+  #
   # pull_request_target rather than pull_request: the standard pull_request
   # trigger depends on a generated merge commit, which GitHub fails to
   # produce when the PR is out-of-date or conflicting — exactly when this
@@ -69,6 +72,7 @@ jobs:
         id: run
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          EVENT_PAYLOAD: ${{ toJSON(github.event) }}
           OUTPUT_DIR: ${{ runner.temp }}
         run: npx tsx .sandcastle/agent-workflows/update-branch/update-branch.ts
 
@@ -117,6 +121,7 @@ jobs:
             reason=$(cat "${RUNNER_TEMP}/failure_reason.txt")
           fi
           body_file="${RUNNER_TEMP}/failure-comment.md"
+          # shellcheck disable=SC2016  # 反引号是评论正文里的 Markdown，不是命令替换
           printf '`agent:update-branch` run failed.\n\n**Reason:** %s\n\n**Workflow run:** %s\n\nRe-add `agent:update-branch` to retry.\n' "$reason" "$RUN_URL" > "$body_file"
           gh pr edit "$PR_NUMBER" --add-label "agent:blocked" || true
           gh pr comment "$PR_NUMBER" --body-file "$body_file"

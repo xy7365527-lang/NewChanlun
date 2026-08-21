@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
-"""机械验证 .sandcastle 官方 GitHub Actions scaffold（#1110）。
+"""机械验证 .sandcastle 官方 GitHub Actions scaffold（#1110）与 #1128 显式模型 registry。
 
-验证面（对应 #1110 验收）：
+验证面（对应 #1110 + #1128 验收）：
   1. workflow YAML 结构不变式（trigger/label 闸、concurrency、权限最小化、
      checkout/base、确定性分支、Draft PR、force-with-lease、失败回写、防重）。
   2. issue shape 检测脚本（detect-issue-shape.sh）在 mock gh 下四形态对拍。
-  3. 禁入模式扫描（不读本机 Prime/Codex auth；不复用 watcher/harvest/main-loop）。
+  3. 禁入模式扫描（不读本机 Prime/Codex auth；不复用 watcher/harvest/main-loop；
+     #1002 旧 Kimi 常量/票面模型路由不复活）。
+  4. #1128 模型 registry 机械锁：event payload 接线、固定 Secret allowlist、
+     票面字符串不成为 env/secret key、remote-child identity 与模型凭据分离、
+     事件 fixture 覆盖（默认 Claude / 显式 DeepSeek / 冲突 / 未知 / 缺 secret）。
 
 用法：python3 .sandcastle/verify-workflows.py
 退出码 0 = 全过；非 0 = 首条失败（附可读信息）。
 """
 from __future__ import annotations
 
+import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -23,6 +29,7 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 WF_DIR = ROOT / ".github" / "workflows"
 AW_DIR = ROOT / ".sandcastle" / "agent-workflows"
+FIXTURE_DIR = AW_DIR / "shared" / "fixtures"
 
 WORKFLOWS = [
     "agent-implement.yml",
@@ -31,6 +38,47 @@ WORKFLOWS = [
     "agent-explore.yml",
     "agent-update-branch.yml",
 ]
+
+# #1128 事件 fixture 覆盖表：文件名 → 必须出现的标签集合（含触发标签与模型标签）。
+FIXTURE_REQUIREMENTS = {
+    "issue-labeled-default-claude.json": {"agent:implement"},
+    "issue-labeled-deepseek-v4-pro.json": {
+        "agent:implement",
+        "agent:model:deepseek-v4-pro",
+    },
+    "issue-labeled-conflict.json": {
+        "agent:implement",
+        "agent:model:deepseek-v4-pro",
+        "agent:model:DEEPSEEK_API_KEY",
+    },
+    "issue-labeled-unknown.json": {
+        "agent:implement",
+        "agent:model:DEEPSEEK_API_KEY",
+    },
+    "issue-labeled-deepseek-missing-secret.json": {
+        "agent:implement",
+        "agent:model:deepseek-v4-pro",
+    },
+    "issue-labeled-deepseek-retry.json": {
+        "agent:implement",
+        "agent:model:deepseek-v4-pro",
+    },
+    "pr-labeled-review.json": {
+        "agent:review",
+        "agent:model:deepseek-v4-pro",
+    },
+    "pr-labeled-implement-pr-deepseek-v4-pro.json": {
+        "agent:implement",
+        "agent:model:deepseek-v4-pro",
+    },
+}
+
+ALLOWED_SECRET_REFS = {
+    "GITHUB_TOKEN",
+    "AGENT_PAT",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "DEEPSEEK_API_KEY",
+}
 
 _failures: list[str] = []
 
@@ -195,10 +243,116 @@ def main() -> int:
         ("harvest.sh", "不得复用现有 harvest.sh 运行时"),
         ("main.mts", "不得复用现有 main.mts 主循环"),
         ("main-swarm.mts", "不得复用现有 main-swarm.mts 蜂群"),
+        ("kimi-coding", "#1002 旧 Kimi provider 常量不得复活"),
+        ("IMPLEMENTER_MODEL", "#1002 旧票面/常量模型路由不得复活"),
+        ("REVIEWER_MODEL", "#1002 旧票面/常量模型路由不得复活"),
     ]
     for needle, why in banned:
         check(needle not in all_text, f"禁入模式扫描命中 {needle!r}：{why}")
     check("claudeCode" in all_text, "agent provider 必须使用 Sandcastle 内置 claudeCode()")
+
+    # ── 4. #1128 显式模型 registry 机械锁 ────────────────────────────────────
+    agent_ts = (AW_DIR / "shared" / "agent.ts").read_text()
+    registry_all_text = all_text
+
+    for name in WORKFLOWS:
+        raw = raw_wf(name)
+        check(
+            "EVENT_PAYLOAD: ${{ toJSON(github.event) }}" in raw,
+            f"{name} 必须把 toJSON(github.event) 作为 EVENT_PAYLOAD 传给 agent 步",
+        )
+
+    # 固定 Secret allowlist：workflow 里出现的每个 secrets.X 都必须在白名单内。
+    secret_refs = set(re.findall(r"secrets\.([A-Z0-9_]+)", "\n".join(raw_wf(n) for n in WORKFLOWS)))
+    check(
+        secret_refs <= ALLOWED_SECRET_REFS,
+        f"workflow Secret 引用必须封闭 allowlist（实为 {sorted(secret_refs)}）",
+    )
+
+    # 只实装入口（issue implement / PR implement-pr）注入 DeepSeek secret；
+    # review/explore/update-branch 固定 Claude，绝不把 DeepSeek key 放进进程 env。
+    for name in ["agent-implement.yml", "agent-implement-pr.yml"]:
+        raw = raw_wf(name)
+        check(
+            "DEEPSEEK_API_KEY" in raw and "agent:model:deepseek-v4-pro" in raw,
+            f"{name} 必须支持显式 DeepSeek v4-pro 路线",
+        )
+        check(
+            "prime-agent-0.7.2.tgz" in raw,
+            f"{name} 必须安装与 .sandcastle/Dockerfile 同版本的 Prime Agent CLI",
+        )
+    for name in ["agent-review.yml", "agent-explore.yml", "agent-update-branch.yml"]:
+        raw = raw_wf(name)
+        check(
+            "DEEPSEEK_API_KEY" not in raw,
+            f"{name} 固定 Claude 角色，不得注入 DEEPSEEK_API_KEY",
+        )
+
+    check("MODEL_REGISTRY" in agent_ts and "agent:model:deepseek-v4-pro" in agent_ts,
+          "shared/agent.ts 必须包含显式模型 registry allowlist")
+    check("primeAgent" in agent_ts and "claudeCode" in agent_ts,
+          "shared/agent.ts 必须同时具备 Claude 内置 provider 与自定义 Prime Agent provider")
+    check("REMOTE_CHILD_IDENTITY_ENV_ALLOWLIST" in agent_ts,
+          "shared/agent.ts 必须把 remote-child invitation/lease 与模型凭据分开")
+    check("MODEL_SECRET_NAMES" in agent_ts,
+          "shared/agent.ts 必须集中声明模型 Secret 名 allowlist")
+    check("process.env[" not in agent_ts,
+          "shared/agent.ts 模型/Secret 映射必须是代码内 allowlist，不得动态索引 env key")
+    if "REMOTE_CHILD_IDENTITY_ENV_ALLOWLIST = [" in agent_ts:
+        remote_identity_block = agent_ts.split(
+            "REMOTE_CHILD_IDENTITY_ENV_ALLOWLIST = [", 1
+        )[1].split("] as const;", 1)[0]
+        check(
+            "DEEPSEEK_API_KEY" not in remote_identity_block
+            and "CLAUDE_CODE_OAUTH_TOKEN" not in remote_identity_block,
+            "remote-child invitation/lease allowlist 不得包含模型凭据名",
+        )
+
+    # 事件 fixture：存在、合法 JSON、覆盖四种必需场景（默认 Claude / DeepSeek / 冲突+未知 / 缺 secret）。
+    for filename, required_labels in FIXTURE_REQUIREMENTS.items():
+        path = FIXTURE_DIR / filename
+        check(path.is_file(), f"缺少 #1128 事件 fixture {filename}")
+        if not path.is_file():
+            continue
+        try:
+            event = json.loads(path.read_text())
+        except json.JSONDecodeError as exc:
+            check(False, f"fixture {filename} 不是合法 JSON：{exc}")
+            continue
+        check(event.get("action") == "labeled", f"fixture {filename} action 必须为 labeled")
+        container = event.get("issue") if "issue" in event else event.get("pull_request")
+        labels = (container or {}).get("labels") if isinstance(container, dict) else None
+        label_names: set[str] = set()
+        if isinstance(labels, list):
+            label_names = {
+                item.get("name")
+                for item in labels
+                if isinstance(item, dict) and isinstance(item.get("name"), str)
+            }
+        check(
+            isinstance(labels, list) and label_names >= required_labels,
+            f"fixture {filename} labels 必须覆盖 {sorted(required_labels)}（实为 {sorted(label_names)}）",
+        )
+
+    required_fixtures = {
+        "issue-labeled-default-claude.json",
+        "issue-labeled-deepseek-v4-pro.json",
+        "issue-labeled-conflict.json",
+        "issue-labeled-unknown.json",
+        "issue-labeled-deepseek-missing-secret.json",
+    }
+    check(required_fixtures <= set(FIXTURE_REQUIREMENTS),
+          "必需事件 fixture 集合缺失（默认 Claude/DeepSeek/冲突/未知/缺 secret）")
+
+    # 票面字符串不成为 Secret/env key：除了 registry allowlist 与测试反例，
+    # 工作流和 agent 代码里不得出现 `secrets.<任意标签>` 或 `process.env[<动态>]`。
+    check("secrets.agent:model" not in registry_all_text,
+          "票面标签字符串不得拼进 secrets 引用")
+    check(
+        'env["agent:model' not in registry_all_text
+        and "env[`agent:model" not in registry_all_text,
+        "票面标签字符串不得拼进 env key",
+    )
 
     # ── 汇总 ───────────────────────────────────────────────────────────────────
     if _failures:
@@ -206,7 +360,11 @@ def main() -> int:
         for i, f in enumerate(_failures, 1):
             print(f"  [{i}] {f}")
         return 1
-    print(f"verify-workflows: 全过（{len(WORKFLOWS)} 个 workflow 结构 + 4 形态对拍 + 禁入扫描）")
+    print(
+        "verify-workflows: 全过（"
+        f"{len(WORKFLOWS)} 个 workflow 结构 + 4 形态对拍 + 禁入扫描 + "
+        f"{len(FIXTURE_REQUIREMENTS)} 个 #1128 事件 fixture 覆盖 + registry 机械锁）"
+    )
     return 0
 
 

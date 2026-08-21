@@ -3,7 +3,11 @@ import * as path from "node:path";
 import { execFileSync } from "node:child_process";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
-import { claudeAgent } from "../shared/agent.ts";
+import {
+  assertValidModelLabels,
+  claudeAgent,
+  readModelLabelsFromEnv,
+} from "../shared/agent.ts";
 import {
   asRecord,
   asString,
@@ -29,6 +33,8 @@ const BRANCH = required("BRANCH");
 const BASE_REF = required("BASE_REF");
 
 try {
+  assertValidModelLabels(readModelLabelsFromEnv());
+
   execFileSync("git", ["fetch", "origin", BASE_REF], { stdio: "inherit" });
 
   const preMergeSha = sh("git rev-parse HEAD").trim();

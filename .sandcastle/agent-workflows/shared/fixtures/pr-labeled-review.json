@@ -1,0 +1,17 @@
+{
+  "action": "labeled",
+  "label": { "name": "agent:review" },
+  "pull_request": {
+    "number": 999,
+    "state": "open",
+    "title": "Fix #1128: Sandcastle 显式模型 registry",
+    "labels": [
+      { "name": "agent:review" },
+      { "name": "agent:model:deepseek-v4-pro" }
+    ]
+  },
+  "repository": {
+    "full_name": "xy7365527-lang/NewChanlun"
+  },
+  "sender": { "login": "xy7365527-lang" }
+}

@@ -1,0 +1,17 @@
+{
+  "action": "labeled",
+  "label": { "name": "agent:implement" },
+  "issue": {
+    "number": 1128,
+    "title": "[task] 冲突模型标签 fixture",
+    "labels": [
+      { "name": "agent:implement" },
+      { "name": "agent:model:deepseek-v4-pro" },
+      { "name": "agent:model:DEEPSEEK_API_KEY" }
+    ]
+  },
+  "repository": {
+    "full_name": "xy7365527-lang/NewChanlun"
+  },
+  "sender": { "login": "xy7365527-lang" }
+}

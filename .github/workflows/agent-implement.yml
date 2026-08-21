@@ -2,6 +2,12 @@ name: Agent Implement
 
 # #1110 AC-2：issue 上 `agent:implement` label 触发一张独立 issue 的实装。
 # 一张 event 只处理一张 issue/PR（不复用 watcher/harvest/main-loop，模型不自寻下一票）。
+#
+# #1128 显式模型 registry：默认无 `agent:model:*` 标签走 Claude 原装；
+# 显式 `agent:model:deepseek-v4-pro` 走 Prime Agent deepseek。label→provider→model→Secret
+# 的 allowlist 在 .sandcastle/agent-workflows/shared/agent.ts；下面的 contains() 只选择
+# 注入哪一条固定 Secret（Claude 或 DeepSeek），不把票面字符串变成 Secret 名。
+# 使用方式：先打 `agent:model:*` 标签，再打触发标签 `agent:implement`（label 事件载荷快照）。
 
 on:
   issues:
@@ -131,14 +137,32 @@ jobs:
         if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true'
         run: npm run typecheck
 
-      - name: Install Claude Code
-        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true'
+      - name: Install Claude Code (default route)
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true' && ! contains(toJSON(github.event.issue.labels.*.name), 'agent:model:deepseek-v4-pro')
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Run implementation agent
-        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true'
+      # DeepSeek 工蜂 = Prime Agent CLI（与 .sandcastle/Dockerfile 同版本/同 tarball）。
+      # 不在 package.json 里新增依赖；默认 Claude 路线不装本 CLI。
+      - name: Install Prime Agent (DeepSeek v4-pro route)
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true' && contains(toJSON(github.event.issue.labels.*.name), 'agent:model:deepseek-v4-pro')
+        run: npm install -g https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.7.2/prime-agent-0.7.2.tgz
+
+      # 两个 run step 互斥，只把所选模型的固定 Secret 注入进程 env：
+      # 未选中的模型凭据不进入 agent 子进程，也不会被转发给 remote-child。
+      - name: Run implementation agent (Claude default)
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true' && ! contains(toJSON(github.event.issue.labels.*.name), 'agent:model:deepseek-v4-pro')
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          EVENT_PAYLOAD: ${{ toJSON(github.event) }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          OUTPUT_DIR: ${{ runner.temp }}
+        run: npx tsx .sandcastle/agent-workflows/implement/implement.ts
+
+      - name: Run implementation agent (DeepSeek v4-pro)
+        if: steps.shape.outputs.shape == 'leaf' && steps.preflight.outputs.refused != 'true' && contains(toJSON(github.event.issue.labels.*.name), 'agent:model:deepseek-v4-pro')
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          EVENT_PAYLOAD: ${{ toJSON(github.event) }}
           BRANCH: ${{ steps.branch.outputs.name }}
           OUTPUT_DIR: ${{ runner.temp }}
         run: npx tsx .sandcastle/agent-workflows/implement/implement.ts
@@ -193,6 +217,7 @@ jobs:
             reason=$(cat "${RUNNER_TEMP}/failure_reason.txt")
           fi
           body_file="${RUNNER_TEMP}/failure-comment.md"
+          # shellcheck disable=SC2016  # 反引号是评论正文里的 Markdown，不是命令替换
           printf '`agent:implement` run failed.\n\n**Reason:** %s\n\n**Workflow run:** %s\n\nRe-add `agent:implement` to retry.\n' "$reason" "$RUN_URL" > "$body_file"
           gh issue edit "$ISSUE_NUMBER" --add-label "agent:blocked" || true
           gh issue comment "$ISSUE_NUMBER" --body-file "$body_file"

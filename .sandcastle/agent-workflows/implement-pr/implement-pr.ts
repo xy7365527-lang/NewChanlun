@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
-import { claudeAgent } from "../shared/agent.ts";
+import { readModelLabelsFromEnv, selectedAgent } from "../shared/agent.ts";
 import {
   fail,
   required,
@@ -21,11 +21,14 @@ const PR_NUMBER = required("PR_NUMBER");
 const BRANCH = required("BRANCH");
 
 try {
+  const modelLabels = readModelLabelsFromEnv();
+  const agent = selectedAgent("implement-pr", modelLabels);
+
   const context = fetchPullRequestContext(PR_NUMBER);
 
   const result = await runWithExtraction({
     name: `implement-pr-${PR_NUMBER}`,
-    agent: claudeAgent("implement-pr"),
+    agent,
     sandbox: noSandbox(),
     logging: { type: "stdout" },
     promptFile: path.join(import.meta.dirname, "prompt.md"),
