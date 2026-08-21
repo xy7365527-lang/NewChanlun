@@ -2048,7 +2048,7 @@ pub(super) fn build_xzd_fallback(
 #[cfg(test)]
 pub(super) mod stepfail_probe {
     use super::super::super::classifier::cand_predicate::{
-        div_cand_fail, parent_last_center, DivCandInput,
+        div_cand_fail, parent_last_center, rmove_dir, DivCandInput,
     };
     use super::super::super::classifier::recursive_tower::{
         find_move_by_end_index, find_move_containing_index,
@@ -2229,6 +2229,233 @@ pub(super) mod stepfail_probe {
                 "source_index": c.source_index,
                 "dir": dir,
                 "stepfail": bucket,
+                "admit": admit,
+                "channel": channel,
+                "would_close": would_close,
+            });
+            let _ = writeln!(writer, "{line}");
+            // P1152（#1147 追问票）逐例结构 dump（env 未设 = no-op，见 sample_structure）。
+            sample_structure(
+                bar,
+                c,
+                tower,
+                hist,
+                classification,
+                strokes,
+                gauge,
+                admit,
+                channel,
+                would_close,
+            );
+        });
+    }
+
+    // ── P1152（#1147 追问票）逐例结构 dump ─────────────────────────────────
+    // env P1152_SAMPLE_KEYS_PATH（JSONL：{"bar":..,"level":..,"source_index":..}）载入样本键；
+    // 命中候选时落 P1152_SAMPLE_DUMP_PATH 的逐例结构（执行段 / sub_moves / 锚定段 / 方向 /
+    // 父中枢 / div_cand 条件 / cand_type / bits / locator_stop）。纯读数、只写 dump，不进任何
+    // 判定；对齐/判据口径与 classify 完全同一（find_move_by_end_index → 区间包含回退 →
+    // div_cand_fail），不另造判据。env 未设 ⟹ 全方法 no-op。
+    thread_local! {
+        static SAMPLE_KEYS: std::cell::RefCell<
+            Option<std::collections::HashSet<(usize, u32, usize)>>,
+        > = std::cell::RefCell::new(None);
+        static SAMPLE_WRITER: std::cell::RefCell<Option<std::io::BufWriter<std::fs::File>>> =
+            std::cell::RefCell::new(None);
+    }
+
+    fn lazy_open_sample() {
+        SAMPLE_KEYS.with(|k| {
+            if k.borrow().is_some() {
+                return;
+            }
+            let mut keys = std::collections::HashSet::new();
+            if let Ok(path) = std::env::var("P1152_SAMPLE_KEYS_PATH") {
+                if let Ok(text) = std::fs::read_to_string(&path) {
+                    for line in text.lines() {
+                        let line = line.trim();
+                        if line.is_empty() {
+                            continue;
+                        }
+                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+                            if let (Some(bar), Some(level), Some(si)) = (
+                                v.get("bar").and_then(|x| x.as_u64()),
+                                v.get("level").and_then(|x| x.as_u64()),
+                                v.get("source_index").and_then(|x| x.as_u64()),
+                            ) {
+                                keys.insert((bar as usize, level as u32, si as usize));
+                            }
+                        }
+                    }
+                }
+            }
+            *k.borrow_mut() = Some(keys);
+        });
+        SAMPLE_WRITER.with(|w| {
+            if w.borrow().is_some() {
+                return;
+            }
+            if let Ok(path) = std::env::var("P1152_SAMPLE_DUMP_PATH") {
+                if !path.is_empty() {
+                    if let Ok(f) = std::fs::File::create(&path) {
+                        *w.borrow_mut() = Some(std::io::BufWriter::new(f));
+                    }
+                }
+            }
+        });
+    }
+
+    fn dir_str(d: Option<super::super::super::types::Direction>) -> Option<&'static str> {
+        match d {
+            Some(super::super::super::types::Direction::Up) => Some("Up"),
+            Some(super::super::super::types::Direction::Down) => Some("Down"),
+            None => None,
+        }
+    }
+
+    /// 逐例结构 dump（P1152）：把 cond1 拒的出场候选展开成可读结构，供三档归因
+    /// （真该拦 / 判据误伤 / 生成面噪声）。与 [`classify`] 同一对齐/判据口径。
+    #[allow(clippy::too_many_arguments)]
+    fn sample_structure(
+        bar: usize,
+        c: &Candidate,
+        tower: &[std::rc::Rc<Vec<super::super::super::classifier::recursive_tower::LeveledMove>>],
+        hist: &[f64],
+        classification: &super::super::super::classifier::Classification,
+        strokes: &[crate::theta_v0::types::Stroke],
+        gauge: super::super::super::classifier::divergence::DivergenceGauge,
+        admit: bool,
+        channel: &str,
+        would_close: bool,
+    ) {
+        lazy_open_sample();
+        let hit = SAMPLE_KEYS.with(|k| {
+            k.borrow()
+                .as_ref()
+                .is_some_and(|m| m.contains(&(bar, c.level, c.source_index)))
+        });
+        if !hit {
+            return;
+        }
+        SAMPLE_WRITER.with(|w| {
+            let mut slot = w.borrow_mut();
+            let Some(writer) = slot.as_mut() else { return };
+            let cand_type = match c.dir {
+                VoiceSide::Long => super::bsp_cand_type(&c.bits, Side::Long),
+                VoiceSide::Short => super::bsp_cand_type(&c.bits, Side::Short),
+                VoiceSide::Flat => super::bsp_cand_type(&c.bits, Side::Long),
+            };
+            let cand_type_str = match cand_type {
+                BspCandType::Type1 => "Type1",
+                BspCandType::Type2 => "Type2",
+                BspCandType::Type3 => "Type3",
+                BspCandType::StructBreak => "StructBreak",
+            };
+            let mut exec_move = serde_json::Value::Null;
+            let mut sub_moves = serde_json::Value::Null;
+            let mut parent_center = serde_json::Value::Null;
+            let mut anchor_sub = serde_json::Value::Null;
+            let mut anchor_idx: Option<usize> = None;
+            let mut div_cond: Option<u8> = None;
+            let mut locator_stop: Option<&str> = None;
+            let lvl = c.level as usize;
+            if let Some(exec_moves) = tower.get(lvl) {
+                if let Some(si) = find_move_containing_index(exec_moves.as_slice(), c.source_index)
+                {
+                    let s = &exec_moves[si];
+                    exec_move = serde_json::json!({
+                        "start": s.start_index,
+                        "end": s.end_index,
+                        "dir": dir_str(rmove_dir(&s.rmove)),
+                    });
+                    let pc = parent_last_center(s);
+                    parent_center = pc
+                        .map(|p| {
+                            serde_json::json!({
+                                "zg": p.zg, "zd": p.zd, "gg": p.gg, "dd": p.dd,
+                                "start": p.start_index, "end": p.end_index,
+                            })
+                        })
+                        .unwrap_or(serde_json::Value::Null);
+                    let subs = s.sub_moves.as_slice();
+                    sub_moves = serde_json::json!(subs
+                        .iter()
+                        .map(|m| serde_json::json!({
+                            "start": m.start_index,
+                            "end": m.end_index,
+                            "dir": dir_str(rmove_dir(&m.rmove)),
+                        }))
+                        .collect::<Vec<_>>());
+                    if matches!(cand_type, BspCandType::Type2 | BspCandType::Type3) {
+                        let tidx = find_move_by_end_index(subs, c.source_index)
+                            .or_else(|| find_move_containing_index(subs, c.source_index));
+                        anchor_idx = tidx;
+                        if let Some(t) = tidx {
+                            let tm = &subs[t];
+                            anchor_sub = serde_json::json!({
+                                "idx": t,
+                                "start": tm.start_index,
+                                "end": tm.end_index,
+                                "dir": dir_str(rmove_dir(&tm.rmove)),
+                            });
+                        }
+                        let delta = match c.dir {
+                            VoiceSide::Long => Side::Long,
+                            VoiceSide::Short => Side::Short,
+                            VoiceSide::Flat => Side::Long,
+                        };
+                        let locator = super::descend_type1_anchor_depth(
+                            s,
+                            c.source_index,
+                            delta,
+                            hist,
+                            strokes,
+                            gauge,
+                        );
+                        locator_stop = Some(match locator.stop() {
+                            DescendStop::BaseL0 => "BaseL0",
+                            DescendStop::NoAlign => "NoAlign",
+                            DescendStop::NoDivergence => "NoDivergence",
+                        });
+                        if let Some(t) = tidx {
+                            div_cond = div_cand_fail(&DivCandInput {
+                                context: subs,
+                                target_idx: t,
+                                hist,
+                                delta,
+                                strokes,
+                                parent_center: parent_last_center(s),
+                                gauge,
+                            });
+                        }
+                    }
+                }
+            }
+            let bits = serde_json::json!({
+                "class_index": c.bits.class_index(),
+                "buy1": c.bits.buy1, "buy2": c.bits.buy2, "buy3": c.bits.buy3,
+                "sell1": c.bits.sell1, "sell2": c.bits.sell2, "sell3": c.bits.sell3,
+            });
+            let line = serde_json::json!({
+                "bar": bar,
+                "level": c.level,
+                "source_index": c.source_index,
+                "dir": match c.dir {
+                    VoiceSide::Long => "Long",
+                    VoiceSide::Short => "Short",
+                    VoiceSide::Flat => "Flat",
+                },
+                "bsp_class": c.bsp_class,
+                "cand_type": cand_type_str,
+                "bits": bits,
+                "exec_move": exec_move,
+                "parent_center": parent_center,
+                "sub_moves": sub_moves,
+                "anchor_sub": anchor_sub,
+                "anchor_idx": anchor_idx,
+                "div_cond": div_cond,
+                "locator_stop": locator_stop,
+                "stepfail": classify(tower, c, hist, classification, strokes, gauge),
                 "admit": admit,
                 "channel": channel,
                 "would_close": would_close,
