@@ -34,7 +34,9 @@ PYEOF
   fi
   echo
   echo "---"
-  tail -4 .sandcastle/logs/main-loop-20260817.log 2>/dev/null | sed 's/^/  /' || true
+  # 滚当前 main-loop 日志（写死旧日志名会随日志轮转失效，取 mtime 最新的一份）
+  loop_log=$(ls -t .sandcastle/logs/main-loop-*.log 2>/dev/null | head -1) || true
+  [ -n "$loop_log" ] && tail -4 "$loop_log" 2>/dev/null | sed 's/^/  /' || true
 } > "$STATUS"
 # roster 同步：把 workers.jsonl 里最新状态回写对应行（roster 文件缺席时跳过，不得拖垮整轮）
 if [ -f "$REG" ] && [ -f "$ROSTER" ]; then
