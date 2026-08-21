@@ -48,8 +48,8 @@ import { join } from "node:path";
 // 默认 dry-run（安全默认）；真实执行须显式 --live。
 const DEFAULT_ORCHESTRATOR = "xy7365527-lang";
 const DEFAULT_POLL_SECONDS = 240; // 4 分钟（dispatcher 先例）
-const DEFAULT_SPEC_MODEL = "k3";
-const DEFAULT_SPEC_PROVIDER = "kimi-coding";
+const DEFAULT_SPEC_MODEL = "deepseek-v4-pro";
+const DEFAULT_SPEC_PROVIDER = "deepseek";
 // 闸一待批的 spec 票标签：编排者需人工批，故挂 ready-for-human（三态 triage 标签之一）。
 const SPEC_AWAIT_LABEL = "ready-for-human";
 // 实装票标签：ready-for-agent（已就绪）+ sandcastle（工蜂拾取闸，main.mts 读取）。
