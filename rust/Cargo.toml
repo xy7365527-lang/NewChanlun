@@ -47,6 +47,10 @@ backtest_bin = ["nautilus", "dep:sha2"]
 # #1087 Rust 生产输出 + 逐段 sink → Lean 独立重算逐字段对拍。只打开只读诊断面；普通构建不编译。
 issue1087_parity = []
 
+# LAV 旁路排序器证据封存层（S1 #1167，ADR 0025）：启用 sha2（JCS+SHA-256 内容寻址）。
+# 与 backtest_bin 同门控——默认 cdylib（Python 扩展）构建不含，零依赖膨胀。
+lav_seal = ["dep:sha2"]
+
 # ── CLI 生产入口（goal acceptance[5]：CLI 能驱动 S_Θ 产回测结果）。 ──
 # required-features：默认 cargo build 不编译它（cdylib 构建不受影响）。
 #   构建/运行：cargo run --features backtest_bin --bin theta_backtest -- <symbol>
@@ -149,6 +153,12 @@ required-features = ["backtest_bin"]
 name = "p856_ed_dominance"
 path = "src/bin/p856_ed_dominance.rs"
 required-features = ["backtest_bin"]
+
+# #1167 S1：封存固定历史样本集（30 样本 × bundle + Comparison Set Manifest + Lead 基线）。
+[[bin]]
+name = "lav_seal_samples"
+path = "src/bin/lav_seal_samples.rs"
+required-features = ["lav_seal"]
 
 # 票 #907 成本门探针（乙类可复用）：逐级买卖点间波幅 ÷（成本+误差）读数。
 [[bin]]
