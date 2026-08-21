@@ -460,12 +460,64 @@ instance eventCheckDecidable (rustInput : RustAssemblyInputExtraction)
   cases rustEvent <;> cases hLean : assembleCandDelta rustInput.toLean <;>
     simp only [EventCheck, hLean] <;> infer_instance
 
-def EventListCheck :
-    List RustAssemblyInputExtraction → List (Option RustEventExtraction) → Prop
-  | [], [] => True
-  | input :: inputRest, output :: outputRest =>
-      EventCheck input output ∧ EventListCheck inputRest outputRest
-  | _, _ => False
+/-- rejected raw case 的结构槽；判据真假不参与，防止 event 被另一 accepted case 消费后假绿。 -/
+def sameRawEventSlot (input : RustAssemblyInputExtraction) (rust : RustEventExtraction) : Bool :=
+  let basic :=
+    rust.level == input.level && rust.side.toLean == input.side.toLean &&
+    rust.divergenceConfirmSrc == input.divergenceConfirmSrc &&
+    rust.confirmSrc == input.divergenceConfirmSrc &&
+    rust.aIntervalLeft == input.aIntervalLeft && rust.aIntervalRight == input.aIntervalRight
+  match episodeBounds input.toLean.rows input.toLean.center input.toLean.departureDir
+      input.untilStart input.triggerEnd with
+  | some bounds =>
+      basic && rust.intervalLeft == bounds.left && rust.intervalRight == bounds.right &&
+      rust.cEpisodeStart == bounds.left && rust.cEpisodeLeft == bounds.left &&
+      rust.cEpisodeRight == bounds.right && rust.enterSrc == bounds.left
+  | none => basic && rust.intervalRight == input.triggerEnd
+
+/-- 从生产 event 列表中恰好消费一个与 Lean 重算 event 全字段相等的元素。 -/
+def consumeEvent (expected : CandDeltaEvent) :
+    List RustEventExtraction → Option (List RustEventExtraction)
+  | [] => none
+  | rust :: rest =>
+      if EventParity rust expected then some rest
+      else (consumeEvent expected rest).map (fun remaining => rust :: remaining)
+
+/-- 所有 rejected raw case 都必须在原始 production event 列表中找不到同一结构槽。 -/
+def rejectedRawCasesHaveNoEvents (inputs : List RustAssemblyInputExtraction)
+    (rustEvents : List RustEventExtraction) : Bool :=
+  inputs.all fun input =>
+    match assembleCandDelta input.toLean with
+    | none => !(rustEvents.any (sameRawEventSlot input))
+    | some _ => true
+
+/--
+列表级 fail-closed 双射门：accepted raw case 各消费一个 event，rejected case 不消费；所有 raw case
+处理完成后生产 event 列表必须为空。因此重复、额外、漏产和一份 event 被多 case 共用都失败。
+-/
+def eventBijectionCheckBool :
+    List RustAssemblyInputExtraction → List RustEventExtraction → Bool
+  | [], rustEvents => rustEvents.isEmpty
+  | input :: inputRest, rustEvents =>
+      match assembleCandDelta input.toLean with
+      | none =>
+          if rustEvents.any (sameRawEventSlot input) then false
+          else eventBijectionCheckBool inputRest rustEvents
+      | some expected =>
+          match consumeEvent expected rustEvents with
+          | none => false
+          | some remaining => eventBijectionCheckBool inputRest remaining
+
+/-- Production CandDelta event 列表与 event 前 raw case 列表的 fail-closed 双射。 -/
+def EventBijectionCheck (inputs : List RustAssemblyInputExtraction)
+    (rustEvents : List RustEventExtraction) : Prop :=
+  rustEvents.Nodup ∧ rejectedRawCasesHaveNoEvents inputs rustEvents = true ∧
+  eventBijectionCheckBool inputs rustEvents = true
+
+instance eventBijectionCheckDecidable (inputs : List RustAssemblyInputExtraction)
+    (rustEvents : List RustEventExtraction) : Decidable (EventBijectionCheck inputs rustEvents) := by
+  unfold EventBijectionCheck
+  infer_instance
 
 structure RustCpObjectExtraction where
   bCenterIndex : Nat

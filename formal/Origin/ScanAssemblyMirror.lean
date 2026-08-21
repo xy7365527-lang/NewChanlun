@@ -995,24 +995,44 @@ structure CpClosureEvidence where
   fullTrendCQualified : Option FullTrendCQualified
 deriving DecidableEq, Repr
 
+/--
+`recursive_tower.rs:1941-1959` 在调用第三类几何判定前的完整资格门。raw 证据必须属于
+对象当前的 departure move/interval，且相邻 leave/retest 的 move 级别与 ordinal 不得倒退。
+-/
+def CpClosureEligible (before : CpObject) (raw : CpClosureEvidence) : Prop :=
+  before.departureMoveId = some raw.cpDepartureMoveId ∧
+  before.departureInterval.map Prod.fst = some raw.cpStart ∧
+  raw.cpStart ≤ raw.leave.startIndex ∧
+  raw.leaveMoveId.level = raw.cpDepartureMoveId.level ∧
+  raw.retestMoveId.level = raw.cpDepartureMoveId.level ∧
+  raw.cpDepartureMoveId.ordinal ≤ raw.leaveMoveId.ordinal ∧
+  raw.leaveMoveId.ordinal ≤ raw.retestMoveId.ordinal
+
+instance cpClosureEligibleDecidable (before : CpObject) (raw : CpClosureEvidence) :
+    Decidable (CpClosureEligible before raw) := by
+  unfold CpClosureEligible
+  infer_instance
+
 def thirdClassFromClosure (before : CpObject) (raw : CpClosureEvidence) : Option ThirdClassInCp :=
-  let side :=
-    match raw.leaveAnchor, raw.retest.direction with
-    | some Direction.up, Direction.down =>
-        if before.bCenter.zg < raw.leave.endPrice && before.bCenter.zg < raw.retest.endPrice then
-          some Side.long
-        else none
-    | some Direction.down, Direction.up =>
-        if raw.leave.endPrice < before.bCenter.zd && raw.retest.endPrice < before.bCenter.zd then
-          some Side.short
-        else none
-    | _, _ => none
-  side.map fun side =>
-    { bCenterId := before.bCenterId, cpDepartureMoveId := raw.cpDepartureMoveId
-      departureMoveId := raw.leaveMoveId, retestMoveId := raw.retestMoveId
-      departureInterval := (raw.leave.startIndex, raw.leave.endIndex)
-      retestInterval := (raw.retest.startIndex, raw.retest.endIndex)
-      pointSourceIndex := raw.retest.endIndex, side := side }
+  if CpClosureEligible before raw then
+    let side :=
+      match raw.leaveAnchor, raw.retest.direction with
+      | some Direction.up, Direction.down =>
+          if before.bCenter.zg < raw.leave.endPrice && before.bCenter.zg < raw.retest.endPrice then
+            some Side.long
+          else none
+      | some Direction.down, Direction.up =>
+          if raw.leave.endPrice < before.bCenter.zd && raw.retest.endPrice < before.bCenter.zd then
+            some Side.short
+          else none
+      | _, _ => none
+    side.map fun side =>
+      { bCenterId := before.bCenterId, cpDepartureMoveId := raw.cpDepartureMoveId
+        departureMoveId := raw.leaveMoveId, retestMoveId := raw.retestMoveId
+        departureInterval := (raw.leave.startIndex, raw.leave.endIndex)
+        retestInterval := (raw.retest.startIndex, raw.retest.endIndex)
+        pointSourceIndex := raw.retest.endIndex, side := side }
+  else none
 
 /-- Pending→Closed 由 Lean 从 leave/retest 几何判定，并一次写全 P2/c_p 附着字段。 -/
 def closeCpFromRaw (before : CpObject) (raw : CpClosureEvidence) : CpObject :=

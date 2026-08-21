@@ -37,3 +37,4 @@
 - [x] 2026-08-20 | Prime 子代理（GPT-5.6 Sol，high，workspace-write）| #1087 双轴评审阻断修复：ID 独立重算、19 字段事件、raw c_p closure、checkpoint/末根/cache 回缩、CI negative 锁 | 完成：三窗重型 1 passed（192.83s），lake 155 jobs、fmt、两档 check 绿；session prime-1087-repair1
 - [ ] 2026-08-20 | Codex CLI（GPT-5.6 Sol，high，read-only）| #1087 修复 diff 独立评审：聚焦五个双轴阻断是否仍可假绿、Lean/Rust wire 字段漂移、checkpoint/cache 测试漏洞 | 失败：PID 90639 运行约 5 分钟仍停留在大面读取，按超时纪律终止；artifact=/private/tmp/issue1087-repair-codex-review.md
 - [ ] 2026-08-20 | Codex CLI（GPT-5.6 Sol，high，read-only）| #1087 修复独立评审重试：仅核 formal 三文件 + parity test/probe 的五项假绿风险 | 失败：PID 94753 窄域重试 3 分钟仍未产最终 finding（MCP 认证噪声/只读大面探索），按单次重试上限终止；artifact=/private/tmp/issue1087-repair-codex-review-narrow.md
+- [x] 2026-08-20 | Prime 子代理（GPT-5.6 Sol，high，workspace-write）| #1087 第二轮双轴复审阻断修复：完整三窗/L2 门、CandDelta 双射、tick 坐标、c_p closure 全守卫 | 完成：fresh 三窗 12/12 stages PASS（287.82s），lake 155 jobs、负控、fmt/check 绿；session prime-1087-repair2

@@ -695,7 +695,6 @@ pub(crate) mod issue1087_probe {
         pub full_trend_evidence: Option<FullTrendQualificationEvidence>,
         pub cp_ownership: Option<CandDeltaCpEdge>,
         pub pan_div_diag: bool,
-        pub rust_event: Option<CandDeltaEvent>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -729,6 +728,8 @@ pub(crate) mod issue1087_probe {
         pub rows: Vec<WireSegmentRow>,
         pub episode_cases: Vec<EpisodeCase>,
         pub cand_delta_cases: Vec<WireCandDeltaCase>,
+        /// Rust 生产 event 的完整列表；Lean 列表级门与 raw cases 做 fail-closed 双射。
+        pub cand_delta_events: Vec<CandDeltaEvent>,
         /// 每窗只在首条 level record 携带全塔 stable-revision 生命周期转移，避免重复 fixture。
         pub cp_transitions: Vec<WireCpTransition>,
     }
@@ -826,9 +827,11 @@ pub(crate) mod issue1087_probe {
             .collect();
         let anchors = anchor_dirs.unwrap_or(&anchors_self);
         let any_trend = blocks.iter().any(|block| block.kind == MoveKind::Trend);
-        let any_consol = blocks
+        // CandDelta sidecar consumes every consolidation ownership at this level; `level_lift == 0`
+        // is only the merged four-output projection gate and must not narrow the event raw-case domain.
+        let any_event_consol = blocks
             .iter()
-            .any(|block| block.kind == MoveKind::Consolidation && block.level_lift == 0);
+            .any(|block| block.kind == MoveKind::Consolidation);
         let episode_cases = segments
             .iter()
             .filter_map(|segment| {
@@ -993,9 +996,10 @@ pub(crate) mod issue1087_probe {
                 } else {
                     (None, None, None, None, None, None, None)
                 };
-                let kind_consol = any_consol
-                    && center_block_kind_at(blocks, center_index) == Some(MoveKind::Consolidation)
-                    && center_block_lift_at(blocks, center_index) == Some(0);
+                // level_cand_delta 的事件侧车按完整 consolidation ownership 诊断，
+                // 不套 merged 四输出的 lift==0 投影门。
+                let kind_consol = any_event_consol
+                    && center_block_kind_at(blocks, center_index) == Some(MoveKind::Consolidation);
                 let pan_div_diag = kind_consol
                     && signal::judge_pan_div_observation(
                         center,
@@ -1007,14 +1011,6 @@ pub(crate) mod issue1087_probe {
                         close_src,
                     )
                     .is_some();
-                let rust_event = cand_events
-                    .iter()
-                    .find(|event| {
-                        event.side == side
-                            && event.interval == (leg.interval.left, leg.interval.right)
-                            && event.a_interval == (leg.key.seg_a.left, leg.key.seg_a.right)
-                    })
-                    .cloned();
                 Some(WireCandDeltaCase {
                     kind: WireCandidateKind::Trend,
                     side: leg.key.side,
@@ -1039,20 +1035,19 @@ pub(crate) mod issue1087_probe {
                     full_trend_evidence,
                     cp_ownership,
                     pan_div_diag,
-                    rust_event,
                 })
             })
             .collect();
         // Pan 诊断事件也从 event 前的 observation 判据输入枚举；不得只遍历已产 event。
-        for (segment_index, segment) in segments.iter().enumerate() {
+        for segment in segments {
             let Some(center_index) =
                 signal::nearest_confirmed_center_idx(centers, segment.start_index)
             else {
                 continue;
             };
-            let kind_consol = any_consol
-                && center_block_kind_at(blocks, center_index) == Some(MoveKind::Consolidation)
-                && center_block_lift_at(blocks, center_index) == Some(0);
+            // 与 level_cand_delta 的 Pan event 前门逐字同口径；lift==0 只属于 merged 四输出。
+            let kind_consol = any_event_consol
+                && center_block_kind_at(blocks, center_index) == Some(MoveKind::Consolidation);
             if !kind_consol {
                 continue;
             }
@@ -1072,16 +1067,6 @@ pub(crate) mod issue1087_probe {
                 Side::Long => Direction::Down,
                 Side::Short => Direction::Up,
             };
-            let rust_event = cand_events
-                .iter()
-                .find(|event| {
-                    event.pan_div_diag
-                        && !event.cand_delta
-                        && event.side == cert.side
-                        && event.interval == cert.seg_c
-                        && event.a_interval == cert.seg_a
-                })
-                .cloned();
             cand_delta_cases.push(WireCandDeltaCase {
                 kind: WireCandidateKind::Pan,
                 side: cert.side.into(),
@@ -1106,7 +1091,6 @@ pub(crate) mod issue1087_probe {
                 full_trend_evidence: None,
                 cp_ownership: None,
                 pan_div_diag: true,
-                rust_event,
             });
         }
 
@@ -1122,6 +1106,7 @@ pub(crate) mod issue1087_probe {
                 rows,
                 episode_cases,
                 cand_delta_cases,
+                cand_delta_events: cand_events,
                 cp_transitions: Vec::new(),
             });
     }

@@ -28,6 +28,27 @@ const BAR_COUNT: usize = 200_000;
 const YEARS: [u32; 4] = [2023, 2024, 2025, 2026];
 const NS_PER_MINUTE: i64 = 60_000_000_000;
 const NANOS_PER_CENT: i64 = 10_000_000;
+/// EQUS.MINI equities are admitted as integer cents; ThetaConfig must dequantize one Tick as $0.01.
+const EQUS_MINI_TICK_SIZE: f64 = 0.01;
+
+fn databento_nanodollars_to_tick(raw_price: i64) -> i64 {
+    assert!(raw_price >= 0, "价格必须非负");
+    raw_price
+        .checked_add(NANOS_PER_CENT / 2)
+        .expect("Databento nanodollar price rounding overflow")
+        / NANOS_PER_CENT
+}
+
+fn tick_to_price(tick: i64, tick_size: f64) -> f64 {
+    tick as f64 * tick_size
+}
+
+fn issue1087_config() -> ThetaConfig {
+    let mut config = ThetaConfig::default();
+    config.tick.tick_size = EQUS_MINI_TICK_SIZE;
+    config.level.l_max = 8;
+    config
+}
 
 #[derive(Clone, Copy)]
 struct MinuteBar {
@@ -66,6 +87,28 @@ const WINDOWS: [WindowSpec; 3] = [
     },
 ];
 
+/// 完整验收入口没有 symbol 过滤器；它机械固定为 AAPL/MSFT/NVDA 三窗。
+fn complete_acceptance_windows() -> [WindowSpec; 3] {
+    WINDOWS
+}
+
+fn assert_complete_level_ladder(window: WindowSpec, stage: &str, raw_levels: &[u32]) {
+    assert!(!raw_levels.is_empty(), "{window:?} {stage} 至少 L0");
+    let mut levels = raw_levels.to_vec();
+    levels.sort_unstable();
+    let reached = *levels.last().expect("非空已断言");
+    assert!(
+        reached >= 2,
+        "{window:?} {stage} 必须至少达到 L2，实际 L{reached}"
+    );
+    assert!(reached <= 8, "{window:?} {stage} l_max=8 不得越界");
+    assert_eq!(
+        levels,
+        (0_u32..=reached).collect::<Vec<_>>(),
+        "{window:?} {stage} 必须恰有连续且唯一的 L0..L{reached} 快照"
+    );
+}
+
 fn windows_are_pairwise_disjoint(windows: &[WindowSpec]) -> bool {
     windows.iter().enumerate().all(|(i, left)| {
         left.start < left.end
@@ -73,6 +116,25 @@ fn windows_are_pairwise_disjoint(windows: &[WindowSpec]) -> bool {
                 left.symbol != right.symbol || left.end <= right.start || right.end <= left.start
             })
     })
+}
+
+#[test]
+fn complete_acceptance_plan_is_exactly_aapl_msft_nvda() {
+    assert_eq!(complete_acceptance_windows(), WINDOWS);
+}
+
+#[test]
+#[should_panic(expected = "至少达到 L2")]
+fn acceptance_stage_without_l2_is_rejected() {
+    assert_complete_level_ladder(
+        WindowSpec {
+            symbol: "NEGATIVE",
+            start: 0,
+            end: BAR_COUNT,
+        },
+        "negative",
+        &[0, 1],
+    );
 }
 
 #[test]
@@ -101,6 +163,19 @@ fn parse_trade(line: &str, path: &Path, line_no: usize) -> (i64, i64, f64) {
     (integer(1, "ts_event"), integer(8, "price"), size)
 }
 
+#[test]
+fn databento_nanodollar_price_uses_cents_tick_roundtrip() {
+    let raw_price = 123_450_000_000_i64; // $123.45 in Databento nanodollars.
+    let tick = databento_nanodollars_to_tick(raw_price);
+    assert_eq!(tick, 12_345);
+    assert_eq!(tick_to_price(tick, EQUS_MINI_TICK_SIZE), 123.45);
+    assert_eq!(
+        (tick_to_price(tick, EQUS_MINI_TICK_SIZE) * 1_000_000_000.0).round() as i64,
+        raw_price
+    );
+    assert_eq!(issue1087_config().tick.tick_size, EQUS_MINI_TICK_SIZE);
+}
+
 fn load_bars(root: &Path, symbol: &str, required: usize) -> Vec<Bar> {
     let mut completed = Vec::with_capacity(required);
     for year in YEARS {
@@ -117,8 +192,7 @@ fn load_bars(root: &Path, symbol: &str, required: usize) -> Vec<Bar> {
         for (offset, line) in lines.enumerate() {
             let (timestamp, raw_price, size) = parse_trade(&line.unwrap(), &path, offset + 2);
             let minute = timestamp.div_euclid(NS_PER_MINUTE);
-            assert!(raw_price >= 0, "价格必须非负");
-            let price = (raw_price + NANOS_PER_CENT / 2) / NANOS_PER_CENT;
+            let price = databento_nanodollars_to_tick(raw_price);
             minutes
                 .entry(minute)
                 .and_modify(|bar| {
@@ -853,14 +927,30 @@ fn write_fixture(path: &Path, records: &[issue1087_parity::ScanParityRecord]) {
                 option(&case.full_trend_evidence, full_trend_evidence),
                 option(&case.cp_ownership, cp_edge),
                 case.pan_div_diag).unwrap();
-            writeln!(
-                out,
-                "def candExpected{record_index}_{case_index} : Option RustEventExtraction := {}",
-                option(&case.rust_event, event_extraction)
-            )
-            .unwrap();
-            writeln!(out, "example : EventCheck candInput{record_index}_{case_index} candExpected{record_index}_{case_index} := by native_decide").unwrap();
         }
+        write!(
+            out,
+            "def candInputs{record_index} : List RustAssemblyInputExtraction := ["
+        )
+        .unwrap();
+        for case_index in 0..record.cand_delta_cases.len() {
+            write!(out, "candInput{record_index}_{case_index},").unwrap();
+        }
+        writeln!(out, "]").unwrap();
+        writeln!(
+            out,
+            "def candEvents{record_index} : List RustEventExtraction := ["
+        )
+        .unwrap();
+        for event in &record.cand_delta_events {
+            writeln!(out, "{},", event_extraction(event)).unwrap();
+        }
+        writeln!(out, "]").unwrap();
+        writeln!(
+            out,
+            "example : EventBijectionCheck candInputs{record_index} candEvents{record_index} := by native_decide"
+        )
+        .unwrap();
 
         for (transition_index, transition) in record.cp_transitions.iter().enumerate() {
             writeln!(
@@ -923,6 +1013,7 @@ fn verify_records_in_lean(
         records.len(),
         "{window:?} {stage} 每级必须恰一份快照"
     );
+    assert_complete_level_ladder(window, stage, &levels);
     for record in records {
         assert!(
             !record.prelude_input.rows.is_empty(),
@@ -999,14 +1090,9 @@ fn three_real_windows_recompute_in_lean_and_match_every_field() {
         String::from_utf8_lossy(&build.stderr)
     );
 
-    let mut config = ThetaConfig::default();
-    config.level.l_max = 8;
-    let symbol_filter = std::env::var("ISSUE1087_SYMBOL").ok();
-    for window in WINDOWS.into_iter().filter(|window| {
-        symbol_filter
-            .as_deref()
-            .is_none_or(|symbol| symbol == window.symbol)
-    }) {
+    let config = issue1087_config();
+    let mut executed_windows = Vec::with_capacity(WINDOWS.len());
+    for window in complete_acceptance_windows() {
         let all_bars = load_bars(&root, window.symbol, window.end);
         let bars = &all_bars[window.start..window.end];
         assert_eq!(bars.len(), BAR_COUNT);
@@ -1035,17 +1121,6 @@ fn three_real_windows_recompute_in_lean_and_match_every_field() {
             let records = issue1087_parity::finish();
             verify_records_in_lean(&formal, window, stage, &records);
 
-            if stage == "terminal" || stage == "terminal_resume" {
-                let mut levels: Vec<_> = records.iter().map(|record| record.level).collect();
-                levels.sort_unstable();
-                let reached = *levels.last().expect("terminal 至少 L0");
-                assert_eq!(
-                    levels,
-                    (0_u32..=reached).collect::<Vec<_>>(),
-                    "{window:?} {stage} 级别快照必须连续"
-                );
-                assert!(reached <= 8, "l_max=8 不得越界");
-            }
             saw_cand |= records
                 .iter()
                 .any(|record| !record.cand_delta_cases.is_empty());
@@ -1057,7 +1132,6 @@ fn three_real_windows_recompute_in_lean_and_match_every_field() {
                         && case.direction
                         && case.comparable
                         && case.extreme)
-                        && case.rust_event.is_none()
                 });
             saw_cp_close |= records
                 .iter()
@@ -1102,5 +1176,11 @@ fn three_real_windows_recompute_in_lean_and_match_every_field() {
             saw_cp_close,
             "{window:?} 必须覆盖 raw closure 判定的 Pending→Closed"
         );
+        executed_windows.push(window);
     }
+    assert_eq!(
+        executed_windows.as_slice(),
+        WINDOWS.as_slice(),
+        "完整验收必须恰好执行 AAPL/MSFT/NVDA 三窗"
+    );
 }

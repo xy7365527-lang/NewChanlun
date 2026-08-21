@@ -96,6 +96,55 @@ example : closeCpFromRaw cpBeforeFull
   native_decide
 
 
+/-- #1087 review2 RED-3c：raw retest ID 的 level/ordinal 早于 c_p 离开 move 时保持 Pending。 -/
+example : (closeCpFromRaw cpBeforeFull
+    { cpRawValid with retestMoveId := cpId 0 0 }).lifecycle = CpLifecycle.pending := by
+  native_decide
+
+/-- #1087 review2 RED-3d：leave/retest move level 必须与 c_p departure move level 一致。 -/
+example : (closeCpFromRaw cpBeforeFull
+    { cpRawValid with leaveMoveId := cpId 2 3 }).lifecycle = CpLifecycle.pending := by
+  native_decide
+
+/-- #1087 review2 RED-3e：retest move ordinal 不得早于 leave move ordinal。 -/
+example : (closeCpFromRaw cpBeforeFull
+    { cpRawValid with leaveMoveId := cpId 1 5, retestMoveId := cpId 1 4 }).lifecycle =
+      CpLifecycle.pending := by
+  native_decide
+
+/-- #1087 review2 RED-3f：leave move ordinal 不得早于 c_p departure move ordinal。 -/
+example : (closeCpFromRaw cpBeforeFull
+    { cpRawValid with leaveMoveId := cpId 1 2 }).lifecycle = CpLifecycle.pending := by
+  native_decide
+
+/-- #1087 review2 RED-3g：leave.start 早于 c_p 起点时保持 Pending。 -/
+example : (closeCpFromRaw cpBeforeFull
+    { cpRawValid with leave := { cpRawValid.leave with startIndex := 8 } }).lifecycle =
+      CpLifecycle.pending := by
+  native_decide
+
+/-- #1087 review2 RED-3h：raw departure move ID 必须与对象上的 ID 一致。 -/
+example : (closeCpFromRaw cpBeforeFull
+    { cpRawValid with cpDepartureMoveId := cpId 1 4 }).lifecycle = CpLifecycle.pending := by
+  native_decide
+
+/-- #1087 review2 RED-3i：raw cpStart 必须与对象 departure interval 左端一致。 -/
+example : (closeCpFromRaw cpBeforeFull
+    { cpRawValid with cpStart := 8 }).lifecycle = CpLifecycle.pending := by
+  native_decide
+
+
+/-- #1087 review2 RED-3j：对象缺 departure move ID 时不得闭合。 -/
+example : (closeCpFromRaw { cpBeforeFull with departureMoveId := none }
+    cpRawValid).lifecycle = CpLifecycle.pending := by
+  native_decide
+
+/-- #1087 review2 RED-3k：对象缺 departure interval 时不得闭合。 -/
+example : (closeCpFromRaw { cpBeforeFull with departureInterval := none }
+    cpRawValid).lifecycle = CpLifecycle.pending := by
+  native_decide
+
+
 def zeroBits : BspBits :=
   { buy1 := false, buy2 := false, buy3 := false, sell1 := false, sell2 := false,
     sell3 := false, thirdClassEntry := none }
@@ -143,6 +192,39 @@ def wrongPanField : RustEventExtraction :=
 
 /-- #1087 RED-2c：任一 19 字段漂移都必须红；这里翻转 pan_div_diag。 -/
 example : ¬ EventCheck rustEventInput (some wrongPanField) := by
+  native_decide
+
+def correctRustEvent : RustEventExtraction :=
+  { wrongPanField with panDivDiag := true }
+
+def extraRustEvent : RustEventExtraction :=
+  { correctRustEvent with confirmSrc := 12 }
+
+def rustRejectedInput : RustAssemblyInputExtraction :=
+  { rustEventInput with predicate := { rustPredicate with extreme := false } }
+
+/-- #1087 review2 RED-2d：列表级门接受 accepted raw case 与唯一生产 event 的一一对应。 -/
+example : EventBijectionCheck [rustEventInput] [correctRustEvent] := by
+  native_decide
+
+/-- #1087 review2 RED-2e：同一生产 event 重复出现必须失败，不能被两个 `find` 共用。 -/
+example : ¬ EventBijectionCheck [rustEventInput] [correctRustEvent, correctRustEvent] := by
+  native_decide
+
+/-- #1087 review2 RED-2f：没有 raw case 消费的额外生产 event 必须失败。 -/
+example : ¬ EventBijectionCheck [rustEventInput] [correctRustEvent, extraRustEvent] := by
+  native_decide
+
+/-- #1087 review2 RED-2g：accepted raw case 漏产 event 必须失败。 -/
+example : ¬ EventBijectionCheck [rustEventInput] [] := by
+  native_decide
+
+/-- #1087 review2 RED-2h：rejected raw case 必须恰好零 event。 -/
+example : ¬ EventBijectionCheck [rustRejectedInput] [correctRustEvent] := by
+  native_decide
+
+/-- #1087 review2 RED-2i：即使另一 accepted case 消费了 event，rejected case 也不能共用同一槽。 -/
+example : ¬ EventBijectionCheck [rustEventInput, rustRejectedInput] [correctRustEvent] := by
   native_decide
 
 end NewChanlun.Origin.ScanAssemblyNegative
