@@ -1,4 +1,5 @@
 name: Agent Review
+# #1173 烟测排障注：touch 以强制 GitHub 重新注册本 workflow（label 事件曾 2s 无步失败）。
 # #1110 AC-3：PR 上 `agent:review` label 触发独立评审（评审工蜂可修正同一分支）。
 # `pull_request_target` + `types: [labeled]`：label 事件在 base 上下文、带 secret、不依赖
 # PR merge commit（过时/冲突 PR 也能可靠触发）。信任闸 = 只有仓库写权限者（maintainer）
