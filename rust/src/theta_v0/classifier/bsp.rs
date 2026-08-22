@@ -715,15 +715,15 @@ mod tests {
             // 纯注释、零判据）⟹ 七处夹具点统一 +2，逐条重核内容不变（同为测试夹具
             // source_index 过滤），同条目重登记。
             // 2026-08-22 #1176 B01：signal.rs 三大判据块迁出（gates/pan_div_short/cert，
-            // 零行为）⟹ 生产区 -919 行（重导出 +22）⟹ 七处夹具点统一 -896，逐条重核
+            // 零行为）⟹ 生产区 -919 行（重导出 +22）⟹ 七处夹具点统一 -897，逐条重核
             // 内容不变（同为测试夹具 source_index 过滤），同条目重登记。
-            "theta_v0/classifier/signal.rs:1879",
-            "theta_v0/classifier/signal.rs:2239",
-            "theta_v0/classifier/signal.rs:2612",
-            "theta_v0/classifier/signal.rs:2752",
-            "theta_v0/classifier/signal.rs:2785",
-            "theta_v0/classifier/signal.rs:3041",
-            "theta_v0/classifier/signal.rs:3108",
+            "theta_v0/classifier/signal.rs:1878",
+            "theta_v0/classifier/signal.rs:2238",
+            "theta_v0/classifier/signal.rs:2611",
+            "theta_v0/classifier/signal.rs:2751",
+            "theta_v0/classifier/signal.rs:2784",
+            "theta_v0/classifier/signal.rs:3040",
+            "theta_v0/classifier/signal.rs:3107",
             // 2026-08-21 #1080 S2 Phase2：`judge_first_from_gates` 加默认关闭只读捕获
             // seam（+14 行）——本块锚点待全量合并后按 whitelist 测试实报行号统一订正。            // （2026-08-16 #648 T1：classifier/mod.rs 内联测试 4273 行抽离至 classifier/tests/            // 主题件 ⟹ 该夹具点同内容随迁 mod.rs:4574 → tests/pipeline_geometry.rs:1565，
             // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。

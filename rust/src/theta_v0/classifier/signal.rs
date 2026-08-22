@@ -123,7 +123,6 @@ pub use cert::{PanDivCert, QuasiSecondCert};
 pub(crate) use gates::{
     first_structural_gates, judge_first_cached, judge_first_from_gates, FirstStructuralGates,
 };
-#[cfg(test)]
 pub(crate) use pan_div_short::{
     drain_pan_div_short_retrace_observations, pan_div_subtype_channel_reason,
     t3_in_c_grade_reason_to_pan_div_subtype, PanDivShortRetraceObservation,
