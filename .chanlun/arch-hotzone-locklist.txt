@@ -23,7 +23,7 @@ rust/src/bin/*
 *_tests.rs
 */tests.rs
 */tests/*
-test_*.rs
+*/test_*.rs
 
 # ── C. 判停已扫热区（#1193 判停轮快照）───────────────────────────────────
 # 判停依据：第 5 轮扫描 top recommendation 已降至 Worth exploring 边缘档、

@@ -90,7 +90,7 @@ rust/src/bin/*
 *_tests.rs
 */tests.rs
 */tests/*
-test_*.rs
+*/test_*.rs
 LOCKEOF
 fi
 
@@ -257,6 +257,7 @@ selftest() {
 rust/locked_a.rs
 rust/locked_dir/*
 *_test.rs
+*/test_*.rs
 LOCKEOF
 
   # 断言辅助：$1=描述 $2=实际退出码 $3=期望退出码（0=真/命中，1=假/不命中）
@@ -293,6 +294,8 @@ LOCKEOF
   assert "自由文件 free.rs → 不锁定" $? 1
   is_locked rust/foo_test.rs "$lockfile"
   assert "测试后缀 *_test.rs → 锁定" $? 0
+  is_locked rust/sub/test_foo.rs "$lockfile"
+  assert "测试前缀 */test_*.rs → 锁定" $? 0
 
   echo "  C3 在飞图判据（open_map_blocks）"
   open_map_blocks 0
