@@ -81,8 +81,9 @@ pub mod rmove_compose;
 /// p118 关④ 小转大显式分类分支：旁挂联合分类 `NestTurnClass`（四类 partition，纯只读派生）。
 pub mod turn_class;
 pub use turn_class::{
-    classify_certificate_turn, classify_nest_turns, is_defer_orphan_event, CertKey, NestTurnClass,
-    XzdEvidence,
+    candidate_second_point, classify_certificate_turn, classify_nest_turns, is_defer_orphan_event,
+    project_turn_class_rows, CandidateSecondPoint, CertKey, NestTurnClass, TurnClassEvidence,
+    TurnClassKind, TurnClassRow, XzdEvidence,
 };
 /// #668（N4）：事件↔BSP 稳定身份桥接对象（身份=（N1 事件键，BSP 结构键 v2）对，双向产出、
 /// 端死边死、E2E-O 修订协议）。纯产出零消费接线（p92/π runner 拼缝本票不动，#666 裁定⑥）。

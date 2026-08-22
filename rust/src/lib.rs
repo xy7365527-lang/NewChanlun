@@ -1632,7 +1632,7 @@ impl PyOrganicTape {
     #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     #[pyo3(signature = (closes, buy1, sell1, sell_any, buy_any, up_settled, max_ladder,
                         type2_buy, bsp_flat, div_flat, dir_flips = None, run_high = None,
-                        trend_flips = None))]
+                        trend_flips = None, turn_class = None))]
     fn from_columns(
         closes: Vec<f64>,
         buy1: Vec<u16>,
@@ -1658,7 +1658,11 @@ impl PyOrganicTape {
         dir_flips: Option<Vec<(i64, u8, String)>>,
         run_high: Option<Vec<f64>>,
         trend_flips: Option<Vec<(i64, u8, bool)>>,
+        // #1195 投影行：turn_class 每级标签 → (bar, ladder, class, evidence)；
+        // evidence = (third_src, second_class)，仅 XiaozhuandaCandidate 非 None。
+        turn_class: Option<Vec<(i64, u8, String, Option<(i64, Option<i64>)>)>>,
     ) -> PyResult<Self> {
+        use theta_v0::classifier::{TurnClassEvidence, TurnClassKind, TurnClassRow};
         use trading::tape::{BarSig, SignalTape};
         use trading::types::{
             BspClass, BspEvent as TBspEvent, DivEvent as TDivEvent, LadderMask, MAX_LADDER,
@@ -1810,12 +1814,70 @@ impl PyOrganicTape {
                 last_bar = bar;
             }
         }
+        // #1195 投影行：turn_class 每级标签 → (bar, ladder, class, evidence)；
+        // bar 升序校验同 trend_flips；class 四类枚举串；evidence 仅 Candidate 非 None。
+        let turn_class_rows = match turn_class {
+            None => None,
+            Some(rows) => {
+                let mut out: Vec<TurnClassRow> = Vec::with_capacity(rows.len());
+                let mut last_bar = -1i64;
+                for (bar, lad, class, evidence) in rows {
+                    if bar < last_bar
+                        || bar < 0
+                        || (bar as usize) >= n
+                        || (lad as usize) >= MAX_LADDER
+                    {
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "turn_class 越界或乱序：bar={bar} ladder={lad}（须 bar 升序）"
+                        )));
+                    }
+                    last_bar = bar;
+                    let kind = match class.as_str() {
+                        "NestedConfirmed" => TurnClassKind::NestedConfirmed,
+                        "XiaozhuandaCandidate" => TurnClassKind::XiaozhuandaCandidate,
+                        "ExecEvidenceOnly" => TurnClassKind::ExecEvidenceOnly,
+                        "DeferOrphan" => TurnClassKind::DeferOrphan,
+                        _ => {
+                            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                                "非法 turn_class class: {class:?}"
+                            )))
+                        }
+                    };
+                    let evidence = match evidence {
+                        None => None,
+                        Some((third_src, second_class)) => {
+                            if third_src < 0
+                                || second_class.is_some_and(|s| s < 0)
+                                || (third_src as usize) >= n
+                                || second_class.is_some_and(|s| s as usize >= n)
+                            {
+                                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                                    "turn_class evidence 越界：third={third_src} second={second_class:?}"
+                                )));
+                            }
+                            Some(TurnClassEvidence {
+                                third_src: third_src as usize,
+                                second_class: second_class.map(|s| s as usize),
+                            })
+                        }
+                    };
+                    out.push(TurnClassRow {
+                        bar: bar as usize,
+                        ladder: lad as u32,
+                        class: kind,
+                        evidence,
+                    });
+                }
+                Some(out)
+            }
+        };
         Ok(PyOrganicTape {
             inner: SignalTape {
                 bars,
                 dir_flips: dir_flips_parsed,
                 run_high,
                 trend_flips,
+                turn_class_rows,
             },
         })
     }

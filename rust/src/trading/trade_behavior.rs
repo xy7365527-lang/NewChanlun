@@ -182,6 +182,7 @@ pub(super) fn load_tape(sym: &str) -> SignalTape {
         dir_flips: Some(dir_flips),
         run_high: None,
         trend_flips: None,
+        turn_class_rows: None,
     }
 }
 

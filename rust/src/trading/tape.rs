@@ -19,6 +19,7 @@
 
 use super::types::*;
 use crate::stroke::Direction;
+use crate::theta_v0::classifier::TurnClassRow;
 
 /// 单 bar 信号。布尔行压缩为位掩码；事件行 Option<Box<…>> 表达稀疏性
 /// （绝大多数 bar 无事件，None ⇔ Python 共享单例 NO_LADDER_EVENTS）。
@@ -48,6 +49,16 @@ pub struct SignalTape {
     /// kind 的翻转流——is_trend ⟺ kind==Trend（≥2 同向中枢，17课趋势定义）。
     /// None = 信号层未产出（rev_cycle=Cycle38 的 capability guard 依赖）。
     pub trend_flips: Option<Vec<(i64, u8, bool)>>,
+    /// turn_class 投影行（#1195；稀疏注解行 `(bar, ladder, class, evidence)`，与
+    /// `trend_flips` 行同构）。每级标签一行——`class` = [`TurnClassKind`] 四类，
+    /// `evidence` 仅 `XiaozhuandaCandidate` 携带（`third_src` + `second_class`）。
+    /// None = 分类投影层未产出（零行为变化；L-重情况二程序臂的 capability guard）。
+    ///
+    /// ★#1198 传输位（同 `BspEvent.seg_idx` 先例）：交易层零消费接线已并入磁带
+    /// （#1195 第二块），L-重情况二程序臂（第三块）消费本行——该臂与分类投影
+    /// 生产桥接属同一实施票下游，接线前本字段无读取点。
+    #[allow(dead_code)]
+    pub turn_class_rows: Option<Vec<TurnClassRow>>,
 }
 
 impl SignalTape {
@@ -70,5 +81,12 @@ impl SignalTape {
 
     pub fn has_trend_rows(&self) -> bool {
         self.trend_flips.is_some()
+    }
+
+    /// turn_class 投影行的能力守卫（#1195 第二块；L-重情况二程序臂的 capability
+    /// guard 用，见 [`SignalTape::turn_class_rows`] 传输位注——接线前零读取点）。
+    #[allow(dead_code)]
+    pub fn has_turn_class_rows(&self) -> bool {
+        self.turn_class_rows.is_some()
     }
 }

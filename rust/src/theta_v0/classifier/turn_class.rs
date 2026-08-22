@@ -55,10 +55,11 @@
 //! （#451；tests/nest_isolation_guard.rs 认上面这一整行豁免，不认文件名——
 //! 对账本只读派生件，消费者 admission.rs + p92/p124，见 #449 §2 裁定）
 
-use super::super::types::{Center, Side};
+use super::super::types::{Center, Direction, Side};
+use super::decompose::MoveBlock;
 use super::level_view::{NestCandidateEvent, NestDivergenceKind};
 use super::nest::{NestEventIdentity, TypedNestCertificate};
-use super::Classification;
+use super::{Classification, LevelState};
 
 /// 小转大候选证据（044:22-26 必要条件的命中坐标）——**纯结构坐标**：无 `BspBits` 成员、
 /// 无确认语义（044:30 只有必要条件；本结构不能作终端背书、不能置 six-bit、不进触发链）。
@@ -71,6 +72,115 @@ pub struct XzdEvidence {
     /// 父级二类点补充证据（053:28）——`levels[ℓ-1].bsp` `[基例.turn, third_src]` 窗内
     /// 首个二类点 source_index；**不作门**（有无不影响候选成立）。
     pub second_class: Option<usize>,
+}
+
+/// 053:28 候选二类点（无 type1 锚；小转大情况二的 L 级补位点）——**候选坐标，非买卖点**：
+/// 不进 `BspBits`、不产 `BspPoint`、不作终端背书（044:30 类型封锁保持）。
+///
+/// 053-第53课.md:28【正文】：「高点一次级别向下后一次级别向上，如果不创新高或盘整背驰，
+/// 都构成第二类卖点，而买点的情况反过来就是了。」小转大情况二：L 级无 type1 ⟹ 现 `bsp.rs`
+/// `is_second` 锚死 `after_first_buy`（type1 前置）产不出二类点 ⟹ 本类型补「无 type1 锚」
+/// 的候选二类点（#1195 裁定落地第一块）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CandidateSecondPoint {
+    /// 候选点在 L0 原始 K 序的位置（次级别上/下走势完成点 = 二卖/二买补位坐标）。
+    pub source_index: usize,
+    /// 方向（Short = 二卖候选；Long = 二买候选镜像）。
+    pub side: Side,
+    /// 触发分支：`true` = 053:28 盘整背驰支（`PanDivCert` 命中）；`false` = 不创新高/新低支
+    /// （纯几何）。
+    pub pan_div_hit: bool,
+}
+
+/// 053:28 候选二类点判据（无 type1 锚；#1195 裁定落地第一块）。
+///
+/// 结构（`book` = 次级别账本 `levels[ℓ-2]`）：高点/低点（`base_turn` 之前含该 bar 的
+/// 中枢极值，小转大语境下即转折极值）之后，`book.moves` 出现「向下块 → 向上块」（Short）
+/// /「向上块 → 向下块」（Long）且后块完成（`Completed`），并满足（不创新高/新低 ∨
+/// 窗口内 `PanDivCert` 命中）⟹ 候选坐标 = 后块末中枢 `end_index`。
+///
+/// **不进 bsp 六位、不作终端背书**：候选只作坐标，由 [`XzdEvidence::second_class`] 承接；
+/// 下游 L-重按 053:28 补位点消费（c′ 三卖命中才升级证据，见 #1195 裁定三）。
+///
+/// 这是「判据产点（宽）」层——链标签定类（窄）与 L-重消费（程序）在其下游（#1195 三层分工）。
+pub fn candidate_second_point(
+    book: &LevelState,
+    base_turn: usize,
+    side: Side,
+) -> Option<CandidateSecondPoint> {
+    // 高点/低点 = base_turn 之前（含）的次级别中枢极值——053:28「高点/低点」的运行时读数。
+    // 小转大语境下 = 转折极值（基例 type1 峰/谷）。
+    let extreme = match side {
+        Side::Short => book
+            .centers
+            .iter()
+            .filter(|c| c.end_index <= base_turn)
+            .map(|c| c.gg)
+            .max()?,
+        Side::Long => book
+            .centers
+            .iter()
+            .filter(|c| c.end_index <= base_turn)
+            .map(|c| c.dd)
+            .min()?,
+    };
+    // 方向性块序列（跳过盘整块——053:28「向下/向上」是方向性次级别走势；盘整背驰走 PanDivCert 支）。
+    let directed: Vec<&MoveBlock> = book.moves.iter().filter(|b| b.dir.is_some()).collect();
+    for pair in directed.windows(2) {
+        let (first, second) = (pair[0], pair[1]);
+        // 高点/低点之后：前块首中枢起点不得早于 base_turn（转折极值）。
+        if book.centers[first.start_center].start_index < base_turn {
+            continue;
+        }
+        // 次级别上/下完成：后块必须 Completed（尾 Active 块仍在形成，不算「完成」）。
+        if second.status != super::decompose::MoveStatus::Completed {
+            continue;
+        }
+        let (Some(first_dir), Some(second_dir)) = (first.dir, second.dir) else {
+            continue;
+        };
+        let candidate_index = book.centers[second.end_center].end_index;
+        let (no_new_extreme, pan_hit) = match side {
+            Side::Short => {
+                // 形态：高点 → 向下块 → 向上块；不创新高 = 后块峰 gg ≤ 高点。
+                if first_dir != Direction::Down || second_dir != Direction::Up {
+                    continue;
+                }
+                let up_peak = book.centers[second.end_center].gg;
+                (
+                    up_peak <= extreme,
+                    book.pan_div.iter().any(|p| {
+                        p.side == side
+                            && base_turn <= p.source_index
+                            && p.source_index <= candidate_index
+                    }),
+                )
+            }
+            Side::Long => {
+                // 镜像：低点 → 向上块 → 向下块；不创新低 = 后块谷 dd ≥ 低点。
+                if first_dir != Direction::Up || second_dir != Direction::Down {
+                    continue;
+                }
+                let down_low = book.centers[second.end_center].dd;
+                (
+                    down_low >= extreme,
+                    book.pan_div.iter().any(|p| {
+                        p.side == side
+                            && base_turn <= p.source_index
+                            && p.source_index <= candidate_index
+                    }),
+                )
+            }
+        };
+        if no_new_extreme || pan_hit {
+            return Some(CandidateSecondPoint {
+                source_index: candidate_index,
+                side,
+                pan_div_hit: pan_hit,
+            });
+        }
+    }
+    None
 }
 
 /// nest 链顶背书形态分类（跨级链属性；与六态 r / 信号位 b 正交——r 答「在哪」、b 答
@@ -96,6 +206,75 @@ pub enum NestTurnClass {
 /// 分类账本条目主键：证书 = 身份向量（高→低，含基例；与 p92 CERT 行 `ids` 同构）；
 /// 孤儿事件 = 单元素身份向量。
 pub type CertKey = Vec<NestEventIdentity>;
+
+/// 投影行 class 标签（[`NestTurnClass`] 四类的投影形态；#1195 投影行，与 `trend_flips`
+/// 行同构并入磁带）。投影只落标签与坐标，**不携确认语义**（044:30 类型封锁保持）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TurnClassKind {
+    /// 情况一（043:28/30）：链顶 rung confirmed=true。
+    NestedConfirmed,
+    /// 情况二候选（044:22-26 必要条件过滤通过）——候选，永不确认。
+    XiaozhuandaCandidate,
+    /// 链顶 confirmed=false 且必要条件不成立（诚实判负）。
+    ExecEvidenceOnly,
+    /// 039:34 defer 孤儿——显式挂起观察。
+    DeferOrphan,
+}
+
+/// 候选证据投影（[`XzdEvidence`] 的磁带承载形态——只含 L-重程序臂所需的坐标）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TurnClassEvidence {
+    /// c′ 三类点 source_index（044:24/26；c′ 三卖命中 = 证据升级锚）。
+    pub third_src: usize,
+    /// 053:28 补位点 source_index（L 级二卖/二买候选坐标；无则 `None`）。
+    pub second_class: Option<usize>,
+}
+
+/// turn_class 每级标签 → 稀疏注解行 `(bar, ladder, class, evidence)`（#1195 投影行）。
+///
+/// `bar` = 链顶身份 `turn_source`（孤儿事件 = 自身 `turn_source`）；`ladder` = 链顶
+/// `level`；`class` = [`TurnClassKind`]；`evidence` 仅 [`TurnClassKind::XiaozhuandaCandidate`]
+/// 携带。行与 `trend_flips` 同构（bar 升序由分类主键序给出，消费方按 `ladder` 查询）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TurnClassRow {
+    pub bar: usize,
+    pub ladder: u32,
+    pub class: TurnClassKind,
+    pub evidence: Option<TurnClassEvidence>,
+}
+
+/// 联合分类输出 → 磁带投影行（纯函数；每证 / 每孤儿事件恰一行）。
+///
+/// ★不新增机制：本函数只是把 [`classify_nest_turns`] 的 `(CertKey, NestTurnClass)` 主键序
+/// 投影为 `(bar, ladder, class, evidence)` 稀疏行——与 p92 `TURN_CLASS` dump 行同构，供
+/// 交易层 `SignalTape` 并入消费（#1195 投影行第二块）。
+pub fn project_turn_class_rows(classified: &[(CertKey, NestTurnClass)]) -> Vec<TurnClassRow> {
+    classified
+        .iter()
+        .filter_map(|(key, class)| {
+            // 主键恒非空（证书 = 高→低身份向量；孤儿 = 单元素向量）——防御性跳过。
+            let top = key.first()?;
+            let (class, evidence) = match class {
+                NestTurnClass::NestedConfirmed => (TurnClassKind::NestedConfirmed, None),
+                NestTurnClass::ExecEvidenceOnly => (TurnClassKind::ExecEvidenceOnly, None),
+                NestTurnClass::DeferOrphan { .. } => (TurnClassKind::DeferOrphan, None),
+                NestTurnClass::XiaozhuandaCandidate { evidence } => (
+                    TurnClassKind::XiaozhuandaCandidate,
+                    Some(TurnClassEvidence {
+                        third_src: evidence.third_src,
+                        second_class: evidence.second_class,
+                    }),
+                ),
+            };
+            Some(TurnClassRow {
+                bar: top.turn_source,
+                ladder: top.level,
+                class,
+                evidence,
+            })
+        })
+        .collect()
+}
 
 /// 单证书分类（纯，只读）：按 sidecar `confirmed[0]`（链顶）分流——true ⟹
 /// `NestedConfirmed`（043:28/30 情况一）；false ⟹ c′ 必要条件过滤，过 ⟹
@@ -169,7 +348,8 @@ fn xzd_evidence(
         })
         .min_by_key(|point| point.source_index)?;
     // 要件 3（补充证据，不作门）：父级二类点（053:28）——`levels[ℓ-1].bsp`
-    // `[基例.turn, 三类点 src]` 窗内首个 buy2/sell2。
+    // `[基例.turn, 三类点 src]` 窗内首个 buy2/sell2；L 级无 type1 时该窗恒空，
+    // 回退到 053:28 候选二类点判据（`candidate_second_point`，无 type1 锚）。
     let second_class = classification
         .levels
         .get(top_level as usize - 1)
@@ -187,6 +367,16 @@ fn xzd_evidence(
                 })
                 .min_by_key(|point| point.source_index)
                 .map(|point| point.source_index)
+        })
+        .or_else(|| {
+            // 053:28 候选二类点（#1195）：次级别（levels[ℓ-2] = book）「下→上」/「上→下」
+            // 完成 ∧（不创新高/低 ∨ PanDivCert 命中）⟹ 候选坐标（不进 bsp 六位）。
+            candidate_second_point(book, base_turn, side)
+                .filter(|candidate| {
+                    base_turn <= candidate.source_index
+                        && candidate.source_index <= third.source_index
+                })
+                .map(|candidate| candidate.source_index)
         });
     Some(XzdEvidence {
         c_prime,
@@ -235,10 +425,12 @@ pub fn classify_nest_turns(
 #[cfg(test)]
 mod tests {
     use super::super::bsp::BspPoint;
+    use super::super::decompose::{MoveBlock, MoveStatus};
     use super::super::nest::{assemble_typed_certificate, NestIntervalCaliber};
+    use super::super::signal::PanDivCert;
     use super::super::LevelState;
     use super::*;
-    use crate::theta_v0::types::{BspBits, Tick};
+    use crate::theta_v0::types::{BspBits, MoveKind, Tick};
     use std::rc::Rc;
 
     // ───────── 夹具（沿用 nest.rs 测试模式：手工事件 + 假账本，坐标全部 source_index 同系）─────────
@@ -343,6 +535,44 @@ mod tests {
 
     fn ledger(levels: Vec<LevelState>) -> Classification {
         Classification { levels }
+    }
+
+    /// 带 move 块 + 盘整背驰证书的次级别账本夹具（053:28 候选二类点判据用）。
+    fn book_with_moves(
+        centers: Vec<Center>,
+        bsp: Vec<BspPoint>,
+        moves: Vec<MoveBlock>,
+        pan_div: Vec<PanDivCert>,
+    ) -> LevelState {
+        LevelState {
+            centers: Rc::new(centers),
+            bsp: Rc::new(bsp),
+            moves,
+            pan_div: Rc::new(pan_div),
+            ..Default::default()
+        }
+    }
+
+    /// 方向性 Trend move 块夹具（`dir` = Up/Down；053:28 候选判据只看方向性块）。
+    fn trend_block(start: usize, end: usize, dir: Direction, status: MoveStatus) -> MoveBlock {
+        MoveBlock {
+            start_center: start,
+            end_center: end,
+            kind: MoveKind::Trend,
+            dir: Some(dir),
+            level_lift: 0,
+            status,
+        }
+    }
+
+    fn pan_div_cert(source_index: usize, side: Side) -> PanDivCert {
+        PanDivCert {
+            source_index,
+            side,
+            center: center(400, 420, 390, 430, 40, 46),
+            seg_a: (40, 44),
+            seg_c: (45, source_index),
+        }
     }
 
     // ───────── 044:16 形态几何公共件（施工图 §5）─────────
@@ -930,6 +1160,217 @@ mod tests {
             classify_certificate_turn(&cert, &book_at_l2),
             NestTurnClass::ExecEvidenceOnly,
             "W1：c′ 落 levels[2] ≠ levels[ℓ-2]=levels[1]（ℓ=3）⟹ 非候选"
+        );
+    }
+
+    // ───────── #1195 第一块：053:28 候选二类点判据（无 type1 锚）─────────
+
+    #[test]
+    fn candidate_second_sell_no_new_high_053_28() {
+        // 次级别账本：转折前高点 c_high(gg=470,end=38)；高点后 Down 块 c_down(48-49)
+        // → Up 块 c_up(50-51,gg=445)。不创新高（445 ≤ 470）⟹ 候选坐标 = c_up.end_index=51。
+        let book = book_with_moves(
+            vec![
+                center(430, 460, 420, 470, 34, 38), // 转折前高点
+                center(420, 440, 410, 450, 40, 46), // c′（不参与候选，只占坐标）
+                center(415, 430, 410, 435, 48, 49), // 次级别下
+                center(425, 440, 420, 445, 50, 51), // 次级别上，gg=445
+            ],
+            vec![],
+            vec![
+                trend_block(2, 2, Direction::Down, MoveStatus::Completed),
+                trend_block(3, 3, Direction::Up, MoveStatus::Completed),
+            ],
+            vec![],
+        );
+        assert_eq!(
+            candidate_second_point(&book, 48, Side::Short),
+            Some(CandidateSecondPoint {
+                source_index: 51,
+                side: Side::Short,
+                pan_div_hit: false,
+            })
+        );
+    }
+
+    #[test]
+    fn candidate_second_sell_pan_div_hit_053_28() {
+        // 创新高支（c_up.gg=480 > 高点 470 ⟹ 几何支不成立）⟹ 盘整背驰支补位：
+        // PanDivCert@50 落 [48, 51] 窗内 ⟹ 候选成立且 pan_div_hit=true。
+        let book = book_with_moves(
+            vec![
+                center(430, 460, 420, 470, 34, 38),
+                center(415, 430, 410, 435, 48, 49),
+                center(425, 445, 420, 480, 50, 51), // 创新高（gg=480 > 470）
+            ],
+            vec![],
+            vec![
+                trend_block(1, 1, Direction::Down, MoveStatus::Completed),
+                trend_block(2, 2, Direction::Up, MoveStatus::Completed),
+            ],
+            vec![pan_div_cert(50, Side::Short)],
+        );
+        assert_eq!(
+            candidate_second_point(&book, 48, Side::Short),
+            Some(CandidateSecondPoint {
+                source_index: 51,
+                side: Side::Short,
+                pan_div_hit: true,
+            })
+        );
+    }
+
+    #[test]
+    fn candidate_second_sell_requires_up_completion() {
+        // Up 块仍 Active（未完成）⟹ 053:28「次级别上完成」不成立 ⟹ 无候选。
+        let book = book_with_moves(
+            vec![
+                center(430, 460, 420, 470, 34, 38),
+                center(415, 430, 410, 435, 48, 49),
+                center(425, 440, 420, 445, 50, 51),
+            ],
+            vec![],
+            vec![
+                trend_block(1, 1, Direction::Down, MoveStatus::Completed),
+                trend_block(2, 2, Direction::Up, MoveStatus::Active),
+            ],
+            vec![],
+        );
+        assert_eq!(candidate_second_point(&book, 48, Side::Short), None);
+    }
+
+    #[test]
+    fn candidate_second_buy_mirror_053_28() {
+        // 买侧镜像：低点 c_low(dd=50,end=38) → Up 块 c_up(48-49) → Down 块 c_down(50-51,dd=55)。
+        // 不创新低（55 ≥ 50）⟹ 二买候选。
+        let book = book_with_moves(
+            vec![
+                center(50, 70, 50, 75, 34, 38), // 转折前低点 dd=50
+                center(60, 75, 58, 78, 48, 49), // 次级别上
+                center(55, 68, 55, 70, 50, 51), // 次级别下，dd=55
+            ],
+            vec![],
+            vec![
+                trend_block(1, 1, Direction::Up, MoveStatus::Completed),
+                trend_block(2, 2, Direction::Down, MoveStatus::Completed),
+            ],
+            vec![],
+        );
+        assert_eq!(
+            candidate_second_point(&book, 48, Side::Long),
+            Some(CandidateSecondPoint {
+                source_index: 51,
+                side: Side::Long,
+                pan_div_hit: false,
+            })
+        );
+    }
+
+    #[test]
+    fn xzd_evidence_second_class_falls_back_to_candidate() {
+        // #1195 判据缺口：levels[1].bsp 无二类（L 级无 type1 ⟹ 现 is_second 产不出二卖）
+        // ⟹ second_class 由 053:28 候选判据补位（levels[0] = 次级别「下→上」结构）。
+        let events = xzd_events();
+        let cert = xzd_certificate(&events);
+        let c_prime = c_prime(); // (420,440,410,450,40,46) ⊂ (33,50)，end=46 ≤ 基例.turn=48。
+        let third = pt(52, sell3_bits(), Some(c_prime));
+        let book_l0 = book_with_moves(
+            vec![
+                center(430, 460, 420, 470, 34, 38), // 转折前高点 gg=470
+                c_prime,                            // c′
+                center(415, 430, 410, 435, 48, 49), // 次级别下
+                center(425, 440, 420, 445, 50, 51), // 次级别上，gg=445 ≤ 470
+            ],
+            vec![third],
+            vec![
+                trend_block(2, 2, Direction::Down, MoveStatus::Completed),
+                trend_block(3, 3, Direction::Up, MoveStatus::Completed),
+            ],
+            vec![],
+        );
+        let classification = ledger(vec![book_l0, level(parent_book_centers(), vec![])]);
+        let NestTurnClass::XiaozhuandaCandidate { evidence } =
+            classify_certificate_turn(&cert, &classification)
+        else {
+            panic!("044:16 正例应为 XiaozhuandaCandidate");
+        };
+        assert_eq!(
+            evidence.second_class,
+            Some(51),
+            "levels[1].bsp 无二类 ⟹ 053:28 候选补位（#1195 判据缺口）"
+        );
+    }
+
+    // ───────── #1195 第二块：投影行（turn_class 每级标签 → 稀疏注解行）─────────
+
+    #[test]
+    fn project_turn_class_rows_maps_each_class() {
+        // 证书主键 = 高→低身份向量（链顶 level=2, turn=50）；孤儿 = 单元素向量。
+        let top_identity = NestEventIdentity::of(&xzd_parent_event(false));
+        let orphan_identity = NestEventIdentity {
+            level: 3,
+            turn_source: 60,
+            interval_b: (55, 60),
+        };
+        let rows = project_turn_class_rows(&[
+            (
+                vec![top_identity],
+                NestTurnClass::XiaozhuandaCandidate {
+                    evidence: XzdEvidence {
+                        c_prime: c_prime(),
+                        third_src: 52,
+                        second_class: Some(51),
+                    },
+                },
+            ),
+            (
+                vec![orphan_identity],
+                NestTurnClass::DeferOrphan {
+                    identity: orphan_identity,
+                },
+            ),
+            (vec![top_identity], NestTurnClass::NestedConfirmed),
+            (vec![top_identity], NestTurnClass::ExecEvidenceOnly),
+        ]);
+        assert_eq!(rows.len(), 4, "每证 / 每孤儿事件恰一行");
+        assert_eq!(
+            rows[0],
+            TurnClassRow {
+                bar: 50,
+                ladder: 2,
+                class: TurnClassKind::XiaozhuandaCandidate,
+                evidence: Some(TurnClassEvidence {
+                    third_src: 52,
+                    second_class: Some(51),
+                }),
+            }
+        );
+        assert_eq!(
+            rows[1],
+            TurnClassRow {
+                bar: 60,
+                ladder: 3,
+                class: TurnClassKind::DeferOrphan,
+                evidence: None,
+            }
+        );
+        assert_eq!(
+            rows[2],
+            TurnClassRow {
+                bar: 50,
+                ladder: 2,
+                class: TurnClassKind::NestedConfirmed,
+                evidence: None,
+            }
+        );
+        assert_eq!(
+            rows[3],
+            TurnClassRow {
+                bar: 50,
+                ladder: 2,
+                class: TurnClassKind::ExecEvidenceOnly,
+                evidence: None,
+            }
         );
     }
 }
