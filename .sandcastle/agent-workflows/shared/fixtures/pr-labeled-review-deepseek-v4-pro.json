@@ -4,9 +4,10 @@
   "pull_request": {
     "number": 999,
     "state": "open",
-    "title": "Fix #1128: review 默认 Claude fixture（#1173 无模型标签路线）",
+    "title": "Fix #1173: PR review DeepSeek v4-pro fixture",
     "labels": [
-      { "name": "agent:review" }
+      { "name": "agent:review" },
+      { "name": "agent:model:deepseek-v4-pro" }
     ]
   },
   "repository": {

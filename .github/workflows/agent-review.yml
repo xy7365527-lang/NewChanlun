@@ -6,8 +6,12 @@ name: Agent Review
 # PR 面，label 事件不会被不可信 PR 内容自动触发。评审工蜂 checkout head.sha 是有意的：
 # 评审需要看并修正 PR 分支。
 #
-# #1128：review 固定 Claude Opus，不消费 `agent:model:*`（评审仍是独立 session/model）；
-# 但未知/冲突模型标签仍由 review.ts 入口 fail-loud 并标 blocked。
+# #1128/#1173：review 沿用显式模型 registry。默认无 `agent:model:*` 标签仍走既有
+# Claude Opus 路线；显式 `agent:model:deepseek-v4-pro` 走 Prime Agent deepseek /
+# deepseek-v4-pro，且只注入固定 Secret `DEEPSEEK_API_KEY`（缺 key 由 review.ts
+# fail-loud → agent:blocked）。下面的 contains() 只选择安装与注入哪条固定 Secret
+# （labels.*.name 数组元素精确匹配，不用 toJSON 子串）；EVENT_PAYLOAD 只传该数组；
+# allowlist 与未知/冲突标签 fail-loud 在 shared/agent.ts。
 
 on:
   pull_request_target:
@@ -63,12 +67,30 @@ jobs:
       - name: Typecheck agent-workflows
         run: npm run typecheck
 
-      - name: Install Claude Code
+      - name: Install Claude Code (default route)
+        if: ! contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Run review agent
+      # DeepSeek 工蜂 = Prime Agent CLI（与 .sandcastle/Dockerfile 同版本/同 tarball）。
+      # 默认 Claude 路线不装本 CLI。
+      - name: Install Prime Agent (DeepSeek v4-pro route)
+        if: contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
+        run: npm install -g https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.7.2/prime-agent-0.7.2.tgz
+
+      # 两个 run step 互斥，只把所选模型的固定 Secret 注入进程 env：
+      # 未选中的模型凭据不进入 agent 子进程，也不会被转发给 remote-child。
+      - name: Run review agent (Claude default)
+        if: ! contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          EVENT_PAYLOAD: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          OUTPUT_DIR: ${{ runner.temp }}
+        run: npx tsx .sandcastle/agent-workflows/review/review.ts
+
+      - name: Run review agent (DeepSeek v4-pro)
+        if: contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           EVENT_PAYLOAD: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           OUTPUT_DIR: ${{ runner.temp }}
         run: npx tsx .sandcastle/agent-workflows/review/review.ts

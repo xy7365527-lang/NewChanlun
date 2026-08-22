@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""机械验证 .sandcastle 官方 GitHub Actions scaffold（#1110）与 #1128 显式模型 registry。
+"""机械验证 .sandcastle 官方 GitHub Actions scaffold（#1110）与 #1128/#1173 显式模型 registry。
 
-验证面（对应 #1110 + #1128 验收）：
+验证面（对应 #1110 + #1128 + #1173 验收）：
   1. workflow YAML 结构不变式（trigger/label 闸、concurrency、权限最小化、
      checkout/base、确定性分支、Draft PR、force-with-lease、失败回写、防重）。
   2. issue shape 检测脚本（detect-issue-shape.sh）在 mock gh 下四形态对拍。
   3. 禁入模式扫描（不读本机 Prime/Codex auth；不复用 watcher/harvest/main-loop；
      #1002 旧 Kimi 常量/票面模型路由不复活）。
-  4. #1128 模型 registry 机械锁：精确数组 label 路由（禁止 toJSON+contains 子串）、
+  4. #1128/#1173 模型 registry 机械锁：精确数组 label 路由（禁止 toJSON+contains 子串）、
      最小 EVENT_PAYLOAD 接线（只传 labels.*.name）、固定 Secret allowlist、
      票面字符串不成为 env/secret key、remote-child identity 与模型凭据分离、
-     事件 fixture 覆盖（默认 Claude / 显式 DeepSeek / 冲突 / 未知 / 缺 secret / P1 敌对标签）。
+     事件 fixture 覆盖（默认 Claude / 显式 DeepSeek / PR review DeepSeek /
+     冲突 / 未知 / 缺 secret / P1 敌对标签）。
 
 用法：python3 .sandcastle/verify-workflows.py
 退出码 0 = 全过；非 0 = 首条失败（附可读信息）。
@@ -40,7 +41,7 @@ WORKFLOWS = [
     "agent-update-branch.yml",
 ]
 
-# #1128 事件 fixture 覆盖表（含 P1 敌对标签）：文件名 → 必须出现的标签集合（含触发标签与模型标签）。
+# #1128/#1173 事件 fixture 覆盖表（含 P1 敌对标签）：文件名 → 必须出现的标签集合（含触发标签与模型标签）。
 FIXTURE_REQUIREMENTS = {
     "issue-labeled-default-claude.json": {"agent:implement"},
     "issue-labeled-deepseek-v4-pro.json": {
@@ -74,6 +75,9 @@ FIXTURE_REQUIREMENTS = {
     },
     "pr-labeled-review.json": {
         "agent:review",
+    },
+    "pr-labeled-review-deepseek-v4-pro.json": {
+        "agent:review",
         "agent:model:deepseek-v4-pro",
     },
     "pr-labeled-implement-pr-deepseek-v4-pro.json": {
@@ -90,7 +94,7 @@ FIXTURE_REQUIREMENTS = {
     },
 }
 
-# P1：两个实装 workflow 的 label 路由必须是数组元素精确匹配（GitHub 表达式
+# P1：实装/评审 workflow 的 label 路由必须是数组元素精确匹配（GitHub 表达式
 # `contains(array, item)`），不得用 toJSON 把数组序列化成字符串后做子串匹配。
 ISSUE_EXACT_LABEL_ROUTE = (
     "contains(github.event.issue.labels.*.name, 'agent:model:deepseek-v4-pro')"
@@ -100,6 +104,7 @@ PR_EXACT_LABEL_ROUTE = (
 )
 LABEL_ROUTE_COUNTS = {
     "agent-implement.yml": (ISSUE_EXACT_LABEL_ROUTE, 4),
+    "agent-review.yml": (PR_EXACT_LABEL_ROUTE, 4),
     "agent-implement-pr.yml": (PR_EXACT_LABEL_ROUTE, 4),
 }
 
@@ -109,7 +114,7 @@ ISSUE_EVENT_PAYLOAD = "EVENT_PAYLOAD: ${{ toJSON(github.event.issue.labels.*.nam
 PR_EVENT_PAYLOAD = "EVENT_PAYLOAD: ${{ toJSON(github.event.pull_request.labels.*.name) }}"
 EVENT_PAYLOAD_RULES = {
     "agent-implement.yml": (ISSUE_EVENT_PAYLOAD, 2),
-    "agent-review.yml": (PR_EVENT_PAYLOAD, 1),
+    "agent-review.yml": (PR_EVENT_PAYLOAD, 2),
     "agent-implement-pr.yml": (PR_EVENT_PAYLOAD, 2),
     "agent-explore.yml": (ISSUE_EVENT_PAYLOAD, 1),
     "agent-update-branch.yml": (PR_EVENT_PAYLOAD, 1),
@@ -209,6 +214,10 @@ def main() -> int:
     check('gh api --method POST "repos/{owner}/{repo}/pulls/${PR_NUMBER}/reviews"' in review_raw,
           "agent-review.yml 通过后必须提交 GitHub review")
     check("gh pr ready" in review_raw, "agent-review.yml 通过后必须标 Ready")
+    check("Install Prime Agent (DeepSeek v4-pro route)" in review_raw
+          and "Run review agent (DeepSeek v4-pro)" in review_raw
+          and "Run review agent (Claude default)" in review_raw,
+          "agent-review.yml 必须提供互斥的 Claude 默认 / DeepSeek v4-pro 两条评审路线")
 
     # implement-PR 修正入口（AC-3 至少包含 implement-PR 或明确不纳入理由）
     impl_pr = load_wf("agent-implement-pr.yml")
@@ -342,9 +351,10 @@ def main() -> int:
         f"workflow Secret 引用必须封闭 allowlist（实为 {sorted(secret_refs)}）",
     )
 
-    # 只实装入口（issue implement / PR implement-pr）注入 DeepSeek secret；
-    # review/explore/update-branch 固定 Claude，绝不把 DeepSeek key 放进进程 env。
-    for name in ["agent-implement.yml", "agent-implement-pr.yml"]:
+    # 可选 DeepSeek 角色（issue implement / PR implement-pr / PR review）注入
+    # DeepSeek secret；explore/update-branch 固定 Claude，绝不把 DeepSeek key
+    # 放进进程 env。
+    for name in ["agent-implement.yml", "agent-implement-pr.yml", "agent-review.yml"]:
         raw = raw_wf(name)
         check(
             "DEEPSEEK_API_KEY" in raw and "agent:model:deepseek-v4-pro" in raw,
@@ -354,7 +364,7 @@ def main() -> int:
             "prime-agent-0.7.2.tgz" in raw,
             f"{name} 必须安装与 .sandcastle/Dockerfile 同版本的 Prime Agent CLI",
         )
-    for name in ["agent-review.yml", "agent-explore.yml", "agent-update-branch.yml"]:
+    for name in ["agent-explore.yml", "agent-update-branch.yml"]:
         raw = raw_wf(name)
         check(
             "DEEPSEEK_API_KEY" not in raw,
@@ -363,6 +373,19 @@ def main() -> int:
 
     check("MODEL_REGISTRY" in agent_ts and "agent:model:deepseek-v4-pro" in agent_ts,
           "shared/agent.ts 必须包含显式模型 registry allowlist")
+    check(
+        '"review"' in agent_ts
+        and 'appliesTo: ["implement", "implement-pr", "review"]' in agent_ts,
+        "shared/agent.ts DeepSeek registry 必须对 review 角色生效",
+    )
+
+    review_ts = (AW_DIR / "review" / "review.ts").read_text()
+    check(
+        "readModelLabelsFromEnv" in review_ts
+        and 'selectedAgent("review"' in review_ts
+        and 'claudeAgent("review")' not in review_ts,
+        "review.ts 必须经 selectedAgent('review') 走显式模型 registry（默认仍为 Claude）",
+    )
     check("primeAgent" in agent_ts and "claudeCode" in agent_ts,
           "shared/agent.ts 必须同时具备 Claude 内置 provider 与自定义 Prime Agent provider")
     check("REMOTE_CHILD_IDENTITY_ENV_ALLOWLIST" in agent_ts,
@@ -415,11 +438,13 @@ def main() -> int:
         "issue-labeled-deepseek-missing-secret.json",
         "issue-labeled-not-deepseek-substring.json",
         "issue-labeled-deepseek-v4-pro-legacy.json",
+        "pr-labeled-review.json",
+        "pr-labeled-review-deepseek-v4-pro.json",
         "pr-labeled-implement-pr-not-deepseek-substring.json",
         "pr-labeled-implement-pr-deepseek-v4-pro-legacy.json",
     }
     check(required_fixtures <= set(FIXTURE_REQUIREMENTS),
-          "必需事件 fixture 集合缺失（默认 Claude/DeepSeek/冲突/未知/缺 secret/P1 敌对标签）")
+          "必需事件 fixture 集合缺失（默认 Claude/DeepSeek/PR review DeepSeek/冲突/未知/缺 secret/P1 敌对标签）")
 
     # 票面字符串不成为 Secret/env key：除了 registry allowlist 与测试反例，
     # 工作流和 agent 代码里不得出现 `secrets.<任意标签>` 或 `process.env[<动态>]`。

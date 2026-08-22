@@ -10,9 +10,9 @@ import { fail } from "./common.ts";
  *   Sandcastle 内置 `claudeCode()`，GitHub Secret `CLAUDE_CODE_OAUTH_TOKEN`
  *   （Claude 官方 `claude setup-token` 生成）。Sonnet 实装，Opus 评审/探索/冲突调和。
  * - 显式 `agent:model:deepseek-v4-pro` = Prime Agent `deepseek` provider /
- *   `deepseek-v4-pro` 模型，只作用于实装角色 `implement` / `implement-pr`；
- *   评审（review）、探索（explore）、merge 冲突调和（update-branch）固定 Claude，
- *   与模型标签解耦，保持独立 session/model（#1128 AC-1）。
+ *   `deepseek-v4-pro` 模型，作用于 `implement` / `implement-pr` / `review`
+ *   （#1173 起 review 可选 DeepSeek）；探索（explore）、merge 冲突调和
+ *   （update-branch）固定 Claude，与模型标签解耦，保持独立 session/model。
  * - label → provider → model → Secret 名称全部是本文件代码内 allowlist。
  *   Issue/PR 上的任意字符串只被当作标签值查表，绝不参与拼接 env key 或 secret 名。
  *   未知标签、多个冲突模型标签一律 fail-loud（ModelRegistryError → failure_reason.txt
@@ -68,7 +68,7 @@ export interface ModelRegistryEntry {
   readonly model: string;
   /** 该模型唯一允许读取的 GitHub Secret/env 名（allowlist 内）。 */
   readonly secretName: ModelSecretName;
-  /** 模型标签生效的角色；评审/探索/冲突调和永远不消费模型标签。 */
+  /** 模型标签生效的角色；探索/冲突调和仍固定 Claude，不消费模型标签。 */
   readonly appliesTo: readonly AgentRole[];
 }
 
@@ -85,7 +85,7 @@ export const MODEL_REGISTRY = {
     primeProvider: "deepseek",
     model: "deepseek-v4-pro",
     secretName: DEEPSEEK_SECRET,
-    appliesTo: ["implement", "implement-pr"],
+    appliesTo: ["implement", "implement-pr", "review"],
   },
 } as const satisfies Record<string, ModelRegistryEntry>;
 
@@ -229,7 +229,7 @@ export const readModelLabelsFromEnv = (
 
 /**
  * 只校验标签合法性（未知/冲突 fail-loud），不读模型凭据。
- * 供固定 Claude 角色（review/explore/update-branch）在工作流入口调用：
+ * 供固定 Claude 角色（explore/update-branch）在工作流入口调用：
  * 有合法 DeepSeek 标签时这些角色仍走 Claude，且不会因缺 DeepSeek key 失败。
  */
 export const assertValidModelLabels = (labels: readonly string[]): void => {
@@ -278,9 +278,9 @@ export const remoteChildIdentityEnv = (
   return identity;
 };
 
-export type SelectableRole = "implement" | "implement-pr";
+export type SelectableRole = "implement" | "implement-pr" | "review";
 
-/** 固定 Claude 角色：不消费模型标签，直接使用 claudeCode + CLAUDE_CODE_OAUTH_TOKEN。 */
+/** 固定 Claude 角色（explore/update-branch）：不消费模型标签，直接使用 claudeCode + CLAUDE_CODE_OAUTH_TOKEN。 */
 export const claudeAgent = (role: AgentRole) => {
   // `|| fail(...)`：token 缺失或为空时 fail-loud（写 failure_reason.txt + 非零退出）。
   // tsgo（TS 7 native）不把 never 返回的函数调用当控制流终止点，`if (!x) fail()` 无法
@@ -296,8 +296,9 @@ export const claudeAgent = (role: AgentRole) => {
 };
 
 /**
- * 按事件标签构建实装 agent（implement / implement-pr）。
- * 默认 Claude Sonnet；`agent:model:deepseek-v4-pro` → Prime Agent deepseek。
+ * 按事件标签构建实装/评审 agent（implement / implement-pr / review）。
+ * 默认走各角色固定 Claude 模型；`agent:model:deepseek-v4-pro` → Prime Agent deepseek。
+ * explore/update-branch 不在此类型内，仍由 claudeAgent() 固定 Claude。
  * 未知/冲突标签与 DeepSeek 缺 key 都在返回 provider 前抛错，先于任何模型调用。
  */
 export const selectedAgent = (

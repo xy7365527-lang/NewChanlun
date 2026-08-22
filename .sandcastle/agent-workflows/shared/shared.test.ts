@@ -144,6 +144,7 @@ test("resolveModelSelection 显式 DeepSeek 标签走 registry 的 provider/mode
   assert.deepEqual([...selection.entry?.appliesTo ?? []], [
     "implement",
     "implement-pr",
+    "review",
   ]);
 });
 
@@ -235,16 +236,30 @@ test("selectedAgent DeepSeek 缺 key 在任何模型调用前抛错，不回退 
   );
 });
 
-test("模型标签只作用于 implement/implement-pr；review 等其他角色拒绝消费", () => {
-  assert.throws(
-    () =>
-      selectedAgent(
-        "review" as unknown as SelectableRole,
-        ["agent:model:deepseek-v4-pro"],
-        { DEEPSEEK_API_KEY: "deepseek-token" },
-      ),
-    /does not apply to role review/,
-  );
+test("模型标签作用于 implement/implement-pr/review；explore/update-branch 拒绝消费", () => {
+  for (const role of ["implement", "implement-pr", "review"] as const) {
+    const provider = selectedAgent(
+      role,
+      ["agent:model:deepseek-v4-pro"],
+      { DEEPSEEK_API_KEY: "deepseek-token" },
+    );
+    assert.equal(provider.name, "prime-agent");
+    assert.deepEqual(provider.env, {
+      DEEPSEEK_API_KEY: "deepseek-token",
+    });
+  }
+  for (const role of ["explore", "update-branch"] as const) {
+    assert.throws(
+      () =>
+        selectedAgent(
+          role as unknown as SelectableRole,
+          ["agent:model:deepseek-v4-pro"],
+          { DEEPSEEK_API_KEY: "deepseek-token" },
+        ),
+      new RegExp(`does not apply to role ${role}`),
+    );
+  }
+  // 这些角色仍以 Claude 模型为固定默认。
   assert.ok(AGENT_MODELS.review.startsWith("claude-opus"));
   assert.ok(AGENT_MODELS.explore.startsWith("claude-opus"));
   assert.ok(AGENT_MODELS["update-branch"].startsWith("claude-opus"));
@@ -301,6 +316,12 @@ test("modelLabelsFromEvent 支持 issue/pull_request labeled payload 与最小 l
       fixture("pr-labeled-implement-pr-deepseek-v4-pro.json"),
     ),
     ["agent:implement", "agent:model:deepseek-v4-pro"],
+  );
+  assert.deepEqual(
+    modelLabelsFromEvent(
+      fixture("pr-labeled-review-deepseek-v4-pro.json"),
+    ),
+    ["agent:review", "agent:model:deepseek-v4-pro"],
   );
   // P2：workflow 最小 EVENT_PAYLOAD 是 labels.*.name 的字符串数组。
   assert.deepEqual(
@@ -450,11 +471,49 @@ test("#1128 P1 敌对标签：not-* 子串默认 Claude；-legacy fail-loud 不�
   );
 });
 
-test("#1128 PR fixture：review 不消费 DeepSeek 标签，implement-pr 才消费", () => {
-  const reviewLabels = modelLabelsFromEvent(fixture("pr-labeled-review.json"));
-  assert.ok(reviewLabels.includes("agent:model:deepseek-v4-pro"));
-  // review 角色只做 assertValid：合法标签放行且不要求 DeepSeek key。
-  assert.doesNotThrow(() => assertValidModelLabels(reviewLabels));
+test("#1173 PR fixture：review 无模型标签走 Claude，显式 DeepSeek 标签走 DeepSeek", () => {
+  const defaultReviewLabels = modelLabelsFromEvent(
+    fixture("pr-labeled-review.json"),
+  );
+  assert.deepEqual(resolveModelSelection(defaultReviewLabels), {
+    label: null,
+    entry: null,
+  });
+  const defaultReview = selectedAgent("review", defaultReviewLabels, {
+    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
+  });
+  assert.equal(defaultReview.name, "claude-code");
+  assert.deepEqual(defaultReview.env, {
+    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
+  });
+  assert.ok(!("DEEPSEEK_API_KEY" in defaultReview.env));
+  assert.ok(
+    defaultReview
+      .buildPrintCommand({ prompt: "hi", dangerouslySkipPermissions: true })
+      .command.includes("claude-opus-4-8"),
+  );
+
+  const deepseekReviewLabels = modelLabelsFromEvent(
+    fixture("pr-labeled-review-deepseek-v4-pro.json"),
+  );
+  const deepseekReview = selectedAgent("review", deepseekReviewLabels, {
+    DEEPSEEK_API_KEY: "deepseek-token",
+  });
+  assert.equal(deepseekReview.name, "prime-agent");
+  assert.deepEqual(deepseekReview.env, {
+    DEEPSEEK_API_KEY: "deepseek-token",
+  });
+  assert.ok(!("CLAUDE_CODE_OAUTH_TOKEN" in deepseekReview.env));
+  const deepseekCommand = deepseekReview.buildPrintCommand({
+    prompt: "hi",
+    dangerouslySkipPermissions: true,
+  }).command;
+  assert.ok(deepseekCommand.includes("--provider deepseek"));
+  assert.ok(deepseekCommand.includes("--model deepseek-v4-pro"));
+  assert.throws(
+    () => selectedAgent("review", deepseekReviewLabels, {}),
+    /DEEPSEEK_API_KEY is not set or is empty/,
+  );
 
   const implementPrLabels = modelLabelsFromEvent(
     fixture("pr-labeled-implement-pr-deepseek-v4-pro.json"),
