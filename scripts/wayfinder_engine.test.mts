@@ -250,6 +250,52 @@ test("isSpecApproved：只认编排者、驳回优先、时间序推进", () => 
   );
 });
 
+test("isSpecApproved：否定/延后/技术通过不得误触发闸一", () => {
+  const hostile = [
+    "not approved yet, need another grilling round",
+    "I won't ship it yet, needs more review",
+    "don't ship it",
+    "waiting for approval",
+    "测试通过了，spec 我再看",
+    "CI 通过，逻辑还要改",
+    "等我看完再批准",
+    "稍后批准",
+    "> @xy7365527-lang 请批【闸一】：批准后引擎自动拆实装票（blocking 边 + 逐条挂裁定票 + sandcastle 标签）。\n\n先看一眼。",
+  ];
+  for (const body of hostile) {
+    assert.equal(
+      isSpecApproved(spec(1, "OPEN", [{ author: ORCH, body, createdAt: "2026-08-18T12:00:00Z" }]), ORCH),
+      false,
+      `不应批准：${JSON.stringify(body)}`,
+    );
+  }
+});
+
+test("isSpecApproved：真批准与「技术通过 + 真批准」仍放行", () => {
+  assert.equal(isSpecApproved(spec(1, "OPEN", [approvalComment()]), ORCH), true);
+  assert.equal(
+    isSpecApproved(
+      spec(1, "OPEN", [{ author: ORCH, body: "approve", createdAt: "2026-08-18T12:00:00Z" }]),
+      ORCH,
+    ),
+    true,
+  );
+  assert.equal(
+    isSpecApproved(
+      spec(1, "OPEN", [{ author: ORCH, body: "ship it", createdAt: "2026-08-18T12:00:00Z" }]),
+      ORCH,
+    ),
+    true,
+  );
+  assert.equal(
+    isSpecApproved(
+      spec(1, "OPEN", [{ author: ORCH, body: "测试通过了。批准。", createdAt: "2026-08-18T12:00:00Z" }]),
+      ORCH,
+    ),
+    true,
+  );
+});
+
 test("unresolvedFog：有去向的雾不算残雾", () => {
   assert.deepEqual(unresolvedFog(""), []);
   assert.deepEqual(unresolvedFog("## Not yet specified\n\n- 归 #1057\n- 明写搁置，无人跟进\n- 移 Out of scope\n"), []);
