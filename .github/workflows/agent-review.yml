@@ -77,6 +77,14 @@ jobs:
         if: contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
         run: npm install -g https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.7.2/prime-agent-0.7.2.tgz
 
+      # prime-agent 的 IPython kernel bootstrap 需要 uv（Actions runner 无预烘焙 kernel；
+      # #1173 smoke 实测：无 uv → 所有工具调用被 kernel bootstrap 闸挡住 → 无 commit）。
+      - name: Install uv (Prime Agent kernel bootstrap)
+        if: contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       # 两个 run step 互斥，只把所选模型的固定 Secret 注入进程 env：
       # 未选中的模型凭据不进入 agent 子进程，也不会被转发给 remote-child。
       - name: Run review agent (Claude default)
