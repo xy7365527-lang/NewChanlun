@@ -11,6 +11,12 @@
 //! 触发经 fill.rs 门内段上协议轨（ProtocolEventSet），本模块不持任何账本/订单语义。
 
 use std::collections::HashSet;
+use std::rc::Rc;
+
+use super::super::classifier::bsp::BspPoint;
+use super::super::classifier::recursive_tower::LeveledMove;
+use super::super::types::Center;
+use super::econ_positive::pan_div_gate_pass;
 
 use super::super::classifier::signal::PanDivCert;
 use super::super::strategy::oscillation::{
@@ -18,7 +24,6 @@ use super::super::strategy::oscillation::{
 };
 use super::super::strategy::voice::VoiceSide;
 use super::super::types::Side;
-use super::econ_positive::GatedPanDivCert;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct PanDivCertIdentity {
@@ -91,6 +96,63 @@ impl PanDivProductionState {
     fn stats(&self) -> PanDivProductionStats {
         self.stats
     }
+}
+
+// ── #1175（A01）：GatedPanDivCert + DC-E 生产门自 `econ_positive.rs` 迁入（零行为）──
+/// DC-E 生产门后的强类型确认引用。构造器不公开；生产消费者只能经
+/// [`gate_pan_div_for_production`] 得到它，裸 [`PanDivCert`] 无法直接进入订单候选。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct GatedPanDivCert {
+    level: u32,
+    cert: PanDivCert,
+}
+
+impl GatedPanDivCert {
+    pub(super) const fn level(self) -> u32 {
+        self.level
+    }
+
+    pub(super) const fn cert(self) -> PanDivCert {
+        self.cert
+    }
+
+    /// 测试构造门后证书（绕过门——生产唯一构造点仍是 [`gate_pan_div_for_production`]）。
+    #[cfg(test)]
+    pub(super) const fn gated_for_test(level: u32, cert: PanDivCert) -> Self {
+        Self { level, cert }
+    }
+}
+
+/// DC-E 唯一生产门：严格复用统计路径的 Nest/XZD 首见时点判据；任一通过才产一个候选引用。
+#[allow(clippy::too_many_arguments)]
+pub(super) fn gate_pan_div_for_production(
+    tower: &[Rc<Vec<LeveledMove>>],
+    lvl: usize,
+    cert: &PanDivCert,
+    hist: &[f64],
+    confirm_index: usize,
+    bsp_of_level: &[BspPoint],
+    sub_centers: &[Center],
+    sub_bsp: &[BspPoint],
+    strokes: &[crate::theta_v0::types::Stroke],
+    gauge: super::super::classifier::divergence::DivergenceGauge,
+) -> Option<GatedPanDivCert> {
+    pan_div_gate_pass(
+        tower,
+        lvl,
+        cert,
+        hist,
+        confirm_index,
+        bsp_of_level,
+        sub_centers,
+        sub_bsp,
+        strokes,
+        gauge,
+    )
+    .then_some(GatedPanDivCert {
+        level: lvl as u32,
+        cert: *cert,
+    })
 }
 
 #[cfg(test)]
