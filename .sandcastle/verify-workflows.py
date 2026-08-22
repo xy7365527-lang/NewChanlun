@@ -104,9 +104,11 @@ ISSUE_EXACT_LABEL_ROUTE = (
 PR_EXACT_LABEL_ROUTE = (
     "contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')"
 )
+# 计数含 #1173 新增的 DeepSeek 路线 uv 安装步：implement/review 各比 scaffold 初版
+# 多一条 `contains(labels.*.name, ...)` 条件（uv 只在 DeepSeek 路线安装）。
 LABEL_ROUTE_COUNTS = {
-    "agent-implement.yml": (ISSUE_EXACT_LABEL_ROUTE, 4),
-    "agent-review.yml": (PR_EXACT_LABEL_ROUTE, 4),
+    "agent-implement.yml": (ISSUE_EXACT_LABEL_ROUTE, 5),
+    "agent-review.yml": (PR_EXACT_LABEL_ROUTE, 5),
     "agent-implement-pr.yml": (PR_EXACT_LABEL_ROUTE, 4),
 }
 
@@ -384,6 +386,18 @@ def main() -> int:
         )
         mock.chmod(0o755)
         env = dict(os.environ, GH_REPO="o/r", PATH=f"{td}:{os.environ['PATH']}")
+        # 对拍必须 hermetic：detect-issue-shape.sh 在 GITHUB_OUTPUT 存在时会把输出写进
+        # runner 的 set_output 文件而非 stdout，四个 shape 对拍因此全部读成 None
+        # （#1173 smoke 在 Actions 内跑本验证器时实测复现）。剥掉 GitHub runner 的
+        # 文件指令重定向变量，强制脚本走 stdout 分支。
+        for _gh_runner_var in (
+            "GITHUB_OUTPUT",
+            "GITHUB_ENV",
+            "GITHUB_STATE",
+            "GITHUB_STEP_SUMMARY",
+            "GITHUB_PATH",
+        ):
+            env.pop(_gh_runner_var, None)
         cases = [
             ("1", "leaf", ""),
             ("2", "map", ""),
@@ -484,6 +498,28 @@ def main() -> int:
             "prime-agent-0.7.2.tgz" in raw,
             f"{name} 必须安装与 .sandcastle/Dockerfile 同版本的 Prime Agent CLI",
         )
+
+    # #1173 smoke 修复回归锁：Actions runner 无预烘焙 kernel，DeepSeek 路线必须先装
+    # uv（prime-agent 的 IPython kernel bootstrap 依赖 uv；缺 uv → 所有工具调用被
+    # bootstrap 闸挡住 → 无 commit）。uv 步必须早于 DeepSeek agent run，且只挂在
+    # DeepSeek 路线（Claude 路线不装，也不进 Claude provider env）。
+    for name, agent_step_name in [
+        ("agent-implement.yml", "Run implementation agent (DeepSeek v4-pro)"),
+        ("agent-review.yml", "Run review agent (DeepSeek v4-pro)"),
+    ]:
+        raw = raw_wf(name)
+        check(
+            "Install uv (Prime Agent kernel bootstrap)" in raw
+            and "curl -LsSf https://astral.sh/uv/install.sh | sh" in raw
+            and '"$HOME/.local/bin" >> "$GITHUB_PATH"' in raw,
+            f"{name} DeepSeek 路线必须安装 uv（Prime Agent kernel bootstrap）",
+        )
+        check(
+            raw.index("Install uv (Prime Agent kernel bootstrap)")
+            < raw.index(agent_step_name),
+            f"{name} uv 安装必须早于 DeepSeek agent run 步",
+        )
+
     for name in ["agent-explore.yml", "agent-update-branch.yml"]:
         raw = raw_wf(name)
         check(
