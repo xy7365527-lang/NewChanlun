@@ -53,7 +53,7 @@
 
 use std::rc::Rc;
 
-use super::super::types::{Center, Direction, Tick};
+use super::super::types::{Center, Direction, Stroke, Tick};
 use super::center::{classify_relation, CenterRelation, UnitRange};
 use super::decompose::{center_own_dir_at, MoveBlock};
 use super::descend::RMove;
@@ -1170,7 +1170,12 @@ pub fn map_src_to_close_idx(
 //  载体与 c_p 生命周期对象（advance_cp_lifecycles / relaxed_cand_delta_entries 等）。
 // ═══════════════════════════════════════════════════════════════════════════════════════
 
-use super::super::types::{Segment, Side};
+use super::super::types::{MoveKind, Segment, Side};
+use super::cand_predicate;
+use super::decompose::{center_block_kind, center_trend_gate, decompose};
+use super::divergence::{
+    departure_move_c_start, locate_departure_move_a, move_range_envelope, DivergenceGauge,
+};
 use super::signal;
 
 /// 父事件所归属的最后同级别中枢 `B_p` 的确定性身份。
@@ -2062,6 +2067,7 @@ pub fn advance_cp_lifecycles(
             leave_move.id,
             retest_move.id,
             unit_moves.len(),
+        );
         if let Some(before) = capture_before {
             super::diag::s2_mirror_capture::record_cp_advance(
                 super::diag::s2_mirror_capture::CpAdvanceCapture {
@@ -2454,8 +2460,48 @@ pub fn level_cand_delta(
             c_idx,
             i,
             interval_end,
-            cand_delta,        );
+            cand_delta,
+        );
+        let cp_certificate_confirm_src =
+            c_interval_full.and_then(|_| third_class_in_c.map(|third| third.point_source_index));
+        events.push(CandDeltaEvent {
+            level,
+            side,
+            divergence_confirm_src: confirm_src,
+            confirm_src,
+            interval: (lambda_c, interval_end),
+            a_interval,
+            c_episode_start: lambda_c,
+            c_episode_interval: (lambda_c, interval_end),
+            c_interval_full,
+            b_parent,
+            c_structure,
+            third_class_in_c,
+            cp_certificate_confirm_src,
+            full_trend_c_qualified,
+            full_trend_evidence,
+            cp_ownership,
+            enter_src: lambda_c,
+            cand_delta,
+            pan_div_diag,
+        });
     }
+    // 确认时点只作诊断，不能直接或间接参与候选排序。
+    // 完全相同的结构键保留上游 Segment 的稳定结构顺序。
+    events.sort_by_key(|e| {
+        (
+            e.interval,
+            e.a_interval,
+            e.enter_src,
+            match e.side {
+                Side::Long => 0_u8,
+                Side::Short => 1_u8,
+            },
+            e.cand_delta,
+            e.pan_div_diag,
+        )
+    });
+    events
 }
 
 #[cfg(test)]
