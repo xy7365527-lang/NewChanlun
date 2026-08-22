@@ -115,6 +115,9 @@ pub mod level_view_store;
 pub mod projection;
 /// 3a 生产单扫描（SPEC #1077 S1）：一趟段扫描合并 BSP 三投影与候选观察（私有模块，经 pipeline 消费）。
 mod scan;
+/// #1160（map #1094 图外实施票）：孤儿段「方案 C——显式追加式 Unassigned 账本」生产化。
+/// 纯产出零消费接线（先例 #641 chain_cert / #550 cand_event）；现役分类/信号/交易路径不调用。
+pub mod unassigned_ledger;
 /// #1087 Rust 生产输出 + 逐段 sink → Lean 独立重算逐字段对拍探针；feature 关闭时不进构建。
 #[cfg(feature = "issue1087_parity")]
 pub mod issue1087_parity {
