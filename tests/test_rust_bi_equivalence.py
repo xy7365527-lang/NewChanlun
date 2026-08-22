@@ -1,4 +1,4 @@
-"""Rust bi 引擎 ↔ Python bi 引擎 逐位等价 golden 测试。
+"""【#964 改标：v1 legacy 等价，Rust 侧非生产（生产=theta_v0，对拍=Rust↔Lean parity）】Rust bi 引擎 ↔ Python bi 引擎 逐位等价 golden 测试。
 
 验证 `newchan_rust.BiEngine` 在逐 bar 流式驱动下，其 strokes 快照与 Python
 `newchan.bi_engine.BiEngine` 的 `BiEngineSnapshot.strokes` **逐位等价**。

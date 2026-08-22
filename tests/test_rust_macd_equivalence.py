@@ -1,4 +1,4 @@
-"""Rust MACD 层 ↔ Python MACD 层等价 golden 测试（第七层：compute_macd rel=1e-11，其余逐位）。
+"""【#964 改标：v1 legacy 等价，Rust 侧非生产（生产=theta_v0，对拍=Rust↔Lean parity）】Rust MACD 层 ↔ Python MACD 层等价 golden 测试（第七层：compute_macd rel=1e-11，其余逐位）。
 
 验证 `newchan_rust` 的 MACD 实现与 Python 源等价：`compute_macd` 批量路径使用相对容差
 rel=1e-12，其余逐位（bit-exact）相等：

@@ -1,4 +1,4 @@
-"""Rust 中枢 v1 ↔ Python 中枢 v1 逐位等价 golden 测试。
+"""【#964 改标：v1 legacy 等价，Rust 侧非生产（生产=theta_v0，对拍=Rust↔Lean parity）】Rust 中枢 v1 ↔ Python 中枢 v1 逐位等价 golden 测试。
 
 验证 `newchan_rust.zhongshu_from_segments` / `zhongshu_from_strokes` 与 Python
 `newchan.a_zhongshu_v1` 对应函数在同一输入上输出逐字段相等。

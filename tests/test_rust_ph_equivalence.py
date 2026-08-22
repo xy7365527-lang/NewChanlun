@@ -1,4 +1,4 @@
-"""Rust PH 层 ↔ Python PH 层逐位等价 golden 测试。
+"""【#964 改标：v1 legacy 等价，Rust 侧非生产（生产=theta_v0，对拍=Rust↔Lean parity）】Rust PH 层 ↔ Python PH 层逐位等价 golden 测试。
 
 验证 `newchan_rust` 的 `compute_move_persistence` / `attach_persistence` /
 `should_stop_recursion` 与 Python `newchan.ph_layer` 同名函数在同一输入上

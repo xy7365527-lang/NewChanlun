@@ -1,4 +1,4 @@
-"""Rust 走势类型 v1 ↔ Python 走势类型 v1 逐位等价 golden 测试。
+"""【#964 改标：v1 legacy 等价，Rust 侧非生产（生产=theta_v0，对拍=Rust↔Lean parity）】Rust 走势类型 v1 ↔ Python 走势类型 v1 逐位等价 golden 测试。
 
 验证 `newchan_rust.moves_from_zhongshus` 与 Python
 `newchan.a_move_v1.moves_from_zhongshus` 在同一中枢列表上输出逐字段相等。

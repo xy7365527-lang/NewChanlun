@@ -1,4 +1,4 @@
-"""Rust 买卖点 v1 ↔ Python 买卖点 v1 逐位等价 golden 测试。
+"""【#964 改标：v1 legacy 等价，Rust 侧非生产（生产=theta_v0，对拍=Rust↔Lean parity）】Rust 买卖点 v1 ↔ Python 买卖点 v1 逐位等价 golden 测试。
 
 验证 `newchan_rust.buysellpoints_from_level` 与 Python
 `newchan.a_buysellpoint_v1.buysellpoints_from_level` 在同一组（segments, zhongshus,

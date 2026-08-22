@@ -1,4 +1,4 @@
-"""Rust segment 引擎 ↔ Python segment 引擎 逐位等价 golden 测试。
+"""【#964 改标：v1 legacy 等价，Rust 侧非生产（生产=theta_v0，对拍=Rust↔Lean parity）】Rust segment 引擎 ↔ Python segment 引擎 逐位等价 golden 测试。
 
 验证 `newchan_rust.segments_from_strokes_v1` 与 Python
 `newchan.a_segment_v1.segments_from_strokes_v1` 在**同一笔列表**上输出逐字段相等。

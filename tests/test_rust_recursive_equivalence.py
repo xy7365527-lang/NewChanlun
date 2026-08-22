@@ -1,4 +1,4 @@
-"""Rust 递归编排器 ↔ Python 递归编排器 逐位等价 golden 测试。
+"""【#964 改标：v1 legacy 等价，Rust 侧非生产（生产=theta_v0，对拍=Rust↔Lean parity）】Rust 递归编排器 ↔ Python 递归编排器 逐位等价 golden 测试。
 
 验证 `newchan_rust.RecursiveOrchestrator` 在逐 bar 流式驱动下，其**结构化快照**
 （strokes / segments / zhongshus / moves / buysellpoints / 递归级别 zhongshus+moves）

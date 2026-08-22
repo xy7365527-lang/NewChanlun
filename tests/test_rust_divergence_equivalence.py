@@ -1,4 +1,4 @@
-"""Rust 背驰 v1 ↔ Python 背驰 v1 逐位等价 golden 测试（fallback 路径）。
+"""【#964 改标：v1 legacy 等价，Rust 侧非生产（生产=theta_v0，对拍=Rust↔Lean parity）】Rust 背驰 v1 ↔ Python 背驰 v1 逐位等价 golden 测试（fallback 路径）。
 
 验证 `newchan_rust.divergences_from_moves_v1` 与 Python
 `newchan.a_divergence_v1.divergences_from_moves_v1`（df_macd=None）在同一管线输出上
