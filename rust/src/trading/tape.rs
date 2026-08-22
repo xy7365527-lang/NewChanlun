@@ -50,7 +50,7 @@ pub struct SignalTape {
     /// None = 信号层未产出（rev_cycle=Cycle38 的 capability guard 依赖）。
     pub trend_flips: Option<Vec<(i64, u8, bool)>>,
     /// turn_class 投影行（#1195；稀疏注解行 `(bar, ladder, class, evidence)`，与
-    /// `trend_flips` 行同构）。每级标签一行——`class` = [`TurnClassKind`] 四类，
+    /// `trend_flips` 行同构）。每级标签一行——`class` = [`crate::theta_v0::classifier::TurnClassKind`] 四类，
     /// `evidence` 仅 `XiaozhuandaCandidate` 携带（`third_src` + `second_class`）。
     /// None = 分类投影层未产出（零行为变化；L-重情况二程序臂的 capability guard）。
     ///

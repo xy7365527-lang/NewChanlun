@@ -128,8 +128,15 @@ pub fn candidate_second_point(
     let directed: Vec<&MoveBlock> = book.moves.iter().filter(|b| b.dir.is_some()).collect();
     for pair in directed.windows(2) {
         let (first, second) = (pair[0], pair[1]);
+        // moves 与 centers 在 decompose 构造下 1:1 同源；越界索引视同无候选（防御，不 panic）。
+        let (Some(first_center), Some(second_center)) = (
+            book.centers.get(first.start_center),
+            book.centers.get(second.end_center),
+        ) else {
+            continue;
+        };
         // 高点/低点之后：前块首中枢起点不得早于 base_turn（转折极值）。
-        if book.centers[first.start_center].start_index < base_turn {
+        if first_center.start_index < base_turn {
             continue;
         }
         // 次级别上/下完成：后块必须 Completed（尾 Active 块仍在形成，不算「完成」）。
@@ -139,14 +146,14 @@ pub fn candidate_second_point(
         let (Some(first_dir), Some(second_dir)) = (first.dir, second.dir) else {
             continue;
         };
-        let candidate_index = book.centers[second.end_center].end_index;
+        let candidate_index = second_center.end_index;
         let (no_new_extreme, pan_hit) = match side {
             Side::Short => {
                 // 形态：高点 → 向下块 → 向上块；不创新高 = 后块峰 gg ≤ 高点。
                 if first_dir != Direction::Down || second_dir != Direction::Up {
                     continue;
                 }
-                let up_peak = book.centers[second.end_center].gg;
+                let up_peak = second_center.gg;
                 (
                     up_peak <= extreme,
                     book.pan_div.iter().any(|p| {
@@ -161,7 +168,7 @@ pub fn candidate_second_point(
                 if first_dir != Direction::Up || second_dir != Direction::Down {
                     continue;
                 }
-                let down_low = book.centers[second.end_center].dd;
+                let down_low = second_center.dd;
                 (
                     down_low >= extreme,
                     book.pan_div.iter().any(|p| {
