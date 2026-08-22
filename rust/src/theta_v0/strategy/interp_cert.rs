@@ -412,7 +412,7 @@ pub fn interpret_with_close_triggers(
 /// ★#202 阶段 C：规则2 **外部化**的 fold 驱动（spec WP-3 阶段 C「仅替换 P2/P3」）。
 ///
 /// 本级证书平仓域（channel 口径 P2/P3 = entry_v≠ReverseOpen 腿的 CloseRoot/ReduceCore）
-/// 由 channel 判据 [`super::channel::cert_close_trigger`] 逐腿裁决后**喂入**
+/// 由 channel 判据 [`super::super::channel::cert_close_trigger`] 逐腿裁决后**喂入**
 /// （`external_closes: (active_idx, trigger)`——「每声部每步一枚」的 channel 裁决替代
 /// 散装 fold 规则2 的候选消费粒度）；组合层 coverage `pi_theta_step_traced` 正常路径
 /// 是唯一生产消费点。
