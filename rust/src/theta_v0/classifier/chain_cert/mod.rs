@@ -80,6 +80,14 @@ use super::cand_event::{
 };
 use super::cand_sub::candidate_is_sub;
 
+use super::super::types::Direction;
+use super::cand_event::CandDeltaEvent;
+use super::diag::cp_recall_audit::{CpLifecycleStatus, CpScanOwnership};
+use super::recursive_tower::{
+    CpStructureIdentity, ElementId, InternalSublevelCenters, NewExtremeInDirection, ThirdClassInCp,
+    TrendContext,
+};
+
 #[cfg(test)]
 mod tests;
 
@@ -1468,4 +1476,96 @@ pub mod chain_probe {
             }
         });
     }
+}
+
+// ── #1180（D01）：证书 view 族（自 `recursive_tower.rs` 纯移动迁入，零行为）────
+
+/// [新缠论] R3：`c_p` 内部中枢链已按原趋势方向完成分解的结构证书。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompletedTrendDecomposition {
+    pub direction: Direction,
+    pub center_ids: Vec<ElementId>,
+    /// 首个证明该趋势块已经结束的后继走势 ID；它也是增量 dirty 依赖的一部分。
+    pub closing_successor_move_id: ElementId,
+    pub confirm_src: usize,
+}
+
+/// [新缠论] R3 分量证据包。每个 `Option` 独立保存，避免全合取失败后丢失第 20/22 行证据。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FullTrendQualificationEvidence {
+    pub trend_context: Option<TrendContext>,
+    pub new_extreme_in_direction: Option<NewExtremeInDirection>,
+    pub internal_sublevel_centers: Option<InternalSublevelCenters>,
+    pub completed_trend_decomposition: Option<CompletedTrendDecomposition>,
+    /// 完成性复核实际读取的后继走势 ID；阴性裁定同样依赖它，frontier 变异时必须失效。
+    pub decomposition_review_move_id: Option<ElementId>,
+    /// 后继递归单元首次可见的时点；`None` 表示完成分解尚不可判，不等于已失败。
+    pub decomposition_review_src: Option<usize>,
+}
+
+/// [新缠论] R3 完整趋势资格合取证书。构造成功即表示五个分量全部成立。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FullTrendCQualified {
+    pub trend_context: TrendContext,
+    pub third_class_inside_c: ThirdClassInCp,
+    pub new_extreme_in_direction: NewExtremeInDirection,
+    pub internal_sublevel_centers: InternalSublevelCenters,
+    pub completed_trend_decomposition: CompletedTrendDecomposition,
+    /// 五个分量全部可知的最早时点；终态标签不得回填到 `divergence_confirm_src`。
+    pub confirm_src: usize,
+}
+
+/// 一张完整 `c_p` 证书视图。消费者必须显式选择确认时快照或终态对象证书。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CpCertificateView {
+    pub cp_certificate_confirm_src: usize,
+    pub c_structure: CpStructureIdentity,
+    pub third_class_in_c: ThirdClassInCp,
+    pub c_interval_full: (usize, usize),
+    pub full_trend_evidence: Option<FullTrendQualificationEvidence>,
+    pub full_trend_c_qualified: Option<FullTrendCQualified>,
+}
+
+/// 显式选择 Cand 背驰确认时的因果快照证书；不会读取终态对象。
+pub fn cp_certificate_at_divergence(event: &CandDeltaEvent) -> Option<CpCertificateView> {
+    let confirm = event.cp_certificate_confirm_src?;
+    let structure = event.c_structure?;
+    let third = event.third_class_in_c?;
+    let interval = event.c_interval_full?;
+    Some(CpCertificateView {
+        cp_certificate_confirm_src: confirm,
+        c_structure: structure,
+        third_class_in_c: third,
+        c_interval_full: interval,
+        full_trend_evidence: event.full_trend_evidence.clone(),
+        full_trend_c_qualified: event.full_trend_c_qualified.clone(),
+    })
+}
+
+/// 显式选择同一 `B_p/c_p` 的终态完整证书；通过稳定边查对象，不改写事件快照。
+pub fn cp_terminal_certificate(
+    event: &CandDeltaEvent,
+    objects: &[CpScanOwnership],
+) -> Option<CpCertificateView> {
+    let edge = event.cp_ownership?;
+    let object = objects.iter().find(|object| {
+        object.b_center_id == edge.b_center_id
+            && object.departure_move_id == Some(edge.cp_departure_move_id)
+            && object.departure_interval.map(|iv| iv.0) == Some(edge.cp_source_start)
+    })?;
+    if object.lifecycle != CpLifecycleStatus::Closed {
+        return None;
+    }
+    let confirm = object.cp_certificate_confirm_src?;
+    let structure = object.c_structure?;
+    let third = object.third_class_in_c?;
+    let end = structure.source_end?;
+    Some(CpCertificateView {
+        cp_certificate_confirm_src: confirm,
+        c_structure: structure,
+        third_class_in_c: third,
+        c_interval_full: (structure.source_start, end),
+        full_trend_evidence: object.full_trend_evidence.clone(),
+        full_trend_c_qualified: object.full_trend_c_qualified.clone(),
+    })
 }

@@ -1030,3 +1030,169 @@ fn breach_reason_matches_interval_is_sub_conjuncts() {
         );
     }
 }
+
+// ── #1180（D01）：证书 view 族测试（`cp_certificate_at_divergence` / `cp_terminal_certificate`）
+//    随块自 `recursive_tower.rs` 迁入，零行为。────────────────────────────────────────
+
+use super::super::super::types::{Center, Tick};
+use super::super::center::UnitRange;
+use super::super::recursive_tower::{advance_cp_lifecycles, cp_unit_to_segment, LeveledMove};
+use super::super::scan::cp_event_projection;
+
+fn unit(si: usize, ei: usize, dir: Direction, lo: Tick, hi: Tick) -> UnitRange {
+    UnitRange {
+        start_index: si,
+        end_index: ei,
+        direction: dir,
+        lo,
+        hi,
+    }
+}
+
+fn up() -> Direction {
+    Direction::Up
+}
+fn down() -> Direction {
+    Direction::Down
+}
+
+fn eid(level: u32, ordinal: u64) -> ElementId {
+    ElementId { level, ordinal }
+}
+
+fn pending_cp_object(
+    center: Center,
+    b_center_id: ElementId,
+    departure_move_id: ElementId,
+    departure_interval: (usize, usize),
+) -> CpScanOwnership {
+    CpScanOwnership {
+        b_center_index: 0,
+        b_center_id,
+        b_center: center,
+        departure_move_id: Some(departure_move_id),
+        departure_interval: Some(departure_interval),
+        lifecycle: CpLifecycleStatus::Pending,
+        cp_certificate_confirm_src: None,
+        c_structure: Some(CpStructureIdentity {
+            level: departure_move_id.level,
+            b_center_id,
+            departure_move_id,
+            terminal_move_id: None,
+            source_start: departure_interval.0,
+            source_end: None,
+        }),
+        third_class_in_c: None,
+        full_trend_evidence: None,
+        full_trend_c_qualified: None,
+    }
+}
+
+#[test]
+fn p46_b_l2_1508_closes_without_later_event_and_snapshot_stays_none() {
+    let center = Center {
+        zd: 4_157_138_000_000,
+        zg: 4_202_600_000_000,
+        dd: 4_150_000_000_000,
+        gg: 4_210_000_000_000,
+        start_index: 3_303_342,
+        end_index: 3_305_431,
+    };
+    let units = vec![
+        unit(
+            3_305_536,
+            3_306_324,
+            up(),
+            4_180_000_000_000,
+            4_300_000_000_000,
+        ),
+        unit(
+            3_306_330,
+            3_306_426,
+            down(),
+            4_210_000_000_000,
+            4_300_000_000_000,
+        ),
+    ];
+    let moves = vec![
+        LeveledMove::from_unit(&units[0], eid(1, 6703)),
+        LeveledMove::from_unit(&units[1], eid(1, 6704)),
+    ];
+    let mut objects = vec![pending_cp_object(
+        center,
+        eid(2, 1508),
+        eid(1, 6703),
+        (3_305_536, 3_306_324),
+    )];
+    let confirm_seg = cp_unit_to_segment(&units[0]);
+    let (
+        b_parent,
+        snapshot_c,
+        snapshot_third,
+        edge,
+        snapshot_interval,
+        snapshot_evidence,
+        snapshot_full,
+    ) = cp_event_projection(
+        1,
+        &[center],
+        &objects,
+        &[confirm_seg],
+        &[Some(Direction::Up)],
+        &moves[..1],
+        0,
+        0,
+        3_306_324,
+        true,
+    );
+    assert_eq!(snapshot_c.and_then(|c| c.source_end), None);
+    assert!(snapshot_third.is_none());
+    assert!(snapshot_interval.is_none());
+    assert!(edge.is_some(), "确认时只写稳定归属边");
+    let snapshot_event = CandDeltaEvent {
+        level: 1,
+        side: Side::Short,
+        divergence_confirm_src: 3_306_324,
+        confirm_src: 3_306_324,
+        interval: (3_305_536, 3_306_324),
+        a_interval: (3_303_342, 3_305_431),
+        c_episode_start: 3_305_536,
+        c_episode_interval: (3_305_536, 3_306_324),
+        c_interval_full: snapshot_interval,
+        b_parent,
+        c_structure: snapshot_c,
+        third_class_in_c: snapshot_third,
+        cp_certificate_confirm_src: None,
+        full_trend_c_qualified: snapshot_full,
+        full_trend_evidence: snapshot_evidence,
+        cp_ownership: edge,
+        enter_src: 3_305_536,
+        cand_delta: true,
+        pan_div_diag: false,
+    };
+
+    advance_cp_lifecycles(
+        &mut objects,
+        &[center],
+        &units,
+        &moves,
+        Some(&[Some(Direction::Up), Some(Direction::Down)]),
+        1,
+    );
+    assert_eq!(objects[0].lifecycle, CpLifecycleStatus::Closed);
+    assert_eq!(objects[0].cp_certificate_confirm_src, Some(3_306_426));
+    assert_eq!(
+        objects[0].c_structure.and_then(|c| c.source_end),
+        Some(3_306_426)
+    );
+    assert!(
+        cp_certificate_at_divergence(&snapshot_event).is_none(),
+        "对象后来闭合不得前视改写确认时快照"
+    );
+    assert_eq!(
+        cp_terminal_certificate(&snapshot_event, &objects)
+            .map(|cert| cert.cp_certificate_confirm_src),
+        Some(3_306_426),
+        "终态证书只能经稳定边显式选择"
+    );
+}
