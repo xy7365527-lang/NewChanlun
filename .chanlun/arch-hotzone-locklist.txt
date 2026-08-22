@@ -1,0 +1,59 @@
+# arch-hotzone-locklist —— 架构热区监控的裁定锁定名单（#1197）
+# 格式：每行一个 glob 模式（对仓库相对路径做 bash case 匹配，* 可跨 /）；
+#       # 开头为注释，空行忽略。本名单可配置：
+#       ARCH_HOTZONE_LOCKLIST_FILE 指向其它名单文件时本文件被绕过。
+# 维护口径：每轮架构深化落地后，由编排者把「本轮已扫/已裁」的文件追加进来；
+#           被新一轮深化重新裁过的文件，可在此处摘除。
+
+# ── A. 裁定锁定（票面点名）──────────────────────────────────────────────
+rust/src/theta_v0/backtest/fill.rs
+rust/src/trading/positional_fusion.rs
+rust/src/theta_v0/classifier/nest.rs
+rust/src/theta_v0/classifier/nest_index.rs
+rust/src/theta_v0/classifier/nest_lifecycle.rs
+rust/src/theta_v0/classifier/nest_lifecycle/*
+
+# ── B. 类别锁定（票面点名）──────────────────────────────────────────────
+# deprecated 前代线 rec_*
+rust/src/recursive_t/*
+# bin/ 探针
+rust/src/bin/*
+# 测试文件（目录 / 命名后缀）
+*_test.rs
+*_tests.rs
+*/tests.rs
+*/tests/*
+test_*.rs
+
+# ── C. 判停已扫热区（#1193 判停轮快照）───────────────────────────────────
+# 判停依据：第 5 轮扫描 top recommendation 已降至 Worth exploring 边缘档、
+# Strong 档清零；以下近 30 天窗口内的热区文件均已扫过、判「无再深化的剩余
+# 收益」（见 workflows/architecture-deepening-loop.md 判停记录）。快照自
+# 2026-08-23；后续每轮深化落地由编排者维护（追加/摘除）。
+rust/src/theta_v0/classifier/mod.rs
+rust/src/theta_v0/backtest/wverify_run.rs
+rust/src/theta_v0/backtest/econ_positive.rs
+rust/src/theta_v0/classifier/signal.rs
+rust/src/theta_v0/backtest/runner.rs
+rust/src/theta_v0/classifier/bsp.rs
+rust/src/theta_v0/strategy/oscillation_campaign.rs
+rust/src/theta_v0/strategy/mod.rs
+rust/src/theta_v0/classifier/recursive_tower.rs
+rust/src/theta_v0/strategy/interp.rs
+rust/src/theta_v0/backtest/opsem_dump.rs
+rust/src/theta_v0/strategy/center_oscillation_trade.rs
+rust/src/theta_v0/backtest/admission.rs
+rust/src/theta_v0/classifier/pipeline.rs
+rust/src/theta_v0/strategy/coverage/step.rs
+rust/src/theta_v0/backtest/incremental.rs
+rust/src/theta_v0/classifier/center_lifecycle.rs
+rust/src/theta_v0/config.rs
+rust/src/theta_v0/backtest/l3_delta_r_alpha.rs
+rust/src/theta_v0/strategy/coverage/mod.rs
+rust/src/theta_v0/strategy/short_diff_bucket.rs
+rust/src/theta_v0/strategy/coverage/sizing.rs
+rust/src/theta_v0/types.rs
+rust/src/theta_v0/classifier/retrace_ledger/mod.rs
+rust/src/theta_v0/strategy/exit.rs
+rust/src/theta_v0/backtest/signal.rs
+rust/src/lib.rs

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.newchanlun.arch-hotzone.plist —— 架构热区监控常驻任务（#1197 追加）
+
+  职责：架构深化循环判停后的「热区触发式」常驻组件。每轮按三判据（摩擦 /
+  锁定名单 / 在飞图）扫一遍候选文件，命中则把命中清单 + 摩擦读数写入
+  .chanlun/arch-hotzone-report-<date>.md（不自动开图，HITL 闸一保留）。
+
+  安装/卸载：bash .sandcastle/install-arch-hotzone.sh [install|uninstall|status]
+  注意：REPO 路径 /Users/silencehan/Projects/NewChanlun 需与本机实际仓路径一致
+  （与 watcher.sh / harvest.sh / install-wayfinder-engine.sh 同款硬编码）。
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.newchanlun.arch-hotzone</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/silencehan/Projects/NewChanlun/scripts/arch_hotzone_monitor.sh</string>
+        <string>--live</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/silencehan/Projects/NewChanlun</string>
+
+    <!-- 常驻：退出即拉起；脚本内部 for(;;) 轮询，正常永不退出。 -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>GH_REPO</key>
+        <string>xy7365527-lang/NewChanlun</string>
+        <key>NO_COLOR</key>
+        <string>1</string>
+        <key>CLICOLOR</key>
+        <string>0</string>
+        <key>FORCE_COLOR</key>
+        <string>0</string>
+        <key>CLICOLOR_FORCE</key>
+        <string>0</string>
+        <key>ARCH_HOTZONE_INTERVAL_SECONDS</key>
+        <string>86400</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/arch-hotzone.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/arch-hotzone.stderr.log</string>
+</dict>
+</plist>
