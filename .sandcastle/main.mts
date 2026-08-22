@@ -33,6 +33,32 @@ const GH_CLEAN_ENV = {
   GH_REPO: "xy7365527-lang/NewChanlun", // origin 可能是本地路径（clone 场景），gh 靠它认仓
 };
 
+// ── #1183：宿主分支 FAIL-loud 校验（启动即查） ────────────────────────────────
+// 评审面的 TARGET_BRANCH 是 sandcastle 内置 promptArg，解析自宿主 cwd 的当前分支
+// （TROUBLESHOOTING #8：#1008 记录「内置 promptArg，不可覆盖」）。宿主 worktree
+// 常驻他人 ticket 分支时，评审基线被带偏成「别线 WIP + 本票」混合 diff——
+// #1180 实测：ticket-919-final → ~900179 tokens、评审 agent 14s 空转、实际零评审。
+// 故启动即校验宿主分支 = main，非 main 直接 FAIL-loud 退出（不取票、不起沙盒）。
+function assertHostBranchIsMain(): void {
+  let branch: string;
+  try {
+    branch = execSync("git rev-parse --abbrev-ref HEAD", { encoding: "utf8" }).trim();
+  } catch (e) {
+    console.error(
+      `[FAIL-loud #1183] 解析宿主分支失败（git rev-parse --abbrev-ref HEAD）：${String(e).slice(0, 300)}`,
+    );
+    process.exit(2);
+  }
+  if (branch !== "main") {
+    console.error(
+      `[FAIL-loud #1183] 宿主分支 = ${branch}（期望 main）。评审 TARGET_BRANCH 是 sandcastle 内置 promptArg、解析自宿主 cwd 当前分支，` +
+        `非 main 会把别线 WIP 混进评审面（#1180 实测：ticket-919-final 基线 → 评审空转）。` +
+        `请在 main 的干净 worktree（main-pstack）下重跑：npx tsx .sandcastle/main.mts`,
+    );
+    process.exit(2);
+  }
+}
+
 function hasOpenBlocker(issue: number): boolean {
   const out = execSync(
     `gh api repos/{owner}/{repo}/issues/${issue} --jq .issue_dependencies_summary.blocked_by`,
@@ -114,6 +140,7 @@ async function runWithResume(
 // ── REVIEW_ONLY 模式（#879 补派 Phase 2 引入）：env SANDCASTLE_REVIEW_ONLY="分支名:票号" 时
 // 跳过 pickIssue 与 Phase 1，对既有分支直接跑 Phase 2 评审（宿主驱动中断后的补派路径，
 // TROUBLESHOOTING #11）。分支须已存在且含实装 commit。
+assertHostBranchIsMain();
 const REVIEW_ONLY = process.env.SANDCASTLE_REVIEW_ONLY;
 if (REVIEW_ONLY) {
   const [roBranch, roIssue] = REVIEW_ONLY.split(":");
