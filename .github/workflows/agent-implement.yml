@@ -26,6 +26,9 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      # 工蜂可能改 workflow 文件（#1173 烟测 run4 实测：改 agent-implement.yml 被拒），
+      # push 需 workflows 权限；私有仓无 fork 面，GITHUB_TOKEN 开它无额外风险。
+      workflows: write
 
     env:
       ISSUE_NUMBER: ${{ github.event.issue.number }}
