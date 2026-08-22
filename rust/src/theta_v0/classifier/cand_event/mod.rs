@@ -23,6 +23,7 @@
 //! 三域测试共用的夹具集中在 [`fixtures`]（`#[cfg(test)]`，不带 `#[test]` ⟹ 不进测试名清单）。
 
 mod book;
+mod delta;
 mod key;
 mod observe;
 
@@ -30,6 +31,10 @@ mod observe;
 mod fixtures;
 
 pub use book::{event_probe, CandidateEventBook};
+pub use delta::{
+    relaxed_cand_delta_entries, CandDeltaCpEdge, CandDeltaEntryEvent, CandDeltaEntryOrigin,
+    CandDeltaEvent,
+};
 pub use key::{
     interval_is_degenerate, interval_is_sub, intervals_are_disjoint, intervals_touch,
     CandidateEvent, CandidateKey, CandidateKind, CandidateProjection, CandidateState,
