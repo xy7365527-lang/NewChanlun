@@ -1923,9 +1923,8 @@ mod tests {
     #[test]
     fn prop_full_replay_is_idempotent_and_sha256_bit_exact() {
         assert_eq!(
-            // devskim: ignore DS173237 — NIST SHA-256 测试向量（sha256("abc")），非密钥
             sha256_hex(b"abc"),
-            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" // devskim: ignore DS173237 — NIST 测试向量
         );
         let fixture = run_task67_fixture();
         let fresh =
