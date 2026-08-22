@@ -1,9 +1,0 @@
-name: Probe PRT
-on:
-  pull_request_target:
-    types: [labeled]
-jobs:
-  probe:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo probe-ok
