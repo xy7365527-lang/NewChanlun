@@ -22,7 +22,7 @@ import type {
   PrintCommand,
 } from "@ai-hero/sandcastle";
 import { dirname, join, posix } from "node:path";
-import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 
 type StreamEvent = ReturnType<AgentProvider["parseStreamLine"]>[number];
@@ -162,8 +162,30 @@ export function primeAgent(model: string, options?: PrimeAgentOptions): AgentPro
       return readFile(path, "utf8");
     },
     findByIdOnHost: async (sessionId) => {
-      const path = join(hostSessionsDir, `${sessionId}.jsonl`);
-      return { path: (await fileExists(path)) ? path : undefined, searchedRoot: hostSessionsDir };
+      const dir = hostSessionsDir;
+      const direct = join(dir, `${sessionId}.jsonl`);
+      if (await fileExists(direct)) return { path: direct, searchedRoot: dir };
+      // #1066 纪律：prime-agent 会话文件名 ≠ header.id（实测 0.7.2）。直查未中时
+      // 按 header.id 扫描目录（noSandbox/Actions runner 场景依赖此兜底：#1173 实测
+      // extraction 二段 resume 预检因文件名不符而失败）。
+      let entries: string[] = [];
+      try {
+        entries = await readdir(dir);
+      } catch {
+        return { path: undefined, searchedRoot: dir };
+      }
+      for (const name of entries) {
+        if (!name.endsWith(".jsonl")) continue;
+        const candidate = join(dir, name);
+        try {
+          const head = (await readFile(candidate, "utf8")).split("\n", 2)[0] ?? "";
+          const header = parsePrimeSessionHeader(head);
+          if (header?.id === sessionId) return { path: candidate, searchedRoot: dir };
+        } catch {
+          // 单文件读取失败不拖垮扫描
+        }
+      }
+      return { path: undefined, searchedRoot: dir };
     },
     captureToHost: async ({ hostCwd, sandboxCwd, sessionId, handle }) => {
       const sandboxFile = await findSandboxSessionFile(handle, sandboxSessionsDir, sessionId);
