@@ -118,9 +118,10 @@ mod scan;
 /// #1087 Rust 生产输出 + 逐段 sink → Lean 独立重算逐字段对拍探针；feature 关闭时不进构建。
 #[cfg(feature = "issue1087_parity")]
 pub mod issue1087_parity {
-    pub use super::scan::issue1087_probe::{
-        begin, finish, EpisodeCase, ScanParityRecord, WireASegmentEnvelope, WireBspBits,
-        WireBspPoint, WireCandDeltaCase, WireCandidateKey, WireCandidateKind, WireCandidateLeg,
+    pub use super::scan::issue1087_probe::{begin, finish};
+    pub use super::scan::wire::{
+        EpisodeCase, ScanParityRecord, WireASegmentEnvelope, WireBspBits, WireBspPoint,
+        WireCandDeltaCase, WireCandidateKey, WireCandidateKind, WireCandidateLeg,
         WireCandidateObservation, WireCenter, WireCpClosureEvidence, WireCpScanBase,
         WireCpTransition, WireDirection, WireEventRawContext, WireFirstClassGradeRecord,
         WireForceFeatures, WireForceProxies, WireInterval, WireMergedScanOutput, WireMoveBlock,
