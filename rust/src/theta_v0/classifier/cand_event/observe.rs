@@ -214,7 +214,7 @@ pub(crate) fn make_trend_observation(
         extreme: gates.extreme,
     };
     let state = structural_predicates.resolved_state();
-    CandidateObservation {
+    let output = CandidateObservation {
         key,
         kind: CandidateKind::Trend,
         center_ids: Some((previous.start_index, parent_center.start_index)),
@@ -228,7 +228,16 @@ pub(crate) fn make_trend_observation(
         // 首证钟只在本次观察使结构宽候选完全成立时才有值——未决观察不提前落钟。
         first_provable_at: (state == ObservedState::Provisional).then_some(segment.end_index),
         confirmed_at: None,
-    }
+    };
+    super::super::diag::s2_mirror_capture::record_trend_assembly(
+        level,
+        previous,
+        parent_center,
+        segment,
+        gates,
+        &output,
+    );
+    output
 }
 
 /// 将既有 `judge_pan_div` 唯一构造的证书投影为 Pan 域确认候选，不重判结构或力度。

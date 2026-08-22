@@ -9,6 +9,9 @@ pub mod cp_recall_audit;
 pub mod cp_replay_diagnostics;
 #[cfg(test)]
 pub mod oracle_probe;
+/// #1080 S2：3a 统一扫描的只读提取捕获。默认关闭；只在验收执行器显式开启时复制
+/// `merged_scan_resume` 的原始输入与四产口，绝不参与判定或回写生产状态。
+pub mod s2_mirror_capture;
 pub mod stage_profile;
 
 pub use cand_delta::{cand_delta_entry_tower, cand_delta_tower, cand_delta_tower_cached};

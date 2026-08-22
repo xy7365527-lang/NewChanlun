@@ -1394,7 +1394,11 @@ pub(crate) fn merged_scan_resume(
 
     // 候选域归约层（merged/首证钟/state）留在扫描之后：prefix+tail 腿全量重跑归约（O(observations)
     // 轻量），再并入 Pan 域投影（从 BSP pan_div 证书投影，不重判结构或力度），统一 (interval,key) 排序。
+    let captured_legs = super::diag::s2_mirror_capture::capture_enabled().then(|| legs.clone());
     let mut observations = cand_event::reduce_structural_legs(legs);
+    if let Some(captured_legs) = captured_legs {
+        super::diag::s2_mirror_capture::record_reduction(level, captured_legs, &observations);
+    }
     observations.extend(cand_event::pan_observations_for_level(level, &pan_divs));
     observations.sort_by_key(|observation| (observation.interval, observation.key));
 
@@ -1475,12 +1479,27 @@ pub(crate) fn merged_scan_resume(
         },
         "3a 合并扫描破裂：合并扫描四件输出 != (全量 BSP 神谕, 全量候选神谕)（frontier 冻结/push 序/逐点门/归约不变式被违反）"
     );
-    MergedScanOutput {
+    let output = MergedScanOutput {
         points,
         pan_divs,
         grades,
         observations,
-    }
+    };
+    // #1080 S2：默认关闭的只读验收捕获。只复制本次 3a 原始输入/四产口；位于 07b 二类
+    // 并入前，不参与判定、排序、缓存或返回值。
+    super::diag::s2_mirror_capture::record_scan(
+        level,
+        centers,
+        segments,
+        anchors,
+        departure_ends,
+        blocks,
+        &output.points,
+        &output.pan_divs,
+        &output.grades,
+        &output.observations,
+    );
+    output
 }
 
 /// ★单段判定核（共享 per-segment 素材）：一次判定喂 BSP 域与候选域两个 sink。

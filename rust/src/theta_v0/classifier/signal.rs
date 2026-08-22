@@ -595,14 +595,28 @@ pub(crate) fn judge_first_from_gates(
     // pivot 仍按 bit 方向填（零 bit ⟹ 两侧 0）。force 旁挂进点（单一来源，不进任何 bit 判据）。
     // ★owner 载体补齐（关③ 补记② 路径 (a)）：判定中枢 last_center 构造时填载（center=Some）。
     // ★#1028 裁定 A：source_index 传 departure 单元终点（point_src），非 seg.end_index（回抽段终点）。
-    Some(make_first_point(
+    let point = make_first_point(
         point_src,
         bits,
         end.price,
         last_center,
         struct_break_dir,
         force,
-    ))
+    );
+    super::diag::s2_mirror_capture::record_first_assembly(
+        level.unwrap_or(0),
+        last_center,
+        trend_dir,
+        seg,
+        departure_end,
+        gates,
+        gauge,
+        strokes,
+        sorted,
+        t3_grade,
+        &point,
+    );
+    Some(point)
 }
 
 /// 第三类买卖点判定（契约锚 `Origin.BspClassification.IsType3Buy/IsType3Sell` 点位判据）。

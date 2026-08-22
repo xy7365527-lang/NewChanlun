@@ -719,7 +719,8 @@ mod tests {
             "theta_v0/classifier/signal.rs:3626",
             "theta_v0/classifier/signal.rs:3882",
             "theta_v0/classifier/signal.rs:3949",
-            // （2026-08-16 #648 T1：classifier/mod.rs 内联测试 4273 行抽离至 classifier/tests/
+            // 2026-08-21 #1080 S2 Phase2：`judge_first_from_gates` 加默认关闭只读捕获
+            // seam（+14 行）——本块锚点待全量合并后按 whitelist 测试实报行号统一订正。            // （2026-08-16 #648 T1：classifier/mod.rs 内联测试 4273 行抽离至 classifier/tests/
             // 主题件 ⟹ 该夹具点同内容随迁 mod.rs:4574 → tests/pipeline_geometry.rs:1565，
             // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。
             // 2026-08-17 再位移（+8）：#884 在 census 测试循环增 b2_broke/s2_broke 计数 ⟹
