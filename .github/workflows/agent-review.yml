@@ -28,8 +28,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      # 评审工蜂可修正 workflow 文件（同 implement 侧 #1173 run4 教训）。
-      workflows: write
 
     env:
       PR_NUMBER: ${{ github.event.pull_request.number }}
