@@ -1,0 +1,9 @@
+name: Probe Issues
+on:
+  issues:
+    types: [labeled]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo probe-issues-ok
