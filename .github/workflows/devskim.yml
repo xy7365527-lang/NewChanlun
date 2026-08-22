@@ -75,4 +75,5 @@ jobs:
             --retention-days 14 \
             --expected-tool-name 'devskim' \
             --expected-tool-version '1.0.90+fb2d676ce4' \
+            --baseline .github/devskim-baseline.json \
             --summary "$GITHUB_STEP_SUMMARY"

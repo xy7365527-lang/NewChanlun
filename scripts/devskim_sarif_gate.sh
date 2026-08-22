@@ -14,6 +14,7 @@ Usage: devskim_sarif_gate.sh \
   --retention-days DAYS \
   [--expected-tool-name NAME] \
   [--expected-tool-version VERSION] \
+  [--baseline PATH] \
   [--summary PATH]
 EOF
 }
@@ -25,6 +26,7 @@ artifact_outcome=''
 retention_days=''
 expected_tool_name=''
 expected_tool_version=''
+baseline_path=''
 summary_path=''
 
 while [[ $# -gt 0 ]]; do
@@ -62,6 +64,11 @@ while [[ $# -gt 0 ]]; do
     --expected-tool-version)
       [[ $# -ge 2 ]] || { usage >&2; exit 2; }
       expected_tool_version="$2"
+      shift 2
+      ;;
+    --baseline)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      baseline_path="$2"
       shift 2
       ;;
     --summary)
@@ -159,6 +166,51 @@ else
       finding_count='unknown'
     elif [[ ! "$finding_count" =~ ^[0-9]+$ ]]; then
       add_error "SARIF finding count is not an integer: \`$finding_count\`."
+    elif [[ -n "$baseline_path" ]]; then
+      # #1194 基线语义：只拦基线外新增；消失键只作信息行。
+      if [[ ! -f "$baseline_path" ]]; then
+        add_error "Baseline file is missing: \`$baseline_path\`."
+      else
+        if ! current_keys="$(jq -r '
+          [.runs[] | (.results // [])[]
+           | (.ruleId // "?") + "|" +
+             ((.locations[0].physicalLocation.artifactLocation.uri // "?") | sub("^file://"; "")) + "|" +
+             (((.locations[0].physicalLocation.region.startLine // 0) | tostring))]
+          | unique | .[]' "$sarif_path" 2>&1)"; then
+          add_error 'SARIF finding keys could not be extracted.'
+          printf '%s\n' "$current_keys" >&2
+        else
+          if ! baseline_ok="$(jq -er '
+            .schema == "devskim-baseline/v1"
+            and (.findings | type == "array")
+            and ([.findings[] | type == "string"] | all)
+          ' "$baseline_path" 2>&1)"; then
+            add_error "Baseline schema mismatch or unreadable: \`$baseline_path\`."
+            printf '%s\n' "$baseline_ok" >&2
+          else
+            baseline_list="$(jq -r '.findings[]' "$baseline_path")"
+            new_findings="$(comm -13 \
+              <(printf '%s\n' "$baseline_list" | sort) \
+              <(printf '%s\n' "$current_keys" | sort))"
+            fixed_count="$(comm -23 \
+              <(printf '%s\n' "$baseline_list" | sort) \
+              <(printf '%s\n' "$current_keys" | sort) | wc -l | tr -d ' ')"
+            fixed_count="${fixed_count:-0}"
+            if [[ -n "$new_findings" ]]; then
+              new_count="$(printf '%s\n' "$new_findings" | wc -l | tr -d ' ')"
+              add_error "SARIF contains $new_count finding(s) not in the baseline (total $finding_count). New findings:"
+              while IFS= read -r key; do
+                add_error "  - \`$key\`"
+              done <<< "$new_findings"
+            fi
+            if [[ "$fixed_count" != "0" ]]; then
+              baseline_fixed_note="Fixed since baseline: $fixed_count finding(s)."
+            else
+              baseline_fixed_note=''
+            fi
+          fi
+        fi
+      fi
     elif [[ "$finding_count" -gt 0 ]]; then
       add_error "SARIF contains $finding_count finding(s); this gate requires zero."
     fi
@@ -166,10 +218,14 @@ else
 fi
 
 if [[ -z "$errors" ]]; then
-  gate_conclusion='PASS — scanner and artifact upload succeeded, SARIF/tool contract matched, and findings are zero.'
+  if [[ -n "$baseline_path" ]]; then
+    gate_conclusion='PASS — scanner and artifact upload succeeded, SARIF/tool contract matched, and no findings beyond the baseline.'
+  else
+    gate_conclusion='PASS — scanner and artifact upload succeeded, SARIF/tool contract matched, and findings are zero.'
+  fi
   gate_status=0
 else
-  gate_conclusion='FAIL — scanner, evidence upload, SARIF/tool contract, or zero-findings requirement failed.'
+  gate_conclusion='FAIL — scanner, evidence upload, SARIF/tool contract, baseline comparison, or zero-findings requirement failed.'
   gate_status=1
 fi
 
@@ -188,6 +244,12 @@ else
   summary="$summary"$'\n'"- **DevSkim tool version:** \`$tool_version\` (no expected version configured)"
 fi
 summary="$summary"$'\n'"- **SARIF findings:** \`$finding_count\`"
+if [[ -n "$baseline_path" ]]; then
+  summary="$summary"$'\n'"- **Baseline:** \`$baseline_path\`"
+  if [[ -n "${baseline_fixed_note:-}" ]]; then
+    summary="$summary"$'\n'"- **$baseline_fixed_note**"
+  fi
+fi
 summary="$summary"$'\n'"- **Gate conclusion:** $gate_conclusion"
 
 if [[ -n "$errors" ]]; then
