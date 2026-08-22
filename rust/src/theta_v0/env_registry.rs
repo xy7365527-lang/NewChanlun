@@ -95,6 +95,11 @@ pub const M8_WIN_FILTER: &str = "M8_WIN_FILTER";
 pub const ENTRY_STOP_REVERSE_DUMP: &str = "ENTRY_STOP_REVERSE_DUMP";
 pub const DELTAFREE_DUMP: &str = "DELTAFREE_DUMP";
 pub const THETA_V0_SHADOW_DIVERGENCE_PATH: &str = "THETA_V0_SHADOW_DIVERGENCE_PATH";
+pub const P1147_STEPFAIL_DUMP_PATH: &str = "P1147_STEPFAIL_DUMP_PATH";
+pub const P1147_WINDOW_START: &str = "P1147_WINDOW_START";
+pub const P1147_WINDOW_END: &str = "P1147_WINDOW_END";
+pub const P1152_SAMPLE_KEYS_PATH: &str = "P1152_SAMPLE_KEYS_PATH";
+pub const P1152_SAMPLE_DUMP_PATH: &str = "P1152_SAMPLE_DUMP_PATH";
 pub const M8_FEE_DATUM: &str = "M8_FEE_DATUM";
 pub const M8_LEVEL_CAP: &str = "M8_LEVEL_CAP";
 pub const M8_SYMBOL: &str = "M8_SYMBOL";
@@ -536,6 +541,41 @@ pub static REGISTRY: &[EnvKeyMeta] = &[
         default_arm: "未设 ⟹ 探针内置默认",
         layer: "backtest",
     },
+    EnvKeyMeta {
+        key: P1147_STEPFAIL_DUMP_PATH,
+        semantic: "#1147 gate-on StepFail 归因 dump 路径（test-only）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 不落盘",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
+        key: P1147_WINDOW_START,
+        semantic: "#1147 探针窗口起日（test-only）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 2024-01-01",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
+        key: P1147_WINDOW_END,
+        semantic: "#1147 探针窗口止日（test-only）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 2024-01-07",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
+        key: P1152_SAMPLE_KEYS_PATH,
+        semantic: "#1152 cond1 逐例归因样本键 JSONL 路径（test-only）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 不载入样本键",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
+        key: P1152_SAMPLE_DUMP_PATH,
+        semantic: "#1152 cond1 逐例结构 dump 路径（test-only）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 不落盘",
+        layer: "backtest",
+    },
 ];
 
 /// 全键只读枚举（运行期可列，spec #756 C2 形状条「查询口」半条）。
@@ -565,10 +605,10 @@ mod tests {
     /// 表内键数锁 56（票 #746 面复核实数 46 + #758 issue766 补 4 + #719 补
     /// THETA_DEATH_WO_DUMP 一键 + 2026-08-16 镜像追推 CI 守卫实撞补登 #837/#841 探针五键）。
     #[test]
-    fn registry_has_46_entries() {
+    fn registry_has_61_entries() {
         assert_eq!(
             REGISTRY.len(),
-            56,
+            61,
             "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46 + #758 issue766 补 4 + #719 补 1 + #837/#841 补 5）"
         );
     }

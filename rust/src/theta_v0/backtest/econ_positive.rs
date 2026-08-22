@@ -2069,7 +2069,8 @@ pub(super) mod stepfail_probe {
             if w.borrow().is_some() {
                 return;
             }
-            if let Ok(path) = std::env::var("P1147_STEPFAIL_DUMP_PATH") {
+            if let Ok(path) = std::env::var(crate::theta_v0::env_registry::P1147_STEPFAIL_DUMP_PATH)
+            {
                 if path.is_empty() {
                     return;
                 }
@@ -2270,7 +2271,7 @@ pub(super) mod stepfail_probe {
                 return;
             }
             let mut keys = std::collections::HashSet::new();
-            if let Ok(path) = std::env::var("P1152_SAMPLE_KEYS_PATH") {
+            if let Ok(path) = std::env::var(crate::theta_v0::env_registry::P1152_SAMPLE_KEYS_PATH) {
                 if let Ok(text) = std::fs::read_to_string(&path) {
                     for line in text.lines() {
                         let line = line.trim();
@@ -2295,7 +2296,7 @@ pub(super) mod stepfail_probe {
             if w.borrow().is_some() {
                 return;
             }
-            if let Ok(path) = std::env::var("P1152_SAMPLE_DUMP_PATH") {
+            if let Ok(path) = std::env::var(crate::theta_v0::env_registry::P1152_SAMPLE_DUMP_PATH) {
                 if !path.is_empty() {
                     if let Ok(f) = std::fs::File::create(&path) {
                         *w.borrow_mut() = Some(std::io::BufWriter::new(f));

@@ -5520,8 +5520,10 @@ fn gate_on_stepfail_composition_dx() {
     let config = ThetaConfig::default();
     let ds = super::super::data::load_by_symbol("BTC", &config)
         .expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
-    let start = std::env::var("P1147_WINDOW_START").unwrap_or_else(|_| "2024-01-01".to_string());
-    let end = std::env::var("P1147_WINDOW_END").unwrap_or_else(|_| "2024-01-07".to_string());
+    let start = std::env::var(crate::theta_v0::env_registry::P1147_WINDOW_START)
+        .unwrap_or_else(|_| "2024-01-01".to_string());
+    let end = std::env::var(crate::theta_v0::env_registry::P1147_WINDOW_END)
+        .unwrap_or_else(|_| "2024-01-07".to_string());
     let window = ds.slice_date_window(&start, &end);
     assert!(!window.bars.is_empty(), "窗口 {start}..{end} 非空");
     let years = window.bars.len() as f64 / (365.25 * 24.0 * 60.0);
