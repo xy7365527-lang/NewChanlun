@@ -47,6 +47,24 @@ bash .sandcastle/install-wayfinder-engine.sh uninstall # 卸载
 
 手工调试（仓库根，不写 tracker）：`npx tsx scripts/wayfinder_engine.mts --once --dry-run`。
 
+## sandcastle 自动拾取 claim 循环（#1182 方向 A）
+
+`claim-loop.mts` 是补上「工蜂拾取」半链的常驻 claim 宿主（#1182 实测：引擎放行后无常驻进程认领，
+队列积压靠人工拉 main.mts）。每 60 秒一轮：若 frontier（`sandcastle` 标签 + 未 assign + 无 open blocker）
+非空且无 main.mts running 实例 → spawn `npx tsx .sandcastle/main.mts` 并等它收尾，下一轮再查。
+防重复认领靠「无 running 实例」guard（`pgrep` 判活，TROUBLESHOOTING #9 同款判据），单线程 spawn+等待
+天然不并发多实例；常驻不退出（launchd KeepAlive 兜底）。frontier 查询复用 main.mts 现有逻辑。
+
+**部署成受管常驻服务**（launchd KeepAlive，默认真实执行 `--live`；宿主侧安装由编排者执行）：
+
+```bash
+bash .sandcastle/install-sandcastle-claimer.sh install   # 安装并加载
+bash .sandcastle/install-sandcastle-claimer.sh status    # 查状态
+bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
+```
+
+手工调试（仓库根，不写 tracker）：`npx tsx .sandcastle/claim-loop.mts --once --dry-run`。
+
 ## 文件地图
 
 | 文件 | 作用 |
@@ -55,6 +73,10 @@ bash .sandcastle/install-wayfinder-engine.sh uninstall # 卸载
 | `run-wayfinder-engine.sh` | wayfinder_engine 控制面常驻壳（#1084 追加）：前台 exec `npx tsx scripts/wayfinder_engine.mts`，launchd KeepAlive 调用。 |
 | `install-wayfinder-engine.sh` | 控制面 launchd 任务的安装/卸载/查状态（#1084 追加）。 |
 | `launchd/com.newchanlun.wayfinder-engine.plist` | 控制面 launchd 任务定义：KeepAlive + RunAtLoad + `--live`（#1084 追加）。 |
+| `claim-loop.mts` | 自动拾取 claim 循环常驻宿主（#1182 方向 A）：60s 轮询 frontier（sandcastle 标签 + 未 assign + 无 open blocker）+ 无 running 实例 guard → spawn `npx tsx .sandcastle/main.mts`；纯函数 `isRunnable`/`hasRunnableIssue` 可离线单测。 |
+| `run-claim-loop.sh` | claim 循环常驻壳（#1182 追加）：前台 exec `npx tsx .sandcastle/claim-loop.mts`，launchd KeepAlive 调用。 |
+| `install-sandcastle-claimer.sh` | claim 循环 launchd 任务的安装/卸载/查状态（#1182 追加，对齐 install-wayfinder-engine.sh 模式）。 |
+| `launchd/com.newchanlun.sandcastle-claimer.plist` | claim 循环 launchd 任务定义：KeepAlive + RunAtLoad + `--live`（#1182 追加）。 |
 | `prime-agent-provider.ts` | prime-agent 的自定义 AgentProvider。无头模式 `prime-agent -p --mode json` 输出 NDJSON 事件流，prompt 走 stdin（避开 Linux 128 KB argv 上限），事件映射到 sandcastle 的 stream 协议。 |
 | `implement-prompt.md` | Phase 1 实装工蜂的 prompt 模板（`{{ISSUE_NUMBER}}` 注入）：Explore→Plan→Execute→Verify→Commit 流程 + 硬性规则（不关票不合 main 不 push、被卡留评论收工）。 |
 | `review-prompt.md` | Phase 2 评审工蜂的 prompt 模板（`{{BRANCH}}`/`{{ISSUE_NUMBER}}` 注入）：看分支 diff 与原始 issue，保持功能语义前提下直接在分支上修正。 |

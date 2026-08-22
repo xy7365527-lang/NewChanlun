@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.newchanlun.sandcastle-claimer.plist —— sandcastle 自动拾取 claim 循环常驻任务（#1182 方向 A）
+
+  职责：把 sandcastle 拾取半链补成受管常驻宿主。每 60s 一轮——若 frontier
+  （sandcastle 标签 + 未 assign + 无 open blocker）非空且无 main.mts running 实例
+  → spawn npx tsx .sandcastle/main.mts。防重复认领靠「无 running 实例」guard，
+  不并发多实例、常驻不退出。
+
+  安装/卸载：bash .sandcastle/install-sandcastle-claimer.sh [install|uninstall|status]
+  注意：REPO 路径 /Users/silencehan/Projects/NewChanlun 需与本机实际仓路径一致
+  （与 watcher.sh / install-wayfinder-engine.sh 同款硬编码）。
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.newchanlun.sandcastle-claimer</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/run-claim-loop.sh</string>
+        <string>--live</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/silencehan/Projects/NewChanlun</string>
+
+    <!-- 常驻：退出即拉起；循环脚本 for(;;) 轮询，正常永不退出。 -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>GH_REPO</key>
+        <string>xy7365527-lang/NewChanlun</string>
+        <key>NO_COLOR</key>
+        <string>1</string>
+        <key>CLICOLOR</key>
+        <string>0</string>
+        <key>FORCE_COLOR</key>
+        <string>0</string>
+        <key>CLICOLOR_FORCE</key>
+        <string>0</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/sandcastle-claimer.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/sandcastle-claimer.stderr.log</string>
+</dict>
+</plist>
