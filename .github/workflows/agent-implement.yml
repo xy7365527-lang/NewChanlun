@@ -76,7 +76,7 @@ jobs:
             --state open \
             --search "in:body \"#${ISSUE_NUMBER}\"" \
             --json number,url,body,author \
-            --jq "[.[] | select(.body | test(\"(?i)(closes|fixes|resolves)\\s+#${ISSUE_NUMBER}\\b\"))]")
+            --jq "[.[] | select(.body | test(\"(?i)(closes|fixes|resolves)[[:space:]]+#${ISSUE_NUMBER}\\\\b\"))]")
           count=$(echo "$existing" | jq 'length')
           refused=false
           existing_pr_url=""

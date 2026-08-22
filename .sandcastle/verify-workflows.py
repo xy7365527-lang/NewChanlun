@@ -12,6 +12,8 @@
      票面字符串不成为 env/secret key、remote-child identity 与模型凭据分离、
      事件 fixture 覆盖（默认 Claude / 显式 DeepSeek / PR review DeepSeek /
      冲突 / 未知 / 缺 secret / P1 敌对标签）。
+  5. #1185 jq 字符串转义机械锁：逐条提取 agent workflow 的 jq/--jq 表达式，
+     本机 jq -n 语法校验，并禁止 \\s/\\d 等 jq 字符串非法转义回潮。
 
 用法：python3 .sandcastle/verify-workflows.py
 退出码 0 = 全过；非 0 = 首条失败（附可读信息）。
@@ -161,6 +163,124 @@ def raw_wf(name: str) -> str:
 
 def job(wf: dict, name: str) -> dict:
     return wf["jobs"][name]
+
+
+# #1185：jq 字符串里 \s/\d/\w 等是非法转义（jq 只接受 \" \\ \/ \b \f \n \r \t \uXXXX）。
+# 这里在 shell 展开之后、jq 解析之前的 jq 源码层做奇数反斜杠扫描；
+# 偶数反斜杠（如正则所需的 \\s）会由 jq 字符串解析为字面反斜杠，属合法写法。
+_JQ_INVALID_ESCAPE_LETTERS = "dDsSwWzZAB"
+_JQ_COMMAND_RE = re.compile(r"(?<![\w-])(?P<cmd>--jq|jq)")
+_JQ_SHELL_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)}")
+_JQ_SHELL_INDEX_RE = re.compile(r"\[\$[A-Za-z_][A-Za-z0-9_]*\]")
+
+
+def _shell_double_quote_unescape(raw: str) -> str:
+    """按 bash 双引号规则去掉 shell 层反斜杠（jq 表达式参数只经过这一层）。"""
+    out: list[str] = []
+    i = 0
+    while i < len(raw):
+        if raw[i] == "\\" and i + 1 < len(raw) and raw[i + 1] in '$`"\\\n':
+            out.append(raw[i + 1])
+            i += 2
+        else:
+            out.append(raw[i])
+            i += 1
+    return "".join(out)
+
+
+def _read_shell_quoted_arg(line: str, start: int) -> tuple[str, int] | None:
+    """读取 line[start:] 处第一个 shell 引号参数，返回（去引号后的 jq 源码, 结束下标）。"""
+    i = start
+    while i < len(line) and line[i] in " \t":
+        i += 1
+    if i >= len(line) or line[i] not in ('\'', '"'):
+        return None
+    quote = line[i]
+    if quote == "'":
+        end = line.find("'", i + 1)
+        if end == -1:
+            return None
+        return line[i + 1 : end], end + 1
+    raw: list[str] = []
+    i += 1
+    while i < len(line):
+        if line[i] == "\\" and i + 1 < len(line):
+            raw.append(line[i])
+            raw.append(line[i + 1])
+            i += 2
+        elif line[i] == '"':
+            return _shell_double_quote_unescape("".join(raw)), i + 1
+        else:
+            raw.append(line[i])
+            i += 1
+    return None
+
+
+def _iter_workflow_jq_expressions():
+    """逐条提取 agent workflow 中 jq/--jq 的第一个引号表达式参数。"""
+    for name in WORKFLOWS:
+        for lineno, line in enumerate(raw_wf(name).splitlines(), 1):
+            for match in _JQ_COMMAND_RE.finditer(line):
+                cmd = match.group("cmd")
+                i = match.end()
+                while i < len(line) and line[i] in " \t":
+                    i += 1
+                if cmd == "jq":
+                    # 跳过 -r / -c / --raw-output 等命令行选项。
+                    while i < len(line) and line[i] == "-" and i + 1 < len(line):
+                        j = i + 2 if line.startswith("--", i) else i + 1
+                        while j < len(line) and (line[j].isalnum() or line[j] == "-"):
+                            j += 1
+                        i = j
+                        while i < len(line) and line[i] in " \t":
+                            i += 1
+                parsed = _read_shell_quoted_arg(line, i)
+                if parsed is None:
+                    continue
+                expr, _end = parsed
+                yield name, lineno, cmd, expr
+
+
+def _shell_expand_for_jq_validation(expr: str) -> str:
+    """把 workflow 里的 shell 变量插值替换为可解析的 jq 字面量。
+
+    当前 scaffold 只存在两类：${ISSUE_NUMBER}（数字，直接替换为 0）与
+    .[$i]（循环下标，替换为 [0]）；shell 展开会发生在 jq 收到表达式之前。
+    """
+    expr = _JQ_SHELL_VAR_RE.sub("0", expr)
+    expr = _JQ_SHELL_INDEX_RE.sub("[0]", expr)
+    return expr
+
+
+def _first_known_invalid_jq_escape(expr: str) -> str | None:
+    """返回首个 jq 源码层的裸 \\s/\\d/\\w 等非法字符串转义；无则 None。"""
+    for i in range(len(expr) - 1):
+        if expr[i] != "\\" or expr[i + 1] not in _JQ_INVALID_ESCAPE_LETTERS:
+            continue
+        run_start = i
+        while run_start > 0 and expr[run_start - 1] == "\\":
+            run_start -= 1
+        if (i - run_start + 1) % 2 == 1:
+            return f"\\{expr[i + 1]}"
+    return None
+
+
+def _validate_jq_expression(expr: str, where: str) -> None:
+    invalid = _first_known_invalid_jq_escape(expr)
+    check(invalid is None,
+          f"{where} jq 字符串含已知非法转义 {invalid!r}；请改 POSIX 字符类或双反斜杠")
+    parseable = _shell_expand_for_jq_validation(expr)
+    try:
+        proc = subprocess.run(
+            ["jq", "-n", f"try ({parseable}) catch empty"],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        check(False, f"{where} 无法执行 jq -n 语法校验：{exc}")
+        return
+    check(proc.returncode == 0,
+          f"{where} jq -n 语法校验失败：{expr!r}\n{proc.stderr.strip()}")
 
 
 def main() -> int:
@@ -456,6 +576,15 @@ def main() -> int:
         "票面标签字符串不得拼进 env key",
     )
 
+    # ── 5. #1185 jq 字符串转义机械锁 ─────────────────────────────────────────
+    jq_expressions = list(_iter_workflow_jq_expressions())
+    check(
+        len(jq_expressions) == 18,
+        f"agent workflows 应提取到 18 条 jq/--jq 表达式（实为 {len(jq_expressions)} 条）",
+    )
+    for name, lineno, cmd, expr in jq_expressions:
+        _validate_jq_expression(expr, f"{name}:{lineno} ({cmd})")
+
     # ── 汇总 ───────────────────────────────────────────────────────────────────
     if _failures:
         print(f"verify-workflows: {len(_failures)} 处失败")
@@ -465,7 +594,8 @@ def main() -> int:
     print(
         "verify-workflows: 全过（"
         f"{len(WORKFLOWS)} 个 workflow 结构 + 4 形态对拍 + 禁入扫描 + "
-        f"{len(FIXTURE_REQUIREMENTS)} 个 #1128 事件 fixture 覆盖 + registry 机械锁）"
+        f"{len(FIXTURE_REQUIREMENTS)} 个 #1128 事件 fixture 覆盖 + registry 机械锁 + "
+        f"{len(jq_expressions)} 条 jq 表达式语法校验）"
     )
     return 0
 
