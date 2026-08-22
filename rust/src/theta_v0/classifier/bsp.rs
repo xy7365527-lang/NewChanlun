@@ -746,8 +746,11 @@ mod tests {
             // 553→557 / 775→779，逐条重核内容不变（同为 `gamma_x` 时刻分组过滤），同条目重登记。）
             // （2026-08-18 #880：strategy/mod.rs 的 oscillation_campaign 模块块注释 +1 行
             // （每仓→每重改挂说明）⟹ 557→558 / 779→780，逐条重核内容不变（同上），同条目重登记。）
-            "theta_v0/strategy/mod.rs:558",
-            "theta_v0/strategy/mod.rs:780",
+            // （2026-08-23 #1191 D01：strategy/mod.rs 增 campaign_book/campaign_ledger 模块块
+            // 7 行 ⟹ 558→565 / 780→787，逐条重核内容不变（同为 `gamma_x` 时刻分组过滤），
+            // 同条目重登记。）
+            "theta_v0/strategy/mod.rs:565",
+            "theta_v0/strategy/mod.rs:787",
         ];
 
         let src_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");

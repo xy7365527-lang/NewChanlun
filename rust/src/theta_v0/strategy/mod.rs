@@ -40,6 +40,13 @@
 
 /// #197 执行账归属键与并行记账视图（AccountIdentity 三身份 + AccountOrder + 分实例账本）。
 pub mod account;
+/// 每重 campaign 账簿（#1191 D01 自 `oscillation_campaign` 迁出，零行为）：BTreeMap 按
+/// [`chong::ChongKey`] 分账的簿记层，消费面经 `oscillation_campaign` 重导出保持原路径。
+pub mod campaign_book;
+/// 战役记账族（#1191 D01 自 `oscillation_campaign` 迁出，零行为）：
+/// `CampaignOutcome`/`SuspensionBatch`/`CoverAssignment`/`SuspensionAttribution`/
+/// `UnclosedReduction`/`ReplenishPlan`/`DeathWriteOff` 及各自 impl。
+pub mod campaign_ledger;
 /// 狭义短差动作本体（SPEC #274 T2，issue #292）：触发 + 减补动作 + 挂起出口二分（回补/终结）+
 /// 无互斥门。消费 T1 中枢生命周期事件（`classifier::center_lifecycle`）+ 次级别买卖点信号。
 pub mod center_oscillation_trade;
