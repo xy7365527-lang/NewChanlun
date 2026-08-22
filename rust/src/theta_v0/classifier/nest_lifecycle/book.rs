@@ -713,7 +713,7 @@ impl NestLifecycleBook {
     /// 1. 首选 `BTreeMap` 序首个**可迁移**者（`Provisional` ∧ `as_of ≥ last_as_of`）；
     /// 2. 无可迁移者时退回 `BTreeMap` 序首个匹配者，走认领留痕。
     ///
-    /// 为什么不能按 [`LifecycleKey`] 序盲取：`sort_tuple`（见 :134）在 `b_center_start` **之前**
+    /// 为什么不能按 [`LifecycleKey`] 序盲取：`sort_tuple`（见 key.rs:34）在 `b_center_start` **之前**
     /// 先比 `seg_c_full`，而 C 右端随 `as_of` 漂移、**与前身死活完全无关** ⟹ 盲取会以「谁的 C
     /// 右端更小」决定要不要迁移。若盲选到终态前身，本该被迁移的那只**存活**前身不被迁移 ⟹
     /// 五钟不继承、该 entry 沦为孤儿 ⟹ 后续走 `IdentityVanished`（凭空多一条身份消失）。
