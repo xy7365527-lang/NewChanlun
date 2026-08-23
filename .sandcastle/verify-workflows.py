@@ -105,10 +105,15 @@ PR_EXACT_LABEL_ROUTE = (
     "contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')"
 )
 LABEL_ROUTE_COUNTS = {
-    "agent-implement.yml": (ISSUE_EXACT_LABEL_ROUTE, 4),
-    "agent-review.yml": (PR_EXACT_LABEL_ROUTE, 4),
+    "agent-implement.yml": (ISSUE_EXACT_LABEL_ROUTE, 5),
     "agent-implement-pr.yml": (PR_EXACT_LABEL_ROUTE, 4),
 }
+# agent-review.yml 在 #1173 排障后改为运行时实读 PR 标签（pull_request_target 的
+# label 事件快照在 if 条件里评估不可靠），不再使用静态 contains 路由。
+REVIEW_RUNTIME_ROUTE_LOCK = (
+    "gh pr view \"$PR_NUMBER\" --json labels --jq '.labels[].name' "
+    "| grep -qx 'agent:model:deepseek-v4-pro'"
+)
 
 # P2：EVENT_PAYLOAD 只传模型选择所需的最小 labels 载荷（label name 数组），
 # 不传完整 github.event（issue/PR body 等无关字段不得进入进程 env）。
@@ -464,6 +469,18 @@ def main() -> int:
             f"（实为 {label_route_conditions}）",
         )
 
+    # agent-review.yml：运行时实读 PR 标签路由（grep -qx 精确匹配），且不得再出现
+    # 静态 labels contains 路由或 toJSON 子串路由。
+    raw_review = raw_wf("agent-review.yml")
+    check(
+        REVIEW_RUNTIME_ROUTE_LOCK in raw_review,
+        f"agent-review.yml 必须含运行时 PR 标签实读路由：{REVIEW_RUNTIME_ROUTE_LOCK}",
+    )
+    check(
+        not re.search(r"contains\(github\.event\.pull_request\.labels", raw_review),
+        "agent-review.yml 不得再用静态 pull_request labels contains 路由",
+    )
+
     # 固定 Secret allowlist：workflow 里出现的每个 secrets.X 都必须在白名单内。
     secret_refs = set(re.findall(r"secrets\.([A-Z0-9_]+)", "\n".join(raw_wf(n) for n in WORKFLOWS)))
     check(
@@ -579,8 +596,8 @@ def main() -> int:
     # ── 5. #1185 jq 字符串转义机械锁 ─────────────────────────────────────────
     jq_expressions = list(_iter_workflow_jq_expressions())
     check(
-        len(jq_expressions) == 18,
-        f"agent workflows 应提取到 18 条 jq/--jq 表达式（实为 {len(jq_expressions)} 条）",
+        len(jq_expressions) == 19,
+        f"agent workflows 应提取到 19 条 jq/--jq 表达式（实为 {len(jq_expressions)} 条）",
     )
     for name, lineno, cmd, expr in jq_expressions:
         _validate_jq_expression(expr, f"{name}:{lineno} ({cmd})")
