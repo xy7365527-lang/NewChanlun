@@ -21,10 +21,13 @@ import { fail } from "./common.ts";
  *   DeepSeek 缺失 `DEEPSEEK_API_KEY` 不会回退 Claude，也不会先启动任何模型。
  *
  * remote-child 边界（#1114 裁定 B / #1128 AC-4）：
- * - 模型凭据只进入 provider 自身的 `env`（模型子进程专用）。
+ * - 模型凭据只进入 provider 自身的 `env`（模型子进程专用）；provider env 由
+ *   `modelProviderEnv()` 统一构造：只含该模型唯一凭据 + 经
+ *   `REMOTE_CHILD_IDENTITY_ENV_ALLOWLIST` 过滤后的 remote-child identity。
  * - remote-child 的 invitation/lease 是 capability identity（#1142），走独立
- *   `REMOTE_CHILD_IDENTITY_ENV_ALLOWLIST`；二者永不合并，模型凭据不转发给
- *   remote-child admission/lease/broker。
+ *   allowlist，且结构上不可能夹带任何 `MODEL_SECRET_NAMES`；另一模型的凭据
+ *   不会由本文件进入 provider env，模型凭据也不转发给 remote-child
+ *   admission/lease/broker。
  * - 本文件不读取、不提交本机 Prime/Codex auth；本机 key 只允许经 workflow 显式
  *   Secret 注入，禁止自动复制现有 `.sandcastle/.env` 或本机凭据目录。
  */
@@ -278,20 +281,37 @@ export const remoteChildIdentityEnv = (
   return identity;
 };
 
+/**
+ * 统一构造 agent provider env（真实生产路径）：
+ * 只允许「该模型唯一凭据」+ remoteChildIdentityEnv() 过滤出的 identity 进入。
+ * 调用侧无法把任意进程 env / 另一模型凭据夹带进 provider env。
+ */
+const modelProviderEnv = (
+  secretName: ModelSecretName,
+  token: string,
+  env: NodeJS.ProcessEnv,
+): Record<string, string> => ({
+  [secretName]: token,
+  ...remoteChildIdentityEnv(env),
+});
+
 export type SelectableRole = "implement" | "implement-pr" | "review";
 
 /** 固定 Claude 角色（explore/update-branch）：不消费模型标签，直接使用 claudeCode + CLAUDE_CODE_OAUTH_TOKEN。 */
-export const claudeAgent = (role: AgentRole) => {
+export const claudeAgent = (
+  role: AgentRole,
+  env: NodeJS.ProcessEnv = process.env,
+) => {
   // `|| fail(...)`：token 缺失或为空时 fail-loud（写 failure_reason.txt + 非零退出）。
   // tsgo（TS 7 native）不把 never 返回的函数调用当控制流终止点，`if (!x) fail()` 无法
   // 收窄 x；`|| fail(...)` 让表达式类型直接为 string，绕开该收窄差异。
   const token =
-    process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim() ||
+    env.CLAUDE_CODE_OAUTH_TOKEN?.trim() ||
     fail(
       "CLAUDE_CODE_OAUTH_TOKEN is not set. Generate it with `claude setup-token` and store it as a GitHub Secret (CLAUDE_CODE_OAUTH_TOKEN), then re-run.",
     );
   return sandcastle.claudeCode(AGENT_MODELS[role], {
-    env: { CLAUDE_CODE_OAUTH_TOKEN: token },
+    env: modelProviderEnv(CLAUDE_CODE_SECRET, token, env),
   });
 };
 
@@ -323,8 +343,9 @@ export const selectedAgent = (
     ) {
       return primeAgent(entry.model, {
         provider: entry.primeProvider,
-        // 只注入 deepseek 专属凭据；Claude token / remote-child identity 一律不进 provider env。
-        env: { DEEPSEEK_API_KEY: token },
+        // 只注入 deepseek 专属凭据 + remoteChildIdentityEnv() 过滤后的 identity；
+        // Claude token 与任何未列名进程 env 一律不进 provider env。
+        env: modelProviderEnv(DEEPSEEK_SECRET, token, env),
       });
     }
     throw new ModelRegistryError(
@@ -334,6 +355,6 @@ export const selectedAgent = (
 
   const token = modelCredential(CLAUDE_CODE_SECRET, env);
   return sandcastle.claudeCode(AGENT_MODELS[role], {
-    env: { CLAUDE_CODE_OAUTH_TOKEN: token },
+    env: modelProviderEnv(CLAUDE_CODE_SECRET, token, env),
   });
 };

@@ -9,6 +9,7 @@ import {
   MODEL_REGISTRY,
   ModelRegistryError,
   assertValidModelLabels,
+  claudeAgent,
   modelCredential,
   modelLabelsFromEvent,
   readModelLabelsFromEnv,
@@ -302,6 +303,42 @@ test("remote-child invitation/lease 与模型凭据分离：identity env 不夹�
   });
   assert.ok(!("DEEPSEEK_API_KEY" in identity));
   assert.ok(!("CLAUDE_CODE_OAUTH_TOKEN" in identity));
+});
+
+test("provider env 生产接线：只透传选定凭据 + remote-child identity allowlist 过滤结果", () => {
+  const env = {
+    PRIME_REMOTE_CHILD_INVITATION: "one-time-invitation",
+    PRIME_REMOTE_CHILD_LEASE: "short-lease",
+    DEEPSEEK_API_KEY: "deepseek-token",
+    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
+    UNRELATED_HOST_ENV: "must-not-leak",
+  };
+  const deepseek = selectedAgent(
+    "implement",
+    ["agent:model:deepseek-v4-pro"],
+    env,
+  );
+  assert.deepEqual(deepseek.env, {
+    DEEPSEEK_API_KEY: "deepseek-token",
+    PRIME_REMOTE_CHILD_INVITATION: "one-time-invitation",
+    PRIME_REMOTE_CHILD_LEASE: "short-lease",
+  });
+  assert.ok(!("CLAUDE_CODE_OAUTH_TOKEN" in deepseek.env));
+
+  const claude = selectedAgent("implement", [], env);
+  assert.deepEqual(claude.env, {
+    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
+    PRIME_REMOTE_CHILD_INVITATION: "one-time-invitation",
+    PRIME_REMOTE_CHILD_LEASE: "short-lease",
+  });
+  assert.ok(!("DEEPSEEK_API_KEY" in claude.env));
+
+  const fixedClaude = claudeAgent("explore", env);
+  assert.deepEqual(fixedClaude.env, {
+    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
+    PRIME_REMOTE_CHILD_INVITATION: "one-time-invitation",
+    PRIME_REMOTE_CHILD_LEASE: "short-lease",
+  });
 });
 
 test("modelLabelsFromEvent 支持 issue/pull_request labeled payload 与最小 labels 数组", () => {

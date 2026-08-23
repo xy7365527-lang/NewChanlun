@@ -527,6 +527,11 @@ def main() -> int:
           "shared/agent.ts 必须同时具备 Claude 内置 provider 与自定义 Prime Agent provider")
     check("REMOTE_CHILD_IDENTITY_ENV_ALLOWLIST" in agent_ts,
           "shared/agent.ts 必须把 remote-child invitation/lease 与模型凭据分开")
+    check(
+        "...remoteChildIdentityEnv(env)" in agent_ts
+        and "modelProviderEnv(" in agent_ts,
+        "shared/agent.ts remoteChildIdentityEnv 必须真实接线进 provider env 过滤（不得只留死代码/注释）",
+    )
     check("MODEL_SECRET_NAMES" in agent_ts,
           "shared/agent.ts 必须集中声明模型 Secret 名 allowlist")
     check("process.env[" not in agent_ts,
