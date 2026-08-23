@@ -28,3 +28,11 @@
 | 项 | 详情 | 状态 |
 |---|---|---|
 | wayfinder-ticket-worker（rlm 子代理） | 建图 #1210 + grilling 票 #1211 + 原生 sub-issue 边 + #964 评论指针 | 完成 |
+
+## 续：#1211 grilling 裁决（A 即刻退役，2026-08-24，本体直办）
+
+| 项 | 详情 | 状态 |
+|---|---|---|
+| #1211 grilling | 开局三选一→编排者选 A；读码取证锁死（#951 theta_v0 PyO3 桥已带测试锁，旧顶层 Rust-v1 非生产非替换参考） | 已裁决并关票 |
+| #1212 [impl] | A 案执行票：九组对拍退役 + 认领 Rust↔Lean parity（debt+ready-for-agent+sandcastle） | 待自动拾取 |
+| #1210 地图 | Decisions-so-far 已登记裁决 gist + 执行票指针 | 已更新 |
