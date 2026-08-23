@@ -59,6 +59,25 @@ function assertHostBranchIsMain(): void {
   }
 }
 
+function resolveSandboxGithubEnv(): Record<string, string> {
+  try {
+    const token = execSync("gh auth token", { encoding: "utf8", env: GH_CLEAN_ENV }).trim();
+    if (!token) throw new Error("gh auth token returned empty output");
+    // Token 仅进入临时 Docker env；不写 .env / plist / 日志。
+    return { GH_TOKEN: token, GH_REPO: GH_CLEAN_ENV.GH_REPO! };
+  } catch (e) {
+    console.error(`[FAIL-loud #1182] 无法从系统 keyring 取得 GitHub token，拒绝启动沙盒：${String(e).slice(0, 300)}`);
+    process.exit(2);
+  }
+}
+
+function sandboxProvider() {
+  return docker({
+    imageName: "sandcastle:newchanlun",
+    env: resolveSandboxGithubEnv(),
+  });
+}
+
 function hasOpenBlocker(issue: number): boolean {
   const out = execSync(
     `gh api repos/{owner}/{repo}/issues/${issue} --jq .issue_dependencies_summary.blocked_by`,
@@ -153,7 +172,7 @@ if (REVIEW_ONLY) {
   const sandbox = await sandcastle.createSandbox({
     branch,
     baseBranch: "main",
-    sandbox: docker({ imageName: "sandcastle:newchanlun" }),
+    sandbox: sandboxProvider(),
   });
   logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
   await runWithResume(sandbox, {
@@ -194,7 +213,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
   const sandbox = await sandcastle.createSandbox({
     branch,
     baseBranch: "main", // 与检出分支解耦（#1003：并行会话共存）
-    sandbox: docker({ imageName: "sandcastle:newchanlun" }),
+    sandbox: sandboxProvider(),
   });
   try {
     // Phase 1：实装（#1066：多轮续跑同一会话 + idle 1800s 防长静默误杀）
