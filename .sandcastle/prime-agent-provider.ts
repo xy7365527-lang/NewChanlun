@@ -42,7 +42,8 @@ export interface PrimeAgentOptions {
   };
 }
 
-const DEFAULT_HOST_SESSIONS_DIR = join(homedir(), ".prime", "agent", "sessions");
+/** 宿主会话目录默认值（~/.prime/agent/sessions）。noSandbox 场景沙盒 == 宿主，agent.ts 复用此值覆盖 sandboxSessionsDir。 */
+export const DEFAULT_HOST_SESSIONS_DIR = join(homedir(), ".prime", "agent", "sessions");
 const DEFAULT_SANDBOX_SESSIONS_DIR = "/home/agent/.prime/agent/sessions";
 
 function shellQuote(s: string): string {

@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -218,6 +220,39 @@ test("selectedAgent 显式 DeepSeek：Prime Agent deepseek/deepseek-v4-pro，仅
   }).command;
   assert.ok(command.includes("--provider deepseek"));
   assert.ok(command.includes("--model deepseek-v4-pro"));
+});
+
+test("selectedAgent DeepSeek 在 GITHUB_ACTIONS 环境把沙盒会话目录指回 runner HOME（#1173 EACCES）", () => {
+  const actionsProvider = selectedAgent(
+    "review",
+    ["agent:model:deepseek-v4-pro"],
+    { DEEPSEEK_API_KEY: "deepseek-token", GITHUB_ACTIONS: "true" },
+  );
+  const actionsResume = actionsProvider.buildPrintCommand({
+    prompt: "hi",
+    dangerouslySkipPermissions: true,
+    resumeSession: "sid-1",
+  }).command;
+  assert.ok(
+    actionsResume.includes(
+      `-r '${join(homedir(), ".prime", "agent", "sessions")}/sid-1.jsonl'`,
+    ),
+  );
+
+  // 非 Actions（本地/常规沙盒）保持 provider 默认 /home/agent 沙盒目录。
+  const localProvider = selectedAgent(
+    "review",
+    ["agent:model:deepseek-v4-pro"],
+    { DEEPSEEK_API_KEY: "deepseek-token" },
+  );
+  const localResume = localProvider.buildPrintCommand({
+    prompt: "hi",
+    dangerouslySkipPermissions: true,
+    resumeSession: "sid-1",
+  }).command;
+  assert.ok(
+    localResume.includes("-r '/home/agent/.prime/agent/sessions/sid-1.jsonl'"),
+  );
 });
 
 test("selectedAgent DeepSeek 缺 key 在任何模型调用前抛错，不回退 Claude", () => {
