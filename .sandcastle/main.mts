@@ -9,7 +9,13 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { primeAgent } from "./prime-agent-provider.ts";
 import { execSync } from "node:child_process";
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+
+const TOKEN_ROTATION_MARKER = "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED";
+if (existsSync(TOKEN_ROTATION_MARKER)) {
+  console.error(`[FAIL-loud #1182] GitHub token 尚未轮换（marker=${TOKEN_ROTATION_MARKER}），拒绝启动`);
+  process.exit(78);
+}
 
 // ── 顶部常量（#1002 裁 3：模型面集中在此，升档改这里重跑） ────────────────
 // 2026-08-18 升档：kimi-coding 配额耗尽（403 billing cycle）→ deepseek（宿主同款，当日验证可用）

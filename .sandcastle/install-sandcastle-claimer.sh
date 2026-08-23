@@ -9,6 +9,10 @@ PLIST_DST="$HOME/Library/LaunchAgents/com.newchanlun.sandcastle-claimer.plist"
 
 case "${1:-install}" in
   install)
+    if [ -f "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED" ]; then
+      echo "拒绝安装：GitHub token 尚未轮换（见 /Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED）" >&2
+      exit 78
+    fi
     mkdir -p "$HOME/Library/LaunchAgents"
     cp "$PLIST_SRC" "$PLIST_DST"
     launchctl unload "$PLIST_DST" 2>/dev/null || true

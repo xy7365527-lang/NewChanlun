@@ -8,6 +8,10 @@
 #   bash .sandcastle/run-claim-loop.sh --live        # 真实执行（服务入口）
 #   bash .sandcastle/run-claim-loop.sh --once --dry-run  # 单轮演练
 set -euo pipefail
+if [ -f "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED" ]; then
+  echo "[claim-loop] 拒绝启动：GitHub token 尚未轮换" >&2
+  exit 78
+fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 REPO="${SANDCASTLE_HOST_REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 cd "$REPO"
