@@ -574,6 +574,33 @@ test("#1173 PR fixture：review 无模型标签走 Claude，显式 DeepSeek 标�
   });
 });
 
+test("#1128 Draft PR 与 resume 事件 fixture：AC-5 链式形态 + 续跑选择", () => {
+  const draftEvent = fixture("pr-labeled-review-draft.json") as {
+    pull_request?: { draft?: unknown };
+  };
+  assert.equal(draftEvent.pull_request?.draft, true);
+  const draftLabels = modelLabelsFromEvent(draftEvent);
+  assert.deepEqual(draftLabels, ["agent:review"]);
+  assert.deepEqual(resolveModelSelection(draftLabels), {
+    label: null,
+    entry: null,
+  });
+
+  const resumeEvent = fixture(
+    "pr-labeled-review-deepseek-resume.json",
+  ) as { resume_session?: unknown };
+  assert.equal(resumeEvent.resume_session, "resume-session-1128-review");
+  const resumeLabels = modelLabelsFromEvent(resumeEvent);
+  const resumed = selectedAgent("review", resumeLabels, {
+    DEEPSEEK_API_KEY: "deepseek-token",
+  });
+  assert.equal(resumed.name, "prime-agent");
+  assert.deepEqual(resumed.env, {
+    DEEPSEEK_API_KEY: "deepseek-token",
+  });
+  assert.ok(!("CLAUDE_CODE_OAUTH_TOKEN" in resumed.env));
+});
+
 test("#1002 provider 回退 fail-loud：未显式传 provider 时 buildPrintCommand 抛错", () => {
   const provider = primeAgent("deepseek-v4-pro");
   assert.throws(

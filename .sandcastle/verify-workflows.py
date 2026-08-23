@@ -80,6 +80,13 @@ FIXTURE_REQUIREMENTS = {
     "pr-labeled-review.json": {
         "agent:review",
     },
+    "pr-labeled-review-draft.json": {
+        "agent:review",
+    },
+    "pr-labeled-review-deepseek-resume.json": {
+        "agent:review",
+        "agent:model:deepseek-v4-pro",
+    },
     "pr-labeled-review-deepseek-v4-pro.json": {
         "agent:review",
         "agent:model:deepseek-v4-pro",
@@ -585,6 +592,18 @@ def main() -> int:
             check(False, f"fixture {filename} 不是合法 JSON：{exc}")
             continue
         check(event.get("action") == "labeled", f"fixture {filename} action 必须为 labeled")
+        if filename == "pr-labeled-review-draft.json":
+            pull_request = event.get("pull_request")
+            check(
+                isinstance(pull_request, dict) and pull_request.get("draft") is True,
+                "pr-labeled-review-draft.json 必须携带 pull_request.draft=true（AC-5 Draft PR 形态）",
+            )
+        if filename == "pr-labeled-review-deepseek-resume.json":
+            check(
+                isinstance(event.get("resume_session"), str)
+                and bool(event.get("resume_session")),
+                "pr-labeled-review-deepseek-resume.json 必须携带非空 resume_session 标记（AC-5 resume 形态）",
+            )
         container = event.get("issue") if "issue" in event else event.get("pull_request")
         labels = (container or {}).get("labels") if isinstance(container, dict) else None
         label_names: set[str] = set()
@@ -609,11 +628,13 @@ def main() -> int:
         "issue-labeled-deepseek-v4-pro-legacy.json",
         "pr-labeled-review.json",
         "pr-labeled-review-deepseek-v4-pro.json",
+        "pr-labeled-review-draft.json",
+        "pr-labeled-review-deepseek-resume.json",
         "pr-labeled-implement-pr-not-deepseek-substring.json",
         "pr-labeled-implement-pr-deepseek-v4-pro-legacy.json",
     }
     check(required_fixtures <= set(FIXTURE_REQUIREMENTS),
-          "必需事件 fixture 集合缺失（默认 Claude/DeepSeek/PR review DeepSeek/冲突/未知/缺 secret/P1 敌对标签）")
+          "必需事件 fixture 集合缺失（默认 Claude/DeepSeek/PR review DeepSeek/Draft PR/resume/冲突/未知/缺 secret/P1 敌对标签）")
 
     # 票面字符串不成为 Secret/env key：除了 registry allowlist 与测试反例，
     # 工作流和 agent 代码里不得出现 `secrets.<任意标签>` 或 `process.env[<动态>]`。
