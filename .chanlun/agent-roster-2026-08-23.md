@@ -1,0 +1,13 @@
+
+## 收尾（2026-08-23，本体直办）
+
+| 票 | 动作 | 状态 |
+|---|---|---|
+| #1173 | Actions 恢复后末轮 run 32643220426 全绿（review→Push→Post review→Mark ready）；四修复+评审工蜂改进件补快速轴评审（chanlun/review-results/issue1173-smoke-fixes-review-20260823.md）；PR #1200 按 AC④ 关闭删分支（改进件已拾取 2554a62b91）；关票 334b2a0d6a | 已关（completed） |
+| #1100 | 收图关票：镜像已删、ci.yml/纪律文档已挂 main（谱系扶正完成）、smoke 全链绿（#1173 已关）、check_mirror_sync.sh 已由 #1103 转交 | 已关（completed） |
+
+## 续：#1182 安全闸收尾（2026-08-23，本体直办）
+
+| 票 | 动作 | 状态 |
+|---|---|---|
+| #1182 | 编排者完成 OAuth 轮换（撤销旧授权 + 重新 gh auth login，keyring 新凭据）；凭据修复 dc28e2671a 已在 main 并经编排者实测 PASS；claimer 按编排者指令保持停用（当前 sandcastle 队列为空，无成本）；关票 | 已关（completed） |
