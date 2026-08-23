@@ -55,7 +55,7 @@
 //! （#451；tests/nest_isolation_guard.rs 认上面这一整行豁免，不认文件名——
 //! 对账本只读派生件，消费者 admission.rs + p92/p124，见 #449 §2 裁定）
 
-use super::super::types::{Center, Direction, Side};
+use super::super::types::{Center, Direction, Side, Tick};
 use super::decompose::MoveBlock;
 use super::level_view::{NestCandidateEvent, NestDivergenceKind};
 use super::nest::{NestEventIdentity, TypedNestCertificate};
@@ -72,6 +72,11 @@ pub struct XzdEvidence {
     /// 父级二类点补充证据（053:28）——`levels[ℓ-1].bsp` `[基例.turn, third_src]` 窗内
     /// 首个二类点 source_index；**不作门**（有无不影响候选成立）。
     pub second_class: Option<usize>,
+    /// 基例转折极值（#1202 第三块）：被转级别账本（levels[ℓ-1]）中枢外包络在
+    /// `base_turn` 之前的极值——Short 取 GG 最大（顶区上沿）、Long 取 DD 最小（底区下沿）。
+    /// 用途＝风控臂证伪线：044:30 两可的向上半支「可以往上突破，使得 a+A+b+B+c 继续
+    /// 延伸」（044/p209）的机械读数——价格越回该极值 ⟹ 候选证伪。只作标注，不作门。
+    pub turn_extreme: Tick,
 }
 
 /// 053:28 候选二类点（无 type1 锚；小转大情况二的 L 级补位点）——**候选坐标，非买卖点**：
@@ -235,6 +240,8 @@ pub struct TurnClassEvidence {
     pub third_src: usize,
     /// 053:28 补位点 source_index（L 级二卖/二买候选坐标；无则 `None`）。
     pub second_class: Option<usize>,
+    /// 基例转折极值（#1202）：风控臂证伪线（Short=顶区上沿 GG、Long=底区下沿 DD）。
+    pub turn_extreme: Tick,
 }
 
 /// turn_class 每级标签 → 稀疏注解行 `(bar, ladder, class, evidence)`（#1195 投影行）。
@@ -270,6 +277,7 @@ pub fn project_turn_class_rows(classified: &[(CertKey, NestTurnClass)]) -> Vec<T
                     Some(TurnClassEvidence {
                         third_src: evidence.third_src,
                         second_class: evidence.second_class,
+                        turn_extreme: evidence.turn_extreme,
                     }),
                 ),
             };
@@ -385,10 +393,35 @@ fn xzd_evidence(
                 })
                 .map(|candidate| candidate.source_index)
         });
+    let turn_extreme = {
+        let pick = |lb: &LevelState| {
+            let extremes =
+                lb.centers
+                    .iter()
+                    .filter(|c| c.end_index <= base_turn)
+                    .map(|c| match side {
+                        Side::Short => c.gg,
+                        Side::Long => c.dd,
+                    });
+            match side {
+                Side::Short => extremes.max(),
+                Side::Long => extremes.min(),
+            }
+        };
+        // 父级（levels[ℓ-1]，被转级别账本）优先；父级无中枢（合成夹具面）回退
+        // c′ 所在次级别账本——只影响证伪线读数，不改变候选成立性（044:30 必要条件
+        // 是唯一门，本字段是 #1202 风控臂的附加标注）。
+        classification
+            .levels
+            .get(top_level as usize - 1)
+            .and_then(pick)
+            .or_else(|| pick(book))?
+    };
     Some(XzdEvidence {
         c_prime,
         third_src: third.source_index,
         second_class,
+        turn_extreme,
     })
 }
 
@@ -1031,22 +1064,25 @@ mod tests {
     #[test]
     fn turn_class_candidate_carries_no_confirm_semantics() {
         // 编译期构造保证的文档化断言（非注释承诺）：XzdEvidence 完全解构只有
-        // (Center, usize, Option<usize>) 三坐标字段——无 BspBits 成员、无 confirm_side
+        // (Center, usize, Option<usize>, Tick) 四坐标字段——无 BspBits 成员、无 confirm_side
         // 方法；字段面变化即编译失败，强制复议。
         let evidence = XzdEvidence {
             c_prime: c_prime(),
             third_src: 52,
             second_class: Some(49),
+            turn_extreme: 470,
         };
         let XzdEvidence {
             c_prime,
             third_src,
             second_class,
+            turn_extreme,
         } = evidence;
-        let coords: (Center, usize, Option<usize>) = (c_prime, third_src, second_class);
+        let coords: (Center, usize, Option<usize>, Tick) =
+            (c_prime, third_src, second_class, turn_extreme);
         assert_eq!(
-            (coords.0.zd, coords.0.zg, coords.1, coords.2),
-            (420, 440, 52, Some(49))
+            (coords.0.zd, coords.0.zg, coords.1, coords.2, coords.3),
+            (420, 440, 52, Some(49), 470)
         );
         // NestTurnClass 四构造子穷尽匹配（无通配臂）：新增变体即编译失败——partition
         // 类型面锁定；候选臂只携坐标，不进任何 six-bit 置位路径、不作终端背书。
@@ -1327,6 +1363,7 @@ mod tests {
                         c_prime: c_prime(),
                         third_src: 52,
                         second_class: Some(51),
+                        turn_extreme: 470,
                     },
                 },
             ),
@@ -1349,6 +1386,7 @@ mod tests {
                 evidence: Some(TurnClassEvidence {
                     third_src: 52,
                     second_class: Some(51),
+                    turn_extreme: 470,
                 }),
             }
         );

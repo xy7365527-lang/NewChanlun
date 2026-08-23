@@ -1659,8 +1659,9 @@ impl PyOrganicTape {
         run_high: Option<Vec<f64>>,
         trend_flips: Option<Vec<(i64, u8, bool)>>,
         // #1195 投影行：turn_class 每级标签 → (bar, ladder, class, evidence)；
-        // evidence = (third_src, second_class)，仅 XiaozhuandaCandidate 非 None。
-        turn_class: Option<Vec<(i64, u8, String, Option<(i64, Option<i64>)>)>>,
+        // evidence = (third_src, second_class, turn_extreme)，仅 XiaozhuandaCandidate 非 None
+        // （#1202 第三块：turn_extreme = 基例转折极值，风控臂证伪线）。
+        turn_class: Option<Vec<(i64, u8, String, Option<(i64, Option<i64>, i64)>)>>,
     ) -> PyResult<Self> {
         use theta_v0::classifier::{TurnClassEvidence, TurnClassKind, TurnClassRow};
         use trading::tape::{BarSig, SignalTape};
@@ -1845,7 +1846,7 @@ impl PyOrganicTape {
                     };
                     let evidence = match evidence {
                         None => None,
-                        Some((third_src, second_class)) => {
+                        Some((third_src, second_class, turn_extreme)) => {
                             if third_src < 0
                                 || second_class.is_some_and(|s| s < 0)
                                 || (third_src as usize) >= n
@@ -1858,6 +1859,7 @@ impl PyOrganicTape {
                             Some(TurnClassEvidence {
                                 third_src: third_src as usize,
                                 second_class: second_class.map(|s| s as usize),
+                                turn_extreme: turn_extreme as crate::theta_v0::types::Tick,
                             })
                         }
                     };

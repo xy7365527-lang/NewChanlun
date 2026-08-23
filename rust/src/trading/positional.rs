@@ -295,6 +295,18 @@ pub struct PositionalResult {
     pub n_t2w_fires_by_ladder: [u64; MAX_LADDER],
     /// T2W 否定次数（R20：close 越过锁存 extreme ⇒ 清锁存；086:80 镜像）。
     pub n_t2w_negates_by_ladder: [u64; MAX_LADDER],
+    // ── XZD 情况二风控臂（#1202 第三块；行式标注，永不进触发面 044:30）──
+    /// 不追新门生效 bar 数（该级候选在场且未证伪——043:32 情况二「无本级别背驰」
+    /// 的 L 级风控标记：新开多/空被拦的驻留面）。
+    pub n_xzd_blocked_bars_by_ladder: [u64; MAX_LADDER],
+    /// 候选证伪次数（close 越回基例转折极值——044:30 两可的向上半支「可以往上
+    /// 突破，使得 a+A+b+B+c 继续延伸」机械读数；行死，此后该行不再置门）。
+    pub n_xzd_negations_by_ladder: [u64; MAX_LADDER],
+    /// c′ 三卖证据升级次数（bar 到达 evidence.third_src；044:24 必要条件命中——
+    /// 只记档位，不触发，每行一次）。
+    pub n_xzd_evidence_upgrades_by_ladder: [u64; MAX_LADDER],
+    /// 039:34 defer 孤儿显式挂起次数（每行一次；挂起＝定义的不动作）。
+    pub n_xzd_orphan_bars_by_ladder: [u64; MAX_LADDER],
     // ── 双书独立逐仓 voice（fusion_vd/vdn）观测面（其余模式恒零）──
     /// 空头书独立开仓数（θ 配额逐仓——非翻转断面，与 n_flip_shorts 互斥）。
     pub n_dual_short_opens_by_ladder: [u64; MAX_LADDER],

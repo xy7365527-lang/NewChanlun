@@ -71,6 +71,7 @@ use super::types::{
 use super::unified_osc::{OscLayer, OscOut};
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
+use crate::theta_v0::classifier::TurnClassKind;
 
 /// 区间套正向定位窗口（positional_fusion::NestWin 同构；恒开故本地定义，
 /// 避免提升在册私有类型的可见性——零接触纪律）。
@@ -189,6 +190,11 @@ pub(crate) fn run_unified_voice(
     // T2W 锁存（extreme = 被拒 type1 的事件价；R20 越极值清）。
     let mut t2w_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
     let mut t2w_buy: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
+    // XZD 情况二风控臂持久态（#1202 第三块；跨 bar 存活，行式标注）。
+    let mut xzd_active: [bool; MAX_LADDER] = [false; MAX_LADDER]; // 行已激活
+    let mut xzd_dead: [bool; MAX_LADDER] = [false; MAX_LADDER]; // 行已证伪（门撤）
+    let mut xzd_upgraded: [bool; MAX_LADDER] = [false; MAX_LADDER]; // 证据升级已计
+    let mut xzd_hung: [bool; MAX_LADDER] = [false; MAX_LADDER]; // orphan 挂起已计
 
     let empty_evs: [Vec<BspEvent>; MAX_LADDER] = Default::default();
     let empty_devs: [Vec<DivEvent>; MAX_LADDER] = Default::default();
@@ -353,6 +359,59 @@ pub(crate) fn run_unified_voice(
                 res.n_t2w_negates_by_ladder[k] += 1;
             }
         }
+        // ── XZD 情况二风控臂（#1202 第三块；行式标注，永不进触发面 044:30）──
+        // 消费面＝风控标记三件：①不追新门（候选在场且未证伪 ⇒ 拦新开，053:28
+        // 补位点的 L 级纪律）；②证据升级（bar 到 third_src ⇒ 档位计数，每行一次）；
+        // ③orphan 显式挂起（DeferOrphan ⇒ 计数，每行一次）。证伪线＝
+        // evidence.turn_extreme（基例转折极值）：close 越回 ⇒ 044:30 两可的向上半支
+        // （p209「可以往上突破，使得 a+A+b+B+c 继续延伸」）⇒ 行死、门撤（每行一次）。
+        // capability guard：rows None ⇒ 全零、零行为变化。
+        if let Some(rows) = &tape.turn_class_rows {
+            for row in rows {
+                let k = row.ladder as usize;
+                if k >= MAX_LADDER || row.bar > i as usize {
+                    continue; // 未激活（行 bar 之后才生效）或越界
+                }
+                match row.class {
+                    TurnClassKind::XiaozhuandaCandidate => {
+                        let Some(ev) = row.evidence else { continue };
+                        if !xzd_active[k] {
+                            xzd_active[k] = true;
+                        }
+                        if xzd_dead[k] {
+                            continue;
+                        }
+                        if c > ev.turn_extreme as f64 {
+                            xzd_dead[k] = true;
+                            res.n_xzd_negations_by_ladder[k] += 1;
+                            continue;
+                        }
+                        if i as usize >= ev.third_src && !xzd_upgraded[k] {
+                            xzd_upgraded[k] = true;
+                            res.n_xzd_evidence_upgrades_by_ladder[k] += 1;
+                        }
+                    }
+                    TurnClassKind::DeferOrphan => {
+                        if !xzd_hung[k] {
+                            xzd_hung[k] = true;
+                            res.n_xzd_orphan_bars_by_ladder[k] += 1;
+                        }
+                    }
+                    TurnClassKind::NestedConfirmed | TurnClassKind::ExecEvidenceOnly => {}
+                }
+            }
+            for k in floor_ladder..MAX_LADDER {
+                if xzd_active[k] && !xzd_dead[k] {
+                    res.n_xzd_blocked_bars_by_ladder[k] += 1;
+                }
+            }
+        }
+        // 入场门快照：active ∧ !dead（证伪即撤，bar 内一致）。
+        let mut xzd_block = [false; MAX_LADDER];
+        for k in floor_ladder..MAX_LADDER {
+            xzd_block[k] = xzd_active[k] && !xzd_dead[k];
+        }
+
         // confirmed type1/type2 本 bar 提取（T2W 武装/触发词汇）。
         let conf_sell1_px = |k: usize| -> Option<f64> {
             evrows[k]
@@ -510,7 +569,9 @@ pub(crate) fn run_unified_voice(
             match layers[k] {
                 LayerState::Flat => {
                     // R0：树根入场（confirmed 买点 ∨ nest 正向触发）。
-                    if sig.buy_any.get(k) || nf_buy[k] {
+                    // XZD 不追新门（#1202 第三块）：情况二候选在场 ⇒ 拦新开
+                    // （风控标记，非触发——买点词汇不变，门只拦不造）。
+                    if (sig.buy_any.get(k) || nf_buy[k]) && !xzd_block[k] {
                         layers[k] = enter_or_defer(
                             k,
                             i as i64,
@@ -750,6 +811,7 @@ mod tests {
     use super::super::config::SUB_COST_MIN_OBS;
     use super::super::positional::{run_positional, PolarityMode};
     use super::*;
+    use crate::theta_v0::classifier::{TurnClassEvidence, TurnClassRow};
     use crate::trading::tape::BarSig;
     use crate::trading::types::LadderMask;
 
@@ -1067,5 +1129,104 @@ mod tests {
         // 110000（平多后）− 10000（空头腿 110→120）= 100000。
         assert!((r.final_nav - 100_000.0).abs() < 1e-6, "翻转断面 NAV 守恒");
         assert!((r.short_net_cash_by_ladder[2] + 10_000.0).abs() < 1e-6);
+    }
+
+    // ───────── #1202 第三块：XZD 情况二风控臂（行式标注，永不进触发面 044:30）─────────
+
+    fn xzd_candidate_row(ladder: u8, bar: usize, third_src: usize, extreme: f64) -> TurnClassRow {
+        TurnClassRow {
+            bar,
+            ladder: ladder as u32,
+            class: TurnClassKind::XiaozhuandaCandidate,
+            evidence: Some(TurnClassEvidence {
+                third_src,
+                second_class: None,
+                turn_extreme: extreme as i64,
+            }),
+        }
+    }
+
+    fn xzd_orphan_row(ladder: u8, bar: usize) -> TurnClassRow {
+        TurnClassRow {
+            bar,
+            ladder: ladder as u32,
+            class: TurnClassKind::DeferOrphan,
+            evidence: None,
+        }
+    }
+
+    fn run_v_xzd(
+        bars: Vec<BarSig>,
+        dir_flips: Vec<(i64, u8, Direction)>,
+        trend_flips: Vec<(i64, u8, bool)>,
+        rows: Vec<TurnClassRow>,
+    ) -> PositionalResult {
+        let t = SignalTape {
+            bars,
+            dir_flips: Some(dir_flips),
+            trend_flips: Some(trend_flips),
+            turn_class_rows: Some(rows),
+            ..Default::default()
+        };
+        run_positional(&t, 2, full_v()).unwrap()
+    }
+
+    #[test]
+    fn xzd_arm_capability_guard_zero_change() {
+        // rows None ⟹ 四计数全零、入场照常（零行为变化守卫）。
+        let mut bars = warmup(2);
+        bars.push(buypt(bar(100.0), 2));
+        let r = run_v(bars, vec![], vec![]);
+        assert_eq!(r.n_entries_by_ladder[2], 1, "无行时入场照常");
+        assert_eq!(r.n_xzd_blocked_bars_by_ladder[2], 0);
+        assert_eq!(r.n_xzd_negations_by_ladder[2], 0);
+        assert_eq!(r.n_xzd_evidence_upgrades_by_ladder[2], 0);
+        assert_eq!(r.n_xzd_orphan_bars_by_ladder[2], 0);
+    }
+
+    #[test]
+    fn xzd_candidate_blocks_new_long() {
+        // 候选在场且未证伪（extreme=200 > c=100）⟹ 不追新门拦新开。
+        let mut bars = warmup(2);
+        bars.push(buypt(bar(100.0), 2));
+        let rows = vec![xzd_candidate_row(2, 0, 9999, 200.0)];
+        let r = run_v_xzd(bars, vec![], vec![], rows);
+        assert_eq!(r.n_entries_by_ladder[2], 0, "不追新门拦新开");
+        assert!(r.n_xzd_blocked_bars_by_ladder[2] > 0, "门驻留计数");
+        assert_eq!(r.n_xzd_negations_by_ladder[2], 0, "未越极值不证伪");
+    }
+
+    #[test]
+    fn xzd_falsification_reopens_entry() {
+        // c=100 > extreme=50 ⟹ 证伪（每行一次）⟹ 门撤 ⟹ 入场放行。
+        let mut bars = warmup(2);
+        bars.push(buypt(bar(100.0), 2));
+        let rows = vec![xzd_candidate_row(2, 0, 9999, 50.0)];
+        let r = run_v_xzd(bars, vec![], vec![], rows);
+        assert_eq!(r.n_xzd_negations_by_ladder[2], 1, "证伪只计一次");
+        assert_eq!(r.n_xzd_blocked_bars_by_ladder[2], 0, "证伪后门撤");
+        assert_eq!(r.n_entries_by_ladder[2], 1, "入场放行");
+    }
+
+    #[test]
+    fn xzd_evidence_upgrade_counted_once() {
+        // third_src=0 ⟹ 首 bar 证据升级；多 bar 只计一次；门持续驻留。
+        let mut bars = warmup(2);
+        bars.push(bar(100.0));
+        let rows = vec![xzd_candidate_row(2, 0, 0, 200.0)];
+        let r = run_v_xzd(bars, vec![], vec![], rows);
+        assert_eq!(r.n_xzd_evidence_upgrades_by_ladder[2], 1, "每行一次");
+        assert!(r.n_xzd_blocked_bars_by_ladder[2] > 0, "未证伪则门驻留");
+    }
+
+    #[test]
+    fn xzd_orphan_hang_counted_once() {
+        // 039:34 defer 孤儿 ⟹ 显式挂起（每行一次，定义的不动作）。
+        let mut bars = warmup(2);
+        bars.push(bar(100.0));
+        let rows = vec![xzd_orphan_row(2, 0)];
+        let r = run_v_xzd(bars, vec![], vec![], rows);
+        assert_eq!(r.n_xzd_orphan_bars_by_ladder[2], 1, "挂起每行一次");
+        assert_eq!(r.n_entries_by_ladder[2], 0, "无买点词本就不入场");
     }
 }
