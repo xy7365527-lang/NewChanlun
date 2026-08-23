@@ -1,0 +1,24 @@
+{
+  "action": "labeled",
+  "label": {
+    "name": "agent:implement"
+  },
+  "issue": {
+    "number": 1128,
+    "title": "[task] P1 敌对标签：DeepSeek 大小写变体 fixture",
+    "labels": [
+      {
+        "name": "agent:implement"
+      },
+      {
+        "name": "agent:model:DEEPSEEK-V4-PRO"
+      }
+    ]
+  },
+  "repository": {
+    "full_name": "xy7365527-lang/NewChanlun"
+  },
+  "sender": {
+    "login": "xy7365527-lang"
+  }
+}

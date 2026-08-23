@@ -125,9 +125,14 @@ const knownModelLabels = (): string => Object.keys(MODEL_REGISTRY).join(", ");
 export const resolveModelSelection = (
   labels: readonly string[],
 ): ModelSelection => {
+  // 前缀识别不区分大小写（与 GitHub label 检索语义对齐），但 registry 查表保持
+  // 精确大小写：任何大小写变体都会被识别为 model label，随后 fail-loud，
+  // 不会静默降级成默认 Claude。
   const modelLabels = labels
     .map((label) => label.trim())
-    .filter((label) => label.startsWith(MODEL_LABEL_PREFIX));
+    .filter((label) =>
+      label.toLowerCase().startsWith(MODEL_LABEL_PREFIX.toLowerCase()),
+    );
 
   if (modelLabels.length === 0) {
     return DEFAULT_CLAUDE_SELECTION;

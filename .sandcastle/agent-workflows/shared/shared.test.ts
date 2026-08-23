@@ -516,6 +516,23 @@ test("#1128 P1 敌对标签：not-* 子串默认 Claude；-legacy fail-loud 不�
       }),
     /Unknown model label/,
   );
+
+  // 大小写变体：YAML 与 TS 都不得把变体选中为 DeepSeek；TS 必须 fail-loud。
+  const caseVariantLabels = modelLabelsFromEvent(
+    fixture("issue-labeled-deepseek-v4-pro-case-variant.json"),
+  );
+  assert.throws(
+    () => resolveModelSelection(caseVariantLabels),
+    (error: unknown) =>
+      error instanceof ModelRegistryError &&
+      /Unknown model label/.test(error.message) &&
+      /agent:model:DEEPSEEK-V4-PRO/.test(error.message),
+  );
+  // 全大写前缀也会被识别为 model label 后 fail-loud，不静默默认 Claude。
+  assert.throws(
+    () => resolveModelSelection(["AGENT:MODEL:DEEPSEEK-V4-PRO"]),
+    /Unknown model label/,
+  );
 });
 
 test("#1173 PR fixture：review 无模型标签走 Claude，显式 DeepSeek 标签走 DeepSeek", () => {

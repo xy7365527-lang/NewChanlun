@@ -8,11 +8,12 @@
   3. 禁入模式扫描（不读本机 Prime/Codex auth；不复用 watcher/harvest/main-loop；
      #1002 旧 Kimi 常量/票面模型路由不复活；Kimi 禁入扫描面含
      prime-agent-provider.ts）。
-  4. #1128/#1173 模型 registry 机械锁：精确数组 label 路由（禁止 toJSON+contains 子串）、
-     最小 EVENT_PAYLOAD 接线（只传 labels.*.name）、固定 Secret allowlist、
-     票面字符串不成为 env/secret key、remote-child identity 与模型凭据分离、
-     事件 fixture 覆盖（默认 Claude / 显式 DeepSeek / PR review DeepSeek /
-     冲突 / 未知 / 缺 secret / P1 敌对标签）。
+  4. #1128/#1173 模型 registry 机械锁：运行时实读 label + grep -qx 精确路由
+     （禁止静态 contains / toJSON+contains 子串）、最小 EVENT_PAYLOAD 接线
+     （只传 labels.*.name）、固定 Secret allowlist、票面字符串不成为 env/secret
+     key、remote-child identity 与模型凭据分离、事件 fixture 覆盖（默认 Claude /
+     显式 DeepSeek / PR review DeepSeek / Draft PR / resume / 冲突 / 未知 /
+     缺 secret / P1 敌对标签 / 大小写变体）。
   5. #1185 jq 字符串转义机械锁：逐条提取 agent workflow 的 jq/--jq 表达式，
      本机 jq -n 语法校验，并禁止 \\s/\\d 等 jq 字符串非法转义回潮。
 
@@ -77,6 +78,10 @@ FIXTURE_REQUIREMENTS = {
         "agent:implement",
         "agent:model:deepseek-v4-pro-legacy",
     },
+    "issue-labeled-deepseek-v4-pro-case-variant.json": {
+        "agent:implement",
+        "agent:model:DEEPSEEK-V4-PRO",
+    },
     "pr-labeled-review.json": {
         "agent:review",
     },
@@ -105,24 +110,27 @@ FIXTURE_REQUIREMENTS = {
     },
 }
 
-# P1：实装/评审 workflow 的 label 路由必须是数组元素精确匹配（GitHub 表达式
-# `contains(array, item)`），不得用 toJSON 把数组序列化成字符串后做子串匹配。
-ISSUE_EXACT_LABEL_ROUTE = (
-    "contains(github.event.issue.labels.*.name, 'agent:model:deepseek-v4-pro')"
+# P1/MINOR-3：三个模型路由 workflow 都运行时实读 labels 后 grep -qx 精确匹配
+# （区分大小写），与 TS registry 的精确 allowlist 查表同一口径；禁止使用静态
+# contains(github.event.*.labels...) 路由（GitHub 表达式 contains 大小写不敏感），
+# 也禁止 toJSON 子串匹配。
+ISSUE_RUNTIME_ROUTE_LOCK = (
+    "gh issue view \"$ISSUE_NUMBER\" --json labels --jq '.labels[].name' "
+    "| grep -qx 'agent:model:deepseek-v4-pro'"
 )
-PR_EXACT_LABEL_ROUTE = (
-    "contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')"
+PR_RUNTIME_ROUTE_LOCK = (
+    "gh pr view \"$PR_NUMBER\" --json labels --jq '.labels[].name' "
+    "| grep -qx 'agent:model:deepseek-v4-pro'"
 )
-LABEL_ROUTE_COUNTS = {
-    "agent-implement.yml": (ISSUE_EXACT_LABEL_ROUTE, 5),
-    "agent-implement-pr.yml": (PR_EXACT_LABEL_ROUTE, 4),
-}
-# agent-review.yml 在 #1173 排障后改为运行时实读 PR 标签（pull_request_target 的
-# label 事件快照在 if 条件里评估不可靠），不再使用静态 contains 路由。
 REVIEW_RUNTIME_ROUTE_LOCK = (
     "gh pr view \"$PR_NUMBER\" --json labels --jq '.labels[].name' "
     "| grep -qx 'agent:model:deepseek-v4-pro'"
 )
+RUNTIME_ROUTE_LOCKS = {
+    "agent-implement.yml": ISSUE_RUNTIME_ROUTE_LOCK,
+    "agent-implement-pr.yml": PR_RUNTIME_ROUTE_LOCK,
+    "agent-review.yml": REVIEW_RUNTIME_ROUTE_LOCK,
+}
 
 # P2：EVENT_PAYLOAD 只传模型选择所需的最小 labels 载荷（label name 数组），
 # 不传完整 github.event（issue/PR body 等无关字段不得进入进程 env）。
@@ -475,36 +483,19 @@ def main() -> int:
             f"{name} EVENT_PAYLOAD 必须且只能是 {expected_payload}（实为 {payload_lines}）",
         )
 
-    # P1 机械锁：label 路由条件的 contains 必须作用于 labels.*.name 数组；
-    # toJSON+contains 是 JSON 字符串子串匹配，敌对标签会误入 DeepSeek 分支。
-    for name, (exact_route, expected_count) in LABEL_ROUTE_COUNTS.items():
+    # P1/MINOR-3 机械锁：实装 / implement-PR / review 三个模型路由 workflow
+    # 都必须是运行时实读标签 + grep -qx 精确匹配（区分大小写）；静态 event labels
+    # contains 路由（大小写不敏感，且 pull_request_target 快照不可靠）不得回潮。
+    for name, runtime_route_lock in RUNTIME_ROUTE_LOCKS.items():
         raw = raw_wf(name)
-        label_route_conditions = [
-            line.strip()
-            for line in raw.splitlines()
-            if line.strip().startswith("if:")
-            and "contains(" in line
-            and "labels" in line
-        ]
         check(
-            len(label_route_conditions) == expected_count
-            and all(exact_route in condition for condition in label_route_conditions)
-            and all("toJSON(" not in condition for condition in label_route_conditions),
-            f"{name} label 路由条件必须且只能是精确数组匹配 {exact_route} "
-            f"（实为 {label_route_conditions}）",
+            runtime_route_lock in raw,
+            f"{name} 必须含运行时 label 实读精确路由：{runtime_route_lock}",
         )
-
-    # agent-review.yml：运行时实读 PR 标签路由（grep -qx 精确匹配），且不得再出现
-    # 静态 labels contains 路由或 toJSON 子串路由。
-    raw_review = raw_wf("agent-review.yml")
-    check(
-        REVIEW_RUNTIME_ROUTE_LOCK in raw_review,
-        f"agent-review.yml 必须含运行时 PR 标签实读路由：{REVIEW_RUNTIME_ROUTE_LOCK}",
-    )
-    check(
-        not re.search(r"contains\(github\.event\.pull_request\.labels", raw_review),
-        "agent-review.yml 不得再用静态 pull_request labels contains 路由",
-    )
+        check(
+            not re.search(r"contains\(github\.event\.(?:issue|pull_request)\.labels", raw),
+            f"{name} 不得再用静态 event labels contains 路由（大小写不敏感/快照不可靠）",
+        )
 
     # 固定 Secret allowlist：workflow 里出现的每个 secrets.X 都必须在白名单内。
     secret_refs = set(re.findall(r"secrets\.([A-Z0-9_]+)", "\n".join(raw_wf(n) for n in WORKFLOWS)))
@@ -626,6 +617,7 @@ def main() -> int:
         "issue-labeled-deepseek-missing-secret.json",
         "issue-labeled-not-deepseek-substring.json",
         "issue-labeled-deepseek-v4-pro-legacy.json",
+        "issue-labeled-deepseek-v4-pro-case-variant.json",
         "pr-labeled-review.json",
         "pr-labeled-review-deepseek-v4-pro.json",
         "pr-labeled-review-draft.json",
@@ -634,7 +626,7 @@ def main() -> int:
         "pr-labeled-implement-pr-deepseek-v4-pro-legacy.json",
     }
     check(required_fixtures <= set(FIXTURE_REQUIREMENTS),
-          "必需事件 fixture 集合缺失（默认 Claude/DeepSeek/PR review DeepSeek/Draft PR/resume/冲突/未知/缺 secret/P1 敌对标签）")
+          "必需事件 fixture 集合缺失（默认 Claude/DeepSeek/PR review DeepSeek/Draft PR/resume/冲突/未知/缺 secret/P1 敌对标签/大小写变体）")
 
     # 票面字符串不成为 Secret/env key：除了 registry allowlist 与测试反例，
     # 工作流和 agent 代码里不得出现 `secrets.<任意标签>` 或 `process.env[<动态>]`。
@@ -649,8 +641,8 @@ def main() -> int:
     # ── 5. #1185 jq 字符串转义机械锁 ─────────────────────────────────────────
     jq_expressions = list(_iter_workflow_jq_expressions())
     check(
-        len(jq_expressions) == 19,
-        f"agent workflows 应提取到 19 条 jq/--jq 表达式（实为 {len(jq_expressions)} 条）",
+        len(jq_expressions) == 21,
+        f"agent workflows 应提取到 21 条 jq/--jq 表达式（实为 {len(jq_expressions)} 条）",
     )
     for name, lineno, cmd, expr in jq_expressions:
         _validate_jq_expression(expr, f"{name}:{lineno} ({cmd})")
