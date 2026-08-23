@@ -3,7 +3,8 @@
 # 安装后 launchd KeepAlive 常驻；监控脚本内部 24h 一轮（ARCH_HOTZONE_INTERVAL_SECONDS 可调）、
 # 无命中 sleep 不退出。与 install-wayfinder-engine.sh 同款 launchd 安装模式。
 set -euo pipefail
-PLIST_SRC=/Users/silencehan/Projects/NewChanlun/.sandcastle/launchd/com.newchanlun.arch-hotzone.plist
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+PLIST_SRC="$SCRIPT_DIR/launchd/com.newchanlun.arch-hotzone.plist"
 PLIST_DST="$HOME/Library/LaunchAgents/com.newchanlun.arch-hotzone.plist"
 
 case "${1:-install}" in

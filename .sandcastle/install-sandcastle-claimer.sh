@@ -3,7 +3,8 @@
 # 安装后 launchd KeepAlive 常驻；循环脚本 60s 轮询、无合资格票 sleep 不退出。
 # 对齐 install-wayfinder-engine.sh 模式；宿主侧安装由编排者执行。
 set -euo pipefail
-PLIST_SRC=/Users/silencehan/Projects/NewChanlun/.sandcastle/launchd/com.newchanlun.sandcastle-claimer.plist
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+PLIST_SRC="$SCRIPT_DIR/launchd/com.newchanlun.sandcastle-claimer.plist"
 PLIST_DST="$HOME/Library/LaunchAgents/com.newchanlun.sandcastle-claimer.plist"
 
 case "${1:-install}" in

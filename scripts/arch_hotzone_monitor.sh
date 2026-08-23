@@ -172,6 +172,18 @@ fi
 
 # ── 扫描与报告 ────────────────────────────────────────────────────────────────
 
+refresh_host_main() {
+  [ "${ARCH_HOTZONE_AUTO_UPDATE:-0}" = "1" ] || return 0
+  local branch dirty
+  branch="$(git branch --show-current 2>/dev/null || true)"
+  dirty="$(git status --porcelain 2>/dev/null || true)"
+  if [ "$branch" != "main" ] || [ -n "$dirty" ]; then
+    echo "[arch_hotzone] automation host 非干净 main（branch=${branch:-HEAD}, dirty=$([ -n "$dirty" ] && echo true || echo false)）→ fail-closed" >&2
+    return 1
+  fi
+  git fetch origin main --quiet && git reset --hard origin/main --quiet
+}
+
 scan_once() {
   local mode=$1 stamp open_maps hits=0
   local total report_date report_path hit_rows=""
@@ -179,6 +191,10 @@ scan_once() {
 
   stamp="$(date '+%Y-%m-%dT%H:%M:%S')"
   echo "[arch_hotzone] $stamp 一轮扫描开始（$mode）"
+  if ! refresh_host_main; then
+    echo "[arch_hotzone] automation host 同步失败 → 本轮不扫描" >&2
+    return 0
+  fi
 
   # C3 先判（缺一不触发）：在飞图在 → 整轮不触发；gh 失败 → 无法核验 → 不触发。
   if ! open_maps="$(open_map_count)"; then

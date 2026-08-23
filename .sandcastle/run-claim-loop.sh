@@ -8,7 +8,8 @@
 #   bash .sandcastle/run-claim-loop.sh --live        # 真实执行（服务入口）
 #   bash .sandcastle/run-claim-loop.sh --once --dry-run  # 单轮演练
 set -euo pipefail
-REPO=/Users/silencehan/Projects/NewChanlun
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+REPO="${SANDCASTLE_HOST_REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 cd "$REPO"
 mkdir -p .sandcastle/logs
 export NO_COLOR=1 CLICOLOR=0 FORCE_COLOR=0 CLICOLOR_FORCE=0

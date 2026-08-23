@@ -19,12 +19,12 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/silencehan/Projects/NewChanlun/scripts/arch_hotzone_monitor.sh</string>
+        <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/scripts/arch_hotzone_monitor.sh</string>
         <string>--live</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/silencehan/Projects/NewChanlun</string>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host</string>
 
     <!-- 常驻：退出即拉起；脚本内部 for(;;) 轮询，正常永不退出。 -->
     <key>KeepAlive</key>
@@ -42,6 +42,8 @@
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>GH_REPO</key>
         <string>xy7365527-lang/NewChanlun</string>
+        <key>ARCH_HOTZONE_AUTO_UPDATE</key>
+        <string>1</string>
         <key>NO_COLOR</key>
         <string>1</string>
         <key>CLICOLOR</key>
@@ -55,9 +57,9 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/arch-hotzone.stdout.log</string>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/logs/arch-hotzone.stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/arch-hotzone.stderr.log</string>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/logs/arch-hotzone.stderr.log</string>
 </dict>
 </plist>

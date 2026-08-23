@@ -85,6 +85,25 @@ function isMainMtsRunning(): boolean {
   }
 }
 
+/** 专用 automation host 在 spawn 前快进到 origin/main；非 main/脏树/网络失败一律 fail-closed。 */
+function refreshHostMain(): boolean {
+  if (process.env.SANDCASTLE_HOST_AUTO_UPDATE !== "1") return true;
+  try {
+    const branch = execSync("git branch --show-current", { encoding: "utf8", env: GH_CLEAN_ENV }).trim();
+    const dirty = execSync("git status --porcelain", { encoding: "utf8", env: GH_CLEAN_ENV }).trim();
+    if (branch !== "main" || dirty) {
+      console.error(`[claim-loop] automation host 非干净 main（branch=${branch || "HEAD"}, dirty=${Boolean(dirty)}）→ fail-closed`);
+      return false;
+    }
+    execSync("git fetch origin main --quiet", { stdio: "inherit", env: GH_CLEAN_ENV });
+    execSync("git reset --hard origin/main --quiet", { stdio: "inherit", env: GH_CLEAN_ENV });
+    return true;
+  } catch (e) {
+    console.error(`[claim-loop] automation host 同步 origin/main 失败 → fail-closed：${String(e).slice(0, 300)}`);
+    return false;
+  }
+}
+
 /** spawn main.mts 并等它收尾（单线程，等待期间不进入下一轮判定）。 */
 function runMainMts(): Promise<number | null> {
   return new Promise((resolve) => {
@@ -120,6 +139,7 @@ async function runOnce(cfg: { dryRun: boolean }): Promise<void> {
     console.log(`[claim-loop] [dry-run] 将 spawn main.mts（可拾取：${runnable}）`);
     return;
   }
+  if (!refreshHostMain()) return;
   console.log(`[claim-loop] frontier 非空且无 running 实例（可拾取：${runnable}）→ spawn main.mts`);
   const status = await runMainMts();
   console.log(`[claim-loop] main.mts 收尾 exit=${status ?? "spawn 失败"}，下一轮再查`);
