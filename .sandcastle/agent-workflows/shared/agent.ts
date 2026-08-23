@@ -222,11 +222,14 @@ export const parseEventPayload = (raw: string | undefined): unknown => {
   }
 };
 
-/** 从进程环境读取模型标签（最小 labels EVENT_PAYLOAD；缺少时按无标签处理，便于本地直跑）。 */
+/** 从进程环境读取模型标签（最小 labels EVENT_PAYLOAD）。
+ * 缺少 EVENT_PAYLOAD 必须 fail-loud；仅显式 SANDCASTLE_LOCAL=1 的本地直跑
+ * 允许按无标签处理，避免把 workflow 接线回归静默降级为默认 Claude。
+ */
 export const readModelLabelsFromEnv = (
   env: NodeJS.ProcessEnv = process.env,
 ): string[] => {
-  if (!env.EVENT_PAYLOAD) return [];
+  if (!env.EVENT_PAYLOAD && env.SANDCASTLE_LOCAL === "1") return [];
   return modelLabelsFromEvent(parseEventPayload(env.EVENT_PAYLOAD));
 };
 

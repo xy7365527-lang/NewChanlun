@@ -441,6 +441,14 @@ def main() -> int:
     agent_ts = (AW_DIR / "shared" / "agent.ts").read_text()
     registry_all_text = all_text
 
+    # MINOR-1：readModelLabelsFromEnv 缺 EVENT_PAYLOAD 必须 fail-loud；
+    # 只有显式 SANDCASTLE_LOCAL=1 才允许本地直跑按无标签处理。
+    check(
+        'env.SANDCASTLE_LOCAL === "1"' in agent_ts
+        and "if (!env.EVENT_PAYLOAD) return []" not in agent_ts,
+        "readModelLabelsFromEnv 缺 EVENT_PAYLOAD 必须 fail-loud，仅 SANDCASTLE_LOCAL=1 放行",
+    )
+
     # P2 机械锁：每个 workflow 的 EVENT_PAYLOAD 接线必须全部是最小 labels 载荷。
     for name in WORKFLOWS:
         raw = raw_wf(name)

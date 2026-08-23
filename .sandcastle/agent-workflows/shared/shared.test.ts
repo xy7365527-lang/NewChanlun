@@ -380,7 +380,7 @@ test("modelLabelsFromEvent 支持 issue/pull_request labeled payload 与最小 l
   );
 });
 
-test("readModelLabelsFromEnv 解析 EVENT_PAYLOAD；缺省按无标签处理", () => {
+test("readModelLabelsFromEnv 解析 EVENT_PAYLOAD；缺失 fail-loud，仅 SANDCASTLE_LOCAL=1 放行", () => {
   const raw = readFileSync(
     new URL("./fixtures/issue-labeled-deepseek-v4-pro.json", import.meta.url),
     "utf8",
@@ -400,7 +400,16 @@ test("readModelLabelsFromEnv 解析 EVENT_PAYLOAD；缺省按无标签处理", (
     }),
     ["agent:implement", "agent:model:deepseek-v4-pro"],
   );
-  assert.deepEqual(readModelLabelsFromEnv({}), []);
+  assert.throws(
+    () => readModelLabelsFromEnv({}),
+    /EVENT_PAYLOAD is not set/,
+  );
+  // 只有显式本地开关放行；SANDCASTLE_LOCAL=0 仍必须 fail-loud。
+  assert.deepEqual(readModelLabelsFromEnv({ SANDCASTLE_LOCAL: "1" }), []);
+  assert.throws(
+    () => readModelLabelsFromEnv({ SANDCASTLE_LOCAL: "0" }),
+    /EVENT_PAYLOAD is not set/,
+  );
 });
 
 test("#1128 事件 fixture：默认 Claude / 显式 DeepSeek / 冲突 / 未知 / 缺 secret", () => {
