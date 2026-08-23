@@ -17,6 +17,7 @@
 //! | osc / h1_freeze | 统一 osc 三门恒开（相位/振幅/g2 强弱 + 49:68 candidate 冻结——Δf 6/8 非负在册） | 035:30 / 093:26 / 049:68 |
 //! | r2_gate | 双侧位置门恒开，域 = Φ(k)==Osc（削减@c≥ZG / 回补@c≤ZD） | 049:52 / 049:64 |
 //! | （无） | R18-20 T2W 第二翻转窗口（confirmed type1 被门拒 ⇒ 锁存；type2 同侧 ∧ 门放行 ⇒ 重试；越极值 ⇒ 清） | 053:28 / 086:80 |
+//! | xzd_sell2 / xzd_buy2 | 053:28 二卖事件层新通道（#1208 ②件）：候选事件 bar 上（turn_class 标签门 + 无 confirmed 一/二类前提）⇒ 二卖出场 / 二买回补 | 053:28 |
 //!
 //! R4（49:54 双侧出口）已删除——概念链审计（`analysis/
 //! unified_voice_from_concept_chain.md`）判定其为链外机制（从走势终完美
@@ -72,6 +73,7 @@ use super::unified_osc::{OscLayer, OscOut};
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 use crate::theta_v0::classifier::TurnClassKind;
+use crate::theta_v0::types::Side as ThetaSide;
 
 /// 区间套正向定位窗口（positional_fusion::NestWin 同构；恒开故本地定义，
 /// 避免提升在册私有类型的可见性——零接触纪律）。
@@ -412,6 +414,39 @@ pub(crate) fn run_unified_voice(
             xzd_block[k] = xzd_active[k] && !xzd_dead[k];
         }
 
+        // ── 053:28 二卖事件层新通道（#1208 ②件；候选永不 confirm、zero six-bit、
+        //    044:30 封锁保持；只作出场补位，不进触发面）──
+        // 门控（链定类，窄，#1195 三层分工）：同 ladder 存在 XiaozhuandaCandidate 行
+        // 且 turn_extreme 一致才执行；无标签 = 普通震荡反弹，丢弃。标签行在 c′ 三卖后
+        // 才物化（行消费时序无法触发二卖本身——事件层通道的存在理由），故标签查法
+        // 不带 bar 前置，只认 (ladder, class, turn_extreme) 匹配。
+        let mut xzd2_sell = [false; MAX_LADDER];
+        let mut xzd2_buy = [false; MAX_LADDER];
+        if let Some(cands) = &tape.xzd_second_candidates {
+            for cand in cands {
+                let k = cand.level as usize;
+                if k >= MAX_LADDER || cand.source_index != i as usize {
+                    continue;
+                }
+                let labeled = tape.turn_class_rows.as_ref().is_some_and(|rows| {
+                    rows.iter().any(|row| {
+                        row.ladder as usize == k
+                            && row.class == TurnClassKind::XiaozhuandaCandidate
+                            && row
+                                .evidence
+                                .is_some_and(|ev| ev.turn_extreme == cand.turn_extreme)
+                    })
+                });
+                if !labeled {
+                    continue; // 无标签丢弃（判据产点宽、链定类窄）。
+                }
+                match cand.side {
+                    ThetaSide::Short => xzd2_sell[k] = true,
+                    ThetaSide::Long => xzd2_buy[k] = true,
+                }
+            }
+        }
+
         // confirmed type1/type2 本 bar 提取（T2W 武装/触发词汇）。
         let conf_sell1_px = |k: usize| -> Option<f64> {
             evrows[k]
@@ -473,7 +508,10 @@ pub(crate) fn run_unified_voice(
             // T2W 触发（R19）：武装 ∧ confirmed Sell2 ∧ 门放行（门在词汇
             // 之后一视同仁——tp/r2 拦截下方分支统一处理）。
             let t2w_fire = t2w_sell[k].is_some() && conf_sell2(k);
-            let sell_trig = sig.sell_any.get(k) || nf_sell[k] || t2w_fire;
+            // 053:28 二卖（#1208 ②件）：候选事件 bar 上、本 bar 无 confirmed
+            // Sell1/Sell2 才补位出场（有 confirmed 一/二卖时常规词汇接管）。
+            let xzd2_fire = xzd2_sell[k] && conf_sell1_px(k).is_none() && !conf_sell2(k);
+            let sell_trig = sig.sell_any.get(k) || nf_sell[k] || t2w_fire || xzd2_fire;
             if !sell_trig {
                 continue;
             }
@@ -513,8 +551,10 @@ pub(crate) fn run_unified_voice(
                     "sellpt"
                 } else if nf_sell[k] {
                     "nest_sell"
-                } else {
+                } else if t2w_fire {
                     "t2w_sell"
+                } else {
+                    "xzd_sell2"
                 };
                 if reason == "t2w_sell" {
                     res.n_t2w_fires_by_ladder[k] += 1;
@@ -644,6 +684,9 @@ pub(crate) fn run_unified_voice(
                         res.n_exits_by_ladder[k] += 1;
                     };
                     let t2w_bfire = t2w_buy[k].is_some() && conf_buy2(k);
+                    // 053:28 二买镜像（#1208 ②件）：候选事件 bar 上、本 bar 无
+                    // confirmed Buy1/Buy2 才补位回补（有 confirmed 一/二买时常规词汇接管）。
+                    let xzd2_bfire = xzd2_buy[k] && conf_buy1_px(k).is_none() && !conf_buy2(k);
                     if equity_k <= 0.0 {
                         // 虚拟逐仓强平：1x 解析强平价 = 2×entry_price
                         // （margin = units×entry_price 的 equity=0 解）。
@@ -667,7 +710,7 @@ pub(crate) fn run_unified_voice(
                             &mut res,
                         );
                         t2w_buy[k] = None;
-                    } else if sig.buy_any.get(k) || nf_buy[k] || t2w_bfire {
+                    } else if sig.buy_any.get(k) || nf_buy[k] || t2w_bfire || xzd2_bfire {
                         if phi(k) == PhaseView::MoveDown {
                             // 49:52 镜像：中枢向下移动 ⇒ 停回补 [镜像推导]。
                             res.n_short_trend_holds_by_ladder[k] += 1;
@@ -692,8 +735,10 @@ pub(crate) fn run_unified_voice(
                                 "cover_buypt"
                             } else if nf_buy[k] {
                                 "cover_nest"
-                            } else {
+                            } else if t2w_bfire {
                                 "cover_t2w"
+                            } else {
+                                "xzd_buy2"
                             };
                             if reason == "cover_t2w" {
                                 res.n_t2w_fires_by_ladder[k] += 1;
@@ -811,7 +856,7 @@ mod tests {
     use super::super::config::SUB_COST_MIN_OBS;
     use super::super::positional::{run_positional, PolarityMode};
     use super::*;
-    use crate::theta_v0::classifier::{TurnClassEvidence, TurnClassRow};
+    use crate::theta_v0::classifier::{TurnClassEvidence, TurnClassRow, XzdSecondCandidate};
     use crate::trading::tape::BarSig;
     use crate::trading::types::LadderMask;
 
@@ -1228,5 +1273,183 @@ mod tests {
         let r = run_v_xzd(bars, vec![], vec![], rows);
         assert_eq!(r.n_xzd_orphan_bars_by_ladder[2], 1, "挂起每行一次");
         assert_eq!(r.n_entries_by_ladder[2], 0, "无买点词本就不入场");
+    }
+
+    // ───────── #1208 ②件：053:28 二卖事件层新通道（候选事件 + 标签门 + 出场臂）─────────
+
+    fn xzd2_cand(ladder: u8, bar: usize, side: ThetaSide, extreme: f64) -> XzdSecondCandidate {
+        XzdSecondCandidate {
+            level: ladder as u32,
+            source_index: bar,
+            side,
+            pan_div_hit: false,
+            turn_extreme: extreme as i64,
+        }
+    }
+
+    fn run_v_xzd2(
+        bars: Vec<BarSig>,
+        dir_flips: Vec<(i64, u8, Direction)>,
+        trend_flips: Vec<(i64, u8, bool)>,
+        rows: Vec<TurnClassRow>,
+        cands: Vec<XzdSecondCandidate>,
+    ) -> PositionalResult {
+        let t = SignalTape {
+            bars,
+            dir_flips: Some(dir_flips),
+            trend_flips: Some(trend_flips),
+            turn_class_rows: Some(rows),
+            xzd_second_candidates: Some(cands),
+            ..Default::default()
+        };
+        run_positional(&t, 2, full_v()).unwrap()
+    }
+
+    #[test]
+    fn xzd_sell2_exits_long_on_candidate_bar() {
+        // 053:28 二卖执行臂：候选事件 bar 上、L-重 Long、本 bar 无 confirmed 一/二卖
+        // ⟹ 二卖出场（exit_reason="xzd_sell2"，翻转断面同形）→ 翻空。
+        let w = SUB_COST_MIN_OBS as usize;
+        let mut bars = warmup(2);
+        bars.push(buypt(bar(100.0), 2)); // 入场 @100（bar w）
+        bars.push(bar(100.0)); // 候选事件 bar（w+1）
+        bars.push(bar(100.0));
+        // 标签行 bar = w+1（入场后才激活——不拦入场）；turn_extreme 匹配候选。
+        let rows = vec![xzd_candidate_row(2, w + 1, 9999, 200.0)];
+        let cands = vec![xzd2_cand(2, w + 1, ThetaSide::Short, 200.0)];
+        let r = run_v_xzd2(bars, vec![], vec![], rows, cands);
+        assert_eq!(r.n_flip_shorts_by_ladder[2], 1, "二卖出场翻空");
+        let exits: Vec<_> = r
+            .trades
+            .iter()
+            .filter(|t| t.exit_reason == "xzd_sell2")
+            .collect();
+        assert_eq!(exits.len(), 1);
+        assert_eq!(exits[0].ladder, 2);
+        assert_eq!(exits[0].polarity, Polarity::Long);
+        assert_eq!(exits[0].exit_bar, (w + 1) as i64);
+    }
+
+    #[test]
+    fn xzd_sell2_discarded_on_extreme_mismatch() {
+        // 门控对拍（无标签丢弃）：候选 turn_extreme=300 ≠ 标签 200 ⟹ 无 XiaozhuandaCandidate
+        // 标签匹配 ⟹ 候选丢弃（普通震荡反弹）⟹ 无 xzd_sell2 出场（持仓到 eod）。
+        let w = SUB_COST_MIN_OBS as usize;
+        let mut bars = warmup(2);
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(bar(100.0));
+        bars.push(bar(100.0));
+        let rows = vec![xzd_candidate_row(2, w + 1, 9999, 200.0)];
+        let cands = vec![xzd2_cand(2, w + 1, ThetaSide::Short, 300.0)];
+        let r = run_v_xzd2(bars, vec![], vec![], rows, cands);
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "xzd_sell2"),
+            "无标签丢弃"
+        );
+        assert_eq!(r.n_flip_shorts_by_ladder[2], 0);
+        assert!(
+            r.trades
+                .iter()
+                .any(|t| t.exit_reason == "eod" && t.polarity == Polarity::Long),
+            "持仓到 eod 平仓"
+        );
+    }
+
+    #[test]
+    fn xzd_sell2_discarded_without_label_row() {
+        // 门控对拍（无标签丢弃）：磁带无 turn_class 行（None 同构：rows 空）⟹ 候选丢弃。
+        let w = SUB_COST_MIN_OBS as usize;
+        let mut bars = warmup(2);
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(bar(100.0));
+        bars.push(bar(100.0));
+        let cands = vec![xzd2_cand(2, w + 1, ThetaSide::Short, 200.0)];
+        let r = run_v_xzd2(bars, vec![], vec![], vec![], cands);
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "xzd_sell2"),
+            "无标签丢弃"
+        );
+        assert_eq!(r.n_flip_shorts_by_ladder[2], 0);
+    }
+
+    #[test]
+    fn xzd_buy2_covers_short_on_candidate_bar() {
+        // 买侧镜像：候选事件 bar 上、L-重 Short、本 bar 无 confirmed 一/二买 ⟹ 二买
+        // 回补（exit_reason="xzd_buy2"，镜像断面同形）→ 翻多。
+        let w = SUB_COST_MIN_OBS as usize;
+        let mut bars = warmup(2);
+        bars.push(buypt(bar(100.0), 2)); // 入场 @100
+        bars.push(sellpt(bar(100.0), 2)); // 翻空 @100（bar w+1）
+        bars.push(bar(40.0)); // 候选事件 bar（w+2）；40 ≤ ZD=50 ⟹ 位置门放行
+        bars.push(bar(40.0));
+        let rows = vec![xzd_candidate_row(2, w + 2, 9999, 200.0)];
+        let cands = vec![xzd2_cand(2, w + 2, ThetaSide::Long, 200.0)];
+        let r = run_v_xzd2(bars, vec![], vec![], rows, cands);
+        assert_eq!(r.n_short_covers_by_ladder[2], 1, "二买回补翻多");
+        let covers: Vec<_> = r
+            .trades
+            .iter()
+            .filter(|t| t.exit_reason == "xzd_buy2")
+            .collect();
+        assert_eq!(covers.len(), 1);
+        assert_eq!(covers[0].polarity, Polarity::Short);
+        assert_eq!(covers[0].exit_bar, (w + 2) as i64);
+    }
+
+    #[test]
+    fn xzd_sell2_suppressed_by_confirmed_sell_on_same_bar() {
+        // 053:28 前置：候选事件 bar 上有 confirmed Sell1 ⟹ 常规词汇域，xzd_sell2 不
+        // 补位（本 bar 无其它出场词汇 ⟹ 持仓不动，无翻转）。
+        let conf = |class: BspClass, px: f64| BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed: true,
+            cs: None,
+            zd: None,
+            zg: None,
+            price: px,
+        };
+        let w = SUB_COST_MIN_OBS as usize;
+        let mut bars = warmup(2);
+        bars.push(buypt(bar(100.0), 2));
+        // 候选事件 bar 上同时有 confirmed Sell1（不置 sell_any 掩码——隔离 xzd 臂的
+        // 前置条件：confirmed 存在 ⟹ xzd 被抑制，本 bar 无其它出场）。
+        bars.push(with_ev(bar(100.0), 2, conf(BspClass::Sell1, 120.0)));
+        bars.push(bar(100.0));
+        let rows = vec![xzd_candidate_row(2, w + 1, 9999, 200.0)];
+        let cands = vec![xzd2_cand(2, w + 1, ThetaSide::Short, 200.0)];
+        let r = run_v_xzd2(bars, vec![], vec![], rows, cands);
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "xzd_sell2"),
+            "confirmed 一卖在场不补位"
+        );
+        assert_eq!(r.n_flip_shorts_by_ladder[2], 0);
+    }
+
+    #[test]
+    fn xzd2_capability_guard_zero_change() {
+        // 通道 capability guard：xzd_second_candidates None ⟹ 零行为变化（与无标签
+        // 磁带同结果；标签行在场也不产生任何新出场）。
+        let w = SUB_COST_MIN_OBS as usize;
+        let mut bars = warmup(2);
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(bar(100.0));
+        bars.push(bar(100.0));
+        let baseline = run_v(bars.clone(), vec![], vec![]);
+        let rows = vec![xzd_candidate_row(2, w + 1, 9999, 200.0)];
+        let t = SignalTape {
+            bars,
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
+            turn_class_rows: Some(rows),
+            xzd_second_candidates: None, // guard：事件层未产出
+            ..Default::default()
+        };
+        let r = run_positional(&t, 2, full_v()).unwrap();
+        assert_eq!(r.trades.len(), baseline.trades.len());
+        for (a, b) in r.trades.iter().zip(baseline.trades.iter()) {
+            assert_eq!(format!("{a:?}"), format!("{b:?}"), "None = 零行为变化");
+        }
+        assert!((r.final_nav - baseline.final_nav).abs() < 1e-6);
     }
 }

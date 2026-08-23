@@ -1632,7 +1632,7 @@ impl PyOrganicTape {
     #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     #[pyo3(signature = (closes, buy1, sell1, sell_any, buy_any, up_settled, max_ladder,
                         type2_buy, bsp_flat, div_flat, dir_flips = None, run_high = None,
-                        trend_flips = None, turn_class = None))]
+                        trend_flips = None, turn_class = None, xzd_second = None))]
     fn from_columns(
         closes: Vec<f64>,
         buy1: Vec<u16>,
@@ -1662,8 +1662,14 @@ impl PyOrganicTape {
         // evidence = (third_src, second_class, turn_extreme)，仅 XiaozhuandaCandidate 非 None
         // （#1202 第三块：turn_extreme = 基例转折极值，风控臂证伪线）。
         turn_class: Option<Vec<(i64, u8, String, Option<(i64, Option<i64>, i64)>)>>,
+        // #1208 ②件：xzd_second 候选事件行 → (bar, ladder, side, pan_div_hit, turn_extreme)；
+        // bar = source_index（事件 bar），升序校验同 turn_class；side "sell"→Short（二卖）/
+        // "buy"→Long（二买）。zero six-bit、不进 BspBits、不作终端背书（044:30）。
+        xzd_second: Option<Vec<(i64, u8, String, bool, i64)>>,
     ) -> PyResult<Self> {
-        use theta_v0::classifier::{TurnClassEvidence, TurnClassKind, TurnClassRow};
+        use theta_v0::classifier::{
+            TurnClassEvidence, TurnClassKind, TurnClassRow, XzdSecondCandidate,
+        };
         use trading::tape::{BarSig, SignalTape};
         use trading::types::{
             BspClass, BspEvent as TBspEvent, DivEvent as TDivEvent, LadderMask, MAX_LADDER,
@@ -1873,6 +1879,44 @@ impl PyOrganicTape {
                 Some(out)
             }
         };
+        // #1208 ②件：xzd_second 候选事件行 → XzdSecondCandidate 稀疏行；校验与
+        // turn_class 同构（bar 升序、越界 fail-fast）。
+        let xzd_second_candidates = match xzd_second {
+            None => None,
+            Some(rows) => {
+                let mut out: Vec<XzdSecondCandidate> = Vec::with_capacity(rows.len());
+                let mut last_bar = -1i64;
+                for (bar, lad, side, pan_div_hit, turn_extreme) in rows {
+                    if bar < last_bar
+                        || bar < 0
+                        || (bar as usize) >= n
+                        || (lad as usize) >= MAX_LADDER
+                    {
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "xzd_second 越界或乱序：bar={bar} ladder={lad}（须 bar 升序）"
+                        )));
+                    }
+                    last_bar = bar;
+                    let side = match side.as_str() {
+                        "sell" => crate::theta_v0::types::Side::Short,
+                        "buy" => crate::theta_v0::types::Side::Long,
+                        _ => {
+                            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                                "非法 xzd_second side: {side:?}"
+                            )))
+                        }
+                    };
+                    out.push(XzdSecondCandidate {
+                        level: lad as u32,
+                        source_index: bar as usize,
+                        side,
+                        pan_div_hit,
+                        turn_extreme: turn_extreme as crate::theta_v0::types::Tick,
+                    });
+                }
+                Some(out)
+            }
+        };
         Ok(PyOrganicTape {
             inner: SignalTape {
                 bars,
@@ -1880,6 +1924,7 @@ impl PyOrganicTape {
                 run_high,
                 trend_flips,
                 turn_class_rows,
+                xzd_second_candidates,
             },
         })
     }

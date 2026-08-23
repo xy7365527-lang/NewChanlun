@@ -195,6 +195,93 @@ pub fn candidate_second_point(
     None
 }
 
+/// #1208 ②件：053:28 二卖事件层新通道候选事件（per-bar 产出）——证书不冒充买卖点
+/// （与 `PanDivCert` 同形态）：zero six-bit、不进 `BspBits`、不作终端背书（044:30
+/// 类型封锁保持）。FSM 消费前须过 turn_class 标签门（同 ladder `XiaozhuandaCandidate`
+/// 行且 `turn_extreme` 一致；#1195 三层分工「判据产点宽、链定类窄」），标签门放行后
+/// 按 053:28 二卖出场 / 二买回补。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct XzdSecondCandidate {
+    /// 事件级别（`Classification.levels` 下标；候选与该级账本同账本，38课横向读法）。
+    pub level: u32,
+    /// 候选点在 L0 原始 K 序的位置（次级别上/下走势完成点 = 二卖/二买补位坐标）。
+    pub source_index: usize,
+    /// 方向（Short = 二卖候选；Long = 二买候选镜像）。
+    pub side: Side,
+    /// 触发分支：`true` = 053:28 盘整背驰支（`PanDivCert` 命中）；`false` = 不创新高/新低支
+    /// （纯几何）。
+    pub pan_div_hit: bool,
+    /// 基例转折极值（#1202 `XzdEvidence.turn_extreme` 同款读数）：该级别中枢外包络在
+    /// `base_turn` 之前的极值——Short 取 GG 最大（顶区上沿）、Long 取 DD 最小（底区下沿）。
+    /// 只作标签门匹配坐标，不作门（044:30 只有必要条件）。
+    pub turn_extreme: Tick,
+}
+
+/// #1208 ②件产点入口（live 化＝每 bar 每级别账本跑一次）：产候选二卖/二买端点事件。
+///
+/// - book = 该级别自己的 [`LevelState`]（中枢与构件同账本，38课横向读法）；
+/// - base_turn = 该级别最近一个 confirmed type1 的 source_index（sell1→Short 二卖侧、
+///   buy1→Long 二买侧镜像；`signal.rs` 只对 confirmed 结构产点，type1 bit 即背驰确认后
+///   的判据输出）；**无 confirmed type1 不产点**（噪声闸：L 级一卖出现即情况一通道接管，
+///   二卖候选不再需要）；
+/// - turn_extreme = #1202 `XzdEvidence.turn_extreme` 同款读数——该级别中枢外包络在
+///   base_turn 之前的极值（Short 取 GG 最大、Long 取 DD 最小）。
+///
+/// 判据复用 [`candidate_second_point`]（不改）；这是 #1195 三层分工的「判据产点（宽）」层。
+/// ★044:30 类型封锁保持：候选事件 zero six-bit、不进 BspBits、不作终端背书。
+pub fn provide_xzd_second_candidates(classification: &Classification) -> Vec<XzdSecondCandidate> {
+    let mut out = Vec::new();
+    for (level_idx, book) in classification.levels.iter().enumerate() {
+        // base_turn = 该级别最近一个 confirmed type1 的 source_index（最近 = 最大
+        // source_index；平局取迭代序末个——确定性）。sell1 与 buy1 同点共存时 sell1 先
+        // 判（endpoint_to_bsp 按 is_sell_side 分流，实际不共存）。
+        let Some((base_turn, side)) = book
+            .bsp
+            .iter()
+            .filter_map(|p| {
+                if p.bits.sell1 {
+                    Some((p.source_index, Side::Short))
+                } else if p.bits.buy1 {
+                    Some((p.source_index, Side::Long))
+                } else {
+                    None
+                }
+            })
+            .max_by_key(|(src, _)| *src)
+        else {
+            continue; // 无 confirmed type1 不产点（噪声闸）。
+        };
+        let Some(candidate) = candidate_second_point(book, base_turn, side) else {
+            continue;
+        };
+        // turn_extreme（#1202 同款读数；候选成立时中枢极值必在——防御性跳过）。
+        let Some(turn_extreme) = (match side {
+            Side::Short => book
+                .centers
+                .iter()
+                .filter(|c| c.end_index <= base_turn)
+                .map(|c| c.gg)
+                .max(),
+            Side::Long => book
+                .centers
+                .iter()
+                .filter(|c| c.end_index <= base_turn)
+                .map(|c| c.dd)
+                .min(),
+        }) else {
+            continue;
+        };
+        out.push(XzdSecondCandidate {
+            level: level_idx as u32,
+            source_index: candidate.source_index,
+            side,
+            pan_div_hit: candidate.pan_div_hit,
+            turn_extreme,
+        });
+    }
+    out
+}
+
 /// nest 链顶背书形态分类（跨级链属性；与六态 r / 信号位 b 正交——r 答「在哪」、b 答
 /// 「有什么信号」、本类答「链顶背书形态」）。每证 / 每孤儿事件**恰一类**（partition，
 /// 由 [`classify_nest_turns`] 构造保证）。
@@ -1307,6 +1394,199 @@ mod tests {
                 pan_div_hit: false,
             })
         );
+    }
+
+    // ───────── #1208 ②件：053:28 事件层新通道产点（#1198 五例的 live 形态）─────────
+
+    #[test]
+    fn xzd2_provide_sell_no_new_high_053_28() {
+        // #1198 第一例 live 形态：该级 book 含 confirmed Sell1@48（base_turn）→
+        // 「下→上」完成且不创新高（445 ≤ 470）⟹ 候选事件 {level 0, 51, Short, false, 470}。
+        let book = book_with_moves(
+            vec![
+                center(430, 460, 420, 470, 34, 38), // 转折前高点 gg=470
+                center(420, 440, 410, 450, 40, 46), // c′（不参与候选，只占坐标）
+                center(415, 430, 410, 435, 48, 49), // 次级别下
+                center(425, 440, 420, 445, 50, 51), // 次级别上，gg=445
+            ],
+            vec![pt(48, sell1_bits(), None)],
+            vec![
+                trend_block(2, 2, Direction::Down, MoveStatus::Completed),
+                trend_block(3, 3, Direction::Up, MoveStatus::Completed),
+            ],
+            vec![],
+        );
+        let classification = ledger(vec![book]);
+        assert_eq!(
+            provide_xzd_second_candidates(&classification),
+            vec![XzdSecondCandidate {
+                level: 0,
+                source_index: 51,
+                side: Side::Short,
+                pan_div_hit: false,
+                turn_extreme: 470,
+            }]
+        );
+    }
+
+    #[test]
+    fn xzd2_provide_sell_pan_div_hit_053_28() {
+        // #1198 第二例 live 形态：创新高（gg=480 > 470）⟹ 盘整背驰支补位
+        // （PanDivCert@50 ∈ [48, 51]）⟹ pan_div_hit=true。
+        let book = book_with_moves(
+            vec![
+                center(430, 460, 420, 470, 34, 38),
+                center(415, 430, 410, 435, 48, 49),
+                center(425, 445, 420, 480, 50, 51), // 创新高（gg=480 > 470）
+            ],
+            vec![pt(48, sell1_bits(), None)],
+            vec![
+                trend_block(1, 1, Direction::Down, MoveStatus::Completed),
+                trend_block(2, 2, Direction::Up, MoveStatus::Completed),
+            ],
+            vec![pan_div_cert(50, Side::Short)],
+        );
+        let classification = ledger(vec![book]);
+        assert_eq!(
+            provide_xzd_second_candidates(&classification),
+            vec![XzdSecondCandidate {
+                level: 0,
+                source_index: 51,
+                side: Side::Short,
+                pan_div_hit: true,
+                turn_extreme: 470,
+            }]
+        );
+    }
+
+    #[test]
+    fn xzd2_provide_requires_up_completion() {
+        // #1198 第三例 live 形态：Up 块仍 Active（未完成）⟹ 053:28「次级别上完成」
+        // 不成立 ⟹ 不产点（即使有 confirmed Sell1 锚）。
+        let book = book_with_moves(
+            vec![
+                center(430, 460, 420, 470, 34, 38),
+                center(415, 430, 410, 435, 48, 49),
+                center(425, 440, 420, 445, 50, 51),
+            ],
+            vec![pt(48, sell1_bits(), None)],
+            vec![
+                trend_block(1, 1, Direction::Down, MoveStatus::Completed),
+                trend_block(2, 2, Direction::Up, MoveStatus::Active),
+            ],
+            vec![],
+        );
+        let classification = ledger(vec![book]);
+        assert!(provide_xzd_second_candidates(&classification).is_empty());
+    }
+
+    #[test]
+    fn xzd2_provide_buy_mirror_053_28() {
+        // #1198 第四例 live 形态（买侧镜像）：confirmed Buy1@48（低点 dd=50）→
+        // 「上→下」完成且不创新低（55 ≥ 50）⟹ 二买候选 {51, Long, false, 50}。
+        let book = book_with_moves(
+            vec![
+                center(50, 70, 50, 75, 34, 38), // 转折前低点 dd=50
+                center(60, 75, 58, 78, 48, 49), // 次级别上
+                center(55, 68, 55, 70, 50, 51), // 次级别下，dd=55
+            ],
+            vec![pt(48, buy1_bits(), None)],
+            vec![
+                trend_block(1, 1, Direction::Up, MoveStatus::Completed),
+                trend_block(2, 2, Direction::Down, MoveStatus::Completed),
+            ],
+            vec![],
+        );
+        let classification = ledger(vec![book]);
+        assert_eq!(
+            provide_xzd_second_candidates(&classification),
+            vec![XzdSecondCandidate {
+                level: 0,
+                source_index: 51,
+                side: Side::Long,
+                pan_div_hit: false,
+                turn_extreme: 50,
+            }]
+        );
+    }
+
+    #[test]
+    fn xzd2_provide_fallback_form_053_28() {
+        // #1198 第五例（xzd_evidence second_class 回退）live 形态：book 含 confirmed
+        // Sell1@48 + c′ 三卖@52（三类点不影响产点——判据只看 type1 锚 + 候选几何）。
+        // levels[1].bsp 空 ⟹ 候选由 053:28 判据补位（levels[0]「下→上」结构）。
+        let c_prime = c_prime();
+        let third = pt(52, sell3_bits(), Some(c_prime));
+        let book_l0 = book_with_moves(
+            vec![
+                center(430, 460, 420, 470, 34, 38), // 转折前高点 gg=470
+                c_prime,                            // c′
+                center(415, 430, 410, 435, 48, 49), // 次级别下
+                center(425, 440, 420, 445, 50, 51), // 次级别上，gg=445 ≤ 470
+            ],
+            vec![pt(48, sell1_bits(), None), third],
+            vec![
+                trend_block(2, 2, Direction::Down, MoveStatus::Completed),
+                trend_block(3, 3, Direction::Up, MoveStatus::Completed),
+            ],
+            vec![],
+        );
+        let classification = ledger(vec![book_l0, level(parent_book_centers(), vec![])]);
+        assert_eq!(
+            provide_xzd_second_candidates(&classification),
+            vec![XzdSecondCandidate {
+                level: 0,
+                source_index: 51,
+                side: Side::Short,
+                pan_div_hit: false,
+                turn_extreme: 470,
+            }]
+        );
+    }
+
+    #[test]
+    fn xzd2_provide_no_confirmed_type1_no_production() {
+        // 噪声闸：该级别无 confirmed type1（bsp 只有三类点/空）⟹ 不产点。
+        let book = book_with_moves(
+            vec![
+                center(430, 460, 420, 470, 34, 38),
+                center(415, 430, 410, 435, 48, 49),
+                center(425, 440, 420, 445, 50, 51),
+            ],
+            vec![pt(52, sell3_bits(), None)],
+            vec![
+                trend_block(1, 1, Direction::Down, MoveStatus::Completed),
+                trend_block(2, 2, Direction::Up, MoveStatus::Completed),
+            ],
+            vec![],
+        );
+        let classification = ledger(vec![book]);
+        assert!(provide_xzd_second_candidates(&classification).is_empty());
+    }
+
+    #[test]
+    fn xzd2_candidate_carries_no_confirm_semantics() {
+        // 编译期构造保证的文档化断言（非注释承诺）：XzdSecondCandidate 完全解构只有
+        // (level, source_index, side, pan_div_hit, turn_extreme) 五坐标字段——无 BspBits
+        // 成员、无 confirm_side 方法；字段面变化即编译失败，强制复议（044:30 类型封锁，
+        // 与 T9 同款）。
+        let cand = XzdSecondCandidate {
+            level: 0,
+            source_index: 51,
+            side: Side::Short,
+            pan_div_hit: false,
+            turn_extreme: 470,
+        };
+        let XzdSecondCandidate {
+            level,
+            source_index,
+            side,
+            pan_div_hit,
+            turn_extreme,
+        } = cand;
+        let coords: (u32, usize, Side, bool, Tick) =
+            (level, source_index, side, pan_div_hit, turn_extreme);
+        assert_eq!(coords, (0, 51, Side::Short, false, 470));
     }
 
     #[test]

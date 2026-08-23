@@ -19,7 +19,7 @@
 
 use super::types::*;
 use crate::stroke::Direction;
-use crate::theta_v0::classifier::TurnClassRow;
+use crate::theta_v0::classifier::{TurnClassRow, XzdSecondCandidate};
 
 /// 单 bar 信号。布尔行压缩为位掩码；事件行 Option<Box<…>> 表达稀疏性
 /// （绝大多数 bar 无事件，None ⇔ Python 共享单例 NO_LADDER_EVENTS）。
@@ -54,11 +54,15 @@ pub struct SignalTape {
     /// `evidence` 仅 `XiaozhuandaCandidate` 携带（`third_src` + `second_class`）。
     /// None = 分类投影层未产出（零行为变化；L-重情况二程序臂的 capability guard）。
     ///
-    /// ★#1198 传输位（同 `BspEvent.seg_idx` 先例）：交易层零消费接线已并入磁带
-    /// （#1195 第二块），L-重情况二程序臂（第三块）消费本行——该臂与分类投影
-    /// 生产桥接属同一实施票下游，接线前本字段无读取点。
-    #[allow(dead_code)]
+    /// ★#1198 传输位（同 `BspEvent.seg_idx` 先例）：消费接线已并入磁带——#1202 风控臂
+    /// （行式标注三件）与 #1208 ②件 053:28 二卖臂（候选事件标签门）读本行。
     pub turn_class_rows: Option<Vec<TurnClassRow>>,
+    /// xzd_second 候选事件行（#1208 ②件；稀疏行，bar 升序，`source_index` = 事件 bar）。
+    /// zero six-bit、不进 `BspBits`、不作终端背书（044:30 类型封锁保持）。FSM 消费前
+    /// 须过 `turn_class_rows` 标签门（同 ladder `XiaozhuandaCandidate` 且 `turn_extreme`
+    /// 一致；#1195 三层分工「判据产点宽、链定类窄」）。
+    /// None = 事件层未产出（零行为变化；053:28 二卖臂的 capability guard）。
+    pub xzd_second_candidates: Option<Vec<XzdSecondCandidate>>,
 }
 
 impl SignalTape {
@@ -84,9 +88,16 @@ impl SignalTape {
     }
 
     /// turn_class 投影行的能力守卫（#1195 第二块；L-重情况二程序臂的 capability
-    /// guard 用，见 [`SignalTape::turn_class_rows`] 传输位注——接线前零读取点）。
+    /// guard 用，见 [`SignalTape::turn_class_rows`] 传输位注）。
     #[allow(dead_code)]
     pub fn has_turn_class_rows(&self) -> bool {
         self.turn_class_rows.is_some()
+    }
+
+    /// xzd_second 候选事件行的能力守卫（#1208 ②件；053:28 二卖臂的 capability
+    /// guard——None ⟹ 事件层未产出 ⟹ 零行为变化）。
+    #[allow(dead_code)]
+    pub fn has_xzd_second_candidates(&self) -> bool {
+        self.xzd_second_candidates.is_some()
     }
 }

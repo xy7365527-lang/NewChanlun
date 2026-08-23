@@ -183,6 +183,7 @@ pub(super) fn load_tape(sym: &str) -> SignalTape {
         run_high: None,
         trend_flips: None,
         turn_class_rows: None,
+        xzd_second_candidates: None,
     }
 }
 
