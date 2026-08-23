@@ -1,4 +1,6 @@
 import * as sandcastle from "@ai-hero/sandcastle";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { primeAgent } from "../../prime-agent-provider.ts";
 import { fail } from "./common.ts";
 
@@ -350,11 +352,22 @@ export const selectedAgent = (
       entry.primeProvider === "deepseek" &&
       entry.secretName === DEEPSEEK_SECRET
     ) {
+      // Actions runner（noSandbox，无 docker 沙盒）：HOME=/home/runner，prime-agent 会话
+      // 落在 runner HOME 下；provider 默认沙盒目录 /home/agent/... 不可写（#1173 实测
+      // EACCES mkdir /home/agent/.prime/agent/sessions）。GITHUB_ACTIONS 环境把沙盒会话
+      // 目录指回 runner HOME，capture/resume/extraction 二段全部走同一目录。
+      const sessionStorage =
+        env.GITHUB_ACTIONS === "true"
+          ? { sandboxSessionsDir: join(homedir(), ".prime", "agent", "sessions") }
+          : undefined;
       return primeAgent(entry.model, {
         provider: entry.primeProvider,
+
         // 只注入 deepseek 专属凭据 + remoteChildIdentityEnv() 过滤后的 identity；
         // Claude token 与任何未列名进程 env 一律不进 provider env。
         env: modelProviderEnv(DEEPSEEK_SECRET, token, env),
+
+        sessionStorage,
       });
     }
     throw new ModelRegistryError(

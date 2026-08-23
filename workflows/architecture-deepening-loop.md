@@ -1,6 +1,6 @@
 # 架构深化循环（architecture-deepening loop）
 
-> v1，已入仓（#1159，2026-08-21）。本循环的每轮实体形态 = wayfinder 图（issue tracker 上 `wayfinder:map` 一张）+ 其 handoff（SPEC → impl 票 → sandcastle 拾取）。
+> v2，已入仓（#1159，2026-08-21；判停记录 2026-08-22 #1193）。本循环的每轮实体形态 = wayfinder 图（issue tracker 上 `wayfinder:map` 一张）+ 其 handoff（SPEC → impl 票 → sandcastle 拾取）。
 > 纪律正本引用：`docs/agents/wayfinder-workflow.md`（本仓 wayfinder 唯一正本，含开场对账 / 一票一会话 / 图正文写入协议 / 并行纪律）、`docs/agents/delivery-discipline.md`、`docs/agents/issue-tracker.md`。
 
 ## 目的
@@ -50,7 +50,13 @@
 - **新目的另开图**：本循环只服务「架构深化」这一个目的地；「插件化」「数据层」等新目的各自开图，不塞进本循环。
 - **入仓纪律**：本循环产物（图/SPEC/票）全在 tracker；本地只落本 spec 文件与图内引用的 review-results（工作草稿，活期绑定票）。
 
-## 实证基线（2026-08-21 首轮事实）
+## 实证基线（五轮全史）
 
-- 上一轮循环实例：map #1055（2026-08-18，五候选）→ SPEC #1077 → impl #1081/#1082（sandcastle 在飞）。
-- 前身图 #743 端到端模块化已闭合（SPEC #756 已簿记关票 2026-08-21）。
+- 第 1-2 轮：map #743 端到端模块化（C1-C7 + E1-E5，SPEC #756 已簿记关票）→ map #1055 五候选（#1053-#1068 线，SPEC #1077）。
+- 第 3 轮：map #1174（A econ_positive 拆分 / B signal 迁出 / C scan wire 分离 / D tower 三块）——四票全落地，评审通道修复经验（TARGET_BRANCH 宿主分支机制、REVIEW_ONLY 补派、.env 符号链）。
+- 第 4 轮：map #1186（A econ 测试分家 / B nest_lifecycle 八块接 #454 / C trading 两刀+positional_fusion 不切 / D oscillation 轻切）——四票全落地。
+- 第 5 轮：**判停轮**。#1193 interp.rs 轻切收尾（merge `54dbd320f6`）。判停依据：扫描 top recommendation 已降至 Worth exploring 边缘档、Strong 档清零；剩余 >3k 面全为测试文件 / 探针 bin / 裁定锁定（fill C3、positional_fusion C01、nest #804 区）/ 刚拆门面 / deprecated 前代线——**无再深化的剩余收益**。
+
+### 判停记录（2026-08-22，#1193 后）
+
+**循环已判停**。自判停起，本循环转为**热区触发式**：不再全仓清道扫描；某模块重新成为热区（git log 高频）且出现可证伪摩擦时，由编排者或任一会话重新起一轮扫描（触发三条件照旧）。「架构完全搞好」不是一次循环的终点，是每轮摩擦收益递减到零的自然收敛。
