@@ -9,8 +9,8 @@
   不并发多实例、常驻不退出。
 
   安装/卸载：bash .sandcastle/install-sandcastle-claimer.sh [install|uninstall|status]
-  注意：REPO 路径 /Users/silencehan/Projects/NewChanlun 需与本机实际仓路径一致
-  （与 watcher.sh / install-wayfinder-engine.sh 同款硬编码）。
+  注意：REPO 路径 /Users/silencehan/Projects/NewChanlun-sandcastle-host 需与本机实际仓路径一致
+  （#1182 后续：宿主 = 专用 main worktree，与交互主 worktree 解耦）。
 -->
 <plist version="1.0">
 <dict>
@@ -20,12 +20,12 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/run-claim-loop.sh</string>
+        <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host-sandcastle-host/.sandcastle/run-claim-loop.sh</string>
         <string>--live</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host</string>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host-sandcastle-host</string>
 
     <!-- 常驻：退出即拉起；循环脚本 for(;;) 轮询，正常永不退出。 -->
     <key>KeepAlive</key>
@@ -56,9 +56,9 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/logs/sandcastle-claimer.stdout.log</string>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host-sandcastle-host/.sandcastle/logs/sandcastle-claimer.stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/logs/sandcastle-claimer.stderr.log</string>
+    <string>/Users/silencehan/Projects/NewChanlun-sandcastle-host-sandcastle-host/.sandcastle/logs/sandcastle-claimer.stderr.log</string>
 </dict>
 </plist>
