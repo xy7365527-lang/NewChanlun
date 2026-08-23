@@ -6,12 +6,14 @@
      checkout/base、确定性分支、Draft PR、force-with-lease、失败回写、防重）。
   2. issue shape 检测脚本（detect-issue-shape.sh）在 mock gh 下四形态对拍。
   3. 禁入模式扫描（不读本机 Prime/Codex auth；不复用 watcher/harvest/main-loop；
-     #1002 旧 Kimi 常量/票面模型路由不复活）。
-  4. #1128/#1173 模型 registry 机械锁：精确数组 label 路由（禁止 toJSON+contains 子串）、
-     最小 EVENT_PAYLOAD 接线（只传 labels.*.name）、固定 Secret allowlist、
-     票面字符串不成为 env/secret key、remote-child identity 与模型凭据分离、
-     事件 fixture 覆盖（默认 Claude / 显式 DeepSeek / PR review DeepSeek /
-     冲突 / 未知 / 缺 secret / P1 敌对标签）。
+     #1002 旧 Kimi 常量/票面模型路由不复活；Kimi 禁入扫描面含
+     prime-agent-provider.ts）。
+  4. #1128/#1173 模型 registry 机械锁：运行时实读 label + grep -qx 精确路由
+     （禁止静态 contains / toJSON+contains 子串）、最小 EVENT_PAYLOAD 接线
+     （只传 labels.*.name）、固定 Secret allowlist、票面字符串不成为 env/secret
+     key、remote-child identity 与模型凭据分离、事件 fixture 覆盖（默认 Claude /
+     显式 DeepSeek / PR review DeepSeek / Draft PR / resume / 冲突 / 未知 /
+     缺 secret / P1 敌对标签 / 大小写变体）。
   5. #1185 jq 字符串转义机械锁：逐条提取 agent workflow 的 jq/--jq 表达式，
      本机 jq -n 语法校验，并禁止 \\s/\\d 等 jq 字符串非法转义回潮。
 
@@ -33,6 +35,7 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 WF_DIR = ROOT / ".github" / "workflows"
 AW_DIR = ROOT / ".sandcastle" / "agent-workflows"
+PROVIDER_TS = ROOT / ".sandcastle" / "prime-agent-provider.ts"
 FIXTURE_DIR = AW_DIR / "shared" / "fixtures"
 
 WORKFLOWS = [
@@ -75,8 +78,19 @@ FIXTURE_REQUIREMENTS = {
         "agent:implement",
         "agent:model:deepseek-v4-pro-legacy",
     },
+    "issue-labeled-deepseek-v4-pro-case-variant.json": {
+        "agent:implement",
+        "agent:model:DEEPSEEK-V4-PRO",
+    },
     "pr-labeled-review.json": {
         "agent:review",
+    },
+    "pr-labeled-review-draft.json": {
+        "agent:review",
+    },
+    "pr-labeled-review-deepseek-resume.json": {
+        "agent:review",
+        "agent:model:deepseek-v4-pro",
     },
     "pr-labeled-review-deepseek-v4-pro.json": {
         "agent:review",
@@ -96,24 +110,27 @@ FIXTURE_REQUIREMENTS = {
     },
 }
 
-# P1：实装/评审 workflow 的 label 路由必须是数组元素精确匹配（GitHub 表达式
-# `contains(array, item)`），不得用 toJSON 把数组序列化成字符串后做子串匹配。
-ISSUE_EXACT_LABEL_ROUTE = (
-    "contains(github.event.issue.labels.*.name, 'agent:model:deepseek-v4-pro')"
+# P1/MINOR-3：三个模型路由 workflow 都运行时实读 labels 后 grep -qx 精确匹配
+# （区分大小写），与 TS registry 的精确 allowlist 查表同一口径；禁止使用静态
+# contains(github.event.*.labels...) 路由（GitHub 表达式 contains 大小写不敏感），
+# 也禁止 toJSON 子串匹配。
+ISSUE_RUNTIME_ROUTE_LOCK = (
+    "gh issue view \"$ISSUE_NUMBER\" --json labels --jq '.labels[].name' "
+    "| grep -qx 'agent:model:deepseek-v4-pro'"
 )
-PR_EXACT_LABEL_ROUTE = (
-    "contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')"
+PR_RUNTIME_ROUTE_LOCK = (
+    "gh pr view \"$PR_NUMBER\" --json labels --jq '.labels[].name' "
+    "| grep -qx 'agent:model:deepseek-v4-pro'"
 )
-LABEL_ROUTE_COUNTS = {
-    "agent-implement.yml": (ISSUE_EXACT_LABEL_ROUTE, 5),
-    "agent-implement-pr.yml": (PR_EXACT_LABEL_ROUTE, 4),
-}
-# agent-review.yml 在 #1173 排障后改为运行时实读 PR 标签（pull_request_target 的
-# label 事件快照在 if 条件里评估不可靠），不再使用静态 contains 路由。
 REVIEW_RUNTIME_ROUTE_LOCK = (
     "gh pr view \"$PR_NUMBER\" --json labels --jq '.labels[].name' "
     "| grep -qx 'agent:model:deepseek-v4-pro'"
 )
+RUNTIME_ROUTE_LOCKS = {
+    "agent-implement.yml": ISSUE_RUNTIME_ROUTE_LOCK,
+    "agent-implement-pr.yml": PR_RUNTIME_ROUTE_LOCK,
+    "agent-review.yml": REVIEW_RUNTIME_ROUTE_LOCK,
+}
 
 # P2：EVENT_PAYLOAD 只传模型选择所需的最小 labels 载荷（label name 数组），
 # 不传完整 github.event（issue/PR body 等无关字段不得进入进程 env）。
@@ -408,6 +425,11 @@ def main() -> int:
     # ── 3. 禁入模式扫描 ────────────────────────────────────────────────────────
     all_text = "\n".join((WF_DIR / n).read_text() for n in WORKFLOWS)
     all_text += "\n".join(p.read_text() for p in AW_DIR.rglob("*") if p.is_file())
+    # MAJOR-2：#1002 Kimi 禁入锁必须覆盖 prime-agent-provider.ts（provider 缺省值
+    # 曾在该文件内，而旧扫描面只含 workflow + agent-workflows/**，造成假绿）。
+    # 该文件有合法的 ~/.prime 会话目录说明，故只把 Kimi 禁入针纳入其扫描面，
+    # 其余禁入针仍按原扫描面执行，避免把文档性路径说明误判为读取本机凭据。
+    provider_text = PROVIDER_TS.read_text()
     banned = [
         ("PRIME_API_KEY", "不得绑定 PRIME_API_KEY（认证路线未裁定）"),
         ("prime-inference", "不得绑定 prime-inference"),
@@ -419,17 +441,28 @@ def main() -> int:
         ("harvest.sh", "不得复用现有 harvest.sh 运行时"),
         ("main.mts", "不得复用现有 main.mts 主循环"),
         ("main-swarm.mts", "不得复用现有 main-swarm.mts 蜂群"),
-        ("kimi-coding", "#1002 旧 Kimi provider 常量不得复活"),
         ("IMPLEMENTER_MODEL", "#1002 旧票面/常量模型路由不得复活"),
         ("REVIEWER_MODEL", "#1002 旧票面/常量模型路由不得复活"),
     ]
     for needle, why in banned:
         check(needle not in all_text, f"禁入模式扫描命中 {needle!r}：{why}")
+    check(
+        "kimi-coding" not in all_text and "kimi-coding" not in provider_text,
+        "#1002 旧 Kimi provider 常量不得在 workflow/agent-workflows/prime-agent-provider.ts 复活",
+    )
     check("claudeCode" in all_text, "agent provider 必须使用 Sandcastle 内置 claudeCode()")
 
     # ── 4. #1128 显式模型 registry 机械锁 ────────────────────────────────────
     agent_ts = (AW_DIR / "shared" / "agent.ts").read_text()
     registry_all_text = all_text
+
+    # MINOR-1：readModelLabelsFromEnv 缺 EVENT_PAYLOAD 必须 fail-loud；
+    # 只有显式 SANDCASTLE_LOCAL=1 才允许本地直跑按无标签处理。
+    check(
+        'env.SANDCASTLE_LOCAL === "1"' in agent_ts
+        and "if (!env.EVENT_PAYLOAD) return []" not in agent_ts,
+        "readModelLabelsFromEnv 缺 EVENT_PAYLOAD 必须 fail-loud，仅 SANDCASTLE_LOCAL=1 放行",
+    )
 
     # P2 机械锁：每个 workflow 的 EVENT_PAYLOAD 接线必须全部是最小 labels 载荷。
     for name in WORKFLOWS:
@@ -450,36 +483,19 @@ def main() -> int:
             f"{name} EVENT_PAYLOAD 必须且只能是 {expected_payload}（实为 {payload_lines}）",
         )
 
-    # P1 机械锁：label 路由条件的 contains 必须作用于 labels.*.name 数组；
-    # toJSON+contains 是 JSON 字符串子串匹配，敌对标签会误入 DeepSeek 分支。
-    for name, (exact_route, expected_count) in LABEL_ROUTE_COUNTS.items():
+    # P1/MINOR-3 机械锁：实装 / implement-PR / review 三个模型路由 workflow
+    # 都必须是运行时实读标签 + grep -qx 精确匹配（区分大小写）；静态 event labels
+    # contains 路由（大小写不敏感，且 pull_request_target 快照不可靠）不得回潮。
+    for name, runtime_route_lock in RUNTIME_ROUTE_LOCKS.items():
         raw = raw_wf(name)
-        label_route_conditions = [
-            line.strip()
-            for line in raw.splitlines()
-            if line.strip().startswith("if:")
-            and "contains(" in line
-            and "labels" in line
-        ]
         check(
-            len(label_route_conditions) == expected_count
-            and all(exact_route in condition for condition in label_route_conditions)
-            and all("toJSON(" not in condition for condition in label_route_conditions),
-            f"{name} label 路由条件必须且只能是精确数组匹配 {exact_route} "
-            f"（实为 {label_route_conditions}）",
+            runtime_route_lock in raw,
+            f"{name} 必须含运行时 label 实读精确路由：{runtime_route_lock}",
         )
-
-    # agent-review.yml：运行时实读 PR 标签路由（grep -qx 精确匹配），且不得再出现
-    # 静态 labels contains 路由或 toJSON 子串路由。
-    raw_review = raw_wf("agent-review.yml")
-    check(
-        REVIEW_RUNTIME_ROUTE_LOCK in raw_review,
-        f"agent-review.yml 必须含运行时 PR 标签实读路由：{REVIEW_RUNTIME_ROUTE_LOCK}",
-    )
-    check(
-        not re.search(r"contains\(github\.event\.pull_request\.labels", raw_review),
-        "agent-review.yml 不得再用静态 pull_request labels contains 路由",
-    )
+        check(
+            not re.search(r"contains\(github\.event\.(?:issue|pull_request)\.labels", raw),
+            f"{name} 不得再用静态 event labels contains 路由（大小写不敏感/快照不可靠）",
+        )
 
     # 固定 Secret allowlist：workflow 里出现的每个 secrets.X 都必须在白名单内。
     secret_refs = set(re.findall(r"secrets\.([A-Z0-9_]+)", "\n".join(raw_wf(n) for n in WORKFLOWS)))
@@ -525,8 +541,22 @@ def main() -> int:
     )
     check("primeAgent" in agent_ts and "claudeCode" in agent_ts,
           "shared/agent.ts 必须同时具备 Claude 内置 provider 与自定义 Prime Agent provider")
+    check(
+        'entry.primeProvider === "deepseek"' in agent_ts,
+        "shared/agent.ts DeepSeek 构造分支必须同时断言 entry.primeProvider === 'deepseek'",
+    )
+    check(
+        '?? "kimi-coding"' not in provider_text
+        and "kimi-coding" not in provider_text,
+        "prime-agent-provider.ts 不得保留 kimi-coding provider 缺省/常量",
+    )
     check("REMOTE_CHILD_IDENTITY_ENV_ALLOWLIST" in agent_ts,
           "shared/agent.ts 必须把 remote-child invitation/lease 与模型凭据分开")
+    check(
+        "...remoteChildIdentityEnv(env)" in agent_ts
+        and "modelProviderEnv(" in agent_ts,
+        "shared/agent.ts remoteChildIdentityEnv 必须真实接线进 provider env 过滤（不得只留死代码/注释）",
+    )
     check("MODEL_SECRET_NAMES" in agent_ts,
           "shared/agent.ts 必须集中声明模型 Secret 名 allowlist")
     check("process.env[" not in agent_ts,
@@ -553,6 +583,18 @@ def main() -> int:
             check(False, f"fixture {filename} 不是合法 JSON：{exc}")
             continue
         check(event.get("action") == "labeled", f"fixture {filename} action 必须为 labeled")
+        if filename == "pr-labeled-review-draft.json":
+            pull_request = event.get("pull_request")
+            check(
+                isinstance(pull_request, dict) and pull_request.get("draft") is True,
+                "pr-labeled-review-draft.json 必须携带 pull_request.draft=true（AC-5 Draft PR 形态）",
+            )
+        if filename == "pr-labeled-review-deepseek-resume.json":
+            check(
+                isinstance(event.get("resume_session"), str)
+                and bool(event.get("resume_session")),
+                "pr-labeled-review-deepseek-resume.json 必须携带非空 resume_session 标记（AC-5 resume 形态）",
+            )
         container = event.get("issue") if "issue" in event else event.get("pull_request")
         labels = (container or {}).get("labels") if isinstance(container, dict) else None
         label_names: set[str] = set()
@@ -575,13 +617,16 @@ def main() -> int:
         "issue-labeled-deepseek-missing-secret.json",
         "issue-labeled-not-deepseek-substring.json",
         "issue-labeled-deepseek-v4-pro-legacy.json",
+        "issue-labeled-deepseek-v4-pro-case-variant.json",
         "pr-labeled-review.json",
         "pr-labeled-review-deepseek-v4-pro.json",
+        "pr-labeled-review-draft.json",
+        "pr-labeled-review-deepseek-resume.json",
         "pr-labeled-implement-pr-not-deepseek-substring.json",
         "pr-labeled-implement-pr-deepseek-v4-pro-legacy.json",
     }
     check(required_fixtures <= set(FIXTURE_REQUIREMENTS),
-          "必需事件 fixture 集合缺失（默认 Claude/DeepSeek/PR review DeepSeek/冲突/未知/缺 secret/P1 敌对标签）")
+          "必需事件 fixture 集合缺失（默认 Claude/DeepSeek/PR review DeepSeek/Draft PR/resume/冲突/未知/缺 secret/P1 敌对标签/大小写变体）")
 
     # 票面字符串不成为 Secret/env key：除了 registry allowlist 与测试反例，
     # 工作流和 agent 代码里不得出现 `secrets.<任意标签>` 或 `process.env[<动态>]`。
@@ -596,8 +641,8 @@ def main() -> int:
     # ── 5. #1185 jq 字符串转义机械锁 ─────────────────────────────────────────
     jq_expressions = list(_iter_workflow_jq_expressions())
     check(
-        len(jq_expressions) == 19,
-        f"agent workflows 应提取到 19 条 jq/--jq 表达式（实为 {len(jq_expressions)} 条）",
+        len(jq_expressions) == 21,
+        f"agent workflows 应提取到 21 条 jq/--jq 表达式（实为 {len(jq_expressions)} 条）",
     )
     for name, lineno, cmd, expr in jq_expressions:
         _validate_jq_expression(expr, f"{name}:{lineno} ({cmd})")
@@ -610,7 +655,7 @@ def main() -> int:
         return 1
     print(
         "verify-workflows: 全过（"
-        f"{len(WORKFLOWS)} 个 workflow 结构 + 4 形态对拍 + 禁入扫描 + "
+        f"{len(WORKFLOWS)} 个 workflow 结构 + 4 形态对拍 + 禁入扫描（含 provider 文件） + "
         f"{len(FIXTURE_REQUIREMENTS)} 个 #1128 事件 fixture 覆盖 + registry 机械锁 + "
         f"{len(jq_expressions)} 条 jq 表达式语法校验）"
     )

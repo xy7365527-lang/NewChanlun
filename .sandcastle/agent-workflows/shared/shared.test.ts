@@ -9,6 +9,7 @@ import {
   MODEL_REGISTRY,
   ModelRegistryError,
   assertValidModelLabels,
+  claudeAgent,
   modelCredential,
   modelLabelsFromEvent,
   readModelLabelsFromEnv,
@@ -24,6 +25,7 @@ import {
   reviewOutputSchema,
   type InlineComment,
 } from "./review-output.ts";
+import { primeAgent } from "../../prime-agent-provider.ts";
 import { standardSchema, asRecord, asString } from "./common.ts";
 
 test("parseDiffLines maps added/context new-file line numbers", () => {
@@ -304,6 +306,42 @@ test("remote-child invitation/lease 与模型凭据分离：identity env 不夹�
   assert.ok(!("CLAUDE_CODE_OAUTH_TOKEN" in identity));
 });
 
+test("provider env 生产接线：只透传选定凭据 + remote-child identity allowlist 过滤结果", () => {
+  const env = {
+    PRIME_REMOTE_CHILD_INVITATION: "one-time-invitation",
+    PRIME_REMOTE_CHILD_LEASE: "short-lease",
+    DEEPSEEK_API_KEY: "deepseek-token",
+    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
+    UNRELATED_HOST_ENV: "must-not-leak",
+  };
+  const deepseek = selectedAgent(
+    "implement",
+    ["agent:model:deepseek-v4-pro"],
+    env,
+  );
+  assert.deepEqual(deepseek.env, {
+    DEEPSEEK_API_KEY: "deepseek-token",
+    PRIME_REMOTE_CHILD_INVITATION: "one-time-invitation",
+    PRIME_REMOTE_CHILD_LEASE: "short-lease",
+  });
+  assert.ok(!("CLAUDE_CODE_OAUTH_TOKEN" in deepseek.env));
+
+  const claude = selectedAgent("implement", [], env);
+  assert.deepEqual(claude.env, {
+    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
+    PRIME_REMOTE_CHILD_INVITATION: "one-time-invitation",
+    PRIME_REMOTE_CHILD_LEASE: "short-lease",
+  });
+  assert.ok(!("DEEPSEEK_API_KEY" in claude.env));
+
+  const fixedClaude = claudeAgent("explore", env);
+  assert.deepEqual(fixedClaude.env, {
+    CLAUDE_CODE_OAUTH_TOKEN: "claude-token",
+    PRIME_REMOTE_CHILD_INVITATION: "one-time-invitation",
+    PRIME_REMOTE_CHILD_LEASE: "short-lease",
+  });
+});
+
 test("modelLabelsFromEvent 支持 issue/pull_request labeled payload 与最小 labels 数组", () => {
   assert.deepEqual(
     modelLabelsFromEvent(
@@ -342,7 +380,7 @@ test("modelLabelsFromEvent 支持 issue/pull_request labeled payload 与最小 l
   );
 });
 
-test("readModelLabelsFromEnv 解析 EVENT_PAYLOAD；缺省按无标签处理", () => {
+test("readModelLabelsFromEnv 解析 EVENT_PAYLOAD；缺失 fail-loud，仅 SANDCASTLE_LOCAL=1 放行", () => {
   const raw = readFileSync(
     new URL("./fixtures/issue-labeled-deepseek-v4-pro.json", import.meta.url),
     "utf8",
@@ -362,7 +400,16 @@ test("readModelLabelsFromEnv 解析 EVENT_PAYLOAD；缺省按无标签处理", (
     }),
     ["agent:implement", "agent:model:deepseek-v4-pro"],
   );
-  assert.deepEqual(readModelLabelsFromEnv({}), []);
+  assert.throws(
+    () => readModelLabelsFromEnv({}),
+    /EVENT_PAYLOAD is not set/,
+  );
+  // 只有显式本地开关放行；SANDCASTLE_LOCAL=0 仍必须 fail-loud。
+  assert.deepEqual(readModelLabelsFromEnv({ SANDCASTLE_LOCAL: "1" }), []);
+  assert.throws(
+    () => readModelLabelsFromEnv({ SANDCASTLE_LOCAL: "0" }),
+    /EVENT_PAYLOAD is not set/,
+  );
 });
 
 test("#1128 事件 fixture：默认 Claude / 显式 DeepSeek / 冲突 / 未知 / 缺 secret", () => {
@@ -469,6 +516,23 @@ test("#1128 P1 敌对标签：not-* 子串默认 Claude；-legacy fail-loud 不�
       }),
     /Unknown model label/,
   );
+
+  // 大小写变体：YAML 与 TS 都不得把变体选中为 DeepSeek；TS 必须 fail-loud。
+  const caseVariantLabels = modelLabelsFromEvent(
+    fixture("issue-labeled-deepseek-v4-pro-case-variant.json"),
+  );
+  assert.throws(
+    () => resolveModelSelection(caseVariantLabels),
+    (error: unknown) =>
+      error instanceof ModelRegistryError &&
+      /Unknown model label/.test(error.message) &&
+      /agent:model:DEEPSEEK-V4-PRO/.test(error.message),
+  );
+  // 全大写前缀也会被识别为 model label 后 fail-loud，不静默默认 Claude。
+  assert.throws(
+    () => resolveModelSelection(["AGENT:MODEL:DEEPSEEK-V4-PRO"]),
+    /Unknown model label/,
+  );
 });
 
 test("#1173 PR fixture：review 无模型标签走 Claude，显式 DeepSeek 标签走 DeepSeek", () => {
@@ -525,6 +589,45 @@ test("#1173 PR fixture：review 无模型标签走 Claude，显式 DeepSeek 标�
   assert.deepEqual(provider.env, {
     DEEPSEEK_API_KEY: "deepseek-token",
   });
+});
+
+test("#1128 Draft PR 与 resume 事件 fixture：AC-5 链式形态 + 续跑选择", () => {
+  const draftEvent = fixture("pr-labeled-review-draft.json") as {
+    pull_request?: { draft?: unknown };
+  };
+  assert.equal(draftEvent.pull_request?.draft, true);
+  const draftLabels = modelLabelsFromEvent(draftEvent);
+  assert.deepEqual(draftLabels, ["agent:review"]);
+  assert.deepEqual(resolveModelSelection(draftLabels), {
+    label: null,
+    entry: null,
+  });
+
+  const resumeEvent = fixture(
+    "pr-labeled-review-deepseek-resume.json",
+  ) as { resume_session?: unknown };
+  assert.equal(resumeEvent.resume_session, "resume-session-1128-review");
+  const resumeLabels = modelLabelsFromEvent(resumeEvent);
+  const resumed = selectedAgent("review", resumeLabels, {
+    DEEPSEEK_API_KEY: "deepseek-token",
+  });
+  assert.equal(resumed.name, "prime-agent");
+  assert.deepEqual(resumed.env, {
+    DEEPSEEK_API_KEY: "deepseek-token",
+  });
+  assert.ok(!("CLAUDE_CODE_OAUTH_TOKEN" in resumed.env));
+});
+
+test("#1002 provider 回退 fail-loud：未显式传 provider 时 buildPrintCommand 抛错", () => {
+  const provider = primeAgent("deepseek-v4-pro");
+  assert.throws(
+    () =>
+      provider.buildPrintCommand({
+        prompt: "hi",
+        dangerouslySkipPermissions: true,
+      }),
+    /provider is required/,
+  );
 });
 
 test("#1002 历史不复活：registry 只含显式 allowlist，不含 Kimi 常量/票面路由", () => {

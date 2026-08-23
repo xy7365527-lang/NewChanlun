@@ -1,0 +1,26 @@
+{
+  "action": "labeled",
+  "label": {
+    "name": "agent:review"
+  },
+  "pull_request": {
+    "number": 999,
+    "state": "open",
+    "title": "Fix #1128: resume/re-add agent:review 后同一 DeepSeek 选择 fixture",
+    "labels": [
+      {
+        "name": "agent:review"
+      },
+      {
+        "name": "agent:model:deepseek-v4-pro"
+      }
+    ]
+  },
+  "repository": {
+    "full_name": "xy7365527-lang/NewChanlun"
+  },
+  "sender": {
+    "login": "xy7365527-lang"
+  },
+  "resume_session": "resume-session-1128-review"
+}

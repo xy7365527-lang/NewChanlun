@@ -6,9 +6,12 @@ name: Agent Implement PR
 # 不可信 PR 内容自动触发。工蜂 checkout head.sha 是有意的：需看并修正 PR 分支。
 #
 # #1128：implement-pr 与 issue implement 共用同一模型 registry（默认 Claude /
-# 显式 `agent:model:deepseek-v4-pro`）。下面的 contains() 只选择注入哪一条固定
-# Secret（labels.*.name 数组元素精确匹配，不用 toJSON 子串）；EVENT_PAYLOAD 只传该数组；
-# allowlist 与未知/冲突标签的 fail-loud 在 shared/agent.ts。
+# 显式 `agent:model:deepseek-v4-pro`）。Detect model route 步运行时实读 PR labels 后
+# grep -qx 精确匹配，只选择注入哪一条固定 Secret（Claude 或 DeepSeek）；大小写变体
+# 与 TS registry 一样 fail-loud，不用 pull_request_target label 快照/contains 路由
+# （contains 大小写不敏感，且 #1173 实测快照在 if 中求值不可靠）。
+# EVENT_PAYLOAD 只传 labels.*.name 数组；allowlist 与未知/冲突标签的 fail-loud 在
+# shared/agent.ts。
 
 on:
   pull_request_target:
@@ -76,19 +79,34 @@ jobs:
         if: github.event.pull_request.state == 'open'
         run: npm run typecheck
 
+      # pull_request_target 的 label 事件快照在 if 条件里评估不可靠；与 agent-review.yml
+      # 同型改运行时实读当前 PR labels，grep -qx 精确匹配（区分大小写），和 TS registry
+      # 的 allowlist 精确查表同一口径；不用 contains（大小写不敏感）。
+      - name: Detect model route
+        if: github.event.pull_request.state == 'open'
+        id: route
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'agent:model:deepseek-v4-pro'; then
+            echo "use_deepseek=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "use_deepseek=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install Claude Code (default route)
-        if: github.event.pull_request.state == 'open' && ! contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
+        if: github.event.pull_request.state == 'open' && steps.route.outputs.use_deepseek != 'true'
         run: npm install -g @anthropic-ai/claude-code
 
       # DeepSeek 工蜂 = Prime Agent CLI（与 .sandcastle/Dockerfile 同版本/同 tarball）。
       - name: Install Prime Agent (DeepSeek v4-pro route)
-        if: github.event.pull_request.state == 'open' && contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
+        if: github.event.pull_request.state == 'open' && steps.route.outputs.use_deepseek == 'true'
         run: npm install -g https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.7.2/prime-agent-0.7.2.tgz
 
       # 两个 run step 互斥，只把所选模型的固定 Secret 注入进程 env；
       # 未选中的模型凭据不进入 agent 子进程，也不会被转发给 remote-child。
       - name: Run implement-PR agent (Claude default)
-        if: github.event.pull_request.state == 'open' && ! contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
+        if: github.event.pull_request.state == 'open' && steps.route.outputs.use_deepseek != 'true'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           EVENT_PAYLOAD: ${{ toJSON(github.event.pull_request.labels.*.name) }}
@@ -96,7 +114,7 @@ jobs:
         run: npx tsx .sandcastle/agent-workflows/implement-pr/implement-pr.ts
 
       - name: Run implement-PR agent (DeepSeek v4-pro)
-        if: github.event.pull_request.state == 'open' && contains(github.event.pull_request.labels.*.name, 'agent:model:deepseek-v4-pro')
+        if: github.event.pull_request.state == 'open' && steps.route.outputs.use_deepseek == 'true'
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           EVENT_PAYLOAD: ${{ toJSON(github.event.pull_request.labels.*.name) }}

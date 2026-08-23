@@ -29,7 +29,10 @@ type StreamEvent = ReturnType<AgentProvider["parseStreamLine"]>[number];
 type PrimeSessionStorage = NonNullable<AgentProvider["sessionStorage"]>;
 
 export interface PrimeAgentOptions {
-  /** prime-agent 的 provider 名，默认 kimi-coding。 */
+  /**
+   * prime-agent 的 provider 名。缺省值故意不提供：buildPrintCommand 时
+   * fail-loud，防止 #1002 旧 provider 回退在运行时复活。
+   */
   readonly provider?: string;
   /** --thinking 档位；不传用 prime-agent 默认。 */
   readonly thinking?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -147,7 +150,7 @@ async function findSandboxSessionFile(
 }
 
 export function primeAgent(model: string, options?: PrimeAgentOptions): AgentProvider {
-  const provider = options?.provider ?? "kimi-coding";
+  const provider = options?.provider?.trim();
   const thinkingFlag = options?.thinking ? ` --thinking ${options.thinking}` : "";
   const hostSessionsDir = options?.sessionStorage?.hostSessionsDir ?? DEFAULT_HOST_SESSIONS_DIR;
   const sandboxSessionsDir = options?.sessionStorage?.sandboxSessionsDir ?? DEFAULT_SANDBOX_SESSIONS_DIR;
@@ -212,6 +215,11 @@ export function primeAgent(model: string, options?: PrimeAgentOptions): AgentPro
     captureSessions: true,
     sessionStorage,
     buildPrintCommand({ prompt, resumeSession, forkSession }: AgentCommandOptions): PrintCommand {
+      if (!provider) {
+        throw new Error(
+          "prime-agent provider is required (pass { provider: 'deepseek' }); no legacy default provider is restored.",
+        );
+      }
       const sessionFlag = resumeSession
         ? ` ${forkSession ? "--fork" : "-r"} ${shellQuote(posix.join(sandboxSessionsDir, `${resumeSession}.jsonl`))}`
         : "";
