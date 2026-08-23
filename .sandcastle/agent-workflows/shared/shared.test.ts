@@ -25,6 +25,7 @@ import {
   reviewOutputSchema,
   type InlineComment,
 } from "./review-output.ts";
+import { primeAgent } from "../../prime-agent-provider.ts";
 import { standardSchema, asRecord, asString } from "./common.ts";
 
 test("parseDiffLines maps added/context new-file line numbers", () => {
@@ -562,6 +563,18 @@ test("#1173 PR fixture：review 无模型标签走 Claude，显式 DeepSeek 标�
   assert.deepEqual(provider.env, {
     DEEPSEEK_API_KEY: "deepseek-token",
   });
+});
+
+test("#1002 provider 回退 fail-loud：未显式传 provider 时 buildPrintCommand 抛错", () => {
+  const provider = primeAgent("deepseek-v4-pro");
+  assert.throws(
+    () =>
+      provider.buildPrintCommand({
+        prompt: "hi",
+        dangerouslySkipPermissions: true,
+      }),
+    /provider is required/,
+  );
 });
 
 test("#1002 历史不复活：registry 只含显式 allowlist，不含 Kimi 常量/票面路由", () => {

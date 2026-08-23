@@ -339,6 +339,7 @@ export const selectedAgent = (
     const token = modelCredential(entry.secretName, env);
     if (
       entry.provider === "prime-agent" &&
+      entry.primeProvider === "deepseek" &&
       entry.secretName === DEEPSEEK_SECRET
     ) {
       return primeAgent(entry.model, {

@@ -6,7 +6,8 @@
      checkout/base、确定性分支、Draft PR、force-with-lease、失败回写、防重）。
   2. issue shape 检测脚本（detect-issue-shape.sh）在 mock gh 下四形态对拍。
   3. 禁入模式扫描（不读本机 Prime/Codex auth；不复用 watcher/harvest/main-loop；
-     #1002 旧 Kimi 常量/票面模型路由不复活）。
+     #1002 旧 Kimi 常量/票面模型路由不复活；Kimi 禁入扫描面含
+     prime-agent-provider.ts）。
   4. #1128/#1173 模型 registry 机械锁：精确数组 label 路由（禁止 toJSON+contains 子串）、
      最小 EVENT_PAYLOAD 接线（只传 labels.*.name）、固定 Secret allowlist、
      票面字符串不成为 env/secret key、remote-child identity 与模型凭据分离、
@@ -33,6 +34,7 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 WF_DIR = ROOT / ".github" / "workflows"
 AW_DIR = ROOT / ".sandcastle" / "agent-workflows"
+PROVIDER_TS = ROOT / ".sandcastle" / "prime-agent-provider.ts"
 FIXTURE_DIR = AW_DIR / "shared" / "fixtures"
 
 WORKFLOWS = [
@@ -408,6 +410,11 @@ def main() -> int:
     # ── 3. 禁入模式扫描 ────────────────────────────────────────────────────────
     all_text = "\n".join((WF_DIR / n).read_text() for n in WORKFLOWS)
     all_text += "\n".join(p.read_text() for p in AW_DIR.rglob("*") if p.is_file())
+    # MAJOR-2：#1002 Kimi 禁入锁必须覆盖 prime-agent-provider.ts（provider 缺省值
+    # 曾在该文件内，而旧扫描面只含 workflow + agent-workflows/**，造成假绿）。
+    # 该文件有合法的 ~/.prime 会话目录说明，故只把 Kimi 禁入针纳入其扫描面，
+    # 其余禁入针仍按原扫描面执行，避免把文档性路径说明误判为读取本机凭据。
+    provider_text = PROVIDER_TS.read_text()
     banned = [
         ("PRIME_API_KEY", "不得绑定 PRIME_API_KEY（认证路线未裁定）"),
         ("prime-inference", "不得绑定 prime-inference"),
@@ -419,12 +426,15 @@ def main() -> int:
         ("harvest.sh", "不得复用现有 harvest.sh 运行时"),
         ("main.mts", "不得复用现有 main.mts 主循环"),
         ("main-swarm.mts", "不得复用现有 main-swarm.mts 蜂群"),
-        ("kimi-coding", "#1002 旧 Kimi provider 常量不得复活"),
         ("IMPLEMENTER_MODEL", "#1002 旧票面/常量模型路由不得复活"),
         ("REVIEWER_MODEL", "#1002 旧票面/常量模型路由不得复活"),
     ]
     for needle, why in banned:
         check(needle not in all_text, f"禁入模式扫描命中 {needle!r}：{why}")
+    check(
+        "kimi-coding" not in all_text and "kimi-coding" not in provider_text,
+        "#1002 旧 Kimi provider 常量不得在 workflow/agent-workflows/prime-agent-provider.ts 复活",
+    )
     check("claudeCode" in all_text, "agent provider 必须使用 Sandcastle 内置 claudeCode()")
 
     # ── 4. #1128 显式模型 registry 机械锁 ────────────────────────────────────
@@ -525,6 +535,15 @@ def main() -> int:
     )
     check("primeAgent" in agent_ts and "claudeCode" in agent_ts,
           "shared/agent.ts 必须同时具备 Claude 内置 provider 与自定义 Prime Agent provider")
+    check(
+        'entry.primeProvider === "deepseek"' in agent_ts,
+        "shared/agent.ts DeepSeek 构造分支必须同时断言 entry.primeProvider === 'deepseek'",
+    )
+    check(
+        '?? "kimi-coding"' not in provider_text
+        and "kimi-coding" not in provider_text,
+        "prime-agent-provider.ts 不得保留 kimi-coding provider 缺省/常量",
+    )
     check("REMOTE_CHILD_IDENTITY_ENV_ALLOWLIST" in agent_ts,
           "shared/agent.ts 必须把 remote-child invitation/lease 与模型凭据分开")
     check(
@@ -615,7 +634,7 @@ def main() -> int:
         return 1
     print(
         "verify-workflows: 全过（"
-        f"{len(WORKFLOWS)} 个 workflow 结构 + 4 形态对拍 + 禁入扫描 + "
+        f"{len(WORKFLOWS)} 个 workflow 结构 + 4 形态对拍 + 禁入扫描（含 provider 文件） + "
         f"{len(FIXTURE_REQUIREMENTS)} 个 #1128 事件 fixture 覆盖 + registry 机械锁 + "
         f"{len(jq_expressions)} 条 jq 表达式语法校验）"
     )
