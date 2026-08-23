@@ -22,3 +22,9 @@
 | plist/脚本 | 宿主路径切 host + run-claim-loop/install 脚本 REPO 自推导（d0507bd585、双重后缀订正 1ba4d865f1） | 已入 main |
 | launchd claimer | com.newchanlun.sandcastle-claimer（PID 18759，exit 0）常驻；nohup 版已撤，单实例 | 运行中 |
 | #1206 | 21:17:31 自动拾取，工蜂在跑（prime-agent 活跃） | 进行中 |
+
+## 续：#964 A 案家票（wayfinder 立图，2026-08-24，派子代理执行）
+
+| 项 | 详情 | 状态 |
+|---|---|---|
+| wayfinder-ticket-worker（rlm 子代理） | 建图 #1210 + grilling 票 #1211 + 原生 sub-issue 边 + #964 评论指针 | 完成 |
