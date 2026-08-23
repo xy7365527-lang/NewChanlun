@@ -406,6 +406,11 @@ def main() -> int:
         )
         mock.chmod(0o755)
         env = dict(os.environ, GH_REPO="o/r", PATH=f"{td}:{os.environ['PATH']}")
+        # GITHUB_OUTPUT 是 Actions runner 注入的步骤输出文件路径；detect-issue-shape.sh
+        # 看到它非空就改写输出文件而非 stdout，导致本对拍在 Actions 环境里读到空
+        # stdout、四形态全部误报（#1173 实测）。对拍子进程须与本地交互环境同构，
+        # 因此剥掉该变量，其余 runner 注入变量不进入该脚本的判定面。
+        env.pop("GITHUB_OUTPUT", None)
         cases = [
             ("1", "leaf", ""),
             ("2", "map", ""),
