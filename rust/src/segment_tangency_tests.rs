@@ -14,10 +14,11 @@
 //! ## 立项事实（#302 评审 HIGH-1）
 //!
 //! #288 把 `three_stroke_overlap` 切为含端点 `<=`、`is_fractal_and_gap` 缺口臂切为严格 `>`，
-//! 但**零新增单测**。两谓词是私有 fn，crate 外集成测试调不到；唯一能覆盖它们的
-//! `tests/test_rust_segment_equivalence.py::test_segment_bitexact_real` 依赖 gitignored 的
-//! `.cache/BZ_1min_2024_raw.parquet`，在 CI/新克隆环境 `pytest.skip` ⟹ 把谓词改回旧口径，
-//! 全套非 slow 仍全绿。本模块补上这条锁：口径回改，下列相切用例立刻红并指认到具体谓词。
+//! 但**零新增单测**。两谓词是私有 fn，crate 外集成测试调不到；曾唯一可能覆盖它们的
+//! v1 legacy 对拍 `tests/test_rust_segment_equivalence.py::test_segment_bitexact_real`
+//! （已随 #1212 退役删除）依赖 gitignored 的 `.cache/BZ_1min_2024_raw.parquet`，在 CI/新克隆
+//! 环境 `pytest.skip` ⟹ 把谓词改回旧口径，全套非 slow 仍全绿。本模块补上这条锁：口径回改，
+//! 下列相切用例立刻红并指认到具体谓词。
 //!
 //! ## 手填 vs 机器耦合（090 诚实边界）
 //!
