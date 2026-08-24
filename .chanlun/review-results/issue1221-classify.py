@@ -3,11 +3,12 @@
 
 订正 #1206 的前瞻口径：坐实检查窗口以候选 bar 为终点（backward）。
 三分类、双口径、参考极值口径与 #1206 逐字同一，只改窗口方向。
-另加两个读数：①「自前高/前低形成以来」的终点窗（左端点=参考极值 index）；② 前瞻×终点交叉表。
+另加读数：①「自前高/前低形成以来」的终点窗（左端点两档：参考极值 index / 参考子段末端 ref_end）；② 前瞻×终点交叉表；③ 终点窗「候选 bar 计不计入」对照（含/排除候选 bar）。
 
 输入: price_json + raw_dump + structure_dump + sample_keys + sample_structure
 输出: 全量 308 与样本（42 键 → 44 例 cond1）的 三分类 × 双口径 × 多 horizon ×
-      两方向（forward=#1206 前瞻 / backward=#1221 终点口径）读数表 + from-ref + 交叉表（stdout）。
+      两方向（forward=#1206 前瞻 / backward=#1221 终点口径）读数表 + from-ref（左端点两档）
+      + 候选 bar 计不计入对照 + 交叉表（stdout）。
 
 窗口（逐字，见报告）：
   forward  = (start, start+H]   —— #1206 前瞻，代码实现 [start+1 : start+H]（候选 bar 不计）
@@ -29,8 +30,9 @@ def is_cond1(r):
     return r['stepfail'] in ('type23_descend_nodiv_condSome(1)', 'type1_div_fail_Some(1)')
 
 def ref_extreme(s, high, low):
-    """前高(Short)/前低(Long)。返回 (val, kind, fallback, argmax_idx)。与 #1206 逐字同一
-    （argmax_idx 为参考极值在窗口内的绝对 index，供 from_ref 窗使用）。"""
+    """前高(Short)/前低(Long)。返回 (val, kind, fallback, argmax_idx, ref_end_idx)。
+    (val, kind, fallback) 与 #1206 逐字同一；另返回两个绝对 index 供 from_ref 窗使用：
+    argmax_idx = 参考极值首现位置（vals.index 取首个命中），ref_end_idx = 参考子段末端。"""
     d = s['dir']
     subs = s.get('sub_moves') or []
     ai = s.get('anchor_idx')
@@ -43,26 +45,26 @@ def ref_extreme(s, high, low):
             if d == 'Short':
                 vals = high[m['start']:m['end']+1]
                 v = max(vals)
-                return v, 'high', False, m['start'] + vals.index(v)
+                return v, 'high', False, m['start'] + vals.index(v), m['end']
             else:
                 vals = low[m['start']:m['end']+1]
                 v = min(vals)
-                return v, 'low', False, m['start'] + vals.index(v)
+                return v, 'low', False, m['start'] + vals.index(v), m['end']
     em = s.get('exec_move') or {}
     if 'start' in em and 'end' in em:
         if d == 'Short':
             vals = high[em['start']:em['end']+1]
             v = max(vals)
-            return v, 'high', True, em['start'] + vals.index(v)
+            return v, 'high', True, em['start'] + vals.index(v), em['end']
         else:
             vals = low[em['start']:em['end']+1]
             v = min(vals)
-            return v, 'low', True, em['start'] + vals.index(v)
-    return None, None, True, None
+            return v, 'low', True, em['start'] + vals.index(v), em['end']
+    return None, None, True, None, None
 
-def classify(s, high, low, close, ref='si', H=720, direction='backward'):
+def classify(s, high, low, close, ref='si', H=720, direction='backward', include_candidate=True):
     d = s['dir']
-    rv, kind, fb, _arg = ref_extreme(s, high, low)
+    rv, kind, fb, _arg, _ref_end = ref_extreme(s, high, low)
     if rv is None:
         return None
     start = s['source_index'] if ref == 'si' else s['bar']
@@ -73,9 +75,11 @@ def classify(s, high, low, close, ref='si', H=720, direction='backward'):
             return dict(ref_val=rv, kind=kind, fallback=fb, res={'loose': '未破', 'strict': '未破'})
         ah = high[start+1:end]; al = low[start+1:end]; ac = close[start+1:end]
     else:
-        # #1221 终点口径：之前窗口 (start-H, start]，代码实现 [start-H+1 : start+1]（候选 bar 计入）
+        # #1221 终点口径：之前窗口 (start-H, start]，代码实现 [start-H+1 : start+1]
+        # include_candidate=True 计候选 bar（主口径）；False 排除候选 bar（§4.1 对照）
         b0 = max(0, start - H + 1)
-        ah = high[b0:start+1]; al = low[b0:start+1]; ac = close[b0:start+1]
+        end = start + 1 if include_candidate else start
+        ah = high[b0:end]; al = low[b0:end]; ac = close[b0:end]
         if len(ah) < 2:
             return dict(ref_val=rv, kind=kind, fallback=fb, res={'loose': '未破', 'strict': '未破'})
     if kind == 'high':
@@ -99,16 +103,18 @@ def classify(s, high, low, close, ref='si', H=720, direction='backward'):
                 res[name] = '已破'
     return dict(ref_val=rv, kind=kind, fallback=fb, res=res)
 
-def classify_from_ref(s, high, low, close):
-    """自前高/前低形成以来（左端点 = 参考极值 index）的终点窗分类。"""
+def classify_from_ref(s, high, low, close, left='argmax'):
+    """自前高/前低形成以来的终点窗分类。左端点两档：
+    left='argmax' = 参考极值 index（§4.2 主档）；left='ref_end' = 参考子段末端（§4.2 对照）。"""
     d = s['dir']
-    rv, kind, fb, argmax = ref_extreme(s, high, low)
-    if rv is None or argmax is None:
+    rv, kind, fb, argmax, ref_end = ref_extreme(s, high, low)
+    if rv is None:
         return None
     start = s['source_index']
-    if start <= argmax:
+    l0 = argmax if left == 'argmax' else ref_end
+    if l0 is None or start <= l0:
         return None
-    ah = high[argmax+1:start+1]; al = low[argmax+1:start+1]; ac = close[argmax+1:start+1]
+    ah = high[l0+1:start+1]; al = low[l0+1:start+1]; ac = close[l0+1:start+1]
     if len(ah) < 1:
         return None
     if kind == 'high':
@@ -132,7 +138,7 @@ def classify_from_ref(s, high, low, close):
                 res[name] = '已破'
     return dict(ref_val=rv, kind=kind, fallback=fb, res=res)
 
-def summarize(cands, structs, high, low, close, ref, H, direction):
+def summarize(cands, structs, high, low, close, ref, H, direction, include_candidate=True):
     idx = {(s['bar'], s['level'], s['source_index'], s['dir'], s['stepfail']): s for s in structs}
     out = Counter(); missing = 0
     for r in cands:
@@ -140,14 +146,14 @@ def summarize(cands, structs, high, low, close, ref, H, direction):
         s = idx.get(key)
         if s is None:
             missing += 1; continue
-        cls = classify(s, high, low, close, ref=ref, H=H, direction=direction)
+        cls = classify(s, high, low, close, ref=ref, H=H, direction=direction, include_candidate=include_candidate)
         if cls is None:
             missing += 1; continue
         for k, v in cls['res'].items():
             out[(r['dir'], k, v)] += 1
     return out, missing
 
-def summarize_from_ref(cands, structs, high, low, close):
+def summarize_from_ref(cands, structs, high, low, close, left='argmax'):
     idx = {(s['bar'], s['level'], s['source_index'], s['dir'], s['stepfail']): s for s in structs}
     out = Counter(); missing = 0
     for r in cands:
@@ -155,7 +161,7 @@ def summarize_from_ref(cands, structs, high, low, close):
         s = idx.get(key)
         if s is None:
             missing += 1; continue
-        cls = classify_from_ref(s, high, low, close)
+        cls = classify_from_ref(s, high, low, close, left=left)
         if cls is None:
             missing += 1; continue
         for k, v in cls['res'].items():
@@ -192,11 +198,18 @@ def main():
             print(f"  [{k}] #1206 前瞻(全量): {fmt(total(fw, k))}  |  #1221 终点(全量): {fmt(total(bw, k))}  |  #1221 终点(样本): {fmt(total(bs, k))}")
         print(f"        全量 Short  #1206: {fmt(row(fw,'Short','loose'))}  →  #1221: {fmt(row(bw,'Short','loose'))}")
         print(f"        全量 Long   #1206: {fmt(row(fw,'Long','loose'))}  →  #1221: {fmt(row(bw,'Long','loose'))}")
-    # from-ref（自前高/前低形成以来）
+        bx, _ = summarize(cands, full_struct, high, low, close, 'si', H, 'backward', include_candidate=False)
+        print(f"        终点(排除候选 bar, 全量): 宽松 {fmt(total(bx, 'loose'))}  |  严格 {fmt(total(bx, 'strict'))}")
+    # from-ref（自前高/前低形成以来；左端点两档：参考极值 index / 参考子段末端 ref_end）
     fr, frmiss = summarize_from_ref(cands, full_struct, high, low, close)
-    print(f"\n===== from-ref（自前高/前低形成以来，全量，missing={frmiss}）=====")
+    print(f"\n===== from-ref（自前高/前低形成以来，全量）=====")
+    print(f"  左端点=参考极值 index（argmax，missing={frmiss}）:")
     for k in ['loose', 'strict']:
-        print(f"  [{k}] 全量: {fmt(total(fr, k))}")
+        print(f"    [{k}] 全量: {fmt(total(fr, k))}")
+    fre, fremiss = summarize_from_ref(cands, full_struct, high, low, close, left='ref_end')
+    print(f"  左端点=参考子段末端（ref_end，missing={fremiss}）:")
+    for k in ['loose', 'strict']:
+        print(f"    [{k}] 全量: {fmt(total(fre, k))}")
     # 交叉表（forward × backward，H=720，宽松档）
     fw720, _ = summarize(cands, full_struct, high, low, close, 'si', 720, 'forward')
     bw720, _ = summarize(cands, full_struct, high, low, close, 'si', 720, 'backward')
