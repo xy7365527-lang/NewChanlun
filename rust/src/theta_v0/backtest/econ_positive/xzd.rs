@@ -10,9 +10,10 @@ use super::*;
 /// ## 结果包（六要素）
 /// - **结论**：Type2/3 信号在下钻未锚定（[`DescendStop::NoDivergence`]，小转大域）时，用二类买卖点
 ///   代替区间套定位；门通行 = **每级同一个判据 C2∧C3(新中枢+突破)∧¬例外臂**（#1220 / #1204 裁定 a：
-///   C3 从 level==1 扩到每级，消灭 #799/#804 宽严两档；例外臂 = 三买卖坐实后「强力不背驰创新高」，
-///   43 课答疑唯一例外，力度按 #985 ForceL）。输出标注 `C2+C3(breakout) xzd`，不得沿用旧
-///   `C2-only xzd` 标签。
+///   C3 从 level==1 扩到每级，消灭 #799/#804 宽严两档；例外臂 = 三买卖坐实后「向上/向下离开不背驰
+///   且后续发展出新的同向走势类型」——结构判据（新中枢上移/三买卖点确认），#985 ForceL 只作触发
+///   前件，价格新高/新低不构成判据（#1204 问 2 裁定「判据形态钉死」）。输出标注
+///   `C2+C3(breakout) xzd`，不得沿用旧 `C2-only xzd` 标签。
 /// - **定义依据**：`053:28`（二类点补充小转大）；第43课「背驰后新中枢+反向突破」原文语义；codex #44
 ///   终局裁定(c)（judge_third 归属链 vs last_zs 选择链结构性不重合，见 `.chanlun/review-results/
 ///   codex-decide-20260702-193853-5bbe.md`）。
@@ -21,7 +22,7 @@ use super::*;
 ///   静默接受（`acc_classification_level_hole_dx` 断言守护）。
 /// - **下游推论**：Type2/3 小转大域从「证书 None 门直接拒」改为二通道分派；两通道输入域不相交
 ///   = Some/None 互斥（codex §6-4 同义反复，非经验命题）。#1220 起每级统一 C2∧C3 硬门，并加例外臂
-///   （三买卖坐实后强力不背驰创新高 ⟹ 拒，43 课答疑唯一例外）。
+///   （三买卖坐实后向上/向下离开不背驰且发展出新走势类型 ⟹ 拒，43 课答疑唯一例外）。
 /// - **谱系引用**：606（区间套有效域=Type1）、673（Cand^δ 三分拆）、知识库 L410（小转大补充定位）、
 ///   #44 探针（C3 center 匹配口径重设计裁决：结构性不重合）。
 /// - **影响声明**：`gate_pass()` 改为 `type2_confirmed && c3_new_center_breakout_ok && !force_exception_ok`；
@@ -67,18 +68,21 @@ pub(in super::super) struct XzdEvidence {
     /// （codex-xzd-grading-20260704，条件翻转/当前维持现状）：level>=2 的 C3 硬门有效域未证
     /// （breakout_ok=1/217=0.46% 近退化单点），非「判据在全 level 不适用」；翻转条件见终裁报告三条。
     pub c3_new_center_breakout_ok: bool,
-    /// 例外臂（#1220 / #1204 裁定 3 / #985 ForceL）：三买卖坐实（[`Self::c3_new_center_breakout_ok`]）
-    /// 之后，其后次级走势又以**强力度（不背驰）**向原方向创出新高/新低（43 课答疑 `043:194`
-    /// 「除非出现强力不背驰创新高的情况」）。**参门项**：true ⟹ 三买卖坐实被推翻，回到「持有」
-    /// 侧（拒）；力度判据 = #985 ForceL `L(C) >= L(B)`（[`xzd_force_exception`]，段→笔反查 #989）。
+    /// 例外臂（#1220 / #1204 裁定 a + 问 2 裁定「判据形态钉死」）：三买卖坐实
+    /// （[`Self::c3_new_center_breakout_ok`]）之后，其后次级走势以**强力度（不背驰）**向原方向
+    /// 离开该新中枢（43 课答疑 `043:194`「除非出现强力不背驰创新高的情况」），**且后续发展出新的
+    /// 同向走势类型**（新中枢上移 / 三买卖点确认，结构判据——价格新高/新低本身不构成判据）。
+    /// **参门项**：true ⟹ 三买卖坐实被推翻，回到「持有」侧（拒）；触发前件力度 =
+    /// #985 ForceL `L(C) >= L(B)`（[`xzd_force_exception`]，段→笔反查 #989）。
     pub force_exception_ok: bool,
 }
 
 impl XzdEvidence {
     /// 门通行（#1220 / #1204 裁定 a，坐实裁决接进出场下钻）：**每级同一个判据**
     /// `C2 ∧ C3(新中枢突破) ∧ ¬例外臂`——C3 从 level==1 扩到每级（消灭 #799/#804 宽严两档）；
-    /// 例外臂（[`Self::force_exception_ok`]，三买卖坐实后强力不背驰创新高）成立 ⟹ 拒（43 课
-    /// 答疑唯一例外，持有）。三卖未出（`c3_new_center_breakout_ok` 假）⟹ 中枢继续，拒。旧字段
+    /// 例外臂（[`Self::force_exception_ok`]，三买卖坐实后向上/向下离开不背驰且发展出新走势类型）
+    /// 成立 ⟹ 拒（43 课答疑唯一例外，持有）。三卖未出（`c3_new_center_breakout_ok` 假）⟹ 中枢
+    /// 继续，拒。旧字段
     /// （`sub_last_zs_type3`/`same_side_l0_type3_any`/`same_center_any`/`same_side_causal_ok`）
     /// 全部保留为诊断字段，不参门。
     pub(in super::super) fn gate_pass(&self) -> bool {
@@ -222,33 +226,44 @@ pub(super) fn xzd_c3_new_center_breakout(
     }
 }
 
-/// 例外臂力度原语（#1220 / #1204 裁定 3 / #985 ForceL）：三买卖坐实后「强力不背驰创新高/新低」。
+/// 例外臂（#1220 / #1204 裁定 a + 问 2 裁定「判据形态钉死」）：三买卖坐实后「向上/向下离开不背驰
+/// **且后续发展出新的同向走势类型**」（结构判据——价格新高/新低本身不构成判据）。
 ///
 /// 第43课答疑 `043-第43课.md:194`：「如果破了，那就一定要走，除非出现强力不背驰创新高的情况。」——
-/// 三卖（三买）已出之后，若其后次级走势以**强力度（不背驰）**向原方向创出新高/新低，则三买卖
-/// 坐实被推翻，回到「持有」侧（例外臂拒）。坐实窗口以候选 bar（`confirm_index`）为终点，无前瞻。
+/// 三卖（三买）已出之后，若其后次级走势以**强力度（不背驰）**向原方向离开该新中枢，且此后发展出
+/// 新的同向走势类型（新中枢上移/下移、三买卖点确认），则三买卖坐实被推翻，回到「持有」侧
+/// （例外臂拒）。坐实窗口以候选 bar（`confirm_index`）为终点，无前瞻。
 ///
-/// 判定（每级同一个判据，与 [`xzd_c3_new_center_breakout`] 同族反向）：
-/// 1. **创新高/新低**（几何）：新中枢 `z` 被反向突破（三卖=跌破 `z.zd` / 三买=升破 `z.zg`）之后，
-///    其后次级走势再以**原方向**突破 `z` 的另一边界（Short: `hi > z.zg` 创新高 / Long:
-///    `lo < z.zd` 创新低）——「破前高」的结构代理 = 新中枢边界（#1204 裁定「反向突破=三买卖坐实」）。
-/// 2. **不背驰**（力度）：该次级走势的 `L(段) >= L(前一同向次级走势)`（#985 ForceL，
-///    `segment_force_l` 段→笔反查 #989）。任一段无笔 ⟹ 无源不判（不触发例外）。
+/// **判据形态（#1204 问 2 裁定）**：`#985 ForceL`（创新高且不背驰）只作触发前件，判据必须落在
+/// 「后续走势类型发展」上——两段同时成立才触发例外臂：
+/// 1. **触发前件（#985 ForceL）**：新中枢 `z` 被反向突破（三卖=跌破 `z.zd` / 三买=升破 `z.zg`）
+///    之后，其后次级走势再以**原方向**突破 `z` 的另一边界（Short: `hi > z.zg` / Long:
+///    `lo < z.zd`，结构离开新中枢），且 `L(段) >= L(前一同向次级走势)`（`segment_force_l`
+///    段→笔反查 #989）。任一段无笔 ⟹ 无源不判（不触发）。
+/// 2. **结构判据（后续走势类型发展，两者任一成立）**：
+///    - **三买卖点确认**：`sub_bsp` 中存在同向三类点（Short ⟹ `buy3` / Long ⟹ `sell3`），其
+///      `center` 即该新中枢 `z`（离开中枢回试不入 ZG/ZD），且 `source_index` 在该离开走势之后；
+///    - **新中枢上移/下移**：`sub_centers` 中存在其后中枢 `z2`（`start_index >= z.end_index`），
+///      [`classify_relation`](crate::theta_v0::classifier::center::classify_relation)`(z, z2)` 为
+///      `UpContinuation`（Short 侧，外缘完全分离向上）/ `DownContinuation`（Long 侧）——新走势
+///      类型确立。
 ///
-/// 两条件同时成立才触发例外臂；只创新高但力度背驰（L 衰减）⟹ 不触发（放行侧，真三卖）。
+/// 只离开但力度背驰（L 衰减）⟹ 不触发；触发成立但无后续走势类型发展 ⟹ 不触发（放行侧，真三卖）。
 pub(super) fn xzd_force_exception(
     source_index: usize,
     confirm_index: usize,
     side: Side,
     sub_centers: &[Center],
+    sub_bsp: &[BspPoint],
     sub_moves: &[LeveledMove],
     strokes: &[crate::theta_v0::types::Stroke],
 ) -> bool {
     use crate::theta_v0::classifier::cand_predicate::rmove_dir;
+    use crate::theta_v0::classifier::center::classify_relation;
     use crate::theta_v0::parser::segment::segment_force_l;
     use crate::theta_v0::types::Direction;
 
-    // 反向突破方向（三卖/三买）与例外方向（强力创新高/新低）互反。
+    // 反向突破方向（三卖/三买）与例外方向（后续新走势类型）互反。
     let (break_dir, exc_dir) = match side {
         Side::Short => (Direction::Down, Direction::Up),
         Side::Long => (Direction::Up, Direction::Down),
@@ -271,7 +286,7 @@ pub(super) fn xzd_force_exception(
         else {
             continue;
         };
-        // 其后次级走势中找「强力创新高/新低」。
+        // 其后次级走势中找触发前件「原方向离开不背驰」。
         for m in sub_moves
             .iter()
             .filter(|m| m.start_index >= m_break.end_index && m.end_index <= confirm_index)
@@ -279,25 +294,47 @@ pub(super) fn xzd_force_exception(
             if rmove_dir(&m.rmove) != Some(exc_dir) {
                 continue;
             }
-            // 创新高/新低：突破新中枢另一边界（几何）。
-            let new_extreme = match side {
+            // 离开中枢：突破新中枢另一边界（结构离开，非价格极值测试）。
+            let leaves = match side {
                 Side::Short => m.rmove.hi() > z.zg,
                 Side::Long => m.rmove.lo() < z.zd,
             };
-            if !new_extreme {
+            if !leaves {
                 continue;
             }
-            // 不背驰：L(m) >= L(前一同向次级走势)（#985 ForceL）。
+            // 不背驰：L(m) >= L(前一同向次级走势)（#985 ForceL 触发前件）。
             let l_cur = segment_force_l(strokes, m.start_index, m.end_index);
             let l_prev = sub_moves
                 .iter()
                 .rev()
                 .find(|p| p.end_index < m.start_index && rmove_dir(&p.rmove) == Some(exc_dir))
                 .and_then(|p| segment_force_l(strokes, p.start_index, p.end_index));
-            if let (Some(lc), Some(lp)) = (l_cur, l_prev) {
-                if lc >= lp {
-                    return true;
-                }
+            if !matches!((l_cur, l_prev), (Some(lc), Some(lp)) if lc >= lp) {
+                continue;
+            }
+            // 结构判据一：三买卖点确认（同向三类点，中心即 z，且在该离开走势之后）。
+            let third_point_confirmed = sub_bsp.iter().any(|q| {
+                (match side {
+                    Side::Short => q.bits.buy3,
+                    Side::Long => q.bits.sell3,
+                }) && q.source_index > m.end_index
+                    && q.source_index <= confirm_index
+                    && q.center.map_or(false, |o| {
+                        matches!(
+                            o,
+                            crate::theta_v0::classifier::bsp::OwnerRef::Center(c)
+                                if c.start_index == z.start_index && c.end_index == z.end_index
+                        )
+                    })
+            });
+            // 结构判据二：新中枢上移/下移（其后中枢与 z 成趋势延续关系，新走势类型确立）。
+            let new_center_shifted = sub_centers.iter().any(|z2| {
+                z2.start_index >= z.end_index
+                    && z2.end_index <= confirm_index
+                    && classify_relation(z, z2).trend_direction() == Some(exc_dir)
+            });
+            if third_point_confirmed || new_center_shifted {
+                return true;
             }
         }
     }
@@ -395,7 +432,8 @@ pub(super) fn l0_units_from_tower(moves: &[LeveledMove]) -> Vec<UnitRange> {
 /// 前提（调用侧路由保证）：`s` 是执行级 tower[lvl] 中 end_index==source_index 的候选段，且信号已判为
 /// 小转大域（Type2/3 ∧ 下钻未锚定 [`DescendStop::NoDivergence`] ⟹ build_nest_certificate 返回 None）。
 /// C1（下钻未锚定）由调用侧保证，本函数不重判。evidence 始终构造（含 C2/C3/例外臂/诊断分项取值）——
-/// 诊断可读分项，门读 gate_pass。`strokes` = 本 bar 因果前缀笔序列（#985 ForceL 例外臂数据源）。
+/// 诊断可读分项，门读 gate_pass。`strokes` = 本 bar 因果前缀笔序列（例外臂触发前件 #985 ForceL
+/// 数据源）；`sub_bsp` = 次级三类买卖点（例外臂「三买卖点确认」结构判据数据源）。
 #[allow(clippy::too_many_arguments)]
 pub(super) fn xiaozhuanda_confirm(
     s: &LeveledMove,
@@ -431,6 +469,7 @@ pub(super) fn xiaozhuanda_confirm(
             confirm_index,
             side,
             sub_centers,
+            sub_bsp,
             sub_moves,
             strokes,
         ),

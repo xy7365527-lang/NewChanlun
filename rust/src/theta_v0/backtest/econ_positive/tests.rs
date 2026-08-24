@@ -452,37 +452,38 @@ fn xzd_gate_pass_level1_c3_breakout_hard_gate() {
     );
 }
 
-/// 例外臂力度原语（#1220 / #1204 裁定 3 / #985 ForceL）：三卖坐实后强力不背驰创新高。
+/// 例外臂（#1220 / #1204 裁定 a + 问 2 裁定「判据形态钉死」）：三卖坐实后「向上离开不背驰
+/// 且后续发展出新的上涨走势类型」——结构判据（三买确认 / 新中枢上移），价格新高本身不构成判据。
 #[test]
-fn xzd_force_exception_forcel_new_high_short() {
+fn xzd_force_exception_structural_short() {
     use super::super::super::types::{Direction, Stroke};
 
     let source_index = 50;
     let confirm_index = 100;
     // 新中枢 z=[55,70]，zd=10/zg=20；三卖 = 其后 Down 走势跌破 zd（lo=0 < 10）。
-    let centers = vec![xzd_center(10, 20, 55, 70)];
+    let z = xzd_center(10, 20, 55, 70);
     // sub_moves：prev_up=[0,40]（前一同向走势，比较基准）；break=[71,80] Down（三卖）；
-    // up=[81,90] Up（创新高，hi=25 > zg=20）。
+    // up=[81,90] Up（离开中枢，hi=25 > zg=20）。
     let prev_up = xzd_seg_hi(0, 40, 15);
     let brk = xzd_seg(71, 80);
     let up = xzd_seg_hi(81, 90, 25);
     let sub_moves = vec![prev_up.clone(), brk.clone(), up.clone()];
 
-    // 无笔 ⟹ 无源不判，不触发例外（即便创新高几何成立）。
+    // 无笔 ⟹ 无源不判，不触发例外（即便离开几何成立）。
     assert!(
         !super::xzd_force_exception(
             source_index,
             confirm_index,
             Side::Short,
-            &centers,
+            &[z],
+            &[],
             &sub_moves,
             &[],
         ),
         "无笔 ⟹ 无源不判 ⟹ 不触发例外臂"
     );
 
-    // 不背驰（L(up) >= L(prev_up)）：笔序列让 L(prev_up)=v(s1)-v(s0)=-10/21，
-    // L(up)=v(s3)-v(s2)=50/6 ⟹ L(up) >= L(prev_up) ⟹ 强力创新高 ⟹ 例外臂。
+    // 不背驰笔序列：L(prev_up)=v(s1)-v(s0)=-10/21，L(up)=v(s3)-v(s2)=50/6 ⟹ L(up) >= L(prev_up)。
     let strokes_strong = vec![
         Stroke {
             direction: Direction::Up,
@@ -513,20 +514,116 @@ fn xzd_force_exception_forcel_new_high_short() {
             end_price: 200,
         },
     ];
+
+    // 触发前件成立（离开不背驰）但无后续走势类型发展 ⟹ 不触发例外臂（新高本身不构成判据）。
+    assert!(
+        !super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Short,
+            &[z],
+            &[],
+            &sub_moves,
+            &strokes_strong,
+        ),
+        "触发前件成立、无结构发展 ⟹ 不触发例外臂（价格新高不构成判据）"
+    );
+
+    // 结构判据一：三买确认（buy3 中心即 z，source_index=95 在离开走势 [81,90] 之后）⟹ 例外臂。
+    let mut buy3 = BspBits::default();
+    buy3.buy3 = true;
+    let bsp_buy3_after = vec![xzd_bsp(95, buy3, Some(z))];
     assert!(
         super::xzd_force_exception(
             source_index,
             confirm_index,
             Side::Short,
-            &centers,
+            &[z],
+            &bsp_buy3_after,
             &sub_moves,
             &strokes_strong,
         ),
-        "创新高 ∧ 不背驰（L(up) >= L(prev_up)）⟹ 例外臂"
+        "三买确认（buy3 中心即 z，且在离开走势之后）⟹ 例外臂"
+    );
+
+    // buy3 在离开走势之内/之前（source_index=88 <= up.end=90）⟹ 非「后续」发展 ⟹ 不触发。
+    let bsp_buy3_before = vec![xzd_bsp(88, buy3, Some(z))];
+    assert!(
+        !super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Short,
+            &[z],
+            &bsp_buy3_before,
+            &sub_moves,
+            &strokes_strong,
+        ),
+        "buy3 不在离开走势之后 ⟹ 无「后续」发展 ⟹ 不触发"
+    );
+
+    // buy3 中心非 z ⟹ 不确认该新中枢的三买 ⟹ 不触发。
+    let other = xzd_center(30, 40, 90, 99);
+    let bsp_buy3_other = vec![xzd_bsp(95, buy3, Some(other))];
+    assert!(
+        !super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Short,
+            &[z],
+            &bsp_buy3_other,
+            &sub_moves,
+            &strokes_strong,
+        ),
+        "buy3 中心非 z ⟹ 不触发"
+    );
+
+    // 结构判据二：新中枢上移（z2=[91,99] dd=25 > z.gg=20 ⟹ UpContinuation）⟹ 例外臂。
+    let z2_up = xzd_center(25, 35, 91, 99);
+    assert!(
+        super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Short,
+            &[z, z2_up],
+            &[],
+            &sub_moves,
+            &strokes_strong,
+        ),
+        "新中枢上移（UpContinuation）⟹ 例外臂"
+    );
+
+    // z2 核心与 z 重叠（zd=15 <= zg=20 ⟹ CoreOverlap）⟹ 非新走势类型 ⟹ 不触发。
+    let z2_overlap = xzd_center(15, 30, 91, 99);
+    assert!(
+        !super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Short,
+            &[z, z2_overlap],
+            &[],
+            &sub_moves,
+            &strokes_strong,
+        ),
+        "后中枢与前中枢核心重叠 ⟹ 非新走势类型 ⟹ 不触发"
+    );
+
+    // z2 下移（gg=8 < z.dd=10 ⟹ DownContinuation）⟹ 方向不对 ⟹ 不触发。
+    let z2_down = xzd_center(1, 8, 91, 99);
+    assert!(
+        !super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Short,
+            &[z, z2_down],
+            &[],
+            &sub_moves,
+            &strokes_strong,
+        ),
+        "后中枢下移（DownContinuation）⟹ 方向不对 ⟹ 不触发"
     );
 
     // 背驰（L(up) < L(prev_up)）：末笔终点价从 200 降到 130 ⟹ L(up)=-20/6 < L(prev_up) ⟹
-    // 只创新高但力度背驰 ⟹ 不触发例外臂（放行侧，真三卖）。
+    // 离开成立但力度背驰 ⟹ 不触发例外臂（即便结构判据成立，放行侧真三卖）。
     let strokes_weak = vec![
         strokes_strong[0],
         strokes_strong[1],
@@ -544,11 +641,12 @@ fn xzd_force_exception_forcel_new_high_short() {
             source_index,
             confirm_index,
             Side::Short,
-            &centers,
+            &[z],
+            &bsp_buy3_after,
             &sub_moves,
             &strokes_weak,
         ),
-        "创新高但力度背驰（L(up) < L(prev_up)）⟹ 不触发例外臂"
+        "力度背驰（L(up) < L(prev_up)）⟹ 不触发例外臂"
     );
 
     // 三卖未出（无跌破 zd 的次级走势）⟹ 无坐实 ⟹ 无例外臂。
@@ -558,14 +656,15 @@ fn xzd_force_exception_forcel_new_high_short() {
             source_index,
             confirm_index,
             Side::Short,
-            &centers,
+            &[z],
+            &bsp_buy3_after,
             &sub_moves_no_break,
             &strokes_strong,
         ),
         "三卖未出（无反向突破）⟹ 无例外臂"
     );
 
-    // 创新高走势与三卖走势重叠（up.start < brk.end）⟹ 事件序不满足 ⟹ 无例外臂。
+    // 离开走势与三卖走势重叠（up.start < brk.end）⟹ 事件序不满足 ⟹ 无例外臂。
     let up_overlap = xzd_seg_hi(78, 90, 25);
     let sub_moves_overlap = vec![prev_up.clone(), brk.clone(), up_overlap.clone()];
     assert!(
@@ -573,11 +672,106 @@ fn xzd_force_exception_forcel_new_high_short() {
             source_index,
             confirm_index,
             Side::Short,
-            &centers,
+            &[z],
+            &bsp_buy3_after,
             &sub_moves_overlap,
             &strokes_strong,
         ),
-        "创新高须在三卖之后（up.start >= brk.end）⟹ 重叠走势不触发"
+        "离开须在三卖之后（up.start >= brk.end）⟹ 重叠走势不触发"
+    );
+}
+
+/// 例外臂 Long 侧镜像（每级同一个判据 #799/#804）：三买坐实后「向下离开不背驰且后续发展出
+/// 新的下跌走势类型」（三卖确认 / 新中枢下移）。
+#[test]
+fn xzd_force_exception_structural_long() {
+    use super::super::super::types::{Direction, Stroke};
+
+    let source_index = 50;
+    let confirm_index = 100;
+    // 新中枢 z=[55,70]，zd=10/zg=20；三买 = 其后 Up 走势升破 zg（hi=25 > 20）。
+    let z = xzd_center(10, 20, 55, 70);
+    // sub_moves：prev_down=[0,40]（前一同向走势，比较基准）；break=[71,80] Up（三买）；
+    // down=[81,90] Down（离开中枢，lo=0 < zd=10）。
+    let prev_down = xzd_seg(0, 40);
+    let brk = xzd_seg_hi(71, 80, 25);
+    let down = xzd_seg(81, 90);
+    let sub_moves = vec![prev_down.clone(), brk.clone(), down.clone()];
+
+    // 不背驰笔序列（Down 笔速沿走势方向恒正）：L(prev_down)=10/21-30/21=-20/21，
+    // L(down)=60/6-10/6=50/6 ⟹ L(down) >= L(prev_down)。
+    let strokes_strong = vec![
+        Stroke {
+            direction: Direction::Down,
+            start_index: 0,
+            end_index: 20,
+            start_price: 130,
+            end_price: 100,
+        },
+        Stroke {
+            direction: Direction::Down,
+            start_index: 20,
+            end_index: 40,
+            start_price: 100,
+            end_price: 90,
+        },
+        Stroke {
+            direction: Direction::Down,
+            start_index: 80,
+            end_index: 85,
+            start_price: 90,
+            end_price: 80,
+        },
+        Stroke {
+            direction: Direction::Down,
+            start_index: 85,
+            end_index: 90,
+            start_price: 80,
+            end_price: 20,
+        },
+    ];
+    // 触发前件成立、无结构发展 ⟹ 不触发（新低本身不构成判据）。
+    assert!(
+        !super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Long,
+            &[z],
+            &[],
+            &sub_moves,
+            &strokes_strong,
+        ),
+        "触发前件成立、无结构发展 ⟹ 不触发（价格新低不构成判据）"
+    );
+    // 三卖确认（sell3 中心即 z，source_index=95 在离开走势之后）⟹ 例外臂。
+    let mut sell3 = BspBits::default();
+    sell3.sell3 = true;
+    let bsp_sell3 = vec![xzd_bsp(95, sell3, Some(z))];
+    assert!(
+        super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Long,
+            &[z],
+            &bsp_sell3,
+            &sub_moves,
+            &strokes_strong,
+        ),
+        "三卖确认（sell3 中心即 z，且在离开走势之后）⟹ 例外臂"
+    );
+    // 新中枢下移（z2=[91,99] gg=8 < z.dd=10 ⟹ DownContinuation）⟹ 例外臂。
+    let z2_down = xzd_center(1, 8, 91, 99);
+    assert!(
+        super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Long,
+            &[z, z2_down],
+            &[],
+            &sub_moves,
+            &strokes_strong,
+        ),
+        "新中枢下移（DownContinuation）⟹ 例外臂"
     );
 }
 

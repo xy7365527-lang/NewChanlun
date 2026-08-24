@@ -1111,8 +1111,8 @@ pub(super) fn nest_trigger(cert: &GateCertificate, cand_type: BspCandType) -> Ne
 /// - **Nest 通道**（∃e<ℓ Conf^δ_e）：[`descend_type1_anchor_depth`]——次级别 Type1 下沉锚
 ///   （定律一，第29课L396；与 Type2/3 base gate 同一判据函数）。★S4 接线：返回 [`DescendLocator`]
 ///   ——`.anchored()` ⟹ e=ℓ−depth 的下级确认存在；深度与终止成因不再丢弃（#802 空洞①）。
-/// - **XZD 通道**：[`xiaozhuanda_confirm`] → [`XzdEvidence::gate_pass`]（level==1 C2∧C3 硬门 /
-///   其余 C2-only，单一来源）。
+/// - **XZD 通道**：[`xiaozhuanda_confirm`] → [`XzdEvidence::gate_pass`]（每级同一个判据
+///   `C2 ∧ C3(新中枢突破) ∧ ¬例外臂`，单一来源）。
 ///
 /// 任一通过 ⟹ true（承接成立，调用方组 RawSignal，trigger=[`NestTrigger::PanDivConsolidation`]）；
 /// 两门皆闭 / tower[lvl] 无 end_index==source_index 执行段 ⟹ false（承接失败，诚实丢弃）。
