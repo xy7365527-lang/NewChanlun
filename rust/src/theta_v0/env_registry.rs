@@ -100,6 +100,8 @@ pub const P1147_WINDOW_START: &str = "P1147_WINDOW_START";
 pub const P1147_WINDOW_END: &str = "P1147_WINDOW_END";
 pub const P1152_SAMPLE_KEYS_PATH: &str = "P1152_SAMPLE_KEYS_PATH";
 pub const P1152_SAMPLE_DUMP_PATH: &str = "P1152_SAMPLE_DUMP_PATH";
+pub const P1223_STRUCT_DUMP_PATH: &str = "P1223_STRUCT_DUMP_PATH";
+pub const P1223_CAND_PATH: &str = "P1223_CAND_PATH";
 pub const M8_FEE_DATUM: &str = "M8_FEE_DATUM";
 pub const M8_LEVEL_CAP: &str = "M8_LEVEL_CAP";
 pub const M8_SYMBOL: &str = "M8_SYMBOL";
@@ -576,6 +578,20 @@ pub static REGISTRY: &[EnvKeyMeta] = &[
         default_arm: "未设 ⟹ 不落盘",
         layer: "backtest",
     },
+    EnvKeyMeta {
+        key: P1223_STRUCT_DUMP_PATH,
+        semantic: "#1223 cond1 结构口径证据 dump 路径（test-only）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 不落盘",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
+        key: P1223_CAND_PATH,
+        semantic: "#1223 cond1 候选原始 dump 输入路径（test-only）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ issue1147-stepfail-raw-2024.jsonl",
+        layer: "backtest",
+    },
 ];
 
 /// 全键只读枚举（运行期可列，spec #756 C2 形状条「查询口」半条）。
@@ -602,14 +618,15 @@ pub fn find(key: &str) -> Option<&'static EnvKeyMeta> {
 mod tests {
     use super::*;
 
-    /// 表内键数锁 56（票 #746 面复核实数 46 + #758 issue766 补 4 + #719 补
-    /// THETA_DEATH_WO_DUMP 一键 + 2026-08-16 镜像追推 CI 守卫实撞补登 #837/#841 探针五键）。
+    /// 表内键数锁（票 #746 面复核实数 46 + #758 issue766 补 4 + #719 补
+    /// THETA_DEATH_WO_DUMP 一键 + 2026-08-16 镜像追推 CI 守卫实撞补登 #837/#841 探针五键
+    /// + #1223 探针两键）。
     #[test]
-    fn registry_has_61_entries() {
+    fn registry_has_63_entries() {
         assert_eq!(
             REGISTRY.len(),
-            61,
-            "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46 + #758 issue766 补 4 + #719 补 1 + #837/#841 补 5）"
+            63,
+            "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46 + #758 issue766 补 4 + #719 补 1 + #837/#841 补 5 + #1223 补 2）"
         );
     }
 

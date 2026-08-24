@@ -12051,3 +12051,454 @@ fn nesting_descent_and_type1_reach_dx() {
         b_pop[0], b_pop[1]
     );
 }
+
+// ── #1223 探针（#[test] #[ignore]，env 驱动）：出场 cond1 拒 × 后续走势类型发展交叉（结构判据版）──
+// 对 #1221/#1147 链的 308 出场 cond1 拒候选，逐候选落「结构口径」坐实证据——用生产结构函数
+// （xzd_c3_new_center_breakout 新中枢+反向突破、xzd_force_exception 强力不背驰创新高、xzd_type2_confirmed
+// 二类点诊断），替换 #1221 的「价格新高/新低」代理。判据引用生产已有结构函数，不另造。
+//
+// 双窗口径（判据同一，只换 confirm_index）：
+// - 终点窗：confirm_index = 候选评估 bar（生产可达，无前瞻）；
+// - 前瞻窗：confirm_index = min(候选 bar + H, 窗末)（上限，用未来数据），H ∈ {360,720,1440,2880}。
+//
+// 纯 #[cfg(test)]，零生产码改动。候选清单直接读 #1147 原始 dump（与 #1221 同源同口径）。
+//
+// 跑法：
+// `P1223_STRUCT_DUMP_PATH=/tmp/p1223_struct.jsonl \
+//   P1147_WINDOW_START=2024-01-01 P1147_WINDOW_END=2025-01-01 \
+//   cargo test --release --lib cond1_structural_trend_dx -- --ignored --nocapture`
+#[derive(Clone, Copy, Default)]
+struct P1223Ev {
+    new_center_exists: bool,
+    breakout_ok: bool,
+    force_exception: bool,
+    type2_confirmed: bool,
+    n_new_centers: usize,
+    n_sub_moves: usize,
+}
+
+/// #1223 结构证据（终点窗/前瞻窗同一函数，只换 `confirm_index`）。
+/// 判据 = 生产结构函数（不另造）：
+/// - [`xzd_c3_new_center_breakout`]：新中枢 + 反向突破（三卖/三买坐实 = 中枢死亡）；
+/// - [`xzd_force_exception`]：三买卖坐实后强力不背驰创新高/新低（#985 ForceL，例外臂）；
+/// - [`xzd_type2_confirmed`]：二类点（诊断字段，不参与三臂分派）。
+fn p1223_evidence(
+    cls: &super::super::super::classifier::Classification,
+    tower: &[std::rc::Rc<Vec<LeveledMove>>],
+    strokes: &[crate::theta_v0::types::Stroke],
+    level: u32,
+    source_index: usize,
+    confirm_index: usize,
+    side: Side,
+) -> P1223Ev {
+    let lvl = level as usize;
+    let sub_centers: &[Center] = if lvl > 0 {
+        cls.levels
+            .get(lvl - 1)
+            .map(|ls| ls.centers.as_slice())
+            .unwrap_or(&[])
+    } else {
+        &[]
+    };
+    let sub_moves: &[LeveledMove] = if lvl > 0 {
+        tower.get(lvl - 1).map(|m| m.as_slice()).unwrap_or(&[])
+    } else {
+        &[]
+    };
+    let bsp_of_level: &[BspPoint] = cls
+        .levels
+        .get(lvl)
+        .map(|ls| ls.bsp.as_slice())
+        .unwrap_or(&[]);
+    let diag = super::xzd_c3_new_center_breakout(
+        source_index,
+        confirm_index,
+        side,
+        sub_centers,
+        sub_moves,
+    );
+    let force = super::xzd_force_exception(
+        source_index,
+        confirm_index,
+        side,
+        sub_centers,
+        sub_moves,
+        strokes,
+    );
+    let type2 = super::xzd_type2_confirmed(bsp_of_level, source_index, side);
+    let n_new_centers = sub_centers
+        .iter()
+        .filter(|c| c.start_index >= source_index && c.end_index <= confirm_index)
+        .count();
+    P1223Ev {
+        new_center_exists: diag.new_center_exists,
+        breakout_ok: diag.new_center_breakout_ok,
+        force_exception: force,
+        type2_confirmed: type2,
+        n_new_centers,
+        n_sub_moves: sub_moves.len(),
+    }
+}
+
+/// #1223 价格代理复现输入（与 #1152 sample_structure 同口径，供 Python 侧复现 #1221 价格三分类）：
+/// exec_move（执行段）、sub_moves（执行段次级别走势）、anchor_idx（锚定子段下标，Type1 为 None）。
+fn p1223_dir_str(d: Option<crate::theta_v0::types::Direction>) -> Option<&'static str> {
+    match d {
+        Some(crate::theta_v0::types::Direction::Up) => Some("Up"),
+        Some(crate::theta_v0::types::Direction::Down) => Some("Down"),
+        None => None,
+    }
+}
+
+fn p1223_price_input(
+    tower: &[std::rc::Rc<Vec<LeveledMove>>],
+    level: u32,
+    source_index: usize,
+    is_type23: bool,
+) -> (serde_json::Value, serde_json::Value, Option<usize>) {
+    use super::super::super::classifier::cand_predicate::rmove_dir;
+    use super::super::super::classifier::recursive_tower::{
+        find_move_by_end_index, find_move_containing_index,
+    };
+    let lvl = level as usize;
+    let mut exec_move = serde_json::Value::Null;
+    let mut sub_moves = serde_json::Value::Null;
+    let mut anchor_idx: Option<usize> = None;
+    if let Some(exec_moves) = tower.get(lvl).map(|m| m.as_slice()) {
+        if let Some(si) = find_move_containing_index(exec_moves, source_index) {
+            let s = &exec_moves[si];
+            exec_move = serde_json::json!({
+                "start": s.start_index,
+                "end": s.end_index,
+                "dir": p1223_dir_str(rmove_dir(&s.rmove)),
+            });
+            let subs = s.sub_moves.as_slice();
+            sub_moves = serde_json::json!(subs
+                .iter()
+                .map(|m| {
+                    serde_json::json!({
+                        "start": m.start_index,
+                        "end": m.end_index,
+                        "dir": p1223_dir_str(rmove_dir(&m.rmove)),
+                    })
+                })
+                .collect::<Vec<_>>());
+            if is_type23 {
+                anchor_idx = find_move_by_end_index(subs, source_index)
+                    .or_else(|| find_move_containing_index(subs, source_index));
+            }
+        }
+    }
+    (exec_move, sub_moves, anchor_idx)
+}
+
+#[test]
+#[ignore]
+fn cond1_structural_trend_dx() {
+    use super::super::data;
+    use super::super::incremental::IncrementalClassifier;
+    use std::collections::HashMap;
+    use std::io::Write as _;
+
+    let Some(out_path) = std::env::var(crate::theta_v0::env_registry::P1223_STRUCT_DUMP_PATH)
+        .ok()
+        .filter(|s| !s.is_empty())
+    else {
+        eprintln!("[p1223] P1223_STRUCT_DUMP_PATH 未设 ⟹ no-op");
+        return;
+    };
+    let cand_path =
+        std::env::var(crate::theta_v0::env_registry::P1223_CAND_PATH).unwrap_or_else(|_| {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .expect("rust/ 父目录 = 项目根")
+                .join(".chanlun/review-results/issue1147-stepfail-raw-2024.jsonl")
+                .to_string_lossy()
+                .to_string()
+        });
+    const HORIZONS: [usize; 4] = [360, 720, 1440, 2880];
+
+    let config = ThetaConfig::default();
+    let ds_full = match data::load_by_symbol("BTC", &config) {
+        Ok(d) => d,
+        Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+    };
+    let start = std::env::var(crate::theta_v0::env_registry::P1147_WINDOW_START)
+        .unwrap_or_else(|_| "2024-01-01".to_string());
+    let end = std::env::var(crate::theta_v0::env_registry::P1147_WINDOW_END)
+        .unwrap_or_else(|_| "2024-01-07".to_string());
+    let ds = ds_full.slice_date_window(&start, &end);
+    assert!(!ds.bars.is_empty(), "窗口 {start}..{end} 非空");
+    let bars = &ds.bars;
+    let n = bars.len();
+
+    // 载入 308 cond1 拒候选（would_close ∧ !admit ∧ stepfail∈cond1），按 (bar, level, source_index, side) 去重。
+    #[derive(Clone)]
+    struct Cand {
+        bar: usize,
+        level: u32,
+        source_index: usize,
+        side: Side,
+        stepfail: String,
+    }
+    let mut cands: Vec<Cand> = Vec::new();
+    {
+        let text = std::fs::read_to_string(&cand_path)
+            .unwrap_or_else(|e| panic!("候选 dump 读取失败 {cand_path}：{e}"));
+        let mut seen = std::collections::HashSet::new();
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+                continue;
+            };
+            let (Some(bar), Some(level), Some(si)) = (
+                v.get("bar").and_then(|x| x.as_u64()),
+                v.get("level").and_then(|x| x.as_u64()),
+                v.get("source_index").and_then(|x| x.as_u64()),
+            ) else {
+                continue;
+            };
+            let would_close = v
+                .get("would_close")
+                .and_then(|x| x.as_bool())
+                .unwrap_or(false);
+            let admit = v.get("admit").and_then(|x| x.as_bool()).unwrap_or(true);
+            let stepfail = v.get("stepfail").and_then(|x| x.as_str()).unwrap_or("");
+            let is_cond1 = matches!(
+                stepfail,
+                "type23_descend_nodiv_condSome(1)" | "type1_div_fail_Some(1)"
+            );
+            if !(would_close && !admit && is_cond1) {
+                continue;
+            }
+            let side = match v.get("dir").and_then(|x| x.as_str()) {
+                Some("Long") => Side::Long,
+                Some("Short") => Side::Short,
+                _ => continue,
+            };
+            if seen.insert((bar as usize, level as u32, si as usize, side)) {
+                cands.push(Cand {
+                    bar: bar as usize,
+                    level: level as u32,
+                    source_index: si as usize,
+                    side,
+                    stepfail: stepfail.to_string(),
+                });
+            }
+        }
+    }
+    // 候选 bar 索引相对本窗口（#1147 同窗 2024-01-01..2025-01-01 时逐位对齐）；超出本窗口的
+    // 候选（缩窗烟测时出现）不属于本窗口数据，直接排除，不落 garbage 证据。
+    cands.retain(|c| c.bar < n);
+    eprintln!(
+        "[p1223] cond1 候选 = {}（窗口 {start}..{end}，bars={n}，H={:?}）",
+        cands.len(),
+        HORIZONS
+    );
+
+    // 检查点分桶：终点窗在 bar；前瞻窗在 min(bar+H, n-1)。
+    let mut end_at: HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut fwd_at: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
+    // 前瞻窗第二锚：confirm_index = source_index + H（与 #1206 前瞻价格窗 (source_index, +H] 同锚）。
+    let mut fwd_si_at: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
+    for (idx, c) in cands.iter().enumerate() {
+        end_at.entry(c.bar).or_default().push(idx);
+        for h in HORIZONS {
+            let due = (c.bar + h).min(n - 1);
+            fwd_at.entry(due).or_default().push((idx, h));
+            let due_si = (c.source_index + h).min(n - 1);
+            fwd_si_at.entry(due_si).or_default().push((idx, h));
+        }
+    }
+
+    let mut end_ev: HashMap<usize, P1223Ev> = HashMap::new();
+    let mut end_price: HashMap<usize, (serde_json::Value, serde_json::Value, Option<usize>)> =
+        HashMap::new();
+    let mut fwd_ev: HashMap<(usize, usize), P1223Ev> = HashMap::new();
+    let mut fwd_confirm: HashMap<(usize, usize), usize> = HashMap::new();
+    let mut fwd_si_ev: HashMap<(usize, usize), P1223Ev> = HashMap::new();
+    let mut fwd_si_confirm: HashMap<(usize, usize), usize> = HashMap::new();
+
+    let mut classifier_incr = IncrementalClassifier::new(bars, &config);
+    for i in 0..n {
+        let bar = &bars[i];
+        if bar.untradable || bar.close <= 0 {
+            continue;
+        }
+        let out = classifier_incr.classify_at(i);
+        let l0 = classifier_incr
+            .last_l0()
+            .expect("classify_at 已推进 ParseLayer");
+        let strokes: &[crate::theta_v0::types::Stroke] = &l0.strokes;
+        if let Some(idxs) = end_at.get(&i) {
+            for &idx in idxs {
+                let c = &cands[idx];
+                end_ev.insert(
+                    idx,
+                    p1223_evidence(
+                        &out.classification,
+                        &out.tower,
+                        strokes,
+                        c.level,
+                        c.source_index,
+                        i,
+                        c.side,
+                    ),
+                );
+                end_price.insert(
+                    idx,
+                    p1223_price_input(
+                        &out.tower,
+                        c.level,
+                        c.source_index,
+                        c.stepfail == "type23_descend_nodiv_condSome(1)",
+                    ),
+                );
+            }
+        }
+        if let Some(pairs) = fwd_at.get(&i) {
+            for &(idx, h) in pairs {
+                let c = &cands[idx];
+                let ev = p1223_evidence(
+                    &out.classification,
+                    &out.tower,
+                    strokes,
+                    c.level,
+                    c.source_index,
+                    i,
+                    c.side,
+                );
+                fwd_ev.insert((idx, h), ev);
+                fwd_confirm.insert((idx, h), i);
+            }
+        }
+        if let Some(pairs) = fwd_si_at.get(&i) {
+            for &(idx, h) in pairs {
+                let c = &cands[idx];
+                let ev = p1223_evidence(
+                    &out.classification,
+                    &out.tower,
+                    strokes,
+                    c.level,
+                    c.source_index,
+                    i,
+                    c.side,
+                );
+                fwd_si_ev.insert((idx, h), ev);
+                fwd_si_confirm.insert((idx, h), i);
+            }
+        }
+    }
+
+    // 落盘：每候选一行，含终点窗 + 各 H 前瞻窗。
+    let file = std::fs::File::create(&out_path)
+        .unwrap_or_else(|e| panic!("结构 dump 创建失败 {out_path}：{e}"));
+    let mut w = std::io::BufWriter::new(file);
+    let mut missing_end = 0usize;
+    let mut missing_fwd = 0usize;
+    for (idx, c) in cands.iter().enumerate() {
+        let end = match end_ev.get(&idx) {
+            Some(e) => *e,
+            None => {
+                missing_end += 1;
+                P1223Ev::default()
+            }
+        };
+        let mut fwd = serde_json::Map::new();
+        let mut confirm = serde_json::Map::new();
+        let mut trunc = serde_json::Map::new();
+        for h in HORIZONS {
+            let key = h.to_string();
+            match fwd_ev.get(&(idx, h)) {
+                Some(e) => {
+                    fwd.insert(
+                        key.clone(),
+                        serde_json::json!({
+                            "new_center_exists": e.new_center_exists,
+                            "breakout_ok": e.breakout_ok,
+                            "force_exception": e.force_exception,
+                            "type2_confirmed": e.type2_confirmed,
+                            "n_new_centers": e.n_new_centers,
+                            "n_sub_moves": e.n_sub_moves,
+                        }),
+                    );
+                    let ci = fwd_confirm.get(&(idx, h)).copied().unwrap_or(0);
+                    confirm.insert(key.clone(), serde_json::json!(ci));
+                    trunc.insert(key, serde_json::json!(c.bar + h >= n));
+                }
+                None => {
+                    missing_fwd += 1;
+                    fwd.insert(key.clone(), serde_json::Value::Null);
+                    confirm.insert(key, serde_json::Value::Null);
+                }
+            }
+        }
+        let mut fwd_si = serde_json::Map::new();
+        let mut confirm_si = serde_json::Map::new();
+        let mut trunc_si = serde_json::Map::new();
+        for h in HORIZONS {
+            let key = h.to_string();
+            match fwd_si_ev.get(&(idx, h)) {
+                Some(e) => {
+                    fwd_si.insert(
+                        key.clone(),
+                        serde_json::json!({
+                            "new_center_exists": e.new_center_exists,
+                            "breakout_ok": e.breakout_ok,
+                            "force_exception": e.force_exception,
+                            "type2_confirmed": e.type2_confirmed,
+                            "n_new_centers": e.n_new_centers,
+                            "n_sub_moves": e.n_sub_moves,
+                        }),
+                    );
+                    let ci = fwd_si_confirm.get(&(idx, h)).copied().unwrap_or(0);
+                    confirm_si.insert(key.clone(), serde_json::json!(ci));
+                    trunc_si.insert(key, serde_json::json!(c.source_index + h >= n));
+                }
+                None => {
+                    fwd_si.insert(key.clone(), serde_json::Value::Null);
+                    confirm_si.insert(key, serde_json::Value::Null);
+                }
+            }
+        }
+        let (exec_move, sub_moves, anchor_idx) = end_price.get(&idx).cloned().unwrap_or((
+            serde_json::Value::Null,
+            serde_json::Value::Null,
+            None,
+        ));
+        let line = serde_json::json!({
+            "bar": c.bar,
+            "level": c.level,
+            "source_index": c.source_index,
+            "dir": if c.side == Side::Long { "Long" } else { "Short" },
+            "stepfail": c.stepfail,
+            "exec_move": exec_move,
+            "sub_moves": sub_moves,
+            "anchor_idx": anchor_idx,
+            "end": {
+                "confirm_index": c.bar,
+                "new_center_exists": end.new_center_exists,
+                "breakout_ok": end.breakout_ok,
+                "force_exception": end.force_exception,
+                "type2_confirmed": end.type2_confirmed,
+                "n_new_centers": end.n_new_centers,
+                "n_sub_moves": end.n_sub_moves,
+            },
+            "fwd": fwd,
+            "fwd_confirm_index": confirm,
+            "fwd_truncated": trunc,
+            "fwd_si": fwd_si,
+            "fwd_si_confirm_index": confirm_si,
+            "fwd_si_truncated": trunc_si,
+        });
+        let _ = writeln!(w, "{line}");
+    }
+    let _ = w.flush();
+    eprintln!(
+        "[p1223] 落盘 {out_path}：候选={} missing_end={missing_end} missing_fwd={missing_fwd}",
+        cands.len()
+    );
+}
