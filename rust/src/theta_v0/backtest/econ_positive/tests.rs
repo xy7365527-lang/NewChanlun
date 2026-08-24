@@ -402,10 +402,10 @@ fn xzd_c3_new_center_breakout_cases() {
     );
 }
 
-/// gate_pass（codex #44(c) 终局裁定）：level==1 时 C2∧C3(突破) 硬门；level!=1 维持 C2-only。
+/// gate_pass（#1220 / #1204 裁定 a）：每级同一个判据 C2∧C3(突破)∧¬例外臂。
 #[test]
 fn xzd_gate_pass_level1_c3_breakout_hard_gate() {
-    let mk = |level, c2, c3_breakout| XzdEvidence {
+    let mk = |level, c2, c3_breakout, exception| XzdEvidence {
         source_index: 1,
         level,
         side: Side::Long,
@@ -419,20 +419,166 @@ fn xzd_gate_pass_level1_c3_breakout_hard_gate() {
         sub_bsp_type3_count: 0,
         c3_new_center_exists: c3_breakout,
         c3_new_center_breakout_ok: c3_breakout,
+        force_exception_ok: exception,
     };
-    // level==1：C2∧C3 硬门。
-    assert!(mk(1, true, true).gate_pass(), "level1 C2 真∧C3 真 ⟹ 通过");
+    // 每级同一个判据：C2∧C3 硬门（level 不再分流）。
     assert!(
-        !mk(1, true, false).gate_pass(),
-        "level1 C2 真、C3 假 ⟹ 拒（C3 已是硬门参门项）"
+        mk(1, true, true, false).gate_pass(),
+        "C2 真∧C3 真∧无例外 ⟹ 通过"
     );
-    assert!(!mk(1, false, true).gate_pass(), "level1 C2 假 ⟹ 仍拒");
-    // level!=1：C2-only（既定 #41 裁定不变）。
     assert!(
-        mk(2, true, false).gate_pass(),
-        "level2 C2 真、C3 假 ⟹ 仍通过（lvl>=2 维持 C2-only）"
+        !mk(1, true, false, false).gate_pass(),
+        "C2 真、C3 假 ⟹ 拒（三卖未出，中枢继续）"
     );
-    assert!(!mk(2, false, true).gate_pass(), "level2 C2 假 ⟹ 拒");
+    assert!(!mk(1, false, true, false).gate_pass(), "C2 假 ⟹ 仍拒");
+    // 例外臂：三买卖坐实后强力不背驰创新高 ⟹ 拒（43 课唯一例外）。
+    assert!(
+        !mk(1, true, true, true).gate_pass(),
+        "C2 真∧C3 真∧例外臂 ⟹ 拒（持有）"
+    );
+    // level>=2 与 level==1 同一判据（消灭宽严两档 #799/#804）。
+    assert!(
+        mk(2, true, true, false).gate_pass(),
+        "level2 C2 真∧C3 真∧无例外 ⟹ 通过（每级同一个判据）"
+    );
+    assert!(
+        !mk(2, true, false, false).gate_pass(),
+        "level2 C2 真、C3 假 ⟹ 拒（不再 C2-only）"
+    );
+    assert!(!mk(2, false, true, false).gate_pass(), "level2 C2 假 ⟹ 拒");
+    assert!(
+        !mk(2, true, true, true).gate_pass(),
+        "level2 例外臂 ⟹ 拒（同 level1）"
+    );
+}
+
+/// 例外臂力度原语（#1220 / #1204 裁定 3 / #985 ForceL）：三卖坐实后强力不背驰创新高。
+#[test]
+fn xzd_force_exception_forcel_new_high_short() {
+    use super::super::super::types::{Direction, Stroke};
+
+    let source_index = 50;
+    let confirm_index = 100;
+    // 新中枢 z=[55,70]，zd=10/zg=20；三卖 = 其后 Down 走势跌破 zd（lo=0 < 10）。
+    let centers = vec![xzd_center(10, 20, 55, 70)];
+    // sub_moves：prev_up=[0,40]（前一同向走势，比较基准）；break=[71,80] Down（三卖）；
+    // up=[81,90] Up（创新高，hi=25 > zg=20）。
+    let prev_up = xzd_seg_hi(0, 40, 15);
+    let brk = xzd_seg(71, 80);
+    let up = xzd_seg_hi(81, 90, 25);
+    let sub_moves = vec![prev_up.clone(), brk.clone(), up.clone()];
+
+    // 无笔 ⟹ 无源不判，不触发例外（即便创新高几何成立）。
+    assert!(
+        !super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Short,
+            &centers,
+            &sub_moves,
+            &[],
+        ),
+        "无笔 ⟹ 无源不判 ⟹ 不触发例外臂"
+    );
+
+    // 不背驰（L(up) >= L(prev_up)）：笔序列让 L(prev_up)=v(s1)-v(s0)=-10/21，
+    // L(up)=v(s3)-v(s2)=50/6 ⟹ L(up) >= L(prev_up) ⟹ 强力创新高 ⟹ 例外臂。
+    let strokes_strong = vec![
+        Stroke {
+            direction: Direction::Up,
+            start_index: 0,
+            end_index: 20,
+            start_price: 100,
+            end_price: 120,
+        },
+        Stroke {
+            direction: Direction::Up,
+            start_index: 20,
+            end_index: 40,
+            start_price: 120,
+            end_price: 130,
+        },
+        Stroke {
+            direction: Direction::Up,
+            start_index: 80,
+            end_index: 85,
+            start_price: 130,
+            end_price: 140,
+        },
+        Stroke {
+            direction: Direction::Up,
+            start_index: 85,
+            end_index: 90,
+            start_price: 140,
+            end_price: 200,
+        },
+    ];
+    assert!(
+        super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Short,
+            &centers,
+            &sub_moves,
+            &strokes_strong,
+        ),
+        "创新高 ∧ 不背驰（L(up) >= L(prev_up)）⟹ 例外臂"
+    );
+
+    // 背驰（L(up) < L(prev_up)）：末笔终点价从 200 降到 130 ⟹ L(up)=-20/6 < L(prev_up) ⟹
+    // 只创新高但力度背驰 ⟹ 不触发例外臂（放行侧，真三卖）。
+    let strokes_weak = vec![
+        strokes_strong[0],
+        strokes_strong[1],
+        strokes_strong[2],
+        Stroke {
+            direction: Direction::Up,
+            start_index: 85,
+            end_index: 90,
+            start_price: 140,
+            end_price: 130,
+        },
+    ];
+    assert!(
+        !super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Short,
+            &centers,
+            &sub_moves,
+            &strokes_weak,
+        ),
+        "创新高但力度背驰（L(up) < L(prev_up)）⟹ 不触发例外臂"
+    );
+
+    // 三卖未出（无跌破 zd 的次级走势）⟹ 无坐实 ⟹ 无例外臂。
+    let sub_moves_no_break = vec![prev_up.clone(), up.clone()];
+    assert!(
+        !super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Short,
+            &centers,
+            &sub_moves_no_break,
+            &strokes_strong,
+        ),
+        "三卖未出（无反向突破）⟹ 无例外臂"
+    );
+
+    // 创新高走势与三卖走势重叠（up.start < brk.end）⟹ 事件序不满足 ⟹ 无例外臂。
+    let up_overlap = xzd_seg_hi(78, 90, 25);
+    let sub_moves_overlap = vec![prev_up.clone(), brk.clone(), up_overlap.clone()];
+    assert!(
+        !super::xzd_force_exception(
+            source_index,
+            confirm_index,
+            Side::Short,
+            &centers,
+            &sub_moves_overlap,
+            &strokes_strong,
+        ),
+        "创新高须在三卖之后（up.start >= brk.end）⟹ 重叠走势不触发"
+    );
 }
 
 // ── P7 正规出场口径测试（RED→GREEN：exit_decision_from_bits 派生，接 interp ExitType CloseRoot/ReduceCore）────
@@ -1734,55 +1880,81 @@ fn pan_div_gate_nest_channel_passes_via_sublevel_type1_anchor() {
     );
 }
 
-/// XZD 通道正例：L0 天花板（sub_moves 空 ⟹ [`DescendStop::BaseL0`] ⟹ Nest 闭）+ 同点共生 buy2
-/// （C2，level=0 ≠1 ⟹ C2-only gate_pass）⟹ XZD 通道承接成立。
+/// XZD 通道正例（#1220 每级同一个判据后）：Nest 闭（下钻 cond1 方向假）+ C2 共生 buy2 +
+/// C3 新中枢反向突破（三买坐实，level1）⟹ XZD^δ 承接成立。
 #[test]
 fn pan_div_gate_xzd_channel_passes_via_type2_confirmed() {
-    let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![xzd_seg(10, 19)])];
+    // tower[0]（次级别走势）：前段供下钻锚定位，后段承载 C3 新中枢 + 反向突破。
+    let m0 = seg2(Dir2::Up, 45, 55, 0, 5, 0);
+    let m1 = seg2(Dir2::Down, 30, 40, 6, 10, 1);
+    let m2 = seg2(Dir2::Up, 45, 55, 11, 15, 2); // end==15（δ=Long 要求 Down ⟹ cond1 假 ⟹ Nest 闭）
+    let m3 = seg2(Dir2::Up, 45, 55, 16, 18, 3); // 新中枢内部段（不参门）
+    let m4 = seg2(Dir2::Up, 45, 60, 19, 19, 4); // 反向突破段：hi=60 > zg=50
+    let s = compose2(
+        vec![m0.clone(), m1.clone(), m2.clone()],
+        ct2(45, 55, 11, 15),
+        1,
+        0,
+    );
+    let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![m0, m1, m2, m3, m4]), Rc2::new(vec![s])];
     let hist = vec![0.0f64; 20];
     let mut buy2 = BspBits::default();
     buy2.buy2 = true;
-    let bsp_of_level = vec![xzd_bsp(19, buy2, None)];
+    let bsp_of_level = vec![xzd_bsp(15, buy2, None)];
+    // C3 新中枢 [16,18]（start>=source=15，end<=confirm=19），其后 [19,19] hi=60>zg=50 反向突破。
+    let sub_centers = vec![xzd_center(40, 50, 16, 18)];
     assert!(
         super::pan_div_gate_pass(
             &tower,
-            0,
-            &pan_cert(19, Side::Long),
+            1,
+            &pan_cert(15, Side::Long),
             &hist,
             19,
             &bsp_of_level,
+            &sub_centers,
             &[],
-            &[],
-            &[], // ★#883：测试无笔源
+            &[], // 测试无笔源（例外臂无源不判 ⟹ 不触发）
             DivergenceGauge::MacdArea,
         ),
-        "XZD 通道：Nest 闭（递归底无次级别锚）+ C2 共生 buy2 ⟹ XZD^δ 承接成立"
+        "XZD 通道：Nest 闭（cond1 方向假）+ C2 共生 buy2 + C3 三买坐实 ⟹ 承接成立"
     );
 }
 
 /// #82 DC-E：XZD 任一门通过后，强类型生产门恰产一个引用，身份字段逐值保留。
 #[test]
 fn pan_div_gate_pass_emits_one_production_candidate() {
-    let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![xzd_seg(10, 19)])];
+    let m0 = seg2(Dir2::Up, 45, 55, 0, 5, 0);
+    let m1 = seg2(Dir2::Down, 30, 40, 6, 10, 1);
+    let m2 = seg2(Dir2::Up, 45, 55, 11, 15, 2);
+    let m3 = seg2(Dir2::Up, 45, 55, 16, 18, 3);
+    let m4 = seg2(Dir2::Up, 45, 60, 19, 19, 4);
+    let s = compose2(
+        vec![m0.clone(), m1.clone(), m2.clone()],
+        ct2(45, 55, 11, 15),
+        1,
+        0,
+    );
+    let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![m0, m1, m2, m3, m4]), Rc2::new(vec![s])];
     let hist = vec![0.0f64; 20];
     let mut buy2 = BspBits::default();
     buy2.buy2 = true;
-    let bsp_of_level = vec![xzd_bsp(19, buy2, None)];
-    let raw = pan_cert(19, Side::Long);
+    let bsp_of_level = vec![xzd_bsp(15, buy2, None)];
+    let sub_centers = vec![xzd_center(40, 50, 16, 18)];
+    let raw = pan_cert(15, Side::Long);
     let gated = super::gate_pan_div_for_production(
         &tower,
-        0,
+        1,
         &raw,
         &hist,
         19,
         &bsp_of_level,
-        &[],
+        &sub_centers,
         &[],
         &[],
         DivergenceGauge::MacdArea,
     )
     .expect("XZD 门通过必须恰产一个 GatedPanDivCert");
-    assert_eq!(gated.level(), 0);
+    assert_eq!(gated.level(), 1);
     assert_eq!(gated.cert(), raw);
 }
 

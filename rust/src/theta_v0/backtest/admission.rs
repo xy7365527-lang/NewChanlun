@@ -1288,6 +1288,7 @@ impl NestChainGate {
                         &ls.bsp,
                         sub_centers,
                         sub_bsp,
+                        strokes,
                     ) {
                         Some(ev) => {
                             let pass = ev.gate_pass();

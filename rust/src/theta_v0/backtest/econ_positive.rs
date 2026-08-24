@@ -92,7 +92,7 @@ use cand_delta::{
 use descend::descend_type1_anchor_depth;
 use xzd::{
     l0_units_from_tower, xiaozhuanda_confirm, xzd_c3_new_center_breakout,
-    xzd_c3_overlap_window_probe, xzd_sub_last_zs_type3, xzd_type2_confirmed,
+    xzd_c3_overlap_window_probe, xzd_force_exception, xzd_sub_last_zs_type3, xzd_type2_confirmed,
 };
 
 /// P7 正规出场口径：配对出场信号的缠论卖点（买点）类别（对齐 interp `ExitType` 的
@@ -1168,6 +1168,7 @@ pub(super) fn pan_div_gate_pass(
         sub_centers,
         sub_bsp,
         sub_moves,
+        strokes,
     )
     .gate_pass()
 }
@@ -1201,7 +1202,7 @@ pub(super) fn build_gate_certificate(
         return Some(GateCertificate::Nest(cert));
     }
     // Nest None 回退分支 = `build_xzd_fallback` 单一来源（#75 提取；hist 仅 nest 证构建用，
-    // Xzd 分支不消费）——既有调用点改经该函数，行为逐字不变。
+    // Xzd 分支消费 strokes 供 #985 ForceL 例外臂）——既有调用点改经该函数。
     build_xzd_fallback(
         tower,
         lvl,
@@ -1212,6 +1213,7 @@ pub(super) fn build_gate_certificate(
         bsp_of_level,
         sub_centers,
         sub_bsp,
+        strokes,
     )
     .map(GateCertificate::Xzd)
 }
@@ -1233,6 +1235,7 @@ pub(super) fn build_xzd_fallback(
     bsp_of_level: &[BspPoint],
     sub_centers: &[Center],
     sub_bsp: &[BspPoint],
+    strokes: &[crate::theta_v0::types::Stroke],
 ) -> Option<XzdEvidence> {
     // Nest None：区分小转大（Type2/3 base gate false）与 case-1（无执行段）/Type1 背驰失败。
     let exec_moves = tower.get(lvl)?.as_slice();
@@ -1258,6 +1261,7 @@ pub(super) fn build_xzd_fallback(
                 sub_centers,
                 sub_bsp,
                 sub_moves,
+                strokes,
             ))
         }
     }

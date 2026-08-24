@@ -5988,6 +5988,7 @@ fn nest_chain_gate_typed_decides_l2_only_cross() {
         &cls_b3.levels[0].bsp,
         &[],
         &[],
+        &[],
     )
     .map(|ev| ev.gate_pass())
     .unwrap_or(false);
@@ -6577,6 +6578,7 @@ fn t3_chain_no_chain_falls_back_to_xzd_verbatim() {
         &buy3,
         19,
         &cls_b3.levels[0].bsp,
+        &[],
         &[],
         &[],
     )
