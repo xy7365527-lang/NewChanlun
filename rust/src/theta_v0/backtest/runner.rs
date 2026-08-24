@@ -162,6 +162,11 @@ pub struct RunResult {
     /// 严格区间套证书 sidecar 汇总。默认 `None`；仅 `THETA_STRICT_NEST_SIDECAR=1/true/yes/on`
     /// 时在生产 π 重放同帧旁路产出，不参与订单、候选、风控、账本。
     pub strict_nest_sidecar: Option<StrictNestSidecarSummary>,
+    /// #1208 ①件 turn_class 生产桥运行末态：θ 生产路径（nest 门索引重建同点）
+    /// `classify_nest_turns` → `project_turn_class_rows` 投影的稀疏注解行
+    /// （bar 升序）。`None` = 门关闭或零重建——行缺失 = 零行为变化
+    /// （capability guard；并入 `SignalTape.turn_class_rows` 的 θ 生产源）。
+    pub turn_class_rows: Option<Vec<super::super::classifier::TurnClassRow>>,
     /// D4（#606 S1）：37:18 否则域亚型记录 sidecar 汇总。默认 `None`；仅
     /// `THETA_OTHERWISE_DOMAIN_SIDECAR=1/true/yes/on` 时在生产 π 重放同帧旁路产出（同
     /// `strict_nest_sidecar` 先例，观测面，不参与订单、候选、风控、账本、任何 bit 判据）。
@@ -413,6 +418,7 @@ fn run_theta_v0_pi_inner(
         equity_curve: fill.equity_curve,
         r_decomp: fill.r_decomp, // 生产 π 路径 R 分解（cost_model=None ⟹ 三项 0，仍产分解表）
         strict_nest_sidecar,
+        turn_class_rows: fill.turn_class_rows, // #1208 ①件 turn_class 生产桥出口（门关闭 ⟹ None）
         otherwise_domain_sidecar: None, // 本路径（run_theta_v0_pi/_chi/_chi_shrink）未接线（S1 仅接 overlay 臂）
     }
 }
@@ -628,6 +634,7 @@ pub fn run_theta_v0_pi_overlay(
         equity_curve: fill.equity_curve,
         r_decomp: fill.r_decomp,
         strict_nest_sidecar: None,
+        turn_class_rows: fill.turn_class_rows, // #1208 ①件 turn_class 生产桥出口（门关闭 ⟹ None）
         otherwise_domain_sidecar,
     };
 

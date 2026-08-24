@@ -219,6 +219,16 @@ impl NestCertificateIndex {
         self.by_id.get(id)
     }
 
+    /// 证书全量读出（#1208 ①件 turn_class 生产桥的 certificates 面——
+    /// [`super::turn_class::classify_nest_turns`] 入参）。
+    ///
+    /// 迭代序 = 内部 HashMap 序（不稳定）——生产桥下游按 `(bar, ladder)` 排序后
+    /// 并入磁带列，消费面不依赖本序（`SignalTape.turn_class_rows` 契约 = 行集，
+    /// 非行序）。
+    pub fn certificates(&self) -> impl Iterator<Item = &TypedNestCertificate> + '_ {
+        self.by_id.values()
+    }
+
     /// 索引内证书张数。
     pub fn len(&self) -> usize {
         self.by_id.len()

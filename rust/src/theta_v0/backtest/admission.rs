@@ -598,6 +598,15 @@ pub(super) struct NestChainGate {
     /// 已入账 ⟹ 重派生产出必被 dedup，零贡献；R3 pan 出生即定型）。
     pub(super) frozen_runs: std::collections::HashSet<(usize, usize, usize)>,
     pub(super) index: classifier::nest_index::NestCertificateIndex,
+    /// #1208 ①件 turn_class 生产桥：索引重建同点的投影行
+    /// （`classify_nest_turns` → `project_turn_class_rows`，判据唯一：复用 turn_class
+    /// 层现有函数，不重写）。`None` = 桥未跑（无重建）——行缺失 = 零行为变化
+    /// （capability guard，同 `SignalTape.turn_class_rows` 传输位）。
+    ///
+    /// 生产账本 `absorb_exts` 只收确认事件 ⟹ `DeferOrphan` 分支恒空（诚实，不伪造
+    /// 未确认事件面）；`XiaozhuandaCandidate` 需未确认链顶 rung（044:30 只有必要条件——
+    /// 本行语义 = 通过必要条件过滤的候选，永不是「小转大确认」，分类口径不变）。
+    pub(super) turn_class_rows: Option<Vec<classifier::TurnClassRow>>,
     /// 索引重建指纹：重建时的事件总数 + 各级 bsp 账本 Rc。
     pub(super) index_event_count: usize,
     pub(super) book_fps: Vec<std::rc::Rc<Vec<classifier::bsp::BspPoint>>>,
@@ -637,6 +646,7 @@ impl NestChainGate {
             derived: Vec::new(),
             frozen_runs: std::collections::HashSet::new(),
             index: classifier::nest_index::NestCertificateIndex::default(),
+            turn_class_rows: None,
             index_event_count: 0,
             book_fps: Vec::new(),
             n_derivations: 0,
@@ -665,6 +675,7 @@ impl NestChainGate {
             derived: Vec::new(),
             frozen_runs: std::collections::HashSet::new(),
             index: classifier::nest_index::NestCertificateIndex::default(),
+            turn_class_rows: None,
             index_event_count: 0,
             book_fps: Vec::new(),
             n_derivations: 0,
@@ -911,6 +922,25 @@ impl NestChainGate {
             &oracle,
             &event_anchor_of,
         );
+        // #1208 ①件 turn_class 生产桥（落点修正 2026-08-24：挂 θ 生产路径，不碰旧
+        // orchestrator）：索引重建同点产投影行——`build_nest_certificate_index` 的
+        // 调用点 = 本函数，桥 = (events, certificates, classification) 的确定函数。
+        // 判据唯一：复用 turn_class 层现有函数（`classify_nest_turns` →
+        // `project_turn_class_rows`），零新判据、零重写。行按 (bar, ladder) 排序
+        //（索引读出序 = HashMap 序不稳定；`SignalTape.turn_class_rows` 列契约 =
+        // bar 升序稀疏行，`PyOrganicTape::from_columns` 校验同款）。
+        // 行缺失 = 零行为变化：`turn_class_rows=None` 时交易层 capability guard
+        // 全零（#1202 口径）；生产账本只收确认事件 ⟹ DeferOrphan 恒空（诚实）。
+        let certs: Vec<_> = self.index.certificates().cloned().collect();
+        let mut rows = classifier::turn_class::project_turn_class_rows(
+            &classifier::turn_class::classify_nest_turns(
+                &self.events_by_level,
+                &certs,
+                classification,
+            ),
+        );
+        rows.sort_by_key(|row| (row.bar, row.ladder));
+        self.turn_class_rows = Some(rows);
         self.index_event_count = event_count;
         self.book_fps = classification
             .levels

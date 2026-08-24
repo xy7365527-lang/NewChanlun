@@ -36,13 +36,19 @@ FLOOR = LADDER_SEG
 
 
 def pack_tape(tape, dir_flips: list | None = None,
-              trend_flips: list | None = None) -> "nr.OrganicTape":
+              trend_flips: list | None = None,
+              turn_class: list | None = None) -> "nr.OrganicTape":
     """BarSignalI 列表 → 列式数组 → Rust OrganicTape（一次 marshal）。
 
     dir_flips：v2 D3 稀疏方向行（compute_organic_signals 收集器产出），
     None = 不传（O0/V3p 不需要；REV 变体在 Rust 侧被 capability guard 拒绝）。
     trend_flips：趋势态行（38课循环 voice；rev_cycle=Cycle38 的 capability
     依赖），None = 不传（非循环变体零接触）。
+    turn_class：#1208 ①件 turn_class 生产桥投影行（θ 生产回测产出的
+    (bar, ladder, class, evidence) 稀疏行，bar 升序；evidence =
+    (third_src, second_class, turn_extreme) 三元组，仅 XiaozhuandaCandidate
+    非 None）。None = 不传（零行为变化——Rust 侧 SignalTape.turn_class_rows
+    capability guard 全零）。
     """
     n = len(tape)
     closes = [s.close for s in tape]
@@ -80,7 +86,8 @@ def pack_tape(tape, dir_flips: list | None = None,
           flush=True)
     return nr.OrganicTape.from_columns(
         closes, buy1, sell1, sell_any, buy_any, up_settled, max_ladder, type2,
-        bsp_flat, div_flat, dir_flips=dir_flips, trend_flips=trend_flips)
+        bsp_flat, div_flat, dir_flips=dir_flips, trend_flips=trend_flips,
+        turn_class=turn_class)
 
 
 def check_symbol(symbol: str) -> None:

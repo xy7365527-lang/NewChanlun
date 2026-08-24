@@ -6723,6 +6723,10 @@ where
         level_attrib_n_bars,
         level_attrib_n_residual_bars,
         level_attrib_n_rescaled_bars,
+        // #1208 ①件：turn_class 生产桥运行末态（门关闭 ⟹ None ⟹ 零行为变化）。
+        turn_class_rows: nest_chain_gate
+            .as_ref()
+            .and_then(|gate| gate.turn_class_rows.clone()),
     }
 }
 
@@ -6780,6 +6784,10 @@ pub(super) struct FillOutput {
     pub(super) level_attrib_n_bars: u64,
     pub(super) level_attrib_n_residual_bars: u64,
     pub(super) level_attrib_n_rescaled_bars: u64,
+    /// #1208 ①件 turn_class 生产桥出口（`NestChainGate.turn_class_rows` 运行末态快照）：
+    /// 索引重建同点投影的稀疏注解行（bar 升序）。`None` = 门关闭或零重建——行缺失 =
+    /// 零行为变化（capability guard；`SignalTape.turn_class_rows` 传输位同款口径）。
+    pub(super) turn_class_rows: Option<Vec<classifier::TurnClassRow>>,
 }
 
 /// voice_qty 同步（fill 后更新；depth 超界跳过，诚实边界不应发生）。

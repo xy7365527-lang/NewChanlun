@@ -127,6 +127,27 @@ fn main() -> std::process::ExitCode {
         println!("证书总数         : {}", s.cert_total);
         println!("每级证书数       : {:?}", s.cert_per_top);
     }
+    // #1208 ①件 turn_class 生产桥读数（行缺失 = None = 零行为变化；NEST_CERT_GATE
+    // 关闭或零重建 ⟹ 不打印本段——照实，不伪造行）。
+    if let Some(rows) = &r.turn_class_rows {
+        use newchan_rust::theta_v0::classifier::TurnClassKind;
+        let mut counts = [0usize; 4];
+        for row in rows {
+            let slot = match row.class {
+                TurnClassKind::NestedConfirmed => 0,
+                TurnClassKind::XiaozhuandaCandidate => 1,
+                TurnClassKind::ExecEvidenceOnly => 2,
+                TurnClassKind::DeferOrphan => 3,
+            };
+            counts[slot] += 1;
+        }
+        println!("--- turn_class 生产桥（#1208 ①件）---");
+        println!("投影行总数      : {}", rows.len());
+        println!(
+            "NestedConfirmed : {} | XiaozhuandaCandidate : {} | ExecEvidenceOnly : {} | DeferOrphan : {}",
+            counts[0], counts[1], counts[2], counts[3],
+        );
+    }
     println!("--- 指标（含浮盈口径，runner §3）---");
     println!("strat_return    : {:.4}", r.metrics.strat_return);
     println!("buy&hold_return : {:.4}", r.metrics.bh_return);

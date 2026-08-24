@@ -5666,6 +5666,151 @@ fn nest_chain_absorb_confirmed_only_first_wins() {
     assert_eq!(gate.events_by_level[1][0].judge_at, 100, "首次观察钟不后移");
 }
 
+/// #1208 ①件 turn_class 生产桥 parity：小合成窗（044:16 形态几何）上生产桥行
+/// （`NestChainGate::sync_index` → `classify_nest_turns` → `project_turn_class_rows`，
+/// = `build_nest_certificate_index` 调用点同点挂桥）vs p92 离线同窗
+/// （`assemble_typed_certificates` + `classify_nest_turns` + `project_turn_class_rows`）
+/// 逐行对拍；≥1 例 XiaozhuandaCandidate 正例（044:24 三类点必要条件过）。
+///
+/// 合成窗账本直投（`absorb_exts` 只收确认事件，未确认链顶 rung 仅合成窗可达——
+/// 生产账本现口径下该分支行缺失 = 零行为变化；桥本体 = 索引重建同点的确定函数，
+/// 不因账本内容改变，判据唯一 = 复用 turn_class 层函数，零重写）。
+#[test]
+fn turn_class_production_bridge_parity_xzd_positive() {
+    use super::super::super::classifier::nest::{
+        assemble_typed_certificates, terminal_bits_at_event, NestIntervalCaliber, OwnerAnchorCtx,
+        TerminalMatch,
+    };
+    use super::super::super::classifier::{
+        classify_nest_turns, project_turn_class_rows, TurnClassKind,
+    };
+    use super::super::super::types::{BspBits, Center, Side, Tick};
+    use classifier::bsp::BspPoint;
+
+    // 044:16 形态几何（turn_class.rs xzd_events 同款坐标）：基例 level=1 Short
+    // confirmed（interval_b=(44,48), turn=48）；链顶 level=2 Short **未确认**
+    // （interval_b=(33,50), turn=50）——confirmed 向量 [false, true]（高→低）。
+    let base = nc_event(1, Side::Short, (44, 48), 48, 48, true);
+    let parent = nc_event(2, Side::Short, (33, 50), 50, 50, false);
+    let events = vec![vec![], vec![base.clone()], vec![parent]];
+
+    // 分类：levels[0] 携 B 中枢（start=20 = nc_event b_center_start，终端背书 owner 判同
+    // 查找键）+ sell1@46（基例窗口 [44,48] 内 ⟹ 终端背书命中）+ c′[420,440]/(40,46)
+    // + sell3@52（044:24 三类点，src=52 > 基例.turn=48 ⟹ 必要条件过）；levels[1] =
+    // 父级中枢 A/B（turn_extreme 读数面）。
+    let b_center = Center {
+        zd: 400,
+        zg: 420,
+        dd: 390,
+        gg: 430,
+        start_index: 20,
+        end_index: 30,
+    };
+    let c_prime = Center {
+        zd: 420,
+        zg: 440,
+        dd: 410,
+        gg: 450,
+        start_index: 40,
+        end_index: 46,
+    };
+    let mk_pt = |src: usize, bits: BspBits, c: Option<Center>| BspPoint {
+        source_index: src,
+        bits,
+        pivot_low: 0,
+        pivot_high: 0,
+        center: c.map(classifier::bsp::OwnerRef::Center),
+        struct_break_dir: None,
+        force: None,
+        retrace_breaks_type1: None,
+    };
+    let sell1 = BspBits {
+        sell1: true,
+        ..Default::default()
+    };
+    let sell3 = BspBits {
+        sell3: true,
+        ..Default::default()
+    };
+    let classification = classifier::Classification {
+        levels: vec![
+            classifier::LevelState {
+                centers: std::rc::Rc::new(vec![b_center, c_prime]),
+                bsp: std::rc::Rc::new(vec![
+                    mk_pt(46, sell1, Some(b_center)),
+                    mk_pt(52, sell3, Some(c_prime)),
+                ]),
+                ..Default::default()
+            },
+            classifier::LevelState {
+                centers: std::rc::Rc::new(vec![
+                    Center {
+                        zd: 100,
+                        zg: 200,
+                        dd: 90,
+                        gg: 210,
+                        start_index: 0,
+                        end_index: 12,
+                    },
+                    Center {
+                        zd: 150,
+                        zg: 250,
+                        dd: 140,
+                        gg: 260,
+                        start_index: 20,
+                        end_index: 32,
+                    },
+                ]),
+                ..Default::default()
+            },
+        ],
+    };
+
+    // 生产桥：θ 生产路径同点（sync_index = build_nest_certificate_index 调用点）。
+    let (fractals, merged) = t3_supplies();
+    let mut gate = NestChainGate::for_test_with_supplies(
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        std::rc::Rc::new(fractals),
+        std::rc::Rc::new(merged),
+    );
+    gate.events_by_level = events.clone();
+    gate.sync_index(&classification);
+    let rows = gate
+        .turn_class_rows
+        .clone()
+        .expect("生产桥已产出投影行（索引重建同点）");
+
+    // p92 离线同窗：同账本 + 同分类，终端查法 = p92 `terminal_bits_new` 同款
+    //（CWindow + 恒缺锚 ctx；合成窗无二类点 ⟹ 锚判同不被触发）。
+    fn never(_: usize) -> Option<(Tick, usize)> {
+        None
+    }
+    let ctx = OwnerAnchorCtx {
+        anchor_at: &never,
+        event_anchor: (None, None),
+    };
+    let certs = assemble_typed_certificates(&events, 1, 2, NestIntervalCaliber::B, |event| {
+        terminal_bits_at_event(&classification, event, TerminalMatch::CWindow, &ctx).map(|t| t.bits)
+    });
+    let offline = project_turn_class_rows(&classify_nest_turns(&events, &certs, &classification));
+
+    // 对拍：行数相等 + 逐行全字段相等（bar/ladder/class/evidence）。
+    assert_eq!(rows.len(), 1, "合成窗唯一证书（exec=1, top=2）⟹ 恰一行");
+    assert_eq!(offline.len(), 1, "p92 离线同窗同证 ⟹ 恰一行");
+    assert_eq!(rows[0], offline[0], "生产桥行与 p92 离线行逐字段相等");
+    assert_eq!(rows[0].bar, 50, "行 bar = 链顶身份 turn_source");
+    assert_eq!(rows[0].ladder, 2, "行 ladder = 链顶 level");
+    // ≥1 例 XiaozhuandaCandidate 正例（044:16 形态 + 044:24 三类点必要条件过）。
+    assert_eq!(rows[0].class, TurnClassKind::XiaozhuandaCandidate);
+    let evidence = rows[0]
+        .evidence
+        .expect("候选行必携证据（044:30 只有必要条件）");
+    assert_eq!(evidence.third_src, 52, "c′ 三卖 source_index（044:24）");
+    assert_eq!(evidence.turn_extreme, 260, "父级 GG 最大值（#1202 证伪线）");
+}
+
 /// #112-T1 → T3 (#172) 改写（判定源迁移）：候选 origin=0、证书仅在 ℓ=2（origin+2）时，
 /// 严格链要求 [L0, 链顶] 逐级闭合——L0/L1 缺证 ⟹ 断/缺拒（nest_n_delta_false），
 /// **不再**放行。（T3 前本测试断言「multi ℓ=2 命中成为进场唯一判定源 nest_pass」——
