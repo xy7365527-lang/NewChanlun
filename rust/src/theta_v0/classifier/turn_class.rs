@@ -74,8 +74,9 @@ pub struct XzdEvidence {
     pub second_class: Option<usize>,
     /// 基例转折极值（#1202 第三块）：被转级别账本（levels[ℓ-1]）中枢外包络在
     /// `base_turn` 之前的极值——Short 取 GG 最大（顶区上沿）、Long 取 DD 最小（底区下沿）。
-    /// 用途＝风控臂证伪线：044:30 两可的向上半支「可以往上突破，使得 a+A+b+B+c 继续
-    /// 延伸」（044/p209）的机械读数——价格越回该极值 ⟹ 候选证伪。只作标注，不作门。
+    /// #1222 起不再作证伪线（证伪 = 该级后续 confirmed Buy3 结构事件；价格越极值
+    /// 不证伪）；字段保留作行格式/Python 列三元组与 xzd_second 标签门匹配坐标。
+    /// 只作标注，不作门。
     pub turn_extreme: Tick,
 }
 

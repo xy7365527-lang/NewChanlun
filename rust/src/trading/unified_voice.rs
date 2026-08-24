@@ -364,9 +364,11 @@ pub(crate) fn run_unified_voice(
         // ── XZD 情况二风控臂（#1202 第三块；行式标注，永不进触发面 044:30）──
         // 消费面＝风控标记三件：①不追新门（候选在场且未证伪 ⇒ 拦新开，053:28
         // 补位点的 L 级纪律）；②证据升级（bar 到 third_src ⇒ 档位计数，每行一次）；
-        // ③orphan 显式挂起（DeferOrphan ⇒ 计数，每行一次）。证伪线＝
-        // evidence.turn_extreme（基例转折极值）：close 越回 ⇒ 044:30 两可的向上半支
-        // （p209「可以往上突破，使得 a+A+b+B+c 继续延伸」）⇒ 行死、门撤（每行一次）。
+        // ③orphan 显式挂起（DeferOrphan ⇒ 计数，每行一次）。
+        // 证伪线（#1222 裁定）：结构判据，禁价格极值测试——该级后续 confirmed
+        // Buy3（三买确认 = 上涨走势类型继续延伸 ⇒ 044:30 两可的向上半支被结构
+        // 坐实）⇒ 行死、门撤（每行一次）。close 越 turn_extreme 不再构成证伪；
+        // 字段保留作行格式/Python 列三元组与标签门匹配（零 API 破坏）。
         // capability guard：rows None ⇒ 全零、零行为变化。
         if let Some(rows) = &tape.turn_class_rows {
             for row in rows {
@@ -383,11 +385,6 @@ pub(crate) fn run_unified_voice(
                         if xzd_dead[k] {
                             continue;
                         }
-                        if c > ev.turn_extreme as f64 {
-                            xzd_dead[k] = true;
-                            res.n_xzd_negations_by_ladder[k] += 1;
-                            continue;
-                        }
                         if i as usize >= ev.third_src && !xzd_upgraded[k] {
                             xzd_upgraded[k] = true;
                             res.n_xzd_evidence_upgrades_by_ladder[k] += 1;
@@ -400,6 +397,20 @@ pub(crate) fn run_unified_voice(
                         }
                     }
                     TurnClassKind::NestedConfirmed | TurnClassKind::ExecEvidenceOnly => {}
+                }
+            }
+            // #1222 证伪线：该级后续 confirmed Buy3（bsp_events 同 bar 结构事件，
+            // 三买确认 = 上涨走势类型继续延伸）⇒ 行死、门撤（每行一次）。
+            // 结构判据，禁新高/新低价格极值测试（编排者 2026-08-24 裁定）。
+            for k in floor_ladder..MAX_LADDER {
+                if xzd_active[k]
+                    && !xzd_dead[k]
+                    && evrows[k]
+                        .iter()
+                        .any(|e| e.confirmed && e.class == BspClass::Buy3)
+                {
+                    xzd_dead[k] = true;
+                    res.n_xzd_negations_by_ladder[k] += 1;
                 }
             }
             for k in floor_ladder..MAX_LADDER {
@@ -1200,6 +1211,20 @@ mod tests {
         }
     }
 
+    /// confirmed BspEvent（#1222 证伪线测试件；cs=None ⇒ 不触 CenterBook，只作
+    /// 结构事件坐标——证伪判据只读 class+confirmed）。
+    fn conf_ev(class: BspClass, px: f64) -> BspEvent {
+        BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed: true,
+            cs: None,
+            zd: None,
+            zg: None,
+            price: px,
+        }
+    }
+
     fn run_v_xzd(
         bars: Vec<BarSig>,
         dir_flips: Vec<(i64, u8, Direction)>,
@@ -1231,26 +1256,60 @@ mod tests {
 
     #[test]
     fn xzd_candidate_blocks_new_long() {
-        // 候选在场且未证伪（extreme=200 > c=100）⟹ 不追新门拦新开。
+        // 候选在场且无 confirmed Buy3 结构事件（#1222：价格不参与证伪）⟹
+        // 不追新门拦新开。
         let mut bars = warmup(2);
         bars.push(buypt(bar(100.0), 2));
         let rows = vec![xzd_candidate_row(2, 0, 9999, 200.0)];
         let r = run_v_xzd(bars, vec![], vec![], rows);
         assert_eq!(r.n_entries_by_ladder[2], 0, "不追新门拦新开");
         assert!(r.n_xzd_blocked_bars_by_ladder[2] > 0, "门驻留计数");
-        assert_eq!(r.n_xzd_negations_by_ladder[2], 0, "未越极值不证伪");
+        assert_eq!(
+            r.n_xzd_negations_by_ladder[2], 0,
+            "无 confirmed Buy3 不证伪"
+        );
     }
 
     #[test]
-    fn xzd_falsification_reopens_entry() {
-        // c=100 > extreme=50 ⟹ 证伪（每行一次）⟹ 门撤 ⟹ 入场放行。
+    fn xzd_price_break_without_buy3_keeps_gate() {
+        // #1222：价格越 turn_extreme 不再证伪——c=100 > extreme=50 全程越极值，
+        // 但无 confirmed Buy3 结构事件 ⟹ 门持续驻留、入场仍被拦。
         let mut bars = warmup(2);
         bars.push(buypt(bar(100.0), 2));
         let rows = vec![xzd_candidate_row(2, 0, 9999, 50.0)];
         let r = run_v_xzd(bars, vec![], vec![], rows);
-        assert_eq!(r.n_xzd_negations_by_ladder[2], 1, "证伪只计一次");
-        assert_eq!(r.n_xzd_blocked_bars_by_ladder[2], 0, "证伪后门撤");
-        assert_eq!(r.n_entries_by_ladder[2], 1, "入场放行");
+        assert_eq!(r.n_xzd_negations_by_ladder[2], 0, "仅价格越极值不证伪");
+        assert_eq!(
+            r.n_xzd_blocked_bars_by_ladder[2],
+            SUB_COST_MIN_OBS as u64 + 1,
+            "越极值 bar 仍门驻留（warmup 全期 + 越极值 bar）"
+        );
+        assert_eq!(r.n_entries_by_ladder[2], 0, "未证伪则新开被拦");
+    }
+
+    #[test]
+    fn xzd_falsification_confirmed_buy3_reopens_entry() {
+        // #1222：证伪线 = 该级后续 confirmed Buy3（三买确认 = 上涨走势类型继续
+        // 延伸）。证伪只计一次、门撤、后续买点入场放行。
+        let mut bars = warmup(2);
+        bars.push(buypt(bar(100.0), 2)); // c 越 extreme=50，不证伪（结构未发展）
+        bars.push(with_ev(
+            buypt(bar(100.0), 2),
+            2,
+            conf_ev(BspClass::Buy3, 100.0),
+        )); // confirmed Buy3 ⇒ 证伪、门撤
+        let rows = vec![xzd_candidate_row(2, 0, 9999, 50.0)];
+        let r = run_v_xzd(bars, vec![], vec![], rows);
+        assert_eq!(
+            r.n_xzd_negations_by_ladder[2], 1,
+            "confirmed Buy3 证伪只计一次"
+        );
+        assert_eq!(
+            r.n_xzd_blocked_bars_by_ladder[2],
+            SUB_COST_MIN_OBS as u64 + 1,
+            "仅 Buy3 前 bar 门驻留（warmup 全期 + 越极值 bar）"
+        );
+        assert_eq!(r.n_entries_by_ladder[2], 1, "证伪后入场放行（仅 Buy3 bar）");
     }
 
     #[test]

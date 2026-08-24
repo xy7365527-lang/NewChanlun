@@ -5808,7 +5808,10 @@ fn turn_class_production_bridge_parity_xzd_positive() {
         .evidence
         .expect("候选行必携证据（044:30 只有必要条件）");
     assert_eq!(evidence.third_src, 52, "c′ 三卖 source_index（044:24）");
-    assert_eq!(evidence.turn_extreme, 260, "父级 GG 最大值（#1202 证伪线）");
+    assert_eq!(
+        evidence.turn_extreme, 260,
+        "父级 GG 最大值（基例转折极值；#1222 起不作证伪线）"
+    );
 }
 
 /// #112-T1 → T3 (#172) 改写（判定源迁移）：候选 origin=0、证书仅在 ℓ=2（origin+2）时，

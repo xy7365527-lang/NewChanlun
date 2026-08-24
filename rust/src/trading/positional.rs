@@ -299,8 +299,8 @@ pub struct PositionalResult {
     /// 不追新门生效 bar 数（该级候选在场且未证伪——043:32 情况二「无本级别背驰」
     /// 的 L 级风控标记：新开多/空被拦的驻留面）。
     pub n_xzd_blocked_bars_by_ladder: [u64; MAX_LADDER],
-    /// 候选证伪次数（close 越回基例转折极值——044:30 两可的向上半支「可以往上
-    /// 突破，使得 a+A+b+B+c 继续延伸」机械读数；行死，此后该行不再置门）。
+    /// 候选证伪次数（#1222：该级后续 confirmed Buy3 结构事件——上涨走势类型继续
+    /// 延伸的机械读数；行死，此后该行不再置门。close 越 turn_extreme 不再证伪）。
     pub n_xzd_negations_by_ladder: [u64; MAX_LADDER],
     /// c′ 三卖证据升级次数（bar 到达 evidence.third_src；044:24 必要条件命中——
     /// 只记档位，不触发，每行一次）。

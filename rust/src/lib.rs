@@ -1660,7 +1660,8 @@ impl PyOrganicTape {
         trend_flips: Option<Vec<(i64, u8, bool)>>,
         // #1195 投影行：turn_class 每级标签 → (bar, ladder, class, evidence)；
         // evidence = (third_src, second_class, turn_extreme)，仅 XiaozhuandaCandidate 非 None
-        // （#1202 第三块：turn_extreme = 基例转折极值，风控臂证伪线）。
+        // （#1202 第三块：turn_extreme = 基例转折极值；#1222 起不再作证伪线——
+        // 证伪 = 该级后续 confirmed Buy3，字段保留作行格式/Python 列三元组）。
         turn_class: Option<Vec<(i64, u8, String, Option<(i64, Option<i64>, i64)>)>>,
         // #1208 ②件：xzd_second 候选事件行 → (bar, ladder, side, pan_div_hit, turn_extreme)；
         // bar = source_index（事件 bar），升序校验同 turn_class；side "sell"→Short（二卖）/
