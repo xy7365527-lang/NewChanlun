@@ -10,7 +10,7 @@
 
 ### 支柱 I：缠论引擎（信号生成层）
 
-**当前状态**：核心管线已完成，增量计算稳定。**8 层引擎已全量 Rust 重写并逐位等价（bit-exact）**——bi / segment / zhongshu / move / BSP / PH / MACD / RecursiveOrchestrator 八层逐字段移植，PyO3 0.23 + maturin 构建，L1/L2 真实数据上与 Python 实现逐位一致（`rust/src/*.rs` + `tests/test_rust_*_equivalence.py` 九组等价测试）。
+**当前状态**：核心管线已完成，增量计算稳定。**8 层引擎已全量 Rust 重写并逐位等价（bit-exact）**——bi / segment / zhongshu / move / BSP / PH / MACD / RecursiveOrchestrator 八层逐字段移植，PyO3 0.23 + maturin 构建，L1/L2 真实数据上与 Python 实现逐位一致（`rust/src/*.rs`；九组 v1 legacy 等价测试已随 #1212 退役，对拍职责由 **Rust↔Lean parity** 认领——`cargo test --all-targets` 已接 CI #810）。
 
 **全链路 O(N) 化已完成（本 session 重大进展）**：引擎曾在长序列（BTC 4.6M bars 在 3M+ 后显著变慢）暴露残留 O(N²)。系统性审计后，**五堵 O(N²) 墙逐一拆除，全程 bit-exact**：
 

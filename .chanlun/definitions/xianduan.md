@@ -168,7 +168,7 @@ P2 在同序列上可给出 `{[0,4]}`（一段 5 笔）—— P2 能出 5 笔段
 
 **可达性**：`ExtendMode::Optimized` 在 theta_v0 **无生产构造点**（穷举：`grep -rn Optimized rust/src/theta_v0/` **仅 1 命中** = 枚举变体声明 `parser/feature_seq.rs:284`；不进 `ParseConfig`、无 env 开关、`scripts/` + `.github/` 零命中）。
 
-**★ 定案票面标「灰区」低估后果**：仓内在案读数 `tests/test_rust_segment_equivalence.py:11` 逐字「BZ 全年 strict 28 段、optimized 159 段」⟹ **两档差 ≈5.7 倍**，量级远大于 G-2 的 Δ=2 段（1.2%）。
+**★ 定案票面标「灰区」低估后果**：仓内在案读数（v1 legacy 对拍，已随 #1212 退役删除）逐字「BZ 全年 strict 28 段、optimized 159 段」⟹ **两档差 ≈5.7 倍**，量级远大于 G-2 的 Δ=2 段（1.2%）。
 **⟹ 不该继续标灰区。**
 
 **⟹ 删 `optimized` 会翻掉 4 个测试 + 4 个 rust 调用点 ⟹ 归 SPEC，不在本票动手。**

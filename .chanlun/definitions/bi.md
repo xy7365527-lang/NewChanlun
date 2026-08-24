@@ -371,7 +371,7 @@ theta_v0 的对应不变式在 `rust/src/theta_v0/parser/stroke.rs:253-267`（`c
 
 | 对拍关系 | 实况 |
 |---|---|
-| 族I 内部 Py ↔ Rust | **有** —— `tests/test_rust_bi_equivalence.py:92` `@pytest.mark.parametrize("mode", ["new","wide","strict"])`，6000 bar 逐 bar bit-exact，**CI 常跑** |
+| 族I 内部 Py ↔ Rust | **曾对拍，已退役**（#1211 裁决旧顶层 Rust-v1 即刻退役，#1212 删九组 v1 legacy 对拍）——对拍职责改由 **Rust↔Lean parity** 认领（#810 已接 CI `cargo test --all-targets`） |
 | **族I ↔ theta_v0** | **确实零对拍**（穷举方法：`grep -rc merged_to_raw rust/src/theta_v0/` = **0**，无共同载体字段） |
 | theta_v0 内部单测 | **8 个**（`grep -c '#\[test\]' rust/src/theta_v0/parser/stroke.rs` = 8），**全用手填 `source_index` 的合成分型**（helper `frac()` 在 `:385`），`inclusion` 在该文件**零命中** ⟹ **测试从未进入分歧区** |
 
