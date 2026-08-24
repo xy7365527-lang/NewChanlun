@@ -12105,6 +12105,14 @@ fn p1223_evidence(
     } else {
         &[]
     };
+    let sub_bsp: &[BspPoint] = if lvl > 0 {
+        cls.levels
+            .get(lvl - 1)
+            .map(|ls| ls.bsp.as_slice())
+            .unwrap_or(&[])
+    } else {
+        &[]
+    };
     let bsp_of_level: &[BspPoint] = cls
         .levels
         .get(lvl)
@@ -12122,6 +12130,7 @@ fn p1223_evidence(
         confirm_index,
         side,
         sub_centers,
+        sub_bsp,
         sub_moves,
         strokes,
     );
