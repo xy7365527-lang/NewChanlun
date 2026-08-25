@@ -1773,6 +1773,63 @@ fn gate_locates_exec_segment_by_containment_after_anchor_migration() {
     );
 }
 
+/// ★#1234 回归锁（#1052/#1028 裁定 A 同口径）：点锚迁移后 `source_index` 可能落在执行段**内部**
+/// （departure 单元终点 = 末趋势子段终点，非 C 段 `end_index`）。`build_xzd_fallback` 的小转大
+/// 执行段定位须用「区间包含」（[`find_move_containing_index`]）命中 C 段；`end ==` 精确匹配
+/// 对 interior 锚 MISS ⟹ 修前会把 Type2/3 小转大域误拒为 None。
+#[test]
+fn xzd_fallback_locates_exec_segment_by_containment_after_anchor_migration() {
+    use super::super::super::classifier::cand_predicate::departure_unit_end;
+    // 同 gate_locates 夹具：L0 趋势两段 Down + 尾段回抽 Up——C 段末子段是反趋势段。
+    let s0 = seg2(Dir2::Down, 100, 80, 0, 5, 0);
+    let s1 = seg2(Dir2::Down, 90, 70, 5, 9, 1);
+    let s2 = seg2(Dir2::Up, 70, 85, 9, 13, 2);
+    let c = compose2(
+        vec![s0.clone(), s1.clone(), s2.clone()],
+        ct2(70, 85, 9, 13),
+        1,
+        0,
+    );
+    let departure = departure_unit_end(&c, Dir2::Down).expect("存在趋势方向子段");
+    assert_eq!(
+        departure, 9,
+        "departure 终点 = 最后趋势子段终点 9（interior）"
+    );
+
+    let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![s0, s1, s2]), Rc2::new(vec![c])];
+    // 迁移后 interior 锚：`end ==` MISS，`区间包含` 命中 C 段（tower[1] 唯一段）。
+    assert_eq!(find_move_by_end_index(&tower[1], departure), None);
+    assert_eq!(find_move_containing_index(&tower[1], departure), Some(0));
+
+    // Type3 位（buy3）：修前 find_move_by_end_index MISS ⟹ None 误拒；修后区间包含命中 C 段
+    // ⟹ 进入小转大域（Type2/3 ⟹ Some(XzdEvidence)）。
+    let bits = BspBits {
+        buy3: true,
+        ..Default::default()
+    };
+    let ev = build_xzd_fallback(
+        &tower,
+        1,
+        departure,
+        Side::Long,
+        &bits,
+        departure,
+        &[],
+        &[],
+        &[],
+        &[],
+    );
+    assert!(
+        ev.is_some(),
+        "xzd 回退须以 interior 锚命中 C 段（修前 find_move_by_end_index MISS ⟹ None 误拒）"
+    );
+    assert_eq!(
+        ev.map(|e| e.source_index),
+        Some(departure),
+        "证据锚 = departure 终点"
+    );
+}
+
 /// 段2 正例：Type2@lvl1 的回抽次级别走势 m2 内部含次级别 Type1 背驰段（end==source_index）
 /// ⟹ 下沉锚定 Some(1) ⟹ 证书非 None ⟹ n_delta=true（存在性 buy2 基例 + 精确定位已门控）。
 #[test]

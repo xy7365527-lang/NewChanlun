@@ -779,7 +779,7 @@ pub(super) fn build_multilevel_nest_cert(
 ) -> bool {
     match build_nest_certificate(tower, lvl, source_index, delta, bits, hist, strokes, gauge) {
         Some(cert) => cert.n_delta(),
-        None => false, // 执行级无候选段（tower[lvl] 无 end_index==source_index）⟹ 无定位
+        None => false, // 执行级无候选段（tower[lvl] 无包含 source_index 的段）⟹ 无定位
     }
 }
 
@@ -790,7 +790,7 @@ pub(super) fn build_multilevel_nest_cert(
 /// 诊断读到的 rung 深度与生产门实际消费的 rung 链 **bit-exact 同源**（不是外部近似重算）。
 ///
 /// **认识论 L0**：纯结构构造 + 确定性算术（同 `build_multilevel_nest_cert`）。
-/// 返回 `None` ⟺ 执行级 tower[lvl] 无 end_index==source_index 段（无定位候选，门直接拒）。
+/// 返回 `None` ⟺ 执行级 tower[lvl] 无包含 source_index 的段（无定位候选，门直接拒）。
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_nest_certificate(
     tower: &[std::rc::Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
@@ -1115,7 +1115,7 @@ pub(super) fn nest_trigger(cert: &GateCertificate, cand_type: BspCandType) -> Ne
 ///   `C2 ∧ C3(新中枢突破) ∧ ¬例外臂`，单一来源）。
 ///
 /// 任一通过 ⟹ true（承接成立，调用方组 RawSignal，trigger=[`NestTrigger::PanDivConsolidation`]）；
-/// 两门皆闭 / tower[lvl] 无 end_index==source_index 执行段 ⟹ false（承接失败，诚实丢弃）。
+/// 两门皆闭 / tower[lvl] 无包含 source_index 的执行段 ⟹ false（承接失败，诚实丢弃）。
 #[allow(clippy::too_many_arguments)]
 pub(super) fn pan_div_gate_pass(
     tower: &[Rc<Vec<LeveledMove>>],
@@ -1130,11 +1130,12 @@ pub(super) fn pan_div_gate_pass(
     strokes: &[crate::theta_v0::types::Stroke],
     gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> bool {
-    // 执行段定位（与 build_nest_certificate 同口径）：tower[lvl] 中 end_index==source_index 的段。
+    // 执行段定位（与 build_nest_certificate 同口径，★#1052/#1234 区间包含）：tower[lvl] 中包含
+    // source_index 的段（start_index ≤ source_index ≤ end_index）。
     let Some(exec_moves) = tower.get(lvl).map(|m| m.as_slice()) else {
         return false;
     };
-    let Some(si) = find_move_by_end_index(exec_moves, cert.source_index) else {
+    let Some(si) = find_move_containing_index(exec_moves, cert.source_index) else {
         return false;
     };
     let s = &exec_moves[si];
@@ -1177,7 +1178,7 @@ pub(super) fn pan_div_gate_pass(
 ///
 /// - `build_nest_certificate` Some ⟹ `Nest`（区间套通道，bit-exact 不动）。
 /// - Nest None + 执行段存在 + Type2/3 ⟹ **小转大**（base gate false = descend anchor None）⟹ `Xzd`。
-/// - Nest None + 无执行段（case-1 无定位候选）或 Type1 背驰失败 ⟹ `None`（门拒，旧语义保留）。
+/// - Nest None + 无执行段（case-1 无包含 source_index 的定位候选）或 Type1 背驰失败 ⟹ `None`（门拒，旧语义保留）。
 ///
 /// **bit-exact**：区间套通道逐字复用 build_nest_certificate；只有 Type2/3 小转大域从「None 门拒」改为
 /// 「Xzd + gate_pass」——仅新增小转大通过信号，区间套信号集不变。
@@ -1222,7 +1223,7 @@ pub(super) fn build_gate_certificate(
 /// #75 单一来源纪律：admission `admit()` 重走（#94 择 (b)）与门凭据构造共用本函数，
 /// 禁第二查法）。
 ///
-/// - 无执行段（case-1 无定位候选）/ Type1 背驰失败 / StructBreak ⟹ `None`（门拒，旧语义保留）。
+/// - 无执行段（case-1 无包含 source_index 的定位候选）/ Type1 背驰失败 / StructBreak ⟹ `None`（门拒，旧语义保留）。
 /// - Type2/3 ⟹ `Some(XzdEvidence)`（小转大证据，门读 [`XzdEvidence::gate_pass`]）。
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_xzd_fallback(
@@ -1239,7 +1240,9 @@ pub(super) fn build_xzd_fallback(
 ) -> Option<XzdEvidence> {
     // Nest None：区分小转大（Type2/3 base gate false）与 case-1（无执行段）/Type1 背驰失败。
     let exec_moves = tower.get(lvl)?.as_slice();
-    let s = &exec_moves[find_move_by_end_index(exec_moves, source_index)?]; // None=无定位候选 ⟹ 门拒
+    // ★#1052/#1234：与 build_nest_certificate 同口径——区间包含定位（source_index 可能落在
+    // 段内部，非段终点）；None=无包含段（无定位候选）⟹ 门拒。
+    let s = &exec_moves[find_move_containing_index(exec_moves, source_index)?];
     match bsp_cand_type(bits, delta) {
         BspCandType::Type1 => None, // Type1 nest 失败=div_cand 假，非小转大 ⟹ 拒
         BspCandType::StructBreak => None, // 门拒（codex 终局裁决A）：零 bit 破中枢未背驰候选无确认语义
