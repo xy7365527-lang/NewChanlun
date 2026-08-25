@@ -11,7 +11,9 @@ Origin/BspConstruction.lean — bsp 全自动构造（遍历识别三类 + 第�
 
   ★诚实声明（消声明膨胀，no-patch-mentality）：(2) **不是** well-founded 级别下降递归——
   其 `subLevelHasType1 n e` 丢弃级别索引 n、两分支同体、不自调，无下降递归结构。
-  「次级别真下钻」（从次级别 ParseStruct 取真正的次级别第一类）是 **still-MISSING-D′**（未实装）。
+  `Origin.SubLevelDescent` 已实装 `descend` 与级别严格下降证明；本文件剩余的 **still-MISSING-D′**
+  是把该结构接入 `subLevelHasType1`、从次级别 ParseStruct 重判第一类的**集成缺口**，
+  不再是“真下钻结构未实装”。
 
 ═══════════════════════════════════════════════════════════════════════════
 构造算法（§10.1 三类识别 + §10.2 买卖点定律一本级别判据签名）
@@ -20,8 +22,9 @@ Origin/BspConstruction.lean — bsp 全自动构造（遍历识别三类 + 第�
   产出 `Bsp`（type1/2/3 + side + index + price）。**终止性**：结构递归消费列头，结构终止。
 - 第二类本级别判据（买卖点定律一）："任何级别的第二类买卖点都由次级别相应走势的第一类构成。"
   本文件把它装配为**单步本级别判据签名**：本级别(level n)第二类 = 本级别 IsType2 ∧ 次级别第一类
-  **占位**（`subLevelHasType1`，丢弃 n）。次级别真下钻（级别真正递减到基底）是 still-MISSING-D′，
-  **未实装**——本文件不冒充该下钻已成（见 SubLevelDescent.lean 的 descend 真级别递减结构基础）。
+  **占位**（`subLevelHasType1`，丢弃 n）。次级别真下钻的结构与终止证明已在
+  `SubLevelDescent.lean` 落地；本文件尚未把它接到 `subLevelHasType1` 的 ParseStruct 重分类，
+  该接线是 still-MISSING-D′ 集成缺口。
 
 ═══════════════════════════════════════════════════════════════════════════
 认识论等级（formalization-validity-domain 强制标注）
@@ -37,8 +40,8 @@ Origin/BspConstruction.lean — bsp 全自动构造（遍历识别三类 + 第�
     （Divergence still-MISSING-C，需 EMA/DIF/DEA + 面积积分）——诚实不填，标 L2，不冒充已填。
 `lake env lean Origin/BspConstruction.lean` 通过 = bspOf 全函数良定义（终止）+ 输出唯一（确定性）
 + brokeCenter/leftCenter 价格几何 L0 推导成立，**不是**任何"识别的买卖点真对应缠论权威标注"的
-实证断言（L2+），**也不是** divPair 力度已计算（still-MISSING-C），**也不是**次级别真下钻终止性
-证明（still-MISSING-D′）。
+实证断言（L2+），**也不是** divPair 力度已计算（still-MISSING-C），**也不是**
+`SubLevelDescent` 已证下钻与本文件第二类判定已完成集成（still-MISSING-D′）。
 
 诚实标注（gatekeeper，no-patch-mentality）：
 ★ L0PriceGeometry + ListLevelFold + DivPairL2Open + SubLevelIsSingleStepPlaceholder ——
@@ -46,7 +49,8 @@ Origin/BspConstruction.lean — bsp 全自动构造（遍历识别三类 + 第�
   + afterTypeOne 列表级前序折叠。divPair 力度诚实留 L2 开口（still-MISSING-C，不冒充）。第二类
   「次级别第一类」用 level-indexed **单步占位判据**（`subLevelHasType1`：丢弃 n、两分支同体、不自调）
   ——**不是** well-founded 级别下降递归，**不**实装"从本级别 ParseStruct 下钻到次级别 ParseStruct
-  重新跑 segmentsOf/centersOf"（still-MISSING-D′）。把单步占位判据冒充为完整下钻递归 / 把 divPair
+  重新跑 segmentsOf/centersOf"的接线（still-MISSING-D′ 集成缺口；下钻结构已由 `SubLevelDescent`
+  实装）。把单步占位判据冒充为完整下钻递归 / 把 divPair
   冒充为已 L0 推导 = 声明膨胀（禁止）。
 
 禁 sorry/admit/axiom。纯 Prop/Type，不依赖 Mathlib。omega 前须 `simp only [..., Tick]` 暴露 Int。
@@ -56,6 +60,7 @@ import Origin.ChanlunElements
 import Origin.CenterStates
 import Origin.Divergence
 import Origin.BspClassification
+import Origin.SubLevelDescent
 
 namespace NewChanlun.Origin
 
@@ -132,7 +137,7 @@ def bspOf : List BspCandidate → List Bsp
       | none => bspOf rest
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 4. 第二类本级别判据（买卖点定律一，§10.2）：单步本级别签名（次级别真下钻 still-MISSING-D′）
+    § 4. 第二类本级别判据（买卖点定律一，§10.2）：单步本级别签名（真下钻接线 still-MISSING-D′）
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
@@ -141,8 +146,9 @@ def bspOf : List BspCandidate → List Bsp
   `n` 不做任何下钻：两个分支体逐字相同（`decide (IsType1 e)`），`n` 被丢弃，函数**不调用自身**。
 
   ★诚实声明（消声明膨胀，no-patch-mentality）：这**不是**「次级别真下钻」——「从本级别
-  ParseStruct 下钻到次级别 ParseStruct 重跑 segmentsOf/centersOf 取次级别第一类」是
-  **still-MISSING-D′**（未实装，需 RecursiveLevelSystem 全实例化，见 #113/§头部诚实标注）。
+  ParseStruct 下钻到次级别 ParseStruct 重跑 segmentsOf/centersOf 取次级别第一类」的
+  **接线仍是 still-MISSING-D′**（`SubLevelDescent.descend` 与严格降级证明已实装；
+  尚需 RecursiveLevelSystem 全实例化，见 #113/§头部诚实标注）。
   本函数是该接口的**单级别占位判据**：在缺次级别 ParseStruct 时，用本级别 `IsType1` 充当
   «次级别第一类» 的可判定签名，级别索引 `n` 当前不携带信息（占位，待真下钻接入）。
 -/
@@ -157,7 +163,8 @@ def subLevelHasType1 : Nat → BspEndpoint → Bool
   ★诚实声明（消声明膨胀，no-patch-mentality）：本函数对级别索引 `n` 做的是 `Nat.casesOn`
   （区分 0 / n+1 两个分支体），**不是** well-founded 级别下降递归——`subLevelHasType1 n e` 不下钻、
   不自调，故整体无「级别严格递减到基底」的递归结构。买卖点定律一的「次级别真下钻」
-  （从次级别 ParseStruct 取真正的次级别第一类）是 **still-MISSING-D′**（未实装）。本函数只把
+  （从次级别 ParseStruct 取真正的次级别第一类）接入本函数仍是 **still-MISSING-D′**；
+  下钻结构本身已在 `SubLevelDescent` 实装。本函数只把
   «本级别 IsType2 ∧ 次级别第一类占位» 装配为单步判据签名，待真下钻接入后此处替换为真递归。
 -/
 def secondTypeViaSublevel : Nat → BspEndpoint → Bool
@@ -485,9 +492,10 @@ theorem witness_bspOfMoves_empty : bspOfMoves [] [] [] = [] := by
       信息增量真——从 Move 价格端点真推导，非 oracle 给定）；§7.3 afterTypeOne **L0**（列表级折叠，
       纯结构）；divPair **L2 开口**（still-MISSING-C，背驰力度需 MACD 引擎，诚实不填）。
 
-  ★still-MISSING-D′ + divPair L2 开口（divPair 力度仍需 Origin 计算引擎）：
+  ★still-MISSING-D′ 集成缺口 + divPair L2 开口（divPair 力度仍需 Origin 计算引擎）：
     - `subLevelHasType1` 丢弃级别索引 n、两分支同体、不自调——**不是** well-founded 级别下降递归。
-      把单步占位判据冒充为完整下钻递归 = 声明膨胀（禁止）。
+      `SubLevelDescent.descend` 及其降级证明已落地；剩余缺口是 ParseStruct 实例化和本判据接线。
+      把单步占位判据冒充为已接入的完整下钻递归 = 声明膨胀（禁止）。
     - **divPair（背驰力度）= 真 L2 缺口（still-MISSING-C）**：632号路1 消解了价格几何 oracle
       （brokeCenter/leftCenter）与时序 oracle（afterTypeOne），但 `divPair` 的 `Force`/MACD 面积
       **无法**从 `Move` 价格端点几何推导（需 EMA/DIF/DEA + 面积积分，Divergence still-MISSING-C）。

@@ -492,6 +492,25 @@ pub(super) enum ChainVerdict {
     NoChain,
 }
 
+/// #1225 严档裁决单一来源：非空链 `Closed ∧ 零跳`。
+///
+/// `levels` 是 `[L0, 链顶]` 的逐级完整枚举，因此“每级均 Closed”等价于证据路径每条边都由
+/// 相邻级谓词判过（零跳）；空链没有 Closed 证据，落 `NoChain`。本函数只抽取原
+/// [`NestChainGate::chain_lookup`] 末段计数分支，三态逐字不变。
+pub(super) fn strict_chain_verdict(levels: &[ChainLevelGenealogy]) -> ChainVerdict {
+    let n_closed = levels
+        .iter()
+        .filter(|level| level.status == ChainLevelStatus::Closed)
+        .count();
+    if n_closed == 0 {
+        ChainVerdict::NoChain
+    } else if n_closed == levels.len() {
+        ChainVerdict::Pass
+    } else {
+        ChainVerdict::Reject
+    }
+}
+
 /// T3 严格链查询结果：三态 + 完整链谱系（链顶级别、逐级闭合情况、连续闭合到哪级）。
 #[derive(Debug, Clone, Default)]
 pub(super) struct ChainProbe {
@@ -1174,17 +1193,8 @@ impl NestChainGate {
                 }
             }
         }
-        let n_closed = levels
-            .iter()
-            .filter(|g| g.status == ChainLevelStatus::Closed)
-            .count();
-        let verdict = if n_closed == 0 {
-            ChainVerdict::NoChain // 零闭合级 ⟹ Xzd 回退（含因果守卫全剔，现语义保留）
-        } else if n_closed == levels.len() {
-            ChainVerdict::Pass
-        } else {
-            ChainVerdict::Reject
-        };
+        // 严档谓词单源：非空 Closed ∧ 零跳；三态与抽取前逐字一致。
+        let verdict = strict_chain_verdict(&levels);
         ChainProbe {
             verdict,
             price: Some(price),
@@ -1791,6 +1801,67 @@ mod issue467_exit_candidate_tests {
             stats.exit_cand_report_line(),
             "NEST_GATE_EXIT_CAND total=2 admitted=1 rejected=1",
             "π 可达臂使用独立行名，避免与 deprecated v1/dual NEST_GATE_EXIT 混淆"
+        );
+    }
+}
+
+#[cfg(test)]
+mod certificate_chain_parity_tests {
+    use super::{strict_chain_verdict, ChainLevelGenealogy, ChainLevelStatus, ChainVerdict};
+
+    #[derive(serde::Deserialize)]
+    struct Fixture {
+        strict: StrictCases,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct StrictCases {
+        closed_adjacent: bool,
+        closed_skip: bool,
+        open_adjacent: bool,
+    }
+
+    fn level(level: u32, status: ChainLevelStatus) -> ChainLevelGenealogy {
+        ChainLevelGenealogy {
+            level,
+            event_level: level + 1,
+            status,
+            gap: None,
+            n_certs: usize::from(status == ChainLevelStatus::Closed),
+            n_causal_clean: usize::from(status == ChainLevelStatus::Closed),
+            rungs: usize::from(level > 0),
+        }
+    }
+
+    #[test]
+    fn strict_chain_decision_matches_lean() {
+        let fixture: Fixture = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/certificate_chain_parity.json"
+        ))
+        .expect("certificate_chain_parity.json 必须由 Lean #eval 机器导出");
+
+        let closed_adjacent = [
+            level(0, ChainLevelStatus::Closed),
+            level(1, ChainLevelStatus::Closed),
+        ];
+        assert_eq!(
+            strict_chain_verdict(&closed_adjacent) == ChainVerdict::Pass,
+            fixture.strict.closed_adjacent
+        );
+
+        let closed_skip = [
+            level(0, ChainLevelStatus::MissingExistence),
+            level(1, ChainLevelStatus::Closed),
+        ];
+        assert_eq!(
+            strict_chain_verdict(&closed_skip) == ChainVerdict::Pass,
+            fixture.strict.closed_skip
+        );
+
+        let open_adjacent = [level(0, ChainLevelStatus::MissingCert)];
+        assert_eq!(
+            strict_chain_verdict(&open_adjacent) == ChainVerdict::Pass,
+            fixture.strict.open_adjacent
         );
     }
 }

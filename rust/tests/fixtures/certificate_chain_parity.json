@@ -1,0 +1,1 @@
+{"confirmed_vectors":{"nested":[true,true],"xiaozhuanda":[false,true]},"turn_classes":{"nested":"nested_confirmed","xiaozhuanda":"xiaozhuanda_candidate","exec":"exec_evidence_only","orphan":"defer_orphan"},"strict":{"closed_adjacent":true,"closed_skip":false,"open_adjacent":false}}

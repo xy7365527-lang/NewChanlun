@@ -3,21 +3,24 @@
 check_fixture_drift.py — Lean fixture 漂移本地 gate（GitHub issue #263，#245 裁定）
 
 工位定位：rust 四个 parity 测试（theta_v0_buy_parity / theta_v0_classifier_parity /
-theta_v0_lean_parity / theta_v0_center_parity）include_str! 读 rust/tests/fixtures/ 下两个
-机器导出 fixture。两个 fixture **都有** Lean #eval 机器导出器（#263「查其是否有机器导出器」
+theta_v0_lean_parity / theta_v0_center_parity / certificate_chain parity）include_str! 读
+rust/tests/fixtures/ 下三个机器导出 fixture。三个 fixture **都有** Lean #eval 机器导出器（#263「查其是否有机器导出器」
 已查清：有），非手编。本脚本 regen 导出器输出到**临时文件**（绝不覆盖仓内 fixture），与仓内
 fixture 做字段级 diff——Lean 改了值但 fixture 未重落盘 = 漂移，本 gate 变红。
 
-覆盖的两个 fixture：
+覆盖的三个 fixture：
   1. formal/Origin/ParityFixtureExport.lean（#eval 输出整个 fixture JSON，单行 compress）
        → rust/tests/fixtures/theta_v0_parity.json
   2. formal/Origin/CenterConstruct.lean（#eval IO.println refV1FixtureJson.compress，:634）
        → rust/tests/fixtures/theta_v0_center_parity.json
+  3. formal/Origin/CertificateChainParity.lean（#eval 输出证书链 parity JSON）
+       → rust/tests/fixtures/certificate_chain_parity.json
 
 跑法：
-  python3 scripts/check_fixture_drift.py                    # 查两个 fixture（缺省）
+  python3 scripts/check_fixture_drift.py                    # 查三个 fixture（缺省）
   python3 scripts/check_fixture_drift.py --fixture parity   # 只查 theta_v0_parity.json
   python3 scripts/check_fixture_drift.py --fixture center   # 只查 theta_v0_center_parity.json
+  python3 scripts/check_fixture_drift.py --fixture certificate_chain  # 只查证书链 fixture
 
 退出码（真漂移与环境失败严格区分，#263 要求可辨识）：
   0  无漂移（绿）
@@ -68,6 +71,10 @@ FIXTURES = {
     "center": {
         "exporter": "Origin/CenterConstruct.lean",
         "fixture": "rust/tests/fixtures/theta_v0_center_parity.json",
+    },
+    "certificate_chain": {
+        "exporter": "Origin/CertificateChainParity.lean",
+        "fixture": "rust/tests/fixtures/certificate_chain_parity.json",
     },
 }
 

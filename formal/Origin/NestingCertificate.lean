@@ -28,8 +28,9 @@
         全文无此定理——这是本 spec §5 P5 自相似要求的核心，"区间套在任何级别看起来都一样"）；
     (3) **基例与 Conf^δ_e=⋁B/⋁S 的显式对接**（IntervalNestCertificate 终端用抽象 `confirmOK`
         Bool 标记，未显式写成三类谓词析取）。
-  本文件**补**这三项：Nat 差结构递归 + 平移不变 + Conf=析取基例。**不重复** IntervalNestCertificate
-  的列表链/Sel_Θ 层（那是另一套递归骨架，单一权威保留在该文件，避免双份漂移）。
+  本文件补 Nat 差结构递归、平移不变、Conf=析取基例，并按 #1225 落定
+  `DivCand = Dir ∧ Comparable ∧ Extreme`、“先子区间包含过滤、后 `SelTheta`”的外层 `Cand`，
+  以及 `Closed ∧ 零跳`的唯一严档谓词 `Strict`。不重复 `IntervalNestCertificate` 的列表链递归。
 
   ★为何不 import `Origin.BuySellPredicate`（Conf^δ_e 的 canonical 家）：经实测
     `lake env lean Origin/BuySellPredicate.lean` **不通过**（line 117 Decidable synth 失败 + line 164
@@ -53,7 +54,8 @@
 
   范式：纯 Bool/Prop + Nat，**零** import（不依赖 Mathlib/Batteries/Std）。
   禁 sorry/admit/axiom。返回 Bool（天然 decidable + 唯一）。Nat 结构递归（终止性自动）。
-  禁 Fintype/Finset（本文件全程未用）。不编辑 lakefile（报 Lead 登记 root `Origin.NestingCertificate`）。
+  禁 Fintype/Finset（本文件全程未用）。`Origin.CertificateChainParity` 已登记为 lake root，
+  常驻输出 Rust↔Lean 证书链对拍 fixture。
 -/
 
 namespace NewChanlun.Origin.NestingCertificate
@@ -84,11 +86,77 @@ structure Interval where
   hi : Nat
 deriving DecidableEq, Repr
 
+/-- 候选段的走势方向。买侧候选段必须向下，卖侧候选段必须向上。 -/
+inductive SegmentDir where
+  | up
+  | down
+deriving DecidableEq, Repr
+
+/-- `Comparable` 按走势类型分派后的基础比较证据。`comparable` 已包含该分支的力度比较。 -/
+inductive BaseComparison where
+  | trend (comparable extreme : Bool)
+  | consolidation (comparable extreme : Bool)
+deriving DecidableEq, Repr
+
+/--
+  `Comparable` 的四类入口。二/三类点与小转大 `c′` 只递归委托趋势/盘整两支；
+  不另立第三套比较判据。
+-/
+inductive Comparison where
+  | trend (comparable extreme : Bool)
+  | consolidation (comparable extreme : Bool)
+  | type23 (base : BaseComparison)
+  | xiaozhuandaBridge (base : BaseComparison)
+deriving DecidableEq, Repr
+
+/-- 一枚 `DivCand` 候选及其覆盖区间 `I(c)`。刻意没有“最近”字段；最近性只属于 `SelTheta`。 -/
+structure Candidate where
+  direction : SegmentDir
+  comparison : Comparison
+  interval : Interval
+deriving DecidableEq, Repr
+
+/-- `Dir = (候选段方向 = -δ)`。 -/
+def dirComponent (δ : Dir) (c : Candidate) : Bool :=
+  match δ, c.direction with
+  | .buy, .down | .sell, .up => true
+  | _, _ => false
+
+/-- 基础趋势/盘整分支的 `Comparable` 分量。 -/
+def baseComparable : BaseComparison → Bool
+  | .trend comparable _ | .consolidation comparable _ => comparable
+
+/-- 基础趋势/盘整分支的 `Extreme` 分量。 -/
+def baseExtreme : BaseComparison → Bool
+  | .trend _ extreme | .consolidation _ extreme => extreme
+
+/--
+  按走势类型分派 `Comparable`：趋势与盘整直读各自比较；二/三类点递归到基础分支且其
+  “由盘背/背驰构成”子判断仍须过 Extreme；小转大 `c′` 只桥接基础比较，不把 Extreme
+  重新塞进桥接身份。
+-/
+def comparableComponent : Comparison → Bool
+  | .trend comparable _ | .consolidation comparable _ => comparable
+  | .type23 base => baseComparable base && baseExtreme base
+  | .xiaozhuandaBridge base => baseComparable base
+
+/--
+  分域 `Extreme`：趋势背驰、盘整背驰必须；二/三类点身份与小转大 `c′` 桥接不另强制。
+  二/三类点内部子判断所需 Extreme 已在 `comparableComponent` 的递归支合取。
+-/
+def extremeComponent : Comparison → Bool
+  | .trend _ extreme | .consolidation _ extreme => extreme
+  | .type23 _ | .xiaozhuandaBridge _ => true
+
+/-- **唯一 `DivCand^δ_ℓ` 定义式**：`Dir ∧ Comparable ∧ Extreme`。 -/
+def DivCand (δ : Dir) (c : Candidate) : Bool :=
+  dirComponent δ c && comparableComponent c.comparison && extremeComponent c.comparison
+
 /--
   **每级别 ℓ 的数据 `LevelData`（spec §6 一级别的全部输入）** —— 在级别 ℓ 上：
   - `b1 b2 b3`：买点谓词 `B_{1,ℓ}, B_{2,ℓ}, B_{3,ℓ}` 的 Bool 值（信号向量 b_ℓ 的前 3 分量）。
   - `s1 s2 s3`：卖点谓词 `S_{1,ℓ}, S_{2,ℓ}, S_{3,ℓ}` 的 Bool 值（信号向量 b_ℓ 的后 3 分量）。
-  - `candBuy candSell`：候选谓词 `Cand^δ_ℓ`（δ=buy/sell 各一支，**抽象** Bool，见 §4 诚实标注）。
+  - `candidatesBuy candidatesSell`：方向化候选集；`Cand^δ_ℓ` 由 `DivCand` 与子区间包含门现算。
   - `jBuy jSell`：区间套区间 `J^δ_ℓ`（δ=buy/sell 各一支）。
 
   ★`b_i/s_i` 是**信号向量接口**（b_ℓ∈{0,1}^6，spec P02）：本文件**消费**它（Conf = 其析取），
@@ -102,8 +170,8 @@ structure LevelData where
   s1 : Bool
   s2 : Bool
   s3 : Bool
-  candBuy : Bool
-  candSell : Bool
+  candidatesBuy : List Candidate
+  candidatesSell : List Candidate
   jBuy : Interval
   jSell : Interval
 deriving Repr
@@ -125,11 +193,11 @@ def Conf (δ : Dir) (d : LevelData) : Bool :=
   | .buy  => d.b1 || d.b2 || d.b3
   | .sell => d.s1 || d.s2 || d.s3
 
-/-- **候选谓词 `Cand^δ_ℓ` 的方向选择**（spec P5 line 279；抽象 Bool，见 §4）。 -/
-def candOf (δ : Dir) (d : LevelData) : Bool :=
+/-- 方向化候选集选择；只选集合，不判比较。 -/
+def candidatesOf (δ : Dir) (d : LevelData) : List Candidate :=
   match δ with
-  | .buy  => d.candBuy
-  | .sell => d.candSell
+  | .buy  => d.candidatesBuy
+  | .sell => d.candidatesSell
 
 /-- **区间套区间 `J^δ_ℓ` 的方向选择**（spec P5 line 279）。 -/
 def jOf (δ : Dir) (d : LevelData) : Interval :=
@@ -161,6 +229,45 @@ theorem subB_iff_Sub (child parent : Interval) :
   unfold subB Sub
   simp only [Bool.and_eq_true, decide_eq_true_eq]
 
+/-- 先按 `DivCand` 与 `J_{ℓ-1} ⊆ I(c)` 过滤；选择器不得看到未过包含门的候选。 -/
+def eligibleCandidates (δ : Dir) (child : Interval) (candidates : List Candidate) : List Candidate :=
+  candidates.filter fun c => DivCand δ c && subB child c.interval
+
+/--
+  `Sel_Θ` 只在已过滤集合上选择。调用方可按“最近优先”排列输入；最近性不进入 `Comparable`。
+-/
+def SelTheta (δ : Dir) (child : Interval) (candidates : List Candidate) : Option Candidate :=
+  (eligibleCandidates δ child candidates).head?
+
+/--
+  **外层 `Cand^δ_ℓ(J_{ℓ-1},t)`**：条件化候选集非空。
+  `{c | DivCand c ∧ J_{ℓ-1} ⊆ I(c)} ≠ ∅`，严格先过滤、后选择。
+-/
+def Cand (δ : Dir) (child : Interval) (candidates : List Candidate) : Bool :=
+  !(eligibleCandidates δ child candidates).isEmpty
+
+/-- 选择器只消费已过滤集合：`Cand=false` 时 `SelTheta` 必为空，选择不能救回不合格候选。 -/
+theorem cand_false_implies_no_selection
+    (δ : Dir) (child : Interval) (candidates : List Candidate)
+    (h : Cand δ child candidates = false) :
+    SelTheta δ child candidates = none := by
+  unfold Cand at h
+  unfold SelTheta
+  generalize hx : eligibleCandidates δ child candidates = xs at h ⊢
+  cases xs with
+  | nil => rfl
+  | cons head tail => simp at h
+
+/-- 严档证据路径上的一条边：须同时相邻且由谓词判过。 -/
+structure EvidenceEdge where
+  adjacent : Bool
+  predicatePassed : Bool
+deriving DecidableEq, Repr
+
+/-- **唯一严档谓词**：`Closed ∧ 零跳`；零跳逐边要求“相邻级 ∧ 谓词判过”。 -/
+def Strict (closed : Bool) (path : List EvidenceEdge) : Bool :=
+  closed && path.all fun edge => edge.adjacent && edge.predicatePassed
+
 /-! ═══════════════════════════════════════════════════════════════════════
     § 4. N^δ_{ℓ↓e} 区间套证书：对级别差 (ℓ-e):Nat 结构递归（spec P5 line 277-279）
 
@@ -176,7 +283,8 @@ theorem subB_iff_Sub (child parent : Interval) :
   `nestCert δ f e d`：执行级 `e`、级别差 `d`（当前级别 ℓ = e + d）、方向 δ 的区间套证书值。
   - `d = 0`（ℓ = e）：基例 `Conf^δ_e(x)` = `Conf δ (f e)`。
   - `d+1`（ℓ = e+d+1 > e）：`Cand^δ_ℓ(x) ∧ [J^δ_{ℓ-1} ⊆ J^δ_ℓ] ∧ N^δ_{ℓ-1↓e}(x)`
-    = 本级候选 `candOf δ (f (e+d+1))` ∧ 子⊆父 `subB (jOf δ (f (e+d))) (jOf δ (f (e+d+1)))`
+    = 本级条件化候选集非空 `Cand δ (jOf δ (f (e+d))) (candidatesOf δ (f (e+d+1)))`
+      ∧ 子⊆父 `subB (jOf δ (f (e+d))) (jOf δ (f (e+d+1)))`
       ∧ 递归 `nestCert δ f e d`（次级别 ℓ-1 = e+d）。
 
   ★**全定义**（对任意 (δ,f,e,d) 有确定 Bool 值，绝不未定义）+ **天然唯一 ∈{0,1}**（返回 Bool）。
@@ -185,7 +293,7 @@ theorem subB_iff_Sub (child parent : Interval) :
 def nestCert (δ : Dir) (f : Nat → LevelData) (e : Nat) : Nat → Bool
   | 0 => Conf δ (f e)
   | d + 1 =>
-      candOf δ (f (e + d + 1))
+      Cand δ (jOf δ (f (e + d))) (candidatesOf δ (f (e + d + 1)))
         && subB (jOf δ (f (e + d))) (jOf δ (f (e + d + 1)))
         && nestCert δ f e d
 
@@ -216,7 +324,7 @@ theorem N_base (δ : Dir) (f : Nat → LevelData) (e : Nat) :
 -/
 theorem N_step (δ : Dir) (f : Nat → LevelData) (e d : Nat) :
     N δ f (e + d + 1) e
-      = (candOf δ (f (e + d + 1))
+      = (Cand δ (jOf δ (f (e + d))) (candidatesOf δ (f (e + d + 1)))
           && subB (jOf δ (f (e + d))) (jOf δ (f (e + d + 1)))
           && N δ f (e + d) e) := by
   unfold N
@@ -314,18 +422,21 @@ theorem N_translation_invariant (δ : Dir) (f : Nat → LevelData) (ℓ e k : Na
 /-- 占位空数据（未触及级别用；全 false / 平凡区间）。 -/
 def emptyLevel : LevelData :=
   { b1 := false, b2 := false, b3 := false, s1 := false, s2 := false, s3 := false
-    candBuy := false, candSell := false
+    candidatesBuy := [], candidatesSell := []
     jBuy := { lo := 0, hi := 0 }, jSell := { lo := 0, hi := 0 } }
 
 /--
   反退化见证状态 `witField`：执行级 0 ≺ 中间级 1 ≺ 操作级 2（买入方向）。
   各级 jBuy 真套缩小：level2 [5,25] ⊇ level1 [8,22] ⊇ level0 [10,20]（子⊆父）。
-  level0 b1=true（Conf^+_0 = true）；level1/2 candBuy=true。
+  level0 b1=true（Conf^+_0 = true）；level1/2 各有一枚通过 `DivCand` 且包含子区间的买侧候选。
 -/
+def witCandidate (interval : Interval) : Candidate :=
+  { direction := .down, comparison := .trend true true, interval }
+
 def witField : Nat → LevelData
-  | 0 => { emptyLevel with b1 := true, candBuy := true, jBuy := { lo := 10, hi := 20 } }
-  | 1 => { emptyLevel with candBuy := true, jBuy := { lo := 8, hi := 22 } }
-  | 2 => { emptyLevel with candBuy := true, jBuy := { lo := 5, hi := 25 } }
+  | 0 => { emptyLevel with b1 := true, jBuy := { lo := 10, hi := 20 } }
+  | 1 => { emptyLevel with candidatesBuy := [witCandidate { lo := 8, hi := 22 }], jBuy := { lo := 8, hi := 22 } }
+  | 2 => { emptyLevel with candidatesBuy := [witCandidate { lo := 5, hi := 25 }], jBuy := { lo := 5, hi := 25 } }
   | _ => emptyLevel
 
 /-- **★反退化见证：三级区间套链 N^+_{2↓0} = 1（真跑通，L0）** —— 操作级 2 ≻ 中间级 1 ≻ 执行级 0，
@@ -342,9 +453,9 @@ theorem witness_N_base_one :
   区间套破坏状态：执行级 0 的 jBuy = [2,30] **超出**中间级 1 的 [8,22]（2<8 ∧ 30>22 ⟹ 子⊄父）。
 -/
 def witBrokenField : Nat → LevelData
-  | 0 => { emptyLevel with b1 := true, candBuy := true, jBuy := { lo := 2, hi := 30 } }
-  | 1 => { emptyLevel with candBuy := true, jBuy := { lo := 8, hi := 22 } }
-  | 2 => { emptyLevel with candBuy := true, jBuy := { lo := 5, hi := 25 } }
+  | 0 => { emptyLevel with b1 := true, jBuy := { lo := 2, hi := 30 } }
+  | 1 => { emptyLevel with candidatesBuy := [witCandidate { lo := 8, hi := 22 }], jBuy := { lo := 8, hi := 22 } }
+  | 2 => { emptyLevel with candidatesBuy := [witCandidate { lo := 5, hi := 25 }], jBuy := { lo := 5, hi := 25 } }
   | _ => emptyLevel
 
 /-- **★反退化见证：区间套不成立 ⟹ N = 0（L0）** —— 执行级区间 [2,30] 超出中间级 [8,22]
@@ -374,11 +485,10 @@ theorem witness_conf_sell :
     (4) **级别平移不变**（`N_translation_invariant` + `nestCert_shift`，spec line 299-305；
         本工位核心新增，IntervalNestCertificate 无此定理）。
     (5) **有限终止**（Nat 结构递归 d+1↦d，Lean 自动判定，对照 spec line 287-291「级别下降故有限终止」）。
+    (6) **`DivCand` / 外层 `Cand` / 严档 `Strict`**：候选三分量、先包含过滤后选择、
+        `Closed ∧ 每边(相邻级 ∧ 谓词判过)` 均有唯一定义式。
 
   ★本文件**未**实装（诚实 still-MISSING，非声明膨胀）：
-    · **Cand^δ_ℓ 的独立定义式**：spec 疑点2（line ~258/279）`Cand^δ_ℓ` 在 PDF **仅作符号**，
-      **未给独立定义式**。本文件形式化为**抽象 Bool 谓词**（`candBuy`/`candSell` 字段，`candOf` 选择）
-      ——**不臆造定义**。[需人工确认] Cand^δ_ℓ 的精确判据（候选买卖点的级别相关条件）由下游/spec 后续补。
     · **买卖点谓词 B_{i,e}/S_{i,e} 的缠论语义内容**：`b1..b3`/`s1..s3` 是信号向量 b_ℓ∈{0,1}^6 的
       **Bool 接口**（spec P02）；其语义（B_{i,e}=IsType_i∧side）由 BuySellPredicate/BspClassification
       拥有（契约锚），本文件**消费**不重证。[需人工确认] 第三类谓词边界：BspClassification 的
@@ -411,9 +521,8 @@ theorem witness_conf_sell :
      · **Conf 析取 vs 互斥**：基例 Conf^δ_e 用 `||`（析取，任一买/卖点即确认，spec line 283-285）。
        若改互斥（要求恰一类），Conf 语义翻转——当前不互斥（spec P25 买卖点可重合，互斥推迟到角色层）。
      · **执行级前置 e≤ℓ**：ℓ<e 时 Nat 截断 ℓ-e=0，N 退化为 Conf^δ_e（超定义域，上游保证 e≤ℓ）。
-     · **Cand^δ_ℓ 抽象**：当前 `candOf` 是抽象 Bool。下游补 Cand 独立定义式后，candOf 实例化，
-       N 的触发集随 Cand 内容变（L2 数据/定义层决定，可否证）——但平移不变/∃!/值域**不**随之翻转
-       （它们只依赖 N 是 Bool 函数 + 递归只用级别差，与 Cand 内容无关）。
+     · **Cand 条件化门**：当前 `Cand` 先以 `DivCand ∧ J_{ℓ-1}⊆I(c)` 过滤，再判非空；
+       `SelTheta` 只消费过滤结果。若改为先选“最近”再过滤，候选集会翻转，且违反 #1225 已裁口径。
   4. 下游推论：
      · `N : Dir→(Nat→LevelData)→Nat→Nat→Bool` 全定义 ⟹ 策略层可用 `N δ f ℓ e : Bool` 作区间套
        确认的**可计算门**（无需处理 Option/未定义分支）。

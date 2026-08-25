@@ -9,8 +9,9 @@
 //! - `Sel_Θ` 选择器 ↔ `selKey`：`(endTime, startTime, idx)` 字典序（canonical tie-break）。
 //! - 终端确认 ↔ `Confirm`：`Λ≠∅`（至少一类买卖点成立，**不要求 |Λ|=1**——2/3 类可共存）。
 //! - 方向化区间套证书 ↔ `N^δ_{ℓ↓e}`（spec P5 §6 line 1168）：χ 的**方向化 + 候选化精化**——基例
-//!   用方向化 `Conf^δ_e`（[`BspBits::confirm_side`]），递归步追加候选谓词 `Cand^δ_ℓ`（[需人工确认]
-//!   定义式，spec 疑点2）+ 闭包含（旧链为 J 子⊆父；严格装配为 `I(A_child)⊆D_parent`，
+//!   用方向化 `Conf^δ_e`（[`BspBits::confirm_side`]），递归步消费已评价的 `Cand^δ_ℓ`。
+//!   其 Lean 正本定义为 `DivCand = Dir ∧ Comparable ∧ Extreme`，外层 `Cand` 先按子区间包含过滤后判非空；
+//!   Rust `NestRung::cand` 保留既有上游判定结果，本层不重判。闭包含（旧链为 J 子⊆父；严格装配为 `I(A_child)⊆D_parent`，
 //!   复用 [`is_sub`]）。见 [`NestCertificate`]。
 //!
 //! ## 核心定理（契约锚 `Origin.SubLevelDescent.descend_level_decreases`）
@@ -150,11 +151,9 @@ impl Chi {
 ///
 /// 对应 spec 递归步 `Cand^δ_ℓ(x) ∧ [J^δ_{ℓ-1}(x)⊆J^δ_ℓ(x)] ∧ N^δ_{ℓ-1↓e}` 中本级 ℓ 的两个分量：
 /// - `interval` = 本级定位区间 `J^δ_ℓ`（与**子级** `J^δ_{ℓ-1}` 做闭口径 ⊆ 比较，复用 [`is_sub`]）。
-/// - `cand` = 候选谓词 `Cand^δ_ℓ(x) ∈ {0,1}` 的**取值**（不是定义式）。
-///
-/// [需人工确认]（spec 疑点2，line 1257）：`Cand^δ_ℓ(x)` 在 PDF 中仅作符号出现，**无独立定义式**。
-/// 本结构按 spec 把 `Cand^δ_ℓ(x)` 当作 0/1 谓词**取值**消费（与 `b_ℓ∈{0,1}^6` 同样是判定结果输入），
-/// 其计算规则属上游（候选判据定义）——`N^δ` 只做合取组装，**不臆造** Cand 的判据。
+/// - `cand` = 候选谓词 `Cand^δ_ℓ(x) ∈ {0,1}` 的既有上游取值。Lean 正本已在
+///   `Origin.NestingCertificate` 落定 `DivCand` 三分量与外层条件化非空门；为保持现有证书链语义，
+///   本结构只消费取值，不在证书层写第二份候选实现。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NestRung {
     /// [新缠论] 本级事件的算法确认时点（#37 P0 局部改判）。与 `interval.end_index` 独立；
@@ -164,7 +163,7 @@ pub struct NestRung {
     child_interval: Option<NestInterval>,
     /// 本级父区间：严格装配为 `D_parent`；旧数据载体路径为 `J^δ_ℓ`。
     interval: NestInterval,
-    /// `Cand^δ_ℓ(x) ∈ {0,1}` 取值。[需人工确认] 定义式（spec 疑点2）。
+    /// `Cand^δ_ℓ(x) ∈ {0,1}` 的既有上游取值（本层不重判）。
     cand: bool,
 }
 
@@ -328,8 +327,8 @@ impl NestCertificate {
     ///   Lean 端对应 (ℓ-e):Nat 结构递归。
     /// - **谱系引用**：第三类边界谱系（MEMORY: theta-v0-type3-boundary）——基例只消费
     ///   [`BspBits::confirm_side`]（委托 `conf_plus`/`conf_minus` → buy3/sell3 bit），B3 边界已在
-    ///   `bsp::endpoint_to_bsp`（rust `>=`）结算，本层**不重判边界**。`Cand^δ_ℓ` 定义式缺失见
-    ///   spec 疑点2（[需人工确认]）。
+    ///   `bsp::endpoint_to_bsp`（rust `>=`）结算，本层**不重判边界**。`Cand^δ_ℓ` 定义式见
+    ///   `Origin.NestingCertificate`；Rust 仅消费已有判定位，避免第二份实现。
     /// - **影响声明**：在 nest.rs 新增方向化区间套证书；不改 `Chi`/`confirm`/`is_sub`（契约锚保留），
     ///   不动 classifier/mod.rs。L0 操作语义结构（非 L2 alpha）。
     pub fn n_delta(&self) -> bool {

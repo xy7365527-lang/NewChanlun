@@ -561,6 +561,42 @@ mod tests {
     use crate::theta_v0::types::{BspBits, MoveKind, Tick};
     use std::rc::Rc;
 
+    #[derive(serde::Deserialize)]
+    struct CertificateChainParityFixture {
+        confirmed_vectors: ConfirmedVectors,
+        turn_classes: TurnClasses,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct ConfirmedVectors {
+        nested: Vec<bool>,
+        xiaozhuanda: Vec<bool>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct TurnClasses {
+        nested: String,
+        xiaozhuanda: String,
+        exec: String,
+        orphan: String,
+    }
+
+    fn certificate_chain_parity_fixture() -> CertificateChainParityFixture {
+        serde_json::from_str(include_str!(
+            "../../../tests/fixtures/certificate_chain_parity.json"
+        ))
+        .expect("certificate_chain_parity.json 必须由 Lean #eval 机器导出")
+    }
+
+    fn turn_class_name(class: &NestTurnClass) -> &'static str {
+        match class {
+            NestTurnClass::NestedConfirmed => "nested_confirmed",
+            NestTurnClass::XiaozhuandaCandidate { .. } => "xiaozhuanda_candidate",
+            NestTurnClass::ExecEvidenceOnly => "exec_evidence_only",
+            NestTurnClass::DeferOrphan { .. } => "defer_orphan",
+        }
+    }
+
     // ───────── 夹具（沿用 nest.rs 测试模式：手工事件 + 假账本，坐标全部 source_index 同系）─────────
 
     fn typed_event(
@@ -818,6 +854,56 @@ mod tests {
             panic!("置二类点后候选仍成立（不作门）");
         };
         assert_eq!(evidence.second_class, Some(49));
+    }
+
+    /// #1225 Rust↔Lean 常驻逐位对拍：真实装配的 confirmed 向量 + 四类 turn class。
+    #[test]
+    fn certificate_chain_confirmed_and_turn_classes_match_lean() {
+        let expected = certificate_chain_parity_fixture();
+
+        let nested_events = vec![vec![], vec![xzd_base_event()], vec![xzd_parent_event(true)]];
+        let nested_cert = xzd_certificate(&nested_events);
+        assert_eq!(nested_cert.confirmed(), expected.confirmed_vectors.nested);
+        let empty_books = ledger(vec![LevelState::default(), LevelState::default()]);
+        assert_eq!(
+            turn_class_name(&classify_certificate_turn(&nested_cert, &empty_books)),
+            expected.turn_classes.nested
+        );
+
+        let mut events = xzd_events();
+        let xzd_cert = xzd_certificate(&events);
+        assert_eq!(xzd_cert.confirmed(), expected.confirmed_vectors.xiaozhuanda);
+        let xzd_books = ledger(vec![
+            level(vec![c_prime()], vec![pt(52, sell3_bits(), Some(c_prime()))]),
+            level(parent_book_centers(), vec![]),
+        ]);
+        assert_eq!(
+            turn_class_name(&classify_certificate_turn(&xzd_cert, &xzd_books)),
+            expected.turn_classes.xiaozhuanda
+        );
+        assert_eq!(
+            turn_class_name(&classify_certificate_turn(&xzd_cert, &empty_books)),
+            expected.turn_classes.exec
+        );
+
+        let orphan = typed_event(
+            3,
+            Side::Short,
+            NestDivergenceKind::Trend,
+            (70, 80),
+            (65, 80),
+            80,
+            80,
+            false,
+        );
+        events.push(vec![orphan]);
+        let classified = classify_nest_turns(&events, &[xzd_cert], &xzd_books);
+        let orphan_class = classified
+            .iter()
+            .map(|(_, class)| class)
+            .find(|class| matches!(class, NestTurnClass::DeferOrphan { .. }))
+            .expect("未被证书覆盖的未确认 Trend 事件必须归 DeferOrphan");
+        assert_eq!(turn_class_name(orphan_class), expected.turn_classes.orphan);
     }
 
     // ───────── T3：c′ 缺失 ⟹ 非候选（044:18）─────────

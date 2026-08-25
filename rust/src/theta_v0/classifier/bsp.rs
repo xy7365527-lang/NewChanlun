@@ -231,11 +231,11 @@ impl Eq for BspPoint {}
 
 /// 单源绑定查询族（issue #747 C1，spec #756）：收敛「(level, source_index[, confirm_side]) →
 /// BspPoint/存在性」历史 17+ 处手写复制（`.chanlun/review-results/arch-survey-e2e-fable-20260729.md`
-/// §1.2 全枚举）。语义 = 生产 4 处手写规则逐字节并集——`nest.rs:681` 除外：该处是 ADR-0005
+/// §1.2 全枚举）。语义 = 生产 4 处手写规则逐字节并集——`nest.rs:685` 除外：该处是 ADR-0005
 /// GUARD-ROLE 对照臂（判据 crate 禁引 nest 产物是禁令方向，不禁止 nest.rs 反过来调同 crate
 /// 内的本族 helper；不改调是 GUARD-ROLE「保持独立实现」纪律本身的要求，非 ADR-0005 禁令所迫），
 /// 语义对齐 [`bind_turn`] 但不改调该处调用（照实登记差异，不强并，见票内「先核语义是否逐字
-/// 同构」条；订正见 nest.rs:681 函数头注释与 `.chanlun/review-results/issue747-impl-*.md` §3）。
+/// 同构」条；订正见 nest.rs:685 函数头注释与 `.chanlun/review-results/issue747-impl-*.md` §3）。
 ///
 /// 三个家族成员对应三种不逐字同构的历史手写形态（未强并为一）：
 /// - [`bsp_at`]：纯 `source_index` 等值 find-first，无 side 过滤
@@ -243,9 +243,9 @@ impl Eq for BspPoint {}
 /// - [`bsp_bit_at`]：`source_index` 等值 + 自定义 bit 谓词求**存在性**（find-first 换 any——
 ///   同锚点可多类点共存，语义与 `bsp_at` 不可互换，`econ_positive.rs::xzd_type2_confirmed` 单源）；
 /// - [`bind_turn`]：`source_index` 等值 + `confirm_side` find-first——**诊断/单测面**的绑定规则
-///   单源体（`nest.rs:690` 的 `TerminalMatch::Exact` 分支仅诊断 bin 与单测可达；生产恒走
+///   单源体（`nest.rs:715` 的 `TerminalMatch::Exact` 分支仅诊断 bin 与单测可达；生产恒走
 ///   `TerminalMatch::CWindow` 窗口臂 + `min_by_key`，与本函数不同形，不冒充「生产原型」——
-///   订正见 nest.rs:681 函数头注释），供其余同形态诊断复制点对齐，nest.rs 自身不改调。
+///   订正见 nest.rs:685 函数头注释），供其余同形态诊断复制点对齐，nest.rs 自身不改调。
 ///
 /// newtype 边界（issue #747 C1「时刻分组键 vs 身份 join 类型层分开」条）：**执行降级，不做**。
 /// 试点曾引入 `BspSourceIndex(pub usize)` newtype 覆盖 [`bsp_at`] 两处生产身份 join 调用点，
@@ -597,7 +597,7 @@ mod tests {
         assert!(!bsp_bit_at(&pts, 999, |b| b.buy1));
     }
 
-    /// issue #747 C1：`bind_turn` = 等值 + `confirm_side` find-first（`nest.rs:681` 生产绑定规则
+    /// issue #747 C1：`bind_turn` = 等值 + `confirm_side` find-first（`nest.rs:685` 生产绑定规则
     /// 原型语义单源；nest.rs 自身保持独立实现不改调，仅登记口径见其函数头注释）。
     #[test]
     fn bind_turn_requires_confirm_side() {
@@ -667,7 +667,7 @@ mod tests {
             // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。）
             "theta_v0/backtest/l3_pi_probe.rs:603",
             // ADR-0005 GUARD-ROLE 对照臂原型语句本体（单列登记，不改调，见函数头注释订正）。
-            "theta_v0/classifier/nest.rs:718",
+            "theta_v0/classifier/nest.rs:717",
             // #885 S4-d：`LevelState::first_class_grade_at`/`Classification::otherwise_domain_at`
             // 单源查询函数体（作用于 `FirstClassGradeRecord` 分级记录族，非 `BspPoint`，与本族
             // 三件并行不同型；同 projection.rs:215 先例——查询实现全仓各仅一份，非复制点）。

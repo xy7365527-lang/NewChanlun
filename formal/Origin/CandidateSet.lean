@@ -242,7 +242,7 @@ theorem mem_gamma_iff (x : State) (c : Cand) :
     § 5. 反退化见证（Γ 真跑通：具体三级区间套链 ⟹ Γ 非空、|Γ|=3，非平凡桩）
 
     ★复用 NestingCertificate.witField（执行级 0 b1=true + 三级 jBuy 真套缩小 [5,25]⊇[8,22]⊇[10,20]
-      + 各级 candBuy=true）⟹ N^+_{ℓ↓0}=1 对 ℓ∈{0,1,2}。候选 ⟨ℓ,0,b1⟩ 三者皆 member。
+      + 各级条件化候选集非空）⟹ N^+_{ℓ↓0}=1 对 ℓ∈{0,1,2}。候选 ⟨ℓ,0,b1⟩ 三者皆 member。
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /-- 反退化见证状态：复用 NestingCertificate.witField（三级买入区间套链），有限支撑 ℓmax=2。 -/
@@ -303,8 +303,6 @@ theorem witness_unfired_cand_not_mem :
     · **环5 R_Θ 解释器 (𝒟,ℬ,𝒦)**：Γ(x) 按平移不变全序 ≺_Θ 排序 + 确定性 fold 出三桶——是
       **下游独立工位 lean-interp**（缺口矩阵环5）。本文件只产 Γ(x):List Cand 作其输入，**不**做
       排序/fold/唯一化（∃!三元组属环5，不属本工位）。
-    · **Cand^δ_ℓ 的独立判据**：高于执行级的候选谓词 Cand^δ_ℓ 在 PDF 仅作符号（NestingCertificate
-      §4 诚实标注），本文件经 `NestingCertificate.N` 消费其抽象 Bool（candBuy/candSell），**不臆造**。
     · **买卖点 B_i/S_i 的缠论判据**：`firedAt` 读 `LevelData` 的 Bool 接口（信号向量 b_ℓ∈{0,1}^6），
       其判据（IsType_i∧side）由 BuySellPredicate/BspClassification 拥有，本文件**消费**不重证。
       [需人工确认] 第三类边界 reference 含等号 vs Lean 严格<（记忆 `theta-v0-type3-boundary-...`）
