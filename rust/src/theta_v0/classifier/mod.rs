@@ -131,8 +131,7 @@ pub mod issue1087_parity {
         WireForceFeatures, WireForceProxies, WireInterval, WireMergedScanOutput, WireMoveBlock,
         WireMoveKind, WireObservedState, WireOwner, WirePanDivCert, WireParentFingerprint,
         WirePreludeInput, WirePreludeOutput, WireScanSinkEmission, WireSegmentRow, WireSide,
-        WireStructuralPredicates, WireT3InCGrade, WireT3InCGradeReason, WireThirdClassEntry,
-        WireUnitMoveFact,
+        WireStructuralPredicates, WireT3InCScan, WireThirdClassEntry, WireUnitMoveFact,
     };
 }
 /// #1087/#1080 Rust↔Lean 提取对拍共享面（fixture 写盘 + Lean 复核；strict_nest_check 镜像对拍

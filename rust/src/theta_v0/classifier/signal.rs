@@ -435,11 +435,15 @@ pub enum T3InCGrade {
 
 /// **T3-in-c 固定首对分级器**（D1，ADR 补充十五「共享枢轴坐标系」+ 补充十六裁定同源）。
 ///
+/// ★#1229 裁定 a（2026-08-25）退役：本函数**不再作生产准入判据**——`judge_first_from_gates`
+/// 的 T3-in-c 合取已统一走 [`trend_third_class_in_c`] 全窗后扫（037:18「至少一个」语义）。
+/// 本函数与 [`T3InCGrade`]/[`T3InCGradeReason`] 仅保留为**诊断词汇**（对拍退役口径 / 通道
+/// 词汇），生产调用方为零。
+///
 /// 判定锚 = **最后中枢 `last_center` 右边**（`start_index >= last_center.end_index`，含等值即
 /// 紧邻）——**不是** `λ_C`/`c_start`。leave = 该锚之后固定第一条段，retest = 紧随一条；方向
 /// 互反；价格严格对该框 `ZG`/`ZD`（Up：`leave.end_price > zg ∧ retest.end_price > zg`；Down
-/// 镜像 `< zd`）。任一失败即 `Missing`，**不后扫**——[`trend_third_class_in_c`] 扫描器（全 c 窗
-/// 后扫取首个成功对）不复用，两者不是同一谓词（#586 在案）。
+/// 镜像 `< zd`）。任一失败即 `Missing`，**不后扫**。
 pub(crate) fn t3_in_c_fixed_first_pair(
     segments: &[Segment],
     last_center: &Center,
@@ -475,13 +479,60 @@ pub(crate) fn t3_in_c_fixed_first_pair(
     }
 }
 
-/// 一类点 T3-in-c 固定首对分级观测记录（#606 S1 第三修复车：挂在生产 `judge_segment` 调
-/// `judge_first_cached` 的真实调用点，`points.push` 之前——非诊断复刻塔重判）。
+/// T3-in-c 全窗后扫分级（#1229 裁定 a 统一后，037:18「至少一个」语义）。
 ///
-/// 每条记录对应一个当前生产口径下已产出的一类点（`buy1 ∨ sell1`）在
-/// [`t3_in_c_fixed_first_pair`] 下的一次分级（`Present` 与 `Missing` 均记录，非只记否则域）。
-/// 键唯一：`(level, source_index, side, center_start_index, center_zd, center_zg)`；一一对应：
-/// 生产 `bsp` 中每个 `buy1 ∨ sell1` 点恰产一条本记录（无重复判定、无遗漏）。
+/// [`trend_third_class_in_c`] 的命中折叠：`Present` = c 全窗 `[c_start, as_of]` 内存在对 B 的
+/// 第三类买卖点对（leave/retest 区间）；`Missing` = 全窗无命中（037:18 否则条款域）。不再细分
+/// 失败原因——固定首对五桶是已退役判据的诊断词汇（[`T3InCGrade`]），非本分级的一部分。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum T3InCScan {
+    /// 全窗后扫命中：leave/retest 区间（`start_index, end_index`）。
+    Present {
+        leave_interval: (usize, usize),
+        retest_interval: (usize, usize),
+    },
+    /// 全窗后扫无命中（c 未含第三类买卖点，037:18 否则条款域）。
+    Missing,
+}
+
+/// #1229 裁定 a：把 [`trend_third_class_in_c`] 的后扫结果折成统一 T3-in-c 分级（全窗后扫）。
+///
+/// `trend_third_class_in_c` 只回 `(leave.end_index, retest.end_index)`；本函数按终点反查真实段
+/// 补 `start_index`（段终点在 `segments` 内唯一——段序列共享端点且严格递增）。命中回退成
+/// `Missing` 是不可达分支（扫描器只回它亲眼在窗内看到的段终点）。
+pub(crate) fn t3_in_c_scan_grade(
+    segments: &[Segment],
+    last: &Center,
+    direction: Direction,
+    c_start: usize,
+    as_of: usize,
+) -> T3InCScan {
+    match trend_third_class_in_c(segments, last, direction, c_start, as_of) {
+        Some((leave_end, retest_end)) => {
+            let leave = segments.iter().find(|s| s.end_index == leave_end);
+            let retest = segments.iter().find(|s| s.end_index == retest_end);
+            match (leave, retest) {
+                (Some(leave), Some(retest)) => T3InCScan::Present {
+                    leave_interval: (leave.start_index, leave.end_index),
+                    retest_interval: (retest.start_index, retest.end_index),
+                },
+                _ => {
+                    debug_assert!(false, "trend_third_class_in_c 命中必回真实段终点");
+                    T3InCScan::Missing
+                }
+            }
+        }
+        None => T3InCScan::Missing,
+    }
+}
+
+/// 一类点 T3-in-c 全窗后扫分级观测记录（#606 S1 第三修复车挂点；#1249 起分级器统一为
+/// [`trend_third_class_in_c`] 全窗后扫，037:18「至少一个」语义）。
+///
+/// 每条记录对应一个当前生产口径下已产出的一类点（`buy1 ∨ sell1`）在 [`t3_in_c_scan_grade`]
+/// 下的一次分级（`Present` 与 `Missing` 均记录，非只记否则域）。键唯一：
+/// `(level, source_index, side, center_start_index, center_zd, center_zg)`；一一对应：生产
+/// `bsp` 中每个 `buy1 ∨ sell1` 点恰产一条本记录（无重复判定、无遗漏）。
 ///
 /// `level` 是**真实调用级别**，非占位：`mod.rs` 逐级循环本就持有 `level_idx`，经
 /// [`extract_first_third_resume`] 的 `level: u32` 参数穿透到 [`judge_segment`]，捕获时直接
@@ -504,7 +555,7 @@ pub struct FirstClassGradeRecord {
     pub center_end_index: usize,
     pub center_zd: Tick,
     pub center_zg: Tick,
-    pub grade: T3InCGrade,
+    pub grade: T3InCScan,
 }
 
 thread_local! {
@@ -1814,7 +1865,8 @@ mod tests {
             seg(Direction::Down, 3, 5, 350, 250), // A 段：C0 离开段（破 C0 下沿）
             seg(Direction::Up, 5, 7, 250, 280),   // B 段连接（中间反向，构成 C1）
             seg(Direction::Down, 9, 11, 150, 80), // C 段：破 C1 下沿（< 100）∧ 背驰 ⟹ 1 买
-            seg(Direction::Up, 11, 13, 80, 90),   // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            seg(Direction::Up, 11, 13, 80, 90),   // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：一买破新低（后扫命中 leave+retest）
         ];
         // closes（merged_bars 序列，与 segment 抽象端点价解耦——结构判定在 tick 域，MACD 在浮点域，
         // closes 是 merged_bars，segment 端点是抽象极值，两者不必逐 bar 一致）：A 段 bar [3,5] 急跌
@@ -1824,7 +1876,9 @@ mod tests {
             300, 300, 300, // 0..2 C0 区（预热）
             300, 100, 250, // 3..5 A 段：急跌（hist 绝对值大=强力度）
             250, 250, 250, // 6..8 B 段：盘整让 EMA 收敛（hist 回拉 0 轴）
-            248, 246, 244, // 9..11 C 段：缓动（hist 小=力度衰减=趋势背驰）
+            248, 246, 244, // 9..11 leave：缓动（hist 小=力度衰减）
+            242, 240, 238,
+            236, // 12..15 retest+bottom：延续缓跌（I(C)=[9,15] 面积仍 < A）
         ];
         let (closes, src) = closes_seq(&prices);
         let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
@@ -1835,12 +1889,12 @@ mod tests {
             "下跌趋势 C 段破最后中枢 ∧ C<A 趋势背驰 ⟹ 一个 1 买"
         );
         assert_eq!(
-            buy1[0].source_index, 11,
-            "1 买端点 = C 段（破最后中枢段）终止 source_index"
+            buy1[0].source_index, 15,
+            "1 买端点 = bottom 段（破新低）终止 source_index（#1249 后扫命中 leave+retest）"
         );
         assert_eq!(
-            buy1[0].pivot_low, 80,
-            "1 买止损源 = pivot_low（C 段破中枢端点）"
+            buy1[0].pivot_low, 70,
+            "1 买止损源 = pivot_low（bottom 段破新低端点）"
         );
         // ★owner 载体补齐（关③ 补记② 路径 (a)）：一类点构造时填入判定中枢 last_center=c1
         //（被破的最后中枢 = a+A+b+B+c 的 B 同型对象）——名实一致根据：一类点本就由「C 段破
@@ -1854,11 +1908,11 @@ mod tests {
         );
     }
 
-    /// ★#607 S2 D2（37:18 分档大闸）：`diverged`（MACD C<A 背驰）成立但 T3-in-c 固定首对
-    /// `Missing`（否则域，无 retest 段）⟹ 一类 bit **不置**——同 `first_buy_extracted_with_
-    /// trend_divergence` 逐字段相同的夹具（背驰几何一致），唯一差别是本测试**不追加** T3-in-c
-    /// retest 段，故 T3-in-c 判 `MissingRetest`。点仍以零 bit 结构候选继续走既有候选流
-    /// （struct_break_dir 无条件置，P2-R2 先例）——D2「大闸」不改候选集合，只改名分（bit）。
+    /// ★#607 S2 D2（37:18 分档大闸）+ #1249：`diverged`（MACD C<A 背驰）成立但 c 全窗后扫
+    /// `Missing`（否则域，c 内无 leave+retest 对）⟹ 一类 bit **不置**——同
+    /// `first_buy_extracted_with_trend_divergence` 逐字段相同的夹具（背驰几何一致），唯一差别是
+    /// 本测试**不追加** retest 段，故 T3-in-c 全窗后扫 `Missing`。点仍以零 bit 结构候选继续走
+    /// 既有候选流（struct_break_dir 无条件置，P2-R2 先例）——D2「大闸」不改候选集合，只改名分（bit）。
     #[test]
     fn otherwise_domain_missing_t3_in_c_zero_bit_continues_candidate_flow() {
         let c0 = dc(300, 400, 290, 410, 2);
@@ -1868,12 +1922,14 @@ mod tests {
             seg(Direction::Up, 5, 7, 250, 280),   // B 段连接
             seg(Direction::Down, 9, 11, 150, 80), // C 段：破 C1 下沿 ∧ 背驰——但 c 内无 retest 段
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
         assert!(
             points.iter().all(|p| !p.bits.buy1),
-            "diverged 成立但 T3-in-c Missing（无 retest 段）⟹ 否则域，一类 bit 不置位（#607 D2）"
+            "diverged 成立但 c 全窗后扫 Missing（无 leave+retest 对）⟹ 否则域，一类 bit 不置位（#607 D2/#1249）"
         );
         let sb_pt: Vec<_> = points.iter().filter(|p| p.source_index == 11).collect();
         assert_eq!(
@@ -1911,15 +1967,19 @@ mod tests {
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80),
-            seg(Direction::Up, 11, 13, 80, 90), // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            seg(Direction::Up, 11, 13, 80, 90), // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：一买破新低（后扫命中 leave+retest）
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let anchors = [
             Some(Direction::Down),
             Some(Direction::Down),
             None,
+            Some(Direction::Down),
             Some(Direction::Down),
         ]; // C 单元 fallback
         let (points, _pan) = extract_signals_with_hist_anchored(
@@ -1941,10 +2001,13 @@ mod tests {
             1,
             "C 单元 fallback 且结构方向=τ ⟹ p117 后破中枢触发 ∧ C<A 背驰 ⟹ 1 买"
         );
-        assert_eq!(buy1[0].source_index, 11, "1 买端点 = C 段终止 source_index");
         assert_eq!(
-            buy1[0].pivot_low, 80,
-            "1 买止损源 = pivot_low（C 段破中枢端点极值）"
+            buy1[0].source_index, 15,
+            "1 买端点 = bottom 段终止 source_index"
+        );
+        assert_eq!(
+            buy1[0].pivot_low, 70,
+            "1 买止损源 = pivot_low（bottom 段破新低端点）"
         );
         // ★owner 载体补齐（关③ 补记② 路径 (a)）：一类点构造时填入判定中枢 last_center=c1——
         // 名实一致根据同 `first_buy_extracted_with_trend_divergence`（本测试复用其 A/B/C 夹具）；
@@ -1970,9 +2033,12 @@ mod tests {
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80),
-            seg(Direction::Up, 11, 13, 80, 90),
+            seg(Direction::Up, 11, 13, 80, 90), // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：一买破新低（后扫命中 leave+retest）
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let anchors = [
@@ -1980,9 +2046,10 @@ mod tests {
             Some(Direction::Down),
             None,
             Some(Direction::Down),
+            Some(Direction::Down),
         ];
-        // C 段（下标 2）的 departure 单元终点 = 7（趋势真终点）；其余下标不回读（无点产出）。
-        let departure_ends = [0, 0, 7, 0];
+        // bottom 段（下标 4）的 departure 单元终点 = 7（趋势真终点）；其余下标不回读（无点产出）。
+        let departure_ends = [0, 0, 0, 0, 7];
         let mut grades = Vec::new();
         let (points, _pan) = extract_signals_with_hist_anchored(
             &[c0, c1],
@@ -2001,21 +2068,25 @@ mod tests {
         assert_eq!(buy1.len(), 1, "夹具应产一个 buy1");
         assert_eq!(
             buy1[0].source_index, 7,
-            "点锚 = departure 单元终点（非 C 段终点 11，#1028 裁定 A）"
+            "点锚 = departure 单元终点（非 bottom 段终点 15，#1028 裁定 A）"
         );
         assert_eq!(
-            buy1[0].pivot_low, 80,
-            "止损 pivot 仍 = C 段端点极值（判定链不动）"
+            buy1[0].pivot_low, 70,
+            "止损 pivot 仍 = bottom 段端点极值（判定链不动）"
         );
         assert_eq!(
             buy1[0].center,
             Some(OwnerRef::Center(c1)),
             "owner 载体仍 = 判定中枢（判定链不动）"
         );
-        assert_eq!(grades.len(), 1, "分级记录与 buy1 点 1:1（#885 契约）");
         assert_eq!(
-            grades[0].source_index, 7,
-            "分级记录 source_index 与点同键迁移（一一对应不脱键）"
+            grades.len(),
+            2,
+            "分级记录 = leave + bottom 两 diverged 候选（#885 契约）"
+        );
+        assert!(
+            grades.iter().any(|r| r.source_index == 7),
+            "bottom 分级记录 source_index 与点同键迁移到 7（一一对应不脱键）"
         );
     }
 
@@ -2030,7 +2101,9 @@ mod tests {
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Up, 9, 11, 60, 80), // C 单元：结构方向 Up ≠ τ=Down，端点 80 < zd=100 越界
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let anchors = [Some(Direction::Down), Some(Direction::Down), None];
@@ -2069,13 +2142,17 @@ mod tests {
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80),
-            seg(Direction::Up, 11, 13, 80, 90), // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            seg(Direction::Up, 11, 13, 80, 90), // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：一买破新低（后扫命中 leave+retest）
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let anchors = [
             None,
+            Some(Direction::Down),
             Some(Direction::Down),
             Some(Direction::Down),
             Some(Direction::Down),
@@ -2099,8 +2176,8 @@ mod tests {
             1,
             "A 单元 fallback 且结构方向=τ ⟹ p117 后 A/C 可配对 ⟹ 1 买"
         );
-        assert_eq!(buy1[0].source_index, 11);
-        assert_eq!(buy1[0].pivot_low, 80);
+        assert_eq!(buy1[0].source_index, 15);
+        assert_eq!(buy1[0].pivot_low, 70);
     }
 
     #[test]
@@ -2115,7 +2192,9 @@ mod tests {
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80),
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let full = [
@@ -2161,7 +2240,9 @@ mod tests {
         // `judge_first_cached` 语义未动，直接调用方传 provenance None 时仍在几何评估前拒绝。
         let c1 = dc(100, 200, 90, 210, 8);
         let c_seg = seg(Direction::Down, 9, 11, 150, 80);
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let out = judge_first_cached(
@@ -2225,15 +2306,15 @@ mod tests {
             &[],
             &mut Vec::new(),
         );
-        // ★#607 S2 D2：T3-in-c 固定首对锚 = `last_center.end_index`（8）右边第一条段——此处即
-        // 回中枢段 [9,10]（价 150，未破 zd=100）本身，而非 λ_C=10 之后的真实触发段 [10,12]。
-        // 固定首对判 `LeaveNotOutside`（不后扫，#586/D1 在案）⟹ 该点落否则域：零一类 bit，
-        // 继续走候选流（struct_break_dir 无条件置，P2-R2 先例）——λ_C reentry 救回的是「候选
-        // 資格」（broke 门 + I(C) 面积），T3-in-c 是独立于 λ_C 的另一层几何合取，两者不桥接。
+        // ★#1249（#1229 裁定 a）：c 全窗 [λ_C=10, seg.end=12] 后扫——回中枢段 [9,10]（价 150，
+        // 未破 zd=100）落在 λ_C 之前（episode 边界重置 λ_C=10），窗内仅触发段 [10,12] 单段，
+        // 无 leave+retest 对 ⟹ 后扫 `Missing` ⟹ 该点落否则域：零一类 bit，继续走候选流
+        // （struct_break_dir 无条件置，P2-R2 先例）——λ_C reentry 救回的是「候选資格」
+        // （broke 门 + I(C) 面积），T3-in-c 是独立于 λ_C 的另一层几何合取，两者不桥接。
         let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
         assert!(
             buy1.is_empty(),
-            "T3-in-c 固定首对锚绑定回中枢段（未破核心）⟹ 否则域，1 买不置位（#607 D2）"
+            "c 全窗后扫无第三类对（回中枢段在 λ_C 前、触发段无回试）⟹ 否则域，1 买不置位（#1249）"
         );
         let sb_pt: Vec<_> = points.iter().filter(|p| p.source_index == 12).collect();
         assert_eq!(
@@ -2287,7 +2368,9 @@ mod tests {
             seg(Direction::Down, 9, 11, 150, 95), // C：95 < zd=100 破核心 ✓，95 ≥ b_lo=90 破极值 ✗
         ];
         // closes 取 canonical 急跌-缓动型——若放行则 C<A 成立，把变量隔离到 037:20 一项。
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
         assert!(
@@ -2348,7 +2431,9 @@ mod tests {
             seg(Direction::Up, 5, 7, 90, 95),     // B
             seg(Direction::Down, 9, 11, 150, 90), // C：90 < zd=100 破核心 ✓，90 == b_lo 等号 ✗
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
         assert!(points.iter().all(|p| !p.bits.buy1), "等号非创出 ⟹ 无 1 买");
@@ -2417,9 +2502,12 @@ mod tests {
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80),
-            seg(Direction::Up, 11, 13, 80, 90), // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            seg(Direction::Up, 11, 13, 80, 90), // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：一买破新低（后扫命中 leave+retest）
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let pts = extract_signals_force(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
 
@@ -2438,7 +2526,7 @@ mod tests {
         let force = b1
             .force
             .expect("一类趋势背驰候选 point.force = Some（A/C 段可配对）");
-        assert_eq!(b1.source_index, 11);
+        assert_eq!(b1.source_index, 15);
         assert!(
             force.seg_c.macd_area < force.seg_a.macd_area,
             "C 段面积 < A 段面积（趋势背驰）"
@@ -2487,9 +2575,12 @@ mod tests {
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80),
-            seg(Direction::Up, 11, 13, 80, 90), // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            seg(Direction::Up, 11, 13, 80, 90), // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：一买破新低（后扫命中 leave+retest）
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let series = compute_macd(&closes, &MacdConfig::default());
         let closes_tick: Vec<Tick> = closes.iter().map(|&c| c as Tick).collect();
@@ -2520,36 +2611,40 @@ mod tests {
         );
     }
 
-    /// ★#885 S4-d（验收锁之一）：分级记录**生产 sink** 捕获——Present 与否则域（Missing）两域
-    /// 均按 `diverged` 落 sink（不再只落 env 门控的 thread_local sidecar），`level=None` 全量
+    /// ★#885 S4-d（验收锁之一）+ #1249：分级记录**生产 sink** 捕获——Present 与否则域（Missing）
+    /// 两域均按 `diverged` 落 sink（不再只落 env 门控的 thread_local sidecar），`level=None` 全量
     /// 入口同样捕获（`level` 字段占位 0，由 Classification 装配方盖章，见
-    /// [`FirstClassGradeRecord`] 文档）。判据未动：Present fixture 仍产 buy1，否则域 fixture
-    /// 仍零一类 bit（#607 D2 语义不变）。
+    /// [`FirstClassGradeRecord`] 文档）。#1249 起分级器统一为全窗后扫：Present fixture 仍产 buy1
+    /// （bottom 段后扫命中 leave+retest），否则域 fixture 仍零一类 bit（D2 否则域语义不变）。
     #[test]
     fn first_class_grade_sink_captures_present_and_otherwise_domain() {
         let c0 = dc(300, 400, 290, 410, 2);
         let c1 = dc(100, 200, 90, 210, 8);
-        // Present fixture（与上一测试同款：固定首对 retest 端点 90 < zd=100）。
+        // Present fixture（与上一测试同款：后扫 leave+retest 对，retest 端点 90 < zd=100）。
         let segs_present = vec![
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80),
-            seg(Direction::Up, 11, 13, 80, 90),
+            seg(Direction::Up, 11, 13, 80, 90), // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：一买破新低（后扫命中 leave+retest）
         ];
-        // 否则域 fixture：仅 retest 端点改为 105（≥ zd=100，重回核心）⟹ Missing(RetestReentered)；
-        // closes/结构门/diverged 与 Present fixture 逐字相同。
+        // 否则域 fixture：仅 retest 端点改为 105（≥ zd=100，重回核心）⟹ 无第三类对 ⟹ 后扫
+        // Missing；closes/结构门/diverged 与 Present fixture 逐字相同。
         let segs_missing = vec![
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80),
-            seg(Direction::Up, 11, 13, 80, 105),
+            seg(Direction::Up, 11, 13, 80, 105), // retest：重回核心（≥ zd=100）⟹ 无第三类对
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：破新低但 c 无第三类对 ⟹ Missing
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let series = compute_macd(&closes, &MacdConfig::default());
         let closes_tick: Vec<Tick> = closes.iter().map(|&c| c as Tick).collect();
 
-        // ── Present：sink 恰 1 条，字段逐位锁定 ──
+        // ── Present：sink 2 条（leave Missing + bottom Present），字段逐位锁定 ──
         let mut sink = Vec::new();
         let (points, _pans) = extract_signals_with_hist(
             &[c0, c1],
@@ -2563,12 +2658,20 @@ mod tests {
             &mut sink,
         );
         assert!(
-            points.iter().any(|p| p.bits.buy1),
-            "Present fixture 仍产 buy1（判据未动）"
+            points.iter().any(|p| p.bits.buy1 && p.source_index == 15),
+            "Present fixture 仍产 buy1（bottom 段后扫命中 leave+retest，#1249 判据统一）"
         );
-        assert_eq!(sink.len(), 1, "一个 diverged 一类候选 ⟹ 恰一条分级记录");
-        let rec = sink[0];
-        assert_eq!(rec.source_index, 11);
+        // #1249：c 全窗内 leave（[9,11]）与 bottom（[13,15]）两个 diverged 候选均落 sink——
+        // leave 的 as_of=11 尚未含 retest ⟹ Missing；bottom 的 as_of=15 含 leave+retest ⟹ Present。
+        assert_eq!(
+            sink.len(),
+            2,
+            "两个 diverged 一类候选 ⟹ 两条分级记录（Missing+Present）"
+        );
+        let rec = sink
+            .iter()
+            .find(|r| r.source_index == 15)
+            .expect("bottom 分级记录按坐标可查");
         assert_eq!(rec.side, Side::Long);
         assert_eq!(
             (
@@ -2582,13 +2685,16 @@ mod tests {
         );
         assert_eq!(
             rec.grade,
-            T3InCGrade::Present {
+            T3InCScan::Present {
                 leave_interval: (9, 11),
                 retest_interval: (11, 13)
             }
         );
+        assert!(sink
+            .iter()
+            .any(|r| r.source_index == 11 && r.grade == T3InCScan::Missing));
 
-        // ── 否则域：sink 恰 1 条 Missing，点仍零一类 bit（D2 语义不变）──
+        // ── 否则域：sink 2 条 Missing（leave 与 bottom 两 diverged 候选），点仍零一类 bit ──
         let mut sink = Vec::new();
         let (points, _pans) = extract_signals_with_hist(
             &[c0, c1],
@@ -2611,12 +2717,10 @@ mod tests {
                 .any(|p| p.source_index == 11 && p.struct_break_dir == Some(Side::Long)),
             "否则域点仍进 BspPoint 样本（零 bit 结构候选，D2 不改候选集合）"
         );
-        assert_eq!(sink.len(), 1, "否则域记录同样落 sink（此前按坐标查不到）");
-        assert_eq!(sink[0].source_index, 11);
-        assert_eq!(
-            sink[0].grade,
-            T3InCGrade::Missing(T3InCGradeReason::RetestReentered)
-        );
+        assert_eq!(sink.len(), 2, "否则域两条记录均落 sink（此前按坐标查不到）");
+        assert!(sink.iter().all(|r| r.grade == T3InCScan::Missing));
+        assert!(sink.iter().any(|r| r.source_index == 11));
+        assert!(sink.iter().any(|r| r.source_index == 15));
         // sidecar 未打开 ⟹ 生产 sink 捕获与 sidecar 无耦合（take 返回空）。
         assert!(otherwise_domain_sidecar_take().is_empty());
     }
@@ -2632,9 +2736,12 @@ mod tests {
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80),
-            seg(Direction::Up, 11, 13, 80, 90), // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            seg(Direction::Up, 11, 13, 80, 90), // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：一买破新低（后扫命中 leave+retest）
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let series = compute_macd(&closes, &MacdConfig::default());
         let closes_tick: Vec<Tick> = closes.iter().map(|&c| c as Tick).collect();
@@ -2742,13 +2849,16 @@ mod tests {
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80),
-            seg(Direction::Up, 11, 13, 80, 90), // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            seg(Direction::Up, 11, 13, 80, 90), // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：一买破新低（后扫命中 leave+retest）
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let (closes, src) = closes_seq(&prices);
         let points = extract_signals(&centers, &segs, &closes, &src, &MacdConfig::default());
         assert!(
-            points.iter().any(|p| p.bits.buy1 && p.source_index == 11),
+            points.iter().any(|p| p.bits.buy1 && p.source_index == 15),
             "§10：早期 overlap 不锁死——尾部局部趋势块内破中枢背驰段照产第一类"
         );
     }
@@ -2803,11 +2913,13 @@ mod tests {
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80), // C 段：破 C1 下沿 ∧ 背驰 ⟹ 1 买
-            seg(Direction::Up, 11, 13, 80, 90),   // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            seg(Direction::Up, 11, 13, 80, 90),   // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：一买破新低（后扫命中 leave+retest）
         ];
         let prices: Vec<Tick> = vec![
             300, 300, 300, 300, 100, 250, // A 段急跌（强力度）
-            250, 250, 250, 248, 246, 244, // C 段缓动（弱力度=背驰）
+            250, 250, 250, 248, 246, 244, // leave 缓动（弱力度=背驰）
+            242, 240, 238, 236, // 12..15 retest+bottom：延续缓跌
         ];
         let (closes, src) = closes_seq(&prices);
         let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
@@ -2818,7 +2930,7 @@ mod tests {
             1,
             "C<A 趋势背驰 ⟹ 一个严格第一类 1 买（buy1 置位 ⟺ macd_c_lt_a=true）"
         );
-        assert_eq!(buy1[0].source_index, 11);
+        assert_eq!(buy1[0].source_index, 15);
         // ★P2-R2：背驰确认的破中枢点也带 struct_break_dir=Some(Long)——**无条件置**（不管背驰）。
         // 此点有 buy1 六 bit ⟹ candidate_dir 走 root_sel=Long，struct_break_dir 与之一致（不改结果，护栏1）。
         assert_eq!(
@@ -2915,14 +3027,17 @@ mod tests {
         let segs = vec![
             seg(Direction::Up, 3, 5, 150, 250), // A 段：C0 离开段（破 C0 上沿）
             seg(Direction::Down, 5, 7, 250, 280), // B 段连接
-            seg(Direction::Up, 9, 11, 350, 420), // C 段：破 C1 上沿（> 400）∧ 背驰 ⟹ 1 卖
-            seg(Direction::Down, 11, 13, 420, 410), // #607 D2：T3-in-c 固定首对 retest（仍 > zg=400）
+            seg(Direction::Up, 9, 11, 350, 420), // leave：三买离开，破 C1 上沿（> 400）
+            seg(Direction::Down, 11, 13, 420, 410), // retest：三买回试，不重回（> zg）
+            seg(Direction::Up, 13, 15, 410, 430), // top：一卖破新高（后扫命中 leave+retest）
         ];
         // closes 镜像（A 段急涨强力度、C 段缓动弱力度=顶背驰）：A area[3,5]=23.26 > C area[9,11]=9.09。
         let prices: Vec<Tick> = vec![
             200, 200, 200, 200, 400, 250, // 3..5 A 段：急涨（hist 大=强力度）
             250, 250, 250, // 6..8 B 段：盘整收敛 EMA
-            252, 254, 256, // 9..11 C 段：缓动（hist 小=顶背驰）
+            252, 254, 256, // 9..11 leave：缓动（hist 小=顶背驰）
+            258, 260, 262,
+            264, // 12..15 retest+top：延续缓涨（I(C)=[9,15] 面积仍 < A）
         ];
         let (closes, src) = closes_seq(&prices);
         let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
@@ -2933,8 +3048,12 @@ mod tests {
             "上涨趋势 C 段破最后中枢上沿 ∧ 顶背驰 ⟹ 一个 1 卖"
         );
         assert_eq!(
-            sell1[0].pivot_high, 420,
-            "1 卖止损源 = pivot_high（C 段破中枢端点）"
+            sell1[0].source_index, 15,
+            "1 卖端点 = 破新高 top 段终止 source_index"
+        );
+        assert_eq!(
+            sell1[0].pivot_high, 430,
+            "1 卖止损源 = pivot_high（破新高 top 段端点）"
         );
         // ★owner 载体补齐（关③ 补记② 路径 (a)）：一类点构造时填入判定中枢 last_center=c1
         //（上涨趋势镜像，被破的最后中枢）——名实一致根据同一类买侧；center 是 owner 载体，
@@ -2961,11 +3080,13 @@ mod tests {
             seg(Direction::Down, 3, 5, 350, 250),  // A 腿1（深）
             seg(Direction::Up, 5, 7, 250, 280),    // A 内部反向段
             seg(Direction::Down, 7, 9, 280, 240),  // A 腿2（浅，旧口径的"末段 A"）
-            seg(Direction::Down, 13, 15, 150, 80), // C：破 c1.zd=100
-            seg(Direction::Up, 15, 17, 80, 90), // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            seg(Direction::Down, 13, 15, 150, 80), // leave：三卖离开，破 c1.zd=100
+            seg(Direction::Up, 15, 17, 80, 90),    // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 17, 19, 90, 70),  // bottom：一买破新低（后扫命中 leave+retest）
         ];
         let prices: Vec<Tick> = vec![
-            300, 300, 300, 300, 200, 260, 262, 264, 263, 262, 262, 262, 262, 240, 215, 190,
+            300, 300, 300, 300, 200, 260, 262, 264, 263, 262, 262, 262, 262, 240, 215, 190, 230,
+            240, 250, 260,
         ];
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
@@ -2991,7 +3112,7 @@ mod tests {
             1,
             "Q5：I(A) 覆盖全离开走势区间 ⟹ 背驰成立 ⟹ buy1（语义真变，非兼容重构）"
         );
-        assert_eq!(buy1[0].source_index, 15);
+        assert_eq!(buy1[0].source_index, 19);
     }
 
     /// Q5 C 侧语义变更见证（反向）：C 由 2 个同向段构成。旧单段口径（C=破中枢段 [18,20]）判
@@ -3094,15 +3215,16 @@ mod tests {
             "前置：桥接 C 面积({c_bridged:.3}) ≥ episode C 面积({c_ep:.3})"
         );
         let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
-        // ★#607 S2 D2：T3-in-c 固定首对锚 = `last_center.end_index`（8）右边第一条段——此处即
-        // 失败离开段 [9,11]（价 120，未破 zd=100）本身，而非重新离开的真实触发段 [13,15]。固定
-        // 首对判 `LeaveNotOutside`（不后扫，#586/D1 在案）⟹ 否则域：零一类 bit，继续走候选流
-        // （struct_break_dir 无条件置，P2-R2 先例）。λ_C reentry 修复的是「候选資格」（broke 门 +
-        // I(C) 面积衰减，上方前置断言不变）；T3-in-c 是独立于 λ_C 的另一层几何合取，两者不桥接。
+        // ★#1249（#1229 裁定 a）：c 全窗 [λ_C=13, seg.end=15] 后扫——失败离开段 [9,11]（价 120，
+        // 未破 zd=100）与回中枢段 [11,13]（价 150 回核心）都落在 λ_C 之前（episode 边界重置
+        // λ_C=13），窗内仅重新离开段 [13,15] 单段（可作 leave 但无紧随 retest）⟹ 后扫 `Missing`
+        // ⟹ 否则域：零一类 bit，继续走候选流（struct_break_dir 无条件置，P2-R2 先例）。λ_C reentry
+        // 修复的是「候选資格」（broke 门 + I(C) 面积衰减，上方前置断言不变）；T3-in-c 是独立于
+        // λ_C 的另一层几何合取，两者不桥接。
         let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
         assert!(
             buy1.is_empty(),
-            "T3-in-c 固定首对锚绑定失败离开段（未破核心）⟹ 否则域，1 买不置位（#607 D2）"
+            "c 全窗后扫无第三类对（失败离开与回中枢段在 λ_C 前、重离开段无回试）⟹ 否则域，1 买不置位（#1249）"
         );
         let sb_pt: Vec<_> = points.iter().filter(|p| p.source_index == 15).collect();
         assert_eq!(
@@ -3134,9 +3256,12 @@ mod tests {
             seg(Direction::Down, 3, 5, 350, 250), // A（单段）
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 280, 80), // C：唯一离开段，破 zd=100
-            seg(Direction::Up, 11, 13, 80, 90),   // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            seg(Direction::Up, 11, 13, 80, 90),   // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：一买破新低（后扫命中 leave+retest）
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 180, 170, 250, 300, 300, 298, 296, 294];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 180, 170, 250, 300, 300, 298, 296, 294, 292, 290, 288, 286,
+        ];
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         assert_eq!(
@@ -3160,8 +3285,12 @@ mod tests {
         );
         let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
         let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
-        assert_eq!(buy1.len(), 1, "单段 C：与旧口径同判 buy1");
-        assert_eq!(buy1[0].source_index, 11);
+        assert_eq!(
+            buy1.len(),
+            1,
+            "单段 C + bottom：与旧口径同判 buy1（#1249 后扫命中 leave+retest）"
+        );
+        assert_eq!(buy1[0].source_index, 15);
     }
 
     // ── Q4（task #145）：盘整背驰证书（PanDivCert）——盘整块内破中枢+背驰，零一类 bit ────
@@ -3510,6 +3639,61 @@ mod tests {
         assert_eq!(
             trend_third_class_in_c(&single, &last, Direction::Up, 6, 10),
             None
+        );
+    }
+
+    /// ★#1249（#1229 裁定 a）对拍锁（#804 ① 同输入同输出）：统一后的分级器
+    /// [`t3_in_c_scan_grade`] 与 [`trend_third_class_in_c`] 对同一输入逐位一致——`Present` ⟺
+    /// 扫描器命中且区间 = 命中段区间；`Missing` ⟺ 扫描器 `None`。锁住「大闸消费后扫结果」，
+    /// 防止未来再另起一套判据（生产级同锁由 s2_mirror_capture 的
+    /// `run_first_production_diagnostics` 走 `judge_first_from_gates` 覆盖）。
+    #[test]
+    fn t3_in_c_scan_grade_parity_with_back_scan() {
+        let last = Center {
+            zd: 100,
+            zg: 200,
+            dd: 90,
+            gg: 210,
+            start_index: 0,
+            end_index: 5,
+        };
+        let segs = vec![
+            seg(Direction::Up, 6, 8, 210, 260),
+            seg(Direction::Down, 8, 10, 260, 220),
+        ];
+        let scan = trend_third_class_in_c(&segs, &last, Direction::Up, 6, 10);
+        let grade = t3_in_c_scan_grade(&segs, &last, Direction::Up, 6, 10);
+        match scan {
+            Some((leave_end, retest_end)) => {
+                let leave = segs.iter().find(|s| s.end_index == leave_end).unwrap();
+                let retest = segs.iter().find(|s| s.end_index == retest_end).unwrap();
+                assert_eq!(
+                    grade,
+                    T3InCScan::Present {
+                        leave_interval: (leave.start_index, leave.end_index),
+                        retest_interval: (retest.start_index, retest.end_index),
+                    }
+                );
+            }
+            None => assert_eq!(grade, T3InCScan::Missing),
+        }
+        // Down 对称：命中对的区间逐位一致。
+        let down = vec![
+            seg(Direction::Down, 6, 8, 190, 90),
+            seg(Direction::Up, 8, 10, 90, 95),
+        ];
+        assert_eq!(
+            t3_in_c_scan_grade(&down, &last, Direction::Down, 6, 10),
+            T3InCScan::Present {
+                leave_interval: (6, 8),
+                retest_interval: (8, 10)
+            }
+        );
+        // 无命中 ⟹ Missing。
+        let single = vec![seg(Direction::Up, 6, 8, 210, 260)];
+        assert_eq!(
+            t3_in_c_scan_grade(&single, &last, Direction::Up, 6, 10),
+            T3InCScan::Missing
         );
     }
 

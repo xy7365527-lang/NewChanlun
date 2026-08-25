@@ -11,7 +11,7 @@ use super::super::cand_event::{
 };
 use super::super::divergence::{ForceFeatures, ForceProxies};
 use super::super::recursive_tower::{CandDeltaEvent, CpScanOwnership, ElementId};
-use super::super::signal::{T3InCGrade, T3InCGradeReason};
+use super::super::signal::T3InCScan;
 use super::*;
 use crate::theta_v0::types::{BspBits, Side, ThirdClassEntryIdentity};
 
@@ -277,44 +277,26 @@ impl From<PanDivCert> for WirePanDivCert {
         }
     }
 }
+/// #1249 统一后 wire 分级：T3-in-c 全窗后扫结果（`trend_third_class_in_c` 折叠）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WireT3InCGradeReason {
-    MissingLeave,
-    MissingRetest,
-    SameDirection,
-    LeaveNotOutside,
-    RetestReentered,
-}
-impl From<T3InCGradeReason> for WireT3InCGradeReason {
-    fn from(value: T3InCGradeReason) -> Self {
-        match value {
-            T3InCGradeReason::MissingLeave => Self::MissingLeave,
-            T3InCGradeReason::MissingRetest => Self::MissingRetest,
-            T3InCGradeReason::SameDirection => Self::SameDirection,
-            T3InCGradeReason::LeaveNotOutside => Self::LeaveNotOutside,
-            T3InCGradeReason::RetestReentered => Self::RetestReentered,
-        }
-    }
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WireT3InCGrade {
+pub enum WireT3InCScan {
     Present {
         leave_interval: WireInterval,
         retest_interval: WireInterval,
     },
-    Missing(WireT3InCGradeReason),
+    Missing,
 }
-impl From<T3InCGrade> for WireT3InCGrade {
-    fn from(value: T3InCGrade) -> Self {
+impl From<T3InCScan> for WireT3InCScan {
+    fn from(value: T3InCScan) -> Self {
         match value {
-            T3InCGrade::Present {
+            T3InCScan::Present {
                 leave_interval,
                 retest_interval,
             } => Self::Present {
                 leave_interval: leave_interval.into(),
                 retest_interval: retest_interval.into(),
             },
-            T3InCGrade::Missing(reason) => Self::Missing(reason.into()),
+            T3InCScan::Missing => Self::Missing,
         }
     }
 }
@@ -327,7 +309,7 @@ pub struct WireFirstClassGradeRecord {
     pub center_end_index: usize,
     pub center_zd: Tick,
     pub center_zg: Tick,
-    pub grade: WireT3InCGrade,
+    pub grade: WireT3InCScan,
 }
 impl From<FirstClassGradeRecord> for WireFirstClassGradeRecord {
     fn from(value: FirstClassGradeRecord) -> Self {

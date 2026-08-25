@@ -34,7 +34,7 @@ use newchan_rust::theta_v0::classifier::recursive_tower::{
     ElementId, FullTrendCQualified, FullTrendQualificationEvidence, InternalSublevelCenters,
     LeveledMove, NewExtremeInDirection, ThirdClassInCp, TrendContext,
 };
-use newchan_rust::theta_v0::classifier::signal::{PanDivCert, T3InCGrade, T3InCGradeReason};
+use newchan_rust::theta_v0::classifier::signal::{PanDivCert, T3InCScan};
 use newchan_rust::theta_v0::classifier::{self, TowerCache};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::ParseLayerIncr;
@@ -772,12 +772,12 @@ fn observe_batch_options(batch: &CaptureBatch, stats: &mut BTreeMap<&'static str
             bump_option(
                 stats,
                 "O03.grade.present",
-                matches!(grade.grade, T3InCGrade::Present { .. }),
+                matches!(grade.grade, T3InCScan::Present { .. }),
             );
             bump_option(
                 stats,
                 "O03.grade.missing",
-                matches!(grade.grade, T3InCGrade::Missing(_)),
+                matches!(grade.grade, T3InCScan::Missing),
             );
         }
     }
@@ -1140,25 +1140,21 @@ fn segment(value: &Segment, anchor: Option<Direction>, departure_end: Option<usi
         dir(value.direction), value.start_index, value.end_index, value.end_price, anchor, opt_nat(departure_end))
 }
 
-fn grade(value: T3InCGrade) -> String {
+fn grade(value: T3InCScan) -> String {
     match value {
-        T3InCGrade::Present {
+        T3InCScan::Present {
             leave_interval,
             retest_interval,
         } => format!(
             "RustGradeExtractionValue.present {} {} {} {}",
             leave_interval.0, leave_interval.1, retest_interval.0, retest_interval.1
         ),
-        T3InCGrade::Missing(reason) => format!(
-            "RustGradeExtractionValue.missing {}",
-            match reason {
-                T3InCGradeReason::MissingLeave => "RustGradeReasonTag.missingLeave",
-                T3InCGradeReason::MissingRetest => "RustGradeReasonTag.missingRetest",
-                T3InCGradeReason::SameDirection => "RustGradeReasonTag.sameDirection",
-                T3InCGradeReason::LeaveNotOutside => "RustGradeReasonTag.leaveNotOutside",
-                T3InCGradeReason::RetestReentered => "RustGradeReasonTag.retestReentered",
-            }
-        ),
+        // #1249 后扫统一：Missing 不再携五桶 reason；Lean `RustGradeExtractionValue` 的
+        // `missing (reason)` 形状待 Lean 侧补后扫镜面（后续票）——此处用 `missingLeave` 占位
+        // 保 wire 闭合，语义对拍在 Lean 镜面跟上前不成立。
+        T3InCScan::Missing => {
+            "RustGradeExtractionValue.missing RustGradeReasonTag.missingLeave".to_owned()
+        }
     }
 }
 
@@ -1463,18 +1459,19 @@ fn coverage_fixture_wire() -> String {
         center_zg: 120,
         grade,
     };
-    let grade_present = grade_record(T3InCGrade::Present {
+    // ★#1249（#1229 裁定 a）：固定首对五桶随 `T3InCScan`（Missing 不携 reason）退役——本 fixture
+    // 分级字段由 `gradePresent + 五个 gradeMissing*` 收成 `gradePresent + gradeMissing` 两档。
+    // ⚠ Lean `CoverageFixtureExtraction`（formal/Origin/UnifiedScanMirrorRunner.lean:1289）仍持
+    // 五桶字段、`coverageFixtureChecks`（同文件 :1392-1400）仍发五条 `coverageGradeCheck`——
+    // 本 fixture 生成的 Lean 结构字面量因此在 Lean 侧补后扫镜面前不闭合（`gradeMissing` 字段 Lean
+    // 尚无、五桶字段缺省）。收口归后续 Lean 票：五桶字段换单一 `gradeMissing`、五条 check 换成
+    // `coverageGradeCheck "o03.missing" (.missing .missingLeave) wire.gradeMissing`（占位 reason
+    // 与 `grade()` 的 `RustGradeExtractionValue.missing` 同源，见其注释）。
+    let grade_present = grade_record(T3InCScan::Present {
         leave_interval: (1, 2),
         retest_interval: (3, 4),
     });
-    let missing_grades = [
-        T3InCGradeReason::MissingLeave,
-        T3InCGradeReason::MissingRetest,
-        T3InCGradeReason::SameDirection,
-        T3InCGradeReason::LeaveNotOutside,
-        T3InCGradeReason::RetestReentered,
-    ]
-    .map(|reason| grade_record(T3InCGrade::Missing(reason)));
+    let grade_missing = grade_record(T3InCScan::Missing);
     let candidate_key = CandidateKey {
         rule_version: 1,
         level: 2,
@@ -1864,8 +1861,7 @@ fn coverage_fixture_wire() -> String {
         concat!(
             "{{ firstSome := (some {}), firstNone := none, forceSegA := {}, forceSegC := {}, ",
             "firstForce := (some {}), ownerType1 := {}, secondProduction := {}, thirdSuccess := (some {}), thirdFailure := none, ",
-            "gradePresent := {}, gradeMissingLeave := {}, gradeMissingRetest := {}, ",
-            "gradeSameDirection := {}, gradeLeaveNotOutside := {}, gradeRetestReentered := {}, ",
+            "gradePresent := {}, gradeMissing := {}, ",
             "candidateExtremeTrue := {}, candidateExtremeFalse := {}, cpFull := {}, ",
             "p10Cache := {}, p10First := {}, p10FirstTail := {}, p10Pan := {}, p10Third := {}, ",
             "pipelineDirect := [{}], pipelineSecond07b := [{}], pipelineOutput := [{}, {}] }}"
@@ -1873,9 +1869,7 @@ fn coverage_fixture_wire() -> String {
         bsp_rust(&first_some), raw_expr(&raw_a), raw_expr(&raw_c), bsp_rust(&first_force),
         bsp_rust(&owner_type1), second_production_rust(&second_production),
         bsp_rust(&third_success), grade_record_rust(&grade_present),
-        grade_record_rust(&missing_grades[0]), grade_record_rust(&missing_grades[1]),
-        grade_record_rust(&missing_grades[2]), grade_record_rust(&missing_grades[3]),
-        grade_record_rust(&missing_grades[4]), candidate_rust(&candidate_true),
+        grade_record_rust(&grade_missing), candidate_rust(&candidate_true),
         candidate_rust(&candidate_false), cp_full_rust(&cp),
         p10_coverage_case_expr(&p10_cache_series, &p10_cache_frontier),
         p10_coverage_case_expr(&p10_first_series, &p10_first_frontier),

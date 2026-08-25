@@ -18,7 +18,7 @@ use crate::theta_v0::classifier::recursive_tower::{
 };
 use crate::theta_v0::classifier::signal::{
     extract_second_signals, judge_first_from_gates, FirstClassGradeRecord, FirstStructuralGates,
-    PanDivCert, T3InCGrade,
+    PanDivCert, T3InCScan,
 };
 use crate::theta_v0::classifier::BspPoint;
 use crate::theta_v0::types::{Center, Direction, Segment, Side, Stroke, Tick};
@@ -362,13 +362,14 @@ pub struct FirstAssemblyCapture {
     /// `grade_sink` 在这次生产调用里真实追加的 O-03 记录；`rust_grade` 只是内禀
     /// T3-in-c 判定值，二者不得混用。
     pub grade_output: Option<FirstClassGradeRecord>,
-    pub rust_grade: Option<T3InCGrade>,
+    pub rust_grade: Option<T3InCScan>,
     pub output: Option<BspPoint>,
 }
 
 /// O-01/O-03 的最小真实生产适配器。两条见证都调用生产
-/// [`judge_first_from_gates`]：一条固定首对为 Present，一条为 MissingRetest；Rust actual、
-/// 力度代理与分级 sink 都由该生产调用写出，适配器只提供确定性的 raw 输入。
+/// [`judge_first_from_gates`]：一条全窗后扫为 Present（c 内含第三类买卖点对），一条为
+/// Missing（c 内无第三类买卖点对）；Rust actual、力度代理与分级 sink 都由该生产调用写出，
+/// 适配器只提供确定性的 raw 输入。
 #[doc(hidden)]
 pub fn run_first_production_diagnostics() -> Vec<FirstAssemblyCapture> {
     assert!(!capture_enabled(), "fixture capture 不得嵌套现有捕获会话");
@@ -380,7 +381,10 @@ pub fn run_first_production_diagnostics() -> Vec<FirstAssemblyCapture> {
         dd: 90,
         gg: 130,
     };
-    let segment = Segment {
+    // #1229 裁定 a：全窗后扫口径下，一类点的 breaking 段须落在第三类买卖点对（leave+retest）
+    // 之后——c 全窗 [λ_C, seg.end] 内含对 B 的三卖（leave Down 破 zd、retest Up 不重回）才算
+    // Present。leave 与 retest 共享端点（retest.start == leave.end），随后 breaking 段创出新低。
+    let leave = Segment {
         direction: Direction::Down,
         start_index: 4,
         end_index: 6,
@@ -389,10 +393,17 @@ pub fn run_first_production_diagnostics() -> Vec<FirstAssemblyCapture> {
     };
     let retest = Segment {
         direction: Direction::Up,
-        start_index: 7,
+        start_index: 6,
         end_index: 8,
         start_price: 80,
         end_price: 90,
+    };
+    let segment = Segment {
+        direction: Direction::Down,
+        start_index: 8,
+        end_index: 10,
+        start_price: 90,
+        end_price: 70,
     };
     let gates = FirstStructuralGates {
         side: Side::Long,
@@ -405,8 +416,8 @@ pub fn run_first_production_diagnostics() -> Vec<FirstAssemblyCapture> {
     let hist = [-1.0, -2.0, -1.0, -0.5, -0.5];
     let dif = [-2.0, -3.0, -2.0, -1.5, -1.0];
     let closes = [120, 110, 100, 90, 80];
-    // L(A)=15, L(C)=5，故真实 ForceL 判据严格成立；各段至少含两笔，避免以单笔
-    // 零差值偶然命中。
+    // L(A)=15（A span [1,3]：末笔速度 20 − 首笔 5）；L(C)=0（C span [4,10]：末笔速度 5 − 首笔
+    // 5），0 < 15 ⟹ 真实 ForceL 判据严格成立；各段至少含两笔，避免以单笔零差值偶然命中。
     let strokes = [
         Stroke {
             direction: Direction::Up,
@@ -435,6 +446,20 @@ pub fn run_first_production_diagnostics() -> Vec<FirstAssemblyCapture> {
             end_index: 6,
             start_price: 0,
             end_price: 20,
+        },
+        Stroke {
+            direction: Direction::Up,
+            start_index: 7,
+            end_index: 8,
+            start_price: 0,
+            end_price: 5,
+        },
+        Stroke {
+            direction: Direction::Up,
+            start_index: 9,
+            end_index: 10,
+            start_price: 0,
+            end_price: 10,
         },
     ];
 
@@ -472,20 +497,20 @@ pub fn run_first_production_diagnostics() -> Vec<FirstAssemblyCapture> {
         capture
     };
 
-    let present = run(&[segment, retest]);
-    let missing = run(&[segment]);
+    let present = run(&[leave, retest, segment]);
+    let missing = run(&[leave, segment]);
     assert!(matches!(
         present.rust_grade,
-        Some(T3InCGrade::Present { .. })
+        Some(T3InCScan::Present { .. })
     ));
-    assert!(matches!(missing.rust_grade, Some(T3InCGrade::Missing(_))));
+    assert!(matches!(missing.rust_grade, Some(T3InCScan::Missing)));
     assert!(matches!(
         present.grade_output.map(|record| record.grade),
-        Some(T3InCGrade::Present { .. })
+        Some(T3InCScan::Present { .. })
     ));
     assert!(matches!(
         missing.grade_output.map(|record| record.grade),
-        Some(T3InCGrade::Missing(_))
+        Some(T3InCScan::Missing)
     ));
     vec![present, missing]
 }
@@ -805,7 +830,7 @@ pub(crate) fn record_first_assembly(
     strokes: &[Stroke],
     sorted: &[Segment],
     grade_output: Option<FirstClassGradeRecord>,
-    rust_grade: Option<T3InCGrade>,
+    rust_grade: Option<T3InCScan>,
     output: Option<&BspPoint>,
 ) {
     if !data_capture_enabled() {
@@ -1314,12 +1339,9 @@ mod tests {
         }));
         assert!(matches!(
             captures[0].rust_grade,
-            Some(T3InCGrade::Present { .. })
+            Some(T3InCScan::Present { .. })
         ));
-        assert!(matches!(
-            captures[1].rust_grade,
-            Some(T3InCGrade::Missing(_))
-        ));
+        assert!(matches!(captures[1].rust_grade, Some(T3InCScan::Missing)));
         assert!(captures
             .iter()
             .all(|capture| capture.grade_output.is_some()));

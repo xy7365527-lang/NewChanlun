@@ -57,9 +57,18 @@ fn q7_ruling_c_first_and_third_class_structural_direction_authorized() {
             direction: Direction::Up,
             lo: 80,
             hi: 90,
-        }, // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+        }, // retest：三卖回试，不重回（< zd）
+        UnitRange {
+            start_index: 13,
+            end_index: 15,
+            direction: Direction::Down,
+            lo: 70,
+            hi: 90,
+        }, // bottom：一买破新低（后扫命中 leave+retest）
     ];
-    let prices: Vec<i64> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+    let prices: Vec<i64> = vec![
+        300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+    ];
     let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
     let close_src: Vec<usize> = (0..prices.len()).collect();
     let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
@@ -68,7 +77,7 @@ fn q7_ruling_c_first_and_third_class_structural_direction_authorized() {
     let (first_bsp, _) = extract_first_third_for_level(
         &[c0, c1],
         &units,
-        &[None, None, None, None],
+        &[None, None, None, None, None],
         None,
         &hist,
         &[],

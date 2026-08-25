@@ -255,14 +255,14 @@ fn pan(value: &issue1087_parity::WirePanDivCert, rust: bool) -> String {
     )
 }
 
-fn grade(value: &issue1087_parity::WireT3InCGrade, rust: bool) -> String {
+fn grade(value: &issue1087_parity::WireT3InCScan, rust: bool) -> String {
     let prefix = if rust {
         "RustT3InCGradeExtraction"
     } else {
         "T3InCGrade"
     };
     match value {
-        issue1087_parity::WireT3InCGrade::Present {
+        issue1087_parity::WireT3InCScan::Present {
             leave_interval,
             retest_interval,
         } => format!(
@@ -270,38 +270,14 @@ fn grade(value: &issue1087_parity::WireT3InCGrade, rust: bool) -> String {
             interval(leave_interval, rust),
             interval(retest_interval, rust)
         ),
-        issue1087_parity::WireT3InCGrade::Missing(reason) => {
-            let reason = match (reason, rust) {
-                (issue1087_parity::WireT3InCGradeReason::MissingLeave, true) => {
-                    "RustT3InCGradeReasonTag.missingLeave"
-                }
-                (issue1087_parity::WireT3InCGradeReason::MissingRetest, true) => {
-                    "RustT3InCGradeReasonTag.missingRetest"
-                }
-                (issue1087_parity::WireT3InCGradeReason::SameDirection, true) => {
-                    "RustT3InCGradeReasonTag.sameDirection"
-                }
-                (issue1087_parity::WireT3InCGradeReason::LeaveNotOutside, true) => {
-                    "RustT3InCGradeReasonTag.leaveNotOutside"
-                }
-                (issue1087_parity::WireT3InCGradeReason::RetestReentered, true) => {
-                    "RustT3InCGradeReasonTag.retestReentered"
-                }
-                (issue1087_parity::WireT3InCGradeReason::MissingLeave, false) => {
-                    "T3InCGradeReason.missingLeave"
-                }
-                (issue1087_parity::WireT3InCGradeReason::MissingRetest, false) => {
-                    "T3InCGradeReason.missingRetest"
-                }
-                (issue1087_parity::WireT3InCGradeReason::SameDirection, false) => {
-                    "T3InCGradeReason.sameDirection"
-                }
-                (issue1087_parity::WireT3InCGradeReason::LeaveNotOutside, false) => {
-                    "T3InCGradeReason.leaveNotOutside"
-                }
-                (issue1087_parity::WireT3InCGradeReason::RetestReentered, false) => {
-                    "T3InCGradeReason.retestReentered"
-                }
+        // #1249 后扫统一：Missing 不再携五桶 reason。Lean 侧 `RustT3InCGradeExtraction` 尚持
+        // `missing (reason)` 形状（固定首对镜面待 Lean 票跟进）——此处用 `missingLeave` 作占位
+        // reason 保 wire 形状闭合；语义对拍在 Lean 侧补后扫镜面前由后续票收口。
+        issue1087_parity::WireT3InCScan::Missing => {
+            let reason = if rust {
+                "RustT3InCGradeReasonTag.missingLeave"
+            } else {
+                "T3InCGradeReason.missingLeave"
             };
             format!("{prefix}.missing {reason}")
         }

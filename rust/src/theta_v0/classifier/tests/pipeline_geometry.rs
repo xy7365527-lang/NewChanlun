@@ -281,10 +281,19 @@ fn level_ge1_extract_first_third_produces_type1_via_units() {
             direction: Direction::Up,
             lo: 80,
             hi: 90,
-        }, // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+        }, // retest：三卖回试，不重回（< zd）
+        UnitRange {
+            start_index: 13,
+            end_index: 15,
+            direction: Direction::Down,
+            lo: 70,
+            hi: 90,
+        }, // bottom：一买破新低（后扫命中 leave+retest）
     ];
     // A 段 bar[3,5] 急跌（hist 面积大）、C 段 bar[9,11] 缓动（面积小=背驰）——同 signal.rs fixture。
-    let prices: Vec<i64> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+    let prices: Vec<i64> = vec![
+        300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+    ];
     let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
     let close_src: Vec<usize> = (0..prices.len()).collect();
     let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
@@ -295,6 +304,7 @@ fn level_ge1_extract_first_third_produces_type1_via_units() {
         Some(Direction::Up),
         Some(Direction::Down),
         Some(Direction::Up),
+        Some(Direction::Down),
     ];
     let (bsp, _pan) = extract_first_third_for_level(
         &[c0, c1],
@@ -316,12 +326,12 @@ fn level_ge1_extract_first_third_produces_type1_via_units() {
         "级别-N 下跌趋势 C 段破最后中枢 ∧ C<A 背驰 ⟹ 一个 1 买（缺口已填，非 no-op）"
     );
     assert_eq!(
-        buy1[0].source_index, 11,
-        "1 买端点 = C 段（破最后中枢单元）终止 source_index"
+        buy1[0].source_index, 15,
+        "1 买端点 = bottom 段（破新低单元）终止 source_index"
     );
     assert_eq!(
-        buy1[0].pivot_low, 80,
-        "1 买止损源 = pivot_low（C 段破中枢端点极值）"
+        buy1[0].pivot_low, 70,
+        "1 买止损源 = pivot_low（bottom 段破新低端点）"
     );
     // ★owner 载体补齐（关③ 补记② 路径 (a)）：一类点构造时填入判定中枢 last_center=c1
     //（被破的最后中枢）——名实一致根据同 signal.rs `first_buy_extracted_with_trend_divergence`
@@ -1523,15 +1533,15 @@ fn end_to_end_center_without_signal() {
     );
 }
 
-/// ★#885 S4-d（**验收测试锁**）：否则域（`T3InCGrade::Missing`）分级记录进
+/// ★#885 S4-d（**验收测试锁**）+ #1249：否则域（`T3InCScan::Missing`）分级记录进
 /// `Classification`、按 (level, source_index) 坐标可查——此前记录体只在 env 门控的
 /// thread_local 诊断 sidecar `GRADE_SIDECAR`，生产 `Classification` 按坐标查不到，
-/// 任何涉及类一类点的命中率因此只是下界。本票只建载体/可查性，判据未动
+/// 任何涉及类一类点的命中率因此只是下界。本票只建载体/可查性，判据统一为全窗后扫
 /// （否则域点仍零一类 bit，#607 D2 语义不变）。
 ///
 /// fixture（全管线 classify 真跑）：两依次向下中枢（C0[300,400] → C1[180,210]，外缘
-/// C1.gg=280 < C0.dd=290 ⟹ Trend(Down)）+ C 段 s6 破 C1 核心（端点 80 < zd=180）；固定首对
-/// = (s6 Down, s7 Down) 同向 ⟹ `Missing(SameDirection)`（#606 D1 五桶之一，不后扫）。
+/// C1.gg=280 < C0.dd=290 ⟹ Trend(Down)）+ C 段 s6 破 C1 核心（端点 80 < zd=180）；s7 与 s6
+/// 同向（Down/Down），c 全窗无「离开+回试」对 ⟹ 后扫 `Missing`（无第三类买卖点对）。
 /// closes：A 段 [12,20] 急跌（hist 面积大）→ 回拉 → C 段 [24,28] 缓跌（面积小 ⟹ C<A 背驰）。
 #[test]
 fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
@@ -1547,7 +1557,7 @@ fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
         seg(Direction::Up, 16, 20, 180, 210),
         seg(Direction::Down, 20, 24, 210, 150), // → C1 [180,210]（[12,24]，dd=150/gg=280）
         seg(Direction::Down, 24, 28, 170, 80),  // s6 C 段：破 C1 核心（80 < zd=180）
-        seg(Direction::Down, 28, 32, 80, 70),   // s7 与 s6 同向 ⟹ 固定首对 Missing(SameDirection)
+        seg(Direction::Down, 28, 32, 80, 70),   // s7 与 s6 同向 ⟹ 后扫 Missing（无回试对）
     ];
     let closes: Vec<i64> = vec![
         350, 350, 350, 350, 350, 350, 350, 350, 350, 350, 350,
@@ -1592,8 +1602,8 @@ fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
     assert_eq!(rec.side, Side::Long);
     assert_eq!(
         rec.grade,
-        signal::T3InCGrade::Missing(signal::T3InCGradeReason::SameDirection),
-        "固定首对 (s6 Down, s7 Down) 同向 ⟹ Missing(SameDirection)"
+        signal::T3InCScan::Missing,
+        "c 全窗 (s6 Down, s7 Down) 无离开/回试对 ⟹ 后扫 Missing"
     );
     assert_eq!(
         (
@@ -1614,10 +1624,9 @@ fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
     );
     let otherwise: Vec<_> = l0.otherwise_domain_records().collect();
     // 前后对照的可测面数字（钉死 fixture 产出，防静默漂移）：本 fixture L0 两个 diverged
-    // 一类候选（s6/s7，C 段 episode 未回中枢 ⟹ 同一固定首对同向桶）均落否则域
-    // Missing(SameDirection)，无 Present 记录 ⟹ 全部记录恰 2 条且全是否则域。
-    // 改前同一 fixture 在 Classification 上的可查否则域数恒 0（无字段，只落 env 门控
-    // sidecar）；改后 = 2（下界口径不变，可测面从 0 扩到 2）。
+    // 一类候选（s6/s7，C 段 episode 未回中枢 ⟹ 后扫同向无回试对）均落否则域 Missing，无
+    // Present 记录 ⟹ 全部记录恰 2 条且全是否则域。改前同一 fixture 在 Classification 上的可查
+    // 否则域数恒 0（无字段，只落 env 门控 sidecar）；改后 = 2（下界口径不变，可测面从 0 扩到 2）。
     assert_eq!(
         l0.first_class_grades.len(),
         2,
@@ -1626,11 +1635,11 @@ fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
     assert_eq!(
         otherwise.len(),
         2,
-        "fixture 钉死：2 条记录全是否则域 Missing(SameDirection)（无 Present）"
+        "fixture 钉死：2 条记录全是否则域 Missing（无 Present）"
     );
     assert!(otherwise
         .iter()
-        .all(|r| r.grade == signal::T3InCGrade::Missing(signal::T3InCGradeReason::SameDirection)));
+        .all(|r| r.grade == signal::T3InCScan::Missing));
     assert_eq!(
         otherwise.iter().map(|r| r.source_index).collect::<Vec<_>>(),
         vec![28, 32],

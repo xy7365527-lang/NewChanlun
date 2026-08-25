@@ -75,10 +75,10 @@ pub struct LevelState {
     /// 同 memo 键缓存）。**不是买卖点**（零 six-bit，不冒充 B1/S1）——承接路由在 econ 统计层
     /// （collect_signals 走 Nest/XZD 二通道，两门皆闭诚实丢弃）。
     pub pan_div: Rc<Vec<signal::PanDivCert>>,
-    /// ★#885 S4-d：该级一类点 T3-in-c 固定首对分级记录（`signal::FirstClassGradeRecord`，与
-    /// bsp 同一 extract 调用产出、同 memo 键缓存、同 frontier 冻结边界锚）。按 `diverged` 捕获
+    /// ★#885 S4-d + #1249：该级一类点 T3-in-c 全窗后扫分级记录（`signal::FirstClassGradeRecord`，
+    /// 与 bsp 同一 extract 调用产出、同 memo 键缓存、同 frontier 冻结边界锚）。按 `diverged` 捕获
     /// （T3-in-c 二次门控**之前**，Present 与 Missing 两域均记录）——否则域
-    /// （`T3InCGrade::Missing`）记录此前只落 thread_local 诊断 sidecar `GRADE_SIDECAR`，不进
+    /// （`T3InCScan::Missing`）记录此前只落 thread_local 诊断 sidecar `GRADE_SIDECAR`，不进
     /// `Classification`、按坐标查不到，任何涉及类一类点的命中率因此只是下界；本字段是否则域
     /// （027 课「类第一类」归化域，ADR 0001 补充十六）的**生产可查载体**。
     ///
@@ -106,14 +106,14 @@ impl LevelState {
             .find(|r| r.source_index == source_index)
     }
 
-    /// ★#885 S4-d：否则域（`T3InCGrade::Missing`）记录迭代器——027 课「类第一类」归化域的
-    /// 可查面（准入判据归 #817，本层只建可查性）。
+    /// ★#885 S4-d + #1249：否则域（`T3InCScan::Missing`）记录迭代器——027 课「类第一类」归化
+    /// 域的可查面（准入判据归 #817，本层只建可查性）。
     pub fn otherwise_domain_records(
         &self,
     ) -> impl Iterator<Item = &signal::FirstClassGradeRecord> + '_ {
         self.first_class_grades
             .iter()
-            .filter(|r| matches!(r.grade, signal::T3InCGrade::Missing(_)))
+            .filter(|r| matches!(r.grade, signal::T3InCScan::Missing))
     }
 }
 
@@ -125,8 +125,8 @@ pub struct Classification {
 }
 
 impl Classification {
-    /// ★#885 S4-d：按 (level, source_index) 坐标查否则域（`T3InCGrade::Missing`）分级记录——
-    /// 验收测试锁的查询入口。越界 level / 无该坐标 / 该坐标是 Present ⟹ None。
+    /// ★#885 S4-d + #1249：按 (level, source_index) 坐标查否则域（`T3InCScan::Missing`）分级
+    /// 记录——验收测试锁的查询入口。越界 level / 无该坐标 / 该坐标是 Present ⟹ None。
     pub fn otherwise_domain_at(
         &self,
         level: usize,

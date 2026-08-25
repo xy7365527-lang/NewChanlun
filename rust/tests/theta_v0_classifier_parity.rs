@@ -539,10 +539,12 @@ fn type1_buy_broke_and_diverge_matches_lean_istype1() {
         seg(Direction::Down, 3, 5, 350, 110), // A 段：C0 离开段（破 C0 下沿），骤跌 ⟹ 绿柱大（强势=Lean forceA）
         seg(Direction::Up, 5, 7, 110, 140),   // B 段 1：反向连接（C1 起点）
         seg(Direction::Down, 7, 13, 140, 138), // B 段 2：低位长盘整（构成 C1；EMA 深回拉 ⟹ C 段绿柱可读且小）
-        // #993：#607 D2 后 T3-in-c 首对 = (trigger 本身, 其后 Up 回试)——trigger 即 leave（破 zd），
-        // retest [16,17] Up 80→98 不回中枢（98 < zd=100）⟹ Present；B1 恰一点（后无更多破段）。
-        seg(Direction::Down, 13, 16, 138, 80), // C 触发段 = T3 leave：破 C1 下沿 ∧ C<A 趋势背驰 ⟹ B1
-        seg(Direction::Up, 16, 17, 80, 98),    // T3 retest：不回中枢 ⟹ 首对 Present
+        // #1249（#1229 裁定 a）：T3-in-c 统一全窗后扫——leave [13,16]（破 zd）+ retest [16,17]
+        // （Up 98 < zd=100 不回中枢）在后扫窗 [λ_C=13, bottom.end=19] 内命中；bottom [17,19]
+        // （破新低）才是 B1 触发段（as_of=16 的 leave 尚未含 retest ⟹ leave 为否则域零 bit 候选）。
+        seg(Direction::Down, 13, 16, 138, 80), // leave：三卖离开，破 C1 下沿
+        seg(Direction::Up, 16, 17, 80, 98),    // retest：三卖回试，不回中枢（< zd）
+        seg(Direction::Down, 17, 19, 98, 70),  // bottom：B1 破新低（后扫命中 leave+retest）
     ];
     // closes（merged_bars 序列，与 segment 抽象端点价解耦——结构判定在 tick 域，MACD 在浮点域，两者
     // 不必逐 bar 一致）：A 段 bar[3,5] 急跌 hist 大=强力度（forceA.area 大），B 段 bar[5,7] 盘整让 EMA 收敛，
@@ -552,9 +554,8 @@ fn type1_buy_broke_and_diverge_matches_lean_istype1() {
         300, 110, 140, // 3..5 A 段：骤跌（绿柱大=强力度）后反抽
         140, 140, 140, 140, 140, 140, 140,
         140, // 5..13 B 段：低位盘整（长 EMA 回拉，构成 C1）
-        138, 120, 100,
-        80, // 13..16 C 触发段（=T3 leave）：缓跌三步（绿柱小=力度衰减=趋势背驰）
-        98, // 16..17 T3 retest：Up 回试不回中枢
+        138, 134, 130, 126, 124, 122,
+        120, // 13..19 C 全窗（leave+retest+bottom）：缓跌收敛（绿柱小 ⟹ C<A 背驰成立）
     ]);
     let points = extract_first_macd(&[c0, c1], &segs, &closes, &src);
     let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
@@ -564,8 +565,8 @@ fn type1_buy_broke_and_diverge_matches_lean_istype1() {
         "Lean IsType1（brokeCenter ∧ IsDivergence）⟺ rust buy1 置位"
     );
     assert_eq!(
-        buy1[0].pivot_low, 80,
-        "1 买止损=pivot_low（C 段破中枢端点，reference:46）"
+        buy1[0].pivot_low, 70,
+        "1 买止损=pivot_low（bottom 段破新低端点，reference:46）"
     );
 }
 

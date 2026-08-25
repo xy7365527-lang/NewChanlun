@@ -1693,7 +1693,7 @@ mod rebase_observability_tests {
 #[cfg(test)]
 mod otherwise_domain_tests {
     use super::*;
-    use classifier::signal::{FirstClassGradeRecord, T3InCGrade, T3InCGradeReason};
+    use classifier::signal::{FirstClassGradeRecord, T3InCScan};
 
     fn center(
         start_index: usize,
@@ -1725,7 +1725,7 @@ mod otherwise_domain_tests {
             center_end_index: c.end_index,
             center_zd: c.zd,
             center_zg: c.zg,
-            grade: T3InCGrade::Missing(T3InCGradeReason::SameDirection),
+            grade: T3InCScan::Missing,
         }
     }
 

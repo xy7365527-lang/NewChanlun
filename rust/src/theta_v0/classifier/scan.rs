@@ -1503,10 +1503,13 @@ mod projection_tests {
         let segs = vec![
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
-            seg(Direction::Down, 9, 11, 150, 80),
-            seg(Direction::Up, 11, 13, 80, 90), // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            seg(Direction::Down, 9, 11, 150, 80), // leave：三卖离开，破 zd=100
+            seg(Direction::Up, 11, 13, 80, 90),   // retest：三卖回试，不重回（< zd）
+            seg(Direction::Down, 13, 15, 90, 70), // bottom：一买破新低（后扫命中 leave+retest）
         ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244, 242, 240, 238, 236,
+        ];
         let closes: Vec<f64> = prices.iter().map(|&p| p as f64).collect();
         let src: Vec<usize> = (0..prices.len()).collect();
         let series = compute_macd(&closes, &MacdConfig::default());
@@ -1563,12 +1566,22 @@ mod projection_tests {
             lhs, rhs,
             "P1 铁律：谓词 cand_delta 与 buy1/sell1 背驰确认支逐 bit 一致"
         );
-        assert_eq!(events.len(), 1, "唯一破中枢结构候选（C 段）");
-        let e = &events[0];
-        assert!(e.cand_delta, "C<A 背驰确认 ⟹ Cand^δ=true");
+        assert_eq!(
+            events.len(),
+            2,
+            "两个破中枢结构候选（leave + bottom，#1249 后扫）"
+        );
+        let e = events
+            .iter()
+            .find(|e| e.cand_delta)
+            .expect("C<A 背驰确认 ⟹ 存在 Cand^δ=true 事件（bottom 段）");
         assert_eq!(e.side, Side::Long);
-        assert_eq!(e.confirm_src, 11, "确认时点=完成时（破中枢段端点，裁决③）");
-        assert_eq!(e.interval, (9, 11), "I(C) = [λ_C, seg.end]（Q5 区间口径）");
+        assert_eq!(e.confirm_src, 15, "确认时点=完成时（bottom 段端点，裁决③）");
+        assert_eq!(
+            e.interval,
+            (9, 15),
+            "I(C) = [λ_C, seg.end]（Q5 区间口径，λ_C=9）"
+        );
         assert_eq!(e.a_interval, (3, 5), "I(A) = 前中枢离开 episode");
         assert_eq!(e.enter_src, 9, "兼容别名 = c_episode_start");
         assert!(!e.pan_div_diag, "趋势路径无盘整背驰诊断（盘背当前实装态不入链；0708 文书裁决 2 已被 0716 裁决⑤ supersede，#726）");

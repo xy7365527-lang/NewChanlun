@@ -341,12 +341,20 @@ pub(crate) fn judge_first_from_gates(
     // ★D 判定口径（A2 #163 + #990）：`confirm_divergence_l` 单一判定点。默认 `ForceL` ⟹
     // 教义判据；`MacdArea` 等降为显式对照档（ADR-0005）。
     let diverged = divergence::confirm_divergence_l(gauge, macd_c_lt_a, force.as_ref(), l_c_lt_a);
-    // ★#607 S2 D2（37:18 分档大闸）：T3-in-c 固定首对分级（D1，#606）复核——否则域
-    // （`Missing`）不置一类 bit，点降级为零 bit 结构候选，继续走既有候选流（P2-R2 先例，
-    // `struct_break_dir` 无条件置，见下）。`THETA_T3INC_SKIP=1`（D5 counterfactual）⟹ 强制
-    // 跳过本合取，恢复 #606 前旧行为（T3-in-c 恒 Present，仅 `diverged` 门控一类 bit）。
-    let t3_grade = t3_in_c_fixed_first_pair(sorted, last_center, trend_dir);
-    let t3_in_c_present = t3_in_c_skip_enabled() || matches!(t3_grade, T3InCGrade::Present { .. });
+    // ★#1229 裁定 a（2026-08-25）：T3-in-c 合取统一走 [`trend_third_class_in_c`] 全窗后扫
+    // （037:18「至少一个」语义）——大闸（#607 D2）改**消费后扫结果**，不再自跑固定首对
+    // （`t3_in_c_fixed_first_pair` 已退役为诊断词汇）。否则域（`Missing`）不置一类 bit，点降级
+    // 为零 bit 结构候选，继续走既有候选流（P2-R2 先例，`struct_break_dir` 无条件置，见下）。
+    // `THETA_T3INC_SKIP=1`（D5 counterfactual）⟹ 强制跳过本合取，恢复 #606 前旧行为
+    // （T3-in-c 恒 Present，仅 `diverged` 门控一类 bit）；该臂为 counterfactual，不参生产对拍。
+    let t3_grade = t3_in_c_scan_grade(
+        sorted,
+        last_center,
+        trend_dir,
+        gates.lambda_c,
+        seg.end_index,
+    );
+    let t3_in_c_present = t3_in_c_skip_enabled() || matches!(t3_grade, T3InCScan::Present { .. });
     // ★#607 S2 D4：观测面 sidecar 挂点移入判据本体（D2 后 bits 已被 T3-in-c 二次门控，仅凭
     // `pf.bits` 观测会漏记否则域点——须在门控**之前**按 `diverged` 捕获，见 #606 S1 报告
     // §8.3 教训同源）。生产 `judge_segment`（level=Some，incremental resume 传参穿透）与

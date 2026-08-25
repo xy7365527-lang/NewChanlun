@@ -2647,7 +2647,7 @@ fn center_lifecycle_wf8_events_replay() {
 /// 验证数据结构本身，非独立断言，本版不再列为「锁」）：
 ///
 /// ①**账平**（记录总数 = native(Present) + otherwise(Missing)）——构造性恒等：这是
-/// `T3InCGrade` 定义本身的 `Present`/`Missing` 二分对同一个 `records` vec 的重新求和（同一份
+/// `T3InCScan` 定义本身的 `Present`/`Missing` 二分对同一个 `records` vec 的重新求和（同一份
 /// 数据分两类计数再相加，数学上必然回到原总数），不是独立验证，**不作验收证据陈列**，只作
 /// 统计展示（供 #585 逐案对拍读数）。
 ///
@@ -2658,17 +2658,17 @@ fn center_lifecycle_wf8_events_replay() {
 /// 时点=瞬时 true 那帧，记录 grade=末次重判，见
 /// [`super::opsem_dump::OtherwiseDomainSidecarSummary`] 文档 F7 口径登记）。
 ///
-/// ③**五桶分级分侧计数**（missing_leave/missing_retest/same_direction/leave_not_outside/
-/// retest_reentered）——计数分级分侧打印进验收行，供人工核对。
+/// ③**分级分侧计数**（Present/Missing 两档，#1229 后扫统一后无五桶）——计数分级分侧打印进
+/// 验收行，供人工核对。
 ///
 /// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）；wf8 全窗重放（默认），
 /// `M8_WIN_FILTER=wf7|p3fold` 可切至其余两窗（#608 S3 多窗对照，未设时行为逐字节不变）；
 /// env `THETA_OTHERWISE_DOMAIN_SIDECAR=1`（测试内部设置，无需外部前缀）。
 /// `cargo test --release --lib theta_v0::backtest::wverify_run::otherwise_domain_wf8_grade_buckets -- --ignored --nocapture`
 #[test]
-#[ignore = "#606 S1 D4 / #607 S2 口径切换 / #608 S3 多窗对照：一类点分级观测三项口径 + 五桶（Reset 只属趋势一类）；M8_WIN_FILTER=wf7|wf8|p3fold 选窗（未设=wf8，行为不变）；需 BTC 数据（DATA BLOCKER 不伪造）"]
+#[ignore = "#606 S1 D4 / #607 S2 口径切换 / #608 S3 多窗对照 + #1249 后扫统一：一类点分级观测三项口径（Reset 只属趋势一类）；M8_WIN_FILTER=wf7|wf8|p3fold 选窗（未设=wf8，行为不变）；需 BTC 数据（DATA BLOCKER 不伪造）"]
 fn otherwise_domain_wf8_grade_buckets() {
-    use super::super::classifier::signal::{T3InCGrade, T3InCGradeReason};
+    use super::super::classifier::signal::T3InCScan;
     use super::super::types::Side;
     use super::runner::run_theta_v0_pi_overlay;
 
@@ -2771,13 +2771,10 @@ fn otherwise_domain_wf8_grade_buckets() {
         .collect();
     let reset_count = reset_rows.len();
 
-    // ── ③五桶分级分侧计数 + 分级分侧 native/otherwise 总表（供 #585 逐案对拍）。键唯一由
-    // `OtherwiseDomainSidecarCollector` 内部 upsert `HashMap` 结构性保证（见其模块头谱系
-    // 注记），本测试不再重复断言（重新验证只是验证数据结构本身，非独立证据）──
-    // (level, side) -> [missing_leave, missing_retest, same_direction, leave_not_outside, retest_reentered]
-    let mut bucket_counts: std::collections::BTreeMap<(u32, u8), [usize; 5]> =
-        std::collections::BTreeMap::new();
-    // (level, side) -> (native, otherwise)
+    // ── ③分级分侧计数（Present/Missing 两档，#1229 后扫统一）+ 分级分侧 native/otherwise 总表
+    // （供 #585 逐案对拍）。键唯一由 `OtherwiseDomainSidecarCollector` 内部 upsert `HashMap`
+    // 结构性保证（见其模块头谱系注记），本测试不再重复断言（重新验证只是验证数据结构本身，
+    // 非独立证据）── (level, side) -> (native, otherwise)
     let mut level_side_totals: std::collections::BTreeMap<(u32, u8), (usize, usize)> =
         std::collections::BTreeMap::new();
     let mut native_count = 0usize;
@@ -2791,21 +2788,13 @@ fn otherwise_domain_wf8_grade_buckets() {
             .entry((rec.level, side_u8))
             .or_insert((0, 0));
         match rec.grade {
-            T3InCGrade::Present { .. } => {
+            T3InCScan::Present { .. } => {
                 native_count += 1;
                 totals.0 += 1;
             }
-            T3InCGrade::Missing(reason) => {
+            T3InCScan::Missing => {
                 otherwise_count += 1;
                 totals.1 += 1;
-                let bucket_idx = match reason {
-                    T3InCGradeReason::MissingLeave => 0,
-                    T3InCGradeReason::MissingRetest => 1,
-                    T3InCGradeReason::SameDirection => 2,
-                    T3InCGradeReason::LeaveNotOutside => 3,
-                    T3InCGradeReason::RetestReentered => 4,
-                };
-                bucket_counts.entry((rec.level, side_u8)).or_insert([0; 5])[bucket_idx] += 1;
             }
         }
     }
@@ -2873,12 +2862,10 @@ fn otherwise_domain_wf8_grade_buckets() {
     );
 
     eprintln!(
-        "[#607 S2/#608 S3 D4] {win_tag} 一类点 T3-in-c 分级观测：frames={} 一类点总数={grand_total} \
+        "[#607 S2/#608 S3 D4 + #1249] {win_tag} 一类点 T3-in-c 分级观测：frames={} 一类点总数={grand_total} \
          (center_lifecycle reset={reset_count}, 新口径=Reset 只属趋势一类) native(趋势一类)={native_count} \
          otherwise(否则域)={otherwise_count} \
-         (level,side=0long/1short)→(native,otherwise)={level_side_totals:?} \
-         ③五桶(level,side)→[missing_leave,missing_retest,same_direction,\
-         leave_not_outside,retest_reentered]={bucket_counts:?}",
+         (level,side=0long/1short)→(native,otherwise)={level_side_totals:?}",
         sidecar.frames,
     );
 }
