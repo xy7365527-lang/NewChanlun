@@ -392,7 +392,7 @@ pub fn run_organic(
         return Err(
             "rev_l41_gate/osc_l41_gate（41课门 REV 主腿/域腿形态）要求磁带
              dir_flips 行（D3）——父级别 Up/Down 段切分 = 方向行翻转，无行时
-             追踪器恒无段对观测 = 死门（不静默放行）"
+             走势类型延续项无数据基础 ⇒ up_unexhausted 判据残缺（不静默放行）"
                 .to_string(),
         );
     }
@@ -520,9 +520,8 @@ pub fn run_organic(
     if cfg.exit_mode == ExitMode::HoldTrend && !tape.has_dir_rows() {
         return Err(
             "exit_mode=HoldTrend（趋势态出场）要求磁带 dir_flips 行（D3）——
-             父级别 Up 段切分 = 方向行翻转，无行时追踪器恒无段对观测 ⇒
-             up_unexhausted 恒 false ⇒ 静默退化为 Signal 行为（声明=能力，
-             不提供静默降级）"
+             父级别 Up 段切分 = 方向行翻转，无行时走势类型延续项无数据基础 ⇒
+             up_unexhausted 判据残缺（声明=能力，不提供静默降级）"
                 .to_string(),
         );
     }
@@ -932,8 +931,8 @@ pub fn run_organic(
                     MasterExitSignal::from_sell1_row_sub_confirmed(sig.sell1.get(mx_lad), sc_m)
                         .is_some();
                 // HoldTrend（49课利润最大化 + 41课）：本级别 sell1 只是必要
-                // 条件，还需父级别（entry_ladder+1）上行趋势衰竭——正面延续
-                // 证据（相邻同向段创新高 ∧ 无盘整背驰）成立时拦截出场持仓，
+                // 条件，还需父级别（entry_ladder+1）上行走势衰竭——正面延续
+                // 证据（走势未完成 ∧ 无盘整背驰）成立时拦截出场持仓，
                 // sell1 的短差机会由 voice 承载（在册逻辑零接触）。
                 // 衰竭确认的父级别：HoldTrend = entry_ladder+1（静态在册）；
                 // Emergent{ht} = mx_lad+1（随归属动态上移——出场判据归属到
@@ -946,10 +945,11 @@ pub fn run_organic(
                 let trigger = match ht_parent {
                     None => sig_trigger,
                     Some(parent) => {
+                        let parent_dir = dir_state.get(parent).copied().flatten();
                         let unexh = rows
                             .l41
                             .expect("guard: HoldTrend/Emergent{ht} ⇒ TrendExhaustion 实例化")
-                            .up_unexhausted(parent);
+                            .up_unexhausted(parent, &run.book, parent_dir);
                         if sig_trigger && unexh {
                             run.counters.n_exit_trend_holds += 1;
                         }

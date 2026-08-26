@@ -170,10 +170,10 @@ pub enum EntryMode {
 /// HoldTrend = 状态驱动（49课"利润最大化"持币不动 + 41课"大级别走势没有
 /// 衰竭时不做反向"）：本级别 sell1 只是必要条件，还需直接父级别
 /// （entry_ladder+1）上行趋势衰竭确认（TrendExhaustion::up_unexhausted
-/// 为 false——相邻同向段创新高 ∧ 无盘整背驰的正面延续证据不成立）才出；
+/// 为 false——走势未完成（结构）∧ 无盘整背驰的正面延续证据不成立）才出；
 /// 趋势未衰竭时 master 持仓，sell1 的短差机会由 voice 承载（V2oa25 在册
-/// 逻辑零接触）。证据缺失（段对不可定义）⇒ 不拦截出场——门只在趋势
-/// 明确延续时关，与 rev_l41_gate"证据缺失不拒开"同一保守语义。
+/// 逻辑零接触）。证据缺失（结构与方向行均无正面证据）⇒ 不拦截出场——门只在
+/// 趋势明确延续时关，与 rev_l41_gate"证据缺失不拒开"同一保守语义。
 /// HighestOnly = 最激进持仓：只在当前最高涌现层（max_ladder）的 sell1
 /// 出场（31课"历史性大顶"的级别相对化读数——最高级别卖点才是大顶）。
 /// Emergent = 出场级别跟随持仓走势自身的涌现级别（2026-06-11 编排者
@@ -288,10 +288,11 @@ pub struct OrganicConfig {
     /// osc_sell3_no_recover 同先例：原文严格形式在变体层开启）。
     pub osc_shift_close: bool,
     /// 41课门（域腿形态，osc 加门任务 2026-06-11）：osc 开腿前检查直接父级别
-    /// （ladder+1）向上走势衰竭状态——相邻同向（Up）段创新高 ∧ 当前段窗口内
-    /// 无盘整背驰 = 上涨趋势未完 = 拒开逆向短差。原文依据：41课"大级别走势
-    /// 没有任何衰竭迹象时参与反向小级别买卖点是刀口舔血"（"一切"包括域腿）；
-    /// 49课"中枢向上移动时就应该满仓"（满仓 = 不做逆向短差）。与 rev_l41_gate
+    /// （ladder+1）向上走势衰竭状态——走势未完成（走势类型延续/中枢未死/
+    /// 三卖未坐实）∧ 当前段窗口内无盘整背驰 = 上涨走势未完 = 拒开逆向短差
+    /// （判据 #1232 第三条裁定 a）。原文依据：41课"大级别走势没有任何衰竭
+    /// 迹象时参与反向小级别买卖点是刀口舔血"（"一切"包括域腿）；49课"中枢
+    /// 向上移动时就应该满仓"（满仓 = 不做逆向短差）。与 rev_l41_gate
     /// （REV 主腿）同判据同追踪器（up_unexhausted(k+1)），消费点不同——REV 门
     /// 挡段终结反向腿，本门挡中枢震荡 c≥ZG 卖出腿（强趋势中价格不回 ZD →
     /// 中枢死亡 → 高位强制买回的结构性亏损路径）。n_osc_l41_rejects 可观测。
@@ -375,11 +376,12 @@ pub struct OrganicConfig {
     /// 与 sub_friction_rt 同值不同消费点——本值供 REV 主腿成本门下界）。
     pub friction_rt: f64,
     /// 41课门（REV 主腿形态，θ 相对化落地任务）：REV 开腿前检查直接父级别
-    /// （ladder+1）向上走势衰竭状态——相邻同向（Up）段创新高 ∧ 当前段窗口内
-    /// 无盘整背驰 = 上涨趋势未完 = 拒开反向腿（"大级别走势没有任何衰竭时
-    /// 参与反向小级别买卖点是刀口舔血"）。与 sub_l41_gate（Fractal 子腿守
-    /// 父级别 Down 衰竭）镜像；与 rev_gate（FatigueGate，需 run_high 行）
-    /// 数据基础不同——本门用 D3 方向行 + close + div 事件流（磁带已产出）。
+    /// （ladder+1）向上走势衰竭状态——走势未完成（走势类型延续/中枢未死/
+    /// 三卖未坐实）∧ 当前段窗口内无盘整背驰 = 上涨走势未完 = 拒开反向腿
+    /// （判据 #1232 第三条裁定 a；"大级别走势没有任何衰竭时参与反向小级别
+    /// 买卖点是刀口舔血"）。与 sub_l41_gate（Fractal 子腿守父级别 Down 衰竭）
+    /// 镜像；与 rev_gate（FatigueGate，需 run_high 行）数据基础不同——本门用
+    /// D3 方向行 + div 事件流 + CenterBook 中枢态（磁带已产出）。
     /// n_rev_l41_rejects 可观测。仅 rev_paired 路径消费。
     pub rev_l41_gate: bool,
     /// 逃逸型开腿开关（kind 标注的消融轴）：首跑 kind 分解显示逃逸型三标的
@@ -506,11 +508,12 @@ pub struct OrganicConfig {
     pub rev_cycle_close: RevCycleClose,
     /// 41课门（41课："大级别走势没有任何衰竭时参与反向小级别买卖点是刀口
     /// 舔血"）。子腿开腿前检查直接父级别（self.ladder+1）走势衰竭状态
-    /// （TrendExhaustion，市场性质）：相邻同向（Down）段创新低 ∧ 当前段窗口
-    /// 内无盘整背驰 = 趋势未完 = 拒开（n_sub_l41_rejects 可观测）。
-    /// 与 rev_gate（C7 FatigueGate）的差异：数据基础是 D3 方向行 + close
-    /// 序列 + div 事件流（当前磁带已产出），非 run_high 行（未产出，
-    /// rev_gate fail-fast）。仅 Fractal 子腿消费。
+    /// （TrendExhaustion，市场性质）：走势未完成（走势类型延续/中枢未死/
+    /// 三买未坐实）∧ 当前段窗口内无盘整背驰 = 走势未完 = 拒开（判据
+    /// #1232 第三条裁定 a；n_sub_l41_rejects 可观测）。
+    /// 与 rev_gate（C7 FatigueGate）的差异：数据基础是 D3 方向行 + div
+    /// 事件流 + CenterBook 中枢态（当前磁带已产出），非 run_high 行
+    /// （未产出，rev_gate fail-fast）。仅 Fractal 子腿消费。
     pub sub_l41_gate: bool,
     /// master 入场模式（见 EntryMode docstring）。Full = 在册满仓入场。
     pub entry_mode: EntryMode,

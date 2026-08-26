@@ -358,13 +358,13 @@ impl SubLou {
                         }
                     }
                 }
-                // ── P1 41课门（sub_l41_gate）：父级别走势无衰竭 ⇒ 不做反向 ──
+                // ── P1 41课门（sub_l41_gate）：父级别走势未完成 ⇒ 不做反向 ──
                 // 父级别 = 直接上级（k+1，路径每深一层降一级——局部依赖）。
                 if cfg.sub_l41_gate {
                     let te = rows.l41.expect(
                         "sub_l41_gate ⇒ 调用方必提供 TrendExhaustion（capability，runner 恒提供）",
                     );
-                    if te.down_unexhausted(k + 1) {
+                    if te.down_unexhausted(k + 1, book, rows.dir(k + 1)) {
                         counters.n_sub_l41_rejects += 1;
                         return;
                     }

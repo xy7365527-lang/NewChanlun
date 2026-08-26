@@ -576,7 +576,7 @@ pub struct Counters {
     /// warm-up 样本 < SUB_COST_MIN_OBS，保守拒绝（不静默放行先例）。
     pub n_sub_cost_noref_rejects: u64,
     /// 41课门拒：父级别（子腿 ladder+1）向下走势无衰竭迹象
-    /// （相邻同向段创新低 ∧ 无盘整背驰 = 趋势未完 = 不做反向）。
+    /// （走势未完成 ∧ 无盘整背驰 = 走势未完 = 不做反向；#1232 裁定 a）。
     pub n_sub_l41_rejects: u64,
     // ── Sequence38 闭腿三岔分解（2026-06-11 任务，sub_mode=Sequence38；
     //    归因优先序 盘背买 > 不跌破 > 新下跌背驰——同 bar 共现取最强证据）──

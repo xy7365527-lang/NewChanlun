@@ -796,9 +796,9 @@ impl VoiceUnit {
                     }
                 }
                 // ── 41课门（osc_l41_gate，域腿形态）：锚层直接父级别（alad+1）
-                // 向上走势无衰竭迹象（相邻 Up 段创新高 ∧ 段窗口内无盘整
-                // 背驰）⇒ 拒开逆向短差——强趋势中价格不回 ZD，中枢死亡
-                // 后高位强制买回是结构性亏损（49课"中枢向上移动时就应该
+                // 向上走势未完成（走势类型延续/中枢未死/三卖未坐实 ∧ 段窗口
+                // 内无盘整背驰）⇒ 拒开逆向短差——强趋势中价格不回 ZD，中枢
+                // 死亡后高位强制买回是结构性亏损（49课"中枢向上移动时就应该
                 // 满仓"）。判据/越界语义同 rev_l41_gate（up_unexhausted
                 // 对 alad+1 ≥ MAX_LADDER 返回 false 放行）。──
                 else if cfg.osc_l41_gate
@@ -808,7 +808,13 @@ impl VoiceUnit {
                             "osc_l41_gate ⇒ 调用方必提供 TrendExhaustion\
                              （capability，runner 恒提供）",
                         )
-                        .up_unexhausted(alad + 1)
+                        .up_unexhausted(
+                            alad + 1,
+                            book,
+                            (alad + 1 < MAX_LADDER)
+                                .then(|| rows.dir(alad + 1))
+                                .flatten(),
+                        )
                 {
                     counters.n_osc_l41_rejects += 1;
                     counters.osc_l41_reject_log.push((alad as u8, bar));
@@ -1242,15 +1248,16 @@ impl VoiceUnit {
             return;
         }
         // ── 41课门（rev_l41_gate，REV 主腿形态）：直接父级别（k+1）向上走势
-        // 无衰竭迹象（相邻 Up 段创新高 ∧ 段窗口内无盘整背驰）⇒ 拒开反向腿
-        // ——"大级别走势没有任何衰竭时参与反向小级别买卖点是刀口舔血"。
-        // 父级别越界（k+1 ≥ MAX_LADDER）由 up_unexhausted 返回 false 放行
-        // （无父级别可观测 = 证据缺失，门只在正面证据成立时关）。
+        // 未完成（走势类型延续/中枢未死/三卖未坐实 ∧ 段窗口内无盘整背驰）
+        // ⇒ 拒开反向腿——"大级别走势没有任何衰竭时参与反向小级别买卖点
+        // 是刀口舔血"。父级别越界（k+1 ≥ MAX_LADDER）由 up_unexhausted
+        // 返回 false 放行（无父级别可观测 = 证据缺失，门只在正面证据成立时关）。
         if cfg.rev_l41_gate {
             let te = rows
                 .l41
                 .expect("rev_l41_gate ⇒ 调用方必提供 TrendExhaustion（capability，runner 恒提供）");
-            if te.up_unexhausted(k + 1) {
+            let parent_dir = (k + 1 < MAX_LADDER).then(|| rows.dir(k + 1)).flatten();
+            if te.up_unexhausted(k + 1, book, parent_dir) {
                 counters.n_rev_l41_rejects += 1;
                 return;
             }

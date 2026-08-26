@@ -1007,8 +1007,8 @@ fn cost_gate_rejects_when_reference_undefined() {
 
 #[test]
 fn l41_gate_rejects_while_parent_trend_unexhausted() {
-    // 41课：父级别（ladder 2）相邻 Down 段创新低且无盘整背驰 ⇒ 子腿拒开；
-    // 盘整背驰出现（衰竭证据）⇒ 门开，子腿正常开。
+    // 41课：父级别（ladder 2）走势未完成（方向行 Down）且无盘整背驰 ⇒ 子腿
+    // 拒开；盘整背驰出现（衰竭证据）⇒ 门开，子腿正常开。
     let mut fx = Fixture::new();
     let cfg = OrganicConfig {
         rev_sub_depth: 1,
@@ -1019,7 +1019,7 @@ fn l41_gate_rejects_while_parent_trend_unexhausted() {
     };
     let mut te = super::super::trend_exhaustion::TrendExhaustion::new();
     let devs_empty: [Vec<DivEvent>; MAX_LADDER] = Default::default();
-    // 父级别 ladder 2 走出两个创新低 Down 段（趋势未完）
+    // 父级别 ladder 2 方向行 Down（走势类型延续 ⇒ 走势未完）
     let mut pdir: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
     pdir[2] = Some(Direction::Down);
     te.observe(&pdir, &devs_empty, 9.0);
@@ -1027,7 +1027,7 @@ fn l41_gate_rejects_while_parent_trend_unexhausted() {
     te.observe(&pdir, &devs_empty, 9.5);
     pdir[2] = Some(Direction::Down);
     te.observe(&pdir, &devs_empty, 8.0);
-    assert!(te.down_unexhausted(2));
+    assert!(te.down_unexhausted(2, &fx.book, pdir[2]));
 
     let mut sub = SubLou::new(1, RevPath::single(2).child(1));
     let anchor_row = [0i64; MAX_LADDER];
@@ -1076,7 +1076,7 @@ fn l41_gate_rejects_while_parent_trend_unexhausted() {
         price: 0.0,
     }];
     te.observe(&pdir, &devs, 7.9);
-    assert!(!te.down_unexhausted(2));
+    assert!(!te.down_unexhausted(2, &fx.book, pdir[2]));
     {
         let mut step = |dir: &[Option<Direction>; MAX_LADDER], c: f64, bar: i64| {
             let rows = BarRows {
@@ -2918,8 +2918,8 @@ fn osc_amp_gate_noref_thin_then_pass_close_untouched() {
 
 #[test]
 fn osc_l41_gate_rejects_while_parent_up_trend_unexhausted() {
-    // 41课域腿门：父级别（k+1=3）相邻 Up 段创新高且无盘整背驰 ⇒ osc 拒开；
-    // 盘整背驰出现（衰竭证据）⇒ 门开，osc 正常开腿。
+    // 41课域腿门：父级别（k+1=3）走势未完成（方向行 Up）且无盘整背驰 ⇒ osc
+    // 拒开；盘整背驰出现（衰竭证据）⇒ 门开，osc 正常开腿。
     let mut fx = Fixture::new();
     fx.book.ingest(
         2,
@@ -2933,7 +2933,7 @@ fn osc_l41_gate_rejects_while_parent_up_trend_unexhausted() {
     };
     let mut te = super::super::trend_exhaustion::TrendExhaustion::new();
     let devs_empty: [Vec<DivEvent>; MAX_LADDER] = Default::default();
-    // 父级别 ladder 3 走出两个创新高 Up 段（上涨趋势未完）
+    // 父级别 ladder 3 方向行 Up（走势类型延续 ⇒ 走势未完）
     let mut pdir: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
     pdir[3] = Some(Direction::Up);
     te.observe(&pdir, &devs_empty, 10.0);
@@ -2941,7 +2941,7 @@ fn osc_l41_gate_rejects_while_parent_up_trend_unexhausted() {
     te.observe(&pdir, &devs_empty, 9.5);
     pdir[3] = Some(Direction::Up);
     te.observe(&pdir, &devs_empty, 11.0);
-    assert!(te.up_unexhausted(3));
+    assert!(te.up_unexhausted(3, &fx.book, pdir[3]));
 
     let mut v = VoiceUnit::new(2);
     {
@@ -2976,7 +2976,7 @@ fn osc_l41_gate_rejects_while_parent_up_trend_unexhausted() {
         price: 0.0,
     }];
     te.observe(&pdir, &devs, 11.1);
-    assert!(!te.up_unexhausted(3));
+    assert!(!te.up_unexhausted(3, &fx.book, pdir[3]));
     {
         let mut rows = empty_rows(&fx.evs, &fx.devs);
         rows.sell_any = LadderMask(1 << 1);
