@@ -39,3 +39,19 @@
 | 22:30 | 本体直办 #1202 | 本体（#1047） | XZD 情况二风控臂（不追新门＋证据升级＋orphan 挂起＋证伪线），4 文件 +222/−9，四闸 2841/0，fast-forward 推送 origin/main d9a2ca104f，关票；延后件开 #1208（生产桥＋二卖事件通道） | 完成 |
 
 | 22:55 | rlm subagent (xzd-1208-impl) | deepseek/deepseek-v4-pro (继承) | #1208 ②件：053:28 二卖事件层新通道实装（产点/通道/门控/执行臂四闸自验），干净 worktree /private/tmp/nc-1208，完成上报 parent，人工闸归本体 | 已派，实装中 |
+
+| 走图轮 | 对账收口 | 本体 | #1210 线（#1213 spec 实装已由 #1212 落地，补开 #1216/#1217 重复票已关账登记）；#1077 spec 五子票全落地关票；#627 引用链补洞落法二（ADR 改指复核档）commit 49d278c547 推正本 | 完成 |
+
+| 收口 | #1208 ①生产桥 | 本体 | 落点修正（θ 生产路径 build_nest_certificate_index 活证书面）；子代理实装 5a15ea245d（8 文件 +332/−2）；独立四闸 2855/0＋Python 5 passed；收割 fa2e32510a 推正本；两卡点照实入案；#1208 两件全清关票 | 完成 |
+
+| 08-24 | rlm×2 (xzd-1220-descend / xzd-1222-falsify) | deepseek/deepseek-v4-pro (继承) | #1220 出场下钻三臂分派（结构判据，禁新高测试）＋ #1222 证伪线改 confirmed Buy3；各独立 worktree，四闸自验，人工闸归本体 | 已派，实装中 |
+
+| 08-26 | rlm (codex-watcher) | deepseek/deepseek-v4-pro (继承) | 盯守两路 codex 考据（#1257/#1258）：每 3 分钟查进程/报告/日志，状态变化报 parent，报告落地逐路收工，两路落地终报 | 已派，盯守中 |
+
+| 08-26 | codex (gpt-5.6-sol, effort high) | #1225 实装 | 证书链形式化收口：Lean Cand^δ_ℓ 定义式＋严档谓词、Rust↔Lean parity 对拍、单源 grep gate；worktree /private/tmp/nc-1225（ticket-1225-formalize），workspace-write 沙盒，后台跑 | 运行中 |
+| 08-26 | rlm (codex-1225-watcher) | deepseek/deepseek-v4-pro (继承) | 盯守 #1225 codex 实装：每 5 分钟进程/日志/改动三查，状态变化报 parent，完成终报 | 盯守中 |
+
+| 08-26 | 人工闸 #1225 | 本体 | 独立四闸全绿（cargo 2860/0、fmt、check×2、lake 158 jobs、无 sorry）；收割 0199749c48 推正本；证书链形式化三件套全落；残骸/子代理已清 | 完成 |
+
+| 08-26 | codex×7 (gpt-5.6-sol) | #1250-1256 考据 | #1226 判据完全分类化线：七路原文考据（盘背锚/D-3取段/价格代理清单/类二类点/向下假设/力度族名分），workspace-write 只写各自报告文件 | 运行中 |
+| 08-26 | rlm (codex-7watcher) | deepseek/deepseek-v4-pro (继承) | 盯守七路 codex 考据：每 4 分钟进程/报告/日志三查，落地列表变化报 parent，全落终报 | 盯守中 |
