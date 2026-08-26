@@ -36,3 +36,18 @@
 | #1211 grilling | 开局三选一→编排者选 A；读码取证锁死（#951 theta_v0 PyO3 桥已带测试锁，旧顶层 Rust-v1 非生产非替换参考） | 已裁决并关票 |
 | #1212 [impl] | A 案执行票：九组对拍退役 + 认领 Rust↔Lean parity（debt+ready-for-agent+sandcastle） | 待自动拾取 |
 | #1210 地图 | Decisions-so-far 已登记裁决 gist + 执行票指针 | 已更新 |
+
+## 续：triage 第二批（2026-08-25，7 张未标注票）
+
+| 类型 | 模型 | 任务 | 状态 |
+|---|---|---|---|
+| rlm 子代理 | 随会话继承 | triage2-a：#1226 调研+推荐 | 完成 |
+| rlm 子代理 | 随会话继承 | triage2-b：#1227 迁移 map 族 调研+推荐 | 完成 |
+
+## 续：triage 第二批落地（2026-08-25，本体直办）
+
+| 项 | 详情 | 状态 |
+|---|---|---|
+| 7 票标签+评论 | #1226/#1227/#1235/#1237/#1238/#1240 → enhancement+ready-for-agent（3 迁移+1 收口另挂 sandcastle）；#1244 → enhancement+ready-for-human | 完成 |
+| #1226 子票原生边 | 15 张（9 子票 + 6 research）sub_issues 补挂到 #1226 | 完成（15/15） |
+| #1244 grilling | 已认领（assign @me）+ 开局问题已落票 | 进行中（HITL） |
