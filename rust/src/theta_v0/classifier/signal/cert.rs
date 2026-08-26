@@ -1,10 +1,14 @@
 //! 盘整背驰证书与判定（#1176 B01 判据块自 `signal.rs` 迁出，零行为）。
 //!
 //! 承载 [`PanDivCert`] / [`QuasiSecondCert`] 证书类型、[`PanDivStructure`] 纯结构载体与
-//! 盘整背驰判定（[`judge_pan_div`] / [`judge_pan_div_observation`]）。消费面经 `signal`
-//! 重导出保持原路径。
+//! 盘整背驰判定（[`judge_pan_div`] / [`judge_pan_div_observation`]），以及类第二类点生产构造点
+//! （[`judge_quasi_second`]，#1233 裁定 a）。消费面经 `signal` 重导出保持原路径。
 
+use super::super::cand_predicate::rmove_dir;
+use super::super::recursive_tower::{descend_leveled, find_move_containing_index, LeveledMove};
+use super::super::rmove_compose::retrace_no_break;
 use super::*;
+use crate::theta_v0::parser::segment::segment_force_l;
 
 /// 盘整背驰证书（Q4 裁决，task #145：「盘整背驰不能消失——它必须被某级别买卖点或小转大/区间套
 /// 证书承接」。`PanDiv^δ_ℓ ⟹ ∃e<ℓ, Conf^δ_e` 或 `PanDiv^δ_ℓ ⟹ XZD^δ_{ℓ↓e}`）。
@@ -44,7 +48,7 @@ pub struct PanDivCert {
     pub seg_c: (usize, usize),
 }
 
-/// 类第二类买卖点载体（027:68，#885 S4-d）。
+/// 类第二类买卖点载体（027:68，构造点落地 = #1233 裁定 a）。
 ///
 /// `027-第27课.md:68`【正文】：「类似的，在大级别里，如果不出现新低，但可以构成类似第二类
 /// 买点的买点，在MACD上，显示出类似背驰时的表现，黄白线回拉0轴上下，而后一柱子面积小于
@@ -53,11 +57,13 @@ pub struct PanDivCert {
 /// （027:68 命名），归盘背通道观测」（086:70「新走势的类第二类」系比喻用法，与 027:68 正式
 /// 命名分清，同补充十六）。
 ///
-/// **本票只建载体，不新定判据**：「算不算类第二类、回抽从哪起算、面积比较的几段口径」的
-/// 准入判据归 [#817](https://github.com/xy7365527-lang/NewChanlun/issues/817)（未裁）。本类型
-/// **暂无生产构造点**——判据落地前不得把本载体当信号消费（不置任何 six-bit、不产 BspPoint、
-/// 不进生命周期/订单流，同 [`PanDivCert`] 的诚实缺省纪律）；构造点落地时记录随盘背通道进
-/// `LevelState`（同 `pan_div` 先例），届时由 #817 实施票接线并补坐标查询。
+/// 判据 = #1233 裁定 a 五要素（[`judge_quasi_second`]）：大级别盘整语境 + 不出现新低 +
+/// 力度不背驰（ForceL，beichi.md #873 正本；MACD 面积只作对照档 #990 口径）+ 区间套定位。
+/// 旧「判据归 #817 未裁」的标注已订正——#817 票面零命中、判据本无主（#1254 在案）。
+///
+/// **消费路径（载体待接）**：构造点 [`judge_quasi_second`] 已落地，但本证书**暂未接入**
+/// `LevelState`/six-bit/BspPoint/生命周期/订单流——判据落地后由下游实施票随盘背通道接线
+/// （同 [`PanDivCert`] → `pan_div` 先例），在此之前不得把本载体当信号消费。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QuasiSecondCert {
     /// 回抽（回拉）结束点 source_index（候选点坐标；027:68「2.21元的相应区间的寻找，也是按
@@ -70,6 +76,75 @@ pub struct QuasiSecondCert {
     pub quasi_first_index: usize,
     /// 回抽走势区间 source_index 闭区间（类第一类点之后到本点的回拉段）。
     pub retrace: (usize, usize),
+}
+
+/// 类第二类点生产构造点（#1233 裁定 a；027:68 五要素落地）。
+///
+/// ## 判据要素（#1233 裁定 a 五要素的第 1–4 项；第 5 项「旧注释订正」落 [`QuasiSecondCert`] 文档）
+/// 1. **大级别盘整语境**：`quasi_first` 是盘整背驰证书（[`PanDivCert`]，类第一类），其存在本身
+///    即「大级别盘整、无趋势背驰」语境的证明；调用方保证 `parent` 是它所属的大级别走势，本
+///    构造点只做坐标包含的防御性检查；
+/// 2. **不出现新低**（买侧；卖侧镜像不创新高）：结构谓词 [`retrace_no_break`]——比的是次级别
+///    走势的结构极值（053:28 同族「不创新低/新高」口径），不裸用逐 bar 价格比较；
+/// 3. **力度不背驰**：`L(回抽段) >= L(前导离开段)`（ForceL，beichi.md #873 正本，经 #989
+///    [`segment_force_l`] 段→笔反查；MACD 面积只作对照档 #990 口径，**不进本判据**）；
+/// 4. **区间套定位**：复用 [`descend_leveled`] 取回次级别走势序列 + [`find_move_containing_index`]
+///    定位前导类第一类点所在段；回抽段 = 其后首个**同向**次级别走势（「逐步往下」由调用方逐级
+///    descend 收敛，本构造点是单级定位——回抽段终点即候选点坐标）。
+///
+/// 任一判据不满足 ⟹ `None`（合法定位失败，非 bug）。无笔数据 ⟹ ForceL 无源不判（不降级）。
+///
+/// ## 与普通第二类的边界
+/// 普通第二类（[`super::super::rmove_compose::find_second_type_structure`]）由**次级别第一类**
+/// （破中枢 ∧ 背驰）构成，回拉破不破一类极值只作重合标注（#816 B-2②）；类第二类是**盘整背驰**
+/// （类第一类）之后「不出现新低 + 力度不背驰」的回抽点（027:68 的弱形式），两条不并存
+/// （收敛通则）。
+// 载体待接（#1269 验收口径）：消费路径接线前本构造点无生产调用方；接线票落地时移除本 allow。
+#[allow(dead_code)]
+pub(crate) fn judge_quasi_second(
+    parent: &LeveledMove,
+    quasi_first: &PanDivCert,
+    strokes: &[Stroke],
+) -> Option<QuasiSecondCert> {
+    let side = quasi_first.side;
+    // 要素1（防御）：类第一类点坐标必须落在 parent 覆盖区间内。
+    if quasi_first.source_index < parent.start_index || quasi_first.source_index > parent.end_index
+    {
+        return None;
+    }
+    // 要素4：descend 取回次级别走势序列（携坐标侧车）。
+    let subs = descend_leveled(parent);
+    let subs = subs.as_slice();
+    // 前导类第一类点所在次级别走势（区间包含定位——departure 终点可落段内部，同 #1052/#1076）。
+    let i1 = find_move_containing_index(subs, quasi_first.source_index)?;
+    let m1 = &subs[i1];
+    // 回抽段方向 = 离开段方向（Long 买侧 = Down 回抽 / Short 卖侧 = Up 回抽；pan_div_side_with_policy
+    // 已把 side 与 C 段方向绑定）。
+    let departure_dir = match side {
+        Side::Long => Direction::Down,
+        Side::Short => Direction::Up,
+    };
+    // 回抽段 = m1 之后首个同向次级别走势（053:28「高点一次级别向下后一次级别向上」同族：跳过
+    // 反向反弹段）。
+    let m2 = subs[i1 + 1..]
+        .iter()
+        .find(|m| rmove_dir(&m.rmove) == Some(departure_dir))?;
+    // 要素2：不出现新低/新高（结构谓词）。
+    if !retrace_no_break(side, &m1.rmove, &m2.rmove) {
+        return None;
+    }
+    // 要素3：力度不背驰——L(回抽段) >= L(离开段)（ForceL；任一段无笔 ⟹ 无源不判）。
+    let l_prev = segment_force_l(strokes, m1.start_index, m1.end_index);
+    let l_cur = segment_force_l(strokes, m2.start_index, m2.end_index);
+    if !matches!((l_cur, l_prev), (Some(lc), Some(lp)) if lc >= lp) {
+        return None;
+    }
+    Some(QuasiSecondCert {
+        source_index: m2.end_index,
+        side,
+        quasi_first_index: quasi_first.source_index,
+        retrace: (m2.start_index, m2.end_index),
+    })
 }
 
 /// 盘整背驰的纯结构 A/C 载体。
@@ -365,4 +440,224 @@ pub(crate) fn judge_pan_div_observation(
         seg_a: a_span,
         seg_c: c_span,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::super::recursive_tower::ElementId;
+    use super::*;
+    use std::rc::Rc;
+
+    /// 测试用次级别走势（L0 线段，sub_moves 空）。
+    fn seg(direction: Direction, lo: Tick, hi: Tick, start: usize, end: usize) -> LeveledMove {
+        LeveledMove {
+            rmove: RMove::Segment { direction, lo, hi },
+            start_index: start,
+            end_index: end,
+            sub_moves: Rc::new(vec![]),
+            id: ElementId {
+                level: 0,
+                ordinal: 0,
+            },
+        }
+    }
+
+    /// 测试用笔（ForceL 数据源）。
+    fn stroke(dir: Direction, start: usize, end: usize, sp: Tick, ep: Tick) -> Stroke {
+        Stroke {
+            direction: dir,
+            start_index: start,
+            end_index: end,
+            start_price: sp,
+            end_price: ep,
+        }
+    }
+
+    /// 大级别走势（level 1，携三个次级别段）。
+    fn parent(subs: Vec<LeveledMove>) -> LeveledMove {
+        let centers = vec![Center {
+            zd: 50,
+            zg: 90,
+            dd: 40,
+            gg: 100,
+            start_index: 0,
+            end_index: 17,
+        }];
+        LeveledMove {
+            rmove: RMove::Compose {
+                subs: Rc::new(subs.iter().map(|m| m.rmove.clone()).collect()),
+                centers,
+                level: 1,
+            },
+            start_index: 0,
+            end_index: 17,
+            sub_moves: Rc::new(subs),
+            id: ElementId {
+                level: 1,
+                ordinal: 0,
+            },
+        }
+    }
+
+    /// 前导类第一类点（盘整背驰证书；构造点只消费 source_index 与 side）。
+    fn pan_div(source_index: usize, side: Side) -> PanDivCert {
+        PanDivCert {
+            source_index,
+            side,
+            center: Center {
+                zd: 50,
+                zg: 90,
+                dd: 40,
+                gg: 100,
+                start_index: 0,
+                end_index: 6,
+            },
+            seg_a: (0, 0),
+            seg_c: (0, source_index),
+        }
+    }
+
+    /// 买侧正例夹具：离开段 Down [0,6]（低 50）→ 反弹 Up [7,10] → 回抽 Down [11,17]（低 55，
+    /// 不创新低）。笔速度：离开段 v=5→7.5（L=+2.5），回抽段 v=2.5→6.25（L=+3.75 ≥ +2.5）。
+    fn long_fixture() -> (LeveledMove, Vec<Stroke>) {
+        let subs = vec![
+            seg(Direction::Down, 50, 100, 0, 6),
+            seg(Direction::Up, 50, 90, 7, 10),
+            seg(Direction::Down, 55, 90, 11, 17),
+        ];
+        let strokes = vec![
+            stroke(Direction::Down, 0, 3, 100, 80),
+            stroke(Direction::Down, 3, 6, 80, 50),
+            stroke(Direction::Up, 7, 10, 50, 90),
+            stroke(Direction::Down, 11, 14, 90, 80),
+            stroke(Direction::Down, 14, 17, 80, 55),
+        ];
+        (parent(subs), strokes)
+    }
+
+    /// 卖侧正例夹具：离开段 Up [0,6]（高 100）→ 回拉 Down [7,10] → 回抽 Up [11,17]（高 98，
+    /// 不创新高）。笔速度：离开段 v=6.25→6.25（L=0），回抽段 v=1→1（L=0 ≥ 0）。
+    fn short_fixture() -> (LeveledMove, Vec<Stroke>) {
+        let subs = vec![
+            seg(Direction::Up, 50, 100, 0, 6),
+            seg(Direction::Down, 90, 100, 7, 10),
+            seg(Direction::Up, 90, 98, 11, 17),
+        ];
+        let strokes = vec![
+            stroke(Direction::Up, 0, 3, 50, 75),
+            stroke(Direction::Up, 3, 6, 75, 100),
+            stroke(Direction::Down, 7, 10, 100, 90),
+            stroke(Direction::Up, 11, 14, 90, 94),
+            stroke(Direction::Up, 14, 17, 94, 98),
+        ];
+        (parent(subs), strokes)
+    }
+
+    /// 判据全过 ⟹ 产买侧类第二类证书。
+    #[test]
+    fn long_no_new_low_and_force_not_diverging_emits_cert() {
+        let (p, strokes) = long_fixture();
+        let cert = judge_quasi_second(&p, &pan_div(6, Side::Long), &strokes);
+        assert_eq!(
+            cert,
+            Some(QuasiSecondCert {
+                source_index: 17,
+                side: Side::Long,
+                quasi_first_index: 6,
+                retrace: (11, 17),
+            })
+        );
+    }
+
+    /// 卖侧镜像（不创新高 + 力度不背驰）⟹ 产卖侧证书。
+    #[test]
+    fn short_no_new_high_and_force_not_diverging_emits_cert() {
+        let (p, strokes) = short_fixture();
+        let cert = judge_quasi_second(&p, &pan_div(6, Side::Short), &strokes);
+        assert_eq!(
+            cert,
+            Some(QuasiSecondCert {
+                source_index: 17,
+                side: Side::Short,
+                quasi_first_index: 6,
+                retrace: (11, 17),
+            })
+        );
+    }
+
+    /// 要素2（不出现新低）失败：回抽段跌破离开段低点 ⟹ None。
+    #[test]
+    fn retrace_breaking_new_low_is_rejected() {
+        let (_, strokes) = long_fixture();
+        // 回抽段低点 45 < 离开段低点 50 ⟹ 创新低。
+        let subs = vec![
+            seg(Direction::Down, 50, 100, 0, 6),
+            seg(Direction::Up, 50, 90, 7, 10),
+            seg(Direction::Down, 45, 90, 11, 17),
+        ];
+        let p = parent(subs);
+        assert_eq!(
+            judge_quasi_second(&p, &pan_div(6, Side::Long), &strokes),
+            None
+        );
+    }
+
+    /// 要素3（力度不背驰）失败：回抽段 ForceL 衰减（L(回抽) < L(离开)）⟹ None。
+    #[test]
+    fn retrace_force_diverging_is_rejected() {
+        // 回抽段不创新低（低 60 ≥ 50），但笔速度 v=3.75→3.75（L=0 < 离开段 L=+2.5）。
+        let subs = vec![
+            seg(Direction::Down, 50, 100, 0, 6),
+            seg(Direction::Up, 50, 90, 7, 10),
+            seg(Direction::Down, 60, 90, 11, 17),
+        ];
+        let strokes = vec![
+            stroke(Direction::Down, 0, 3, 100, 80),
+            stroke(Direction::Down, 3, 6, 80, 50),
+            stroke(Direction::Up, 7, 10, 50, 90),
+            stroke(Direction::Down, 11, 14, 90, 75),
+            stroke(Direction::Down, 14, 17, 75, 60),
+        ];
+        let p = parent(subs);
+        assert_eq!(
+            judge_quasi_second(&p, &pan_div(6, Side::Long), &strokes),
+            None
+        );
+    }
+
+    /// 要素4（区间套定位）失败：离开段之后无同向回抽段 ⟹ None。
+    #[test]
+    fn no_same_direction_retrace_returns_none() {
+        let subs = vec![
+            seg(Direction::Down, 50, 100, 0, 6),
+            seg(Direction::Up, 50, 90, 7, 10),
+        ];
+        let p = parent(subs);
+        let strokes = vec![
+            stroke(Direction::Down, 0, 3, 100, 80),
+            stroke(Direction::Down, 3, 6, 80, 50),
+            stroke(Direction::Up, 7, 10, 50, 90),
+        ];
+        assert_eq!(
+            judge_quasi_second(&p, &pan_div(6, Side::Long), &strokes),
+            None
+        );
+    }
+
+    /// 要素3（无源不判）：无笔数据 ⟹ ForceL 无源 ⟹ None（不降级）。
+    #[test]
+    fn no_strokes_returns_none() {
+        let (p, _) = long_fixture();
+        assert_eq!(judge_quasi_second(&p, &pan_div(6, Side::Long), &[]), None);
+    }
+
+    /// 要素1（坐标包含防御）：类第一类点坐标不在 parent 覆盖区间内 ⟹ None。
+    #[test]
+    fn quasi_first_outside_parent_returns_none() {
+        let (p, strokes) = long_fixture();
+        assert_eq!(
+            judge_quasi_second(&p, &pan_div(100, Side::Long), &strokes),
+            None
+        );
+    }
 }
