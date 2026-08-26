@@ -84,6 +84,7 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 | `Dockerfile` | 沙盒镜像定义（`sandcastle:newchanlun`，base `node:22-bookworm`）：git/gh/python3 等系统依赖 + Rust 工具链 + prime-agent 本体（#1010 扩容）。 |
 | `image/` | 打入镜像的静态资产：`skills/`（serena / codebase-memory / cli-hub-mcp 三件套）、`prime-agent-settings.json`（prime-agent 镜像内配置）、`cli-hub-mcp/server.py`。 |
 | `prompt.md.smoke` / `prompt.md.ralph.md` | 改造前的遗留 prompt：冒烟首跑（建 `SANDCASTLE_SMOKE.md`）与 RALPH 自主轮询版；两段式改造（#1008）后不再被 `main.mts` 引用，留档备查。 |
+| `migrate-claude-data-surface/` | #1238 Claude Code 数据面迁移手册与助手：`RUNBOOK.md`（官方配置入口 `CLAUDE_CONFIG_DIR` 盘点 + CLI/Desktop 归属决策表 + 两机三阶段迁移/回滚命令 + 验收清单）、`claude-migrate.sh`（preflight/baseline/config-json 凭据白名单/emit-env/verify/rollback，env 切换非 symlink）、`claude-migrate.test.sh`（沙盒对拍 23 例，fake-rsync 模拟镜像语义）。 |
 
 `.gitignore` 排除 `.env` / `logs/` / `worktrees/`。
 
