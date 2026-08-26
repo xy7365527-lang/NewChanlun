@@ -429,8 +429,10 @@ pub(super) fn l0_units_from_tower(moves: &[LeveledMove]) -> Vec<UnitRange> {
 /// 小转大确认（设计 §2.2 C1∧C2；C3 改为「新中枢+突破」硬门——#1220 起每级同一个判据，
 /// 门通行判据见 [`XzdEvidence::gate_pass`]）。
 ///
-/// 前提（调用侧路由保证）：`s` 是执行级 tower[lvl] 中 end_index==source_index 的候选段，且信号已判为
-/// 小转大域（Type2/3 ∧ 下钻未锚定 [`DescendStop::NoDivergence`] ⟹ build_nest_certificate 返回 None）。
+/// 前提（调用侧路由保证）：`s` 是执行级 tower[lvl] 中**包含** source_index 的候选段
+/// （`start_index ≤ source_index ≤ end_index`，与 `build_nest_certificate` 同口径——★#1052/#1234：
+/// 点锚迁移后 source_index 可能落在段**内部**，非段终点），且信号已判为小转大域
+/// （Type2/3 ∧ 下钻未锚定 [`DescendStop::NoDivergence`] ⟹ build_nest_certificate 返回 None）。
 /// C1（下钻未锚定）由调用侧保证，本函数不重判。evidence 始终构造（含 C2/C3/例外臂/诊断分项取值）——
 /// 诊断可读分项，门读 gate_pass。`strokes` = 本 bar 因果前缀笔序列（例外臂触发前件 #985 ForceL
 /// 数据源）；`sub_bsp` = 次级三类买卖点（例外臂「三买卖点确认」结构判据数据源）。

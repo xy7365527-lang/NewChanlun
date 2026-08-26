@@ -2230,7 +2230,7 @@ fn pan_div_gate_both_channels_closed_rejects() {
         ),
         "两门皆闭 ⟹ PanDiv 承接失败（诚实丢弃）"
     );
-    // 执行段缺失（tower[lvl] 无 end_index==source_index）⟹ 同样拒。
+    // 执行段缺失（tower[lvl] 无包含 source_index 的段）⟹ 同样拒。
     assert!(
         !super::pan_div_gate_pass(
             &tower,
