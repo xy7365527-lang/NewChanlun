@@ -112,3 +112,5 @@ agent/
 .git.bak-*/
 kimi-export-*.md
 .playwright-mcp/
+# arch-hotzone 自动报告（#1197 监控产物，工作草稿不入仓）
+.chanlun/arch-hotzone-report-*.md
