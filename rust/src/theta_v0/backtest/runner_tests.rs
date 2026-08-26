@@ -6628,15 +6628,14 @@ fn t3_chain_causal_guard_rejects_then_no_chain() {
     assert_eq!(probe.verdict, ChainVerdict::Pass);
 }
 
-/// T3-9（#965 交付 1：谓词有偏 113 条修复，红→绿）：更高级 closed 而本级仅未确认
-/// 事件（② 谓词不成立，`unconf_exact > 0`）⟹ 自相矛盾态。修复后按
-/// 「高级别背驰时，低级别假设已经背驰」（beichi.md 区间套工作假设）向下传播：
-/// 本级升级为 Closed，谱系不再出现「高级 closed + 本级未确认」的矛盾读数。
+/// T3-9（#1270 传播撤销，#1242 裁定 a′）：更高级 closed 而本级仅未确认事件
+/// （`divergence_confirmed=false` 被丢弃）⟹ 本级诚实判负为 MissingCert——不再向下
+/// 假设传播（跨级给值停用）；链在该级断，判 Reject（每级自判、级别只作参数）。
 ///
 /// seam：`NestChainGate::absorb_exts` 的 `!divergence_confirmed` 丢弃 → `chain_lookup`
 /// 逐级 status 判定（公共接口 = 证书确认判定）。
 #[test]
-fn t3_chain_unconfirmed_lower_assumes_confirmed_when_upper_closed() {
+fn t3_chain_unconfirmed_lower_missing_cert_when_upper_closed() {
     use super::super::super::strategy::voice::VoiceSide;
     use super::super::super::types::Side;
     // 两账本级（book 0/1），x=55 均存在 ⟹ 链顶 = L1。
@@ -6658,29 +6657,37 @@ fn t3_chain_unconfirmed_lower_assumes_confirmed_when_upper_closed() {
     gate.sync_index(&cls);
     let c = ng_candidate(VoiceSide::Long, Default::default(), 55);
     let probe = gate.chain_lookup(&c, 100, &cls);
-    // 修复后：本级不再被报为 missing_cert——更高级 closed ⟹ 向下假设确认，自相矛盾态消除。
+    // 传播撤销后：本级诚实判负为 missing_cert——更高级 closed 不再向下给值。
     assert_eq!(
         probe.levels[0].status,
-        ChainLevelStatus::Closed,
-        "本级仅未确认事件 + 更高级 closed ⟹ 向下假设确认（自相矛盾态消除）"
+        ChainLevelStatus::MissingCert,
+        "本级仅未确认事件 ⟹ 诚实判负 MissingCert（更高级 closed 不向下传播）"
     );
     assert_eq!(
         probe.levels[1].status,
         ChainLevelStatus::Closed,
         "更高级本已闭合"
     );
-    assert_eq!(probe.verdict, ChainVerdict::Pass, "全链闭合");
+    assert_eq!(
+        probe.verdict,
+        ChainVerdict::Reject,
+        "链在本级断（上方闭合 + 本级缺）⟹ Reject"
+    );
+    assert_eq!(
+        probe.levels[0].gap,
+        Some(ChainGapKind::Broken),
+        "上方有闭合 ⟹ 本级缺/断极性 = Broken"
+    );
 }
 
-/// T3-10（#965 交付 1 补充锁：多级未确认向下传播 + 产出缺口不误升级）：L0/L1 两级
-/// 均仅未确认事件而 L2 闭合 ⟹ 两级都按「高级别背驰时，低级别假设已经背驰」升级为
-/// Closed（自相矛盾态全消，全链闭合）；对照臂 L1 无任何事件（① 产出缺口，unconf==0）
-/// ⟹ 不参与向下假设，仍为 MissingCert（窄修复，不误伤产出缺口）。
+/// T3-10（#1270 传播撤销，#1242 裁定 a′）：L0/L1 两级均仅未确认事件而 L2 闭合 ⟹
+/// 两级都诚实判负为 MissingCert（不再「高级别背驰时低级别假设已背驰」向下给值）；
+/// 链在 L1 断，判 Reject（每级自判、级别只作参数）。
 ///
 /// seam 同 T3-9：`absorb_exts` 的 `!divergence_confirmed` 丢弃 → `chain_lookup`
 /// 逐级 status 判定。
 #[test]
-fn t3_chain_multi_level_unconfirmed_propagates_down_not_missing_no_events() {
+fn t3_chain_multi_level_unconfirmed_stays_missing_cert() {
     use super::super::super::strategy::voice::VoiceSide;
     use super::super::super::types::Side;
     // 三账本级（book 0/1/2），x=55 均存在 ⟹ 链顶 = L2。
@@ -6714,13 +6721,13 @@ fn t3_chain_multi_level_unconfirmed_propagates_down_not_missing_no_events() {
     let probe = gate.chain_lookup(&c, 100, &cls);
     assert_eq!(
         probe.levels[0].status,
-        ChainLevelStatus::Closed,
-        "L0 仅未确认事件 + 更高级 closed ⟹ 向下假设确认"
+        ChainLevelStatus::MissingCert,
+        "L0 仅未确认事件 ⟹ 诚实判负 MissingCert（不向下传播）"
     );
     assert_eq!(
         probe.levels[1].status,
-        ChainLevelStatus::Closed,
-        "L1 仅未确认事件 + 更高级 closed ⟹ 向下假设确认"
+        ChainLevelStatus::MissingCert,
+        "L1 仅未确认事件 ⟹ 诚实判负 MissingCert（不向下传播）"
     );
     assert_eq!(
         probe.levels[2].status,
@@ -6729,43 +6736,13 @@ fn t3_chain_multi_level_unconfirmed_propagates_down_not_missing_no_events() {
     );
     assert_eq!(
         probe.verdict,
-        ChainVerdict::Pass,
-        "全链闭合（自相矛盾态全消）"
-    );
-
-    // 对照臂：L1 无任何事件（产出缺口）而 L0/L2 闭合 ⟹ L1 不参与向下假设，仍 MissingCert。
-    let gate2 = {
-        let (fractals, merged) = t3_supplies();
-        let mut g = NestChainGate::for_test_with_supplies(
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
-            std::rc::Rc::new(fractals),
-            std::rc::Rc::new(merged),
-        );
-        g.absorb_exts(vec![nc_ext_anchored(
-            nc_event(1, Side::Long, (30, 50), 50, 100, true),
-            100,
-            50,
-        )]);
-        g.absorb_exts(vec![nc_ext_anchored(
-            nc_event(3, Side::Long, (30, 50), 50, 100, true),
-            100,
-            50,
-        )]);
-        g.sync_index(&cls);
-        g
-    };
-    let probe2 = gate2.chain_lookup(&c, 100, &cls);
-    assert_eq!(
-        probe2.levels[1].status,
-        ChainLevelStatus::MissingCert,
-        "L1 产出缺口（unconf==0）不参与向下假设，仍为缺（窄修复）"
-    );
-    assert_eq!(
-        probe2.verdict,
         ChainVerdict::Reject,
-        "上方闭合不补产出缺口之缺（闭合到 L0 字面）"
+        "链在 L1 断（上方闭合 + 中段缺）⟹ Reject"
+    );
+    assert_eq!(
+        probe.first_gap,
+        Some((1, ChainGapKind::Broken)),
+        "首位归因 = 最高非闭合级 L1，极性 Broken"
     );
 }
 
