@@ -895,10 +895,10 @@ pub struct LevelView {
     /// T 迭代涌现上界 (level, 操作极性)——自下而上仓位涌现（= flat emergent_top）。None=本 bar 不升级。
     pub emergent_top: Option<(usize, Polarity)>,
     /// **命题4 读法乙——大级别背驰段闸门（self-top-down 区间套前提）**。
-    /// 最高级别走势进入**背驰段**（`divergence::trend_candidate`：结构∧MACD 双确认，**未创新高**=
-    /// 未走势完成，严格⊊type1）时置位为**操作极性**：上涨顶背驰段→Short（顶部，卖点 close+做空），
-    /// 下跌底背驰段→Long（底部，买点 cover+做多）。None=最高级别未进入背驰段。
-    /// 源头审计 src-prop13（第27课区间套）：区间套前提 = 大级别**背驰段**（非走势完成）。
+    /// 最高级别走势进入**背驰段**（`divergence::trend_diverging_segment`：结构滤网 F∧S，ForceL
+    /// 力度衰减，**未创新高**=未走势完成，严格⊊type1）时置位为**操作极性**：上涨顶背驰段→Short
+    /// （顶部，卖点 close+做空），下跌底背驰段→Long（底部，买点 cover+做多）。None=最高级别未
+    /// 进入背驰段。源头审计 src-prop13（第27课区间套）：区间套前提 = 大级别**背驰段**（非走势完成）。
     pub top_diverge: Option<Polarity>,
     /// 最高级别**当前走势几何方向**（NEST 反转去武装：armed 与当前 top 方向不一致 ⇒ top 已反转 ⇒ 清 armed）。
     /// **来源（F3 精确化）**：走势树最高非空层 `tree.levels[tl]` 的末走势 `direction`（`tl=rposition(非空 trends)`）。

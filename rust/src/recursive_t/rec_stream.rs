@@ -101,7 +101,7 @@ pub struct RecStream {
     /// 引擎变体配置（OFF / ANCHOR / NEST）。
     cfg: super::rec_engine::EngineConfig,
     // ── 命题4 读法乙顶层闸门测量（556 解冻判据：背驰段触发频率 vs type1 完成触发频率）──
-    /// 重跑中最高级别处于**背驰段**（trend_candidate）的次数（armed reruns）。
+    /// 重跑中最高级别处于**背驰段**（trend_diverging_segment）的次数（armed reruns）。
     pub n_top_diverge_reruns: u64,
     /// 不同**背驰段窗口**数（未武装→武装跳变 = 大级别进入新背驰段的事件数）。
     pub n_top_diverge_windows: u64,
@@ -324,7 +324,7 @@ impl RecStream {
                         .map(|b| (b.bar, b.price, b.level, b.kind))
                         .collect();
                     // ── 命题4 读法乙：最高级别背驰段闸门（src-prop13 第27课区间套，背驰段⊊走势完成）──
-                    //   最高有走势级别的当前（最后）走势：trend_candidate=结构∧MACD 双确认未创新高=背驰段。
+                    //   最高有走势级别的当前（最后）走势：trend_diverging_segment=结构滤网 F∧S（ForceL）未创新高=背驰段。
                     //   上涨顶背驰段→Short（卖点 close+做空）/ 下跌底背驰段→Long（买点 cover+做多）。
                     let top_div_info = {
                         let top_lvl = tree.levels.iter().rposition(|l| !l.trends.is_empty());

@@ -2,12 +2,13 @@
 //!
 //! a₀ = 线段序列（与 v3 递归层 `move = zhongshu_from_segments` 对齐，设计文档 §2），
 //! 输出全塔买卖点。用于 T 输出与 v3 nf 信号 L2 对照（§6.6 阶段2）+ 三模式回测对照
-//! （编排者 2026-06-18 裁决「三条路实测」，escalation `2026-06-18-1752-t-stepc-macd-
-//! scope-vs-direction.md`）。
+//! （编排者 2026-06-18 裁决「三条路实测」的历史入口，escalation
+//! `2026-06-18-1752-t-stepc-macd-scope-vs-direction.md`）。
 //!
-//! 步骤c 走势完美判定模式由 `mode` 选取（默认纯结构，向后兼容历史单参数调用）；MACD
-//! 面积由调用方经 `seg_areas` 注入（每段红/绿柱面积），T 自身不算 MACD——保持 standalone
-//! 纯结构定位，close 价格不污染 T 的拓扑构造（escalation 附录·坐标系陷阱）。
+//! 步骤c 走势完美判定模式由 `mode` 选取（默认纯结构，向后兼容历史单参数调用；★#1243 起
+//! 三 mode 同口径 = ForceL）。MACD 面积由调用方经 `seg_areas` 注入（每段红/绿柱面积，
+//! 仅探针/对照），T 自身不算 MACD——保持 standalone 纯结构定位，close 价格不污染 T 的
+//! 拓扑构造（escalation 附录·坐标系陷阱）。
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -60,10 +61,11 @@ fn parse_a0(s: Option<&str>) -> A0Source {
 ///
 /// `seg_areas`（可选）：每段 `(area_pos, area_neg)`，**与 `segs` 同序同长**（过滤前对齐）。
 /// 调用方经 `macd::macd_area_for_range` + `merged_to_raw` 算出（均取非负，绿柱用 `.abs()`），
-/// 供 `And`/`Or` 模式的 MACD 面积背驰判据。`None` → area 全 0（纯结构，与历史单参数调用
-/// 逐位等价）。
+/// 仅探针/对照读数——★#1243 起 M（MACD 面积）已撤出判据，`And`/`Or` 与 `structure` 同口径。
+/// `None` → area 全 0（与历史单参数调用逐位等价）。
 ///
-/// `mode`（可选）：步骤c 走势完美判定模式 "structure"（默认）/ "and" / "or"。
+/// `mode`（可选）：步骤c 走势完美判定模式 "structure"（默认）/ "and" / "or"
+/// （#1243 起三者同口径，保留字符串兼容）。
 ///
 /// 返回：`(kind, bar, price, level)` 列表。kind ∈ {type1_buy/sell, type2_*, type3_*}；
 /// bar = 买卖点所在 a₀ 单元端点的 bar（i0/i1，**merged bar 坐标**——回测取 close 价须经

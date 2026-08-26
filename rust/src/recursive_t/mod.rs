@@ -22,16 +22,16 @@
 //! - a₀ 构造（分型→包含处理→笔→线段是 `T₀`，独立于 T，由调用方提供笔序列）。
 //!
 //! MACD 度量背驰（groupoid 轴精化，设计文档 §6.5）原为 T 外部；编排者 2026-06-18 裁决
-//! 「三条路实测」后，步骤c 经 [`PerfectionMode`] 可选接入 MACD 面积判据（`And` 收紧 /
-//! `Or` 放宽），默认 `Structural`（纯结构，§6.6 优先）。收紧/放宽是 L2/L3 有效域读数、
-//! 非先验（formalization-validity-domain）；MACD 面积由 `Unit.area_*` 预存，T 不算 MACD。
+//! 「三条路实测」后曾经 [`PerfectionMode`] 可选接入 MACD 面积判据（`And` 收紧 / `Or` 放宽）。
+//! ★#1243（2026-08-26）M 撤出判据、力度统一 ForceL——三 mode 现在同口径 = `G∧(F∧S)`，
+//! 默认 `Structural`（§6.6 优先）。MACD 面积由 `Unit.area_*` 预存（仅探针/对照），T 不算 MACD。
 //!
 //! ## 四步循环（设计文档 §1.3）
 //!
 //! 输入级别 k 的单元序列 `S_k`，T 内部执行：
 //! - a) [`center::find_centers`]：重叠检测 → 中枢（格运算，区间交集）；
 //! - b) [`trend::segment_into_trends`]：走势类型识别（盘整 / 趋势）+ 方向；
-//! - c) [`divergence::judge_divergence`]：走势完美判定（纯结构 / AND / OR，[`PerfectionMode`]）→ type1；
+//! - c) [`divergence::judge_divergence`]：走势完美判定（结构滤网 F∧S + ForceL，#1243 起三 mode 同口径）→ type1；
 //! - d) `operator::encapsulate`：封装终完美走势 → `S_{k+1}`（`Move(k) ≡ Level-(k+1) 笔`）。
 //!
 //! ## 买卖点 = 迭代不变量（设计文档 §3）
@@ -43,8 +43,8 @@
 //!
 //! ## 认识论等级（formalization-validity-domain）
 //! - 四步循环的结构识别（a/b/d）= **L0**（从第17课定义直接推导，零信息增量）。
-//! - 步骤 c 走势完美：纯结构（`Structural`）= **L0 候选**（第37课5条件 + 嵌套深度）；
-//!   加 MACD（`And`/`Or`）= 度量剩余接入，收紧/放宽的有效域由 L2/L3 回测甄别（非先验）。
+//! - 步骤 c 走势完美：结构滤网 F∧S（第37课条件2·3·5 + ForceL 力度衰减，#1243）=
+//!   **L0 候选**；`And`/`Or` 历史入口现同口径（M 已撤出判据，保留 API 兼容）。
 
 // GUARD-ROLE 索引（#762 C7-E3 核定，评审 FAIL 后订正，本文件同时声明 (a) standalone T 算子
 // 与 (b) T 引擎两个世代实体的模块，不整体标记）：`rec_driver`/`rec_engine`/`rec_stream` = 现役
@@ -87,7 +87,7 @@ pub use types::{
 ///
 /// 迭代结束后做 type2 跨级投影（[`project_type2`]）。
 ///
-/// `mode`（[`PerfectionMode`]）选步骤c 走势完美判定方式（纯结构 / AND / OR），全塔统一。
+/// `mode`（[`PerfectionMode`]）选步骤c 走势完美判定方式（#1243 起三 mode 同口径），全塔统一。
 ///
 /// GUARD-ROLE: standalone-t-loadbearing-for-t-engine（#761 C7-E2，名分：现役）——本函数被
 /// `stream.rs:225,384`/`rec_stream.rs:241`/`backtest.rs:329` 等 (b) T 引擎生产
@@ -179,27 +179,28 @@ mod tests {
         Unit::stroke(low, high, s, e, d)
     }
 
-    /// 8 笔上涨趋势（2 中枢 + 背驰末段）。
-    fn 上涨趋势八笔() -> Vec<Unit> {
+    /// 9 笔上涨趋势（2 中枢 + 背驰末段）：c 段两笔速度 6 → 1（`L(c)=−5 < L(a)=−4`）。
+    fn 上涨趋势九笔() -> Vec<Unit> {
         vec![
-            bi(8.0, 22.0, 0, 1, Direction::Up),
-            bi(12.0, 18.0, 1, 2, Direction::Down),
-            bi(10.0, 16.0, 2, 3, Direction::Up),
-            bi(23.0, 35.0, 3, 4, Direction::Up),
-            bi(32.0, 40.0, 4, 5, Direction::Down),
-            bi(33.0, 42.0, 5, 6, Direction::Up),
-            bi(31.0, 39.0, 6, 7, Direction::Down),
-            bi(40.0, 45.0, 7, 8, Direction::Up),
+            bi(8.0, 22.0, 0, 1, Direction::Up),    // v=7
+            bi(12.0, 18.0, 1, 2, Direction::Down), // v=3
+            bi(10.0, 16.0, 2, 3, Direction::Up),   // v=3
+            bi(23.0, 35.0, 3, 4, Direction::Up),   // v=6
+            bi(32.0, 40.0, 4, 5, Direction::Down), // v=4
+            bi(33.0, 42.0, 5, 6, Direction::Up),   // v=4.5
+            bi(31.0, 39.0, 6, 7, Direction::Down), // v=4
+            bi(40.0, 52.0, 7, 8, Direction::Up),   // c 首笔 v=6
+            bi(51.0, 53.0, 8, 9, Direction::Up),   // c 末笔 v=1
         ]
     }
 
     #[test]
     fn iterate_单级别上涨趋势() {
-        let tree = iterate(上涨趋势八笔(), PerfectionMode::Structural);
+        let tree = iterate(上涨趋势九笔(), PerfectionMode::Structural);
         assert_eq!(
             tree.levels.len(),
             1,
-            "8 笔只够 1 级（封装出 1 根上级单元，不足 3 根）"
+            "9 笔只够 1 级（封装出 1 根上级单元，不足 3 根）"
         );
         assert_eq!(tree.emergent_ceiling(), 1);
 
@@ -212,8 +213,8 @@ mod tests {
         let has_sell = l0
             .bsps
             .iter()
-            .any(|b| b.kind == BSPKind::Type1Sell && b.price == 45.0);
-        assert!(has_sell, "应涌现 45.0 处一类卖点");
+            .any(|b| b.kind == BSPKind::Type1Sell && b.price == 53.0);
+        assert!(has_sell, "应涌现 53.0 处一类卖点");
     }
 
     #[test]
@@ -237,16 +238,17 @@ mod tests {
 
     #[test]
     fn 下跌趋势对称产生一类买点() {
-        // 上涨趋势八笔的价格镜像（关于 0 取反），方向翻转 → 一类买点。
+        // 上涨趋势九笔的价格镜像（关于 0 取反），方向翻转 → 一类买点。
         let units = vec![
-            bi(-22.0, -8.0, 0, 1, Direction::Down),
-            bi(-18.0, -12.0, 1, 2, Direction::Up),
-            bi(-16.0, -10.0, 2, 3, Direction::Down),
-            bi(-35.0, -23.0, 3, 4, Direction::Down),
-            bi(-40.0, -32.0, 4, 5, Direction::Up),
-            bi(-42.0, -33.0, 5, 6, Direction::Down),
-            bi(-39.0, -31.0, 6, 7, Direction::Up),
-            bi(-45.0, -40.0, 7, 8, Direction::Down),
+            bi(-22.0, -8.0, 0, 1, Direction::Down),  // v=7
+            bi(-18.0, -12.0, 1, 2, Direction::Up),   // v=3
+            bi(-16.0, -10.0, 2, 3, Direction::Down), // v=3
+            bi(-35.0, -23.0, 3, 4, Direction::Down), // v=6
+            bi(-40.0, -32.0, 4, 5, Direction::Up),   // v=4
+            bi(-42.0, -33.0, 5, 6, Direction::Down), // v=4.5
+            bi(-39.0, -31.0, 6, 7, Direction::Up),   // v=4
+            bi(-52.0, -40.0, 7, 8, Direction::Down), // c 首笔 v=6
+            bi(-53.0, -51.0, 8, 9, Direction::Down), // c 末笔 v=1
         ];
         let tree = iterate(units, PerfectionMode::Structural);
         let l0 = &tree.levels[0];
@@ -254,8 +256,8 @@ mod tests {
         let has_buy = l0
             .bsps
             .iter()
-            .any(|b| b.kind == BSPKind::Type1Buy && b.price == -45.0);
-        assert!(has_buy, "下跌背驰应产生 -45.0 处一类买点");
+            .any(|b| b.kind == BSPKind::Type1Buy && b.price == -53.0);
+        assert!(has_buy, "下跌背驰应产生 -53.0 处一类买点");
     }
 
     #[test]

@@ -547,6 +547,8 @@ fn t_downtrend_diagnosis() {
     let a0 = build_a0_from_segments(orch.segments(), orch.merged_to_raw(), &c);
     let tree = iterate(a0, PerfectionMode::Structural);
 
+    // ★仅探针（#1243）：旧 `leg_strength` 嵌套深度/振幅读数的本地复刻，仅供本诊断测试
+    // 复现历史读数，不进任何判定（判定力度已统一 ForceL）。
     fn leg_strength(units: &[Unit]) -> f64 {
         let nest: usize = units.iter().map(|u| u.inner_zhongshu_count).sum();
         if nest > 0 {

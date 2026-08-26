@@ -4,9 +4,9 @@
 //! （详见 `rec_engine.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
 //!
 //! 直接消费 T 算子的买卖点输出驱动交易模拟，对照 Structural/AND/OR 三种**步骤c 背驰
-//! 判定模式**（编排者 2026-06-18 裁决「三条路实测」，escalation `2026-06-18-1752-t-
-//! stepc-macd-scope-vs-direction.md`）。三路**同 a₀ 同操作层**，唯一区别 = [`PerfectionMode`]
-//! ——这是受控实验：回测收益差异**全部**归因于 MACD 收紧/放宽，不掺操作层噪声。
+//! 判定模式**（编排者 2026-06-18 裁决「三条路实测」的历史入口，escalation
+//! `2026-06-18-1752-t-stepc-macd-scope-vs-direction.md`）。★#1243 起 M 撤出判据，
+//! 三路同口径 = 结构滤网 F∧S（ForceL）；保留三变体仅为回测出参/命名兼容。
 //!
 //! ## 认识论等级（formalization-validity-domain）
 //!
@@ -35,13 +35,16 @@ use crate::segment::{SegKind, Segment};
 use crate::stroke::{Direction as StrokeDir, Stroke};
 
 /// 回测背驰判定模式（一对一映射 [`PerfectionMode`]，仅为回测出参/命名分离）。
+///
+/// ★#1243：`And`/`Or` 与 `Structural` 同口径（M 已撤出判据），保留变体仅为历史回测
+/// 出参/命名兼容。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BacktestMode {
-    /// 纯结构 5 条件（§6.6 默认）。
+    /// 结构滤网 F∧S（默认）。
     Structural,
-    /// 结构 ∧ MACD 面积衰减（收紧门，信号单调减）。
+    /// 历史 AND 档（#1243 后 = `Structural`）。
     And,
-    /// 结构 ∨ MACD 面积衰减（放宽门，M 可绕过 F∧S）。
+    /// 历史 OR 档（#1243 后 = `Structural`）。
     Or,
 }
 
@@ -147,16 +150,15 @@ fn conv_dir(d: StrokeDir) -> Direction {
     }
 }
 
-/// 从线段序列构造 T 的 a₀ 单元（带 MACD 面积，供 And/Or 模式）。
+/// 从线段序列构造 T 的 a₀ 单元（带 MACD 面积，仅探针/对照读数，#1243 后不进判据）。
 ///
 /// 过滤口径 `confirmed && kind==Settled`（与 `ffi::run_recursive_t` / v3
 /// `zhongshu_from_segments` 一致，保证 a₀ 同源）。MACD 面积经 `compute_macd_batch`
 /// （batch hist，raw bar 对齐）+ `macd_area_for_range`（端点 merged→raw 换算）注入：
-/// 上涨段存 `area_pos`，所有段 `area_neg` 取绝对值（divergence.rs `leg_macd_force` 约定：
-/// 上涨段 Σarea_pos / 下跌段 Σarea_neg，二者均非负）。
+/// 上涨段存 `area_pos`，所有段 `area_neg` 取绝对值（上涨段 Σarea_pos / 下跌段 Σarea_neg，
+/// 二者均非负）。
 ///
-/// Structural 模式下 area 不被读取（纯结构路径），但仍注入——三模式共用同一 a₀，
-/// 只 [`PerfectionMode`] 不同（受控实验前提）。
+/// 判据（步骤c）不读 area（M 已随 #1243 撤出判据），但仍注入——探针/对照读数共用同一 a₀。
 pub fn build_a0_from_segments(
     segs: &[Segment],
     merged_to_raw: &[(usize, usize)],
@@ -510,17 +512,18 @@ mod tests {
         Unit::stroke(low, high, s, e, d)
     }
 
-    /// 上涨趋势八笔（2 中枢 + 背驰末段，复用 mod.rs 测试夹具）→ 一类卖点 @45。
-    fn 上涨趋势八笔() -> Vec<Unit> {
+    /// 上涨趋势九笔（2 中枢 + 背驰末段）→ 一类卖点 @53。
+    fn 上涨趋势九笔() -> Vec<Unit> {
         vec![
-            bi(8.0, 22.0, 0, 1, Direction::Up),
-            bi(12.0, 18.0, 1, 2, Direction::Down),
-            bi(10.0, 16.0, 2, 3, Direction::Up),
-            bi(23.0, 35.0, 3, 4, Direction::Up),
-            bi(32.0, 40.0, 4, 5, Direction::Down),
-            bi(33.0, 42.0, 5, 6, Direction::Up),
-            bi(31.0, 39.0, 6, 7, Direction::Down),
-            bi(40.0, 45.0, 7, 8, Direction::Up),
+            bi(8.0, 22.0, 0, 1, Direction::Up),    // v=7
+            bi(12.0, 18.0, 1, 2, Direction::Down), // v=3
+            bi(10.0, 16.0, 2, 3, Direction::Up),   // v=3
+            bi(23.0, 35.0, 3, 4, Direction::Up),   // v=6
+            bi(32.0, 40.0, 4, 5, Direction::Down), // v=4
+            bi(33.0, 42.0, 5, 6, Direction::Up),   // v=4.5
+            bi(31.0, 39.0, 6, 7, Direction::Down), // v=4
+            bi(40.0, 52.0, 7, 8, Direction::Up),   // c 首笔 v=6
+            bi(51.0, 53.0, 8, 9, Direction::Up),   // c 末笔 v=1
         ]
     }
 
@@ -559,23 +562,23 @@ mod tests {
 
     #[test]
     fn 单趋势端到端建仓平仓闭环() {
-        // a₀ = 8 笔上涨：中枢1 离开+回抽产 type3_buy，背驰末段产 type1_sell。
-        // ⇒ 买点先(bar5)建仓、卖点后(bar8)清仓（level0=最高级别 ceiling=1）⇒ ≥1 笔盈利。
-        let closes: Vec<f64> = (0..9).map(|i| 10.0 + i as f64 * 5.0).collect();
+        // a₀ = 9 笔上涨：中枢1 离开+回抽产 type3_buy，背驰末段产 type1_sell。
+        // ⇒ 买点先(bar5)建仓、卖点后(bar9)清仓（level0=最高级别 ceiling=1）⇒ ≥1 笔盈利。
+        let closes: Vec<f64> = (0..10).map(|i| 10.0 + i as f64 * 5.0).collect();
         let res = run_backtest(
-            上涨趋势八笔(),
+            上涨趋势九笔(),
             BacktestMode::Structural,
             &closes,
-            &identity_m2r(9),
-            8,
+            &identity_m2r(10),
+            9,
         );
-        assert!(res.summary.ceiling == 1, "8 笔 → 1 级");
+        assert!(res.summary.ceiling == 1, "9 笔 → 1 级");
         assert!(res.summary.n_bsps >= 2, "应同时含买点(type3)与卖点(type1)");
         assert!(res.summary.n_trades >= 1, "买点建仓 + 卖点平仓 ⇒ ≥1 笔");
         assert_eq!(res.summary.n_short, 0, "简单版只做多");
         assert!(
-            (res.summary.bh_pct - 400.0).abs() < 1e-9,
-            "bh = 50/10-1 = 400%"
+            (res.summary.bh_pct - 450.0).abs() < 1e-9,
+            "bh = 55/10-1 = 450%"
         );
     }
 
