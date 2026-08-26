@@ -396,7 +396,7 @@ pub fn provide_nest_candidate_events_ext_resident(
             }
         }
         // ★R3（#1230 裁定 a）：先按 D-3 定位唯一 A——窄锚（中枢后前次同向破核心段）结构存在取窄锚，
-        // 不存在才取 A′（中枢前最近同向段，061:28 中枢两头比较，回中枢要件由中枢本身满足）；
+        // 不存在才取 A′（中枢前最近同向段，061:26 正文「只要是围绕一中枢的两段走势都可以比较力度」，回中枢要件由中枢本身满足）；
         // 再单判 Extreme 一次（判负即止，不换段重判——#799 判别式禁「第一档判负第二档接管」）。
         let Some(structure) =
             locate_pan_div_structure(&centers[center_index], segment, &segments, &anchors_self)

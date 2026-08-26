@@ -261,7 +261,7 @@ fn locate_pan_div_structure_with_policy(
 
 /// ★R3（2026-07-17 代理裁定，p113 Part B 实证 + doc-pan §6.2-1）：A 锚扩展——当中枢后找不到
 /// 「前次同向破核心段」作 A（窄锚）时，候选 A′ = **中枢前最近同向段**（`end_index ≤ c.start_index`
-/// 的最近同向段，061:28 中枢两头比较形态 A′→中枢→C；080:168「99开始的向上就要和93-96的形成
+/// 的最近同向段，061:26 正文「只要是围绕一中枢的两段走势都可以比较力度」（A′→中枢→C）；080:168「99开始的向上就要和93-96的形成
 /// 盘整背驰」；049:36-38「最标准」≠唯一；080:364「不是光比较最近这一段的」）。
 ///
 /// 与窄锚的结构差异：回中枢要件由中枢本身满足（A′ 与 C 之间隔着整个中枢），不再要求
@@ -299,7 +299,7 @@ fn locate_pan_div_structure_front_anchor_with_policy(
     let side = pan_div_side_with_policy(c, &end, allow_unbroken_c)?;
     let dir = end.dir;
     let lambda_c = departure_move_c_start(segments, anchors_self, c, dir, seg.start_index)?;
-    // A′ = 中枢前最近同向段（061:28 中枢两头比较；p113 Part B `prev_same.find(dir, c.start_index)`
+    // A′ = 中枢前最近同向段（061:26 正文「只要是围绕一中枢的两段走势都可以比较力度」；p113 Part B `prev_same.find(dir, c.start_index)`
     // 同口径：`end_index ≤ c.start_index` 的最近同向段）。
     let a_prime = segments
         .iter()
@@ -348,7 +348,7 @@ pub(crate) fn pan_div_structure_extreme(structure: &PanDivStructure, segments: &
 /// 2. **当前离开区间 I(C)**（Q5 区间语义）：λ_C = 最后一个回中枢段 r（反向段、端点回到核心内侧：
 ///    Down 破侧 end ≥ zd / Up 破侧 end ≤ zg，r 在 seg 之前）之后的首个同向段起点；I(C)=[λ_C, seg.end]。
 /// 3. **A 锚**（★R3 2026-07-17 裁定）：先窄锚——同一中枢的前一次同向离开末段（端点破核心 ∧ A、C
-///    间存在回中枢段）；窄锚不可得回退 **A′ = 中枢前最近同向段**（061:28 中枢两头比较，回中枢
+///    间存在回中枢段）；窄锚不可得回退 **A′ = 中枢前最近同向段**（061:26 正文「只要是围绕一中枢的两段走势都可以比较力度」，回中枢
 ///    要件由中枢本身满足）。窄锚定位成功即不再回退（最标准锚优先，049:36-38）。
 /// 4. **Weak**（★R2 2026-07-17 裁定）：力度或关系——同色柱面积 C<A（060:44）∨ 黄白线峰 C<A
 ///    （026:521）∨ 同向柱峰 C<A（025:38），任一成立即背驰信号（027:32「只要其中一个符合就

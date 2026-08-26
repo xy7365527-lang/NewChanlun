@@ -17,7 +17,7 @@
 //! （盘整块中枢 × 触发段）记录击杀要件：①C 破核心 ②A 锚（前次同向破核心段）
 //!   ③回中枢段 ④Extreme 新极值（`signal.rs:632-653`）。
 //!   对 locate 失败或 Extreme 判负的尝试，候选 A 扩至『中枢前最近同向段』
-//!   （049:36-38『最标准』≠唯一；080:364；061:28 中枢两头比较）重跑定位+Extreme：
+//!   （049:36-38『最标准』≠唯一；080:364；061:26 正文「只要是围绕一中枢的两段走势都可以比较力度」）重跑定位+Extreme：
 //!   - 扩 A 后定位 ∧ Extreme 过 ⟹ A 锚定窄化（聋度候选）；
 //!   - C 未破核心 ⟹ 中枢震荡域（024:36① / 037:150-152；不计入盘背链候选，单独计数）；
 //!   - Extreme 判负维持（044:234），按 038:192 标注『不创新高/新低型力度衰竭』。
@@ -566,7 +566,7 @@ fn measure_level(
                             | LocateFail::NoReenterBetween),
                         ) => {
                             // §6.2-1 扩 A：C 仍取当前离开 episode（λ_C 可独立定位），
-                            // A' = 中枢前最近同向段（061:28 中枢两头比较形态 A'→c→C）。
+                            // A' = 中枢前最近同向段（061:26 正文「只要是围绕一中枢的两段走势都可以比较力度」，A'→c→C）。
                             let outcome = match f {
                                 LocateFail::NoReenter => AttemptOutcome::NoReenter,
                                 LocateFail::NoAAnchor => AttemptOutcome::NoAAnchor,
