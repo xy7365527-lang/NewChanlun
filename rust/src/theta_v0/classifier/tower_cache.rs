@@ -150,18 +150,6 @@ pub(super) struct LevelCache {
     pub(super) confirmed_watermark: usize,
 }
 
-/// B3 #4 area-memo（07b 残余 O(n²) 根治）：`(start,end)→segment_macd_area` 冻结缓存，跨 bar 持久
-/// （挂 [`TowerCache`]，非 per-level——`hist` 全局单份，键值与 level 无关）。B3 profile 坐实：同一
-/// (start,end) 被 [`sublevel_diverges`] 跨 bar 重复查询（calls=4.19M / distinct=2314 @ 300K，冗余
-/// 99.94%）——07b 门控消除了「confirmed 前缀 parent 每 bar 重扫」，但 frontier parent 每 bar 仍对
-/// 其固定 `prev_seg`（已稳定、远端）重新线性求和一次，O(range) 逐 bar 累积 = 残余 O(n²)。
-///
-/// 值一旦写入永久有效（hist 前缀 append-only 稳定，见 [`TowerCache::macd_hist`]）——**只对
-/// `end < stable_len` 的查询读写缓存**（[`cached_segment_area`]），`stable_len` = 当前 bar 的
-/// `TowerCache::macd_state_len`（`compute_macd_hist_incremental` 每 bar 末元素是 unstable tail，
-/// 下 bar 可能被改写覆盖，见其函数头注释——绝不缓存该越界查询，防污染未来错值）。
-pub(super) type AreaCache = HashMap<(usize, usize), f64>;
-
 /// 增量塔缓存（跨 bar 跨级复用）：每级 `LevelCache` + L0 段账本快照长度 + MACD 增量状态。
 ///
 /// **使用契约**（bit-exact 充要，违反则增量破裂）：
@@ -244,9 +232,6 @@ pub struct TowerCache {
     /// 为 0 ⟹ reset 会造假命中）。**over-invalidate**：写入站点无条件 ++（即便重扫复现相同字节），宁可
     /// 多失效不可假命中。假命中不可能性证明见 on2w2-epoch-design §4。
     pub(super) forest_epoch: u64,
-    /// B3 #4 area-memo：[`AreaCache`]（见其文档）——`sublevel_diverges` 的 `(start,end)→area`
-    /// 冻结缓存，跨 bar 持久。
-    pub(super) area_cache: AreaCache,
     /// #550：跨 bar 持久的候选事件簿；首见钟与 revision 只能由逐前缀推进产生。
     pub(super) candidate_book: cand_event::CandidateEventBook,
 }
@@ -384,9 +369,9 @@ impl TowerCache {
         self.closes.clear();
         self.close_src.clear();
         self.closes_tick.clear(); // 与 closes 锁步（同 update_closes_cache 前缀复用）。
-        self.area_cache.clear(); // hist 全量重扫 ⟹ 旧 (start,end)→area 键值可能不再对应新 hist。
-                                 // ★工位 4g：clear=全量重扫 ⟹ extract 输出会变 ⟹ +generation（不 reset 为 0——下游缓存旧
-                                 // generation 可能恰为 0 ⟹ 假命中复用陈旧树）。单调递增保 sound。
+
+        // ★工位 4g：clear=全量重扫 ⟹ extract 输出会变 ⟹ +generation（不 reset 为 0——下游缓存旧
+        // generation 可能恰为 0 ⟹ 假命中复用陈旧树）。单调递增保 sound。
         self.generation += 1;
         // ★on2w2 E4：clear = moves_tower_l0.clear（tower[0] 字节变更）⟹ forest 变 ⟹ +forest_epoch
         // （不 reset，同 generation 规格）。clear() 是 public 方法，此 bump 独立于增量循环的 forest_dirty

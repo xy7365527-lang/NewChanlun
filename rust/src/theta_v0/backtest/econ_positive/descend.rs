@@ -130,6 +130,7 @@ pub(super) fn descend_type1_anchor_depth(
             strokes,
             parent_center: crate::theta_v0::classifier::cand_predicate::parent_last_center(s),
             gauge,
+            close_src: None,
         },
     );
     if !anchor_ok {

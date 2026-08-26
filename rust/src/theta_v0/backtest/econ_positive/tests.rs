@@ -5928,6 +5928,7 @@ fn h2_sample_exclusion_dx() {
                                         strokes: &l0_i.strokes, // ★#883
                                         parent_center: super::super::super::classifier::cand_predicate::parent_last_center(knode),
                                         gauge: config.divergence_gauge,
+                                        close_src: None,
                                     });
                             }
                         }
@@ -6741,6 +6742,7 @@ fn prod_div_cand_why(
             strokes,
             parent_center,
             gauge,
+            close_src: None,
         },
     )
 }
@@ -11681,6 +11683,7 @@ fn nesting_descent_and_type1_reach_dx() {
                                     cur,
                                 ),
                             gauge: config.divergence_gauge,
+                            close_src: None,
                         });
                         if !ok {
                             terminal = 2; // DivFalse

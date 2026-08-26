@@ -69,7 +69,7 @@ use super::super::parser::segment::segment_force_l;
 use super::super::types::{Center, Direction, Side, Stroke};
 use super::descend::RMove;
 use super::divergence::{confirm_divergence_l, is_divergence, segment_macd_area, DivergenceGauge};
-use super::recursive_tower::{find_move_by_end_index, LeveledMove};
+use super::recursive_tower::{find_move_by_end_index, map_src_to_close_idx, LeveledMove};
 
 /// δ 交易方向（Long=买/+1，Short=卖/−1）。
 /// 复用 types::Side（与 NestCertificate.side 同类型）。
@@ -106,6 +106,12 @@ pub struct DivCandInput<'a> {
     pub parent_center: Option<&'a Center>,
     /// 力度判据档（生产默认 ForceL；MacdArea 对照）。
     pub gauge: DivergenceGauge,
+    /// ★#1228：`hist` 坐标系映射——`Some(close_src)` 时 hist 是 merged-bar 下标域（`hist[k]` 对应
+    /// `close_src[k]` 的 source_index），条件4 的 MACD 段面积须经
+    /// [`super::recursive_tower::map_src_to_close_idx`] 把段的 source_index 区间映射到 hist 下标；
+    /// `None` 时 hist 即 source_index 域（econ_positive 全量路径，直读）。ForceL 档不消费 hist
+    /// （力度走 strokes 的 source_index 域），故本字段只影响 MacdArea 对照档的面积读数。
+    pub close_src: Option<&'a [usize]>,
 }
 
 /// `RMove::Compose` 的中枢序列方向判据（#815 M-2 三个候选臂）。
@@ -300,6 +306,7 @@ pub fn div_cand_fail(input: &DivCandInput<'_>) -> Option<u8> {
         strokes,
         parent_center,
         gauge,
+        close_src,
     } = input;
     let context = *context;
     let target_idx = *target_idx;
@@ -366,8 +373,23 @@ pub fn div_cand_fail(input: &DivCandInput<'_>) -> Option<u8> {
         Side::Long => Direction::Down,
         Side::Short => Direction::Up,
     };
-    let prev_area = segment_macd_area(hist, s_prev.start_index, s_prev.end_index, dir);
-    let curr_area = segment_macd_area(hist, s.start_index, s.end_index, dir);
+    // ★#1228：条件4 的 MACD 面积按 hist 坐标系取段——`close_src=Some` 时 hist 是 merged-bar 下标域
+    // （pipeline 增量路径），须把段的 source_index 区间映射到 hist 下标；`None` 时 hist 即
+    // source_index 域（econ_positive 全量路径），直读。映射失败（区间无 bar 落入）⟹ 面积 0.0。
+    let (prev_area, curr_area) = match close_src {
+        Some(src) => {
+            let prev = map_src_to_close_idx(src, s_prev.start_index, s_prev.end_index);
+            let curr = map_src_to_close_idx(src, s.start_index, s.end_index);
+            (
+                prev.map_or(0.0, |(a, b)| segment_macd_area(hist, a, b, dir)),
+                curr.map_or(0.0, |(a, b)| segment_macd_area(hist, a, b, dir)),
+            )
+        }
+        None => (
+            segment_macd_area(hist, s_prev.start_index, s_prev.end_index, dir),
+            segment_macd_area(hist, s.start_index, s.end_index, dir),
+        ),
+    };
     let macd_c_lt_a = is_divergence(prev_area, curr_area);
     // ForceL 教义判据 L(C)<L(B)（#873；段→笔反查 #989）：任一段区间无笔 ⟹ None ⟹ 无源不判。
     let l_c_lt_b = match (
@@ -451,6 +473,7 @@ pub fn bsp_div_cand(
         strokes,
         parent_center,
         gauge,
+        close_src: None,
     })
 }
 
@@ -927,6 +950,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(55, 110, 0)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert!(!div_cand(&input), "方向不反 ⟹ Cand=0");
     }
@@ -947,6 +971,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(45, 95, 0)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert!(!div_cand(&input), "方向不反（Short × Down）⟹ Cand=0");
     }
@@ -967,6 +992,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(60, 110, 0)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert!(!div_cand(&input), "无前序同向段 ⟹ Cand=0");
     }
@@ -988,6 +1014,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(40, 95, 0)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert!(!div_cand(&input), "前序无同向段 ⟹ 条件2 不满足");
     }
@@ -1014,6 +1041,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(50, 96, 10)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert!(!div_cand(&input), "lo 不更低 ⟹ 条件3 不满足");
     }
@@ -1036,6 +1064,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(48, 90, 10)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert!(!div_cand(&input), "hi 不更高 ⟹ 条件3 不满足");
     }
@@ -1061,6 +1090,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(50, 96, 10)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert!(!div_cand(&input), "area(s) > area(s') ⟹ 条件4 不满足");
     }
@@ -1088,6 +1118,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(50, 96, 10)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert!(div_cand(&input), "四条件全满足 δ=Long ⟹ Cand=1");
     }
@@ -1113,8 +1144,101 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(48, 95, 10)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert!(div_cand(&input), "四条件全满足 δ=Short ⟹ Cand=1");
+    }
+
+    // ── 坐标映射对拍（★#1228：close_src 双坐标系同输入同输出） ──────────────
+
+    /// 对拍锁：#814 D-2 要求两路径同输入同输出。identity 映射（`close_src[k]==k`）必须与
+    /// `close_src=None`（source_index 直读）逐位同结果——pipeline（merged-bar hist + close_src）
+    /// 与 econ_positive（source_index hist + None）在无 inclusion 合并时是同一份输入。
+    #[test]
+    fn close_src_identity_mapping_parity_with_none() {
+        // 上涨 → 下跌(s') → 上涨 → 下跌(s)：四条件全满足（MacdArea 档消费 hist 面积）。
+        let context = vec![
+            up_seg(50, 100, 0, 4),
+            down_seg(40, 90, 5, 9),
+            up_seg(45, 95, 10, 14),
+            down_seg(30, 85, 15, 19),
+        ];
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
+        let identity: Vec<usize> = (0..20).collect();
+        let none_input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &hist,
+            delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
+            close_src: None,
+        };
+        let mapped_input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &hist,
+            delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
+            close_src: Some(&identity),
+        };
+        assert!(div_cand(&none_input), "基准输入四条件全满足");
+        assert_eq!(
+            div_cand(&none_input),
+            div_cand(&mapped_input),
+            "identity close_src 映射必须与 None（source_index 直读）同输入同输出"
+        );
+    }
+
+    /// 对拍锁（merged-bar 缺口坐标系）：inclusion 合并后 close_src 非连续（本测 [0,2,4,..,18]），
+    /// MACD 段面积必须经 `map_src_to_close_idx` 把 source_index 区间映射到 merged 下标。手算：
+    /// s'=[5,9]→merged[3,4]（area=1.0+1.0=2.0），s=[15,19]→merged[8,9]（area=1.5+1.5=3.0）⟹
+    /// curr>prev ⟹ 力度未衰减 ⟹ Cand=0。若不映射（close_src=None）会把 s 区间越界读成 0.0、
+    /// s' 区间误读 merged[5..=9]（area=6.0）⟹ 误判背驰 ⟹ 本测试锁住映射真实被消费。
+    #[test]
+    fn close_src_merged_gap_mapping_is_consumed() {
+        let context = vec![
+            up_seg(50, 100, 0, 4),
+            down_seg(40, 90, 5, 9),
+            up_seg(45, 95, 10, 14),
+            down_seg(30, 85, 15, 19),
+        ];
+        // merged-bar 下标域 hist（len=10）：s' 映射区间 [3,4] 力度 1.0+1.0=2.0，
+        // s 映射区间 [8,9] 力度 1.5+1.5=3.0（未衰减）。
+        let merged_hist: Vec<f64> =
+            vec![-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.5, -1.5];
+        let close_src: Vec<usize> = vec![0, 2, 4, 6, 8, 10, 12, 14, 16, 18];
+        let mapped_input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &merged_hist,
+            delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
+            close_src: Some(&close_src),
+        };
+        let naive_input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &merged_hist,
+            delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
+            close_src: None,
+        };
+        assert!(
+            !div_cand(&mapped_input),
+            "正确映射：curr=3.0 > prev=2.0 ⟹ 力度未衰减 ⟹ Cand=0"
+        );
+        assert!(
+            div_cand(&naive_input),
+            "不映射（None）会把 s 区间越界读 0.0、s' 误读 merged[5..=9]=6.0 ⟹ 误判背驰——反证映射必需"
+        );
     }
 
     // ── 空/边界 ───────────────────────────────────────────────────────────────
@@ -1130,6 +1254,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(50, 100, 0)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert!(!div_cand(&input), "空 context ⟹ false");
     }
@@ -1146,6 +1271,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(50, 100, 0)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert!(!div_cand(&input), "越界 target_idx ⟹ false");
     }
@@ -1167,6 +1293,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(50, 96, 10)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert!(!div_cand(&input), "hist 空 ⟹ area=0 ⟹ 条件4 不满足");
     }
@@ -1189,6 +1316,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(60, 110, 0)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         let cand = div_cand(&input); // false
         assert!(!cand);
@@ -1242,6 +1370,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(50, 96, 10)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         let cand = div_cand(&input);
         assert!(cand, "前置：四条件满足 Cand=true");
@@ -1465,6 +1594,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(50, 96, 10)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert_eq!(
             div_cand_fail(&input),
@@ -1496,6 +1626,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(50, 96, 10)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert_eq!(
             div_cand_fail(&input),
@@ -1538,6 +1669,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(50, 96, 10)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert_eq!(
             div_cand_fail(&input),
@@ -1565,6 +1697,7 @@ mod tests {
             strokes: &[],
             parent_center: Some(&pan_center(50, 96, 10)),
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert_eq!(
             div_cand_fail(&input),
@@ -1595,6 +1728,7 @@ mod tests {
             strokes: &[],
             parent_center: None,
             gauge: DivergenceGauge::MacdArea,
+            close_src: None,
         };
         assert_eq!(
             div_cand_fail(&input),
@@ -1630,6 +1764,7 @@ mod tests {
             strokes: &strokes,
             parent_center: Some(&pan_center(50, 96, 10)),
             gauge: DivergenceGauge::ForceL,
+            close_src: None,
         };
         assert_eq!(
             div_cand_fail(&input),
@@ -1664,6 +1799,7 @@ mod tests {
             strokes: &strokes,
             parent_center: Some(&pan_center(50, 96, 10)),
             gauge: DivergenceGauge::ForceL,
+            close_src: None,
         };
         assert_eq!(
             div_cand_fail(&input),
@@ -1691,6 +1827,7 @@ mod tests {
             strokes: &[], // 无笔 ⟹ L 无源
             parent_center: Some(&pan_center(50, 96, 10)),
             gauge: DivergenceGauge::ForceL,
+            close_src: None,
         };
         assert_eq!(
             div_cand_fail(&input),

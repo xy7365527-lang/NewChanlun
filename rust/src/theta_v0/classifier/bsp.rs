@@ -679,9 +679,12 @@ mod tests {
             // 2026-08-18 #1053：删除全量循环 classify_impl ⟹ 顶部 import 拆分 gating
             // （Stroke/decompose 各 +2 行）⟹ 两访问器 103→107 / 135→139，内容不变，同条目重登记。
             // 2026-08-19 #1079：3a 合并扫描删除 pipeline.rs 的 `candidate_scan_inputs` 助手
-            // （含顶部 `use std::borrow::Cow;`）⟹ 两访问器 107→106 / 139→138，内容不变，同条目重登记。）
-            "theta_v0/classifier/pipeline.rs:106",
-            "theta_v0/classifier/pipeline.rs:138",
+            // （含顶部 `use std::borrow::Cow;`）⟹ 两访问器 107→106 / 139→138，内容不变，同条目重登记。
+            // 2026-08-25 #1228：sublevel_diverges 收敛进 div_cand——顶部 import 合并（Stroke 并入
+            // types 组、删 AreaCache/RefCell import，cargo fmt 折叠两 import 行）⟹ 两访问器
+            // 106→100 / 138→132，内容不变，同条目重登记。）
+            "theta_v0/classifier/pipeline.rs:100",
+            "theta_v0/classifier/pipeline.rs:132",
             // `CrossLevelConfirmationQuery::entry_at` 单源函数体（作用于 `TripleAnchorEntry`，
             // 与本族 `BspPoint` 三件并行不同型，见 projection.rs 函数头注释）。
             "theta_v0/classifier/projection.rs:215",
@@ -738,8 +741,10 @@ mod tests {
             // 2026-08-17 再位移（+5）：#898 在直方图区增 CoreOverlap 计数（n_ext）⟹
             // 夹具点同内容随迁 1573 → 1578，重核内容不变，同条目重登记。
             // 2026-08-18 再位移（+2）：#1052 在 extract_first_third_for_level 增 departure_ends
-            // 参数与注释 ⟹ 夹具点随迁 1578 → 1580，重核内容不变（source_index 过滤），同条目重登记。）
-            "theta_v0/classifier/tests/pipeline_geometry.rs:1590",
+            // 参数与注释 ⟹ 夹具点随迁 1578 → 1580，重核内容不变（source_index 过滤），同条目重登记。
+            // 2026-08-25 #1228：B2 测试补 ForceL strokes（+36 行）⟹ 夹具点随迁 1580 → 1616，
+            // 重核内容不变（source_index 过滤），同条目重登记。）
+            "theta_v0/classifier/tests/pipeline_geometry.rs:1616",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             // （2026-08-16 #903/#919 注释与 fmt ⟹ +2 漂移，七处再重锚，内容不变。）
             // （2026-08-16 #993 fixture 修复 ⟹ signal.rs 测试区再位移，七处夹具点重锚，内容不变。

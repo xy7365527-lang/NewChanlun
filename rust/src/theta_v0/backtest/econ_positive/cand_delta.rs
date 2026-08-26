@@ -71,6 +71,7 @@ fn cand_delta_type1_extreme(
                 strokes,
                 parent_center, // ★#883：D-3 取段的「界」= rung 父走势（knode）的最近中枢
                 gauge,
+                close_src: None,
             },
         ),
         None => false, // 执行级候选段不在 k 级次级别序列中 ⟹ 无 Cand

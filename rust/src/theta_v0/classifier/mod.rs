@@ -52,7 +52,6 @@ pub(crate) use super::config::ThetaConfig;
 pub(crate) use super::types::Segment;
 pub(crate) use super::types::{Center, Tick};
 pub(crate) use divergence::MacdState;
-pub(crate) use std::collections::HashMap;
 pub(crate) use std::rc::Rc;
 
 pub mod bsp;

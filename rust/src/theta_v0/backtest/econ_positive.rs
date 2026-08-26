@@ -1379,6 +1379,7 @@ pub(super) mod stepfail_probe {
                                     strokes,
                                     parent_center: parent_last_center(knode),
                                     gauge,
+                                    close_src: None,
                                 });
                                 return format!("type1_div_fail_{cond:?}");
                             }
@@ -1429,6 +1430,7 @@ pub(super) mod stepfail_probe {
                                     strokes,
                                     parent_center: parent_last_center(s),
                                     gauge,
+                                    close_src: None,
                                 });
                                 format!("type23_descend_nodiv_cond{cond:?}")
                             }
@@ -1665,6 +1667,7 @@ pub(super) mod stepfail_probe {
                                 strokes,
                                 parent_center: parent_last_center(s),
                                 gauge,
+                                close_src: None,
                             });
                         }
                     }

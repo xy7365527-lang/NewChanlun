@@ -10,9 +10,7 @@
 use super::super::config::ThetaConfig;
 use super::super::parser::ParseLayer;
 use super::super::types::Side;
-#[cfg(test)]
-use super::super::types::Stroke;
-use super::super::types::{Center, Direction, Segment, Tick};
+use super::super::types::{Center, Direction, Segment, Stroke, Tick};
 use super::bsp::BspPoint;
 use super::center::{self, UnitRange};
 #[cfg(test)]
@@ -22,19 +20,15 @@ use super::divergence;
 #[cfg(test)]
 use super::oracle_probe;
 use super::recursive_tower::{
-    self, descend_leveled, index_of_in, map_src_to_close_idx, CpScanOwnership, ElementId,
-    LeveledMove,
+    self, descend_leveled, index_of_in, CpScanOwnership, ElementId, LeveledMove,
 };
 use super::recursive_tower::{compose_level_resume, WindowScanCursor};
-use super::tower_cache::{
-    compute_macd_hist_incremental, update_closes_cache, AreaCache, LevelCache,
-};
+use super::tower_cache::{compute_macd_hist_incremental, update_closes_cache, LevelCache};
 use super::TowerCache;
 use super::{
     cand_event, cand_predicate, cp_replay_diagnostics, descend, operation, projection, rebase_txn,
     scan, signal, stage_profile,
 };
-use std::cell::RefCell;
 use std::rc::Rc;
 
 /// on2w2-cascade 放行条件3 探针启用开关（env THETA_CASCADE_EPROBE，读一次缓存——热路径零 syscall）。
@@ -252,8 +246,8 @@ fn historical_bound_segment(
 /// [`signal::extract_signals_with_hist`]**——同一套逻辑，只换输入算子（is_l0 分支消失于领域层）：
 /// - **趋势门控**：内部 `decompose(centers)` 局部趋势门（Q1/Q8，task #143）与本级 [`classify_level`]
 ///   同一 `decompose` 单一来源 ⟹ 「一类只在该级当前趋势块内产」忠实。
-/// - **A/C 段力度**：内部 `AbcDivergence`/`locate_trend_seg_a` 复用 divergence.rs 面积原语（与
-///   `sublevel_diverges` 同族的 `segment_macd_area`/`is_divergence`）——**禁第二套力度引擎**满足。
+/// - **A/C 段力度**：内部 `AbcDivergence`/`locate_trend_seg_a` 复用 divergence.rs 面积原语
+///   （`segment_macd_area`/`is_divergence`）——**禁第二套力度引擎**满足。
 /// - **三类**：`judge_third` 在级别-N units（外缘区间）+ centers（几何中枢）的离开/回试关系上判定。
 ///
 /// ★force_state 生产热路由（beta-route #115）：传真 `dif/closes_tick`（与 L0 层同源，L0 唯一可达
@@ -713,13 +707,6 @@ fn classify_incremental_inner(
     let hist: &[f64] = &cache.macd_hist;
     // dif 借用（与 hist 同——disjoint field 借用；force DIF 峰 proxy 输入，bit-exact 等价全量）。
     let dif: &[f64] = &cache.macd_dif;
-    // B3 #4 area-memo：`stable_len` = 本 bar hist 的确认边界（[`AreaCache`] 文档）——`area_cache`
-    // 跨 bar 持久（mem::take 出借，用毕放回，同 closes/close_src 模式）。`RefCell` 包裹：
-    // `divergence_of` 闭包接口是 `impl Fn(&RMove) -> bool`（`signal::extract_second_signals`），
-    // `Fn` 只给闭包体 `&self` 访问——捕获的可变缓存须走内部可变性（共享引用 + `borrow_mut`），
-    // 不能捕获 `&mut AreaCache`（Long/Short 两侧各建一个闭包，同一 `&mut` 不能捕获两次）。
-    let stable_len = cache.macd_state_len;
-    let area_cache: RefCell<AreaCache> = RefCell::new(std::mem::take(&mut cache.area_cache));
 
     let mut levels: Vec<LevelState> = Vec::new();
     // ★O(n) 重构：snapshots 存 Rc——L≥1 级 push Rc::clone(&lc.upper_moves)（O(1)）；L0 级 push
@@ -1433,8 +1420,8 @@ fn classify_incremental_inner(
                     prefix_count,
                     hist,
                     &close_src,
-                    &area_cache,
-                    stable_len,
+                    &l0.strokes,
+                    config.divergence_gauge,
                 )
             });
             if super::diag::s2_mirror_capture::memo_capture_enabled() {
@@ -1624,7 +1611,6 @@ fn classify_incremental_inner(
     cache.closes = closes;
     cache.close_src = close_src;
     cache.closes_tick = closes_tick; // force 价格振幅/速度 proxy 缓冲放回，下 bar 复用（同 closes 模式）。
-    cache.area_cache = area_cache.into_inner(); // B3 #4 area-memo：缓冲放回，下 bar 复用（同上模式）。
     let as_of = l0.merged_bars.last().map_or(0, |bar| bar.source_index);
     cache.candidate_book.advance(&candidate_observations, as_of);
 
@@ -1691,51 +1677,39 @@ fn debug_assert_l0_units_in_sync(cache: &TowerCache, tower_snapshots: &[Rc<Vec<L
 /// 端点零改动接入生产路径。
 ///
 /// 三个闭包参数的真实接入（非占位）：
-/// - `c1`（次级别中枢）：`RMove::Compose.centers` 的首个中枢（窗口三段区间重叠真派生，B 口径核心
+/// - `c1`（次级别中枢）：`RMove::Compose.centers` 的末位中枢（窗口三段区间重叠真派生，B 口径核心
 ///   区间）——`find_second_type_structure` 用它判次级别第一类离开是否破中枢。
-/// - `divergence_of`（MACD 背驰）：次级别走势的 source_index 区间 → `hist` 面积，相对**前一同向次
-///   级别走势**面积严格变小（reference:34 背驰，`divergence.rs` 真算 L1）。
+/// - `divergence_of`（背驰）：★#1228（#814 D-2 落地）——次级别第一类的背驰判据**统一走
+///   `cand_predicate::div_cand` 四条件**（方向 + D-3 取段 + Extreme + Weak），与一类点路径同判据；
+///   `sublevel_diverges`（两条件宽松档）已删。
 /// - `index_of`（坐标）：从坐标侧车 `subs`（携 source_index 的 `LeveledMove`）按结构身份查回原始
 ///   K 序（`index_of_in`）——B2/S2 的 `source_index` 真坐标（still-MISSING-坐标解除）。
-///
-/// ★诚实 still-MISSING（背驰力度引擎配对，no-声明膨胀）：`divergence_of` 对次级别走势的「前一同向
-/// 走势」配对用**序列序最近同向前驱**（与 signal.rs `extract_first_for_center` 同口径）——次级别
-/// 走势的 close 区间由 source_index 坐标定位到 `hist`。L1 管线正确性（MACD 面积比较确定），**不**是
-/// 「背驰预测在真实行情有效」（L2/L3，不在本层）。
 fn extract_second_for_level(
     upper_moves: &[LeveledMove],
     hist: &[f64],
     close_src: &[usize],
+    strokes: &[Stroke],
+    gauge: divergence::DivergenceGauge,
 ) -> Vec<BspPoint> {
     let mut points = Vec::new();
-    // 单次全量调用：无跨 bar 复用需求，本地缓存仅消同一调用内的重复 (start,end)（若有），
-    // `stable_len=hist.len()` 视全 hist 为稳定（一次性快照，调用期间不会被改写）。
-    let area_cache = RefCell::new(AreaCache::new());
-    let stable_len = hist.len();
     for parent in upper_moves {
-        second_for_parent(
-            parent,
-            hist,
-            close_src,
-            &area_cache,
-            stable_len,
-            &mut points,
-        );
+        second_for_parent(parent, hist, close_src, strokes, gauge, &mut points);
     }
     points
 }
 
 /// 单个上级走势 `parent` 的第二类 B2/S2 端点（[`extract_second_for_level`] 的 per-parent 主体）。
 ///
-/// ★纯函数于 `parent`：只依赖 `parent`（`c1`=Compose 首中枢、subs=坐标侧车）+ 全局 hist/close_src，
-/// **不依赖其它 parent**。这是 07b frontier 门控（[`extract_second_resume`]）的正确性基础——confirmed
-/// 前缀 parent 的 B2 跨 bar 不变（源区间落稳定前缀，hist 前缀 append-only 稳定）⟹ 可缓存。
+/// ★纯函数于 `parent`：只依赖 `parent`（`c1`=Compose 末中枢、subs=坐标侧车）+ 全局
+/// hist/close_src/strokes/gauge，**不依赖其它 parent**。这是 07b frontier 门控
+/// （[`extract_second_resume`]）的正确性基础——confirmed 前缀 parent 的 B2 跨 bar 不变
+/// （源区间落稳定前缀，hist 前缀 append-only 稳定）⟹ 可缓存。
 fn second_for_parent(
     parent: &LeveledMove,
     hist: &[f64],
     close_src: &[usize],
-    area_cache: &RefCell<AreaCache>,
-    stable_len: usize,
+    strokes: &[Stroke],
+    gauge: divergence::DivergenceGauge,
     out: &mut Vec<BspPoint>,
 ) {
     // 次级别中枢（RMove::Compose.centers 末位 = 本窗真派生 B 口径核心区间；#897 后载荷为
@@ -1756,8 +1730,23 @@ fn second_for_parent(
             &parent.rmove,
             side,
             &c1,
-            // 背驰：次级别走势 source_index 区间 → hist 面积，相对前一同向次级别走势严格变小。
-            |m| sublevel_diverges(m, &subs[..], hist, close_src, area_cache, stable_len),
+            // ★#1228（#814 D-2 落地）：背驰判据统一走 div_cand 四条件（D-3 取段 + Extreme +
+            // Weak），与一类点路径同判据、同输入同输出；`sublevel_diverges` 已删。
+            |m| {
+                let Some(tidx) = subs.iter().position(|x| &x.rmove == m) else {
+                    return false; // m 不在 subs（防御性）⟹ 无坐标 ⟹ 非背驰。
+                };
+                cand_predicate::div_cand(&cand_predicate::DivCandInput {
+                    context: &subs[..],
+                    target_idx: tidx,
+                    hist,
+                    delta: side,
+                    strokes,
+                    parent_center: Some(&c1),
+                    gauge,
+                    close_src: Some(close_src),
+                })
+            },
             // 坐标：从侧车按结构身份查回次级别走势的原始 K 序（end_index）。
             |m| index_of_in(&subs[..], m),
         );
@@ -1769,20 +1758,16 @@ fn second_for_parent(
 /// 每 memo-miss 全塔重扫 O(U)、跨 N bar 累积 O(U²)（profile 坐实 CL 1M 修前 3990ms、修后 1026ms，74%↓）。
 /// 每个 parent 的 B2 只依赖该 parent（[`second_for_parent`] 纯函数于 parent）——confirmed 前缀 parent
 /// （`upper_moves[..prefix_count]`，源区间落稳定前缀 + hist 前缀 append-only 稳定）的 B2 跨 bar 不变，
-/// 可缓存。故**跳过 confirmed 前缀 parent 的重复背驰扫描**（`sublevel_diverges` 的 O(range) MACD 面积
-/// 累加），只对 frontier tail `[prefix_count..]` 每 bar 重算，前缀 B2 一生一算。
-///
-/// ★area-memo 已接入（`d516aa42ea`，[`cached_segment_area`]）：MACD 面积经 `(start,end)→f64` 冻结
-/// 缓存，`sublevel_diverges` 内 `07b_area` 实测 ~46ns/call（10.2M call@BTC-1M）= cache-hit 主导，
-/// 面积累加已非瓶颈。门控（本函数）+ area-memo 两处均已落地。
+/// 可缓存。故**跳过 confirmed 前缀 parent 的重复背驰扫描**，只对 frontier tail `[prefix_count..]`
+/// 每 bar 重算，前缀 B2 一生一算。
 ///
 /// ★残余 O(n²) 根因订正（on2-sweep 直测坐实，BTC-1M）：**不是** frontier parent 的 area 累加，而是
 /// **cascade 触发的前缀重扫**。07b miss 的 frontier tail 分裂两支——纯 append miss（`07b_miss_append_tail`
 /// sum=28570，avg=2.87，门控生效尾极短）vs cascade miss（`07b_miss_cascade_tail` sum=2015978=98.6%，
 /// avg=97.5，max=2095）。cascade_reset 定义性清空 `cached_second`（前缀 B2 缓存失效，见 line ~1192），
 /// 整个前缀被重扫 ⟹ cascade 频率 × 前缀长度 = O(n²)。cascade 频率由 `recursive_tower` 域的 frontier
-/// 重排决定（H5/H9 已 NO-SHIP：cascade 定义性清前缀，不可在本文件域降阶），非 `second_for_parent`/
-/// `sublevel_diverges` 的可优化项。per-call 常数因子（`position` 递归 eq ~14%、
+/// 重排决定（H5/H9 已 NO-SHIP：cascade 定义性清前缀，不可在本文件域降阶），非 `second_for_parent`
+/// 的可优化项。per-call 常数因子（`position` 递归 eq ~14%、
 /// [`cand_predicate::rmove_dir`] 的方向派生 ~15%）均 subs.len()≤8 有界，改写只削常数不改指数
 /// （收益极低，不 ship）。
 ///
@@ -1798,8 +1783,8 @@ fn extract_second_resume(
     prefix_count: usize,
     hist: &[f64],
     close_src: &[usize],
-    area_cache: &RefCell<AreaCache>,
-    stable_len: usize,
+    strokes: &[Stroke],
+    gauge: divergence::DivergenceGauge,
 ) -> Vec<BspPoint> {
     // 单调性守卫（§16：confirmed 前缀单调非降 ⟹ 正常永不触发；cascade 已在别处 clear 缓存）。若违反
     // ⟹ 缓存越过 confirmed 边界（曾判 confirmed 的 parent 又变 frontier 可变）⟹ 保守全量重算重置缓存。
@@ -1809,96 +1794,17 @@ fn extract_second_resume(
     }
     // 推进：新晋 confirmed 的 parent [cached_count..prefix_count] 的 B2 一次性算入缓存（一生一算）。
     for parent in &upper_moves[*cached_count..prefix_count] {
-        second_for_parent(parent, hist, close_src, area_cache, stable_len, cached);
+        second_for_parent(parent, hist, close_src, strokes, gauge, cached);
     }
     *cached_count = prefix_count;
     // 结果 = confirmed 前缀 B2（缓存 clone）+ frontier tail B2（每 bar 重算，tail 小）。
     let mut out = cached.clone();
     for parent in &upper_moves[prefix_count..] {
-        second_for_parent(parent, hist, close_src, area_cache, stable_len, &mut out);
+        second_for_parent(parent, hist, close_src, strokes, gauge, &mut out);
     }
     debug_assert!(
-        out == extract_second_for_level(upper_moves, hist, close_src),
+        out == extract_second_for_level(upper_moves, hist, close_src, strokes, gauge),
         "07b frontier 门控破裂：门控输出 != 全量重扫（前缀 immutable/hist 前缀稳定不变式被违反）"
     );
     out
-}
-
-/// 次级别走势的 MACD 背驰判定（reference:34，`divergence.rs` 真算 L1）。
-///
-/// 给定次级别走势 `m`（descend 取回的 `RMove`）+ 坐标侧车 `subs`：定位 `m` 在 `subs` 中的位置，
-/// 取其 source_index 区间 → `hist` 面积，相对**序列序最近同向次级别前驱走势**面积严格变小 ⟹ 背驰。
-/// 同向 = [`cand_predicate::rmove_dir`] 判得且方向相同；方向不可判 ⟹ 无合法背驰对照。
-///
-/// ★诚实 still-MISSING（背驰力度引擎）：无前同向走势（`m` 是序列首个该向走势）⟹ 无背驰对照
-/// ⟹ false（与 signal.rs `extract_first_for_center` 同口径——第一类是趋势末段必有前同向段）。
-/// 无法定位 source_index 区间到 `hist`（坐标越界）⟹ false（不冒充背驰）。
-fn sublevel_diverges(
-    m: &descend::RMove,
-    subs: &[LeveledMove],
-    hist: &[f64],
-    close_src: &[usize],
-    area_cache: &RefCell<AreaCache>,
-    stable_len: usize,
-) -> bool {
-    // 定位 m 在 subs 中的位置（结构身份匹配）。
-    let Some(idx) = subs.iter().position(|x| &x.rmove == m) else {
-        return false; // m 不在 subs（防御性）⟹ 无坐标 ⟹ 非背驰。
-    };
-    let curr = &subs[idx];
-    let Some(curr_dir) = cand_predicate::rmove_dir(&curr.rmove) else {
-        return false;
-    };
-    // 序列序最近同向前驱走势（reference:34「末段相对前同向段」的确定配对）。
-    let Some(prev) = subs[..idx]
-        .iter()
-        .rev()
-        .find(|x| cand_predicate::rmove_dir(&x.rmove) == Some(curr_dir))
-    else {
-        return false; // 无前同向走势 ⟹ 无背驰对照 ⟹ 非第一类（趋势末段必有前同向段）。
-    };
-    // 两走势 source_index 区间 → hist 面积比较（curr < prev ⟹ 背驰，divergence.rs 真算）。
-    let (Some(curr_seg), Some(prev_seg)) = (
-        map_src_to_close_idx(close_src, curr.start_index, curr.end_index),
-        map_src_to_close_idx(close_src, prev.start_index, prev.end_index),
-    ) else {
-        return false; // 区间越界/空 ⟹ 无面积 ⟹ 不冒充背驰。
-    };
-    // B3 #4 area-memo：面积经 (start,end)→f64 冻结缓存（[`cached_segment_area`]），逐字段
-    // == `divergence::segments_diverge`（同一 `segment_macd_area` 结果，仅省重复求和）。
-    let prev_area = cached_segment_area(
-        area_cache, hist, stable_len, prev_seg.0, prev_seg.1, curr_dir,
-    );
-    let curr_area = cached_segment_area(
-        area_cache, hist, stable_len, curr_seg.0, curr_seg.1, curr_dir,
-    );
-    divergence::is_divergence(prev_area, curr_area)
-}
-
-/// B3 #4 area-memo：`(start,end)`→`segment_macd_area` 冻结缓存查询/写入（[`AreaCache`] 文档）。
-///
-/// 只有 `end < stable_len`（区间落在本 bar 已确认的 hist 前缀内）才读写缓存——`end >= stable_len`
-/// 触及仍可能被下一 bar 改写的 unstable tail（`compute_macd_hist_incremental` 每 bar 末元素语义），
-/// 缓存这类值会在下 bar 值变化后返回过期错值，故每次现算、绝不写入缓存（bit-exact 铁律）。
-///
-/// bit-exact：返回值逐位 == `divergence::segment_macd_area(hist, start, end)`——本函数只做**结果**
-/// 记忆化（首次算出后原样存取），不做前缀和差分（B3 报告明确禁止：浮点求和顺序改变可能破 bit-exact）。
-fn cached_segment_area(
-    cache: &RefCell<AreaCache>,
-    hist: &[f64],
-    stable_len: usize,
-    start: usize,
-    end: usize,
-    dir: Direction,
-) -> f64 {
-    if end < stable_len {
-        if let Some(&area) = cache.borrow().get(&(start, end)) {
-            return area;
-        }
-        let area = divergence::segment_macd_area(hist, start, end, dir);
-        cache.borrow_mut().insert((start, end), area);
-        area
-    } else {
-        divergence::segment_macd_area(hist, start, end, dir)
-    }
 }

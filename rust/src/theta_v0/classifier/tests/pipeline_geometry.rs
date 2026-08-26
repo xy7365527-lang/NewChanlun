@@ -1,7 +1,7 @@
 //! #648 T1 主题件：pipeline_geometry（自 classifier/mod.rs 内联 `mod tests` 纯移动抽离，零行为变更）。
 
 use super::super::super::parser::ParseLayer;
-use super::super::super::types::{Direction, MoveKind};
+use super::super::super::types::{Direction, MoveKind, Stroke};
 use super::super::*;
 use super::fixtures::*;
 
@@ -77,9 +77,45 @@ fn end_to_end_second_buy_via_l1_l2_geometric() {
     for i in 0..16 {
         closes.push(100 + if i % 2 == 0 { 3 } else { -3 });
     } // L1[2] 更小
+      // ★#1228（#814 D-2 落地）：B2 背驰判据改走 div_cand 四条件，默认 ForceL 力度档消费 L0 笔
+      // 序列（strokes，source_index 域）。补 4 笔使 `L(L1[1]) < L(L1[0])`（教义 L=末笔速度−首笔速度）：
+      // - L1[0] 区间 [0,12]：s0(Up,0..4,100→125,v=+5)、s1(Down,6..10,135→100,v=+7) ⟹ L=+2；
+      // - L1[1] 区间 [12,24]：s2(Down,14..18,145→100,v=+9)、s3(Up,20..23,100→121,v=+5.25) ⟹ L=−3.75；
+      // L(C)=−3.75 < L(B)=+2 ⟹ 力度衰减（背驰），与 closes 的 MACD 面积口径（前大后小）同向。
+    let strokes = vec![
+        Stroke {
+            direction: Direction::Up,
+            start_index: 0,
+            end_index: 4,
+            start_price: 100,
+            end_price: 125,
+        },
+        Stroke {
+            direction: Direction::Down,
+            start_index: 6,
+            end_index: 10,
+            start_price: 135,
+            end_price: 100,
+        },
+        Stroke {
+            direction: Direction::Down,
+            start_index: 14,
+            end_index: 18,
+            start_price: 145,
+            end_price: 100,
+        },
+        Stroke {
+            direction: Direction::Up,
+            start_index: 20,
+            end_index: 23,
+            start_price: 100,
+            end_price: 121,
+        },
+    ];
     let layer = ParseLayer {
         segments: Rc::new(segments),
         merged_bars: Rc::new(bars_from_closes(&closes)),
+        strokes: Rc::new(strokes),
         ..Default::default()
     };
     let out = classify(&layer, &cfg, &[]).classification;
