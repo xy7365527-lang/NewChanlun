@@ -42,10 +42,10 @@ pub fn provide_pan_live_windows(
         // `level_lift`——扩展折出的高一级盘整块在此仍按 Consolidation 收。准入门
         // （signal.rs / level_view/pan_provider.rs）已按 lift==0 过滤；本通道若未来
         // 进准入路径，须先补 lift 过滤（须随调用方签名一并改，超出 #898 范围）。
-        // 窄锚优先、A′ 回退（061:28 中枢前最近同向段）——与 provider pan 分支同序同判。
+        // #1230 裁定 a：先定位唯一 A（窄锚结构存在取窄锚，不存在才取 A′——061:28 中枢前最近同向段），
+        // 再单判 Extreme 一次（判负即止，不换段重判）——与 provider pan 分支同序同判。
         let Some(structure) =
             locate_pan_div_structure(&centers[center_index], segment, segments, anchors_self)
-                .filter(|structure| pan_div_structure_extreme(structure, segments))
                 .or_else(|| {
                     locate_pan_div_structure_front_anchor(
                         &centers[center_index],
@@ -53,8 +53,8 @@ pub fn provide_pan_live_windows(
                         segments,
                         anchors_self,
                     )
-                    .filter(|structure| pan_div_structure_extreme(structure, segments))
                 })
+                .filter(|structure| pan_div_structure_extreme(structure, segments))
         else {
             continue;
         };
@@ -279,7 +279,6 @@ pub fn provide_active_pan_live_windows(
     }
     let Some(structure) =
         locate_pan_div_structure(&centers[center_index], &active, &segments, &anchors_self)
-            .filter(|structure| pan_div_structure_extreme(structure, &segments))
             .or_else(|| {
                 locate_pan_div_structure_front_anchor(
                     &centers[center_index],
@@ -287,8 +286,8 @@ pub fn provide_active_pan_live_windows(
                     &segments,
                     &anchors_self,
                 )
-                .filter(|structure| pan_div_structure_extreme(structure, &segments))
             })
+            .filter(|structure| pan_div_structure_extreme(structure, &segments))
     else {
         return PanLiveOutcome::StructureNotLocatable;
     };
