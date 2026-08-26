@@ -144,7 +144,7 @@ function rollbackClaim(issue: number, branch: string): void {
 }
 
 /** createSandbox + WorktreeTimeoutError 一次重试（间隔 ≥5s）；其他异常直接上抛。 */
-async function createSandboxWithWorktreeRetry(opts: { branch: string; issue: number }): Promise<Sandbox> {
+async function createSandboxWithWorktreeRetry(opts: { branch: string }): Promise<Sandbox> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await sandcastle.createSandbox({
@@ -282,7 +282,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
   // #1259：claim 成功后、implementer started 之前的失败都回滚认领（WorktreeTimeoutError 先重试一次）。
   let sandbox: Sandbox;
   try {
-    sandbox = await createSandboxWithWorktreeRetry({ branch, issue });
+    sandbox = await createSandboxWithWorktreeRetry({ branch });
   } catch (e) {
     rollbackClaim(issue, branch);
     throw e;
