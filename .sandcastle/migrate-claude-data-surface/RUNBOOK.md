@@ -192,6 +192,7 @@ rsync -aAX --numeric-ids --delete --partial \
   --exclude 'debug/' --exclude 'image-cache/' --exclude 'paste-cache/' \
   --exclude 'uploads/' --exclude 'todos/' --exclude 'statsig/' --exclude 'logs/' \
   --exclude 'history.jsonl' --exclude 'remote-settings.json' --exclude 'policy-limits.json' \
+  --exclude '.claude.json' \
   -e ssh "$HOME/.claude/" <vmuser>@<vm>:/srv/agents/claude/
 
 # redacted 全局配置落到目标机的 CLAUDE_CONFIG_DIR 内部（实证布局）：
@@ -199,14 +200,16 @@ scp "$HOME/.claude.json.redacted" <vmuser>@<vm>:/srv/agents/claude/.claude.json
 ```
 
 > 同一组 excludes 也内置于 `claude-migrate.sh`（`baseline`/`final-copy` 子命令，`RSYNC` 可覆盖以在沙盒对拍）。
+> `--exclude '.claude.json'` 必不可少：该文件只经 §6.1 `config-json` 白名单 + 下方 `scp` 落位；
+> 若 rsync 不排除它，`--delete` 会把目标机刚就位的 redacted `.claude.json` 当作「源侧不存在」删掉。
 > 需要提示历史时显式 `--include-history`（默认禁复制，因 history.jsonl 可能含粘贴的明文凭据）。
 
 ### 6.3 阶段 2：停写后最终增量（macOS）
 
 ```bash
-# 先执行 §6.0 停写清单，再跑增量收尾（同参数）
+# 先执行 §6.0 停写清单，再跑增量收尾（同参数；excludes 必须含 '.claude.json'，否则 --delete 删掉 redacted 配置）
 rsync -aAX --numeric-ids --delete --partial \
-  --exclude 'sessions/' ...（同上全组 excludes）\
+  --exclude 'sessions/' ...（同上全组 excludes，含 '.claude.json'）\
   -e ssh "$HOME/.claude/" <vmuser>@<vm>:/srv/agents/claude/
 ```
 

@@ -119,8 +119,8 @@ export FAKE_RSYNC_LOG="$WORK/rsync.log"
 
 expect_rc "baseline 成功" 0 "$("$SCRIPT" baseline --src "$WORK/csrc/.claude" --dst "$WORK/cdst" --rsync "$FAKE" >/dev/null 2>&1; echo $?)"
 if [ -f "$WORK/cdst/a.txt" ] && [ -f "$WORK/cdst/sub/b.txt" ]; then ok "baseline 镜像了内容"; else bad "baseline 未镜像内容"; fi
-if grep -q -- '--exclude=sessions/' "$FAKE_RSYNC_LOG" && grep -q -- '--exclude=history.jsonl' "$FAKE_RSYNC_LOG"; then
-  ok "baseline 默认 excludes 含 sessions/ 与 history.jsonl"
+if grep -q -- '--exclude=sessions/' "$FAKE_RSYNC_LOG" && grep -q -- '--exclude=history.jsonl' "$FAKE_RSYNC_LOG" && grep -qF -- '--exclude=.claude.json' "$FAKE_RSYNC_LOG"; then
+  ok "baseline 默认 excludes 含 sessions/、history.jsonl 与 .claude.json"
 else
   bad "baseline 默认 excludes 缺失"
 fi

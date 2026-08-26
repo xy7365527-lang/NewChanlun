@@ -25,8 +25,10 @@ INCLUDE_HISTORY=0
 DRY_RUN=0
 
 # 默认 excludes：运行时 / 易重生 / 可能含凭据的路径，一律不复制。
+# `.claude.json` 只经 config-json 白名单迁移（凭据不过机），rsync 不复制也不删除。
 # 依据：官方 claude-directory 页目录表 + 明文存储告警（见 RUNBOOK.md §3/§6）。
 DEFAULT_EXCLUDES=(
+  .claude.json
   sessions/
   shell-snapshots/
   backups/
@@ -73,14 +75,18 @@ cmd_preflight() {
   case "$SRC" in
     "$DST"|"$DST"/*) err "SRC 不能位于 DST 之内（$SRC vs $DST）"; return 1 ;;
   esac
+  case "$DST" in
+    "$SRC"|"$SRC"/*) err "DST 不能位于 SRC 之内（$DST vs $SRC）"; return 1 ;;
+  esac
   if [ -n "$CONFIG_JSON" ] && [ ! -f "$CONFIG_JSON" ]; then
     err "config-json 文件不存在：$CONFIG_JSON"; return 1
   fi
   if [ "$DRY_RUN" -eq 0 ]; then
-    local src_kb dst_avail_kb dst_dir
+    local src_kb dst_avail_kb
     src_kb=$(du -sk "$SRC" | awk '{print $1}') || { log "du 源失败（继续，不阻断）"; src_kb=0; }
-    dst_dir="$DST"; mkdir -p "$dst_dir" || return 1
-    dst_avail_kb=$(df -Pk "$dst_dir" | awk 'NR==2 {print $4}')
+    # 空间预检只在 DST 本机可解析时生效：跨机迁移时 DST 是远端路径，df 解析不到即跳过（目标机校验兜底）。
+    # 不 mkdir -p DST——preflight 只读不落盘，避免跨机时在本机误建 /srv/... 或触发权限失败。
+    dst_avail_kb=$(df -Pk "$DST" 2>/dev/null | awk 'NR==2 {print $4}')
     if [ -n "${dst_avail_kb:-}" ] && [ "${src_kb:-0}" -gt 0 ] && [ "$dst_avail_kb" -lt "$src_kb" ]; then
       err "空间不足：源 $src_kb KiB > 目标可用 $dst_avail_kb KiB"; return 1
     fi
@@ -113,8 +119,14 @@ cmd_final_copy() { do_copy "最终增量复制（停写后）"; }
 # ── config-json：凭据白名单（源侧执行，fail-closed） ───────────────────────
 cmd_config_json() {
   [ -n "$CONFIG_JSON" ] || die "缺 --config-json <源 ~/.claude.json>"
-  local out="${OUT:-$DST/.claude.json}"
-  [ -n "$out" ] || die "缺 --out 或 --dst"
+  local out
+  if [ -n "$OUT" ]; then
+    out="$OUT"
+  elif [ -n "$DST" ]; then
+    out="$DST/.claude.json"
+  else
+    die "缺 --out 或 --dst"
+  fi
   if [ "$out" = "$CONFIG_JSON" ]; then
     die "输出不能覆盖输入（--out 与 --config-json 同路径）"
   fi
@@ -156,7 +168,7 @@ cmd_verify() {
   require_dst
   if [ "$DRY_RUN" -eq 1 ]; then log "（dry-run 跳过校验）"; return 0; fi
   local ok=1
-  if [ ! -d "$DST" ] || [ -z "$(find "$DST" -mindepth 1 -print 2>/dev/null | head -n1)" ]; then
+  if [ ! -d "$DST" ] || [ -z "$(ls -A "$DST" 2>/dev/null)" ]; then
     log "verify 失败：目标为空 $DST" >&2; ok=0
   fi
   if [ -e "$DST/sessions" ]; then
