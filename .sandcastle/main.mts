@@ -103,6 +103,69 @@ function logWorker(e: Record<string, unknown>) {
   );
 }
 
+// ── #1259：claim 成功后、implementer started 之前的任何失败必须自动回滚认领（防卡死） ──
+// WorktreeTimeoutError（sandcastle 内建 30s worktree 创建阈值，代理瞬断时高发）先重试一次
+// （间隔 ≥5s），仍失败才回滚；其他异常不吞错、不重试，直接回滚后原样上抛。回滚动作与
+// #1007 摘标/assign 对称：remove-assignee @me + add-label sandcastle。claim-loop 收尾处还有
+// 一道按 workers.jsonl 判定的兜底回滚（覆盖 main.mts 被杀/收不到自己异常的场景）。
+const WORKTREE_TIMEOUT_MAX_ATTEMPTS = 2;
+const WORKTREE_TIMEOUT_RETRY_DELAY_MS = 5000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * sandcastle 的 WorktreeTimeoutError 未从包公共 API 导出，且经 Effect.runPromise 抛出时被
+ * 包成 FiberFailure（name 形如 "(FiberFailure) WorktreeTimeoutError"、message 为原始超时文案），
+ * 故按 name / message 双重判读（不依赖 _tag——FiberFailure 不透传内层 _tag）。
+ */
+function isWorktreeTimeoutError(e: unknown): boolean {
+  if (typeof e !== "object" || e === null) return false;
+  const name = (e as { name?: unknown }).name;
+  const message = (e as { message?: unknown }).message;
+  return (
+    (typeof name === "string" && name.includes("WorktreeTimeoutError")) ||
+    (typeof message === "string" &&
+      (message.includes("Worktree creation timed out") || message.includes("Worktree prune timed out")))
+  );
+}
+
+/** 回滚认领（best-effort）：unassign @me + 恢复 sandcastle 标签 + workers.jsonl 追加 rolled_back。
+ *  回滚本身失败不吞原错（原异常照常上抛、exit 1），claim-loop 收尾兜底会按 workers.jsonl 再试。 */
+function rollbackClaim(issue: number, branch: string): void {
+  try {
+    execSync(`gh issue edit ${issue} --remove-assignee @me --add-label sandcastle`, { env: GH_CLEAN_ENV });
+    logWorker({ ticket: issue, branch, phase: "claim", status: "rolled_back" });
+    console.error(`[#1259] 票 #${issue} 认领已回滚：unassigned + sandcastle 标签恢复，下轮可重拾。`);
+  } catch (e) {
+    console.error(`[#1259] 票 #${issue} 认领回滚失败（人工兜底：解除认领 + 重新入队）：${String(e).slice(0, 300)}`);
+  }
+}
+
+/** createSandbox + WorktreeTimeoutError 一次重试（间隔 ≥5s）；其他异常直接上抛。 */
+async function createSandboxWithWorktreeRetry(opts: { branch: string; issue: number }): Promise<Sandbox> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await sandcastle.createSandbox({
+        branch: opts.branch,
+        baseBranch: "main", // 与检出分支解耦（#1003：并行会话共存）
+        sandbox: sandboxProvider(),
+      });
+    } catch (e) {
+      if (attempt < WORKTREE_TIMEOUT_MAX_ATTEMPTS && isWorktreeTimeoutError(e)) {
+        console.error(
+          `[#1259] createSandbox 抛 WorktreeTimeoutError（第 ${attempt}/${WORKTREE_TIMEOUT_MAX_ATTEMPTS} 次），` +
+            `${WORKTREE_TIMEOUT_RETRY_DELAY_MS}ms 后重试：${String(e).slice(0, 300)}`,
+        );
+        await sleep(WORKTREE_TIMEOUT_RETRY_DELAY_MS);
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 function pickIssue(): number | null {
   const out = execSync(
     `gh issue list --label sandcastle --state open --limit 20 --json number,assignees`,
@@ -216,11 +279,14 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
   logWorker({ ticket: issue, branch, phase: "claim", status: "claimed" });
   console.log(`\n=== Iteration ${iter}/${MAX_TICKETS_PER_RUN}: issue #${issue} → ${branch} ===\n`);
 
-  const sandbox = await sandcastle.createSandbox({
-    branch,
-    baseBranch: "main", // 与检出分支解耦（#1003：并行会话共存）
-    sandbox: sandboxProvider(),
-  });
+  // #1259：claim 成功后、implementer started 之前的失败都回滚认领（WorktreeTimeoutError 先重试一次）。
+  let sandbox: Sandbox;
+  try {
+    sandbox = await createSandboxWithWorktreeRetry({ branch, issue });
+  } catch (e) {
+    rollbackClaim(issue, branch);
+    throw e;
+  }
   try {
     // Phase 1：实装（#1066：多轮续跑同一会话 + idle 1800s 防长静默误杀）
     logWorker({ ticket: issue, branch, phase: "implementer", status: "started" });
