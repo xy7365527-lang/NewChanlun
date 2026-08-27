@@ -293,6 +293,192 @@ pub(super) fn unwind_to(
     }
 }
 
+/// #1263 探针通道（#[cfg(test)]，零生产码改动）：三处「现价破记录极值 ⟹ 否定」
+/// 事件 + 同 bar 结构态 dump。只产读数，不裁。启用 = env `P1263_DUMP_PATH` 非空。
+#[cfg(test)]
+mod p1263 {
+    use std::sync::Mutex;
+
+    static BUF: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    pub(super) fn enabled() -> bool {
+        std::env::var("P1263_DUMP_PATH")
+            .map(|s| !s.is_empty())
+            .unwrap_or(false)
+    }
+
+    pub(super) fn record(line: String) {
+        if enabled() {
+            BUF.lock().expect("p1263 buf lock").push(line);
+        }
+    }
+
+    pub(super) fn drain() -> Vec<String> {
+        std::mem::take(&mut *BUF.lock().expect("p1263 buf lock"))
+    }
+}
+
+/// #1263：同 bar 结构态快照（生产结构函数，不另造）——
+/// - 中枢三态：`CenterBook::{alive,is_dead,is_dead_down,is_frozen}`（center_book.rs）；
+/// - 反向突破：本 bar `evrows[k]` confirmed BSP 事件（磁带 bsp_events，信号层产出）；
+/// - 次级别走势完成：本 bar `flip_edge[k]` 方向翻转 + `up_move_settled`（磁带行）。
+#[cfg(test)]
+#[derive(Clone, Copy, Default)]
+struct P1263St {
+    center_alive: bool,
+    center_dead: bool,
+    center_dead_down: bool,
+    center_frozen: bool,
+    last_seg: Option<i64>,
+    bsp_confirmed_sell1: bool,
+    bsp_confirmed_sell3: bool,
+    bsp_confirmed_buy1: bool,
+    bsp_confirmed_buy3: bool,
+    bsp_confirmed_any: bool,
+    div_sell: bool,
+    div_buy: bool,
+    flip_dir: Option<Direction>,
+    dir_now: Option<Direction>,
+    up_settled: bool,
+}
+
+#[cfg(test)]
+impl P1263St {
+    /// #1263 结构判据「背驰段被打破」操作化规格（生产结构函数，不另造）：
+    /// - `Short`（卖/顶背驰，背驰段方向 Up）⟹ 向下打破 = confirmed Sell1/Sell3
+    ///   （反向突破 + 三卖坐实中枢三态终结）∨ 该层方向翻 Down（次级别走势完成）；
+    /// - `Long`（买/底背驰，背驰段方向 Down）⟹ 向上打破 = confirmed Buy1/Buy3
+    ///   （反向突破 + 三买坐实）∨ 该层方向翻 Up（次级别走势完成）。
+    fn struct_broke(&self, dir: &str) -> bool {
+        match dir {
+            "Short" => {
+                self.bsp_confirmed_sell1
+                    || self.bsp_confirmed_sell3
+                    || self.flip_dir == Some(Direction::Down)
+            }
+            "Long" => {
+                self.bsp_confirmed_buy1
+                    || self.bsp_confirmed_buy3
+                    || self.flip_dir == Some(Direction::Up)
+            }
+            _ => false,
+        }
+    }
+
+    /// #1267 结构判据「走势未完成」镜像（诊断对照臂，非本票主口径）：
+    /// 走势类型延续 ∨ 中枢未死 ∨ 三买卖未坐实。方向语义与
+    /// [`Self::struct_broke`] 相反——struct_broke 判「背驰段被打破」（反向突破），
+    /// 本方法判「背驰段未完成」（原方向延续）。对照臂读数由
+    /// `issue1263-classify.py` 内联同款镜像在事件级计算，本方法仅作 Rust
+    /// 侧规格锚点（报告 §7 引用的 #1267 镜像），故 `allow(dead_code)`。
+    #[allow(dead_code)]
+    fn move_unfinished(&self, dir: &str) -> bool {
+        match dir {
+            "Short" => {
+                self.dir_now == Some(Direction::Up) || self.center_alive || !self.center_dead_down
+            }
+            "Long" => {
+                self.dir_now == Some(Direction::Down) || self.center_alive || !self.center_frozen
+            }
+            _ => false,
+        }
+    }
+
+    fn as_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "center_alive": self.center_alive,
+            "center_dead": self.center_dead,
+            "center_dead_down": self.center_dead_down,
+            "center_frozen": self.center_frozen,
+            "last_seg": self.last_seg,
+            "bsp_confirmed_sell1": self.bsp_confirmed_sell1,
+            "bsp_confirmed_sell3": self.bsp_confirmed_sell3,
+            "bsp_confirmed_buy1": self.bsp_confirmed_buy1,
+            "bsp_confirmed_buy3": self.bsp_confirmed_buy3,
+            "bsp_confirmed_any": self.bsp_confirmed_any,
+            "div_sell": self.div_sell,
+            "div_buy": self.div_buy,
+            "flip_dir": self.flip_dir.map(|d| match d {
+                Direction::Up => "Up",
+                Direction::Down => "Down",
+            }),
+            "dir_now": self.dir_now.map(|d| match d {
+                Direction::Up => "Up",
+                Direction::Down => "Down",
+            }),
+            "up_settled": self.up_settled,
+        })
+    }
+}
+
+/// #1263：采集同 bar 结构态（生产结构函数，不另造）。
+#[cfg(test)]
+fn p1263_st(
+    k: usize,
+    book: &CenterBook,
+    evrows: &[Vec<BspEvent>; MAX_LADDER],
+    devrows: &[Vec<DivEvent>; MAX_LADDER],
+    flip_edge: &[Option<Direction>; MAX_LADDER],
+    dir_now: Option<Direction>,
+    up_settled: bool,
+) -> P1263St {
+    let last_seg = book.last(k).map(|lc| lc.seg_start);
+    let mut st = P1263St {
+        center_alive: book.alive(k).is_some(),
+        center_dead: last_seg.is_some_and(|s| book.is_dead(k, s)),
+        center_dead_down: last_seg.is_some_and(|s| book.is_dead_down(k, s)),
+        center_frozen: book.is_frozen(k),
+        last_seg,
+        flip_dir: flip_edge[k],
+        dir_now,
+        up_settled,
+        ..Default::default()
+    };
+    for e in &evrows[k] {
+        if e.confirmed {
+            st.bsp_confirmed_any = true;
+            match e.class {
+                BspClass::Sell1 => st.bsp_confirmed_sell1 = true,
+                BspClass::Sell3 => st.bsp_confirmed_sell3 = true,
+                BspClass::Buy1 => st.bsp_confirmed_buy1 = true,
+                BspClass::Buy3 => st.bsp_confirmed_buy3 = true,
+                BspClass::Sell2 | BspClass::Buy2 => {}
+            }
+        }
+    }
+    st.div_sell = devrows[k].iter().any(|d| d.side() == Side::Sell);
+    st.div_buy = devrows[k].iter().any(|d| d.side() == Side::Buy);
+    st
+}
+
+/// #1263：一条事件记录（价格破 ∨ 结构破 任一成立才落）。
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+fn p1263_record(
+    site: &'static str,
+    bar: i64,
+    ladder: usize,
+    dir: &'static str,
+    extreme: f64,
+    close: f64,
+    price_broke: bool,
+    st: &P1263St,
+) {
+    let line = serde_json::json!({
+        "site": site,
+        "bar": bar,
+        "ladder": ladder,
+        "dir": dir,
+        "extreme": extreme,
+        "close": close,
+        "price_broke": price_broke,
+        "struct_broke": st.struct_broke(dir),
+        "structural": st.as_json(),
+    })
+    .to_string();
+    p1263::record(line);
+}
+
 /// 主入口（`PolarityMode::NestedRecursive` 经 `run_positional` 分派至此）。
 ///
 /// `clearance` 选择 C 清仓判据（539号开放轴）：`V4` = θ 棘轮层合取（在册
@@ -397,11 +583,65 @@ pub(crate) fn run_nested_fugue(
         let mut nf_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         let mut nf_buy: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         for k in FIRST_BSP_LADDER..MAX_LADDER {
+            // (#1263 探针：漏杀面 = 窗口在场 ∧ 结构破 ∧ 价格未破——先于生产判定，零扰动)
+            #[cfg(test)]
+            if p1263::enabled() {
+                for (dir, wopt) in [("Short", nest_sell[k]), ("Long", nest_buy[k])] {
+                    if let Some(w) = wopt {
+                        let price_broke = match dir {
+                            "Short" => c > w.extreme,
+                            _ => c < w.extreme,
+                        };
+                        if !price_broke {
+                            let st = p1263_st(
+                                k,
+                                &book,
+                                evrows,
+                                devrows,
+                                &flip_edge,
+                                dir_state[k],
+                                sig.up_move_settled.get(k),
+                            );
+                            if st.struct_broke(dir) {
+                                p1263_record("window_clear", bar, k, dir, w.extreme, c, false, &st);
+                            }
+                        }
+                    }
+                }
+            }
             if nest_sell[k].is_some_and(|w| c > w.extreme) {
+                #[cfg(test)]
+                if p1263::enabled() {
+                    let ext = nest_sell[k].expect("已判 Some").extreme;
+                    let st = p1263_st(
+                        k,
+                        &book,
+                        evrows,
+                        devrows,
+                        &flip_edge,
+                        dir_state[k],
+                        sig.up_move_settled.get(k),
+                    );
+                    p1263_record("window_clear", bar, k, "Short", ext, c, true, &st);
+                }
                 nest_sell[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
             if nest_buy[k].is_some_and(|w| c < w.extreme) {
+                #[cfg(test)]
+                if p1263::enabled() {
+                    let ext = nest_buy[k].expect("已判 Some").extreme;
+                    let st = p1263_st(
+                        k,
+                        &book,
+                        evrows,
+                        devrows,
+                        &flip_edge,
+                        dir_state[k],
+                        sig.up_move_settled.get(k),
+                    );
+                    p1263_record("window_clear", bar, k, "Long", ext, c, true, &st);
+                }
                 nest_buy[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
@@ -462,7 +702,42 @@ pub(crate) fn run_nested_fugue(
             if let Some(ext) = nf_sell[k] {
                 located_sell[k] = Some(ext);
             }
+            // (#1263 探针：漏杀面 = located 在场 ∧ 结构破 ∧ 价格未破)
+            #[cfg(test)]
+            if p1263::enabled() {
+                if let Some(ext) = located_sell[k] {
+                    let price_broke = c > ext;
+                    if !price_broke {
+                        let st = p1263_st(
+                            k,
+                            &book,
+                            evrows,
+                            devrows,
+                            &flip_edge,
+                            dir_state[k],
+                            sig.up_move_settled.get(k),
+                        );
+                        if st.struct_broke("Short") {
+                            p1263_record("located_invalid", bar, k, "Short", ext, c, false, &st);
+                        }
+                    }
+                }
+            }
             if located_sell[k].is_some_and(|ext| c > ext) {
+                #[cfg(test)]
+                if p1263::enabled() {
+                    let ext = located_sell[k].expect("已判 Some");
+                    let st = p1263_st(
+                        k,
+                        &book,
+                        evrows,
+                        devrows,
+                        &flip_edge,
+                        dir_state[k],
+                        sig.up_move_settled.get(k),
+                    );
+                    p1263_record("located_invalid", bar, k, "Short", ext, c, true, &st);
+                }
                 located_sell[k] = None;
             }
         }
@@ -496,6 +771,36 @@ pub(crate) fn run_nested_fugue(
         }
 
         // ── B. 否定扫描（根→尾第一个破 027:25 极值线 ⇒ 该层及以深解栈）──
+        // (#1263 探针：漏杀面 = 链上 voice negate_line 在场 ∧ 结构破 ∧ 价格未破)
+        #[cfg(test)]
+        if p1263::enabled() {
+            for v in chain.iter() {
+                if let Some(line) = v.negate_line {
+                    let dir = match v.dir {
+                        Polarity::Short => "Short",
+                        Polarity::Long => "Long",
+                    };
+                    let price_broke = match v.dir {
+                        Polarity::Short => c > line,
+                        Polarity::Long => c < line,
+                    };
+                    if !price_broke {
+                        let st = p1263_st(
+                            v.ladder,
+                            &book,
+                            evrows,
+                            devrows,
+                            &flip_edge,
+                            dir_state[v.ladder],
+                            sig.up_move_settled.get(v.ladder),
+                        );
+                        if st.struct_broke(dir) {
+                            p1263_record("voice_unwind", bar, v.ladder, dir, line, c, false, &st);
+                        }
+                    }
+                }
+            }
+        }
         if !acted {
             let broke = chain.iter().position(|v| {
                 v.negate_line.is_some_and(|line| match v.dir {
@@ -505,6 +810,25 @@ pub(crate) fn run_nested_fugue(
             });
             if let Some(g) = broke {
                 let lad = chain[g].ladder;
+                #[cfg(test)]
+                if p1263::enabled() {
+                    let v = chain[g];
+                    let line = v.negate_line.expect("broke 蕴含 Some");
+                    let dir = match v.dir {
+                        Polarity::Short => "Short",
+                        Polarity::Long => "Long",
+                    };
+                    let st = p1263_st(
+                        lad,
+                        &book,
+                        evrows,
+                        devrows,
+                        &flip_edge,
+                        dir_state[lad],
+                        sig.up_move_settled.get(lad),
+                    );
+                    p1263_record("voice_unwind", bar, lad, dir, line, c, true, &st);
+                }
                 unwind_to(
                     g,
                     bar,
@@ -1364,5 +1688,61 @@ mod tests {
             .filter(|t| t.exit_reason == "recover")
             .collect();
         assert_eq!(rec_rows.len(), 2, "孙、子各一次走势完美回补");
+    }
+
+    /// #1263 探针驱动（#[test] #[ignore]，env 驱动）：nested_fugue 三处极值线否定
+    /// （窗口清窗 / 定位失效 / 声部解栈）× 同 bar「背驰段被打破」结构判据交叉。
+    ///
+    /// 数据 = BTC 2024 同窗（复用 #1147/#1223 链数据 `analysis/data_cache/btc_1m_full.json`，
+    /// 磁带走 nested_fugue 生产回放路径 `_dump_tape_rust.py` 产出的 `_tape_v2r_BTC.bin`）。
+    /// 窗口 2024-01-01 .. 2025-01-01（闭区间，528480 bar，磁带前 528480 bar）。
+    ///
+    /// 跑法：
+    /// `P1263_DUMP_PATH=/tmp/p1263_events.jsonl     ///   cargo test --release --lib nested_fugue_extreme_probe -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn nested_fugue_extreme_probe() {
+        use super::super::trade_behavior::load_tape;
+        use std::io::Write as _;
+
+        let Some(out_path) = std::env::var("P1263_DUMP_PATH")
+            .ok()
+            .filter(|s| !s.is_empty())
+        else {
+            eprintln!("[p1263] P1263_DUMP_PATH 未设 ⟹ no-op");
+            return;
+        };
+        // 窗口切片：磁带首 bar = 2024-01-01 00:00；前 528480 bar = 2024-01-01 .. 2025-01-01
+        // 闭区间（与 #1147/#1223 同窗）。事件已按 bar 入桶，truncate 自动裁剪；dir_flips
+        // 稀疏行按 bar 过滤。
+        const N: usize = 528_480;
+        let mut tape = load_tape("BTC");
+        assert!(
+            tape.bars.len() >= N,
+            "磁带短于窗口：{} < {N}",
+            tape.bars.len()
+        );
+        tape.bars.truncate(N);
+        if let Some(flips) = tape.dir_flips.as_mut() {
+            flips.retain(|(b, _, _)| (*b as usize) < N);
+        }
+
+        let res = run_nested_fugue(&tape, 2, ClearanceMode::V4).expect("nested_fugue V4 运行失败");
+
+        let file = std::fs::File::create(&out_path)
+            .unwrap_or_else(|e| panic!("dump 创建失败 {out_path}：{e}"));
+        let mut w = std::io::BufWriter::new(file);
+        for line in p1263::drain() {
+            let _ = writeln!(w, "{line}");
+        }
+        let _ = w.flush();
+        let n_breaks: u64 = res.n_nest_breaks_by_ladder.iter().sum();
+        let n_negate: u64 = res.n_nrf_negate_closes_by_ladder.iter().sum();
+        let n_root: u64 = res.n_nrf_root_entries_by_ladder.iter().sum();
+        let n_spawns: u64 = res.n_nrf_spawns_by_ladder.iter().sum();
+        eprintln!(
+            "[p1263] 落盘 {out_path}：窗口 bars={} n_breaks={n_breaks} n_negate={n_negate}              root_entries={n_root} spawns={n_spawns}",
+            tape.bars.len()
+        );
     }
 }
