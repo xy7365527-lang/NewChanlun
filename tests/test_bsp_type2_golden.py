@@ -3,7 +3,9 @@
 核心逻辑 [旧缠论] 第17课、第21课：
     - 2B = 1B 之后，第一个反弹段(up) 之后的第一个回调段(down) 的结束点
     - 2S = 1S 之后，第一个回调段(down) 之后的第一个反弹段(up) 的结束点
-    - confirmed 来自覆盖该段的 Move.settled（maimai #2 语义）
+    - #816 B-2②：结构成立即 confirmed（candidate=confirmed 同步，不以「不创新低/新高」为
+      必要条件）；是否破一类极值由 retrace_breaks_type1 重合标注承载（语义归 #817）；
+      settled 来自覆盖该段的 Move.settled
 
 Type 2 依赖 Type 1 先被检出。Type 1 触发条件：
     - 至少 2 个 Zhongshu
@@ -325,7 +327,7 @@ class TestType2Detection:
     # ── 5. test_type2_confirmed_from_move_settled ───────────
 
     def test_type2_confirmed_from_move_settled(self):
-        """回调段被一个 settled=True 的 Move 覆盖 → confirmed=True。
+        """回调段被一个 settled=True 的 Move 覆盖 → confirmed=True，settled=True。
 
         结构同标准 2B，但额外增加一个覆盖回调段(seg[2])的 settled Move。
         """
@@ -383,12 +385,13 @@ class TestType2Detection:
         type2_bsps = [b for b in bsps if b.kind == "type2"]
         assert len(type2_bsps) == 1, f"应产生 1 个 Type 2 Buy，实际: {type2_bsps}"
         assert type2_bsps[0].confirmed is True
+        assert type2_bsps[0].retrace_breaks_type1 is False  # 48 > 45，未破一类低点
 
     # ── 6. test_type2_no_move_covers_callback ───────────────
 
     def test_type2_no_move_covers_callback(self):
-        """confirmed-fix：回调段无 Move 覆盖 → settled=False，但 confirmed 仍由
-        "不创新低"决定（callback low=48 ≥ 1B low=45 → confirmed=True）。
+        """#816 B-2②：回调段无 Move 覆盖 → settled=False；confirmed 不再由"不创新低"
+        决定（callback low=48 > 1B low=45 → retrace_breaks_type1=False）。
 
         结构同标准 2B，但 trend Move 仅覆盖到 seg_end=0（不覆盖回调段 seg[2]）。
         """
@@ -429,5 +432,6 @@ class TestType2Detection:
 
         type2_bsps = [b for b in bsps if b.kind == "type2"]
         assert len(type2_bsps) == 1, f"应产生 1 个 Type 2 Buy，实际: {type2_bsps}"
-        assert type2_bsps[0].confirmed is True   # 不创新低
+        assert type2_bsps[0].confirmed is True   # 结构成立即确认（#816 B-2②）
         assert type2_bsps[0].settled is False    # 无 Move 覆盖回调段
+        assert type2_bsps[0].retrace_breaks_type1 is False  # 48 > 45，未破一类低点

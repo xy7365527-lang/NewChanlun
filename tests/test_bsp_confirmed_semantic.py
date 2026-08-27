@@ -10,7 +10,9 @@
 
 - Type1（第17/24课）：candidate = 背驰存在（面积开始缩小）；
   confirmed = 面积比 force_c/force_a ≤ TYPE1_CONFIRM_RATIO（面积比低于阈值）。
-- Type2（第17/21课）：candidate = confirmed = 次级别回调/反弹不创新极值（同步）。
+- Type2（第17/21课）：candidate = confirmed（同步）。结构条件 = 一类点后首个次级别回调/反弹段；
+  #816 B-2②：判据不得以「回拉不创新低/新高」为必要条件（跌破一类仍构成第二类结构），
+  是否破一类极值由 retrace_breaks_type1 重合标注承载（语义归 #817），不作准入分档。
 - Type3（第20课）：candidate = 中枢突破后回试不破边界；
   confirmed = 回试段之后出现 break_direction 方向的延续段（回试结束、走势延续）。
 - 三者 settled 一律 = 覆盖段的 Move.settled（无 Move 覆盖时降级 False）。
@@ -127,7 +129,8 @@ def _make_zhongshu(
 
 
 class TestType2ConfirmedSemantic:
-    """Type 2: confirmed = 回调/反弹不创新极值；settled = Move.settled。"""
+    """Type 2: #816 B-2② 结构成立即 confirmed（candidate=confirmed 同步）；破一类极值由
+    retrace_breaks_type1 重合标注承载（不作准入分档）；settled = Move.settled。"""
 
     def _build_type2_buy_scenario(
         self, move_settled: bool, callback_low: float,
@@ -139,8 +142,8 @@ class TestType2ConfirmedSemantic:
         - seg[1]: 上涨段（反弹）
         - seg[2]: 下跌段（回调 = 2B 所在段），callback_low 控制是否创新低
 
-        callback_low > 45 → 不创新低 → 2B confirmed=True；否则 confirmed=False。
-        move_settled 控制 settled（与 confirmed 解耦）。
+        callback_low 决定 retrace_breaks_type1 标注（>45 未破 → False；≤45 破 → True）；
+        #816 B-2② 后 confirmed 恒 True（结构成立即确认）。move_settled 控制 settled。
         """
         segments = [
             _Seg(direction="down", high=60.0, low=45.0, i0=0, i1=5),
@@ -166,16 +169,17 @@ class TestType2ConfirmedSemantic:
         return segments, zhongshus, moves, divergences
 
     def test_type2_buy_confirmed_decoupled_from_settled(self):
-        """回调不创新低 → confirmed=True，即使走势未完成（move.settled=False）。"""
+        """回调未破一类低点 → confirmed=True（结构成立即确认），即使走势未完成。"""
         segments, zhongshus, moves, divergences = self._build_type2_buy_scenario(
-            move_settled=False, callback_low=52.0,  # 52 > 45 → 不创新低
+            move_settled=False, callback_low=52.0,  # 52 > 45 → 未破一类低点
         )
         bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, 1)
         type2 = [b for b in bsps if b.kind == "type2"]
         assert len(type2) == 1
-        # 核心：confirmed 来自买卖点自身条件（不创新低），与 Move.settled 解耦
+        # 核心：confirmed 不再以「不创新低」为必要条件，与 Move.settled 解耦
         assert type2[0].confirmed is True
         assert type2[0].settled is False  # 走势未完成
+        assert type2[0].retrace_breaks_type1 is False  # 未破一类低点
 
     def test_type2_buy_settled_tracks_move(self):
         """走势完成 → settled=True；confirmed 同样 True。"""
@@ -187,22 +191,25 @@ class TestType2ConfirmedSemantic:
         assert len(type2) == 1
         assert type2[0].confirmed is True
         assert type2[0].settled is True
+        assert type2[0].retrace_breaks_type1 is False  # 未破一类低点
 
-    def test_type2_buy_unconfirmed_when_new_low(self):
-        """回调创新低（low < 1B low）→ confirmed=False（候选但未确认）。"""
+    def test_type2_buy_breaks_type1_annotated_and_admitted(self):
+        """回调创新低（low < 1B low）→ 仍准入（confirmed=True），仅重合标注
+        retrace_breaks_type1=True（语义归 #817，不作准入分档）。"""
         segments, zhongshus, moves, divergences = self._build_type2_buy_scenario(
-            move_settled=True, callback_low=40.0,  # 40 < 45 → 创新低
+            move_settled=True, callback_low=40.0,  # 40 < 45 → 创新低（跌破一类）
         )
         bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, 1)
         type2 = [b for b in bsps if b.kind == "type2"]
         assert len(type2) == 1
-        # 创新低 → 不满足"不创新低"确认条件
-        assert type2[0].confirmed is False
+        # #816 B-2②：跌破一类仍构成第二类结构（准入不设「不创新低」闸）
+        assert type2[0].confirmed is True
+        assert type2[0].retrace_breaks_type1 is True
         # settled 仍跟随 Move（走势完成验证独立于 confirmed）
         assert type2[0].settled is True
 
     def test_type2_sell_confirmed_decoupled_from_settled(self):
-        """2S：反弹不创新高 → confirmed=True，settled 跟随 Move（此处未完成）。"""
+        """2S：反弹未创新高 → confirmed=True（结构成立即确认），settled 跟随 Move。"""
         segments = [
             _Seg(direction="up", high=80.0, low=60.0, i0=0, i1=5),
             _Seg(direction="down", high=75.0, low=55.0, i0=5, i1=10),
@@ -226,8 +233,40 @@ class TestType2ConfirmedSemantic:
         bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, 1)
         type2 = [b for b in bsps if b.kind == "type2"]
         assert len(type2) == 1
-        assert type2[0].confirmed is True   # 78 <= 80，不创新高
+        assert type2[0].confirmed is True   # 结构成立即确认（#816 B-2②）
         assert type2[0].settled is False    # 走势未完成
+        assert type2[0].retrace_breaks_type1 is False  # 78 < 80，未升破一类高点
+
+    def test_type2_sell_breaks_type1_annotated_and_admitted(self):
+        """2S：反弹升破一类高点（high > 1S high）→ 仍准入（confirmed=True），仅重合标注
+        retrace_breaks_type1=True（语义归 #817，不作准入分档）。"""
+        segments = [
+            _Seg(direction="up", high=80.0, low=60.0, i0=0, i1=5),
+            _Seg(direction="down", high=75.0, low=55.0, i0=5, i1=10),
+            _Seg(direction="up", high=85.0, low=58.0, i0=10, i1=15),  # high 85 > 1S high 80
+        ]
+        zhongshus = [
+            _make_zhongshu(seg_start=0, seg_end=2, zd=60.0, zg=70.0),
+            _make_zhongshu(seg_start=2, seg_end=4, zd=62.0, zg=72.0),
+        ]
+        moves = [
+            _make_trend_move(
+                direction="up", seg_start=0, seg_end=2,
+                zs_start=0, zs_end=1, settled=True,
+            ),
+        ]
+        divergences = [
+            _make_divergence(
+                direction="top", center_idx=1, seg_c_start=0, seg_c_end=0,
+            ),
+        ]
+        bsps = buysellpoints_from_level(segments, zhongshus, moves, divergences, 1)
+        type2 = [b for b in bsps if b.kind == "type2"]
+        assert len(type2) == 1
+        # #816 B-2②：升破一类仍构成第二类结构（准入不设「不创新高」闸）
+        assert type2[0].confirmed is True
+        assert type2[0].retrace_breaks_type1 is True  # 85 > 80，升破一类高点
+        assert type2[0].settled is True
 
 
 # ═══════════════════════════════════════════════════════════

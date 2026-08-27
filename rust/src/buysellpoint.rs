@@ -92,6 +92,10 @@ pub struct BuySellPoint {
     pub confirmed: bool,
     pub settled: bool,
     pub overlaps_with: Overlap,
+    /// ★#816 B-2② 重合身份标注（`101-第101课.md:32`【正文】「跌破一买……这是完全可以的，
+    /// 这里一般都构成盘整背驰」）：回拉是否跌破（买）/升破（卖）一类极值。仅二类点有值
+    /// （Some(true)=跌破/升破一类，Some(false)=未破），一/三类 None。**不作准入分档**，语义归 #817。
+    pub retrace_breaks_type1: Option<bool>,
 }
 
 /// 区间表 O(1) move 查询。替代 Python `_find_move_for_seg` 的线性扫描。
@@ -244,6 +248,7 @@ fn detect_type1(
             confirmed,
             settled: assoc.settled,
             overlaps_with: Overlap::None,
+            retrace_breaks_type1: None, // #816 B-2② 重合标注仅二类点有（一/三类 None）
         });
     }
     result
@@ -264,17 +269,19 @@ fn make_type2_point(
     let assoc = lookup.find(seg_idx);
     let price = if side == Side::Buy { seg.low } else { seg.high };
     // require_settled: 合取回试段（次级别回试走势）已 settle（回试走势完成，非生长中）。
-    // ★#816 B-2②（2026-08-04 教义裁定；本引擎处置路由归 maimai.md 受影响代码清单 T-6 =
-    // 673-fix/task #33，未落地前不在此改判据）：判据不得以「回拉不创新低/新高」为必要条件
-    // （`101:32`【正文】跌破一买「这是完全可以的」）。theta_v0 侧硬闸已由 #884 拆；
-    // 本旧引擎（逐位等价移植自 a_buysellpoint_v1.py）的 `geom` 合取仍保留旧口径，与 Python
-    // 侧同拍（T-6 落地时两侧一并改）。
+    // ★#816 B-2②（2026-08-04 教义裁定；T-6 已落地，本旧引擎与 Python 侧一并改）：判据不得以
+    // 「回拉不创新低/新高」为必要条件（`101:32`【正文】跌破一买「这是完全可以的」）——
+    // 跌破一类仍构成第二类结构。theta_v0 侧硬闸已由 #884 拆；本旧引擎（逐位等价移植自
+    // a_buysellpoint_v1.py）的 geom 合取**不再进 confirmed**，仅作重合标注取值。
     let geom = if side == Side::Buy {
-        price >= t1.price // 回调不创新低（#816 B-2②：不得为必要条件；本处留待 T-6/673-fix）
+        price >= t1.price // 回调不创新低（#816 B-2②：不得为必要条件，仅作标注取值）
     } else {
         price <= t1.price // 反弹不创新高（#816 B-2②：同上）
     };
-    let confirmed = geom && (!require_settled || seg.settled);
+    // #816 B-2② 重合标注（不作准入分档）：`!geom` = 回拉破一类极值（「一般都构成盘整背驰」，
+    // 语义归 #817）。
+    let retrace_breaks_type1 = Some(!geom);
+    let confirmed = !require_settled || seg.settled;
     BuySellPoint {
         kind: BspKind::Type2,
         side,
@@ -290,6 +297,7 @@ fn make_type2_point(
         confirmed,
         settled: assoc.map(|mi| moves[mi].settled).unwrap_or(false),
         overlaps_with: Overlap::None,
+        retrace_breaks_type1,
     }
 }
 
@@ -385,6 +393,7 @@ fn make_type3_point(
         confirmed,
         settled: assoc.map(|mi| moves[mi].settled).unwrap_or(false),
         overlaps_with: Overlap::None,
+        retrace_breaks_type1: None, // #816 B-2② 重合标注仅二类点有（一/三类 None）
     }
 }
 
@@ -812,6 +821,7 @@ pub(crate) fn build_type1_bsp(
         confirmed,
         settled: assoc.settled,
         overlaps_with: Overlap::None,
+        retrace_breaks_type1: None, // #816 B-2② 重合标注仅二类点有（一/三类 None）
     })
 }
 
@@ -838,12 +848,16 @@ pub(crate) fn build_type2_bsp(
     };
     let seg = &segs[callback as usize];
     let price = if side == Side::Buy { seg.low } else { seg.high };
+    // ★#816 B-2②（T-6 已落地）：geom（回拉不创新低/新高）**不再是 confirmed 必要条件**
+    // （`101:32`【正文】跌破一买「这是完全可以的」），仅作重合标注取值（`!geom` = 破一类
+    // 极值，「一般都构成盘整背驰」，语义归 #817，不作准入分档）。
     let geom = if side == Side::Buy {
         price >= t1.price
     } else {
         price <= t1.price
     };
-    let confirmed = geom && (!require_settled || seg.settled);
+    let retrace_breaks_type1 = Some(!geom);
+    let confirmed = !require_settled || seg.settled;
     let assoc = lookup_find(callback);
     Some(BuySellPoint {
         kind: BspKind::Type2,
@@ -860,6 +874,7 @@ pub(crate) fn build_type2_bsp(
         confirmed,
         settled: assoc.map(|mi| moves[mi].settled).unwrap_or(false),
         overlaps_with: Overlap::None,
+        retrace_breaks_type1,
     })
 }
 
@@ -919,6 +934,7 @@ pub(crate) fn build_type3_bsp(
         confirmed,
         settled: assoc.map(|mi| moves[mi].settled).unwrap_or(false),
         overlaps_with: Overlap::None,
+        retrace_breaks_type1: None, // #816 B-2② 重合标注仅二类点有（一/三类 None）
     })
 }
 
@@ -1354,5 +1370,130 @@ mod require_settled_tests {
         segs[4].settled = true;
         let gated2 = build_type3_bsp(&z, BreakDir::Up, 3, &segs, &[], 1, lk, true).unwrap();
         assert!(gated2.confirmed, "回抽段 settle 后 require_settled 应放行");
+    }
+
+    /// type2：geom（回拉不创新低）不再是 confirmed 必要条件（#816 B-2②）——跌破一类仍构成
+    /// 第二类结构（`101:32`【正文】「这是完全可以的」）；破一类极值由 `retrace_breaks_type1`
+    /// 重合标注承载（Some(true)，语义归 #817，不作准入分档）。require_settled 门仍按回试段
+    /// settle 翻转 confirmed（与 geom 无关）。
+    #[test]
+    fn type2_breaks_type1_annotated_and_settle_gate() {
+        let t1 = BuySellPoint {
+            kind: BspKind::Type1,
+            side: Side::Buy,
+            level_id: 1,
+            seg_idx: 0,
+            move_seg_start: 0,
+            divergence_key: Some((0, 0, 0)),
+            center_zd: 0.0,
+            center_zg: 0.0,
+            center_seg_start: Some(0),
+            price: 40.0, // 一类买点极值低点
+            bar_idx: 0,
+            confirmed: true,
+            settled: true,
+            overlaps_with: Overlap::None,
+            retrace_breaks_type1: None,
+        };
+        // 0: 一类买点段（seg_idx=0）；1: 反弹；2: 回调段 low=38 < 40 → 跌破一类。
+        let segs = vec![
+            seg(Direction::Down, 60.0, 40.0, true),
+            seg(Direction::Up, 65.0, 50.0, true),
+            seg(Direction::Down, 55.0, 38.0, false), // 回调段：跌破一类且未 settle
+        ];
+        let lk = |_s: i64| None;
+        // 基线（require_settled=false）：confirmed=true（不设 geom 闸），标注 Some(true)。
+        let base = build_type2_bsp(&t1, &segs, &[], 1, lk, false).unwrap();
+        assert!(base.confirmed, "基线应 confirmed=true（结构成立即确认）");
+        assert_eq!(
+            base.retrace_breaks_type1,
+            Some(true),
+            "跌破一类 → 重合标注 Some(true)"
+        );
+        // require_settled=true：回试段未 settle → confirmed=false（走势完成门）。
+        let gated = build_type2_bsp(&t1, &segs, &[], 1, lk, true).unwrap();
+        assert!(
+            !gated.confirmed,
+            "回试段未 settle ⟹ require_settled 应 confirmed=false"
+        );
+        assert_eq!(
+            gated.retrace_breaks_type1,
+            Some(true),
+            "重合标注不受 settle 门影响"
+        );
+    }
+
+    /// type2 卖侧：反弹升破一类高点 → 重合标注 Some(true)（#816 B-2② 卖侧镜像，不作准入
+    /// 分档，语义归 #817）；require_settled=false 下 confirmed 恒 true（结构成立即确认）。
+    #[test]
+    fn type2_sell_breaks_type1_annotated() {
+        let t1 = BuySellPoint {
+            kind: BspKind::Type1,
+            side: Side::Sell,
+            level_id: 1,
+            seg_idx: 0,
+            move_seg_start: 0,
+            divergence_key: Some((0, 0, 0)),
+            center_zd: 0.0,
+            center_zg: 0.0,
+            center_seg_start: Some(0),
+            price: 40.0, // 一类卖点极值高点
+            bar_idx: 0,
+            confirmed: true,
+            settled: true,
+            overlaps_with: Overlap::None,
+            retrace_breaks_type1: None,
+        };
+        // 0: 一类卖点段（seg_idx=0）；1: 回调；2: 反弹段 high=55 > 40 → 升破一类。
+        let segs = vec![
+            seg(Direction::Up, 60.0, 30.0, true),
+            seg(Direction::Down, 50.0, 35.0, true),
+            seg(Direction::Up, 55.0, 42.0, true),
+        ];
+        let lk = |_s: i64| None;
+        let base = build_type2_bsp(&t1, &segs, &[], 1, lk, false).unwrap();
+        assert!(base.confirmed, "结构成立即确认（#816 B-2②）");
+        assert_eq!(
+            base.retrace_breaks_type1,
+            Some(true),
+            "升破一类 → 重合标注 Some(true)"
+        );
+    }
+
+    /// type2 买侧未破一类低点 → 重合标注 Some(false)（几何谓词取反：未破=不创新低，语义归
+    /// #817，不作准入分档）。
+    #[test]
+    fn type2_buy_no_break_annotated_false() {
+        let t1 = BuySellPoint {
+            kind: BspKind::Type1,
+            side: Side::Buy,
+            level_id: 1,
+            seg_idx: 0,
+            move_seg_start: 0,
+            divergence_key: Some((0, 0, 0)),
+            center_zd: 0.0,
+            center_zg: 0.0,
+            center_seg_start: Some(0),
+            price: 40.0, // 一类买点极值低点
+            bar_idx: 0,
+            confirmed: true,
+            settled: true,
+            overlaps_with: Overlap::None,
+            retrace_breaks_type1: None,
+        };
+        // 0: 一类买点段（seg_idx=0）；1: 反弹；2: 回调段 low=42 >= 40 → 未破一类。
+        let segs = vec![
+            seg(Direction::Down, 60.0, 40.0, true),
+            seg(Direction::Up, 65.0, 50.0, true),
+            seg(Direction::Down, 55.0, 42.0, true),
+        ];
+        let lk = |_s: i64| None;
+        let base = build_type2_bsp(&t1, &segs, &[], 1, lk, false).unwrap();
+        assert!(base.confirmed, "结构成立即确认（#816 B-2②）");
+        assert_eq!(
+            base.retrace_breaks_type1,
+            Some(false),
+            "未破一类 → 重合标注 Some(false)"
+        );
     }
 }

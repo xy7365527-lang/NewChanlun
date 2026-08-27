@@ -657,16 +657,17 @@ fn divergences_from_moves_v1(
         .collect()
 }
 
-/// 买卖点输出元组（嵌套，14 字段规避 PyO3 ≤12 限制）：
+/// 买卖点输出元组（嵌套，15 字段规避 PyO3 ≤12 限制）：
 ///   ((kind, side, level_id, seg_idx, move_seg_start, confirmed, settled),
 ///    (center_zd, center_zg, price, bar_idx),
-///    divergence_key, center_seg_start, overlaps_with)
+///    divergence_key, center_seg_start, overlaps_with, retrace_breaks_type1)
 type BspTuple = (
     (&'static str, &'static str, i64, i64, i64, bool, bool),
     (f64, f64, f64, i64),
     Option<(usize, usize, usize)>,
     Option<usize>,
     Option<&'static str>,
+    Option<bool>,
 );
 
 fn bsp_to_tuple(b: &buysellpoint::BuySellPoint) -> BspTuple {
@@ -684,6 +685,7 @@ fn bsp_to_tuple(b: &buysellpoint::BuySellPoint) -> BspTuple {
         b.divergence_key,
         b.center_seg_start,
         b.overlaps_with.as_str(),
+        b.retrace_breaks_type1,
     )
 }
 

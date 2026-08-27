@@ -513,15 +513,16 @@ class TestTBD2ConfirmedPropagation:
 
 
 class TestTBD3Type2ConfirmedIndependence:
-    """confirmed-fix：Type2 的 confirmed 由"次级别回调不创新极值"决定。
+    """#816 B-2②：Type2 结构成立即 confirmed（candidate=confirmed 同步），不以
+    "次级别回调不创新极值"为必要条件——跌破一类仍构成第二类结构。
 
-    修订决策：type2.confirmed = (回调 low ≥ 1B low)（不创新低），
+    是否破一类极值由 retrace_breaks_type1 重合标注承载（语义归 #817，不作准入分档），
     与 callback_seg.confirmed（段结构确认）及 Type1 均无关。
     1B 在 seg10，price = seg10.low = 40。
     """
 
-    def test_type2_confirmed_by_not_new_low_independent_of_seg(self):
-        """回调不创新低（48 ≥ 40）→ Type2.confirmed=True，与 callback_seg.confirmed 无关。"""
+    def test_type2_confirmed_independent_of_seg_and_geom(self):
+        """回调不创新低（48 ≥ 40）→ confirmed=True，与 callback_seg.confirmed 无关。"""
         segs, zss, mvs, divs = _make_downtrend_with_divergence()
 
         div_confirmed = Divergence(
@@ -543,11 +544,13 @@ class TestTBD3Type2ConfirmedIndependence:
         assert len(t1_buys) == 1
         assert t1_buys[0].confirmed is True
         assert len(t2_buys) == 1
-        # confirmed 由"不创新低"决定，与 callback_seg.confirmed(=False) 无关
+        # confirmed 不再以「不创新低」为必要条件，与 callback_seg.confirmed(=False) 无关
         assert t2_buys[0].confirmed is True
+        assert t2_buys[0].retrace_breaks_type1 is False  # 未破一类低点
 
-    def test_type2_unconfirmed_when_new_low(self):
-        """回调创新低（38 < 40）→ Type2.confirmed=False（候选但未确认）。"""
+    def test_type2_breaks_type1_annotated_and_admitted(self):
+        """回调创新低（38 < 40）→ 仍准入（confirmed=True），仅重合标注
+        retrace_breaks_type1=True（语义归 #817，不作准入分档）。"""
         segs, zss, mvs, divs = _make_downtrend_with_divergence()
 
         div_confirmed = Divergence(
@@ -556,7 +559,7 @@ class TestTBD3Type2ConfirmedIndependence:
             center_idx=1, force_a=500.0, force_c=50.0, confirmed=True,
         )
 
-        # 回调段 low=38 < 1B low=40 → 创新低
+        # 回调段 low=38 < 1B low=40 → 创新低（跌破一类）
         segs_ext = list(segs) + [
             _seg(11, 11, 110, 130, "up", 60, 46, confirmed=True),
             _seg(12, 12, 130, 140, "down", 55, 38, confirmed=True),
@@ -565,7 +568,9 @@ class TestTBD3Type2ConfirmedIndependence:
         bsps = buysellpoints_from_level(segs_ext, zss, mvs, [div_confirmed], level_id=1)
         t2_buys = [bp for bp in bsps if bp.kind == "type2" and bp.side == "buy"]
         assert len(t2_buys) == 1
-        assert t2_buys[0].confirmed is False
+        # #816 B-2②：跌破一类仍构成第二类结构（准入不设「不创新低」闸）
+        assert t2_buys[0].confirmed is True
+        assert t2_buys[0].retrace_breaks_type1 is True
 
 
 class TestTBD1StrictCriterion:

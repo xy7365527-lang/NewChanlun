@@ -40,8 +40,10 @@ candidate-fix（candidate/confirmed 时间分离，本次翻转）
   - candidate = 背驰存在（force_c < force_a，面积开始缩小，由 Divergence 构造保证）。
   - confirmed = 面积比 force_c/force_a ≤ ``TYPE1_CONFIRM_RATIO``（面积比低于阈值，力竭确认）。
     [新缠论:选择] 阈值默认 0.9，可调；面积比靠近 1 的弱背驰只作候选，不确认。
-- **Type2（第17/21课）回调/反弹不创新极值**：candidate = confirmed（同步）。
-  买:回试 low ≥ 1B low；卖:回抽 high ≤ 1S high。不创新极值时候选即确认（无右侧滞后）。
+- **Type2（第17/21课）回调/反弹**：candidate = confirmed（同步）。结构条件 = 一类点后
+  首个次级别回调/反弹段（#816 B-2① 构成形）。#816 B-2②：判据**不得**以「回拉不创新低/
+  新高」为必要条件（`101:32`【正文】跌破一买「这是完全可以的」）——是否破一类极值由
+  ``retrace_breaks_type1`` 重合标注承载（语义归 #817），**不作准入分档**。
 - **Type3（第20课）中枢突破回试**：
   - candidate = 中枢突破后回试段存在且当前不破边界（回试 low>ZG / 回抽 high<ZD）。
   - confirmed = 回试段之后出现 break_direction 方向的延续段（回试结束、走势延续 →
@@ -120,6 +122,11 @@ class BuySellPoint:
 
     # 可选：2B+3B 重合标记
     overlaps_with: Literal["type2", "type3"] | None = None
+
+    # ★#816 B-2② 重合身份标注（`101-第101课.md:32`【正文】「跌破一买……这是完全可以的，
+    # 这里一般都构成盘整背驰」）：回拉是否跌破（买）/升破（卖）一类极值。仅二类点有值
+    # （True=跌破/升破一类，False=未破），一/三类 None。**不作准入分档**，语义归 #817。
+    retrace_breaks_type1: bool | None = None
 
 
 # ── Type 1: 趋势背驰买卖点 ──
@@ -220,18 +227,18 @@ def _make_type2_point(
 ) -> BuySellPoint:
     """构造 Type2 买卖点。
 
-    confirmed-fix（第17/21课）：第二类买卖点确认条件 = 次级别回调/反弹不创新极值。
-    - 2B：回调段 low ≥ 一类买点 low（不跌破前低）→ confirmed
-    - 2S：反弹段 high ≤ 一类卖点 high（不升破前高）→ confirmed
+    ★#816 B-2②（`101-第101课.md:32`【正文】「第二类买点跌破第一类买点……这是完全可以的」）：
+    判据**不得**以「回拉不创新低/新高」为必要条件——跌破一类仍构成第二类结构，准入不设
+    「不创新低」闸（theta_v0 侧硬闸已由 #884 拆）。回拉是否破一类极值由
+    ``retrace_breaks_type1`` 重合标注承载（「一般都构成盘整背驰」的重合身份，语义归 #817），
+    **不作准入分档**。
     t1.price 即一类买卖点的极值价（买点=背驰低点，卖点=背驰高点）。
     settled = 覆盖该回调/反弹段的 Move.settled（走势完成验证，事后）。
     """
     assoc_move = _find_move_for_seg(moves, seg_idx)
     price = seg.low if side == "buy" else seg.high
-    if side == "buy":
-        confirmed = price >= t1.price  # 回调不创新低
-    else:
-        confirmed = price <= t1.price  # 反弹不创新高
+    # #816 B-2② 重合标注（不作准入分档）：买侧回拉跌破一类低点 / 卖侧反弹升破一类高点。
+    retrace_breaks_type1 = price < t1.price if side == "buy" else price > t1.price
     return BuySellPoint(
         kind="type2",
         side=side,
@@ -244,8 +251,9 @@ def _make_type2_point(
         center_seg_start=t1.center_seg_start,
         price=price,
         bar_idx=seg.i1,
-        confirmed=confirmed,
+        confirmed=True,  # #816 B-2②：结构成立即确认（candidate=confirmed 同步），不设 geom 闸
         settled=assoc_move.settled if assoc_move else False,
+        retrace_breaks_type1=retrace_breaks_type1,
     )
 
 
