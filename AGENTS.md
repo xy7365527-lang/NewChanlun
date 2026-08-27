@@ -91,7 +91,7 @@
 
 **为什么不一刀砍掉**：实测现役只有 1 条缝，且它有 Lean 侧背书（上级发展态本就用外缘判据）；砍它要动数据类型、成本从未估过，且可能与形式化那边打架。**数量上封顶、时间上写死到期**，是比「全放」和「全收」都稳的中间态。
 
-**明写代价**：中枢那两套算法因此还要并存一段时间，等第二批的中枢概念票来收。
+**明写代价**：~~中枢那两套算法因此还要并存一段时间，等第二批的中枢概念票来收。~~（已由 [#812](https://github.com/xy7365527-lang/NewChanlun/issues/812) Z-3 结清：E1 伪分歧撤销，并存不违规，见上方在案实例段的撤销记录。）
 
 #### ③ 举证书的载体：随概念走，不另建台账
 
@@ -104,7 +104,7 @@
 
 同一座塔的中枢构造有两份实现，**签名逐字相同**（`(&UnitRange,&UnitRange,&UnitRange) -> Option<Center>`）：`center_from_segments`（`rust/src/theta_v0/classifier/center.rs:210`，含 `dir_alternates` 方向交替）与 `center_from_window`（同文件 `:252`，**无方向交替**，其余同族）；`recursive_tower.rs:304` 的 `compose_level`（另 `:859` `compose_level_resume` 同款） 以 `let build = if is_l0 {..} else {..}` 分派——**踩在 #799 判别式「接在同一个 if-else 上」的正面**。
 
-其现有举证书在 `center.rs:235` 起的文档注释里（「★诚实有效域」：上级单元是中枢外缘区间、无内在缠论方向，援引 `Origin.CenterStates.classifyDevelopment` 外缘判据背书）。按本节 ②③：**理由本身够格，但缺退场条件、且载体在注释而非定义文件 ⟹ 现状不合规**，须由第二批的中枢概念票补齐后方为合规例外。**收敛到哪一套（方向交替该不该要）属中枢概念票，本节不裁。**
+**⟹ 已撤销（[#812](https://github.com/xy7365527-lang/NewChanlun/issues/812) Z-3，2026-08）：** 本例判为**伪分歧**——`dir_alternates` 在 L0 生产输入上恒真，`center_from_segments` 与 `center_from_window` 可达输入域恒等、输出恒等（`recursive_tower.rs:772` 自陈上级「方向交替均无保证」为反向佐证）。E1（`compose_level` 的 `is_l0` 分派）**不占总缝规则例外配额，全仓配额回「用 0 剩 3」**；两函数并存不构成违规。恒等性的对拍测试锁尚缺（#1278 ⑧列 ❌），补锁归 frontier 实施链。
 
 ## 文档层名分：权威链 → 推论层 → 正本层（[#845](https://github.com/xy7365527-lang/NewChanlun/issues/845) 裁定，2026-08-01）
 
