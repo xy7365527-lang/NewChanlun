@@ -99,7 +99,7 @@ cmd_preflight() {
 do_copy() {
   local kind="$1"
   require_src_dst
-  log "$kind：$SRC/ -> $DST/"
+  log "${kind}：$SRC/ -> $DST/"
   local -a cmd
   cmd=("$RSYNC_CMD" "${RSYNC_OPTS[@]}")
   local e
@@ -143,7 +143,7 @@ cmd_config_json() {
     rm -f "$out"
     return 1
   fi
-  log "已生成凭据白名单副本：$out（仅 mcpServers 键，勿再混入 auth）"
+  log "已生成凭据白名单副本：${out}（仅 mcpServers 键，勿再混入 auth）"
 }
 
 # ── emit-env：切换（打印 export，供操作员抄入 guest shell profile） ────────
@@ -235,7 +235,7 @@ COMMAND=""
 while [ $# -gt 0 ]; do
   case "$1" in
     preflight|baseline|final-copy|config-json|emit-env|verify|rollback)
-      if [ -z "$COMMAND" ]; then COMMAND="$1"; else log "子命令只能给一个（已给 $COMMAND）" >&2; exit 2; fi
+      if [ -z "$COMMAND" ]; then COMMAND="$1"; else log "子命令只能给一个（已给 ${COMMAND}）" >&2; exit 2; fi
       ;;
     --src) SRC="${2:-}"; shift ;;
     --dst) DST="${2:-}"; shift ;;
