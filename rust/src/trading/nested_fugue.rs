@@ -36,8 +36,8 @@
 //!    优先于规格 §7 对称声明）——命中计数观测，现金沉淀 capital 不增仓。
 //! 8. **全局不变量**（§8）：每 bar 检验 Σ(链上在手单位) = N_base——违反
 //!    即 Err（fail-fast，矛盾显形非吞错）。物理账存一次（无双写）；
-//!    子 P&L ≡ 父降成本由同一数字传导保证；零强平由 027:25 否定线先于
-//!    保证金线（A 规则兜底计数）。
+//!    子 P&L ≡ 父降成本由同一数字传导保证；零强平由「背驰段被打破」
+//!    否定判据（背驰段定义 027:22）先于保证金线（A 规则兜底计数）。
 //!
 //! ## 区间套递归（v3 第14环，保留）
 //!
@@ -47,7 +47,7 @@
 //! ## 每 bar 优先序（同 bar 单事件）
 //!
 //! A. 强平兜底（尾空头 capital + u×(basis−c) ≤ 0 ⇒ 1x 逐仓解析强平）
-//! B. 否定扫描（根→尾第一个破 027:25 极值线 ⇒ 该层及以深解栈）
+//! B. 否定扫描（根→尾第一个「背驰段被打破」结构判据 ⇒ 该层及以深解栈）
 //! C. 清仓（§6 合取：confirmed Sell1@top（背驰词汇）∧ 区间套定位记忆
 //!    未失效 ⇒ 全链解栈——极少发生）
 //! D. 尾回补（非根尾的 confirmed 反向点@own-level ⇒ 平子+父回满+earning）
@@ -72,7 +72,8 @@ use super::types::{
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
-/// 区间套窗口（candidate 武装/刷新极值、confirmed 同侧清窗、破极值否定）。
+/// 区间套窗口（candidate 武装/刷新极值、confirmed 同侧清窗、结构判据
+/// 「背驰段被打破」否定——#1232 第一条裁定 a，#1274 实装）。
 ///
 /// 可见性 `pub(super)`：`unified_recursive` 复用同一会计原语（§1-§8 的正确
 /// 翻译，无概念差异）——逻辑零改动，bit-exact 由本文件 test 套件守卫。
@@ -96,7 +97,9 @@ pub(super) struct Voice {
     pub(super) capital: f64,
     /// 相位开仓 bar。
     pub(super) entry_bar: i64,
-    /// 出生相否定线（spawn 时 candidate 极值，027:25）；confirmed 出生无。
+    /// 出生相否定标记（spawn 时 candidate 极值；confirmed 出生无 = 不受 B
+    /// 否定扫描，走 D 回补）。极值本体已降观测（#1274 起否定判据 = 结构判据
+    /// 「背驰段被打破」（背驰段定义 027:22），极值仅供 #1263 探针诊断）。
     pub(super) negate_line: Option<f64>,
 }
 
@@ -479,6 +482,35 @@ fn p1263_record(
     p1263::record(line);
 }
 
+/// 「背驰段被打破」结构判据（#1232 第一条裁定 a，#1274 实装）：同 bar、
+/// 同 ladder、按背驰段方向——生产结构函数点名，不另造（#1263 报告 §7）：
+/// - 反向突破 = 本 bar confirmed `Sell1/Sell3`（Short，段方向 Up）/
+///   `Buy1/Buy3`（Long，段方向 Down）——`tape.rs` `bsp_events` 信号层产出；
+/// - 中枢三态 = confirmed Type3 坐实即中枢终结（与上一项 `Sell3/Buy3` 同源，
+///   `CenterBook::{is_dead_down,is_frozen}` 的状态读法，同 bar 口径）；
+/// - 次级别走势完成 = 本 bar `dir_flips[k]` 翻反向（Short ⟹ Down / Long ⟹ Up，
+///   `tape.rs` `dir_flips`）。
+///
+/// Short（段方向 Up）⟹ 向下打破 = confirmed Sell1/Sell3 ∨ 该层方向翻 Down；
+/// Long（段方向 Down）⟹ 向上打破 = confirmed Buy1/Buy3 ∨ 该层方向翻 Up。
+/// 价格极值（w.extreme/ext/line）已降观测，不参判据（#1263 探针诊断可留）。
+fn div_segment_broken(dir: Polarity, evrow: &[BspEvent], flip: Option<Direction>) -> bool {
+    match dir {
+        Polarity::Short => {
+            evrow
+                .iter()
+                .any(|e| e.confirmed && matches!(e.class, BspClass::Sell1 | BspClass::Sell3))
+                || flip == Some(Direction::Down)
+        }
+        Polarity::Long => {
+            evrow
+                .iter()
+                .any(|e| e.confirmed && matches!(e.class, BspClass::Buy1 | BspClass::Buy3))
+                || flip == Some(Direction::Up)
+        }
+    }
+}
+
 /// 主入口（`PolarityMode::NestedRecursive` 经 `run_positional` 分派至此）。
 ///
 /// `clearance` 选择 C 清仓判据（539号开放轴）：`V4` = θ 棘轮层合取（在册
@@ -583,7 +615,7 @@ pub(crate) fn run_nested_fugue(
         let mut nf_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         let mut nf_buy: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         for k in FIRST_BSP_LADDER..MAX_LADDER {
-            // (#1263 探针：漏杀面 = 窗口在场 ∧ 结构破 ∧ 价格未破——先于生产判定，零扰动)
+            // (#1263 探针：窗口在场 ∧ (价格破 ∨ 结构破) → 事件 dump——先于生产判定，零扰动)
             #[cfg(test)]
             if p1263::enabled() {
                 for (dir, wopt) in [("Short", nest_sell[k]), ("Long", nest_buy[k])] {
@@ -592,56 +624,39 @@ pub(crate) fn run_nested_fugue(
                             "Short" => c > w.extreme,
                             _ => c < w.extreme,
                         };
-                        if !price_broke {
-                            let st = p1263_st(
+                        let st = p1263_st(
+                            k,
+                            &book,
+                            evrows,
+                            devrows,
+                            &flip_edge,
+                            dir_state[k],
+                            sig.up_move_settled.get(k),
+                        );
+                        if price_broke || st.struct_broke(dir) {
+                            p1263_record(
+                                "window_clear",
+                                bar,
                                 k,
-                                &book,
-                                evrows,
-                                devrows,
-                                &flip_edge,
-                                dir_state[k],
-                                sig.up_move_settled.get(k),
+                                dir,
+                                w.extreme,
+                                c,
+                                price_broke,
+                                &st,
                             );
-                            if st.struct_broke(dir) {
-                                p1263_record("window_clear", bar, k, dir, w.extreme, c, false, &st);
-                            }
                         }
                     }
                 }
             }
-            if nest_sell[k].is_some_and(|w| c > w.extreme) {
-                #[cfg(test)]
-                if p1263::enabled() {
-                    let ext = nest_sell[k].expect("已判 Some").extreme;
-                    let st = p1263_st(
-                        k,
-                        &book,
-                        evrows,
-                        devrows,
-                        &flip_edge,
-                        dir_state[k],
-                        sig.up_move_settled.get(k),
-                    );
-                    p1263_record("window_clear", bar, k, "Short", ext, c, true, &st);
-                }
+            if nest_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 nest_sell[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
-            if nest_buy[k].is_some_and(|w| c < w.extreme) {
-                #[cfg(test)]
-                if p1263::enabled() {
-                    let ext = nest_buy[k].expect("已判 Some").extreme;
-                    let st = p1263_st(
-                        k,
-                        &book,
-                        evrows,
-                        devrows,
-                        &flip_edge,
-                        dir_state[k],
-                        sig.up_move_settled.get(k),
-                    );
-                    p1263_record("window_clear", bar, k, "Long", ext, c, true, &st);
-                }
+            if nest_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 nest_buy[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
@@ -697,36 +712,16 @@ pub(crate) fn run_nested_fugue(
         }
 
         // 区间套定位记忆（§6.2"背驰已被区间套递归确认"）：nf 触发时记录
-        // 极值，价格破极值则定位失效（027:25 同律）；C 消费后清空。
+        // 极值，结构判据「背驰段被打破」则定位失效（背驰段定义 027:22 同律）；C 消费后清空。
         for k in FIRST_BSP_LADDER..MAX_LADDER {
             if let Some(ext) = nf_sell[k] {
                 located_sell[k] = Some(ext);
             }
-            // (#1263 探针：漏杀面 = located 在场 ∧ 结构破 ∧ 价格未破)
+            // (#1263 探针：located 在场 ∧ (价格破 ∨ 结构破) → 事件 dump)
             #[cfg(test)]
             if p1263::enabled() {
                 if let Some(ext) = located_sell[k] {
                     let price_broke = c > ext;
-                    if !price_broke {
-                        let st = p1263_st(
-                            k,
-                            &book,
-                            evrows,
-                            devrows,
-                            &flip_edge,
-                            dir_state[k],
-                            sig.up_move_settled.get(k),
-                        );
-                        if st.struct_broke("Short") {
-                            p1263_record("located_invalid", bar, k, "Short", ext, c, false, &st);
-                        }
-                    }
-                }
-            }
-            if located_sell[k].is_some_and(|ext| c > ext) {
-                #[cfg(test)]
-                if p1263::enabled() {
-                    let ext = located_sell[k].expect("已判 Some");
                     let st = p1263_st(
                         k,
                         &book,
@@ -736,8 +731,14 @@ pub(crate) fn run_nested_fugue(
                         dir_state[k],
                         sig.up_move_settled.get(k),
                     );
-                    p1263_record("located_invalid", bar, k, "Short", ext, c, true, &st);
+                    if price_broke || st.struct_broke("Short") {
+                        p1263_record("located_invalid", bar, k, "Short", ext, c, price_broke, &st);
+                    }
                 }
+            }
+            if located_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 located_sell[k] = None;
             }
         }
@@ -770,8 +771,8 @@ pub(crate) fn run_nested_fugue(
             }
         }
 
-        // ── B. 否定扫描（根→尾第一个破 027:25 极值线 ⇒ 该层及以深解栈）──
-        // (#1263 探针：漏杀面 = 链上 voice negate_line 在场 ∧ 结构破 ∧ 价格未破)
+        // ── B. 否定扫描（根→尾第一个「背驰段被打破」结构判据 ⇒ 该层及以深解栈）──
+        // (#1263 探针：链上 voice negate_line 在场 ∧ (价格破 ∨ 结构破) → 事件 dump)
         #[cfg(test)]
         if p1263::enabled() {
             for v in chain.iter() {
@@ -784,51 +785,38 @@ pub(crate) fn run_nested_fugue(
                         Polarity::Short => c > line,
                         Polarity::Long => c < line,
                     };
-                    if !price_broke {
-                        let st = p1263_st(
+                    let st = p1263_st(
+                        v.ladder,
+                        &book,
+                        evrows,
+                        devrows,
+                        &flip_edge,
+                        dir_state[v.ladder],
+                        sig.up_move_settled.get(v.ladder),
+                    );
+                    if price_broke || st.struct_broke(dir) {
+                        p1263_record(
+                            "voice_unwind",
+                            bar,
                             v.ladder,
-                            &book,
-                            evrows,
-                            devrows,
-                            &flip_edge,
-                            dir_state[v.ladder],
-                            sig.up_move_settled.get(v.ladder),
+                            dir,
+                            line,
+                            c,
+                            price_broke,
+                            &st,
                         );
-                        if st.struct_broke(dir) {
-                            p1263_record("voice_unwind", bar, v.ladder, dir, line, c, false, &st);
-                        }
                     }
                 }
             }
         }
         if !acted {
             let broke = chain.iter().position(|v| {
-                v.negate_line.is_some_and(|line| match v.dir {
-                    Polarity::Short => c > line,
-                    Polarity::Long => c < line,
+                v.negate_line.is_some_and(|_| {
+                    div_segment_broken(v.dir, &evrows[v.ladder], flip_edge[v.ladder])
                 })
             });
             if let Some(g) = broke {
                 let lad = chain[g].ladder;
-                #[cfg(test)]
-                if p1263::enabled() {
-                    let v = chain[g];
-                    let line = v.negate_line.expect("broke 蕴含 Some");
-                    let dir = match v.dir {
-                        Polarity::Short => "Short",
-                        Polarity::Long => "Long",
-                    };
-                    let st = p1263_st(
-                        lad,
-                        &book,
-                        evrows,
-                        devrows,
-                        &flip_edge,
-                        dir_state[lad],
-                        sig.up_move_settled.get(lad),
-                    );
-                    p1263_record("voice_unwind", bar, lad, dir, line, c, true, &st);
-                }
                 unwind_to(
                     g,
                     bar,
@@ -1372,8 +1360,9 @@ mod tests {
 
     #[test]
     fn negation_kills_child_with_shrink_rebase() {
-        // 027:25 否定：破极值 ⇒ 子死，capital 追价买回缩水 δ 传播 + N
-        // 重定基（亏损的物理形式——§8.1 守恒在重定基下保持）。
+        // 背驰段定义 027:22；否定（#1232 第一条裁定 a，#1274）：背驰段被打破 = confirmed
+        // Sell1@3 ⇒ 子死，capital 追价买回缩水 δ 传播 + N 重定基（亏损的
+        // 物理形式——§8.1 守恒在重定基下保持）。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4)); // 1000 股
         bars.push(with_ev(
@@ -1385,8 +1374,12 @@ mod tests {
             bar(104.0),
             3,
             ev_full(BspClass::Sell1, true, 0.0, None),
-        )); // 子空 250@104，线 110
-        bars.push(bar(111.0)); // 破 110 ⇒ 否定
+        )); // 子空 250@104，negate_line=110
+        bars.push(with_ev(
+            bar(111.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // confirmed Sell1@3 ⇒ 背驰段被打破 ⇒ 否定
         bars.push(bar(111.0));
         let r = run(bars);
         assert_eq!(r.n_nrf_negate_closes_by_ladder[3], 1);
@@ -1400,6 +1393,78 @@ mod tests {
         );
         // NAV = (750 + 234.23)×111 = 109_250（守恒：83250 + 26000）。
         assert!((r.final_nav - (750.0 * 111.0 + 26_000.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn div_segment_broken_matches_operational_spec() {
+        // #1274：结构判据「背驰段被打破」三家族（反向突破 confirmed BSP /
+        // 中枢三态同源 Type3 / 次级别走势完成 dir flip）——Short 向下打破、
+        // Long 向上打破，方向相反（#1263 报告 §7 操作化规格）。
+        let mk = |class, confirmed| ev_full(class, confirmed, 0.0, None);
+
+        // Short（段方向 Up）⟹ 向下打破 = confirmed Sell1/Sell3 ∨ 方向翻 Down。
+        assert!(div_segment_broken(
+            Polarity::Short,
+            &[mk(BspClass::Sell1, true)],
+            None
+        ));
+        assert!(div_segment_broken(
+            Polarity::Short,
+            &[mk(BspClass::Sell3, true)],
+            None
+        ));
+        assert!(div_segment_broken(
+            Polarity::Short,
+            &[],
+            Some(Direction::Down)
+        ));
+        // 未确认 Sell1 / 反向 Buy / 方向翻 Up / 空态均不打破。
+        assert!(!div_segment_broken(
+            Polarity::Short,
+            &[mk(BspClass::Sell1, false)],
+            None
+        ));
+        assert!(!div_segment_broken(
+            Polarity::Short,
+            &[mk(BspClass::Buy3, true)],
+            None
+        ));
+        assert!(!div_segment_broken(
+            Polarity::Short,
+            &[],
+            Some(Direction::Up)
+        ));
+        assert!(!div_segment_broken(Polarity::Short, &[], None));
+
+        // Long（段方向 Down）⟹ 向上打破 = confirmed Buy1/Buy3 ∨ 方向翻 Up。
+        assert!(div_segment_broken(
+            Polarity::Long,
+            &[mk(BspClass::Buy1, true)],
+            None
+        ));
+        assert!(div_segment_broken(
+            Polarity::Long,
+            &[mk(BspClass::Buy3, true)],
+            None
+        ));
+        assert!(div_segment_broken(Polarity::Long, &[], Some(Direction::Up)));
+        // 未确认 Buy1 / 反向 Sell / 方向翻 Down / 空态均不打破。
+        assert!(!div_segment_broken(
+            Polarity::Long,
+            &[mk(BspClass::Buy1, false)],
+            None
+        ));
+        assert!(!div_segment_broken(
+            Polarity::Long,
+            &[mk(BspClass::Sell3, true)],
+            None
+        ));
+        assert!(!div_segment_broken(
+            Polarity::Long,
+            &[],
+            Some(Direction::Down)
+        ));
+        assert!(!div_segment_broken(Polarity::Long, &[], None));
     }
 
     #[test]
