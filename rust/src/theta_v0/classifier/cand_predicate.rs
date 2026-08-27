@@ -61,12 +61,14 @@
 //!   ★#883（S4-b）：`DivCandInput` 增 `strokes`/`parent_center`/`gauge` 三字段——盘整背驰入口
 //!   落地（下钻找「一类点**或类一类点**」的半壁补齐）；`locate_pan_div_structure`（L0 证书层
 //!   结构定位）按 #814 D-3 受影响清单**零改**（#990 已裁：「只定位不判力度」本就是结构/度量
-//!   两层分离的正确形态）。
+//!   两层分离的正确形态）。★#1265（#1231 裁定 a）：D-3 取段收敛为全仓唯一原语
+//!   [`d3_prev_crossing_anchor`]——div_cand 条件2 与 PanDiv 窄锚调同一函数，窄锚「回中枢要件」
+//!   退役（#1262：五处原文查无依据）。
 
 use std::rc::Rc;
 
 use super::super::parser::segment::segment_force_l;
-use super::super::types::{Center, Direction, Side, Stroke};
+use super::super::types::{Center, Direction, Segment, Side, Stroke, Tick};
 use super::descend::RMove;
 use super::divergence::{confirm_divergence_l, is_divergence, segment_macd_area, DivergenceGauge};
 use super::recursive_tower::{find_move_by_end_index, map_src_to_close_idx, LeveledMove};
@@ -266,18 +268,111 @@ pub fn departure_unit_end(m: &LeveledMove, trend: Direction) -> Option<usize> {
         .find_map(|sub| (rmove_dir(&sub.rmove) == Some(trend)).then_some(sub.end_index))
 }
 
+/// #814 D-3 统一取段（#1265）的最小投影——一个「可作力度比较基准」的走势单元。
+///
+/// 两个消费方（[`div_cand`] 条件2 的 [`LeveledMove`] 上下文、PanDiv 窄锚的 [`Segment`] 列表）
+/// 形状不同，但都只消费五个量：方向（是否可判 + 是否同向）、起/终点坐标（进入段/离开段判定）、
+/// 价格外缘 lo/hi（破核心判定）。本 trait 把它们投影到同一条 D-3 取段原语上，禁第二套实现
+/// （#1265 收敛）。
+pub(crate) trait D3Unit {
+    fn direction(&self) -> Option<Direction>;
+    fn start_index(&self) -> usize;
+    fn end_index(&self) -> usize;
+    fn lo(&self) -> Tick;
+    fn hi(&self) -> Tick;
+}
+
+impl D3Unit for Segment {
+    fn direction(&self) -> Option<Direction> {
+        Some(self.direction)
+    }
+    fn start_index(&self) -> usize {
+        self.start_index
+    }
+    fn end_index(&self) -> usize {
+        self.end_index
+    }
+    fn lo(&self) -> Tick {
+        self.start_price.min(self.end_price)
+    }
+    fn hi(&self) -> Tick {
+        self.start_price.max(self.end_price)
+    }
+}
+
+impl D3Unit for LeveledMove {
+    fn direction(&self) -> Option<Direction> {
+        rmove_dir(&self.rmove)
+    }
+    fn start_index(&self) -> usize {
+        self.start_index
+    }
+    fn end_index(&self) -> usize {
+        self.end_index
+    }
+    fn lo(&self) -> Tick {
+        self.rmove.lo()
+    }
+    fn hi(&self) -> Tick {
+        self.rmove.hi()
+    }
+}
+
+/// 破核心判定（D-3「跨界」的几何谓词）：Down ⟹ `lo < zd`；Up ⟹ `hi > zg`。
+///
+/// 与 PanDiv 窄锚的 `end_price < c.zd / > c.zg` 同口径——L0 [`Segment`] 的端价即其 lo/hi 外缘
+/// （Down 段端价最低 ⟹ `lo == end_price`；Up 段端价最高 ⟹ `hi == end_price`）；[`LeveledMove`]
+/// 的 Compose 取外缘包络（[`RMove::lo`]/[`RMove::hi`]）。
+pub(crate) fn d3_crosses_core<T: D3Unit>(m: &T, dir: Direction, c: &Center) -> bool {
+    match dir {
+        Direction::Down => m.lo() < c.zd,
+        Direction::Up => m.hi() > c.zg,
+    }
+}
+
+/// #814 D-3 统一取段：往回取最近同向跨界段（#1265 统一实现，全仓唯一取段原语）。
+///
+/// s' = `moves` 中时序最近的、方向 == `dir`、终点落在 `bound` 之前（`end_index <= bound`）、
+/// 且为**跨界段**的单元。跨界段两类：进入段（`end_index <= c.start_index`）与离开段（破核心
+/// Down ⟹ `lo < zd` / Up ⟹ `hi > zg`；`departure_only` 时另须 `start_index >= c.end_index`）。
+/// 首次离开 = 进入段；反复震荡 = 上次离开段（`bound` = 当前离开 episode 起点 λ_C 时，「上次
+/// 离开段」= 上一 episode 的同向离开段，与本次离开同 episode 的段被 `end <= bound` 排除）。
+/// 中枢内震荡段（未破核心、非进入段）两谓词均不命中 ⟹ 跳过。无命中 ⟹ `None`（合法定位失败，非 bug）。
+///
+/// ★`bound` / `departure_only`（#1265）：两消费方的语境因递归层不同——[`div_cand`] 的
+/// [`LeveledMove`] 语境下，单中心 Compose 的首次离开锚 = 首个中枢构成段（其 lo/hi 可破核心），
+/// 取 `bound = s.start_index`、`departure_only = false`（破核心即跨界）；PanDiv 窄锚的
+/// [`Segment`] 语境下，中枢材料段是构造材料、不参与力度比较（D-3 明文），且「上次离开段」须
+/// 落在当前 episode 之前，取 `bound = λ_C`、`departure_only = true`（离开段须在中枢后
+/// `start >= c.end`）。
+pub(crate) fn d3_prev_crossing_anchor<'a, T: D3Unit>(
+    moves: &'a [T],
+    bound: usize,
+    dir: Direction,
+    c: &Center,
+    departure_only: bool,
+) -> Option<&'a T> {
+    moves.iter().rfind(|m| {
+        m.direction() == Some(dir)
+            && m.end_index() <= bound
+            && (((!departure_only || m.start_index() >= c.end_index)
+                && d3_crosses_core(*m, dir, c))
+                || m.end_index() <= c.start_index)
+    })
+}
+
 /// DivCand^δ_{Θ,ℓ}(s,t)：背驰段候选四条件合取谓词。
 ///
 /// ## 四条件（★#883 S4-b 后口径）
 /// 1. **方向**：`dir(s) = −δ`（δ=Long→s 方向 Down；δ=Short→s 方向 Up）
-/// 2. **Comparable（#814 D-3 统一取段）**：比较基准 s' = 往回最近的**同方向跨界段**——
-///    首次离开时 = 进入段（`end_index ≤ c.start_index` 的最近同向段，同
-///    `signal.rs::locate_pan_div_structure_front_anchor` 的 A′ 口径）；反复震荡时 = 上一次
-///    冲出去的那段（同向且破核心：Down ⟹ `lo < c.zd`；Up ⟹ `hi > c.zg`）。中枢内部震荡段
-///    不参与力度比较（D-3 明文）。前提：父走势最近中枢 `c` 存在且 **s 自身跨界**
-///    （「这次冲出中枢的那一段」；`c` = 父 Compose 末中枢，趋势块 = 最后中枢 B，盘整块 =
-///    唯一中枢——#979 裁定一：趋势 c vs b 与盘整 C vs A 是同一条规则，b 即 B 的进入段）。
-///    ★不并存旧「最近同向段」无中枢口径（收敛通则：同一判断不得宽严两档）。
+/// 2. **Comparable（#814 D-3 统一取段，#1265 统一原语）**：比较基准 s' = 往回最近的**同方向
+///    跨界段**——首次离开时 = 进入段（`end_index ≤ c.start_index` 的最近同向段）；反复震荡时 =
+///    上一次冲出去的那段（同向且破核心：Down ⟹ `lo < c.zd`；Up ⟹ `hi > c.zg`）。中枢内部
+///    震荡段不参与力度比较（D-3 明文）。取段经全仓唯一原语 [`d3_prev_crossing_anchor`]
+///    （#1265：div_cand 条件2 与 PanDiv 窄锚收成一条）。前提：父走势最近中枢 `c` 存在且
+///    **s 自身跨界**（「这次冲出中枢的那一段」；`c` = 父 Compose 末中枢，趋势块 = 最后中枢
+///    B，盘整块 = 唯一中枢——#979 裁定一：趋势 c vs b 与盘整 C vs A 是同一条规则，b 即 B 的
+///    进入段）。★不并存旧「最近同向段」无中枢口径（收敛通则：同一判断不得宽严两档）。
 /// 3. **Extreme**：δ=Long→`lo(s)<lo(s')`；δ=Short→`hi(s)>hi(s')`（#814 D-2：次级别一类点
 ///    保留 Extreme；044:234 创新高/新低同为盘整背驰前提）。
 /// 4. **Weak（#990 收编后统一判据原语，禁第二套力度引擎）**：
@@ -332,29 +427,19 @@ pub fn div_cand_fail(input: &DivCandInput<'_>) -> Option<u8> {
         return Some(1);
     }
 
-    // 条件2（★#883 S4-b：#814 D-3 统一取段规则——趋势/盘整同一条，#979 裁定一）。
+    // 条件2（★#883 S4-b：#814 D-3 统一取段规则——趋势/盘整同一条，#979 裁定一；★#1265 取段
+    // 原语收敛为全仓唯一 [`d3_prev_crossing_anchor`]，与 PanDiv 窄锚同函数——#1231 裁定 a）。
     // 「界」= 父走势最近中枢；无中枢语境 ⟹ 跨界无定义 ⟹ 合法定位失败（不退回旧无中枢口径）。
     let Some(c) = parent_center else {
         return Some(2);
     };
-    // 跨界 = 破核心（离开段语义；Down ⟹ lo < zd，Up ⟹ hi > zg，与
-    // `locate_pan_div_structure` 的 `end_price < c.zd / > c.zg` 同口径——Segment 的端价即
-    // 其 lo/hi 外缘，Compose 取外缘包络）。
-    let crosses = |m: &LeveledMove| match s_dir {
-        Direction::Down => m.rmove.lo() < c.zd,
-        Direction::Up => m.rmove.hi() > c.zg,
-    };
     // C（=s）自身须是「这次冲出中枢的那一段」（D-3 明文）；未跨界 = 中枢内震荡，非背驰段。
-    if !crosses(s) {
+    if !d3_crosses_core(s, s_dir, c) {
         return Some(2);
     }
-    // s' = 往回最近的同方向跨界段：rfind 时序最近命中——存在中枢后的同向离开段时取其最近者
-    // （反复震荡 = 上一次冲出去的那段），否则落到中枢前最近同向段（首次离开 = 进入段，
-    // `end_index ≤ c.start_index`，front-anchor A′ 同口径）；中枢内震荡段两谓词均不命中 ⟹ 跳过。
-    // ponytail: rfind 逐元素派生方向，命中即停。
-    let prev = context[..target_idx].iter().rfind(|m| {
-        rmove_dir(&m.rmove) == Some(s_dir) && (crosses(m) || m.end_index <= c.start_index)
-    });
+    // s' = 往回最近的同方向跨界段（首次离开 = 进入段 `end_index ≤ c.start_index`；反复震荡 =
+    // 上一次冲出去的同向破核心段）；中枢内震荡段两谓词均不命中 ⟹ 跳过。
+    let prev = d3_prev_crossing_anchor(context, s.start_index, s_dir, c, false);
     let Some(s_prev) = prev else { return Some(2) };
 
     // 条件3：Extreme。
@@ -1734,6 +1819,78 @@ mod tests {
             div_cand_fail(&input),
             Some(2),
             "无父中枢 ⟹ 条件2 失败（不退回旧口径）"
+        );
+    }
+
+    /// ★#1265 对拍锁（同输入同输出）：D-3 取段原语对 [`LeveledMove`]（div_cand 语境）与
+    /// [`Segment`]（PanDiv 窄锚语境）投影同一组走势时，返回同一锚（同方向/同区间/同外缘）。
+    #[test]
+    fn d3_prev_crossing_anchor_parity_leveled_move_vs_segment() {
+        // 同一组走势（反复震荡）：进入段 → 反向震荡 → 上次离开段 → 反向震荡 → 目标离开段。
+        let c = pan_center(50, 96, 10);
+        let dir = Direction::Down;
+        let leveled = vec![
+            down_seg(40, 90, 5, 9),   // 进入段（end 9 <= c.start 10）
+            up_seg(60, 92, 10, 14),   // 中枢内震荡（反向）
+            down_seg(30, 88, 15, 19), // 上次离开段（lo 30 < zd 50）
+            up_seg(60, 80, 20, 24),   // 中枢内震荡（反向）
+            down_seg(25, 70, 25, 29), // 目标（lo 25 < zd 50）
+        ];
+        // types::Segment 投影：Down 段 start_price=hi、end_price=lo（端价即 lo/hi 外缘）。
+        let raw = |d: Direction, lo: i64, hi: i64, start: usize, end: usize| Segment {
+            direction: d,
+            start_index: start,
+            end_index: end,
+            start_price: if d == Direction::Down { hi } else { lo },
+            end_price: if d == Direction::Down { lo } else { hi },
+        };
+        let segs = vec![
+            raw(Direction::Down, 40, 90, 5, 9),
+            raw(Direction::Up, 60, 92, 10, 14),
+            raw(Direction::Down, 30, 88, 15, 19),
+            raw(Direction::Up, 60, 80, 20, 24),
+            raw(Direction::Down, 25, 70, 25, 29),
+        ];
+
+        // 同一 bound（目标 start 25）与 departure_only=true 口径下，两投影返回同一锚（索引 2）。
+        let lvl_anchor = d3_prev_crossing_anchor(&leveled, 25, dir, &c, true)
+            .expect("LeveledMove 投影应命中上次离开段");
+        let seg_anchor = d3_prev_crossing_anchor(&segs, 25, dir, &c, true)
+            .expect("Segment 投影应命中上次离开段");
+        assert_eq!(lvl_anchor.start_index(), 15, "锚 = 上次离开段");
+        assert_eq!(
+            seg_anchor.start_index(),
+            lvl_anchor.start_index(),
+            "同输入同输出（start）"
+        );
+        assert_eq!(
+            seg_anchor.end_index(),
+            lvl_anchor.end_index(),
+            "同输入同输出（end）"
+        );
+        assert_eq!(
+            seg_anchor.direction(),
+            lvl_anchor.direction(),
+            "同输入同输出（direction）"
+        );
+        assert_eq!(seg_anchor.lo(), lvl_anchor.lo(), "同输入同输出（lo）");
+        assert_eq!(seg_anchor.hi(), lvl_anchor.hi(), "同输入同输出（hi）");
+
+        // 首次离开（中枢后无同向离开段，仅进入段）：两投影同落进入段（索引 0）。
+        let first_leveled = vec![down_seg(40, 90, 5, 9), down_seg(30, 85, 15, 19)];
+        let first_segs = vec![
+            raw(Direction::Down, 40, 90, 5, 9),
+            raw(Direction::Down, 30, 85, 15, 19),
+        ];
+        let lvl_entry = d3_prev_crossing_anchor(&first_leveled, 15, dir, &c, true)
+            .expect("首次离开：LeveledMove 投影应命中进入段");
+        let seg_entry = d3_prev_crossing_anchor(&first_segs, 15, dir, &c, true)
+            .expect("首次离开：Segment 投影应命中进入段");
+        assert_eq!(lvl_entry.start_index(), 5, "锚 = 进入段");
+        assert_eq!(
+            seg_entry.start_index(),
+            lvl_entry.start_index(),
+            "同输入同输出（首次离开 start）"
         );
     }
 

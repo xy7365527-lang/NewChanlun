@@ -4,7 +4,7 @@
 //! 盘整背驰判定（[`judge_pan_div`] / [`judge_pan_div_observation`]），以及类第二类点生产构造点
 //! （[`judge_quasi_second`]，#1233 裁定 a）。消费面经 `signal` 重导出保持原路径。
 
-use super::super::cand_predicate::rmove_dir;
+use super::super::cand_predicate::{d3_prev_crossing_anchor, rmove_dir};
 use super::super::recursive_tower::{descend_leveled, find_move_containing_index, LeveledMove};
 use super::super::rmove_compose::retrace_no_break;
 use super::*;
@@ -22,8 +22,8 @@ use crate::theta_v0::parser::segment::segment_force_l;
 /// `AbcDivergence.is_trend=false`）：
 /// - `seg_c`：当前离开走势区间 I(C)（Q5 同款区间语义，source_index 闭区间）。既有生产承接支
 ///   末段破中枢核心；#483 的 C 不破核心支只复用本证书形状进入观测/诊断，不进入生产承接。
-/// - `seg_a`：**前一次同向离开 episode 区间** I(A)（Q5 区间口径，A/C 对称）——锚段端点破核心，
-///   与 C 之间存在回中枢段（否则是同一次离开）。
+/// - `seg_a`：A 区间（#1265 D-3 统一取段，Q5 区间口径）——首次离开 = 进入段（中枢前最近同向段，
+///   单段）；反复震荡 = 上次离开段 episode（A/C 对称）。回中枢要件已退役（#1262）。
 /// - Weak = MACD 面积 C < A（与 buy1 同一冻结力度原语 `segments_diverge`）。
 ///
 /// **覆盖缺口（#885 S4-d 明写，验收口径）**：本证书的生产构造点 [`judge_pan_div`]（唯一生产
@@ -42,7 +42,7 @@ pub struct PanDivCert {
     pub side: Side,
     /// 盘整背驰所在的中枢（A/C 两次离开的同一中枢 = B）。
     pub center: Center,
-    /// I(A)（前一次同向离开 episode 区间，Q5 区间口径）source_index 闭区间。
+    /// A 区间 source_index 闭区间（#1265 D-3 取段：首次离开 = 进入段单段，反复震荡 = 上次离开段 episode）。
     pub seg_a: (usize, usize),
     /// I(C)（当前离开走势区间）source_index 闭区间。
     pub seg_c: (usize, usize),
@@ -187,7 +187,7 @@ pub(crate) fn locate_pan_div_structure(
     locate_pan_div_structure_with_policy(c, seg, segments, anchors_self, false)
 }
 
-/// #483 观测专用定位：复用既有窄锚机制，但允许 C 端点严格落在中枢核心 `(zd, zg)` 内。
+/// #483 观测专用定位：复用既有 D-3 取段机制，但允许 C 端点严格落在中枢核心 `(zd, zg)` 内。
 ///
 /// 只供 [`judge_pan_div_observation`]；Consolidation Nest 与生产 [`judge_pan_div`] 继续调用
 /// [`locate_pan_div_structure`]，因此不会把新分支送入生产决策或生命周期链。
@@ -213,103 +213,47 @@ fn locate_pan_div_structure_with_policy(
     let lo = segments.partition_point(|s| s.start_index < c.end_index);
     let hi = segments.partition_point(|s| s.start_index <= seg.start_index);
     let win = &segments[lo..hi];
-    let reenters = |s: &Segment| {
-        s.direction != dir
-            && match dir {
-                Direction::Down => s.end_price >= c.zd,
-                Direction::Up => s.end_price <= c.zg,
-            }
+    // I(C) 起点（Q5 episode 语义不变；departure_move_c_start 单一来源）。
+    let lambda_c = departure_move_c_start(segments, anchors_self, c, dir, seg.start_index)?;
+    // ★#1265（#1231 裁定 a）：D-3 统一取段——往回取最近同向跨界段，全仓唯一原语
+    // [`super::super::cand_predicate::d3_prev_crossing_anchor`]。首次离开 = 进入段
+    // （`end_index <= c.start_index`），反复震荡 = 上次离开段（同向破核心；本语境 `departure_only`
+    // 取 true——中枢材料段不参与力度比较）。窄锚旧「回中枢要件」（A/C 间须有回中枢段 + C 前须
+    // 有回中枢段）退役（#1262：五处原文查无依据）。
+    let a_anchor = d3_prev_crossing_anchor(segments, lambda_c, dir, c, true)?;
+    // A 区间：进入段（首次离开）取单段；离开段（反复震荡）取 episode（Q5 区间语义不变）。
+    let seg_a = if a_anchor.end_index <= c.start_index {
+        (a_anchor.start_index, a_anchor.end_index)
+    } else {
+        let reenters = |s: &Segment| {
+            s.direction != dir
+                && match dir {
+                    Direction::Down => s.end_price >= c.zd,
+                    Direction::Up => s.end_price <= c.zg,
+                }
+        };
+        let lambda_a =
+            departure_move_c_start(segments, anchors_self, c, dir, a_anchor.start_index)?;
+        // episode 右界 = a_anchor 之后首个回中枢段起点；无则 lambda_c（Q5 定界原语不变）。
+        let episode_end = win
+            .iter()
+            .find(|s| reenters(s) && s.start_index >= a_anchor.end_index)
+            .map_or(lambda_c, |r| r.start_index);
+        let rho_a = win
+            .iter()
+            .rev()
+            .filter(|s| {
+                s.direction == dir && s.start_index >= lambda_a && s.end_index <= episode_end
+            })
+            .map(|s| s.end_index)
+            .next()?;
+        (lambda_a, rho_a)
     };
-    win.iter()
-        .rev()
-        .filter(|s| s.end_index <= seg.start_index)
-        .find(|s| reenters(s))?;
-    let lambda_c = departure_move_c_start(segments, anchors_self, c, dir, seg.start_index)?;
-    let a_anchor = win
-        .iter()
-        .rev()
-        .filter(|s| s.direction == dir && s.end_index <= lambda_c)
-        .find(|s| match dir {
-            Direction::Down => s.end_price < c.zd,
-            Direction::Up => s.end_price > c.zg,
-        })?;
-    if !win
-        .iter()
-        .any(|s| reenters(s) && s.start_index >= a_anchor.end_index && s.end_index <= lambda_c)
-    {
-        return None;
-    }
-    let lambda_a = departure_move_c_start(segments, anchors_self, c, dir, a_anchor.start_index)?;
-    let episode_end = win
-        .iter()
-        .find(|s| reenters(s) && s.start_index >= a_anchor.end_index)
-        .map_or(lambda_c, |r| r.start_index);
-    let rho_a = win
-        .iter()
-        .rev()
-        .filter(|s| s.direction == dir && s.start_index >= lambda_a && s.end_index <= episode_end)
-        .map(|s| s.end_index)
-        .next()?;
     Some(PanDivStructure {
         source_index: end.source_index,
         side,
         center: *c,
-        seg_a: (lambda_a, rho_a),
-        seg_c: (lambda_c, seg.end_index),
-    })
-}
-
-/// ★R3（2026-07-17 代理裁定，p113 Part B 实证 + doc-pan §6.2-1）：A 锚扩展——当中枢后找不到
-/// 「前次同向破核心段」作 A（窄锚）时，候选 A′ = **中枢前最近同向段**（`end_index ≤ c.start_index`
-/// 的最近同向段，061:26 正文「只要是围绕一中枢的两段走势都可以比较力度」（A′→中枢→C）；080:168「99开始的向上就要和93-96的形成
-/// 盘整背驰」；049:36-38「最标准」≠唯一；080:364「不是光比较最近这一段的」）。
-///
-/// 与窄锚的结构差异：回中枢要件由中枢本身满足（A′ 与 C 之间隔着整个中枢），不再要求
-/// 中枢后存在回中枢段；C 仍取当前离开 episode（λ_C 与窄锚同一 helper）。p113 实测：1,238 条
-/// Cons-leave 中 99.6% 块（228/229）经本扩展可重新定位——A 锚窄化是第一击杀机制。
-/// 调用顺序约定：先窄锚 [`locate_pan_div_structure`]，失败再回退本函数（窄锚是标准锚，
-/// 049:36-38「最标准的情况当然是前面最近向下的」优先）。
-pub(crate) fn locate_pan_div_structure_front_anchor(
-    c: &Center,
-    seg: &Segment,
-    segments: &[Segment],
-    anchors_self: &[Option<Direction>],
-) -> Option<PanDivStructure> {
-    locate_pan_div_structure_front_anchor_with_policy(c, seg, segments, anchors_self, false)
-}
-
-/// #483 观测专用 A′ 回退：与既有中枢前最近同向段锚逐位同构，仅增加 C 严格在核心内这一支。
-fn locate_pan_div_structure_front_anchor_allowing_unbroken_c(
-    c: &Center,
-    seg: &Segment,
-    segments: &[Segment],
-    anchors_self: &[Option<Direction>],
-) -> Option<PanDivStructure> {
-    locate_pan_div_structure_front_anchor_with_policy(c, seg, segments, anchors_self, true)
-}
-
-fn locate_pan_div_structure_front_anchor_with_policy(
-    c: &Center,
-    seg: &Segment,
-    segments: &[Segment],
-    anchors_self: &[Option<Direction>],
-    allow_unbroken_c: bool,
-) -> Option<PanDivStructure> {
-    let end = seg_end(seg);
-    let side = pan_div_side_with_policy(c, &end, allow_unbroken_c)?;
-    let dir = end.dir;
-    let lambda_c = departure_move_c_start(segments, anchors_self, c, dir, seg.start_index)?;
-    // A′ = 中枢前最近同向段（061:26 正文「只要是围绕一中枢的两段走势都可以比较力度」；p113 Part B `prev_same.find(dir, c.start_index)`
-    // 同口径：`end_index ≤ c.start_index` 的最近同向段）。
-    let a_prime = segments
-        .iter()
-        .rev()
-        .find(|s| s.direction == dir && s.end_index <= c.start_index)?;
-    Some(PanDivStructure {
-        source_index: end.source_index,
-        side,
-        center: *c,
-        seg_a: (a_prime.start_index, a_prime.end_index),
+        seg_a,
         seg_c: (lambda_c, seg.end_index),
     })
 }
@@ -347,14 +291,14 @@ pub(crate) fn pan_div_structure_extreme(structure: &PanDivStructure, segments: &
 ///    （Long 候选）/ Up ⟹ 端点 > c.zg（Short）。
 /// 2. **当前离开区间 I(C)**（Q5 区间语义）：λ_C = 最后一个回中枢段 r（反向段、端点回到核心内侧：
 ///    Down 破侧 end ≥ zd / Up 破侧 end ≤ zg，r 在 seg 之前）之后的首个同向段起点；I(C)=[λ_C, seg.end]。
-/// 3. **A 锚**（★R3 2026-07-17 裁定）：先窄锚——同一中枢的前一次同向离开末段（端点破核心 ∧ A、C
-///    间存在回中枢段）；窄锚不可得回退 **A′ = 中枢前最近同向段**（061:26 正文「只要是围绕一中枢的两段走势都可以比较力度」，回中枢
-///    要件由中枢本身满足）。窄锚定位成功即不再回退（最标准锚优先，049:36-38）。
+/// 3. **A 锚**（★#1265，#1231 裁定 a）：D-3 统一取段——往回取最近同向跨界段（首次离开 = 进入段，
+///    反复震荡 = 上次离开段；全仓唯一原语 [`d3_prev_crossing_anchor`]）。窄锚旧「回中枢要件」
+///    （A/C 间须有回中枢段）退役（#1262：五处原文查无依据）。
 /// 4. **Weak**（★R2 2026-07-17 裁定）：力度或关系——同色柱面积 C<A（060:44）∨ 黄白线峰 C<A
 ///    （026:521）∨ 同向柱峰 C<A（025:38），任一成立即背驰信号（027:32「只要其中一个符合就
 ///    可以」）。替代旧面积单通道必要门（混合柱 Σ|hist| 严格 curr<prev，p113 实测 30.4% 聋度）。
 ///
-/// 无 A/A′ / 区间无法映射 closes / 或关系全无衰减 ⟹ None（033:26 无衰减即无盘背，诚实不产证书）。
+/// 无 A / 区间无法映射 closes / 或关系全无衰减 ⟹ None（033:26 无衰减即无盘背，诚实不产证书）。
 /// 复杂度：窗口 = start_index ∈ [c.end_index, seg.start_index] 的段（二分定界 + 窗口内线性扫）。
 pub(crate) fn judge_pan_div(
     c: &Center,
@@ -365,8 +309,7 @@ pub(crate) fn judge_pan_div(
     dif: &[f64],
     src_to_idx: &[usize],
 ) -> Option<PanDivCert> {
-    let structure = locate_pan_div_structure(c, seg, segments, anchors_self)
-        .or_else(|| locate_pan_div_structure_front_anchor(c, seg, segments, anchors_self))?;
+    let structure = locate_pan_div_structure(c, seg, segments, anchors_self)?;
     // 4. Weak：力度或关系（027:32/026:521/025:38；is_trend=false = 盘整背驰语义）。
     let (c_span, a_span) = (structure.seg_c, structure.seg_a);
     let (Some(c_idx), Some(a_idx)) = (
@@ -390,7 +333,7 @@ pub(crate) fn judge_pan_div(
 /// #483 盘整背驰观测判定。
 ///
 /// - C 破核心：逐字调用既有 [`judge_pan_div`]，原 OR 力度判据与证书字段不变；
-/// - C 不破核心：C 端点必须严格位于核心 `(zd, zg)`（等号拒绝），沿用同一窄锚→A′ 回退和
+/// - C 不破核心：C 端点必须严格位于核心 `(zd, zg)`（等号拒绝），沿用同一 D-3 取段和
 ///   source→MACD 区间映射，并严格只认第24课“同色柱面积 C<A”；
 /// - 返回既有 [`PanDivCert`] 形状，只供 `pan_div_diag` 观测。生产信号提取仍调用
 ///   [`judge_pan_div`]，因此新分支不进入 `LevelState.pan_div`、BspPoint 或生命周期链。
@@ -412,15 +355,7 @@ pub(crate) fn judge_pan_div_observation(
         return judge_pan_div(c, seg, segments, anchors_self, hist, dif, src_to_idx);
     }
 
-    let structure = locate_pan_div_structure_allowing_unbroken_c(c, seg, segments, anchors_self)
-        .or_else(|| {
-            locate_pan_div_structure_front_anchor_allowing_unbroken_c(
-                c,
-                seg,
-                segments,
-                anchors_self,
-            )
-        })?;
+    let structure = locate_pan_div_structure_allowing_unbroken_c(c, seg, segments, anchors_self)?;
     let (c_span, a_span) = (structure.seg_c, structure.seg_a);
     let (Some(c_idx), Some(a_idx)) = (
         map_src_range_to_close_idx(src_to_idx, c_span.0, c_span.1),

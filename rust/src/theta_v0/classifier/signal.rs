@@ -116,8 +116,8 @@ pub(crate) mod gates;
 pub(crate) mod pan_div_short;
 
 pub(crate) use cert::{
-    judge_pan_div, judge_pan_div_observation, locate_pan_div_structure,
-    locate_pan_div_structure_front_anchor, pan_div_structure_extreme, PanDivStructure,
+    judge_pan_div, judge_pan_div_observation, locate_pan_div_structure, pan_div_structure_extreme,
+    PanDivStructure,
 };
 pub use cert::{PanDivCert, QuasiSecondCert};
 pub(crate) use gates::{
@@ -3463,7 +3463,7 @@ mod tests {
         );
     }
 
-    /// #483 高危反例：Up C 端点反向越过核心下沿时，A′ 回退也必须拒绝。
+    /// #483 高危反例：Up C 端点反向越过核心下沿时，D-3 取段也必须拒绝。
     #[test]
     fn pan_div_unbroken_core_up_below_zd_is_rejected() {
         let c2 = Center {
@@ -3475,7 +3475,7 @@ mod tests {
             end_index: 8,
         };
         let segs = vec![
-            seg(Direction::Up, 1, 3, 340, 460),  // A′：中枢前最近同向段
+            seg(Direction::Up, 1, 3, 340, 460), // A：中枢前最近同向段（进入段）
             seg(Direction::Up, 9, 11, 380, 300), // C：300 < zd=350，反向越界
         ];
         let mut hist = vec![0.0; 12];
@@ -3486,7 +3486,7 @@ mod tests {
 
         assert!(
             judge_pan_div_observation(&c2, &segs[1], &segs, &anchors, &hist, &[], &src).is_none(),
-            "Up C 端点反向越过 zd 不得经 A′ 回退识别为 C 不破核心盘背"
+            "Up C 端点反向越过 zd 不得经 D-3 取段识别为 C 不破核心盘背"
         );
     }
 
@@ -3584,7 +3584,7 @@ mod tests {
         );
     }
 
-    // ── R1/R2/R3（2026-07-17 代理裁定）：三买几何 / 力度或关系 / A′ 锚扩展 ─────────
+    // ── R1/R2/R3（2026-07-17 代理裁定）：三买几何 / 力度或关系 / D-3 取段（#1265） ─────────
 
     /// R1 三买几何（037:18，judge_third 去 anchor 门同构）：离开破核心 + 回试不重回 ⟹ 命中；
     /// 回试重回核心 ⟹ 首个离开不算，后续延迟三买仍可命中；as_of 截断 ⟹ None（禁前视）。
@@ -3925,10 +3925,11 @@ mod tests {
         );
     }
 
-    /// R3 A′ 锚扩展（061:26 正文「只要是围绕一中枢的两段走势都可以比较力度」）：中枢后无前次同向破核心段（窄锚不可得）时，
-    /// A′ = 中枢前最近同向段救回定位；R2 力度或关系：混合面积 C≥A 但同色面积 C<A ⟹ 仍产证。
+    /// ★#1265 D-3 统一取段（首次离开 = 进入段；061:26 正文「只要是围绕一中枢的两段走势都可以
+    /// 比较力度」）：中枢后无前次同向破核心段时，A = 中枢前最近同向段；R2 力度或关系：混合
+    /// 面积 C≥A 但同色面积 C<A ⟹ 仍产证。
     #[test]
-    fn pan_div_front_anchor_rescue_and_or_relation_weak() {
+    fn pan_div_entry_anchor_rescue_and_or_relation_weak() {
         use super::super::divergence::{segments_diverge, self_anchors};
         let c2 = Center {
             zd: 350,
@@ -3939,12 +3940,12 @@ mod tests {
             end_index: 8,
         };
         let segs = vec![
-            seg(Direction::Down, 1, 3, 460, 360), // A′：中枢前同向段（end=3 ≤ c2.start=4）
+            seg(Direction::Down, 1, 3, 460, 360), // 进入段：中枢前同向段（end=3 ≤ c2.start=4）
             seg(Direction::Down, 9, 11, 380, 300), // C：破核心（300 < zd=350）；中枢后无回中枢段
         ];
         let anchors = self_anchors(&segs);
         let src: Vec<usize> = (0..12).collect();
-        // hist：A′ 绿柱 −5×3=15；C 绿柱 −1−1=2 但夹红柱 +20 ⟹ 混合面积 C=22 > A=15（旧口径判负），
+        // hist：进入段绿柱 −5×3=15；C 绿柱 −1−1=2 但夹红柱 +20 ⟹ 混合面积 C=22 > A=15（旧口径判负），
         // 同色面积 2<15 且绿柱峰 1<5 ⟹ 或关系两通道成立（027:32）。
         let mut hist = vec![0.0; 12];
         hist[1] = -5.0;
@@ -3959,9 +3960,9 @@ mod tests {
             "前置自证：Down 同色面积单通道即判背驰——绿 C=2 < A=15（红柱 20 不再污染，#988）"
         );
         let cert = judge_pan_div(&c2, &segs[1], &segs, &anchors, &hist, &dif, &src)
-            .expect("窄锚失败 ⟹ A′ 救回定位 + 力度或关系成立 ⟹ 产证");
+            .expect("D-3 取段命中进入段 + 力度或关系成立 ⟹ 产证");
         assert_eq!(cert.side, Side::Long);
-        assert_eq!(cert.seg_a, (1, 3), "A′ = 中枢前最近同向段（061:28）");
+        assert_eq!(cert.seg_a, (1, 3), "进入段 = 中枢前最近同向段（061:26）");
         assert_eq!(cert.seg_c, (9, 11), "I(C) = 当前离开 episode");
         assert_eq!(cert.source_index, 11);
     }

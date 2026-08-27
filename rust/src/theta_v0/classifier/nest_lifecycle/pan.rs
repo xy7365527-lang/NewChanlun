@@ -3,8 +3,8 @@
 use super::key::side_tag;
 use super::*;
 
-/// pan 活窗产出机（卡 §3：中枢 + seg_a 定位沿用 `locate_pan_div_structure`——窄锚优先、
-/// A′ 回退与 provider 同序同判（level_view.rs:826-839）；Extreme 预滤沿用
+/// pan 活窗产出机（卡 §3：中枢 + seg_a 定位沿用 `locate_pan_div_structure`——D-3 统一取段
+/// （#1265），与 provider 同序同判（level_view.rs:826-839）；Extreme 预滤沿用
 /// `pan_div_structure_extreme`，禁第二查法）。
 ///
 /// 对每只 Consolidation 中枢取**末个**可定位离开段的结构锚，活窗 = `(seg_c.0, as_of)`
@@ -42,18 +42,11 @@ pub fn provide_pan_live_windows(
         // `level_lift`——扩展折出的高一级盘整块在此仍按 Consolidation 收。准入门
         // （signal.rs / level_view/pan_provider.rs）已按 lift==0 过滤；本通道若未来
         // 进准入路径，须先补 lift 过滤（须随调用方签名一并改，超出 #898 范围）。
-        // #1230 裁定 a：先定位唯一 A（窄锚结构存在取窄锚，不存在才取 A′——061:28 中枢前最近同向段），
-        // 再单判 Extreme 一次（判负即止，不换段重判）——与 provider pan 分支同序同判。
+        // #1230 裁定 a + #1265（#1231 裁定 a）：D-3 统一取段定位唯一 A（往回取最近同向跨界段，
+        // 首次离开 = 进入段，反复震荡 = 上次离开段），再单判 Extreme 一次（判负即止，不换段重判）
+        // ——与 provider pan 分支同序同判。
         let Some(structure) =
             locate_pan_div_structure(&centers[center_index], segment, segments, anchors_self)
-                .or_else(|| {
-                    locate_pan_div_structure_front_anchor(
-                        &centers[center_index],
-                        segment,
-                        segments,
-                        anchors_self,
-                    )
-                })
                 .filter(|structure| pan_div_structure_extreme(structure, segments))
         else {
             continue;
@@ -195,8 +188,8 @@ pub fn active_segment_frontier(l0: &ParseLayer) -> Option<ActiveSegmentFrontier>
 /// #523 的同源恒等式（该守卫在两个 frontier 构造函数内，不在本函数内；本函数不校验来源）。
 ///
 /// 结构判据一律复用同一套单一来源（禁第二查法）：`nearest_confirmed_center_idx` 取 B、
-/// `locate_pan_div_structure`（窄锚）→ `locate_pan_div_structure_front_anchor`（A′ 回退）、
-/// `pan_div_structure_extreme` 预滤——与完成事件 provider（level_view.rs pan 分支）同序同判。
+/// `locate_pan_div_structure`（D-3 统一取段，#1265）、`pan_div_structure_extreme` 预滤——
+/// 与完成事件 provider（level_view.rs pan 分支）同序同判。
 ///
 /// **措辞限定**（票 #591 裁定）：「同序同判」指**同一输入序列 ⟹ 同一判定**——两路径调用的
 /// `nearest_confirmed_center_idx` 是同一纯函数、逐字相同的切片构造算法。这**不**蕴含「任一
@@ -279,14 +272,6 @@ pub fn provide_active_pan_live_windows(
     }
     let Some(structure) =
         locate_pan_div_structure(&centers[center_index], &active, &segments, &anchors_self)
-            .or_else(|| {
-                locate_pan_div_structure_front_anchor(
-                    &centers[center_index],
-                    &active,
-                    &segments,
-                    &anchors_self,
-                )
-            })
             .filter(|structure| pan_div_structure_extreme(structure, &segments))
     else {
         return PanLiveOutcome::StructureNotLocatable;
@@ -320,7 +305,7 @@ pub enum PanLiveOutcome {
     NoConfirmedCenterBefore,
     /// 最近已确认中枢不属 Consolidation 块（盘整域外）。
     CenterNotConsolidation,
-    /// 窄锚与 A′ 回退都无法定位 A/C 结构，或 Extreme 预滤未过（C 尚未破 A 极值）。
+    /// D-3 取段无法定位 A/C 结构，或 Extreme 预滤未过（C 尚未破 A 极值）。
     StructureNotLocatable,
 }
 

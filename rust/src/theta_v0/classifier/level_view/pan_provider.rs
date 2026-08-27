@@ -7,8 +7,7 @@ use super::super::decompose::{center_block_kind, center_block_lift, MoveBlock};
 use super::super::divergence::{move_range_envelope as range_envelope, segments_diverge_or};
 use super::super::recursive_tower::map_src_to_close_idx;
 use super::super::signal::{
-    locate_pan_div_structure, locate_pan_div_structure_front_anchor, nearest_confirmed_center_idx,
-    pan_div_structure_extreme,
+    locate_pan_div_structure, nearest_confirmed_center_idx, pan_div_structure_extreme,
 };
 use super::confirm::{NestCandidateEvent, NestDivergenceKind};
 use super::pan::{
@@ -26,7 +25,7 @@ use super::LevelAsOfView;
 /// ★R1/R2/R3（2026-07-17 代理裁定）：Trend 分支 `divergence_confirmed` 改全合取扫描
 /// （[`trend_confirm_time`]：T4 回拉0轴 ∧ T3 三买 ∧ T2 破极值 ∧ T5 力度或关系，确认时点 =
 /// 首个全成立时点 t*，confirmed 事件的 `interval_b`/`turn_source` 收束到 t*）；Consolidation
-/// 分支 A 锚加 R3 front-anchor 回退（061:28 中枢前最近同向段）、Weak 改 R2 力度或关系
+/// 分支 A 锚走 D-3 统一取段（#1265：首次离开 = 进入段，反复震荡 = 上次离开段；061:26）、Weak 改 R2 力度或关系
 /// （027:32：同色面积 ∨ 黄白线 ∨ 柱高）。
 ///
 /// 事件视图（返回类型不含锚 sidecar）：T1 (#170) 锚供给传空集——锚载体解析为
@@ -395,19 +394,12 @@ pub fn provide_nest_candidate_events_ext_resident(
                 }
             }
         }
-        // ★R3（#1230 裁定 a）：先按 D-3 定位唯一 A——窄锚（中枢后前次同向破核心段）结构存在取窄锚，
-        // 不存在才取 A′（中枢前最近同向段，061:26 正文「只要是围绕一中枢的两段走势都可以比较力度」，回中枢要件由中枢本身满足）；
-        // 再单判 Extreme 一次（判负即止，不换段重判——#799 判别式禁「第一档判负第二档接管」）。
+        // ★R3（#1230 裁定 a）+ #1265（#1231 裁定 a）：先按 D-3 统一取段定位唯一 A——往回取最近
+        // 同向跨界段（首次离开 = 进入段，反复震荡 = 上次离开段；061:26 正文「只要是围绕一中枢的
+        // 两段走势都可以比较力度」）；再单判 Extreme 一次（判负即止，不换段重判——#799 判别式禁
+        // 「第一档判负第二档接管」）。
         let Some(structure) =
             locate_pan_div_structure(&centers[center_index], segment, &segments, &anchors_self)
-                .or_else(|| {
-                    locate_pan_div_structure_front_anchor(
-                        &centers[center_index],
-                        segment,
-                        &segments,
-                        &anchors_self,
-                    )
-                })
                 .filter(|structure| pan_div_structure_extreme(structure, &segments))
         else {
             if let Some(memo_key) = memo_key.filter(|_| segment_is_stable) {

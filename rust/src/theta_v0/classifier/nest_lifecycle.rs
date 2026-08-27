@@ -108,8 +108,7 @@ use super::recursive_tower::{
     detect_centers_windowed_resume, map_src_to_close_idx, ElementId, LeveledMove,
 };
 use super::signal::{
-    locate_pan_div_structure, locate_pan_div_structure_front_anchor, nearest_confirmed_center_idx,
-    pan_div_structure_extreme,
+    locate_pan_div_structure, nearest_confirmed_center_idx, pan_div_structure_extreme,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -719,7 +718,7 @@ mod tests {
         book.assert_invariants();
     }
 
-    /// T6 身份消失（pan 窄锚 → A′ 回退切换，level_view.rs:826-839 两路）：上一 prefix 的
+    /// T6 身份消失（pan D-3 取段锚切换——离开段 → 进入段）：上一 prefix 的
     /// key 本 prefix 不再产出 ⟹ Invalidated(IdentityVanished)，entry 保留（禁删除模拟
     /// 失效），与 ForceOvertake 原因码可区分（E2E §1:81 + 裁定 #64 §2(b)）。
     ///
@@ -733,7 +732,7 @@ mod tests {
         let dif = vec![0.0; 120];
         let m = material(&hist, &dif, &close_src);
         let mut book = NestLifecycleBook::new();
-        // as_of=89：窄锚身份（seg_a=(50,69)，c 活窗 (70,89)）。
+        // as_of=89：离开段锚身份（seg_a=(50,69)，c 活窗 (70,89)）。
         let d = book.advance(
             &[LifecycleObservation::pan_live(
                 pan_window((50, 69), 70, 89),
@@ -747,7 +746,7 @@ mod tests {
             1,
             "仅 Observed（零力度序列 ⟹ Verified(false)，从未可证不判负）"
         );
-        // as_of=99：结构选择切换为 A′ 回退（seg_a=(20,39)）——seg_a 改变 ⟹ 桥不判同身份
+        // as_of=99：结构选择切换为进入段（seg_a=(20,39)）——seg_a 改变 ⟹ 桥不判同身份
         // （白名单不越界）；旧 key 本 prefix 不再产出 ⟹ Invalidated(IdentityVanished)@99。
         let d = book.advance(
             &[LifecycleObservation::pan_live(

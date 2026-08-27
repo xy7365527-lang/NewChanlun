@@ -167,7 +167,7 @@ pub(super) enum PanMemoValue {
 struct PanMemoEntry {
     /// 本 entry 实际读取的最大 source_index；复用要求严格 `< e_src`。
     read_end_src: usize,
-    /// 定位窄锚/front-anchor/Extreme 实际可见的段前缀长度。
+    /// 定位 D-3 取段/Extreme 实际可见的段前缀长度。
     read_segment_count: usize,
     value: PanMemoValue,
 }
