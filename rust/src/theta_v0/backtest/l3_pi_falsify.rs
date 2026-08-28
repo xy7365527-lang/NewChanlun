@@ -59,12 +59,12 @@ fn oos_years(oos_start: &str, oos_end: &str) -> f64 {
     ((ord(y1, m1, d1) - ord(y0, m0, d0)) as f64 / 365.25).max(0.1)
 }
 
-/// **★Phase-2 L2/L3 pi 否证：8 品种【可行子集截断窗】OOS + 双口径门 + 分层诊断**。
+/// **★Phase-2 L2/L3 pi 否证：10 品种【可行子集截断窗】OOS + 双口径门 + 分层诊断**。
 ///
-/// `#[ignore]`，需 8 品种数据缓存；O(n²) 慢测 `--release` 必须。窗口截断到 `MAX_BARS_PI`
+/// `#[ignore]`，需 10 品种数据缓存；O(n²) 慢测 `--release` 必须。窗口截断到 `MAX_BARS_PI`
 /// （全窗 O(n²) 不可行，探针坐实）。
 #[test]
-#[ignore = "Phase-2 pi 否证；O(n²) 截断窗；需 8 品种数据；--release"]
+#[ignore = "Phase-2 pi 否证；O(n²) 截断窗；需 10 品种数据；--release"]
 fn l3_pi_falsify_multi_symbol_significance() {
     let config = ThetaConfig::default();
     // depth=0 baseline：仅 depth-0 根声部（within_max_depth(d)=d<max_depth ⟹ max_depth=1 仅 d=0 开）。
@@ -78,7 +78,7 @@ fn l3_pi_falsify_multi_symbol_significance() {
     const MAX_BARS_PI: usize = 32_000;
 
     eprintln!(
-        "\n===== Phase-2 pi 否证：8 品种【可行子集 {MAX_BARS_PI}bar 截断窗】OOS + 双口径门 ====="
+        "\n===== Phase-2 pi 否证：10 品种【可行子集 {MAX_BARS_PI}bar 截断窗】OOS + 双口径门 ====="
     );
     eprintln!(
         "★全窗 O(n²) 不可行（探针坐实单品种全窗≈75h）⟹ 截断窗 = 显式有效域边界（非全窗结论）"
@@ -235,7 +235,7 @@ fn l3_pi_falsify_multi_symbol_significance() {
 
     // ── 跨标的聚合 + 诚实裁定（231号：否定/inconclusive 比确认更有价值）──
     let total = PREREG_WINDOWS.len();
-    eprintln!("\n===== Phase-2 pi 跨标的聚合（8 品种 {MAX_BARS_PI}bar 可行子集 OOS）=====");
+    eprintln!("\n===== Phase-2 pi 跨标的聚合（{total} 品种 {MAX_BARS_PI}bar 可行子集 OOS）=====");
     eprintln!("完成品种数                          : {n_done}/{total}");
     eprintln!("(a) 工程断流(n_orders=0)            : {n_engine_block}");
     eprintln!("(c)/(d) inconclusive(样本饥饿/对照退化): {n_inconclusive}");
