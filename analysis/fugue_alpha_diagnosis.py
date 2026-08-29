@@ -1083,6 +1083,93 @@ def run_swing_trading(
     return trades, refined_counts
 
 
+def _run_swing_leg(
+    signals: list[BarSignal],
+    side: str,
+) -> list[CompletedTrade]:
+    """单方向背驰定位器腿——多空双开对称扩展（#1309，#1282 预注册判据）的通用腿。
+
+    长腿 = 现有 ``run_swing_trading(MODE_NONE)`` 的逐位等价：
+      进场（1买，次级别底背驰）= ``down_move_settled ∧ entry_div_ok``；
+      出场（1卖，L2 趋势顶背驰）= ``l2_flip_short ∧ exit_div_ok``。
+    空腿 = 联立门方向镜像（同一套判据、方向翻转，不另立新判据）：
+      进场（次级别顶背驰进空）= ``up_move_settled ∧ exit_div_ok``；
+      回补（L2 底背驰）= ``l2_flip_long ∧ entry_div_ok``。
+
+    双腿各自独立满仓进出、可同时在场（多空双开）；无降成本（cost_mode=NONE 语义），
+    逐笔 pnl 只由进场价/出场价决定：长腿 = 出场/进场 − 1，空腿 = 进场/出场 − 1。
+    """
+    n = len(signals)
+    FLAT, OPEN = St.WAIT_ENTRY, St.HOLDING
+    state = FLAT
+    entry_price = 0.0
+    entry_bar = -1
+    trades: list[CompletedTrade] = []
+
+    def _close(bar_idx: int, price: float, reason: str) -> None:
+        nonlocal state, entry_price, entry_bar
+        if entry_price <= 0:
+            state = FLAT
+            return
+        if side == "long":
+            pnl_pct = (price / entry_price - 1.0) * 100.0
+        else:
+            pnl_pct = (entry_price / price - 1.0) * 100.0
+        trades.append(CompletedTrade(
+            entry_bar=entry_bar, entry_price=entry_price,
+            exit_bar=bar_idx, exit_price=price,
+            pnl_pct=round(pnl_pct, 4), exit_reason=reason,
+            n_short_diffs=0, cost_basis_at_exit=entry_price,
+        ))
+        state = FLAT
+        entry_price = 0.0
+        entry_bar = -1
+
+    for i in range(n):
+        sig = signals[i]
+        c = sig.close
+        if state == FLAT:
+            if side == "long":
+                enter = sig.down_move_settled and sig.entry_div_ok
+            else:
+                enter = sig.up_move_settled and sig.exit_div_ok
+            if enter:
+                state = OPEN
+                entry_price = c
+                entry_bar = i
+        else:  # OPEN
+            if side == "long":
+                exit_now = sig.l2_flip_short and sig.exit_div_ok
+                reason = "l2_trend_top_divergence"
+            else:
+                exit_now = sig.l2_flip_long and sig.entry_div_ok
+                reason = "l2_trend_bottom_divergence_cover"
+            if exit_now:
+                _close(i, c, reason)
+
+    if state == OPEN and entry_price > 0:
+        _close(n - 1, signals[-1].close, "eod_close")
+    return trades
+
+
+def run_swing_trading_dual(
+    signals: list[BarSignal],
+) -> tuple[list[CompletedTrade], list[CompletedTrade]]:
+    """E 引擎操作层多空双开对称扩展（#1309，#1282 预注册判据，冻结）。
+
+    长腿（次级别底背驰进多 + L2 顶背驰离场）与空腿（次级别顶背驰进空 +
+    L2 底背驰回补）各自独立满仓进出，双腿可同时在场。长腿逐位等价于
+    ``run_swing_trading(signals, MODE_NONE)``；空腿是同一判据的联立门方向镜像
+    （分解机制已双向，只接操作面——不引入「腿」判据外的新概念）。
+
+    返回 ``(long_trades, short_trades)``。
+    """
+    return (
+        _run_swing_leg(signals, "long"),
+        _run_swing_leg(signals, "short"),
+    )
+
+
 def _refined_gate(l1_up_segs: list[tuple[float, float]]) -> bool:
     """实验B 背驰门控：trim 仅在次级别背驰 ∧ MACD 面积衰减时放行。
 
@@ -1135,6 +1222,52 @@ def compute_metrics(trades: list[CompletedTrade]) -> dict:
         "sharpe": sharpe,
         "max_dd": max_dd * 100,
         "n_with_cr": sum(1 for t in trades if t.n_short_diffs > 0),
+    }
+
+
+def compute_dual_metrics(
+    long_trades: list[CompletedTrade],
+    short_trades: list[CompletedTrade],
+) -> dict:
+    """多空双开合并 metrics（#1309，#1282 预注册判据）。
+
+    双腿各自满仓（各一份 INITIAL_CAPITAL），组合 = 双腿之和 ⟹ 组合复利% =
+    （长腿复利% + 空腿复利%）/ 2（按 2× 本金归一，与随机双开基线同口径）。
+    最大回撤按双腿退出事件按 ``exit_bar`` 升序合并的组合权益曲线计算。
+    """
+    lm = compute_metrics(long_trades)
+    sm = compute_metrics(short_trades)
+    n_long = len(long_trades)
+    n_short = len(short_trades)
+    n_total = n_long + n_short
+    wins = sum(1 for t in long_trades if t.pnl_pct > 0) + sum(
+        1 for t in short_trades if t.pnl_pct > 0
+    )
+    # 组合权益曲线：双腿事件按 exit_bar 升序合并（长腿/空腿各持一份本金）。
+    events = [(t.exit_bar, 1.0 + t.pnl_pct / 100.0, "long") for t in long_trades]
+    events += [(t.exit_bar, 1.0 + t.pnl_pct / 100.0, "short") for t in short_trades]
+    events.sort(key=lambda e: e[0])
+    long_eq = 1.0
+    short_eq = 1.0
+    peak = 2.0
+    max_dd = 0.0
+    for _, mult, side in events:
+        if side == "long":
+            long_eq *= mult
+        else:
+            short_eq *= mult
+        combined = long_eq + short_eq
+        peak = max(peak, combined)
+        max_dd = min(max_dd, (combined - peak) / peak)
+    return {
+        "n": n_total,
+        "n_long": n_long,
+        "n_short": n_short,
+        "win_rate": (wins / n_total * 100) if n_total else 0.0,
+        "long_compound": lm["total_compound"],
+        "short_compound": sm["total_compound"],
+        "total_compound": (lm["total_compound"] + sm["total_compound"]) / 2.0,
+        "max_dd": max_dd * 100.0,
     }
 
 

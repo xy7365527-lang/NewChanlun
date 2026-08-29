@@ -263,6 +263,101 @@ def large_bootstrap_percentile(
     )
 
 
+# 多空双开随机基线（#1309，#1282 预注册判据）——与单边同构：相同暴露（双腿各
+# N 笔 × 平均持有）下 entry 时点均匀随机，双腿各自复利后按（长+空）/2 合并。
+# 双开 bootstrap 种子偏移（固定偏移保证确定性可复现）。注：单边用 BASE_SEED+1000+k、
+# 双开用 BASE_SEED+2000+k（k∈[0,4999]），两区间 2000..5999 重叠——两套秩统计各自独立
+# 计算，seed 重叠只改变抽到的具体 entry 序列、不引入相关性，无统计影响。
+DUAL_SEED_OFFSET = 2_000
+
+
+def simulate_one_random_dual_gate(
+    closes: list[float],
+    n_long: int,
+    hold_long: int,
+    n_short: int,
+    hold_short: int,
+    rng: random.Random,
+) -> tuple[float, float]:
+    """多空双开随机基线单次模拟（#1309）。
+
+    与 ``simulate_one_random_gate`` 同构：长腿 n_long 笔 × hold_long 根、
+    空腿 n_short 笔 × hold_short 根，entry 时点均匀随机（有放回、允许重叠，
+    与单边基线同一决策）。长腿收益 = close[e+H]/close[e] − 1；空腿收益 =
+    close[e]/close[e+H] − 1（做空方向倒数）。双腿各自复利后按（长腿复利% +
+    空腿复利%）/ 2 合并——与 ``compute_dual_metrics`` 的真实组合口径一致。
+    返回 (组合复利%, 组合最大回撤%)，组合权益曲线按 exit_bar 升序合并双腿。
+    """
+
+    def _leg_events(n_trades: int, hold_bars: int, short: bool) -> list[tuple[int, float]]:
+        max_entry = len(closes) - hold_bars - 1
+        if max_entry < 0 or n_trades <= 0:
+            return []
+        entries = sorted(rng.randint(0, max_entry) for _ in range(n_trades))
+        return [
+            (
+                e + hold_bars,
+                closes[e] / closes[e + hold_bars]
+                if short else closes[e + hold_bars] / closes[e],
+            )
+            for e in entries
+        ]
+
+    long_events = _leg_events(n_long, hold_long, short=False)
+    short_events = _leg_events(n_short, hold_short, short=True)
+    events = [(b, m, "L") for b, m in long_events]
+    events += [(b, m, "S") for b, m in short_events]
+    events.sort(key=lambda e: e[0])
+    long_eq = 1.0
+    short_eq = 1.0
+    peak = 2.0
+    max_dd = 0.0
+    for _, mult, side in events:
+        if side == "L":
+            long_eq *= mult
+        else:
+            short_eq *= mult
+        combined = long_eq + short_eq
+        peak = max(peak, combined)
+        max_dd = min(max_dd, (combined - peak) / peak)
+    combined_compound = ((long_eq - 1.0) + (short_eq - 1.0)) / 2.0 * 100.0
+    return combined_compound, max_dd * 100.0
+
+
+def large_bootstrap_percentile_dual(
+    closes: list[float],
+    n_long: int,
+    hold_long: int,
+    n_short: int,
+    hold_short: int,
+    e_compound: float,
+) -> Percentile:
+    """多空双开大样本 bootstrap → 真策略在随机双开分布中的秩（#1309）。
+
+    与 ``large_bootstrap_percentile`` 同构：5000 次独立随机双开模拟，统计
+    P(随机 ≥ 真实)。``e_compound`` = 真实双开组合复利%（``compute_dual_metrics``）。
+    """
+    comps: list[float] = []
+    n_ge = 0
+    for k in range(N_BOOTSTRAP_LARGE):
+        rng = random.Random(BASE_SEED + DUAL_SEED_OFFSET + k)
+        comp, _ = simulate_one_random_dual_gate(
+            closes, n_long, hold_long, n_short, hold_short, rng,
+        )
+        comps.append(comp)
+        if comp >= e_compound:
+            n_ge += 1
+    p = n_ge / len(comps)
+    return Percentile(
+        n_runs=len(comps),
+        p_random_ge_e=p,
+        e_percentile=(1 - p) * 100,
+        rnd_median=_median(comps),
+        rnd_mean=sum(comps) / len(comps),
+        rnd_std=_std(comps),
+    )
+
+
 def verdict(real: GateResult, pct: Percentile, bh: float, n_trades: int) -> str:
     """三组对照 → P3 判决（秩统计主判 + N 功效警告）。
 
