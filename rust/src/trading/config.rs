@@ -535,7 +535,7 @@ pub struct OrganicConfig {
     /// 44课级别门的嵌套形态：master 满仓入场保暴露（positional 扁平分层
     /// 否证的死因矫正——入场侧不拆），entry 级 sell1 在 master 被出场门
     /// （HoldTrend/Emergent 趋势延续证据）拦截持仓时，由 voice@entry 承载
-    /// 为配额反向腿（44课:50"先出一部分……如果没有出现上一段所说的情况，
+    /// 为配额反向腿（044:44"先出一部分……如果没有出现上一段所说的情况，
     /// 就可以回补，权当弄了一个短差"的逐字形态）。master 真实出场时
     /// close_position 强制清腿在册逻辑自动覆盖（义务闭腿）。
     /// 要求 exit_mode ≠ Signal（Signal 下 master 在 voice 之前清仓，本轴
