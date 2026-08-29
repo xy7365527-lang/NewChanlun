@@ -13,7 +13,7 @@ Origin/CenterConstruction.lean — centersOf 全自动构造（算 ZG/ZD/GG/DD�
 中枢由 ≥3 个连续重叠次级别走势段构成。识别递归：
   - 取前 3 段，计算核心 ZG=min(g₁,g₂,g₃)/ZD=max(d₁,d₂,d₃)（口径 B 全三段定核心，637号）+
     外缘 GG/DD（三段聚合，与核心同三段）。
-  - 若三段确有公共重叠区间（ZD ≤ ZG，中枢成立）⟹ 产出一个 CenterFull，消费 3 段递归。
+  - 若三段确有公共重叠区间（ZD < ZG，中枢成立，严格 #812 Z-2）⟹ 产出一个 CenterFull，消费 3 段递归。
   - 否则（无中枢）消费 1 段前进（滑窗）。
 **终止性**：每步消费 ≥1 段 ⟹ 剩余段数严格递减 ⟹ well-founded（`List.length`）。
 
@@ -31,7 +31,7 @@ GG/DD/ZG/ZD 用 if 显式构造（不用 min/max——Mathlib 缺失时无 simp 
 ★ TerminationAndDeterminismOnly + OuterComputationConstructive ——
   本文件证 centersOf 的**终止性 + 唯一性**（构造层骨架）+ ZG/ZD/GG/DD 的**构造性计算**
   （口径 B 全三段定核心 + 三段聚合外缘，§6.3/§6.4 公式直译，637号）。"三段是否构成中枢"的判据用
-  "全三段核心区间非空（ZD ≤ ZG）"封装——这是中枢重叠的**必要**几何条件（口径 B 下已含第三段
+  "全三段核心区间非空（ZD < ZG，严格 #812 Z-2）"封装——这是中枢重叠的**必要**几何条件（口径 B 下已含第三段
   贯穿），良构且终止；但**不**等于完整缠论中枢识别（须次级别走势段方向交替，still-MISSING-B′）。
   把骨架冒充为完整识别 = 声明膨胀（禁止）。
 
@@ -108,16 +108,17 @@ def computeGG (s1 s2 s3 : Segment) : Tick := tmax (tmax (segHigh s1) (segHigh s2
 def computeDD (s1 s2 s3 : Segment) : Tick := tmin (tmin (segLow s1) (segLow s2)) (segLow s3)
 
 /--
-  **中枢成立的几何必要条件** —— 核心非空：ZD ≤ ZG（**全三段**有共同重叠区间，口径 B）。
+  **中枢成立的几何必要条件** —— 核心**严格**非空：ZD < ZG（**全三段**有共同重叠区间且非单点，口径 B；
+  严格 #812 Z-2：单点核心 ZD=ZG 不算中枢）。
   这是"三段构成中枢"的几何**必要**条件（封装，非完整缠论判据，still-MISSING-B′）。
-  ★口径 B（637号）：全三段核心非空 `max3(lows) ≤ min3(highs)` ⟺ 三段有共同重叠部分
-  （已含"第三段贯穿前两段核心"——见 CenterComplete.lean 完整判据）。
+  ★口径 B（637号）：全三段核心非空 `max3(lows) < min3(highs)` ⟺ 三段有共同重叠部分且非单点
+  （已含"第三段贯穿前两段核心"——见 CenterComplete.lean 完整判据；严格化依据 #812 Z-2）。
 -/
-def centerHolds (s1 s2 s3 : Segment) : Bool := decide (computeZD s1 s2 s3 ≤ computeZG s1 s2 s3)
+def centerHolds (s1 s2 s3 : Segment) : Bool := decide (computeZD s1 s2 s3 < computeZG s1 s2 s3)
 
 /--
   **★从三段构造 CenterFull（口径 B，仅当全三段核心非空）** —— 计算 ZG/ZD/GG/DD 并组装 CenterFull，
-  携带所有不变量证明。前提 `h : ZD ≤ ZG`（全三段核心良构）由调用点 centerHolds 保证。
+  携带所有不变量证明。前提 `h : ZD < ZG`（全三段核心严格非空，#812 Z-2）由调用点 centerHolds 保证。
 
   外缘包含核心证明（DD ≤ ZD ≤ ZG ≤ GG）：
   - `outer_lo : DD ≤ ZD`：DD = min(d₁,d₂,d₃) ≤ d₁ ≤ max(d₁,d₂,d₃) = ZD（口径 B 同三段聚合，链）。
@@ -125,13 +126,13 @@ def centerHolds (s1 s2 s3 : Segment) : Bool := decide (computeZD s1 s2 s3 ≤ co
   ★口径 B 下核心与外缘用**同一三段聚合**：ZD=max3(lows) 同 DD 用同三段（DD≤ZD 因 min3≤max3）；
   ZG=min3(highs) 同 GG 用同三段（ZG≤GG 因 min3≤max3）。
 -/
-def centerFromThree (s1 s2 s3 : Segment) (h : computeZD s1 s2 s3 ≤ computeZG s1 s2 s3) : CenterFull :=
+def centerFromThree (s1 s2 s3 : Segment) (h : computeZD s1 s2 s3 < computeZG s1 s2 s3) : CenterFull :=
   { core :=
       { zd := computeZD s1 s2 s3
         zg := computeZG s1 s2 s3
         startIndex := s1.startIndex
         endIndex := s3.endIndex
-        valid := h }
+        valid := Int.le_of_lt h }
     dd := computeDD s1 s2 s3
     gg := computeGG s1 s2 s3
     outer_lo := by
@@ -165,7 +166,7 @@ def centerFromThree (s1 s2 s3 : Segment) (h : computeZD s1 s2 s3 ≤ computeZG s
   **★centersOf 全自动构造（task #116，终止性核心）** —— `List Segment → List CenterFull`。
 
   递归（滑窗）：
-  - `s1 :: s2 :: s3 :: rest`：若 `centerHolds s1 s2`（核心非空）⟹ 产出 `centerFromThree`，
+  - `s1 :: s2 :: s3 :: rest`：若 `centerHolds s1 s2 s3`（核心严格非空，#812 Z-2）⟹ 产出 `centerFromThree`，
     消费 3 段对 `rest` 递归；否则消费 1 段对 `s2 :: s3 :: rest` 递归（滑窗前进）。
   - 段数 < 3：无中枢，返回 []。
 
@@ -180,7 +181,7 @@ def centersOf (segs : List Segment) : List CenterFull :=
   | [_] => []
   | [_, _] => []
   | s1 :: s2 :: s3 :: rest =>
-      if h : computeZD s1 s2 s3 ≤ computeZG s1 s2 s3 then
+      if h : computeZD s1 s2 s3 < computeZG s1 s2 s3 then
         centerFromThree s1 s2 s3 h :: centersOf rest
       else
         centersOf (s2 :: s3 :: rest)
@@ -226,8 +227,8 @@ def ovSeg1 : Segment := { direction := Direction.up,   startIndex := 0, endIndex
 def ovSeg2 : Segment := { direction := Direction.down, startIndex := 1, endIndex := 2, startPrice := 20, endPrice := 12 }
 def ovSeg3 : Segment := { direction := Direction.up,   startIndex := 2, endIndex := 3, startPrice := 12, endPrice := 22 }
 
-/-- overlappingSegs 全三段核心非空（口径 B）：ZD=max(10,12,12)=12 ≤ ZG=min(20,20,22)=20（机器算）。 -/
-theorem overlapping_holds : computeZD ovSeg1 ovSeg2 ovSeg3 ≤ computeZG ovSeg1 ovSeg2 ovSeg3 := by
+/-- overlappingSegs 全三段核心严格非空（口径 B，#812 Z-2）：ZD=max(10,12,12)=12 < ZG=min(20,20,22)=20（机器算）。 -/
+theorem overlapping_holds : computeZD ovSeg1 ovSeg2 ovSeg3 < computeZG ovSeg1 ovSeg2 ovSeg3 := by
   unfold computeZD computeZG segLow segHigh tmax tmin ovSeg1 ovSeg2 ovSeg3
   decide
 
@@ -243,8 +244,8 @@ def spSeg1 : Segment := { direction := Direction.up, startIndex := 0, endIndex :
 def spSeg2 : Segment := { direction := Direction.up, startIndex := 1, endIndex := 2, startPrice := 20, endPrice := 25 }
 def spSeg3 : Segment := { direction := Direction.up, startIndex := 2, endIndex := 3, startPrice := 30, endPrice := 35 }
 
-/-- separatedSegs 全三段核心空（口径 B）：¬ (ZD=max(10,20,30)=30 ≤ ZG=min(15,25,35)=15)（机器算）。 -/
-theorem separated_not_holds : ¬ (computeZD spSeg1 spSeg2 spSeg3 ≤ computeZG spSeg1 spSeg2 spSeg3) := by
+/-- separatedSegs 全三段核心空（口径 B，#812 Z-2 严格）：¬ (ZD=max(10,20,30)=30 < ZG=min(15,25,35)=15)（机器算）。 -/
+theorem separated_not_holds : ¬ (computeZD spSeg1 spSeg2 spSeg3 < computeZG spSeg1 spSeg2 spSeg3) := by
   unfold computeZD computeZG segLow segHigh tmax tmin spSeg1 spSeg2 spSeg3
   decide
 
@@ -273,9 +274,10 @@ theorem witness_centersOf_too_few : centersOf [] = [] := by
     - **外缘包含核心不变量**：centerFromThree 的 outer_lo/outer_hi 由 tmin/tmax 链证（DD≤ZD≤ZG≤GG）。
 
   ★still-MISSING-B′（完整中枢识别判据，诚实开口）：
-    `centerHolds`/全三段核心非空（ZD ≤ ZG，口径 B）是中枢重叠的**几何必要条件**，良构且终止；
-    口径 B 下已含"第三段贯穿前两段核心"（637号 codex L0 等价：全三段核心非空 ⟺ 前两段核心非空
-    ∧ 第三段贯穿）。但**不**等于完整缠论中枢识别——完整版须：(1) 三段为**次级别走势**（非任意
+    `centerHolds`/全三段核心**严格**非空（ZD < ZG，口径 B，#812 Z-2）是中枢重叠的**几何必要条件**，良构且终止；
+    口径 B 下已含"第三段贯穿前两段核心"（637号 codex L0 等价：**弱**全三段核心非空 `≤` ⟺ 前两段
+    核心非空 ∧ 第三段贯穿——该等价是 A→B 迁移的几何引理，见 CenterComplete.lean，与 #812 Z-2 的
+    **严格形成判据** `<` 是两条命题）。但**不**等于完整缠论中枢识别——完整版须：(1) 三段为**次级别走势**（非任意
     线段，须方向交替，CenterComplete.lean DirAlternates），(2) 中枢延伸/新生/扩展的发展态串接
     （CenterStates.classifyDevelopment 接入相邻中枢对）。把 (1)-(2) 接入使识别 = 真缠论中枢，是
     still-MISSING-B′。本文件**不声称**识别的中枢真对应权威标注——只声称识别递归终止 + 确定 +
@@ -287,8 +289,8 @@ theorem witness_centersOf_too_few : centersOf [] = [] := by
     - 核心 ZG/ZD 用**全三段**（口径 B，§6.3/§6.4 ZG=min(g₁,g₂,g₃)/ZD=max(d₁,d₂,d₃)，637号）。
       若回退误口径 A（前两段 min(g₁,g₂)/max(d₁,d₂)），computeZG/ZD 须改，外缘包含核心证明须重做
       （但 A 已被一级权威第17课答疑裁错——见 637号谱系，canonical 不回退）。
-    - centerHolds 用闭区间 `ZD ≤ ZG`（核心可退化为单点 ZD=ZG）。若要求严格 `ZD < ZG`
-      （排除单点中枢），临界翻转。
+    - centerHolds 用**严格** `ZD < ZG`（#812 Z-2：单点核心 ZD=ZG 不算中枢）。若回退弱闭区间
+      `ZD ≤ ZG`（允许单点中枢），与 #812 Z-2 相反，不得回退。
 
   ★下游推论：
     - BspConstruction.lean（bspOf）第三类买卖点"回抽不破 ZG/ZD"用 centersOf 产出的 CenterFull.core

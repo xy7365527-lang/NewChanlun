@@ -2,7 +2,8 @@
 Origin/CenterComplete.lean — 完整中枢识别判据接入（task #118，B′ 升级；637号 A→B 主塔迁移）
 
 ★工位定位（#116 still-MISSING-B′ 缺口）：CenterConstruction.lean 的 `centerHolds` 是中枢识别的
-  **几何必要条件封装**——查全三段核心非空（`computeZD s1 s2 s3 ≤ computeZG s1 s2 s3`，口径 B），
+  **几何必要条件封装**——查全三段核心**严格**非空（`computeZD s1 s2 s3 < computeZG s1 s2 s3`，口径 B，
+  #812 Z-2），
   它良构且终止，但**不**等于第六节完整中枢识别判据（缺方向交替维度）。本文件把完整判据
   （三段次级别走势**方向交替** + **全三段核心非空**）接入为可机器检查的**完整中枢确认谓词**
   `CenterConfirmedComplete`，并证：
@@ -134,8 +135,8 @@ instance (s1 s2 s3 : Segment) : Decidable (ThirdSpansFrontTwoCore s1 s2 s3) := b
   两条**全部**成立：
 
   1. **方向交替**（§6.1 典型形态下-上-下/上-下-上）——`DirAlternates s1 s2 s3`。
-  2. **全三段核心非空**（§6.3/§6.4 口径 B：核心 = 前三段重叠部分 `[max(三段低),min(三段高)]`
-     非空 ⟺ 三段有共同重叠区间）——`computeZD s1 s2 s3 ≤ computeZG s1 s2 s3`。
+  2. **全三段核心严格非空**（§6.3/§6.4 口径 B：核心 = 前三段重叠部分 `[max(三段低),min(三段高)]`
+     严格非空 ⟺ 三段有共同重叠区间且非单点，#812 Z-2）——`computeZD s1 s2 s3 < computeZG s1 s2 s3`。
 
   ★口径 A→B 迁移（637号）：旧 A 口径三支 [方向交替 ∧ 前两段核心非空 ∧ ThirdSpansCore] 与本 B 口径
   两支 **接受/拒绝集严格相等**——第三段贯穿被全三段核心非空吸收（`coreNonEmpty_iff_frontTwo_and_thirdSpans`
@@ -145,17 +146,18 @@ instance (s1 s2 s3 : Segment) : Decidable (ThirdSpansFrontTwoCore s1 s2 s3) := b
 -/
 def CenterConfirmedComplete (s1 s2 s3 : Segment) : Prop :=
   DirAlternates s1 s2 s3 ∧
-  computeZD s1 s2 s3 ≤ computeZG s1 s2 s3
+  computeZD s1 s2 s3 < computeZG s1 s2 s3
 
 /--
   **真中枢核心谓词（§6.1 定义直译，口径 B 637号）** —— 三段构成真中枢的核心 ⟺ 方向交替
-  （三个连续次级别走势）∧ 存在非空区间 [ZD,ZG] 被三段共同重叠（全三段核心非空，口径 B）。这是
+  （三个连续次级别走势）∧ 存在严格非空区间 [ZD,ZG] 被三段共同重叠（全三段核心严格非空，口径 B，
+  #812 Z-2）。这是
   §6.1"被至少三个连续次级别走势类型所重叠的部分"的**定义性合取**，与 `CenterConfirmedComplete`
   同构（下面证相等，字面同一定义）。
 -/
 def TrueCenterCore (s1 s2 s3 : Segment) : Prop :=
   DirAlternates s1 s2 s3 ∧
-  computeZD s1 s2 s3 ≤ computeZG s1 s2 s3
+  computeZD s1 s2 s3 < computeZG s1 s2 s3
 
 /--
   **★完整判据 = 真中枢核心（L0，B′ 升级核心定理）** —— `CenterConfirmedComplete ↔ TrueCenterCore`。
@@ -229,16 +231,16 @@ theorem coreNonEmpty_iff_frontTwo_and_thirdSpans (s1 s2 s3 : Segment) :
   成立但完整判据拒绝"的见证。换**三段全重叠**同向例：
   s1=上(10→20)、s2=上(11→19)、s3=上(12→18)：
   - segHigh=20/19/18, segLow=10/11/12。
-  - 全三段核心 ZG=min(20,19,18)=18, ZD=max(10,11,12)=12 ⟹ ZD=12 ≤ ZG=18，B centerHolds **成立**。
+  - 全三段核心 ZG=min(20,19,18)=18, ZD=max(10,11,12)=12 ⟹ ZD=12 < ZG=18，B centerHolds **成立**（#812 Z-2 严格）。
   - 但三段全向上（无方向交替）⟹ 单边上涨的三个次级别走势，**不是**中枢（是趋势）。
 -/
 def sameDirSeg1 : Segment := { direction := Direction.up, startIndex := 0, endIndex := 1, startPrice := 10, endPrice := 20 }
 def sameDirSeg2 : Segment := { direction := Direction.up, startIndex := 1, endIndex := 2, startPrice := 11, endPrice := 19 }
 def sameDirSeg3 : Segment := { direction := Direction.up, startIndex := 2, endIndex := 3, startPrice := 12, endPrice := 18 }
 
-/-- 同向全重叠三段 B centerHolds 成立（全三段核心非空：ZD=12 ≤ ZG=18，口径 B）。 -/
+/-- 同向全重叠三段 B centerHolds 成立（全三段核心严格非空：ZD=12 < ZG=18，口径 B，#812 Z-2）。 -/
 theorem sameDir_centerHolds :
-    computeZD sameDirSeg1 sameDirSeg2 sameDirSeg3 ≤ computeZG sameDirSeg1 sameDirSeg2 sameDirSeg3 := by
+    computeZD sameDirSeg1 sameDirSeg2 sameDirSeg3 < computeZG sameDirSeg1 sameDirSeg2 sameDirSeg3 := by
   unfold computeZD computeZG segLow segHigh tmax tmin sameDirSeg1 sameDirSeg2 sameDirSeg3
   decide
 
@@ -293,18 +295,18 @@ theorem noSpan_b_core_empty :
 theorem noSpan_not_centerConfirmed :
     ¬ CenterConfirmedComplete noSpanSeg1 noSpanSeg2 noSpanSeg3 := by
   intro h
-  -- h.2 是全三段核心非空（口径 B 第二支），但 ZD=40 > ZG=20
-  exact noSpan_b_core_empty h.2
+  -- h.2 是全三段核心严格非空（口径 B 第二支，#812 Z-2），但 ZD=40 > ZG=20
+  exact noSpan_b_core_empty (Int.le_of_lt h.2)
 
 /--
   **★完整判据严格细化 centerHolds（L0，口径 B 唯一细化维=方向）** —— 存在三段使 B centerHolds 成立
-  （`computeZD s1 s2 s3 ≤ computeZG s1 s2 s3`，全三段核心非空）但完整判据拒绝（¬CenterConfirmedComplete）。
+  （`computeZD s1 s2 s3 < computeZG s1 s2 s3`，全三段核心严格非空，#812 Z-2）但完整判据拒绝（¬CenterConfirmedComplete）。
   口径 B 下见证是**同向全重叠三段**（方向维度缺失）——这是 B 口径唯一严格细化维度（第三段贯穿已被
   全三段核心非空吸收，不再是独立维度）。证明完整判据**严格细化** centerHolds（非改名）。
 -/
 theorem complete_strictly_refines_centerHolds :
     (∃ s1 s2 s3 : Segment,
-      (computeZD s1 s2 s3 ≤ computeZG s1 s2 s3) ∧ ¬ CenterConfirmedComplete s1 s2 s3) := by
+      (computeZD s1 s2 s3 < computeZG s1 s2 s3) ∧ ¬ CenterConfirmedComplete s1 s2 s3) := by
   -- 用同向全重叠三段见证（方向维度缺失——口径 B 唯一细化维）
   exact ⟨sameDirSeg1, sameDirSeg2, sameDirSeg3, sameDir_centerHolds, sameDir_not_centerConfirmed⟩
 
@@ -350,13 +352,13 @@ theorem trueCenter_centerConfirmed :
   refine ⟨?_, ?_⟩
   · -- 方向交替：上-下-上
     unfold DirAlternates trueCenterSeg1 trueCenterSeg2 trueCenterSeg3; decide
-  · -- 全三段核心非空（口径 B）：ZD=max(10,12,12)=12 ≤ ZG=min(20,20,22)=20
+  · -- 全三段核心严格非空（口径 B，#812 Z-2）：ZD=max(10,12,12)=12 < ZG=min(20,20,22)=20
     unfold computeZD computeZG segLow segHigh tmax tmin trueCenterSeg1 trueCenterSeg2 trueCenterSeg3; decide
 
 /--
   **★完整判据可构造 CenterFull（L0，B′ 接入载体）** —— 被完整判据确认的三段可构造 CenterFull
   （复用 CenterConstruction.centerFromThree），其核心 = 真中枢核心。这把完整判据**接到** #116
-  的 CenterFull 输出载体——完整判据确认的真中枢可承载外缘 GG/DD。`h.2` = 全三段核心非空（口径 B 第二支）。
+  的 CenterFull 输出载体——完整判据确认的真中枢可承载外缘 GG/DD。`h.2` = 全三段核心严格非空（口径 B 第二支，#812 Z-2）。
 -/
 def centerFullOfConfirmed (s1 s2 s3 : Segment)
     (h : CenterConfirmedComplete s1 s2 s3) : CenterFull :=
@@ -379,10 +381,10 @@ theorem trueCenter_full_core_valid :
 theorem centerConfirmed_implies_dirAlternates (s1 s2 s3 : Segment)
     (h : CenterConfirmedComplete s1 s2 s3) : DirAlternates s1 s2 s3 := h.1
 
-/-- **★完整判据 ⟹ 全三段核心非空（L0，§6.4 口径 B 必要条件）** —— 真中枢全三段核心 ZD ≤ ZG。 -/
+/-- **★完整判据 ⟹ 全三段核心严格非空（L0，§6.4 口径 B 必要条件，#812 Z-2）** —— 真中枢全三段核心 ZD < ZG。 -/
 theorem centerConfirmed_implies_coreNonEmpty (s1 s2 s3 : Segment)
     (h : CenterConfirmedComplete s1 s2 s3) :
-    computeZD s1 s2 s3 ≤ computeZG s1 s2 s3 := h.2
+    computeZD s1 s2 s3 < computeZG s1 s2 s3 := h.2
 
 /--
   **★第三段贯穿前两段核心（A 降级为派生 lemma，637号）** —— 口径 B 全三段核心非空
@@ -399,7 +401,7 @@ theorem thirdSpansFrontTwoCore_of_coreNonEmpty (s1 s2 s3 : Segment)
 /-- **★完整判据 ⟹ 第三段贯穿前两段核心（L0，§6.3 派生必要条件）** —— 真中枢第三段落入前两段核心重叠。 -/
 theorem centerConfirmed_implies_thirdSpans (s1 s2 s3 : Segment)
     (h : CenterConfirmedComplete s1 s2 s3) : ThirdSpansFrontTwoCore s1 s2 s3 :=
-  thirdSpansFrontTwoCore_of_coreNonEmpty s1 s2 s3 h.2
+  thirdSpansFrontTwoCore_of_coreNonEmpty s1 s2 s3 (Int.le_of_lt h.2)
 
 /--
   **★完整判据强于 centerHolds（L0，单向蕴含，口径 B）** —— 完整判据确认 ⟹ centerHolds 成立
@@ -453,8 +455,8 @@ theorem centerConfirmed_implies_centerHolds (s1 s2 s3 : Segment)
     - 方向交替用严格异向（s1.dir ≠ s2.dir）。若某口径允许"线段标准化后只看价位不看方向"
       （第78课标准化后线段当无内部结构部件），方向交替条件须重裁——但 §6.1 典型形态明确要求
       下-上-下/上-下-上，本文件取原文方向交替口径。
-    - 全三段核心非空用闭区间（`computeZD s1 s2 s3 ≤ computeZG s1 s2 s3`，单点核心 ZD=ZG 合法）；
-      若要求严格 `ZD < ZG`（排除单点中枢），临界翻转。
+    - 全三段核心非空用**严格** `computeZD s1 s2 s3 < computeZG s1 s2 s3`（#812 Z-2：单点核心
+      ZD=ZG 不算中枢）；若回退闭区间 `≤`（允许单点中枢），与 #812 Z-2 相反，不得回退。
     - 终止性可接入性（完整判据 ⟹ centerHolds ⟹ 成立支消费 3 段）是 B″ 接入的**前提条件**，
       非已实现保证。
 

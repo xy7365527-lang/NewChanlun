@@ -320,7 +320,8 @@ theorem centersOfWithOuter_nontrivial :
       口径统一）+ 固定三段窗口。本 § 兑现**另一条权威链**：
       `~/Downloads/newchanlun-engine-formal-audit/reference_chanlun.py`
       的 **frozen v1 rule**（README §1）——`ZD=max3(lows)/ZG=min3(highs)`（**全三段**）+ 弱接触延伸
-      + gg/dd/settled 生命周期 + 结算后重叠回退 `i=max(j-2,end)`。
+      + gg/dd/settled 生命周期 + 结算后续扫锚（本文件按 #812 Z-5 改 C 口径 `end+2`，
+      ★覆盖 reference:150-151 的 A 口径重叠回退 `i=max(j-2,end)`）。
       ★口径收敛（637号）：迁移前 §1-5 路径核心是误口径 A（前两段），与本 § ref_v1（B 全三段）
       **核心口径分离**；迁移后两路径核心**统一为 B**，区别仅剩本 § ref_v1 额外的弱接触延伸 +
       生命周期字段（§1-5 路径用固定三段窗口，不做延伸）。`legacyV0Interval`（首尾段）仍是被裁错
@@ -394,6 +395,15 @@ def segHL (s : Segment) : Tick × Tick := (segHigh s, segLow s)
   fuel = 剩余段数上界（保证 ≥ 实际可延伸段数，终止机器检查；reference while 由 `j<n` 终止）。
 
   返回 `(end, jOut, gg, dd)`：`end`=最后延伸到的段下标，`jOut`=首个不延伸（离开/越界）的段下标。
+
+  ★#812 L7 登记（≥9 段升级重切，本票显式登记不可行，未实装）：现状是延伸**无段数上限**——只要
+  弱接触成立就一直延伸。zhongshu.md §9.2 L7 处置要求补「≥9 段升级重切」（S-4 阈值 = 总段数 ≥9 =
+  3 本体 + 6 延伸，硬判据；Z-4 触发后按每 3 段切成 k 个本级子中枢，每个子中枢核心按其自身三段
+  **重算**、不继承母核心，算不出核心 `ZD ≥ ZG` 的子窗不产出）。**三侧同步是硬前置**（zhongshu.md
+  §11：Python P13 与 Lean 全空，不同步 parity 断言必红）：Rust `ref_v1.rs` 对照镜像与 Python
+  `a_zhongshu_v1.py` 的 ≥9 升级重切不在本票（Lean-only）范围，Lean 单侧实装会使
+  `theta_v0_center_parity` bit-exact 契约在 9+ 段输入上失效 ⟹ 本文件**暂不实装**，待三侧同步批次
+  （Rust R6/R7/R8 + Python P13）同拍落地后再补本函数与 `refStep`/`refLoop` 的升级重切。
 -/
 def extendWeak (comps : List (Tick × Tick)) (zd zg : Tick) :
     Nat → Nat → Nat → Tick → Tick → (Nat × Nat × Tick × Tick)
@@ -416,7 +426,8 @@ def extendWeak (comps : List (Tick × Tick)) (zd zg : Tick) :
   - 前三段 `zd=max3(lows)/zg=min3(highs)`（全三段核心，frozen v1）。
   - `zg <= zd`（核心空）⟹ 无中枢，`i+=1` 滑窗（reference:122-124）。
   - 否则：gg/dd 初始三段，弱接触延伸（extendWeak），`settled = jOut < n`。
-  - `settled` ⟹ 下一个 `i = max(jOut-2, end)`（重叠回退，reference:150-151）；
+  - `settled` ⟹ 下一个 `i = end + 2`（★#812 Z-5 C 口径：跳过突破段 `jOut = end+1`，
+    突破段不属于任何中枢；覆盖 reference:150-151 的 A 口径重叠回退 `max(jOut-2,end)`）；
     未结算 ⟹ 停止（reference:152-153 break，返回 i=n 终止外循环）。
 -/
 def refStep (comps : List (Tick × Tick)) (n : Nat) (i : Nat) :
@@ -444,8 +455,8 @@ def refStep (comps : List (Tick × Tick)) (n : Nat) (i : Nat) :
                        else true,
             gg := gg, dd := dd }
         if settled then
-          -- 重叠回退：i = max(jOut-2, end)（reference:150-151，Nat 减法 jOut-2 已自带 ≥0 截断）
-          (some zs, Nat.max (jOut - 2) endE)
+          -- ★#812 Z-5 C 口径：跳过突破段 jOut（= endE+1），下一个 i = endE + 2
+          (some zs, endE + 2)
         else
           (some zs, n)  -- 未结算：break（i=n 终止外循环，reference:152-153）
   | _, _, _ => (none, n)  -- 不足三段：终止（reference `i+2 < n` 假）
@@ -459,7 +470,7 @@ def refLoop (comps : List (Tick × Tick)) (n : Nat) : Nat → Nat → List RefZh
   | fuel + 1, i =>
       if decide (i + 2 < n) then
         let (zsOpt, iNext) := refStep comps n i
-        -- iNext 保证 > i（核心空 i+1；settled max(jOut-2,end)≥i；未结算 iNext=n>i）
+        -- iNext 保证 > i（核心空 i+1；settled endE+2 > i；未结算 iNext=n>i）
         -- fuel-1 配合 iNext 单调增保证终止
         match zsOpt with
         | some zs => zs :: refLoop comps n fuel iNext
@@ -480,7 +491,14 @@ def refZhongshusFromComponents (segs : List Segment) : List RefZhongshu :=
 
 /-! ──────────────────────────────────────────────────────────────────────
     § 5.5.1 v0/v1 反例裁决（NewChanlunEngineAudit.lean Lean 重证，L0）
-    ────────────────────────────────────────────────────────────────────── -/
+    ──────────────────────────────────────────────────────────────────────
+
+    ★#812 Z-1 反例不可达标注：本 § 的 fixture `s0=[10,20] / s1=[12,15] / s2=[11,18]`
+    第二段 s1=[12,15] 被第一段 s0=[10,20] **整个包住**——该输入落在**笔段序列不可达**
+    的输入上（相邻笔/段方向严格交替、每段新极值必超前一极值，段不可能被前一段完整包含），
+    故它**不构成对 Z-1（核心 = 全三段 `ZD=max(三段低)/ZG=min(三段高)`）的否证**，仅作
+    v0（首尾段口径）与 v1（全三段口径）的区间分歧判决（zhongshu.md §1.2）。
+-/
 
 /-- **reference v1 核心区间（全三段，reference:119-120）** —— `(max3 lows, min3 highs)`。 -/
 def refV1Interval (l0 h0 l1 h1 l2 h2 : Tick) : Tick × Tick :=
@@ -490,7 +508,8 @@ def refV1Interval (l0 h0 l1 h1 l2 h2 : Tick) : Tick × Tick :=
 def legacyV0Interval (l0 h0 _l1 _h1 l2 h2 : Tick) : Tick × Tick :=
   (tmax l0 l2, tmin h0 h2)
 
-/-- **★v1 区间值（reference fixture s0=[10,20],s1=[12,15],s2=[11,18]）= (12,15)（L0）。** -/
+/-- **★v1 区间值（reference fixture s0=[10,20],s1=[12,15],s2=[11,18]）= (12,15)（L0）。**
+    ★#812 Z-1 反例不可达：该输入第二段被第一段整个包住，在笔段序列上不可达，不构成对 Z-1 的否证。 -/
 theorem refV1_fixture_value : refV1Interval 10 20 12 15 11 18 = (12, 15) := by native_decide
 
 /-- **★v0 区间值（同 fixture）= (11,18)（L0）。** -/
@@ -504,6 +523,10 @@ theorem v0_ne_v1_fixture :
   **★legacy v0 不是 v1 reference 的正确实现（NewChanlunEngineAudit.lean
   `legacy_v0_not_correct_for_v1_reference` Lean 重证，L0）** ——
   不存在「v0 在全部输入上等于 v1」（fixture 即反例）。这裁决：实装中枢必须用 v1 全三段。
+
+  ★#812 Z-1 反例不可达标注：该 fixture `s0=[10,20]/s1=[12,15]/s2=[11,18]` 的第二段被第一段
+  整个包住，落在笔段序列不可达输入上，**不构成对 Z-1（全三段核心）的否证**——本定理裁决的是
+  v0（首尾段）与 v1（全三段）两口径的区间分歧，非对 Z-1 的反证（zhongshu.md §1.2）。
 -/
 theorem legacyV0_not_correct_for_v1 :
     ¬ (∀ l0 h0 l1 h1 l2 h2 : Tick,

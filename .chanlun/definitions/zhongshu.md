@@ -508,13 +508,13 @@ ZD < ZG（严格，Z-2）
 
 | # | 位置 | 现状 | 处置 | 依据 | 备注 |
 |---|---|---|---|---|---|
-| L1 | `formal/Origin/CenterConstruction.lean:116` `centerHolds` | `ZD ≤ ZG`（弱，单点成立） | **改 `<`**，证明链跟着修 | Z-2 | |
-| L2 | `formal/Origin/CenterComplete.lean:148` `CenterConfirmedComplete` | 同上 `≤` | **改 `<`** | Z-2 | |
+| L1 | `formal/Origin/CenterConstruction.lean:117` `centerHolds` | `ZD ≤ ZG`（弱，单点成立） | **改 `<`**，证明链跟着修。**已落地 = [#1296](https://github.com/xy7365527-lang/NewChanlun/issues/1296)**（`centerHolds`/`centersOf`/`centerFromThree` 三处改严格 `<`，`core.valid` 经 `Int.le_of_lt` 承接） | Z-2 | |
+| L2 | `formal/Origin/CenterComplete.lean:147` `CenterConfirmedComplete` | 同上 `≤` | **改 `<`**。**已落地 = [#1296](https://github.com/xy7365527-lang/NewChanlun/issues/1296)**（`CenterConfirmedComplete`/`TrueCenterCore` 第二支改严格 `<`，下游投影定理 `centerConfirmed_implies_coreNonEmpty` 等同步） | Z-2 | |
 | L3 | 依赖面 | `centerHolds` 42 处（`CenterComplete.lean` 37 + `CenterConstruction.lean` 5）、`CenterConfirmedComplete` 26 处（`CenterComplete.lean` 25 + `CenterConstruct.lean` 1） | 全部在这三文件内，**不外溢** | Z-2 | 实测计数与裁定完全一致 |
 | L4 | `rust/tests/fixtures/theta_v0_parity.json`、`rust/tests/fixtures/theta_v0_center_parity.json` | 机器导出 fixture | **regen**（导出器 `ParityFixtureExport.lean` / `CenterConstruct.lean:634`） | Z-2 | |
-| L5 | `formal/Origin/CenterConstruct.lean:493-501` `native_decide` 反例 `[10,20]/[12,15]/[11,18]` | 用作 v0/v1 区间分歧的判决 | **加「该输入在笔段序列上不可达」标注**（不构成对 Z-1 的否证） | Z-1 | **★行号订正**：裁定记 `:490`（`legacyV0Interval` 定义行），三条 `native_decide` 在 `:494`/`:497`/`:501`，doc 在 `:493` |
-| L6 | `formal/Origin/CenterConstruct.lean:419` / `:448` 续扫锚 `i = max(jOut-2, end)` | A 口径 | **改为 C** | Z-5 | **★清单新增**——裁定只写「Lean 族」，此处点名到行 |
-| L7 | `formal/Origin/CenterConstruct.lean:398-407` `extendWeak` | 延伸**无段数上限** | **补 ≥9 段升级重切**（三侧同步，否则 parity 断言必红） | S-4 / Z-4 | |
+| L5 | `formal/Origin/CenterConstruct.lean:511-520` `native_decide` 反例 `[10,20]/[12,15]/[11,18]` | 用作 v0/v1 区间分歧的判决 | **加「该输入在笔段序列上不可达」标注**（不构成对 Z-1 的否证）。**已落地 = [#1296](https://github.com/xy7365527-lang/NewChanlun/issues/1296)**（§5.5.1 节级 + `refV1_fixture_value`/`legacyV0_not_correct_for_v1` 三处标注） | Z-1 | **★行号订正**：裁定记 `:490`（`legacyV0Interval` 定义行）；[#1296](https://github.com/xy7365527-lang/NewChanlun/issues/1296) 落地后 `legacyV0Interval` 在 `:508`、三条 `native_decide` 在 `:513`/`:516`/`:520`，doc 在 `:511` |
+| L6 | `formal/Origin/CenterConstruct.lean:429` / `:459` 续扫锚 `i = endE + 2`（原 A 口径 `max(jOut-2, end)`） | A 口径 | **改为 C**。**已落地 = [#1296](https://github.com/xy7365527-lang/NewChanlun/issues/1296)**（`refStep` 结算后续扫锚 `endE + 2` 跳过突破段；Rust `ref_v1.rs`/`zhongshu.rs` 与 Python `a_zhongshu_v1.py` 同拍归后续票） | Z-5 | **★清单新增**——裁定只写「Lean 族」，此处点名到行；[#1296](https://github.com/xy7365527-lang/NewChanlun/issues/1296) 落地后原 `:419`/`:448` 漂到 `:429`/`:459` |
+| L7 | `formal/Origin/CenterConstruct.lean:408-417` `extendWeak` | 延伸**无段数上限** | **补 ≥9 段升级重切**（三侧同步，否则 parity 断言必红）。**登记不可行 = [#1296](https://github.com/xy7365527-lang/NewChanlun/issues/1296)**（三侧同步硬前置未满足：Rust R6/R7/R8 与 Python P13 未落本票，Lean 单侧实装会使 `theta_v0_center_parity` bit-exact 契约在 9+ 段输入上红；已在本文件 `extendWeak` doc 显式登记，待三侧同步批次） | S-4 / Z-4 | [#1296](https://github.com/xy7365527-lang/NewChanlun/issues/1296) 落地后原 `:398-407` 漂到 `:408-417` |
 | L8 | `formal/Origin/CenterFull.lean:53-59` `CenterFull` | 字段 `core/dd/gg`，无 `G`/`D` | **不动** | S-7 ③ | |
 
 ### 9.3 Python
