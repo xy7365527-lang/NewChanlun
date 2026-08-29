@@ -1,3 +1,6 @@
+/- ★冻结声明（#1295，#1278 tail3 F-5）：本文件为 legacy 历史对照（名分 = 历史对照）；
+   与 Rust `theta_v0/classifier/bsp.rs` 位级镜像（#816 B-1 追认）；不参生产准入；
+   处置与 #812 Z-3 判例同族（历史对照不入生产判定路径，不占总缝规则例外配额）。 -/
 /-
   Strict/BSP.lean — 买卖点完全分类 Layer2 canonical（task #60, C3, 615 概念分离 Layer2）
   ★T-bsp 工位（RTAS 严格完全分类蜂群）

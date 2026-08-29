@@ -6,7 +6,7 @@
 
 **版本**: v2.0
 **状态**: 已结算
-**最后更新**: 2026-08-04
+**最后更新**: 2026-08-30
 **原文依据**: 第17课（第一、二类买卖点首次提出）、第20课（第三类买卖点）、第21课（完备性定理）、第14课（买卖点定律一）、第101课（跌破一类的二类点）
 
 ---
@@ -246,6 +246,7 @@
 | T-4 | Rust | `rust/src/theta_v0/classifier/rmove_compose.rs:160`（`retrace_no_break`）＋ `:80-82`（`no_new_low` 硬闸） | **按 B-2② 拆闸**，实施归 [#884](https://github.com/xy7365527-lang/NewChanlun/issues/884)（教义面已落地）。**已落地 = #884**（2026-08-17）：`retrace_no_break` 硬闸拆除，回拉段 = 首个后继走势（不问新不新低）；`SecondTypeStructure.retrace_breaks_extreme` + `BspPoint.retrace_breaks_type1: Option<bool>` 重合标注（不作准入分档，语义归 #817）；Lean `RMoveCompose.SecondTypeStructure` 同步拆 `RetraceNoBreak` 合取 + 新增 `RetraceBreaksExtreme` 标注谓词与 `witness_secondTypeStructure_brokeExtreme` 见证；旧引擎 `buysellpoint.rs` 同闸处置路由归 T-6/673-fix（见下） |
 | T-5 | 三侧追认 | `rmove_compose.rs:144-170`、`descend.rs:176-191`、`bsp.rs:78-80`；Lean `BspClassification.lean:94-95,:111-121`；`buysellpoint.rs:186-209` | 与裁定同形，注释口径对齐（带 #816 票号）。**已落地 = #884**（2026-08-17）：三处 Rust 与 `BspClassification.IsType2` 注释已带 #816 票号对齐；`buysellpoint.rs` 的 `make_type2_point` `geom` 合取（现 `:272-276`，清单行号已漂）加 #816 B-2② 注释并明记处置路由归 T-6/673-fix（旧引擎逐位等价 Python 侧，T-6 未落地前两侧同拍不改判据） |
 | T-6 | Python | `src/newchan/a_buysellpoint_v1.py` | Type1 只收 `trend` 已对齐；Type2 确认层接口拆分（673-fix/task #33）与 B-2② 的关系明记于该票；**已落地 = [#1276](https://github.com/xy7365527-lang/NewChanlun/issues/1276)**（26dcae96c3，Type2 确认层拆分 + 旧引擎 geom 合取同拍改）；**已冻结退役=#1286**（2026-08-27，历史对照，不参生产准入） |
+| T-7 | Lean legacy | `formal/Formal/BSPLabels.lean`、`formal/Strict/BSP.lean`、`formal/Foundation/CompleteClassificationLimits.lean` | **冻结为历史对照**（#816 B-1 追认、与 Rust `bsp.rs` 位级镜像、不参生产准入、#812 Z-3 判例同族处置；生产判据已迁 `Origin.BspClassification`）。**已落地 = [#1295](https://github.com/xy7365527-lang/NewChanlun/issues/1295)**（F-5 冻结声明三件套）。**B-3 缺口**（legacy `IsThird` 无 `firstRetrace` 字段）登记路径单独处置，不在本票强改 |
 
 ---
 
@@ -515,4 +516,5 @@ BSP.confirmed = underlying_Move.settled
 - v0.7 (2026-02-17)：/ritual 结算仪式——状态从「生成态」升级为「已结算」。代码覆盖率：语句98%/分支93%（43测试全通过）。依据元编排核心原则#6（推论自动结算）执行
 - v1.0 (2026-02-17)：/ritual 发布仪式——v0.x→v1.0 成熟度升级。定义5/5问题已结算、实现覆盖率98%/93%、87测试通过（含golden case）。无定义变更，纯版本里程碑
 - v1.1 (2026-07-02)：#4 定理级收窄——"盘整背驰不产生三类中任何一类"→"不产生**第一类**"，补 L2 确认层条款（Type2/3 接受盘整背驰作为确认层证据，非定义层替代）。依据第27课L18 等一级权威穷尽检索 + 编排者委托 codex 裁决（`codex-ritual-choices-20260702.md §maimai#4`）。代码侧 Type2/3 接口拆分待 673-fix（task #33）落地
-- v2.0 (2026-08-04)：**入 #793 正本体系**（补三行头）+ [#816](https://github.com/xy7365527-lang/NewChanlun/issues/816) 四组裁定落正本——B-1 一类点判据含背驰（破中枢 ∧ 背驰，语义按 beichi.md）；B-2① 二类点 = 次级别第一类点构成（构成形，Lean 补递归）；B-2② 跌破一类的二类点准入（`101:32`，不设「不创新低」闸，跌破者标注重合名分归 #817）；B-3 三类点「第一次回抽」在判据且显式（`020:62`）。受影响代码清单 T-1~T-6 见「#816 裁定」节
+- v2.0 (2026-08-04)：**入 #793 正本体系**（补三行头）+ [#816](https://github.com/xy7365527-lang/NewChanlun/issues/816) 四组裁定落正本——B-1 一类点判据含背驰（破中枢 ∧ 背驰，语义按 beichi.md）；B-2① 二类点 = 次级别第一类点构成（构成形，Lean 补递归）；B-2② 跌破一类的二类点准入（`101:32`，不设「不创新低」闸，跌破者标注重合名分归 #817）；B-3 三类点「第一次回抽」在判据且显式（`020:62`）。受影响代码清单 T-1~T-7 见「#816 裁定」节
+- v2.0.1 (2026-08-30)：受影响代码清单**名单回填** T-7（legacy Lean 三份冻结为历史对照，[#1295](https://github.com/xy7365527-lang/NewChanlun/issues/1295) 落地；F-5「不在清单」病灶收口）+ G-2 转引行号订正（Claim9/CenterTrichotomy，见 formal/ 注释）+ T-1/T-6 注记核对无漂移
