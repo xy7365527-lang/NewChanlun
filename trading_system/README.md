@@ -45,7 +45,8 @@ trading_system/
 ├── execution/
 │   ├── lmt_executor.py        # LMT-only（非LIMIT订单 submit 前抛 MarketOrderForbidden）
 │   ├── maker_optimizer.py     # 挂单→≤60s等候→撤单不追价（在册 maker 判决实装）
-│   └── leverage_calculator.py # L_max = 1/(D_struct+mm)，纯函数逐bar，含合约乘数
+│   ├── leverage_calculator.py # L_max = 1/(D_struct+mm)，纯函数逐bar，含合约乘数
+│   └── risk_controls.py       # paper 风控四条（#1311）：单笔1%/净持仓上限/频率熔断/kill switch
 ├── data/
 │   ├── DATA_SOURCES.md        # 实时数据源选型评估（HL/Databento/IBKR/AV 四源矩阵）
 │   ├── feed_abstraction.py    # 统一数据抽象：域→源路由 + 能力声明（防声明膨胀）
