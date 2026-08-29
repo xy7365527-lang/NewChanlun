@@ -61,9 +61,12 @@ pub struct PanDivCert {
 /// 力度不背驰（ForceL，beichi.md #873 正本；MACD 面积只作对照档 #990 口径）+ 区间套定位。
 /// 旧「判据归 #817 未裁」的标注已订正——#817 票面零命中、判据本无主（#1254 在案）。
 ///
-/// **消费路径（载体待接）**：构造点 [`judge_quasi_second`] 已落地，但本证书**暂未接入**
-/// `LevelState`/six-bit/BspPoint/生命周期/订单流——判据落地后由下游实施票随盘背通道接线
-/// （同 [`PanDivCert`] → `pan_div` 先例），在此之前不得把本载体当信号消费。
+/// **消费路径（载体就绪待消费，#1285 名分登记）**：构造点 [`judge_quasi_second`] 已落地，
+/// 两核心判据直接单测已补锁（不创新低/新高 + ForceL ≥，双侧正/反例），集成探针
+/// `quasi_second_probe_runs_on_production_tower`（`classifier/tests/pipeline_geometry.rs`）证明
+/// 判据在生产塔上可运行。但本证书**暂未接入** `LevelState`/six-bit/BspPoint/生命周期/订单流——
+/// 消费路径接线仍由下游实施票随盘背通道完成（同 [`PanDivCert`] → `pan_div` 先例），
+/// 在此之前不得把本载体当信号消费。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QuasiSecondCert {
     /// 回抽（回拉）结束点 source_index（候选点坐标；027:68「2.21元的相应区间的寻找，也是按
@@ -99,7 +102,9 @@ pub struct QuasiSecondCert {
 /// （破中枢 ∧ 背驰）构成，回拉破不破一类极值只作重合标注（#816 B-2②）；类第二类是**盘整背驰**
 /// （类第一类）之后「不出现新低 + 力度不背驰」的回抽点（027:68 的弱形式），两条不并存
 /// （收敛通则）。
-// 载体待接（#1269 验收口径）：消费路径接线前本构造点无生产调用方；接线票落地时移除本 allow。
+// 载体就绪待消费（#1285 名分登记）：两核心判据直接单测已补锁 + 集成探针证明可运行；消费路径
+// 接线（LevelState/six-bit/BspPoint/订单流）仍待下游实施票——接线前本构造点无生产调用方，
+// 接线票落地时移除本 allow。
 #[allow(dead_code)]
 pub(crate) fn judge_quasi_second(
     parent: &LeveledMove,
@@ -556,6 +561,46 @@ mod tests {
         let p = parent(subs);
         assert_eq!(
             judge_quasi_second(&p, &pan_div(6, Side::Long), &strokes),
+            None
+        );
+    }
+
+    /// 要素2（不创新高）失败（卖侧）：回抽段升破离开段高点 ⟹ None。
+    #[test]
+    fn retrace_breaking_new_high_is_rejected() {
+        let (_, strokes) = short_fixture();
+        // 回抽段高点 102 > 离开段高点 100 ⟹ 创新高（力度仍过：两段 L 同速 0≥0，None 只由结构谓词产）。
+        let subs = vec![
+            seg(Direction::Up, 50, 100, 0, 6),
+            seg(Direction::Down, 90, 100, 7, 10),
+            seg(Direction::Up, 90, 102, 11, 17),
+        ];
+        let p = parent(subs);
+        assert_eq!(
+            judge_quasi_second(&p, &pan_div(6, Side::Short), &strokes),
+            None
+        );
+    }
+
+    /// 要素3（力度不背驰）失败（卖侧）：回抽段 ForceL 衰减（L(回抽) < L(离开)）⟹ None。
+    #[test]
+    fn retrace_force_diverging_short_is_rejected() {
+        // 回抽段不创新高（高 100 ≤ 100），但笔速度 v=2→0.5（L=−1.5 < 离开段 L=0）⟹ 力度背驰。
+        let subs = vec![
+            seg(Direction::Up, 50, 100, 0, 6),
+            seg(Direction::Down, 90, 100, 7, 10),
+            seg(Direction::Up, 90, 100, 11, 17),
+        ];
+        let strokes = vec![
+            stroke(Direction::Up, 0, 3, 50, 75),
+            stroke(Direction::Up, 3, 6, 75, 100),
+            stroke(Direction::Down, 7, 10, 100, 90),
+            stroke(Direction::Up, 11, 14, 90, 98),
+            stroke(Direction::Up, 14, 17, 98, 100),
+        ];
+        let p = parent(subs);
+        assert_eq!(
+            judge_quasi_second(&p, &pan_div(6, Side::Short), &strokes),
             None
         );
     }

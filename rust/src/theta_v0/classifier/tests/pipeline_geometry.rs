@@ -198,6 +198,100 @@ fn l0_level_emits_no_second_class_window_bound() {
     }
 }
 
+/// #1285 集成探针（「载体就绪待消费」名分配套）：证明 [`signal::cert::judge_quasi_second`] 在
+/// **生产塔**（`classify` → `tower` 的 `RMove::Compose`）产出的父走势上可运行——不依赖 cert.rs
+/// 单测的手搓 `parent()` 夹具。判据（不创新低 + ForceL ≥）经生产 `descend_leveled` /
+/// `find_move_containing_index` / `segment_force_l` 全链路产证，坐标与手搓夹具同款口径。
+///
+/// 夹具同 `end_to_end_second_buy_via_l1_l2_geometric`（三组 L0 → 3 个 L1 走势 → 1 个 L2 中枢）：
+/// 组B（`tower[1][1]`）= down-up-down，离开段 Down[12,16]（lo=80）→ 反弹 Up[16,20] → 回抽
+/// Down[20,24]（lo=85 不创新低）；笔速度离开段 v=6.67→10（L=+3.33）、回抽段 v=3.33→8.33
+/// （L=+5.0 ≥ +3.33 不背驰）⟹ 类第二类买点。
+#[test]
+fn quasi_second_probe_runs_on_production_tower() {
+    let cfg = ThetaConfig::default();
+    let segments = vec![
+        seg(Direction::Up, 0, 4, 110, 150),
+        seg(Direction::Down, 4, 8, 150, 120),
+        seg(Direction::Up, 8, 12, 120, 148),
+        seg(Direction::Down, 12, 16, 115, 80),
+        seg(Direction::Up, 16, 20, 80, 125),
+        seg(Direction::Down, 20, 24, 114, 85),
+        seg(Direction::Up, 24, 28, 115, 148),
+        seg(Direction::Down, 28, 32, 148, 112),
+        seg(Direction::Up, 32, 36, 112, 147),
+    ];
+    // 笔只覆盖离开/回抽两段（其余段不参与 ForceL 比较）；速度如上注释。
+    let strokes = vec![
+        Stroke {
+            direction: Direction::Down,
+            start_index: 12,
+            end_index: 14,
+            start_price: 100,
+            end_price: 80,
+        },
+        Stroke {
+            direction: Direction::Down,
+            start_index: 14,
+            end_index: 16,
+            start_price: 80,
+            end_price: 50,
+        },
+        Stroke {
+            direction: Direction::Down,
+            start_index: 20,
+            end_index: 22,
+            start_price: 90,
+            end_price: 80,
+        },
+        Stroke {
+            direction: Direction::Down,
+            start_index: 22,
+            end_index: 24,
+            start_price: 80,
+            end_price: 55,
+        },
+    ];
+    let closes: Vec<i64> = (0..40).map(|i| 100 + (i % 4) * 10).collect();
+    let layer = ParseLayer {
+        segments: Rc::new(segments),
+        merged_bars: Rc::new(bars_from_closes(&closes)),
+        strokes: Rc::new(strokes),
+        ..Default::default()
+    };
+    let out = classify(&layer, &cfg, &[]);
+    assert!(out.tower.len() >= 2, "至少 L0→L1 塔");
+    assert!(out.tower[1].len() >= 2, "至少 2 个 L1 走势");
+
+    // 组B = tower[1][1]（down-up-down）；类第一类点坐标 = 离开段终点 16。
+    let parent = &out.tower[1][1];
+    let quasi_first = signal::PanDivCert {
+        source_index: 16,
+        side: Side::Long,
+        center: crate::theta_v0::types::Center {
+            zd: 0,
+            zg: 0,
+            dd: 0,
+            gg: 0,
+            start_index: 0,
+            end_index: 0,
+        },
+        seg_a: (0, 0),
+        seg_c: (0, 16),
+    };
+    let got = signal::cert::judge_quasi_second(parent, &quasi_first, &layer.strokes);
+    assert_eq!(
+        got,
+        Some(signal::QuasiSecondCert {
+            source_index: 24,
+            side: Side::Long,
+            quasi_first_index: 16,
+            retrace: (20, 24),
+        }),
+        "生产塔上 judge_quasi_second 产类第二类买点（不创新低 + 力度不背驰）"
+    );
+}
+
 /// ★codex-decide-20260703 裁定 A 最大实现风险点（end_price 忠实性，单测强制）：级别-N 输入单元
 /// → Segment 的端点价按 fold_direction 取 hi/lo，且与 `segment_to_unit` 互逆（L0 段 round-trip
 /// bit-exact）。此测试失败 ⟹ 级别-N「线段」端点价错位 ⟹ A/C 破中枢几何 + judge_third 判据全错。
