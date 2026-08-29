@@ -1285,6 +1285,11 @@ pub(crate) fn cp_unit_to_segment(unit: &UnitRange) -> Segment {
 ///
 /// 每个 pair 只按 [`signal::nearest_confirmed_center_idx`] 路由到唯一 `B_p`，因此新增单元推进是
 /// O(new_units log centers)，不会对全部 pending 对象反复扫全历史。Closed 状态单调保持。
+///
+/// T3-in-c 证书喂给政策第三处（#1278-tail5）：本函数以固定首对（retest_idx = leave_idx + 1）经
+/// [`signal::judge_third_cert`] 喂 `third_class_in_c`，名分 = **020:62 点位**（「必须是第一次」）；
+/// 与 rt/scan 两份 find_map 的 **037:18 存在性**（全窗后扫「至少一个」，#1229/#1249 先例）
+/// 判的是两样东西，非同一判断两档（#804 判别式不接同一 if-else）。
 pub fn advance_cp_lifecycles(
     objects: &mut [CpScanOwnership],
     centers: &[Center],
@@ -1479,6 +1484,7 @@ pub fn advance_cp_lifecycles(
     }
 }
 
+/// P1 线退役拷贝，名分=历史对照（#1278-tail5），不参生产准入。
 #[allow(clippy::too_many_arguments)]
 fn cp_event_objects(
     level: u32,

@@ -1321,6 +1321,10 @@ pub(crate) fn project_cand_delta_events(
 /// 逐段可见窗口径：第三类只在事件段可见窗内首次可证时附着；完整右端只能取第三类 retest
 /// 首次可证点。Lean 镜像 `recomputeCpEventProjection`（formal/Origin/ScanAssemblyMirror.lean）
 /// 独立重算本合成面——逐 bar 因果诊断转镜像锚定（#1060 裁定三）。
+///
+/// 第三类 find_map 名分 = **037:18 存在性**（#1278-tail5）：事件段可见窗内全窗后扫「c 至少
+/// 包含一个第三类买卖点」（#1081 3b 接任 + #1229 全窗后扫先例），与 **020:62 点位**
+/// （advance_cp_lifecycles 固定首对域）判的是两样东西。
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn cp_event_projection(
     level: u32,
