@@ -506,18 +506,19 @@ fn classify_incremental_inner(
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
 
-    // ★#543 D1a 构造证书 seam（`rebase_txn`，纯观测）：env `OPSEM_DUMP_DIR` 未设 ⟹ `txn_on=false`，
-    // 下面全部快照/装配/落盘点一律不进（生产路径逐字节不变，同 opsem-dump 先例）。
-    // `txn_bar` = 本 bar 末 merged bar 的 source_index——与 trades/tower_events/rebase_observability
-    // 的 `bar` 同一坐标系（== 下方 `close_src` 末位，`update_closes_cache` 逐 bar push 同一字段）。
+    // ★#543 D1a 构造证书 seam（`rebase_txn`，纯观测）：`txn_on=false` 时下面全部快照/装配/落盘点
+    // 一律不进（生产路径逐字节不变，同 opsem-dump 先例；`enabled` = 谱系簿 consumer 或 dump sink）。
+    // `txn_bar` = 本 bar 末 merged bar 的 source_index（== 下方 `close_src` 末位，
+    // `update_closes_cache` 逐 bar push 同一字段）——**证书坐标系**。
+    // ★#948 实测：`txn_bar` 与生产 fill loop 的 `i`（自 #1307 起在 dump 事件里记作 `fill_bar`）在
+    // 41.51% 的 bar 上不相等（inclusion 合并致 source_index 落后），不得称「同一坐标系」。
+    // ★#1307：`txn_bar` 无条件取真值并记入线程槽（它是 `l0.merged_bars` 的纯函数，非 env 依赖；
+    // `txn_on=false` 时仅不被 emit 消费，值本身不变），供 dump 事件按 txn_bar/fill_bar 双列登记。
     // 声明前移到回缩检测（下方）之前——回缩检测的 txn 快照块需要 `txn_on`/`txn_cleared` 已在作用域内
     // （#712 收 #645 HIGH-1 随动：回缩检测本身前移到 `l0_units_cache` 构建之前，见下）。
     let txn_on = rebase_txn::enabled();
-    let txn_bar = if txn_on {
-        l0.merged_bars.last().map_or(0, |b| b.source_index)
-    } else {
-        0
-    };
+    let txn_bar = l0.merged_bars.last().map_or(0, |b| b.source_index);
+    rebase_txn::record_current_txn_bar(txn_bar);
     // 整塔缓存全清（段账本回缩退化路径）丢弃的旧输出，按级别下标暂存；由下面的级别循环在同 bar
     // 全量重扫后配成 old→new 事务（未走到的级别在循环后补一条 removed-only 证书）。
     let mut txn_cleared: Vec<Vec<rebase_txn::TxnNode>> = Vec::new();

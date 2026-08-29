@@ -424,8 +424,13 @@ pub(super) fn otherwise_domain_sidecar_enabled() -> bool {
 //  产物（落 `<dir>/trades.jsonl` + `<dir>/tower_events.jsonl`）：
 //  - trades.jsonl：每笔 TypedTrade 一行 JSON（entry/exit 字段 + 触发证书 + 解释器状态 +
 //    声部树快照 + 背驰判定输入 + TW 阶段）。缺席字段标 null（不许编造）。
-//  - tower_events.jsonl：bar 级塔事件（中枢新建/延伸/升级/破坏 + 级别 + bar 号），仅交易
-//    活跃区间（首入场 bar .. 末离场 bar）。
+//  - tower_events.jsonl：bar 级塔事件（中枢新建/延伸/升级/破坏 + 级别 + txn_bar/fill_bar），
+//    仅交易活跃区间（首入场 bar .. 末离场 bar）。
+//
+//  ★#1307 事件坐标系双列（tower_events / center_lifecycle / rebase_observability）：每行事件
+//  同时携 `txn_bar`（证书坐标系 = `l0.merged_bars.last().source_index`）与 `fill_bar`（生产
+//  坐标系 = fill loop `i`）。二者在 #948 实测 41.51% 的 bar 上不相等（inclusion 合并致
+//  source_index 落后），单列 `bar` 混用无法在回放对拍中机械区分；自 #1307 起单列 `bar` 退役。
 //
 //  认识论等级（formalization-validity-domain 231号）：L1（纯只读外化，零信息增量）。
 //  字段缺口标注原则（no-patch-mentality + result-package 六要素）——R5（2026-07-05）后状态：
@@ -555,7 +560,8 @@ impl OpsemDump {
     /// 已在其删除 vanished 挂起前冻结；本函数只序列化，不返回任何可供决策消费的值。
     fn write_rebase_observation(
         &mut self,
-        bar: usize,
+        txn_bar: usize,
+        fill_bar: usize,
         input: &RebaseObservationInput,
     ) -> std::io::Result<()> {
         use classifier::center_lifecycle::CenterId;
@@ -626,9 +632,10 @@ impl OpsemDump {
 
         let rebase_seq = self.rebase_seq + 1;
         let row = serde_json::json!({
-            "schema": "rebase_observability_d0_v1",
+            "schema": "rebase_observability_d0_v2",
             "rebase_seq": rebase_seq,
-            "bar": bar,
+            "txn_bar": txn_bar,
+            "fill_bar": fill_bar,
             "level": input.level,
             "guard_at": input.chain.at,
             "revived": input.revived,
@@ -702,14 +709,15 @@ impl OpsemDump {
     /// 生产调用入口：观测 I/O 失败只进入 witness 并关闭本实例的重基观测旁路，决策继续。
     pub(super) fn write_rebase_observation_fail_open(
         &mut self,
-        bar: usize,
+        fill_bar: usize,
         input: &RebaseObservationInput,
     ) {
         if self.rebase_observability_failed {
             return;
         }
         let candidate_seq = self.rebase_seq.saturating_add(1);
-        if let Err(error) = self.write_rebase_observation(bar, input) {
+        let txn_bar = classifier::rebase_txn::current_txn_bar();
+        if let Err(error) = self.write_rebase_observation(txn_bar, fill_bar, input) {
             self.rebase_observability_failed = true;
             self.report_rebase_observability_failure("write", candidate_seq, &error);
         }
@@ -837,14 +845,15 @@ impl OpsemDump {
     /// 写一个塔事件 JSONL 行（仅交易活跃区间）。
     fn write_tower_event(
         &mut self,
-        bar: usize,
+        txn_bar: usize,
+        fill_bar: usize,
         level: u32,
         kind: &str,
         detail: &str,
     ) -> std::io::Result<()> {
         use std::io::Write;
         let active = match (self.active_start, self.active_end) {
-            (Some(s), _) if bar < s => false,
+            (Some(s), _) if fill_bar < s => false,
             (_, Some(_e)) => true,
             _ => false,
         };
@@ -852,8 +861,9 @@ impl OpsemDump {
             return Ok(());
         }
         let json = format!(
-            "{{\"bar\":{bar},\"level\":{lvl},\"kind\":\"{kind}\",\"detail\":\"{detail}\"}}\n",
-            bar = bar,
+            "{{\"txn_bar\":{txn_bar},\"fill_bar\":{fill_bar},\"level\":{lvl},\"kind\":\"{kind}\",\"detail\":\"{detail}\"}}\n",
+            txn_bar = txn_bar,
+            fill_bar = fill_bar,
             lvl = level,
             kind = kind,
             detail = detail.replace('\\', "\\\\").replace('"', "\\\""),
@@ -866,14 +876,15 @@ impl OpsemDump {
     /// `destroy` 事件缺席——前缀因果塔单调增长（prefix classification 不删结构）。
     pub(super) fn diff_tower(
         &mut self,
-        bar: usize,
+        fill_bar: usize,
         tower_i: &[std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>],
     ) {
         use classifier::descend::RMove;
         use classifier::recursive_tower::LeveledMove;
+        let txn_bar = classifier::rebase_txn::current_txn_bar();
         // 仅在交易活跃区间内 diff（避免 O(n) per-bar 全窗扫描）。
         let in_active = match (self.active_start, self.active_end) {
-            (Some(s), _) if bar >= s => true,
+            (Some(s), _) if fill_bar >= s => true,
             _ => false,
         };
         if !in_active {
@@ -891,7 +902,8 @@ impl OpsemDump {
                             // 诊断 dump 须写本窗中枢（与生产读者同口径，趋势块时 first 是块首中枢）。
                             if let Some(c) = centers.last() {
                                 let _ = self.write_tower_event(
-                                    bar,
+                                    txn_bar,
+                                    fill_bar,
                                     lvl as u32,
                                     "new_center",
                                     &format!(
@@ -911,7 +923,8 @@ impl OpsemDump {
                     // 升级：该级别在 prev 不存在（或为空）且现非空 ⟹ 新级别涌现。
                     if prev_moves.is_empty() && !moves.is_empty() {
                         let _ = self.write_tower_event(
-                            bar,
+                            txn_bar,
+                            fill_bar,
                             lvl as u32,
                             "level_upgrade",
                             &format!("L{lvl} first compose count={}", moves.len()),
@@ -927,7 +940,8 @@ impl OpsemDump {
                                 // 诊断 dump 须写本窗中枢（与生产读者同口径，趋势块时 first 是块首中枢）。
                                 if let Some(c) = centers.last() {
                                     let _ = self.write_tower_event(
-                                        bar,
+                                        txn_bar,
+                                        fill_bar,
                                         lvl as u32,
                                         "new_center",
                                         &format!(
@@ -948,7 +962,8 @@ impl OpsemDump {
                                     // 诊断 dump 须写本窗中枢（与生产读者同口径，趋势块时 first 是块首中枢）。
                                     if let Some(c) = centers.last() {
                                         let _ = self.write_tower_event(
-                                            bar,
+                                            txn_bar,
+                                            fill_bar,
                                             lvl as u32,
                                             "extend",
                                             &format!(
@@ -1031,17 +1046,18 @@ impl OpsemDump {
 
     pub(super) fn feed_center_lifecycle(
         &mut self,
-        bar: usize,
+        fill_bar: usize,
         classification: &classifier::Classification,
         step: &classifier::Classification,
     ) {
         use classifier::center_lifecycle::{
             CenterEventMachine, CenterId, ChainConsumed, PointOutcome,
         };
+        let txn_bar = classifier::rebase_txn::current_txn_bar();
 
         // 事件域 = 交易活跃区间（与 write_tower_event 同门）。
         let active = match (self.active_start, self.active_end) {
-            (Some(s), _) if bar < s => false,
+            (Some(s), _) if fill_bar < s => false,
             (_, Some(_)) => true,
             _ => false,
         };
@@ -1057,7 +1073,7 @@ impl OpsemDump {
         }
         if self.cl_machines.len() > n_levels {
             for lvl in n_levels..self.cl_machines.len() {
-                let _ = self.write_cl_resync(bar, lvl as u32, "level_vanished");
+                let _ = self.write_cl_resync(txn_bar, fill_bar, lvl as u32, "level_vanished");
                 self.cl_resync_total += 1;
             }
             self.cl_machines.truncate(n_levels);
@@ -1074,19 +1090,22 @@ impl OpsemDump {
                     superseded: _,
                 } => {
                     for ev in events.iter() {
-                        let _ = self.write_cl_event(bar, ev);
+                        let _ = self.write_cl_event(txn_bar, fill_bar, ev);
                     }
                 }
                 ChainConsumed::Adopted { adopted } => {
-                    let _ =
-                        self.write_cl_chain_sync(bar, lvl as u32, "adopt", adopted, chain, false);
+                    let _ = self.write_cl_chain_sync(
+                        txn_bar, fill_bar, lvl as u32, "adopt", adopted, chain, false,
+                    );
                 }
                 ChainConsumed::Rebased {
                     at,
                     len: _,
                     revived,
                 } => {
-                    let _ = self.write_cl_chain_sync(bar, lvl as u32, "rebase", at, chain, revived);
+                    let _ = self.write_cl_chain_sync(
+                        txn_bar, fill_bar, lvl as u32, "rebase", at, chain, revived,
+                    );
                     self.cl_resync_total += 1;
                 }
             }
@@ -1107,14 +1126,14 @@ impl OpsemDump {
                     };
                     match self.cl_machines[lvl].push_point(p.bits, p.source_index, target) {
                         Ok(PointOutcome::Event(ev)) => {
-                            let _ = self.write_cl_event(bar, &ev);
+                            let _ = self.write_cl_event(txn_bar, fill_bar, &ev);
                         }
                         Ok(PointOutcome::Stale(st)) => {
-                            let _ = self.write_cl_stale(bar, &st);
+                            let _ = self.write_cl_stale(txn_bar, fill_bar, &st);
                         }
                         Ok(PointOutcome::Silent) => {}
                         Err(mk) => {
-                            let _ = self.write_cl_miskill(bar, &mk);
+                            let _ = self.write_cl_miskill(txn_bar, fill_bar, &mk);
                             self.cl_miskill_total += 1;
                         }
                     }
@@ -1133,7 +1152,8 @@ impl OpsemDump {
     /// - `revived` = 本次重基是否让**此前已被教义死亡杀掉的链尾实例重新在场**（复活实证）。
     fn write_cl_chain_sync(
         &mut self,
-        bar: usize,
+        txn_bar: usize,
+        fill_bar: usize,
         level: u32,
         reason: &str,
         at: usize,
@@ -1157,7 +1177,7 @@ impl OpsemDump {
         });
         let len = chain.len();
         let json = format!(
-            "{{\"bar\":{bar},\"level\":{level},\"kind\":\"chain_sync\",\"reason\":\"{reason}\",\
+            "{{\"txn_bar\":{txn_bar},\"fill_bar\":{fill_bar},\"level\":{level},\"kind\":\"chain_sync\",\"reason\":\"{reason}\",\
              \"at\":{at},\"chain_len\":{len},\"tail_si\":{tsi},\"tail_zd\":{tzd},\
              \"tail_zg\":{tzg},\"prev_si\":{psi},\"prev_zd\":{pzd},\"prev_zg\":{pzg},\
              \"revived\":{revived}}}\n"
@@ -1169,7 +1189,8 @@ impl OpsemDump {
     /// 与 `miskill` 严格分列：`Δidx = target_idx - alive_idx` 是滞后深度（应为负）。
     fn write_cl_stale(
         &mut self,
-        bar: usize,
+        txn_bar: usize,
+        fill_bar: usize,
         st: &classifier::center_lifecycle::StaleKillRequest,
     ) -> std::io::Result<()> {
         use classifier::center_lifecycle::KillTrigger;
@@ -1182,11 +1203,12 @@ impl OpsemDump {
             super::super::types::Side::Short => "Short",
         };
         let json = format!(
-            "{{\"bar\":{bar},\"level\":{lvl},\"kind\":\"stale\",\"trigger\":\"{trigger}\",\
+            "{{\"txn_bar\":{txn_bar},\"fill_bar\":{fill_bar},\"level\":{lvl},\"kind\":\"stale\",\"trigger\":\"{trigger}\",\
              \"src\":{src},\"side\":\"{side}\",\"alive_si\":{asi},\"alive_zd\":{azd},\
              \"alive_zg\":{azg},\"alive_idx\":{aidx},\"target_si\":{tsi},\"target_zd\":{tzd},\
              \"target_zg\":{tzg},\"target_idx\":{tidx}}}\n",
-            bar = bar,
+            txn_bar = txn_bar,
+            fill_bar = fill_bar,
             lvl = st.level,
             trigger = trigger,
             src = st.trigger_source_index,
@@ -1204,10 +1226,16 @@ impl OpsemDump {
     }
 
     /// #291：工程再同步诊断行（非教义生死；对账排除）。
-    fn write_cl_resync(&mut self, bar: usize, level: u32, reason: &str) -> std::io::Result<()> {
+    fn write_cl_resync(
+        &mut self,
+        txn_bar: usize,
+        fill_bar: usize,
+        level: u32,
+        reason: &str,
+    ) -> std::io::Result<()> {
         use std::io::Write;
         let json = format!(
-            "{{\"bar\":{bar},\"level\":{level},\"kind\":\"resync\",\"reason\":\"{reason}\"}}\n"
+            "{{\"txn_bar\":{txn_bar},\"fill_bar\":{fill_bar},\"level\":{level},\"kind\":\"resync\",\"reason\":\"{reason}\"}}\n"
         );
         self.center_lifecycle_buf.write_all(json.as_bytes())
     }
@@ -1217,7 +1245,8 @@ impl OpsemDump {
     /// 与 `resync` 同属诊断行（非教义事件），对账时单列。
     fn write_cl_miskill(
         &mut self,
-        bar: usize,
+        txn_bar: usize,
+        fill_bar: usize,
         mk: &classifier::center_lifecycle::CenterMisKill,
     ) -> std::io::Result<()> {
         use classifier::center_lifecycle::KillTrigger;
@@ -1238,10 +1267,11 @@ impl OpsemDump {
             None => ("null".into(), "null".into(), "null".into()),
         };
         let json = format!(
-            "{{\"bar\":{bar},\"level\":{lvl},\"kind\":\"miskill\",\"trigger\":\"{trigger}\",\
+            "{{\"txn_bar\":{txn_bar},\"fill_bar\":{fill_bar},\"level\":{lvl},\"kind\":\"miskill\",\"trigger\":\"{trigger}\",\
              \"src\":{src},\"side\":\"{side}\",\"alive_si\":{asi},\"alive_zd\":{azd},\
              \"alive_zg\":{azg},\"target_si\":{tsi},\"target_zd\":{tzd},\"target_zg\":{tzg}}}\n",
-            bar = bar,
+            txn_bar = txn_bar,
+            fill_bar = fill_bar,
             lvl = mk.level,
             trigger = trigger,
             src = mk.trigger_source_index,
@@ -1268,7 +1298,8 @@ impl OpsemDump {
     /// 容读格。Reset 的 `slot` 仅定位漏发见证，绝不表示死亡。
     fn write_cl_event(
         &mut self,
-        bar: usize,
+        txn_bar: usize,
+        fill_bar: usize,
         ev: &classifier::center_lifecycle::CenterLifecycleEvent,
     ) -> std::io::Result<()> {
         use classifier::center_lifecycle::CenterLifecycleEvent as E;
@@ -1288,21 +1319,21 @@ impl OpsemDump {
         };
         let json = match ev {
             E::Born { level, center, chain_index } => format!(
-                "{{\"bar\":{bar},\"level\":{level},\"kind\":\"born\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"chain_idx\":{idx}}}\n",
-                bar = bar, level = level, zd = center.zd, zg = center.zg, dd = center.dd,
+                "{{\"txn_bar\":{txn_bar},\"fill_bar\":{fill_bar},\"level\":{level},\"kind\":\"born\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"chain_idx\":{idx}}}\n",
+                txn_bar = txn_bar, fill_bar = fill_bar, level = level, zd = center.zd, zg = center.zg, dd = center.dd,
                 gg = center.gg, si = center.start_index, ei = center.end_index, idx = chain_index,
             ),
             E::Broken { level, center, chain_index, breaker_source_index, breaker_side } => format!(
-                "{{\"bar\":{bar},\"level\":{level},\"kind\":\"broken\",\"death_form\":\"doctrinal\",\"slot\":\"{slot}\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"chain_idx\":{idx},\"breaker_src\":{src},\"breaker_side\":\"{side}\"}}\n",
-                bar = bar, level = level, slot = slot_str(*level, *chain_index),
+                "{{\"txn_bar\":{txn_bar},\"fill_bar\":{fill_bar},\"level\":{level},\"kind\":\"broken\",\"death_form\":\"doctrinal\",\"slot\":\"{slot}\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"chain_idx\":{idx},\"breaker_src\":{src},\"breaker_side\":\"{side}\"}}\n",
+                txn_bar = txn_bar, fill_bar = fill_bar, level = level, slot = slot_str(*level, *chain_index),
                 zd = center.zd, zg = center.zg, dd = center.dd,
                 gg = center.gg, si = center.start_index, ei = center.end_index, idx = chain_index,
                 src = breaker_source_index, side = side_str(*breaker_side),
             ),
             // ★#337 在场终结（被链推进取代）：与教义死亡分桶，同走「终结」出口。
             E::Superseded { level, center, chain_index, by_chain_index } => format!(
-                "{{\"bar\":{bar},\"level\":{level},\"kind\":\"superseded\",\"death_form\":\"arena_termination\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"chain_idx\":{idx},\"by_chain_idx\":{by}}}\n",
-                bar = bar, level = level, zd = center.zd, zg = center.zg, dd = center.dd,
+                "{{\"txn_bar\":{txn_bar},\"fill_bar\":{fill_bar},\"level\":{level},\"kind\":\"superseded\",\"death_form\":\"arena_termination\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"chain_idx\":{idx},\"by_chain_idx\":{by}}}\n",
+                txn_bar = txn_bar, fill_bar = fill_bar, level = level, zd = center.zd, zg = center.zg, dd = center.dd,
                 gg = center.gg, si = center.start_index, ei = center.end_index, idx = chain_index,
                 by = by_chain_index,
             ),
@@ -1327,8 +1358,8 @@ impl OpsemDump {
                 // `additionalProperties:false` 消费者。金标准锚 trades/tower_events 不含
                 // lifecycle 流，故本字段不进入金标准对照面。
                 format!(
-                    "{{\"bar\":{bar},\"level\":{level},\"kind\":\"reset\",\"death_form\":null,\"alive_center_leak\":{leak},\"slot\":{slot},\"died_zd\":{dzd},\"died_zg\":{dzg},\"died_dd\":{ddd},\"died_gg\":{dgg},\"died_si\":{dsi},\"died_ei\":{dei},\"died_chain_idx\":{didx},\"trigger_src\":{src},\"trigger_side\":\"{side}\"}}\n",
-                    bar = bar, level = level, leak = leak, slot = slot,
+                    "{{\"txn_bar\":{txn_bar},\"fill_bar\":{fill_bar},\"level\":{level},\"kind\":\"reset\",\"death_form\":null,\"alive_center_leak\":{leak},\"slot\":{slot},\"died_zd\":{dzd},\"died_zg\":{dzg},\"died_dd\":{ddd},\"died_gg\":{dgg},\"died_si\":{dsi},\"died_ei\":{dei},\"died_chain_idx\":{didx},\"trigger_src\":{src},\"trigger_side\":\"{side}\"}}\n",
+                    txn_bar = txn_bar, fill_bar = fill_bar, level = level, leak = leak, slot = slot,
                     dzd = dzd, dzg = dzg, ddd = ddd, dgg = dgg,
                     dsi = dsi, dei = dei, didx = didx,
                     src = trigger_source_index, side = side_str(*trigger_side),
@@ -1625,7 +1656,7 @@ mod rebase_observability_tests {
         };
 
         let mut dump = OpsemDump::at_dir(&dir).expect("测试 dump writer 应可创建");
-        dump.write_rebase_observation(42, &input)
+        dump.write_rebase_observation(7, 42, &input)
             .expect("D0 JSONL 应可落盘");
         drop(dump);
 
@@ -1637,9 +1668,10 @@ mod rebase_observability_tests {
             .collect();
         assert_eq!(rows.len(), 1);
         let row = &rows[0];
-        assert_eq!(row["schema"], "rebase_observability_d0_v1");
+        assert_eq!(row["schema"], "rebase_observability_d0_v2");
         assert_eq!(row["rebase_seq"], 1);
-        assert_eq!(row["bar"], 42);
+        assert_eq!(row["txn_bar"], 7);
+        assert_eq!(row["fill_bar"], 42);
         assert_eq!(row["level"], 1);
         assert_eq!(
             row["removed_ids"].as_array().expect("removed 数组").len(),

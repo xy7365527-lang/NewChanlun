@@ -232,6 +232,67 @@ mod tests {
         );
     }
 
+    /// ★#1307（#948 关联）：证书坐标系 `txn_bar` 线程记录——`classify_at` 每 bar 把
+    /// `l0.merged_bars.last().source_index` 记进 `rebase_txn::current_txn_bar()`；inclusion
+    /// 合并 bar 时 `txn_bar < i`（生产 fill loop 的 `i` = `fill_bar`），双列登记据此机械区分
+    /// 41.51% 的不相等面（而非混用单列）。
+    #[test]
+    fn txn_bar_thread_local_records_merged_source_index() {
+        // bar0→bar1 严格向上（high/low 同向升）定向上合并方向；bar2 完全落在 bar1 区间内 ⟹
+        // 被向上合并进 bar1（merged 段保留 acc=bar1 的 source_index=1）⟹ i=2 时 txn_bar=1。
+        let bars = vec![
+            Bar {
+                source_index: 0,
+                timestamp: 0,
+                open: 5,
+                high: 20,
+                low: 0,
+                close: 15,
+                volume: 1000.0,
+                untradable: false,
+            },
+            Bar {
+                source_index: 1,
+                timestamp: 1,
+                open: 16,
+                high: 30,
+                low: 10,
+                close: 28,
+                volume: 1000.0,
+                untradable: false,
+            },
+            Bar {
+                source_index: 2,
+                timestamp: 2,
+                open: 20,
+                high: 28,
+                low: 12,
+                close: 26,
+                volume: 1000.0,
+                untradable: false,
+            },
+        ];
+        let config = ThetaConfig::default();
+        let mut incr = IncrementalClassifier::new(&bars, &config);
+
+        for i in 0..bars.len() {
+            let _ = incr.classify_at(i);
+            let l0 = incr.last_l0().expect("classify_at 已推进 ParseLayer");
+            let expected = l0.merged_bars.last().map_or(0, |b| b.source_index);
+            assert_eq!(
+                classifier::rebase_txn::current_txn_bar(),
+                expected,
+                "bar {i}：线程槽 txn_bar 必须等于末 merged bar 的 source_index"
+            );
+        }
+        // bar 2 被 inclusion 合并进 bar 1 ⟹ txn_bar=1 < i=2（生产 fill loop 的 fill_bar）。
+        assert_eq!(
+            classifier::rebase_txn::current_txn_bar(),
+            1,
+            "bar 2 被合并 ⟹ 末 merged bar source_index=1（≠ 生产 i=2）"
+        );
+    }
+
     /// **★两变体互证（#345）**：`OwnedIncrementalClassifier`（owned config，无生命周期）
     /// 与 `IncrementalClassifier<'a>`（借用切片，既有批量变体）在同一合成序列上逐 bar
     /// bit-exact 相等——证明"自持缓冲区"重构未改变增量算法本身，只改了所有权模型。

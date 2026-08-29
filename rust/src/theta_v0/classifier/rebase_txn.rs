@@ -382,7 +382,10 @@ pub struct LowerEdgeRef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RebaseTransformTxn {
     pub txn_id: u64,
-    /// 原始 K 序 bar 号（= 本 bar 末 merged bar 的 `source_index`，与三流 `bar` 同坐标系）。
+    /// 原始 K 序 bar 号（= 本 bar 末 merged bar 的 `source_index`，**证书坐标系** `txn_bar`）。
+    /// ★#948 实测：它与生产三流（trades/tower_events/rebase_observability）的 `bar`（= fill loop `i`，
+    /// 自 #1307 起改名 `fill_bar`）在 41.51% 的 bar 上不相等——inclusion 合并致 `source_index` 落后，
+    /// 不得再称「同坐标系」。
     pub bar: usize,
     /// 塔层下标（`level_idx`）；产出对象的 `ElementId.level` = `level + 1`。
     pub level: usize,
@@ -973,6 +976,27 @@ pub fn test_capture_start() {
 #[cfg(test)]
 pub fn test_capture_take() -> Vec<String> {
     CAPTURE.with(|c| c.borrow_mut().take()).unwrap_or_default()
+}
+
+// ★#1307（#948 关联）：证书坐标系 bar 位（`txn_bar`）线程记录。
+//
+// [`crate::theta_v0::classifier::pipeline`] 每 bar 把 `l0.merged_bars.last().source_index`
+// 记进本槽；OPSEM dump 的事件写出点（tower_events / center_lifecycle / rebase_observability）
+// 在同 bar 内读它，与生产 fill loop 的 `i`（`fill_bar`）并列落盘——两个坐标系在 #948 实测
+// 41.51% 的 bar 上不相等（inclusion 合并致 `source_index` 落后于 `i`），单列混用无法在回放
+// 对拍中机械区分。默认 0 = 无真实分类时诚实占位，不伪造。
+thread_local! {
+    static CURRENT_TXN_BAR: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// 记录本 bar 的证书坐标系 bar 位（`classify_incremental_inner` 每 bar 调用）。
+pub fn record_current_txn_bar(bar: usize) {
+    CURRENT_TXN_BAR.with(|c| c.set(bar));
+}
+
+/// 读取当前线程最近记录的证书坐标系 bar 位（OPSEM dump 事件写出点用）。
+pub fn current_txn_bar() -> usize {
+    CURRENT_TXN_BAR.with(|c| c.get())
 }
 
 /// 证书产出是否启用。**未启用 ⟹ 放置点连快照都不做**（零开销，行为逐字节不变）。
