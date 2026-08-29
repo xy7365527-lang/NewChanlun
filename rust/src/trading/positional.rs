@@ -26,7 +26,9 @@ use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::tape::SignalTape;
-use super::types::{Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER, SUB_EXPIRY};
+use super::types::{
+    Polarity, DEFAULT_OP_LADDER, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER, SUB_EXPIRY,
+};
 
 /// NAV 采样间隔（1min bar 口径 ≈ 1 日；分年 nats 分解的数据基础）。
 pub const EQUITY_SAMPLE_BARS: i64 = 1440;
@@ -1066,13 +1068,21 @@ pub fn run_positional(
         return super::unified_recursive::run_unified_recursive(tape, floor_ladder);
     }
     if mode == PolarityMode::PositioningChain {
-        return super::positioning_chain_fugue::run_positioning_chain_fugue(tape, floor_ladder);
+        return super::positioning_chain_fugue::run_positioning_chain_fugue(
+            tape,
+            floor_ladder,
+            DEFAULT_OP_LADDER,
+        );
     }
     if mode == PolarityMode::Isolated {
         return super::isolated_fugue::run_isolated_fugue(tape, floor_ladder);
     }
     if mode == PolarityMode::UnifiedNecessity {
-        return super::unified_necessity::run_unified_necessity(tape, floor_ladder);
+        return super::unified_necessity::run_unified_necessity(
+            tape,
+            floor_ladder,
+            DEFAULT_OP_LADDER,
+        );
     }
     if let PolarityMode::NestedInterval { min_trade_ladder } = mode {
         return super::nested_interval_fugue::run_nested_interval_fugue(
@@ -1129,6 +1139,7 @@ pub fn run_positional(
             short_anc_gate,
             short_ghost,
             seq38_sub,
+            DEFAULT_OP_LADDER,
         );
     }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {

@@ -2604,8 +2604,11 @@ impl PyUnnStream {
     #[new]
     #[pyo3(signature = (floor_ladder = 2))]
     fn new(floor_ladder: usize) -> PyResult<Self> {
-        let core = trading::unified_necessity::UnnStreamCore::new(floor_ladder)
-            .map_err(pyo3::exceptions::PyValueError::new_err)?;
+        let core = trading::unified_necessity::UnnStreamCore::new(
+            floor_ladder,
+            trading::types::DEFAULT_OP_LADDER,
+        )
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
         Ok(Self { core })
     }
 

@@ -529,7 +529,10 @@ pub(crate) fn run_isolated_fugue(
         //    Type2 同等武装）/ confirmed 清窗 → ③ 递归证据触发 ──
         let mut nf_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         let mut nf_buy: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
-        for k in FIRST_BSP_LADDER..MAX_LADDER {
+        // 观察窗「L0 起全级覆盖（#1278 L0 裁定）」：扫描下界 = ladder 0（bar），
+        // 级别只作参数、无起点常数下限（自同构性彻底形态）。bar/bi 层无 BSP 事件
+        // （bsp_events 仅 ladder≥2）⟹ 扩展零候选增量（零行为变更）。
+        for k in 0..MAX_LADDER {
             if nest_sell[k]
                 .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
             {
@@ -571,7 +574,7 @@ pub(crate) fn run_isolated_fugue(
                 }
             }
             // 第14环：递归下探至 a0。证据层 < k−1 ⇒ 深触发。
-            let sub = k - 1;
+            let sub = k.saturating_sub(1);
             if let Some(w) = nest_sell[k] {
                 if let Some(j) = rec_sub_evidence(sub, Side::Sell, evrows, devrows, &flip_edge) {
                     nf_sell[k] = Some(w.extreme);
@@ -596,7 +599,7 @@ pub(crate) fn run_isolated_fugue(
 
         // 区间套定位记忆（§6.2"背驰已被区间套递归确认"）：背驰段被打破
         // （027:22）⇒ 定位失效（候选撤销、在新极值重判）。
-        for k in FIRST_BSP_LADDER..MAX_LADDER {
+        for k in 0..MAX_LADDER {
             if let Some(ext) = nf_sell[k] {
                 located_sell[k] = Some(ext);
             }

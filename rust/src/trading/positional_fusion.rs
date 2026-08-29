@@ -362,11 +362,21 @@ pub(crate) fn run_fusion(
     short_anc_gate: bool,
     short_ghost: bool,
     seq38_sub: bool,
+    op_ladder: usize,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
             "fusion 要求 floor_ladder ∈ [{FIRST_BSP_LADDER}, {MAX_LADDER})\
              （BSP 承载层）；floor_ladder={floor_ladder}"
+        ));
+    }
+    // 操作绑定级别（操作者参数，#1278 L0 裁定）：默认 = DEFAULT_OP_LADDER（维持现行为）。
+    // segment 非势源（85-91% 坍缩实测 + 540 号为操作层依据），下界 = FIRST_BSP_LADDER+1。
+    if !(FIRST_BSP_LADDER + 1..MAX_LADDER).contains(&op_ladder) {
+        return Err(format!(
+            "fusion 要求 op_ladder（操作绑定级别）∈ [{}={FIRST_BSP_LADDER}+1, \
+             {MAX_LADDER})（segment 非势源）；op_ladder={op_ladder}",
+            FIRST_BSP_LADDER + 1
         ));
     }
     if !tape.has_bsp_events() {
@@ -1317,9 +1327,11 @@ pub(crate) fn run_fusion(
         }
 
         // ── 阶段 B：层内短差开（先卖；53课次级别词汇 + 49课:64 全抛）。
-        //    股数→现金等价转换 ⇒ NAV 不变，阶段 C 快照不受先后影响 ──
+        //    股数→现金等价转换 ⇒ NAV 不变，阶段 C 快照不受先后影响。
+        //    操作绑定级别 = op_ladder（操作级别选择（操作者参数，85-91% 坍缩实测
+        //    + 540 号为操作层依据，#1278 L0 裁定））；下界取 max(floor_ladder, op_ladder)。──
         if counter_sub {
-            for k in (floor_ladder.max(FIRST_BSP_LADDER + 1))..MAX_LADDER {
+            for k in (floor_ladder.max(op_ladder))..MAX_LADDER {
                 if subs[k].is_some() || in_trend(k) {
                     continue;
                 }

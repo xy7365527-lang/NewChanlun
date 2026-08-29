@@ -264,11 +264,21 @@ fn prove_chain(
 pub(crate) fn run_positioning_chain_fugue(
     tape: &SignalTape,
     floor_ladder: usize,
+    op_ladder: usize,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
             "positioning_chain_fugue 要求 floor_ladder ∈ [{FIRST_BSP_LADDER}, {MAX_LADDER})\
              （结构 BSP 承载层下界 = 递归基，非操作 floor）；floor_ladder={floor_ladder}"
+        ));
+    }
+    // 操作绑定级别（操作者参数，#1278 L0 裁定）：默认 = DEFAULT_OP_LADDER（维持现行为）。
+    // segment 非势源（85-91% 坍缩实测 + 540 号为操作层依据），故下界 = FIRST_BSP_LADDER+1。
+    if !(FIRST_BSP_LADDER + 1..MAX_LADDER).contains(&op_ladder) {
+        return Err(format!(
+            "positioning_chain_fugue 要求 op_ladder（操作绑定级别）∈ [{}={FIRST_BSP_LADDER}+1, \
+             {MAX_LADDER})（segment 非势源）；op_ladder={op_ladder}",
+            FIRST_BSP_LADDER + 1
         ));
     }
     if !tape.has_bsp_events() {
@@ -293,8 +303,8 @@ pub(crate) fn run_positioning_chain_fugue(
 
     // pending 窗口（双侧；高级别 candidate 武装、confirmed 清窗、背驰段被打破
     // （结构判据，027:22）否定）。
-    // **仅在 move(L1) 及以上（k ≥ PENDING_LO）维护**——segment 非势源。
-    const PENDING_LO: usize = FIRST_BSP_LADDER + 1;
+    // **仅在 move(L1) 及以上（k ≥ op_ladder）维护**——segment 非势源。
+    // 操作级别选择（操作者参数，85-91% 坍缩实测 + 540 号为操作层依据，#1278 L0 裁定）。
     let mut nest_sell: [Option<Pending>; MAX_LADDER] = [None; MAX_LADDER];
     let mut nest_buy: [Option<Pending>; MAX_LADDER] = [None; MAX_LADDER];
     // 双侧区间套定位链（pending confirm 兑现后的链；卖侧出场链 + 买侧入场链）。
@@ -331,7 +341,7 @@ pub(crate) fn run_positioning_chain_fugue(
         let devrows: &[Vec<DivEvent>; MAX_LADDER] =
             sig.div_events.as_deref().unwrap_or(&empty_devs);
 
-        // ── pending 窗口维护（双侧，仅 k ≥ PENDING_LO = move(L1)）：① 背驰段
+        // ── pending 窗口维护（双侧，仅 k ≥ op_ladder = move(L1) 默认）：① 背驰段
         //    被打破（027:22，pending 失效、候选撤销）→ ② 高级别 candidate 武装 /
         //    confirmed 清窗 → ③ confirm 触发（rec_sub_evidence 递归到 a0，含 segment）──
         //
@@ -340,7 +350,7 @@ pub(crate) fn run_positioning_chain_fugue(
         // confirm_*[k] = (源层极值, 压缩 bar since_bar)——展开↓兑现携带压缩↑时点。
         let mut confirm_sell: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
         let mut confirm_buy: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
-        for k in PENDING_LO..MAX_LADDER {
+        for k in op_ladder..MAX_LADDER {
             if nest_sell[k]
                 .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
             {
@@ -423,11 +433,11 @@ pub(crate) fn run_positioning_chain_fugue(
             }
         }
 
-        // ── pending confirm 兑现 → 级联武装 located（仅 k ≥ PENDING_LO）：
+        // ── pending confirm 兑现 → 级联武装 located（仅 k ≥ op_ladder）：
         //    confirm@k 触发 ⇒ cascade [FIRST_BSP..=k]（统一源层极值 + source=k）。
         //    按 source 降序施加，保证最高 source 先占位（高 source 优先）。
         //    **segment 无 confirm_* 条目 ⇒ source 永不坍缩到 segment。**──
-        for k in (PENDING_LO..MAX_LADDER).rev() {
+        for k in (op_ladder..MAX_LADDER).rev() {
             if let Some((ext, since)) = confirm_sell[k] {
                 cascade_arm(&mut located_sell, Side::Sell, k, ext, since, bar);
             }
@@ -451,7 +461,7 @@ pub(crate) fn run_positioning_chain_fugue(
             }
         }
 
-        // 双侧链顶 source（PCF 唯一层选择机制 = 最高有 located 的层；恒 ≥ PENDING_LO）。
+        // 双侧链顶 source（PCF 唯一层选择机制 = 最高有 located 的层；恒 ≥ op_ladder）。
         let sell_source = chain_source(&located_sell);
         let buy_source = chain_source(&located_buy);
 
@@ -590,7 +600,7 @@ pub(crate) fn run_positioning_chain_fugue(
 
         // ── E. 降成本 spawn（第15/16/17环）：尾 voice 反向链 source S < tail.ladder
         //    （次级别反转——区间套定位到更低层）⇒ 在 S 层开反向子，量 = θ_S 配额
-        //    （高级别势大→大仓位；35课成本门拒小级别散单）。S ≥ PENDING_LO ⇒ 子
+        //    （高级别势大→大仓位；35课成本门拒小级别散单）。S ≥ op_ladder ⇒ 子
         //    最低 @move(L1)（segment 非势源 ⇒ 降成本止于 move(L1)）。──
         if !acted {
             if let Some(tail) = chain.last().copied() {

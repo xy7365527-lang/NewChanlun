@@ -262,7 +262,10 @@ pub(crate) fn run_dual_voice(
         //    二分：一层截断 vs 递归链贯通到 a0 端 bi 翻转沿）──
         let mut nf_sell = [false; MAX_LADDER];
         let mut nf_buy = [false; MAX_LADDER];
-        for k in FIRST_BSP_LADDER..MAX_LADDER {
+        // 观察窗「L0 起全级覆盖（#1278 L0 裁定）」：扫描下界 = ladder 0（bar），
+        // 级别只作参数、无起点常数下限（自同构性彻底形态）。bar/bi 层无 BSP 事件
+        // （bsp_events 仅 ladder≥2）⟹ 扩展零候选增量（零行为变更）。
+        for k in 0..MAX_LADDER {
             if nest_sell[k]
                 .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
             {
@@ -318,8 +321,8 @@ pub(crate) fn run_dual_voice(
         // [FIRST_BSP_LADDER, k) 窗口同侧活动（区间嵌套贯通）∧ bi 层同侧
         // 翻转沿（a0 端最低结构词汇）。k==FIRST_BSP_LADDER 时与一层截断
         // 逐位等值（退化一致性）。
-        for k in FIRST_BSP_LADDER..MAX_LADDER {
-            let sub = k - 1;
+        for k in 0..MAX_LADDER {
+            let sub = k.saturating_sub(1);
             if nest_sell[k].is_some() {
                 nf_sell[k] = if nest_deep {
                     (FIRST_BSP_LADDER..k).all(|j| nest_sell[j].is_some())
@@ -337,7 +340,7 @@ pub(crate) fn run_dual_voice(
                 };
             }
         }
-        for k in FIRST_BSP_LADDER..MAX_LADDER {
+        for k in 0..MAX_LADDER {
             if nf_sell[k] {
                 if let Some(w) = nest_sell[k].take() {
                     res.n_nest_fire_sell_by_ladder[k] += 1;

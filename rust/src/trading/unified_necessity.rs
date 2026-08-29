@@ -48,7 +48,7 @@
 //!
 //! ## 级别语义（势源 vs 降成本目标分离——N4/N5 的精确边界）
 //!
-//! - **pending 势源**（N5/N6）：仅 `k ≥ PENDING_LO = FIRST_BSP_LADDER+1 = move(L1)`
+//! - **pending 势源**（N5/N6）：仅 `k ≥ op_ladder = FIRST_BSP_LADDER+1 = move(L1)`
 //!   注册 pending（segment 非势源——`project_pcf_pending_locate_collapse_fix`：segment
 //!   抢先武装 ⇒ source 坍缩 85-91%；segment 仅作 `helix_centripetal_confirm` 向心回溯的结构基底证据）。
 //! - **降成本 spawn 目标**（N4）：任意 `theta(k) ≥ friction` 的层；递归基 = bi（a0）
@@ -201,10 +201,6 @@ use super::types::{BspEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LA
 use crate::buysellpoint::{prove_s11_s9_located, prove_s12_center, BspKind, Side, SigLocatedState};
 use crate::stroke::Direction;
 
-/// pending 势源下界（N5/N6）：move(L1)。segment（=FIRST_BSP_LADDER）非势源——
-/// 仅作 `helix_centripetal_confirm` 向心回溯的低级别 confirm 证据（结构基底）。
-const PENDING_LO: usize = FIRST_BSP_LADDER + 1;
-
 /// pending 窗口（高级别 candidate 持续记忆——540号压缩侧↑载体）。`since_bar` =
 /// candidate 首现 bar（压缩完成 = φ→0 的外圈 (λ^k, φ→0)）；极值刷新时保留首现值
 /// （压缩起始不变）。
@@ -235,7 +231,7 @@ struct PendingLocate {
 
 /// 级联武装（N5 第14环严格形式）：confirm@source ⇒ 武装 `located[FIRST_BSP..=source]`
 /// 全层，统一极值 = 源层极值（061:26（力度反超）/061:28（未创新高不存在），#1273 起降观测）、统一 source_ladder=source、统一 direction。
-/// 高 source 优先（既有 source 更高则不降级）。`source ≥ PENDING_LO`（segment 非势源）。
+/// 高 source 优先（既有 source 更高则不降级）。`source ≥ op_ladder`（segment 非势源）。
 fn cascade_arm(
     located: &mut [Option<PendingLocate>; MAX_LADDER],
     dir: Side,
@@ -243,10 +239,11 @@ fn cascade_arm(
     extreme: f64,
     compress_bar: i64,
     confirm_bar: i64,
+    op_ladder: usize,
 ) {
     debug_assert!(
-        source >= PENDING_LO,
-        "pending 只在 move(L1) 及以上注册；source={source}"
+        source >= op_ladder,
+        "pending 只在 move(L1) 及以上注册；source={source} < op_ladder={op_ladder}"
     );
     // ② 后续走势验证（第29课:52/54）：compress < confirm 严格小于——同 bar 武装即确认
     //    = 无后续走势 = 伪确认（degenerate located 死因）。调用点 `since_bar < bar` 保证。
@@ -468,7 +465,7 @@ fn prove_n3_type2(type2_seen: u64, type2_handled: u64, bar: i64) {
 
 /// **N5+N6（区间套自上而下定位 + 先势后定位时序，第14环/540号）**：操作的 source
 /// 是一条**操作前已完整级联形成**的定位链顶层。五项硬断言（F/C 每个 pending_locate
-/// 操作点调用）：① `source ≥ PENDING_LO`（segment 非势源，N5）；② `located[s]` 在场且
+/// 操作点调用）：① `source ≥ op_ladder`（segment 非势源，N5）；② `located[s]` 在场且
 /// `source_ladder==s ∧ direction==dir`（链顶一致，N5）；③ `compress_bar ≤ confirm_bar
 /// ≤ bar`（压缩↑必先于展开↓必不晚于操作，N6 540号）；④ `[FIRST_BSP..=s]` 全 located
 /// 且 source_ladder 统一=s（级联连续前缀，N5）。violation = panic。
@@ -478,10 +475,11 @@ fn prove_chain(
     s: usize,
     bar: i64,
     op: &str,
+    op_ladder: usize,
 ) {
     assert!(
-        s >= PENDING_LO,
-        "N5 违反@bar {bar} {op}：source={s} < move(L1)={PENDING_LO}（segment 非势源）"
+        s >= op_ladder,
+        "N5 违反@bar {bar} {op}：source={s} < move(L1)={op_ladder}（segment 非势源）"
     );
     let top = located[s].unwrap_or_else(|| {
         panic!("N5 违反@bar {bar} {op}：source={s} 无 located（无定位链的操作=bug）")
@@ -566,7 +564,12 @@ fn prove_t52_gauge_fix(
 /// **N5（级联结构，每 bar 后置）**：located 非空 ⇒ 连续前缀 `[FIRST_BSP..=S]` 且每层
 /// `source_ladder ≥ k`（自上而下——源在本层或更高；自下而上独立武装会出现
 /// `source_ladder < k`）。violation = panic。
-fn prove_n5_cascade(located: &[Option<PendingLocate>; MAX_LADDER], bar: i64, side: &str) {
+fn prove_n5_cascade(
+    located: &[Option<PendingLocate>; MAX_LADDER],
+    bar: i64,
+    side: &str,
+    op_ladder: usize,
+) {
     let top = chain_source(located);
     if let Some(s) = top {
         for k in FIRST_BSP_LADDER..=s {
@@ -579,7 +582,7 @@ fn prove_n5_cascade(located: &[Option<PendingLocate>; MAX_LADDER], bar: i64, sid
                 e.source_ladder
             );
             assert!(
-                e.source_ladder >= PENDING_LO,
+                e.source_ladder >= op_ladder,
                 "N5 违反@bar {bar} {side}：source<move(L1)（segment 武装为势源）"
             );
         }
@@ -607,11 +610,12 @@ fn prove_t53_connection_assoc(
     dir: Side,
     bar: i64,
     post: &[Option<PendingLocate>; MAX_LADDER],
+    op_ladder: usize,
 ) {
     let mut alt = *pre; // 独立升序 re-fold（actual 用降序；max 结合/交换 ⇒ 应得同一塔）
-    for k in PENDING_LO..MAX_LADDER {
+    for k in op_ladder..MAX_LADDER {
         if let Some((ext, since)) = confirms[k] {
-            cascade_arm(&mut alt, dir, k, ext, since, bar);
+            cascade_arm(&mut alt, dir, k, ext, since, bar, op_ladder);
         }
     }
     for k in FIRST_BSP_LADDER..MAX_LADDER {
@@ -645,7 +649,7 @@ fn prove_n7_spawn_self_level(trigger_ladder: usize, voice_ladder: usize, bar: i6
 /// == 本规范（漂移回 raw 即 panic，137号 make-decision-observable）。`nf_*` =
 /// `helix_centripetal_confirm` 向心确认（第11环买卖点严格形式 = φ=0 走势完美），**非 raw**
 /// `sig.*_any`（任意 candidate——缺 T2 settle 维度的向心贯通，含未确认 type2/3，≠ φ=0）。
-/// **层边界（N5/N6）**：`nf_*` 仅在 `[PENDING_LO, MAX)` 兑现（confirm 循环跳过 segment——
+/// **层边界（N5/N6）**：`nf_*` 仅在 `[op_ladder, MAX)` 兑现（confirm 循环跳过 segment——
 /// `nf_*[FIRST_BSP_LADDER]` 恒 None：segment 非势源，无角向圈/无向心 confirm，T56）。故
 /// segment 层 voice（ladder=FIRST_BSP_LADDER）自层 counter fire 恒 false——E 不 spawn（sub=bi
 /// θ=None 本就终止）、D 不独立回补（只经父 cascade close 或 A 强平离场）。这是递归基的自然
@@ -772,14 +776,14 @@ fn prove_n4_cost_gate(res: &PositionalResult) {
 /// （formalization-validity-domain.md：不声明为 ✓、**不 panic**——否则把 L2 可证伪定量律
 /// 误作 L0 不变量；与 S9 同范式：标度律是回测/L2 读数，非每 bar 验收不变量）。返回**定性
 /// 单调性局部违反计数**（fire(k) > fire(k−1) 的层数，观测非 panic）。
-fn prove_t50_radial_scaling(res: &PositionalResult) -> u64 {
+fn prove_t50_radial_scaling(res: &PositionalResult, op_ladder: usize) -> u64 {
     // f(k) = 各级别 confirm fire 频率（向心 confirm 兑现点，per ladder）。
     let fire: [u64; MAX_LADDER] = std::array::from_fn(|k| {
         res.n_nest_fire_sell_by_ladder[k] + res.n_nest_fire_buy_by_ladder[k]
     });
-    // A₅-独立定性核：candidate 层 [PENDING_LO, MAX) 的 fire(k) 随 k 非增（高层比低层罕见）。
+    // A₅-独立定性核：candidate 层 [op_ladder, MAX) 的 fire(k) 随 k 非增（高层比低层罕见）。
     let mut violations = 0u64;
-    for k in (PENDING_LO + 1)..MAX_LADDER {
+    for k in (op_ladder + 1)..MAX_LADDER {
         if fire[k] > fire[k - 1] {
             violations += 1; // 高层 fire 多于相邻低层 = 标度律定性序局部违反（观测）
         }
@@ -799,23 +803,23 @@ fn prove_t50_radial_scaling(res: &PositionalResult) -> u64 {
 /// **T56（角径全纯 h²³=σ，§8.3 螺旋 / 细胞 {φ,r}）运行时证明（eod）**：绕一圈角向
 /// （φ:0→0，confirm fire）⟺ 升一级径向（r↦λr，σ 作用）——"走势完美后新势在更高级别涌现"
 /// （T₃+T₃₀）的精确量化（一圈 = 一级，不多不少）。**结构可证伪 panic**：角向奇点 φ=0
-/// （confirm fire）只承载于**势源径向层** k≥PENDING_LO=move(L1)——segment（FIRST_BSP_LADDER）
+/// （confirm fire）只承载于**势源径向层** k≥op_ladder=move(L1)——segment（FIRST_BSP_LADDER）
 /// 是径向塔基（h 的角向行程从 move(L1) 起算），**不承载角向圈**。若 segment 层出现 confirm
 /// fire ⇒ 角向圈载体下沉到塔基 = h²³=σ 的径向起算点错位 = panic。**观测**：confirm fire 在
 /// 径向塔上覆盖的层数（= holonomy 在径向的像大小，一圈角向投影一级径向）。返回该覆盖层数。
 /// **赋格**：主题演奏完一遍（绕一圈）= 移高一个八度（升一级 σ）——stretto 八度移位的几何根。
-fn prove_t56_angular_radial_holonomy(res: &PositionalResult) -> u64 {
+fn prove_t56_angular_radial_holonomy(res: &PositionalResult, op_ladder: usize) -> u64 {
     // 结构 panic：segment（径向塔基）层无角向圈（confirm fire）——h²³=σ 的角向起算点 = move(L1)。
     let seg_fire = res.n_nest_fire_sell_by_ladder[FIRST_BSP_LADDER]
         + res.n_nest_fire_buy_by_ladder[FIRST_BSP_LADDER];
     assert_eq!(
         seg_fire, 0,
         "T56 违反：segment(FIRST_BSP={FIRST_BSP_LADDER}) 层出现 {seg_fire} 个 confirm fire\
-         （角向圈 φ=0 下沉到径向塔基——h²³=σ 角向起算点应在 move(L1)≥{PENDING_LO}，segment 仅作\
+         （角向圈 φ=0 下沉到径向塔基——h²³=σ 角向起算点应在 move(L1)≥{op_ladder}，segment 仅作\
          向心回溯结构基底，非角向圈载体）"
     );
     // 观测：角向圈在径向塔上的像（有 confirm fire 的径向层数 = 一圈角向↦一级径向的覆盖）。
-    (PENDING_LO..MAX_LADDER)
+    (op_ladder..MAX_LADDER)
         .filter(|&k| res.n_nest_fire_sell_by_ladder[k] + res.n_nest_fire_buy_by_ladder[k] > 0)
         .count() as u64
 }
@@ -830,9 +834,9 @@ fn prove_t56_angular_radial_holonomy(res: &PositionalResult) -> u64 {
 /// `project_nrf_v4_strict_accounting`），非 L0 每 bar 不变量。返回逐层镜像失衡层数（sell/buy
 /// fire 一侧为 0 而另一侧非 0 的层数 = 单边角向行程，镜像在该层退化的观测）。**赋格**：倒影
 /// 对位（al rovescio）——主题的镜像倒影是合法对位声部（多空 = 主题与其倒影）。
-fn prove_t57_chirality_mirror(res: &PositionalResult) -> u64 {
+fn prove_t57_chirality_mirror(res: &PositionalResult, op_ladder: usize) -> u64 {
     let mut one_sided = 0u64;
-    for k in PENDING_LO..MAX_LADDER {
+    for k in op_ladder..MAX_LADDER {
         let s = res.n_nest_fire_sell_by_ladder[k];
         let b = res.n_nest_fire_buy_by_ladder[k];
         // 镜像退化：该径向层只有一侧角向圈（单边行程，τ 镜像在该层无对应像——regime 依赖观测）。
@@ -855,9 +859,9 @@ fn prove_t57_chirality_mirror(res: &PositionalResult) -> u64 {
 /// 跨 bar，原理上可分离）。**观测**：链生命周期活跃的级别数（fire>0 的级别 = 23 环在多少个
 /// 径向级别上完成了至少一周）。返回该活跃级别数。**赋格**：一个完整主题陈述 = 23 个动机的
 /// 固定序列（基本域 = 一个主题长度）。
-fn prove_t58_angular_basic_domain(res: &PositionalResult) -> u64 {
+fn prove_t58_angular_basic_domain(res: &PositionalResult, op_ladder: usize) -> u64 {
     let mut active_levels = 0u64;
-    for k in PENDING_LO..MAX_LADDER {
+    for k in op_ladder..MAX_LADDER {
         let fire = res.n_nest_fire_sell_by_ladder[k] + res.n_nest_fire_buy_by_ladder[k];
         if fire > 0 {
             // 结构 panic：角向圈闭合（fire）必先有角向圈起始（arm）——23 环链在该级别不断裂。
@@ -883,9 +887,9 @@ fn prove_t58_angular_basic_domain(res: &PositionalResult) -> u64 {
 /// 趋势塔高不同），非 L0 每 bar 不变量。返回**自相似退化层数**——有 arm（角向圈起始）却
 /// 永不 fire（角向圈从不闭合）的级别数（该级别结构类型与能闭合的级别不同 = 尺度不变局部退化
 /// 观测）。**赋格**：主题在任何八度同构——升降八度不产生新主题（octave equivalence）。
-fn prove_t59_scale_invariance(res: &PositionalResult) -> u64 {
+fn prove_t59_scale_invariance(res: &PositionalResult, op_ladder: usize) -> u64 {
     let mut degenerate = 0u64;
-    for k in PENDING_LO..MAX_LADDER {
+    for k in op_ladder..MAX_LADDER {
         let armed = res.n_nest_arms_by_ladder[k] > 0;
         let fired = res.n_nest_fire_sell_by_ladder[k] + res.n_nest_fire_buy_by_ladder[k] > 0;
         // 自相似退化：该级别有角向圈起始（arm）却从不闭合（fire）——结构类型与能闭合级别不同。
@@ -977,7 +981,7 @@ fn prove_t55_dual_line_observe(
 // **T2（走势完美三坐标合一）**：confirm fire 的判据 `confirmed = since<bar ∧ helix`
 //   （step 中 confirm 触发处）**就是**三坐标合一——① 角向 φ→0（since<bar，背驰后有后续走势，
 //   第29课:52/54）；② 径向 settle（helix 母线逐圈贯通，每内圈 type1 已 settle）；③ 手性 ε
-//   （helix 贯通 ⟹ 最内圈 FIRST_BSP 同侧 type1 历史非空，向心回溯消费同手性，k≥PENDING_LO
+//   （helix 贯通 ⟹ 最内圈 FIRST_BSP 同侧 type1 历史非空，向心回溯消费同手性，k≥op_ladder
 //   保证 helix 循环必经 FIRST_BSP 一圈）。三坐标合一是 confirm 的**构造定义**，无独立于 fire
 //   门的运行时不变量可验 ⇒ 定义层 ✓，不设 prove。单独 settle≠完美（project_ph_settle_usage_boundary）。
 // **T4/T10（走势完全分类无第四类）**：`BspKind` enum 只有 {Type1,Type2,Type3} 三变体
@@ -1126,7 +1130,9 @@ pub(crate) struct UnnStreamCore {
     n_base: f64,
     book: CenterBook,
     depth_ref: DepthRef,
-    // pending 窗口（双侧，k ≥ PENDING_LO；segment 非势源）。
+    /// 操作绑定级别（操作者参数，#1278 L0 裁定）。默认 = DEFAULT_OP_LADDER。
+    op_ladder: usize,
+    // pending 窗口（双侧，k ≥ op_ladder；segment 非势源）。
     nest_sell: [Option<Pending>; MAX_LADDER],
     nest_buy: [Option<Pending>; MAX_LADDER],
     // 级联定位链（卖侧出场链 + 买侧入场链）。
@@ -1153,14 +1159,24 @@ pub(crate) struct UnnStreamCore {
 }
 
 impl UnnStreamCore {
-    /// 初始化（零参数引擎；floor_ladder 仅作结构递归基断言 = FIRST_BSP_LADDER，N4）。
+    /// 初始化（floor_ladder 仅作结构递归基断言 = FIRST_BSP_LADDER，N4；
+    /// op_ladder = 操作绑定级别，操作者参数，#1278 L0 裁定）。
     /// 注：tape 级 capability guard（has_bsp/div/dir）是批量入口专属——流式无完整
     /// tape 可查，capability 由调用方逐 bar 传事件结构保证（push_bar 总传事件行）。
-    pub(crate) fn new(floor_ladder: usize) -> Result<Self, String> {
+    pub(crate) fn new(floor_ladder: usize, op_ladder: usize) -> Result<Self, String> {
         if floor_ladder != FIRST_BSP_LADDER {
             return Err(format!(
                 "unified_necessity 是零操作参数引擎：floor_ladder 仅作结构递归基 = \
                  FIRST_BSP_LADDER={FIRST_BSP_LADDER}（N4 纯成本门，无操作 floor）；得 {floor_ladder}"
+            ));
+        }
+        // 操作绑定级别（操作者参数，#1278 L0 裁定）：默认 = DEFAULT_OP_LADDER（维持现行为）。
+        // segment 非势源（85-91% 坍缩实测 + 540 号为操作层依据），下界 = FIRST_BSP_LADDER+1。
+        if !(FIRST_BSP_LADDER + 1..MAX_LADDER).contains(&op_ladder) {
+            return Err(format!(
+                "unified_necessity 要求 op_ladder（操作绑定级别）∈ [{}={FIRST_BSP_LADDER}+1, \
+                 {MAX_LADDER})（segment 非势源）；op_ladder={op_ladder}",
+                FIRST_BSP_LADDER + 1
             ));
         }
         Ok(Self {
@@ -1170,6 +1186,7 @@ impl UnnStreamCore {
             n_base: 0.0,
             book: CenterBook::new(),
             depth_ref: DepthRef::new(DEPTH_REF_WINDOW),
+            op_ladder,
             nest_sell: [None; MAX_LADDER],
             nest_buy: [None; MAX_LADDER],
             located_sell: [None; MAX_LADDER],
@@ -1222,7 +1239,8 @@ impl UnnStreamCore {
         let evrows: &[Vec<BspEvent>; MAX_LADDER] =
             sig.bsp_events.as_deref().unwrap_or(&self.empty_evs);
 
-        // ── pending 窗口维护（双侧，k ≥ PENDING_LO）：① 背驰段被打破（027:22）⇒
+        // ── pending 窗口维护（双侧，k ≥ op_ladder；操作级别选择（操作者参数，
+        //    85-91% 坍缩实测 + 540 号为操作层依据，#1278 L0 裁定））：① 背驰段被打破（027:22）⇒
         //    候选撤销、在新极值重判 → ② candidate 武装（N3：type2 经 side() 同等武装，
         //    无 continue）/ confirmed 清窗 → ③ confirm 触发（helix_centripetal_confirm
         //    向心回溯到 a0，含 segment）。confirm@k → nf_*[k]（自层 fire，供 E，N7）+
@@ -1234,7 +1252,7 @@ impl UnnStreamCore {
         // N3 计数：本 bar type2 出现数 vs 处理数。
         let mut type2_seen = 0u64;
         let mut type2_handled = 0u64;
-        for k in PENDING_LO..MAX_LADDER {
+        for k in self.op_ladder..MAX_LADDER {
             if self.nest_sell[k]
                 .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
             {
@@ -1352,12 +1370,28 @@ impl UnnStreamCore {
         // T53（连接结合律）：fold 前快照，fold 后验降序==升序（顺序无关，第36课）。
         let pre_sell = self.located_sell;
         let pre_buy = self.located_buy;
-        for k in (PENDING_LO..MAX_LADDER).rev() {
+        for k in (self.op_ladder..MAX_LADDER).rev() {
             if let Some((ext, since)) = confirm_sell[k] {
-                cascade_arm(&mut self.located_sell, Side::Sell, k, ext, since, bar);
+                cascade_arm(
+                    &mut self.located_sell,
+                    Side::Sell,
+                    k,
+                    ext,
+                    since,
+                    bar,
+                    self.op_ladder,
+                );
             }
             if let Some((ext, since)) = confirm_buy[k] {
-                cascade_arm(&mut self.located_buy, Side::Buy, k, ext, since, bar);
+                cascade_arm(
+                    &mut self.located_buy,
+                    Side::Buy,
+                    k,
+                    ext,
+                    since,
+                    bar,
+                    self.op_ladder,
+                );
             }
         }
         // T53：本 bar confirm 级联连接的结合律（降序 fold == 升序 fold；背驰段被打破前比较）。
@@ -1367,8 +1401,16 @@ impl UnnStreamCore {
             Side::Sell,
             bar,
             &self.located_sell,
+            self.op_ladder,
         );
-        prove_t53_connection_assoc(&pre_buy, &confirm_buy, Side::Buy, bar, &self.located_buy);
+        prove_t53_connection_assoc(
+            &pre_buy,
+            &confirm_buy,
+            Side::Buy,
+            bar,
+            &self.located_buy,
+            self.op_ladder,
+        );
         // 背驰段被打破（027:22）：级联统一极值 ⇒ 整链同破（候选撤销、在新极值重判）。
         for k in FIRST_BSP_LADDER..MAX_LADDER {
             if self.located_sell[k]
@@ -1382,8 +1424,8 @@ impl UnnStreamCore {
                 self.located_buy[k] = None;
             }
         }
-        prove_n5_cascade(&self.located_sell, bar, "sell");
-        prove_n5_cascade(&self.located_buy, bar, "buy");
+        prove_n5_cascade(&self.located_sell, bar, "sell", self.op_ladder);
+        prove_n5_cascade(&self.located_buy, bar, "buy", self.op_ladder);
 
         let sell_source = chain_source(&self.located_sell);
         let buy_source = chain_source(&self.located_buy);
@@ -1445,7 +1487,7 @@ impl UnnStreamCore {
         //      monotone relabel，纯会计无物理交易 ⇒ units/NAV 不变 ⇒ N8/A2 安全）。
         //    多头根：卖链 source S ≥ re ∧ sig.sell1[S]（type1 走势完美，§6"十年 1-2 次"；
         //      type2/3 落 E §9）∧ prove_chain ⇒ 单根时**翻空 in-place**（长→空，T14，
-        //      MtM 守恒）∨ 清仓到现金（root@segment——root_ladder≥PENDING_LO 故罕见）。
+        //      MtM 守恒）∨ 清仓到现金（root@segment——root_ladder≥op_ladder 故罕见）。
         //    空头根（T14 翻空后）：买链 source S ≥ re ∧ sig.buy1[S]（type1 底背驰）
         //      ∧ prove_chain ⇒ 单根时**翻多 in-place**（空→长，cover+rebuy 守恒）。
         //    多 voice（根有降成本子）⇒ C no-op，子先经 D 独立回补（逐仓不 collapse）。
@@ -1491,7 +1533,14 @@ impl UnnStreamCore {
                 Polarity::Long => {
                     if let Some(s) = sell_source {
                         if s >= root_ladder && sig.sell1.get(s) {
-                            prove_chain(&self.located_sell, Side::Sell, s, bar, "C-flip/clear");
+                            prove_chain(
+                                &self.located_sell,
+                                Side::Sell,
+                                s,
+                                bar,
+                                "C-flip/clear",
+                                self.op_ladder,
+                            );
                             // T52：操作分解的区间套规范固定（fiber 由同一 confirm 折叠，第33课）。
                             prove_t52_gauge_fix(&self.located_sell, s, bar, "C-flip/clear");
                             if single_root && root_ladder > FIRST_BSP_LADDER {
@@ -1519,14 +1568,14 @@ impl UnnStreamCore {
                                 cleared = true;
                             } else if single_root {
                                 // 根在结构基底（root_ladder == FIRST_BSP_LADDER）⇒ 无更低子级别。
-                                // **结构上不可达**：F 入场 prove_chain 硬断言 s≥PENDING_LO=
+                                // **结构上不可达**：F 入场 prove_chain 硬断言 s≥op_ladder=
                                 // FIRST_BSP_LADDER+1，T5 relabel 只单调上升 ⇒ root_ladder 恒
                                 // >FIRST_BSP_LADDER ⇒ 上一 if 必命中。升 unreachable!() 把"不可达"
-                                // 从注释声明提为运行时断言（防 PENDING_LO 漂移；no-patch.md：死
+                                // 从注释声明提为运行时断言（防 op_ladder 漂移；no-patch.md：死
                                 // 防御分支静默清仓回现金会掩盖 T1 违反，故不静默保留）。
                                 unreachable!(
                                     "C-clear-at-base@bar {bar}：root_ladder={root_ladder}==FIRST_BSP_LADDER \
-                                     但 N5 保证 root_ladder≥PENDING_LO>FIRST_BSP（PENDING_LO 漂移？）"
+                                     但 N5 保证 root_ladder≥op_ladder>FIRST_BSP（op_ladder 漂移？）"
                                 );
                             }
                             // else 多 voice ⇒ C no-op（子先 D 回补）。
@@ -1539,7 +1588,14 @@ impl UnnStreamCore {
                     // nav_pre=free+（capital−m×c）→ nav_post=free'+m×c=free+capital−m×c ⇒ 守恒。
                     if let Some(s) = buy_source {
                         if single_root && s >= root_ladder && sig.buy1.get(s) {
-                            prove_chain(&self.located_buy, Side::Buy, s, bar, "C-flipback");
+                            prove_chain(
+                                &self.located_buy,
+                                Side::Buy,
+                                s,
+                                bar,
+                                "C-flipback",
+                                self.op_ladder,
+                            );
                             // T52：操作分解的区间套规范固定（fiber 由同一 confirm 折叠，第33课）。
                             prove_t52_gauge_fix(&self.located_buy, s, bar, "C-flipback");
                             let m = self.voices[rid].units;
@@ -1672,7 +1728,7 @@ impl UnnStreamCore {
         //    F 承载初始入场 + 强平后重建仓（删否定线/观测态：唯一空仓来源是 A 强平根空头/
         //    EOD，遇 F-eligible buy1@located 链顶即重建）。**保持 N5 门控**（buy_source =
         //    located 级联链顶 ≥ move(L1)），不实装裸入场——后者 ⊥ N5（segment 非势源，
-        //    prove_chain 硬断言 s≥PENDING_LO；裸扫描入场 = 539 号 constitutive_throughput_falsified）。──
+        //    prove_chain 硬断言 s≥op_ladder；裸扫描入场 = 539 号 constitutive_throughput_falsified）。──
         let any_active = self
             .voices
             .iter()
@@ -1689,7 +1745,14 @@ impl UnnStreamCore {
                 if sig.buy1.get(s) {
                     let units = self.free / c;
                     if units > 0.0 && units.is_finite() {
-                        prove_chain(&self.located_buy, Side::Buy, s, bar, "F-entry");
+                        prove_chain(
+                            &self.located_buy,
+                            Side::Buy,
+                            s,
+                            bar,
+                            "F-entry",
+                            self.op_ladder,
+                        );
                         // T52：入场分解的区间套规范固定（fiber 由同一 confirm 折叠，第33课）。
                         prove_t52_gauge_fix(&self.located_buy, s, bar, "F-entry");
                         self.voices.push(VoiceLedger {
@@ -1827,13 +1890,14 @@ impl UnnStreamCore {
         self.res.sig_n_trend_decel = self.sig_state.n_trend_decel;
         // T50（操作频率径向标度律 f(k)∝λ^{−k}，§8.3，~观测）：定性单调核局部违反层数
         // （高层 fire 多于相邻低层；无 fire 时恒 0）。λ 指数律定量 L2 可证伪——非 panic。
-        self.res.nrf_t50_monotone_violations = prove_t50_radial_scaling(&self.res);
+        self.res.nrf_t50_monotone_violations = prove_t50_radial_scaling(&self.res, self.op_ladder);
         // T56–T59（单螺旋 D∞ 基础不变量，§8.3 / spiral_exhaustive_enumeration.md）：
         // T56/T58 含结构 panic 守卫（segment 无角向圈 / fire⟹arm 生命周期），T57/T59 ~观测。
-        self.res.nrf_t56_radial_coverage = prove_t56_angular_radial_holonomy(&self.res); // panic: segment 无 fire
-        self.res.nrf_t57_onesided_layers = prove_t57_chirality_mirror(&self.res); // ~观测：镜像退化层
-        self.res.nrf_t58_active_levels = prove_t58_angular_basic_domain(&self.res); // panic: fire⟹arm
-        self.res.nrf_t59_degenerate_layers = prove_t59_scale_invariance(&self.res);
+        self.res.nrf_t56_radial_coverage =
+            prove_t56_angular_radial_holonomy(&self.res, self.op_ladder); // panic: segment 无 fire
+        self.res.nrf_t57_onesided_layers = prove_t57_chirality_mirror(&self.res, self.op_ladder); // ~观测：镜像退化层
+        self.res.nrf_t58_active_levels = prove_t58_angular_basic_domain(&self.res, self.op_ladder); // panic: fire⟹arm
+        self.res.nrf_t59_degenerate_layers = prove_t59_scale_invariance(&self.res, self.op_ladder);
         // ~观测：自相似退化层
     }
 
@@ -1885,6 +1949,7 @@ impl UnnStreamCore {
 pub(crate) fn run_unified_necessity(
     tape: &SignalTape,
     floor_ladder: usize,
+    op_ladder: usize,
 ) -> Result<PositionalResult, String> {
     if !tape.has_bsp_events() {
         return Err("unified_necessity 要求事件磁带（bsp_events 全空）".to_string());
@@ -1899,7 +1964,7 @@ pub(crate) fn run_unified_necessity(
                 .to_string(),
         );
     }
-    let mut core = UnnStreamCore::new(floor_ladder)?;
+    let mut core = UnnStreamCore::new(floor_ladder, op_ladder)?;
     let flips: &[(i64, u8, Direction)] = tape.dir_flips.as_deref().unwrap_or(&[]);
     let mut flip_ptr = 0usize;
     let n = tape.bars.len();
@@ -1922,7 +1987,7 @@ mod tests {
     use super::super::positional::{run_positional, PolarityMode};
     use super::*;
     use crate::trading::tape::BarSig;
-    use crate::trading::types::{BspClass, LadderMask};
+    use crate::trading::types::{BspClass, LadderMask, DEFAULT_OP_LADDER};
 
     const UNN: PolarityMode = PolarityMode::UnifiedNecessity;
 
@@ -2458,7 +2523,7 @@ mod tests {
         let mut confirms: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
         confirms[4] = Some((100.0, 5)); // since=5 < bar=100（cascade_arm 时序断言满足）
         let post: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER]; // 故意错：≠ re-fold
-        prove_t53_connection_assoc(&pre, &confirms, Side::Buy, 100, &post);
+        prove_t53_connection_assoc(&pre, &confirms, Side::Buy, 100, &post, DEFAULT_OP_LADDER);
     }
 
     #[test]
@@ -2497,8 +2562,8 @@ mod tests {
         // 产生 confirm fire（角向圈 φ=0 闭合），先经 candidate@4 武装（arm）。
         let (bars, flips) = full_bull_entry();
         let r = run(bars, flips);
-        let radial = prove_t56_angular_radial_holonomy(&r); // 不 panic（segment 无角向圈）
-        let active = prove_t58_angular_basic_domain(&r); // 不 panic（fire⟹arm 生命周期）
+        let radial = prove_t56_angular_radial_holonomy(&r, DEFAULT_OP_LADDER); // 不 panic（segment 无角向圈）
+        let active = prove_t58_angular_basic_domain(&r, DEFAULT_OP_LADDER); // 不 panic（fire⟹arm 生命周期）
         assert_eq!(
             r.n_nest_fire_sell_by_ladder[FIRST_BSP_LADDER]
                 + r.n_nest_fire_buy_by_ladder[FIRST_BSP_LADDER],
@@ -2514,8 +2579,8 @@ mod tests {
             "T58：≥1 级别完成 arm→fire 生命周期（23环辩证链闭合）"
         );
         // T57/T59 观测型（~ regime 依赖）不 panic，返回退化层计数。
-        let _ = prove_t57_chirality_mirror(&r);
-        let _ = prove_t59_scale_invariance(&r);
+        let _ = prove_t57_chirality_mirror(&r, DEFAULT_OP_LADDER);
+        let _ = prove_t59_scale_invariance(&r, DEFAULT_OP_LADDER);
     }
 
     #[test]
@@ -2526,7 +2591,7 @@ mod tests {
         // 起算点错位 ⇒ 必 panic。真实 bug 类（fire 计数误下沉到 segment）检出能力证明。
         let mut res = PositionalResult::default();
         res.n_nest_fire_buy_by_ladder[FIRST_BSP_LADDER] = 1;
-        prove_t56_angular_radial_holonomy(&res);
+        prove_t56_angular_radial_holonomy(&res, DEFAULT_OP_LADDER);
     }
 
     #[test]
@@ -2535,8 +2600,8 @@ mod tests {
         // 反证 prove_t58 **非重言**：某势源层 fire>0 但 arms=0（角向圈无起始直接闭合 = 23环辩证
         // 链在该级别断裂）⇒ 必 panic。arm/fire 是独立计数器（跨 bar，原理上可分离）⇒ 守卫可证伪。
         let mut res = PositionalResult::default();
-        res.n_nest_fire_sell_by_ladder[PENDING_LO] = 1; // fire 但 arms[PENDING_LO]=0
-        prove_t58_angular_basic_domain(&res);
+        res.n_nest_fire_sell_by_ladder[DEFAULT_OP_LADDER] = 1; // fire 但 arms[DEFAULT_OP_LADDER]=0
+        prove_t58_angular_basic_domain(&res, DEFAULT_OP_LADDER);
     }
 
     // ════════════ 配额 σ-不变性（T18×T48×T59，542号缺瓦补全）════════════

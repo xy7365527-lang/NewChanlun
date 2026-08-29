@@ -30,6 +30,10 @@ pub const MAX_LADDER: usize = 11;
 pub const FIRST_BSP_LADDER: usize = 2;
 /// ARM 初始级别（Python arm_ladder = LADDER_MOVE）。
 pub const LADDER_MOVE: usize = 3;
+/// 操作绑定级别默认值（操作者参数，#1278 L0 裁定，2026-08-29）：= move(L1)。
+/// 操作级别是操作者选择（缠师）；默认维持现行为（= 旧 PENDING_LO），85-91% 坍缩
+/// 实测 + 540 号为操作层依据（不再伪装成扫描起点限制）。
+pub const DEFAULT_OP_LADDER: usize = FIRST_BSP_LADDER + 1;
 
 /// 初始资金（与 `fugue_alpha_diagnosis.INITIAL_CAPITAL` 逐字）。
 pub const INITIAL_CAPITAL: f64 = 100_000.0;
