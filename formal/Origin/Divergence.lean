@@ -32,7 +32,8 @@ Origin/Divergence.lean — 背驰 / 区间套力度比较（task #113，缠论�
   · "任一背驰制造某级别买卖点"形式化为：背驰 → 存在买卖点信号（结构蕴含），
     不形式化"哪个具体级别"（区间套定位的级别由 Sel_Θ 选择器固定，见 still-MISSING-C）。
 
-★ still-MISSING-C（见文件尾）：力度 `Force` 是抽象标量（不实装 MACD 面积计算）；
+★ still-MISSING-C（见文件尾）：力度 `Force` 是抽象标量（不实装 MACD 面积计算；力度
+  度量层定义已由 beichi.md #873 裁定为速度净增量，Lean 实装见 `Origin.ForceVelocity.lean`）；
   区间套的级别下降链终止性 + 选择器固定未在本文件证（与 legacy Strict.Nest 同构，
   Strict.Nest 已证 Sel_Θ 固定下的唯一性，本文件不重复，标 still-MISSING-C 指向 Strict.Nest）。
 
@@ -236,6 +237,13 @@ theorem witness_creates_buy :
     - `Force.area` 是抽象标量（对应 MACD 柱子面积），本文件**不实装**"从 K 线序列计算
       MACD 柱子面积"（需 EMA/DIF/DEA 数值计算 + 面积积分，是 L2 引擎层，非分类判据层）。
       背驰判据 `forceC < forceA` 在抽象力度上 formalized；真实力度计算未在本文件。
+    - ★力度定义已回填（beichi.md #873，2026-08-03）：力度的度量层定义已裁定为速度净增量
+      `L(段) = v(末) − v(初)`（单位质量冲量），Lean 侧实装见 `Origin.ForceVelocity.lean`
+      的 `impulse : List Stroke → Rat` 与消费谓词 `IsImpulseDivergence`（`impulse c <
+      impulse b`，对齐 Rust `cand_predicate.rs:484` 的 `L(C)<L(B)`）。本文件 `DivergencePair`
+      的 `forceA`/`forceC` 仍消费抽象 `Force`（MACD 代理槽），**外部供给契约**为：段→笔
+      反查（Rust #989 `segment_force_l`；工程选型归 #872）把两段 `b`/`c` 喂给
+      `IsImpulseDivergence`；本文件不重复该定义，只登记契约指针。
     - "任一背驰制造某级别买卖点"中"某级别"是存在量词。**哪个**级别是最优定位级别由
       §11 区间套逐级缩小 + Sel_Θ 选择器固定——这与 legacy Strict.Nest.lean
       （`nest_certificate_unique`：Sel_Θ 固定下定位见证唯一）同构。本文件**不重复**

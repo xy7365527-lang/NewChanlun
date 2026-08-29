@@ -1,5 +1,10 @@
 /-
-Origin/ForceVelocity.lean — 力度的速度净增量定义（#875）
+Origin/ForceVelocity.lean — 力度的速度净增量定义（教义正本 beichi.md #873；实装票 #875）
+
+★溯源注记（对齐 beichi.md #873 正本）：力度 = 速度净增量 `L(段) = v(末) − v(初)`
+  （单位质量冲量）的正本在 `.chanlun/definitions/beichi.md`「★力度的精确定义」节
+  （#873 裁定，名分 `[新缠论:推论]`）。本文件是 #875 把该定义写进 Lean 的实装——
+  **定义依据以 beichi.md #873 为准，`#875` 只是本文件的实装票号，不作定义依据**。
 
 本文件只使用 Lean core 的 `Rat`，不引入 Mathlib。`Force.area` 继续保留为 MACD
 代理槽；这里给出真力度 `impulse`，并把 MACD 侧尚未实现的义务留在显式假设载体中。
@@ -90,6 +95,54 @@ theorem impulse_append_tail
               ac_rfl
         _ = (lastStroke b bs).velocity + -aHead.velocity := by
           rw [Rat.add_neg_cancel, Rat.zero_add]
+
+/-! ═══════════════════════════════════════════════════════════════════════
+    ★力度判据的 Lean 消费方（beichi.md #873：直接比 `L(c)` 与 `L(b)`，不绕父）
+
+    Rust `cand_predicate.rs:484` 已消费 `L(C)<L(B)`（#873 教义经 #989 `segment_force_l`
+    段→笔反查）；Lean 侧此前只有 `impulse` 定义、无任何谓词消费它——这是 sliceE G-3
+    报的「力度链三向脱节」之一。本谓词补上 Lean 侧消费方：`impulse c < impulse b`
+    与 Rust 生产判据同形（名分 `[新缠论:推论]`，推理链同 beichi.md #873）。
+    ═══════════════════════════════════════════════════════════════════════ -/
+
+/--
+  **力度判据（教义正本 beichi.md #873）** —— 后段 `c` 力度严格弱于前段 `b`：
+  `impulse c < impulse b`。这是 `Divergence.IsDivergence`（`forceC.area < forceA.area`）
+  在真力度 `impulse`（速度净增量）上的对应谓词，直接消费 `impulse`——补上 Lean 侧消费方，
+  与 Rust `cand_predicate.rs:484` 的 `L(C)<L(B)`（#989 `segment_force_l`）对齐。
+  名分：判据形状 `[新缠论:推论]`（推理链同 beichi.md #873）；`b`/`c` 是围绕同一中枢的
+  两段笔串（段→笔反查契约见 `segment_force_l`，归 #872 工程选型）。
+-/
+def IsImpulseDivergence (b c : List Stroke) : Prop :=
+  impulse c < impulse b
+
+instance (b c : List Stroke) : Decidable (IsImpulseDivergence b c) := by
+  unfold IsImpulseDivergence; exact inferInstanceAs (Decidable (_ < _))
+
+/-- ★反退化见证（前段）——两笔加速段：v₁=2、v₂=4 ⟹ `impulse b = 2`。 -/
+def witnessImpulseB : List Stroke :=
+  [ { direction := Direction.up, startIndex := 0, endIndex := 2, startPrice := 100, endPrice := 104 }
+  , { direction := Direction.up, startIndex := 2, endIndex := 4, startPrice := 104, endPrice := 112 } ]
+
+/-- ★反退化见证（后段，末端钝化）——两笔钝化段：v₁=4、v₂=1 ⟹ `impulse c = -3`。 -/
+def witnessImpulseC : List Stroke :=
+  [ { direction := Direction.up, startIndex := 0, endIndex := 2, startPrice := 100, endPrice := 108 }
+  , { direction := Direction.up, startIndex := 2, endIndex := 4, startPrice := 108, endPrice := 110 } ]
+
+/-- ★力度判据真跑通（L0，beichi.md 末端钝化检查点）——钝化段力度 −3 < 加速段力度 2。 -/
+theorem witness_impulse_divergence :
+    IsImpulseDivergence witnessImpulseB witnessImpulseC := by
+  native_decide
+
+/-- ★反退化见证（后段，力度延续）——后段力度 5 ≥ 前段力度 2 ⟹ 不背驰。 -/
+def witnessImpulseContinuationC : List Stroke :=
+  [ { direction := Direction.up, startIndex := 0, endIndex := 2, startPrice := 100, endPrice := 104 }
+  , { direction := Direction.up, startIndex := 2, endIndex := 4, startPrice := 104, endPrice := 118 } ]
+
+/-- ★力度判据否决非背驰（L0，对偶）——`impulse c = 5 < 2 = impulse b` 为假。 -/
+theorem witness_not_impulse_divergence :
+    ¬ IsImpulseDivergence witnessImpulseB witnessImpulseContinuationC := by
+  native_decide
 
 /--
 在 Lean 侧尚无独立 MACD 实现时，`List Stroke` 上的 `ForceMeasure` 只能条件性地
