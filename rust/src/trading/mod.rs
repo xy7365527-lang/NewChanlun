@@ -68,6 +68,8 @@ mod consolidation_ablation;
 pub mod depth_ref;
 pub mod dual_voice;
 pub mod fatigue_gate;
+#[cfg(test)]
+mod graph_chain_destack_parity;
 pub mod isolated_fugue;
 pub mod ledger;
 pub mod level_operating_unit;
