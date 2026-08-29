@@ -94,7 +94,7 @@ pub struct FugueResult {
     pub n_fire_sell_by_ladder: [u64; MAX_LADDER],
     /// 买侧向心 confirm fire 数（按层）。
     pub n_fire_buy_by_ladder: [u64; MAX_LADDER],
-    /// 破极值否定数（027:25，按层）。
+    /// 破极值否定数（061:26（力度反超）/061:28（未创新高不存在），按层）。
     pub n_breaks_by_ladder: [u64; MAX_LADDER],
 
     // ── 短差 P&L 观测 ──

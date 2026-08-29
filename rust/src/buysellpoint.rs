@@ -508,7 +508,7 @@ pub(crate) fn detect_overlap(type2: &mut [BuySellPoint], type3: &mut [BuySellPoi
 // BRN 14996/18988=79.0%、QQQ 6166/7631=80.8%；`necessity_check_three_layers.py` 缓存）。
 // 这**不是实现 bug**，是 candidate/located 概念分离：
 //   - raw type1 只兑现 T12 的"背驰"维度（振幅）——背驰候选（势源候选）。
-//   - "方向反转"维度需 027:25 否定线过滤后的 **located 势源**才兑现（走势完美点）。
+//   - "方向反转"维度需否定线（061:26（力度反超）/061:28（未创新高不存在））过滤后的 **located 势源**才兑现（走势完美点）。
 //   - ~79% raw type1 是下跌途中不断刷新低点的连续底背驰候选，走势未完美（候选被否定线否定）。
 // 故 S11（T14 首尾相连）在 located 势源流（驱动根 F/C 操作的走势完美点）检验——这些由根操作
 // 状态机保证严格交替（long→flip short→flip long），是 T14 的必然性。raw candidate 不交替是

@@ -179,8 +179,8 @@ struct SubOut {
 /// 武装 = 本级别 candidate Type1/Type3 事件（= "本级别进入背驰段后"/
 /// 38:258"第三类买卖对盘整结束的确认，最终也要看其内部结构的背驰"）；
 /// 触发 = 次级别（k−1）第一个同侧证据（"到次级别去寻找背驰点"——chan99/
-/// 0027:19）；否定 = 价格越过 candidate 极值（027:25"只要没有打破背驰段，
-/// 就要密切注意"的逆否：打破即作废）。
+/// 0027:19）；否定 = 价格越过 candidate 极值（061:26（力度反超）/061:28（未创新高不存在）——
+/// 背驰被否定 ⇒ 窗口作废）。
 #[derive(Debug, Clone, Copy)]
 struct NestWin {
     /// candidate 事件端点价（背驰段极值；卖窗取 max 刷新 / 买窗取 min）。
@@ -2196,7 +2196,7 @@ mod tests {
 
     #[test]
     fn nest_break_negates_window() {
-        // 027:25"只要没有打破背驰段"的逆否：价格越过 candidate 极值 ⇒ 作废，
+        // 061:26（力度反超）/061:28（未创新高不存在）：价格越过 candidate 极值 ⇒ 背驰被否定 ⇒ 作废，
         // 其后次级别证据不触发。
         let mut bars = nest_warmup();
         bars.push(buypt(bar(100.0), 3));

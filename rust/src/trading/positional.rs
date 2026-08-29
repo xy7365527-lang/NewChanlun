@@ -320,7 +320,7 @@ pub struct PositionalResult {
     pub n_nrf_root_entries_by_ladder: [u64; MAX_LADDER],
     /// 子 voice spawn 数（按子层；区间套递归 = voice 诞生的直接计数）。
     pub n_nrf_spawns_by_ladder: [u64; MAX_LADDER],
-    /// 027:25 否定平仓数（价格越过 spawn 时 candidate 极值，按层）。
+    /// 否定平仓数（061:26（力度反超）/061:28（未创新高不存在）；价格越过 spawn 时 candidate 极值，按层）。
     pub n_nrf_negate_closes_by_ladder: [u64; MAX_LADDER],
     /// 级联回收数（父腿平仓 ⇒ 子树前提消失，按被回收子层）。
     pub n_nrf_cascade_closes_by_ladder: [u64; MAX_LADDER],
@@ -673,7 +673,7 @@ pub enum PolarityMode {
     /// 的时序机制：父层反向 candidate 武装窗口 × 次级别第一证据触发 ⇒
     /// **父仓不动**，在 k−1 开方向交替的独立逐仓头寸（35课立体性；概念链
     /// 第14/18/19/20/22环）；每层 voice 生命周期 = 该层走势完美（confirmed
-    /// 反向词汇）；否定 = 破 candidate 极值（027:25 逆否，级联回收子树）；
+    /// 反向词汇）；否定 = 破 candidate 极值（061:26（力度反超）/061:28（未创新高不存在），级联回收子树）；
     /// 递归终止 = floor（77-78课）∨ 35课成本门 ∨ 槽占用。零概念 flag——
     /// 唯一经验参数 = a0。清仓判据由 `clearance` 选择（v4 棘轮 vs 构成性
     /// 贯通 A′+regime 门；539号开放轴）——其余会计规则两形态逐字相同。

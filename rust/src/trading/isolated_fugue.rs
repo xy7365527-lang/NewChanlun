@@ -51,7 +51,7 @@
 //! ## 每 bar 处理（去全局互斥；逐 voice/逐 level 独立）
 //!
 //! A. 强平兜底（逐活跃空头 voice：capital + u×(basis−c) ≤ 0 ⇒ 1x 逐仓解析强平）
-//! B. 否定扫描（逐活跃 voice：破 027:25 negate_line ⇒ 关该 voice + 子树）
+//! B. 否定扫描（逐活跃 voice：破 negate_line（061:26（力度反超）/061:28（未创新高不存在））⇒ 关该 voice + 子树）
 //! C. 清仓（根 E* 涌现层 sell_any ∧ 递归确认 ⇒ cascade 全树回现金，§6 十年 1-2 次）
 //! D. 回补（逐活跃非根 voice：自层走势完美 confirmed 反向词汇 ⇒ 隔离平仓返父）
 //! E. spawn 降成本（逐活跃 voice：nf 定位反向点 ∨ 根 confirmed 卖 ⇒ 释放 σ-不变
@@ -89,7 +89,7 @@ pub(super) enum VoiceStatus {
 ///
 /// 字段映射任务规格：`level=ladder`、`direction=dir`、`entry_price=basis`、
 /// `parent_voice_id=parent`、`child_voice_ids=children`。`cost_pool`（§7
-/// earning 判据）、`negate_line`（§B 027:25）、`entry_bar`（E* 涌现层 + trade
+/// earning 判据）、`negate_line`（§B，061:26（力度反超）/061:28（未创新高不存在））、`entry_bar`（E* 涌现层 + trade
 /// 行）、`acted_bar`（改动1 per-voice 互斥）是 §1-§8 会计的必要载体。
 #[derive(Debug, Clone)]
 pub(super) struct VoiceLedger {
@@ -104,7 +104,7 @@ pub(super) struct VoiceLedger {
     /// 空头 voice 在手现金（= 父层卖出所得 = 回补弹药；多头恒 0）。
     pub(super) capital: f64,
     pub(super) entry_bar: i64,
-    /// 出生相否定线（spawn 时 candidate 极值，027:25）；confirmed 出生无。
+    /// 出生相否定线（spawn 时 candidate 极值，061:26（力度反超）/061:28（未创新高不存在））；confirmed 出生无。
     pub(super) negate_line: Option<f64>,
     pub(super) status: VoiceStatus,
     pub(super) parent: Option<usize>,
@@ -1100,7 +1100,7 @@ mod tests {
 
     #[test]
     fn negation_kills_child_with_shrink_rebase() {
-        // 027:25 否定：破极值 ⇒ 子死，capital 追价买回缩水 + N 重定基。
+        // 061:26（力度反超）/061:28（未创新高不存在）否定：破极值 ⇒ 子死，capital 追价买回缩水 + N 重定基。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4));
         bars.push(with_ev(

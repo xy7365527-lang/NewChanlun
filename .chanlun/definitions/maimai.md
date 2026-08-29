@@ -240,12 +240,12 @@
 
 | # | 侧 | 位置 | 处置 |
 |---|---|---|---|
-| T-1 | 对拍/Rust | `rust/tests/theta_v0_classifier_parity.rs:528,:629`（[#811](https://github.com/xy7365527-lang/NewChanlun/issues/811) 两条红）；`bsp.rs`/`signal.rs` 的 `below_last_center` 填充链 | **按 B-1 对齐 Rust 侧背驰语义**（统一含 Extreme 方向），断言转绿。新开实施票 |
+| T-1 | 对拍/Rust | `rust/tests/theta_v0_classifier_parity.rs:528,:629`（[#811](https://github.com/xy7365527-lang/NewChanlun/issues/811) 两条红）；`bsp.rs`/`signal.rs` 的 `below_last_center` 填充链 | **按 B-1 对齐 Rust 侧背驰语义**（统一含 Extreme 方向），断言转绿。**已落地 = [#903](https://github.com/xy7365527-lang/NewChanlun/issues/903)**（below_last_center 对齐统一背驰判据，两条红断言转绿） |
 | T-2 | Lean | `formal/Origin/BspClassification.lean:103-104`（`IsType2`）＋ `formal/Origin/SellClosedLoop.lean:368,374-375`（MISSING-D 登记处） | **按 B-2① 补次级别递归**（形态按 map #854 Notes N-2：具名 `Prop` + 显式前件，不用 `axiom`）。新开 Lean 票 |
 | T-3 | Rust | `rust/src/theta_v0/classifier/bsp.rs:86-88`（`is_third`）＋ `rust/src/theta_v0/classifier/signal.rs:590-625`（三类构造链） | **按 B-3 显式化「第一次」**：驱动链已隐含则显式化上锁，没有则补。**已落地 = [#905](https://github.com/xy7365527-lang/NewChanlun/issues/905)**（`first_retrace_pair` 显式谓词 + 锁 + GOLDEN 重锚） |
 | T-4 | Rust | `rust/src/theta_v0/classifier/rmove_compose.rs:160`（`retrace_no_break`）＋ `:80-82`（`no_new_low` 硬闸） | **按 B-2② 拆闸**，实施归 [#884](https://github.com/xy7365527-lang/NewChanlun/issues/884)（教义面已落地）。**已落地 = #884**（2026-08-17）：`retrace_no_break` 硬闸拆除，回拉段 = 首个后继走势（不问新不新低）；`SecondTypeStructure.retrace_breaks_extreme` + `BspPoint.retrace_breaks_type1: Option<bool>` 重合标注（不作准入分档，语义归 #817）；Lean `RMoveCompose.SecondTypeStructure` 同步拆 `RetraceNoBreak` 合取 + 新增 `RetraceBreaksExtreme` 标注谓词与 `witness_secondTypeStructure_brokeExtreme` 见证；旧引擎 `buysellpoint.rs` 同闸处置路由归 T-6/673-fix（见下） |
 | T-5 | 三侧追认 | `rmove_compose.rs:144-170`、`descend.rs:176-191`、`bsp.rs:78-80`；Lean `BspClassification.lean:94-95,:111-121`；`buysellpoint.rs:186-209` | 与裁定同形，注释口径对齐（带 #816 票号）。**已落地 = #884**（2026-08-17）：三处 Rust 与 `BspClassification.IsType2` 注释已带 #816 票号对齐；`buysellpoint.rs` 的 `make_type2_point` `geom` 合取（现 `:272-276`，清单行号已漂）加 #816 B-2② 注释并明记处置路由归 T-6/673-fix（旧引擎逐位等价 Python 侧，T-6 未落地前两侧同拍不改判据） |
-| T-6 | Python | `src/newchan/a_buysellpoint_v1.py` | Type1 只收 `trend` 已对齐；Type2 确认层接口拆分（673-fix/task #33）与 B-2② 的关系明记于该票；**已冻结退役=#1286**（2026-08-27，历史对照，不参生产准入） |
+| T-6 | Python | `src/newchan/a_buysellpoint_v1.py` | Type1 只收 `trend` 已对齐；Type2 确认层接口拆分（673-fix/task #33）与 B-2② 的关系明记于该票；**已落地 = [#1276](https://github.com/xy7365527-lang/NewChanlun/issues/1276)**（26dcae96c3，Type2 确认层拆分 + 旧引擎 geom 合取同拍改）；**已冻结退役=#1286**（2026-08-27，历史对照，不参生产准入） |
 
 ---
 

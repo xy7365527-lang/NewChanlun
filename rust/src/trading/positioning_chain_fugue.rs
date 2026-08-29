@@ -50,7 +50,7 @@
 //! ## 级联不变量（必然性检验的运行时基础）
 //!
 //! `located`（任一侧）非空时**恒为连续前缀** `[FIRST_BSP_LADDER..=S]`，且全层**统一
-//! 极值 E（源层 027:25 否定线）+ 统一 source_ladder=S ≥ FIRST_BSP_LADDER+1**。
+//! 极值 E（源层否定线，061:26（力度反超）/061:28（未创新高不存在））+ 统一 source_ladder=S ≥ FIRST_BSP_LADDER+1**。
 //! 由两条构造规则保证：
 //!   ① **级联写统一极值**：confirm@S 触发 ⇒ `[FIRST_BSP_LADDER..=S]` 全写源层 S
 //!      的极值（含 located[segment]——segment 被高级别定位**覆盖**，自身不发起）。
@@ -72,7 +72,7 @@
 //! ## 操作语义（source 驱动，第13/14/15/16/17/23环）
 //!
 //! 每 bar 同 bar 单事件（A→B→C→D→E→F；§1-§8 会计 = nested_fugue 原语逐字复用）：
-//! - **A 强平兜底 / B 否定扫描**：URS 逐字（027:25 否定线）。
+//! - **A 强平兜底 / B 否定扫描**：URS 逐字（否定线，061:26（力度反超）/061:28（未创新高不存在））。
 //! - **C 根出场/翻转**（第23环）：根 voice 长持，`sell_source = Some(S)` 且
 //!   `S ≥ root.ladder`（势在**入场级别或更高**反转 ⇒ 出场对齐 source）∧ len==1 ⇒
 //!   翻转 = 降成本 m=N 特例（子空@root.ladder−1，携 located 极值否定线）。
@@ -135,7 +135,7 @@ struct Pending {
 ///     级联不变量下，一条链内全层 source_ladder 统一 = 链顶 S。
 ///   - `direction` = pending 方向（卖侧出场链 / 买侧入场链）。located_sell/located_buy
 ///     分数组下方向由数组隐含，此字段为自描述 + 必然性检验的显式载体。
-///   - `extreme` = 027:25 否定线（价格破之则定位失效）。级联下全层统一 = 源层极值。
+///   - `extreme` = 否定线（061:26（力度反超）/061:28（未创新高不存在），价格破之则定位失效）。级联下全层统一 = 源层极值。
 ///   - `compress_bar` = 压缩↑完成 bar（高级别 candidate 首现 = 信号层构造完成）。
 ///   - `confirm_bar` = 展开↓兑现 bar（低级别 confirm = 操作层定位完成）。
 ///     540号时序：`compress_bar ≤ confirm_bar`（prove_chain 强制——压缩必先于展开）。
@@ -150,7 +150,7 @@ struct PendingLocate {
 
 /// pending confirm 兑现的级联武装（第14环严格形式）：最高 active pending@source
 /// 经低级别 confirm ⇒ 级联武装 `located[FIRST_BSP_LADDER..=source]` 全层，统一
-/// 极值 = 源层 027:25 否定线，统一 source_ladder=source，统一 direction=dir。
+/// 极值 = 源层否定线（061:26（力度反超）/061:28（未创新高不存在）），统一 source_ladder=source，统一 direction=dir。
 ///
 /// **调用前提**：`source ≥ FIRST_BSP_LADDER+1`（segment 不入势源——pending 只在
 /// move(L1) 及以上注册）。级联仍写到 `located[FIRST_BSP_LADDER]`（segment 被高级别
@@ -495,7 +495,7 @@ pub(crate) fn run_positioning_chain_fugue(
 
         // ── C. 根出场/翻转（第23环；出场对齐入场 source）：根长持 ∧ 卖链 source
         //    S ≥ root.ladder（势在入场级别或更高反转）∧ len==1 ⇒ 翻转 = 降成本
-        //    m=N 特例（子空@root.ladder−1，携 located 极值否定线，027:25）。
+        //    m=N 特例（子空@root.ladder−1，携 located 极值否定线，061:26（力度反超）/061:28（未创新高不存在））。
         //    root.ladder == FIRST_BSP_LADDER（无更低子级别）⇒ 清仓到现金。
         //    len>1 ⇒ 不翻（子先经 D 独立回补——逐仓独立）。──
         if !acted && chain.first().is_some_and(|r| r.units > 0.0) {
@@ -869,7 +869,10 @@ mod tests {
                 e.source_ladder, 4,
                 "全层统一 source=链顶 4（含 segment 被覆盖）"
             );
-            assert_eq!(e.extreme, 110.0, "全层统一极值=源层 027:25 否定线");
+            assert_eq!(
+                e.extreme, 110.0,
+                "全层统一极值=源层否定线（061:26（力度反超）/061:28（未创新高不存在））"
+            );
             assert_eq!(e.direction, Side::Sell);
             assert_eq!(e.compress_bar, 5, "压缩↑ bar 全层统一");
             assert_eq!(e.confirm_bar, 7, "展开↓ bar 全层统一");
@@ -1090,7 +1093,7 @@ mod tests {
 
     #[test]
     fn flip_child_carries_negate_line() {
-        // 翻转子空携 027:25 否定线 = located_sell[source=4] 极值 110；升破 ⇒ B 否定平仓。
+        // 翻转子空携否定线（061:26（力度反超）/061:28（未创新高不存在））= located_sell[source=4] 极值 110；升破 ⇒ B 否定平仓。
         let (mut bars, flips) = full_bear_chain_at_root();
         bars.push(bar(115.0)); // 升破 110 ⇒ 否定
         let r = run(bars, flips);

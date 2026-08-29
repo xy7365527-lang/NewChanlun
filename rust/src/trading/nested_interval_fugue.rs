@@ -327,7 +327,7 @@ pub(crate) fn run_nested_interval_fugue(
 
         // ── C. 清仓/翻转（改动3：根持有到 E\* 涌现层反向 BSP 才平——不被低级别
         //    反向信号提前平仓）。根 E\* 出现卖点（sell_any）∧ located[E\*] ∧
-        //    递归链完整 ⇒ 翻转（= 降成本 m=N 特例，子空携 027:25 否定线）。
+        //    递归链完整 ⇒ 翻转（= 降成本 m=N 特例，子空携否定线（061:26（力度反超）/061:28（未创新高不存在）））。
         //    改动1：翻转的次级别落点 `ladder−1 ≥ min_trade_ladder`；落点不可
         //    交易 ⇒ 退化为清仓到现金（不在 < min_trade_ladder 开空）──
         if !acted && chain.first().is_some_and(|r| r.units > 0.0) {

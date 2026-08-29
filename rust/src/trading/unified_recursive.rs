@@ -353,7 +353,7 @@ pub(crate) fn run_unified_recursive(
         //    **翻转 = 降成本的 m=N 特例**（非清仓到现金）。父 voice 卖出全部 N 股
         //    （N→0，husk 保留 cost_basis/pool）→ 子 voice 用释放的全部资金（N×c）
         //    反向开空 N。和 E 降成本完全同构，只 m=N。
-        //    · 否定线 = located 极值（027:25）在子 voice 生命周期保护（A 强平/B 否定）
+        //    · 否定线 = located 极值（061:26（力度反超）/061:28（未创新高不存在））在子 voice 生命周期保护（A 强平/B 否定）
         //      ⇒ 化解 v3 死因②（翻转无否定线 → 强平归零，project_nrf_v3_root_flip_falsified）。
         //    · 条件化 = E* 涌现层判据（非每 bar 无条件）⇒ 化解 v3 死因①（盘整税）。
         //    · 会计逻辑时序（编排者；物理一笔，会计先后）：先父释放现金（units N→0）
@@ -381,7 +381,7 @@ pub(crate) fn run_unified_recursive(
             if sig.sell_any.get(estar)
                 && recursive_confirmed(estar, Direction::Down, &located_sell, &dir_state)
             {
-                let flip_line = located_sell[estar]; // 027:25 否定线 = located 极值
+                let flip_line = located_sell[estar]; // 否定线 = located 极值（061:26（力度反超）/061:28（未创新高不存在））
                                                      // Phase 3（逐仓独立，编排者裁决"子voice平仓不影响父voice"）：翻转仅在
                                                      // chain.len()==1（根独存）时发生——根降成本 m=N → 子独立逐仓开空，父 husk
                                                      // 不退出。链有降成本子（len>1）时**不翻转**（不 collapse）：子先经 D 独立回补
@@ -875,7 +875,7 @@ mod tests {
 
     #[test]
     fn flip_child_carries_negate_line() {
-        // v3 死因②修复：翻转子空携带 027:25 否定线（=located[4] 极值 110）；升破 ⇒ B 否定有界平仓。
+        // v3 死因②修复：翻转子空携带否定线（061:26（力度反超）/061:28（未创新高不存在），=located[4] 极值 110）；升破 ⇒ B 否定有界平仓。
         let (mut bars, flips) = full_bear_chain();
         bars.push(bar(115.0)); // 升破 110 ⇒ B 否定平子空
         let r = run(bars, flips);
