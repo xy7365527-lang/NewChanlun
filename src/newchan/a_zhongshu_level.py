@@ -12,6 +12,8 @@ P3: 将 zhongshu_from_segments() 和 moves_from_zhongshus() 泛化为
 - 过滤条件从 confirmed 改为 completed
 - 位置标识从 seg index 改为 component_idx
 """
+# 冻结声明：本模块判定面已冻结退役（#1286，2026-08-27）：名分=历史对照，不参生产准入、
+# 不同拍对齐（#1276 为末次同拍）；消费仅限 analysis/ 分析脚本。
 
 from __future__ import annotations
 

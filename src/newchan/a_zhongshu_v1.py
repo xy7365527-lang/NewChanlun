@@ -22,6 +22,8 @@
    它是不同级别的退化基底中枢，可向上构成笔级别走势，再作为更高级别中枢的组件。
    谱系：settled/525-stroke-center-recursion-base.md。
 """
+# 冻结声明：本模块判定面已冻结退役（#1286，2026-08-27）：名分=历史对照，不参生产准入、
+# 不同拍对齐（#1276 为末次同拍）；消费仅限 analysis/ 分析脚本。
 
 from __future__ import annotations
 

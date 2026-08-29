@@ -73,6 +73,8 @@ confirmed 与 Move.settled 解耦）；005b 对象否定对象（走势完成由
    结构信号，PH settle（分型因果确认）替代传统右侧确认作进场门控。
    见 ``analysis/candidate_settle_backtest_qqq.py``（笔中枢 + candidate + PH settle 回测）。
 """
+# 冻结声明：本模块判定面已冻结退役（#1286，2026-08-27）：名分=历史对照，不参生产准入、
+# 不同拍对齐（#1276 为末次同拍）；消费仅限 analysis/ 分析脚本。
 
 from __future__ import annotations
 

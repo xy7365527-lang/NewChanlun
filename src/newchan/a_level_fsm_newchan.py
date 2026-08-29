@@ -8,6 +8,8 @@
 
 规格引用: docs/chan_spec.md §9 级别 Level 与 L* 锁定
 """
+# 冻结声明：本模块判定面已冻结退役（#1286，2026-08-27）：名分=历史对照，不参生产准入、
+# 不同拍对齐（#1276 为末次同拍）；消费仅限 analysis/ 分析脚本。
 
 from __future__ import annotations
 

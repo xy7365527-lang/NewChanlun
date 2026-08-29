@@ -22,6 +22,8 @@ Divergence 输出类型复用 v0 的定义（语义不变）。
 - T7: 柱子伸长高度比较（beichi.md §T7）→ ✅ 已实现（histogram_peak_for_range 工具函数）
 - T6/T7 与 T5(面积) 的组合方式：未结算（beichi.md #2 "或 vs 且"问题）
 """
+# 冻结声明：本模块判定面已冻结退役（#1286，2026-08-27）：名分=历史对照，不参生产准入、
+# 不同拍对齐（#1276 为末次同拍）；消费仅限 analysis/ 分析脚本。
 
 from __future__ import annotations
 
