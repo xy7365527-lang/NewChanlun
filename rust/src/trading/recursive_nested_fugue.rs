@@ -74,12 +74,13 @@ use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::nested_fugue::{nav, pop_tail, rec_sub_evidence, unwind_to, Voice, Win};
-use super::positional::{theta_weights, PositionalResult, EQUITY_SAMPLE_BARS};
-use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
+use super::positional::{PositionalResult, EQUITY_SAMPLE_BARS};
+use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::SignalTape;
 use super::types::{
     BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
 };
+use super::unified_necessity::prove_theta_sigma_invariant;
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
@@ -347,7 +348,8 @@ pub(crate) fn run_recursive_nested_fugue(
 
         // ── E. spawn（降成本 = 开空）：尾的 nest 定位反向点@own-level ∨ 根尾
         //    的 confirmed 卖（一切未被 D 消费的卖点，§9"其他卖点全部走E"——
-        //    RNF 中"其他"= 除 EOD 外的全部）⇒ 释放 θ 配额 m 给子 voice。
+        //    RNF 中"其他"= 除 EOD 外的全部）⇒ 释放 σ-不变配额 m（f=1/λ，
+        //    SUB_SPAWN_FRAC）给子 voice。
         //    终止 = floor ∨ 35课成本门 ──
         if !acted {
             if let Some(tail) = chain.last().copied() {
@@ -369,9 +371,10 @@ pub(crate) fn run_recursive_nested_fugue(
                                 res.n_nrf_cost_rejects_by_ladder[sub] += 1;
                             }
                             Some(_) => {
-                                let (thetas, theta_total) = theta_weights(&depth_ref, floor_ladder);
-                                let w = thetas[sub].map(|t| t / theta_total);
-                                let m_quota = w.map_or(0.0, |w| tail.units * w);
+                                // m = 父在手 × SUB_SPAWN_FRAC（配额比例 f=1/λ，σ-不变常数；
+                                // 542号 R1 读法A：势∝r 公理派生 f=r_{k−1}/r_k=1/λ，级别无关）。
+                                let m_quota = tail.units * SUB_SPAWN_FRAC;
+                                prove_theta_sigma_invariant(m_quota, tail.units, sub, bar);
                                 let m = match tail.dir {
                                     Polarity::Long => m_quota,
                                     Polarity::Short => m_quota.min(tail.capital / c),
@@ -646,8 +649,8 @@ mod tests {
     }
 
     #[test]
-    fn spawn_releases_theta_quota() {
-        // §2 卖出原子 = 开空：根@4 confirmed 卖 ⇒ 释放 m=N×θ₃/θ_total 给子空@3。
+    fn spawn_releases_sigma_invariant_quota() {
+        // §2 卖出原子 = 开空：根@4 confirmed 卖 ⇒ 释放 m=N×SUB_SPAWN_FRAC=500 给子空@3。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4));
         bars.push(with_ev(
@@ -668,7 +671,10 @@ mod tests {
             .iter()
             .find(|t| t.polarity == Polarity::Short)
             .unwrap();
-        assert!((short.shares - 250.0).abs() < 1e-9, "θ 配额 m = 1000×1/4");
+        assert!(
+            (short.shares - 500.0).abs() < 1e-9,
+            "σ-不变配额 m = 1000×1/2"
+        );
         assert!(
             (r.final_nav - 104_000.0).abs() < 1e-6,
             "final={}",
@@ -702,11 +708,11 @@ mod tests {
         assert_eq!((rec.ladder, rec.polarity), (3, Polarity::Short));
         let pnl = rec.shares * (rec.entry_price - rec.exit_price);
         assert!(
-            (pnl - 2000.0).abs() < 1e-6,
-            "子 P&L = 250×8 = 2000（≡ 父降成本）"
+            (pnl - 4000.0).abs() < 1e-6,
+            "子 P&L = 500×8 = 4000（≡ 父降成本）"
         );
         assert!(
-            (r.final_nav - 98_000.0).abs() < 1e-6,
+            (r.final_nav - 100_000.0).abs() < 1e-6,
             "final={}",
             r.final_nav
         );
@@ -715,7 +721,7 @@ mod tests {
     #[test]
     fn negation_pays_squeeze_tax() {
         // 027:25 否定 = 轧空税：子空@104 线 110，破 110 ⇒ 子死，N 缩水
-        // δ = 250 − 26000/111（强牛中降成本失败的物理代价）。
+        // δ = 500 − 52000/111（强牛中降成本失败的物理代价）。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4));
         bars.push(with_ev(
@@ -732,13 +738,13 @@ mod tests {
         bars.push(bar(111.0));
         let r = run(bars);
         assert_eq!(r.n_nrf_negate_closes_by_ladder[3], 1);
-        let expect_back = 26_000.0 / 111.0;
+        let expect_back = 52_000.0 / 111.0;
         assert!(
-            (r.nrf_shrink_units - (250.0 - expect_back)).abs() < 1e-9,
+            (r.nrf_shrink_units - (500.0 - expect_back)).abs() < 1e-9,
             "轧空税缩水"
         );
-        // NAV = (750 + 234.23)×111 = 750×111 + 26000（守恒）。
-        assert!((r.final_nav - (750.0 * 111.0 + 26_000.0)).abs() < 1e-6);
+        // NAV = (500 + 468.47)×111 = 500×111 + 52000（守恒）。
+        assert!((r.final_nav - (500.0 * 111.0 + 52_000.0)).abs() < 1e-6);
     }
 
     #[test]
@@ -760,7 +766,7 @@ mod tests {
         bars.push(buypt(bar(95.0), 3));
         bars.push(bar(95.0));
         let r = run(bars);
-        let expect = 1000.0 * 95.0 + 250.0 * 9.0;
+        let expect = 1000.0 * 95.0 + 500.0 * 9.0;
         assert!(
             (r.final_nav - expect).abs() < 1e-6,
             "final={} expect={expect}",

@@ -49,7 +49,7 @@
 //! | 10-12 | 背驰→三类买卖点 | BspClass type1/2/3 + DivEvent |
 //! | 13 | 级别=递归层次 | `chain` 每层一个 Voice |
 //! | 14 | 区间套=层间桥梁 | `rec_sub_evidence`（定位型：candidate 武装 → 次级别证据精化时点） |
-//! | 15 | 级别=操作量 | m = θ 配额（53课留白） |
+//! | 15 | 级别=操作量 | m = 父在手 × SUB_SPAWN_FRAC（f=1/λ，σ-不变） |
 //! | 16 | 成本门=递归终止 | 35课成本门 + floor_ladder |
 //! | 17 | 降成本 | E：spawn 子 voice |
 //! | 18-20 | 并发/多重赋格/嵌套递归 | Voice 链（任意深度） |
@@ -73,12 +73,13 @@ use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::nested_fugue::{nav, pop_tail, rec_sub_evidence, unwind_to, Voice, Win};
-use super::positional::{theta_weights, PositionalResult, EQUITY_SAMPLE_BARS};
-use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
+use super::positional::{PositionalResult, EQUITY_SAMPLE_BARS};
+use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::SignalTape;
 use super::types::{
     BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
 };
+use super::unified_necessity::prove_theta_sigma_invariant;
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
@@ -458,7 +459,7 @@ pub(crate) fn run_unified_recursive(
 
         // ── E. spawn（降成本释放）：尾的 nest 定位反向点@own-level ∨ 根尾
         //    的 confirmed 卖（C 未消费的一切卖点，§9"其他卖点全部走E"）⇒
-        //    释放 θ 配额 m 给子 voice。终止 = floor ∨ 35课成本门 ──
+        //    释放 σ-不变配额 m（f=1/λ，SUB_SPAWN_FRAC）给子 voice。终止 = floor ∨ 35课成本门 ──
         if !acted {
             if let Some(tail) = chain.last().copied() {
                 let (nest_fired, confirmed_sell_root) = match tail.dir {
@@ -479,9 +480,11 @@ pub(crate) fn run_unified_recursive(
                                 res.n_nrf_cost_rejects_by_ladder[sub] += 1;
                             }
                             Some(_) => {
-                                let (thetas, theta_total) = theta_weights(&depth_ref, floor_ladder);
-                                let w = thetas[sub].map(|t| t / theta_total);
-                                let m_quota = w.map_or(0.0, |w| tail.units * w);
+                                // m = 父在手 × SUB_SPAWN_FRAC（配额比例 f=1/λ，σ-不变常数；
+                                // 542号 R1 读法A：势∝r 公理派生 f=r_{k−1}/r_k=1/λ，级别无关）。
+                                // 替代旧 θ_sub/θ_total 全局归一化（后者固定窗口随级别变，破 T59）。
+                                let m_quota = tail.units * SUB_SPAWN_FRAC;
+                                prove_theta_sigma_invariant(m_quota, tail.units, sub, bar);
                                 let m = match tail.dir {
                                     Polarity::Long => m_quota,
                                     Polarity::Short => m_quota.min(tail.capital / c),
@@ -887,8 +890,8 @@ mod tests {
     }
 
     #[test]
-    fn spawn_releases_theta_quota() {
-        // §2 卖出原子：根@4 confirmed 卖 ⇒ 释放 m=N×θ₃/θ_total 给子空@3。
+    fn spawn_releases_sigma_invariant_quota() {
+        // §2 卖出原子：根@4 confirmed 卖 ⇒ 释放 m=N×SUB_SPAWN_FRAC=500 给子空@3。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4));
         bars.push(with_ev(
@@ -909,7 +912,10 @@ mod tests {
             .iter()
             .find(|t| t.polarity == Polarity::Short)
             .unwrap();
-        assert!((short.shares - 250.0).abs() < 1e-9, "θ 配额 m = 1000×1/4");
+        assert!(
+            (short.shares - 500.0).abs() < 1e-9,
+            "σ-不变配额 m = 1000×1/2"
+        );
         assert!(
             (r.final_nav - 104_000.0).abs() < 1e-6,
             "final={}",
@@ -942,9 +948,9 @@ mod tests {
             .unwrap();
         assert_eq!((rec.ladder, rec.polarity), (3, Polarity::Short));
         let pnl = rec.shares * (rec.entry_price - rec.exit_price);
-        assert!((pnl - 2000.0).abs() < 1e-6, "子 P&L = 250×8 = 2000");
+        assert!((pnl - 4000.0).abs() < 1e-6, "子 P&L = 500×8 = 4000");
         assert!(
-            (r.final_nav - 98_000.0).abs() < 1e-6,
+            (r.final_nav - 100_000.0).abs() < 1e-6,
             "final={}",
             r.final_nav
         );
@@ -968,8 +974,8 @@ mod tests {
         bars.push(buypt(bar(95.0), 3));
         bars.push(bar(95.0));
         let r = run(bars, vec![]);
-        // 根回满 1000 股；现金流闭合 = 1000×95 + 250×(104−95)。
-        let expect = 1000.0 * 95.0 + 250.0 * 9.0;
+        // 根回满 1000 股；现金流闭合 = 1000×95 + 500×(104−95)。
+        let expect = 1000.0 * 95.0 + 500.0 * 9.0;
         assert!(
             (r.final_nav - expect).abs() < 1e-6,
             "final={} expect={expect}",

@@ -37,8 +37,10 @@
 //! F 在 **最高 θ 涌现层 top**（≥ min_trade_ladder）满仓开多——仓位压倒性偏置
 //! 高级别（"级别=操作量"，第15环：高级别势大→大仓位）。入场点由区间套向下
 //! 定位（`buy_any[top] ∨ nf_buy[top]`，nf 经 `rec_sub_evidence` 下探至 a0 精确
-//! 定位）。E 释放的降成本子 voice 量 = `θ_sub/θ_total` 配额（53课留白；θ_total
-//! 只跨可交易层 `[min_trade_ladder, MAX)`——untradeable 层的 θ 不进分母）。
+//! 定位）。E 释放的降成本子 voice 量 = `tail.units×SUB_SPAWN_FRAC`（f=1/λ，σ-不变，
+//! 级别无关；#1278-G2 统一——原 `θ_sub/θ_total` 随级别变，破 T59）。可交易层窄分母
+//! 构成性设计保留于改动1 的 `min_trade_ladder` floor gate（势在 <min 级别不存在，
+//! 不 spawn），不再体现为 θ 分母（untradeable 层本就不进 spawn 落点）。
 //!
 //! ### 改动3（出场对齐同级别反向 BSP；第14环区间套 + 第17环降成本）
 //! 根 voice 持有到**涌现归属级别 E\*（≥ 根入场级别）的反向 BSP** 才清仓/翻转
@@ -64,12 +66,13 @@ use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::nested_fugue::{nav, pop_tail, rec_sub_evidence, unwind_to, Voice, Win};
-use super::positional::{theta_weights, PositionalResult, EQUITY_SAMPLE_BARS};
-use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
+use super::positional::{PositionalResult, EQUITY_SAMPLE_BARS};
+use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::SignalTape;
 use super::types::{
     BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
 };
+use super::unified_necessity::prove_theta_sigma_invariant;
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
@@ -413,11 +416,12 @@ pub(crate) fn run_nested_interval_fugue(
         }
 
         // ── E. spawn 降成本（改动1+2+3）：尾的 nest 定位反向点 ∨ 根尾 confirmed
-        //    卖（C 未消费的一切卖点，§9"其他卖点全部走 E"）⇒ 释放 θ 配额 m 给子
-        //    voice。**改动1：递归终止 floor = min_trade_ladder**（`tail.ladder ≤
-        //    min_trade_ladder ⇒ floor_stop`——势在交易 floor 之下不存在，不 spawn
-        //    segment 降成本散单）。**改动2：θ_total 只跨 [min_trade_ladder, MAX)**
-        //    （untradeable 层 θ 不进配额分母）──
+        //    卖（C 未消费的一切卖点，§9"其他卖点全部走 E"）⇒ 释放 σ-不变配额 m
+        //    （f=1/λ，SUB_SPAWN_FRAC）给子 voice。**改动1：递归终止 floor =
+        //    min_trade_ladder**（`tail.ladder ≤ min_trade_ladder ⇒ floor_stop`——
+        //    势在交易 floor 之下不存在，不 spawn segment 降成本散单）。**改动2：
+        //    可交易层窄分母构成性设计保留为改动1 的 floor gate（#1278-G2 重锚），
+        //    配额本身 σ-不变级别无关（untradeable 层本就不进 spawn 落点）──
         if !acted {
             if let Some(tail) = chain.last().copied() {
                 let (nest_fired, confirmed_sell_root) = match tail.dir {
@@ -440,11 +444,10 @@ pub(crate) fn run_nested_interval_fugue(
                                 res.n_nrf_cost_rejects_by_ladder[sub] += 1;
                             }
                             Some(_) => {
-                                // 改动2：配额分母 = 可交易层 θ 之和。
-                                let (thetas, theta_total) =
-                                    theta_weights(&depth_ref, min_trade_ladder);
-                                let w = thetas[sub].map(|t| t / theta_total);
-                                let m_quota = w.map_or(0.0, |w| tail.units * w);
+                                // m = 父在手 × SUB_SPAWN_FRAC（f=1/λ，σ-不变，级别无关；
+                                // #1278-G2 统一替代原 θ_sub/θ_total 窄分母——后者随级别变，破 T59）。
+                                let m_quota = tail.units * SUB_SPAWN_FRAC;
+                                prove_theta_sigma_invariant(m_quota, tail.units, sub, bar);
                                 let m = match tail.dir {
                                     Polarity::Long => m_quota,
                                     Polarity::Short => m_quota.min(tail.capital / c),
@@ -937,12 +940,12 @@ mod tests {
             bar(104.0),
             3,
             ev_full(BspClass::Sell1, true, 0.0, None),
-        )); // 子空 250@104
+        )); // 子空 500@104
         bars.push(buypt(bar(95.0), 3)); // 子走势完美 ⇒ 回补@95
         bars.push(bar(95.0));
         let r = run(bars, vec![], 3);
-        // 根回满 1000@95 + 子利润 250×(104−95)=2250。
-        let expect = 1000.0 * 95.0 + 250.0 * 9.0;
+        // 根回满 1000@95 + 子利润 500×(104−95)=4500。
+        let expect = 1000.0 * 95.0 + 500.0 * 9.0;
         assert!(
             (r.final_nav - expect).abs() < 1e-6,
             "final={} expect={expect}",

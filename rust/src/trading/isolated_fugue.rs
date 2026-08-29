@@ -54,8 +54,8 @@
 //! B. 否定扫描（逐活跃 voice：破 027:25 negate_line ⇒ 关该 voice + 子树）
 //! C. 清仓（根 E* 涌现层 sell_any ∧ 递归确认 ⇒ cascade 全树回现金，§6 十年 1-2 次）
 //! D. 回补（逐活跃非根 voice：自层走势完美 confirmed 反向词汇 ⇒ 隔离平仓返父）
-//! E. spawn 降成本（逐活跃 voice：nf 定位反向点 ∨ 根 confirmed 卖 ⇒ 释放 θ 配额
-//!    给子 voice；终止 = floor(77-78课笔) ∨ 35课成本门）
+//! E. spawn 降成本（逐活跃 voice：nf 定位反向点 ∨ 根 confirmed 卖 ⇒ 释放 σ-不变
+//!    配额（f=1/λ，SUB_SPAWN_FRAC）给子 voice；终止 = floor(77-78课笔) ∨ 35课成本门）
 //! F. 根入场（森林空 ⇒ 最高 θ 涌现层买证据满仓开多）
 //!
 //! 空头会计 [镜像推导]（38:36 镜像止于判断-动作序列）；earning 多空不对称
@@ -65,10 +65,11 @@ use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::nested_fugue::{rec_sub_evidence, Win};
-use super::positional::{theta_weights, LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
-use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
+use super::positional::{LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
+use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::SignalTape;
 use super::types::{BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
+use super::unified_necessity::prove_theta_sigma_invariant;
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
@@ -402,11 +403,11 @@ fn try_spawn(
             false
         }
         Some(_) => {
-            // m = 在手 × θ_sub/θ_total（53课配额留白的 hold26 在册形态）；
+            // m = 在手 × SUB_SPAWN_FRAC（配额比例 f=1/λ，σ-不变常数；542号 R1 读法A：
+            // 势∝r 公理派生 f=r_{k−1}/r_k=1/λ，级别无关——替代旧 θ_sub/θ_total 全局归一化）。
             // 空头父释放受 capital 可买量约束（资金守恒）。
-            let (thetas, theta_total) = theta_weights(depth_ref, floor_ladder);
-            let w = thetas[sub].map(|t| t / theta_total);
-            let m_quota = w.map_or(0.0, |w| p_units * w);
+            let m_quota = p_units * SUB_SPAWN_FRAC;
+            prove_theta_sigma_invariant(m_quota, p_units, sub, bar);
             let m = match p_dir {
                 Polarity::Long => m_quota,
                 Polarity::Short => m_quota.min(p_capital / c),
@@ -738,7 +739,7 @@ pub(crate) fn run_isolated_fugue(
         }
 
         // ── E. spawn 降成本（逐活跃 voice：nf 定位反向点 ∨ 根 confirmed 卖 ⇒
-        //    释放 θ 配额给子 voice。改动1：每 voice 独立 spawn——root 可同 bar/
+        //    释放 σ-不变配额（f=1/λ，SUB_SPAWN_FRAC）给子 voice。改动1：每 voice 独立 spawn——root 可同 bar/
         //    跨 bar 多次 spawn 出多个 child（森林）；改动4：只读自层）──
         if !cleared {
             let snap: Vec<usize> = (0..voices.len()).collect();
@@ -1028,9 +1029,9 @@ mod tests {
     }
 
     #[test]
-    fn spawn_releases_theta_quota_not_all() {
-        // §2 卖出原子：nf 定位卖@4 ⇒ 释放 m=N×θ₃/θ_total=250 给子空@3，根
-        // 保留 750（不清仓原则）。Σ 在手 = N 守恒（引擎内 §8.1 守卫）。
+    fn spawn_releases_sigma_invariant_quota_not_all() {
+        // §2 卖出原子：nf 定位卖@4 ⇒ 释放 m=N×SUB_SPAWN_FRAC=500 给子空@3，根
+        // 保留 500（不清仓原则）。Σ 在手 = N 守恒（引擎内 §8.1 守卫）。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4));
         bars.push(with_ev(
@@ -1051,8 +1052,11 @@ mod tests {
             .iter()
             .find(|t| t.polarity == Polarity::Short)
             .unwrap();
-        assert!((short.shares - 250.0).abs() < 1e-9, "θ 配额 m = 1000×1/4");
-        // NAV：750×104 + 26_000(子 capital) = 104_000。
+        assert!(
+            (short.shares - 500.0).abs() < 1e-9,
+            "σ-不变配额 m = 1000×1/2"
+        );
+        // NAV：500×104 + 52_000(子 capital) = 104_000。
         assert!(
             (r.final_nav - 104_000.0).abs() < 1e-6,
             "final={}",
@@ -1085,10 +1089,10 @@ mod tests {
             .unwrap();
         assert_eq!((rec.ladder, rec.polarity), (3, Polarity::Short));
         let pnl = rec.shares * (rec.entry_price - rec.exit_price);
-        assert!((pnl - 2000.0).abs() < 1e-6, "子 P&L = 250×8 = 2000");
-        // eod NAV = 2000 + 1000×96 = 98_000。
+        assert!((pnl - 4000.0).abs() < 1e-6, "子 P&L = 500×8 = 4000");
+        // eod NAV = 4000 + 1000×96 = 100_000。
         assert!(
-            (r.final_nav - 98_000.0).abs() < 1e-6,
+            (r.final_nav - 100_000.0).abs() < 1e-6,
             "final={}",
             r.final_nav
         );
@@ -1113,9 +1117,9 @@ mod tests {
         bars.push(bar(111.0));
         let r = run(bars, vec![]);
         assert_eq!(r.n_nrf_negate_closes_by_ladder[3], 1);
-        let expect_back = 26_000.0 / 111.0;
-        assert!((r.nrf_shrink_units - (250.0 - expect_back)).abs() < 1e-9);
-        assert!((r.final_nav - (750.0 * 111.0 + 26_000.0)).abs() < 1e-6);
+        let expect_back = 52_000.0 / 111.0;
+        assert!((r.nrf_shrink_units - (500.0 - expect_back)).abs() < 1e-9);
+        assert!((r.final_nav - (500.0 * 111.0 + 52_000.0)).abs() < 1e-6);
     }
 
     #[test]
@@ -1269,12 +1273,12 @@ mod tests {
             bar(104.0),
             3,
             ev_full(BspClass::Sell1, true, 0.0, None),
-        )); // 子空 250@104
+        )); // 子空 500@104
         bars.push(buypt(bar(95.0), 3)); // 子走势完美 ⇒ 回补@95
         bars.push(bar(95.0));
         let r = run(bars, vec![]);
-        // 根回满 1000@95 + 子利润 250×(104−95)=2250。
-        let expect = 1000.0 * 95.0 + 250.0 * 9.0;
+        // 根回满 1000@95 + 子利润 500×(104−95)=4500。
+        let expect = 1000.0 * 95.0 + 500.0 * 9.0;
         assert!(
             (r.final_nav - expect).abs() < 1e-6,
             "final={} expect={expect}",

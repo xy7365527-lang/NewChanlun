@@ -991,7 +991,7 @@ fn prove_t55_dual_line_observe(
 /// R₃-on-W_form——W_form 是形态学生成算子非配额算子）。**关键**：本规范刻意**不取 `sub` 参数**——
 /// σ-不变性的精确编码 = 配额是父在手的级别无关函数（仅 `p_units`，不依赖 `sub`）。值
 /// `SUB_SPAWN_FRAC = 1/λ`（λ=2 初始 ⟹ 0.5；详 T18 头注 + 542号有效域分离）。
-fn sigma_invariant_quota(p_units: f64) -> f64 {
+pub(super) fn sigma_invariant_quota(p_units: f64) -> f64 {
     p_units * SUB_SPAWN_FRAC
 }
 
@@ -1005,7 +1005,7 @@ fn sigma_invariant_quota(p_units: f64) -> f64 {
 /// 范式）：调用点用**独立内联表达**计算 `m_quota`；规范 `sigma_invariant_quota` **不取 `sub`**
 /// （编码级别无关性）⇒ 若调用点漂移回 `sub`-依赖分配（如 `m_quota = p_units × θ[sub]/Σθ`），
 /// m_quota 必 ≠ 规范值 ⇒ panic（`theta_sigma_invariance_fires_on_level_dependent_quota` 反证）。
-fn prove_theta_sigma_invariant(m_quota: f64, p_units: f64, sub: usize, bar: i64) {
+pub(super) fn prove_theta_sigma_invariant(m_quota: f64, p_units: f64, sub: usize, bar: i64) {
     let canonical = sigma_invariant_quota(p_units);
     assert!(
         (m_quota - canonical).abs() <= 1e-9 * p_units.max(1.0),
