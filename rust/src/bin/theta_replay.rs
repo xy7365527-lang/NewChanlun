@@ -130,8 +130,15 @@ fn main() -> std::process::ExitCode {
         let offset = outcome.first_divergence_offset.unwrap_or(0);
         eprintln!("同输入双跑自检  : FAIL（首个分歧偏移 = {}）", offset);
         let lo = offset.saturating_sub(64);
-        let hi = (offset + 64).min(outcome.dump.len());
+        // 分歧点双片段（run-1/run-2）——两跑字节不等的现场，缺一不可诊断。
+        let hi = match &outcome.dump2 {
+            Some(d2) => (offset + 64).min(outcome.dump.len().min(d2.len())),
+            None => (offset + 64).min(outcome.dump.len()),
+        };
         eprintln!("run-1 片段: {}", &outcome.dump[lo..hi]);
+        if let Some(d2) = &outcome.dump2 {
+            eprintln!("run-2 片段: {}", &d2[lo..hi]);
+        }
         return std::process::ExitCode::FAILURE;
     }
 

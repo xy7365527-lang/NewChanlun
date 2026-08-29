@@ -220,6 +220,9 @@ pub struct ReplayOutcome {
     pub years: f64,
     /// run-1 的确定性 dump（header + env_archive + body）。
     pub dump: String,
+    /// run-2 的确定性 dump——仅 `identical` = false 时保留（`Some`）；成功路径置 `None`，
+    /// 以免批量验收（`theta_accept` 不读 dump 内容）为每品种多留一份全量 dump。
+    pub dump2: Option<String>,
     /// 同输入双跑逐位一致 ⟺ true。
     pub identical: bool,
     /// 首个分歧字节偏移（`identical` 时恒 None）。
@@ -263,6 +266,9 @@ pub fn run_replay_double(
             .position(|(a, b)| a != b)
             .or(Some(dump1.len().min(dump2.len())))
     };
+    // run-2 dump 只在分歧时保留（分歧点双片段打印的物证）；成功路径不保留，以免
+    // theta_accept 批量验收为每品种多留一份全量 dump。
+    let dump2 = if identical { None } else { Some(dump2) };
 
     ReplayOutcome {
         symbol: dataset.symbol.clone(),
@@ -273,6 +279,7 @@ pub fn run_replay_double(
         initial_nav,
         years,
         dump: dump1,
+        dump2,
         identical,
         first_divergence_offset,
         elapsed,
