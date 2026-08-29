@@ -149,6 +149,13 @@ name = "theta_overlay"
 path = "src/bin/theta_overlay.rs"
 required-features = ["backtest_bin"]
 
+# #1305 ①件：生产 π 回路历史回放 driver（Dataset→ThetaPiStream::push_bar + 排序 dump + env 钉死
+#   + 同输入双跑自检）。use theta_v0::backtest::data（cfg 门控）⟹ 声明 required-features。
+[[bin]]
+name = "theta_replay"
+path = "src/bin/theta_replay.rs"
+required-features = ["backtest_bin"]
+
 [[bin]]
 name = "p856_ed_dominance"
 path = "src/bin/p856_ed_dominance.rs"
