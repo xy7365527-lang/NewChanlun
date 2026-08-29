@@ -139,7 +139,8 @@ deriving DecidableEq, Repr
   从真缠论事件 `ChanlunEvent` **真 case-split on #113 缠论判据**，识别应对意图。
 
   缠论规则真编码（L1 缠论规则结构编码，对照 originFullDef 的 `decide (trend = trendUp)`）：
-  - **第24课**：若 `IsType1 bsp`（破中枢 ∧ 背驰 `IsDivergence divPair`）⟹ `openRoot`（第一类买点建根仓）。
+  - **第24课**：若 `IsType1 bsp`（破中枢 ∧ `isTrend` ∧ 背驰 `IsDivergence divPair`）⟹
+    `openRoot`（第一类买点建根仓）。
   - **§10.1**：否则若 `IsType3Buy bsp`（离开中枢 ∧ 第一次回抽 ∧ retracePrice > ZG 不破中枢）
     ⟹ `accreteCore`（第三类买点增核）。
   - **§11**：否则（含力度延续 `IsContinuation divPair` = 非背驰，无买点）⟹ `hold`（保持）。
@@ -147,6 +148,11 @@ deriving DecidableEq, Repr
   ★这是真缠论分类识别——直接消费 `IsType1`/`IsType3Buy`（#113 BspClassification 判据，
   内含 `IsDivergence` #113 Divergence 判据），**不是** emptyParse 空解析，**不是** trend=trendUp
   平凡标志。判据可判定（IsDivergence/Bool 字段/Int 比较），用 decide 桥接。
+
+  ★第一类分支 = **闭环内核**（破中枢 ∧ 背驰），镜像 rust `is_type1_buy`（closed_loop/buy.rs:112，
+  不含 T3-in-c 门）；`IsType1` 的 `isTrend`（T3-in-c 结构前提之2，#1300 裁定 A′）在生产
+  二次门（rust gates.rs:407 / 镜面 `judgeFirstFromGates`）另行施加——严格 `IsType1`
+  （破中枢 ∧ isTrend ∧ 背驰）⟹ openRoot 由 `recog_type1_openRoot` 锁定。
 -/
 def recogChanlun (e : ChanlunEvent) : ChanlunDecision :=
   if e.bsp.brokeCenter = true ∧ decide (IsDivergence e.bsp.divPair) = true then
@@ -162,14 +168,14 @@ def recogChanlun (e : ChanlunEvent) : ChanlunDecision :=
 
 /--
   ★recog 真消费第一类判据（L0，证 recogChanlun 非平凡）：若事件满足 `IsType1`（第24课第一类
-  买点判据：破中枢 ∧ 背驰），则 `recogChanlun` 识别为 `openRoot`。这坐实 recog 段**真编码**
+  买点判据：破中枢 ∧ `isTrend` ∧ 背驰），则 `recogChanlun` 识别为 `openRoot`。这坐实 recog 段**真编码**
   第24课规则——不是占位（占位无法对第一类判据敏感）。
 -/
 theorem recog_type1_openRoot (e : ChanlunEvent) (h : IsType1 e.bsp) :
     recogChanlun e = ChanlunDecision.openRoot := by
   unfold recogChanlun IsType1 at *
   have hbroke : e.bsp.brokeCenter = true := h.1
-  have hdiv : decide (IsDivergence e.bsp.divPair) = true := decide_eq_true h.2
+  have hdiv : decide (IsDivergence e.bsp.divPair) = true := decide_eq_true h.2.2
   simp only [hbroke, hdiv, and_self, if_pos]
 
 /--
@@ -352,8 +358,9 @@ def witnessOuter : CenterWithOuter :=
   { core := witnessCenter, dd := 5, gg := 25, outer_lo := by decide, outer_hi := by decide }
 
 /--
-  ★第一类买点事件 `eventType1`（具体缠论数值，非平凡桩）：破中枢 + 背驰（forceC=2 < forceA=8）。
-  满足 `IsType1`（第24课第一类买点判据）⟹ recog 识别为 openRoot ⟹ ledger A += 1。
+  ★第一类买点事件 `eventType1`（具体缠论数值，非平凡桩）：破中枢 + 趋势背驰（isTrend=true，
+  forceC=2 < forceA=8）。满足 `IsType1`（第24课第一类买点判据）⟹ recog 识别为 openRoot ⟹
+  ledger A += 1。
 -/
 def eventType1 : ChanlunEvent :=
   { bsp :=
@@ -386,9 +393,9 @@ def eventType3 : ChanlunEvent :=
     prevCenter := witnessOuter
     nextCenter := witnessOuter }
 
-/-- ★见证：eventType1 满足第24课第一类买点判据（破中枢 + 背驰）。 -/
+/-- ★见证：eventType1 满足第24课第一类买点判据（破中枢 + 趋势背驰 + 背驰）。 -/
 theorem eventType1_isType1 : IsType1 eventType1.bsp := by
-  unfold IsType1 IsDivergence eventType1; exact ⟨rfl, by decide⟩
+  unfold IsType1 IsDivergence eventType1; exact ⟨rfl, rfl, by decide⟩
 
 /-- ★见证：eventType3 满足 §10.1 第三类买点判据（离开中枢 + 第一次回抽 + 不破 ZG）。 -/
 theorem eventType3_isType3Buy : IsType3Buy eventType3.bsp := by

@@ -103,7 +103,7 @@ pub(crate) fn first_structural_gates(
     })
 }
 
-/// 第一类买卖点判定（契约锚 `Origin.BspClassification.IsType1 = brokeCenter ∧ IsDivergence`；
+/// 第一类买卖点判定（契约锚 `Origin.BspClassification.IsType1 = brokeCenter ∧ isTrend ∧ IsDivergence`；
 /// ★A/B/C 趋势背驰框架，第24课:22-24 + reference:34 + maimai.md:103-112）。
 ///
 /// **第一类买卖点 = 趋势背驰点**（maimai.md:103「某级别**下跌趋势**中…向下跌破**最后一个**中枢后
@@ -133,7 +133,7 @@ pub(crate) fn first_structural_gates(
 ///（`< b_lo`/`> b_hi`，b=I(A) 包络，`move_range_envelope` 单一来源）+ 趋势门控（中枢同向关系）
 /// 整数几何 **L0**；C<A 面积比较 MACD **L1**。诸分量合取 = 趋势背驰 = `IsType1`。`prev_center` 无
 /// 同向离开段（A 段无法定位）⟹ None（无 A/C 配对 ⟹ 无趋势背驰）。
-/// ★rust 领先 Origin（裁定 T3 裁决 7，遗留项 L1）：Lean `IsType1 = brokeCenter ∧ IsDivergence`
+/// ★rust 领先 Origin（裁定 T3 裁决 7，遗留项 L1）：Lean `IsType1 = brokeCenter ∧ isTrend ∧ IsDivergence`
 /// 的 `brokeCenter` 只含破核心；本函数判据 = brokeCenter ∧ 037:20 ∧ IsDivergence——037:20 是否
 /// 吸进 Lean `IsType1` 结构合取列 formal-chain 后续事项（本函数既有 A/B/C 真算领先的先例）。
 ///

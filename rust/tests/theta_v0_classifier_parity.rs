@@ -12,7 +12,7 @@
 //!   ↔ Lean `Origin.CenterStates.classifyPosition`（CenterStates.lean:71-74）。
 //! - **信号位 b 的第一/三类分量 B1/S1 + B3/S3**：rust `classifier::bsp::{EndpointSituation,
 //!   endpoint_to_bsp}` + `classifier::signal::extract_signals` ↔ Lean `Origin.BspClassification.
-//!   {IsType1,IsType3Buy,IsType3Sell}`（BspClassification.lean:94-95,111-121）。
+//!   {IsType1,IsType3Buy,IsType3Sell}`（BspClassification.lean:96-97,117-125）。
 //! - **信号位 b 的第二类分量 B2/S2**：rust `classifier::signal::extract_second_signals`（递归组装层）
 //!   ↔ Lean `Origin.RMoveCompose.{SecondTypeStructure,secondPointPrice}`（RMoveCompose.lean:197-215）。
 //!
@@ -22,7 +22,7 @@
 //! - **B3/S3**（第三类）：`extract_signals` 纯整数几何（离开后回试不破 ZG/ZD）↔ Lean
 //!   `IsType3Buy/IsType3Sell`，**L0** bit-exact（层 B1/B2）。
 //! - **B1/S1**（第一类）：`extract_signals` 破中枢几何（**L0**）∧ MACD 背驰真算（**L1**）↔ Lean
-//!   `IsType1 = brokeCenter ∧ IsDivergence`（层 C）。★rust 领先 Origin：Lean `divPair` 是外部参数
+//!   `IsType1 = brokeCenter ∧ isTrend ∧ IsDivergence`（层 C）。★rust 领先 Origin：Lean `divPair` 是外部参数
 //!   （still-MISSING-C 无 MACD 引擎），rust `divergence.rs` 已实装 MACD ⟹ 背驰分量真算非占位。
 //! - **B2/S2**（第二类，#52 递归组装层）：`extract_second_signals` 消费 RMove 递归塔的
 //!   `SecondTypeStructure`（第一类离开 m1 + 回拉段 m2 + i1<i2；回拉**不问**新不新低——#816 B-2②，
@@ -492,9 +492,9 @@ fn boundary_retest_eq_zd_rust_aligned_to_lean_strict() {
 
 // ════════════════════════════════════════════════════════════════════════════
 //  层 C — 第一类（B1/S1）：extract_signals 破中枢几何 L0 ∧ MACD 背驰 L1 真算
-//          ↔ Lean Origin.BspClassification.IsType1 = brokeCenter ∧ IsDivergence(divPair)
+//          ↔ Lean Origin.BspClassification.IsType1 = brokeCenter ∧ isTrend ∧ IsDivergence(divPair)
 //
-//  Lean IsType1 (BspClassification.lean:94-95)：brokeCenter=true ∧ IsDivergence divPair。
+//  Lean IsType1 (BspClassification.lean:96-97)：brokeCenter=true ∧ divPair.isTrend=true ∧ IsDivergence divPair。
 //  Lean IsDivergence (Divergence.lean:83)：d.forceC.area < d.forceA.area（后段力度严格小于前段）。
 //  rust 侧：破中枢=段端点出中枢核心（L0 整数几何，对齐 descend.rs sub_broke_below）；
 //  IsDivergence=破中枢段 vs 前同向段 MACD 面积严格变小（divergence::segments_diverge 真算，L1）。
@@ -514,7 +514,7 @@ fn closes_seq(vals: &[Tick]) -> (Vec<f64>, Vec<usize>) {
 /// 旧 fixture 用单中枢（Consolidation τ）产 B1 是退化语义——tau 门控下盘整背驰**不产第一类**
 /// （beichi #4 + maimai.md:56 已结算）。现对齐 `signal.rs:680-711` 的 `[c0, c1]` 两全链同向向下
 /// 中枢模式（c1.gg < c0.dd ⟹ 下跌趋势 τ=Trend(Down)），B1=趋势背驰（C 段破最后中枢 ∧ C<A 面积）。
-/// Lean IsType1 = brokeCenter ∧ IsDivergence（divPair 外参，rust MACD 真算 forceC.area < forceA.area）。
+/// Lean IsType1 = brokeCenter ∧ isTrend ∧ IsDivergence（divPair 外参，rust MACD 真算 forceC.area < forceA.area）。
 #[test]
 fn type1_buy_broke_and_diverge_matches_lean_istype1() {
     // 两依次向下中枢（下跌趋势 τ=Trend(Down)），对齐 signal.rs:687-705 `first_buy_extracted_with_trend_divergence`。
@@ -562,7 +562,7 @@ fn type1_buy_broke_and_diverge_matches_lean_istype1() {
     assert_eq!(
         buy1.len(),
         1,
-        "Lean IsType1（brokeCenter ∧ IsDivergence）⟺ rust buy1 置位"
+        "Lean IsType1（brokeCenter ∧ isTrend ∧ IsDivergence）⟺ rust buy1 置位"
     );
     assert_eq!(
         buy1[0].pivot_low, 70,
@@ -571,7 +571,7 @@ fn type1_buy_broke_and_diverge_matches_lean_istype1() {
 }
 
 /// 第一类反退化（Lean IsType1 需 IsDivergence）：破中枢但后段面积 >= 前段（¬IsDivergence）⟹ ¬IsType1。
-/// 对照 Lean：IsType1 = brokeCenter ∧ IsDivergence；IsDivergence 假 ⟹ 整体假（合取）。
+/// 对照 Lean：IsType1 = brokeCenter ∧ isTrend ∧ IsDivergence；IsDivergence 假 ⟹ 整体假（合取）。
 #[test]
 fn type1_rejected_without_divergence_matches_lean() {
     let c = Center {

@@ -190,7 +190,7 @@ def Fresh {ℓ : Nat} (g : Cert ℓ) : Prop := freshB g = true
 
 /--
   **`Context^δ_1(c,g)`（定义）** —— 证书方向与父端点方向一致，且父端点满足第一类：
-  `brokeCenter=true ∧ IsDivergence`。
+  `brokeCenter=true ∧ divPair.isTrend=true ∧ IsDivergence`（趋势背驰语境，T3-in-c 结构前提）。
 -/
 def ContextOne {ℓ : Nat} (g : Cert ℓ) (c : ParentCarrier) : Prop :=
   g.endpoint.side = c.endpoint.side ∧ IsType1 c.endpoint

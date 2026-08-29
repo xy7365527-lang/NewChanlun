@@ -117,7 +117,8 @@ def LevelView.cand (v : LevelView) : BspIndex → Option BspEndpoint
   实例合成对 matcher 不归约 ⟹ 失败）。
 -/
 instance instDecIsType1 (e : BspEndpoint) : Decidable (IsType1 e) :=
-  inferInstanceAs (Decidable (e.brokeCenter = true ∧ IsDivergence e.divPair))
+  inferInstanceAs (Decidable (e.brokeCenter = true ∧ e.divPair.isTrend = true ∧
+    IsDivergence e.divPair))
 
 instance instDecIsType2 (e : BspEndpoint) : Decidable (IsType2 e) :=
   inferInstanceAs (Decidable (e.afterTypeOne = true ∧ e.brokeCenter = false))
@@ -137,7 +138,8 @@ instance instDecIsType3 (e : BspEndpoint) : Decidable (IsType3 e) :=
 
 /--
   **类别 i 的判据满足（复用 `BspClassification` 厚判据）** —— 端点 e 是否满足第 i 类买卖点判据。
-  i1 ⟹ `IsType1`（破中枢背驰点）；i2 ⟹ `IsType2`（一类后回抽结束）；i3 ⟹ `IsType3`（离开中枢回抽不破）。
+  i1 ⟹ `IsType1`（破中枢 ∧ 趋势背驰语境 ∧ 背驰点）；i2 ⟹ `IsType2`（一类后回抽结束）；i3 ⟹
+  `IsType3`（离开中枢回抽不破）。
 -/
 def endpointSatisfies : BspIndex → BspEndpoint → Prop
   | .i1, e => IsType1 e

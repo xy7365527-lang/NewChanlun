@@ -3,13 +3,27 @@
 //!
 //! ## 覆盖三谓词
 //!
-//! - `IsType1`（`Origin.BspClassification` :94）↔ rust `is_type1_buy`（`closed_loop/buy.rs` :112）；
-//! - `IsType3Buy`（:100，含 `firstRetrace` 必要条件）↔ rust `is_type3_buy`（buy.rs :120）；
+//! - `IsType1`（`Origin.BspClassification` :96）↔ rust `is_type1_buy`（`closed_loop/buy.rs` :112）；
+//! - `IsType3Buy`（:117，含 `firstRetrace` 必要条件）↔ rust `is_type3_buy`（buy.rs :120）；
 //! - `SecondTypeStructure`（`Origin.RMoveCompose` :233，#1289 G4 裁定 a 后 = 首个后继
 //!   i2=i1+1）↔ rust `find_second_type_structure`（rmove_compose.rs :205，首个后继 i2=i1+1）：
 //!   存在性（`.is_some()` ⇔ Lean 镜像 `secondTypeStructureHolds`，#1294 F-8）+ **见证级**
 //!   （i1/i2/second_point/retrace_breaks_extreme ⇔ Lean first-match 见证镜像
 //!   `findSecondTypeStructureWitness`，#1289 补——同输入同见证点）。
+//!
+//! ## IsType1 ↔ is_type1_buy 锁的成立域限定（#1300 裁定 A′ + #903 收尾缺口）
+//!
+//! 本锁逐位比对的是 Lean `IsType1`（破中枢 ∧ `divPair.isTrend = true` ∧ 背驰——含 T3-in-c
+//! 结构前提之2，037:18【正文】/ beichi.md 五条件之2）与 rust `is_type1_buy`
+//! （`broke_center && is_divergence`，closed_loop/buy.rs:112 **不含** T3-in-c 门）。
+//! T3-in-c 在 rust 生产侧是 gates.rs:407 的**二次门**（`below_last_center = diverged &&
+//! t3_in_c_present`），不进 `is_type1_buy` 本体。故本锁**只在 T3-in-c Present 域**成立——
+//! fixture 全部破中枢（type1 候选）向量 `isTrend = true`；`isTrend = false` 的破中枢背驰向量
+//! 现「Lean false / rust true」分歧，**不入 fixture**（域外，Lean 反例 `witness_type1_needs_trend`）。
+//!
+//! `is_divergence` 字段的对照口径 = **MacdArea 显式对照档**：Lean `IsDivergence` =
+//! `forceC < forceA`（抽象力度，对应 rust `macd_c_lt_a` 面积比较臂，gates.rs:312），非 #990
+//! 默认档 ForceL（教义判据 `L(C)<L(B)`，经 #989 反查原语）——本锁只锁 MacdArea 对照档的代数一致。
 //!
 //! ## 机器耦合（631 铁律，非手填）
 //!
@@ -22,7 +36,7 @@
 //! ## 历史分歧案例回归向量
 //!
 //! - `type1_broke_not_divergent`：破中枢但力度反超（forceC≥forceA）——`witness_type1_needs_divergence`
-//!   反例，证明 IsType1 = 破中枢 ∧ 背驰（非「破中枢即一类」）。
+//!   反例，证明 IsType1 = 破中枢 ∧ 趋势背驰（isTrend）∧ 背驰（非「破中枢即一类」）。
 //! - `type3_buy_not_first_retrace`：§10.3 第三类必须第一次回抽（firstRetrace 必要条件反例）。
 //! - `type3_buy_reenter_zg`：回抽回到 ZG（retrace==zg）——`type3Buy_rejects_reenter` 反例。
 //! - `last_leg_type1_no_successor`：唯一破中枢背驰腿在末位（无后继）——「首个后继」存在性边界，

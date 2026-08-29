@@ -119,8 +119,8 @@ def feOf (lo hi : Int) (h : lo ≤ hi) : FeatureElem := { low := lo, high := hi,
 
     先例 = gap/overlap 段（#248/#319）：Lean 提取值（`decide` 真求值）vs rust 输出逐位比对。
     本段把 lean_parity 复活到 BSP 谓词族：
-    - `IsType1`（BspClassification :94）↔ rust `is_type1_buy`（closed_loop/buy.rs :112）；
-    - `IsType3Buy`（BspClassification :100，含 `firstRetrace` 必要条件）↔ rust
+    - `IsType1`（BspClassification :96）↔ rust `is_type1_buy`（closed_loop/buy.rs :112）；
+    - `IsType3Buy`（BspClassification :117，含 `firstRetrace` 必要条件）↔ rust
       `is_type3_buy`（buy.rs :120）；
     - `SecondTypeStructure`（RMoveCompose :233，#1289 后 = 首个后继 i2=i1+1）↔ rust
       `find_second_type_structure`（rmove_compose.rs :205，首个后继 i2=i1+1）：

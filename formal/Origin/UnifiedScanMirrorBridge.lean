@@ -512,6 +512,12 @@ theorem structural_gate_rejects_missing_a (input : GateInput) (h : input.aSegmen
   rw [h]
   cases brokeCenterInTrend input <;> rfl
 
+/-- ★#1229 退役词汇显式登记（2026-08-29，#1300 随票义务）：`GradeReason` 五桶
+    （missingLeave/missingRetest/sameDirection/leaveNotOutside/retestReentered）镜像 rust
+    `T3InCGradeReason` 五桶（signal.rs:394），是**固定首对分级器**（`t3_in_c_fixed_first_pair`）
+    的诊断词汇——#1229 裁定 a 已把 T3-in-c 生产判据统一为全窗后扫
+    （`trend_third_class_in_c` / `T3InCScan`），本五桶**不再作生产准入判据**，仅保留为对拍
+    退役口径 / 通道词汇（生产调用方为零）。 -/
 inductive GradeReason where
   | missingLeave
   | missingRetest
@@ -520,6 +526,8 @@ inductive GradeReason where
   | retestReentered
 deriving DecidableEq, Repr
 
+/-- ★#1229 退役词汇：固定首对分级结果（`present` = 命中 leave/retest 区间；`missing` =
+    五桶原因）。随固定首对分级器一并退役为诊断词汇，非生产准入判据（见 `GradeReason` 登记）。 -/
 inductive Grade where
   | present (leaveInterval : Interval) (retestInterval : Interval)
   | missing (reason : GradeReason)
@@ -783,6 +791,11 @@ def firstBits (side : Side) (confirmed : Bool) : BspBitsMirror :=
   | Side.long => { buy1 := confirmed }
   | Side.short => { sell1 := confirmed }
 
+/-- 3a 一类产口门镜像：`confirmed := diverged && t3Present` 是生产 gates.rs:407 一类 bit
+    二次门（`below_last_center = diverged && t3_in_c_present`，#1229 裁定 a 全窗后扫统一口径）的
+    Lean 镜像——T3-in-c 结构前提（037:18）在此**显式成立**，对齐 Lean `IsType1` 的
+    `divPair.isTrend = true` 合取（#1300 裁定 A′）。`input.grade`（`Grade`/`GradeReason`
+    五桶）是 #1229 已退役的固定首对诊断词汇（对拍退役口径，非生产准入判据）。 -/
 def judgeFirstFromGates (input : FirstProjectionInput) : Option BspPointMirror :=
   if input.gates.extreme && input.gates.comparable then
     let confirmed := input.diverged && input.t3Present
@@ -1057,6 +1070,11 @@ def assembleFirstClassGrade (input : FirstProjectionInput) : Option FirstClassGr
   else
     none
 
+/-- ★#1229 退役词汇（诊断，非生产准入）：镜像 rust `t3_in_c_fixed_first_pair`
+    （signal.rs:447，已退役）的固定首对分级——判定锚 = 最后中枢右边第一条段（leave）与其紧随
+    段（retest），方向互反 + 价格严格破 ZG/ZD。生产 T3-in-c 判据已统一为全窗后扫
+    （`trend_third_class_in_c` / `judgeFirstFromGates` 的 `t3Present`），本函数仅作对拍
+    退役口径保留。 -/
 def gradeFixedFirstPairRaw (rows : List SegmentRow) (center : CenterFrame)
     (trend : Direction) : Grade :=
   let tail := rows.dropWhile fun row => row.startIndex < center.endIndex

@@ -269,7 +269,7 @@ def SignalBits.empty : SignalBits :=
   忠实从判据投影（非另造 Bool 输入），bit-exact 对齐 rust `EndpointSituation::is_first/second/third`。
 -/
 instance (e : BspEndpoint) : Decidable (IsType1 e) := by
-  unfold IsType1; exact inferInstanceAs (Decidable (_ ∧ _))
+  unfold IsType1; exact inferInstanceAs (Decidable (_ ∧ _ ∧ _))
 instance (e : BspEndpoint) : Decidable (IsType2 e) := by
   unfold IsType2; exact inferInstanceAs (Decidable (_ ∧ _))
 instance (e : BspEndpoint) : Decidable (IsType3Buy e) := by

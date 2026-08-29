@@ -69,7 +69,7 @@ namespace NewChanlun.Origin
     ═══════════════════════════════════════════════════════════════════════ -/
 
 instance (e : BspEndpoint) : Decidable (IsType1 e) := by
-  unfold IsType1; exact inferInstanceAs (Decidable (_ ∧ _))
+  unfold IsType1; exact inferInstanceAs (Decidable (_ ∧ _ ∧ _))
 
 instance (e : BspEndpoint) : Decidable (IsType3Buy e) := by
   unfold IsType3Buy
@@ -443,8 +443,9 @@ theorem witness_L0_type1_from_move :
       some { kind := BspKind.type1, side := Side.long, index := 3, price := 5 } := by
   have ht1 : IsType1 (moveToCandidate bspSampleMove sampleType1.center bspSampleForce1 false).endpoint := by
     unfold IsType1 moveToCandidate bspSampleForce1
-    refine ⟨?_, ?_⟩
+    refine ⟨?_, ?_, ?_⟩
     · exact witness_L0_brokeCenter
+    · rfl
     · unfold IsDivergence; decide
   unfold classifyEndpoint
   rw [if_pos ht1]
@@ -500,8 +501,9 @@ theorem witness_bspOfMoves_empty : bspOfMoves [] [] [] = [] := by
       （brokeCenter/leftCenter）与时序 oracle（afterTypeOne），但 `divPair` 的 `Force`/MACD 面积
       **无法**从 `Move` 价格端点几何推导（需 EMA/DIF/DEA + 面积积分，Divergence still-MISSING-C）。
       `MoveForceJudgment.divPair` 是诚实的 L2 开口——本文件**不冒充** divPair 已可 L0 推导。
-      第一类判据 `IsType1 = brokeCenter ∧ IsDivergence` 中：brokeCenter 现 L0（632号路1），
-      IsDivergence(divPair) 仍 L2——第一类完整识别仍依赖 L2 力度引擎接入。
+      第一类判据 `IsType1 = brokeCenter ∧ divPair.isTrend ∧ IsDivergence` 中：brokeCenter 现
+      L0（632号路1），`isTrend`（趋势背驰语境，T3-in-c 结构前提，037:18，#1300 裁定 A′）与
+      IsDivergence(divPair) 仍随 divPair L2 注入——第一类完整识别仍依赖 L2 力度引擎接入。
 
   ★边界条件（结论翻转）：
     - `brokeCenterOf`/`leftCenterOf` L0 推导依赖 `Move.endPrice`（632号路1 加的字段）。若

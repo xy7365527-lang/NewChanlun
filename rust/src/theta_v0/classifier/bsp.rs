@@ -5,7 +5,7 @@
 //! - 端点语义 ↔ `Origin.BspClassification.BspEndpoint`：相对中枢的拓扑/历史语义字段
 //!   （side/center/divPair/brokeCenter/afterTypeOne/leftCenter/retracePrice/firstRetrace）。
 //! - 三类判据 ↔ `Origin.BspClassification.{IsType1,IsType2,IsType3Buy,IsType3Sell}`（结构谓词）：
-//!   · `IsType1` = `brokeCenter ∧ IsDivergence divPair`（破中枢 + 背驰，第24课第一类）。
+//!   · `IsType1` = `brokeCenter ∧ divPair.isTrend ∧ IsDivergence divPair`（破中枢 + 趋势背驰语境 + 背驰，第24课第一类，#1300 裁定 A′）。
 //!   · `IsType2` = `afterTypeOne ∧ ¬brokeCenter`（1 类后回调，§10.1 第二类）。
 //!   · `IsType3Buy` = `side=long ∧ leftCenter ∧ firstRetrace ∧ center.zg < retracePrice`（离开后回试不破 ZG）。
 //! - bit-vector 输出 ↔ `BspClass`/`types::BspBits`（非互斥 subset，2/3 类可共存）。

@@ -17,7 +17,7 @@
 //!   线段端点价，**纯整数几何 L0**，零经验时序依赖。
 //!
 //! - **第一类**（B1/S1）：reference:34 + `Origin.BspClassification.IsType1 = brokeCenter ∧
-//!   IsDivergence(divPair)`。**第一类 = 趋势背驰点**（A/B/C 框架，第24课:22-24 + maimai.md:103-112）。
+//!   divPair.isTrend = true ∧ IsDivergence(divPair)`。**第一类 = 趋势背驰点**（A/B/C 框架，第24课:22-24 + maimai.md:103-112）。
 //!   三分量分层：
 //!   · **局部趋势门**（`decompose`+`center_trend_gate`，task #143）：第一类**只由趋势背驰产生**——段所在走势类型块 ≥2 同向中枢
 //!     ⟹ Trend(方向)，才产第一类；1 中枢（盘整）/mixed（扩张）**不产**（盘整背驰不产第一类，
@@ -203,7 +203,7 @@ fn map_src_range_to_close_idx(
 /// - 第49课/第29课：「当下之前最后一个中枢」组织买卖点（`bsp.rs:110` BspPoint.center 注「最后中枢」）。
 /// - maimai.md:103：第一类「向下跌破**最后一个**中枢」。
 /// - Lean `BspClassification.BspEndpoint`（lean:75-84）只带**单一** center，`IsType3Buy/Sell` 相对该
-///   **一个** center 判定（lean:111-121）。
+///   **一个** center 判定（lean:117-125）。
 ///
 /// `centers` 按 `end_index` 升序（`detect_centers_with` 非重叠扫描保证，mod.rs:136）。返回 `end_index
 /// <= seg_start` 的**最后一个**中枢（该线段离开/回试时「当下之前最后一个中枢」）。无满足者 ⟹ None

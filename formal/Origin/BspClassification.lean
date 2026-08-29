@@ -88,11 +88,13 @@ deriving Repr
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
-  **第一类判据（§10.1）** —— 跌破/突破最后一个中枢后的**背驰点**。
-  `brokeCenter = true`（已破中枢）∧ `IsDivergence divPair`（背驰）。
+  **第一类判据（§10.1 + 037:18）** —— 跌破/突破最后一个中枢后的**背驰点**。
+  `brokeCenter = true`（已破中枢）∧ `divPair.isTrend = true`（趋势背驰语境——T3-in-c 结构前提之2，
+  037:18【正文】/ beichi.md 五条件之2 / Rust gates.rs:407 显式门，#1300 裁定 A′）∧
+  `IsDivergence divPair`（背驰）。
 -/
 def IsType1 (e : BspEndpoint) : Prop :=
-  e.brokeCenter = true ∧ IsDivergence e.divPair
+  e.brokeCenter = true ∧ e.divPair.isTrend = true ∧ IsDivergence e.divPair
 
 /--
   **第二类判据（§10.1 + 买卖点定律一）** —— 第一类之后、回抽段的结束点。
@@ -350,12 +352,19 @@ def sampleType1 : BspEndpoint :=
     retracePrice := 5, firstRetrace := false }
 
 theorem witness_type1 : IsType1 sampleType1 := by
-  unfold IsType1 IsDivergence sampleType1; exact ⟨rfl, by decide⟩
+  unfold IsType1 IsDivergence sampleType1; exact ⟨rfl, rfl, by decide⟩
 
 /-- ★反退化见证：sampleType1 破中枢但若背驰反向（forceC≥forceA）则不是一类。 -/
 theorem witness_type1_needs_divergence :
     ¬ IsType1 { sampleType1 with divPair := { forceA := ⟨2⟩, forceC := ⟨8⟩, isTrend := true } } := by
-  unfold IsType1 IsDivergence; intro h; exact absurd h.2 (by decide)
+  unfold IsType1 IsDivergence; intro h; exact absurd h.2.2 (by decide)
+
+/-- ★反退化见证（#1300 裁定 A′）：破中枢 + 背驰但 `isTrend = false`（T3-in-c 结构前提缺失，
+    037:18「c至少包含对B的一个第三类买卖点」不成立）⟹ 不是一类——`isTrend = true` 是
+    真合取必要条件，非平凡桩。 -/
+theorem witness_type1_needs_trend :
+    ¬ IsType1 { sampleType1 with divPair := { forceA := ⟨8⟩, forceC := ⟨2⟩, isTrend := false } } := by
+  unfold IsType1 IsDivergence; intro h; exact Bool.noConfusion h.2.1
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 8. still-MISSING 诚实声明 + 边界条件 + 下游推论

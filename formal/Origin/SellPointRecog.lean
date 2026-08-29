@@ -11,8 +11,8 @@ Origin/SellPointRecog.lean — 卖点对偶判据 + 完整 recog 双向（买卖
   ★关键诚实：本文件**不改** committed BspClassification/ThetaInstantiation（只读，对偶镜像）。
   - 第三类卖点判据 `IsType3Sell` **已在 committed BspClassification** 定义（buy 侧已有 dual）——
     本文件不重定义，直接复用 + 镜像证对称。
-  - 第一类卖点：committed `IsType1` 是**方向无关**判据（破中枢 ∧ 背驰），买卖共用——本文件
-    给方向特化的卖点视角 `IsType1Sell`（破中枢 ∧ 背驰 ∧ side=short），证它与买点 `IsType1Buy`
+  - 第一类卖点：committed `IsType1` 是**方向无关**判据（破中枢 ∧ `isTrend` ∧ 背驰），买卖共用——本文件
+    给方向特化的卖点视角 `IsType1Sell`（破中枢 ∧ `isTrend` ∧ 背驰 ∧ side=short），证它与买点 `IsType1Buy`
     的力度判据**同构**（顶背驰/底背驰共用 `IsDivergence` 的力度序，方向只在 side/trend 语境）。
 
 ═══════════════════════════════════════════════════════════════════════════
@@ -69,21 +69,22 @@ open NewChanlun.Origin
 /-! ════════════════════════════════════════════════════════════════════════
   ## §1 第一类卖点判据（顶背驰）+ 买点视角（§10.1 买卖对偶）
 
-  committed `IsType1`（BspClassification）= 破中枢 ∧ 背驰，是**方向无关**判据（顶/底背驰共用
-  `IsDivergence` 的力度序）。本节给方向特化的**卖点/买点视角**，证两者力度判据同构——
-  这是买卖对偶在第一类的**对称性见证**（顶背驰=上涨力度背驰，底背驰=下跌力度背驰，同一力度序）。
+  committed `IsType1`（BspClassification）= 破中枢 ∧ `isTrend`（趋势背驰语境，T3-in-c 结构前提）∧
+  背驰，是**方向无关**判据（顶/底背驰共用 `IsDivergence` 的力度序）。本节给方向特化的
+  **卖点/买点视角**，证两者力度判据同构——这是买卖对偶在第一类的**对称性见证**
+  （顶背驰=上涨力度背驰，底背驰=下跌力度背驰，同一力度序）。
   ════════════════════════════════════════════════════════════════════════ -/
 
 /--
-  ★第一类买点判据（§10.1，方向特化，L0）—— committed `IsType1`（破中枢 ∧ 底背驰）+ side=long。
-  底背驰 = 下跌趋势向下跌破中枢后的力度背驰（`IsDivergence`：forceC < forceA）。
+  ★第一类买点判据（§10.1，方向特化，L0）—— committed `IsType1`（破中枢 ∧ `isTrend` ∧ 底背驰）
+  + side=long。底背驰 = 下跌趋势向下跌破中枢后的力度背驰（`IsDivergence`：forceC < forceA）。
 -/
 def IsType1Buy (e : BspEndpoint) : Prop :=
   e.side = Side.long ∧ IsType1 e
 
 /--
   ★★第一类卖点判据（§10.1 对偶，L0，本节核心）—— 上涨趋势向上**突破**最后一个中枢后的
-  **顶背驰点**：committed `IsType1`（破中枢 ∧ 背驰）+ side=short。
+  **顶背驰点**：committed `IsType1`（破中枢 ∧ `isTrend` ∧ 背驰）+ side=short。
   顶背驰 = 上涨趋势向上突破中枢后的力度背驰——与底背驰**共用同一力度序判据** `IsDivergence`
   （forceC < forceA，方向无关）。第一类买卖点的对偶只在 side（long↔short）与 trend 语境，
   力度判据完全对称（顶/底背驰同构）。
@@ -93,20 +94,20 @@ def IsType1Sell (e : BspEndpoint) : Prop :=
 
 /--
   ★★第一类买卖对偶力度同构（L0，对称性见证①）—— 第一类买点与第一类卖点**共用同一背驰力度判据**：
-  二者都要求 `IsType1`（破中枢 ∧ `IsDivergence`），只在 side 上对偶（long↔short）。
+  二者都要求 `IsType1`（破中枢 ∧ `isTrend` ∧ `IsDivergence`），只在 side 上对偶（long↔short）。
   这坐实顶背驰（卖点）与底背驰（买点）在力度序层**对称**——背驰判据方向无关。
 -/
 theorem type1_buy_sell_share_divergence (e e' : BspEndpoint)
     (hb : IsType1Buy e) (hs : IsType1Sell e') :
     IsDivergence e.divPair ∧ IsDivergence e'.divPair :=
-  ⟨hb.2.2, hs.2.2⟩
+  ⟨hb.2.2.2, hs.2.2.2⟩
 
 /--
   ★第一类卖点真消费背驰判据（L0）—— 第一类卖点蕴含背驰（`IsDivergence divPair`）。
   与 buy 侧对偶：卖点也是背驰点（顶背驰），非平凡桩。
 -/
 theorem type1Sell_implies_divergence (e : BspEndpoint) (h : IsType1Sell e) :
-    IsDivergence e.divPair := h.2.2
+    IsDivergence e.divPair := h.2.2.2
 
 /--
   ★第一类买卖互斥（L0，方向唯一）—— 同一端点不能既是第一类买点又是第一类卖点（side 唯一）。
@@ -225,13 +226,17 @@ deriving DecidableEq, Repr
   从买卖点端点 `BspEndpoint` 真 case-split on 卖点判据，识别卖侧应对意图。
 
   缠论卖点规则真编码（L1 卖侧规则结构编码，对偶 #117 买侧）：
-  - **§10.1 第一类卖点**：若破中枢 ∧ 背驰（`IsType1`）∧ side=short ⟹ `closeRoot`（顶背驰清仓）。
+  - **§10.1 第一类卖点**：若破中枢 ∧ 背驰（闭环内核）∧ side=short ⟹ `closeRoot`（顶背驰清仓）。
   - **§10.1 第三类卖点**：否则若 side=short ∧ 离开中枢 ∧ 第一次回抽 ∧ retracePrice < ZD（不破 ZD）
     ⟹ `reduceCore`（第三类卖点减核）。
   - **§11**：否则（含力度延续 = 非背驰，无卖点）⟹ `hold`（保持）。
 
   ★这是真缠论卖点识别——直接消费 committed `IsType1`（含 `IsDivergence`）+ 第三类卖点判据
   字段（`retracePrice < ZD`），与 #117 买侧 `recogChanlun` 严格对偶（决策载体不同，判据镜像）。
+
+  ★第一类分支 = **闭环内核**（破中枢 ∧ 背驰），与买侧对偶、镜像 rust `is_type1_buy`（不含
+  T3-in-c 门）；`IsType1` 的 `isTrend`（T3-in-c 结构前提之2，#1300 裁定 A′）在生产二次门
+  另行施加——严格 `IsType1` ⟹ closeRoot 由 `recogSell_type1_closeRoot` 锁定。
 -/
 def recogChanlunSell (e : BspEndpoint) : SellDecision :=
   if e.side = Side.short ∧ e.brokeCenter = true ∧ decide (IsDivergence e.divPair) = true then
@@ -247,13 +252,13 @@ def recogChanlunSell (e : BspEndpoint) : SellDecision :=
 
 /--
   ★recog 卖侧真消费第一类卖点判据（L0，对偶 #117 recog_type1_openRoot）：若端点是第一类卖点
-  （`IsType1Sell`：side=short ∧ 破中枢 ∧ 背驰），则 `recogChanlunSell` 识别为 `closeRoot`。
+  （`IsType1Sell`：side=short ∧ 破中枢 ∧ `isTrend` ∧ 背驰），则 `recogChanlunSell` 识别为 `closeRoot`。
   坐实卖侧 recog 真编码§10.1 第一类卖点规则——非占位。
 -/
 theorem recogSell_type1_closeRoot (e : BspEndpoint) (h : IsType1Sell e) :
     recogChanlunSell e = SellDecision.closeRoot := by
   unfold recogChanlunSell IsType1Sell IsType1 at *
-  obtain ⟨hside, hbroke, hdiv⟩ := h
+  obtain ⟨hside, hbroke, _htrend, hdiv⟩ := h
   have hdiv' : decide (IsDivergence e.divPair) = true := decide_eq_true hdiv
   rw [if_pos ⟨hside, hbroke, hdiv'⟩]
 
@@ -380,7 +385,7 @@ def sampleType3Sell : BspEndpoint :=
 /-- ★见证：sampleType1Sell 满足第一类卖点判据（突破中枢 + 顶背驰）。 -/
 theorem sampleType1Sell_isType1Sell : IsType1Sell sampleType1Sell := by
   unfold IsType1Sell IsType1 IsDivergence sampleType1Sell
-  exact ⟨rfl, rfl, by decide⟩
+  exact ⟨rfl, rfl, rfl, by decide⟩
 
 /-- ★见证：sampleType3Sell 满足第三类卖点判据（离开中枢 + 第一次回升 + 不破 ZD）。 -/
 theorem sampleType3Sell_isType3Sell : IsType3Sell sampleType3Sell := by

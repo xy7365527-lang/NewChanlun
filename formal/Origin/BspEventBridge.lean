@@ -88,7 +88,8 @@ open NewChanlun.Origin.ThetaInstantiation
   ★桥谓词 `BridgesTo`（L0，本文件核心）：薄标签 `b : Bsp` 与厚事件 `e : ChanlunEvent` **桥接** ⟺
   `b` 的分类标签与 `e` 自身携带的厚判据相符。
 
-  - `b.kind = type1`：要求 `e` 满足第一类厚判据 `IsType1 e.bsp`（破中枢 ∧ 背驰）∧ 方向一致。
+  - `b.kind = type1`：要求 `e` 满足第一类厚判据 `IsType1 e.bsp`（破中枢 ∧ `isTrend` ∧ 背驰）∧
+    方向一致。
   - `b.kind = type3`：要求 `e` 满足第三类买厚判据 `IsType3Buy e.bsp`（离开中枢 ∧ 第一次回抽 ∧
     不破 ZG）∧ 方向一致。
   - `b.kind = type2`：要求 `e` 满足第二类厚判据 `IsType2 e.bsp`（在一类后 ∧ 回抽未再破中枢）∧
