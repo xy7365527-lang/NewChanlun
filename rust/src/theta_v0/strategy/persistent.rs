@@ -140,7 +140,7 @@ pub struct PersistentElement {
 ///
 /// `Pi+1 = merge(Pi, Ei+1, held legs)`（§4/§9）。held 腿引用 `pid∈Pi`，而非直接引用 `Ei`。
 /// 跨 bar 存活：腿未显式关闭 ⟹ pid∈Pi 所有后续 bar（I1）。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct PersistentRegistry {
     /// pid → PersistentElement。
     elements: std::collections::HashMap<ElementId, PersistentElement>,

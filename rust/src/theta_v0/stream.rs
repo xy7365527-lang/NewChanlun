@@ -36,7 +36,7 @@ use super::config::ThetaConfig;
 use super::strategy::consume_router::{route_consume, ManagedBspLedger};
 use super::strategy::coverage::{self, KThetaRiskGate, PiThetaWeights, SepLeg};
 use super::strategy::interp::{self, ActiveLeg, TreeCache};
-use super::strategy::level_ledger::LevelLedgerMirror;
+use super::strategy::level_ledger::{LevelLedgerMirror, LevelLedgerStep};
 use super::strategy::overlay_state::OverlayState;
 use super::strategy::persistent::PersistentRegistry;
 use super::strategy::protocol::ProtocolEventSet;
@@ -74,6 +74,8 @@ pub struct ThetaPiStream {
     last_order: Order,
     /// 上一步 P^sep_{t+1}（逐声部目标腿；只读快照）。
     last_sep_legs: Vec<SepLeg>,
+    /// 上一步 LevelLedgerMirror 步进产出（账本面对拍的逐 bar 左端读数）。
+    last_level_step: LevelLedgerStep,
     /// ΔN 非零步数（overlay 订单 != 0 的决策点数）。
     n_orders: usize,
 }
@@ -99,6 +101,10 @@ impl ThetaPiStream {
                 exec_index: 0,
             },
             last_sep_legs: Vec::new(),
+            last_level_step: LevelLedgerStep {
+                total_net: 0,
+                n_active_levels: 0,
+            },
             n_orders: 0,
         }
     }
@@ -130,6 +136,15 @@ impl ThetaPiStream {
         let weights = PiThetaWeights::from_risk(&self.config.risk);
         let gate = KThetaRiskGate::open(); // 无保证金 ⟹ 𝒦_Θ=[−cap,+cap] 全开
         let forest_epoch = self.classifier.forest_epoch();
+        // #1306 对拍观测（#[cfg(test)] sink；未激活 ⟹ 零成本，生产/非测试构建不编译本行）。
+        // 只录**可交易决策 bar**（与批量 fill loop `classify_at` 只对可交易 bar 调用同口径）。
+        #[cfg(test)]
+        signal_capture::record(
+            &classification,
+            &tower,
+            self.classifier.tower_generation(),
+            forest_epoch,
+        );
         let (step_tree, step_candidates, step_gamma) =
             interp::coverage_elements_and_gamma_with_tower_cached_gen(
                 &classification_step,
@@ -165,7 +180,8 @@ impl ThetaPiStream {
         self.prev_active = next_active;
         let lot = self.config.risk.default_lot.max(1) as i64;
         let ostep = self.overlay.step(&step_trace.sep_legs, px, i, lot);
-        let _lstep = self.level_ledger.step(&step_trace.sep_legs, px, i, lot);
+        let lstep = self.level_ledger.step(&step_trace.sep_legs, px, i, lot);
+        self.last_level_step = lstep;
         self.level_ledger.observe_lee_net(self.overlay.net());
         if ostep.order != 0 {
             self.n_orders += 1;
@@ -190,6 +206,16 @@ impl ThetaPiStream {
     /// 上一步 P^sep_{t+1}（逐声部目标腿快照；只读）。
     pub fn sep_legs(&self) -> &[SepLeg] {
         &self.last_sep_legs
+    }
+
+    /// 上一步 LevelLedgerMirror 步进产出（对拍账本面的逐 bar 左端读数）。
+    pub fn last_level_step(&self) -> LevelLedgerStep {
+        self.last_level_step
+    }
+
+    /// 跨 bar 持久元素注册表 Pi（对拍状态面；只读）。
+    pub fn registry(&self) -> &PersistentRegistry {
+        &self.registry
     }
 
     /// 逐声部持久账本（per-leg 出口 ② 的活动/已离场声部归因）。
@@ -295,5 +321,67 @@ fn newly_confirmed_step(
                 level_projection: None,
             })
             .collect(),
+    }
+}
+
+/// #1306 对拍观测：流式侧信号面逐 bar sink（`#[cfg(test)]`）。
+///
+/// 与 [`crate::theta_v0::backtest::diff_capture`] 同型：thread_local 测试专用，非测试构建不编译、
+/// 生产流式路径零成本零 Rc 持有（分类/塔的 `Rc` 快照只在本 sink 激活时克隆，逐 bar 随即随
+/// 观测序列持有——不回流、不影响 `Rc::make_mut` 的原地尾追加路径）。
+#[cfg(test)]
+pub(crate) mod signal_capture {
+    use super::super::classifier::recursive_tower::LeveledMove;
+    use super::super::classifier::Classification;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    /// 单 bar 信号面快照（与批量侧 classify_at 闭包同源四元组）。
+    #[derive(Debug, Clone, PartialEq)]
+    pub(crate) struct SignalObs {
+        pub classification: Classification,
+        pub tower: Vec<Rc<Vec<LeveledMove>>>,
+        pub tower_gen: u64,
+        pub forest_epoch: u64,
+    }
+
+    thread_local! {
+        static SINK: RefCell<Option<Vec<SignalObs>>> = const { RefCell::new(None) };
+    }
+
+    /// 激活捕获（幂等；已激活时清空重来）。
+    pub(crate) fn start() {
+        SINK.with(|s| *s.borrow_mut() = Some(Vec::new()));
+    }
+
+    /// 取回捕获并停用（未激活 ⟹ None）。
+    pub(crate) fn take() -> Option<Vec<SignalObs>> {
+        SINK.with(|s| s.borrow_mut().take())
+    }
+
+    fn active() -> bool {
+        SINK.with(|s| s.borrow().is_some())
+    }
+
+    /// 记录一个可交易决策 bar 的信号面快照（未激活 ⟹ 零成本）。
+    pub(crate) fn record(
+        classification: &Classification,
+        tower: &[Rc<Vec<LeveledMove>>],
+        tower_gen: u64,
+        forest_epoch: u64,
+    ) {
+        if !active() {
+            return;
+        }
+        SINK.with(|s| {
+            if let Some(v) = s.borrow_mut().as_mut() {
+                v.push(SignalObs {
+                    classification: classification.clone(),
+                    tower: tower.to_vec(),
+                    tower_gen,
+                    forest_epoch,
+                });
+            }
+        });
     }
 }

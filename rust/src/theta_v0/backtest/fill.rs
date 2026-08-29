@@ -5608,6 +5608,22 @@ where
                     Some(&twc),
                     &protocol_events,
                 );
+            // ── #1306 对拍观测（#[cfg(test)] sink；未激活 ⟹ 一次布尔检查，零行为变化）：
+            //    把批量侧决策点内部状态（sep_legs/风控门/risk seeds/TW 谓词/候选过滤口径/
+            //    p_t/equity_nav）外化给对拍 harness。──
+            #[cfg(test)]
+            super::diff_capture::push_decision(
+                i,
+                &step_trace.sep_legs,
+                gate,
+                stop_risk_seeds.len(),
+                step_trace.tw_event.is_some(),
+                step_trace.overlay_closes.len(),
+                step_gamma.len(),
+                step_gamma_trade.len(),
+                p_t,
+                equity_nav,
+            );
             // ── ★LEE M4 级别帽（#783 返工，评审 shadow-review-755-20260729 HIGH×2 清偿）：
             //    施加点已前移到 `pi_theta_step_*` 之前——`coverage_step_from_buckets_sep_with_
             //    risk_seeds` 内 `apply_level_cap`（strategy/coverage/leg.rs）对 `level_nets` 施加
@@ -5773,6 +5789,9 @@ where
                     i,
                     config.risk.default_lot.max(1) as i64,
                 );
+                // ── #1306 对拍观测：级别账本步进产出（账本面逐 bar 左端读数）。──
+                #[cfg(test)]
+                super::diff_capture::set_level_step(lstep);
                 // ★LEE-Net 恒等（M1 验收断言，设计文档 §C.2）：Σ_ℓ net_ℓ 恒 = overlay 净敞口 N——
                 // 逐级分解是 Net 的加性细化（整数手数求和，精确成立非 eps 容差）。恒等的验证锚
                 // 需要 overlay 同时 Some 才有独立真值可比对；overlay=None 时镜像仍步进（账本本身
@@ -6336,6 +6355,9 @@ where
                 }
                 prev_merge_tree = Some(tree_ref);
             }
+            // ── #1306 对拍观测：⑤ 段末持久注册表长度（状态面右端读数）。──
+            #[cfg(test)]
+            super::diff_capture::set_registry_len(registry.len());
             prev_active = next_active;
         }
 
@@ -6694,6 +6716,9 @@ where
                 .insert(lvl as u32, reroutes);
         }
     }
+    // ── #1306 对拍观测：窗口末持久注册表全量快照（状态面右端终态）。──
+    #[cfg(test)]
+    super::diff_capture::set_final_registry(&registry);
     FillOutput {
         equity_curve,
         daily_returns,

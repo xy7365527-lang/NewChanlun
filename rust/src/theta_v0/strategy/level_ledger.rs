@@ -132,7 +132,7 @@ pub struct LevelLedgerStep {
 /// 逐决策点 [`LevelLedgerMirror::step`]：消费与 [`OverlayState::step`] **同一份** `sep_legs` +
 /// px + bar + lot，按 `id.level` 分桶重放同一 rebalance 语义（① 价格 PnL 累计 → ② rebalance
 /// → ③ net_ℓ 派生），产 LEE-Net 恒等左端 `Σ_ℓ net_ℓ`。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct LevelLedgerMirror {
     /// 各级活动声部簿（Ledger_ℓ 的活动腿；外键=级别，内键=`id.ordinal`——`ElementId` 无 `Ord`，
     /// 级别已由外键承载，内键 ordinal 即唯一确定声部）。

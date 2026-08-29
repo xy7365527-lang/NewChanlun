@@ -95,7 +95,7 @@ pub(crate) fn side_sign(s: VoiceSide) -> i64 {
 
 /// ★逐声部账本行 `VoiceBook`（hedge-mode position book，PDF §10.2）：一个活动声部 v 的单向腿 +
 /// 归因元数据。P^sep 的一条 `q_v σ_v e_v`（PDF p16）+ §M5 要求的 entry_v/exit_v/parent(v)/role(v)/pnl_v。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VoiceBook {
     /// carrier v 身份（P^sep 的声部键，跨 bar 稳定）。
     pub id: ElementId,
@@ -116,7 +116,7 @@ pub struct VoiceBook {
 }
 
 /// ★声部离场归因行 `ClosedVoice`（§M5 exit_v/pnl_v 落盘）：一个已离场声部的完整生命周期归因。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClosedVoice {
     pub id: ElementId,
     pub side: VoiceSide,

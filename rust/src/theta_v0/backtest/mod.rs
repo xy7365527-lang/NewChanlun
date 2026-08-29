@@ -129,3 +129,11 @@ mod issue837_probe;
 /// （结构口径）+ 生产 `run_theta_v0_pi_overlay` 的 `level_ledger`（资金口径）。
 #[cfg(test)]
 mod issue841_probe;
+
+/// #1306 对拍 harness v1：批量 fill loop 的逐 bar 只读观测 sink（thread_local，测试专用）。
+#[cfg(test)]
+mod diff_capture;
+
+/// #1306 对拍 harness v1：回放（stream）vs 批量（fill loop）三面 diff + 预期差机械清单。
+#[cfg(test)]
+mod theta_pi_diff;
