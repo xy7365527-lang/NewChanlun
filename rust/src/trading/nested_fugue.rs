@@ -1467,6 +1467,130 @@ mod tests {
         assert!(!div_segment_broken(Polarity::Long, &[], None));
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    //  #1294 对拍锁 1：赋格族结构判据对拍（同 tape 同输入，逐 site 比对结构判定输出）
+    //
+    //  #1274 把三处「价格越过 candidate 极值 ⟹ 否定」替换为结构判据「背驰段被打破」
+    //  （`div_segment_broken`，#1263 报告 §7 操作化规格）。本节锁定替换后的生产行为：
+    //  同一 tape、同一输入，逐 site（窗口清窗 / 定位失效 / 声部解栈）比对结构判定输出，
+    //  且每例都取 #1263 §6 的「历史分歧案例」回归向量（价格破 ∧ 结构未破 = 代理误杀；
+    //  结构破 ∧ 价格未破 = 代理漏杀）——旧价格代理在这些向量上与结构判据方向相反
+    //  （实测吻合 0.18%），回归向量证明「价格不再参与判据」（#1232 第一条裁定 a）。
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// 窗口清窗 site · 代理误杀向量（#1263 §6.1）：价格越过 candidate 极值
+    /// （c=111 > extreme=110）但同 bar 无 confirmed BSP、无方向翻转 ⟹ 结构判据
+    /// 「背驰段被打破」为假 ⟹ 窗口**不得**清窗。旧价格代理（`c > w.extreme`）在此
+    /// 会误杀清窗——本回归向量锁定 #1274 后价格比较从判据面清零。
+    #[test]
+    fn window_clear_price_break_without_structure_keeps_window() {
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4)); // 根入场@4
+        bars.push(with_ev(
+            bar(105.0),
+            3,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        )); // nest_sell[3] 武装，extreme=110
+        bars.push(bar(111.0)); // 价格破极值（111 > 110），无 confirmed、无 flip
+        bars.push(bar(111.0)); // eod
+        let r = run(bars);
+        assert_eq!(
+            r.n_nest_breaks_by_ladder[3], 0,
+            "价格破极值但结构未破 ⟹ 窗口不得清窗（代理误杀向量，#1263 §6.1）"
+        );
+    }
+
+    /// 窗口清窗 site · 代理漏杀向量（#1263 §6.2）：结构破（confirmed Sell1）
+    /// 但价格**未**越极值（c=109 < extreme=110）⟹ 结构判据为真 ⟹ 窗口**必须**清窗。
+    /// 旧价格代理（`c > w.extreme`）会漏杀（价格未破）——本回归向量锁定结构判据接管。
+    #[test]
+    fn window_clear_structure_break_without_price_clears_window() {
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4));
+        bars.push(with_ev(
+            bar(105.0),
+            3,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        )); // nest_sell[3] 武装，extreme=110
+        bars.push(with_ev(
+            bar(109.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // c=109 < 110（价格未破），confirmed Sell1 ⟹ 结构破 ⟹ 清窗
+        bars.push(bar(109.0)); // eod
+        let r = run(bars);
+        assert_eq!(
+            r.n_nest_breaks_by_ladder[3], 1,
+            "结构破但价格未破极值 ⟹ 窗口清窗（代理漏杀向量，#1263 §6.2）"
+        );
+    }
+
+    /// 定位失效 site · 代理漏杀向量（#1263 §6.2 located_invalid 漏杀主因 = confirmed
+    /// Type3 坐实 / 方向翻）：located 记忆在场时，结构判据「背驰段被打破」⟹ 定位失效，
+    /// 即使价格**未**越过 located 极值（c=103 < 110）。随后 C 清仓合取
+    /// （sell1[4] ∧ located[4]）因 located 已失效而不成立 ⟹ 根不清仓（exit=eod）。
+    /// 对照 [`liquidation_only_at_top_emergence_perfection`]：无结构破时 located 存活
+    /// ⟹ C 消费（exit=sellpt）——两测试互为对拍臂。
+    #[test]
+    fn located_invalid_structure_break_without_price_invalidates() {
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4));
+        bars.push(with_ev(
+            bar(105.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        )); // nest_sell[4] 武装，extreme=110
+        bars.push(with_ev(
+            bar(104.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // 证据@3 ⟹ nf@4 ⟹ located_sell[4]=110 + spawn 子空@3
+        bars.push(with_ev(
+            bar(103.0),
+            4,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // c=103 < 110（价格未破），confirmed Sell1@4 ⟹ 结构破 ⟹ located 失效
+        bars.push(sell1pt(bar(103.0), 4)); // sell1[4] ∧ located[4] 已失效 ⟹ C 不消费
+        bars.push(bar(103.0)); // eod
+        let r = run(bars);
+        let root = r.trades.iter().find(|t| t.ladder == 4).unwrap();
+        assert_eq!(
+            root.exit_reason, "eod",
+            "located 被结构判据失效（价格未破）⟹ C 清仓不消费（代理漏杀向量，#1263 §6.2）"
+        );
+    }
+
+    /// 声部解栈 site · 代理漏杀向量（#1263 §6.2 voice_unwind 漏杀 = confirmed 三买卖
+    /// 坐实 / 方向翻）：子空否定线在场时，结构判据「背驰段被打破」⟹ 解栈，即使价格
+    /// **未**越过否定线（c=109 < line=110）。旧价格代理（`c > line`）会漏杀。对照
+    /// [`negation_kills_child_with_shrink_rebase`]（c=111 价格与结构同破 = 吻合臂）。
+    #[test]
+    fn voice_unwind_structure_break_without_price_negates() {
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4));
+        bars.push(with_ev(
+            bar(105.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        ));
+        bars.push(with_ev(
+            bar(104.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // 子空@3，negate_line=110
+        bars.push(with_ev(
+            bar(109.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // c=109 < 110（价格未破），confirmed Sell1@3 ⟹ 结构破 ⟹ 解栈
+        bars.push(bar(109.0)); // eod
+        let r = run(bars);
+        assert_eq!(
+            r.n_nrf_negate_closes_by_ladder[3], 1,
+            "结构破但价格未破否定线 ⟹ 声部解栈（代理漏杀向量，#1263 §6.2）"
+        );
+    }
+
     #[test]
     fn liquidation_only_at_top_emergence_perfection() {
         // §6 三条件合取：confirmed Sell1@top(=4)（背驰词汇）∧ 区间套

@@ -516,6 +516,81 @@ mod tests {
         );
     }
 
+    /// #1294 对拍锁 3：#804/#812 Z-3 恒等性锁——`center_from_segments ≡ center_from_window`
+    /// 在 L0 生产输入域（方向交替，`dir_alternates` 真）上**逐位恒等**。
+    ///
+    /// #812 Z-3 已裁 E1 伪分歧：`dir_alternates` 在 L0 生产输入上恒真（L0 段有内在方向），
+    /// 故两函数可达输入域恒等、输出恒等——AGENTS.md 在案实例撤销、例外配额回「用 0 剩 3」。
+    /// 本锁是该裁定的随票锁（#1278 批三 ⑧列收口）：同输入同输出对拍，防两函数在 L0 域上
+    /// 再分叉（任何一处加宽/收窄判据即红）。
+    ///
+    /// 历史分歧案例（Z-3 来源，非举例）：同向三段（无方向交替）时 `center_from_segments`
+    /// 拒绝、`center_from_window` 接受——两函数**并非无条件**恒等；本锁先钉住这条分歧臂
+    /// （证明锁非 vacuous），再枚举 L0 交替方向域逐位对拍。
+    #[test]
+    fn center_segments_window_identity_on_l0_domain() {
+        // ── (a) 历史分歧案例（Z-3 来源）：同向三段 → 两函数结论分叉。──
+        // 同向（全 up）且核心非空：segments 拒绝（无方向交替）、window 接受（不查方向）。
+        let a = unit(0, 4, up(), 10, 20);
+        let b = unit(4, 8, up(), 18, 25);
+        let c = unit(8, 12, up(), 18, 22);
+        assert!(!dir_alternates(&a, &b, &c), "同向三段 = L0 域外");
+        assert_eq!(
+            center_from_segments(&a, &b, &c),
+            None,
+            "域外（同向）：完整判据拒绝"
+        );
+        assert!(
+            center_from_window(&a, &b, &c).is_some(),
+            "域外（同向）：几何路径接受 ⟹ 两函数非无条件恒等（锁非 vacuous）"
+        );
+
+        // ── (b) L0 生产输入域（方向交替）逐位对拍：两函数输出必须逐位相同。──
+        // 方向交替只有两种三元组形态（二元方向下相邻异向）：上-下-上 / 下-上-下。
+        const DIRS: [[Direction; 3]; 2] = [
+            [Direction::Up, Direction::Down, Direction::Up],
+            [Direction::Down, Direction::Up, Direction::Down],
+        ];
+        // 区间端点网格：覆盖核心非空 / 核心空 / 单点核心（zd==zg）三类落点。
+        const LOS: [Tick; 4] = [0, 5, 10, 20];
+        const HIS: [Tick; 4] = [5, 10, 20, 25];
+        for dirs in DIRS {
+            for &a_lo in &LOS {
+                for &a_hi in &HIS {
+                    if a_lo > a_hi {
+                        continue;
+                    }
+                    for &b_lo in &LOS {
+                        for &b_hi in &HIS {
+                            if b_lo > b_hi {
+                                continue;
+                            }
+                            for &c_lo in &LOS {
+                                for &c_hi in &HIS {
+                                    if c_lo > c_hi {
+                                        continue;
+                                    }
+                                    let a = unit(0, 4, dirs[0], a_lo, a_hi);
+                                    let b = unit(4, 8, dirs[1], b_lo, b_hi);
+                                    let c = unit(8, 12, dirs[2], c_lo, c_hi);
+                                    assert!(
+                                        dir_alternates(&a, &b, &c),
+                                        "交替方向三元组必在 L0 域内"
+                                    );
+                                    assert_eq!(
+                                        center_from_segments(&a, &b, &c),
+                                        center_from_window(&a, &b, &c),
+                                        "L0 域 dir={dirs:?} a=[{a_lo},{a_hi}] b=[{b_lo},{b_hi}] c=[{c_lo},{c_hi}] 两函数必须逐位恒等"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// ★#321 裁定新增（先红后绿）：完整判据 `center_from_segments` 单点核心 `ZD==ZG` **不成立**。
     ///
     /// 旧口径（本文件迁移前）：闭区间核心非空含单点 `zd==zg`，判**成立**（返回 `Some`）。

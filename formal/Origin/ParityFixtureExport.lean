@@ -43,6 +43,9 @@ import Origin.BspClassification
 import Origin.SellPointRecog
 import Origin.SellClosedLoop
 import Origin.SegmentFeatureSeq
+import Origin.BuySellPredicate
+import Origin.RMoveCompose
+import Origin.SubLevelDescent
 import Lean.Data.Json
 
 open NewChanlun.Origin
@@ -109,6 +112,260 @@ def gapOverlapJson (a b : FeatureElem) : Json :=
     经 `gapOverlapJson` 读 `FeatureElem` 字段导出（#319），rust 侧不再誊写；
     导出字段 has_gap/overlaps 与四端点全部机器求值）。 -/
 def feOf (lo hi : Int) (h : lo ≤ hi) : FeatureElem := { low := lo, high := hi, valid := h }
+
+/-! ═══════════════════════════════════════════════════════════════════════
+    § #1294 F-8：BSP 谓词族向量级锁 fixture 段
+    （IsType1 / IsType3Buy(firstRetrace) / SecondTypeStructure）
+
+    先例 = gap/overlap 段（#248/#319）：Lean 提取值（`decide` 真求值）vs rust 输出逐位比对。
+    本段把 lean_parity 复活到 BSP 谓词族：
+    - `IsType1`（BspClassification :94）↔ rust `is_type1_buy`（closed_loop/buy.rs :112）；
+    - `IsType3Buy`（BspClassification :100，含 `firstRetrace` 必要条件）↔ rust
+      `is_type3_buy`（buy.rs :120）；
+    - `SecondTypeStructure`（RMoveCompose :233，∃i1<i2 存在性）↔ rust
+      `find_second_type_structure`（rmove_compose.rs :175，首个后继 i2=i1+1）的
+      `.is_some()` 存在性——两者在存在性上等价（i2 只要求「存在一个后继」，`SubLevelType1`
+      只约束 m1；`∃ i1 < i2` ⟺ `∃ i1 ≤ len-2`），见证级（i1/i2/second_point）对拍归
+      #1289（本票只登记索引）。
+    ═══════════════════════════════════════════════════════════════════════ -/
+
+def sideStr (s : Side) : String :=
+  match s with
+  | Side.long => "long"
+  | Side.short => "short"
+
+def dirStr (d : Formal.TrendTrichotomy.Direction) : String :=
+  match d with
+  | Formal.TrendTrichotomy.Direction.up => "up"
+  | Formal.TrendTrichotomy.Direction.down => "down"
+
+/-- 元素层中枢构造（对齐 `BspClassification.sampleType1.center`；valid 证由调用方给）。 -/
+def mkBspCenter (zd zg : Tick) (h : zd ≤ zg) : Center :=
+  { zd := zd, zg := zg, startIndex := 0, endIndex := 3, valid := h }
+
+/-- 力度对构造（forceA/forceC 面积 + 趋势标记）。 -/
+def mkDivPair (forceA forceC : Nat) (isTrend : Bool) : DivergencePair :=
+  { forceA := { area := forceA }, forceC := { area := forceC }, isTrend := isTrend }
+
+/-- 买卖点端点构造。 -/
+def mkBspEndpoint (side : Side) (center : Center) (divPair : DivergencePair)
+    (brokeCenter afterTypeOne leftCenter : Bool) (retracePrice : Tick)
+    (firstRetrace : Bool) : BspEndpoint :=
+  { side := side, center := center, divPair := divPair, brokeCenter := brokeCenter,
+    afterTypeOne := afterTypeOne, leftCenter := leftCenter, retracePrice := retracePrice,
+    firstRetrace := firstRetrace }
+
+/-- 一条 BSP 端点向量的机器导出：输入字段（rust 重建 BuyEndpoint 用）+ 谓词真值（decide 求值）。 -/
+def bspEndpointJson (name : String) (e : BspEndpoint) : Json :=
+  Json.mkObj [
+    ("name",           Json.str name),
+    ("side",           Json.str (sideStr e.side)),
+    ("broke_center",   Json.bool e.brokeCenter),
+    ("is_divergence",  Json.bool (decide (IsDivergence e.divPair))),
+    ("after_type_one", Json.bool e.afterTypeOne),
+    ("left_center",    Json.bool e.leftCenter),
+    ("first_retrace",  Json.bool e.firstRetrace),
+    ("retrace_price",  Json.num e.retracePrice),
+    ("center_zg",      Json.num e.center.zg),
+    ("is_type1",       Json.bool (decide (IsType1 e))),
+    ("is_type3_buy",   Json.bool (decide (IsType3Buy e)))
+  ]
+
+/-- BSP 端点向量集（固定输入）：正例 + 三处历史分歧/边界反例。
+    - type1_broke_not_divergent = `witness_type1_needs_divergence`（破中枢但力度反超 ⟹ 非一类）；
+    - type3_buy_not_first_retrace = §10.3 第三次类必须第一次回抽（firstRetrace 反例）；
+    - type3_buy_reenter_zg = `type3Buy_rejects_reenter`（回抽回到 ZG ⟹ 非三类买点）。 -/
+def bspEndpointVectors : List (String × BspEndpoint) := [
+  ("type1_broke_divergent",
+    mkBspEndpoint Side.long (mkBspCenter 10 20 (by decide)) (mkDivPair 8 2 true)
+      true false false 5 false),
+  ("type1_broke_not_divergent",
+    mkBspEndpoint Side.long (mkBspCenter 10 20 (by decide)) (mkDivPair 2 8 true)
+      true false false 5 false),
+  ("type3_buy_first_retrace",
+    mkBspEndpoint Side.long (mkBspCenter 10 20 (by decide)) (mkDivPair 3 3 false)
+      false false true 25 true),
+  ("type3_buy_not_first_retrace",
+    mkBspEndpoint Side.long (mkBspCenter 10 20 (by decide)) (mkDivPair 3 3 false)
+      false false true 25 false),
+  ("type3_buy_reenter_zg",
+    mkBspEndpoint Side.long (mkBspCenter 10 20 (by decide)) (mkDivPair 3 3 false)
+      false false true 20 false),
+  ("type3_sell_side_not_buy",
+    mkBspEndpoint Side.short (mkBspCenter 10 20 (by decide)) (mkDivPair 3 3 false)
+      false false true 25 true)
+]
+
+/-- 递归走势 μF 中枢构造（RMoveCompose 的 RCenter；证由调用方给）。 -/
+def mkRCenter (dd zd zg gg : Int)
+    (hcv : zd < zg) (hol : dd ≤ zd) (hoh : zg ≤ gg) : SubLevelDescent.RCenter :=
+  { dd := dd, zd := zd, zg := zg, gg := gg, core_valid := hcv, outer_lo := hol, outer_hi := hoh }
+
+/-- 次级别线段构造（RMove.segment，递归底 level 0）。 -/
+def mkSeg (dir : Formal.TrendTrichotomy.Direction) (lo hi : Int) :
+    SubLevelDescent.RMove :=
+  Formal.RecursiveConstruction.Move.segment dir lo hi
+
+/-- 单条次级别线段 → JSON（方向/lo/hi；rust 重建 RMove::Segment 用）。 -/
+def segLegJson (m : SubLevelDescent.RMove) : Json :=
+  match m with
+  | Formal.RecursiveConstruction.Move.segment d lo hi =>
+      Json.mkObj [
+        ("direction", Json.str (dirStr d)),
+        ("lo",        Json.num lo),
+        ("hi",        Json.num hi)
+      ]
+  | Formal.RecursiveConstruction.Move.compose _ _ _ => Json.null
+
+/-- `SubLevelType1`（破中枢 ∧ 背驰）的 Bool 判定镜像——`subReclassifyBroke` 已给几何
+    分量（Bool），力度分量 `IsDivergence` 由 `decide` 求值；两分量 `&&` 恰等于
+    `decide (SubLevelType1 side m c1 divPair)`（`SubLevelType1` 无 Decidable 实例，
+    此处不展开 def 直判，用同形 Bool 原子）。 -/
+def subLevelType1Holds (side : Side) (m : SubLevelDescent.RMove)
+    (c1 : SubLevelDescent.RCenter) (divPair : DivergencePair) : Bool :=
+  SubLevelDescent.subReclassifyBroke side m c1 && decide (IsDivergence divPair)
+
+/-- 腿级镜像等价（L0）：`subLevelType1Holds` 的 Bool 判定 ⇔ 规范 `SubLevelType1` Prop。
+    这是 `secondTypeStructureHolds` 可计算判定的正确性锚点——每腿判定忠实于规范谓词；
+    列表级「存在一个带后继的破中枢背驰腿」与 `SecondTypeStructure`（∃i1<i2）的等价性
+    （`∃ i1<i2` ⟺ `∃ i1≤len-2`，`SubLevelType1` 只约束 m1）见 `secondTypeStructureHolds`
+    doc，见证级（i1/i2/second_point）对拍归 #1289。 -/
+theorem subLevelType1Holds_iff (side : Side) (m : SubLevelDescent.RMove)
+    (c1 : SubLevelDescent.RCenter) (divPair : DivergencePair) :
+    subLevelType1Holds side m c1 divPair = true ↔
+      SubLevelDescent.SubLevelType1 side m c1 divPair := by
+  unfold subLevelType1Holds SubLevelDescent.SubLevelType1
+  cases side <;> simp [SubLevelDescent.subReclassifyBroke]
+
+/-- `SecondTypeStructure` 存在性的**可计算判定镜像**（Rust `find_second_type_structure`
+    循环的同形）：在 `subs` 上找「第一个有后继（i2=i1+1 存在）且 `SubLevelType1` 的次级别
+    走势」。与 `SecondTypeStructure`（∃i1<i2）在存在性上等价——`SubLevelType1` 只约束 m1、
+    `∃ i1<i2` ⟺ `∃ i1 ≤ subs.length-2`（i2 存在即后继存在，取 i2=i1+1）。 -/
+def secondTypeStructureHolds (side : Side) (subs : List SubLevelDescent.RMove)
+    (c1 : SubLevelDescent.RCenter) (divPair : DivergencePair) : Bool :=
+  match subs with
+  | [] => false
+  | [_] => false
+  | m :: rest =>
+      subLevelType1Holds side m c1 divPair
+        || secondTypeStructureHolds side rest c1 divPair
+
+/-- `SecondTypeStructure` 存在性等价（机器证，L0）：`secondTypeStructureHolds` 可计算镜像
+    ⇔ 规范 `SecondTypeStructure` Prop（列表级，`∃ i1<i2 ⟺ ∃ i1≤len-2`）。这是锁 2 的正确性
+    锚点——fixture 的 `holds` 字段来自本镜像，本定理证明镜像与规范谓词**同真同假**（非手写
+    断言）；腿级等价由 `subLevelType1Holds_iff` 已证，本定理把腿级等价提升到列表级
+    （`SubLevelType1` 只约束 m1，i2 只要求存在后继取 i2=i1+1）。 -/
+theorem secondTypeStructureHolds_iff (side : Side) (subs : List SubLevelDescent.RMove)
+    (c1 : SubLevelDescent.RCenter) (divPair : DivergencePair) :
+    secondTypeStructureHolds side subs c1 divPair = true ↔
+      ∃ (i1 i2 : Nat) (m1 m2 : SubLevelDescent.RMove),
+        i1 < i2 ∧ subs[i1]? = some m1 ∧ subs[i2]? = some m2 ∧
+        SubLevelDescent.SubLevelType1 side m1 c1 divPair := by
+  induction subs with
+  | nil =>
+      simp [secondTypeStructureHolds]
+  | cons m rest ih =>
+      cases rest with
+      | nil =>
+          simp only [secondTypeStructureHolds]
+          constructor
+          · intro h; cases h
+          · intro h
+            rcases h with ⟨i1, i2, m1, m2, hlt, hg1, hg2, hty⟩
+            have ⟨hb1, _⟩ := (List.getElem?_eq_some_iff).1 hg1
+            have ⟨hb2, _⟩ := (List.getElem?_eq_some_iff).1 hg2
+            simp [List.length_cons] at hb1 hb2
+            omega
+      | cons m2 rest2 =>
+          simp only [secondTypeStructureHolds, Bool.or_eq_true, ih]
+          rw [subLevelType1Holds_iff]
+          constructor
+          · intro h
+            rcases h with hleft | hright
+            · refine ⟨0, 1, m, m2, ?_, ?_, ?_, hleft⟩
+              · decide
+              · exact List.getElem?_cons_zero
+              · simp
+            · rcases hright with ⟨i1, i2, a1, a2, hlt, hg1, hg2, hty⟩
+              refine ⟨i1 + 1, i2 + 1, a1, a2, ?_, ?_, ?_, hty⟩
+              · exact Nat.succ_lt_succ hlt
+              · simpa [List.getElem?_cons_succ] using hg1
+              · simpa [List.getElem?_cons_succ] using hg2
+          · intro h
+            rcases h with ⟨i1, i2, a1, a2, hlt, hg1, hg2, hty⟩
+            cases i1 with
+            | zero =>
+                left
+                have hm : m = a1 := by
+                  have h' : some m = some a1 := by
+                    simpa [List.getElem?_cons_zero] using hg1
+                  exact Option.some.inj h'
+                exact hm ▸ hty
+            | succ i =>
+                right
+                cases i2 with
+                | zero => omega
+                | succ j =>
+                    refine ⟨i, j, a1, a2, ?_, ?_, ?_, hty⟩
+                    · omega
+                    · simpa [List.getElem?_cons_succ] using hg1
+                    · simpa [List.getElem?_cons_succ] using hg2
+
+/-- 列表级镜像 ⟺ 规范 `SecondTypeStructure`（对任意 parent，`descend parent` 即列表）。 -/
+theorem secondTypeStructureHolds_iff_secondTypeStructure (side : Side)
+    (parent : SubLevelDescent.RMove) (c1 : SubLevelDescent.RCenter)
+    (divPair : DivergencePair) :
+    secondTypeStructureHolds side (SubLevelDescent.descend parent) c1 divPair = true ↔
+      RMoveCompose.SecondTypeStructure side parent c1 divPair := by
+  unfold RMoveCompose.SecondTypeStructure
+  exact secondTypeStructureHolds_iff side (SubLevelDescent.descend parent) c1 divPair
+
+/-- 一条第二类走势结构向量的机器导出：腿序列 + 中枢 + 力度 + 存在性真值。 -/
+def secondTypeStructureJson (name : String) (side : Side) (subs : List SubLevelDescent.RMove)
+    (c1 : SubLevelDescent.RCenter) (divPair : DivergencePair) : Json :=
+  Json.mkObj [
+    ("name",          Json.str name),
+    ("side",          Json.str (sideStr side)),
+    ("center_zd",     Json.num c1.zd),
+    ("center_zg",     Json.num c1.zg),
+    ("center_dd",     Json.num c1.dd),
+    ("center_gg",     Json.num c1.gg),
+    ("is_divergence", Json.bool (decide (IsDivergence divPair))),
+    ("legs",          Json.arr (subs.map segLegJson).toArray),
+    ("holds",         Json.bool (secondTypeStructureHolds side subs c1 divPair))
+  ]
+
+/-- 第二类走势结构向量集（固定输入）：首腿破中枢背驰（有后继 ⟹ holds）/ 末腿才破中枢
+    （无后继 ⟹ 不 holds）/ 全无破中枢（不 holds）/ 力度反超（几何破中枢但非背驰 ⟹ 不 holds）。 -/
+def secondTypeStructureVectors : List (String × Side × List SubLevelDescent.RMove ×
+    SubLevelDescent.RCenter × DivergencePair) := [
+  ("first_leg_type1_has_successor",
+    Side.long,
+    [ mkSeg Formal.TrendTrichotomy.Direction.down (-5) 1
+    , mkSeg Formal.TrendTrichotomy.Direction.up 12 18
+    , mkSeg Formal.TrendTrichotomy.Direction.down 14 17 ],
+    mkRCenter 5 10 20 25 (by decide) (by decide) (by decide),
+    mkDivPair 8 2 true),
+  ("last_leg_type1_no_successor",
+    Side.long,
+    [ mkSeg Formal.TrendTrichotomy.Direction.up 12 18
+    , mkSeg Formal.TrendTrichotomy.Direction.down (-5) 1 ],
+    mkRCenter 5 10 20 25 (by decide) (by decide) (by decide),
+    mkDivPair 8 2 true),
+  ("no_leg_breaks_center",
+    Side.long,
+    [ mkSeg Formal.TrendTrichotomy.Direction.up 12 18
+    , mkSeg Formal.TrendTrichotomy.Direction.down 14 17
+    , mkSeg Formal.TrendTrichotomy.Direction.up 13 16 ],
+    mkRCenter 5 10 20 25 (by decide) (by decide) (by decide),
+    mkDivPair 8 2 true),
+  ("first_leg_breaks_but_not_divergent",
+    Side.long,
+    [ mkSeg Formal.TrendTrichotomy.Direction.down (-5) 1
+    , mkSeg Formal.TrendTrichotomy.Direction.up 12 18 ],
+    mkRCenter 5 10 20 25 (by decide) (by decide) (by decide),
+    mkDivPair 2 8 true)
+]
 
 /--
   ★完整 parity fixture（所有字段来自真函数求值，机器产，非手填）。
@@ -206,6 +463,15 @@ def fixtureJson : Json :=
       ("strict_disjoint",         gapOverlapJson (feOf 5 10 (by omega)) (feOf 11 20 (by omega))),
       ("strict_disjoint_rev",     gapOverlapJson (feOf 11 20 (by omega)) (feOf 5 10 (by omega))),
       ("strict_overlap",          gapOverlapJson (feOf 5 12 (by omega)) (feOf 8 20 (by omega)))
+    ]),
+    -- #1294 F-8：BSP 谓词族向量级锁（IsType1 / IsType3Buy(firstRetrace) /
+    -- SecondTypeStructure）——固定输入向量集，Lean `decide` 真求值 vs rust 输出逐位比对
+    -- （先例：上方 gap/overlap 段）。
+    ("bsp_predicates", Json.mkObj [
+      ("endpoints", Json.arr (bspEndpointVectors.map (fun (name, e) => bspEndpointJson name e)).toArray),
+      ("second_type_structures", Json.arr
+        (secondTypeStructureVectors.map (fun (name, side, subs, c1, dp) =>
+          secondTypeStructureJson name side subs c1 dp)).toArray)
     ])
   ]
 
