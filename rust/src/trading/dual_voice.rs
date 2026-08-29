@@ -51,8 +51,8 @@
 //! （磁带最低结构词汇；bi 翻转定义在 a0 K 线序列上——"直到最低级别"的
 //! 严格可达形式）。退化一致性：k==FIRST_BSP_LADDER 时中间层集合空，判据
 //! ≡ 在册一层截断的 bi 分支——递归是在册机制的严格扩张非替换。
-//! 否定词汇不变（061:26（力度反超）/061:28（未创新高不存在）：各层窗口各自破极值作废——链上任意层破 ⇒
-//! 贯通失败，自然承载"区间套破裂"）。
+//! 否定词汇不变（#1273 起结构判据「背驰段被打破」（027:22），极值降观测）：各层
+//! 窗口各自撤销——链上任意层背驰段被打破 ⇒ 贯通失败，自然承载"区间套破裂"）。
 //!
 //! ## 守卫（O0≡P5 先例）
 //!
@@ -71,6 +71,7 @@
 
 use super::center_book::CenterBook;
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
+use super::nested_fugue::div_segment_broken;
 use super::positional::{
     enter_or_defer, theta_weights, LayerState, LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS,
     MIN_FILL_FRAC,
@@ -262,11 +263,15 @@ pub(crate) fn run_dual_voice(
         let mut nf_sell = [false; MAX_LADDER];
         let mut nf_buy = [false; MAX_LADDER];
         for k in FIRST_BSP_LADDER..MAX_LADDER {
-            if nest_sell[k].is_some_and(|w| c > w.extreme) {
+            if nest_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 nest_sell[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
-            if nest_buy[k].is_some_and(|w| c < w.extreme) {
+            if nest_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 nest_buy[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
@@ -379,13 +384,18 @@ pub(crate) fn run_dual_voice(
         let r2_restore_blocked =
             |k: usize| phi(k) == PhaseView::Osc && book.alive(k).is_some_and(|lc| !(c <= lc.zd));
 
-        // T2W 否定（R20）。
+        // T2W 否定（R20：背驰段被打破（结构判据，027:22）⇒ 候选撤销、在新极值
+        // 重判——close 越锁存极值不再构成否定）。
         for k in floor_ladder..MAX_LADDER {
-            if t2w_sell[k].is_some_and(|x| c > x) {
+            if t2w_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 t2w_sell[k] = None;
                 res.n_t2w_negates_by_ladder[k] += 1;
             }
-            if t2w_buy[k].is_some_and(|x| c < x) {
+            if t2w_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 t2w_buy[k] = None;
                 res.n_t2w_negates_by_ladder[k] += 1;
             }
@@ -1043,7 +1053,12 @@ mod tests {
     fn warmup(lad: usize) -> Vec<BarSig> {
         (0..SUB_COST_MIN_OBS as i64)
             .map(|j| {
-                let b = with_anchor(bar(100.0), lad, 10 + j, 50.0, 51.0);
+                // Type2 锚（Sell2）：θ 预热 kind-无关，且 dual_voice 区间套武装跳过
+                // Type2（Sell2 => continue）⇒ 不遗留 nest 窗口（#1273 结构判据替换后
+                // 价格不再清窗，Type1 锚会在 warmup 遗留 0.0 极值窗口）。
+                let mut e = anchor_ev(10 + j, 50.0, 51.0);
+                e.class = BspClass::Sell2;
+                let b = with_ev(bar(100.0), lad, e);
                 if j == 0 {
                     with_empty_div(b)
                 } else {

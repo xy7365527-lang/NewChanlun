@@ -72,10 +72,12 @@
 //! CL−56.7%）→ 6faf4ec45a 破否定线 ⇒ 回现金 + 观测态（踏空 P1=0/8）→ c6deae8780"破否定线 ⇒
 //! 降成本对冲"仍是在补丁上加补丁（保留了否定线这个非必然触发器）。**根治 = 删触发器本身**。
 //!
-//! 注：否定线（061:26（力度反超）/061:28（未创新高不存在））在 **candidate/located 维护**（`nest_*`/`located_*` 破极值清窗）中保留——
+//! 注：候选/located 的否定在 **candidate/located 维护**（`nest_*`/`located_*`）中保留——
 //! 那是**买卖点检测**（势源是否仍有效：被否定的 candidate 不是合法 located 势源，第14环区间套
-//! 确认的一部分），**不是操作触发器**。检测买卖点（含否定 candidate，061:26（力度反超）/061:28（未创新高不存在））是必然基础设施；
-//! 用否定线（061:26（力度反超）/061:28（未创新高不存在））触发 voice 操作才是补丁。区别 = 检测（这是不是买卖点/势源？）vs 操作（对 voice 做事）。
+//! 确认的一部分），**不是操作触发器**。检测买卖点（含否定 candidate）是必然基础设施；
+//! 用否定触发 voice 操作才是补丁。区别 = 检测（这是不是买卖点/势源？）vs 操作（对 voice 做事）。
+//! **#1273**：`nest_*`/`located_*` 的否定判据已由价格极值换成结构判据「背驰段被打破」
+//! （背驰段定义 027:22；极值降观测），否定性质不变（候选撤销、在新极值重判）。
 //!
 //! ## voice 生命周期：完全由买卖点驱动（四操作 + 一会计终局）
 //!
@@ -191,6 +193,7 @@ use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::isolated_fugue::{close_voice, nav, settle, VoiceLedger, VoiceStatus};
+use super::nested_fugue::div_segment_broken;
 use super::positional::{LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::{BarSig, SignalTape};
@@ -231,7 +234,7 @@ struct PendingLocate {
 }
 
 /// 级联武装（N5 第14环严格形式）：confirm@source ⇒ 武装 `located[FIRST_BSP..=source]`
-/// 全层，统一极值 = 源层否定线（061:26（力度反超）/061:28（未创新高不存在））、统一 source_ladder=source、统一 direction。
+/// 全层，统一极值 = 源层极值（061:26（力度反超）/061:28（未创新高不存在），#1273 起降观测）、统一 source_ladder=source、统一 direction。
 /// 高 source 优先（既有 source 更高则不降级）。`source ≥ PENDING_LO`（segment 非势源）。
 fn cascade_arm(
     located: &mut [Option<PendingLocate>; MAX_LADDER],
@@ -1219,10 +1222,11 @@ impl UnnStreamCore {
         let evrows: &[Vec<BspEvent>; MAX_LADDER] =
             sig.bsp_events.as_deref().unwrap_or(&self.empty_evs);
 
-        // ── pending 窗口维护（双侧，k ≥ PENDING_LO）：① 破极值否定 → ② candidate
-        //    武装（N3：type2 经 side() 同等武装，无 continue）/ confirmed 清窗 →
-        //    ③ confirm 触发（helix_centripetal_confirm 向心回溯到 a0，含 segment）。
-        //    confirm@k → nf_*[k]（自层 fire，供 E，N7）+ confirm_*[k]（供级联，N5）──
+        // ── pending 窗口维护（双侧，k ≥ PENDING_LO）：① 背驰段被打破（027:22）⇒
+        //    候选撤销、在新极值重判 → ② candidate 武装（N3：type2 经 side() 同等武装，
+        //    无 continue）/ confirmed 清窗 → ③ confirm 触发（helix_centripetal_confirm
+        //    向心回溯到 a0，含 segment）。confirm@k → nf_*[k]（自层 fire，供 E，N7）+
+        //    confirm_*[k]（供级联，N5）──
         let mut confirm_sell: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
         let mut confirm_buy: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
         let mut nf_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
@@ -1231,11 +1235,15 @@ impl UnnStreamCore {
         let mut type2_seen = 0u64;
         let mut type2_handled = 0u64;
         for k in PENDING_LO..MAX_LADDER {
-            if self.nest_sell[k].is_some_and(|w| c > w.extreme) {
+            if self.nest_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 self.nest_sell[k] = None;
                 self.res.n_nest_breaks_by_ladder[k] += 1;
             }
-            if self.nest_buy[k].is_some_and(|w| c < w.extreme) {
+            if self.nest_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 self.nest_buy[k] = None;
                 self.res.n_nest_breaks_by_ladder[k] += 1;
             }
@@ -1299,7 +1307,7 @@ impl UnnStreamCore {
                     self.nest_sell[k] = None;
                 }
                 // else：母线未贯通（内圈缺已 settle type1）∨ since==bar（无后续走势，待下一 bar
-                //       当下感知）⇒ 窗口跨 bar 持续（直到 confirm ∨ 破极值否定清窗）。
+                //       当下感知）⇒ 窗口跨 bar 持续（直到 confirm ∨ 背驰段被打破清窗）。
             }
             if let Some(w) = self.nest_buy[k] {
                 let helix = helix_centripetal_confirm(&self.type1_hist, k, Side::Buy, w.since_bar);
@@ -1352,7 +1360,7 @@ impl UnnStreamCore {
                 cascade_arm(&mut self.located_buy, Side::Buy, k, ext, since, bar);
             }
         }
-        // T53：本 bar confirm 级联连接的结合律（降序 fold == 升序 fold；破极值前比较）。
+        // T53：本 bar confirm 级联连接的结合律（降序 fold == 升序 fold；背驰段被打破前比较）。
         prove_t53_connection_assoc(
             &pre_sell,
             &confirm_sell,
@@ -1361,12 +1369,16 @@ impl UnnStreamCore {
             &self.located_sell,
         );
         prove_t53_connection_assoc(&pre_buy, &confirm_buy, Side::Buy, bar, &self.located_buy);
-        // 破极值否定（027:25）：级联统一极值 ⇒ 整链同破。
+        // 背驰段被打破（027:22）：级联统一极值 ⇒ 整链同破（候选撤销、在新极值重判）。
         for k in FIRST_BSP_LADDER..MAX_LADDER {
-            if self.located_sell[k].is_some_and(|e| c > e.extreme) {
+            if self.located_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 self.located_sell[k] = None;
             }
-            if self.located_buy[k].is_some_and(|e| c < e.extreme) {
+            if self.located_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 self.located_buy[k] = None;
             }
         }
@@ -1963,16 +1975,19 @@ mod tests {
     /// ——center_book.ingest 对非 confirmed-type3 事件 kind-无关（Formed/Extended 同样预热
     /// θ），但 Type2 **不污染 type1_hist**（向心 confirm 只取 type1 settle 历史）⇒ 区间套
     /// 不跳级的负样本测试（`located_chain_breaks_if_level_skipped`）可在干净 type1 历史上验证。
+    /// **#1273**：confirmed Sell2 锚在区间套武装面按 side() 归侧（unn 无 Type2 continue），
+    /// 若 candidate 会遗留 0.0 极值窗口（结构判据替换后价格不再清窗）；confirmed 锚走
+    /// 「同侧让位」清窗分支 ⇒ 不武装、不遗留，θ 预热不变（kind-无关）。
     fn warmup234() -> Vec<BarSig> {
         let mut bars = Vec::new();
         for j in 0..SUB_COST_MIN_OBS as i64 {
             let mut b = with_ev(
                 bar(100.0),
                 2,
-                ev_full(BspClass::Sell2, false, 0.0, Some(1 + j)),
+                ev_full(BspClass::Sell2, true, 0.0, Some(1 + j)),
             );
-            b = with_ev(b, 3, ev_full(BspClass::Sell2, false, 0.0, Some(10 + j)));
-            b = with_ev(b, 4, ev_full(BspClass::Sell2, false, 0.0, Some(100 + j)));
+            b = with_ev(b, 3, ev_full(BspClass::Sell2, true, 0.0, Some(10 + j)));
+            b = with_ev(b, 4, ev_full(BspClass::Sell2, true, 0.0, Some(100 + j)));
             let rows = b.bsp_events.as_deref_mut().unwrap();
             rows[2][0].zd = Some(50.0);
             rows[2][0].zg = Some(50.5);

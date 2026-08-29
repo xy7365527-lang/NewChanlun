@@ -72,7 +72,9 @@
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
-use super::nested_fugue::{nav, pop_tail, rec_sub_evidence, unwind_to, Voice, Win};
+use super::nested_fugue::{
+    div_segment_broken, nav, pop_tail, rec_sub_evidence, unwind_to, Voice, Win,
+};
 use super::positional::{PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::SignalTape;
@@ -115,7 +117,8 @@ fn root_emergent_ladder(
 /// `confirmed(a0) = segment.settled`（特征序列确认）。展开为：从 estar 到 a0 每层
 /// 区间套定位（located）必须完整 ∧ a0（bi 层 = FIRST_BSP_LADDER-1）方向已翻向目标侧。
 ///
-/// located[k] 是 sticky 的区间套确认（nf 触发置、破极值清，sub-evidence 已下探到 a0），
+/// located[k] 是 sticky 的区间套确认（nf 触发置、背驰段被打破（027:22）清，
+/// sub-evidence 已下探到 a0），
 /// 是 confirmed(k) 的强形式（含次级别证据）。链完整 = 弱确认被过滤 ⇒ 消除误翻转 churn
 /// （urs_phase2_flip_results.md §4：单层 located 弱确认放行误翻转，CL 505 negates）。
 ///
@@ -216,16 +219,20 @@ pub(crate) fn run_unified_recursive(
         let devrows: &[Vec<DivEvent>; MAX_LADDER] =
             sig.div_events.as_deref().unwrap_or(&empty_devs);
 
-        // ── 区间套窗口维护（第14环）：① 打破否定 → ② candidate 武装 /
-        //    confirmed 清窗 → ③ 递归证据触发（nf_* 携带触发时极值）──
+        // ── 区间套窗口维护（第14环）：① 背驰段被打破（027:22）⇒ 候选撤销 →
+        //    ② candidate 武装 / confirmed 清窗 → ③ 递归证据触发（nf_* 携带触发时极值）──
         let mut nf_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         let mut nf_buy: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         for k in FIRST_BSP_LADDER..MAX_LADDER {
-            if nest_sell[k].is_some_and(|w| c > w.extreme) {
+            if nest_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 nest_sell[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
-            if nest_buy[k].is_some_and(|w| c < w.extreme) {
+            if nest_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 nest_buy[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
@@ -281,12 +288,14 @@ pub(crate) fn run_unified_recursive(
         }
 
         // 区间套定位记忆（§6.2"背驰已被区间套递归确认"）：nf 触发记录极值，
-        // 价格破极值则定位失效；C 消费后清空。
+        // 背驰段被打破（027:22）⇒ 定位失效（候选撤销、在新极值重判）；C 消费后清空。
         for k in FIRST_BSP_LADDER..MAX_LADDER {
             if let Some(ext) = nf_sell[k] {
                 located_sell[k] = Some(ext);
             }
-            if located_sell[k].is_some_and(|ext| c > ext) {
+            if located_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 located_sell[k] = None;
             }
         }
@@ -322,12 +331,11 @@ pub(crate) fn run_unified_recursive(
             }
         }
 
-        // ── B. 否定扫描（根→尾第一个破 027:25 极值线 ⇒ 该层及以深解栈）──
+        // ── B. 否定扫描（根→尾第一个「背驰段被打破」结构判据 ⇒ 该层及以深解栈）──
         if !acted {
             let broke = chain.iter().position(|v| {
-                v.negate_line.is_some_and(|line| match v.dir {
-                    Polarity::Short => c > line,
-                    Polarity::Long => c < line,
+                v.negate_line.is_some_and(|_| {
+                    div_segment_broken(v.dir, &evrows[v.ladder], flip_edge[v.ladder])
                 })
             });
             if let Some(g) = broke {
@@ -353,8 +361,9 @@ pub(crate) fn run_unified_recursive(
         //    **翻转 = 降成本的 m=N 特例**（非清仓到现金）。父 voice 卖出全部 N 股
         //    （N→0，husk 保留 cost_basis/pool）→ 子 voice 用释放的全部资金（N×c）
         //    反向开空 N。和 E 降成本完全同构，只 m=N。
-        //    · 否定线 = located 极值（061:26（力度反超）/061:28（未创新高不存在））在子 voice 生命周期保护（A 强平/B 否定）
-        //      ⇒ 化解 v3 死因②（翻转无否定线 → 强平归零，project_nrf_v3_root_flip_falsified）。
+        //    · 否定标记 = located 极值（061:26（力度反超）/061:28（未创新高不存在））在子 voice
+        //      生命周期保护（A 强平/B「背驰段被打破」否定，027:22）⇒ 化解 v3 死因②
+        //      （翻转无否定标记 → 强平归零，project_nrf_v3_root_flip_falsified）。
         //    · 条件化 = E* 涌现层判据（非每 bar 无条件）⇒ 化解 v3 死因①（盘整税）。
         //    · 会计逻辑时序（编排者；物理一笔，会计先后）：先父释放现金（units N→0）
         //      → 再子用现金开仓（capital = 释放现金）。不可反序——子资金来自父释放。
@@ -381,7 +390,7 @@ pub(crate) fn run_unified_recursive(
             if sig.sell_any.get(estar)
                 && recursive_confirmed(estar, Direction::Down, &located_sell, &dir_state)
             {
-                let flip_line = located_sell[estar]; // 否定线 = located 极值（061:26（力度反超）/061:28（未创新高不存在））
+                let flip_line = located_sell[estar]; // 否定标记 = located 极值（061:26（力度反超）/061:28（未创新高不存在））
                                                      // Phase 3（逐仓独立，编排者裁决"子voice平仓不影响父voice"）：翻转仅在
                                                      // chain.len()==1（根独存）时发生——根降成本 m=N → 子独立逐仓开空，父 husk
                                                      // 不退出。链有降成本子（len>1）时**不翻转**（不 collapse）：子先经 D 独立回补
@@ -799,7 +808,7 @@ mod tests {
         bars.push(bar(104.0));
         let evidence_bar = bars.len() as i64 - 1;
         // recover bar：buy_any@3 ⇒ D 回补降成本子@3 ⇒ len 回 1（Phase 3 逐仓独立：
-        // 子先独立回补，根才能翻）。located[2,3,4] 价格未破极值故persist。
+        // 子先独立回补，根才能翻）。located[2,3,4] 背驰段未破故 persist。
         bars.push(buypt(bar(103.0), 3));
         // flip bar：sell_any@4 ∧ 完整递归链 ∧ len==1 ⇒ 翻转为子空@3。
         bars.push(sellanypt(bar(102.0), 4));
@@ -875,9 +884,14 @@ mod tests {
 
     #[test]
     fn flip_child_carries_negate_line() {
-        // v3 死因②修复：翻转子空携带否定线（061:26（力度反超）/061:28（未创新高不存在），=located[4] 极值 110）；升破 ⇒ B 否定有界平仓。
+        // v3 死因②修复：翻转子空携带否定标记（=located[4] 极值 110）；背驰段被
+        // 打破（结构判据，027:22：confirmed Sell1@3）⇒ B 否定有界平仓。
         let (mut bars, flips) = full_bear_chain();
-        bars.push(bar(115.0)); // 升破 110 ⇒ B 否定平子空
+        bars.push(with_ev(
+            bar(115.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // 背驰段被打破 ⇒ B 否定平子空
         let r = run(bars, flips);
         assert_eq!(
             r.n_nrf_root_flips_by_ladder[3], 1,
@@ -885,7 +899,7 @@ mod tests {
         );
         assert_eq!(
             r.n_nrf_negate_closes_by_ladder[3], 1,
-            "子空 negate_line=located 极值 110，升破 ⇒ B 否定平仓（v3 死因②修复）"
+            "子空 negate_line=located 极值 110，背驰段被打破 ⇒ B 否定平仓（v3 死因②修复）"
         );
     }
 

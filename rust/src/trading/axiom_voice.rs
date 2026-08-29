@@ -11,7 +11,7 @@
 //! | 公理 | 否定运动产物 | FSM 要素 | 承载矛盾 |
 //! |------|-------------|---------|---------|
 //! | 1 走势完全分类 | 分类=（级别,走势）对属性→逐层相位读数；kind 留作 26:80 豁免域定理映射（535 终局，对抗 lens 裁决） | Φ(k) 中枢账本相位 + exempt_d(k) 祖先 settled-tail-kind | regime 特化消除+层间指令冲突+塔顶候选性 |
-//! | 2 买卖点结构性存在 | 确认滞后 vs 操作即时→区间套三段式 | nest 双侧（武装→次级别证据→破极值否定） | 滞后+假信号+委托定位 |
+//! | 2 买卖点结构性存在 | 确认滞后 vs 操作即时→区间套三段式 | nest 双侧（武装→次级别证据→背驰段被打破（027:22）否定） | 滞后+假信号+委托定位 |
 //! | 3 递归自相似 | 递归终止=成本门自我界定 | 每层完全相同的转移链；Q(k) 活跃门 | 级别特化消除+a0 边界+递归终止 |
 //! | 4 级别=操作量 | 嵌套 slice+44课铰链身份事后授予 | PairedOut 短差载具（身份悬置：接回=短差/升级=翻转） | 级别错配+守恒 vs 合法性+恒仓 M=N |
 //! | 5 成本门 | 摩擦随载体涌现→参数/端口分离，k_cost≡1 钉死 | Q(k)=defined(θ_mean)∧θ_mean≥C_rt（C=端口） | 递归终止+级别去特化+震荡参与资格 |
@@ -54,6 +54,7 @@
 
 use super::center_book::CenterBook;
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
+use super::nested_fugue::div_segment_broken;
 use super::positional::{
     enter_or_defer, theta_weights, LayerState, LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS,
 };
@@ -218,18 +219,23 @@ pub(crate) fn run_axiom_voice(
             book.negate_pending_departure(lad, c);
         }
 
-        // ── 区间套三段式（公理2；①破极值否定 ②candidate 武装 ③次级别
-        //    证据触发）。confirmed 到达 ⇒ 窗口让位掩码路径 ──
+        // ── 区间套三段式（公理2；①背驰段被打破（027:22）⇒ 候选撤销、
+        //    在新极值重判 ②candidate 武装 ③次级别证据触发）。confirmed 到达
+        //    ⇒ 窗口让位掩码路径 ──
         let mut nf_sell = [false; MAX_LADDER];
         let mut nf_buy = [false; MAX_LADDER];
         let mut nf_sell_t1 = [false; MAX_LADDER];
         let mut nf_buy_t1 = [false; MAX_LADDER];
         for k in FIRST_BSP_LADDER..MAX_LADDER {
-            if nest_sell[k].is_some_and(|w| c > w.extreme) {
+            if nest_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 nest_sell[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
-            if nest_buy[k].is_some_and(|w| c < w.extreme) {
+            if nest_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 nest_buy[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }

@@ -54,7 +54,7 @@ pub struct SpiralResult {
     pub n_fire_sell_by_ladder: [u64; MAX_LADDER],
     /// 买侧向心 confirm fire 数（镜像）。
     pub n_fire_buy_by_ladder: [u64; MAX_LADDER],
-    /// 破极值否定数（061:26（力度反超）/061:28（未创新高不存在），按层）。
+    /// 背驰段被打破否定数（结构判据，027:22，按层）。
     pub n_breaks_by_ladder: [u64; MAX_LADDER],
 
     // ── 会计重定基（A4 N_base 双向）──

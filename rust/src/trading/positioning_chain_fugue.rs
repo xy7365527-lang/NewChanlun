@@ -20,7 +20,8 @@
 //!
 //! **pending_locate 重构（先势后定位的正确时序）**：
 //!   - **pending（势）= 高级别 candidate**（k ≥ FIRST_BSP_LADDER+1 = move(L1)
-//!     及以上）的持续记忆（`nest_*` 窗口承载，candidate 武装即在场，破极值否定）。
+//!     及以上）的持续记忆（`nest_*` 窗口承载，candidate 武装即在场，背驰段被
+//!     打破（结构判据，027:22）否定）。
 //!     **segment（k=FIRST_BSP_LADDER）不注册 pending**——它不是势源。
 //!   - **confirm（定位）= 低级别反转**（`rec_sub_evidence(S−1)` 递归到 a0，覆盖
 //!     segment + bi）。confirm 的级别恒 < pending 级别 S（区间套：低定位高）。
@@ -50,13 +51,14 @@
 //! ## 级联不变量（必然性检验的运行时基础）
 //!
 //! `located`（任一侧）非空时**恒为连续前缀** `[FIRST_BSP_LADDER..=S]`，且全层**统一
-//! 极值 E（源层否定线，061:26（力度反超）/061:28（未创新高不存在））+ 统一 source_ladder=S ≥ FIRST_BSP_LADDER+1**。
+//! 极值 E（源层极值，061:26（力度反超）/061:28（未创新高不存在）；#1273 起极值
+//! 降观测，否定判据 = 结构判据「背驰段被打破」）+ 统一 source_ladder=S ≥ FIRST_BSP_LADDER+1**。
 //! 由两条构造规则保证：
 //!   ① **级联写统一极值**：confirm@S 触发 ⇒ `[FIRST_BSP_LADDER..=S]` 全写源层 S
 //!      的极值（含 located[segment]——segment 被高级别定位**覆盖**，自身不发起）。
 //!   ② **高 source 优先**：仅当新 source ≥ 既有 source 时覆盖（高级别反转主导，
 //!      不被后来的低级别 candidate 降级）。
-//! ⇒ 破极值（`c > E`，统一极值）**整链同破**（清空或不变，无逐层断裂）。
+//! ⇒ 背驰段被打破（结构判据，统一极值）**整链同破**（清空或不变，无逐层断裂）。
 //! ⇒ `∀k∈[FIRST_BSP_LADDER..=S] located[k].source_ladder == S ≥ FIRST_BSP_LADDER+1`。
 //!
 //! ## 与 URS（unified_recursive）的唯一构成性差异：层选择机制
@@ -72,10 +74,10 @@
 //! ## 操作语义（source 驱动，第13/14/15/16/17/23环）
 //!
 //! 每 bar 同 bar 单事件（A→B→C→D→E→F；§1-§8 会计 = nested_fugue 原语逐字复用）：
-//! - **A 强平兜底 / B 否定扫描**：URS 逐字（否定线，061:26（力度反超）/061:28（未创新高不存在））。
+//! - **A 强平兜底 / B 否定扫描**：URS 逐字（「背驰段被打破」结构判据，027:22）。
 //! - **C 根出场/翻转**（第23环）：根 voice 长持，`sell_source = Some(S)` 且
 //!   `S ≥ root.ladder`（势在**入场级别或更高**反转 ⇒ 出场对齐 source）∧ len==1 ⇒
-//!   翻转 = 降成本 m=N 特例（子空@root.ladder−1，携 located 极值否定线）。
+//!   翻转 = 降成本 m=N 特例（子空@root.ladder−1，携 located 极值否定标记）。
 //!   `root.ladder == FIRST_BSP_LADDER`（无更低子级别）⇒ 清仓到现金。len>1（有
 //!   降成本子）⇒ 不翻（子先经 D 独立回补，逐仓独立）。
 //! - **D 尾回补**（第17环）：len>1，尾 voice 的反向链 source `S ≥ tail.ladder`
@@ -106,7 +108,7 @@
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
-use super::nested_fugue::{nav, pop_tail, rec_sub_evidence, unwind_to, Voice};
+use super::nested_fugue::{div_segment_broken, nav, pop_tail, rec_sub_evidence, unwind_to, Voice};
 use super::positional::{theta_weights, PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
 use super::tape::SignalTape;
@@ -135,7 +137,8 @@ struct Pending {
 ///     级联不变量下，一条链内全层 source_ladder 统一 = 链顶 S。
 ///   - `direction` = pending 方向（卖侧出场链 / 买侧入场链）。located_sell/located_buy
 ///     分数组下方向由数组隐含，此字段为自描述 + 必然性检验的显式载体。
-///   - `extreme` = 否定线（061:26（力度反超）/061:28（未创新高不存在），价格破之则定位失效）。级联下全层统一 = 源层极值。
+///   - `extreme` = 源层极值（061:26（力度反超）/061:28（未创新高不存在）；#1273 起降
+///     观测，定位失效判据 = 结构判据「背驰段被打破」）。级联下全层统一 = 源层极值。
 ///   - `compress_bar` = 压缩↑完成 bar（高级别 candidate 首现 = 信号层构造完成）。
 ///   - `confirm_bar` = 展开↓兑现 bar（低级别 confirm = 操作层定位完成）。
 ///     540号时序：`compress_bar ≤ confirm_bar`（prove_chain 强制——压缩必先于展开）。
@@ -150,7 +153,7 @@ struct PendingLocate {
 
 /// pending confirm 兑现的级联武装（第14环严格形式）：最高 active pending@source
 /// 经低级别 confirm ⇒ 级联武装 `located[FIRST_BSP_LADDER..=source]` 全层，统一
-/// 极值 = 源层否定线（061:26（力度反超）/061:28（未创新高不存在）），统一 source_ladder=source，统一 direction=dir。
+/// 极值 = 源层极值（061:26（力度反超）/061:28（未创新高不存在），#1273 起降观测），统一 source_ladder=source，统一 direction=dir。
 ///
 /// **调用前提**：`source ≥ FIRST_BSP_LADDER+1`（segment 不入势源——pending 只在
 /// move(L1) 及以上注册）。级联仍写到 `located[FIRST_BSP_LADDER]`（segment 被高级别
@@ -288,7 +291,8 @@ pub(crate) fn run_positioning_chain_fugue(
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
 
-    // pending 窗口（双侧；高级别 candidate 武装、confirmed 清窗、破极值否定）。
+    // pending 窗口（双侧；高级别 candidate 武装、confirmed 清窗、背驰段被打破
+    // （结构判据，027:22）否定）。
     // **仅在 move(L1) 及以上（k ≥ PENDING_LO）维护**——segment 非势源。
     const PENDING_LO: usize = FIRST_BSP_LADDER + 1;
     let mut nest_sell: [Option<Pending>; MAX_LADDER] = [None; MAX_LADDER];
@@ -327,9 +331,9 @@ pub(crate) fn run_positioning_chain_fugue(
         let devrows: &[Vec<DivEvent>; MAX_LADDER] =
             sig.div_events.as_deref().unwrap_or(&empty_devs);
 
-        // ── pending 窗口维护（双侧，仅 k ≥ PENDING_LO = move(L1)）：① 破极值
-        //    否定（pending 失效）→ ② 高级别 candidate 武装 / confirmed 清窗 →
-        //    ③ confirm 触发（rec_sub_evidence 递归到 a0，含 segment）──
+        // ── pending 窗口维护（双侧，仅 k ≥ PENDING_LO = move(L1)）：① 背驰段
+        //    被打破（027:22，pending 失效、候选撤销）→ ② 高级别 candidate 武装 /
+        //    confirmed 清窗 → ③ confirm 触发（rec_sub_evidence 递归到 a0，含 segment）──
         //
         // segment（k=FIRST_BSP_LADDER）**不维护 pending**——其 BSP/翻转仅作
         // rec_sub_evidence 的低级别 confirm 证据（高级别 pending 由它定位）。
@@ -337,11 +341,15 @@ pub(crate) fn run_positioning_chain_fugue(
         let mut confirm_sell: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
         let mut confirm_buy: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
         for k in PENDING_LO..MAX_LADDER {
-            if nest_sell[k].is_some_and(|w| c > w.extreme) {
+            if nest_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 nest_sell[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
-            if nest_buy[k].is_some_and(|w| c < w.extreme) {
+            if nest_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 nest_buy[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
@@ -427,14 +435,18 @@ pub(crate) fn run_positioning_chain_fugue(
                 cascade_arm(&mut located_buy, Side::Buy, k, ext, since, bar);
             }
         }
-        // 破极值否定（027:25）：级联统一极值 ⇒ 整链同破（清空或不变，连续前缀
-        // 不变量保持）。卖侧 c>extreme、买侧 c<extreme。含 located[segment]（被高
-        // 级别定位覆盖的链底，随链同破）。
+        // 背驰段被打破（027:22）：级联统一极值 ⇒ 整链同破（候选撤销、在新极值
+        // 重判，清空或不变，连续前缀不变量保持）。卖侧/买侧按各自背驰段方向。
+        // 含 located[segment]（被高级别定位覆盖的链底，随链同破）。
         for k in FIRST_BSP_LADDER..MAX_LADDER {
-            if located_sell[k].is_some_and(|e| c > e.extreme) {
+            if located_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 located_sell[k] = None;
             }
-            if located_buy[k].is_some_and(|e| c < e.extreme) {
+            if located_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 located_buy[k] = None;
             }
         }
@@ -467,12 +479,11 @@ pub(crate) fn run_positioning_chain_fugue(
             }
         }
 
-        // ── B. 否定扫描（根→尾第一个破 027:25 极值线 ⇒ 该层及以深解栈）──
+        // ── B. 否定扫描（根→尾第一个「背驰段被打破」结构判据 ⇒ 该层及以深解栈）──
         if !acted {
             let broke = chain.iter().position(|v| {
-                v.negate_line.is_some_and(|line| match v.dir {
-                    Polarity::Short => c > line,
-                    Polarity::Long => c < line,
+                v.negate_line.is_some_and(|_| {
+                    div_segment_broken(v.dir, &evrows[v.ladder], flip_edge[v.ladder])
                 })
             });
             if let Some(g) = broke {
@@ -495,7 +506,7 @@ pub(crate) fn run_positioning_chain_fugue(
 
         // ── C. 根出场/翻转（第23环；出场对齐入场 source）：根长持 ∧ 卖链 source
         //    S ≥ root.ladder（势在入场级别或更高反转）∧ len==1 ⇒ 翻转 = 降成本
-        //    m=N 特例（子空@root.ladder−1，携 located 极值否定线，061:26（力度反超）/061:28（未创新高不存在））。
+        //    m=N 特例（子空@root.ladder−1，携 located 极值否定标记，061:26（力度反超）/061:28（未创新高不存在））。
         //    root.ladder == FIRST_BSP_LADDER（无更低子级别）⇒ 清仓到现金。
         //    len>1 ⇒ 不翻（子先经 D 独立回补——逐仓独立）。──
         if !acted && chain.first().is_some_and(|r| r.units > 0.0) {
@@ -651,7 +662,7 @@ pub(crate) fn run_positioning_chain_fugue(
         }
 
         // ── F. 根入场(第23环)：链空 ∧ 完整买链 source S ⇒ 在 S 层满仓开多
-        //    （26课恒仓——根=基，source S 决定出场绑定级别）。否定线 = 买链顶极值。──
+        //    （26课恒仓——根=基，source S 决定出场绑定级别）。否定标记 = 买链顶极值。──
         if !acted && chain.is_empty() {
             if let Some(s) = buy_source {
                 let units = free / c;
@@ -797,15 +808,18 @@ mod tests {
 
     /// θ 参照预热（层 2/3/4 各 SUB_COST_MIN_OBS 个锚）。
     fn warmup234() -> Vec<BarSig> {
+        // Type2 锚（Sell2）：θ 预热 kind-无关，且 PCF 区间套武装跳过 Type2（Sell2 =>
+        // continue）⇒ 不遗留 nest 窗口（#1273 结构判据替换后价格不再清窗，Type1 锚会
+        // 在 warmup 遗留 0.0 极值窗口并触发同 bar 向心 confirm 级联）。
         let mut bars = Vec::new();
         for j in 0..SUB_COST_MIN_OBS as i64 {
             let mut b = with_ev(
                 bar(100.0),
                 2,
-                ev_full(BspClass::Sell1, false, 0.0, Some(1 + j)),
+                ev_full(BspClass::Sell2, false, 0.0, Some(1 + j)),
             );
-            b = with_ev(b, 3, ev_full(BspClass::Sell1, false, 0.0, Some(10 + j)));
-            b = with_ev(b, 4, ev_full(BspClass::Sell1, false, 0.0, Some(100 + j)));
+            b = with_ev(b, 3, ev_full(BspClass::Sell2, false, 0.0, Some(10 + j)));
+            b = with_ev(b, 4, ev_full(BspClass::Sell2, false, 0.0, Some(100 + j)));
             let rows = b.bsp_events.as_deref_mut().unwrap();
             rows[2][0].zd = Some(50.0);
             rows[2][0].zg = Some(50.5);
@@ -871,7 +885,7 @@ mod tests {
             );
             assert_eq!(
                 e.extreme, 110.0,
-                "全层统一极值=源层否定线（061:26（力度反超）/061:28（未创新高不存在））"
+                "全层统一极值=源层极值（061:26（力度反超）/061:28（未创新高不存在））"
             );
             assert_eq!(e.direction, Side::Sell);
             assert_eq!(e.compress_bar, 5, "压缩↑ bar 全层统一");
@@ -1093,14 +1107,19 @@ mod tests {
 
     #[test]
     fn flip_child_carries_negate_line() {
-        // 翻转子空携否定线（061:26（力度反超）/061:28（未创新高不存在））= located_sell[source=4] 极值 110；升破 ⇒ B 否定平仓。
+        // 翻转子空携否定标记 = located_sell[source=4] 极值 110；背驰段被打破
+        // （结构判据，027:22：confirmed Sell1@3）⇒ B 否定平仓。
         let (mut bars, flips) = full_bear_chain_at_root();
-        bars.push(bar(115.0)); // 升破 110 ⇒ 否定
+        bars.push(with_ev(
+            bar(115.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // 背驰段被打破 ⇒ 否定
         let r = run(bars, flips);
         assert_eq!(r.n_nrf_root_flips_by_ladder[3], 1);
         assert_eq!(
             r.n_nrf_negate_closes_by_ladder[3], 1,
-            "子空 negate=located 极值 110，升破 ⇒ B 否定平仓"
+            "子空 negate=located 极值 110，背驰段被打破 ⇒ B 否定平仓"
         );
     }
 

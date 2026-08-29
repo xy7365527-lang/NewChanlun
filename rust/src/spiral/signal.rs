@@ -26,8 +26,9 @@ use crate::buysellpoint::{BspKind, Side};
 use crate::stroke::Direction;
 use crate::trading::center_book::CenterBook;
 use crate::trading::depth_ref::DepthRef;
+use crate::trading::nested_fugue::div_segment_broken;
 use crate::trading::tape::BarSig;
-use crate::trading::types::{BspEvent, MAX_LADDER};
+use crate::trading::types::{BspEvent, Polarity, MAX_LADDER};
 
 /// pending 窗口（高级别 candidate 持续记忆——540号压缩侧↑载体）。
 /// `since_bar` = candidate 首现 bar（压缩完成 φ→0）；极值刷新保留首现值。
@@ -223,12 +224,16 @@ impl SignalState {
         let mut type2_seen = 0u64;
         let mut type2_handled = 0u64;
         for k in PENDING_LO..MAX_LADDER {
-            // ① 破极值否定（027:25）。
-            if self.nest_sell[k].is_some_and(|w| c > w.extreme) {
+            // ① 背驰段被打破（结构判据，027:22）⇒ 候选撤销、在新极值重判。
+            if self.nest_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 self.nest_sell[k] = None;
                 res.n_breaks_by_ladder[k] += 1;
             }
-            if self.nest_buy[k].is_some_and(|w| c < w.extreme) {
+            if self.nest_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 self.nest_buy[k] = None;
                 res.n_breaks_by_ladder[k] += 1;
             }
@@ -330,12 +335,16 @@ impl SignalState {
             &self.located_sell,
         );
         prove_t53_connection_assoc(&pre_buy, &confirm_buy, Side::Buy, bar, &self.located_buy);
-        // 破极值否定（级联统一极值 ⇒ 整链同破）。
+        // 背驰段被打破（027:22）：级联统一极值 ⇒ 整链同破（候选撤销、在新极值重判）。
         for k in FIRST_BSP_LADDER..MAX_LADDER {
-            if self.located_sell[k].is_some_and(|e| c > e.extreme) {
+            if self.located_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 self.located_sell[k] = None;
             }
-            if self.located_buy[k].is_some_and(|e| c < e.extreme) {
+            if self.located_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 self.located_buy[k] = None;
             }
         }

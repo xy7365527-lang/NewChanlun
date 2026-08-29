@@ -16,7 +16,7 @@
 //! | nest_forward | 恒开（candidate 武装+次级别证据触发，双侧——翻空时点 = 区间套定位，不等 confirmed） | 027课 / 038:258 |
 //! | osc / h1_freeze | 统一 osc 三门恒开（相位/振幅/g2 强弱 + 49:68 candidate 冻结——Δf 6/8 非负在册） | 035:30 / 093:26 / 049:68 |
 //! | r2_gate | 双侧位置门恒开，域 = Φ(k)==Osc（削减@c≥ZG / 回补@c≤ZD） | 049:52 / 049:64 |
-//! | （无） | R18-20 T2W 第二翻转窗口（confirmed type1 被门拒 ⇒ 锁存；type2 同侧 ∧ 门放行 ⇒ 重试；越极值 ⇒ 清） | 053:28 / 086:80 |
+//! | （无） | R18-20 T2W 第二翻转窗口（confirmed type1 被门拒 ⇒ 锁存；type2 同侧 ∧ 门放行 ⇒ 重试；背驰段被打破 ⇒ 清） | 053:28 / 086:80 |
 //! | xzd_sell2 / xzd_buy2 | 053:28 二卖事件层新通道（#1208 ②件）：候选事件 bar 上（turn_class 标签门 + 无 confirmed 一/二类前提）⇒ 二卖出场 / 二买回补 | 053:28 |
 //!
 //! R4（49:54 双侧出口）已删除——概念链审计（`analysis/
@@ -61,6 +61,7 @@
 
 use super::center_book::CenterBook;
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
+use super::nested_fugue::div_segment_broken;
 use super::positional::{
     enter_or_defer, theta_weights, LayerState, LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS,
 };
@@ -189,7 +190,7 @@ pub(crate) fn run_unified_voice(
     let mut nest_fired: std::collections::HashMap<(usize, bool, i64), i64> =
         std::collections::HashMap::new();
 
-    // T2W 锁存（extreme = 被拒 type1 的事件价；R20 越极值清）。
+    // T2W 锁存（extreme = 被拒 type1 的事件价；R20 背驰段被打破清）。
     let mut t2w_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
     let mut t2w_buy: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
     // XZD 情况二风控臂持久态（#1202 第三块；跨 bar 存活，行式标注）。
@@ -238,11 +239,15 @@ pub(crate) fn run_unified_voice(
         let mut nf_sell = [false; MAX_LADDER];
         let mut nf_buy = [false; MAX_LADDER];
         for k in FIRST_BSP_LADDER..MAX_LADDER {
-            if nest_sell[k].is_some_and(|w| c > w.extreme) {
+            if nest_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 nest_sell[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
-            if nest_buy[k].is_some_and(|w| c < w.extreme) {
+            if nest_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 nest_buy[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
@@ -350,13 +355,18 @@ pub(crate) fn run_unified_voice(
         let r2_restore_blocked =
             |k: usize| phi(k) == PhaseView::Osc && book.alive(k).is_some_and(|lc| !(c <= lc.zd));
 
-        // T2W 否定（R20：close 越过锁存 extreme ⇒ 假 type1，清锁存）。
+        // T2W 否定（R20：背驰段被打破（结构判据，027:22）⇒ 候选撤销、在新极值
+        // 重判——close 越锁存极值不再构成否定）。
         for k in floor_ladder..MAX_LADDER {
-            if t2w_sell[k].is_some_and(|x| c > x) {
+            if t2w_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 t2w_sell[k] = None;
                 res.n_t2w_negates_by_ladder[k] += 1;
             }
-            if t2w_buy[k].is_some_and(|x| c < x) {
+            if t2w_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 t2w_buy[k] = None;
                 res.n_t2w_negates_by_ladder[k] += 1;
             }
@@ -1143,7 +1153,8 @@ mod tests {
 
     #[test]
     fn t2w_negated_on_extreme_break() {
-        // R20：close 越过锁存 extreme ⇒ 清锁存，后续 type2 不触发。
+        // R20：背驰段被打破（结构判据，027:22：confirmed Sell1@2）⇒ 清锁存，
+        // 后续 type2 不触发。
         let conf = |class: BspClass, px: f64| BspEvent {
             class,
             seg_idx: 0,
@@ -1159,7 +1170,7 @@ mod tests {
             with_ev(bar(100.0), 2, conf(BspClass::Sell1, 120.0)),
             2,
         ));
-        bars.push(bar(130.0)); // 越过 extreme=120 ⇒ 清
+        bars.push(with_ev(bar(130.0), 2, conf(BspClass::Sell1, 0.0))); // 背驰段被打破 ⇒ 清
         bars.push(with_ev(bar(100.0), 2, conf(BspClass::Sell2, 100.0)));
         bars.push(bar(100.0));
         let w = SUB_COST_MIN_OBS as i64;

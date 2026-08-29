@@ -65,7 +65,9 @@
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
-use super::nested_fugue::{nav, pop_tail, rec_sub_evidence, unwind_to, Voice, Win};
+use super::nested_fugue::{
+    div_segment_broken, nav, pop_tail, rec_sub_evidence, unwind_to, Voice, Win,
+};
 use super::positional::{PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::SignalTape;
@@ -197,16 +199,21 @@ pub(crate) fn run_nested_interval_fugue(
             sig.div_events.as_deref().unwrap_or(&empty_devs);
 
         // ── 区间套窗口维护（第14环，改动3 的定位机制；改动1：定位在**所有**
-        //    BSP 承载层运作——含 < min_trade_ladder，定位词汇完整）：① 打破否定
-        //    → ② candidate 武装 / confirmed 清窗 → ③ 递归证据触发 ──
+        //    BSP 承载层运作——含 < min_trade_ladder，定位词汇完整）：① 背驰段
+        //    被打破（027:22）⇒ 候选撤销、在新极值重判 → ② candidate 武装 /
+        //    confirmed 清窗 → ③ 递归证据触发 ──
         let mut nf_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         let mut nf_buy: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         for k in FIRST_BSP_LADDER..MAX_LADDER {
-            if nest_sell[k].is_some_and(|w| c > w.extreme) {
+            if nest_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 nest_sell[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
-            if nest_buy[k].is_some_and(|w| c < w.extreme) {
+            if nest_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 nest_buy[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
@@ -260,12 +267,15 @@ pub(crate) fn run_nested_interval_fugue(
             }
         }
 
-        // 区间套定位记忆（§6.2"背驰已被区间套递归确认"）。
+        // 区间套定位记忆（§6.2"背驰已被区间套递归确认"）：背驰段被打破
+        // （027:22）⇒ 定位失效（候选撤销、在新极值重判）。
         for k in FIRST_BSP_LADDER..MAX_LADDER {
             if let Some(ext) = nf_sell[k] {
                 located_sell[k] = Some(ext);
             }
-            if located_sell[k].is_some_and(|ext| c > ext) {
+            if located_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 located_sell[k] = None;
             }
         }
@@ -299,12 +309,11 @@ pub(crate) fn run_nested_interval_fugue(
             }
         }
 
-        // ── B. 否定扫描（根→尾第一个破 027:25 极值线 ⇒ 该层及以深解栈）──
+        // ── B. 否定扫描（根→尾第一个「背驰段被打破」结构判据 ⇒ 该层及以深解栈）──
         if !acted {
             let broke = chain.iter().position(|v| {
-                v.negate_line.is_some_and(|line| match v.dir {
-                    Polarity::Short => c > line,
-                    Polarity::Long => c < line,
+                v.negate_line.is_some_and(|_| {
+                    div_segment_broken(v.dir, &evrows[v.ladder], flip_edge[v.ladder])
                 })
             });
             if let Some(g) = broke {
@@ -327,7 +336,7 @@ pub(crate) fn run_nested_interval_fugue(
 
         // ── C. 清仓/翻转（改动3：根持有到 E\* 涌现层反向 BSP 才平——不被低级别
         //    反向信号提前平仓）。根 E\* 出现卖点（sell_any）∧ located[E\*] ∧
-        //    递归链完整 ⇒ 翻转（= 降成本 m=N 特例，子空携否定线（061:26（力度反超）/061:28（未创新高不存在）））。
+        //    递归链完整 ⇒ 翻转（= 降成本 m=N 特例，子空携否定标记（061:26（力度反超）/061:28（未创新高不存在）））。
         //    改动1：翻转的次级别落点 `ladder−1 ≥ min_trade_ladder`；落点不可
         //    交易 ⇒ 退化为清仓到现金（不在 < min_trade_ladder 开空）──
         if !acted && chain.first().is_some_and(|r| r.units > 0.0) {

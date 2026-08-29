@@ -51,7 +51,7 @@
 //! ## 每 bar 处理（去全局互斥；逐 voice/逐 level 独立）
 //!
 //! A. 强平兜底（逐活跃空头 voice：capital + u×(basis−c) ≤ 0 ⇒ 1x 逐仓解析强平）
-//! B. 否定扫描（逐活跃 voice：破 negate_line（061:26（力度反超）/061:28（未创新高不存在））⇒ 关该 voice + 子树）
+//! B. 否定扫描（逐活跃 voice：背驰段被打破（结构判据，027:22）⇒ 关该 voice + 子树）
 //! C. 清仓（根 E* 涌现层 sell_any ∧ 递归确认 ⇒ cascade 全树回现金，§6 十年 1-2 次）
 //! D. 回补（逐活跃非根 voice：自层走势完美 confirmed 反向词汇 ⇒ 隔离平仓返父）
 //! E. spawn 降成本（逐活跃 voice：nf 定位反向点 ∨ 根 confirmed 卖 ⇒ 释放 σ-不变
@@ -64,7 +64,7 @@
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
-use super::nested_fugue::{rec_sub_evidence, Win};
+use super::nested_fugue::{div_segment_broken, rec_sub_evidence, Win};
 use super::positional::{LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::SignalTape;
@@ -104,7 +104,9 @@ pub(super) struct VoiceLedger {
     /// 空头 voice 在手现金（= 父层卖出所得 = 回补弹药；多头恒 0）。
     pub(super) capital: f64,
     pub(super) entry_bar: i64,
-    /// 出生相否定线（spawn 时 candidate 极值，061:26（力度反超）/061:28（未创新高不存在））；confirmed 出生无。
+    /// 出生相否定标记（spawn 时 candidate 极值，061:26（力度反超）/061:28（未创新高不存在））；
+    /// confirmed 出生无（不受 B 否定扫描）。#1273 起极值降观测，否定判据 = 结构
+    /// 判据「背驰段被打破」（背驰段定义 027:22）。
     pub(super) negate_line: Option<f64>,
     pub(super) status: VoiceStatus,
     pub(super) parent: Option<usize>,
@@ -305,7 +307,7 @@ pub(super) fn close_voice(
                 let shortfall = units - u_back;
                 // **A4（T38 N_base 双向重定基——亏损侧 N−δ）运行时证明**：u_back=min(units,
                 // capital/c)≤units ⇒ shortfall=units−u_back≥0（单位永久缩水 δ≥0，非负——T15
-                // 破极值否定亏损物化为 N−δ，非负 cost_reduction）。双向重定基：父 units +u_back
+                // 否定亏损物化为 N−δ，非负 cost_reduction）。双向重定基：父 units +u_back
                 // 与 n_base −shortfall 同源一笔（防单边记账）。violation = panic。
                 assert!(
                     shortfall >= -1e-9 * units.max(1.0),
@@ -528,11 +530,15 @@ pub(crate) fn run_isolated_fugue(
         let mut nf_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         let mut nf_buy: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         for k in FIRST_BSP_LADDER..MAX_LADDER {
-            if nest_sell[k].is_some_and(|w| c > w.extreme) {
+            if nest_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 nest_sell[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
-            if nest_buy[k].is_some_and(|w| c < w.extreme) {
+            if nest_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 nest_buy[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
@@ -588,12 +594,15 @@ pub(crate) fn run_isolated_fugue(
             }
         }
 
-        // 区间套定位记忆（§6.2"背驰已被区间套递归确认"）。
+        // 区间套定位记忆（§6.2"背驰已被区间套递归确认"）：背驰段被打破
+        // （027:22）⇒ 定位失效（候选撤销、在新极值重判）。
         for k in FIRST_BSP_LADDER..MAX_LADDER {
             if let Some(ext) = nf_sell[k] {
                 located_sell[k] = Some(ext);
             }
-            if located_sell[k].is_some_and(|ext| c > ext) {
+            if located_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 located_sell[k] = None;
             }
         }
@@ -641,7 +650,7 @@ pub(crate) fn run_isolated_fugue(
             }
         }
 
-        // ── B. 否定扫描（逐活跃 voice：破 027:25 极值线 ⇒ 关该 voice + 子树）──
+        // ── B. 否定扫描（逐活跃 voice：「背驰段被打破」结构判据 ⇒ 关该 voice + 子树）──
         let snap: Vec<usize> = (0..voices.len()).collect();
         for id in &snap {
             let id = *id;
@@ -649,10 +658,9 @@ pub(crate) fn run_isolated_fugue(
                 continue;
             }
             let v = &voices[id];
-            let broke = v.negate_line.is_some_and(|line| match v.dir {
-                Polarity::Short => c > line,
-                Polarity::Long => c < line,
-            });
+            let broke = v
+                .negate_line
+                .is_some_and(|_| div_segment_broken(v.dir, &evrows[v.ladder], flip_edge[v.ladder]));
             if broke {
                 let lad = v.ladder;
                 close_voice(
@@ -1100,7 +1108,8 @@ mod tests {
 
     #[test]
     fn negation_kills_child_with_shrink_rebase() {
-        // 061:26（力度反超）/061:28（未创新高不存在）否定：破极值 ⇒ 子死，capital 追价买回缩水 + N 重定基。
+        // 背驰段被打破（结构判据，027:22）：confirmed Sell1@3 ⇒ 子死，capital
+        // 追价买回缩水 + N 重定基。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4));
         bars.push(with_ev(
@@ -1112,8 +1121,12 @@ mod tests {
             bar(104.0),
             3,
             ev_full(BspClass::Sell1, true, 0.0, None),
-        )); // 线 110
-        bars.push(bar(111.0)); // 破 110 ⇒ 否定
+        )); // negate_line=110
+        bars.push(with_ev(
+            bar(111.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // 背驰段被打破 ⇒ 否定
         bars.push(bar(111.0));
         let r = run(bars, vec![]);
         assert_eq!(r.n_nrf_negate_closes_by_ladder[3], 1);

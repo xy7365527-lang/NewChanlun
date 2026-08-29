@@ -37,12 +37,12 @@
 //!
 //! v4/URS 的离散清仓是 regime 函数（强牛要不清、崩盘要清，同一 type1 信号
 //! 决策时不可区分——539 号开放轴）。RNF 用**子空存活/死亡**替代离散决策：
-//!   · 强牛：子空 spawn 后价格创新高 ⇒ 否定线（061:26（力度反超）/061:28（未创新高不存在））触发 ⇒ 子空死（付轧空税
-//!     m(c−P)/c 缩水）⇒ 净暴露回 N ⇒ 骑住涨势（≈BH，无清仓踏空）。
-//!   · 崩盘：子空 spawn 后价格续跌 ⇒ 否定线不破 ⇒ 子空存活 ⇒ 净暴露持续低
-//!     ⇒ 被保护（无需离散清仓）。
-//! regime 判别**涌现自子空命运**，不是预先决策。轧空税（强牛中死掉的子空）
-//! vs 保护（崩盘中存活的子空）的净额是否使 8/8≥BH 成立 = 纯经验 L3 问题。
+//!   · 背驰段被打破（结构判据，背驰段定义 027:22；confirmed Sell1/Sell3 ∨
+//!     方向翻 Down）⇒ 子空死 ⇒ 净暴露回 N。
+//!   · 背驰段未破 ⇒ 子空存活 ⇒ 净暴露持续低（无需离散清仓）。
+//! regime 判别**涌现自子空命运**，不是预先决策。子空死（回补差额递减父
+//! cost_pool 或追价缩水）vs 存活（净暴露压低）的净额是否使 8/8≥BH 成立 =
+//! 纯经验 L3 问题。
 //!
 //! ## 五条全局不变量（会计 §8，每 bar 强制检查——违反即 Err，矛盾显形非吞错）
 //!
@@ -50,7 +50,7 @@
 //! 2. **NAV 同价守恒**（单次记账 + 视图一致）：bar 内所有操作在价格 c 下 NAV
 //!    中性——nav_pre(c) == nav_post(c)。一笔物理交易只记一次，子/父双视图导出
 //!    自同一物理量。
-//! 3. **零强平**（否定线（061:26（力度反超）/061:28（未创新高不存在））先于保证金线）：子空 1x 逐仓强平计数应恒 0。
+//! 3. **零强平**（「背驰段被打破」否定判据（背驰段定义 027:22）先于保证金线）：子空 1x 逐仓强平计数应恒 0。
 //! 4. **NAV ≥ 0**（清偿性）：任意 bar NAV 非负。
 //! 5. **子 P&L ≡ 父降成本**（结构性，pop_tail 同一数字传导）：回补时子视图
 //!    P&L = 父 cost_pool 递减额——同一现金流，不双写。
@@ -61,7 +61,7 @@
 //!
 //! ## 每 bar 优先序（同 bar 单事件；§1-§8 会计 = v4 复用，bit-exact）
 //!
-//! A. 强平兜底 → B. 否定扫描（子空死=轧空税）→ D. 尾回补（子级别走势完美=
+//! A. 强平兜底 → B. 否定扫描（子空死=背驰段被打破）→ D. 尾回补（子级别走势完美=
 //! 降成本兑现）→ E. spawn 降成本（开空）→ F. 根入场（链空，仅一次）。
 //! **无 C 清仓块**——这是与 v4/URS 的唯一差异。
 //!
@@ -73,7 +73,9 @@
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
-use super::nested_fugue::{nav, pop_tail, rec_sub_evidence, unwind_to, Voice, Win};
+use super::nested_fugue::{
+    div_segment_broken, nav, pop_tail, rec_sub_evidence, unwind_to, Voice, Win,
+};
 use super::positional::{PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::SignalTape;
@@ -184,16 +186,21 @@ pub(crate) fn run_recursive_nested_fugue(
         let devrows: &[Vec<DivEvent>; MAX_LADDER] =
             sig.div_events.as_deref().unwrap_or(&empty_devs);
 
-        // ── 区间套窗口维护（第14环）：① 打破否定 → ② candidate 武装 /
-        //    confirmed 清窗 → ③ 递归证据触发（nf_* 携带触发时极值）──
+        // ── 区间套窗口维护（第14环）：① 背驰段被打破（027:22）⇒ 候选撤销、
+        //    在新极值重判 → ② candidate 武装 / confirmed 清窗 → ③ 递归证据触发
+        //    （nf_* 携带触发时极值）──
         let mut nf_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         let mut nf_buy: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         for k in FIRST_BSP_LADDER..MAX_LADDER {
-            if nest_sell[k].is_some_and(|w| c > w.extreme) {
+            if nest_sell[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+            {
                 nest_sell[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
-            if nest_buy[k].is_some_and(|w| c < w.extreme) {
+            if nest_buy[k]
+                .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+            {
                 nest_buy[k] = None;
                 res.n_nest_breaks_by_ladder[k] += 1;
             }
@@ -292,13 +299,12 @@ pub(crate) fn run_recursive_nested_fugue(
             }
         }
 
-        // ── B. 否定扫描（根→尾第一个破 027:25 极值线 ⇒ 该层及以深解栈）。
-        //    子空死 = 走势创新高否定降成本前提 = 轧空税缩水（pop_tail 物化）──
+        // ── B. 否定扫描（根→尾第一个「背驰段被打破」结构判据 ⇒ 该层及以深解栈）。
+        //    子空死 = 背驰段被打破 ⇒ 降成本兑现或追价缩水（pop_tail 物化）──
         if !acted {
             let broke = chain.iter().position(|v| {
-                v.negate_line.is_some_and(|line| match v.dir {
-                    Polarity::Short => c > line,
-                    Polarity::Long => c < line,
+                v.negate_line.is_some_and(|_| {
+                    div_segment_broken(v.dir, &evrows[v.ladder], flip_edge[v.ladder])
                 })
             });
             if let Some(g) = broke {
@@ -720,8 +726,8 @@ mod tests {
 
     #[test]
     fn negation_pays_squeeze_tax() {
-        // 061:26（力度反超）/061:28（未创新高不存在）否定 = 轧空税：子空@104 线 110，破 110 ⇒ 子死，N 缩水
-        // δ = 500 − 52000/111（强牛中降成本失败的物理代价）。
+        // 背驰段被打破（结构判据，027:22）：子空@104 线 110，confirmed Sell1@3 ⇒
+        // 子死（c=111 追价缩水），N 缩水 δ = 500 − 52000/111（pop_tail 物化）。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4));
         bars.push(with_ev(
@@ -734,7 +740,11 @@ mod tests {
             3,
             ev_full(BspClass::Sell1, true, 0.0, None),
         ));
-        bars.push(bar(111.0)); // 破 110 ⇒ 否定
+        bars.push(with_ev(
+            bar(111.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // 背驰段被打破 ⇒ 否定
         bars.push(bar(111.0));
         let r = run(bars);
         assert_eq!(r.n_nrf_negate_closes_by_ladder[3], 1);

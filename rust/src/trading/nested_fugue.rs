@@ -494,7 +494,14 @@ fn p1263_record(
 /// Short（段方向 Up）⟹ 向下打破 = confirmed Sell1/Sell3 ∨ 该层方向翻 Down；
 /// Long（段方向 Down）⟹ 向上打破 = confirmed Buy1/Buy3 ∨ 该层方向翻 Up。
 /// 价格极值（w.extreme/ext/line）已降观测，不参判据（#1263 探针诊断可留）。
-fn div_segment_broken(dir: Polarity, evrow: &[BspEvent], flip: Option<Direction>) -> bool {
+///
+/// 全仓唯一实现（#1273 批外残余 16 site 同口径实装）：`trading/` 赋格族 + `spiral/`
+/// 复用本函数，禁止另写同义副本（#804 总缝规则：同一判定每级必须是同一个）。
+pub(crate) fn div_segment_broken(
+    dir: Polarity,
+    evrow: &[BspEvent],
+    flip: Option<Direction>,
+) -> bool {
     match dir {
         Polarity::Short => {
             evrow
@@ -836,7 +843,7 @@ pub(crate) fn run_nested_fugue(
         // ── C. 清仓（§6；其余卖点走 E 降成本 §9——清仓极少发生）。两形态
         //    （539号开放轴，由 `clearance` 选择）：
         //    · V4：confirmed Sell1@top（趋势顶背驰，type2/3 不是背驰）∧
-        //      located@top（区间套递归确认未被破极值否定），top = θ 棘轮
+        //      located@top（区间套递归确认未被「背驰段被打破」否定），top = θ 棘轮
         //      累积层。诊断 §4：棘轮 + 同层合取把频率钉死（CL=OKLO=3）。
         //    · 构成性贯通：**A′ 合取选层** top* = max{k≥floor : sell1[k] ∧
         //      located[k]}（层由两半共现决定——解耦 θ 棘轮、区别 v5 的

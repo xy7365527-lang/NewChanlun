@@ -68,6 +68,7 @@
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
+use super::nested_fugue::div_segment_broken;
 use super::positional::{
     enter_or_defer, theta_weights, LayerState, LayerTrade, OscRouting, PositionalResult,
     TrendAxisOpts, TrendScope, EQUITY_SAMPLE_BARS,
@@ -179,8 +180,7 @@ struct SubOut {
 /// 武装 = 本级别 candidate Type1/Type3 事件（= "本级别进入背驰段后"/
 /// 38:258"第三类买卖对盘整结束的确认，最终也要看其内部结构的背驰"）；
 /// 触发 = 次级别（k−1）第一个同侧证据（"到次级别去寻找背驰点"——chan99/
-/// 0027:19）；否定 = 价格越过 candidate 极值（061:26（力度反超）/061:28（未创新高不存在）——
-/// 背驰被否定 ⇒ 窗口作废）。
+/// 0027:19）；否定 = 背驰段被打破（结构判据，027:22）⇒ 候选撤销、在新极值重判）。
 #[derive(Debug, Clone, Copy)]
 struct NestWin {
     /// candidate 事件端点价（背驰段极值；卖窗取 max 刷新 / 买窗取 min）。
@@ -805,8 +805,8 @@ pub(crate) fn run_fusion(
         }
 
         // ── 区间套正向定位（nest_forward；市场性质，与持仓无关）。更新序：
-        //    ① 打破否定（027:25"只要没有打破背驰段"的逆否——价格越过
-        //    candidate 极值 ⇒ 窗口作废）→ ② 本级别 Type1/Type3 事件
+        //    ① 背驰段被打破（结构判据，背驰段定义 027:22）⇒ 候选撤销、
+        //    在新极值重判 → ② 本级别 Type1/Type3 事件
         //    （candidate 武装/刷新；confirmed 到达 ⇒ 窗口让位基线掩码路径
         //    + lead 配对回填）→ ③ 次级别第一个同侧证据 ⇒ 正向触发
         //    （chan99/0027:19"本级别进入背驰段后，到次级别去寻找背驰点"；
@@ -815,12 +815,16 @@ pub(crate) fn run_fusion(
         let mut nf_buy = [false; MAX_LADDER];
         if nest_forward {
             for k in FIRST_BSP_LADDER..MAX_LADDER {
-                // ① 打破背驰段 ⇒ 作废（卖窗：创新高；买窗：创新低）。
-                if nest_sell[k].is_some_and(|w| c > w.extreme) {
+                // ① 背驰段被打破（结构判据，027:22）⇒ 候选撤销、在新极值重判。
+                if nest_sell[k]
+                    .is_some_and(|_| div_segment_broken(Polarity::Short, &evrows[k], flip_edge[k]))
+                {
                     nest_sell[k] = None;
                     res.n_nest_breaks_by_ladder[k] += 1;
                 }
-                if nest_buy[k].is_some_and(|w| c < w.extreme) {
+                if nest_buy[k]
+                    .is_some_and(|_| div_segment_broken(Polarity::Long, &evrows[k], flip_edge[k]))
+                {
                     nest_buy[k] = None;
                     res.n_nest_breaks_by_ladder[k] += 1;
                 }
@@ -2196,12 +2200,12 @@ mod tests {
 
     #[test]
     fn nest_break_negates_window() {
-        // 061:26（力度反超）/061:28（未创新高不存在）：价格越过 candidate 极值 ⇒ 背驰被否定 ⇒ 作废，
-        // 其后次级别证据不触发。
+        // 背驰段被打破（结构判据，027:22）：confirmed Sell1@3 ⇒ 候选撤销、
+        // 在新极值重判，其后次级别证据不触发。
         let mut bars = nest_warmup();
         bars.push(buypt(bar(100.0), 3));
         bars.push(with_ev(bar(100.0), 3, cand(BspClass::Sell1, 99, 105.0))); // extreme=105
-        bars.push(bar(110.0)); // 打破 → 作废
+        bars.push(with_ev(bar(110.0), 3, ev(BspClass::Sell1))); // 背驰段被打破 → 作废
         bars.push(with_ev(bar(110.0), 2, ev(BspClass::Sell1))); // 证据迟到，窗口已亡
         bars.push(bar(110.0));
         let r = run_with_rows(bars, "fusion_tn", Some(vec![]), Some(vec![]));
