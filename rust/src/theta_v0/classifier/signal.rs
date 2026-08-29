@@ -100,7 +100,7 @@ use super::retrace_ledger::{
     PanDivSubtype, RetraceKey, RetraceLedger, RetracePoint, RetraceSide, ShortRetracePortal,
     ShortRetraceRecord,
 };
-use super::rmove_compose::find_second_type_structure;
+use super::rmove_compose::{find_second_type_structure, m2_broke_center};
 use std::cell::RefCell;
 
 /// 买卖点条目（带结构止损价，single source，见 `bsp::BspPoint`）。
@@ -709,12 +709,17 @@ fn make_second_point(
 /// - **S2**（side=Short）：镜像——第一类离开后的回抽段结束点（同样不问新不新高）。
 /// - 回拉是否破一类极值 = [`SecondTypeStructure::retrace_breaks_extreme`] → `BspPoint.retrace_breaks_type1`
 ///   重合标注（「一般都构成盘整背驰」的重合身份，语义归 #817），**不作准入分档**。
+/// - 回拉是否再破中枢 = [`m2_broke_center`]（方向敏感：
+///   买侧 `m2.lo < c1.zd` / 卖侧 `c1.zg < m2.hi`）→ `EndpointSituation.below_last_center`
+///   （= Lean `brokeCenter`，#1291 G5 F-2 从常量 `false` 换真检查）——同款**标注面**，不作准入
+///   分档（B-2② 口径一致性：`is_second` 判据不含 `below_last_center`）。
 ///
 /// `find_second_type_structure(parent, side, center_of, divergence_of)` 在 `descend parent` 内识别
 /// `SecondTypeStructure { i1, i2, second_point, retrace_breaks_extreme }`（i1=第一类离开，i2=回拉段
 /// =首个后继，i1<i2 时间序；second_point=回拉走势结束点）。识别出 ⟹ 产一个 B2/S2 端点
-/// （`is_second = after_first_buy ∧ is_pullback_end`，对齐 `IsType2 = afterTypeOne ∧ ¬brokeCenter`：
-/// 回拉走势未再破中枢 = `is_pullback_end`）；否则空。
+/// （`is_second = after_first_buy ∧ is_pullback_end`，对齐 `IsType2 = afterTypeOne ∧ ¬brokeCenter`
+/// 的准入形）；`below_last_center`（= `brokeCenter`）另由方向敏感真检查载真值（#1291 G5 F-2），
+/// 作标注面不进准入（见上条）。否则空。
 ///
 /// ★坐标 still-MISSING（见模块头）：`RMove`（port Lean `Move` μF）无 source_index——`BspPoint.source_index`
 /// 由 `index_of` 闭包提供（次级别走势 → 原始 K 序，上游塔构造时填，与 `center_of`/`divergence_of` 同
@@ -755,7 +760,11 @@ pub fn extract_second_signals(
         is_pullback_end: true, // 回拉走势结束点（#816 B-2②：不问新不新低，破极值走标注）
         left_center: false,    // 第二类是中枢内部回拉，非第三类的离开后回抽
         retrace_not_reenter: false,
-        below_last_center: false, // 第二类非第一类的破中枢背驰端点
+        // #1291 G5 F-2：`below_last_center`（= Lean `brokeCenter`）从常量 `false` 换方向敏感
+        // 真检查——m2 是否再破第一类离开所破的中枢 c1（买侧跌破下沿 zd / 卖侧升破上沿 zg）。
+        // ★不作准入分档（B-2② 口径一致性）：`is_second` 判据不含本字段，回拉再破中枢仍产二类
+        // 点；本字段只作破中枢读数（未持久化到 BspPoint，无下游标注消费者），语义归 #817 同族。邻接缺口随票记档。
+        below_last_center: m2_broke_center(side, m2, c1),
         is_sell_side: is_sell,
     };
     let bits = endpoint_to_bsp(&situ);

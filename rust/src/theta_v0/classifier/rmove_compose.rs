@@ -9,6 +9,8 @@
 //! - [`compose_move`]：RMove::Compose 组装构造（descend 的逆，组装-取回对偶）。
 //! - [`no_new_low`]/[`no_new_high`]/[`retrace_no_break`]：回拉极值几何谓词（第15课「未创新低」）——
 //!   **#816 B-2② 后不再是准入判据**，只供 [`SecondTypeStructure::retrace_breaks_extreme`] 重合标注取值。
+//! - [`m2_broke_center`]：二类回拉 m2 再破中枢（方向敏感，买侧判跌破下沿 / 卖侧判升破上沿）——
+//!   #1291 G5 F-2，供 signal.rs `below_last_center`（= Lean `brokeCenter`）作标注面，不作准入分档。
 //! - [`SecondTypeStructure`] + [`find_second_type_structure`]：第二类走势结构（第一类离开 + 回拉
 //!   段 + i1<i2 时间序 + descend 取回的递归组装来源；回拉**不问**新不新低——#816 B-2②）。
 //! - [`second_type_imp_broken_center`]：买卖点定律一连接（第二类结构 ⟹ 次级别破中枢）。
@@ -113,6 +115,34 @@ pub fn retrace_no_break(side: Side, m1: &RMove, m2: &RMove) -> bool {
     match side {
         Side::Long => no_new_low(m1, m2),
         Side::Short => no_new_high(m1, m2),
+    }
+}
+
+/// ★二类回拉 m2 再破中枢（方向敏感，几何层；#1291 G5 F-2——补 faithful 契约 `¬brokeCenter`
+/// 在 m2 上的方向敏感真检查，替换 `signal.rs` 旧常量断言 `below_last_center: false`）。
+///
+/// 第二类回拉走势 `m2` 相对第一类离开所破的中枢 `c`（B 口径核心区间 [zd,zg]，`c1`）是否
+/// **再破**该中枢——方向敏感（对齐 `Origin.BspClassification.IsType2 = afterTypeOne ∧
+/// ¬brokeCenter` 的可观测 `brokeCenter` 读数）：
+/// - 买侧（Long）：回抽低点 `m2.lo` 是否跌破中枢带下沿 `c.zd`（`m2.lo < c.zd`）；
+/// - 卖侧（Short）：回抽高点 `m2.hi` 是否升破中枢带上沿 `c.zg`（`c.zg < m2.hi`）。
+///
+/// ★方向敏感的必要性（#1291 病灶 ③）：Lean 唯一 L0 定义 `brokeCenterOf m c = m.endPrice <
+/// c.zd ∨ c.zg < m.endPrice`（BspConstruction.lean:273）是**方向无关**的「末端价在带外」判据
+/// ——字面套用到二类回拉 m2（买侧回拉末端在中枢下方）会把「弱回抽 / 强回抽」都判 `true`
+/// （`m2.lo < c.zd` 与 `c.zg < m2.lo` 至少一个成立），与旧常量 `false` 相抵。方向敏感版只判
+/// 「本侧再破」（买侧只判跌破下沿，卖侧只判升破上沿），与 `sub_reclassify_broke` 同几何基准
+/// （descend.rs，次级别重跑破中枢判定按方向）。
+///
+/// ★#1291（G5 F-2）口径：本谓词结果进 [`super::bsp::EndpointSituation::below_last_center`]
+/// （= Lean `brokeCenter`）作**标注面**，**不作准入分档**（B-2② 口径一致性——`is_second`
+/// 判据不含 `below_last_center`；回拉再破中枢仍产二类点，破中枢读数由本字段承载（未持久化
+/// 到 `BspPoint`，无下游标注消费者），语义归 #817 同族）。邻接缺口随票记档（t3_in_c_present
+/// 无 Lean 对应物、find_map 回填 vs 不回填口径）。
+pub fn m2_broke_center(side: Side, m2: &RMove, c: &Center) -> bool {
+    match side {
+        Side::Long => m2.lo() < c.zd,
+        Side::Short => c.zg < m2.hi(),
     }
 }
 
@@ -310,6 +340,51 @@ mod tests {
         };
         assert!(no_new_high(&m1_sell, &m2_sell));
         assert!(retrace_no_break(Side::Short, &m1_sell, &m2_sell));
+    }
+
+    /// ★二类回拉 m2 再破中枢（买侧正例，方向敏感；#1291 G5 F-2）：
+    /// 回抽低点 m2.lo=-8 < 中枢带下沿 c1.zd=0 ⟹ `m2_broke_center=true`。
+    /// 旧常量 `below_last_center: false` 在此输入为常量断言（非检查）；方向敏感真检查返回 `true`
+    /// ——与 Lean 方向无关 `brokeCenterOf`（「末端价在带外」）的 `-8 < 0` 读数一致。
+    #[test]
+    fn m2_broke_center_buy_side_breaks_below() {
+        assert!(m2_broke_center(Side::Long, &m2_wit(), &c1_wit()));
+    }
+
+    /// ★二类回拉 m2 未再破中枢（买侧反例，方向敏感；#1291 G5 F-2）：
+    /// 回抽低点 m2.lo=1 ≥ 中枢带下沿 c1.zd=0 ⟹ `m2_broke_center=false`（回抽未跌破中枢带下沿）。
+    #[test]
+    fn m2_broke_center_buy_side_stays_inside() {
+        let m2_inside = RMove::Segment {
+            direction: Direction::Up,
+            lo: 1, // ≥ zd=0：回抽低点未跌破中枢带下沿
+            hi: 5,
+        };
+        assert!(!m2_broke_center(Side::Long, &m2_inside, &c1_wit()));
+    }
+
+    /// ★二类回抽 m2 再破中枢（卖侧正例，方向敏感；#1291 G5 F-2 镜像）：
+    /// 回抽高点 m2.hi=6 > 中枢带上沿 c1.zg=4 ⟹ `m2_broke_center=true`。
+    #[test]
+    fn m2_broke_center_sell_side_breaks_above() {
+        let m2_sell = RMove::Segment {
+            direction: Direction::Down,
+            lo: 0,
+            hi: 6, // > zg=4：回抽高点升破中枢带上沿
+        };
+        assert!(m2_broke_center(Side::Short, &m2_sell, &c1_wit()));
+    }
+
+    /// ★二类回抽 m2 未再破中枢（卖侧反例，方向敏感；#1291 G5 F-2 镜像）：
+    /// 回抽高点 m2.hi=3 ≤ 中枢带上沿 c1.zg=4 ⟹ `m2_broke_center=false`（回抽未升破中枢带上沿）。
+    #[test]
+    fn m2_broke_center_sell_side_stays_inside() {
+        let m2_sell = RMove::Segment {
+            direction: Direction::Down,
+            lo: 1,
+            hi: 3, // ≤ zg=4：回抽高点未升破中枢带上沿
+        };
+        assert!(!m2_broke_center(Side::Short, &m2_sell, &c1_wit()));
     }
 
     /// ★第二类走势结构识别真跑通（Lean `witness_secondTypeStructure`）：

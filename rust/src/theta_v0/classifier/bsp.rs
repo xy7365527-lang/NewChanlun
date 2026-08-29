@@ -720,19 +720,22 @@ mod tests {
             // 2026-08-22 #1176 B01：signal.rs 三大判据块迁出（gates/pan_div_short/cert，
             // 零行为）⟹ 生产区 -919 行（重导出 +22）⟹ 七处夹具点统一 -897，逐条重核
             // 内容不变（同为测试夹具 source_index 过滤），同条目重登记。
-            "theta_v0/classifier/signal.rs:1934",
-            "theta_v0/classifier/signal.rs:2088",
-            "theta_v0/classifier/signal.rs:2319",
-            "theta_v0/classifier/signal.rs:2661",
-            "theta_v0/classifier/signal.rs:2673",
-            "theta_v0/classifier/signal.rs:2695",
-            "theta_v0/classifier/signal.rs:2717",
-            "theta_v0/classifier/signal.rs:2722",
-            "theta_v0/classifier/signal.rs:2723",
-            "theta_v0/classifier/signal.rs:2861",
-            "theta_v0/classifier/signal.rs:2894",
-            "theta_v0/classifier/signal.rs:3161",
-            "theta_v0/classifier/signal.rs:3229",
+            // 2026-08-29 #1291 G5 F-2：signal.rs 二类提取入口补 m2_broke_center 方向敏感
+            // 真检查与文档（+9 行）⟹ 七处夹具点统一 +9，逐条重核内容不变（同为测试夹具
+            // source_index 过滤），同条目重登记。
+            "theta_v0/classifier/signal.rs:1943",
+            "theta_v0/classifier/signal.rs:2097",
+            "theta_v0/classifier/signal.rs:2328",
+            "theta_v0/classifier/signal.rs:2670",
+            "theta_v0/classifier/signal.rs:2682",
+            "theta_v0/classifier/signal.rs:2704",
+            "theta_v0/classifier/signal.rs:2726",
+            "theta_v0/classifier/signal.rs:2731",
+            "theta_v0/classifier/signal.rs:2732",
+            "theta_v0/classifier/signal.rs:2870",
+            "theta_v0/classifier/signal.rs:2903",
+            "theta_v0/classifier/signal.rs:3170",
+            "theta_v0/classifier/signal.rs:3238",
             // 2026-08-21 #1080 S2 Phase2：`judge_first_from_gates` 加默认关闭只读捕获
             // seam（+14 行）——本块锚点待全量合并后按 whitelist 测试实报行号统一订正。            // （2026-08-16 #648 T1：classifier/mod.rs 内联测试 4273 行抽离至 classifier/tests/            // 主题件 ⟹ 该夹具点同内容随迁 mod.rs:4574 → tests/pipeline_geometry.rs:1565，
             // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。
