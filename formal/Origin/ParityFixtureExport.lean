@@ -114,19 +114,19 @@ def gapOverlapJson (a b : FeatureElem) : Json :=
 def feOf (lo hi : Int) (h : lo ≤ hi) : FeatureElem := { low := lo, high := hi, valid := h }
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § #1294 F-8：BSP 谓词族向量级锁 fixture 段
-    （IsType1 / IsType3Buy(firstRetrace) / SecondTypeStructure）
+    § #1294 F-8 + #1289（G4 裁定 a）：BSP 谓词族向量级锁 fixture 段
+    （IsType1 / IsType3Buy(firstRetrace) / SecondTypeStructure 存在性 + 见证级）
 
     先例 = gap/overlap 段（#248/#319）：Lean 提取值（`decide` 真求值）vs rust 输出逐位比对。
     本段把 lean_parity 复活到 BSP 谓词族：
     - `IsType1`（BspClassification :94）↔ rust `is_type1_buy`（closed_loop/buy.rs :112）；
     - `IsType3Buy`（BspClassification :100，含 `firstRetrace` 必要条件）↔ rust
       `is_type3_buy`（buy.rs :120）；
-    - `SecondTypeStructure`（RMoveCompose :233，∃i1<i2 存在性）↔ rust
-      `find_second_type_structure`（rmove_compose.rs :175，首个后继 i2=i1+1）的
-      `.is_some()` 存在性——两者在存在性上等价（i2 只要求「存在一个后继」，`SubLevelType1`
-      只约束 m1；`∃ i1 < i2` ⟺ `∃ i1 ≤ len-2`），见证级（i1/i2/second_point）对拍归
-      #1289（本票只登记索引）。
+    - `SecondTypeStructure`（RMoveCompose :233，#1289 后 = 首个后继 i2=i1+1）↔ rust
+      `find_second_type_structure`（rmove_compose.rs :205，首个后继 i2=i1+1）：
+      · 存在性（`holds`）——`.is_some()` 与 Lean 可计算镜像 `secondTypeStructureHolds` 逐位比对；
+      · 见证级（`witness`，#1289 补）——`(i1, i2=i1+1, second_point, retrace_breaks_extreme)`
+        与 Lean first-match 见证镜像 `findSecondTypeStructureWitness` 逐位比对（同输入同见证点）。
     ═══════════════════════════════════════════════════════════════════════ -/
 
 def sideStr (s : Side) : String :=
@@ -227,9 +227,8 @@ def subLevelType1Holds (side : Side) (m : SubLevelDescent.RMove)
 
 /-- 腿级镜像等价（L0）：`subLevelType1Holds` 的 Bool 判定 ⇔ 规范 `SubLevelType1` Prop。
     这是 `secondTypeStructureHolds` 可计算判定的正确性锚点——每腿判定忠实于规范谓词；
-    列表级「存在一个带后继的破中枢背驰腿」与 `SecondTypeStructure`（∃i1<i2）的等价性
-    （`∃ i1<i2` ⟺ `∃ i1≤len-2`，`SubLevelType1` 只约束 m1）见 `secondTypeStructureHolds`
-    doc，见证级（i1/i2/second_point）对拍归 #1289。 -/
+    列表级「存在一个带后继（i2=i1+1 存在）的破中枢背驰腿」与 `SecondTypeStructure`
+    （首个后继 i2=i1+1，#1289 G4 裁定 a）的等价性见 `secondTypeStructureHolds_iff`。 -/
 theorem subLevelType1Holds_iff (side : Side) (m : SubLevelDescent.RMove)
     (c1 : SubLevelDescent.RCenter) (divPair : DivergencePair) :
     subLevelType1Holds side m c1 divPair = true ↔
@@ -239,8 +238,8 @@ theorem subLevelType1Holds_iff (side : Side) (m : SubLevelDescent.RMove)
 
 /-- `SecondTypeStructure` 存在性的**可计算判定镜像**（Rust `find_second_type_structure`
     循环的同形）：在 `subs` 上找「第一个有后继（i2=i1+1 存在）且 `SubLevelType1` 的次级别
-    走势」。与 `SecondTypeStructure`（∃i1<i2）在存在性上等价——`SubLevelType1` 只约束 m1、
-    `∃ i1<i2` ⟺ `∃ i1 ≤ subs.length-2`（i2 存在即后继存在，取 i2=i1+1）。 -/
+    走势」。与 `SecondTypeStructure`（首个后继 i2=i1+1，#1289 G4 裁定 a）在存在性上等价——
+    `SubLevelType1` 只约束 m1，i2=i1+1 存在 ⟺ `i1 ≤ subs.length-2`。 -/
 def secondTypeStructureHolds (side : Side) (subs : List SubLevelDescent.RMove)
     (c1 : SubLevelDescent.RCenter) (divPair : DivergencePair) : Bool :=
   match subs with
@@ -251,15 +250,15 @@ def secondTypeStructureHolds (side : Side) (subs : List SubLevelDescent.RMove)
         || secondTypeStructureHolds side rest c1 divPair
 
 /-- `SecondTypeStructure` 存在性等价（机器证，L0）：`secondTypeStructureHolds` 可计算镜像
-    ⇔ 规范 `SecondTypeStructure` Prop（列表级，`∃ i1<i2 ⟺ ∃ i1≤len-2`）。这是锁 2 的正确性
-    锚点——fixture 的 `holds` 字段来自本镜像，本定理证明镜像与规范谓词**同真同假**（非手写
-    断言）；腿级等价由 `subLevelType1Holds_iff` 已证，本定理把腿级等价提升到列表级
-    （`SubLevelType1` 只约束 m1，i2 只要求存在后继取 i2=i1+1）。 -/
+    ⇔ 规范 `SecondTypeStructure` Prop（列表级，首个后继 i2=i1+1，#1289 G4 裁定 a）。这是锁 2
+    的正确性锚点——fixture 的 `holds` 字段来自本镜像，本定理证明镜像与规范谓词**同真同假**
+    （非手写断言）；腿级等价由 `subLevelType1Holds_iff` 已证，本定理把腿级等价提升到列表级
+    （`SubLevelType1` 只约束 m1，i2=i1+1 存在即后继存在）。 -/
 theorem secondTypeStructureHolds_iff (side : Side) (subs : List SubLevelDescent.RMove)
     (c1 : SubLevelDescent.RCenter) (divPair : DivergencePair) :
     secondTypeStructureHolds side subs c1 divPair = true ↔
-      ∃ (i1 i2 : Nat) (m1 m2 : SubLevelDescent.RMove),
-        i1 < i2 ∧ subs[i1]? = some m1 ∧ subs[i2]? = some m2 ∧
+      ∃ (i1 : Nat) (m1 m2 : SubLevelDescent.RMove),
+        subs[i1]? = some m1 ∧ subs[i1 + 1]? = some m2 ∧
         SubLevelDescent.SubLevelType1 side m1 c1 divPair := by
   induction subs with
   | nil =>
@@ -271,28 +270,24 @@ theorem secondTypeStructureHolds_iff (side : Side) (subs : List SubLevelDescent.
           constructor
           · intro h; cases h
           · intro h
-            rcases h with ⟨i1, i2, m1, m2, hlt, hg1, hg2, hty⟩
-            have ⟨hb1, _⟩ := (List.getElem?_eq_some_iff).1 hg1
+            rcases h with ⟨i1, m1, m2, hg1, hg2, hty⟩
             have ⟨hb2, _⟩ := (List.getElem?_eq_some_iff).1 hg2
-            simp [List.length_cons] at hb1 hb2
-            omega
+            simp at hb2
       | cons m2 rest2 =>
           simp only [secondTypeStructureHolds, Bool.or_eq_true, ih]
           rw [subLevelType1Holds_iff]
           constructor
           · intro h
             rcases h with hleft | hright
-            · refine ⟨0, 1, m, m2, ?_, ?_, ?_, hleft⟩
-              · decide
+            · refine ⟨0, m, m2, ?_, ?_, hleft⟩
               · exact List.getElem?_cons_zero
               · simp
-            · rcases hright with ⟨i1, i2, a1, a2, hlt, hg1, hg2, hty⟩
-              refine ⟨i1 + 1, i2 + 1, a1, a2, ?_, ?_, ?_, hty⟩
-              · exact Nat.succ_lt_succ hlt
+            · rcases hright with ⟨i1, a1, a2, hg1, hg2, hty⟩
+              refine ⟨i1 + 1, a1, a2, ?_, ?_, hty⟩
               · simpa [List.getElem?_cons_succ] using hg1
               · simpa [List.getElem?_cons_succ] using hg2
           · intro h
-            rcases h with ⟨i1, i2, a1, a2, hlt, hg1, hg2, hty⟩
+            rcases h with ⟨i1, a1, a2, hg1, hg2, hty⟩
             cases i1 with
             | zero =>
                 left
@@ -303,13 +298,9 @@ theorem secondTypeStructureHolds_iff (side : Side) (subs : List SubLevelDescent.
                 exact hm ▸ hty
             | succ i =>
                 right
-                cases i2 with
-                | zero => omega
-                | succ j =>
-                    refine ⟨i, j, a1, a2, ?_, ?_, ?_, hty⟩
-                    · omega
-                    · simpa [List.getElem?_cons_succ] using hg1
-                    · simpa [List.getElem?_cons_succ] using hg2
+                refine ⟨i, a1, a2, ?_, ?_, hty⟩
+                · simpa [List.getElem?_cons_succ] using hg1
+                · simpa [List.getElem?_cons_succ, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hg2
 
 /-- 列表级镜像 ⟺ 规范 `SecondTypeStructure`（对任意 parent，`descend parent` 即列表）。 -/
 theorem secondTypeStructureHolds_iff_secondTypeStructure (side : Side)
@@ -320,9 +311,94 @@ theorem secondTypeStructureHolds_iff_secondTypeStructure (side : Side)
   unfold RMoveCompose.SecondTypeStructure
   exact secondTypeStructureHolds_iff side (SubLevelDescent.descend parent) c1 divPair
 
-/-- 一条第二类走势结构向量的机器导出：腿序列 + 中枢 + 力度 + 存在性真值。 -/
+/-- `find_second_type_structure`（rmove_compose.rs :205）的 **first-match 见证镜像**（#1289 见证级
+    锁的正确性源）：在 `subs` 上找**第一个** `SubLevelType1` 的次级别走势（回拉 = 首个后继
+    i2=i1+1），返回 `(i1, m1, m2)`。末腿才 type1（无后继）⟹ none——与 rust
+    `i1+1 >= len → return None` 同形停止；不找后面的腿（first-match）。 -/
+def findSecondTypeStructureWitness (side : Side) (subs : List SubLevelDescent.RMove)
+    (c1 : SubLevelDescent.RCenter) (divPair : DivergencePair) :
+    Option (Nat × SubLevelDescent.RMove × SubLevelDescent.RMove) :=
+  match subs with
+  | [] => none
+  | [_] => none
+  | m1 :: m2 :: rest =>
+      if subLevelType1Holds side m1 c1 divPair then
+        some (0, m1, m2)
+      else
+        match findSecondTypeStructureWitness side (m2 :: rest) c1 divPair with
+        | none => none
+        | some (i, a1, a2) => some (i + 1, a1, a2)
+
+/-- 见证镜像可靠（机器证，L0，#1289）：`findSecondTypeStructureWitness` 返回的每个
+    `(i1, m1, m2)` 都是规范 `SecondTypeStructure`（首个后继 i2=i1+1）的合法见证——
+    `subs[i1]? = some m1 ∧ subs[i1+1]? = some m2 ∧ SubLevelType1 side m1 c1 divPair`。
+    fixture 的 `witness` 字段来自本镜像，本定理证明镜像产出的见证**忠实于规范谓词**
+    （非手写断言）。 -/
+theorem findSecondTypeStructureWitness_spec (side : Side) (subs : List SubLevelDescent.RMove)
+    (c1 : SubLevelDescent.RCenter) (divPair : DivergencePair) :
+    ∀ i1 m1 m2, findSecondTypeStructureWitness side subs c1 divPair = some (i1, m1, m2) →
+      subs[i1]? = some m1 ∧ subs[i1 + 1]? = some m2 ∧
+      SubLevelDescent.SubLevelType1 side m1 c1 divPair := by
+  induction subs with
+  | nil => intro i1 m1 m2 h; simp [findSecondTypeStructureWitness] at h
+  | cons m rest ih =>
+      cases rest with
+      | nil => intro i1 m1 m2 h; simp [findSecondTypeStructureWitness] at h
+      | cons m2 rest2 =>
+          intro i1 a1 a2 h
+          by_cases hty : subLevelType1Holds side m c1 divPair = true
+          · -- 首腿 type1：some (0, m, m2)
+            simp [findSecondTypeStructureWitness, hty] at h
+            rcases h with ⟨rfl, rfl, rfl⟩
+            have hty' := (subLevelType1Holds_iff side m c1 divPair).1 hty
+            constructor
+            · exact List.getElem?_cons_zero
+            · constructor
+              · simp
+              · exact hty'
+          · -- 首腿非 type1：递归 tail 的见证 +1 平移
+            have hfalse : subLevelType1Holds side m c1 divPair = false := by
+              exact Bool.eq_false_iff.2 hty
+            simp [findSecondTypeStructureWitness, hfalse] at h
+            cases hrec : findSecondTypeStructureWitness side (m2 :: rest2) c1 divPair with
+            | none => simp only [hrec] at h; cases h
+            | some w =>
+                rcases w with ⟨i, w2⟩
+                rcases w2 with ⟨b1, b2⟩
+                simp only [hrec] at h
+                have heq := Option.some.inj h
+                injection heq with hi1 heq2
+                injection heq2 with ha1 ha2
+                rw [← hi1, ← ha1, ← ha2]
+                have hspec := ih i b1 b2 hrec
+                rcases hspec with ⟨hb1, hb2, hty2⟩
+                constructor
+                · simpa [List.getElem?_cons_succ] using hb1
+                · constructor
+                  · simpa [List.getElem?_cons_succ] using hb2
+                  · exact hty2
+
+/-- 一条第二类走势结构向量的机器导出：腿序列 + 中枢 + 力度 + 存在性真值 + 见证级
+    （i1/i2/second_point/retrace_breaks_extreme，first-match，机器求值）。 -/
 def secondTypeStructureJson (name : String) (side : Side) (subs : List SubLevelDescent.RMove)
     (c1 : SubLevelDescent.RCenter) (divPair : DivergencePair) : Json :=
+  let w := findSecondTypeStructureWitness side subs c1 divPair
+  let witnessJson :=
+    match w with
+    | none => Json.mkObj [
+        ("present",               Json.bool false),
+        ("i1",                    Json.num 0),
+        ("i2",                    Json.num 0),
+        ("second_point",          Json.num 0),
+        ("retrace_breaks_extreme", Json.bool false)
+      ]
+    | some (i1, m1, m2) => Json.mkObj [
+        ("present",                Json.bool true),
+        ("i1",                     Json.num i1),
+        ("i2",                     Json.num (i1 + 1 : Nat)),
+        ("second_point",           Json.num (RMoveCompose.secondPointPrice side m2)),
+        ("retrace_breaks_extreme", Json.bool (decide (RMoveCompose.RetraceBreaksExtreme side m1 m2)))
+      ]
   Json.mkObj [
     ("name",          Json.str name),
     ("side",          Json.str (sideStr side)),
@@ -332,11 +408,13 @@ def secondTypeStructureJson (name : String) (side : Side) (subs : List SubLevelD
     ("center_gg",     Json.num c1.gg),
     ("is_divergence", Json.bool (decide (IsDivergence divPair))),
     ("legs",          Json.arr (subs.map segLegJson).toArray),
-    ("holds",         Json.bool (secondTypeStructureHolds side subs c1 divPair))
+    ("holds",         Json.bool (secondTypeStructureHolds side subs c1 divPair)),
+    ("witness",       witnessJson)
   ]
 
-/-- 第二类走势结构向量集（固定输入）：首腿破中枢背驰（有后继 ⟹ holds）/ 末腿才破中枢
-    （无后继 ⟹ 不 holds）/ 全无破中枢（不 holds）/ 力度反超（几何破中枢但非背驰 ⟹ 不 holds）。 -/
+/-- 第二类走势结构向量集（固定输入）：首腿破中枢背驰（有后继 ⟹ holds，见证 i1=0/i2=1）/
+    末腿才破中枢（无后继 ⟹ 不 holds）/ 全无破中枢（不 holds）/ 力度反超（几何破中枢但非背驰 ⟹
+    不 holds）/ 两处 type1（首腿 + 第三腿；first-match ⟹ 见证取首腿 i1=0 非 i1=2，#1289 锁）。 -/
 def secondTypeStructureVectors : List (String × Side × List SubLevelDescent.RMove ×
     SubLevelDescent.RCenter × DivergencePair) := [
   ("first_leg_type1_has_successor",
@@ -344,6 +422,14 @@ def secondTypeStructureVectors : List (String × Side × List SubLevelDescent.RM
     [ mkSeg Formal.TrendTrichotomy.Direction.down (-5) 1
     , mkSeg Formal.TrendTrichotomy.Direction.up 12 18
     , mkSeg Formal.TrendTrichotomy.Direction.down 14 17 ],
+    mkRCenter 5 10 20 25 (by decide) (by decide) (by decide),
+    mkDivPair 8 2 true),
+  ("first_match_two_type1_legs",
+    Side.long,
+    [ mkSeg Formal.TrendTrichotomy.Direction.down (-5) 1
+    , mkSeg Formal.TrendTrichotomy.Direction.up 12 18
+    , mkSeg Formal.TrendTrichotomy.Direction.down (-3) 2
+    , mkSeg Formal.TrendTrichotomy.Direction.up 13 16 ],
     mkRCenter 5 10 20 25 (by decide) (by decide) (by decide),
     mkDivPair 8 2 true),
   ("last_leg_type1_no_successor",

@@ -5,10 +5,11 @@
 //!
 //! - `IsType1`（`Origin.BspClassification` :94）↔ rust `is_type1_buy`（`closed_loop/buy.rs` :112）；
 //! - `IsType3Buy`（:100，含 `firstRetrace` 必要条件）↔ rust `is_type3_buy`（buy.rs :120）；
-//! - `SecondTypeStructure`（`Origin.RMoveCompose` :233，∃i1<i2 存在性）↔ rust
-//!   `find_second_type_structure`（rmove_compose.rs :175，首个后继 i2=i1+1）的 `.is_some()`
-//!   存在性——两者在存在性上等价（`SubLevelType1` 只约束 m1，`∃ i1<i2` ⟺ `∃ i1 ≤ len-2`）。
-//!   见证级（i1/i2/second_point）对拍归 #1289（本票只登记索引）。
+//! - `SecondTypeStructure`（`Origin.RMoveCompose` :233，#1289 G4 裁定 a 后 = 首个后继
+//!   i2=i1+1）↔ rust `find_second_type_structure`（rmove_compose.rs :205，首个后继 i2=i1+1）：
+//!   存在性（`.is_some()` ⇔ Lean 镜像 `secondTypeStructureHolds`，#1294 F-8）+ **见证级**
+//!   （i1/i2/second_point/retrace_breaks_extreme ⇔ Lean first-match 见证镜像
+//!   `findSecondTypeStructureWitness`，#1289 补——同输入同见证点）。
 //!
 //! ## 机器耦合（631 铁律，非手填）
 //!
@@ -25,7 +26,9 @@
 //! - `type3_buy_not_first_retrace`：§10.3 第三类必须第一次回抽（firstRetrace 必要条件反例）。
 //! - `type3_buy_reenter_zg`：回抽回到 ZG（retrace==zg）——`type3Buy_rejects_reenter` 反例。
 //! - `last_leg_type1_no_successor`：唯一破中枢背驰腿在末位（无后继）——「首个后继」存在性边界，
-//!   锁定 `∃ i1<i2` 与 Rust `i1+1 < len` 在存在性上同真同假。
+//!   锁定 `∃ i1`（首个后继 i2=i1+1 存在）与 Rust `i1+1 < len` 在存在性上同真同假。
+//! - `first_match_two_type1_legs`：首腿与第三腿都是 type1——锁定 **first-match**（见证取 i1=0 非
+//!   i1=2），#1289 G4 裁定 a 的「首个后继」见证级锁。
 //!
 //! ## 认识论等级（formalization-validity-domain 231号）
 //!
@@ -75,7 +78,7 @@ struct Leg {
     hi: Tick,
 }
 
-/// 一条第二类走势结构向量（腿序列 + 中枢 + 力度 + 存在性真值）。
+/// 一条第二类走势结构向量（腿序列 + 中枢 + 力度 + 存在性真值 + 见证级）。
 #[derive(Deserialize)]
 struct SecondTypeStructureVector {
     name: String,
@@ -87,6 +90,17 @@ struct SecondTypeStructureVector {
     is_divergence: bool,
     legs: Vec<Leg>,
     holds: bool,
+    witness: SecondTypeStructureWitness,
+}
+
+/// Lean first-match 见证镜像 `findSecondTypeStructureWitness` 的机器导出（#1289 见证级锁）。
+#[derive(Deserialize)]
+struct SecondTypeStructureWitness {
+    present: bool,
+    i1: usize,
+    i2: usize,
+    second_point: Tick,
+    retrace_breaks_extreme: bool,
 }
 
 fn load_fixture() -> ParityFixture {
@@ -183,8 +197,8 @@ fn lean_is_type3_buy_first_retrace_vectors_bit_exact() {
 }
 
 /// SecondTypeStructure 存在性：rust `find_second_type_structure(...).is_some()` == Lean
-/// 可计算判定镜像 `secondTypeStructureHolds`（= `SecondTypeStructure` 存在性，∃i1<i2 ⟺
-/// ∃i1≤len-2）。
+/// 可计算判定镜像 `secondTypeStructureHolds`（= `SecondTypeStructure` 存在性，首个后继
+/// i2=i1+1，#1289 G4 裁定 a）。
 #[test]
 fn lean_second_type_structure_existence_bit_exact() {
     let fx = load_fixture();
@@ -200,5 +214,44 @@ fn lean_second_type_structure_existence_bit_exact() {
             "{}: rust find_second_type_structure.is_some() == Lean SecondTypeStructure 存在性（bit-exact）",
             v.name
         );
+    }
+}
+
+/// SecondTypeStructure 见证级（#1289 G4 裁定 a）：rust `find_second_type_structure` 返回的
+/// `(i1, i2=i1+1, second_point, retrace_breaks_extreme)` == Lean first-match 见证镜像
+/// `findSecondTypeStructureWitness` 逐位比对（同输入同见证点；first-match 由
+/// `first_match_two_type1_legs` 锁定）。
+#[test]
+fn lean_second_type_structure_witness_bit_exact() {
+    let fx = load_fixture();
+    for v in &fx.bsp_predicates.second_type_structures {
+        let parent = v.to_parent();
+        let side = side_from_lean(&v.side);
+        let center = v.center();
+        let is_divergence = v.is_divergence;
+        let rust = find_second_type_structure(&parent, side, |_m| center, |_m| is_divergence);
+        let w = &v.witness;
+        match rust {
+            None => assert!(
+                !w.present,
+                "{}: rust None == Lean witness.present=false",
+                v.name
+            ),
+            Some(s) => {
+                assert!(
+                    w.present,
+                    "{}: rust Some == Lean witness.present=true",
+                    v.name
+                );
+                assert_eq!(s.i1, w.i1, "{}: i1（first-match）", v.name);
+                assert_eq!(s.i2, w.i2, "{}: i2=i1+1（首个后继）", v.name);
+                assert_eq!(s.second_point, w.second_point, "{}: second_point", v.name);
+                assert_eq!(
+                    s.retrace_breaks_extreme, w.retrace_breaks_extreme,
+                    "{}: retrace_breaks_extreme（重合标注）",
+                    v.name
+                );
+            }
+        }
     }
 }
