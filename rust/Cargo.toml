@@ -156,6 +156,13 @@ name = "theta_replay"
 path = "src/bin/theta_replay.rs"
 required-features = ["backtest_bin"]
 
+# #1308 第二批：生产路径历史回放验收报告器（theta_replay + theta_pi_diff 一键组装 + 多品种
+#   批跑汇总，对接 #1279 检查单 B 组）。use theta_v0::backtest（cfg 门控）⟹ required-features。
+[[bin]]
+name = "theta_accept"
+path = "src/bin/theta_accept.rs"
+required-features = ["backtest_bin"]
+
 [[bin]]
 name = "p856_ed_dominance"
 path = "src/bin/p856_ed_dominance.rs"

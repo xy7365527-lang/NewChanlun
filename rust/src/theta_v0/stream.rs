@@ -136,9 +136,10 @@ impl ThetaPiStream {
         let weights = PiThetaWeights::from_risk(&self.config.risk);
         let gate = KThetaRiskGate::open(); // 无保证金 ⟹ 𝒦_Θ=[−cap,+cap] 全开
         let forest_epoch = self.classifier.forest_epoch();
-        // #1306 对拍观测（#[cfg(test)] sink；未激活 ⟹ 零成本，生产/非测试构建不编译本行）。
+        // #1306 对拍观测（sink 未激活 ⟹ 仅一次 thread_local 布尔检查；默认 cdylib 构建不编译）。
         // 只录**可交易决策 bar**（与批量 fill loop `classify_at` 只对可交易 bar 调用同口径）。
-        #[cfg(test)]
+        // #1308 门控扩为 backtest_bin feature（验收报告器 bin 复用信号面捕获）。
+        #[cfg(any(test, feature = "backtest_bin"))]
         signal_capture::record(
             &classification,
             &tower,
@@ -324,12 +325,13 @@ fn newly_confirmed_step(
     }
 }
 
-/// #1306 对拍观测：流式侧信号面逐 bar sink（`#[cfg(test)]`）。
+/// #1306 对拍观测：流式侧信号面逐 bar sink。
 ///
-/// 与 [`crate::theta_v0::backtest::diff_capture`] 同型：thread_local 测试专用，非测试构建不编译、
-/// 生产流式路径零成本零 Rc 持有（分类/塔的 `Rc` 快照只在本 sink 激活时克隆，逐 bar 随即随
-/// 观测序列持有——不回流、不影响 `Rc::make_mut` 的原地尾追加路径）。
-#[cfg(test)]
+/// 与 [`crate::theta_v0::backtest::diff_capture`] 同型：thread_local 观测 sink，非测试/非
+/// backtest_bin 构建不编译、生产流式路径零成本零 Rc 持有（分类/塔的 `Rc` 快照只在本 sink
+/// 激活时克隆，逐 bar 随即随观测序列持有——不回流、不影响 `Rc::make_mut` 的原地尾追加路径）。
+/// #1308 门控扩为 backtest_bin feature（验收报告器 bin 复用信号面捕获）。
+#[cfg(any(test, feature = "backtest_bin"))]
 pub(crate) mod signal_capture {
     use super::super::classifier::recursive_tower::LeveledMove;
     use super::super::classifier::Classification;

@@ -36,12 +36,20 @@ FLOOR = LADDER_SEG
 
 
 def pack_tape(tape, dir_flips: list | None = None,
+              run_high: list | None = None,
               trend_flips: list | None = None,
-              turn_class: list | None = None) -> "nr.OrganicTape":
+              turn_class: list | None = None,
+              xzd_second: list | None = None) -> "nr.OrganicTape":
     """BarSignalI 列表 → 列式数组 → Rust OrganicTape（一次 marshal）。
+
+    磁带 v3 schema（#1308 第二批）：v2 缺失的四个新列在此处补全——run_high /
+    trend_flips / turn_class / xzd_second。全部 None 缺省 ⟹ 旧 v2 调用方（89 处
+    `pack_tape(tape, dir_flips=...)`）零改动、消费面逐位不变（双写兼容 v2）。
 
     dir_flips：v2 D3 稀疏方向行（compute_organic_signals 收集器产出），
     None = 不传（O0/V3p 不需要；REV 变体在 Rust 侧被 capability guard 拒绝）。
+    run_high：v3 D3 run 高点行（密集 n×MAX_LADDER 展平，FatigueGate 路径(1)
+    依赖）。当前信号层不产出 ⟹ None = 不传（rev_gate 变体被 capability guard 拒绝）。
     trend_flips：趋势态行（38课循环 voice；rev_cycle=Cycle38 的 capability
     依赖），None = 不传（非循环变体零接触）。
     turn_class：#1208 ①件 turn_class 生产桥投影行（θ 生产回测产出的
@@ -49,6 +57,9 @@ def pack_tape(tape, dir_flips: list | None = None,
     (third_src, second_class, turn_extreme) 三元组，仅 XiaozhuandaCandidate
     非 None）。None = 不传（零行为变化——Rust 侧 SignalTape.turn_class_rows
     capability guard 全零）。
+    xzd_second：#1208 ②件 xzd_second 候选事件行（(bar, ladder, side,
+    pan_div_hit, turn_extreme)，bar 升序；side "sell"/"buy"）。None = 不传
+    （零行为变化——Rust 侧 SignalTape.xzd_second_candidates capability guard 全零）。
     """
     n = len(tape)
     closes = [s.close for s in tape]
@@ -86,8 +97,8 @@ def pack_tape(tape, dir_flips: list | None = None,
           flush=True)
     return nr.OrganicTape.from_columns(
         closes, buy1, sell1, sell_any, buy_any, up_settled, max_ladder, type2,
-        bsp_flat, div_flat, dir_flips=dir_flips, trend_flips=trend_flips,
-        turn_class=turn_class)
+        bsp_flat, div_flat, dir_flips=dir_flips, run_high=run_high,
+        trend_flips=trend_flips, turn_class=turn_class, xzd_second=xzd_second)
 
 
 def check_symbol(symbol: str) -> None:

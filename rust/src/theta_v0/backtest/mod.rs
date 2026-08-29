@@ -130,10 +130,19 @@ mod issue837_probe;
 #[cfg(test)]
 mod issue841_probe;
 
-/// #1306 对拍 harness v1：批量 fill loop 的逐 bar 只读观测 sink（thread_local，测试专用）。
-#[cfg(test)]
+/// #1306 对拍 harness v1：批量 fill loop 的逐 bar 只读观测 sink（thread_local）。
+/// `#[cfg(test)]` 门控扩为 `any(test, feature = "backtest_bin")`（#1308 验收报告器 bin 复用——
+/// 未激活 sink 时仅一次 thread_local 布尔检查，默认 cdylib 构建仍不编译）。
+#[cfg(any(test, feature = "backtest_bin"))]
 mod diff_capture;
 
 /// #1306 对拍 harness v1：回放（stream）vs 批量（fill loop）三面 diff + 预期差机械清单。
-#[cfg(test)]
-mod theta_pi_diff;
+/// #1308 第二批：核心对拍引擎（`run_batch`/`run_stream`/`diff`/`DiffReport`）升级为公开 API
+/// 供一键验收命令 `theta_accept` 复用（不再只是 `#[cfg(test)]` 单测）。
+#[cfg(any(test, feature = "backtest_bin"))]
+pub mod theta_pi_diff;
+
+/// #1308 第二批：回放 driver 核心（从 `theta_replay` bin 抽出的可复用半边——排序 dump +
+/// env 钉死 + 同输入双跑逐位自检），供 `theta_accept` 与 `theta_replay` 共用同一份回放物证。
+#[cfg(any(test, feature = "backtest_bin"))]
+pub mod replay_dump;

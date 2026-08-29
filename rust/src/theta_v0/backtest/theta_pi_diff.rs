@@ -39,14 +39,20 @@
 use std::fmt;
 use std::rc::Rc;
 
-use super::super::classifier::recursive_tower::ElementId;
-use super::super::classifier::Classification;
 use super::super::config::ThetaConfig;
-use super::super::strategy::coverage::{KThetaRiskGate, SepLeg, Vertical};
+use super::super::strategy::coverage::{KThetaRiskGate, SepLeg};
 use super::super::strategy::ledger::TwState;
 use super::super::strategy::level_ledger::{LevelLedgerMirror, LevelLedgerStep};
 use super::super::strategy::overlay_state::OverlayState;
 use super::super::strategy::persistent::PersistentRegistry;
+// 以下四类仅 `#[cfg(test)]` 测试构造用（backtest_bin 非测试构建下保持零新增 warning）。
+#[cfg(test)]
+use super::super::classifier::recursive_tower::ElementId;
+#[cfg(test)]
+use super::super::classifier::Classification;
+#[cfg(test)]
+use super::super::strategy::coverage::Vertical;
+#[cfg(test)]
 use super::super::strategy::voice::VoiceSide;
 use super::super::stream::signal_capture::{self, SignalObs};
 use super::super::stream::ThetaPiStream;
@@ -61,7 +67,9 @@ use super::runner::pi_theta_fill_loop_overlay;
 // ──────────────────────────────────────────────────────────────────────────────
 
 /// 批量侧整窗捕获 + 终态账本。
-struct BatchSide {
+///
+/// #1308 公开：`theta_accept` bin 把它当不透明句柄传给 [`run_stream`]/[`diff`]，字段不暴露。
+pub struct BatchSide {
     cap: BatchCapture,
     signals: Vec<SignalObs>,
     level_ledger: LevelLedgerMirror,
@@ -78,7 +86,9 @@ struct StreamBarObs {
 }
 
 /// 流式侧整窗捕获 + 终态。
-struct StreamSide {
+///
+/// #1308 公开：`theta_accept` bin 把它当不透明句柄传给 [`diff`]，字段不暴露。
+pub struct StreamSide {
     bars: Vec<StreamBarObs>,
     signals: Vec<SignalObs>,
     registry: PersistentRegistry,
@@ -147,8 +157,11 @@ struct Finding {
 }
 
 /// 对拍报告：预期内差异计数 + 预期外差异（回归告警）。
+///
+/// #1308 公开：`theta_accept` bin 用 [`Display`](fmt::Display) 打报告正文，用访问器取
+/// PASS/FAIL 判据（`n_unexpected()==0 ⟺ 无回归`）。
 #[derive(Debug, Default)]
-struct DiffReport {
+pub struct DiffReport {
     n_bars: usize,
     findings: Vec<Finding>,
 }
@@ -163,14 +176,21 @@ impl DiffReport {
         });
     }
 
-    fn n_expected(&self) -> usize {
+    /// 回放过的可交易决策 bar 数（对拍窗口）。
+    pub fn n_bars(&self) -> usize {
+        self.n_bars
+    }
+
+    /// 预期内差异计数（预期差机械清单命中的差异）。
+    pub fn n_expected(&self) -> usize {
         self.findings
             .iter()
             .filter(|f| matches!(f.cause, Cause::Expected(_)))
             .count()
     }
 
-    fn n_unexpected(&self) -> usize {
+    /// 预期外差异计数（预期差清单未覆盖的差异 = 回归告警）。
+    pub fn n_unexpected(&self) -> usize {
         self.findings
             .iter()
             .filter(|f| matches!(f.cause, Cause::Unexpected(_)))
@@ -178,7 +198,7 @@ impl DiffReport {
     }
 
     /// 信号面差异数（信号面是共核铁锁：应恒 0）。
-    fn n_signal_diffs(&self) -> usize {
+    pub fn n_signal_diffs(&self) -> usize {
         self.findings
             .iter()
             .filter(|f| f.surface == Surface::Signal)
@@ -252,8 +272,10 @@ impl fmt::Display for DiffReport {
 
 /// 跑批量侧（overlay 臂，χ≡1，voice_exec=None）：`classify_at` 闭包逐 bar 外化信号面，
 /// [`diff_capture`] sink 逐 bar 外化状态/账本面。
-fn run_batch(bars: &[Bar], config: &ThetaConfig) -> BatchSide {
-    let initial_nav = 1.0e6;
+///
+/// `initial_nav` 由调用方显式传入（#1308：验收报告器用与回放 driver 同口径的
+/// `max(first_px×10_000, 1e6)`，保证对拍与回放在同一账户尺度上）。
+pub fn run_batch(bars: &[Bar], config: &ThetaConfig, initial_nav: f64) -> BatchSide {
     let mut classifier_incr = IncrementalClassifier::new(bars, config);
     let mut signals: Vec<SignalObs> = Vec::new();
     let mut overlay = OverlayState::new();
@@ -301,7 +323,7 @@ fn run_batch(bars: &[Bar], config: &ThetaConfig) -> BatchSide {
 }
 
 /// 跑流式侧：逐 bar 喂批量侧同源的 `p_t`/`equity_nav`，采集三面。
-fn run_stream(bars: &[Bar], config: &ThetaConfig, batch: &BatchSide) -> StreamSide {
+pub fn run_stream(bars: &[Bar], config: &ThetaConfig, batch: &BatchSide) -> StreamSide {
     let mut stream = ThetaPiStream::new(config.clone());
     signal_capture::start();
     let mut out = Vec::with_capacity(batch.cap.bars.len());
@@ -347,7 +369,7 @@ fn batch_triggers(obs: &BatchBarObs) -> Vec<ExpectedRule> {
 }
 
 /// 三面对拍。
-fn diff(batch: &BatchSide, stream: &StreamSide) -> DiffReport {
+pub fn diff(batch: &BatchSide, stream: &StreamSide) -> DiffReport {
     let n = batch.cap.bars.len().min(stream.bars.len());
     let mut report = DiffReport {
         n_bars: n,
@@ -515,6 +537,7 @@ fn diff(batch: &BatchSide, stream: &StreamSide) -> DiffReport {
 //  合成数据 + 测试
 // ──────────────────────────────────────────────────────────────────────────────
 
+#[cfg(test)]
 /// 确定性合成锯齿行情（全可交易，无 untradable bar）。
 ///
 /// 沿用 `runner_tests.rs` 的 4 升/4 降步进形态（open=high=low=close，step 递变）——该形态
@@ -547,8 +570,9 @@ fn synthetic_bars() -> Vec<Bar> {
         .collect()
 }
 
+#[cfg(test)]
 fn run_pair(bars: &[Bar], config: &ThetaConfig) -> (BatchSide, StreamSide) {
-    let batch = run_batch(bars, config);
+    let batch = run_batch(bars, config, 1.0e6);
     let stream = run_stream(bars, config, &batch);
     (batch, stream)
 }
