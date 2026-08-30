@@ -1724,6 +1724,11 @@ mod fsm_symmetry_tests {
         b
     }
 
+    fn buy_any(mut b: crate::trading::tape::BarSig, lad: usize) -> crate::trading::tape::BarSig {
+        b.buy_any = LadderMask(b.buy_any.0 | (1 << lad));
+        b
+    }
+
     /// 满足 `has_bsp_events` 能力守卫的空事件行（master 分派只看布尔掩码，
     /// bsp_events 仅供 CenterBook 消费）。
     fn with_bsp(mut b: crate::trading::tape::BarSig) -> crate::trading::tape::BarSig {
@@ -1820,12 +1825,14 @@ mod fsm_symmetry_tests {
     }
 
     /// 卖出对称单测：ARMED_SHORT 被 buy1@布防层撤防（ARMED 被 sell1 撤防的
-    /// 镜像）——无 trade。
+    /// 镜像）——撤防后残留布防被清除，次级别卖确认不再开空（撤防 = 该卖点
+    /// 起始的走势类型已被宣告结束，后续 sell_any 需新 sell1 重新布防）。
     #[test]
     fn perp_short_arm_disarms_on_buy1() {
         let bars = vec![
             with_bsp(sell1(bar(100.0), 3)),
             buy1(bar(100.0), 3),
+            sell_any(bar(100.0), 2),
             bar(100.0),
         ];
         let t = SignalTape {
@@ -1833,7 +1840,7 @@ mod fsm_symmetry_tests {
             ..Default::default()
         };
         let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
-        assert_eq!(r.trades.len(), 0, "撤防不开空");
+        assert_eq!(r.trades.len(), 0, "撤防后 sell_any 不再开空");
     }
 
     /// 卖出对称单测：次级别卖确认不来 → SUB_EXPIRY 超时强制开空（long 侧
@@ -1892,12 +1899,15 @@ mod fsm_symmetry_tests {
         assert_eq!(r.trades.len(), 0, "Stock 在册路径零短侧行为");
     }
 
-    /// 同 bar 买卖点并现：long 布防优先（保守先例），短侧不接管。
+    /// 同 bar 买卖点并现：long 布防优先（保守先例），短侧不接管——次级别买
+    /// 确认走 long 臂开多、sell1 出场产生长侧 trade（若短侧接管，buy_any
+    /// 不触发短侧、无 sell_any 确认，则无 trade 或只可能走 short_* 出场）。
     #[test]
     fn perp_long_arm_priority_over_short_when_both_present() {
         let bars = vec![
             with_bsp(buy1(sell1(bar(100.0), 3), 3)),
-            bar(100.0),
+            buy_any(bar(100.0), 2),
+            sell1(bar(100.0), 3),
             bar(100.0),
         ];
         let t = SignalTape {
@@ -1905,11 +1915,10 @@ mod fsm_symmetry_tests {
             ..Default::default()
         };
         let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
-        // long 布防后无次级别买确认且无 sell1 撤防 → 超时 fallback 开多。
+        assert_eq!(r.trades.len(), 1, "同 bar 并现 long 布防优先，短侧不接管");
         assert_eq!(
-            r.trades.len(),
-            0,
-            "本磁带 3 bar 内未超时也未确认 → 无 trade"
+            r.trades[0].exit_reason, "exit_move(L1)_type1sell",
+            "长侧 buy1 布防→次级别买确认→sell1 出场的完整循环（短侧接管则无此出场）"
         );
     }
 }

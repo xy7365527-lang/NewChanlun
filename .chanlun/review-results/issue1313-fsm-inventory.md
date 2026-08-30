@@ -135,11 +135,11 @@ FSM，登记为消费方不列为状态机。
 ### 3.2 MECE 判定
 
 - **互斥**：`state` 为 5 个两两不同的 u8 常量（0..=4），`state_name`（runner.rs 测试模块）
-  域外显式拒绝。锁：`fsm_symmetry_tests::master_fsm_five_states_partition`（runner.rs:1760）。
+  域外显式拒绝。锁：`fsm_symmetry_tests::master_fsm_five_states_partition`（runner.rs:1765）。
 - **完备**：主循环 `if FLAT / else if ARMED / else if ARMED_SHORT / else if SHORT / else LONG`
   为五态全分派（无遗漏）；`MarketMode` 穷举 match（Stock/Perp）编译强制表态。
 - **零接触守卫**：`Stock` 模式短侧不可达（`perp` 门）——锁：
-  `fsm_symmetry_tests::stock_mode_never_arms_short`（runner.rs:1873）。
+  `fsm_symmetry_tests::stock_mode_never_arms_short`（runner.rs:1887）。
 
 ## 4. CenterBook 每中枢生命周期
 
@@ -188,9 +188,9 @@ FSM，登记为消费方不列为状态机。
 | # | 判据 | 锁位置（测试名，file:line） | 形态 | 历史分歧/缺口来源 |
 |---|---|---|---|---|
 | M1 | LayerState 七态互斥（状态穷尽） | `trading::positional::tests::layer_state_seven_variants_mutually_exclusive`（positional.rs:1789） | 判别式 match 编译锁 + HashSet 基数断言 | 票面「引擎间状态空间不同构」（89da391d1d 已收敛，本锁钉死基数 7） |
-| M2 | runner master 五态互斥 + 域外拒绝 | `trading::runner::fsm_symmetry_tests::master_fsm_five_states_partition`（runner.rs:1760） | u8 常量域 + state_name 断言 | 票面「runner FLAT/ARMED/LONG 无短侧」缺口 |
-| M3 | 短侧卖出对称（布防/确认/平空/eod/撤防/盈亏方向） | `perp_short_arm_confirm_cover_cycle_positive_pnl`（:1775）/ `perp_short_loss_when_price_rises`（:1802）/ `perp_short_arm_disarms_on_buy1`（:1825）/ `perp_short_timeout_force_entry`（:1838）/ `perp_short_eod_close_at_last_close`（:1854）/ `perp_long_arm_priority_over_short_when_both_present`（:1890） | 合成 tape 驱动生产路径断言（非 `#[ignore]`） | #1313 ③列方向对称化 |
-| M4 | Stock 零接触守卫（O0≡P5） | `stock_mode_never_arms_short`（runner.rs:1873） | 合成 tape + Stock 模式断言零 trade | 在册 parity 承重面（O0≡P5） |
+| M2 | runner master 五态互斥 + 域外拒绝 | `trading::runner::fsm_symmetry_tests::master_fsm_five_states_partition`（runner.rs:1765） | u8 常量域 + state_name 断言 | 票面「runner FLAT/ARMED/LONG 无短侧」缺口 |
+| M3 | 短侧卖出对称（布防/确认/平空/eod/撤防/盈亏方向） | `perp_short_arm_confirm_cover_cycle_positive_pnl`（:1780）/ `perp_short_loss_when_price_rises`（:1807）/ `perp_short_arm_disarms_on_buy1`（:1831）/ `perp_short_timeout_force_entry`（:1849）/ `perp_short_eod_close_at_last_close`（:1868）/ `perp_long_arm_priority_over_short_when_both_present`（:1906） | 合成 tape 驱动生产路径断言（非 `#[ignore]`） | #1313 ③列方向对称化 |
+| M4 | Stock 零接触守卫（O0≡P5） | `stock_mode_never_arms_short`（runner.rs:1887） | 合成 tape + Stock 模式断言零 trade | 在册 parity 承重面（O0≡P5） |
 | M5 | CenterBook 每中枢生命周期分类锁 | `center_lifecycle_mece_classification_lock`（center_book.rs:692） | 全链转移驱动 + alive/dead/dead_down/frozen 分类互斥断言 | 票面「CenterBook 生命周期」盘点项 |
 | M6 | VoiceStatus 三态互斥 + 转移覆盖 + 终态单向 | `voice_status_three_variants_mutually_exclusive`（voice.rs:217）/ `voice_status_transition_coverage_lock`（voice.rs:230） | 判别式 + 转移驱动断言 | 票面「spiral 各版」盘点项 |
 
