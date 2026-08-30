@@ -11,10 +11,17 @@ join 到驱动侧 closes 上。两侧 bar 序列来自同一份 1min json，但*
 | dump（门列） | `analysis/_dump_tape_rust.py:69-86` `load_ohlc_with_ts` | 剔 nan **另剔任一 OHLC ≤0** 的 bar | `range(len(closes))` |
 
 ⇒ **同一份文件内容下，dump 侧的剔除集是驱动侧的超集，门列 bar 数不可能多于驱动**。
-#1314 实测 DX 门列 n=2,058,424 > 驱动 closes=2,058,418（多 6 根），故该多出 6 根**不可能**
-由清洗口径差解释——只能是两侧读到的不是同一份文件内容（磁带/门列的 vintage 与当前 json
-不同），或 json 各数组长度不齐（驱动侧 `zip` 截尾、dump 侧不截）。本脚本把这两类都验掉：
-逐 bar 时间戳比对，给出多出的 bar 落在**头部 / 尾部 / 内部**的定论与具体时间戳。
+
+- #1314 实测 DX 门列 n=2,058,424 > 驱动 closes=2,058,418（多 6 根），故该多出 6 根
+  **不可能**由清洗口径差解释——只能是两侧读到的不是同一份文件内容（磁带/门列的
+  vintage 与当前 json 不同），或 json 各数组长度不齐（驱动 `zip` 截尾、dump 不截）。
+- #1315 实测（重落磁带后）DX 门列 n=2,058,416 < 驱动 2,058,418（**少 2 根**），方向与
+  上式一致 ⇒ 少的这 2 根应恰是 dump 因 OHLC ≤0 多剔的 bar。本脚本逐根核到 ts 一级
+  （`driver_excess_is_nonpositive_only`）：核上 = 口径差的正常形态（走 #1315 重建臂）；
+  核不上 = 门列过期/不同源（重跑 dump）。
+
+本脚本把上述各类都验掉：逐 bar 时间戳比对，给出差在**头部 / 尾部 / 内部**的定论与具体
+时间戳。
 
 ## 口径复刻声明（防判据分叉）
 
@@ -291,7 +298,28 @@ def diagnose(sym: str) -> dict:
         rep = align_report(gate_ts, driver_ts)
         rep["ts_sidecar_n_matches_gate_n"] = len(gate_ts) == header["n"]
         out["align"] = rep
+    out["driver_excess_is_nonpositive_only"] = _nonpositive_only(
+        out, d_kept, p_kept, d_in, header
+    )
     return out
+
+
+def _nonpositive_only(out: dict, d_kept, p_kept, d_in, header) -> bool:
+    """门列少的那几根是否**恰好**是 dump 因 OHLC ≤0 多剔的 bar（#1315 DX 形态）。
+
+    成立 ⇒ 非 vintage 问题，是两侧清洗口径差的正常形态，走 `load_state_gate` 的口径差
+    重建臂（驱动 bar 空间为坐标系，被剔的 bar fail-closed）；不成立 ⇒ 磁带/门列过期或
+    不同源，重跑 dump。三条同时成立才判 True：①门列 n == dump 口径保留数；②逐 bar ts
+    比对给出 `DRIVER_SUPERSET`（门列是驱动的真子序列）；③驱动独有的 ts 集合 == 被 ≤0
+    剔掉的那几根的 ts 集合。缺 ts 边车/无 dates ⇒ 一律 False（不拿数目相等冒充逐根相等）。
+    """
+    if p_kept is None or header["n"] != len(p_kept) or len(p_kept) >= len(d_kept):
+        return False
+    a = out.get("align") or {}
+    if a.get("verdict") != "DRIVER_SUPERSET" or d_in is None:
+        return False
+    dropped_ts = {to_epoch(d_in[i]) for i in (set(d_kept) - set(p_kept))}
+    return set(a.get("driver_only") or []) == dropped_ts
 
 
 def format_report(d: dict) -> str:
@@ -358,13 +386,25 @@ def format_report(d: dict) -> str:
     if a.get("driver_only"):
         L.append(f"    驱动独有（门列缺）{len(a['driver_only'])} 根，前 5（本地时刻）："
                  f"{[_fmt_ts(t) for t in a['driver_only'][:5]]}")
+    if d.get("driver_excess_is_nonpositive_only"):
+        # #1315 DX 形态：门列少的正是 ≤0 那几根 ⇒ 口径差的**正常**形态，非过期。
+        L.append(
+            "  → 处置：门列少的这几根**正是** dump 因 OHLC ≤0 多剔的 bar（逐根 ts 对上）"
+            "——两侧同源、只差这一条清洗口径，非磁带过期。驱动侧把 opens/highs/lows 一并"
+            "传给 `gate_state_columns.load_state_gate` 即走口径差重建臂（#1315 裁定：以"
+            "驱动 bar 空间为坐标系，这几根无门读数 ⇒ fail-closed 拒进场）。"
+        )
+        return "\n".join(L)
     L.append("  → 处置：" + {
         "EQUAL": "已对齐，无需处置。",
         "HEAD_EXCESS": "截头对齐（`gate_state_columns._align_start` 尾锚臂自动处理）。",
         "TAIL_EXCESS": "截尾对齐（`gate_state_columns._align_start` 首锚臂自动处理）。",
         "INTERIOR_EXCESS": "下标 join 不可救——修 dump 口径后重落磁带与门列。",
         "MIXED_EXCESS": "下标 join 不可救——修 dump 口径后重落磁带与门列。",
-        "DRIVER_SUPERSET": "门列过期，重跑 dump。",
+        "DRIVER_SUPERSET": (
+            "门列比驱动少 bar，但少的**不是**（或核不出是）dump 因 ≤0 多剔的那几根"
+            "——门列过期/不同源，重跑 dump。"
+        ),
         "NOT_NESTED": "两侧不同源/不同 vintage，重跑 dump。",
     }.get(a["verdict"], "未知 verdict。"))
     return "\n".join(L)

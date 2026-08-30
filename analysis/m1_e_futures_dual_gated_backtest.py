@@ -22,6 +22,11 @@
 状态闸是 H 的操作面门控，不是新判据（#1267 结构判据版 41课门本就在生产册）。
 fatigue 为可选配置臂（`--fatigue`），默认关；列不可用时开臂即 fail-fast。
 
+门列/驱动 bar 对齐（#1314 / #1315）：两侧清洗口径不同（dump 另剔 OHLC ≤0）⇒ DX 门列比
+驱动少 2 根。裁定以**驱动 bar 空间**为坐标系（预注册冻结、与第一轮可比），门列按"四价
+全正"逐位映射回驱动下标；被 dump 剔掉的 bar 无门读数 ⇒ fail-closed 拒进场（不代理）。
+判据、窗口、信号层一字不动——对齐只影响门读数往哪根 bar 上落。
+
 ## 本票正确性口径
 
 「正确」= 忠实执行预注册，不是「实验必须过」。第二轮过与不过都是有效结论，原样报。
@@ -115,7 +120,10 @@ def gate_sanity(
 
     ①硬断言：门控后每笔进场 bar 的对应 unexhausted 列必须为 false（门真的在拦）；
     ②抽验：最长连续 unexhausted 区间（= 已知趋势延续段）内逆势进场数必须为 0；
-    ③拦截量：第一轮（无门）进场中落在 unexhausted 区间、被本轮拒掉的笔数。
+    ③拦截量：第一轮（无门）进场中落在 unexhausted 区间、被本轮拒掉的笔数——口径差
+      重建臂下，无门读数 bar 的 fail-closed 填充值也落在这个计数里（#1315：那几根
+      同样拒进场，但理由是「无读数」而非门读数；根数见 `gate_open_rates` 的
+      `no_reading_bars` 单列读数）。
     """
     for t in short_trades:
         if gate.up_unexhausted[t.entry_bar]:
@@ -166,7 +174,11 @@ def run_symbol(symbol: str, use_fatigue: bool = False) -> tuple[str, dict]:
     opens, highs, lows, closes = load_ohlc(path)
     n = len(closes)
     bh = (closes[-1] - closes[0]) / closes[0] * 100
-    gate = G.load_state_gate(symbol, closes, use_fatigue=use_fatigue)
+    # opens/highs/lows 一并传入：门列少 bar 时（DX——dump 另剔 OHLC ≤0）走口径差重建
+    # 臂，四价单看 closes 判不出某根是否因 open/high/low ≤0 被 dump 剔掉（#1315）。
+    gate = G.load_state_gate(
+        symbol, closes, opens=opens, highs=highs, lows=lows, use_fatigue=use_fatigue,
+    )
 
     # ── E 信号（唯一 O(N²) 计算，门控/无门共享）──
     t0 = time.time()
@@ -289,6 +301,35 @@ def _round1() -> dict:
         return {}
 
 
+def _no_reading_note(results: dict[str, dict], symbols: list[str]) -> str:
+    """无门读数 bar（#1315 口径差重建臂）的单列记档行。
+
+    `no_reading_bars` 缺键 ⇒ 该标的的归档 JSON 出自 #1315 之前的跑批（resume 直接复用，
+    不重算）——**缺键不是 0**：0 是"门列与驱动 bar 集逐根一致"这句有证据的断言，缺键
+    只是没这条读数。故缺键的标的单独点名，不并进"全为 0"里（与 `gate_open_rates` 把
+    填充值单列同一条纪律）。
+    """
+    rates = [(s, results[s]["gate_sanity"]["gate_open_rates"]) for s in symbols]
+    hit = [f"{s} {r['no_reading_bars']} 根" for s, r in rates if r.get("no_reading_bars")]
+    unknown = [s for s, r in rates if "no_reading_bars" not in r]
+    n_zero = len(symbols) - len(hit) - len(unknown)
+    if hit:
+        head = "；".join(hit)
+    elif not unknown:
+        head = f"{n_zero} 标的全为 0（门列与驱动 bar 集逐根一致）"
+    else:
+        head = f"有读数的 {n_zero} 标的全为 0"
+    tail = (
+        f"另 {'、'.join(unknown)} 的归档 JSON 无此读数（档出自 #1315 之前的跑批，"
+        "resume 未重算）——删档重跑该标的即有，不按 0 记。" if unknown else ""
+    )
+    return (
+        "\n> 无门读数 bar（#1315 口径差重建）：" + head
+        + "。这些 bar 被 dump 因 OHLC ≤0 剔除、驱动仍保留，三列填 fail-closed 值"
+        "（多空腿一律拒进场），计入上表占比的分子——占比读数须按此扣除。" + tail + "\n"
+    )
+
+
 def write_report(results: dict[str, dict], use_fatigue: bool) -> None:
     symbols = [s for s in SYMBOL_ORDER if s in results]
     r1 = _round1()
@@ -399,6 +440,9 @@ def write_report(results: dict[str, dict], use_fatigue: bool) -> None:
             f"[{uw[0]:,},{uw[1]:,}) | {sn['short_entries_in_longest_up_window']} | "
             f"[{dw[0]:,},{dw[1]:,}) | {sn['long_entries_in_longest_down_window']} | {fat} |"
         )
+    # 无门读数 bar（#1315 口径差重建臂）：门列不覆盖的驱动 bar，三列填 fail-closed 值
+    # 而非生产函数读数 ⇒ 单列记档，不藏进上表占比。
+    L.append(_no_reading_note(results, symbols))
 
     L.append("\n## 4. 双跑逐位自检\n")
     ok_all = all(results[s]["selfcheck_ok"] for s in symbols)
