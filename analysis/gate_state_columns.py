@@ -144,10 +144,21 @@ def load_state_gate(
             f"[{sym}] 门状态列长度 {len(raw)}B ≠ 头部 + 3×{n} 列字节——格式错位"
         )
     if n != len(closes):
-        raise ValueError(
-            f"[{sym}] 门列 bar 数 {n} ≠ 驱动侧 closes {len(closes)}——磁带与回测输入"
-            f"不同源/不同窗，逐 bar join 会错位。重跑 dump：{REGEN_CMD.replace('<SYM>', sym)}"
-        )
+        # 尾对齐：门列末 bar close == 驱动 closes[-1] 时，多出的 bar 在头部（dump 覆盖
+        # 到 prereg 窗外更早数据）——截取尾部 len(closes) 根即与驱动逐 bar 对齐。
+        if n > len(closes) and last_c == closes[-1]:
+            skip = n - len(closes)
+            print(
+                f"[{sym}] 门列 {n} 根 > 驱动 {len(closes)}：尾部对齐截取，"
+                f"舍弃头部 {skip} 根（门列末 close {last_c} == 驱动末 close，对齐成立）"
+            )
+            raw = raw[HEADER_SIZE + skip * 3:]
+            n = len(closes)
+        else:
+            raise ValueError(
+                f"[{sym}] 门列 bar 数 {n} ≠ 驱动侧 closes {len(closes)}——磁带与回测输入"
+                f"不同源/不同窗，逐 bar join 会错位。重跑 dump：{REGEN_CMD.replace('<SYM>', sym)}"
+            )
     if n and (first_c != closes[0] or last_c != closes[-1]):
         raise ValueError(
             f"[{sym}] 门列首尾 close ({first_c}, {last_c}) ≠ 驱动侧 "
