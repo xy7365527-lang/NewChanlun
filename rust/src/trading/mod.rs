@@ -69,6 +69,8 @@ pub mod depth_ref;
 pub mod dual_voice;
 pub mod fatigue_gate;
 #[cfg(test)]
+mod gate_state_dump;
+#[cfg(test)]
 mod graph_chain_destack_parity;
 pub mod isolated_fugue;
 pub mod ledger;

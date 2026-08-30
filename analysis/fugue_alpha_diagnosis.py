@@ -1086,6 +1086,7 @@ def run_swing_trading(
 def _run_swing_leg(
     signals: list[BarSignal],
     side: str,
+    gate=None,
 ) -> list[CompletedTrade]:
     """单方向背驰定位器腿——多空双开对称扩展（#1309，#1282 预注册判据）的通用腿。
 
@@ -1098,6 +1099,12 @@ def _run_swing_leg(
 
     双腿各自独立满仓进出、可同时在场（多空双开）；无降成本（cost_mode=NONE 语义），
     逐笔 pnl 只由进场价/出场价决定：长腿 = 出场/进场 − 1，空腿 = 进场/出场 − 1。
+
+    ``gate``（#1312 状态闸，可选）：``analysis.gate_state_columns.StateGate``——
+    41课门的逐 bar 列（Rust 生产函数产出，Python 侧零判据实现）。非 None 时**只在
+    进场处**加一道准入（空腿拒于 ``l2_up_unexhausted``、多腿拒于
+    ``l2_down_unexhausted``）；出场/回补判据零改动——门是"不在未衰竭趋势里开逆势
+    仓"的开腿约束，不是离场约束。``gate=None`` ⇒ 与 #1309 第一轮逐位等价。
     """
     n = len(signals)
     FLAT, OPEN = St.WAIT_ENTRY, St.HOLDING
@@ -1131,8 +1138,12 @@ def _run_swing_leg(
         if state == FLAT:
             if side == "long":
                 enter = sig.down_move_settled and sig.entry_div_ok
+                if enter and gate is not None:
+                    enter = gate.long_entry_allowed(i)
             else:
                 enter = sig.up_move_settled and sig.exit_div_ok
+                if enter and gate is not None:
+                    enter = gate.short_entry_allowed(i)
             if enter:
                 state = OPEN
                 entry_price = c
@@ -1154,6 +1165,7 @@ def _run_swing_leg(
 
 def run_swing_trading_dual(
     signals: list[BarSignal],
+    gate=None,
 ) -> tuple[list[CompletedTrade], list[CompletedTrade]]:
     """E 引擎操作层多空双开对称扩展（#1309，#1282 预注册判据，冻结）。
 
@@ -1162,11 +1174,14 @@ def run_swing_trading_dual(
     ``run_swing_trading(signals, MODE_NONE)``；空腿是同一判据的联立门方向镜像
     （分解机制已双向，只接操作面——不引入「腿」判据外的新概念）。
 
+    ``gate``（#1312 第二轮状态闸，可选）：见 :func:`_run_swing_leg`。``None`` ⇒
+    第一轮（#1309 无门基线）逐位等价。
+
     返回 ``(long_trades, short_trades)``。
     """
     return (
-        _run_swing_leg(signals, "long"),
-        _run_swing_leg(signals, "short"),
+        _run_swing_leg(signals, "long", gate),
+        _run_swing_leg(signals, "short", gate),
     )
 
 
