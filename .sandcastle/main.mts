@@ -7,7 +7,9 @@
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
-import { primeAgent } from "./prime-agent-provider.ts";
+import { claudeCode } from "@ai-hero/sandcastle";
+// #1283 Q2 裁定 (c)+Q1：执行面全量切 Claude 订阅额度 opus-5（2026-08-29 编排者令）
+// import { primeAgent } from "./prime-agent-provider.ts"; // 旧 deepseek 路线停用留档
 import { execSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 
@@ -246,7 +248,7 @@ if (REVIEW_ONLY) {
   logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
   await runWithResume(sandbox, {
     name: "reviewer",
-    agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
+    agent: claudeCode("claude-opus-5"),
     promptFile: "./.sandcastle/review-prompt.md",
     promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
   });
@@ -292,7 +294,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "implementer", status: "started" });
     const implement = await runWithResume(sandbox, {
       name: "implementer",
-      agent: primeAgent(IMPLEMENTER_MODEL, { provider: PROVIDER }),
+      agent: claudeCode("claude-opus-5"),
       promptFile: "./.sandcastle/implement-prompt.md",
       promptArgs: { ISSUE_NUMBER: String(issue) },
       idleTimeoutSeconds: IMPLEMENTER_IDLE_TIMEOUT_SECONDS,
@@ -309,7 +311,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
     await runWithResume(sandbox, {
       name: "reviewer",
-      agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
+      agent: claudeCode("claude-opus-5"),
       promptFile: "./.sandcastle/review-prompt.md",
       promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
     });
