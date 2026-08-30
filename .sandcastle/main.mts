@@ -7,7 +7,16 @@
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
+import { execSync } from "node:child_process";
 import { claudeCode } from "@ai-hero/sandcastle";
+// #1283：订阅额度认证——Keychain 运行时读取（token 不落盘不打印）
+const CLAUDE_OAUTH = (() => {
+  try {
+    const raw = execSync(`security find-generic-password -s "Claude Code-credentials" -w`, { encoding: "utf8", timeout: 15000 });
+    return (JSON.parse(raw).claudeAiOauth ?? {}).accessToken ?? "";
+  } catch { return ""; }
+})();
+if (!CLAUDE_OAUTH) console.error("[main.mts] Keychain 订阅 token 读取失败——沙盒 claude 将无认证");
 // #1283 Q2 裁定 (c)+Q1：执行面全量切 Claude 订阅额度 opus-5（2026-08-29 编排者令）
 // import { primeAgent } from "./prime-agent-provider.ts"; // 旧 deepseek 路线停用留档
 import { execSync } from "node:child_process";
@@ -248,7 +257,7 @@ if (REVIEW_ONLY) {
   logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
   await runWithResume(sandbox, {
     name: "reviewer",
-    agent: claudeCode("claude-opus-5"),
+    agent: claudeCode("claude-opus-5", { env: { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_OAUTH } }),
     promptFile: "./.sandcastle/review-prompt.md",
     promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
   });
@@ -294,7 +303,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "implementer", status: "started" });
     const implement = await runWithResume(sandbox, {
       name: "implementer",
-      agent: claudeCode("claude-opus-5"),
+      agent: claudeCode("claude-opus-5", { env: { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_OAUTH } }),
       promptFile: "./.sandcastle/implement-prompt.md",
       promptArgs: { ISSUE_NUMBER: String(issue) },
       idleTimeoutSeconds: IMPLEMENTER_IDLE_TIMEOUT_SECONDS,
@@ -311,7 +320,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
     await runWithResume(sandbox, {
       name: "reviewer",
-      agent: claudeCode("claude-opus-5"),
+      agent: claudeCode("claude-opus-5", { env: { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_OAUTH } }),
       promptFile: "./.sandcastle/review-prompt.md",
       promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
     });
