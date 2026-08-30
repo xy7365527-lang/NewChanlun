@@ -94,6 +94,14 @@ pub struct RunResult {
 const FLAT: u8 = 0;
 const ARMED: u8 = 1;
 const LONG: u8 = 2;
+/// 空侧布防（#1313 方向对称化）：FLAT 经 sell1@k 布防开空的镜像态
+/// （与 ARMED 逐字对称，确认词汇换成次级别卖确认）。仅 `MarketMode::Perp`
+/// 可达——`Stock` 在册路径零接触（O0≡P5）。
+const ARMED_SHORT: u8 = 3;
+/// 持空（#1313 方向对称化）：45课持币/持股二元循环的方向镜像——Short 态 =
+/// 持空仓，不引入第三持仓类。买点@entry_ladder 平空回 FLAT。仅
+/// `MarketMode::Perp` 可达。
+const SHORT: u8 = 4;
 
 struct Run {
     floor_ladder: usize,
@@ -116,6 +124,10 @@ struct Run {
     arm_bar: i64,
     arm_ladder: usize,
     pos: Option<OrganicLedger>,
+    /// 空侧持仓单位（#1313；SHORT 态专属，1x 全仓镜像 long 的
+    /// INITIAL_CAPITAL/price）。非 SHORT 态恒 0.0。margin 隐式 =
+    /// units×entry_price（与 fusion 1x 虚拟逐仓同口径）。
+    short_units: f64,
     active_levels: Vec<usize>,
     voices: Vec<VoiceUnit>,
     master_state: MasterState,
@@ -179,9 +191,50 @@ impl Run {
         self.state = FLAT;
         self.entry_price = 0.0;
         self.pos = None;
+        self.short_units = 0.0;
         self.active_levels = Vec::new();
         self.voices = Vec::new();
         self.master_state = MasterState::Ride;
+    }
+
+    /// 空侧入场（#1313 方向对称化）：`open_position` 的短侧镜像——1x 全仓
+    /// 持空（units = INITIAL_CAPITAL/price，与 long 全仓同量纲），零声部、
+    /// 零递归建仓（短侧表达位：布防→确认→持空→买点平空的最小二元循环）。
+    fn open_short(&mut self, bar: i64, price: f64, el: usize) {
+        self.entry_bar = bar;
+        self.entry_price = price;
+        self.entry_ladder = el;
+        self.short_units = INITIAL_CAPITAL / price;
+        self.state = SHORT;
+    }
+
+    /// 空侧平仓（#1313 方向对称化）：`close_position` 的短侧镜像。pnl =
+    /// units×(entry−exit)——价格下跌盈利（做空盈利方向与 long 相反）。无
+    /// 腿/无 cost_basis 相位，`cost_basis_at_exit` 记 0.0（短侧无 long 成本
+    /// 基准，sentinel 显式化），`n_short_diffs` 恒 0（无短差腿）。
+    fn close_short(&mut self, bar: i64, price: f64, reason: &str) {
+        if self.short_units <= 0.0 {
+            // 合法幂等路径：eod 收口对 FLAT 状态无条件调用（同 close_position）。
+            self.reset_flat();
+            return;
+        }
+        let pnl = self.short_units * (self.entry_price - price);
+        let pnl_pct = pnl / INITIAL_CAPITAL * 100.0;
+        let held = bar - self.entry_bar;
+        self.res.trades.push(TradeRec {
+            entry_bar: self.entry_bar,
+            entry_price: self.entry_price,
+            exit_bar: bar,
+            exit_price: price,
+            pnl_pct: py_round(pnl_pct, 4),
+            exit_reason: reason.to_string(),
+            n_short_diffs: 0,
+            cost_basis_at_exit: 0.0,
+        });
+        self.res.ladder_attribution[self.entry_ladder] += 1;
+        self.res.ladder_held_bars[self.entry_ladder] += held.max(0) as u64;
+        self.reset_flat();
+        self.entry_ladder = usize::MAX; // Python entry_ladder=-1（哨兵）
     }
 
     /// Python `_close` 逐字（含 total_shares≤0 早退、插入序清腿、round 语义）。
@@ -636,9 +689,13 @@ pub fn run_organic(
     }
 
     // MarketMode 穷举（F1 期货实装时新增变体，编译器强制此处表态——v1R §2.2）。
-    match cfg.market_mode {
-        super::config::MarketMode::Stock => {}
-    }
+    // #1313：`Perp` 使能 master FSM 的短侧对称臂（ARMED_SHORT/SHORT）——
+    // `Stock` 在册路径零接触（O0≡P5）；本 match 只做穷举声明，短侧分派见
+    // 主循环 `perp` 门。
+    let perp = match cfg.market_mode {
+        super::config::MarketMode::Stock => false,
+        super::config::MarketMode::Perp => true,
+    };
 
     let n = tape.bars.len();
     let mut run = Run {
@@ -656,6 +713,7 @@ pub fn run_organic(
         arm_bar: -1,
         arm_ladder: LADDER_MOVE,
         pos: None,
+        short_units: 0.0,
         active_levels: Vec::new(),
         voices: Vec::new(),
         master_state: MasterState::Ride,
@@ -800,6 +858,22 @@ pub fn run_organic(
                 run.state = ARMED;
                 run.arm_bar = i as i64;
                 run.arm_ladder = hi as usize;
+            } else if perp {
+                // 空侧布防（#1313 方向对称化）：无买点布防时，卖点@k 镜像
+                // 布防开空——取最高 sell1 层（与 long 臂同序扫描）。买点优先
+                // （保守：同 bar 买卖点并现时维持 long 先例；短侧仅在无 long
+                // 布防时接管）。
+                let mut hs: i64 = -1;
+                for k in arm_floor..max_l {
+                    if sig.sell1.get(k) {
+                        hs = k as i64;
+                    }
+                }
+                if hs >= arm_floor as i64 {
+                    run.state = ARMED_SHORT;
+                    run.arm_bar = i as i64;
+                    run.arm_ladder = hs as usize;
+                }
             }
         } else if run.state == ARMED {
             for k in FIRST_BSP_LADDER..max_l {
@@ -825,6 +899,39 @@ pub fn run_organic(
                 run.open_position(i as i64, c, run.arm_ladder);
             } else if sig.sell1.get(run.arm_ladder) {
                 run.state = FLAT;
+            }
+        } else if run.state == ARMED_SHORT {
+            // 空侧布防确认（#1313 方向对称化）：与 ARMED 逐字镜像——更高层
+            // sell1 升级布防层；次级别任意卖点确认或超时 → 开空；买点@布防
+            // 层撤防回 FLAT（ARMED 的 sell1 撤防镜像）。
+            for k in FIRST_BSP_LADDER..max_l {
+                if sig.sell1.get(k) && k > run.arm_ladder {
+                    run.arm_ladder = k;
+                }
+            }
+            let sub_mask = (1u16 << run.arm_ladder) - 1;
+            let mut do_enter = sig.sell_any.0 & sub_mask != 0;
+            if !do_enter && (i as i64 - run.arm_bar) > SUB_EXPIRY {
+                if cfg.sc_entry_strict {
+                    // SCe 镜像：严格区间套——超时不强制开空，继续等待次级别
+                    // 卖确认或 buy1 撤防。
+                    if (i as i64 - run.arm_bar) == SUB_EXPIRY + 1 {
+                        run.counters.n_sc_entry_expire_skips += 1;
+                    }
+                } else {
+                    do_enter = true;
+                }
+            }
+            if do_enter {
+                run.open_short(i as i64, c, run.arm_ladder);
+            } else if sig.buy1.get(run.arm_ladder) {
+                run.state = FLAT;
+            }
+        } else if run.state == SHORT {
+            // 持空（#1313 方向对称化）：买点@entry_ladder 平空回 FLAT
+            // （long 侧 sell1 出场的镜像）。eod 收口在主循环之后。
+            if sig.buy1.get(run.entry_ladder) {
+                run.close_short(i as i64, c, "short_cover");
             }
         } else {
             // ── LONG ──
@@ -1298,6 +1405,11 @@ pub fn run_organic(
         let last_close = tape.bars[n - 1].close;
         run.close_position(n as i64 - 1, last_close, "eod_close");
     }
+    if run.state == SHORT && run.short_units > 0.0 {
+        // 空侧 eod 收口（#1313）：按末 bar 市价平空。
+        let last_close = tape.bars[n - 1].close;
+        run.close_short(n as i64 - 1, last_close, "short_eod");
+    }
 
     let mut res = run.res;
     // H1 禁令窗口生命周期计数（CenterBook 内部置位/否定 → 终值拷贝；
@@ -1578,5 +1690,235 @@ mod ledger_voice_tests {
             ..OrganicConfig::default()
         };
         assert!(run_organic(&t, 2, &orphan, StopMode::None, false).is_err());
+    }
+}
+
+/// #1313 MECE 锁 + 卖出对称单测：master FSM 五态穷尽锁 + `MarketMode::Perp`
+/// 短侧对称臂（ARMED_SHORT/SHORT）的行为不变式。全部非 `#[ignore]`，落
+/// `cargo test --all-targets`（CI 在跑）。
+#[cfg(test)]
+mod fsm_symmetry_tests {
+    use super::*;
+    use crate::trading::config::variant;
+
+    fn bar(close: f64) -> crate::trading::tape::BarSig {
+        crate::trading::tape::BarSig {
+            close,
+            max_ladder: 3,
+            ..Default::default()
+        }
+    }
+
+    fn buy1(mut b: crate::trading::tape::BarSig, lad: usize) -> crate::trading::tape::BarSig {
+        b.buy1 = LadderMask(b.buy1.0 | (1 << lad));
+        b
+    }
+
+    fn sell1(mut b: crate::trading::tape::BarSig, lad: usize) -> crate::trading::tape::BarSig {
+        b.sell1 = LadderMask(b.sell1.0 | (1 << lad));
+        b
+    }
+
+    fn sell_any(mut b: crate::trading::tape::BarSig, lad: usize) -> crate::trading::tape::BarSig {
+        b.sell_any = LadderMask(b.sell_any.0 | (1 << lad));
+        b
+    }
+
+    fn buy_any(mut b: crate::trading::tape::BarSig, lad: usize) -> crate::trading::tape::BarSig {
+        b.buy_any = LadderMask(b.buy_any.0 | (1 << lad));
+        b
+    }
+
+    /// 满足 `has_bsp_events` 能力守卫的空事件行（master 分派只看布尔掩码，
+    /// bsp_events 仅供 CenterBook 消费）。
+    fn with_bsp(mut b: crate::trading::tape::BarSig) -> crate::trading::tape::BarSig {
+        b.bsp_events = Some(Box::default());
+        b
+    }
+
+    fn perp() -> OrganicConfig {
+        OrganicConfig {
+            market_mode: super::super::config::MarketMode::Perp,
+            ..variant("V0").unwrap()
+        }
+    }
+
+    fn stock() -> OrganicConfig {
+        variant("V0").unwrap()
+    }
+
+    /// #1313 MECE 锁（状态穷尽）：master FSM 五态名映射。`state` 是 u8 常量
+    /// 域（Python 平行变量组逐字镜像），域外值显式拒绝——锁 = 五态两两
+    /// 不同 + 域外不落入任何态名。
+    fn state_name(s: u8) -> &'static str {
+        match s {
+            FLAT => "FLAT",
+            ARMED => "ARMED",
+            LONG => "LONG",
+            ARMED_SHORT => "ARMED_SHORT",
+            SHORT => "SHORT",
+            _ => "OUT_OF_DOMAIN",
+        }
+    }
+
+    #[test]
+    fn master_fsm_five_states_partition() {
+        use std::collections::HashSet;
+        assert_eq!([FLAT, ARMED, LONG, ARMED_SHORT, SHORT], [0, 1, 2, 3, 4]);
+        let names: HashSet<&str> = [FLAT, ARMED, LONG, ARMED_SHORT, SHORT]
+            .iter()
+            .map(|&s| state_name(s))
+            .collect();
+        assert_eq!(names.len(), 5, "五态名两两不同（互斥：同刻恰一态）");
+        assert_eq!(state_name(99), "OUT_OF_DOMAIN", "u8 域外显式拒绝");
+    }
+
+    /// 卖出对称单测（#1313 方向对称化的行为不变式）：短侧完整二元循环
+    /// FLAT →(sell1@3)→ ARMED_SHORT →(sell_any@2 次级别卖确认)→ SHORT
+    /// →(buy1@3)→ FLAT——与 long 侧 FLAT→ARMED→LONG→FLAT 逐字镜像。
+    #[test]
+    fn perp_short_arm_confirm_cover_cycle_positive_pnl() {
+        let bars = vec![
+            with_bsp(sell1(bar(100.0), 3)),
+            sell_any(bar(100.0), 2),
+            buy1(bar(90.0), 3),
+            bar(90.0),
+        ];
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
+        let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
+        assert_eq!(r.trades.len(), 1, "短侧一轮完整循环 = 一条 trade");
+        let tr = &r.trades[0];
+        assert_eq!(tr.exit_reason, "short_cover");
+        assert_eq!(tr.entry_price, 100.0);
+        assert_eq!(tr.exit_price, 90.0);
+        assert!(
+            (tr.pnl_pct - 10.0).abs() < 1e-6,
+            "1x 全仓做空跌 10% = +10%（pnl_pct={}）",
+            tr.pnl_pct
+        );
+        assert_eq!(r.ladder_attribution[3], 1);
+    }
+
+    /// 卖出对称单测：做空价格反向（上涨）→ 负盈亏（long 侧盈亏方向镜像）。
+    #[test]
+    fn perp_short_loss_when_price_rises() {
+        let bars = vec![
+            with_bsp(sell1(bar(100.0), 3)),
+            sell_any(bar(100.0), 2),
+            buy1(bar(110.0), 3),
+            bar(110.0),
+        ];
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
+        let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
+        assert_eq!(r.trades.len(), 1);
+        assert!(
+            (r.trades[0].pnl_pct + 10.0).abs() < 1e-6,
+            "做空涨 10% = −10%（pnl_pct={}）",
+            r.trades[0].pnl_pct
+        );
+    }
+
+    /// 卖出对称单测：ARMED_SHORT 被 buy1@布防层撤防（ARMED 被 sell1 撤防的
+    /// 镜像）——撤防后残留布防被清除，次级别卖确认不再开空（撤防 = 该卖点
+    /// 起始的走势类型已被宣告结束，后续 sell_any 需新 sell1 重新布防）。
+    #[test]
+    fn perp_short_arm_disarms_on_buy1() {
+        let bars = vec![
+            with_bsp(sell1(bar(100.0), 3)),
+            buy1(bar(100.0), 3),
+            sell_any(bar(100.0), 2),
+            bar(100.0),
+        ];
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
+        let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
+        assert_eq!(r.trades.len(), 0, "撤防后 sell_any 不再开空");
+    }
+
+    /// 卖出对称单测：次级别卖确认不来 → SUB_EXPIRY 超时强制开空（long 侧
+    /// 超时 fallback 的镜像）。
+    #[test]
+    fn perp_short_timeout_force_entry() {
+        let mut bars = vec![with_bsp(sell1(bar(100.0), 3))];
+        for _ in 0..(SUB_EXPIRY + 2) {
+            bars.push(bar(100.0));
+        }
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
+        let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
+        assert_eq!(r.trades.len(), 1, "超时 fallback 开空");
+        assert_eq!(
+            r.trades[0].exit_reason, "short_eod",
+            "无买点平空 → eod 收口"
+        );
+    }
+
+    /// 卖出对称单测：持空到 eod 无买点 → 按末 bar 市价平空。
+    #[test]
+    fn perp_short_eod_close_at_last_close() {
+        let bars = vec![
+            with_bsp(sell1(bar(100.0), 3)),
+            sell_any(bar(100.0), 2),
+            bar(95.0),
+        ];
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
+        let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
+        assert_eq!(r.trades.len(), 1);
+        assert_eq!(r.trades[0].exit_reason, "short_eod");
+        assert_eq!(r.trades[0].exit_price, 95.0);
+    }
+
+    /// 零接触守卫（O0≡P5）：`Stock` 模式下卖点不触发短侧布防——master FSM
+    /// 保持在册行为（sell1 只作 long 侧撤防/出场词汇，不布防开空）。
+    #[test]
+    fn stock_mode_never_arms_short() {
+        let bars = vec![
+            with_bsp(sell1(bar(100.0), 3)),
+            sell_any(bar(100.0), 2),
+            buy1(bar(90.0), 3),
+            bar(90.0),
+        ];
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
+        let r = run_organic(&t, 2, &stock(), StopMode::None, false).unwrap();
+        assert_eq!(r.trades.len(), 0, "Stock 在册路径零短侧行为");
+    }
+
+    /// 同 bar 买卖点并现：long 布防优先（保守先例），短侧不接管——次级别买
+    /// 确认走 long 臂开多、sell1 出场产生长侧 trade（若短侧接管，buy_any
+    /// 不触发短侧、无 sell_any 确认，则无 trade 或只可能走 short_* 出场）。
+    #[test]
+    fn perp_long_arm_priority_over_short_when_both_present() {
+        let bars = vec![
+            with_bsp(buy1(sell1(bar(100.0), 3), 3)),
+            buy_any(bar(100.0), 2),
+            sell1(bar(100.0), 3),
+            bar(100.0),
+        ];
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
+        let r = run_organic(&t, 2, &perp(), StopMode::None, false).unwrap();
+        assert_eq!(r.trades.len(), 1, "同 bar 并现 long 布防优先，短侧不接管");
+        assert_eq!(
+            r.trades[0].exit_reason, "exit_move(L1)_type1sell",
+            "长侧 buy1 布防→次级别买确认→sell1 出场的完整循环（短侧接管则无此出场）"
+        );
     }
 }

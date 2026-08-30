@@ -1484,6 +1484,9 @@ pub(crate) fn run_fusion(
                 LayerState::Armed { .. } => {
                     unreachable!("Fusion 无 ARMED 相位——confirmed 事件直接消费")
                 }
+                LayerState::ArmedShort { .. } => {
+                    unreachable!("ArmedShort 仅 runner Perp 模式短侧布防可达（#1313）")
+                }
                 LayerState::Long { .. } => {}
                 // ── 双向条件轴 [镜像推导]：空头层出口集（short_mask 层
                 //    专属——其余模式不可达）。优先序：逐仓强平（物理事件）

@@ -654,6 +654,9 @@ pub(crate) fn run_axiom_voice(
                 LayerState::Armed { .. } => {
                     unreachable!("fusion_va 无 ARMED 相位——confirmed/nest 词汇直接消费")
                 }
+                LayerState::ArmedShort { .. } => {
+                    unreachable!("ArmedShort 仅 runner Perp 模式短侧布防可达（#1313）")
+                }
                 LayerState::Short { .. } => {
                     unreachable!("fusion_va 翻转落点恒零暴露（Coin）——真实空头=部署层")
                 }
