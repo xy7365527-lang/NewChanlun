@@ -11,10 +11,21 @@ import { execSync } from "node:child_process";
 import { claudeCode } from "@ai-hero/sandcastle";
 // #1283：订阅额度认证——Keychain 运行时读取（token 不落盘不打印）
 const CLAUDE_OAUTH = (() => {
-  try {
-    const raw = execSync(`security find-generic-password -s "Claude Code-credentials" -w`, { encoding: "utf8", timeout: 15000 });
-    return (JSON.parse(raw).claudeAiOauth ?? {}).accessToken ?? "";
-  } catch { return ""; }
+  const read = () => {
+    try {
+      const raw = execSync(`security find-generic-password -s "Claude Code-credentials" -w`, { encoding: "utf8", timeout: 15000 });
+      const o = JSON.parse(raw).claudeAiOauth ?? {};
+      return { token: o.accessToken ?? "", expiresAt: o.expiresAt ?? 0 };
+    } catch { return { token: "", expiresAt: 0 }; }
+  };
+  let c = read();
+  // accessToken 过期（host CLI 平时自行刷新；闲置后可能过期）→ 跑一次 host claude 触发刷新再读
+  if (!c.token || c.expiresAt < Date.now() + 300_000) {
+    try { execSync("claude -p \"ok\" --output-format text", { encoding: "utf8", timeout: 120000, stdio: "ignore" }); } catch {}
+    c = read();
+  }
+  if (!c.token) console.error("[main.mts] Keychain 订阅 token 读取失败——沙盒 claude 将无认证");
+  return c.token;
 })();
 if (!CLAUDE_OAUTH) console.error("[main.mts] Keychain 订阅 token 读取失败——沙盒 claude 将无认证");
 // #1283 Q2 裁定 (c)+Q1：执行面全量切 Claude 订阅额度 opus-5（2026-08-29 编排者令）
