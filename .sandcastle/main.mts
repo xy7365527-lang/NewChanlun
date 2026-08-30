@@ -259,7 +259,7 @@ if (REVIEW_ONLY) {
   logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
   await runWithResume(sandbox, {
     name: "reviewer",
-    agent: claudeCode("claude-opus-5", { effort: "high", env: { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_OAUTH } }),
+    agent: claudeCode("claude-opus-5", { effort: "high", env: { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_OAUTH, HOME: "/home/agent" } }),
     promptFile: "./.sandcastle/review-prompt.md",
     promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
   });
@@ -305,7 +305,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "implementer", status: "started" });
     const implement = await runWithResume(sandbox, {
       name: "implementer",
-      agent: claudeCode("claude-opus-5", { effort: "high", env: { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_OAUTH } }),
+      agent: claudeCode("claude-opus-5", { effort: "high", env: { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_OAUTH, HOME: "/home/agent" } }),
       promptFile: "./.sandcastle/implement-prompt.md",
       promptArgs: { ISSUE_NUMBER: String(issue) },
       idleTimeoutSeconds: IMPLEMENTER_IDLE_TIMEOUT_SECONDS,
@@ -322,7 +322,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
     await runWithResume(sandbox, {
       name: "reviewer",
-      agent: claudeCode("claude-opus-5", { effort: "high", env: { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_OAUTH } }),
+      agent: claudeCode("claude-opus-5", { effort: "high", env: { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_OAUTH, HOME: "/home/agent" } }),
       promptFile: "./.sandcastle/review-prompt.md",
       promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
     });
