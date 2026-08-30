@@ -201,3 +201,12 @@ PYTHONPATH=src:analysis uv run python analysis/m1_e_futures_dual_gated_backtest.
 - [ ] 7 标的第二轮真实跑批结果 + 两轮对照数值（**卡点**：外部数据依赖，见 §5）
 
 **待解除卡点后**：跑批 → #1282 票面贴第二轮结果与判定（过与不过都原样报）。
+
+## 8. 后续票：#1314（DX 门列/驱动 6 根错位）
+
+有数据环境的第二轮跑批中，DX 在 `gate_state_columns` 的 bar 数接缝校验处 raise
+（门列 n=2,058,424 vs 驱动 closes=2,058,418），另 6 品种已出结果。口径核对结论、
+对齐修复（首锚截尾臂 + 末锚臂列切片修错）、对齐诊断件与 DX 重跑的续跑命令，见
+`issue1314-dx-bar-alignment-20260830.md`。**§1.3 的"driver 的 closes 来自 `load_ohlc`
+同款清洗"一句与源码不符**（dump 另剔 OHLC ≤0、驱动只剔 nan 且 `zip` 截最短），以
+#1314 文档为准。

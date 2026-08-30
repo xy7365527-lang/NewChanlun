@@ -141,7 +141,10 @@ def test_gate_columns_seam_checks_fail_fast(tmp_path, monkeypatch, mutate, msg):
         G.gate_path("SYN"),
         [True] * 4, [False] * 4, [G.FATIGUE_UNAVAILABLE] * 4, closes, **kwargs,
     )
-    drive = closes[:3] if mutate == "bars" else (
+    # bars 用例取**两端都不锚**的驱动切片（closes[1:3]）：#1314 起 bar 数不等时，
+    # 首/末 close 任一锚定即按位移截取（对齐臂锁在 tests/test_gate_bar_alignment.py），
+    # 只有两端都不锚才 fail-fast——本用例锁的正是后者。
+    drive = closes[1:3] if mutate == "bars" else (
         [99.0] + closes[1:] if mutate == "close" else closes
     )
     with pytest.raises(ValueError, match=msg):

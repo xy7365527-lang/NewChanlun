@@ -26,6 +26,13 @@ Python 侧一行判据都不写，是"同一判断不得有宽严两档实现"�
   cols:   up_unexhausted n*u8 / down_unexhausted n*u8 / fatigue_state n*u8
 ```
 
+## bar 对齐（#1314）
+
+门列与驱动 closes 出自同一份 1min json 但**清洗口径不同**（dump 另剔 OHLC ≤0，驱动
+只剔 nan 且 `zip` 截到最短数组）。bar 数不等时按 `_align_start` 的首/末 close 锚定
+规则取门列窗口（截头或截尾），两端都不锚即 fail-fast。多出的 bar 落在头/尾/内部的
+定位用 `analysis/_diag_gate_bar_alignment.py`（逐 bar 时间戳比对，给出处置建议）。
+
 生成：
 ```bash
 PYTHONPATH=src uv run python analysis/_dump_tape_rust.py ES GC CL ZN 6E BRN DX
@@ -57,6 +64,11 @@ FATIGUE_UNAVAILABLE = 255
 REGEN_CMD = (
     "PYTHONPATH=src uv run python analysis/_dump_tape_rust.py <SYM> && "
     "cd rust && cargo test --release gate_state_dump_prereg7 -- --ignored --nocapture"
+)
+
+# 对齐诊断命令（#1314：门列/驱动 bar 数不一致时先定位差在头/尾/内部）。
+DIAG_CMD = (
+    "PYTHONPATH=src:analysis uv run python analysis/_diag_gate_bar_alignment.py <SYM>"
 )
 
 
@@ -114,17 +126,86 @@ class StateGate:
         )
 
 
+def _align_start(
+    sym: str,
+    n: int,
+    first_c: float,
+    last_c: float,
+    closes: list[float],
+) -> int:
+    """门列 ↔ 驱动 closes 的 bar 位移：返回门列内的对齐起点 `start`。
+
+    锚哪端由 dump 侧首/末 close 与驱动侧的逐位相等决定（列文件头只存这两个 close）：
+
+    - **只有末 close 锚定** ⇒ 多出的在**头部**（dump 覆盖到 prereg 窗外更早数据）
+      ⇒ `start = n - len(closes)`（#1312 已落，本次仅修列切片，见调用点）；
+    - **只有首 close 锚定** ⇒ 多出的在**尾部**（dump 磁带比驱动 closes 多覆盖到更晚
+      的 bar）⇒ `start = 0`（#1314 DX：门列 n=2,058,424 vs 驱动 2,058,418，末 close
+      不锚 ⇒ 多出的 6 根含尾部）；
+    - **两端都锚定但 bar 数不等** ⇒ 多出的在**内部**（首末两根都在，中间多剔/多留）
+      ⇒ 下标 join 不可救（截哪端都错位），fail-fast；
+    - **门列少于驱动**（`n < len(closes)`）⇒ 截门列取不满 `len(closes)` 根，任一端
+      锚定都救不了，fail-fast；
+    - **两端都不锚** ⇒ 不同源/不同窗，fail-fast。
+
+    两条截取臂的前提都是"被保留的那 `len(closes)` 根内部无剔除"——首末锚定核不到内部。
+    内部是否另有剔除由对齐诊断（`analysis/_diag_gate_bar_alignment.py`，逐 bar 时间戳
+    比对）判定，本函数不越权推断，只把不可判的两种情形拒掉并点名诊断命令。
+    """
+    n_drive = len(closes)
+    if n == n_drive:
+        return 0
+    skip = n - n_drive
+    if not n_drive:  # 驱动侧空序列：无可锚的 close，直接判不同源
+        raise ValueError(
+            f"[{sym}] 门列 bar 数 {n} ≠ 驱动侧 closes 0——驱动侧无 bar，无法锚定对齐。"
+            f"重跑 dump：{REGEN_CMD.replace('<SYM>', sym)}"
+        )
+    head_anchors = first_c == closes[0]
+    tail_anchors = last_c == closes[-1]
+    if skip > 0 and tail_anchors and not head_anchors:
+        print(
+            f"[{sym}] 门列 {n} 根 > 驱动 {n_drive}：尾部对齐截取，舍弃头部 {skip} 根"
+            f"（门列末 close {last_c} == 驱动末 close，对齐成立）"
+        )
+        return skip
+    if skip > 0 and head_anchors and not tail_anchors:
+        print(
+            f"[{sym}] 门列 {n} 根 > 驱动 {n_drive}：头部对齐截取，舍弃尾部 {skip} 根"
+            f"（门列首 close {first_c} == 驱动首 close，对齐成立）"
+        )
+        return 0
+    if skip < 0:
+        # 门列比驱动**少** bar：截门列取不出 len(closes) 根，任一端锚定都救不了。
+        why = "门列 bar 数少于驱动 ⇒ 门列窗口不足，无可截取的对齐窗（门列过期/窗更短）"
+    elif head_anchors and tail_anchors:
+        why = "首末两端都锚定但 bar 数不等 ⇒ 多出的 bar 在内部，截哪端都错位"
+    else:
+        why = "首末 close 都不锚定 ⇒ 磁带与回测输入不同源/不同窗"
+    raise ValueError(
+        f"[{sym}] 门列 bar 数 {n} ≠ 驱动侧 closes {n_drive}（差 {skip:+d} 根）：{why}"
+        f"（门列首/末 = {first_c}/{last_c}，驱动首/末 = {closes[0]}/{closes[-1]}）"
+        f"——逐 bar join 会错位，拒绝对齐。先跑对齐诊断定位差在头/尾/内部："
+        f"{DIAG_CMD.replace('<SYM>', sym)}；或重跑 dump："
+        f"{REGEN_CMD.replace('<SYM>', sym)}"
+    )
+
+
 def load_state_gate(
     sym: str,
     closes: list[float],
     *,
     use_fatigue: bool = False,
 ) -> StateGate:
-    """读 v3 门状态列并与驱动侧 closes 做接缝校验（bar 数 + 首尾 close 逐位）。
+    """读 v3 门状态列并与驱动侧 closes 做接缝校验（bar 数 + 锚定端 close 逐位）。
 
     接缝校验是必需的：门列来自 `_dump_tape_rust.py` 的清洗后 bar 序列，驱动侧
-    closes 来自 `load_ohlc` 的同款清洗——两者对齐是"逐 bar 列按 bar 下标 join"
-    的前提，不对齐即错位读数，故 fail-fast 而非静默截断。
+    closes 来自 `load_ohlc` 的清洗（**两者口径不同**：dump 另剔 OHLC ≤0 的 bar，
+    驱动只剔 nan——#1314 核对结论，见 `_diag_gate_bar_alignment.py`）——两者对齐是
+    "逐 bar 列按 bar 下标 join"的前提，不对齐即错位读数，故 fail-fast 而非静默截断。
+
+    bar 数不等时按 `_align_start` 的锚定规则取门列的对齐窗口（三列各自按同一位移
+    切片），锚不上即 fail-fast。
     """
     path = gate_path(sym)
     if not path.exists():
@@ -143,31 +224,22 @@ def load_state_gate(
         raise ValueError(
             f"[{sym}] 门状态列长度 {len(raw)}B ≠ 头部 + 3×{n} 列字节——格式错位"
         )
-    if n != len(closes):
-        # 尾对齐：门列末 bar close == 驱动 closes[-1] 时，多出的 bar 在头部（dump 覆盖
-        # 到 prereg 窗外更早数据）——截取尾部 len(closes) 根即与驱动逐 bar 对齐。
-        if n > len(closes) and last_c == closes[-1]:
-            skip = n - len(closes)
-            print(
-                f"[{sym}] 门列 {n} 根 > 驱动 {len(closes)}：尾部对齐截取，"
-                f"舍弃头部 {skip} 根（门列末 close {last_c} == 驱动末 close，对齐成立）"
-            )
-            raw = raw[HEADER_SIZE + skip * 3:]
-            n = len(closes)
-        else:
-            raise ValueError(
-                f"[{sym}] 门列 bar 数 {n} ≠ 驱动侧 closes {len(closes)}——磁带与回测输入"
-                f"不同源/不同窗，逐 bar join 会错位。重跑 dump：{REGEN_CMD.replace('<SYM>', sym)}"
-            )
-    if n and (first_c != closes[0] or last_c != closes[-1]):
+    start = _align_start(sym, n, first_c, last_c, closes)
+    n_keep = len(closes)
+    # 锚定端才可核 close：截了头 ⇒ 首 close 不可比，截了尾 ⇒ 末 close 不可比
+    # （列文件头只存原始首末两根的 close）。bar 数相等时两端都核，与 #1312 同。
+    head_ok = start > 0 or not n_keep or first_c == closes[0]
+    tail_ok = start + n_keep < n or not n_keep or last_c == closes[-1]
+    if not (head_ok and tail_ok):
         raise ValueError(
             f"[{sym}] 门列首尾 close ({first_c}, {last_c}) ≠ 驱动侧 "
             f"({closes[0]}, {closes[-1]})——磁带与回测输入不同源，拒绝错位 join"
         )
-    off = HEADER_SIZE
-    up = raw[off:off + n]
-    dn = raw[off + n:off + 2 * n]
-    fat = raw[off + 2 * n:off + 3 * n]
+    # 三列各自按同一位移切片（列在文件里是三段连续区，整体平移会跨列错位）。
+    off = HEADER_SIZE + start
+    up = raw[off:off + n_keep]
+    dn = raw[off + n:off + n + n_keep]
+    fat = raw[off + 2 * n:off + 2 * n + n_keep]
     return StateGate(
         symbol=sym,
         ladder=ladder,
