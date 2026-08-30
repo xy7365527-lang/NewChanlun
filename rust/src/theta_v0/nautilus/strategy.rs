@@ -1,4 +1,4 @@
-//! `ThetaStrategy` Nautilus Rust-native 适配器骨架（串 4 个 adapter + 退出生成器接入点）。
+//! `ThetaCore` —— S_Θ 侧核心状态（in-crate，零 nautilus 依赖，无条件编译）。
 //!
 //! ## 职责（设计文档 §4.1-4.2 数据流）
 //!
@@ -7,31 +7,24 @@
 //! 2. S_Θ 管线：`parse_layer → classify → recognize → plan_orders`（`StrategyFamily::pi`）。
 //! 3. [`super::account_adapter`]：Nautilus portfolio → S_Θ `AccountState`（sizing 用真实账户）。
 //! 4. [`super::order_adapter`]：S_Θ `Order` → Nautilus 下单意图 → `order_factory` → `submit_order`。
-//! 5. 退出生成器接入点：§9 closePred（止损/反向 BSP/RiskClose）触发 → Close 订单走 Nautilus。
+//! 5. 退出生成器：§9 closePred（止损/反向 BSP/RiskClose）触发 → Close 订单走 Nautilus。
 //!
-//! ## ★骨架（nautilus 依赖未加，不编译）：真实 Strategy trait 以注释 + TODO 锚定。
+//! ## ★实装状态（订正 #916：原「骨架（nautilus 依赖未加，不编译）」段过期作废）
 //!
-//! 真实结构（context7 `write_rust_strategy.md`，待依赖后兑现）：
-//! ```ignore
-//! use nautilus_common::actor::DataActor;
-//! use nautilus_model::data::Bar;
-//! use nautilus_trading::{nautilus_strategy, strategy::StrategyCore};
+//! 本文件**已过骨架期、是实装核心**（对齐 `mod.rs` 订正 #524）：
+//! - **编译进 crate**：`theta_v0/nautilus/mod.rs` 无条件 `pub mod strategy;` 注册。
+//! - **真实 nautilus 包装壳在 [`super::theta_strategy`]**（feature `nautilus` 门控）：
+//!   `ThetaStrategy { core: StrategyCore, inner: ThetaCore, .. }` 已兑现——本文件导出的
+//!   `ThetaCore` 就是那个 `inner`，退出生成器（§9 closePred）**已实装**（`plan_for_bar` 内
+//!   退出先于开仓），非 TODO。
+//! - **不声明盈利性**：声明管线贯通与增量等价，不声明 S_Θ 接 Nautilus 后回测有效/盈利
+//!   （编排者纲领「不证明 Θ 是好 Θ」）。
 //!
-//! pub struct ThetaStrategy {
-//!     core: StrategyCore,              // order_factory + portfolio 集成
-//!     instrument_id: InstrumentId,
-//!     bar_type: BarType,
-//!     config: ThetaConfig,             // S_Θ 参数（Param 索引族成员）
-//!     bars: Vec<theta_v0::types::Bar>, // 累积窗口
-//! }
-//! nautilus_strategy!(ThetaStrategy);
-//! impl DataActor for ThetaStrategy {
-//!     fn on_start(&mut self) -> anyhow::Result<()> { self.subscribe_bars(self.bar_type); Ok(()) }
-//!     fn on_bar(&mut self, bar: &Bar) -> anyhow::Result<()> { self.on_bar_inner(bar)?; Ok(()) }
-//!     fn on_order_filled(&mut self, e: &OrderFilled) -> anyhow::Result<()> { /* 对账 */ Ok(()) }
-//!     fn on_position_closed(&mut self, e: &PositionClosed) -> anyhow::Result<()> { /* 清台账 */ Ok(()) }
-//! }
-//! ```
+//! ## 认识论等级（formalization-validity-domain 231号）
+//!
+//! - 适配管线串通 + 退出先于开仓顺序 = **L1**（self-check 在跑）。
+//! - 真实集成跑通 = **L2**（`theta_strategy.rs` 真实 BacktestEngine 非空订单流）。
+//!   本文件**不声称** S_Θ 接 Nautilus 后回测有效/盈利。
 
 use crate::theta_v0::classifier::streaming::OwnedIncrementalClassifier;
 use crate::theta_v0::config::ThetaConfig;
@@ -48,8 +41,9 @@ use super::order_adapter::{self, OrderIntent};
 
 /// `ThetaStrategy` 适配器的 S_Θ 侧核心状态（与 Nautilus `StrategyCore` 组合）。
 ///
-/// ★骨架：依赖加入后，把此结构嵌入真实 `ThetaStrategy { core: StrategyCore, inner: ThetaCore }`，
-/// `on_bar` 调 [`ThetaCore::plan_for_bar`]，再用返回的 `OrderIntent` 调 `core.order_factory()`（TODO）。
+/// ★已兑现（订正 #916）：[`super::theta_strategy::ThetaStrategy`] 已嵌入本结构为 `inner` 字段
+/// （`ThetaStrategy { core: StrategyCore, inner: ThetaCore, .. }`），`on_bar` 调
+/// [`ThetaCore::plan_for_bar`]，再用返回的 `OrderIntent` 调 `core.order_factory()` 提交。
 #[derive(Debug, Clone)]
 pub struct ThetaCore {
     /// S_Θ 参数（Param 索引策略族成员，`StrategyFamily::pi` 的 param）。
@@ -106,17 +100,18 @@ impl ThetaCore {
     ///    （= recognize + plan_orders，产唯一订单流）。
     /// 3. 每个 S_Θ `Order` → [`OrderIntent`]（order_adapter，持仓方向从 portfolio 快照推）。
     ///
-    /// 返回本 bar 的下单意图列表（调用方 strategy.on_bar 用 `core.order_factory()` 提交，TODO）。
+    /// 返回本 bar 的下单意图列表（[`super::theta_strategy::ThetaStrategy::on_bar`] 逐条转真实
+    /// market 单提交；订正 #916：原 TODO 已兑现）。
     ///
     /// ## ★诚实有效域（设计文档 §4.4）
     ///
     /// - 持仓真相源 = Nautilus portfolio（`snap`）——sizing 用真实账户 NAV+净仓，**不用** S_Θ
     ///   `simulate_fills` 的内部模拟台账（生产路径只用 recognize+plan_orders 产订单，fill/equity
     ///   由 Nautilus venue 撮合，见设计文档 §4.4）。
-    /// - **退出决策生成器**（runner.rs `exit_decision_for`，§9 closePred）的缠论触发逻辑在生产路径
-    ///   需移植到此处（持仓 + 当前 bar → 止损/反向 BSP/RiskClose → Close 决策）——本骨架**标接入点**
-    ///   （TODO），不内联实现（避免与 runner 双源；移植时复用 runner 的 `exit_decision_for` 逻辑，
-    ///   持仓从 `snap` 读而非内部台账）。这是 no-patch 的「声明边界」：骨架不假装退出逻辑已就位。
+    /// - **退出决策生成器**（runner.rs `exit_decision_for`，§9 closePred）的缠论触发逻辑**已移植到
+    ///   本文件**（见下方「退出生成器接入」节，退出先于开仓）：持仓从 `snap` 读（非内部台账），
+    ///   复用 runner 的 `exit_decision_for` 逻辑，退出判定零分叉。订正 #916：原「标接入点（TODO）」
+    ///   已兑现。
     ///
     /// 边界条件：bars 不足以产生结构（< min_parts_per_level）⟹ classify 产空 ⟹ 无决策 ⟹ 空意图
     /// （诚实退化，对齐 runner.rs `structureless_data_yields_empty_orders`）。
@@ -132,8 +127,9 @@ impl ThetaCore {
     ///
     /// ★生产 vs 回测的差异（no-workaround 诚实标注）：回测 runner 用**内部延迟成交队列**
     /// （`exit_orders_at`，模拟撮合时序），生产路径**无延迟队列**——Close 意图直接交 Nautilus venue
-    /// 撮合，`exit_pending`/全平清台账由 venue fill 回调（`on_order_filled`/`on_position_closed`，
-    /// 骨架 TODO）驱动。本函数产**意图**（退出判定逻辑与 runner bit-exact 共享 `exit_decision_for`），
+    /// 撮合，`exit_pending`/全平清台账由 venue fill 回调驱动——`on_position_closed` 已兑现于
+    /// [`super::theta_strategy::ThetaStrategy`]（全平 ⟹ `clear_held`），`on_order_filled` 对账待后续。
+    /// 本函数产**意图**（退出判定逻辑与 runner bit-exact 共享 `exit_decision_for`），
     /// 撮合时序差异归 venue，不分叉退出判定。
     pub fn plan_for_bar(&mut self, new_bar: Bar, snap: &PortfolioSnapshot) -> Vec<OrderIntent> {
         self.bars.push(new_bar);
@@ -313,9 +309,10 @@ impl ThetaCore {
 
     /// 取订单对应的限价 tick（开仓限价腿）。
     ///
-    /// ★骨架占位：S_Θ `Order` 不直接携带 entry 价（entry 在 `VoiceDecision` 中，plan_orders 已消费）。
-    /// 生产路径需让 `plan_orders` 或本适配层保留 decision→order 的 entry 映射（TODO）。当前骨架返回
-    /// `None`（市价腿）——限价腿的 entry 价回填待 plan_orders 接口扩展（报 theta_v0 owner，非本工位改）。
+    /// ★限价腿待办（非骨架，订正 #916）：S_Θ `Order` 不直接携带 entry 价（entry 在 `VoiceDecision`
+    /// 中，plan_orders 已消费）。生产路径需让 `plan_orders` 或本适配层保留 decision→order 的 entry
+    /// 映射（TODO）。当前恒返回 `None`（市价腿）——限价腿的 entry 价回填待 plan_orders 接口扩展
+    /// （报 theta_v0 owner，非本工位改）。
     fn entry_tick_for(&self, _order: &Order) -> Option<crate::theta_v0::types::Tick> {
         None // TODO: 限价腿 entry 价回填（依赖 plan_orders 暴露 decision→order entry 映射）
     }
@@ -348,10 +345,10 @@ mod tests {
         }
     }
 
-    /// L0 骨架退化验证：无结构 bar 序列 ⟹ 空下单意图（对齐 runner 诚实退化）。
+    /// L0 退化验证：无结构 bar 序列 ⟹ 空下单意图（对齐 runner 诚实退化）。
     ///
     /// ★认识论 L0（合成单调 bar，验证适配管线串通 + 正确退化，零信息增量）。这**不是** L2
-    /// （L2 需真实数据 + 真实 Nautilus 引擎，依赖未加）。
+    /// （L2 需真实数据 + 真实 Nautilus 引擎）。
     #[test]
     fn structureless_bars_yield_no_intents() {
         let mut core = ThetaCore::new(ThetaConfig::default());

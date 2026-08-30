@@ -21,16 +21,20 @@ serde_json = "1"
 # Nautilus Trader Rust-native 引擎（goal acceptance[5] ②③⑥：真实 BacktestEngine 驱动 S_Θ）。
 #   optional + 仅 backtest_bin/nautilus feature 启用 ⟹ cdylib（Python 扩展）构建零膨胀。
 #   default-features=false：避 nautilus 的 pyo3 feature 与本 crate pyo3 0.23 冲突（#5a 实测可拉）。
-nautilus-model = { version = "0.60.0", default-features = false, optional = true }
-nautilus-common = { version = "0.60.0", default-features = false, optional = true }
-nautilus-trading = { version = "0.60.0", default-features = false, optional = true }
-nautilus-backtest = { version = "0.60.0", default-features = false, optional = true }
+#   ★0.62.0（#1310，2026-08-21 上游；原钉 0.60.0）：0.60→0.62 breaking 已核——pyo3 仍是 optional
+#   （default-features=false 不拉，0.62 的 pyo3 req 升至 ^0.29.2，仅 python/extension-module
+#   feature 启用），nautilus feature 与本 crate pyo3 0.23 冲突规避仍有效；theta_strategy/
+#   backtest_engine/theta_pi_strategy 三文件 0.62 API 直编译绿。
+nautilus-model = { version = "0.62.0", default-features = false, optional = true }
+nautilus-common = { version = "0.62.0", default-features = false, optional = true }
+nautilus-trading = { version = "0.62.0", default-features = false, optional = true }
+nautilus-backtest = { version = "0.62.0", default-features = false, optional = true }
 # nautilus 集成的直接依赖（trait 返回 anyhow::Result、PortfolioApi 返回 rust_decimal::Decimal、
 #   Bar/instrument 用 nautilus_core::UnixNanos、CurrencyPair 字段用 dec! 字面量）。
 anyhow = { version = "1", optional = true }
 rust_decimal = { version = "1", optional = true }
 rust_decimal_macros = { version = "1", optional = true }
-nautilus-core = { version = "0.60.0", default-features = false, optional = true }
+nautilus-core = { version = "0.62.0", default-features = false, optional = true }
 # venue 费率 datum 的 sha256 版本哈希（#360，theta_v0::venue_fee::load_datum）。optional：
 #   与 backtest 同门控（test 走 dev-dependency；CLI 走 backtest_bin feature）⟹ 默认 cdylib
 #   （Python 扩展）构建不含，零依赖膨胀。纯 Rust 标准实现（sidecar 可用 `shasum -a 256 -c` 复核）。

@@ -41,7 +41,9 @@
 //! - [`bar_adapter`]：Nautilus `Bar`（f64 Price）↔ S_Θ `types::Bar`（i64 Tick，整数 tick 域）。
 //! - [`order_adapter`]：S_Θ `Order`（`StrictAction`）↔ Nautilus `OrderSide` + `order_factory`。
 //! - [`account_adapter`]：Nautilus `portfolio`（net_position/PnL）↔ S_Θ `AccountState`（NAV+voice_qty）。
-//! - [`strategy`]：`ThetaStrategy` 适配器骨架（`on_bar` 串 4 个 adapter + 退出生成器接入点）。
+//! - [`strategy`]：`ThetaCore`（in-crate S_Θ 核心，`on_bar` 串 4 个 adapter + 退出生成器）。
+//! - [`theta_strategy`]：`ThetaStrategy`（真实 `StrategyCore + DataActor + Strategy` 包壳）。
+//! - [`theta_pi_strategy`]：`ThetaPiStrategy`（θ 信号 `ThetaPiStream` 的 nautilus 桥，#1283 Q2/Q4）。
 //!
 //! ## Rust-native Strategy 真实接口锚（context7 `write_rust_strategy.md`；已在 `theta_strategy.rs` 兑现，订正 #524）
 //!
@@ -66,6 +68,13 @@ pub mod strategy;
 /// 真实 `StrategyCore + DataActor + Strategy`，包 [`strategy::ThetaCore`]（in-crate S_Θ 核心）。
 #[cfg(feature = "nautilus")]
 pub mod theta_strategy;
+
+/// ③′ `ThetaPiStrategy` —— θ 信号（[`crate::theta_v0::stream::ThetaPiStream`]）的 Nautilus
+/// Rust-native 策略桥（#1283 Q2/Q4 裁定：θ 信号接 Strategy 接口）。feature `nautilus` 门控，
+/// 包生产 π 回路 `ThetaPiStream`（PyO3/cdylib 出口 `ffi::PyThetaStream` 同内核），
+/// `on_bar` 逐 bar 产净仓目标 `p_star` 再平衡下单。
+#[cfg(feature = "nautilus")]
+pub mod theta_pi_strategy;
 
 /// ⑥ 真实 `BacktestEngine` 驱动 S_Θ 跑回测（L2 验收：非空订单流）。
 /// 门控 `backtest_bin`：依赖 `theta_v0::backtest::data::Dataset`（同 `backtest_bin` 门控），
