@@ -9,25 +9,14 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { execSync } from "node:child_process";
 import { claudeCode } from "@ai-hero/sandcastle";
-// #1283：订阅额度认证——Keychain 运行时读取（token 不落盘不打印）
+// 订阅额度认证——token 文件由终端上下文提取（launchd 读不了 Keychain；过期后重跑提取命令刷新）
+// 提取命令：security find-generic-password -s "Claude Code-credentials" -w | python3 -c "import sys,json,os; d=json.loads(sys.stdin.read())['claudeAiOauth']; open(os.path.expanduser('~/.sandcastle/claude_oauth_token'),'w').write(d['accessToken'])"
 const CLAUDE_OAUTH = (() => {
-  const read = () => {
-    try {
-      const raw = execSync(`security find-generic-password -s "Claude Code-credentials" -w`, { encoding: "utf8", timeout: 15000 });
-      const o = JSON.parse(raw).claudeAiOauth ?? {};
-      return { token: o.accessToken ?? "", expiresAt: o.expiresAt ?? 0 };
-    } catch { return { token: "", expiresAt: 0 }; }
-  };
-  let c = read();
-  // accessToken 过期（host CLI 平时自行刷新；闲置后可能过期）→ 跑一次 host claude 触发刷新再读
-  if (!c.token || c.expiresAt < Date.now() + 300_000) {
-    try { execSync("claude -p \"ok\" --output-format text", { encoding: "utf8", timeout: 120000, stdio: "ignore" }); } catch {}
-    c = read();
-  }
-  if (!c.token) console.error("[main.mts] Keychain 订阅 token 读取失败——沙盒 claude 将无认证");
-  return c.token;
+  try {
+    return require("node:fs").readFileSync("/Users/silencehan/.sandcastle/claude_oauth_token", "utf8").trim();
+  } catch { return ""; }
 })();
-if (!CLAUDE_OAUTH) console.error("[main.mts] Keychain 订阅 token 读取失败——沙盒 claude 将无认证");
+if (!CLAUDE_OAUTH) console.error("[main.mts] claude_oauth_token 文件缺失或为空——沙盒 claude 将无认证");
 // #1283 Q2 裁定 (c)+Q1：执行面全量切 Claude 订阅额度 opus-5（2026-08-29 编排者令）
 // import { primeAgent } from "./prime-agent-provider.ts"; // 旧 deepseek 路线停用留档
 import { execSync } from "node:child_process";
