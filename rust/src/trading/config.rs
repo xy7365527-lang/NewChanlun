@@ -13,9 +13,18 @@ use crate::buysellpoint::BspKind;
 
 /// 市场语境。futures（INV-3 真实空头）不在枚举里——F1 实装时新增变体，
 /// 编译器强制所有 match 点表态。
+///
+/// #1313：`Perp` 为 paper 链 HL perp 做空仓位的表达前提——runner master
+/// FSM 的方向对称短侧（ARMED_SHORT/SHORT）仅在本变体下可达；`Stock` 在册
+/// 行为零接触（O0≡P5）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MarketMode {
     Stock,
+    /// #1313：短侧对称臂的使能位——生产侧由 paper 链（#1311）经配置置位；
+    /// 本票内仅测试构造（`#[allow(dead_code)]` = 表达位先于生产消费方的
+    /// 显式声明）。
+    #[allow(dead_code)]
+    Perp,
 }
 
 /// 止损模式。A/B 当前同语义（2% 核心止损），保留区分位（Python parity）。

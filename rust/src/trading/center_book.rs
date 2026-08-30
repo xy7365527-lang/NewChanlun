@@ -684,6 +684,45 @@ mod tests {
         assert!(matches!(out[0], CenterEvent::Formed { seg_start: 20, .. }));
     }
 
+    /// #1313 MECE 锁（每中枢生命周期状态穷尽 + 转移覆盖）：Formed →
+    /// Extended → (候选离开段窗口) → Terminated 的状态集与互斥分类。
+    /// 锁形态 = 断言每中枢恰落在 {alive} × {dead} × {dead_down} × {frozen}
+    /// × {pending_departure} 的完全分类上（同刻恰一「生死」态 + 至多一窗口）。
+    #[test]
+    fn center_lifecycle_mece_classification_lock() {
+        let mut book = CenterBook::new();
+        // ① Formed：alive，非死非冻结无窗口。
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        assert!(book.alive(2).is_some());
+        assert!(!book.is_dead(2, 10));
+        assert!(!book.is_dead_down(2, 10));
+        assert!(!book.is_frozen(2));
+        assert!(!book.has_pending_departure(2));
+        // ② Extended：同 cs 边界更新——仍 alive，分类不变。
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.5)], true, None);
+        assert!(book.alive(2).is_some());
+        assert!(!book.is_dead(2, 10));
+        // ③ 候选离开段窗口：candidate Sell3 → 窗口置位，仍 alive（未死）。
+        book.ingest(2, &[ev(BspClass::Sell3, false, 10, 1.0, 2.5)], true, None);
+        assert!(book.has_pending_departure(2));
+        assert!(book.alive(2).is_some());
+        assert!(!book.is_dead(2, 10));
+        // ④ 窗口价格否定：回 ZD 之上 → 窗口解除，alive 保持。
+        book.negate_pending_departure(2, 2.6);
+        assert!(!book.has_pending_departure(2));
+        assert!(book.alive(2).is_some());
+        // ⑤ Terminated（confirmed Sell3 = 三卖向下终结）：dead + dead_down，
+        //    alive 收空——分类完备：死中枢不再 alive，且方向判据落位。
+        book.ingest(2, &[ev(BspClass::Sell3, true, 10, 1.0, 2.5)], true, None);
+        assert!(book.is_dead(2, 10));
+        assert!(book.is_dead_down(2, 10));
+        assert!(book.alive(2).is_none());
+        assert!(
+            !book.is_frozen(2),
+            "Sell3 不冻结（frozen = hard Buy3 专属）"
+        );
+    }
+
     #[test]
     fn dead_center_events_ignored() {
         let mut book = CenterBook::new();

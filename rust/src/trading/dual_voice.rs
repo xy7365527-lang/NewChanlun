@@ -761,6 +761,9 @@ pub(crate) fn run_dual_voice(
                 LayerState::Armed { .. } => {
                     unreachable!("dual_voice 无 ARMED 相位——confirmed 事件直接消费")
                 }
+                LayerState::ArmedShort { .. } => {
+                    unreachable!("ArmedShort 仅 runner Perp 模式短侧布防可达（#1313）")
+                }
                 LayerState::Long { .. } => {}
                 // 在册单书翻转架构的 Short 层（dual_book=false 专属；
                 // unified_voice 逐字同构）。

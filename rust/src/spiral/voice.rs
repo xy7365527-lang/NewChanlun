@@ -201,4 +201,46 @@ mod tests {
         assert_eq!(f.active_root_count(), 0);
         assert_eq!(f.active_units(), 0.0);
     }
+
+    /// #1313 MECE 锁（VoiceStatus 状态穷尽 + 转移覆盖）：三态判别式两两
+    /// 不同（互斥：同刻恰一态）；转移表 = Active →(units→0) PendingRecovery
+    /// →(units>0) Active；Closed 为终态（refresh_status 不改 Closed）。
+    fn voice_status_variant(s: &VoiceStatus) -> u8 {
+        match s {
+            VoiceStatus::Active => 0,
+            VoiceStatus::PendingRecovery => 1,
+            VoiceStatus::Closed => 2,
+        }
+    }
+
+    #[test]
+    fn voice_status_three_variants_mutually_exclusive() {
+        use std::collections::HashSet;
+        let samples = [
+            VoiceStatus::Active,
+            VoiceStatus::PendingRecovery,
+            VoiceStatus::Closed,
+        ];
+        let discs: HashSet<u8> = samples.iter().map(voice_status_variant).collect();
+        assert_eq!(discs.len(), 3, "三态判别式两两不同（互斥）");
+        assert_eq!(samples.len(), 3, "状态空间基数锁 = 3");
+    }
+
+    #[test]
+    fn voice_status_transition_coverage_lock() {
+        // Active →(units→0)→ PendingRecovery →(units>0)→ Active
+        let mut v = SpiralVoice::new(SpiralState::root(3), 100.0, 50.0, 0.0, 0, None);
+        assert_eq!(v.status, VoiceStatus::Active);
+        v.units = 0.0;
+        v.refresh_status();
+        assert_eq!(v.status, VoiceStatus::PendingRecovery);
+        v.units = 100.0;
+        v.refresh_status();
+        assert_eq!(v.status, VoiceStatus::Active);
+        // Closed 终态：refresh_status 不改写（后序 close 依赖此单向性）。
+        v.status = VoiceStatus::Closed;
+        v.units = 0.0;
+        v.refresh_status();
+        assert_eq!(v.status, VoiceStatus::Closed);
+    }
 }

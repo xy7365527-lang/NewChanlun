@@ -670,6 +670,9 @@ pub(crate) fn run_unified_voice(
                 LayerState::Armed { .. } => {
                     unreachable!("fusion_v 无 ARMED 相位——confirmed 事件直接消费")
                 }
+                LayerState::ArmedShort { .. } => {
+                    unreachable!("ArmedShort 仅 runner Perp 模式短侧布防可达（#1313）")
+                }
                 LayerState::Long { .. } => {}
                 // ── 空头书出口集（翻转断面的对偶面）。优先序：逐仓强平
                 //    （物理事件）→ MoveUp 强制平空翻多（49:52 满仓义务

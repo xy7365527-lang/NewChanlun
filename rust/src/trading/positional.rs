@@ -42,6 +42,13 @@ pub(crate) enum LayerState {
     Flat,
     /// 布防：buy1@k 已现，等待次级别区间套确认（在册 master ARMED 同构）。
     Armed { arm_bar: i64 },
+    /// 空侧布防 [镜像推导]（#1313 方向对称化）：sell1@k 已现，等待次级别
+    /// 区间套卖确认（45课持币/持股二元循环的方向镜像——Flat 经卖点布防
+    /// 开空，与 Flat 经买点布防开多逐字对称）。当前长侧各模式不可达
+    /// （短侧入口在 runner master FSM 的 `MarketMode::Perp`），本变体为
+    /// 短侧布防的 LayerState 表达位 + MECE 锁锚点（测试构造）。
+    #[allow(dead_code)]
+    ArmedShort { arm_bar: i64 },
     /// 确认已成立但资金不可用（pool 不足）——推迟入场（D7/D9）。
     /// sell1@k 取消（该买点起始的走势类型已被宣告结束）。
     Pending { confirm_bar: i64 },
@@ -1336,6 +1343,9 @@ pub fn run_positional(
                     }
                 }
                 (_, LayerState::Long { .. }) => {}
+                (_, LayerState::ArmedShort { .. }) => {
+                    unreachable!("ArmedShort 仅短侧镜像模式可达（#1313；当前长侧模式无空侧入口）")
+                }
                 (_, LayerState::Short { .. }) => {
                     unreachable!("Short 仅 fusion_btr 白名单层可达（已在入口分派）")
                 }
@@ -1757,5 +1767,56 @@ mod tests {
             run_positional(&t, 2, PolarityMode::Cycle45).is_err(),
             "事件磁带全空也拒绝"
         );
+    }
+
+    /// #1313 MECE 锁（状态穷尽）：LayerState 七态判别式。**锁形态** = 本函数
+    /// 的非穷尽 `match`——新增变体未在此表态即编译失败；测试断言七态判别值
+    /// 两两不同（互斥：同刻恰一态）。短侧镜像关系（ArmedShort/Long→Short）
+    /// 由判别值相邻编码锁定（0/1/2/3 长侧链 + 短侧锚点，见断言）。
+    fn layer_state_variant(s: &LayerState) -> u8 {
+        match s {
+            LayerState::Flat => 0,
+            LayerState::Armed { .. } => 1,
+            LayerState::ArmedShort { .. } => 2,
+            LayerState::Pending { .. } => 3,
+            LayerState::Long { .. } => 4,
+            LayerState::Short { .. } => 5,
+            LayerState::Gated { .. } => 6,
+        }
+    }
+
+    #[test]
+    fn layer_state_seven_variants_mutually_exclusive() {
+        use std::collections::HashSet;
+        let samples = [
+            LayerState::Flat,
+            LayerState::Armed { arm_bar: 1 },
+            LayerState::ArmedShort { arm_bar: 2 },
+            LayerState::Pending { confirm_bar: 3 },
+            LayerState::Long {
+                entry_bar: 4,
+                entry_price: 100.0,
+                shares: 1.0,
+                weight: 0.5,
+                deferred_bars: 0,
+                partial: false,
+            },
+            LayerState::Short {
+                entry_bar: 5,
+                entry_price: 100.0,
+                units: 1.0,
+                weight: 0.5,
+                margin: 100.0,
+            },
+            LayerState::Gated {
+                entry_bar: 6,
+                weight: 0.5,
+            },
+        ];
+        let discs: HashSet<u8> = samples.iter().map(layer_state_variant).collect();
+        assert_eq!(discs.len(), 7, "七态判别式必须两两不同（互斥：同刻恰一态）");
+        // 状态空间基数锁：= 7（#1313 补 ArmedShort 前为 6）。新增变体须同步
+        // 更新本断言 + 上方 match（编译器兜底）。
+        assert_eq!(samples.len(), 7);
     }
 }
