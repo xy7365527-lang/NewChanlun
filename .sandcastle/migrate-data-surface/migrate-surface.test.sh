@@ -55,12 +55,12 @@ EOF
 # Byte-robustness guard: the migration primitive must stay ASCII-only so that
 # transfer/encoding mangling cannot break the bash 3.2 parser (issue #1235 host gate).
 byte_guard() {
-  say "byte guard: migrate-surface.sh is ASCII-only"
-  if LC_ALL=C grep -q '[^ -~]' "$MIGRATE"; then
-    printf '%s\n' "  FAIL: migrate-surface.sh contains non-ASCII bytes"
+  say "byte guard: migration scripts are ASCII-only"
+  if LC_ALL=C grep -q '[^ -~]' "$MIGRATE" "$HERE/migrate-surface.test.sh"; then
+    printf '%s\n' "  FAIL: a migration script contains non-ASCII bytes"
     FAILURES=$((FAILURES + 1))
   else
-    printf '%s\n' "  PASS: migrate-surface.sh is ASCII-only"
+    printf '%s\n' "  PASS: both migration scripts are ASCII-only"
   fi
 }
 
@@ -262,6 +262,33 @@ scenario_g() {
   rm -rf "$base"
 }
 
+scenario_h() {
+  say "scenario H: failed preflight releases the lock, corrected retry not blocked"
+  local base; base=$(mktemp -d)
+  local SRC="$base/src" DST="$base/dst" LOCK="$base/lock"
+  mkdir -p "$SRC"; printf 'h\n' > "$SRC/h.txt"
+  make_fake_rsync "$base"
+
+  # First preflight fails: target exists as a regular file.
+  printf 'occupied\n' > "$DST"
+  "$BASH" "$MIGRATE" preflight --src "$SRC" --dst "$DST" --name "canary-h" \
+    --lock-dir "$LOCK" --rsync "$base/fake-rsync" >/dev/null 2>&1
+  assert "preflight rejects target being a regular file (non-zero)" "[ $? -ne 0 ]"
+  assert "failed preflight leaves no stale lock" "[ ! -e \"$LOCK\" ]"
+
+  # Correct the target and retry: must not be blocked by a stale lock.
+  rm -f "$DST"
+  "$BASH" "$MIGRATE" preflight --src "$SRC" --dst "$DST" --name "canary-h" \
+    --lock-dir "$LOCK" --rsync "$base/fake-rsync" >/dev/null 2>&1
+  assert "corrected retry preflight succeeds" "[ $? -eq 0 ]"
+  assert "successful preflight holds the lock" "[ -e \"$LOCK\" ]"
+
+  "$BASH" "$MIGRATE" done --src "$SRC" --dst "$DST" --name "canary-h" \
+    --lock-dir "$LOCK" >/dev/null 2>&1
+  assert "done releases the lock" "[ ! -e \"$LOCK\" ]"
+  rm -rf "$base"
+}
+
 byte_guard
 scenario_a
 scenario_b
@@ -270,6 +297,7 @@ scenario_d
 scenario_e
 scenario_f
 scenario_g
+scenario_h
 
 say "--------------------------------"
 if [ "$FAILURES" -eq 0 ]; then

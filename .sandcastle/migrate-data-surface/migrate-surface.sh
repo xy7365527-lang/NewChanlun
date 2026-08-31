@@ -211,7 +211,12 @@ cmd_preflight() {
   require_args
   [ -n "$LOCK_DIR" ] || LOCK_DIR="$(default_lock_dir)"
   acquire_lock || return 1
-  preflight_checks || return 1
+  if ! preflight_checks; then
+    # Release the lock on failed prechecks so a corrected retry is not blocked
+    # by a stale in-flight lock (preflight must fail with no side effects).
+    release_lock
+    return 1
+  fi
   log "preflight passed: src=$SRC dst=$DST name=$NAME"
   log "manual flow: run 'done' after all verifications pass; 'full' finalizes automatically."
 }
