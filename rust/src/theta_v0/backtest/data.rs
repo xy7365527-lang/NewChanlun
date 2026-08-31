@@ -47,11 +47,12 @@ struct RawData {
     dates: Vec<String>,
 }
 
-/// 8 品种 → (数据文件名, bar 粒度秒数)（协议 §1.1 锁定）。文件名与
-/// `recursive_t/backtest_run.rs::SYMBOLS` 一致。粒度列让 load_by_symbol 随品种取粒度
-/// （C 点）——现有 8 品种全 1min 文件 ⟹ 60，对 load_symbol 仍传 60 ⟹ 1m 路径 bit-exact。
-/// 1s 数据接入时此表追加 1s 条目（task-a 落盘后），bar_seconds=1。
-pub const SYMBOLS: [(&str, &str, u32); 8] = [
+/// 10 品种 → (数据文件名, bar 粒度秒数)（协议 §1.1 锁定 + #1281 §9 补录 ZN/6E）。文件名与
+/// `recursive_t/backtest_run.rs::SYMBOLS` 一致（ZN/6E 为该表 §9 补录的同名文件）。
+/// 粒度列让 load_by_symbol 随品种取粒度（C 点）——现有 10 品种全 1min 文件 ⟹ 60，对
+/// load_symbol 仍传 60 ⟹ 1m 路径 bit-exact。1s 数据接入时此表追加 1s 条目（task-a 落盘后），
+/// bar_seconds=1。
+pub const SYMBOLS: [(&str, &str, u32); 10] = [
     ("BTC", "btc_1m_full.json", 60),
     ("ES", "es_1m_databento_10y.json", 60),
     ("CL", "cl_1m_databento_10y.json", 60),
@@ -60,6 +61,9 @@ pub const SYMBOLS: [(&str, &str, u32); 8] = [
     ("DX", "dx_1m_databento_10y.json", 60),
     ("QQQ", "qqq_1m_databento_full.json", 60),
     ("OKLO", "oklo_1m_databento.json", 60),
+    // #1281 §9 补录（prereg-windows-v0 冻结值扩展池）：17y 全量 1min 快照。
+    ("ZN", "zn_1m_databento_10y.json", 60),
+    ("6E", "usd6e_1m_databento_10y.json", 60),
 ];
 
 /// `analysis/data_cache` 绝对路径（crate manifest 上一级）。
@@ -513,12 +517,16 @@ mod tests {
         assert_eq!(ds.bar_seconds, 60);
     }
 
-    /// C 点 bit-exact 守卫：SYMBOLS 表全 8 品种 bar_seconds==60，且查表取出的粒度恒 60
+    /// C 点 bit-exact 守卫：SYMBOLS 表全 10 品种 bar_seconds==60，且查表取出的粒度恒 60
     /// （= 改前 load_by_symbol 写死的 60）⟹ load_by_symbol 对 1m 路径逐 bit 等价（不读文件，
     /// 纯查表，roadmap.yaml:988 硬约束）。1s 接入新增条目时此断言会暴露（守卫不被默默放过）。
     #[test]
     fn symbols_table_bit_exact_60s() {
-        assert_eq!(SYMBOLS.len(), 8, "现有 8 品种（1s 接入前）");
+        assert_eq!(
+            SYMBOLS.len(),
+            10,
+            "现有 10 品种（8 原版 + ZN/6E 补录；1s 接入前）"
+        );
         for (sym, _, bar_seconds) in SYMBOLS.iter() {
             assert_eq!(*bar_seconds, 60, "{sym} 为 1m 文件 ⟹ 60s（bit-exact）");
         }

@@ -146,3 +146,9 @@ pub mod theta_pi_diff;
 /// env 钉死 + 同输入双跑逐位自检），供 `theta_accept` 与 `theta_replay` 共用同一份回放物证。
 #[cfg(any(test, feature = "backtest_bin"))]
 pub mod replay_dump;
+
+/// #1317 M1 最终实验：多空双开百分位测量（#1282 预注册判据的同口径移植）——生产引擎
+/// 交易流上的 MT19937 bit-exact 随机基线 + 双开腿拆解（`dual_leg_metrics`）。供
+/// `theta_m1_dual` bin 复用；模块无市场数据依赖，测试锁对拍 CPython `random.Random`。
+#[cfg(any(test, feature = "backtest_bin"))]
+pub mod m1_dual;

@@ -1,0 +1,40 @@
+{
+  "criterion": "7/7 百分位全部越过各自随机中位（符号检验单侧 p=0.0078125）",
+  "failures": [
+    {
+      "error": "读取 \"/home/agent/workspace/analysis/data_cache/es_1m_databento_10y.json\" 失败: No such file or directory (os error 2)",
+      "symbol": "ES"
+    },
+    {
+      "error": "读取 \"/home/agent/workspace/analysis/data_cache/gc_1m_databento_10y.json\" 失败: No such file or directory (os error 2)",
+      "symbol": "GC"
+    },
+    {
+      "error": "读取 \"/home/agent/workspace/analysis/data_cache/cl_1m_databento_10y.json\" 失败: No such file or directory (os error 2)",
+      "symbol": "CL"
+    },
+    {
+      "error": "读取 \"/home/agent/workspace/analysis/data_cache/zn_1m_databento_10y.json\" 失败: No such file or directory (os error 2)",
+      "symbol": "ZN"
+    },
+    {
+      "error": "读取 \"/home/agent/workspace/analysis/data_cache/usd6e_1m_databento_10y.json\" 失败: No such file or directory (os error 2)",
+      "symbol": "6E"
+    },
+    {
+      "error": "读取 \"/home/agent/workspace/analysis/data_cache/brn_1m_databento_10y.json\" 失败: No such file or directory (os error 2)",
+      "symbol": "BRN"
+    },
+    {
+      "error": "读取 \"/home/agent/workspace/analysis/data_cache/dx_1m_databento_10y.json\" 失败: No such file or directory (os error 2)",
+      "symbol": "DX"
+    }
+  ],
+  "issue": 1317,
+  "n_pass": 0,
+  "n_total": 0,
+  "sign_test_p_7of7": 0.0078125,
+  "sign_test_p_actual": 1.0,
+  "symbols": [],
+  "verdict": "卡点（数据缺失，未执行）"
+}

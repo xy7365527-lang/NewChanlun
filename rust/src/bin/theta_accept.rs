@@ -20,7 +20,7 @@
 //! ## 用法
 //! ```text
 //! cargo run --release --features backtest_bin --bin theta_accept -- [SYMBOL...] [选项]
-//!   SYMBOL...           品种代码（BTC/ES/CL/GC/BRN/DX/QQQ/OKLO）；省略 = 全部 8 品种
+//!   SYMBOL...           品种代码（BTC/ES/CL/GC/BRN/DX/QQQ/OKLO/ZN/6E）；省略 = 全部 10 品种
 //!   --window START END  ISO 日期窗闭区间（如 2024-01-01 2024-12-31）
 //!   --months N          从数据集末往前 N 个月（与 --window 二选一；省略 = 全量）
 //!   --parallel          多品种并行（默认顺序；报告顺序恒为 SYMBOLS 表序）
@@ -365,7 +365,7 @@ fn main() -> std::process::ExitCode {
     // 品种名归一（大小写不敏感），未知品种 fail-loud。
     for sym in &symbols {
         if !SYMBOLS.iter().any(|(s, _, _)| s.eq_ignore_ascii_case(sym)) {
-            eprintln!("未知品种 `{sym}`（不在 SYMBOLS 表：BTC/ES/CL/GC/BRN/DX/QQQ/OKLO）");
+            eprintln!("未知品种 `{sym}`（不在 SYMBOLS 表：BTC/ES/CL/GC/BRN/DX/QQQ/OKLO/ZN/6E）");
             return std::process::ExitCode::from(2);
         }
     }

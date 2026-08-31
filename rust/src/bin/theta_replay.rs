@@ -19,7 +19,7 @@
 //! ## 用法
 //! ```text
 //! cargo run --release --features backtest_bin --bin theta_replay -- <SYMBOL> [START END] [--out PATH]
-//!   <SYMBOL>       品种代码（BTC/ES/CL/GC/BRN/DX/QQQ/OKLO，见 data::SYMBOLS）
+//!   <SYMBOL>       品种代码（BTC/ES/CL/GC/BRN/DX/QQQ/OKLO/ZN/6E，见 data::SYMBOLS）
 //!   [START END]    可选 ISO 日期窗闭区间（如 2024-01-01 2024-12-31）；省略 = 全量
 //!   [--out PATH]   可选：把 run-1 的确定性 dump（JSONL）写到此路径
 //! ```
@@ -66,7 +66,7 @@ fn main() -> std::process::ExitCode {
         Some(s) => s,
         None => {
             eprintln!(
-                "用法: {} <SYMBOL> [START_DATE END_DATE] [--out PATH]\n  SYMBOL: BTC/ES/CL/GC/BRN/DX/QQQ/OKLO\n  日期窗(可选): ISO 闭区间，如 2024-01-01 2024-12-31",
+                "用法: {} <SYMBOL> [START_DATE END_DATE] [--out PATH]\n  SYMBOL: BTC/ES/CL/GC/BRN/DX/QQQ/OKLO/ZN/6E\n  日期窗(可选): ISO 闭区间，如 2024-01-01 2024-12-31",
                 args.first().map(String::as_str).unwrap_or("theta_replay")
             );
             return std::process::ExitCode::from(2);
