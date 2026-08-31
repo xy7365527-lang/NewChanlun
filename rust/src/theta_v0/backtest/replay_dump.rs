@@ -149,6 +149,14 @@ fn replay(dataset: &Dataset, config: &ThetaConfig, initial_nav: f64) -> String {
         let p_t = stream.target_net_units(); // self-state：上一 bar 的 p_star（全成交模拟）
         let p_star = stream.push_bar(*bar, p_t, initial_nav);
         let order = stream.last_order();
+        // ★#1318 补锁（运行时断言，非注释）：Schedule_Θ 单出口契约——回放每 bar 的分派/
+        // allocator 产出必须与 |round(p_star − p_t)| 逐位一致（与 stream 集成测试同款锁，
+        // 但此处跑在回放 driver 本体路径上，release 同样执行）。
+        assert_eq!(
+            order.qty,
+            (p_star - p_t).abs().round() as i64,
+            "#1318 回放锁：bar {i} last_order.qty 与 |round(p_star − p_t)| 不一致（Schedule_Θ 单出口破）"
+        );
         let line = json!({
             "kind": "bar",
             "i": i,
@@ -160,6 +168,16 @@ fn replay(dataset: &Dataset, config: &ThetaConfig, initial_nav: f64) -> String {
         out.push_str(&serde_json::to_string(&line).expect("bar 行序列化失败"));
         out.push('\n');
     }
+
+    // ★#1318 补锁（运行时断言）：决策核（分类塔 → 三类买卖点判据 → π step）必须逐 bar 驱动
+    // 每一根输入 bar——bar_count 落后 ⟹ 回放静默漏 bar（生产链未逐 bar 执行）。
+    assert_eq!(
+        stream.bar_count(),
+        dataset.bars.len(),
+        "#1318 回放锁：决策核驱动 bar 数 {} != 数据集 bar 数 {}（分类塔/买卖点判据未逐 bar 执行）",
+        stream.bar_count(),
+        dataset.bars.len()
+    );
 
     // ── 收尾：窗口终点强平 + 终态账本导出（D1 per-leg 出口面）。 ──
     stream.finish();
@@ -184,6 +202,28 @@ fn replay(dataset: &Dataset, config: &ThetaConfig, initial_nav: f64) -> String {
 
     let level_nets: Vec<(u32, i64)> = level_ledger.nets().iter().map(|(l, n)| (*l, *n)).collect();
     let w = level_ledger.lee_net_witness();
+
+    // ★#1318 补锁（运行时断言）：两处账本写入的守恒锚——①级别账本 LEE-Net 恒等（整数手数
+    // 求和，残差必须恒 0，非 eps 容差）；②逐声部账本对账（account_price_pnl ≈ Σ_v pnl_v，
+    // 排序和与账户侧一致，f64 求和序误差按相对容差判）。任一破 ⟹ 账本写入不守恒，回放结果
+    // 不可信。
+    assert_eq!(
+        w.max_abs_residual, 0,
+        "#1318 回放锁：LEE-Net 恒等残差 {} != 0（级别账本写入与 overlay 净敞口漂移）",
+        w.max_abs_residual
+    );
+    // f64 对账残差取**相对容差**（1e-6 × 最大侧量级，下限 1.0）：account_price_pnl 与分账本
+    // pnl_v 的求和序不同（账户按 bar 时序、分账本按声部序再排序求和），误差随量级线性放大，
+    // 绝对容差会在 12 个月大名义回放上误报（与 stream 集成测试的绝对 1e-6 口径不同——那是
+    // 80 根小名义合成 bar）。
+    let reconcile_scale = account_price_pnl
+        .abs()
+        .max(total_voice_pnl_sorted.abs())
+        .max(1.0);
+    assert!(
+        reconcile_residual_sorted < 1e-6 * reconcile_scale,
+        "#1318 回放锁：账户/分账本对账残差 {reconcile_residual_sorted} >= 1e-6 × scale {reconcile_scale}（逐声部账本写入不守恒）"
+    );
 
     let line = json!({
         "kind": "result",
@@ -283,5 +323,64 @@ pub fn run_replay_double(
         identical,
         first_divergence_offset,
         elapsed,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::super::types::Bar;
+    use super::*;
+
+    /// 确定性合成锯齿行情（全可交易，无 untradable bar）——与 `theta_pi_diff` 测试同款
+    /// 4 升/4 降步进形态：足以形成分型/笔/段/中枢，让回放路径跑在真结构上；决策层可能
+    /// 恒空（不产买卖点信号），但回放锁（逐 bar 驱动 + Schedule_Θ 单出口 + 两账本守恒）
+    /// 在空账与真结构上都必须成立。
+    fn synthetic_bars() -> Vec<Bar> {
+        (0..240)
+            .map(|i| {
+                let up = ((i / 4) % 2) == 0;
+                let base = 10_000_000_000i64;
+                let step = 250_000_000i64 * ((i % 4) as i64);
+                let close_tick = if up {
+                    base + step
+                } else {
+                    base + 1_000_000_000 - step
+                };
+                Bar {
+                    source_index: i,
+                    timestamp: i as i64,
+                    open: close_tick,
+                    high: close_tick,
+                    low: close_tick,
+                    close: close_tick,
+                    volume: 1.0,
+                    untradable: false,
+                }
+            })
+            .collect()
+    }
+
+    /// #1318：回放路径本体必须触发逐 bar 决策核 + Schedule_Θ 单出口 + 两账本守恒的运行时
+    /// 断言——本测试直接跑 `run_replay_double`（即 theta_replay 的同一份回放核心），断言
+    /// 在合成数据上逐位双跑一致（= 四道回放锁全部通过，任一锁破会在此先 panic）。
+    #[test]
+    fn replay_double_exercises_runtime_locks_on_synthetic_data() {
+        let bars = synthetic_bars();
+        let dates: Vec<String> = bars
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("2024-01-01T{:02}:{:02}:00+00:00", (i / 60) % 24, i % 60))
+            .collect();
+        let dataset = Dataset {
+            symbol: "SYNTH".to_string(),
+            bars,
+            dates,
+            bar_seconds: 60,
+        };
+        let config = ThetaConfig::default();
+        let outcome = run_replay_double(&dataset, &config, None);
+        assert!(outcome.identical, "同输入双跑必须逐位一致");
+        assert_eq!(outcome.n_bars, dataset.bars.len());
+        assert_eq!(outcome.n_bars, 240);
     }
 }
