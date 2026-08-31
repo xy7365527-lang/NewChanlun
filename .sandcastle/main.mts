@@ -9,9 +9,8 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { codex } from "@ai-hero/sandcastle";
-// claudeCode 暂停（订阅 OAuth 失效待重登）；codex GPT-5.6 Sol 接管
-// import { claudeCode } from "@ai-hero/sandcastle";
+// #1283 Q2 nautilus/codex 切换暂停（OAuth/依赖问题），回退 deepseek primeAgent
+import { claudeCode } from "@ai-hero/sandcastle";
 // 订阅额度认证——token 文件由终端上下文提取（launchd 读不了 Keychain；过期后重跑提取命令刷新）
 // 提取命令：security find-generic-password -s "Claude Code-credentials" -w | python3 -c "import sys,json,os; d=json.loads(sys.stdin.read())['claudeAiOauth']; open(os.path.expanduser('~/.sandcastle/claude_oauth_token'),'w').write(d['accessToken'])"
 const CLAUDE_OAUTH = (() => {
@@ -21,7 +20,7 @@ const CLAUDE_OAUTH = (() => {
 })();
 if (!CLAUDE_OAUTH) console.error("[main.mts] claude_oauth_token 文件缺失或为空——沙盒 claude 将无认证");
 // #1283 Q2 裁定 (c)+Q1：执行面全量切 Claude 订阅额度 opus-5（2026-08-29 编排者令）
-// import { primeAgent } from "./prime-agent-provider.ts"; // 旧 deepseek 路线停用留档
+import { primeAgent } from "./prime-agent-provider.ts";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
@@ -261,7 +260,7 @@ if (REVIEW_ONLY) {
   logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
   await runWithResume(sandbox, {
     name: "reviewer",
-    agent: codex("gpt-5.6-sol"),
+    agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
     promptFile: "./.sandcastle/review-prompt.md",
     promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
   });
@@ -307,7 +306,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "implementer", status: "started" });
     const implement = await runWithResume(sandbox, {
       name: "implementer",
-      agent: codex("gpt-5.6-sol"),
+      agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
       promptFile: "./.sandcastle/implement-prompt.md",
       promptArgs: { ISSUE_NUMBER: String(issue) },
       idleTimeoutSeconds: IMPLEMENTER_IDLE_TIMEOUT_SECONDS,
@@ -324,7 +323,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
     await runWithResume(sandbox, {
       name: "reviewer",
-      agent: codex("gpt-5.6-sol"),
+      agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
       promptFile: "./.sandcastle/review-prompt.md",
       promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
     });
