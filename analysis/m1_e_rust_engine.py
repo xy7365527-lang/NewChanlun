@@ -27,6 +27,7 @@ E 版本 `run_swing_trading(MODE_NONE)` 只读 BarSignal 的 5 个字段：
 认识论等级：移植正确性 L0/L1（管线等价，由 bit-exact 验证保证）；
 回测结论 L2（真实数据，由 run_swing_trading 在真实 OHLC 上产出）。
 """
+# 冻结声明：简化实验代理，已退役（E 主轴研究结论已入 ROADMAP M1 节）；名分=研发档案，不参生产准入。
 
 from __future__ import annotations
 

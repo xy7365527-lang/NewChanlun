@@ -27,6 +27,7 @@ L2（真实数据，单标的单时段假设检验，可产生否定性结果）
 `project_backtest_benchmark_falsifiability` 记忆指出的"可证伪性补强"——它给出了
 "相同暴露下的随机基线"，使"E 版本是否真有择时 alpha"成为可证伪命题。
 """
+# 冻结声明：简化实验代理，已退役（#1312/#1315 实验结论以生产回放为准）；名分=研发档案，不参生产准入。
 
 from __future__ import annotations
 

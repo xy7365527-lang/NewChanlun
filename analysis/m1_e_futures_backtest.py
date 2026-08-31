@@ -27,6 +27,7 @@ E 版本 metrics 与 P3 随机门控**共享同一份 signals/trades**——P3 �
 
 521 号限定：信号属 candidate 层（PH 门控 + MACD 面积代理），非 confirmed 买卖点。
 """
+# 冻结声明：简化实验代理，已退役（E 主轴研究结论已入 ROADMAP M1 节）；名分=研发档案，不参生产准入。
 
 from __future__ import annotations
 

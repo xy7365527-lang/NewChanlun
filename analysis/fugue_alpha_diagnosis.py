@@ -14,6 +14,7 @@ has_active_trim，这些字段不反馈进出场状态转移（转移由 move se
 认识论等级：L2（真实数据，QQQ/OKLO 1min；含否定性结果）。
 关键限定（521 号）：信号属 candidate 层（PH 门控 + MACD 面积代理），非 confirmed 买卖点。
 """
+# 冻结声明：简化实验代理，已退役（#1312/#1315 实验结论以生产回放为准）；名分=研发档案，不参生产准入。
 
 from __future__ import annotations
 

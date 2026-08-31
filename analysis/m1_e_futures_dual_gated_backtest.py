@@ -44,6 +44,7 @@ cd rust && cargo test --release gate_state_dump_prereg7 -- --ignored --nocapture
 PYTHONPATH=src:analysis uv run python analysis/m1_e_futures_dual_gated_backtest.py
 ```
 """
+# 冻结声明：简化实验代理，已退役（#1312/#1315 实验结论以生产回放为准）；名分=研发档案，不参生产准入。
 
 from __future__ import annotations
 
