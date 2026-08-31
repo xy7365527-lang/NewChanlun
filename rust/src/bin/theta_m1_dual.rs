@@ -209,8 +209,10 @@ fn write_report(
     let n_total = results.len();
     let verdict = if n_total == 0 {
         "卡点（数据缺失，未执行）"
+    } else if !failures.is_empty() {
+        "卡点（部分标的未执行）"
     } else if n_pass == n_total {
-        "过（7/7 全部越过随机中位）"
+        "过（全部越过随机中位）"
     } else {
         "不过（如实入档）"
     };
@@ -557,7 +559,15 @@ fn main() -> std::process::ExitCode {
         out_dir.display()
     );
 
-    // 过与不过都是 M1 有效结论 → exit 0（卡点/加载失败才非 0）。
+    // 全部标的跑完：过与不过都是 M1 有效结论 → exit 0；部分标的加载失败 = 卡点 → 非 0
+    // （与全缺卡点同码，fail-loud 不空转，#1066）。
+    if !failures.is_empty() {
+        eprintln!(
+            "\n卡点：{} 个标的加载失败（见报告卡点清单）——7/7 判据未完整执行。",
+            failures.len()
+        );
+        return std::process::ExitCode::from(2);
+    }
     std::process::ExitCode::SUCCESS
 }
 

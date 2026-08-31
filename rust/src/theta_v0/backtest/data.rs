@@ -7,14 +7,14 @@
 //!
 //! ## 数据快照（协议 §1.1，只读，看结果前冻结）
 //!
-//! 8 个品种全部为 1min OHLCV 真实行情（databento / Binance 归档）。本模块加载时**独立
+//! 10 个品种全部为 1min OHLCV 真实行情（databento / Binance 归档）。本模块加载时**独立
 //! 核实** bar 数与时间边界（不照搬协议表格），与协议 §1.1 不符则 fail-loud（数据漂移）。
 //!
 //! ## schema（独立核实，2026-06-25）
 //!
-//! 全 8 品种为 parallel-array schema：`{opens,highs,lows,closes,volumes,dates,symbol}`。
+//! 全 10 品种为 parallel-array schema：`{opens,highs,lows,closes,volumes,dates,symbol}`。
 //! `dates` 为逐 bar 字符串：databento 品种 tz-aware（`"2016-01-03 23:00:00+00:00"`），
-//! BTC 无 tz（`"2017-08-17 04:00:00"`，协议 §1.2 [设计选择] 按 UTC 解释）。**8 品种统一
+//! BTC 无 tz（`"2017-08-17 04:00:00"`，协议 §1.2 [设计选择] 按 UTC 解释）。**10 品种统一
 //! 用 `dates[..10]` 字典序切日期窗**（ISO 日期串字典序 = 时间序）——无 `timestamps_ns` 列。
 //!
 //! ## 不可交易判据（协议 §1.2 + reference-theta-v0.md:53，Θ_exec 继承）
@@ -29,7 +29,7 @@ use super::super::types::{quantize, Bar, Timestamp};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
-/// parallel-array schema（8 品种统一）。`Option<f64>` 容忍 Python `json(allow_nan)`
+/// parallel-array schema（10 品种统一）。`Option<f64>` 容忍 Python `json(allow_nan)`
 /// 写出的 NaN/Inf（预处理替换为 null → None）。
 #[derive(Deserialize, Default)]
 struct RawData {
@@ -357,7 +357,7 @@ pub fn load_by_symbol(symbol: &str, config: &ThetaConfig) -> Result<Dataset, Str
         }
     }
     let path = data_dir().join(file);
-    // 粒度随品种取自 SYMBOLS 表（C 点）。现有 8 品种 bar_seconds=60 ⟹ 仍传 60 ⟹ 1m 路径 bit-exact。
+    // 粒度随品种取自 SYMBOLS 表（C 点）。现有 10 品种 bar_seconds=60 ⟹ 仍传 60 ⟹ 1m 路径 bit-exact。
     load_symbol(&path, symbol, config, bar_seconds)
 }
 
