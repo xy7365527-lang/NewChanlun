@@ -149,14 +149,19 @@ fn replay(dataset: &Dataset, config: &ThetaConfig, initial_nav: f64) -> String {
         let p_t = stream.target_net_units(); // self-state：上一 bar 的 p_star（全成交模拟）
         let p_star = stream.push_bar(*bar, p_t, initial_nav);
         let order = stream.last_order();
-        // ★#1318 补锁（运行时断言，非注释）：Schedule_Θ 单出口契约——回放每 bar 的分派/
-        // allocator 产出必须与 |round(p_star − p_t)| 逐位一致（与 stream 集成测试同款锁，
-        // 但此处跑在回放 driver 本体路径上，release 同样执行）。
-        assert_eq!(
-            order.qty,
-            (p_star - p_t).abs().round() as i64,
-            "#1318 回放锁：bar {i} last_order.qty 与 |round(p_star − p_t)| 不一致（Schedule_Θ 单出口破）"
-        );
+        // ★#1318 补锁（运行时断言，非注释）：Schedule_Θ 单出口契约——回放每根**可交易决策 bar**
+        // 的分派/allocator 产出必须与 |round(p_star − p_t)| 逐位一致（与 stream 集成测试同款锁，
+        // 但此处跑在回放 driver 本体路径上，release 同样执行）。不可交易 bar（或 close≤0）决策层
+        // 早退——push_bar 不更新 last_order，`order` 是上一决策 bar 的残留——故本锁只在决策 bar
+        // 上判；判据与 push_bar 的 `!bar.untradable && px > 0.0` 同口径。
+        let px = bar.close as f64 * config.tick.tick_size;
+        if !bar.untradable && px > 0.0 {
+            assert_eq!(
+                order.qty,
+                (p_star - p_t).abs().round() as i64,
+                "#1318 回放锁：bar {i} last_order.qty 与 |round(p_star − p_t)| 不一致（Schedule_Θ 单出口破）"
+            );
+        }
         let line = json!({
             "kind": "bar",
             "i": i,
@@ -382,5 +387,39 @@ mod tests {
         assert!(outcome.identical, "同输入双跑必须逐位一致");
         assert_eq!(outcome.n_bars, dataset.bars.len());
         assert_eq!(outcome.n_bars, 240);
+    }
+
+    /// #1318：回放循环对**不可交易 bar** 走 `push_bar` 决策层早退路径（不更新 `last_order`）。
+    /// Schedule_Θ 单出口锁只在可交易决策 bar 上判（`!bar.untradable && px > 0.0`），不可交易
+    /// bar 直接跳过——本测试把不可交易 bar 掺进合成锯齿数据，锁「混合可交易性数据的回放不
+    /// panic、逐位双跑一致、bar 数/可交易数不漏」。合成数据决策层恒空（不产非零订单），故本
+    /// 测试锁的是不可交易路径的驱动完整性，不是「残留订单对 0 差」那一具体破口（该破口需真实
+    /// 结构才触发非零订单）。
+    #[test]
+    fn replay_handles_untradable_bars_without_breaking_locks() {
+        let mut bars = synthetic_bars();
+        // 每 5 根标 1 根不可交易（保序连续、不删 bar，与 data.rs 装载口径一致）。
+        for (i, b) in bars.iter_mut().enumerate() {
+            if i % 5 == 4 {
+                b.untradable = true;
+            }
+        }
+        let dates: Vec<String> = bars
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("2024-01-01T{:02}:{:02}:00+00:00", (i / 60) % 24, i % 60))
+            .collect();
+        let dataset = Dataset {
+            symbol: "SYNTH-UT".to_string(),
+            bars,
+            dates,
+            bar_seconds: 60,
+        };
+        let config = ThetaConfig::default();
+        let outcome = run_replay_double(&dataset, &config, None);
+        assert!(outcome.identical, "含不可交易 bar 的混合回放必须逐位一致");
+        assert_eq!(outcome.n_bars, dataset.bars.len());
+        assert_eq!(outcome.n_bars, 240);
+        assert_eq!(outcome.n_tradable, 192, "每 5 根 1 根不可交易 ⟹ 192 可交易");
     }
 }

@@ -50,7 +50,7 @@ theta_replay.rs:main
               │    └─ 无 risk-close seeds (&[], stream.rs:175)  # 无强平/止损种子
               ├─ overlay.step (stream.rs:183)                   # 逐声部账本写入
               └─ level_ledger.step + observe_lee_net (stream.rs:184,186)  # 级别账本写入
-          → stream.finish() (replay_dump.rs:183)                # 窗口终点强平
+          → stream.finish() (replay_dump.rs:188)                # 窗口终点强平
 ```
 
 ---
@@ -134,20 +134,23 @@ eod_close」）。**这是与 theta_v0 完全独立的消费层**：theta_v0 对
 
 | 断言 | 锁住什么 | 位置 |
 |---|---|---|
-| `order.qty == \|round(p_star − p_t)\|`（逐 bar） | Schedule_Θ 单出口契约：分派/allocator 产出与决策一致 | replay_dump.rs:155-161 |
-| `stream.bar_count() == dataset.bars.len()` | 决策核（分类塔→买卖点→π step）逐 bar 驱动，不漏 bar | replay_dump.rs:174-180 |
-| `lee_net_witness().max_abs_residual == 0` | 级别账本写入与 overlay 净敞口的 LEE-Net 恒等（整数，精确） | replay_dump.rs:210-214 |
-| `reconcile_residual_sorted < 1e-6 × scale` | 逐声部账本写入与账户侧价格 PnL 对账守恒（相对容差，量级随名义放大） | replay_dump.rs:215-226 |
+| `order.qty == \|round(p_star − p_t)\|`（逐**决策** bar） | Schedule_Θ 单出口契约：分派/allocator 产出与决策一致（不可交易/close≤0 bar 决策层早退、`last_order` 是上一决策 bar 的残留 ⟹ 跳过本锁） | replay_dump.rs:157-163 |
+| `stream.bar_count() == dataset.bars.len()` | 决策核（分类塔→买卖点→π step）逐 bar 驱动，不漏 bar | replay_dump.rs:179-185 |
+| `lee_net_witness().max_abs_residual == 0` | 级别账本写入与 overlay 净敞口的 LEE-Net 恒等（整数，精确） | replay_dump.rs:215-219 |
+| `reconcile_residual_sorted < 1e-6 × scale` | 逐声部账本写入与账户侧价格 PnL 对账守恒（相对容差，量级随名义放大） | replay_dump.rs:220-231 |
 
 测试锁：`replay_dump::tests::replay_double_exercises_runtime_locks_on_synthetic_data`
-（replay_dump.rs:367-384）在合成锯齿数据上直接跑 `run_replay_double`（即 theta_replay 的同一份
-回放核心），四道锁任一破会在此先 panic；同输入双跑逐位一致照旧锁定。
+（replay_dump.rs:372-389）在合成锯齿数据上直接跑 `run_replay_double`（即 theta_replay 的同一份
+回放核心），四道锁任一破会在此先 panic；同输入双跑逐位一致照旧锁定。另
+`replay_dump::tests::replay_handles_untradable_bars_without_breaking_locks`（replay_dump.rs:399-423）
+把不可交易 bar 掺进合成数据，锁混合可交易性数据的回放不 panic、bar 数/可交易数不漏（决策层早退
+路径的驱动完整性）。
 
 ---
 
 ## 7. 验证
 
 - `cargo check --features backtest_bin --bin theta_replay` 通过（162 条既有 warning 基线，无新增）。
-- `cargo test --features backtest_bin replay_dump::` ：新增测试通过。
+- `cargo test --features backtest_bin replay_dump::` ：新增测试 2 个通过。
 - `cargo test --features backtest_bin theta_pi_diff::` ：3 通过 / 1 ignored（既有 `#[ignore]`）。
 - `cargo test --features backtest_bin --test theta_pi_stream` ：3 通过。
