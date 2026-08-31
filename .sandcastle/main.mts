@@ -9,7 +9,9 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { claudeCode } from "@ai-hero/sandcastle";
+import { codex } from "@ai-hero/sandcastle";
+// claudeCode 暂停（订阅 OAuth 失效待重登）；codex GPT-5.6 Sol 接管
+// import { claudeCode } from "@ai-hero/sandcastle";
 // 订阅额度认证——token 文件由终端上下文提取（launchd 读不了 Keychain；过期后重跑提取命令刷新）
 // 提取命令：security find-generic-password -s "Claude Code-credentials" -w | python3 -c "import sys,json,os; d=json.loads(sys.stdin.read())['claudeAiOauth']; open(os.path.expanduser('~/.sandcastle/claude_oauth_token'),'w').write(d['accessToken'])"
 const CLAUDE_OAUTH = (() => {
@@ -259,7 +261,7 @@ if (REVIEW_ONLY) {
   logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
   await runWithResume(sandbox, {
     name: "reviewer",
-    agent: claudeCode("claude-opus-5", { effort: "high", env: { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_OAUTH, HOME: "/home/agent" } }),
+    agent: codex("gpt-5.6-sol"),
     promptFile: "./.sandcastle/review-prompt.md",
     promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
   });
@@ -305,7 +307,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "implementer", status: "started" });
     const implement = await runWithResume(sandbox, {
       name: "implementer",
-      agent: claudeCode("claude-opus-5", { effort: "high", env: { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_OAUTH, HOME: "/home/agent" } }),
+      agent: codex("gpt-5.6-sol"),
       promptFile: "./.sandcastle/implement-prompt.md",
       promptArgs: { ISSUE_NUMBER: String(issue) },
       idleTimeoutSeconds: IMPLEMENTER_IDLE_TIMEOUT_SECONDS,
@@ -322,7 +324,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
     await runWithResume(sandbox, {
       name: "reviewer",
-      agent: claudeCode("claude-opus-5", { effort: "high", env: { CLAUDE_CODE_OAUTH_TOKEN: CLAUDE_OAUTH, HOME: "/home/agent" } }),
+      agent: codex("gpt-5.6-sol"),
       promptFile: "./.sandcastle/review-prompt.md",
       promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
     });
