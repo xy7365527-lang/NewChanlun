@@ -115,16 +115,18 @@
 - **工作线** = 执行组织（开发线：map/票链）；与接缝不混用。
 - 教义「线段」永不缩写为「线」。
 
-### 十、第 0 条总缝：结构事实契约（Q5 = A）
+### 十、第 0 条总缝：Classification 域间结构事实契约（Q5 = A）
 
-构造轴→判定轴的唯一边 = **Classification**（级别 × bsp 双序号坐标系）。两端契约：
+Classification 是结构判定域的唯一输出，也是结构判定域到重操作程序的唯一域间边界（级别 × bsp 双序号坐标系）。该接缝只读、版本化且单向。
 
-- **产出侧** = `TowerChainCertificate`（节点 = 候选事件、边 = C⊆C 覆盖、三态 + skip、append-only；**纯产出零消费**——N7 消费点未接）。
-- **消费侧** = `NestChainGate` 严格链 + 身份锚三元组（方向 / 极值价 / 合并组锚，#106 多视窗 ADR）。
+- **结构判定域的产出职责**：构造 `TowerChainCertificate`。其节点是候选事件，边是 C⊆C 覆盖，并记录三态、skip 和 append-only 谱系。`TowerChainCertificate` 是域内产物；结构判定域只以 Classification 对外交付结构事实。
+- **重操作程序的准入消费职责**：`NestChainGate` 按严格链和身份锚三元组（方向、极值价、合并组锚，#106 多视窗 ADR）只读 Classification。它不回写 Classification 或结构主干，也不构成第二个 owner。
 
-**判定（已查实）**：两链**不是同一判定的两套实现**（事件族/证书对象/身份键/判定谓词四维全不同、零互引，[#804](https://github.com/xy7365527-lang/NewChanlun/issues/804) 判别式不命中）；旧身份桥已全退役（#106 T4/T5b）——「退役时点」问题闭合。**现状缺口（归工作线①）**：① N7 消费未接（`Consume_at` 留雾）；② 门双层开关——编译层 `cfg(backtest_bin)` 默认构建不含 + 运行层 `THETA_NEST_CERT_GATE` 默认关 ⟹ 生产默认路径零跨级确认；③ nautilus 够不着门（[#799](https://github.com/xy7365527-lang/NewChanlun/issues/799) 裁定八：一半有意一半遗漏，处置 = 目录即层搬家案，成本未估）。
+**判定（已查实）**：`TowerChainCertificate` 证书链和 `NestChainGate` 严格链不是同一判定的两套实现。两者的事件族、证书对象、身份键和判定谓词均不同，且零互引，[#804](https://github.com/xy7365527-lang/NewChanlun/issues/804) 判别式不命中。旧身份桥已在 #106 T4 和 T5b 全部退役，「退役时点」问题闭合。
 
-本节定义结构判定域内部的构造轴→判定轴接缝。唯一 Classification 完成后，结构判定域→重操作程序还有一条只读、版本化、单向接缝；该边界见第十六节。两条接缝分处 Classification 的上下游，不得混成回写环。
+**现状缺口（归工作线①）**：① N7 消费未接，`Consume_at` 留雾；② 门有两层开关，编译层 `cfg(backtest_bin)` 默认构建不含，运行层 `THETA_NEST_CERT_GATE` 默认关闭，因此生产默认路径没有跨级确认；③ nautilus 够不着门，[#799](https://github.com/xy7365527-lang/NewChanlun/issues/799) 裁定八认定一半有意、一半遗漏，处置是目录即层搬家案，成本未估。
+
+本节和第十六节描述同一份 Classification 与同一条接缝。本节记录契约事实和现状缺口，第十六节记录 owner；不存在第二份 Classification 或第二条接缝。
 
 ### 十一、16 条接口契约（Q4 = A）
 
@@ -176,17 +178,17 @@
 4. **卡口① 证书门接线**（#796 实测净贡献 1/52，接线后按句 2 三档载体重新验收）；
 5. **卡口③** = #737 下游 spec（谓词有偏 113 条 + 塔顶键 6.85% + 实现符合性验证），已出图有主。
 
-### 十六、Classification 下游的唯一 owner 与单向接缝（#1321 B）
+### 十六、Classification 域间 owner 与单向接缝（#1321）
 
-[ADR 0027](adr/0027-classification-chong-operating-program-ownership.md) 把 Classification 两侧的生产所有权裁成两个互斥域：
+[ADR 0027](adr/0027-classification-chong-operating-program-ownership.md) 将第十节的 Classification 接缝分配给两个互斥域。这是同一份 Classification 和同一条接缝，不是新增边界。
 
-- **结构判定域**只拥有纵向主干塔与唯一 Classification。它不拥有各操作级别旁路、Chong、TStage、Voice、专属筹码、毛账、生产交易意图或执行状态。
-- **唯一重操作程序**逐 bar 消费 Classification，并拥有各操作级别旁路、同级别分解调用、向下定位、每重 TStage、0..N Voice、专属筹码、逐重毛账与唯一生产交易意图。`ChongOperatingProgram` 只是工作名，最终模块名未定。
+- **结构判定域**拥有纵向主干塔，并产出唯一 Classification。它不拥有各操作级别旁路、Chong、TStage、Voice、专属筹码、毛账、生产交易意图或执行状态。
+- **唯一重操作程序**拥有各操作级别旁路、同级别分解调用、向下定位、每重 TStage、0..N Voice、专属筹码、逐重毛账和唯一生产交易意图。`NestChainGate` 归该 owner 内的准入消费职责，只读 Classification，不回写结构主干，也不成为第二个 owner。`ChongOperatingProgram` 只是工作名，最终模块名未定。
 - **依赖只有一个方向**：`结构判定域 → Classification → 重操作程序`。Classification 契约只读且版本化；资金、成交、风控、UI 和操作状态都不能回写结构主干。下游不得重做结构判定或生成第二份 Classification。
-- **历史回放、paper 与 live 共用这两个核心 owner**。环境差异只允许落在后续裁定的行情、撮合和场所 adapter。
-- **前端只读**。前端消费 Classification 与重操作事件生成的 ReadModel；控制动作经 command/RiskGate 进入生产程序。前端没有结构判定、重状态修改或交易决策权。
-- **旧入口没有并存权**。organic/赋格资产可收编；收编后旧独立入口失去生产决策权。π 内重复交易、成交或账本 owner 必须迁移或退役。失败不得切换到旧入口或另一套判据兜底。
+- **历史回放、paper 和 live 共用这两个核心 owner**。环境差异只允许落在后续裁定的行情、撮合和场所 adapter。
+- **前端只读**。前端消费 Classification 和重操作事件生成的 ReadModel；控制动作经 command 和 RiskGate 进入生产程序。前端没有结构判定、重状态修改或交易决策权。
+- **旧入口没有并存权**。organic 赋格资产可收编；收编后旧独立入口失去生产决策权。π 内重复交易、成交或账本 owner 必须迁移或退役。失败不得切换到旧入口或另一套判据兜底。
 
-本节不改严格多重赋格形态：一条主干塔、一份 Classification、N 个操作级别旁路、每重各自同级别分解与向下定位、每重各自 TStage/Voice/专属筹码/毛账、旁路和下钻不回流主干、重内单向、重间不仲裁、物理订单最后投影。#1321 只补齐谁拥有这些对象。
+本节不改严格多重赋格形态：一条主干塔、一份 Classification、N 个操作级别旁路，每重各自做同级别分解和向下定位，每重各自拥有 TStage、Voice、专属筹码和毛账。旁路和下钻不回流主干，重内单向，重间不仲裁，物理订单最后投影。#1321 只补齐谁拥有这些对象。
 
-**落地状态**：本次只有文档变更，生产代码行为变更为零。最终模块名、typed Classification、command/event/ReadModel 接口和迁移切片必须等待 [#1322](https://github.com/xy7365527-lang/NewChanlun/issues/1322) 扫描，再由 [#1323](https://github.com/xy7365527-lang/NewChanlun/issues/1323) 使用 `/improve-codebase-architecture` 与 `/codebase-design` 裁定并产后续 SPEC。
+**落地状态**：本次只有文档变更，生产代码行为变更为零。最终模块名、typed Classification、command、event、RiskGate 和 ReadModel 接口及迁移切片必须等待 [#1322](https://github.com/xy7365527-lang/NewChanlun/issues/1322) 扫描，再由 [#1323](https://github.com/xy7365527-lang/NewChanlun/issues/1323) 使用 `/improve-codebase-architecture` 和 `/codebase-design` 裁定并产后续 SPEC。
