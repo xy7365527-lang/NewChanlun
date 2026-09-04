@@ -4,6 +4,17 @@
 
 ## Language
 
+### 结构事实与操作
+
+**Classification（结构分类）**:
+结构判定域在每一时点给出的唯一结构事实。它描述市场结构，不含 Chong、TStage、Voice、专属筹码、毛账、持仓、生产交易意图或执行状态。
+_Avoid_: 把资金、成交、风控或 UI 状态算进 Classification；在下游重做结构判定或生成第二份 Classification
+
+**重操作程序（Chong operating program）**:
+逐 bar 消费 Classification 并推进全部重的唯一领域 owner。它拥有各操作级别旁路、同级别分解、向下定位，以及每重的 TStage、Voice、专属筹码、毛账和生产交易意图。
+这是领域角色名，不是最终模块名。owner 边界见 [ADR 0027](docs/adr/0027-classification-chong-operating-program-ownership.md)。
+_Avoid_: 设置第二个重操作 owner；让操作状态回写结构主干；用另一套判据为失败兜底
+
 ### 声部与生命周期
 
 **重（Chong）**:

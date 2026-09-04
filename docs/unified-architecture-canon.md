@@ -22,6 +22,8 @@
 
 图的一等公民。每个模块 = 一套判定 + 一个生产实现；换装权受「六、换装管制」约束。
 
+**owner 术语边界（#1321）**：本节沿用 #960 的「判定层」作为模块集合名，不等于 [ADR 0027](adr/0027-classification-chong-operating-program-ownership.md) 的「结构判定域」。结构判定域只拥有纵向主干塔与唯一 Classification。准入、风控、账本、重状态和交易意图即使出现在本节表内，也不因此归结构 owner；它们按第十六节进入下游操作、控制与执行边界。
+
 | # | 判定模块 | 正本锚点 | 复用级 | 主落点（现役） | 收敛候选（待收） |
 |---|---|---|---|---|---|
 | 1 | K线包含处理 | `definitions/baohan.md` | L0 专属（#799 裁定二收口处） | `src/newchan` + `rust/src` 顶层 | — |
@@ -122,6 +124,8 @@
 
 **判定（已查实）**：两链**不是同一判定的两套实现**（事件族/证书对象/身份键/判定谓词四维全不同、零互引，[#804](https://github.com/xy7365527-lang/NewChanlun/issues/804) 判别式不命中）；旧身份桥已全退役（#106 T4/T5b）——「退役时点」问题闭合。**现状缺口（归工作线①）**：① N7 消费未接（`Consume_at` 留雾）；② 门双层开关——编译层 `cfg(backtest_bin)` 默认构建不含 + 运行层 `THETA_NEST_CERT_GATE` 默认关 ⟹ 生产默认路径零跨级确认；③ nautilus 够不着门（[#799](https://github.com/xy7365527-lang/NewChanlun/issues/799) 裁定八：一半有意一半遗漏，处置 = 目录即层搬家案，成本未估）。
 
+本节定义结构判定域内部的构造轴→判定轴接缝。唯一 Classification 完成后，结构判定域→重操作程序还有一条只读、版本化、单向接缝；该边界见第十六节。两条接缝分处 Classification 的上下游，不得混成回写环。
+
 ### 十一、16 条接口契约（Q4 = A）
 
 每条契约 = 输入 / 输出 / 键 / 消费方 / 载体锚点；教义内容不在此重述（各锚 definitions 正本）。
@@ -171,3 +175,18 @@
 3. **门默认关**（`THETA_NEST_CERT_GATE` 运行层）——何时/如何默认开，随①的接线验收定；
 4. **卡口① 证书门接线**（#796 实测净贡献 1/52，接线后按句 2 三档载体重新验收）；
 5. **卡口③** = #737 下游 spec（谓词有偏 113 条 + 塔顶键 6.85% + 实现符合性验证），已出图有主。
+
+### 十六、Classification 下游的唯一 owner 与单向接缝（#1321 B）
+
+[ADR 0027](adr/0027-classification-chong-operating-program-ownership.md) 把 Classification 两侧的生产所有权裁成两个互斥域：
+
+- **结构判定域**只拥有纵向主干塔与唯一 Classification。它不拥有各操作级别旁路、Chong、TStage、Voice、专属筹码、毛账、生产交易意图或执行状态。
+- **唯一重操作程序**逐 bar 消费 Classification，并拥有各操作级别旁路、同级别分解调用、向下定位、每重 TStage、0..N Voice、专属筹码、逐重毛账与唯一生产交易意图。`ChongOperatingProgram` 只是工作名，最终模块名未定。
+- **依赖只有一个方向**：`结构判定域 → Classification → 重操作程序`。Classification 契约只读且版本化；资金、成交、风控、UI 和操作状态都不能回写结构主干。下游不得重做结构判定或生成第二份 Classification。
+- **历史回放、paper 与 live 共用这两个核心 owner**。环境差异只允许落在后续裁定的行情、撮合和场所 adapter。
+- **前端只读**。前端消费 Classification 与重操作事件生成的 ReadModel；控制动作经 command/RiskGate 进入生产程序。前端没有结构判定、重状态修改或交易决策权。
+- **旧入口没有并存权**。organic/赋格资产可收编；收编后旧独立入口失去生产决策权。π 内重复交易、成交或账本 owner 必须迁移或退役。失败不得切换到旧入口或另一套判据兜底。
+
+本节不改严格多重赋格形态：一条主干塔、一份 Classification、N 个操作级别旁路、每重各自同级别分解与向下定位、每重各自 TStage/Voice/专属筹码/毛账、旁路和下钻不回流主干、重内单向、重间不仲裁、物理订单最后投影。#1321 只补齐谁拥有这些对象。
+
+**落地状态**：本次只有文档变更，生产代码行为变更为零。最终模块名、typed Classification、command/event/ReadModel 接口和迁移切片必须等待 [#1322](https://github.com/xy7365527-lang/NewChanlun/issues/1322) 扫描，再由 [#1323](https://github.com/xy7365527-lang/NewChanlun/issues/1323) 使用 `/improve-codebase-architecture` 与 `/codebase-design` 裁定并产后续 SPEC。
