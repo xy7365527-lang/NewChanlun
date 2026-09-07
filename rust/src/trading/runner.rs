@@ -244,13 +244,20 @@ impl Run {
             self.reset_flat();
             return;
         };
-        // P0 修复（双向会计体系 §8.0：v2 §4.1 ④ 在册静默 bug）：持仓存在而
-        // shares/entry_price 非正 = 违规态，静默早退会吞掉 trade 行与
-        // realized——fail-fast 替代（带错结构继续回测的数字不可信）。
+        // P0：持仓对象存在而 entry_price 非正 = 违规态。
+        // total_shares==0 不是违规态——Earning 金额守恒满仓开腿（INV-1，
+        // ledger.rs phase_transition_is_one_way）会即时扣光股数、腿仍开放。
+        // 先强制清腿（金额守恒回补会把股数加回来），再估值。
         assert!(
-            self.entry_price > 0.0 && pos.total_shares > 0.0,
-            "close_position 违规态：entry_price={} total_shares={}（bar={bar} reason={reason}）\
-             ——持仓存在但数量/价格非正，上游状态机有 bug",
+            self.entry_price > 0.0,
+            "close_position 违规态：entry_price={}（bar={bar} reason={reason}）\
+             ——持仓存在但入场价非正，上游状态机有 bug",
+            self.entry_price,
+        );
+        assert!(
+            pos.total_shares > 0.0 || pos.has_open_legs(),
+            "close_position 违规态：entry_price={} total_shares={} 无开放腿\
+             （bar={bar} reason={reason}）——持仓对象空转",
             self.entry_price,
             pos.total_shares,
         );
@@ -1401,7 +1408,12 @@ pub fn run_organic(
         }
     }
 
-    if run.state == LONG && run.pos.as_ref().is_some_and(|p| p.total_shares > 0.0) {
+    if run.state == LONG
+        && run
+            .pos
+            .as_ref()
+            .is_some_and(|p| p.total_shares > 0.0 || p.has_open_legs())
+    {
         let last_close = tape.bars[n - 1].close;
         run.close_position(n as i64 - 1, last_close, "eod_close");
     }
@@ -1690,6 +1702,91 @@ mod ledger_voice_tests {
             ..OrganicConfig::default()
         };
         assert!(run_organic(&t, 2, &orphan, StopMode::None, false).is_err());
+    }
+}
+
+/// Earning 金额守恒满仓开腿后 EOD/type1 出场不得吞 trade。
+#[cfg(test)]
+mod earning_full_frac_close_tests {
+    use super::*;
+
+    fn bar(close: f64) -> crate::trading::tape::BarSig {
+        crate::trading::tape::BarSig {
+            close,
+            max_ladder: 3,
+            ..Default::default()
+        }
+    }
+
+    fn ev_anchor(class: BspClass, confirmed: bool, cs: i64, zd: f64, zg: f64) -> BspEvent {
+        BspEvent {
+            class,
+            seg_idx: 1,
+            confirmed,
+            cs: Some(cs),
+            zd: Some(zd),
+            zg: Some(zg),
+            price: 0.0,
+        }
+    }
+
+    fn earning_osc_tape(tail: Vec<crate::trading::tape::BarSig>) -> SignalTape {
+        // 与 analysis/test_organic_fugue.py entry_prefix + osc 序列同构。
+        let mut arm = bar(99.0);
+        arm.buy1 = LadderMask(1 << 3);
+        let mut confirm = bar(100.0);
+        confirm.buy_any = LadderMask(1 << 0);
+        let mut rows: Box<[Vec<BspEvent>; MAX_LADDER]> = Box::default();
+        rows[2].push(ev_anchor(BspClass::Buy2, false, 10, 95.0, 99.0));
+        confirm.bsp_events = Some(rows);
+        let mut bars = vec![arm, confirm];
+        bars.extend(tail);
+        SignalTape {
+            bars,
+            ..Default::default()
+        }
+    }
+
+    fn sell_any(close: f64, lad: usize) -> crate::trading::tape::BarSig {
+        let mut b = bar(close);
+        b.sell_any = LadderMask(1 << lad);
+        b
+    }
+
+    fn sell1(close: f64, lad: usize) -> crate::trading::tape::BarSig {
+        let mut b = bar(close);
+        b.sell1 = LadderMask(1 << lad);
+        b
+    }
+
+    #[test]
+    fn earning_full_frac_osc_eod_records_trade() {
+        let t = earning_osc_tape(vec![
+            sell_any(200.0, 1),
+            bar(94.0),
+            sell_any(150.0, 1),
+        ]);
+        let r = run_organic(&t, 2, &OrganicConfig::default(), StopMode::None, false).unwrap();
+        assert_eq!(r.counters.n_osc_open, 2);
+        assert_eq!(r.counters.n_osc_zd_close, 1);
+        assert_eq!(r.trades.len(), 1, "EOD 不得因 total_shares==0 吞掉 earning 在途腿");
+        assert_eq!(r.trades[0].exit_reason, "eod_close");
+        assert_eq!(r.counters.n_earning_reached, 1);
+        assert!(r.trades[0].pnl_pct > 0.0);
+    }
+
+    #[test]
+    fn earning_full_frac_osc_type1_sell_records_trade() {
+        let t = earning_osc_tape(vec![
+            sell_any(200.0, 1),
+            bar(94.0),
+            sell_any(150.0, 1),
+            sell1(160.0, 3),
+        ]);
+        let r = run_organic(&t, 2, &OrganicConfig::default(), StopMode::None, false).unwrap();
+        assert_eq!(r.trades.len(), 1, "type1 卖不得因 total_shares==0 panic/早退");
+        assert_eq!(r.trades[0].exit_reason, "exit_move(L1)_type1sell");
+        assert_eq!(r.counters.n_earning_reached, 1);
     }
 }
 
