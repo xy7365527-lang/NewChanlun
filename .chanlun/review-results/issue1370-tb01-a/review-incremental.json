@@ -1,0 +1,81 @@
+{
+  "ticket": "#1370 TB-01-A",
+  "review_kind": "独立评审·增量复核（H-1 修复后；只读，未修改生产代码）",
+  "session_context": "01a08556-42bb-76e9-be95-00546efef981",
+  "branch": "codex/1323-tb01-a-1370",
+  "baseline": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+  "prior_review_head": "e79c74a17a800e660b515e1f88fc9a5706826b42 (FAIL H-1, review-final.md/json @ f2213dd33f)",
+  "reviewed_head": "76a641606d7097292fff2dc21f58c6156ae38916",
+  "delta_commits": [
+    "76a641606d (fix(structure): #1370 preserve signed catalog branch shapes)",
+    "f2213dd33f (docs review, prior)"
+  ],
+  "verdict": "PASS (incremental; H-1 fixed)",
+  "verdict_scope": "受测域内（TestOnly 逐笔一对一退化 OHLC、相邻严格无包含、无同价端点竞争的 CC-006/local_shape）",
+  "production_delta_verified": {
+    "rust": "json_shape -> JsonShape enum (Array/Object/CatalogBranches); branches 用 CatalogBranches(array|object)，其余列严格不变",
+    "new_test": "full_signed_catalog_preserves_both_declared_branch_shapes (第 9 项，真实 116 目录逐项同值 + 坏值拒绝)",
+    "python": "meta_dict 增键值文本检查；branches 改 _json_field(..., (list, dict))",
+    "readme": "accept 示例补 --profile",
+    "signed_catalog_json": "未改（116 项 82 array + 34 object 保持）",
+    "durability_write_paths": "make_token/parse_canonical_i64/canonical_event_content/identity_key/open_db/verify_writer_epoch/cmd_init/cmd_accept/read_raw_events/build_object_and_witnesses/cancel_own_begin/verify_begin_owner/verify_batch_bytes/persist_batch_before_publish/cmd_advance 等函数体 sha256 与 e79 逐字相同",
+    "original_8_tests": "函数体未改"
+  },
+  "run_evidence_this_round": {
+    "build": "cargo build --features s_session --bin s_structure_session -> exit 0",
+    "bin_tests": "cargo test --locked --features s_session --bin s_structure_session --jobs 1 -> 9 passed / 0 failed",
+    "test_9": "full_signed_catalog_preserves_both_declared_branch_shapes: 116 items, 82 array + 34 object, 逐项同值, 坏值 null/true/1/\"text\"/{ 拒绝",
+    "fmt": "cargo fmt -- --check -> 0",
+    "check": "cargo check --features s_session --bin s_structure_session -> 0",
+    "clippy": "本片文件 0 命中",
+    "launcher_e2e": "./s_session/launch_s.sh --testonly --db /tmp/s_incr.sqlite --port 8796 -> 5/5; stop -> 0",
+    "rust_catalog_cli": "catalog -> 116 items, counts implemented=1/not_implemented=115/run=1/not_run=115, branches 82 array+34 object, exit 0",
+    "api_catalog": "GET /api/catalog -> 200, 116 items, counts implemented=1/not_implemented=115",
+    "api_state": "GET /api/state -> 200 ok:true; catalog/snapshot generation+structure_cut+catalog_revision 三者相等(同 cut); snapshot 5 objects/15 witnesses/20 relations",
+    "api_snapshot": "200",
+    "api_meta": "200",
+    "browser_html": "GET / -> 200; load() 仅调 /api/state (index.html:231)",
+    "bad_branches_no_fake_200": "branches_json = null/true/1/\"text\"/{ -> Rust catalog exit 1",
+    "other_columns_strict": "comparisons dict -> ValueError; evidence/detail list -> ValueError (Python)",
+    "python_meta_text_check": "NULL value / BLOB value / BLOB key -> ValueError(503); 正常文本通过; scope 缺失 {}; scope 损坏/数组 -> ValueError",
+    "rust_meta_blob": "BLOB meta 值 -> catalog/snapshot/meta 均 exit 1 (Invalid column type Blob)"
+  },
+  "reused_from_prior_round": "AC1/AC2/AC3/AC4/AC5/AC8/AC9 必需成功路径（review-final.md 已实跑通过；对应生产函数/测试在 e79→HEAD 逐字未变，且 9 项 bin 测试含耐久路径全部通过）",
+  "defects": {
+    "H": [],
+    "M": [],
+    "L_fixed": [
+      {
+        "id": "L-1",
+        "note": "README accept 示例缺 --profile（已补）"
+      }
+    ],
+    "L_maintained": [
+      {
+        "id": "L-2",
+        "file": "rust/src/bin/s_structure_session.rs",
+        "line": 583,
+        "note": "input_revision 与 revision 两列均取 e.revision（冗余，非阻断）"
+      },
+      {
+        "id": "L-3",
+        "file": "rust/src/bin/s_structure_session.rs",
+        "line": 937,
+        "note": "Bar.source_index 取接纳序 seq 而非 source_coord（受测域相等，域外观察）"
+      },
+      {
+        "id": "L-4",
+        "file": "rust/src/bin/s_structure_session.rs",
+        "line": 971,
+        "note": "混合原始包含输入 dual 报告（受测域不触发）"
+      }
+    ]
+  },
+  "not_run": [
+    "根在 macOS 的 native 构建 / 独立 HTTP/Node / 持久顺序 / 真实浏览器 GUI 外部证据（尚未接回）",
+    "macOS fullfsync / launcher .dylib（容器不声称）",
+    "全量 cargo test（有界验证优先）",
+    "跨进程杀/重启、真杀恢复、修订/Delta/Gap/背压/分页（TB-01-B/C、TB-05/07）"
+  ],
+  "promise": "COMPLETE"
+}
