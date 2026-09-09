@@ -494,7 +494,7 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
     let mut stmt = conn
         .prepare(
             "SELECT generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json,
-                    index_frontier, input_frontier, delta_json
+                    index_frontier, input_frontier, catalog_run_status, catalog_evidence_json, delta_json
              FROM structure_deltas ORDER BY generation ASC",
         )
         .map_err(|e| format!("prepare 可达根核失败：{e}"))?;
@@ -510,6 +510,8 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
                 r.get::<_, String>(6)?,
                 r.get::<_, i64>(7)?,
                 r.get::<_, String>(8)?,
+                r.get::<_, String>(9)?,
+                r.get::<_, String>(10)?,
             ))
         })
         .map_err(|e| format!("query 可达根失败：{e}"))?
@@ -533,8 +535,22 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
     }
 
     let mut prev_frontier: i64 = -1;
-    for (i, (g, sid, cat, base, next, seq_range_json, idx, frontier, delta_json)) in
-        rows.iter().enumerate()
+    for (
+        i,
+        (
+            g,
+            sid,
+            cat,
+            base,
+            next,
+            seq_range_json,
+            idx,
+            frontier,
+            run_status,
+            evidence_json,
+            delta_json,
+        ),
+    ) in rows.iter().enumerate()
     {
         let expect = (i + 1) as i64;
         if *g != expect {
@@ -595,7 +611,7 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
             ));
         }
         prev_frontier = *frontier;
-        // 内层 payload 头与外层列同一身份。
+        // 内层 payload 头与外层列同一身份（11 列逐一对应）。
         let dj: Value = json_shape(delta_json, JsonShape::Object)?;
         if dj["session_id"].as_str() != Some(sid.as_str())
             || dj["generation"].as_str() != Some(g.to_string().as_str())
@@ -604,9 +620,22 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
             || dj["next_cut"].as_str() != Some(next.as_str())
             || dj["index_frontier"].as_str() != Some(idx.as_str())
             || dj["input_frontier"].as_str() != Some(frontier.to_string().as_str())
+            || dj["catalog_run_status"].as_str() != Some(run_status.as_str())
         {
             return Err(format!(
                 "StorageUnavailable：delta[{g}] 内层 payload 头与外层列不一致"
+            ));
+        }
+        // seq_range 与 catalog_evidence：深等（键序无关），不比较原始 JSON 字节。
+        if canonical_json(&dj["seq_range"]) != canonical_json(&sr) {
+            return Err(format!(
+                "StorageUnavailable：delta[{g}] 内层 seq_range 与外层 seq_range_json 不一致"
+            ));
+        }
+        let evidence: Value = json_shape(evidence_json, JsonShape::Object)?;
+        if canonical_json(&dj["catalog_evidence"]) != canonical_json(&evidence) {
+            return Err(format!(
+                "StorageUnavailable：delta[{g}] 内层 catalog_evidence 与外层 catalog_evidence_json 不一致"
             ));
         }
     }
@@ -4495,6 +4524,87 @@ mod tests {
             build(&files);
             let conn = open_db(&files.db()).unwrap();
             meta_set(&conn, "structure_cut", "cut-99").unwrap();
+            drop(conn);
+            assert_reject(&files);
+        }
+    }
+
+    #[test]
+    fn inner_delta_payload_mismatch_blocks_writes_and_reads() {
+        let build = |files: &TestFiles| {
+            init_test_db(files);
+            accept(
+                files,
+                &test_input(&[
+                    ev("e0", "1", "0", "10000"),
+                    ev("e1", "1", "1", "11000"),
+                    ev("e2", "1", "2", "10500"),
+                ]),
+                "in1.json",
+                DEFAULT_WRITER_EPOCH,
+            );
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            accept(
+                files,
+                &test_input(&[ev("e2", "2", "2", "11500")]),
+                "in2.json",
+                DEFAULT_WRITER_EPOCH,
+            );
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        };
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        let extra = test_input(&[ev("e3", "1", "3", "10800")]);
+        let assert_reject = |files: &TestFiles| {
+            let p = write_input(files, "e3.json", &extra);
+            assert!(cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+                .unwrap_err()
+                .contains("StorageUnavailable"));
+            assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+                .unwrap_err()
+                .contains("StorageUnavailable"));
+            assert!(cmd_recover(&files.db(), "2")
+                .unwrap_err()
+                .contains("StorageUnavailable"));
+            assert!(cmd_snapshot(&files.db(), None)
+                .unwrap_err()
+                .contains("StorageUnavailable"));
+        };
+        // 1) 内层 seq_range.from 改 99（外层仍 2）。
+        {
+            let files = TestFiles::new();
+            build(&files);
+            let conn = open_db(&files.db()).unwrap();
+            conn.execute(
+                "UPDATE structure_deltas SET delta_json=json_set(delta_json,'$.seq_range.from','99') WHERE generation=2",
+                [],
+            )
+            .unwrap();
+            drop(conn);
+            assert_reject(&files);
+        }
+        // 2) 内层 catalog_run_status 改 not_run（外层仍 run）。
+        {
+            let files = TestFiles::new();
+            build(&files);
+            let conn = open_db(&files.db()).unwrap();
+            conn.execute(
+                "UPDATE structure_deltas SET delta_json=json_set(delta_json,'$.catalog_run_status','not_run') WHERE generation=2",
+                [],
+            )
+            .unwrap();
+            drop(conn);
+            assert_reject(&files);
+        }
+        // 3) 内层 catalog_evidence 改 bogus。
+        {
+            let files = TestFiles::new();
+            build(&files);
+            let conn = open_db(&files.db()).unwrap();
+            conn.execute(
+                "UPDATE structure_deltas SET delta_json=json_set(delta_json,'$.catalog_evidence',json('{\"bogus\":true}')) WHERE generation=2",
+                [],
+            )
+            .unwrap();
             drop(conn);
             assert_reject(&files);
         }

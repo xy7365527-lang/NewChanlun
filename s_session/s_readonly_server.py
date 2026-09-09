@@ -714,9 +714,11 @@ def read_delta(conn, after_generation):
         }
 
     rows = []
-    for (gen, sid, crev, base_cut, next_cut, seq_range_json, idx_frontier, input_frontier, delta_json) in conn.execute(
+    for (gen, sid, crev, base_cut, next_cut, seq_range_json, idx_frontier, input_frontier,
+         run_status, evidence_json, delta_json) in conn.execute(
         "SELECT generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, "
-        "index_frontier, input_frontier, delta_json FROM structure_deltas WHERE generation > ? ORDER BY generation ASC",
+        "index_frontier, input_frontier, catalog_run_status, catalog_evidence_json, delta_json "
+        "FROM structure_deltas WHERE generation > ? ORDER BY generation ASC",
         (after_generation,),
     ):
         if gen > current_gen:
@@ -725,6 +727,10 @@ def read_delta(conn, after_generation):
             raise ValueError("structure_deltas 行的 session_id 与 meta.session_id 不一致")
         delta = _json_field(delta_json, dict)
         _validate_delta_shape(delta)
+        sr = _validate_seq_range(seq_range_json)
+        if type(run_status) is not str or run_status == "":
+            raise ValueError("structure_deltas.catalog_run_status 缺失或非文本")
+        evidence = _json_field(evidence_json, dict)
         # 内层头与外层行/当前 meta 同一身份（冲突 → 503，不作为正常增量发布）。
         if delta.get("session_id") != sid:
             raise ValueError("delta 内层 session_id 与外层行不一致")
@@ -738,15 +744,23 @@ def read_delta(conn, after_generation):
             raise ValueError("delta 内层 catalog_revision 与外层行不一致")
         if delta.get("index_frontier") != idx_frontier:
             raise ValueError("delta 内层 index_frontier 与外层行不一致")
+        if delta.get("seq_range") != sr:
+            raise ValueError("delta 内层 seq_range 与外层 seq_range_json 不一致")
+        if delta.get("catalog_run_status") != run_status:
+            raise ValueError("delta 内层 catalog_run_status 与外层列不一致")
+        if delta.get("catalog_evidence") != evidence:
+            raise ValueError("delta 内层 catalog_evidence 与外层 catalog_evidence_json 不一致")
         rows.append({
             "generation": _num_to_str(gen),
             "session_id": sid,
             "catalog_revision": crev,
             "base_cut": base_cut,
             "next_cut": next_cut,
-            "seq_range": _validate_seq_range(seq_range_json),
+            "seq_range": sr,
             "index_frontier": idx_frontier,
             "input_frontier": _frontier_i64(input_frontier),
+            "catalog_run_status": run_status,
+            "catalog_evidence": evidence,
             "delta": delta,
         })
 

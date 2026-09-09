@@ -65,6 +65,14 @@ AsKnown/RecomputedWithRevision 分栏、同源 Watch 续接，并已按根评审
 | 58DA-PYTHON-DELTA-FIELD-RELATIONS（外层 seq_range 坏、lifecycle 与撤回字段矛盾、内层 input_frontier null 仍 200） | `_validate_seq_range` 规范校验外层 from/to；`_validate_delta_shape` 校验内层 input_frontier 必需规范整数、upsert lifecycle 与 withdrawn_generation/withdrawal_reason/superseded_by 一致（withdrawn⟺非空、active⟹无撤回字段） |
 | 58DA-ACTUAL-WRITER-CONNECTION-PRAGMA（pragma 命令是新连接不是真实 writer 连接） | 新增 `record_connection_pragmas` sidecar：从 accept/advance/recover 各自的真实 open_db 连接、首个写事务前回读 journal_mode/synchronous/fullfsync，记录 PID/命令/DB/阶段/platform；`S_SESSION_PRAGMA_SIDECAR=1` 显式启用，不改 stdout 回执/fence |
 
+## 0a5. R5 修复（相对 8b726a57f，针对根 R5 复审 REQUEST_CHANGES）
+
+| 根发现 | 修复 |
+|---|---|
+| 内层 delta_json 与外层列同名字段未完整对应（seq_range.from=99 / catalog_run_status=not_run / catalog_evidence=bogus 仍通过三写+watch+Python delta） | Rust `verify_reachable_root` 与 Python `read_delta` 补齐 11 列逐一对应：内层 dj.seq_range 与外层 seq_range_json 解析值**深等**、dj.catalog_run_status == 外层列、dj.catalog_evidence 与外层 catalog_evidence_json 解析值**深等**（键序无关 canonical 比较，不比较原始 JSON 字节） |
+
+11 列自查覆盖：generation、session_id、catalog_revision、base_cut、next_cut、seq_range_json、index_frontier、input_frontier、catalog_run_status、catalog_evidence_json、delta_json。空输入 frontier=-1 与空区间合法域保留。
+
 ## 0b. 改动面（只改本票模块）
 
 `rust/src/bin/s_structure_session.rs`、`s_session/s_readonly_server.py`、`s_session/browser/index.html`、
@@ -115,7 +123,7 @@ AsKnown/RecomputedWithRevision 分栏、同源 Watch 续接，并已按根评审
 - 平台前件：Linux 实测 sqlite 3.53.2、wal、synchronous=2(FULL)、platform=linux；macOS fullfsync/GUI 未验（交根）。
 
 ### AC8 —— 证据保留 + 检查 + 未验
-- 检查：fmt 0、check 0、clippy 本片 0 命中、bin 测试 28 passed（A 原 9 + B 19）、`--lib local_shape` 4 passed。
+- 检查：fmt 0、check 0、clippy 本片 0 命中、bin 测试 29 passed（A 原 9 + B 20）、`--lib local_shape` 4 passed。
 - 证据：命令/退出码、输入/构建/目录 hash、PID/信号/退出/重启/持久状态、API 前后、Node 全字段对拍、杀点输入（/tmp/s_b_*，工作草稿证据不入仓）。
 
 ## 2. 17 细项绑定（结论：本片范围内均已完成；未销项见下）
@@ -147,7 +155,7 @@ AsKnown/RecomputedWithRevision 分栏、同源 Watch 续接，并已按根评审
 | cargo fmt -- --check | 0 |
 | cargo check --features s_session --bin s_structure_session | 0 |
 | cargo clippy --features s_session --bin s_structure_session | 0（本片 0 命中） |
-| cargo test --features s_session --bin s_structure_session --jobs 1 | 0（28 passed） |
+| cargo test --features s_session --bin s_structure_session --jobs 1 | 0（29 passed） |
 | cargo test --lib local_shape | 0（4 passed，A oracle） |
 | ./s_session/launch_s.sh --testonly … | 0 |
 | /tmp/s_b_kill_test.py（三点 SIGKILL+恢复，从已发布旧 TOP 起） | 0（wait_exit=-9） |
@@ -162,8 +170,8 @@ AsKnown/RecomputedWithRevision 分栏、同源 Watch 续接，并已按根评审
 - `signed-catalog.json`：`938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069`（与 A 一致）。
 - TestOnly profile：`2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc`（与 A 一致）。
 - 本片四文件（本轮修复后）：
-  - `rust/src/bin/s_structure_session.rs`：`423e847812f7de2f75e7706a1a3eefcaa155bd16c7f44b7e1c9989fe3dfebc7a`
-  - `s_session/s_readonly_server.py`：`03718ffd3b6e2aaa26e56fd9185328e79ee7fa4f7c7a4092fe2b99fee09bd4ac`
+  - `rust/src/bin/s_structure_session.rs`：`addb492ac2c1888904f2ab2d9789ae9a7ebbfc8e0037e4d822f73b67be333be8`
+  - `s_session/s_readonly_server.py`：`526b9672dd00d51e3cf2b5ac4263243b53d139c7228f91c82b53a726a457c8cd`
   - `s_session/browser/index.html`：`13402a4011034e624de34b4137696a3dd8d3de2e1b35ec854e3a2331ca1591ac`
   - `s_session/launch_s.sh`：`65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d`（epoch 透传，本轮未再改）
 
