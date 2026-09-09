@@ -1,0 +1,494 @@
+{
+  "ticket": 1370,
+  "review_scope": "最终验收包窄独立静态复核",
+  "verdict": "PASS_STATIC_ACCEPTANCE_PACK_REVIEW",
+  "finding_counts": {
+    "high": 0,
+    "medium": 0,
+    "low": 1
+  },
+  "blocking_findings": [],
+  "nonblocking_findings": [
+    {
+      "id": "PACK-L01",
+      "severity": "low",
+      "blocking": false,
+      "file": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.sandcastle/worktrees/codex-1323-tb01-a-1370/.chanlun/review-results/issue1370-tb01-a/ROOT-ACCEPTANCE.md",
+      "line": 36,
+      "problem": "“未归档的大型原始探针输出由外部定位明确列出”容易被读成完整外部清单；UNBUNDLED-REFERENCES 当前只列阅读版 Markdown 改链产生的 10 个目标。",
+      "evidence": "例如耐久 REVIEW-e79.json 的 source_and_evidence_records 仍引用未入包的 SOURCE-BINDING-CHECK-e79.json；其原始路径/哈希在 payload JSON 内，而非这 10 条中。主结论和来源字节仍可核，不构成验收阻塞。",
+      "minimal_document_fix": "把末句改成：阅读版 Markdown 链接的未归档目标见外部定位；其他未入包明细路径及哈希保留在各 payload JSON 的来源记录中。无需改 payload 原件。"
+    }
+  ],
+  "reviewed_at_utc": "2026-09-09T09:18:41.456105+00:00",
+  "package_head": "7e10c9f4d0d81a6ebbda30a7c5ffbf0893081af5",
+  "source_commit": "76a641606d7097292fff2dc21f58c6156ae38916",
+  "root_report_sha256": "38c97f033d9aa783d3dc7c1ef5bb3aef6270e86e395251801b37ce9dc755cb8e",
+  "index_sha256": "1201aa8f721f3fa9cdec3fabaee82281693987d136489a46e727e50224145fec",
+  "payload_count": 48,
+  "payload_total_bytes": 2743799,
+  "payload_checks": [
+    {
+      "path": "acceptance/payload/inputs/TB01-A-CATALOG-FIX-REVIEW.md",
+      "sha256": "1775d9e7818ecb9f1deafaaff765f2dd3625cb5925a373d23eb022b991a2f6d8",
+      "bytes": 4155,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/TB01-A-CATALOG-FIX-REVIEW.json",
+      "sha256": "ff1023e083841c6c4107269fc9cbbc2ca8438b8f97992b43448bbb45cb104b2b",
+      "bytes": 7842,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/TB01-A-REVIEW-LOW-DISPOSITION.md",
+      "sha256": "4e82d981f77d3fb929205d2b748f156a63a8c35c7957ae6975651522e50c4214",
+      "bytes": 8891,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/TB01-A-REVIEW-LOW-DISPOSITION.json",
+      "sha256": "ceba1b5632df2c511e1829e976cb490e81769339e56c929ca1d036caf82f45af",
+      "bytes": 13034,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/TB01-A-PYTHON-R5-REVIEW.md",
+      "sha256": "9a0cc865cda04f57fdff41747c25d38f60c1f5c21fff67a1dc2ded37c293136c",
+      "bytes": 4905,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/TB01-A-PYTHON-R5-REVIEW.json",
+      "sha256": "3b031de4066e2c7175a77f25d1f4b171c7616ca674f2615334befecadbebd7f2",
+      "bytes": 12985,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/TB01-A-CI-COVERAGE-CHECK.md",
+      "sha256": "0580ee496ffa19e9e642b9a9a0a4b8f582fc4495f58465871755b750d7a5a813",
+      "bytes": 5672,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/TB01-A-CI-COVERAGE-CHECK.json",
+      "sha256": "c4b653806c500015ebd550ea1c3de84bd7a7071768fcc87d655329244199b883",
+      "bytes": 6423,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/tb01-post-repair-durability/REVIEW-e79.md",
+      "sha256": "e1b21e6ccea1d1608c87bb852ba7811eb75d978e44e3cb1ddf5dcdc62efd49cb",
+      "bytes": 7205,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/tb01-post-repair-durability/REVIEW-e79.json",
+      "sha256": "cd68082f14c5591b87e3db8f2f184e8b0d2502ca303d1d61c2e3e5793fa4cb81",
+      "bytes": 46307,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/tb01-post-repair-durability/PROBE-ADAPTATION-e79.json",
+      "sha256": "8f2a0de100d4ea58867dcccff19b59b87076034b5b1d30e6d43ee4c6130906af",
+      "bytes": 876,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/tb01-post-repair-durability/EXECUTION-BINDING-e79.json",
+      "sha256": "f609d71bc25b4f3101cdad781ac00b82b12a0cbd2870b96e2e9bd62004dd7e0a",
+      "bytes": 1526,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/native-build-binding.json",
+      "sha256": "3126606bf024ba67c7432f19debb5af3518cb5972d61fcbdf8e663487cce2b8b",
+      "bytes": 48958,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/cargo-results.json",
+      "sha256": "dfb7595ce1ce8359248ceaa9f4610354bdfea67a8034ef5040d52584ca56398d",
+      "bytes": 1189,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/BROWSER-ACCEPTANCE.json",
+      "sha256": "d0d86fcd978557f13c11d943cb1ef50e470de5365ad9125617c5e3003280ff19",
+      "bytes": 1460,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/four/oracle-verification.json",
+      "sha256": "4982377edb24193d47b4ccd52c4b4bca0706aabb31a10cebd21640b2e5e6e768",
+      "bytes": 14974,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/four/state-verified.json",
+      "sha256": "2de9cfc5235114b1b3ff7d4249ccf9c7b4de549db0d610d52dca63bc3f67d2f2",
+      "bytes": 103839,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/four/launcher-run.json",
+      "sha256": "d1771bfe36af48f84ffdd239ccb658e674afb5e20be47ab435825f10348f714d",
+      "bytes": 3528,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/bigint/oracle-verification.json",
+      "sha256": "52a7a9914e84a83cc90e8c05a2912b3c784bc567b0ba29e64f8aa62fd3fd7b99",
+      "bytes": 3066,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/bigint/state-verified.json",
+      "sha256": "fbee28bbd6e3f8497215907c122374aac3cce9c41a1a26d3775b4c670c95ae74",
+      "bytes": 72368,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/bigint/launcher-run.json",
+      "sha256": "6d1007e5d551be7a87cb49bd4de49200ec15ed45640a53396b4a7dc3abf32a73",
+      "bytes": 2871,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/bigint/browser-catalog-navigation.json",
+      "sha256": "7f669b24570559af8cc8e564ca78386e41786aff543345ccb38e92c0f80a0bc1",
+      "bytes": 6837,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/bigint/browser-initial-ax.json",
+      "sha256": "d7adac7a138bbc8e0417374d7d057a70178debe68c9194607494e6231ec6a506",
+      "bytes": 64095,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/bigint/browser-relations-ax.json",
+      "sha256": "9d4491fef5b26bc28e27061d1450e703c21d17c782693c90973f4565d9873299",
+      "bytes": 1907,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/bigint/browser-input-refs-ax.json",
+      "sha256": "dead56257820907803a7ef60f2ef3f778c226dc17edee60866d20cda95f8410a",
+      "bytes": 2436,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/bigint/browser-witness-ax.json",
+      "sha256": "49c5525ff5aff51c4ae3210c57947d46cd1e0ea1c2503b11e15abf9eec0d1d99",
+      "bytes": 1594,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/fault-ui/browser-before.json",
+      "sha256": "021828970ad735c2524e6f034a1fff657386d682ce3d8d8fc767fb1cbc35d086",
+      "bytes": 64095,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/fault-ui/browser-failure-triggered.json",
+      "sha256": "cede4f3978b95a5312efce6e2992f3301522cd2aeaaf852fefe95688ffbd8d4a",
+      "bytes": 828,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/fault-ui/browser-restored.json",
+      "sha256": "97fcc08eea6ddaffbefacfe83ddbb3c4d14cd215152b51d29b3202f1a419bb20",
+      "bytes": 64317,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/fault-ui/fault-http-response.json",
+      "sha256": "a66a76c1b1713fbdf3e06bdea8d6ba201091b3e60c785be0c2d136fe594a743d",
+      "bytes": 180,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/fault-ui/healthy-http-state.json",
+      "sha256": "fbee28bbd6e3f8497215907c122374aac3cce9c41a1a26d3775b4c670c95ae74",
+      "bytes": 72368,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r5/fault-ui/restored-http-state.json",
+      "sha256": "fbee28bbd6e3f8497215907c122374aac3cce9c41a1a26d3775b4c670c95ae74",
+      "bytes": 72368,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/evidence/native-r2/bigint/input.json",
+      "sha256": "a52cf0b476b3ed8dd78ee0390ef89dacdf5cd0ebecf347f9defbe68b5c7d8c33",
+      "bytes": 1088,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/TB01-A-PYTHON-R6-REVIEW.md",
+      "sha256": "e6a3c6f399eeedf92870604cce70f9a29aec648356d973613022c47ece0ff3db",
+      "bytes": 4958,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/TB01-A-PYTHON-R6-REVIEW.json",
+      "sha256": "8ec832a2c5bdb64bd96f39cdeedd9062ea3ddb3a2d2a376016e7164b6f626af1",
+      "bytes": 19496,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/tb01-post-repair-durability/REVIEW-9a.md",
+      "sha256": "998256ae971c676305055a9a0dadf1827e83464271fbbb663b1243376de8d0dc",
+      "bytes": 9270,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/tb01-post-repair-durability/REVIEW-9a.json",
+      "sha256": "56f94a86dd257b0b4675cb11701fe2387851e9d39dee0efc377782f94e0d81bb",
+      "bytes": 58355,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/python-r6-evidence/SOURCE.json",
+      "sha256": "fd90ce541769ed52402deb80ce1766ccc2b44a3fa14879cb6995db7f166645c7",
+      "bytes": 1015,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/python-r6-evidence/native-build-binding.json",
+      "sha256": "9cbd4d5fd8c919200e09bbf21988a8d025877cfa5bc9f06a52f477f654463428",
+      "bytes": 49653,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/python-r6-evidence/fixture-adaptations.json",
+      "sha256": "2013c3f6cd1ff92ec73b66e84e53cc17bbb562d2b82c02f44db1bb7dd044f4f4",
+      "bytes": 3740,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/python-r6-evidence/contract_probe.json",
+      "sha256": "6fc5f945c09ff1edcaac7ad005271f54ed4ca1c51cb58ce3cb8bd0803d6eb5d4",
+      "bytes": 724224,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/python-r6-evidence/full_catalog_probe.json",
+      "sha256": "870aee24319cb09e1f5c873aa30ee2cb322a4034f21439dd7324bc5186eaff62",
+      "bytes": 592514,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/python-r6-evidence/wire_probe.json",
+      "sha256": "42d5e3f0a0166c63eaed341a56277c0922a88941a88186a67f8426c7167bc2c9",
+      "bytes": 277075,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/python-r6-evidence/json_corruption_probe.json",
+      "sha256": "2dfbb396be8134213ac790742032e0b93026296995255ae7f55462bf2cc4ed55",
+      "bytes": 64141,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/python-r6-evidence/probe.json",
+      "sha256": "a442078bfd26a4723ed19d589c9772addd60b2ce5ec72550210937074bc1084e",
+      "bytes": 117942,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/python-r6-evidence/semantic_probe.json",
+      "sha256": "5dc1e53df27082e16b3c4020f09ebdc6e480ed35f35168c7abeb15020a06d952",
+      "bytes": 35895,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/python-r6-evidence/type_probe.json",
+      "sha256": "c07adad3972a3e5fa1a129b727e9f720dd617285904a8a4fdb077b01d2930bf5",
+      "bytes": 23870,
+      "matches_original_and_index": true
+    },
+    {
+      "path": "acceptance/payload/inputs/python-r6-evidence/supplemental_probe.json",
+      "sha256": "c8ee29f50dbf803b3576b246f0ac69edaddab5c8bb92ca491fc3c4e3c9003761",
+      "bytes": 37464,
+      "matches_original_and_index": true
+    }
+  ],
+  "production_checks": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "equal_to_76a": true,
+      "sha256": "68aebb153e656548c0a1d3261250d12a17f9bd8a57d784638b09236d1742f0ed"
+    },
+    {
+      "path": "rust/Cargo.lock",
+      "equal_to_76a": true,
+      "sha256": "bc979533d9192ede438ac490f3f90ec5cd1ce26e6afd91fc5ec28ae185ee80bb"
+    },
+    {
+      "path": "rust/Cargo.toml",
+      "equal_to_76a": true,
+      "sha256": "60781537ff49f30d0a4c596f1e7bb16d0e490ec8dad4561f34b1a817d59652fc"
+    },
+    {
+      "path": "rust/src/bin/s_structure_session.rs",
+      "equal_to_76a": true,
+      "sha256": "1820c9a464df80b22fe50233905fba5fc959d50936000fd800f6e198493508be"
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/local_shape.rs",
+      "equal_to_76a": true,
+      "sha256": "57537f3a90c5efc30c8f8449bba6727d0fb69e810fd2bc4ad3ad6f9834f3ae97"
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/mod.rs",
+      "equal_to_76a": true,
+      "sha256": "2e54837c9ab774bc6dc6b9e480bbb8106c9b74de2695fc50b09f24bf555ced53"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/inclusion.rs",
+      "equal_to_76a": true,
+      "sha256": "e94a02579be6c34fc801e59cdbc7df40f6effeed2a3121267da6dc70bdc07fbf"
+    },
+    {
+      "path": "s_session/README.md",
+      "equal_to_76a": true,
+      "sha256": "88f3e125a789fad14ae429616b84648d13a98a60cbee486e16986b7331dfafc6"
+    },
+    {
+      "path": "s_session/browser/index.html",
+      "equal_to_76a": true,
+      "sha256": "dac86f778ad8de5219aa4c4bdd810a55e7b8f03b5b9fca0014e249b1726ecdc9"
+    },
+    {
+      "path": "s_session/catalog/signed-catalog.json",
+      "equal_to_76a": true,
+      "sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069"
+    },
+    {
+      "path": "s_session/inputs/append_more.json",
+      "equal_to_76a": true,
+      "sha256": "decd9aeed4986905efb56587924e8a42c2da1003bfc8cfcf173e4c2cec4f03ca"
+    },
+    {
+      "path": "s_session/inputs/bigint_identity.json",
+      "equal_to_76a": true,
+      "sha256": "8bf536e348665b3f2a57e2ad71acc6900e44aa6dbfc8cc084a0e5b8f37ba81dc"
+    },
+    {
+      "path": "s_session/inputs/bigint_identity_conflict.json",
+      "equal_to_76a": true,
+      "sha256": "a63488f0bbfdace3b836608ab0e5ecc53d3b510c2f752278c9f7a22413ea67aa"
+    },
+    {
+      "path": "s_session/inputs/cc006_four_branch.json",
+      "equal_to_76a": true,
+      "sha256": "7bb94ef11a40dd32bf4f05c1daa6173ce448afafe560f69298c0e83b6533b60a"
+    },
+    {
+      "path": "s_session/launch_s.sh",
+      "equal_to_76a": true,
+      "sha256": "5983faf43ef482a1e064438a3ea940d90d71e1f14a30b69e7fa21d6595956cf8"
+    },
+    {
+      "path": "s_session/profiles/testonly_tick_1_1_ohlc.json",
+      "equal_to_76a": true,
+      "sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc"
+    },
+    {
+      "path": "s_session/s_readonly_server.py",
+      "equal_to_76a": true,
+      "sha256": "63203e75dbf58a3d59ed5b0fe7a15d5eb1101be9e19945b4d47ad00f0e3e95a9"
+    }
+  ],
+  "view_checks": [
+    {
+      "path": "acceptance/view/TB01-A-CATALOG-FIX-REVIEW.md",
+      "banner_and_link_targets_only": true,
+      "sha256": "d8c01116875a42763431c90221f3db79cae99c080cd53d87b7d1df9dd8edc60a"
+    },
+    {
+      "path": "acceptance/view/TB01-A-REVIEW-LOW-DISPOSITION.md",
+      "banner_and_link_targets_only": true,
+      "sha256": "11eda9b7e47c99272c3dab33573543c04704d73d4b25b32bc96797db4bc480ba"
+    },
+    {
+      "path": "acceptance/view/TB01-A-PYTHON-R5-REVIEW.md",
+      "banner_and_link_targets_only": true,
+      "sha256": "161fc9709b152cc5b19185edc7ff4eddc7dadacf7cce2498be39655b782a36da"
+    },
+    {
+      "path": "acceptance/view/TB01-A-CI-COVERAGE-CHECK.md",
+      "banner_and_link_targets_only": true,
+      "sha256": "d35848a547d4b65ab668ee98ee7510319d103e0f4b92d8cdbec35d83d9ef3642"
+    },
+    {
+      "path": "acceptance/view/REVIEW-e79.md",
+      "banner_and_link_targets_only": true,
+      "sha256": "0081b0289fc7c11a41cb913bbe459e2657023c7771f89e9dedcacec8ae099f87"
+    },
+    {
+      "path": "acceptance/view/TB01-A-PYTHON-R6-REVIEW.md",
+      "banner_and_link_targets_only": true,
+      "sha256": "81b653eae6ff1eb174029fa56e12db641862f86a722ae4de44a079d353fd9f8c"
+    },
+    {
+      "path": "acceptance/view/REVIEW-9a.md",
+      "banner_and_link_targets_only": true,
+      "sha256": "ab88eaf2c0a4ff9f7f06dbde2f7a50a83467039f90bc7ad71162a9254341b666"
+    }
+  ],
+  "scope_checks": [
+    {
+      "name": "payload_original_bytes",
+      "result": "PASS",
+      "detail": "48 个 payload，2743799 bytes，全部与原件及索引哈希相同。"
+    },
+    {
+      "name": "production_unchanged",
+      "result": "PASS",
+      "detail": "17 个列明生产文件与固定 76a 源逐字相同；当前 HEAD 7e10c9f 的父为正式评审 c30feedd 与已审归档 38a6b3。"
+    },
+    {
+      "name": "views_only_link_transform",
+      "result": "PASS",
+      "detail": "7 个 view 正文/结论逐字保留，只增加横幅和转换 Markdown 链接；28 个本地阅读链接存在且显式 ref 锚可解析。"
+    },
+    {
+      "name": "domain_and_9_ac",
+      "result": "PASS",
+      "detail": "ROOT 保持具名 TestOnly 一对一退化 OHLC/相邻严格无包含/无同价竞争的 CC006 域；不把 mixed 包含样本、其他115目录、经济或交易扩成通过。"
+    },
+    {
+      "name": "l3_l4_disposition",
+      "result": "PASS",
+      "detail": "L3 明确订正 seq=source_coord 不是合同前提；bigint payload 实际保留 seq 0/1/2 与源坐标大于2^53。L4 raw/merged 坐标、警告未标raw、tested_domain非逐批验证及TB02残留均明写。"
+    },
+    {
+      "name": "catalog_initial_vs_advanced",
+      "result": "PASS",
+      "detail": "R6真实init的0 implemented/116未实现，与root四分支cut9和bigint cut4的1 implemented/115未实现为不同阶段；对应源JSON一致。推进态仅CC006 implemented/not_proved/run。"
+    },
+    {
+      "name": "durability_reuse",
+      "result": "PASS",
+      "detail": "e79报告7场景46主断言39native命令、双新连接与真实writer trace均保留；目录修复前完整写路径和8旧测试逐字未变，最终9测试另有正式增量报告与构建记录。"
+    },
+    {
+      "name": "gui_vs_container",
+      "result": "PASS",
+      "detail": "macOS/真实GUI由root单独负责；容器报告保留未声称GUI/fullfsync的原话。四分支200/200、bigint32/32检查均真；故障AX为503后清旧数据，恢复HTTP与健康HTTP相等。"
+    },
+    {
+      "name": "open_scope_and_main",
+      "result": "PASS",
+      "detail": "明确#1370仍open，main未获合入批准，全图与B/C等后续未完成；正常重启和坏scope恢复不等于进程真杀恢复。远端CI/fixture漂移不能由本包代证。"
+    }
+  ],
+  "tests_rerun": false,
+  "mutations": "只写本审查MD/JSON；未改Q/N/GH/进程/服务；未派子代理。",
+  "limits": "静态核对既存事实与材料归属，不冒称重新目击GUI或重新运行native/容器检查。"
+}

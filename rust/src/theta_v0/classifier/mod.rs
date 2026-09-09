@@ -64,6 +64,9 @@ pub mod descend;
 pub mod divergence;
 // force_conformance 已退役（#991 I-3，G2 #978 裁定二）：样板留档 .chanlun/review-results/force-conformance-retired-sample-20260816.md
 pub mod level_state;
+/// #1370 TB-01-A：CC-006 `local_shape` 四分支分区（无包含三K窗口），复用 inclusion 的
+/// `strict_dir`/`contains` 同一判断，不另起第二查法。目录叶名见模块头。
+pub mod local_shape;
 pub mod nest;
 /// #92/#93 证书索引：确认事件 → typed 证书（身份主键；构建口径 B + CWindow）。
 pub mod nest_index;

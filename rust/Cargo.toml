@@ -39,6 +39,10 @@ nautilus-core = { version = "0.62.0", default-features = false, optional = true 
 #   与 backtest 同门控（test 走 dev-dependency；CLI 走 backtest_bin feature）⟹ 默认 cdylib
 #   （Python 扩展）构建不含，零依赖膨胀。纯 Rust 标准实现（sidecar 可用 `shasum -a 256 -c` 复核）。
 sha2 = { version = "0.10", optional = true }
+# #1370 TB-01-A：正式结构会话 S 的独立 SQLite 单写者（C09）。bundled = 编译期自带 SQLite
+#   3.53.2（≥ C09 要求的 3.51.3 WAL-reset 修复），不依赖宿主 libsqlite3；optional + 仅
+#   `s_session` feature 启用 ⟹ 默认 cdylib（Python 扩展）构建零膨胀（沿 backtest_bin/lav_seal 先例）。
+rusqlite = { version = "0.40", features = ["bundled"], optional = true }
 
 [features]
 default = []
@@ -54,6 +58,9 @@ issue1087_parity = []
 # LAV 旁路排序器证据封存层（S1 #1167，ADR 0025）：启用 sha2（JCS+SHA-256 内容寻址）。
 # 与 backtest_bin 同门控——默认 cdylib（Python 扩展）构建不含，零依赖膨胀。
 lav_seal = ["dep:sha2"]
+# #1370 TB-01-A：正式结构会话 S 二进制（s_structure_session）——sha2（payload_hash 规范字节）
+#   + rusqlite（S 自有 SQLite/WAL 单写者）。
+s_session = ["dep:sha2", "dep:rusqlite"]
 
 # ── CLI 生产入口（goal acceptance[5]：CLI 能驱动 S_Θ 产回测结果）。 ──
 # required-features：默认 cargo build 不编译它（cdylib 构建不受影响）。
@@ -62,6 +69,14 @@ lav_seal = ["dep:sha2"]
 name = "theta_backtest"
 path = "src/bin/theta_backtest.rs"
 required-features = ["backtest_bin"]
+
+# #1370 TB-01-A：正式结构会话 S（唯一结构核，独立 SQLite/WAL 单写者 + ReadCatalog/Snapshot）。
+#   required-features = ["s_session"]（sha2 + rusqlite 门控，默认 cdylib 构建零膨胀）。
+#   构建/运行：cargo run --features s_session --bin s_structure_session -- <subcommand>
+[[bin]]
+name = "s_structure_session"
+path = "src/bin/s_structure_session.rs"
+required-features = ["s_session"]
 
 # #938 探针：绑定中枢开放性 / seed_moved 谱系构成。两者都 use theta_v0::backtest，
 #   而该模块挂 #[cfg(any(test, feature="backtest_bin"))] ⟹ 必须声明 required-features，

@@ -1,0 +1,14 @@
+{
+  "base": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/run_probes.py",
+  "base_sha256": "237cbab7c619a6bd47528f17cd1f447ebf2822a764366995ca1d1f1cdd44298b",
+  "e79_probe": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/run_probes_e79.py",
+  "sha256": "aa8a81c42ee4f3845195234f253b2d7fdb8804847dcc702c071e5b80af76ece6",
+  "changes": [
+    "允许未引用batch，改核拒绝时generation/cut/index_frontier及发布对象/关系/见证/观察不变",
+    "重试核实际新root/非空对象及frontier512；不规定batch总数必须1",
+    "旧未引用batch字节不得被重试改写",
+    "保存after_retry持久状态用于证据"
+  ],
+  "reason": "获批先持久后发布协议允许前沿变化留下不可达批次；此处不是降低根发布或引用闭包合同",
+  "in_memory_compile": "PASS"
+}

@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "bash",
+    "/Users/silencehan/Projects/NewChanlun-1370-native-acceptance/s_session/launch_s.sh",
+    "--db",
+    "/tmp/newchanlun-1323-publication-20260909/evidence/native-r2/bigint/大整数 ?#%.sqlite",
+    "--port",
+    "18771",
+    "--bin",
+    "/tmp/newchanlun-1323-publication-20260909/native-target/debug/s_structure_session",
+    "--input",
+    "/tmp/newchanlun-1323-publication-20260909/evidence/native-r2/bigint/input.json",
+    "--profile",
+    "/Users/silencehan/Projects/NewChanlun-1370-native-acceptance/s_session/profiles/testonly_tick_1_1_ohlc.json"
+  ],
+  "exit_code": 0,
+  "source_commit": "76a641606d7097292fff2dc21f58c6156ae38916",
+  "stdout": "[launcher] 1/5 恢复已有 S 库（不 init、不删除既有持久事实）\n[launcher] 2/5 S.AcceptInput（原始逐笔档案 + 具名 profile）\n{\"ok\":true,\"profile\":\"testonly_tick_1_1_ohlc\",\"profile_hash\":\"0e9dfc9befd6878e0c844ee62c0f44576532ee8f13fe38c45f6bf467fe92d64e\",\"results\":[{\"event_id\":\"大整数-0\",\"identity_key\":\"testonly.tick.ohlc|9007199254740993|TEST.TICK|大整数-0\",\"payload_hash\":\"75bdd06434b3953c04fcf7e892164b942a3d1bb00088a6e6ba532f6da36d3559\",\"receipt_id\":\"rcpt-f2990ee4bbb38274\",\"status\":\"replay\"},{\"event_id\":\"大整数-1\",\"identity_key\":\"testonly.tick.ohlc|9007199254740993|TEST.TICK|大整数-1\",\"payload_hash\":\"735699326ce835ce9ed0ce4dbc98a898a028df3058ef78bc55b081b7c4178232\",\"receipt_id\":\"rcpt-fc0645c961f5472d\",\"status\":\"replay\"},{\"event_id\":\"大整数-2\",\"identity_key\":\"testonly.tick.ohlc|9007199254740993|TEST.TICK|大整数-2\",\"payload_hash\":\"69ba6c675f2afa82dc18e3256992e47fe9b1e1e5ee99183f616015b2cafd35ca\",\"receipt_id\":\"rcpt-9db7bd1b378e3c3d\",\"status\":\"replay\"}],\"session_id\":\"s-session-testonly-001\",\"volume_unit\":\"1\"}\n[launcher] 3/5 S.Advance（Begin→同次 Rust parser→Commit）\n{\"batch_byte_len\":6984,\"batch_id\":\"batch-21a773ebcbf728949f1ef19c72982c5b33b7b53e806efe6e87462256a7bb567b\",\"generation\":\"4\",\"merged_bars\":3,\"objects_published\":1,\"observations\":{\"domain_not_satisfied\":0,\"insufficient_knowledge\":0},\"ok\":true,\"raw_events\":3,\"scope\":{\"economic\":\"not_started\",\"structure\":\"CompleteCut\"},\"structure_cut\":\"cut-4\",\"windows_total\":1}\n[launcher] 4/5 启动只读查询外壳（独立只读进程，端口 18771）\n[launcher] 5/5 完成。浏览器 / API：\n  浏览器        http://127.0.0.1:18771/\n  目录 API      http://127.0.0.1:18771/api/catalog\n  快照 API      http://127.0.0.1:18771/api/snapshot\n  状态 API      http://127.0.0.1:18771/api/state\n  停止          ./s_session/launch_s.sh stop --port 18771\n  S 数据库      /tmp/newchanlun-1323-publication-20260909/evidence/native-r2/bigint/大整数 ?#%.sqlite\n  只读日志      /tmp/s_session_readonly_18771.log\n",
+  "stderr": ""
+}

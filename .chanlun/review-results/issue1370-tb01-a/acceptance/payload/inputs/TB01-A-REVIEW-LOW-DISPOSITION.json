@@ -1,0 +1,220 @@
+{
+  "issue": "#1370 / TB-01-A",
+  "scope": "固定 Prime L2/L3/L4 的合同处置补核，不重审 H1/L1 或整票",
+  "verdict": "NO_NEW_M_FOR_L2_L3_L4_WITH_EXPLICIT_LIMITS",
+  "new_high": 0,
+  "new_medium": 0,
+  "review_commit": "f2213dd33fcfc8f7e200bca58b391c2671268339",
+  "reviewed_code_commit": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+  "signed_contract_commit": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+  "timestamp": "2026-09-09T09:02:51.301874+00:00",
+  "sources": [
+    {
+      "commit": "f2213dd33fcfc8f7e200bca58b391c2671268339",
+      "path": ".chanlun/review-results/issue1370-tb01-a/review-final.md",
+      "sha256": "2429d5960763f91def3271821e0b3e3bed5e836ec0252f5cfc671fec51212673"
+    },
+    {
+      "commit": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+      "path": "rust/src/bin/s_structure_session.rs",
+      "sha256": "c376159b6fb0a9542fc00cccd9061cfccd94080fd0b44ce53d0cb124ad7c9841"
+    },
+    {
+      "commit": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+      "path": "rust/src/theta_v0/parser/inclusion.rs",
+      "sha256": "e94a02579be6c34fc801e59cdbc7df40f6effeed2a3121267da6dc70bdc07fbf"
+    },
+    {
+      "commit": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+      "path": "rust/src/theta_v0/types.rs",
+      "sha256": "4370651d94e1be89d83d26c2d8ab00a7f7cd961693f071749afb10bf95f6bca0"
+    },
+    {
+      "commit": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+      "path": "s_session/browser/index.html",
+      "sha256": "dac86f778ad8de5219aa4c4bdd810a55e7b8f03b5b9fca0014e249b1726ecdc9"
+    },
+    {
+      "commit": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+      "path": ".chanlun/review-results/issue1339-r2-spec-20260909/view/spec/SPEC.md",
+      "sha256": "c8827bc9b9221c6d1b4499463651ecebcb6c978bdcccd654f45f914fdc78b24d"
+    },
+    {
+      "commit": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+      "path": ".chanlun/review-results/issue1339-r2-spec-20260909/view/spec/INTERFACE-CONTRACTS.md",
+      "sha256": "68e86fae26b812620529059172067fc7e2019b1c0d45f1aa509cfea4b8a002d1"
+    },
+    {
+      "commit": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+      "path": ".chanlun/review-results/issue1339-r2-spec-20260909/view/spec/inputs/SPEC-COVERAGE-INPUT.md",
+      "sha256": "53db89b25185591431906b59986e0903123944ecb06a38eb4571e985de7e3ac0"
+    }
+  ],
+  "ticket": {
+    "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1370",
+    "live_updated_at": "2026-09-09T05:44:45Z",
+    "local_exact_body_path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-01-A.md",
+    "local_body_sha256": "f0c39d9383f77d57ae30f8e1ee30051f67c440951550b7e05ca68a51010ed715",
+    "live_read_this_review": true
+  },
+  "downstream_ticket": {
+    "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1371",
+    "body_path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-01-B.md",
+    "sha256": "71672e11e78d9cd2739f9d45a4a10c8a8b3420e2c1ccd11032e30858e7e4e3b5"
+  },
+  "findings": [
+    {
+      "review_id": "L-2",
+      "disposition": "NO_CONTRACT_CONFLICT_IN_TB01A",
+      "severity": "non_blocking_alias",
+      "statement": "input_revision 与 revision 在本片都绑定原始事件 revision；这是当前输入模型的别名，未被用来替代 object_revision。",
+      "contract_basis": [
+        "#1370 AC2 保留事件身份/revision",
+        "#1370 AC5 输入revision、结构对象身份和对象revision分别绑定",
+        "INTERFACE-CONTRACTS.md:45 input_refs 与 object_revision 分字段"
+      ],
+      "source_basis": [
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L505",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L580",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L635",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L695",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L754",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L1031"
+      ],
+      "reason": "已签条款没有要求独立的输入档案级 revision；双列相等本身不丢事件修订，不把它等同于结构对象修订。RawInputFile.schema_revision 是输入模式版本，input_file_hash 是输入档案字节哈希，也不应改称对象修订。",
+      "downstream": "TB-01-B #1371 AC1/AC2 实现真实源事件新 revision、更正幂等/冲突、supersedes/replaces 与对象修订/撤回史。A 当前仍拒绝同身份异内容，不声称该更正链已实现。",
+      "required_change_for_A": null
+    },
+    {
+      "review_id": "L-3",
+      "disposition": "NO_CONTRACT_CONFLICT_IN_TB01A",
+      "severity": "non_blocking_coordinate_naming",
+      "statement": "Bar.source_index 在此 adapter 中为 parser 原始 K 的本地序号，取 S 持久接纳 seq；source_coord 保留输入源坐标，两个字段不相互替代。",
+      "contract_basis": [
+        "#1370 AC2 接纳序、源坐标、不丢顺序分别保留",
+        "INTERFACE-CONTRACTS.md:9 结构坐标与来源游标分字段，不同来源数字不可比较",
+        "SPEC.md:253 原始坐标与逻辑输入顺序分列",
+        "INTERFACE-CONTRACTS.md:57 输入身份与接纳顺序持久原子组"
+      ],
+      "source_basis": [
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L505",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L635",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L924",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L955",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/theta_v0/parser/inclusion.rs#L165",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/theta_v0/types.rs#L11",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L1031",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/s_session/browser/index.html#L134"
+      ],
+      "reason": "接纳按输入事件顺序为新身份分配严格递增 seq，推进 ORDER BY seq；Bar 与 merged_group_index 的输入都使用同 seq，组成员查回同一 raw_by_seq，source_coord 原值在原始记录、input_refs、raw_bars 和 UI 均保留。源坐标不等于接纳序无需构造错误成员。",
+      "static_witness": {
+        "not_executed": true,
+        "prices": [
+          "10000",
+          "11000",
+          "10500"
+        ],
+        "input_source_coordinates": [
+          "9007199254740993",
+          "9007199254740994",
+          "9007199254740995"
+        ],
+        "accepted_seq_and_bar_source_index": [
+          "0",
+          "1",
+          "2"
+        ],
+        "merged_index": [
+          "0",
+          "1",
+          "2"
+        ],
+        "expected_local_shape": "TOP",
+        "source_coordinates_retained": true
+      },
+      "review_wording_correction": "#1370 的声明受测域没有 seq==source_coord 前提，不能把不相等统一称为域外；具体偏离必须举出顺序丢失或回查错误，当前固定调用链没有该反例。",
+      "downstream": "TB-02 承接完整输入投影/包含组锚/非退化域；TB-01-B 承接修订与历史。以后 source_index 的消费方仍须按本地原始K序号理解，若需要来源游标应取 source_coord，不以改 Bar.source_index 为 source_coord 修复一个未成立的缺陷。",
+      "required_change_for_A": null
+    },
+    {
+      "review_id": "L-4",
+      "disposition": "NO_M_FROM_REPORTED_MIXED_INPUT_KEEP_SCOPE_AND_PRESENTATION_LIMITS",
+      "severity": "non_blocking_presentation_and_evidence_precision",
+      "statement": "所举混合序列同时出现 raw 域不满足观察与 merged 合法对象，两个判断的对象不同。",
+      "contract_basis": [
+        "#1370 AC3 不满足域的输入另报，不造第五 Other",
+        "已签 coverage:182 CC-006 的量化对象为顺序标准K三元组，邻接无包含",
+        "#1370 局部成功门 超域输入准确留缺项，不以默认UP/同价留早补证",
+        "SPEC.md:274 G001/G002 未固定实例不得依赖其正式判断"
+      ],
+      "source_basis": [
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L971",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L1007",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/theta_v0/parser/inclusion.rs#L165",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/theta_v0/parser/inclusion.rs#L522",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L1031",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/s_session/browser/index.html#L162",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/s_session/browser/index.html#L185",
+        "https://github.com/xy7365527-lang/NewChanlun/blob/e79c74a17a800e660b515e1f88fc9a5706826b42/rust/src/bin/s_structure_session.rs#L1267"
+      ],
+      "static_witness": {
+        "not_executed": true,
+        "raw_prices": [
+          "10000",
+          "10500",
+          "10500",
+          "11000"
+        ],
+        "raw_domain_windows": [
+          [
+            0,
+            1,
+            2
+          ],
+          [
+            1,
+            2,
+            3
+          ]
+        ],
+        "raw_reason": "adjacent_inclusion",
+        "merged_prices": [
+          "10000",
+          "10500",
+          "11000"
+        ],
+        "merged_members": [
+          [
+            0
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            3
+          ]
+        ],
+        "merged_shape": "RISING",
+        "initial_direction_from_first_pair": "UP",
+        "all_same_price_members_retained": true
+      },
+      "reason": "首两点已严格定向，合并组首锚的定义不等于选择某个同价原始极值端点，local_shape 没有消费 G002 极值身份。原始两个窗口失败被保留；标准 merged 三元组满足其自身域，所以对象与观察并存不是同一窗口获宽严两判。",
+      "limits": [
+        "raw 观察的 window_* 使用 raw 下标；对象 window_* 使用 merged 下标。浏览器对象标题明确 merged，观察标题只有“窗口”，raw_prices 在 detail 里但警告条未展示；这是仍存在的显示精度缺口。",
+        "catalog.evidence.tested_domain 是固定声明，classified_objects/windows_total 是本批 merged 统计；并未逐批核“整个原始输入无包含”。run 表示实际有分类实例，proof_status 仍为 not_proved，不能读成 TB01A 该受测域已通过。",
+        "此混合样本只能证明域观察和映射行为，不能用作本票无包含成功样本，亦不能据此销项 G001/G002 或完整包含输入域。"
+      ],
+      "downstream": "TB-02 承接完整包含、初始化与同价端点身份成功域；A 验收材料必须保留当前声明域与实际混合输入的区别。坐标标题、逐批域标识可作小幅展示/元数据澄清，不要求更换 classifier 或删除合法 merged 对象。",
+      "required_change_for_A": "本次未确立新增 M；交付报告应明确上述限制，不能把 Low 标签或 run 状态当覆盖证明。"
+    }
+  ],
+  "runtime_work_this_review": false,
+  "mcp_discovery": "固定 W 未索引，使用指定 commit git show 读取，未读并行 dirty 源。",
+  "independent_support": "子代理 low4_contract_check 独立静态核 L4 原反例，不读写运行态；其坐标/统计保留问题已由本人读取 UI/源补核。",
+  "limitations": [
+    "只读固定源码/签字合同/票面，未运行候选 native、测试、HTTP、浏览器或 SQLite。",
+    "L4 的结论限定于评审所举反例和对应固定调用链，不替代其他初始化包含轨迹、G001/G002 或非退化输入域验收。",
+    "没有修改仓库、进程、服务或 GitHub。"
+  ]
+}

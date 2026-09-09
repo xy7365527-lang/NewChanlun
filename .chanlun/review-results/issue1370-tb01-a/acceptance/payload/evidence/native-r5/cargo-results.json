@@ -1,0 +1,61 @@
+[
+  {
+    "check": "fmt",
+    "argv": [
+      "cargo",
+      "fmt",
+      "--",
+      "--check"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 1.6930150985717773,
+    "source_commit": "76a641606d7097292fff2dc21f58c6156ae38916"
+  },
+  {
+    "check": "test",
+    "argv": [
+      "cargo",
+      "test",
+      "--locked",
+      "--features",
+      "s_session",
+      "--bin",
+      "s_structure_session",
+      "--jobs",
+      "1"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 2.8022499084472656,
+    "source_commit": "76a641606d7097292fff2dc21f58c6156ae38916"
+  },
+  {
+    "check": "clippy",
+    "argv": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--features",
+      "s_session",
+      "--bin",
+      "s_structure_session"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 9.047338962554932,
+    "source_commit": "76a641606d7097292fff2dc21f58c6156ae38916"
+  },
+  {
+    "check": "build",
+    "argv": [
+      "cargo",
+      "build",
+      "--locked",
+      "--features",
+      "s_session",
+      "--bin",
+      "s_structure_session"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 0.5971541404724121,
+    "source_commit": "76a641606d7097292fff2dc21f58c6156ae38916"
+  }
+]

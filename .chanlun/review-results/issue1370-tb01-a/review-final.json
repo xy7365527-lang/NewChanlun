@@ -1,0 +1,166 @@
+{
+  "ticket": "#1370 TB-01-A",
+  "review_kind": "独立评审（最终轮，追加修复后；只读，未修改生产代码）",
+  "branch": "codex/1323-tb01-a-1370",
+  "baseline": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+  "reviewed_head": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+  "reviewed_commits": [
+    "4379be6b51",
+    "ac2b59387b",
+    "f6354d3e7f",
+    "754bc189d8",
+    "9a1bc12413",
+    "e79c74a17a"
+  ],
+  "prior_reports_read": [
+    ".chanlun/review-results/issue1370-tb01-a/REPAIR-REPORT.md",
+    ".chanlun/review-results/issue1370-tb01-a/ROOT-REPAIR-REPORT.md",
+    ".chanlun/review-results/issue1370-tb01-a/IMPLEMENTATION-REPORT.md",
+    ".chanlun/review-results/issue1370-tb01-a/AC-REPORT.json",
+    ".chanlun/review-results/issue1370-tb01-a/review.md (旧 f635 PASS，不继承其结论)"
+  ],
+  "verdict": "FAIL",
+  "verdict_scope": "受测域内（TestOnly 逐笔一对一退化 OHLC、相邻严格无包含、无同价端点竞争的 CC-006/local_shape）",
+  "blocking_reason": "H-1：最终提交 e79c74a17a 把目录 branches 读取强制为数组，已签目录 116 项中 34 项 branches 为对象，导致 Rust catalog 子命令 exit 1、/api/catalog 与 /api/state 503，浏览器无法渲染；AC6/AC7 必需成功路径不成立。",
+  "platform": {
+    "os": "linux",
+    "arch": "aarch64",
+    "rustc": "1.97.1",
+    "python": "3.11 (uv cpython-3.11.16-linux-aarch64-gnu)",
+    "sqlite_version_verified": "3.53.2",
+    "sqlite_lib": "libsqlite3-sys 0.38.2 bundled (rusqlite 0.40.2)",
+    "journal_mode_verified": "wal",
+    "synchronous_verified": 2,
+    "synchronous_meaning": "FULL",
+    "macos_fullfsync": "NOT_RUN (Linux 容器不声称)"
+  },
+  "ac_verdicts": {
+    "AC1": "PASS",
+    "AC2": "PASS",
+    "AC3": "PASS",
+    "AC4": "PASS",
+    "AC5": "PASS",
+    "AC6": "FAIL",
+    "AC7": "FAIL",
+    "AC8": "PASS",
+    "AC9": "PASS"
+  },
+  "run_evidence": {
+    "build": "cargo build --features s_session --bin s_structure_session -> exit 0",
+    "bin_tests": "cargo test --locked --features s_session --bin s_structure_session --jobs 1 -> 8 passed",
+    "bin_test_names": [
+      "complete_batch_is_visible_before_reachable_root_and_never_overwritten",
+      "cancellation_preserves_foreign_begin_and_reports_actual_release",
+      "accept_rejects_stale_epoch_without_writing_receipts_or_metadata",
+      "replay_does_not_rebind_profile_of_an_existing_cut",
+      "equal_prices_publish_domain_observation_and_corrupt_json_fails_read",
+      "wire_projection_rejects_corrupt_integer_types_without_mutating_input",
+      "canonical_integer_rejects_non_canonical",
+      "wire_projection_stringifies_coordinates_and_seq"
+    ],
+    "lib_local_shape": "cargo test --lib local_shape -> 4 passed",
+    "lib_inclusion": "cargo test --lib inclusion -> 24 passed / 1 ignored (pre-existing)",
+    "fmt": "cargo fmt -- --check -> clean",
+    "check_default": "cargo check --all-targets (default) -> exit 0",
+    "check_s_session": "cargo check --features s_session --bin s_structure_session -> exit 0",
+    "clippy": "cargo clippy --features s_session --bin s_structure_session -> 0 hits in s_structure_session.rs/local_shape.rs",
+    "launcher_e2e": "./s_session/launch_s.sh --testonly --db /tmp/s_review_1370.sqlite --port 8797 --build -> 5/5 exit 0",
+    "init_readings": "catalog_items=116, journal_mode=wal, synchronous=2, sqlite_version=3.53.2, platform=linux",
+    "snapshot": "/api/snapshot -> 5 objects RISING/TOP/FALLING/BOTTOM/RISING, 15 witnesses, 20 relations (gen=1); append -> gen=2, 8 objects, 24 witnesses, 32 relations",
+    "catalog_api": "GET /api/catalog -> 503 StorageUnavailable 持久 JSON 形状不符 (H-1)",
+    "state_api": "GET /api/state -> 503 StorageUnavailable 持久 JSON 形状不符 (H-1) — 浏览器 load() 失败",
+    "rust_catalog_cmd": "s_structure_session catalog -> exit 1 (Conversion error from type Text at index: 4)",
+    "rust_snapshot_cmd": "s_structure_session snapshot -> exit 0",
+    "replay": "re-accept same input -> all replay with original receipt_id",
+    "identity_conflict": "same identity different content -> IdentityConflict (existing/new payload_hash separated)",
+    "bigint_roundtrip": "9007199254740993 / 9007199254740991 / 9007199254740990 exact string roundtrip through accept->advance->snapshot",
+    "canonical_rejection": "price '+0010000' -> exit 1; volume '2' -> exit 1 InvalidDomain",
+    "insufficient_knowledge": "1 tick -> 0 objects + 1 insufficient_knowledge",
+    "domain_not_satisfied": "[10000,10000,10000] -> 0 objects + 1 domain_not_satisfied(adjacent_inclusion)",
+    "append_advance": "accept append_more.json(3) -> advance -> gen=2/cut-2/10 merged/8 objects",
+    "readonly_enforced": "mode=ro + query_only=ON; write blocked 'attempt to write a readonly database'",
+    "batch_immutable": "batches.canonical_bytes content-addressed; same-id different bytes rejected; tampered bytes rejected",
+    "batch_before_publish": "complete batch persisted in separate tx, readable while structure_cut=cut-0 and index_frontier empty; publish in later CAS tx",
+    "frontier_interleave": "advance A begin -> interleaved accept -> A exit 1 '已正常取消并释放推进权', advance_state=idle, generation unchanged; advance B exit 0 gen=1",
+    "stale_epoch_accept": "writer_epoch=2 -> accept exit 1 StaleWriter, raw_events rows=0",
+    "profile_replay": "same profile_id different bytes -> IdentityConflict, profile_hash unchanged",
+    "init_refuse_existing": "init on existing db -> exit 1 (refuses overwrite)",
+    "reset": "reset -> exit 0 rebuilds 116 items",
+    "stop": "launch_s.sh stop --port 8797 -> exit 0, process gone"
+  },
+  "defects": [
+    {
+      "level": "H",
+      "id": "H-1",
+      "blocking": true,
+      "ac_affected": [
+        "AC6",
+        "AC7"
+      ],
+      "files": [
+        {
+          "file": "rust/src/bin/s_structure_session.rs",
+          "line": 1478,
+          "note": "\"branches\": json_column(r, 4, true)? 强制数组；辅助 json_shape :1433-1441"
+        },
+        {
+          "file": "s_session/s_readonly_server.py",
+          "line": 119,
+          "note": "\"branches\": _json_field(branches_json, list)；辅助 _json_field :60-67"
+        }
+      ],
+      "summary": "目录 branches 字段异构（82 数组 + 34 对象），读取端强制数组，34 项合法对象被误判损坏，ReadCatalog 与浏览器 /api/state 全部失败",
+      "counterexample": "s_session/catalog/signed-catalog.json 的 116 项中 34 项 branches 为对象（CC-002/003/007/008/009/011/013/014/016/019/021/024/027/028/031/032/034/035/038/039/041/043/044/045/047/048/050/052/054/055/056/057/059/062）。Rust catalog exit 1；GET /api/catalog 503；GET /api/state 503。",
+      "minimal_fix": "branches 读取接受 array 或 object 两种容器（仍拒绝 null/标量/坏 JSON）；Rust 给 json_shape 增容器模式（array-or-object），:1478 改用；Python _json_field(branches_json, (list, dict)) 或专用容器函数。evidence(dict)/comparisons(input_refs/raw_bars)(list)/detail(dict) 的严格校验保持不变。修复后重跑 catalog 命令与 /api/catalog、/api/state 应返回 116 项 + counts={implemented:1,not_implemented:115} 且浏览器可渲染。"
+    },
+    {
+      "level": "L",
+      "id": "L-1",
+      "blocking": false,
+      "file": "s_session/README.md",
+      "line": 35,
+      "summary": "accept 接口示例缺 --profile（CLI 实际要求）",
+      "minimal_fix": "补充 --profile <profile.json>"
+    },
+    {
+      "level": "L",
+      "id": "L-2",
+      "blocking": false,
+      "file": "rust/src/bin/s_structure_session.rs",
+      "line": 583,
+      "summary": "input_revision 与 revision 两列均取 e.revision，语义冗余",
+      "minimal_fix": "可选：区分输入档案级修订或合并列"
+    },
+    {
+      "level": "L",
+      "id": "L-3",
+      "blocking": false,
+      "file": "rust/src/bin/s_structure_session.rs",
+      "line": 937,
+      "summary": "Bar.source_index 取接纳序 seq 而非 source_coord；受测域两者相等无缺陷，source_coord 另保留",
+      "minimal_fix": "可选：改用 source_coord 语义（域外）"
+    },
+    {
+      "level": "L",
+      "id": "L-4",
+      "blocking": false,
+      "file": "rust/src/bin/s_structure_session.rs",
+      "line": 971,
+      "summary": "混合原始包含输入会同时产 merged 分类对象 + raw 域不满足观察（索引空间不同），受测域不触发",
+      "minimal_fix": "可选：明确 raw/merged 两级观察的展示口径"
+    }
+  ],
+  "not_run": [
+    "真实 GUI 浏览器渲染（且当前 /api/state 503，浏览器无法渲染；修复 H-1 后重跑）",
+    "macOS fullfsync / launcher .dylib 发现 / 构建产物平台核",
+    "全量 cargo test（有界验证优先）",
+    "跨进程杀/重启、真杀恢复、修订/Delta/Gap/背压/分页（TB-01-B/C、TB-05/07）",
+    "根在 macOS 的独立 HTTP/Node、持久顺序与真实浏览器外部证据（尚未接回）"
+  ],
+  "deferred_by_ticket_scope": [
+    "TB-05：Begin 后崩溃恢复续算（本片只做到保留 Begin + 闭门 + 已知失败条件清理）",
+    "TB-07/AT-04：历史 cut 结构化导航、重连续接、delta 游标",
+    "根接：真实 GUI 浏览器渲染、macOS fullfsync 与 macOS launcher 真实运行"
+  ],
+  "promise": "COMPLETE"
+}

@@ -1,0 +1,294 @@
+{
+  "ticket": "#1370 TB-01-A",
+  "ticket_title": "正式结构会话贯通只读观察",
+  "spec": "#1340 (R2 已批准)，图 #1323，SPEC 载荷 #1339 R2",
+  "branch": "codex/1323-tb01-a-1370",
+  "baseline": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+  "numbering_declaration": "本提交中的 #1370 仅指 GitHub Issue。",
+  "report_kind": "实施者逐 AC 证据报告（工作草稿，非独立评审，不以自审 PASS 冒充独评）",
+  "platform": {
+    "os": "linux",
+    "arch": "aarch64",
+    "rustc": "1.97.1",
+    "python": "3.11 (uv cpython-3.11.16-linux-aarch64-gnu)",
+    "sqlite_version": "3.53.2",
+    "sqlite_journal_mode": "wal",
+    "sqlite_synchronous": 2,
+    "sqlite_synchronous_meaning": "FULL",
+    "macos_fullfsync": "NOT_RUN（Linux 容器不声称已测）"
+  },
+  "scope": {
+    "tested_domain": "具名 TestOnly 原始逐笔事件一对一精确退化 OHLC（O=H=L=C）、相邻严格无包含、初始化方向由前两点确定、无同价端点竞争的 CC-006/local_shape",
+    "out_of_scope": [
+      "G-001 初始化包含 / G-002 同价极值选择（本域不含）",
+      "完整 62 CC / 44 ST / 10 LC 构造与非退化原始市场投影（TB-02）",
+      "经济故障/分区/旧 cut/consumed_structure/交易行为（TB-03..TB-10）",
+      "A-ST-003-01 非退化 high-only 反例（TB-02）",
+      "全量 cargo test（有界验证优先）"
+    ]
+  },
+  "ac": {
+    "AC1": {
+      "summary": "可实际启动/停止的正式 S 会话入口（Rust 唯一结构核，独立 SQLite/WAL 单写者）与只读查询/浏览器链：原始输入 → S.AcceptInput → 本地 Begin → 现役 Rust ParseLayerIncr 同次真实计算 CC-006 → 独立持久 Commit → ReadCatalog/Snapshot → 独立只读进程 → 浏览器（vanilla JS 读同源 API）。",
+      "evidence": [
+        "launcher 端到端：./s_session/launch_s.sh --testonly --db /tmp/... --port 8830 --build 退出 0；init(116 catalog items/WAL/synchronous=2) → accept(7 accepted) → advance(generation=1, 5 objects) → 只读查询外壳(独立进程) → 5/5 完成",
+        "curl /api/state → ok:true, objects=5, branches=[RISING,TOP,FALLING,BOTTOM,RISING]（HTTP 200）",
+        "curl / → <title>S 正式结构会话 · 只读观察（#1370 TB-01-A）</title>（HTTP 200）",
+        "stop：./s_session/launch_s.sh stop --port 8830 退出 0，按 PID 文件 + 进程身份核后 kill（不用 pkill -f）",
+        "结构对象由 ParseLayerIncr 同次真实计算产生，非手填 StructureRecord、非 schema/enum/测试。"
+      ],
+      "commands_and_exit_codes": [
+        {
+          "cmd": "./s_session/launch_s.sh --testonly --db /tmp/s1370_final.sqlite --port 8830 --build",
+          "exit": 0
+        },
+        {
+          "cmd": "curl -s http://127.0.0.1:8830/api/state",
+          "exit": 0
+        },
+        {
+          "cmd": "curl -s http://127.0.0.1:8830/",
+          "exit": 0
+        },
+        {
+          "cmd": "./s_session/launch_s.sh stop --port 8830",
+          "exit": 0
+        }
+      ],
+      "not_run": [
+        "真实 GUI 浏览器渲染由根在 macOS 实际浏览器验收（本容器无 chromium/firefox）"
+      ]
+    },
+    "AC2": {
+      "summary": "原始事件携 source namespace/epoch、instrument、事件身份/revision、接纳序(seq)、源坐标(source_coord)、received、原始文字值与精确整数；每个 tick 一对一 O=H=L=C 进 parser；具名 TestOnly profile 固定单位/时钟且非产品默认。",
+      "evidence": [
+        "raw_events 表持久 identity_key/input_revision/payload_hash/receipt_id/seq/source_namespace/source_epoch/instrument/event_id/revision/received_at/raw_text/price/ts/volume/source_coord；advance 逐事件 Bar{open=high=low=close=price} 逐根 ParseLayerIncr::append（不聚合、不重采样、不丢顺序/单位/修订）",
+        "7 事件 → 7 merged bars（1:1 无折叠），每对象 3 根 raw/merged 见证",
+        "profile 由 accept 显式加载并绑定（--profile），accept 校验输入 profile==profile_id，volume_unit='1' 精确拒绝非 1（InvalidDomain），profile_hash 随 session 绑定；not_product_default:true 不成为产品默认",
+        "见证 raw_bars 含完整身份：seq(接纳序)/source_coord(源坐标)/event_id/identity_key/revision/received_at/receipt_id/source_namespace/source_epoch/instrument/price/ts/volume"
+      ],
+      "commands_and_exit_codes": [
+        {
+          "cmd": "s_structure_session accept --db DB --input inputs/cc006_four_branch.json --profile profiles/testonly_tick_1_1_ohlc.json",
+          "exit": 0,
+          "note": "7 accepted"
+        },
+        {
+          "cmd": "s_structure_session advance --db DB",
+          "exit": 0,
+          "note": "merged_bars=7, raw_events=7"
+        },
+        {
+          "cmd": "volume='2' 输入 accept",
+          "exit": 1,
+          "note": "InvalidDomain（profile volume_unit=1）"
+        }
+      ],
+      "not_run": []
+    },
+    "AC3": {
+      "summary": "用独立定义（硬编码期望值 oracle，非从 Rust 代码反推）对拍真实 Rust 四分支；每个声明分支有非空实例与三根 raw/merged 见证、两次方向及四个严格比较；缺右邻=知识不足、不满足域=另报（DomainNotSatisfied），不造第五 Other 分型。",
+      "evidence": [
+        "单测 local_shape::tests::cc006_four_branch_oracle：10000/10500/11000→RISING；10000/11000/10500→TOP；11000/10000/10500→BOTTOM；11000/10500/10000→FALLING；cargo test --lib local_shape = 4 passed",
+        "会话级：7 事件流 [10000,10500,11000,10500,10000,10500,11000] → 5 对象 = RISING/TOP/FALLING/BOTTOM/RISING；每对象携 dir_ab/dir_bc + 4 个严格比较(axis/pair/prev/cur/strict_up/held) + 3 根 raw/merged 见证(slot 0/1/2)",
+        "不足三根 → observations[insufficient_knowledge]（1 tick 复现）；相邻包含/等值 → observations[domain_not_satisfied]（10000/10000/11000 复现，reason=adjacent_inclusion），不造第五 Other"
+      ],
+      "commands_and_exit_codes": [
+        {
+          "cmd": "cargo test --lib local_shape",
+          "exit": 0,
+          "note": "4 passed"
+        },
+        {
+          "cmd": "s_structure_session advance（7 事件 fixture）",
+          "exit": 0,
+          "note": "5 objects, 4 branches"
+        },
+        {
+          "cmd": "s_structure_session advance（1 tick）",
+          "exit": 0,
+          "note": "0 objects, 1 insufficient_knowledge observation"
+        },
+        {
+          "cmd": "s_structure_session advance（10000/10000/11000）",
+          "exit": 0,
+          "note": "0 objects, 1 domain_not_satisfied observation"
+        }
+      ],
+      "not_run": []
+    },
+    "AC4": {
+      "summary": "S 自有 SQLite/WAL 单写者按 C09 核实际 SQLite 修复版本、synchronous=FULL 及平台前件；完整不可变批次先持久可读，Commit 事务同时发布对象/关系/修订/结构索引可达根；读端只读已提交 cut。",
+      "evidence": [
+        "S 自己的 --db 文件，不复用 trading_system/persistence/database.py 共库",
+        "init 读数：sqlite_version=3.53.2（≥ C09 要求的 3.51.3 WAL-reset 修复，libsqlite3-sys 0.38.2 bundled）、journal_mode=wal、synchronous=2(FULL)、platform=linux",
+        "advance 先短写事务(Begin)核 writer_epoch/advance_state 并持久 Begin/门/输入前沿，再同次 Rust 计算，Commit 用 IMMEDIATE 写事务核 Begin/epoch/前沿未变后同一事务发布 batches/objects/witnesses/relations/observations + meta(generation/structure_cut/index_frontier) + catalog 状态",
+        "读端单读事务：Rust catalog/snapshot 用 unchecked_transaction 读同一 cut；Python 只读进程 mode=ro + query_only + 显式 BEGIN；确定性 WAL 交错复现（读事务内 meta 与 objects 一致，另一连接提交 cut-2 不混入）"
+      ],
+      "commands_and_exit_codes": [
+        {
+          "cmd": "s_structure_session init --db DB --session S --catalog catalog.json",
+          "exit": 0,
+          "note": "sqlite 3.53.2 / wal / synchronous 2"
+        },
+        {
+          "cmd": "并发两个 advance（同一 DB）",
+          "exit": "0 与 1",
+          "note": "恰一个胜出(gen+1)，另一个 StaleWriter（已有进行中的 advance）"
+        },
+        {
+          "cmd": "Python 读事务快照隔离复现",
+          "exit": 0,
+          "note": "读事务内 generation=1/objects=[RISING]，writer 提交 cut-2 不混入"
+        }
+      ],
+      "not_run": [
+        "macOS fullfsync 未测（Linux 不声称）；跨进程杀/重启/双跑/故障注入属 TB-05/07 不承担"
+      ]
+    },
+    "AC5": {
+      "summary": "同身份同内容重放返回原持久收据，同身份异内容返回 IdentityConflict；输入 revision、结构对象身份(object_id)和对象 revision 分别绑定；精确整数用规范十进制字符串，payload_hash 绑定规范字节，含 >2^53 往返反例。",
+      "evidence": [
+        "重放：重跑 accept cc006_four_branch.json → 7 条 status=replay（原 receipt_id）",
+        "冲突：先 accept bigint_identity.json(bigint-a ...993) 再 accept bigint_identity_conflict.json(bigint-a ...994) → status=IdentityConflict（existing_payload_hash 与 new_payload_hash 分列，不覆盖）",
+        "身份/修订分离：业务身份键 (namespace|epoch|instrument|event_id)；input_revision 与对象 object_revision(=1, 不可变批次) 分列；object_id 由对象内容(含 input_refs/比较/规则/profile)内容寻址，绑定输入身份",
+        "精确整数：价格/时间戳/成交量 wire 上为规范十进制字符串（TEXT + JSON 输出），Rust 仅计算边界解析 i64；>2^53 往返：9007199254740993/...991/...990 经 accept→advance→snapshot 逐字一致（witness raw_bars.price 字符串）",
+        "非规范整数拒绝：price='+0010000' → 拒绝（要求唯一表示：无 +/空白/前导零）；volume='2' → InvalidDomain",
+        "payload_hash = sha256(规范事件内容字节，固定键序)；receipt_id 绑定身份+内容（不同身份同内容不撞收据）"
+      ],
+      "commands_and_exit_codes": [
+        {
+          "cmd": "重放 accept cc006_four_branch.json",
+          "exit": 0,
+          "note": "7 replay"
+        },
+        {
+          "cmd": "accept bigint_identity.json 后 accept bigint_identity_conflict.json",
+          "exit": 0,
+          "note": "IdentityConflict"
+        },
+        {
+          "cmd": "accept price='+0010000'",
+          "exit": 1,
+          "note": "非规范十进制拒绝"
+        }
+      ],
+      "not_run": []
+    },
+    "AC6": {
+      "summary": "ReadCatalog 从已签目录列出全部 116 适用目录项及当前实现/证明/运行状态，未实现条目不隐藏；浏览器按 scope 从目录进入本域实际对象/字段/关系/证据；未实现/域不适用/知识不足/当前无实例分别显示。",
+      "evidence": [
+        "catalog 从 s_session/catalog/signed-catalog.json（由签署字节 SPEC-COVERAGE-INPUT.json 派生，source_sha256=76019aba... 核对一致）列出 116 项（62 CC / 44 ST / 10 LC），无缺漏/额外/重复",
+        "counts={implemented:1, not_implemented:115, run:1, not_run:115}；CC-006=implemented/not_proved/run（proof_status 不伪造已证：本会话不执行 oracle，证明状态=not_proved，oracle 执行证据另列于本报告 AC3），其余 115 项 not_implemented/not_proved/not_run",
+        "CC-006 状态与对应 cut 同事务生效，evidence 绑定 batch_id/structure_cut/profile_id+hash/rule_revision/classified_objects/windows_total/insufficient_knowledge/domain_not_satisfied/oracle_test 引用",
+        "snapshot 返回 observations 数组：insufficient_knowledge(缺右邻)、domain_not_satisfied(相邻包含) 分别持久发布，浏览器分别显示；未触发中枢/线段/BSP 不标已验收"
+      ],
+      "commands_and_exit_codes": [
+        {
+          "cmd": "s_structure_session catalog --db DB",
+          "exit": 0,
+          "note": "116 items, CC-006 implemented/not_proved/run"
+        },
+        {
+          "cmd": "s_structure_session snapshot --db DB（空输入）",
+          "exit": 0,
+          "note": "0 objects + 1 insufficient_knowledge"
+        }
+      ],
+      "not_run": []
+    },
+    "AC7": {
+      "summary": "Snapshot 返回正式 session/generation、structure_cut、catalog_revision、scope、index_frontier 与完整本域对象/关系/见证；浏览器读同一持久 cut，按服务返回值呈现，不按价格或 marker 补判结构。",
+      "evidence": [
+        "snapshot 字段：session_id/generation/structure_cut/catalog_revision/scope/index_frontier/profile_id/profile_hash/objects/witnesses/relations/observations（实测 5 objects / 15 witnesses / 20 relations）",
+        "每对象：object_id/object_revision/kind/batch_id/branch/dir_ab/dir_bc/window/4 comparisons/input_refs(绑定输入身份/修订/收据)",
+        "浏览器单请求 /api/state（catalog+snapshot 同一读事务同一 cut），核 catalog_revision/structure_cut/generation 一致；渲染无 Number/parseFloat 处理价格（字符串呈现），不补判结构/操作级别/经济资格"
+      ],
+      "commands_and_exit_codes": [
+        {
+          "cmd": "s_structure_session snapshot --db DB",
+          "exit": 0,
+          "note": "5 objects/15 witnesses/20 relations"
+        },
+        {
+          "cmd": "curl /api/state",
+          "exit": 0,
+          "note": "cut 与 catalog/snapshot 同源一致"
+        }
+      ],
+      "not_run": []
+    },
+    "AC8": {
+      "summary": "真实不启动 E/B/X、不建其库、不加载经济政策，仍继续接受后续合法原始事件并推进 S 正式 cut；结构 scope 可 CompleteCut，经济 scope 明确未启动/缺失，不等待 JoinCut/经济 ack/全局序号。",
+      "evidence": [
+        "launcher 只启动 S（一次性写命令）+ 只读查询外壳；不启动 E/B/X、不建其库、不加载经济政策",
+        "追加：accept append_more.json(3 accepted) → advance → generation=3/structure_cut=cut-3/merged_bars=10/8 objects（重启恢复后继续推进）",
+        "scope={\"structure\":\"CompleteCut\",\"economic\":\"not_started\"}：不等待 JoinCut/经济 ack/全局序号；不称整个系统当前完整"
+      ],
+      "commands_and_exit_codes": [
+        {
+          "cmd": "accept append_more.json 后 advance",
+          "exit": 0,
+          "note": "generation 1→3（重启恢复不删库）"
+        },
+        {
+          "cmd": "重启 launcher（同 --db）",
+          "exit": 0,
+          "note": "恢复已有库（不 init），重放=replay"
+        }
+      ],
+      "not_run": []
+    },
+    "AC9": {
+      "summary": "保留实际 launcher 命令、输入/schema/规则/目录/构建/profile 哈希、受测 SQLite 与平台前件、原始/API/浏览器证据及独立评审；对改动运行适用 Rust/前端检查；未跑/工具失败/尚未构造义务照实报告。",
+      "evidence": [
+        "保留：launcher 命令、inputs/profiles/schema、signed-catalog.json、Cargo.lock 钉 rusqlite 0.40.2/libsqlite3-sys 0.38.2(SQLite 3.53.2)、profile/输入文件哈希、本报告",
+        "Rust 检查：cargo fmt --check=0；cargo check --all-targets(default)=0；cargo check --features s_session --bin=0；cargo build --features s_session --bin=0；cargo clippy --features s_session --bin=0（本片文件 0 命中，lib 既有 warning 不计）；cargo test --lib local_shape=0(4 passed)",
+        "前端：浏览器为单文件 vanilla JS（无构建），curl / 200 且标题正确；未运行 TS/Vite 构建（本片未改 frontend/）",
+        "Python 只读边界：PY-H01 路径 ?/#/% 正确编码+query_only；PY-M01/R1-M01/M02 坏 scope/BLOB/孤立 surrogate → 结构化 503 或无损转义，无断连；H1 单读事务快照一致"
+      ],
+      "commands_and_exit_codes": [
+        {
+          "cmd": "cargo fmt -- --check",
+          "exit": 0
+        },
+        {
+          "cmd": "cargo check --all-targets",
+          "exit": 0
+        },
+        {
+          "cmd": "cargo build --features s_session --bin s_structure_session",
+          "exit": 0
+        },
+        {
+          "cmd": "cargo clippy --features s_session --bin s_structure_session",
+          "exit": 0,
+          "note": "本片文件 0 命中"
+        },
+        {
+          "cmd": "cargo test --lib local_shape",
+          "exit": 0,
+          "note": "4 passed"
+        }
+      ],
+      "not_run": [
+        "真实 GUI 浏览器渲染（根接）；macOS fullfsync 与 macOS launcher 真实运行（根接）；全量 cargo test 未跑（有界验证优先）；ruff/mypy/pylint/black 未安装未跑（不声称静态分析通过）"
+      ]
+    }
+  },
+  "not_run_root_owned": [
+    "真实 GUI 浏览器渲染与交互（恢复命令：./s_session/launch_s.sh --testonly --db <db> --port <port> 后浏览器打开 http://127.0.0.1:<port>/）",
+    "macOS 平台：launcher 默认 Python 发现（.dylib）、构建产物平台核、fullfsync 前件（根在真实 macOS 验收）",
+    "独立评审会话（本报告非独评）",
+    "main 合入、真实外效、未决 G/FU（本片未授权）",
+    "TB-01 父票汇总与其余纵片（TB-02..TB-10）闭合"
+  ],
+  "hashes": {
+    "SPEC 清单 SHA256（票面给定）": "38e3176b6dfff456b8e3704410401c3bedddf0671751464bb9ea5b829e460260",
+    "signed-catalog.json (raw)": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",
+    "SPEC-COVERAGE-INPUT.json (raw)": "76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c",
+    "testonly profile (raw)": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc",
+    "testonly profile (session 绑定的规范 profile_hash)": "0e9dfc9befd6878e0c844ee62c0f44576532ee8f13fe38c45f6bf467fe92d64e",
+    "cc006_four_branch.json (raw)": "7bb94ef11a40dd32bf4f05c1daa6173ce448afafe560f69298c0e83b6533b60a"
+  }
+}

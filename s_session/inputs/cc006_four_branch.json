@@ -1,0 +1,80 @@
+{
+  "schema_revision": "1",
+  "session_id": "s-session-testonly-001",
+  "source_namespace": "testonly.tick.ohlc",
+  "source_epoch": "1",
+  "instrument": "TEST.TICK",
+  "profile": "testonly_tick_1_1_ohlc",
+  "events": [
+    {
+      "event_id": "evt-0000",
+      "revision": "1",
+      "seq": "0",
+      "received_at": "2026-09-09T00:00:00.000Z",
+      "raw_text": "10000",
+      "price": "10000",
+      "timestamp": "0",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0001",
+      "revision": "1",
+      "seq": "1",
+      "received_at": "2026-09-09T00:00:01.000Z",
+      "raw_text": "10500",
+      "price": "10500",
+      "timestamp": "1",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0002",
+      "revision": "1",
+      "seq": "2",
+      "received_at": "2026-09-09T00:00:02.000Z",
+      "raw_text": "11000",
+      "price": "11000",
+      "timestamp": "2",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0003",
+      "revision": "1",
+      "seq": "3",
+      "received_at": "2026-09-09T00:00:03.000Z",
+      "raw_text": "10500",
+      "price": "10500",
+      "timestamp": "3",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0004",
+      "revision": "1",
+      "seq": "4",
+      "received_at": "2026-09-09T00:00:04.000Z",
+      "raw_text": "10000",
+      "price": "10000",
+      "timestamp": "4",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0005",
+      "revision": "1",
+      "seq": "5",
+      "received_at": "2026-09-09T00:00:05.000Z",
+      "raw_text": "10500",
+      "price": "10500",
+      "timestamp": "5",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0006",
+      "revision": "1",
+      "seq": "6",
+      "received_at": "2026-09-09T00:00:06.000Z",
+      "raw_text": "11000",
+      "price": "11000",
+      "timestamp": "6",
+      "volume": "1"
+    }
+  ]
+}

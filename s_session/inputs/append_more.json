@@ -1,0 +1,40 @@
+{
+  "schema_revision": "1",
+  "session_id": "s-session-testonly-001",
+  "source_namespace": "testonly.tick.ohlc",
+  "source_epoch": "1",
+  "instrument": "TEST.TICK",
+  "profile": "testonly_tick_1_1_ohlc",
+  "events": [
+    {
+      "event_id": "evt-0007",
+      "revision": "1",
+      "seq": "7",
+      "received_at": "2026-09-09T00:00:07.000Z",
+      "raw_text": "10500",
+      "price": "10500",
+      "timestamp": "7",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0008",
+      "revision": "1",
+      "seq": "8",
+      "received_at": "2026-09-09T00:00:08.000Z",
+      "raw_text": "10000",
+      "price": "10000",
+      "timestamp": "8",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0009",
+      "revision": "1",
+      "seq": "9",
+      "received_at": "2026-09-09T00:00:09.000Z",
+      "raw_text": "9500",
+      "price": "9500",
+      "timestamp": "9",
+      "volume": "1"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "source_commit": "76a641606d7097292fff2dc21f58c6156ae38916",
+  "api_oracle": {
+    "four": true,
+    "bigint": true
+  },
+  "ui_success": {
+    "four_cut": "cut-9",
+    "four_objects": 8,
+    "big_cut": "cut-4",
+    "big_objects": 1,
+    "input_revision": "7",
+    "object_revision": "1",
+    "large_price": "9007199254740993",
+    "large_source_coordinates": [
+      "9007199254740993",
+      "9007199254740994",
+      "9007199254740995"
+    ],
+    "comparison_text": "cur < prev"
+  },
+  "fault_sequence": {
+    "healthy_catalog_count": 116,
+    "healthy_objects": 1,
+    "trigger": "visible show-unimpl checkbox change, same loaded page",
+    "fault": "own backup scope JSON set to invalid object opener",
+    "http": 503,
+    "old_meta_object_catalog_removed": true,
+    "restored_response_exact_equal": true,
+    "restored_ui_same_cut": true
+  },
+  "evidence_files": [
+    "bigint/browser-initial-ax.json",
+    "bigint/browser-input-refs-ax.json",
+    "bigint/browser-relations-ax.json",
+    "bigint/browser-catalog-navigation.json",
+    "fault-ui/browser-before.json",
+    "fault-ui/browser-failure-triggered.json",
+    "fault-ui/browser-restored.json",
+    "fault-ui/healthy-http-state.json",
+    "fault-ui/restored-http-state.json",
+    "fault-ui/fault-http-response.json",
+    "bigint/browser-witness-ax.json"
+  ],
+  "scope": "真实既有 TestOnly 库正常重放恢复与读取故障恢复；非进程真杀恢复、非下游经济执行验收"
+}

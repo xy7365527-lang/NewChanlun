@@ -1,0 +1,77 @@
+{
+  "ticket": "#1370 TB-01-A",
+  "review_kind": "独立评审（只读，未修改生产代码）",
+  "branch": "codex/1323-tb01-a-1370",
+  "baseline": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+  "reviewed_commits": ["4379be6b51", "ac2b59387b"],
+  "verdict": "PASS",
+  "verdict_scope": "受测域内（TestOnly 逐笔一对一退化 OHLC、相邻严格无包含、无同价端点竞争的 CC-006/local_shape）",
+  "platform": {
+    "os": "linux",
+    "arch": "aarch64",
+    "rustc": "1.97.1",
+    "python": "3.11 (uv cpython-3.11.16-linux-aarch64-gnu)",
+    "sqlite_version_verified": "3.53.2",
+    "journal_mode_verified": "wal",
+    "synchronous_verified": 2,
+    "macos_fullfsync": "NOT_RUN (Linux 容器不声称)"
+  },
+  "run_evidence": {
+    "build": "cargo build --features s_session --bin s_structure_session -> exit 0",
+    "unit_oracle": "cargo test --lib local_shape -> 4 passed",
+    "unit_inclusion": "cargo test --lib inclusion -> 24 passed / 1 ignored (ES data, pre-existing)",
+    "check_default": "cargo check --all-targets (default) -> exit 0",
+    "fmt": "cargo fmt -- --check -> clean",
+    "clippy": "cargo clippy --features s_session --bin s_structure_session -> 0 hits in s_structure_session.rs/local_shape.rs",
+    "launcher_e2e": "./s_session/launch_s.sh --testonly --db /tmp/s1370_launch.sqlite --port 8799 --build -> 5/5 exit 0",
+    "api_snapshot": "curl /api/snapshot -> 5 objects RISING/TOP/FALLING/BOTTOM/RISING, 15 witnesses, 20 relations",
+    "api_catalog": "curl /api/catalog -> 116 items, counts implemented:1/not_implemented:115/run:1/not_run:115",
+    "api_state_cut_consistent": "true",
+    "stop": "./s_session/launch_s.sh stop --port 8799 -> exit 0, process gone",
+    "concurrent_advance": "two advances -> exit 1/0, exactly one wins (gen+1), other StaleWriter; batch_id deterministic",
+    "replay": "re-accept same input -> all replay with original receipt_id",
+    "identity_conflict": "same identity different content -> IdentityConflict (existing/new payload_hash separated)",
+    "bigint_roundtrip": "9007199254740993 / 9007199254740991 / 9007199254740990 exact string roundtrip through accept->advance->snapshot",
+    "non_canonical_rejection": "price '+0010000' -> exit 1; volume '2' -> exit 1 InvalidDomain",
+    "insufficient_knowledge": "1 tick -> 0 objects + 1 insufficient_knowledge",
+    "domain_not_satisfied": "[10000,10000,11000] -> 0 objects + 1 domain_not_satisfied(adjacent_inclusion)",
+    "append_advance": "accept append_more.json(3) -> advance -> gen=2/cut-2/10 merged/8 objects",
+    "readonly_enforced": "mode=ro + query_only=ON; write attempt blocked with 'attempt to write a readonly database'",
+    "batch_immutable": "batches.canonical_bytes contains full raw_events/objects/witnesses/relations/observations/profile/rule bindings"
+  },
+  "ac_verdicts": {
+    "AC1": "PASS",
+    "AC2": "PASS",
+    "AC3": "PASS",
+    "AC4": "PASS",
+    "AC5": "PASS",
+    "AC6": "PASS",
+    "AC7": "PASS",
+    "AC8": "PASS",
+    "AC9": "PASS"
+  },
+  "defects": [
+    {"level": "L", "id": "L-1", "file": "s_session/browser/index.html", "line": 155, "summary": "insufficient_knowledge 渲染读 o.detail.merged_bars，但 detail 实为 {raw_events:N}（s_structure_session.rs:845）→ 显示 merged_bars=undefined"},
+    {"level": "L", "id": "L-2", "file": "rust/src/bin/s_structure_session.rs", "line": 1014, "summary": "每次 advance DELETE 再重插 objects/witnesses/relations/observations，历史 cut 结构化对象仅存 batches BLOB，不可按行导航（属后续切片）"},
+    {"level": "L", "id": "L-3", "file": "rust/src/bin/s_structure_session.rs", "line": 795, "summary": "Bar.source_index 取接纳序 seq 而非 source_coord；受测域两者相等无缺陷，source_coord 另保留"},
+    {"level": "L", "id": "L-4", "file": "rust/src/bin/s_structure_session.rs", "line": 829, "summary": "混合原始包含输入会同时产 merged 分类对象 + raw 域不满足观察（索引空间不同），受测域不触发"},
+    {"level": "L", "id": "L-5", "file": "rust/src/bin/s_structure_session.rs", "line": 238, "summary": "Rust 读命令经 open_db 以读写模式打开并执行 WAL/FULL PRAGMA（init 后 no-op），外部只读进程正确 mode=ro"},
+    {"level": "L", "id": "L-6", "file": "rust/src/bin/s_structure_session.rs", "line": 469, "summary": "raw_events 同时存 input_revision 与 revision 且均取 e.revision，语义冗余"}
+  ],
+  "deferred_by_ticket_scope": [
+    {"id": "TB-05", "summary": "Begin 后崩溃恢复（advance_state=begun 残留→StaleWriter；仅 reset 删除重建可重开），接口合同中断恢复续算属 TB-05"},
+    {"id": "TB-07/AT-04", "summary": "历史 cut 导航、重连续接、delta 游标"},
+    {"id": "root", "summary": "真实 GUI 浏览器渲染、macOS fullfsync 与 macOS launcher 真实运行（恢复命令见实施报告 §8）"}
+  ],
+  "not_run": [
+    "真实 GUI 浏览器渲染（HTML/API 链已 curl 验证，DOM 未验）",
+    "macOS fullfsync / launcher .dylib 发现 / 构建产物平台核",
+    "全量 cargo test（有界验证优先，本片改动面已单测）",
+    "NFS/WAL 语义（本地 /tmp 验证）"
+  ],
+  "minimal_fixes": [
+    "L-1: 浏览器 insufficient_knowledge 显示 raw_events 计数或移除 merged_bars 引用（可选）",
+    "L-2..L-6 均为受测域外/卫生项，非必需成功项，可随后续切片或收尾一并处理"
+  ],
+  "promise": "COMPLETE"
+}

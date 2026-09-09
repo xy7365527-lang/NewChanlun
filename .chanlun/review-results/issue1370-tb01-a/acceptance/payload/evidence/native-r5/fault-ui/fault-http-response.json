@@ -1,0 +1,8 @@
+{
+  "status": 503,
+  "body": {
+    "ok": false,
+    "error": "StorageUnavailable",
+    "detail": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "bash",
+    "/Users/silencehan/Projects/NewChanlun-1370-native-acceptance/s_session/launch_s.sh",
+    "--db",
+    "/tmp/newchanlun-1323-publication-20260909/evidence/native-r2/结构 ?#%.sqlite",
+    "--port",
+    "18770",
+    "--bin",
+    "/tmp/newchanlun-1323-publication-20260909/native-target/debug/s_structure_session",
+    "--testonly"
+  ],
+  "exit_code": 0,
+  "source_commit": "76a641606d7097292fff2dc21f58c6156ae38916",
+  "stdout": "[launcher] 1/5 恢复已有 S 库（不 init、不删除既有持久事实）\n[launcher] 2/5 S.AcceptInput（原始逐笔档案 + 具名 profile）\n{\"ok\":true,\"profile\":\"testonly_tick_1_1_ohlc\",\"profile_hash\":\"0e9dfc9befd6878e0c844ee62c0f44576532ee8f13fe38c45f6bf467fe92d64e\",\"results\":[{\"event_id\":\"evt-0000\",\"identity_key\":\"testonly.tick.ohlc|1|TEST.TICK|evt-0000\",\"payload_hash\":\"b7e0bbd47ed192e73997d283a0e8243866d1c1a6ad5a2ba244d0bfc2dbd43841\",\"receipt_id\":\"rcpt-ed2120644911b1aa\",\"status\":\"replay\"},{\"event_id\":\"evt-0001\",\"identity_key\":\"testonly.tick.ohlc|1|TEST.TICK|evt-0001\",\"payload_hash\":\"96c3546f8aaffe160ec56fe650013b8112f6e063e13ac9470c2c6c1057e76655\",\"receipt_id\":\"rcpt-37fb710559c38b02\",\"status\":\"replay\"},{\"event_id\":\"evt-0002\",\"identity_key\":\"testonly.tick.ohlc|1|TEST.TICK|evt-0002\",\"payload_hash\":\"c4449bf97c2cc4ba6d7ac66df9000bb5b622c8039cc479353c598f8a8d75a0a5\",\"receipt_id\":\"rcpt-7797d3a8c15276c5\",\"status\":\"replay\"},{\"event_id\":\"evt-0003\",\"identity_key\":\"testonly.tick.ohlc|1|TEST.TICK|evt-0003\",\"payload_hash\":\"6d8925b717a3a72e1f900a89525f831b6e94849d08deb68f68607c840ad96313\",\"receipt_id\":\"rcpt-2075558a93af477c\",\"status\":\"replay\"},{\"event_id\":\"evt-0004\",\"identity_key\":\"testonly.tick.ohlc|1|TEST.TICK|evt-0004\",\"payload_hash\":\"cd5d9b3997ee719c3f1389153dc6879c9f34d497a38a3ad464afca80f612b625\",\"receipt_id\":\"rcpt-13a435ca9f4b04b3\",\"status\":\"replay\"},{\"event_id\":\"evt-0005\",\"identity_key\":\"testonly.tick.ohlc|1|TEST.TICK|evt-0005\",\"payload_hash\":\"06ae6385a1facfd0cbf04cab9228a8561db7e99043a0944249a5d3758b77fea0\",\"receipt_id\":\"rcpt-133f09bd7fe09269\",\"status\":\"replay\"},{\"event_id\":\"evt-0006\",\"identity_key\":\"testonly.tick.ohlc|1|TEST.TICK|evt-0006\",\"payload_hash\":\"c84d4e5f7abd1bc1a4d4ac1dc44106b1a98aba2e8e234499381653ecfe0c85af\",\"receipt_id\":\"rcpt-186528251d5525b9\",\"status\":\"replay\"}],\"session_id\":\"s-session-testonly-001\",\"volume_unit\":\"1\"}\n[launcher] 3/5 S.Advance（Begin→同次 Rust parser→Commit）\n{\"batch_byte_len\":39735,\"batch_id\":\"batch-8e828ac0b31460692cd2da1916139ff58e05d4f615fe816eb79cfe9174762280\",\"generation\":\"9\",\"merged_bars\":10,\"objects_published\":8,\"observations\":{\"domain_not_satisfied\":0,\"insufficient_knowledge\":0},\"ok\":true,\"raw_events\":10,\"scope\":{\"economic\":\"not_started\",\"structure\":\"CompleteCut\"},\"structure_cut\":\"cut-9\",\"windows_total\":8}\n[launcher] 4/5 启动只读查询外壳（独立只读进程，端口 18770）\n[launcher] 5/5 完成。浏览器 / API：\n  浏览器        http://127.0.0.1:18770/\n  目录 API      http://127.0.0.1:18770/api/catalog\n  快照 API      http://127.0.0.1:18770/api/snapshot\n  状态 API      http://127.0.0.1:18770/api/state\n  停止          ./s_session/launch_s.sh stop --port 18770\n  S 数据库      /tmp/newchanlun-1323-publication-20260909/evidence/native-r2/结构 ?#%.sqlite\n  只读日志      /tmp/s_session_readonly_18770.log\n",
+  "stderr": ""
+}

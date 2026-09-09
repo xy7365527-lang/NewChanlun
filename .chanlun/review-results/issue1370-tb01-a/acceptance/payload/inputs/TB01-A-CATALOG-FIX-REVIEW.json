@@ -1,0 +1,203 @@
+{
+  "issue": "#1370 / TB-01-A",
+  "scope": "catalog-contract-fix 相对 e79 的静态增量审查",
+  "verdict": "PASS_STATIC_INCREMENTAL_SCOPE",
+  "findings": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "generated_at": "2026-09-09T08:53:20.058045+00:00",
+  "base_commit": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+  "candidate": {
+    "metadata_path": "/tmp/newchanlun-1323-publication-20260909/work/catalog-contract-fix/candidate.json",
+    "metadata_sha256": "19902986fb500ad290f590ea534b06cd18f9ee8675670fb473f37bd42b72e6db",
+    "rust_path": "/tmp/newchanlun-1323-publication-20260909/work/catalog-contract-fix/s_structure_session.rs",
+    "rust_sha256": "1820c9a464df80b22fe50233905fba5fc959d50936000fd800f6e198493508be",
+    "python_path": "/tmp/newchanlun-1323-publication-20260909/work/catalog-contract-fix/s_readonly_server.py",
+    "python_sha256": "63203e75dbf58a3d59ed5b0fe7a15d5eb1101be9e19945b4d47ad00f0e3e95a9"
+  },
+  "base_source_sha256": {
+    "rust": "c376159b6fb0a9542fc00cccd9061cfccd94080fd0b44ce53d0cb124ad7c9841",
+    "python": "4c05effb0229bbb7167c69c155561bdd7730e30729a93def49785efb7f0519f6"
+  },
+  "signed_catalog": {
+    "git_path": "s_session/catalog/signed-catalog.json",
+    "commit": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+    "sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",
+    "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+    "count": 116,
+    "unique_ids": 116,
+    "branch_shapes": {
+      "array": 82,
+      "object": 34
+    },
+    "preservation_scope": "现有目录投影 id/kind/title/domain 和每条 branches 的完整嵌套 JSON 值；不声称 signed 源的 acceptance_mode/axis_ids/criterion 已进入现有查询投影。"
+  },
+  "durability_unchanged": {
+    "entire_source_prefix_before_json_shape_byte_equal": true,
+    "prefix_bytes": 61083,
+    "prefix_sha256": "3684e48ded04b07f4df7ef7dc14489f1ddbc6667333ad070d469649ba0229fb1",
+    "includes": [
+      "SQLite WAL/FULL/fullfsync 配置",
+      "db_meta 的 String/String 检查",
+      "AcceptInput epoch fence 和 profile 身份重放",
+      "Begin 所有权持久化",
+      "persist_batch_before_publish 独立先行事务",
+      "发布事务重新核 ownership/完整批次字节/输入前沿",
+      "index_frontier 与当前对象同事务发布",
+      "cancel_own_begin CAS 与实际释放诊断"
+    ],
+    "source_locations": {
+      "db_meta": 252,
+      "verify_writer_epoch": 282,
+      "cmd_accept": 439,
+      "cancel_own_begin": 774,
+      "persist_batch_before_publish": 854,
+      "cmd_advance": 880
+    }
+  },
+  "original_tests": {
+    "count": 8,
+    "all_byte_equal": true,
+    "checks": [
+      {
+        "name": "complete_batch_is_visible_before_reachable_root_and_never_overwritten",
+        "byte_equal": true,
+        "sha256": "78663bf4e26d7fd4b47f41ae2ddd195c525c43a82829e53b55d0cb3b2c44e4a1"
+      },
+      {
+        "name": "cancellation_preserves_foreign_begin_and_reports_actual_release",
+        "byte_equal": true,
+        "sha256": "cd5cadc3f5e2785d70438994f9af78be4000a5b8f3d45bd401318c76af84117e"
+      },
+      {
+        "name": "accept_rejects_stale_epoch_without_writing_receipts_or_metadata",
+        "byte_equal": true,
+        "sha256": "aaa4640b650f76893946b3b59137dd3ec70f95017db0a714c503f45eef460ca3"
+      },
+      {
+        "name": "replay_does_not_rebind_profile_of_an_existing_cut",
+        "byte_equal": true,
+        "sha256": "60b13b2e7d0a34884f909bc4bc2a8cf7e3bc8f64d248029cbc2852a71da6f4fa"
+      },
+      {
+        "name": "equal_prices_publish_domain_observation_and_corrupt_json_fails_read",
+        "byte_equal": true,
+        "sha256": "8d7df5d800c5c64a7f5465ea7fa8430436d2c51de4abf49545c63b742250d12a"
+      },
+      {
+        "name": "wire_projection_rejects_corrupt_integer_types_without_mutating_input",
+        "byte_equal": true,
+        "sha256": "f264e5c62bcb16b6e5d350f11d7e8e6c8b89a949fb220c89e09c67dd253a5e70"
+      },
+      {
+        "name": "canonical_integer_rejects_non_canonical",
+        "byte_equal": true,
+        "sha256": "03ca80db3060e6414919afde49cbe100b0103922c2477115febc2019f05ea2ca"
+      },
+      {
+        "name": "wire_projection_stringifies_coordinates_and_seq",
+        "byte_equal": true,
+        "sha256": "486f3dbbdf5e3d732b65a44e7205492552496411b915d4483c995c203e81cddc"
+      }
+    ],
+    "execution_this_review": false,
+    "prior_scope_report": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/REVIEW-e79.md"
+  },
+  "new_test": {
+    "name": "full_signed_catalog_preserves_both_declared_branch_shapes",
+    "line": 1784,
+    "reviewed_statically": true,
+    "executed_this_review": false,
+    "checks": [
+      "真实 signed fixture 经 cmd_init/read_catalog_in_tx",
+      "116 总数及 82 array/34 object",
+      "逐 ID 对比 branches 全嵌套值/title/domain",
+      "初始 implementation_status 为 not_implemented",
+      "拒绝 null/boolean/number/string/坏 JSON"
+    ],
+    "precision_note": "测试未单独断言 kind/catalog_revision/其他初始状态；其现有读取与写入代码未改，已在静态审查中核对。"
+  },
+  "json_shape_calls": {
+    "before": [
+      {
+        "line": 1457,
+        "source": "Some(text) => json_shape(&text, false),"
+      },
+      {
+        "line": 1478,
+        "source": "\"branches\": json_column(r, 4, true)?,"
+      },
+      {
+        "line": 1482,
+        "source": "\"evidence\": json_column(r, 8, false)?,"
+      },
+      {
+        "line": 1522,
+        "source": "\"comparisons\": json_column(r, 10, true)?,"
+      },
+      {
+        "line": 1524,
+        "source": "&json_column(r, 11, true)?"
+      },
+      {
+        "line": 1547,
+        "source": "&json_column(r, 8, true)?"
+      },
+      {
+        "line": 1583,
+        "source": "\"detail\": json_column(r, 7, false)?,"
+      }
+    ],
+    "after": [
+      {
+        "line": 1469,
+        "source": "Some(text) => json_shape(&text, JsonShape::Object),"
+      },
+      {
+        "line": 1490,
+        "source": "\"branches\": json_column(r, 4, JsonShape::CatalogBranches)?,"
+      },
+      {
+        "line": 1494,
+        "source": "\"evidence\": json_column(r, 8, JsonShape::Object)?,"
+      },
+      {
+        "line": 1534,
+        "source": "\"comparisons\": json_column(r, 10, JsonShape::Array)?,"
+      },
+      {
+        "line": 1536,
+        "source": "&json_column(r, 11, JsonShape::Array)?"
+      },
+      {
+        "line": 1559,
+        "source": "&json_column(r, 8, JsonShape::Array)?"
+      },
+      {
+        "line": 1595,
+        "source": "\"detail\": json_column(r, 7, JsonShape::Object)?,"
+      },
+      {
+        "line": 1816,
+        "source": "assert!(json_shape(bad, JsonShape::CatalogBranches).is_err());"
+      }
+    ],
+    "finding": "只有 catalog.branches 由 Array 扩成已签 Array|Object；scope/evidence/detail 仍 Object，comparisons/input_refs/raw_bars 仍 Array。两端校验成功都直接返回解析值，未替换或展平。"
+  },
+  "python_consistency": {
+    "meta_dict_line": 38,
+    "meta_all_rows_strict_text_text": true,
+    "matches_rust_db_meta_string_string": true,
+    "branches_line": 121,
+    "branches_union_matches_rust": true,
+    "other_python_source_unchanged": true,
+    "python_reviewer_context": "/root/tb01_python_r2 已报告 R5 发现；候选冻结后动态复核由该代理负责。此报告无其候选动态结论。"
+  },
+  "limits": [
+    "仅静态；没有候选编译、native 执行、HTTP、浏览器、Node 或新 SQLite 探针。",
+    "没有写入 Q/N 或仓库，没有打开数据库或管理服务，没有 GitHub 动作。",
+    "PASS 只覆盖本次候选 diff；不替代候选冻结后的增量运行验证、正式独审或整票验收。"
+  ]
+}

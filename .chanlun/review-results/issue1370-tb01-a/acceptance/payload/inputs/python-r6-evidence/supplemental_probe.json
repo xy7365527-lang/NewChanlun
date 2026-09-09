@@ -1,0 +1,765 @@
+{
+  "commit": "76a641606d7097292fff2dc21f58c6156ae38916",
+  "checks": [
+    {
+      "name": "nonnullable_observation_window_exact",
+      "passed": true,
+      "expected": [
+        "9223372036854775805",
+        "9223372036854775806",
+        "9223372036854775807"
+      ],
+      "node_rows": [
+        [
+          {
+            "type": "string",
+            "value": "9223372036854775805"
+          },
+          {
+            "type": "string",
+            "value": "9223372036854775806"
+          },
+          {
+            "type": "string",
+            "value": "9223372036854775807"
+          }
+        ],
+        [
+          {
+            "type": "string",
+            "value": "9223372036854775805"
+          },
+          {
+            "type": "string",
+            "value": "9223372036854775806"
+          },
+          {
+            "type": "string",
+            "value": "9223372036854775807"
+          }
+        ]
+      ],
+      "rust": {
+        "exit_code": 0,
+        "stderr": "",
+        "json": {
+          "catalog_revision": "catalog-r5",
+          "generation": "9223372036854775807",
+          "index_frontier": "batch-r5",
+          "objects": [
+            {
+              "batch_id": "batch-r5",
+              "branch": "RISING",
+              "comparisons": [
+                {
+                  "axis": "high",
+                  "cur": "10500",
+                  "held": true,
+                  "pair": "ab",
+                  "prev": "10000",
+                  "strict_up": true
+                }
+              ],
+              "dir_ab": "UP",
+              "dir_bc": "UP",
+              "input_refs": [
+                {
+                  "merged_index": "0",
+                  "raw_refs": [
+                    {
+                      "event_id": "event-0",
+                      "identity_key": "identity-0",
+                      "input_revision": "7",
+                      "payload_hash": "payload-0",
+                      "price": "10000",
+                      "raw_text": "10000",
+                      "receipt_id": "receipt-0",
+                      "received_at": "2026-09-09T00:00:00Z",
+                      "revision": "7",
+                      "seq": "9223372036854775805",
+                      "source_coord": "9223372036854775805",
+                      "ts": "9223372036854775805",
+                      "volume": "1"
+                    }
+                  ]
+                },
+                {
+                  "merged_index": "1",
+                  "raw_refs": [
+                    {
+                      "event_id": "event-1",
+                      "identity_key": "identity-1",
+                      "input_revision": "7",
+                      "payload_hash": "payload-1",
+                      "price": "10500",
+                      "raw_text": "10500",
+                      "receipt_id": "receipt-1",
+                      "received_at": "2026-09-09T00:00:00Z",
+                      "revision": "7",
+                      "seq": "9223372036854775806",
+                      "source_coord": "9223372036854775806",
+                      "ts": "9223372036854775806",
+                      "volume": "1"
+                    }
+                  ]
+                },
+                {
+                  "merged_index": "2",
+                  "raw_refs": [
+                    {
+                      "event_id": "event-2",
+                      "identity_key": "identity-2",
+                      "input_revision": "7",
+                      "payload_hash": "payload-2",
+                      "price": "11000",
+                      "raw_text": "11000",
+                      "receipt_id": "receipt-2",
+                      "received_at": "2026-09-09T00:00:00Z",
+                      "revision": "7",
+                      "seq": "9223372036854775807",
+                      "source_coord": "9223372036854775807",
+                      "ts": "9223372036854775807",
+                      "volume": "1"
+                    }
+                  ]
+                }
+              ],
+              "kind": "CC-006.local_shape",
+              "object_id": "obj-r5",
+              "object_revision": "1",
+              "window_end": "2",
+              "window_mid": "1",
+              "window_start": "0"
+            }
+          ],
+          "observations": [
+            {
+              "batch_id": "batch-r5",
+              "detail": {
+                "raw_events": 2
+              },
+              "kind": "insufficient_knowledge",
+              "observation_id": "obs-r5",
+              "reason": "synthetic_nullable_control",
+              "window_end": "9223372036854775807",
+              "window_mid": "9223372036854775806",
+              "window_start": "9223372036854775805"
+            }
+          ],
+          "profile_hash": "hash-r5",
+          "profile_id": "profile-r5",
+          "relations": [
+            {
+              "object": "wit-0",
+              "relation_type": "has_witness",
+              "subject": "obj-r5"
+            }
+          ],
+          "scope": {
+            "economic": "not_started",
+            "structure": "CompleteCut"
+          },
+          "session_id": "r5-synthetic",
+          "structure_cut": "cut-r5",
+          "witnesses": [
+            {
+              "merged_close": "10000",
+              "merged_high": "10000",
+              "merged_low": "10000",
+              "merged_open": "10000",
+              "merged_source_index": "9223372036854775805",
+              "object_id": "obj-r5",
+              "raw_bars": [
+                {
+                  "event_id": "event-0",
+                  "identity_key": "identity-0",
+                  "input_revision": "7",
+                  "payload_hash": "payload-0",
+                  "price": "10000",
+                  "raw_text": "10000",
+                  "receipt_id": "receipt-0",
+                  "received_at": "2026-09-09T00:00:00Z",
+                  "revision": "7",
+                  "seq": "9223372036854775805",
+                  "source_coord": "9223372036854775805",
+                  "ts": "9223372036854775805",
+                  "volume": "1"
+                }
+              ],
+              "slot": "0",
+              "witness_id": "wit-0"
+            },
+            {
+              "merged_close": "10500",
+              "merged_high": "10500",
+              "merged_low": "10500",
+              "merged_open": "10500",
+              "merged_source_index": "9223372036854775806",
+              "object_id": "obj-r5",
+              "raw_bars": [
+                {
+                  "event_id": "event-1",
+                  "identity_key": "identity-1",
+                  "input_revision": "7",
+                  "payload_hash": "payload-1",
+                  "price": "10500",
+                  "raw_text": "10500",
+                  "receipt_id": "receipt-1",
+                  "received_at": "2026-09-09T00:00:00Z",
+                  "revision": "7",
+                  "seq": "9223372036854775806",
+                  "source_coord": "9223372036854775806",
+                  "ts": "9223372036854775806",
+                  "volume": "1"
+                }
+              ],
+              "slot": "1",
+              "witness_id": "wit-1"
+            },
+            {
+              "merged_close": "11000",
+              "merged_high": "11000",
+              "merged_low": "11000",
+              "merged_open": "11000",
+              "merged_source_index": "9223372036854775807",
+              "object_id": "obj-r5",
+              "raw_bars": [
+                {
+                  "event_id": "event-2",
+                  "identity_key": "identity-2",
+                  "input_revision": "7",
+                  "payload_hash": "payload-2",
+                  "price": "11000",
+                  "raw_text": "11000",
+                  "receipt_id": "receipt-2",
+                  "received_at": "2026-09-09T00:00:00Z",
+                  "revision": "7",
+                  "seq": "9223372036854775807",
+                  "source_coord": "9223372036854775807",
+                  "ts": "9223372036854775807",
+                  "volume": "1"
+                }
+              ],
+              "slot": "2",
+              "witness_id": "wit-2"
+            }
+          ]
+        }
+      },
+      "responses": {
+        "/api/snapshot": {
+          "status": 200,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": true, \"session_id\": \"r5-synthetic\", \"generation\": \"9223372036854775807\", \"structure_cut\": \"cut-r5\", \"catalog_revision\": \"catalog-r5\", \"scope\": {\"structure\": \"CompleteCut\", \"economic\": \"not_started\"}, \"index_frontier\": \"batch-r5\", \"profile_id\": \"profile-r5\", \"profile_hash\": \"hash-r5\", \"objects\": [{\"object_id\": \"obj-r5\", \"object_revision\": \"1\", \"kind\": \"CC-006.local_shape\", \"batch_id\": \"batch-r5\", \"branch\": \"RISING\", \"dir_ab\": \"UP\", \"dir_bc\": \"UP\", \"window_start\": \"0\", \"window_mid\": \"1\", \"window_end\": \"2\", \"comparisons\": [{\"pair\": \"ab\", \"axis\": \"high\", \"prev\": \"10000\", \"cur\": \"10500\", \"strict_up\": true, \"held\": true}], \"input_refs\": [{\"merged_index\": \"0\", \"raw_refs\": [{\"seq\": \"9223372036854775805\", \"source_coord\": \"9223372036854775805\", \"price\": \"10000\", \"ts\": \"9223372036854775805\", \"volume\": \"1\", \"revision\": \"7\", \"input_revision\": \"7\", \"identity_key\": \"identity-0\", \"event_id\": \"event-0\", \"payload_hash\": \"payload-0\", \"receipt_id\": \"receipt-0\", \"received_at\": \"2026-09-09T00:00:00Z\", \"raw_text\": \"10000\"}]}, {\"merged_index\": \"1\", \"raw_refs\": [{\"seq\": \"9223372036854775806\", \"source_coord\": \"9223372036854775806\", \"price\": \"10500\", \"ts\": \"9223372036854775806\", \"volume\": \"1\", \"revision\": \"7\", \"input_revision\": \"7\", \"identity_key\": \"identity-1\", \"event_id\": \"event-1\", \"payload_hash\": \"payload-1\", \"receipt_id\": \"receipt-1\", \"received_at\": \"2026-09-09T00:00:00Z\", \"raw_text\": \"10500\"}]}, {\"merged_index\": \"2\", \"raw_refs\": [{\"seq\": \"9223372036854775807\", \"source_coord\": \"9223372036854775807\", \"price\": \"11000\", \"ts\": \"9223372036854775807\", \"volume\": \"1\", \"revision\": \"7\", \"input_revision\": \"7\", \"identity_key\": \"identity-2\", \"event_id\": \"event-2\", \"payload_hash\": \"payload-2\", \"receipt_id\": \"receipt-2\", \"received_at\": \"2026-09-09T00:00:00Z\", \"raw_text\": \"11000\"}]}]}], \"witnesses\": [{\"witness_id\": \"wit-0\", \"object_id\": \"obj-r5\", \"slot\": \"0\", \"merged_source_index\": \"9223372036854775805\", \"merged_high\": \"10000\", \"merged_low\": \"10000\", \"merged_open\": \"10000\", \"merged_close\": \"10000\", \"raw_bars\": [{\"seq\": \"9223372036854775805\", \"source_coord\": \"9223372036854775805\", \"price\": \"10000\", \"ts\": \"9223372036854775805\", \"volume\": \"1\", \"revision\": \"7\", \"input_revision\": \"7\", \"identity_key\": \"identity-0\", \"event_id\": \"event-0\", \"payload_hash\": \"payload-0\", \"receipt_id\": \"receipt-0\", \"received_at\": \"2026-09-09T00:00:00Z\", \"raw_text\": \"10000\"}]}, {\"witness_id\": \"wit-1\", \"object_id\": \"obj-r5\", \"slot\": \"1\", \"merged_source_index\": \"9223372036854775806\", \"merged_high\": \"10500\", \"merged_low\": \"10500\", \"merged_open\": \"10500\", \"merged_close\": \"10500\", \"raw_bars\": [{\"seq\": \"9223372036854775806\", \"source_coord\": \"9223372036854775806\", \"price\": \"10500\", \"ts\": \"9223372036854775806\", \"volume\": \"1\", \"revision\": \"7\", \"input_revision\": \"7\", \"identity_key\": \"identity-1\", \"event_id\": \"event-1\", \"payload_hash\": \"payload-1\", \"receipt_id\": \"receipt-1\", \"received_at\": \"2026-09-09T00:00:00Z\", \"raw_text\": \"10500\"}]}, {\"witness_id\": \"wit-2\", \"object_id\": \"obj-r5\", \"slot\": \"2\", \"merged_source_index\": \"9223372036854775807\", \"merged_high\": \"11000\", \"merged_low\": \"11000\", \"merged_open\": \"11000\", \"merged_close\": \"11000\", \"raw_bars\": [{\"seq\": \"9223372036854775807\", \"source_coord\": \"9223372036854775807\", \"price\": \"11000\", \"ts\": \"9223372036854775807\", \"volume\": \"1\", \"revision\": \"7\", \"input_revision\": \"7\", \"identity_key\": \"identity-2\", \"event_id\": \"event-2\", \"payload_hash\": \"payload-2\", \"receipt_id\": \"receipt-2\", \"received_at\": \"2026-09-09T00:00:00Z\", \"raw_text\": \"11000\"}]}], \"relations\": [{\"subject\": \"obj-r5\", \"relation_type\": \"has_witness\", \"object\": \"wit-0\"}], \"observations\": [{\"observation_id\": \"obs-r5\", \"batch_id\": \"batch-r5\", \"kind\": \"insufficient_knowledge\", \"window_start\": \"9223372036854775805\", \"window_mid\": \"9223372036854775806\", \"window_end\": \"9223372036854775807\", \"reason\": \"synthetic_nullable_control\", \"detail\": {\"raw_events\": 2}}]}",
+          "json": {
+            "ok": true,
+            "session_id": "r5-synthetic",
+            "generation": "9223372036854775807",
+            "structure_cut": "cut-r5",
+            "catalog_revision": "catalog-r5",
+            "scope": {
+              "structure": "CompleteCut",
+              "economic": "not_started"
+            },
+            "index_frontier": "batch-r5",
+            "profile_id": "profile-r5",
+            "profile_hash": "hash-r5",
+            "objects": [
+              {
+                "object_id": "obj-r5",
+                "object_revision": "1",
+                "kind": "CC-006.local_shape",
+                "batch_id": "batch-r5",
+                "branch": "RISING",
+                "dir_ab": "UP",
+                "dir_bc": "UP",
+                "window_start": "0",
+                "window_mid": "1",
+                "window_end": "2",
+                "comparisons": [
+                  {
+                    "pair": "ab",
+                    "axis": "high",
+                    "prev": "10000",
+                    "cur": "10500",
+                    "strict_up": true,
+                    "held": true
+                  }
+                ],
+                "input_refs": [
+                  {
+                    "merged_index": "0",
+                    "raw_refs": [
+                      {
+                        "seq": "9223372036854775805",
+                        "source_coord": "9223372036854775805",
+                        "price": "10000",
+                        "ts": "9223372036854775805",
+                        "volume": "1",
+                        "revision": "7",
+                        "input_revision": "7",
+                        "identity_key": "identity-0",
+                        "event_id": "event-0",
+                        "payload_hash": "payload-0",
+                        "receipt_id": "receipt-0",
+                        "received_at": "2026-09-09T00:00:00Z",
+                        "raw_text": "10000"
+                      }
+                    ]
+                  },
+                  {
+                    "merged_index": "1",
+                    "raw_refs": [
+                      {
+                        "seq": "9223372036854775806",
+                        "source_coord": "9223372036854775806",
+                        "price": "10500",
+                        "ts": "9223372036854775806",
+                        "volume": "1",
+                        "revision": "7",
+                        "input_revision": "7",
+                        "identity_key": "identity-1",
+                        "event_id": "event-1",
+                        "payload_hash": "payload-1",
+                        "receipt_id": "receipt-1",
+                        "received_at": "2026-09-09T00:00:00Z",
+                        "raw_text": "10500"
+                      }
+                    ]
+                  },
+                  {
+                    "merged_index": "2",
+                    "raw_refs": [
+                      {
+                        "seq": "9223372036854775807",
+                        "source_coord": "9223372036854775807",
+                        "price": "11000",
+                        "ts": "9223372036854775807",
+                        "volume": "1",
+                        "revision": "7",
+                        "input_revision": "7",
+                        "identity_key": "identity-2",
+                        "event_id": "event-2",
+                        "payload_hash": "payload-2",
+                        "receipt_id": "receipt-2",
+                        "received_at": "2026-09-09T00:00:00Z",
+                        "raw_text": "11000"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "witnesses": [
+              {
+                "witness_id": "wit-0",
+                "object_id": "obj-r5",
+                "slot": "0",
+                "merged_source_index": "9223372036854775805",
+                "merged_high": "10000",
+                "merged_low": "10000",
+                "merged_open": "10000",
+                "merged_close": "10000",
+                "raw_bars": [
+                  {
+                    "seq": "9223372036854775805",
+                    "source_coord": "9223372036854775805",
+                    "price": "10000",
+                    "ts": "9223372036854775805",
+                    "volume": "1",
+                    "revision": "7",
+                    "input_revision": "7",
+                    "identity_key": "identity-0",
+                    "event_id": "event-0",
+                    "payload_hash": "payload-0",
+                    "receipt_id": "receipt-0",
+                    "received_at": "2026-09-09T00:00:00Z",
+                    "raw_text": "10000"
+                  }
+                ]
+              },
+              {
+                "witness_id": "wit-1",
+                "object_id": "obj-r5",
+                "slot": "1",
+                "merged_source_index": "9223372036854775806",
+                "merged_high": "10500",
+                "merged_low": "10500",
+                "merged_open": "10500",
+                "merged_close": "10500",
+                "raw_bars": [
+                  {
+                    "seq": "9223372036854775806",
+                    "source_coord": "9223372036854775806",
+                    "price": "10500",
+                    "ts": "9223372036854775806",
+                    "volume": "1",
+                    "revision": "7",
+                    "input_revision": "7",
+                    "identity_key": "identity-1",
+                    "event_id": "event-1",
+                    "payload_hash": "payload-1",
+                    "receipt_id": "receipt-1",
+                    "received_at": "2026-09-09T00:00:00Z",
+                    "raw_text": "10500"
+                  }
+                ]
+              },
+              {
+                "witness_id": "wit-2",
+                "object_id": "obj-r5",
+                "slot": "2",
+                "merged_source_index": "9223372036854775807",
+                "merged_high": "11000",
+                "merged_low": "11000",
+                "merged_open": "11000",
+                "merged_close": "11000",
+                "raw_bars": [
+                  {
+                    "seq": "9223372036854775807",
+                    "source_coord": "9223372036854775807",
+                    "price": "11000",
+                    "ts": "9223372036854775807",
+                    "volume": "1",
+                    "revision": "7",
+                    "input_revision": "7",
+                    "identity_key": "identity-2",
+                    "event_id": "event-2",
+                    "payload_hash": "payload-2",
+                    "receipt_id": "receipt-2",
+                    "received_at": "2026-09-09T00:00:00Z",
+                    "raw_text": "11000"
+                  }
+                ]
+              }
+            ],
+            "relations": [
+              {
+                "subject": "obj-r5",
+                "relation_type": "has_witness",
+                "object": "wit-0"
+              }
+            ],
+            "observations": [
+              {
+                "observation_id": "obs-r5",
+                "batch_id": "batch-r5",
+                "kind": "insufficient_knowledge",
+                "window_start": "9223372036854775805",
+                "window_mid": "9223372036854775806",
+                "window_end": "9223372036854775807",
+                "reason": "synthetic_nullable_control",
+                "detail": {
+                  "raw_events": 2
+                }
+              }
+            ]
+          }
+        },
+        "/api/state": {
+          "status": 200,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": true, \"cut\": {\"session_id\": \"r5-synthetic\", \"generation\": \"9223372036854775807\", \"structure_cut\": \"cut-r5\", \"catalog_revision\": \"catalog-r5\", \"index_frontier\": \"batch-r5\"}, \"catalog\": {\"session_id\": \"r5-synthetic\", \"generation\": \"9223372036854775807\", \"structure_cut\": \"cut-r5\", \"catalog_revision\": \"catalog-r5\", \"scope\": {\"structure\": \"CompleteCut\", \"economic\": \"not_started\"}, \"items\": [{\"id\": \"CC-006\", \"kind\": \"classification_axis\", \"title\": \"R5 synthetic\", \"domain\": \"synthetic\", \"branches\": [{\"ranks\": [0, 1, 2], \"flags\": [true, false]}], \"implementation_status\": \"implemented\", \"proof_status\": \"not_proved\", \"run_status\": \"run\", \"evidence\": {\"classified_objects\": 1, \"merged_bars\": 3}}], \"counts\": {\"implemented\": 1, \"not_implemented\": 0, \"run\": 1, \"not_run\": 0}}, \"snapshot\": {\"session_id\": \"r5-synthetic\", \"generation\": \"9223372036854775807\", \"structure_cut\": \"cut-r5\", \"catalog_revision\": \"catalog-r5\", \"scope\": {\"structure\": \"CompleteCut\", \"economic\": \"not_started\"}, \"index_frontier\": \"batch-r5\", \"profile_id\": \"profile-r5\", \"profile_hash\": \"hash-r5\", \"objects\": [{\"object_id\": \"obj-r5\", \"object_revision\": \"1\", \"kind\": \"CC-006.local_shape\", \"batch_id\": \"batch-r5\", \"branch\": \"RISING\", \"dir_ab\": \"UP\", \"dir_bc\": \"UP\", \"window_start\": \"0\", \"window_mid\": \"1\", \"window_end\": \"2\", \"comparisons\": [{\"pair\": \"ab\", \"axis\": \"high\", \"prev\": \"10000\", \"cur\": \"10500\", \"strict_up\": true, \"held\": true}], \"input_refs\": [{\"merged_index\": \"0\", \"raw_refs\": [{\"seq\": \"9223372036854775805\", \"source_coord\": \"9223372036854775805\", \"price\": \"10000\", \"ts\": \"9223372036854775805\", \"volume\": \"1\", \"revision\": \"7\", \"input_revision\": \"7\", \"identity_key\": \"identity-0\", \"event_id\": \"event-0\", \"payload_hash\": \"payload-0\", \"receipt_id\": \"receipt-0\", \"received_at\": \"2026-09-09T00:00:00Z\", \"raw_text\": \"10000\"}]}, {\"merged_index\": \"1\", \"raw_refs\": [{\"seq\": \"9223372036854775806\", \"source_coord\": \"9223372036854775806\", \"price\": \"10500\", \"ts\": \"9223372036854775806\", \"volume\": \"1\", \"revision\": \"7\", \"input_revision\": \"7\", \"identity_key\": \"identity-1\", \"event_id\": \"event-1\", \"payload_hash\": \"payload-1\", \"receipt_id\": \"receipt-1\", \"received_at\": \"2026-09-09T00:00:00Z\", \"raw_text\": \"10500\"}]}, {\"merged_index\": \"2\", \"raw_refs\": [{\"seq\": \"9223372036854775807\", \"source_coord\": \"9223372036854775807\", \"price\": \"11000\", \"ts\": \"9223372036854775807\", \"volume\": \"1\", \"revision\": \"7\", \"input_revision\": \"7\", \"identity_key\": \"identity-2\", \"event_id\": \"event-2\", \"payload_hash\": \"payload-2\", \"receipt_id\": \"receipt-2\", \"received_at\": \"2026-09-09T00:00:00Z\", \"raw_text\": \"11000\"}]}]}], \"witnesses\": [{\"witness_id\": \"wit-0\", \"object_id\": \"obj-r5\", \"slot\": \"0\", \"merged_source_index\": \"9223372036854775805\", \"merged_high\": \"10000\", \"merged_low\": \"10000\", \"merged_open\": \"10000\", \"merged_close\": \"10000\", \"raw_bars\": [{\"seq\": \"9223372036854775805\", \"source_coord\": \"9223372036854775805\", \"price\": \"10000\", \"ts\": \"9223372036854775805\", \"volume\": \"1\", \"revision\": \"7\", \"input_revision\": \"7\", \"identity_key\": \"identity-0\", \"event_id\": \"event-0\", \"payload_hash\": \"payload-0\", \"receipt_id\": \"receipt-0\", \"received_at\": \"2026-09-09T00:00:00Z\", \"raw_text\": \"10000\"}]}, {\"witness_id\": \"wit-1\", \"object_id\": \"obj-r5\", \"slot\": \"1\", \"merged_source_index\": \"9223372036854775806\", \"merged_high\": \"10500\", \"merged_low\": \"10500\", \"merged_open\": \"10500\", \"merged_close\": \"10500\", \"raw_bars\": [{\"seq\": \"9223372036854775806\", \"source_coord\": \"9223372036854775806\", \"price\": \"10500\", \"ts\": \"9223372036854775806\", \"volume\": \"1\", \"revision\": \"7\", \"input_revision\": \"7\", \"identity_key\": \"identity-1\", \"event_id\": \"event-1\", \"payload_hash\": \"payload-1\", \"receipt_id\": \"receipt-1\", \"received_at\": \"2026-09-09T00:00:00Z\", \"raw_text\": \"10500\"}]}, {\"witness_id\": \"wit-2\", \"object_id\": \"obj-r5\", \"slot\": \"2\", \"merged_source_index\": \"9223372036854775807\", \"merged_high\": \"11000\", \"merged_low\": \"11000\", \"merged_open\": \"11000\", \"merged_close\": \"11000\", \"raw_bars\": [{\"seq\": \"9223372036854775807\", \"source_coord\": \"9223372036854775807\", \"price\": \"11000\", \"ts\": \"9223372036854775807\", \"volume\": \"1\", \"revision\": \"7\", \"input_revision\": \"7\", \"identity_key\": \"identity-2\", \"event_id\": \"event-2\", \"payload_hash\": \"payload-2\", \"receipt_id\": \"receipt-2\", \"received_at\": \"2026-09-09T00:00:00Z\", \"raw_text\": \"11000\"}]}], \"relations\": [{\"subject\": \"obj-r5\", \"relation_type\": \"has_witness\", \"object\": \"wit-0\"}], \"observations\": [{\"observation_id\": \"obs-r5\", \"batch_id\": \"batch-r5\", \"kind\": \"insufficient_knowledge\", \"window_start\": \"9223372036854775805\", \"window_mid\": \"9223372036854775806\", \"window_end\": \"9223372036854775807\", \"reason\": \"synthetic_nullable_control\", \"detail\": {\"raw_events\": 2}}]}}",
+          "json": {
+            "ok": true,
+            "cut": {
+              "session_id": "r5-synthetic",
+              "generation": "9223372036854775807",
+              "structure_cut": "cut-r5",
+              "catalog_revision": "catalog-r5",
+              "index_frontier": "batch-r5"
+            },
+            "catalog": {
+              "session_id": "r5-synthetic",
+              "generation": "9223372036854775807",
+              "structure_cut": "cut-r5",
+              "catalog_revision": "catalog-r5",
+              "scope": {
+                "structure": "CompleteCut",
+                "economic": "not_started"
+              },
+              "items": [
+                {
+                  "id": "CC-006",
+                  "kind": "classification_axis",
+                  "title": "R5 synthetic",
+                  "domain": "synthetic",
+                  "branches": [
+                    {
+                      "ranks": [
+                        0,
+                        1,
+                        2
+                      ],
+                      "flags": [
+                        true,
+                        false
+                      ]
+                    }
+                  ],
+                  "implementation_status": "implemented",
+                  "proof_status": "not_proved",
+                  "run_status": "run",
+                  "evidence": {
+                    "classified_objects": 1,
+                    "merged_bars": 3
+                  }
+                }
+              ],
+              "counts": {
+                "implemented": 1,
+                "not_implemented": 0,
+                "run": 1,
+                "not_run": 0
+              }
+            },
+            "snapshot": {
+              "session_id": "r5-synthetic",
+              "generation": "9223372036854775807",
+              "structure_cut": "cut-r5",
+              "catalog_revision": "catalog-r5",
+              "scope": {
+                "structure": "CompleteCut",
+                "economic": "not_started"
+              },
+              "index_frontier": "batch-r5",
+              "profile_id": "profile-r5",
+              "profile_hash": "hash-r5",
+              "objects": [
+                {
+                  "object_id": "obj-r5",
+                  "object_revision": "1",
+                  "kind": "CC-006.local_shape",
+                  "batch_id": "batch-r5",
+                  "branch": "RISING",
+                  "dir_ab": "UP",
+                  "dir_bc": "UP",
+                  "window_start": "0",
+                  "window_mid": "1",
+                  "window_end": "2",
+                  "comparisons": [
+                    {
+                      "pair": "ab",
+                      "axis": "high",
+                      "prev": "10000",
+                      "cur": "10500",
+                      "strict_up": true,
+                      "held": true
+                    }
+                  ],
+                  "input_refs": [
+                    {
+                      "merged_index": "0",
+                      "raw_refs": [
+                        {
+                          "seq": "9223372036854775805",
+                          "source_coord": "9223372036854775805",
+                          "price": "10000",
+                          "ts": "9223372036854775805",
+                          "volume": "1",
+                          "revision": "7",
+                          "input_revision": "7",
+                          "identity_key": "identity-0",
+                          "event_id": "event-0",
+                          "payload_hash": "payload-0",
+                          "receipt_id": "receipt-0",
+                          "received_at": "2026-09-09T00:00:00Z",
+                          "raw_text": "10000"
+                        }
+                      ]
+                    },
+                    {
+                      "merged_index": "1",
+                      "raw_refs": [
+                        {
+                          "seq": "9223372036854775806",
+                          "source_coord": "9223372036854775806",
+                          "price": "10500",
+                          "ts": "9223372036854775806",
+                          "volume": "1",
+                          "revision": "7",
+                          "input_revision": "7",
+                          "identity_key": "identity-1",
+                          "event_id": "event-1",
+                          "payload_hash": "payload-1",
+                          "receipt_id": "receipt-1",
+                          "received_at": "2026-09-09T00:00:00Z",
+                          "raw_text": "10500"
+                        }
+                      ]
+                    },
+                    {
+                      "merged_index": "2",
+                      "raw_refs": [
+                        {
+                          "seq": "9223372036854775807",
+                          "source_coord": "9223372036854775807",
+                          "price": "11000",
+                          "ts": "9223372036854775807",
+                          "volume": "1",
+                          "revision": "7",
+                          "input_revision": "7",
+                          "identity_key": "identity-2",
+                          "event_id": "event-2",
+                          "payload_hash": "payload-2",
+                          "receipt_id": "receipt-2",
+                          "received_at": "2026-09-09T00:00:00Z",
+                          "raw_text": "11000"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "witnesses": [
+                {
+                  "witness_id": "wit-0",
+                  "object_id": "obj-r5",
+                  "slot": "0",
+                  "merged_source_index": "9223372036854775805",
+                  "merged_high": "10000",
+                  "merged_low": "10000",
+                  "merged_open": "10000",
+                  "merged_close": "10000",
+                  "raw_bars": [
+                    {
+                      "seq": "9223372036854775805",
+                      "source_coord": "9223372036854775805",
+                      "price": "10000",
+                      "ts": "9223372036854775805",
+                      "volume": "1",
+                      "revision": "7",
+                      "input_revision": "7",
+                      "identity_key": "identity-0",
+                      "event_id": "event-0",
+                      "payload_hash": "payload-0",
+                      "receipt_id": "receipt-0",
+                      "received_at": "2026-09-09T00:00:00Z",
+                      "raw_text": "10000"
+                    }
+                  ]
+                },
+                {
+                  "witness_id": "wit-1",
+                  "object_id": "obj-r5",
+                  "slot": "1",
+                  "merged_source_index": "9223372036854775806",
+                  "merged_high": "10500",
+                  "merged_low": "10500",
+                  "merged_open": "10500",
+                  "merged_close": "10500",
+                  "raw_bars": [
+                    {
+                      "seq": "9223372036854775806",
+                      "source_coord": "9223372036854775806",
+                      "price": "10500",
+                      "ts": "9223372036854775806",
+                      "volume": "1",
+                      "revision": "7",
+                      "input_revision": "7",
+                      "identity_key": "identity-1",
+                      "event_id": "event-1",
+                      "payload_hash": "payload-1",
+                      "receipt_id": "receipt-1",
+                      "received_at": "2026-09-09T00:00:00Z",
+                      "raw_text": "10500"
+                    }
+                  ]
+                },
+                {
+                  "witness_id": "wit-2",
+                  "object_id": "obj-r5",
+                  "slot": "2",
+                  "merged_source_index": "9223372036854775807",
+                  "merged_high": "11000",
+                  "merged_low": "11000",
+                  "merged_open": "11000",
+                  "merged_close": "11000",
+                  "raw_bars": [
+                    {
+                      "seq": "9223372036854775807",
+                      "source_coord": "9223372036854775807",
+                      "price": "11000",
+                      "ts": "9223372036854775807",
+                      "volume": "1",
+                      "revision": "7",
+                      "input_revision": "7",
+                      "identity_key": "identity-2",
+                      "event_id": "event-2",
+                      "payload_hash": "payload-2",
+                      "receipt_id": "receipt-2",
+                      "received_at": "2026-09-09T00:00:00Z",
+                      "raw_text": "11000"
+                    }
+                  ]
+                }
+              ],
+              "relations": [
+                {
+                  "subject": "obj-r5",
+                  "relation_type": "has_witness",
+                  "object": "wit-0"
+                }
+              ],
+              "observations": [
+                {
+                  "observation_id": "obs-r5",
+                  "batch_id": "batch-r5",
+                  "kind": "insufficient_knowledge",
+                  "window_start": "9223372036854775805",
+                  "window_mid": "9223372036854775806",
+                  "window_end": "9223372036854775807",
+                  "reason": "synthetic_nullable_control",
+                  "detail": {
+                    "raw_events": 2
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blob_object_revision_error_boundary_regression",
+      "passed": true,
+      "old_source_sha256": "69cd4e1016874d982907633ded95e8661dbc844ad55b8f3ca5f928a2ce6bfea4",
+      "current_source_sha256": "63203e75dbf58a3d59ed5b0fe7a15d5eb1101be9e19945b4d47ad00f0e3e95a9",
+      "old_response": {
+        "status": 503,
+        "content_type": "application/json; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+        "json": {
+          "ok": false,
+          "error": "StorageUnavailable",
+          "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+        }
+      },
+      "current_response": {
+        "status": 503,
+        "content_type": "application/json; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45\u6574\u6570\u5fc5\u987b\u662f i64\uff0c\u4e0d\u80fd\u662f\u6d6e\u70b9\u3001\u5e03\u5c14\u3001\u7a7a\u503c\u6216\u6587\u672c\"}",
+        "json": {
+          "ok": false,
+          "error": "StorageUnavailable",
+          "detail": "\u6301\u4e45\u6574\u6570\u5fc5\u987b\u662f i64\uff0c\u4e0d\u80fd\u662f\u6d6e\u70b9\u3001\u5e03\u5c14\u3001\u7a7a\u503c\u6216\u6587\u672c"
+        }
+      },
+      "observed_regression": false
+    }
+  ],
+  "counts": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0
+  },
+  "private_ports": [
+    62119,
+    62131,
+    62139
+  ]
+}

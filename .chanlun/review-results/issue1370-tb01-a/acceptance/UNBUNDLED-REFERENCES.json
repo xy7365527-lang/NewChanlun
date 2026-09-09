@@ -1,0 +1,52 @@
+[
+  {
+    "id": 1,
+    "original_target": "/tmp/newchanlun-1323-publication-20260909/work/catalog-contract-fix/s_structure_session.rs:1439",
+    "reported_by": "inputs/TB01-A-CATALOG-FIX-REVIEW.md"
+  },
+  {
+    "id": 2,
+    "original_target": "/tmp/newchanlun-1323-publication-20260909/work/catalog-contract-fix/s_readonly_server.py:121",
+    "reported_by": "inputs/TB01-A-CATALOG-FIX-REVIEW.md"
+  },
+  {
+    "id": 3,
+    "original_target": "/tmp/newchanlun-1323-publication-20260909/work/catalog-contract-fix/s_readonly_server.py:38",
+    "reported_by": "inputs/TB01-A-CATALOG-FIX-REVIEW.md"
+  },
+  {
+    "id": 4,
+    "original_target": "/tmp/newchanlun-1323-publication-20260909/work/catalog-contract-fix/s_structure_session.rs:252",
+    "reported_by": "inputs/TB01-A-CATALOG-FIX-REVIEW.md"
+  },
+  {
+    "id": 5,
+    "original_target": "/tmp/newchanlun-1323-publication-20260909/work/catalog-contract-fix/s_structure_session.rs:854",
+    "reported_by": "inputs/TB01-A-CATALOG-FIX-REVIEW.md"
+  },
+  {
+    "id": 6,
+    "original_target": "/tmp/newchanlun-1323-publication-20260909/work/catalog-contract-fix/s_structure_session.rs:880",
+    "reported_by": "inputs/TB01-A-CATALOG-FIX-REVIEW.md"
+  },
+  {
+    "id": 7,
+    "original_target": "/tmp/newchanlun-1323-publication-20260909/work/catalog-contract-fix/s_structure_session.rs:774",
+    "reported_by": "inputs/TB01-A-CATALOG-FIX-REVIEW.md"
+  },
+  {
+    "id": 8,
+    "original_target": "/tmp/newchanlun-1323-publication-20260909/work/catalog-contract-fix/s_structure_session.rs:1784",
+    "reported_by": "inputs/TB01-A-CATALOG-FIX-REVIEW.md"
+  },
+  {
+    "id": 9,
+    "original_target": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/full-catalog-init.sqlite",
+    "reported_by": "inputs/TB01-A-PYTHON-R6-REVIEW.md"
+  },
+  {
+    "id": 10,
+    "original_target": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/run-logs/full_catalog_probe.json",
+    "reported_by": "inputs/TB01-A-PYTHON-R6-REVIEW.md"
+  }
+]

@@ -248,6 +248,11 @@ jobs:
       - name: cargo test — default targets
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --all-targets --jobs 1
 
+      # #1370：s_session 的 required-features 不在 default/backtest_bin 中启用。
+      # 运行正式 S bin 的回归测试，不能只编译或以默认目标的通过代替。
+      - name: cargo test — s_session 正式结构会话（#1370）
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session --jobs 1
+
       - name: cargo test — backtest_bin feature（econ_oddeven_diagnosis.rs 仅在此 feature 下编译）
         # 2026-08-16 磁盘实撞（#993 收口轮）：三轮 runner 爆盘（No space left on device）——
         # --all-targets 在 feature 下额外编 56 个探针 bin 的 test 目标（各链 nautilus 套件，

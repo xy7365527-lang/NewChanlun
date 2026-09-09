@@ -1,0 +1,619 @@
+{
+  "ticket": 1370,
+  "parent_graph": 1323,
+  "review_round": "R6",
+  "verdict": "PASS_REQUESTED_PYTHON_RUST_WIRE_INCREMENTAL_SCOPE",
+  "finding_counts": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "findings": [],
+  "source": {
+    "commit": "76a641606d7097292fff2dc21f58c6156ae38916",
+    "snapshot_utc": "2026-09-09T09:06:25.088807+00:00",
+    "source_repo": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication",
+    "files": {
+      "s_readonly_server.py": {
+        "source": "s_session/s_readonly_server.py",
+        "sha256": "63203e75dbf58a3d59ed5b0fe7a15d5eb1101be9e19945b4d47ad00f0e3e95a9",
+        "git_show_exit_code": 0
+      },
+      "s_structure_session.rs": {
+        "source": "rust/src/bin/s_structure_session.rs",
+        "sha256": "1820c9a464df80b22fe50233905fba5fc959d50936000fd800f6e198493508be",
+        "git_show_exit_code": 0
+      },
+      "index.html": {
+        "source": "s_session/browser/index.html",
+        "sha256": "dac86f778ad8de5219aa4c4bdd810a55e7b8f03b5b9fca0014e249b1726ecdc9",
+        "git_show_exit_code": 0
+      },
+      "signed-catalog.json": {
+        "source": "s_session/catalog/signed-catalog.json",
+        "sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",
+        "git_show_exit_code": 0
+      }
+    }
+  },
+  "native_binary_binding": {
+    "path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/native-build-binding.json",
+    "sha256": "9cbd4d5fd8c919200e09bbf21988a8d025877cfa5bc9f06a52f477f654463428",
+    "source_commit": "76a641606d7097292fff2dc21f58c6156ae38916",
+    "source_tree": "d09c7a0d7186eeaf490f94c3efaaaa6b3d28ac56",
+    "source_manifest_verified_count": 408,
+    "all_manifest_blobs_match_fixed_commit": true,
+    "private_binary": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/s_structure_session",
+    "binary_sha256_before_and_after": "b9e35a9200eb391e8ab5902c2034d601bdacd507de7c85623fa2f1919b584766",
+    "upstream_binding": "/tmp/newchanlun-1323-publication-20260909/evidence/native-r5/native-build-binding.json",
+    "upstream_binding_sha256": "3126606bf024ba67c7432f19debb5af3518cb5972d61fcbdf8e663487cce2b8b"
+  },
+  "reviewed_at_utc": "2026-09-09T09:11:21.922151+00:00",
+  "commands": [
+    {
+      "suite": "probe",
+      "argv": [
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "-B",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/probe.py"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "total": 44,
+        "passed": 44,
+        "failed": 0
+      },
+      "elapsed_seconds": 0.7171239852905273,
+      "result_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/probe.json",
+      "result_sha256": "a442078bfd26a4723ed19d589c9772addd60b2ce5ec72550210937074bc1084e",
+      "receipt_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/run-logs/probe.json",
+      "receipt_sha256": "914f77e531fd310e5f34b11b05ce09d85231ba099e1ae3f22c20b2aa71c16cd6",
+      "same_check_names_as_r5": true,
+      "probe_sha256": "425804b784f3863a75bedd31d1c85d2fc76d4a04463ac8262851daef220cc538"
+    },
+    {
+      "suite": "semantic_probe",
+      "argv": [
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "-B",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/semantic_probe.py"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "total": 7,
+        "passed": 7,
+        "failed": 0
+      },
+      "elapsed_seconds": 0.18140220642089844,
+      "result_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/semantic_probe.json",
+      "result_sha256": "5dc1e53df27082e16b3c4020f09ebdc6e480ed35f35168c7abeb15020a06d952",
+      "receipt_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/run-logs/semantic_probe.json",
+      "receipt_sha256": "a71196e41512e63525deb9d5a8715423d8f0b79308abd9c8f71e959e86a0af29",
+      "same_check_names_as_r5": true,
+      "probe_sha256": "5c1377244a9edee3ea86b2b8b24ec7b3c11ebb590d3476eece1ac82b0ab364ca"
+    },
+    {
+      "suite": "type_probe",
+      "argv": [
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "-B",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/type_probe.py"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "total": 10,
+        "passed": 10,
+        "failed": 0
+      },
+      "elapsed_seconds": 0.24460601806640625,
+      "result_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/type_probe.json",
+      "result_sha256": "c07adad3972a3e5fa1a129b727e9f720dd617285904a8a4fdb077b01d2930bf5",
+      "receipt_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/run-logs/type_probe.json",
+      "receipt_sha256": "56d9f62f2dc47af44a7258f3ceda796a51593c837eaa63088f3c0f7c4915081b",
+      "same_check_names_as_r5": true,
+      "probe_sha256": "218655a0d0e0a54b27a0e7c54b8ad4226050abdecb6cbb1cdbc2a29930b4342f"
+    },
+    {
+      "suite": "wire_probe",
+      "argv": [
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "-B",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/wire_probe.py"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "total": 27,
+        "passed": 27,
+        "failed": 0
+      },
+      "elapsed_seconds": 1.1098659038543701,
+      "result_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/wire_probe.json",
+      "result_sha256": "42d5e3f0a0166c63eaed341a56277c0922a88941a88186a67f8426c7167bc2c9",
+      "receipt_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/run-logs/wire_probe.json",
+      "receipt_sha256": "b4b89864a3a42c55c758cf5984c119ea8d2a2a6cd271b1647046dcc752b60988",
+      "same_check_names_as_r5": true,
+      "probe_sha256": "351a298c21332034400c208ad35316e89ded300d2dcaa256c112618748c67427"
+    },
+    {
+      "suite": "json_corruption_probe",
+      "argv": [
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "-B",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/json_corruption_probe.py"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "total": 7,
+        "passed": 7,
+        "failed": 0
+      },
+      "elapsed_seconds": 0.2903096675872803,
+      "result_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/json_corruption_probe.json",
+      "result_sha256": "2dfbb396be8134213ac790742032e0b93026296995255ae7f55462bf2cc4ed55",
+      "receipt_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/run-logs/json_corruption_probe.json",
+      "receipt_sha256": "664edd2311daa66e4cd3e6fa71b35e2aeb4faa795093e901f5aeaf31addbcc89",
+      "same_check_names_as_r5": true,
+      "probe_sha256": "c08741f880002cb1ef546a435eb2fa0df8c27496bd4606acaf7b7dc4c2cb7f98"
+    },
+    {
+      "suite": "supplemental_probe",
+      "argv": [
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "-B",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/supplemental_probe.py"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "total": 2,
+        "passed": 2,
+        "failed": 0
+      },
+      "elapsed_seconds": 0.183027982711792,
+      "result_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/supplemental_probe.json",
+      "result_sha256": "c8ee29f50dbf803b3576b246f0ac69edaddab5c8bb92ca491fc3c4e3c9003761",
+      "receipt_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/run-logs/supplemental_probe.json",
+      "receipt_sha256": "872600886e29bd39407f3ad84dedf210b33877fb71d486772f4e63970220d1b9",
+      "same_check_names_as_r5": true,
+      "probe_sha256": "f44a20be84db01434fe2469e27adf4562dd82ed406d312c5d0691247e0f103e8"
+    },
+    {
+      "suite": "contract_probe",
+      "argv": [
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "-B",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/contract_probe.py"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "total": 115,
+        "passed": 115,
+        "failed": 0
+      },
+      "elapsed_seconds": 4.4063780307769775,
+      "result_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/contract_probe.json",
+      "result_sha256": "6fc5f945c09ff1edcaac7ad005271f54ed4ca1c51cb58ce3cb8bd0803d6eb5d4",
+      "receipt_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/run-logs/contract_probe.json",
+      "receipt_sha256": "6d9f985e7a3a5b68f3f2a668d00ef3032dcc7e1b71250382295a4a624d66f953",
+      "same_check_names_as_r5": true,
+      "probe_sha256": "e62c5fa129c9fd3726e410c671f638bcd88ad08d8750936e1e167487e8598ba2"
+    },
+    {
+      "suite": "full_catalog_probe",
+      "argv": [
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "-B",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/full_catalog_probe.py"
+      ],
+      "exit_code": 0,
+      "counts": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0
+      },
+      "elapsed_seconds": 0.6651871204376221,
+      "result_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/full_catalog_probe.json",
+      "result_sha256": "870aee24319cb09e1f5c873aa30ee2cb322a4034f21439dd7324bc5186eaff62",
+      "receipt_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/run-logs/full_catalog_probe.json",
+      "receipt_sha256": "d443ff027df243e365863bab4f44b7eae4f7fe36a5bc156b880faebf6f2fdfc3",
+      "same_check_names_as_r5": true,
+      "probe_sha256": "6282b036852800e90fe2c76156390af3cdace96a74a8aaa18abb9b468f1cd446"
+    }
+  ],
+  "counts": {
+    "total": 213,
+    "passed": 213,
+    "failed": 0,
+    "r5_old_97_passed": 97,
+    "additional_contract_checks": 115,
+    "full_catalog_aggregate_checks": 1
+  },
+  "resolved": [
+    {
+      "id": "PY-R5-M01",
+      "status": "RESOLVED_BY_ACTUAL_R6_HTTP_AND_RUST",
+      "evidence": [
+        "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/full_catalog_probe.json",
+        "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/contract_probe.json"
+      ],
+      "result": "实际 Rust init 写入完整已签 116 项；Rust catalog、HTTP catalog 和 state.catalog 的每条 id/kind/title/domain/branches 嵌套值、初始状态、证据空对象、catalog_revision、计数逐值正确；数组 82、对象 34。"
+    },
+    {
+      "id": "PY-R5-M02",
+      "status": "RESOLVED_BY_ACTUAL_R6_HTTP_AND_RUST",
+      "evidence": [
+        "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/contract_probe.json"
+      ],
+      "result": "额外 BLOB meta 值、NULL key、BLOB key 均使四个 HTTP API 返回结构化 503，Rust meta/catalog/snapshot 均 exit 1；真正缺少 scope 仍两端成功返回 {}。"
+    }
+  ],
+  "r5_failed_checks_now_pass": [
+    {
+      "suite": "contract_probe",
+      "check": "json_field_catalog_branches_json_wrong_container",
+      "r5_passed": false,
+      "r6_passed": true
+    },
+    {
+      "suite": "contract_probe",
+      "check": "extra_meta_blob",
+      "r5_passed": false,
+      "r6_passed": true
+    },
+    {
+      "suite": "contract_probe",
+      "check": "null_meta_key",
+      "r5_passed": false,
+      "r6_passed": true
+    },
+    {
+      "suite": "contract_probe",
+      "check": "blob_meta_key",
+      "r5_passed": false,
+      "r6_passed": true
+    },
+    {
+      "suite": "full_catalog_probe",
+      "check": "full_signed_catalog_readable_without_narrowing_branches",
+      "r5_passed": false,
+      "r6_passed": true
+    }
+  ],
+  "full_catalog": {
+    "native_init_exit": 0,
+    "native_init_readings": {
+      "catalog_items": 116,
+      "journal_mode": "wal",
+      "ok": true,
+      "platform": "macos",
+      "session_id": "r5-fullcatalog",
+      "sqlite_version": "3.53.2",
+      "synchronous": 2
+    },
+    "shape_counts": {
+      "array": 82,
+      "object": 34,
+      "other": 0
+    },
+    "expected_item_count": 116,
+    "stored_branches_match_signed": true,
+    "returned_values_match_signed": {
+      "rust_catalog": true,
+      "http_catalog": true,
+      "http_state_catalog": true
+    },
+    "http_statuses": {
+      "/api/catalog": 200,
+      "/api/snapshot": 200,
+      "/api/state": 200
+    },
+    "rust_catalog_exit": 0,
+    "same_source_projection_fields": [
+      "id",
+      "kind",
+      "title",
+      "domain",
+      "branches"
+    ],
+    "retained_init_database": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/full-catalog-init.sqlite",
+    "retained_init_database_sha256": "0c90fbb02eec327044320699e52b7a5799ea789c05bc2f03cdb971736263befc",
+    "source_catalog_sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069"
+  },
+  "bad_meta_cases": [
+    {
+      "case": "extra_meta_blob",
+      "passed": true,
+      "http": {
+        "/api/meta": 503,
+        "/api/catalog": 503,
+        "/api/snapshot": 503,
+        "/api/state": 503
+      },
+      "rust_meta_exit": 1,
+      "rust_catalog_exit": 1,
+      "rust_snapshot_exit": 1,
+      "canonical_bytes_unchanged": true
+    },
+    {
+      "case": "null_meta_key",
+      "passed": true,
+      "http": {
+        "/api/meta": 503,
+        "/api/catalog": 503,
+        "/api/snapshot": 503,
+        "/api/state": 503
+      },
+      "rust_meta_exit": 1,
+      "rust_catalog_exit": 1,
+      "rust_snapshot_exit": 1,
+      "canonical_bytes_unchanged": true
+    },
+    {
+      "case": "blob_meta_key",
+      "passed": true,
+      "http": {
+        "/api/meta": 503,
+        "/api/catalog": 503,
+        "/api/snapshot": 503,
+        "/api/state": 503
+      },
+      "rust_meta_exit": 1,
+      "rust_catalog_exit": 1,
+      "rust_snapshot_exit": 1,
+      "canonical_bytes_unchanged": true
+    }
+  ],
+  "fixture_adaptations": {
+    "current_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/fixture-adaptations.json",
+    "current_sha256": "2013c3f6cd1ff92ec73b66e84e53cc17bbb562d2b82c02f44db1bb7dd044f4f4",
+    "retained_r5_path": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/fixture-adaptations-r5.json",
+    "check_names_and_counts_unchanged": true,
+    "full_catalog_check_strengthened": true
+  },
+  "canonical_and_tools": {
+    "all_143_recorded_canonical_hash_checks_unchanged": true,
+    "canonical_hash_check_count": 143,
+    "python_compile": "PASS via probe syntax_compile",
+    "static_tools_available": {
+      "ruff": false,
+      "mypy": false,
+      "pylint": false,
+      "black": false
+    },
+    "static_tools_not_run": [
+      "ruff",
+      "mypy",
+      "pylint",
+      "black"
+    ],
+    "python": "3.11.15 (main, Jun 23 2026, 15:46:51) [Clang 22.1.3 ]",
+    "python_sqlite_version": "3.53.1",
+    "native_writer_sqlite_version": "3.53.2",
+    "node_version": "v22.23.1",
+    "wal_interleaving_checks": 11
+  },
+  "isolation": {
+    "evidence_directory": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence",
+    "temp_directory": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/tmp",
+    "temp_directory_empty_after_runs": true,
+    "http_server_instances": 202,
+    "private_ports": [
+      61850,
+      61872,
+      61874,
+      61878,
+      61885,
+      61892,
+      61898,
+      61904,
+      61914,
+      61927,
+      61939,
+      61951,
+      61962,
+      61969,
+      61978,
+      61986,
+      61994,
+      62002,
+      62011,
+      62018,
+      62022,
+      62026,
+      62030,
+      62036,
+      62039,
+      62042,
+      62045,
+      62048,
+      62051,
+      62054,
+      62057,
+      62060,
+      62063,
+      62067,
+      62070,
+      62073,
+      62076,
+      62079,
+      61879,
+      61887,
+      61894,
+      61900,
+      61909,
+      61923,
+      61937,
+      61913,
+      61932,
+      61946,
+      61957,
+      61968,
+      61977,
+      61987,
+      61995,
+      62003,
+      62010,
+      62133,
+      62144,
+      62147,
+      62150,
+      62153,
+      62156,
+      62159,
+      62162,
+      62165,
+      62168,
+      62171,
+      62174,
+      62177,
+      62180,
+      62183,
+      62186,
+      62194,
+      62202,
+      62205,
+      62208,
+      62211,
+      62214,
+      62217,
+      62220,
+      62223,
+      62226,
+      62229,
+      62110,
+      62114,
+      62120,
+      62125,
+      62128,
+      62136,
+      62141,
+      62119,
+      62131,
+      62139,
+      61374,
+      61379,
+      61388,
+      61393,
+      61398,
+      61403,
+      61408,
+      61413,
+      61418,
+      61423,
+      61427,
+      61431,
+      61435,
+      61439,
+      61443,
+      61447,
+      61451,
+      61455,
+      61459,
+      61463,
+      61467,
+      61471,
+      61475,
+      61479,
+      61483,
+      61487,
+      61491,
+      61495,
+      61499,
+      61503,
+      61507,
+      61511,
+      61515,
+      61519,
+      61523,
+      61527,
+      61531,
+      61535,
+      61541,
+      61545,
+      61549,
+      61553,
+      61557,
+      61561,
+      61565,
+      61569,
+      61573,
+      61577,
+      61581,
+      61585,
+      61589,
+      61593,
+      61597,
+      61601,
+      61605,
+      61609,
+      61613,
+      61617,
+      61621,
+      61625,
+      61629,
+      61633,
+      61637,
+      61641,
+      61645,
+      61649,
+      61653,
+      61657,
+      61661,
+      61665,
+      61669,
+      61675,
+      61679,
+      61683,
+      61687,
+      61691,
+      61695,
+      61699,
+      61703,
+      61707,
+      61711,
+      61715,
+      61719,
+      61723,
+      61727,
+      61731,
+      61735,
+      61739,
+      61743,
+      61747,
+      61751,
+      61755,
+      61759,
+      61763,
+      61767,
+      61771,
+      61775,
+      61779,
+      61783,
+      61787,
+      61791,
+      61795,
+      61799,
+      61803,
+      61807,
+      61815,
+      61821,
+      61827,
+      61833,
+      61384
+    ],
+    "reserved_ports_used": [],
+    "all_runners_exit_zero": true,
+    "all_servers_shutdown_and_joined_by_contextmanager": true,
+    "r5_files_preserved_count": 27,
+    "r5_all_files_hash_unchanged": true
+  },
+  "scope": [
+    "复用 R5 正确合同探针，固定 Python Handler 的真实 localhost HTTP 请求、Node JSON.parse 与根绑定 native 的实际 CLI 读取。",
+    "full_catalog 使用固定 signed 文件与实际 native init；其余多数字段破坏/整数测试使用自建持久夹具，只证明 wire、读取与隔离合同，不冒充结构计算验收。",
+    "本次不重编，不复跑根已过的 9 项 bin/fmt/clippy/build；不替代耐久工位、正式 Prime 独审、实际 GUI 或整个 #1370/TB-01/#1323 验收。",
+    "完整目录逐值保真是现有查询投影字段和 branches 全嵌套值，不声称额外 acceptance_mode/axis_ids/criterion 已导出。"
+  ],
+  "mutations": [
+    "只写本独占 python-r6-evidence 和 TB01-A-PYTHON-R6-REVIEW.md/json。",
+    "未改 Q/N/仓库、根数据库、18770–18773、GitHub 或服务；只管理探针自身的临时线程与 native/Node 子进程。"
+  ]
+}

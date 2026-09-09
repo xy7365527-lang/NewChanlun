@@ -1,0 +1,40 @@
+{
+  "schema_revision": "1",
+  "session_id": "s-session-testonly-001",
+  "source_namespace": "testonly.tick.ohlc",
+  "source_epoch": "9007199254740993",
+  "instrument": "TEST.TICK",
+  "profile": "testonly_tick_1_1_ohlc",
+  "events": [
+    {
+      "event_id": "大整数-0",
+      "revision": "7",
+      "seq": "9007199254740993",
+      "received_at": "2026-09-09T00:00:00.000Z",
+      "raw_text": "9007199254740993",
+      "price": "9007199254740993",
+      "timestamp": "9007199254741993",
+      "volume": "1"
+    },
+    {
+      "event_id": "大整数-1",
+      "revision": "7",
+      "seq": "9007199254740994",
+      "received_at": "2026-09-09T00:00:01.000Z",
+      "raw_text": "9007199254740991",
+      "price": "9007199254740991",
+      "timestamp": "9007199254741994",
+      "volume": "1"
+    },
+    {
+      "event_id": "大整数-2",
+      "revision": "7",
+      "seq": "9007199254740995",
+      "received_at": "2026-09-09T00:00:02.000Z",
+      "raw_text": "9007199254740990",
+      "price": "9007199254740990",
+      "timestamp": "9007199254741995",
+      "volume": "1"
+    }
+  ]
+}
