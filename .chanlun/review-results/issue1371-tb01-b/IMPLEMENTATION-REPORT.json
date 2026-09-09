@@ -3,9 +3,9 @@
   "slice": "TB-01-B",
   "branch": "codex/1323-tb01-b-1371",
   "baseline": "2212eba31e0b7419907e622e79f02f7c2cc37706",
-  "repaired_from": "8b726a57f98974c451ad0490066150afb9fe8e38",
+  "repaired_from": "6eeed76e3e12f1ffc3fdc62e23e60f2a3084c37b",
   "number_declaration": "本提交中的 #1371 仅指 GitHub Issue。",
-  "status": "REPAIRED_PER_ROOT_R5_REVIEW_REQUEST_CHANGES_READY_FOR_RE_REVIEW",
+  "status": "REPAIRED_PER_ROOT_R6_REVIEW_REQUEST_CHANGES_READY_FOR_RE_REVIEW",
   "platform": "linux-aarch64-container",
   "rustc": "1.97.1",
   "sqlite": "3.53.2 (bundled libsqlite3-sys 0.38.2)",
@@ -17,8 +17,8 @@
     "s_session/launch_s.sh"
   ],
   "file_sha256": {
-    "rust/src/bin/s_structure_session.rs": "addb492ac2c1888904f2ab2d9789ae9a7ebbfc8e0037e4d822f73b67be333be8",
-    "s_session/s_readonly_server.py": "526b9672dd00d51e3cf2b5ac4263243b53d139c7228f91c82b53a726a457c8cd",
+    "rust/src/bin/s_structure_session.rs": "c7813827bc3e43a253bf5d66fbf3ae0456baee1abbbc6868f51f2c77506da861",
+    "s_session/s_readonly_server.py": "a9475590c77c3a48e65de6b54b386c6f29085c830060de104f265e89abc892f1",
     "s_session/browser/index.html": "13402a4011034e624de34b4137696a3dd8d3de2e1b35ec854e3a2331ca1591ac",
     "s_session/launch_s.sh": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d"
   },
@@ -28,7 +28,7 @@
     "cargo_fmt_check": 0,
     "cargo_check": 0,
     "cargo_clippy_own_hits": 0,
-    "bin_tests": "29 passed / 0 failed",
+    "bin_tests": "30 passed / 0 failed",
     "lib_local_shape_oracle": "4 passed"
   },
   "ac_numbering_note": "AC1..AC8 按原票顺序：AC1 launcher+输入链、AC2 revision分立+幂等、AC3 Delta+浏览器原子应用、AC4 三点真杀恢复、AC5 DeliveryUnknown+旧epoch、AC6 AsKnown/Recomputed、AC7 E/B/X未启动+StorageUnavailable、AC8 证据保留。",
@@ -89,5 +89,10 @@
   },
   "r5_repair_summary": {
     "inner_outer_11col": "Rust verify_reachable_root + Python read_delta 补齐 11 列同一字段对应：seq_range 深等、catalog_run_status 相等、catalog_evidence 深等（键序无关）"
+  },
+  "r6_repair_summary": {
+    "R6-H1": "read_delta 内层 input_frontier 与外层比较；外层 wire 规范十进制字符串",
+    "R6-H2": "raw_bars.supersedes_revision 与 CatalogEvidence 八计数 → 规范十进制字符串（Rust+Python）",
+    "R6-REGRESSION": "large_predecessor_supersedes_and_evidence_wire_are_strings 测试"
   }
 }

@@ -223,6 +223,10 @@ def _project_raw_bars(bars):
         b["seq"] = _num_to_str(b.get("seq"))
         if "revision" in b:
             b["revision"] = _num_to_str(b.get("revision"))
+        if "supersedes_revision" in b:
+            sv = b.get("supersedes_revision")
+            if sv is not None:
+                b["supersedes_revision"] = _num_to_str(sv)
         out.append(b)
     return out
 
@@ -744,6 +748,8 @@ def read_delta(conn, after_generation):
             raise ValueError("delta 内层 catalog_revision 与外层行不一致")
         if delta.get("index_frontier") != idx_frontier:
             raise ValueError("delta 内层 index_frontier 与外层行不一致")
+        if delta.get("input_frontier") != str(input_frontier):
+            raise ValueError("delta 内层 input_frontier 与外层行不一致")
         if delta.get("seq_range") != sr:
             raise ValueError("delta 内层 seq_range 与外层 seq_range_json 不一致")
         if delta.get("catalog_run_status") != run_status:
@@ -758,7 +764,7 @@ def read_delta(conn, after_generation):
             "next_cut": next_cut,
             "seq_range": sr,
             "index_frontier": idx_frontier,
-            "input_frontier": _frontier_i64(input_frontier),
+            "input_frontier": str(_frontier_i64(input_frontier)),
             "catalog_run_status": run_status,
             "catalog_evidence": evidence,
             "delta": delta,

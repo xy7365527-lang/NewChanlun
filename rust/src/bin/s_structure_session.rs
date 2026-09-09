@@ -2022,14 +2022,14 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
                 "rule_revision": RULE_REVISION,
                 "batch_id": batch_id,
                 "structure_cut": structure_cut,
-                "classified_objects": classified_count,
-                "windows_total": wins.len(),
-                "merged_bars": merged.len(),
-                "effective_source_positions": effective.len(),
-                "withdrawals": withdrawals.len(),
-                "replaces": replaces.len(),
-                "insufficient_knowledge": observations.iter().filter(|o| o["kind"] == "insufficient_knowledge").count(),
-                "domain_not_satisfied": observations.iter().filter(|o| o["kind"] == "domain_not_satisfied").count(),
+                "classified_objects": classified_count.to_string(),
+                "windows_total": wins.len().to_string(),
+                "merged_bars": merged.len().to_string(),
+                "effective_source_positions": effective.len().to_string(),
+                "withdrawals": withdrawals.len().to_string(),
+                "replaces": replaces.len().to_string(),
+                "insufficient_knowledge": observations.iter().filter(|o| o["kind"] == "insufficient_knowledge").count().to_string(),
+                "domain_not_satisfied": observations.iter().filter(|o| o["kind"] == "domain_not_satisfied").count().to_string(),
                 "scope": {"structure": "CompleteCut", "economic": "not_started"},
             });
             // wire 形态：整数坐标/版本 → 规范十进制字符串，与同 cut Snapshot 逐字段对齐。
@@ -2245,6 +2245,14 @@ fn project_raw_bars(bars: &Value) -> Result<Value, String> {
         if obj.contains_key("revision") {
             let rev = num_to_str(obj.get("revision").unwrap_or(&Value::Null))?;
             obj.insert("revision".to_string(), rev);
+        }
+        if obj.contains_key("supersedes_revision") {
+            let sup = obj.get("supersedes_revision").unwrap();
+            if sup.is_i64() {
+                obj.insert("supersedes_revision".to_string(), num_to_str(sup)?);
+            } else if !sup.is_null() {
+                return Err("raw_bars.supersedes_revision 必须是 i64 或 null".to_string());
+            }
         }
         out.push(Value::Object(obj));
     }
@@ -4607,6 +4615,84 @@ mod tests {
             .unwrap();
             drop(conn);
             assert_reject(&files);
+        }
+    }
+
+    #[test]
+    fn large_predecessor_supersedes_and_evidence_wire_are_strings() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        // 连续两次 >2^53 修订：supersedes 引用精确往返为规范十进制字符串。
+        accept(
+            &files,
+            &test_input(&[ev("e2", "9007199254740993", "2", "11500")]),
+            "c1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept(
+            &files,
+            &test_input(&[ev("e2", "9007199254740994", "2", "12000")]),
+            "c2.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+
+        let s = snapshot_of(&files, None);
+        // 见证 raw_bars.supersedes_revision 必须是规范十进制字符串（不 Number 中转）。
+        let mut saw_supersedes: Option<String> = None;
+        for w in s["witnesses"].as_array().unwrap() {
+            for rb in w["raw_bars"].as_array().unwrap() {
+                if let Some(sup) = rb.get("supersedes_revision") {
+                    if !sup.is_null() {
+                        assert!(sup.is_string(), "supersedes_revision 应为字符串：{sup}");
+                        saw_supersedes = Some(sup.as_str().unwrap().to_string());
+                    }
+                }
+            }
+        }
+        assert_eq!(saw_supersedes.as_deref(), Some("9007199254740993"));
+        // raw_history 的 supersedes_revision 同样为字符串。
+        for r in s["raw_history"].as_array().unwrap() {
+            if r["supersedes_revision"] != Value::Null {
+                assert!(r["supersedes_revision"].is_string());
+            }
+        }
+        // catalog evidence 计数为十进制字符串。
+        let conn = open_db(&files.db()).unwrap();
+        let cat = read_catalog_in_tx(&conn, None).unwrap();
+        let cc = cat["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == "CC-006")
+            .unwrap();
+        for k in [
+            "classified_objects",
+            "windows_total",
+            "merged_bars",
+            "effective_source_positions",
+            "withdrawals",
+            "replaces",
+            "insufficient_knowledge",
+            "domain_not_satisfied",
+        ] {
+            assert!(
+                cc["evidence"][k].is_string(),
+                "evidence.{k} 应为字符串：{}",
+                cc["evidence"][k]
+            );
         }
     }
 
