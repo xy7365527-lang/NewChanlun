@@ -38,6 +38,16 @@
   .controls { margin:8px 0; }
   button { background:#21262d; color:var(--fg); border:1px solid var(--line); padding:4px 10px; border-radius:6px; cursor:pointer; }
   .hidden { display:none; }
+  a { color:var(--accent); }
+  #instance-section { scroll-margin-top:16px; }
+  #catalog-table { table-layout:fixed; }
+  #catalog-table th, #catalog-table td { overflow-wrap:anywhere; }
+  #catalog-table th:nth-child(1) { width:145px; }
+  #catalog-table th:nth-child(2) { width:130px; }
+  #catalog-table th:nth-child(3) { width:150px; }
+  #catalog-table th:nth-child(5) { width:115px; }
+  #catalog-table th:nth-child(6) { width:100px; }
+  #catalog-table th:nth-child(7) { width:100px; }
 </style>
 </head>
 <body>
@@ -53,7 +63,8 @@
     <dl class="kv" id="meta-kv"><dd class="muted">加载中…</dd></dl>
   </section>
 
-  <section>
+  <section id="instance-section" tabindex="-1">
+    <p id="view-selection" class="muted">浏览范围：结构（S） · CC-006</p>
     <h2>CC-006 local_shape 对象（四分支 + 两次方向 + 四个严格比较 + 三根 raw/merged 见证）</h2>
     <div id="objects"></div>
   </section>
@@ -66,6 +77,7 @@
   <section>
     <h2>结构目录（已签目录 62 CC / 44 ST / 10 LC；未实现条目不隐藏）</h2>
     <div class="controls">
+      <span class="muted">观察范围：结构（S）</span>
       <label><input type="checkbox" id="show-unimpl" checked> 显示未实现条目</label>
       <span class="muted" id="catalog-counts"></span>
     </div>
@@ -77,8 +89,11 @@
 </main>
 <script>
 "use strict";
+let currentState = null;
+let selectedCatalogId = "CC-006";
 // 精确整数纪律：所有价格/时间戳以字符串呈现（textContent），本页面不使用 Number()/parseFloat 处理价格。
 function esc(s) { const d = document.createElement("div"); d.textContent = String(s); return d.innerHTML; }
+function escAttr(s) { return esc(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
 function renderStatus(text, cls) {
   const el = document.getElementById("status-section");
   el.innerHTML = text ? `<div class="${cls}">${esc(text)}</div>` : "";
@@ -101,8 +116,11 @@ function renderMeta(snap, cat) {
   document.getElementById("meta-kv").innerHTML = kv.map(([k, v]) =>
     `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
 }
-function renderObjects(snap) {
-  const objects = snap.objects || [];
+function renderObjects(snap, catalogId = selectedCatalogId) {
+  const objects = (snap.objects || []).filter(o =>
+    catalogId === "CC-006" && o.kind === "CC-006.local_shape");
+  document.getElementById("view-selection").textContent =
+    `浏览范围：结构（S） · ${catalogId} · ${snap.structure_cut} · 实例 ${objects.length}`;
   const witnesses = snap.witnesses || [];
   const byObj = {};
   for (const w of witnesses) { (byObj[w.object_id] = byObj[w.object_id] || []).push(w); }
@@ -117,7 +135,7 @@ function renderObjects(snap) {
       const inner = (g.raw_refs || []).map(r =>
         `<li>identity=${esc(r.identity_key)} event_id=${esc(r.event_id)} ` +
         `接纳序 seq=${esc(r.seq)} 源坐标 source_coord=${esc(r.source_coord)} ` +
-        `输入修订 input_revision=${esc(r.input_revision)} 对象修订 revision=${esc(r.revision)} ` +
+        `输入修订 input_revision=${esc(r.input_revision)} 原始事件修订 revision=${esc(r.revision)} ` +
         `收据 receipt_id=${esc(r.receipt_id)} payload_hash=${esc(r.payload_hash)}</li>`).join("");
       return `<li>merged_index=${esc(g.merged_index)}<ul>${inner}</ul></li>`;
     }).join("");
@@ -125,19 +143,29 @@ function renderObjects(snap) {
       const raws = (w.raw_bars || []).map(r =>
         `<li>接纳序 seq=${esc(r.seq)} 源坐标 source_coord=${esc(r.source_coord)} ` +
         `identity=${esc(r.identity_key)} event_id=${esc(r.event_id)} ` +
-        `revision=${esc(r.revision)} received_at=${esc(r.received_at)} ` +
+        `原始事件修订 revision=${esc(r.revision)} 输入修订 input_revision=${esc(r.input_revision)} received_at=${esc(r.received_at)} ` +
         `receipt_id=${esc(r.receipt_id)} raw_text=${esc(r.raw_text)} ` +
         `price=<span class="price">${esc(r.price)}</span> ts=${esc(r.ts)} volume=${esc(r.volume)}</li>`).join("");
-      return `<details><summary>slot ${esc(w.slot)} · merged source_index=${esc(w.merged_source_index)} ` +
+      return `<details id="${escAttr(w.witness_id)}"><summary>slot ${esc(w.slot)} · witness_id=${esc(w.witness_id)} · merged source_index=${esc(w.merged_source_index)} ` +
         `O=${esc(w.merged_open)} H=<span class="price">${esc(w.merged_high)}</span> L=<span class="price">${esc(w.merged_low)}</span> C=${esc(w.merged_close)}</summary>` +
         `<ul>${raws || "<li class='muted'>（无原始成员）</li>"}</ul></details>`;
     }).join("");
-    return `<details open><summary><span class="branch ${esc(o.branch)}">${esc(o.branch)}</span> · ` +
+    const targets = new Set([o.object_id, ...ws.map(w => w.witness_id)]);
+    const relationRows = (snap.relations || [])
+      .filter(r => r.subject === o.object_id || r.object === o.object_id)
+      .map(r => {
+        const target = targets.has(r.object)
+          ? `<a href="#${encodeURIComponent(r.object)}">${esc(r.object)}</a>`
+          : esc(r.object);
+        return `<li>${esc(r.subject)} — ${esc(r.relation_type)} → ${target}</li>`;
+      }).join("");
+    return `<details open id="${escAttr(o.object_id)}"><summary><span class="branch ${esc(o.branch)}">${esc(o.branch)}</span> · ` +
       `窗口 merged[${esc(o.window_start)},${esc(o.window_mid)},${esc(o.window_end)}] · ` +
-      `dir(a,b)=${esc(o.dir_ab)} dir(b,c)=${esc(o.dir_bc)} · object_id=${esc(o.object_id)} · batch=${esc(o.batch_id)}</summary>` +
+      `dir(a,b)=${esc(o.dir_ab)} dir(b,c)=${esc(o.dir_bc)} · object_id=${esc(o.object_id)} · 结构对象修订 object_revision=${esc(o.object_revision)} · batch=${esc(o.batch_id)}</summary>` +
       `<table><thead><tr><th>pair</th><th>axis</th><th>prev</th><th>cur</th><th>关系</th><th>held</th></tr></thead>` +
       `<tbody>${cmpRows}</tbody></table>` +
       `<details><summary>input_refs（对象绑定输入身份/修订/收据）</summary><ul>${refRows || "<li class='muted'>（无）</li>"}</ul></details>` +
+      `<details><summary>关系（服务返回的对象与见证引用）</summary><ul>${relationRows || "<li class=\"muted\">（无关系）</li>"}</ul></details>` +
       `${wit}</details>`;
   }).join("");
 }
@@ -152,7 +180,7 @@ function renderObservations(snap) {
     rows.push(`<div class="muted">已发布 ${objects.length} 个 CC-006 分类对象（非空实例）。</div>`);
   }
   if (insuff.length > 0) {
-    rows.push(`<div class="warn-box">知识不足：${insuff.map(o => `${esc(o.reason)}（merged_bars=${esc(o.detail && o.detail.merged_bars)}）`).join("；")}</div>`);
+    rows.push(`<div class="warn-box">知识不足：${insuff.map(o => `${esc(o.reason)}（raw_events=${esc(o.detail && o.detail.raw_events)}）`).join("；")}</div>`);
   }
   if (domain.length > 0) {
     rows.push(`<div class="warn-box">域不满足：${domain.map(o => `窗口[${esc(o.window_start)},${esc(o.window_mid)},${esc(o.window_end)}] ${esc(o.reason)}`).join("；")}（不造第五 Other 分型）</div>`);
@@ -172,7 +200,10 @@ function renderCatalog(cat) {
     const impl = r.implementation_status === "implemented"
       ? `<span class="pill impl">implemented</span>` : `<span class="pill notimpl">not_implemented</span>`;
     const run = r.run_status === "run" ? `<span class="pill run">run</span>` : `<span class="pill notimpl">${esc(r.run_status)}</span>`;
-    return `<tr><td>${esc(r.id)}</td><td>${esc(r.kind)}</td><td>${esc(r.title)}</td>` +
+    const entry = r.id === "CC-006" && r.implementation_status === "implemented"
+      ? `<button type="button" data-catalog-id="${escAttr(r.id)}">查看 ${esc(r.id)} 实例（结构）</button>`
+      : esc(r.id);
+    return `<tr><td>${entry}</td><td>${esc(r.kind)}</td><td>${esc(r.title)}</td>` +
       `<td class="muted">${esc(r.domain)}</td><td>${impl}</td><td>${esc(r.proof_status)}</td><td>${run}</td></tr>`;
   }).join("");
 }
@@ -204,20 +235,38 @@ async function load() {
     if (cat.catalog_revision !== snap.catalog_revision ||
         cat.structure_cut !== snap.structure_cut ||
         cat.generation !== snap.generation) {
-      renderStatus("cut 版本不一致（catalog/snapshot 不属于同一已提交 cut），请刷新", "err-box");
+      throw new Error("cut 版本不一致（catalog/snapshot 不属于同一已提交 cut），请刷新");
     }
+    currentState = state;
     renderMeta(snap, cat);
     renderObjects(snap);
     renderObservations(snap);
     renderCatalog(cat);
   } catch (e) {
-    // M3：错误状态清楚显示，不覆盖为成功空集。
+    // 错误不保留已失去 cut 元数据的旧目录，也不伪造成成功空集。
+    currentState = null;
     renderStatus("读取失败：" + e, "err-box");
     document.getElementById("meta-kv").innerHTML = `<dd class="muted">—</dd>`;
     document.getElementById("objects").innerHTML = `<div class="muted">未渲染（读取失败，不把失败当空实例）。</div>`;
     document.getElementById("observations").innerHTML = "";
+    document.querySelector("#catalog-table tbody").innerHTML = "";
+    document.getElementById("catalog-counts").textContent = "目录读取失败";
+    document.getElementById("view-selection").textContent = "浏览范围：读取失败";
   }
 }
+document.getElementById("catalog-table").addEventListener("click", event => {
+  const button = event.target.closest("button[data-catalog-id]");
+  if (!button || !currentState) return;
+  const catalogId = button.dataset.catalogId;
+  const item = currentState.catalog.items.find(r => r.id === catalogId);
+  if (!item || item.implementation_status !== "implemented" || catalogId !== "CC-006") return;
+  selectedCatalogId = catalogId;
+  // 仅按服务提供的目录/对象 kind 关联，不补算结构，不改变服务 scope。
+  renderObjects(currentState.snapshot, selectedCatalogId);
+  const section = document.getElementById("instance-section");
+  section.focus();
+  section.scrollIntoView({block: "start"});
+});
 document.getElementById("show-unimpl").addEventListener("change", () => {
   load().then(() => {}).catch(() => {});
 });
