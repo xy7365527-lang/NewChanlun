@@ -31,6 +31,7 @@ DB=""
 INPUT=""
 PROFILE=""
 PORT="${PORT:-8787}"
+WRITER_EPOCH="${WRITER_EPOCH:-1}"
 DO_BUILD=0
 DO_RESET=0
 CATALOG="$HERE/catalog/signed-catalog.json"
@@ -163,6 +164,7 @@ while [[ $# -gt 0 ]]; do
     --build) DO_BUILD=1; shift ;;
     --reset) DO_RESET=1; shift ;;
     --bin) BIN="$2"; BIN_EXPLICIT=1; shift 2 ;;
+    --writer-epoch) WRITER_EPOCH="$2"; shift 2 ;;
     --python) PYO3_PYTHON="$2"; shift 2 ;;
     --testonly)
       INPUT="$HERE/inputs/cc006_four_branch.json"
@@ -213,10 +215,10 @@ else
 fi
 
 echo "[launcher] 2/5 S.AcceptInput（原始逐笔档案 + 具名 profile）"
-"$BIN" accept --db "$DB" --input "$INPUT" --profile "$PROFILE"
+"$BIN" accept --db "$DB" --input "$INPUT" --profile "$PROFILE" --writer-epoch "$WRITER_EPOCH"
 
 echo "[launcher] 3/5 S.Advance（Begin→同次 Rust parser→Commit）"
-"$BIN" advance --db "$DB"
+"$BIN" advance --db "$DB" --writer-epoch "$WRITER_EPOCH"
 
 echo "[launcher] 4/5 启动只读查询外壳（独立只读进程，端口 ${PORT}）"
 nohup "$PY" "$HERE/s_readonly_server.py" --db "$DB" --port "$PORT" --browser "$BROWSER" \

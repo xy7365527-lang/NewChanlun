@@ -1,31 +1,32 @@
-//! #1370 TB-01-A：正式结构会话 S（唯一结构核，独立 SQLite/WAL 单写者 + ReadCatalog/Snapshot）。
+//! #1371 TB-01-B：S 正式结构会话的修订、撤回、持久 Delta 与真实进程恢复（SPEC #1340 / 图 #1323）。
 //!
-//! 本二进制是 #1323 R2 SPEC 的 TB-01-A 叶片交付：真实 S 会话（结构域），从正式 launcher 启动，
-//! 输入具名原始逐笔档案，用现役严格 parser（`theta_v0::parser::ParseLayerIncr`）同次真实计算
-//! CC-006 `local_shape` 窗口，并在 S 自有 SQLite/WAL（synchronous=FULL）独立持久域发布；
-//! `catalog`/`snapshot` 是只读查询（S.ReadCatalog / S.Snapshot）。
+//! 本二进制在 #1370 TB-01-A 已合的正式结构会话之上，为同一严格 Rust 核（`ParseLayerIncr` +
+//! `classify_local_shape`）补齐 B 片必需行为：
 //!
-//! ## 生产零调用纪律（AGENTS.md）
+//! - **合法修订链**：源事件 `(namespace, epoch, instrument, event_id)` 业务身份不含 revision；
+//!   同 revision 同内容重放返回原收据、同 revision 异内容 `IdentityConflict`；更高 revision 以
+//!   `supersedes/replaces` 关联旧记录，旧版重放不复活；更低 revision 晚到（已见更高）拒绝。
+//! - **有效源位置语义**：源 `seq` 是源坐标，持久接纳序（raw_events.seq）另有含义；结构计算按
+//!   「每个源坐标的最新 revision」在源坐标序上取有效值，晚到 e2 新版不当作第五 tick。
+//! - **持久 StructureDelta + 对象撤回**：每次 Advance 计算新完整对象集，与既有活动对象对拍，持久
+//!   撤回（withdraw）/替代（replaces）/upsert，对象保留原身份、first_known、发生区间与撤回理由；
+//!   当前视图移除不删历史。对象/边/端点在同一事务原子应用。
+//! - **真实 writer 换代**：`writer_epoch` 为持久值；`recover` 是正式换代命令（清未决 Begin + 提升
+//!   epoch，与 generation 同序），旧 epoch 进程重放被 `StaleWriter` 拒绝，不能读新 epoch 自授权，
+//!   也不能手改 SQL 当换代。
+//! - **真实 SIGKILL 恢复**：具名 TestOnly 暂停点（`S_SESSION_PAUSE`）暴露真实阶段（Begin 后 / 完整
+//!   批次后 / Commit 后），供外部对精确 S PID 发 SIGKILL；重启经正式入口读原接纳序/身份、未决
+//!   Begin、可达根、writer 代际；未完修订保持相关门关闭，合法恢复后才能继续；不可达 batch 不冒充
+//!   已发布 cut。
+//! - **同源 Watch / 指定 cut Snapshot / AsKnown / RecomputedWithRevision**：持久 delta 可经
+//!   `watch`（同源读取 S 自己的库）续接，指定 cut 快照逐字段可对拍；AsKnown（`--as-of`）按当时
+//!   可知，RecomputedWithRevision（默认）绑定最新 input/rule 版本。
 //!
-//! - 本入口**真正接通** `theta_v0::parser::ParseLayerIncr::append` 与
-//!   `theta_v0::classifier::local_shape::classify_local_shape`——不写第二份生产判定器。
-//! - 不调用 `ThetaPiStream` 资金推进冒充 S；不启动 E/B/X；不加载经济政策。
-//! - 持久域是 S 自己的数据库文件（`--db`），不复用 `trading_system/persistence/database.py` 共库。
+//! ## 生产零调用纪律（不变）
 //!
-//! ## 持久边界（C09 / INTERFACE-CONTRACTS.md）
-//!
-//! - **Begin 在判定前持久**：`advance` 先用短写事务核 `writer_epoch`、取得唯一推进权，持久
-//!   Begin/门与输入前沿；**Commit 在同一事务**核 Begin/epoch/前沿仍有效后发布对象/关系/修订/
-//!   索引可达根与目录状态。读端（`catalog`/`snapshot`/只读查询外壳）只在单个读事务内读同一 cut。
-//! - 内容寻址批次（`batches.canonical_bytes`）封存**完整**正式结果：原始事件（含身份/修订/收据/
-//!   源坐标）、对象（含四次严格比较与 input_refs）、见证、关系、观察（知识不足/域不满足）与
-//!   profile/规则绑定——不是只封存 merged OHLC 摘要。
-//!
-//! ## 精确整数（AC5）
-//!
-//! 价格/时间戳/成交量在 wire 上以**规范十进制字符串**承载（TEXT 存储 + JSON 输出），Rust 侧
-//! 仅在计算边界解析为 `i64`（精确整数域），不经过 `f64`/JS Number。含 >2^53 往返反例。
-//! 规范字符串要求唯一十进制表示（拒绝 `+0010000`、`" 10000 "`、前导零等非规范形式）。
+//! - 真正接通 `theta_v0::parser::ParseLayerIncr::append` 与 `theta_v0::classifier::local_shape`，
+//!   不写第二份生产判定器；不调用 `ThetaPiStream` 资金推进冒充 S；不启动 E/B/X。
+//! - S 持久域是 S 自己的数据库文件（`--db`），不复用 `trading_system/persistence/database.py` 共库。
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -43,8 +44,8 @@ use sha2::{Digest, Sha256};
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
 const RULE_REVISION: &str = "s2-axis-quantifiers";
 
-/// S 唯一结构写者被授予的 writer_epoch（SPEC.md:328/332：S/E/B 写事务核持久 writer_epoch）。
-const WRITER_EPOCH: &str = "1";
+/// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
+const DEFAULT_WRITER_EPOCH: &str = "1";
 
 fn jstr(s: &str) -> String {
     Value::String(s.to_string()).to_string()
@@ -86,7 +87,6 @@ fn is_canonical_integer(s: &str) -> bool {
         return false;
     }
     if rest[0] == b'0' {
-        // 只有 `0` 本身规范；`00`/`01`/`-0` 均非规范。
         return rest.len() == 1 && !neg;
     }
     rest.iter().all(|c| c.is_ascii_digit())
@@ -147,7 +147,7 @@ fn canonical_event_content(e: &RawEvent) -> String {
     )
 }
 
-/// 业务身份键（同身份重放/冲突判据）：`(namespace, epoch, instrument, event_id)`。
+/// 业务身份键（同身份重放/冲突判据）：`(namespace, epoch, instrument, event_id)`（不含 revision）。
 fn identity_key(ns: &str, epoch: &str, instr: &str, event_id: &str) -> String {
     format!("{ns}|{epoch}|{instr}|{event_id}")
 }
@@ -162,22 +162,24 @@ CREATE TABLE IF NOT EXISTS meta (
   value TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS raw_events (
-  identity_key TEXT PRIMARY KEY,
+  identity_key TEXT NOT NULL,
+  revision INTEGER NOT NULL,
   input_revision TEXT NOT NULL,
   payload_hash TEXT NOT NULL,
   receipt_id TEXT NOT NULL,
-  seq INTEGER NOT NULL,
+  seq INTEGER NOT NULL UNIQUE,
   source_namespace TEXT NOT NULL,
   source_epoch TEXT NOT NULL,
   instrument TEXT NOT NULL,
   event_id TEXT NOT NULL,
-  revision TEXT NOT NULL,
   received_at TEXT NOT NULL,
   raw_text TEXT NOT NULL,
   price TEXT NOT NULL,
   ts TEXT NOT NULL,
   volume TEXT NOT NULL,
-  source_coord TEXT NOT NULL
+  source_coord TEXT NOT NULL,
+  supersedes_revision INTEGER,
+  PRIMARY KEY (identity_key, revision)
 );
 CREATE TABLE IF NOT EXISTS batches (
   batch_id TEXT PRIMARY KEY,
@@ -196,7 +198,14 @@ CREATE TABLE IF NOT EXISTS objects (
   window_mid INTEGER NOT NULL,
   window_end INTEGER NOT NULL,
   comparisons_json TEXT NOT NULL,
-  input_refs_json TEXT NOT NULL
+  input_refs_json TEXT NOT NULL,
+  source_coords_json TEXT NOT NULL,
+  first_known_generation INTEGER NOT NULL,
+  first_known_cut TEXT NOT NULL,
+  published_generation INTEGER NOT NULL,
+  withdrawn_generation INTEGER,
+  withdrawal_reason TEXT,
+  superseded_by TEXT
 );
 CREATE TABLE IF NOT EXISTS witnesses (
   witness_id TEXT PRIMARY KEY,
@@ -207,13 +216,15 @@ CREATE TABLE IF NOT EXISTS witnesses (
   merged_low TEXT NOT NULL,
   merged_open TEXT NOT NULL,
   merged_close TEXT NOT NULL,
-  raw_json TEXT NOT NULL
+  raw_json TEXT NOT NULL,
+  published_generation INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS relations (
   relation_id TEXT PRIMARY KEY,
   subject TEXT NOT NULL,
   relation_type TEXT NOT NULL,
-  object TEXT NOT NULL
+  object TEXT NOT NULL,
+  published_generation INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS observations (
   observation_id TEXT PRIMARY KEY,
@@ -223,7 +234,27 @@ CREATE TABLE IF NOT EXISTS observations (
   window_mid INTEGER,
   window_end INTEGER,
   reason TEXT NOT NULL,
-  detail_json TEXT NOT NULL
+  detail_json TEXT NOT NULL,
+  published_generation INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS structure_deltas (
+  generation INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  catalog_revision TEXT NOT NULL,
+  base_cut TEXT NOT NULL,
+  next_cut TEXT NOT NULL,
+  seq_range_json TEXT NOT NULL,
+  index_frontier TEXT NOT NULL,
+  input_frontier INTEGER NOT NULL,
+  delta_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS writer_epoch_history (
+  ordinal INTEGER PRIMARY KEY,
+  from_epoch TEXT NOT NULL,
+  to_epoch TEXT NOT NULL,
+  generation_at_transition TEXT NOT NULL,
+  advance_state_at_transition TEXT NOT NULL,
+  transitioned_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS catalog (
   catalog_id TEXT PRIMARY KEY,
@@ -240,7 +271,6 @@ CREATE TABLE IF NOT EXISTS catalog (
 
 fn open_db(db: &Path) -> Result<Connection, String> {
     let conn = Connection::open(db).map_err(|e| format!("打开 SQLite 失败：{e}"))?;
-    // C09.2：WAL + synchronous=FULL。macOS fullfsync 仅在 macOS 平台开启（Linux 容器不声称已测）。
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;")
         .map_err(|e| format!("设置 WAL/FULL 失败：{e}"))?;
     #[cfg(target_os = "macos")]
@@ -277,13 +307,13 @@ fn meta_set(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// 核持久 writer_epoch（DUR-H02）：所有 S 写入（AcceptInput / Advance 的 Begin+Commit）都必须在
-/// 各自写事务内先过此 fence；epoch 不匹配即 StaleWriter、零写入。
-fn verify_writer_epoch(conn: &Connection) -> Result<(), String> {
+/// 核持久 writer_epoch（DUR-H02）：所有 S 写入都必须先过此 fence；configured 是**本进程被授予**的
+/// epoch（来自 `--writer-epoch`），不读库内 epoch 自授权——库内已换代时旧进程（configured 旧值）零写入。
+fn verify_writer_epoch(conn: &Connection, configured: &str) -> Result<(), String> {
     let epoch = meta_get_opt(conn, "writer_epoch")?.unwrap_or_default();
-    if epoch != WRITER_EPOCH {
+    if epoch != configured {
         return Err(format!(
-            "StaleWriter：writer_epoch=`{epoch}`，非当前单写者（期望 `{WRITER_EPOCH}`）"
+            "StaleWriter：writer_epoch=`{epoch}`，非本进程被授予的 `{configured}`（换代后旧 writer 拒绝，零写入）"
         ));
     }
     Ok(())
@@ -313,6 +343,31 @@ fn load_profile(path: &Path) -> Result<(Value, String, String), String> {
     Ok((profile, profile_id, profile_hash))
 }
 
+/// 具名 TestOnly 受控暂停点：暴露真实阶段供外部对精确 S PID 发 SIGKILL。只由
+/// `S_SESSION_PAUSE`（阶段名）+ `S_SESSION_PAUSE_MARKER`（标记文件路径）激活；生产时序不变，
+/// 不改提交路径。marker 写入自身 PID/阶段/DB/可执行文件，供外部核身份后 kill。
+fn testonly_pause(stage: &str) {
+    if std::env::var("S_SESSION_PAUSE").ok().as_deref() != Some(stage) {
+        return;
+    }
+    let db = std::env::var("S_SESSION_PAUSE_DB").unwrap_or_default();
+    let marker = std::env::var("S_SESSION_PAUSE_MARKER")
+        .unwrap_or_else(|_| format!("/tmp/s_session_pause_{stage}.pid"));
+    let exe = std::env::current_exe()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+    let _ = std::fs::write(
+        &marker,
+        format!(
+            "pid={}\nstage={stage}\ndb={db}\nexe={exe}\n",
+            std::process::id()
+        ),
+    );
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(3600));
+    }
+}
+
 fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String> {
     // H4：init 只允许不存在的目标——拒绝覆盖既有库（既有持久事实可恢复）。
     if db.exists() {
@@ -337,11 +392,12 @@ fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String>
     meta_set(&conn, "generation", "0")?;
     meta_set(&conn, "structure_cut", "cut-0")?;
     meta_set(&conn, "index_frontier", "")?;
+    meta_set(&conn, "last_advance_frontier", "-1")?;
     meta_set(&conn, "sqlite_version", &sqlite_version)?;
     meta_set(&conn, "journal_mode", &journal_mode)?;
     meta_set(&conn, "synchronous", &synchronous.to_string())?;
     meta_set(&conn, "platform", std::env::consts::OS)?;
-    meta_set(&conn, "writer_epoch", WRITER_EPOCH)?;
+    meta_set(&conn, "writer_epoch", DEFAULT_WRITER_EPOCH)?;
     meta_set(&conn, "advance_state", "idle")?;
     meta_set(&conn, "rule_revision", RULE_REVISION)?;
     meta_set(
@@ -350,7 +406,6 @@ fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String>
         &json!({"structure": "CompleteCut", "economic": "not_started"}).to_string(),
     )?;
 
-    // 从已签目录载入 catalog（未实现条目不隐藏——全部写入 catalog 表，status 初始 not_implemented）。
     let catalog_text =
         std::fs::read_to_string(catalog_path).map_err(|e| format!("读 catalog 失败：{e}"))?;
     let catalog: Value =
@@ -426,6 +481,7 @@ fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String>
             "journal_mode": journal_mode,
             "synchronous": synchronous,
             "platform": std::env::consts::OS,
+            "writer_epoch": DEFAULT_WRITER_EPOCH,
             "catalog_items": items.len()
         })
     );
@@ -433,10 +489,16 @@ fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String>
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// S.AcceptInput：持久原始事件 + 同身份重放/冲突合同 + profile 绑定
+// S.AcceptInput：持久原始事件 + 合法修订链（同身份同 revision 重放 / 异内容冲突 / 新 revision
+// supersedes）+ profile 绑定。
 // ────────────────────────────────────────────────────────────────────────────
 
-fn cmd_accept(db: &Path, input_path: &Path, profile_path: &Path) -> Result<(), String> {
+fn cmd_accept(
+    db: &Path,
+    input_path: &Path,
+    profile_path: &Path,
+    configured_epoch: &str,
+) -> Result<(), String> {
     let text = std::fs::read_to_string(input_path).map_err(|e| format!("读输入失败：{e}"))?;
     let input: RawInputFile =
         serde_json::from_str(&text).map_err(|e| format!("输入 JSON 解析失败：{e}"))?;
@@ -446,7 +508,6 @@ fn cmd_accept(db: &Path, input_path: &Path, profile_path: &Path) -> Result<(), S
             input.schema_revision
         ));
     }
-    // M4：正式入口要求显式加载并绑定具名 profile；输入必须与 profile 一致。
     let (profile, profile_id, profile_hash) = load_profile(profile_path)?;
     if input.profile != profile_id {
         return Err(format!(
@@ -474,12 +535,8 @@ fn cmd_accept(db: &Path, input_path: &Path, profile_path: &Path) -> Result<(), S
         .map_err(|e| format!("开 accept 事务失败：{e}"))?;
     let mut results = Vec::new();
     {
-        // DUR-H02：AcceptInput 的写事务受同一 writer_epoch fence 约束——任何 raw/收据/profile/meta
-        // 写入前先核；epoch 不匹配即 StaleWriter、零接纳、零收据、零 profile 更新。
-        verify_writer_epoch(&tx)?;
+        verify_writer_epoch(&tx, configured_epoch)?;
 
-        // DUR-M01：session 的 profile 绑定在首次接纳时固定；后续同名异字节明确拒绝，不覆盖已发布
-        // cut 的来源（同一 cut/index_frontier 的 Snapshot 不得因重放而被改写 profile_hash）。
         let bound_profile_id = meta_get_opt(&tx, "profile_id")?.unwrap_or_default();
         if bound_profile_id.is_empty() {
             meta_set(&tx, "profile_id", &profile_id)?;
@@ -497,15 +554,18 @@ fn cmd_accept(db: &Path, input_path: &Path, profile_path: &Path) -> Result<(), S
             }
         }
 
-        let mut stmt = tx
-            .prepare("SELECT receipt_id, payload_hash, seq FROM raw_events WHERE identity_key = ?1")
+        let mut qrev = tx
+            .prepare("SELECT receipt_id, payload_hash, source_coord, seq FROM raw_events WHERE identity_key=?1 AND revision=?2")
+            .map_err(|e| format!("prepare 查询失败：{e}"))?;
+        let mut qmax = tx
+            .prepare("SELECT COALESCE(MAX(revision), 0) FROM raw_events WHERE identity_key=?1")
             .map_err(|e| format!("prepare 查询失败：{e}"))?;
         let mut insert = tx
             .prepare(
-                "INSERT INTO raw_events(identity_key, input_revision, payload_hash, receipt_id, seq,
-                   source_namespace, source_epoch, instrument, event_id, revision, received_at,
-                   raw_text, price, ts, volume, source_coord)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                "INSERT INTO raw_events(identity_key, revision, input_revision, payload_hash, receipt_id, seq,
+                   source_namespace, source_epoch, instrument, event_id, received_at,
+                   raw_text, price, ts, volume, source_coord, supersedes_revision)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
             )
             .map_err(|e| format!("prepare insert 失败：{e}"))?;
 
@@ -516,11 +576,10 @@ fn cmd_accept(db: &Path, input_path: &Path, profile_path: &Path) -> Result<(), S
             .map_err(|e| format!("读 max seq 失败：{e}"))?;
 
         for e in &input.events {
-            // 精确整数校验（AC2：规范十进制字符串 + 精确整数并存，不静默截断）。
             parse_canonical_i64(&e.price, "price")?;
             parse_canonical_i64(&e.timestamp, "timestamp")?;
             parse_canonical_i64(&e.volume, "volume")?;
-            // M1：profile 声明单位成交量 ⟹ 精确拒绝非 1（域缺项，不静默替换为 1.0）。
+            let rev = parse_canonical_i64(&e.revision, "revision")?;
             if let Some(vu) = &volume_unit {
                 if e.volume != *vu {
                     return Err(format!(
@@ -538,31 +597,36 @@ fn cmd_accept(db: &Path, input_path: &Path, profile_path: &Path) -> Result<(), S
             let content = canonical_event_content(e);
             let payload_hash = sha256_hex(content.as_bytes());
 
-            let existing = stmt
-                .query_row(params![ikey], |r| {
+            let existing = qrev
+                .query_row(params![ikey, rev], |r| {
                     Ok((
                         r.get::<_, String>(0)?,
                         r.get::<_, String>(1)?,
-                        r.get::<_, i64>(2)?,
+                        r.get::<_, String>(2)?,
+                        r.get::<_, i64>(3)?,
                     ))
                 })
                 .optional()
                 .map_err(|e| format!("查询 identity 失败：{e}"))?;
 
-            if let Some((rec, ph, _seq)) = existing {
+            if let Some((rec, ph, coord, seq)) = existing {
                 if ph == payload_hash {
                     results.push(json!({
                         "status": "replay",
                         "identity_key": ikey,
                         "event_id": e.event_id,
+                        "revision": rev.to_string(),
                         "receipt_id": rec,
                         "payload_hash": payload_hash,
+                        "seq": seq.to_string(),
+                        "source_coord": coord,
                     }));
                 } else {
                     results.push(json!({
                         "status": "IdentityConflict",
                         "identity_key": ikey,
                         "event_id": e.event_id,
+                        "revision": rev.to_string(),
                         "existing_receipt_id": rec,
                         "existing_payload_hash": ph,
                         "new_payload_hash": payload_hash,
@@ -571,8 +635,42 @@ fn cmd_accept(db: &Path, input_path: &Path, profile_path: &Path) -> Result<(), S
                 continue;
             }
 
+            // 该 (identity, revision) 未见过。
+            let max_rev: i64 = qmax
+                .query_row(params![ikey], |r| r.get(0))
+                .map_err(|e| format!("读 max revision 失败：{e}"))?;
+            if rev <= max_rev {
+                // 旧版（已有更高 revision）且该 revision 无记录：晚到/跳号旧版不复活、不新接纳。
+                results.push(json!({
+                    "status": "InvalidDomain",
+                    "identity_key": ikey,
+                    "event_id": e.event_id,
+                    "revision": rev.to_string(),
+                    "max_revision": max_rev.to_string(),
+                    "reason": "out_of_order_revision_after_later_accepted",
+                }));
+                continue;
+            }
+            // 新 revision：supersedes = 上一 revision（如有）。
+            let supersedes = if max_rev == 0 { None } else { Some(max_rev) };
+            // 源坐标一致性：同一业务身份的新 revision 必须落在同一源坐标。
+            if let Some(prev_rev) = supersedes {
+                let prev_coord: String = tx
+                    .query_row(
+                        "SELECT source_coord FROM raw_events WHERE identity_key=?1 AND revision=?2",
+                        params![ikey, prev_rev],
+                        |r| r.get(0),
+                    )
+                    .map_err(|e| format!("读前一 revision 源坐标失败：{e}"))?;
+                if prev_coord != e.seq {
+                    return Err(format!(
+                        "IdentityConflict：事件 `{}` 新 revision=`{rev}` 源坐标 `{}` 与已接纳 revision=`{prev_rev}` 源坐标 `{prev_coord}` 不一致（同一业务身份不得换源位置）",
+                        e.event_id, e.seq
+                    ));
+                }
+            }
+
             next_seq += 1;
-            // 收据绑定身份 + 内容（不同身份同内容不撞收据）。
             let receipt_id = format!(
                 "rcpt-{}",
                 &sha256_hex(format!("{ikey}|{payload_hash}").as_bytes())[..16]
@@ -580,6 +678,7 @@ fn cmd_accept(db: &Path, input_path: &Path, profile_path: &Path) -> Result<(), S
             insert
                 .execute(params![
                     ikey,
+                    rev,
                     e.revision,
                     payload_hash,
                     receipt_id,
@@ -588,27 +687,28 @@ fn cmd_accept(db: &Path, input_path: &Path, profile_path: &Path) -> Result<(), S
                     input.source_epoch,
                     input.instrument,
                     e.event_id,
-                    e.revision,
                     e.received_at,
                     e.raw_text,
                     e.price,
                     e.timestamp,
                     e.volume,
                     e.seq,
+                    supersedes,
                 ])
                 .map_err(|e| format!("insert raw_events 失败：{e}"))?;
             results.push(json!({
                 "status": "accepted",
                 "identity_key": ikey,
                 "event_id": e.event_id,
+                "revision": rev.to_string(),
                 "receipt_id": receipt_id,
                 "payload_hash": payload_hash,
-                // WIRE：接纳序是无 JS safe 上限的精确整数，外发为规范十进制字符串。
                 "seq": next_seq.to_string(),
+                "source_coord": e.seq,
+                "supersedes_revision": supersedes.map(|v| v.to_string()),
             }));
         }
 
-        // 本次输入档案记录（不覆盖 profile 绑定；profile_id/profile_hash 已在首次接纳时固定）。
         meta_set(&tx, "input_profile", &input.profile)?;
         meta_set(&tx, "input_file_hash", &sha256_hex(text.as_bytes()))?;
     }
@@ -629,43 +729,81 @@ fn cmd_accept(db: &Path, input_path: &Path, profile_path: &Path) -> Result<(), S
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// S.Advance：Begin（判定前持久）→ 同次真实 Rust parser → CC-006 → Commit（CAS 发布）
+// S.Advance：Begin（判定前持久）→ 有效源位置 → 同次真实 Rust parser → CC-006 → Commit（CAS 发布）
 // ────────────────────────────────────────────────────────────────────────────
 
-fn read_raw_events(conn: &Connection, frontier: i64) -> Result<Vec<Value>, String> {
+fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT identity_key, input_revision, payload_hash, receipt_id, seq, source_namespace,
-                    source_epoch, instrument, event_id, revision, received_at, raw_text, price,
-                    ts, volume, source_coord
-             FROM raw_events WHERE seq <= ?1 ORDER BY seq ASC",
+            "SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace,
+                    source_epoch, instrument, event_id, received_at, raw_text, price,
+                    ts, volume, source_coord, supersedes_revision
+             FROM raw_events ORDER BY seq ASC",
         )
         .map_err(|e| format!("prepare 读取失败：{e}"))?;
     let rows = stmt
-        .query_map(params![frontier], |r| {
+        .query_map([], |r| {
             Ok(json!({
                 "identity_key": r.get::<_, String>(0)?,
-                "input_revision": r.get::<_, String>(1)?,
-                "payload_hash": r.get::<_, String>(2)?,
-                "receipt_id": r.get::<_, String>(3)?,
-                "seq": r.get::<_, i64>(4)?,
-                "source_namespace": r.get::<_, String>(5)?,
-                "source_epoch": r.get::<_, String>(6)?,
-                "instrument": r.get::<_, String>(7)?,
-                "event_id": r.get::<_, String>(8)?,
-                "revision": r.get::<_, String>(9)?,
+                "revision": r.get::<_, i64>(1)?,
+                "input_revision": r.get::<_, String>(2)?,
+                "payload_hash": r.get::<_, String>(3)?,
+                "receipt_id": r.get::<_, String>(4)?,
+                "seq": r.get::<_, i64>(5)?,
+                "source_namespace": r.get::<_, String>(6)?,
+                "source_epoch": r.get::<_, String>(7)?,
+                "instrument": r.get::<_, String>(8)?,
+                "event_id": r.get::<_, String>(9)?,
                 "received_at": r.get::<_, String>(10)?,
                 "raw_text": r.get::<_, String>(11)?,
                 "price": r.get::<_, String>(12)?,
                 "ts": r.get::<_, String>(13)?,
                 "volume": r.get::<_, String>(14)?,
                 "source_coord": r.get::<_, String>(15)?,
+                "supersedes_revision": r.get::<_, Option<i64>>(16)?,
             }))
         })
         .map_err(|e| format!("query 失败：{e}"))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("collect 失败：{e}"))?;
     Ok(rows)
+}
+
+/// 有效源位置：每个业务身份取最新 revision，按源坐标升序（晚到新版不当作追加 tick）。
+fn read_effective_events(all: &[Value]) -> Vec<Value> {
+    let mut latest: BTreeMap<String, Value> = BTreeMap::new();
+    for ev in all {
+        let ikey = ev["identity_key"].as_str().unwrap_or("").to_string();
+        let rev = ev["revision"].as_i64().unwrap_or(0);
+        match latest.get(&ikey) {
+            None => {
+                latest.insert(ikey, ev.clone());
+            }
+            Some(prev) => {
+                if rev > prev["revision"].as_i64().unwrap_or(0) {
+                    latest.insert(ikey, ev.clone());
+                }
+            }
+        }
+    }
+    let mut effective: Vec<Value> = latest.into_values().collect();
+    effective.sort_by(|a, b| {
+        let ca = a["source_coord"]
+            .as_str()
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0);
+        let cb = b["source_coord"]
+            .as_str()
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0);
+        ca.cmp(&cb).then_with(|| {
+            a["identity_key"]
+                .as_str()
+                .unwrap_or("")
+                .cmp(b["identity_key"].as_str().unwrap_or(""))
+        })
+    });
+    effective
 }
 
 fn dir_str(d: Direction) -> &'static str {
@@ -675,12 +813,11 @@ fn dir_str(d: Direction) -> &'static str {
     }
 }
 
-// 参数数 10>7：把对象内容寻址所需字段（merged/raw 映射/输入引用/profile/规则）一次性传入，
-// 拆结构体只换形状不降复杂度；本函数只组装、不判结构（判断仍唯一来自 classify_local_shape）。
+// 参数数 >7：把对象内容寻址所需字段一次性传入；本函数只组装、不判结构。
 #[allow(clippy::too_many_arguments)]
 fn build_object_and_witnesses(
     merged: &[Bar],
-    raw_by_seq: &BTreeMap<i64, Value>,
+    raw_by_coord: &BTreeMap<i64, Value>,
     merged_raws: &[Vec<i64>],
     start: usize,
     branch: &str,
@@ -689,16 +826,22 @@ fn build_object_and_witnesses(
     comparisons_json: &str,
     input_refs: &[Value],
     profile_id: &str,
+    gen: i64,
+    structure_cut: &str,
 ) -> (Value, Vec<Value>, Vec<Value>) {
     let mid = start + 1;
     let end = start + 2;
+    let source_coords: Vec<String> = [start, mid, end]
+        .iter()
+        .map(|i| merged[*i].source_index.to_string())
+        .collect();
     let object_canonical = json!({
         "branch": branch,
         "dir_ab": dir_ab,
         "dir_bc": dir_bc,
-        "window_start": start,
-        "window_mid": mid,
-        "window_end": end,
+        "window_start": source_coords[0],
+        "window_mid": source_coords[1],
+        "window_end": source_coords[2],
         "merged_highs": [merged[start].high.to_string(), merged[mid].high.to_string(), merged[end].high.to_string()],
         "merged_lows": [merged[start].low.to_string(), merged[mid].low.to_string(), merged[end].low.to_string()],
         "comparisons": serde_json::from_str::<Value>(comparisons_json).unwrap_or(json!([])),
@@ -717,7 +860,7 @@ fn build_object_and_witnesses(
         let m = &merged[*mi];
         let raw_bars: Vec<Value> = merged_raws[*mi]
             .iter()
-            .filter_map(|seq| raw_by_seq.get(seq).cloned())
+            .filter_map(|coord| raw_by_coord.get(coord).cloned())
             .collect();
         let witness_id = format!(
             "wit-{}",
@@ -745,8 +888,11 @@ fn build_object_and_witnesses(
             "object": witness_id,
         }));
     }
+    let c0 = &source_coords[0];
+    let c1 = &source_coords[1];
+    let c2 = &source_coords[2];
     relations.push(json!({
-        "subject": format!("window-{start}-{mid}-{end}"),
+        "subject": format!("window-{c0}-{c1}-{c2}"),
         "relation_type": "classified_as",
         "object": object_id,
     }));
@@ -756,32 +902,124 @@ fn build_object_and_witnesses(
         "object_revision": 1,
         "kind": "CC-006.local_shape",
         "branch": branch,
-        "window_start": start,
-        "window_mid": mid,
-        "window_end": end,
+        "window_start": source_coords[0].parse::<i64>().unwrap_or(0),
+        "window_mid": source_coords[1].parse::<i64>().unwrap_or(0),
+        "window_end": source_coords[2].parse::<i64>().unwrap_or(0),
         "dir_ab": dir_ab,
         "dir_bc": dir_bc,
         "comparisons_json": comparisons_json,
         "input_refs_json": canonical_json(&json!(input_refs)),
+        "source_coords_json": canonical_json(&json!(source_coords)),
+        "first_known_generation": gen,
+        "first_known_cut": structure_cut,
+        "published_generation": gen,
     });
     (object, witnesses, relations)
 }
 
+/// 读当前活动对象（withdrawn_generation IS NULL），供 diff 使用（在提交事务内调用）。
+fn read_active_objects(conn: &Connection) -> Result<Vec<Value>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT object_id, branch, window_start, window_mid, window_end, first_known_generation, first_known_cut FROM objects WHERE withdrawn_generation IS NULL ORDER BY window_start",
+        )
+        .map_err(|e| format!("prepare 读活动对象失败：{e}"))?;
+    let rows = stmt
+        .query_map([], |r| {
+            Ok(json!({
+                "object_id": r.get::<_, String>(0)?,
+                "branch": r.get::<_, String>(1)?,
+                "window_start": r.get::<_, i64>(2)?,
+                "window_mid": r.get::<_, i64>(3)?,
+                "window_end": r.get::<_, i64>(4)?,
+                "first_known_generation": r.get::<_, i64>(5)?,
+                "first_known_cut": r.get::<_, String>(6)?,
+            }))
+        })
+        .map_err(|e| format!("query 活动对象失败：{e}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("collect 活动对象失败：{e}"))?;
+    Ok(rows)
+}
+
+/// 新对象集与既有活动对象对拍，产出 (upserts, withdrawals, replaces)。同一发生区间同一内容 = 无变化；
+/// 同一发生区间内容变 = 撤旧 + 替代；新区间 = upsert；旧区间消失 = 撤（防御性，append-only 域不触发）。
+fn compute_diff(
+    new_objects: &[Value],
+    existing_active: &[Value],
+) -> (Vec<Value>, Vec<Value>, Vec<Value>) {
+    let mut upserts: Vec<Value> = Vec::new();
+    let mut withdrawals: Vec<Value> = Vec::new();
+    let mut replaces: Vec<Value> = Vec::new();
+
+    // 区间 → 新对象（同一发生区间在合法域内唯一）。
+    let mut new_by_window: BTreeMap<(i64, i64, i64), &Value> = BTreeMap::new();
+    for o in new_objects {
+        let w = (
+            o["window_start"].as_i64().unwrap_or(0),
+            o["window_mid"].as_i64().unwrap_or(0),
+            o["window_end"].as_i64().unwrap_or(0),
+        );
+        new_by_window.insert(w, o);
+    }
+
+    for old in existing_active {
+        let w = (
+            old["window_start"].as_i64().unwrap_or(0),
+            old["window_mid"].as_i64().unwrap_or(0),
+            old["window_end"].as_i64().unwrap_or(0),
+        );
+        match new_by_window.get(&w) {
+            None => {
+                withdrawals.push(json!({
+                    "object_id": old["object_id"],
+                    "window_start": w.0,
+                    "window_mid": w.1,
+                    "window_end": w.2,
+                    "reason": "window_removed",
+                    "superseded_by": Value::Null,
+                }));
+            }
+            Some(new) => {
+                if new["object_id"].as_str() != old["object_id"].as_str() {
+                    withdrawals.push(json!({
+                        "object_id": old["object_id"],
+                        "window_start": w.0,
+                        "window_mid": w.1,
+                        "window_end": w.2,
+                        "reason": "superseded_by_revision",
+                        "superseded_by": new["object_id"].clone(),
+                    }));
+                    replaces.push(json!({
+                        "new_object_id": new["object_id"],
+                        "old_object_id": old["object_id"],
+                    }));
+                }
+            }
+        }
+    }
+
+    // upsert = 全部新对象（含无变化者，供同 cut 对拍与幂等重投）。
+    for o in new_objects {
+        upserts.push(o.clone());
+    }
+    (upserts, withdrawals, replaces)
+}
+
 /// DUR-H01：已知失败的正常收尾——仅当仍持有本 attempt 的 Begin（token/gen/frontier 精确匹配、
 /// writer_epoch 未变、published generation 仍为 gen-1）时，把本 attempt 的推进占用条件清理为 idle。
-/// 验证与变更同事务 CAS；不清除别人的 Begin、不把未知中断自动放行（崩溃/悬挂修订仍保留 Begin/闭门，
-/// 属 TB-05 恢复矩阵）。
 fn cancel_own_begin(
     conn: &mut Connection,
     token: &str,
     gen: i64,
     frontier: i64,
+    configured_epoch: &str,
 ) -> Result<bool, String> {
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("cancel Begin 事务失败：{e}"))?;
     let epoch = meta_get_opt(&tx, "writer_epoch")?.unwrap_or_default();
-    if epoch != WRITER_EPOCH {
+    if epoch != configured_epoch {
         drop(tx);
         return Ok(false);
     }
@@ -821,8 +1059,9 @@ fn verify_begin_owner(
     token: &str,
     gen: i64,
     frontier: i64,
+    configured_epoch: &str,
 ) -> Result<(), String> {
-    verify_writer_epoch(conn)?;
+    verify_writer_epoch(conn, configured_epoch)?;
     let expected = format!("begun:{token}:{gen}:{frontier}");
     if meta_get_opt(conn, "advance_state")?.as_deref() != Some(expected.as_str())
         || meta_get_opt(conn, "begin_token")?.as_deref() != Some(token)
@@ -849,8 +1088,7 @@ fn verify_batch_bytes(conn: &Connection, batch_id: &str, bytes: &[u8]) -> Result
     Ok(())
 }
 
-/// C09.4 / #1370 AC4：完整对象先独立持久；此事务不发布任何对象表或结构根。
-/// 后续发布失败时保留不可达批次与 Begin，不能用删批次冒充恢复。
+/// C09.4 / AC4：完整对象先独立持久；此事务不发布任何对象表或结构根。
 fn persist_batch_before_publish(
     conn: &mut Connection,
     token: &str,
@@ -858,6 +1096,7 @@ fn persist_batch_before_publish(
     frontier: i64,
     batch_id: &str,
     bytes: &[u8],
+    configured_epoch: &str,
 ) -> Result<(), String> {
     if batch_id != format!("batch-{}", sha256_hex(bytes)) {
         return Err("IdentityConflict：batch_id 与规范字节哈希不符".to_string());
@@ -866,7 +1105,7 @@ fn persist_batch_before_publish(
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开批次持久事务失败：{e}"))?;
-    verify_begin_owner(&tx, token, gen, frontier)?;
+    verify_begin_owner(&tx, token, gen, frontier, configured_epoch)?;
     tx.execute(
         "INSERT OR IGNORE INTO batches(batch_id, canonical_bytes, byte_len) VALUES(?1, ?2, ?3)",
         params![batch_id, bytes, byte_len],
@@ -877,7 +1116,7 @@ fn persist_batch_before_publish(
         .map_err(|e| format!("批次持久 commit 失败：{e}"))
 }
 
-fn cmd_advance(db: &Path) -> Result<(), String> {
+fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     let mut conn = open_db(db)?;
     ensure_initialized(&conn)?;
     let profile_id = meta_get_opt(&conn, "profile_id")?.unwrap_or_default();
@@ -885,15 +1124,15 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
     let catalog_revision = meta_get_opt(&conn, "catalog_revision")?.unwrap_or_default();
 
     // ── Begin：判定前先由短写事务核 writer_epoch、取得唯一推进权、持久 Begin/门/输入前沿 ──
-    let (token, gen, frontier) = {
+    let (token, gen, frontier, base_cut) = {
         let tx = conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|e| format!("Begin 事务失败：{e}"))?;
-        verify_writer_epoch(&tx)?;
+        verify_writer_epoch(&tx, configured_epoch)?;
         let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_else(|| "idle".to_string());
         if state != "idle" {
             return Err(format!(
-                "StaleWriter：已有进行中的 advance（advance_state=`{state}`）；恢复闭门属 TB-05，可用 reset 一次性重开"
+                "StaleWriter：已有进行中的 advance（advance_state=`{state}`）；恢复闭门，请先经 recover 合法恢复"
             ));
         }
         let cur_gen: i64 = meta_get_opt(&tx, "generation")?
@@ -905,6 +1144,7 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
                 r.get(0)
             })
             .map_err(|e| format!("读输入前沿失败：{e}"))?;
+        let base_cut = meta_get_opt(&tx, "structure_cut")?.unwrap_or_else(|| "cut-0".to_string());
         let token = make_token();
         meta_set(
             &tx,
@@ -915,26 +1155,38 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
         meta_set(&tx, "begin_input_frontier", &frontier.to_string())?;
         meta_set(&tx, "begin_token", &token)?;
         tx.commit().map_err(|e| format!("Begin commit 失败：{e}"))?;
-        (token, gen, frontier)
+        (token, gen, frontier, base_cut)
     };
 
-    // ── 同次真实 Rust parser（本地屏障已持久，Begin 之后只读 ≤ 前沿的已接纳事件）──
-    let events = read_raw_events(&conn, frontier)?;
-    let mut raw_by_seq: BTreeMap<i64, Value> = BTreeMap::new();
-    for ev in &events {
-        raw_by_seq.insert(ev["seq"].as_i64().unwrap_or(-1), ev.clone());
+    // ★测试暂停点 1：Begin 已持久、解释尚未开始（供 SIGKILL）。
+    testonly_pause("after_begin");
+
+    // ── 同次真实 Rust parser：按「有效源位置」在源坐标序上取每个身份的最新 revision ──
+    let all_events = read_raw_events(&conn)?;
+    let effective = read_effective_events(&all_events);
+    let mut raw_by_coord: BTreeMap<i64, Value> = BTreeMap::new();
+    for ev in &effective {
+        let coord = ev["source_coord"]
+            .as_str()
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(-1);
+        raw_by_coord.insert(coord, ev.clone());
     }
 
     let config = ThetaConfig::default();
     let mut incr = ParseLayerIncr::new(&config);
     let mut layer = None;
     let mut raw_bars: Vec<Bar> = Vec::new();
-    for ev in &events {
+    for ev in &effective {
         let px = parse_canonical_i64(ev["price"].as_str().unwrap_or(""), "price")?;
         let t = parse_canonical_i64(ev["ts"].as_str().unwrap_or(""), "timestamp")?;
-        // 受测域 profile volume_unit="1"（accept 已精确拒绝非 1）⟹ Bar.volume=1.0 是忠实投影。
+        let coord = ev["source_coord"]
+            .as_str()
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0);
+        // 源坐标即本根在该源流中的位置；1:1 退化 OHLC 逐点即标准 K。
         let bar = Bar {
-            source_index: ev["seq"].as_i64().unwrap_or(0) as usize,
+            source_index: coord as usize,
             timestamp: t,
             open: px,
             high: px,
@@ -952,22 +1204,19 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
 
     let wins = classify_local_shape_sliding(merged);
 
-    // raw → merged 组号（inclusion 同源映射）。
+    // source_coord → merged 组号（inclusion 同源映射；1:1 域各根一组）。
     let mut merged_raws: Vec<Vec<i64>> = vec![Vec::new(); merged.len()];
-    for seq in raw_by_seq.keys().copied() {
-        if let Some(g) = parser::inclusion::merged_group_index(merged, seq as usize) {
-            merged_raws[g].push(seq);
+    for coord in raw_by_coord.keys().copied() {
+        if let Some(g) = parser::inclusion::merged_group_index(merged, coord as usize) {
+            merged_raws[g].push(coord);
         }
     }
 
-    // 逐窗口构造对象/见证/关系，并持久化「知识不足 / 域不满足」观察（不造第五 Other 分型）。
     let mut objects: Vec<Value> = Vec::new();
     let mut witnesses: Vec<Value> = Vec::new();
     let mut relations: Vec<Value> = Vec::new();
     let mut observations: Vec<Value> = Vec::new();
 
-    // 域前件（原始三K，喂入 parser 之前）：相邻包含（含等值）⟹ 域不满足——parser 会把包含
-    // 合并成更少标准 K，若不在此先查，会误报「知识不足」。复用 inclusion::contains 同一判断。
     let mut raw_violations: Vec<(usize, Cc006DomainViolation)> = Vec::new();
     for i in 0..raw_bars.len().saturating_sub(2) {
         if let Some(reason) =
@@ -984,7 +1233,7 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
             "window_start": null,
             "window_mid": null,
             "window_end": null,
-            "detail": {"raw_events": events.len()},
+            "detail": {"raw_events": effective.len()},
         }));
     }
     for (i, reason) in &raw_violations {
@@ -1033,7 +1282,7 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
                     .map(|mi| {
                         let refs: Vec<Value> = merged_raws[*mi]
                             .iter()
-                            .filter_map(|seq| raw_by_seq.get(seq))
+                            .filter_map(|coord| raw_by_coord.get(coord))
                             .map(|ev| {
                                 json!({
                                     "identity_key": ev["identity_key"],
@@ -1053,7 +1302,7 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
 
                 let (object, wits, rels) = build_object_and_witnesses(
                     merged,
-                    &raw_by_seq,
+                    &raw_by_coord,
                     &merged_raws,
                     start,
                     branch.as_str(),
@@ -1062,6 +1311,8 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
                     &cmp_json,
                     &input_refs,
                     &profile_id,
+                    gen,
+                    &format!("cut-{gen}"),
                 );
                 objects.push(object);
                 witnesses.extend(wits);
@@ -1078,7 +1329,6 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
                 }));
             }
             Cc006LocalShape::InsufficientKnowledge => {
-                // 滑窗仅对 merged.len() >= 3 调用，此分支为防御性兜底。
                 observations.push(json!({
                     "kind": "insufficient_knowledge",
                     "reason": "fewer_than_three_bars",
@@ -1091,10 +1341,7 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
         }
     }
 
-    // 去重（DUR）：raw 级域前件（喂入 parser 前）与 merged 级 DomainNotSatisfied 可能报告同一窗口同一
-    // 违反（例：全等三K无方向时 parser 不合并，merged==raw，两处都报 window[0,1,2] adjacent_inclusion），
-    // observation 身份 = (kind, window_start, window_mid, window_end, reason)，同一事实只发布一次，
-    // 不造 UNIQUE 约束冲突，也不删合法事实（不同窗口/原因保留）。
+    // 去重：同一 (kind, window, reason) 只发布一次。
     {
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         observations.retain(|ob| {
@@ -1107,7 +1354,7 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
     }
 
     let structure_cut = format!("cut-{gen}");
-    // ── 内容寻址批次：封存完整正式结果（原始事件 + 对象 + 见证 + 关系 + 观察 + 绑定）──
+    // ── 内容寻址批次：封存完整正式结果（全部修订 + 有效源位置 + 对象 + 见证 + 关系 + 观察 + 绑定）──
     let batch_json = json!({
         "generation": gen,
         "structure_cut": structure_cut,
@@ -1116,25 +1363,41 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
         "profile_id": profile_id,
         "profile_hash": profile_hash,
         "rule_revision": RULE_REVISION,
-        "raw_events": events,
+        "raw_events": all_events,
+        "effective_events": effective,
         "objects": objects,
         "witnesses": witnesses,
         "relations": relations,
         "observations": observations,
+        "scope": {"structure": "CompleteCut", "economic": "not_started"},
     });
     let batch_bytes = canonical_bytes_of_value(&batch_json);
     let batch_id = format!("batch-{}", sha256_hex(&batch_bytes));
+    for o in &mut objects {
+        o["batch_id"] = json!(batch_id);
+    }
 
-    persist_batch_before_publish(&mut conn, &token, gen, frontier, &batch_id, &batch_bytes)?;
+    persist_batch_before_publish(
+        &mut conn,
+        &token,
+        gen,
+        frontier,
+        &batch_id,
+        &batch_bytes,
+        configured_epoch,
+    )?;
 
-    // ── Commit：核 Begin/epoch/前沿仍有效后，同一事务发布对象/关系/修订/索引根/目录状态 ──
+    // ★测试暂停点 2：完整不可变批次已独立持久、Commit 尚未发生（供 SIGKILL）。
+    testonly_pause("after_batch");
+
+    // ── Commit：核 Begin/epoch/前沿仍有效后，同一事务原子应用对象/边/端点 + 撤回/替代 + delta ──
     let classified_count = objects.len();
     let mut frontier_moved = false;
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开 commit 事务失败：{e}"))?;
     {
-        verify_begin_owner(&tx, &token, gen, frontier)?;
+        verify_begin_owner(&tx, &token, gen, frontier, configured_epoch)?;
         verify_batch_bytes(&tx, &batch_id, &batch_bytes)?;
         let cur_frontier: i64 = tx
             .query_row("SELECT COALESCE(MAX(seq), -1) FROM raw_events", [], |r| {
@@ -1142,31 +1405,61 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
             })
             .map_err(|e| format!("读输入前沿失败：{e}"))?;
         if cur_frontier != frontier {
-            // DUR-H01：已知前沿变化、本 attempt 尚未公布结构 Commit —— 本事务不做任何写入，
-            // 事务结束后由 cancel_own_begin 条件清理自己的推进占用（不清理别人的 Begin）。
             frontier_moved = true;
         } else {
-            tx.execute("DELETE FROM objects", [])
-                .map_err(|e| format!("clear objects 失败：{e}"))?;
-            tx.execute("DELETE FROM witnesses", [])
-                .map_err(|e| format!("clear witnesses 失败：{e}"))?;
-            tx.execute("DELETE FROM relations", [])
-                .map_err(|e| format!("clear relations 失败：{e}"))?;
-            tx.execute("DELETE FROM observations", [])
-                .map_err(|e| format!("clear observations 失败：{e}"))?;
+            // 与既有活动对象对拍（提交事务内，原子）。
+            let existing_active = read_active_objects(&tx)?;
+            let (_upserts, withdrawals, replaces) = compute_diff(&objects, &existing_active);
+            // 未变化对象沿用既有 first_known（不把重发布当新获知）；新对象 first_known = 本 gen。
+            let existing_by_id: BTreeMap<String, Value> = existing_active
+                .iter()
+                .map(|o| (o["object_id"].as_str().unwrap_or("").to_string(), o.clone()))
+                .collect();
+            let mut delta_upserts: Vec<Value> = Vec::new();
+            for o in &objects {
+                let oid = o["object_id"].as_str().unwrap_or("").to_string();
+                let mut obj = o.clone();
+                if let Some(ex) = existing_by_id.get(&oid) {
+                    obj["first_known_generation"] = ex["first_known_generation"].clone();
+                    obj["first_known_cut"] = ex["first_known_cut"].clone();
+                }
+                delta_upserts.push(obj);
+            }
 
+            // 1) 撤回：当前视图移除，历史不删（UPDATE 生命周期，保留原身份/first_known/发生区间）。
+            {
+                let mut stmt = tx
+                    .prepare(
+                        "UPDATE objects SET withdrawn_generation=?1, withdrawal_reason=?2, superseded_by=?3 WHERE object_id=?4 AND withdrawn_generation IS NULL",
+                    )
+                    .map_err(|e| format!("prepare 撤回失败：{e}"))?;
+                for w in &withdrawals {
+                    let superseded = w["superseded_by"].as_str().map(|s| s.to_string());
+                    stmt.execute(params![
+                        gen,
+                        w["reason"].as_str().unwrap_or(""),
+                        superseded,
+                        w["object_id"].as_str().unwrap_or(""),
+                    ])
+                    .map_err(|e| format!("撤回对象失败：{e}"))?;
+                }
+            }
+
+            // 2) upsert：新对象插入（首次获知固定）；既有对象仅推进 published_generation/batch。
             {
                 let mut stmt = tx
                 .prepare(
                     "INSERT INTO objects(object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc,
-                       window_start, window_mid, window_end, comparisons_json, input_refs_json)
-                     VALUES(?1, 1, 'CC-006.local_shape', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                       window_start, window_mid, window_end, comparisons_json, input_refs_json,
+                       source_coords_json, first_known_generation, first_known_cut, published_generation)
+                     VALUES(?1, 1, 'CC-006.local_shape', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                     ON CONFLICT(object_id) DO UPDATE SET published_generation=excluded.published_generation, batch_id=excluded.batch_id",
                 )
                 .map_err(|e| format!("prepare objects 失败：{e}"))?;
                 for o in &objects {
                     stmt.execute(params![
                         o["object_id"].as_str().unwrap_or(""),
-                        o["batch_id"].as_str().unwrap_or(batch_id.as_str()),
+                        batch_id.as_str(),
                         o["branch"].as_str().unwrap_or(""),
                         o["dir_ab"].as_str().unwrap_or(""),
                         o["dir_bc"].as_str().unwrap_or(""),
@@ -1175,16 +1468,22 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
                         o["window_end"].as_i64().unwrap_or(0),
                         o["comparisons_json"].as_str().unwrap_or("[]"),
                         o["input_refs_json"].as_str().unwrap_or("[]"),
+                        o["source_coords_json"].as_str().unwrap_or("[]"),
+                        o["first_known_generation"].as_i64().unwrap_or(0),
+                        o["first_known_cut"].as_str().unwrap_or(""),
+                        o["published_generation"].as_i64().unwrap_or(0),
                     ])
                     .map_err(|e| format!("insert objects 失败：{e}"))?;
                 }
             }
+
+            // 3) 见证 / 关系 / 观察（内容寻址，幂等插入）。
             {
                 let mut stmt = tx
                 .prepare(
-                    "INSERT INTO witnesses(witness_id, object_id, slot, merged_source_index, merged_high,
-                       merged_low, merged_open, merged_close, raw_json)
-                     VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    "INSERT OR IGNORE INTO witnesses(witness_id, object_id, slot, merged_source_index, merged_high,
+                       merged_low, merged_open, merged_close, raw_json, published_generation)
+                     VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 )
                 .map_err(|e| format!("prepare witnesses 失败：{e}"))?;
                 for w in &witnesses {
@@ -1198,17 +1497,37 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
                         w["merged_open"].as_str().unwrap_or(""),
                         w["merged_close"].as_str().unwrap_or(""),
                         serde_json::to_string(&w["raw_bars"]).unwrap_or_else(|_| "[]".to_string()),
+                        gen,
                     ])
                     .map_err(|e| format!("insert witnesses 失败：{e}"))?;
                 }
             }
+            // 关系集合：has_witness / classified_as + replaces（替代边）+ raw supersedes（源修订链）。
+            let mut rels: Vec<Value> = relations.clone();
+            for rp in &replaces {
+                rels.push(json!({
+                    "subject": rp["new_object_id"],
+                    "relation_type": "replaces",
+                    "object": rp["old_object_id"],
+                }));
+            }
+            for ev in &all_events {
+                if let Some(sup) = ev["supersedes_revision"].as_i64() {
+                    rels.push(json!({
+                        "subject": format!("{}@{}", ev["identity_key"].as_str().unwrap_or(""), ev["revision"].as_i64().unwrap_or(0)),
+                        "relation_type": "supersedes",
+                        "object": format!("{}@{sup}", ev["identity_key"].as_str().unwrap_or("")),
+                    }));
+                }
+            }
             {
+                // 关系：has_witness / classified_as + replaces（替代边）+ raw supersedes（源修订链）。
                 let mut stmt = tx
-                .prepare(
-                    "INSERT INTO relations(relation_id, subject, relation_type, object) VALUES(?1, ?2, ?3, ?4)",
-                )
-                .map_err(|e| format!("prepare relations 失败：{e}"))?;
-                for r in &relations {
+                    .prepare(
+                        "INSERT OR IGNORE INTO relations(relation_id, subject, relation_type, object, published_generation) VALUES(?1, ?2, ?3, ?4, ?5)",
+                    )
+                    .map_err(|e| format!("prepare relations 失败：{e}"))?;
+                for r in &rels {
                     let rid = format!(
                         "rel-{}",
                         &sha256_hex(&canonical_bytes_of_value(&json!({
@@ -1222,55 +1541,131 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
                         r["subject"].as_str().unwrap_or(""),
                         r["relation_type"].as_str().unwrap_or(""),
                         r["object"].as_str().unwrap_or(""),
+                        gen,
                     ])
                     .map_err(|e| format!("insert relations 失败：{e}"))?;
                 }
             }
+            // 观察：补 identity/batch，供 delta 与同 cut Snapshot 逐字段对齐（INSERT OR IGNORE：首获知固定）。
+            let mut obs_with_id: Vec<Value> = Vec::with_capacity(observations.len());
+            for ob in &observations {
+                let oid = format!(
+                    "obs-{}",
+                    &sha256_hex(&canonical_bytes_of_value(&json!({
+                        "kind": ob["kind"],
+                        "window_start": ob["window_start"],
+                        "window_mid": ob["window_mid"],
+                        "window_end": ob["window_end"],
+                        "reason": ob["reason"],
+                    })))[..16]
+                );
+                let mut o = ob.clone();
+                o["observation_id"] = json!(oid);
+                o["batch_id"] = json!(batch_id);
+                obs_with_id.push(o);
+            }
             {
                 let mut stmt = tx
                 .prepare(
-                    "INSERT INTO observations(observation_id, batch_id, kind, window_start, window_mid,
-                       window_end, reason, detail_json)
-                     VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    "INSERT OR IGNORE INTO observations(observation_id, batch_id, kind, window_start, window_mid,
+                       window_end, reason, detail_json, published_generation)
+                     VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 )
                 .map_err(|e| format!("prepare observations 失败：{e}"))?;
-                for ob in &observations {
-                    let oid = format!(
-                        "obs-{}",
-                        &sha256_hex(&canonical_bytes_of_value(&json!({
-                            "kind": ob["kind"],
-                            "window_start": ob["window_start"],
-                            "window_mid": ob["window_mid"],
-                            "window_end": ob["window_end"],
-                            "reason": ob["reason"],
-                        })))[..16]
-                    );
+                for ob in &obs_with_id {
                     stmt.execute(params![
-                        oid,
-                        batch_id,
+                        ob["observation_id"].as_str().unwrap_or(""),
+                        ob["batch_id"].as_str().unwrap_or(""),
                         ob["kind"].as_str().unwrap_or(""),
                         ob["window_start"].as_i64(),
                         ob["window_mid"].as_i64(),
                         ob["window_end"].as_i64(),
                         ob["reason"].as_str().unwrap_or(""),
                         serde_json::to_string(&ob["detail"]).unwrap_or_else(|_| "{}".to_string()),
+                        gen,
                     ])
                     .map_err(|e| format!("insert observations 失败：{e}"))?;
                 }
             }
 
-            // 索引可达根：structure_cut / generation / index_frontier（与对象同事务生效）。
+            // 4) 持久 StructureDelta（session/generation、catalog_revision、base_cut/next_cut、
+            //    seq_range、完整 upsert/撤回/替代、关系/见证、index_frontier）。
+            let prev_frontier: i64 = meta_get_opt(&tx, "last_advance_frontier")?
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(-1);
+            let seq_range = json!({
+                "from": (prev_frontier + 1).to_string(),
+                "to": frontier.to_string(),
+            });
+            // wire 形态：整数坐标/版本 → 规范十进制字符串，与同 cut Snapshot 逐字段对齐。
+            let wire_upserts: Vec<Value> = delta_upserts
+                .iter()
+                .map(project_object_wire)
+                .collect::<Result<_, _>>()?;
+            let wire_withdrawals: Vec<Value> = withdrawals
+                .iter()
+                .map(project_withdrawal_wire)
+                .collect::<Result<_, _>>()?;
+            let wire_witnesses: Vec<Value> = witnesses
+                .iter()
+                .map(project_witness_wire)
+                .collect::<Result<_, _>>()?;
+            let wire_observations: Vec<Value> = obs_with_id
+                .iter()
+                .map(project_observation_wire)
+                .collect::<Result<_, _>>()?;
+            // 本代新接纳的源事件（seq ∈ seq_range），供 Watch 消费者重建 raw_history（不另轮询）。
+            let wire_raw_history_added: Vec<Value> = all_events
+                .iter()
+                .filter(|ev| ev["seq"].as_i64().unwrap_or(-1) > prev_frontier)
+                .map(project_raw_event_wire)
+                .collect::<Result<_, _>>()?;
+            let delta_json = json!({
+                "session_id": meta_get_opt(&tx, "session_id")?.unwrap_or_default(),
+                "generation": gen.to_string(),
+                "catalog_revision": catalog_revision,
+                "base_cut": base_cut,
+                "next_cut": structure_cut,
+                "seq_range": seq_range,
+                "input_frontier": frontier.to_string(),
+                "index_frontier": batch_id,
+                "upserts": wire_upserts,
+                "withdrawals": wire_withdrawals,
+                "replaces": replaces,
+                "witnesses": wire_witnesses,
+                "relations": rels,
+                "observations": wire_observations,
+                "raw_history_added": wire_raw_history_added,
+            });
+            tx.execute(
+                "INSERT OR REPLACE INTO structure_deltas(generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, index_frontier, input_frontier, delta_json)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    gen,
+                    meta_get_opt(&tx, "session_id")?.unwrap_or_default(),
+                    catalog_revision,
+                    base_cut,
+                    structure_cut,
+                    seq_range.to_string(),
+                    batch_id,
+                    frontier,
+                    canonical_json(&delta_json),
+                ],
+            )
+            .map_err(|e| format!("持久 delta 失败：{e}"))?;
+
+            // 5) 索引可达根：generation / structure_cut / index_frontier（与对象同事务生效）。
             meta_set(&tx, "generation", &gen.to_string())?;
             meta_set(&tx, "structure_cut", &structure_cut)?;
             meta_set(&tx, "index_frontier", &batch_id)?;
+            meta_set(&tx, "last_advance_frontier", &frontier.to_string())?;
 
-            // 目录状态（H3）：实现/证明/运行分列，绑定具体证据；无实例不标 run、不伪造已证。
+            // 6) 目录状态：实现/证明/运行分列。
             let run_status = if classified_count >= 1 {
                 "run"
             } else {
                 "not_run"
             };
-            let proof_status = "not_proved";
             let evidence = json!({
                 "tested_domain": "TestOnly tick 1:1 OHLC（O=H=L=C），相邻严格无包含，初始化方向由前两点确定，无同价端点竞争",
                 "profile_id": profile_id,
@@ -1281,14 +1676,16 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
                 "classified_objects": classified_count,
                 "windows_total": wins.len(),
                 "merged_bars": merged.len(),
+                "effective_source_positions": effective.len(),
+                "withdrawals": withdrawals.len(),
+                "replaces": replaces.len(),
                 "insufficient_knowledge": observations.iter().filter(|o| o["kind"] == "insufficient_knowledge").count(),
                 "domain_not_satisfied": observations.iter().filter(|o| o["kind"] == "domain_not_satisfied").count(),
-                "oracle_test": "local_shape::tests::cc006_four_branch_oracle（独立硬编码期望值；执行记录见验证报告，本会话不据此自证）",
                 "scope": {"structure": "CompleteCut", "economic": "not_started"},
             });
             tx.execute(
-            "UPDATE catalog SET impl_status='implemented', proof_status=?1, run_status=?2, evidence_json=?3 WHERE catalog_id='CC-006'",
-            params![proof_status, run_status, evidence.to_string()],
+            "UPDATE catalog SET impl_status='implemented', proof_status='not_proved', run_status=?1, evidence_json=?2 WHERE catalog_id='CC-006'",
+            params![run_status, evidence.to_string()],
         )
         .map_err(|e| format!("update CC-006 catalog 失败：{e}"))?;
             tx.execute(
@@ -1308,9 +1705,7 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
     }
 
     if frontier_moved {
-        // DUR-H01：仅清理本 attempt 自己的 Begin（token/gen/frontier 精确匹配 + epoch/generation 未变），
-        // 让下一次合法推进可取得新 token；崩溃/悬挂修订仍保留 Begin/闭门。
-        let released = cancel_own_begin(&mut conn, &token, gen, frontier)?;
+        let released = cancel_own_begin(&mut conn, &token, gen, frontier, configured_epoch)?;
         let disposition = if released {
             "本 attempt 已正常取消并释放推进权"
         } else {
@@ -1321,16 +1716,19 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
         ));
     }
 
+    // ★测试暂停点 3：Commit 已持久、回执尚未送达（供 SIGKILL）。
+    testonly_pause("after_commit");
+
     println!(
         "{}",
         json!({
             "ok": true,
-            // WIRE：generation 是无 JS safe 上限的精确整数，外发为规范十进制字符串。
             "generation": gen.to_string(),
             "structure_cut": structure_cut,
             "batch_id": batch_id,
             "merged_bars": merged.len(),
-            "raw_events": events.len(),
+            "raw_events": all_events.len(),
+            "effective_source_positions": effective.len(),
             "windows_total": wins.len(),
             "objects_published": objects.len(),
             "observations": {
@@ -1381,9 +1779,7 @@ fn canonical_bytes_of_value(v: &Value) -> Vec<u8> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// WIRE 精确整数投影（AC5 / INTERFACE-CONTRACTS.md:11）：只转换「明确外发」的精确坐标/版本/
-// 来源游标字段为规范十进制字符串；不改内部封存（batch canonical JSON / 对象身份）的数值，
-// 不改已签目录的有限分类码。内部计算仍在 i64/usize 精确域。
+// WIRE 精确整数投影：把「明确外发」的精确坐标/版本/来源游标字段投影为规范十进制字符串。
 // ────────────────────────────────────────────────────────────────────────────
 
 fn num_to_str(v: &Value) -> Result<Value, String> {
@@ -1392,7 +1788,7 @@ fn num_to_str(v: &Value) -> Result<Value, String> {
         .ok_or_else(|| "持久整数必须是 i64，不能是浮点、布尔、空值或文本".to_string())
 }
 
-/// `objects[].input_refs`：把 `merged_index`（结构坐标）与 `raw_refs[].seq`（接纳序）投影为字符串。
+/// `objects[].input_refs`：merged_index、raw_refs[].seq、raw_refs[].revision → 字符串。
 fn project_input_refs(refs: &Value) -> Result<Value, String> {
     let groups = refs.as_array().ok_or("input_refs 必须是数组")?;
     let mut out = Vec::with_capacity(groups.len());
@@ -1411,13 +1807,17 @@ fn project_input_refs(refs: &Value) -> Result<Value, String> {
             let raw = raw.as_object_mut().ok_or("raw_refs 成员必须是对象")?;
             let seq = num_to_str(raw.get("seq").unwrap_or(&Value::Null))?;
             raw.insert("seq".to_string(), seq);
+            if raw.contains_key("revision") {
+                let rev = num_to_str(raw.get("revision").unwrap_or(&Value::Null))?;
+                raw.insert("revision".to_string(), rev);
+            }
         }
         out.push(Value::Object(obj));
     }
     Ok(Value::Array(out))
 }
 
-/// `witnesses[].raw_bars`：把 `seq`（接纳序）投影为字符串。
+/// `witnesses[].raw_bars`：seq、revision → 字符串。
 fn project_raw_bars(bars: &Value) -> Result<Value, String> {
     let bars = bars.as_array().ok_or("raw_bars 必须是数组")?;
     let mut out = Vec::with_capacity(bars.len());
@@ -1425,9 +1825,136 @@ fn project_raw_bars(bars: &Value) -> Result<Value, String> {
         let mut obj = bar.as_object().ok_or("raw_bars 成员必须是对象")?.clone();
         let seq = num_to_str(obj.get("seq").unwrap_or(&Value::Null))?;
         obj.insert("seq".to_string(), seq);
+        if obj.contains_key("revision") {
+            let rev = num_to_str(obj.get("revision").unwrap_or(&Value::Null))?;
+            obj.insert("revision".to_string(), rev);
+        }
         out.push(Value::Object(obj));
     }
     Ok(Value::Array(out))
+}
+
+/// i64 形态对象 → wire 形态（与 read_snapshot 投影一致）。
+fn project_object_wire(o: &Value) -> Result<Value, String> {
+    let comparisons = json_shape(
+        o["comparisons_json"].as_str().unwrap_or("[]"),
+        JsonShape::Array,
+    )?;
+    let input_refs = json_shape(
+        o["input_refs_json"].as_str().unwrap_or("[]"),
+        JsonShape::Array,
+    )?;
+    let source_coords = json_shape(
+        o["source_coords_json"].as_str().unwrap_or("[]"),
+        JsonShape::Array,
+    )?;
+    Ok(json!({
+        "object_id": o["object_id"].clone(),
+        "object_revision": num_to_str(&o["object_revision"])?,
+        "kind": o["kind"].clone(),
+        "batch_id": o.get("batch_id").cloned().unwrap_or(Value::Null),
+        "branch": o["branch"].clone(),
+        "dir_ab": o["dir_ab"].clone(),
+        "dir_bc": o["dir_bc"].clone(),
+        "window_start": num_to_str(&o["window_start"])?,
+        "window_mid": num_to_str(&o["window_mid"])?,
+        "window_end": num_to_str(&o["window_end"])?,
+        "comparisons": comparisons,
+        "input_refs": project_input_refs(&input_refs)?,
+        "source_coords": source_coords,
+        "first_known_generation": num_to_str(&o["first_known_generation"])?,
+        "first_known_cut": o["first_known_cut"].clone(),
+        "published_generation": num_to_str(&o["published_generation"])?,
+        "withdrawn_generation": o
+            .get("withdrawn_generation")
+            .and_then(|v| v.as_i64())
+            .map(|v| Value::String(v.to_string()))
+            .unwrap_or(Value::Null),
+        "withdrawal_reason": o.get("withdrawal_reason").cloned().unwrap_or(Value::Null),
+        "superseded_by": o.get("superseded_by").cloned().unwrap_or(Value::Null),
+        "lifecycle": if o
+            .get("withdrawn_generation")
+            .and_then(|v| v.as_i64())
+            .is_some()
+        {
+            "withdrawn"
+        } else {
+            "active"
+        },
+    }))
+}
+
+fn project_withdrawal_wire(w: &Value) -> Result<Value, String> {
+    Ok(json!({
+        "object_id": w["object_id"].clone(),
+        "window_start": num_to_str(&w["window_start"])?,
+        "window_mid": num_to_str(&w["window_mid"])?,
+        "window_end": num_to_str(&w["window_end"])?,
+        "reason": w["reason"].clone(),
+        "superseded_by": w["superseded_by"].clone(),
+    }))
+}
+
+fn project_witness_wire(w: &Value) -> Result<Value, String> {
+    let raw_bars = w["raw_bars"].clone();
+    Ok(json!({
+        "witness_id": w["witness_id"].clone(),
+        "object_id": w["object_id"].clone(),
+        "slot": num_to_str(&w["slot"])?,
+        "merged_source_index": num_to_str(&w["merged_source_index"])?,
+        "merged_high": w["merged_high"].clone(),
+        "merged_low": w["merged_low"].clone(),
+        "merged_open": w["merged_open"].clone(),
+        "merged_close": w["merged_close"].clone(),
+        "raw_bars": project_raw_bars(&raw_bars)?,
+    }))
+}
+
+fn project_observation_wire(ob: &Value) -> Result<Value, String> {
+    let project = |v: &Value| -> Result<Value, String> {
+        if v.is_null() {
+            Ok(Value::Null)
+        } else {
+            num_to_str(v)
+        }
+    };
+    Ok(json!({
+        "observation_id": ob["observation_id"].clone(),
+        "batch_id": ob["batch_id"].clone(),
+        "kind": ob["kind"].clone(),
+        "window_start": project(&ob["window_start"])?,
+        "window_mid": project(&ob["window_mid"])?,
+        "window_end": project(&ob["window_end"])?,
+        "reason": ob["reason"].clone(),
+        "detail": ob["detail"].clone(),
+    }))
+}
+
+/// i64 形态源事件 → wire 形态（revision/seq/supersedes → 规范十进制字符串）。
+fn project_raw_event_wire(ev: &Value) -> Result<Value, String> {
+    Ok(json!({
+        "identity_key": ev["identity_key"].clone(),
+        "revision": num_to_str(&ev["revision"])?,
+        "input_revision": ev["input_revision"].clone(),
+        "payload_hash": ev["payload_hash"].clone(),
+        "receipt_id": ev["receipt_id"].clone(),
+        "seq": num_to_str(&ev["seq"])?,
+        "source_namespace": ev["source_namespace"].clone(),
+        "source_epoch": ev["source_epoch"].clone(),
+        "instrument": ev["instrument"].clone(),
+        "event_id": ev["event_id"].clone(),
+        "received_at": ev["received_at"].clone(),
+        "raw_text": ev["raw_text"].clone(),
+        "price": ev["price"].clone(),
+        "ts": ev["ts"].clone(),
+        "volume": ev["volume"].clone(),
+        "source_coord": ev["source_coord"].clone(),
+        "supersedes_revision": ev
+            .get("supersedes_revision")
+            .and_then(|v| v.as_i64())
+            .map(|v| Value::String(v.to_string()))
+            .unwrap_or(Value::Null),
+    }))
 }
 
 enum JsonShape {
@@ -1442,7 +1969,6 @@ fn json_shape(text: &str, shape: JsonShape) -> Result<Value, String> {
     let valid = match shape {
         JsonShape::Array => value.is_array(),
         JsonShape::Object => value.is_object(),
-        // 已签目录允许枚举数组或生成式对象，不改写二者。
         JsonShape::CatalogBranches => value.is_array() || value.is_object(),
     };
     if valid {
@@ -1472,7 +1998,7 @@ fn read_scope(conn: &Connection) -> Result<Value, String> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// S.ReadCatalog / S.Snapshot（只读查询，单个读事务内读同一已提交 cut）
+// S.ReadCatalog / S.Snapshot / S.Watch（只读查询，单个读事务内读同一已提交 cut）
 // ────────────────────────────────────────────────────────────────────────────
 
 fn read_catalog_in_tx(conn: &Connection) -> Result<Value, String> {
@@ -1513,91 +2039,293 @@ fn read_catalog_in_tx(conn: &Connection) -> Result<Value, String> {
     }))
 }
 
-fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
-    let meta = db_meta(conn)?;
-    let mut ostmt = conn
-        .prepare("SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json FROM objects ORDER BY window_start")
+/// 读对象（active 或 as_of 视图）与撤回对象，按生命周期的 cut 过滤。
+fn read_objects_view(
+    conn: &Connection,
+    as_of: Option<i64>,
+) -> Result<(Vec<Value>, Vec<Value>), String> {
+    let active_sql = match as_of {
+        None => {
+            "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE withdrawn_generation IS NULL ORDER BY window_start"
+                .to_string()
+        }
+        Some(_) => {
+            "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE first_known_generation <= ?1 AND (withdrawn_generation IS NULL OR withdrawn_generation > ?1) ORDER BY window_start"
+                .to_string()
+        }
+    };
+    let withdrawn_sql = match as_of {
+        None => {
+            "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE withdrawn_generation IS NOT NULL ORDER BY first_known_generation"
+                .to_string()
+        }
+        Some(_) => {
+            "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE withdrawn_generation IS NOT NULL AND withdrawn_generation <= ?1 ORDER BY first_known_generation"
+                .to_string()
+        }
+    };
+
+    let mut stmt = conn
+        .prepare(&active_sql)
         .map_err(|e| format!("prepare objects 失败：{e}"))?;
-    let objects = ostmt
-        .query_map([], |r| {
-            Ok(json!({
-                "object_id": r.get::<_, String>(0)?,
-                "object_revision": r.get::<_, i64>(1)?.to_string(),
-                "kind": r.get::<_, String>(2)?,
-                "batch_id": r.get::<_, String>(3)?,
-                "branch": r.get::<_, String>(4)?,
-                "dir_ab": r.get::<_, String>(5)?,
-                "dir_bc": r.get::<_, String>(6)?,
-                "window_start": r.get::<_, i64>(7)?.to_string(),
-                "window_mid": r.get::<_, i64>(8)?.to_string(),
-                "window_end": r.get::<_, i64>(9)?.to_string(),
-                "comparisons": json_column(r, 10, JsonShape::Array)?,
-                "input_refs": project_input_refs(
-                    &json_column(r, 11, JsonShape::Array)?
-                ).map_err(|e| json_column_error(11, e))?,
-            }))
-        })
-        .map_err(|e| format!("query objects 失败：{e}"))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("collect objects 失败：{e}"))?;
+    let objects = match as_of {
+        None => stmt
+            .query_map([], |r| project_object_row(r, None))
+            .map_err(|e| format!("query objects 失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect objects 失败：{e}"))?,
+        Some(n) => stmt
+            .query_map(params![n], |r| project_object_row(r, Some(n)))
+            .map_err(|e| format!("query objects 失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect objects 失败：{e}"))?,
+    };
 
     let mut wstmt = conn
-        .prepare("SELECT witness_id, object_id, slot, merged_source_index, merged_high, merged_low, merged_open, merged_close, raw_json FROM witnesses ORDER BY object_id, slot")
+        .prepare(&withdrawn_sql)
+        .map_err(|e| format!("prepare withdrawn 失败：{e}"))?;
+    let withdrawn = match as_of {
+        None => wstmt
+            .query_map([], |r| project_object_row(r, None))
+            .map_err(|e| format!("query withdrawn 失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect withdrawn 失败：{e}"))?,
+        Some(n) => wstmt
+            .query_map(params![n], |r| project_object_row(r, Some(n)))
+            .map_err(|e| format!("query withdrawn 失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect withdrawn 失败：{e}"))?,
+    };
+
+    Ok((objects, withdrawn))
+}
+
+/// 对象行 → wire 形态；as_of=Some(N) 时，若对象在 N 之后才撤回（withdrawn_generation > N），
+/// 按「当时仍活动」投影（不把后来的撤回元数据倒填到旧 cut）。
+fn project_object_row(row: &rusqlite::Row<'_>, as_of: Option<i64>) -> rusqlite::Result<Value> {
+    let wg: Option<i64> = row.get(16)?;
+    let effective_wg = match (as_of, wg) {
+        (Some(n), Some(w)) if w > n => None,
+        _ => wg,
+    };
+    Ok(json!({
+        "object_id": row.get::<_, String>(0)?,
+        "object_revision": row.get::<_, i64>(1)?.to_string(),
+        "kind": row.get::<_, String>(2)?,
+        "batch_id": row.get::<_, String>(3)?,
+        "branch": row.get::<_, String>(4)?,
+        "dir_ab": row.get::<_, String>(5)?,
+        "dir_bc": row.get::<_, String>(6)?,
+        "window_start": row.get::<_, i64>(7)?.to_string(),
+        "window_mid": row.get::<_, i64>(8)?.to_string(),
+        "window_end": row.get::<_, i64>(9)?.to_string(),
+        "comparisons": json_column(row, 10, JsonShape::Array)?,
+        "input_refs": project_input_refs(&json_column(row, 11, JsonShape::Array)?)
+            .map_err(|e| json_column_error(11, e))?,
+        "source_coords": json_column(row, 12, JsonShape::Array)?,
+        "first_known_generation": row.get::<_, i64>(13)?.to_string(),
+        "first_known_cut": row.get::<_, String>(14)?,
+        "published_generation": row.get::<_, i64>(15)?.to_string(),
+        "withdrawn_generation": effective_wg.map(|v| v.to_string()),
+        "withdrawal_reason": if effective_wg.is_some() {
+            row.get::<_, Option<String>>(17)?
+        } else {
+            None
+        },
+        "superseded_by": if effective_wg.is_some() {
+            row.get::<_, Option<String>>(18)?
+        } else {
+            None
+        },
+        "lifecycle": if effective_wg.is_some() { "withdrawn" } else { "active" },
+    }))
+}
+
+/// 指定 generation 的输入前沿（该代提交后的接纳序上限）；generation ≤ 0 ⟹ -1。
+fn frontier_at_generation(conn: &Connection, gen: i64) -> Result<i64, String> {
+    if gen <= 0 {
+        return Ok(-1);
+    }
+    conn.query_row(
+        "SELECT input_frontier FROM structure_deltas WHERE generation=?1",
+        params![gen],
+        |r| r.get(0),
+    )
+    .optional()
+    .map(|o| o.unwrap_or(-1))
+    .map_err(|e| format!("读 generation {gen} 输入前沿失败：{e}"))
+}
+
+/// 源修订链（含 supersedes），可选按接纳序上限过滤（AsKnown 当时可知）。
+fn read_raw_history(conn: &Connection, max_seq: Option<i64>) -> Result<Vec<Value>, String> {
+    let sql = match max_seq {
+        None => {
+            "SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace, source_epoch, instrument, event_id, received_at, raw_text, price, ts, volume, source_coord, supersedes_revision FROM raw_events ORDER BY seq ASC"
+                .to_string()
+        }
+        Some(_) => {
+            "SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace, source_epoch, instrument, event_id, received_at, raw_text, price, ts, volume, source_coord, supersedes_revision FROM raw_events WHERE seq <= ?1 ORDER BY seq ASC"
+                .to_string()
+        }
+    };
+    let project = |r: &rusqlite::Row<'_>| -> rusqlite::Result<Value> {
+        Ok(json!({
+            "identity_key": r.get::<_, String>(0)?,
+            "revision": r.get::<_, i64>(1)?.to_string(),
+            "input_revision": r.get::<_, String>(2)?,
+            "payload_hash": r.get::<_, String>(3)?,
+            "receipt_id": r.get::<_, String>(4)?,
+            "seq": r.get::<_, i64>(5)?.to_string(),
+            "source_namespace": r.get::<_, String>(6)?,
+            "source_epoch": r.get::<_, String>(7)?,
+            "instrument": r.get::<_, String>(8)?,
+            "event_id": r.get::<_, String>(9)?,
+            "received_at": r.get::<_, String>(10)?,
+            "raw_text": r.get::<_, String>(11)?,
+            "price": r.get::<_, String>(12)?,
+            "ts": r.get::<_, String>(13)?,
+            "volume": r.get::<_, String>(14)?,
+            "source_coord": r.get::<_, String>(15)?,
+            "supersedes_revision": r.get::<_, Option<i64>>(16)?.map(|v| v.to_string()),
+        }))
+    };
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|e| format!("prepare raw_history 失败：{e}"))?;
+    let rows = match max_seq {
+        None => stmt
+            .query_map([], project)
+            .map_err(|e| format!("query raw_history 失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect raw_history 失败：{e}"))?,
+        Some(m) => stmt
+            .query_map(params![m], project)
+            .map_err(|e| format!("query raw_history 失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect raw_history 失败：{e}"))?,
+    };
+    Ok(rows)
+}
+
+fn read_snapshot_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, String> {
+    let meta = db_meta(conn)?;
+    let (objects, withdrawn) = read_objects_view(conn, as_of)?;
+    // AsKnown：按「发布代际 ≤ N」过滤见证/关系/观察；raw_history 按该代输入前沿过滤。
+    let max_seq = match as_of {
+        Some(n) => Some(frontier_at_generation(conn, n)?),
+        None => None,
+    };
+
+    let wit_sql = match as_of {
+        None => {
+            "SELECT witness_id, object_id, slot, merged_source_index, merged_high, merged_low, merged_open, merged_close, raw_json FROM witnesses ORDER BY object_id, slot"
+                .to_string()
+        }
+        Some(_) => {
+            "SELECT witness_id, object_id, slot, merged_source_index, merged_high, merged_low, merged_open, merged_close, raw_json FROM witnesses WHERE published_generation <= ?1 ORDER BY object_id, slot"
+                .to_string()
+        }
+    };
+    let mut wstmt = conn
+        .prepare(&wit_sql)
         .map_err(|e| format!("prepare witnesses 失败：{e}"))?;
-    let witnesses = wstmt
-        .query_map([], |r| {
-            Ok(json!({
-                "witness_id": r.get::<_, String>(0)?,
-                "object_id": r.get::<_, String>(1)?,
-                "slot": r.get::<_, i64>(2)?.to_string(),
-                "merged_source_index": r.get::<_, i64>(3)?.to_string(),
-                "merged_high": r.get::<_, String>(4)?,
-                "merged_low": r.get::<_, String>(5)?,
-                "merged_open": r.get::<_, String>(6)?,
-                "merged_close": r.get::<_, String>(7)?,
-                "raw_bars": project_raw_bars(
-                    &json_column(r, 8, JsonShape::Array)?
-                ).map_err(|e| json_column_error(8, e))?,
-            }))
-        })
-        .map_err(|e| format!("query witnesses 失败：{e}"))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("collect witnesses 失败：{e}"))?;
+    let witness_project = |r: &rusqlite::Row<'_>| -> rusqlite::Result<Value> {
+        Ok(json!({
+            "witness_id": r.get::<_, String>(0)?,
+            "object_id": r.get::<_, String>(1)?,
+            "slot": r.get::<_, i64>(2)?.to_string(),
+            "merged_source_index": r.get::<_, i64>(3)?.to_string(),
+            "merged_high": r.get::<_, String>(4)?,
+            "merged_low": r.get::<_, String>(5)?,
+            "merged_open": r.get::<_, String>(6)?,
+            "merged_close": r.get::<_, String>(7)?,
+            "raw_bars": project_raw_bars(&json_column(r, 8, JsonShape::Array)?)
+                .map_err(|e| json_column_error(8, e))?,
+        }))
+    };
+    let witnesses = match as_of {
+        None => wstmt
+            .query_map([], witness_project)
+            .map_err(|e| format!("query witnesses 失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect witnesses 失败：{e}"))?,
+        Some(n) => wstmt
+            .query_map(params![n], witness_project)
+            .map_err(|e| format!("query witnesses 失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect witnesses 失败：{e}"))?,
+    };
 
+    let rel_sql = match as_of {
+        None => {
+            "SELECT subject, relation_type, object FROM relations ORDER BY subject, relation_type, object"
+                .to_string()
+        }
+        Some(_) => {
+            "SELECT subject, relation_type, object FROM relations WHERE published_generation <= ?1 ORDER BY subject, relation_type, object"
+                .to_string()
+        }
+    };
     let mut rstmt = conn
-        .prepare("SELECT subject, relation_type, object FROM relations ORDER BY subject, relation_type, object")
+        .prepare(&rel_sql)
         .map_err(|e| format!("prepare relations 失败：{e}"))?;
-    let relations = rstmt
-        .query_map([], |r| {
-            Ok(json!({
-                "subject": r.get::<_, String>(0)?,
-                "relation_type": r.get::<_, String>(1)?,
-                "object": r.get::<_, String>(2)?,
-            }))
-        })
-        .map_err(|e| format!("query relations 失败：{e}"))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("collect relations 失败：{e}"))?;
+    let rel_project = |r: &rusqlite::Row<'_>| -> rusqlite::Result<Value> {
+        Ok(json!({
+            "subject": r.get::<_, String>(0)?,
+            "relation_type": r.get::<_, String>(1)?,
+            "object": r.get::<_, String>(2)?,
+        }))
+    };
+    let relations = match as_of {
+        None => rstmt
+            .query_map([], rel_project)
+            .map_err(|e| format!("query relations 失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect relations 失败：{e}"))?,
+        Some(n) => rstmt
+            .query_map(params![n], rel_project)
+            .map_err(|e| format!("query relations 失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect relations 失败：{e}"))?,
+    };
 
+    let obs_sql = match as_of {
+        None => {
+            "SELECT observation_id, batch_id, kind, window_start, window_mid, window_end, reason, detail_json FROM observations ORDER BY kind, window_start"
+                .to_string()
+        }
+        Some(_) => {
+            "SELECT observation_id, batch_id, kind, window_start, window_mid, window_end, reason, detail_json FROM observations WHERE published_generation <= ?1 ORDER BY kind, window_start"
+                .to_string()
+        }
+    };
     let mut obs_stmt = conn
-        .prepare("SELECT observation_id, batch_id, kind, window_start, window_mid, window_end, reason, detail_json FROM observations ORDER BY kind, window_start")
+        .prepare(&obs_sql)
         .map_err(|e| format!("prepare observations 失败：{e}"))?;
-    let observations = obs_stmt
-        .query_map([], |r| {
-            Ok(json!({
-                "observation_id": r.get::<_, String>(0)?,
-                "batch_id": r.get::<_, String>(1)?,
-                "kind": r.get::<_, String>(2)?,
-                "window_start": r.get::<_, Option<i64>>(3)?.map(|v| v.to_string()),
-                "window_mid": r.get::<_, Option<i64>>(4)?.map(|v| v.to_string()),
-                "window_end": r.get::<_, Option<i64>>(5)?.map(|v| v.to_string()),
-                "reason": r.get::<_, String>(6)?,
-                "detail": json_column(r, 7, JsonShape::Object)?,
-            }))
-        })
-        .map_err(|e| format!("query observations 失败：{e}"))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("collect observations 失败：{e}"))?;
+    let obs_project = |r: &rusqlite::Row<'_>| -> rusqlite::Result<Value> {
+        Ok(json!({
+            "observation_id": r.get::<_, String>(0)?,
+            "batch_id": r.get::<_, String>(1)?,
+            "kind": r.get::<_, String>(2)?,
+            "window_start": r.get::<_, Option<i64>>(3)?.map(|v| v.to_string()),
+            "window_mid": r.get::<_, Option<i64>>(4)?.map(|v| v.to_string()),
+            "window_end": r.get::<_, Option<i64>>(5)?.map(|v| v.to_string()),
+            "reason": r.get::<_, String>(6)?,
+            "detail": json_column(r, 7, JsonShape::Object)?,
+        }))
+    };
+    let observations = match as_of {
+        None => obs_stmt
+            .query_map([], obs_project)
+            .map_err(|e| format!("query observations 失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect observations 失败：{e}"))?,
+        Some(n) => obs_stmt
+            .query_map(params![n], obs_project)
+            .map_err(|e| format!("query observations 失败：{e}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("collect observations 失败：{e}"))?,
+    };
 
     Ok(json!({
         "session_id": meta.get("session_id").cloned().unwrap_or_default(),
@@ -1608,17 +2336,20 @@ fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
         "index_frontier": meta.get("index_frontier").cloned().unwrap_or_default(),
         "profile_id": meta.get("profile_id").cloned().unwrap_or_default(),
         "profile_hash": meta.get("profile_hash").cloned().unwrap_or_default(),
+        "history_mode": if as_of.is_some() { "AsKnown" } else { "RecomputedWithRevision" },
+        "as_of_generation": as_of.map(|v| v.to_string()),
         "objects": objects,
+        "withdrawn_objects": withdrawn,
         "witnesses": witnesses,
         "relations": relations,
         "observations": observations,
+        "raw_history": read_raw_history(conn, max_seq)?,
     }))
 }
 
 fn cmd_catalog(db: &Path) -> Result<(), String> {
     let conn = open_db(db)?;
     ensure_initialized(&conn)?;
-    // H1：单个读事务内读同一已提交 cut（WAL 读快照）。
     let tx = conn
         .unchecked_transaction()
         .map_err(|e| format!("开读事务失败：{e}"))?;
@@ -1628,14 +2359,13 @@ fn cmd_catalog(db: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn cmd_snapshot(db: &Path) -> Result<(), String> {
+fn cmd_snapshot(db: &Path, as_of: Option<i64>) -> Result<(), String> {
     let conn = open_db(db)?;
     ensure_initialized(&conn)?;
-    // H1：单个读事务内读同一已提交 cut（WAL 读快照）。
     let tx = conn
         .unchecked_transaction()
         .map_err(|e| format!("开读事务失败：{e}"))?;
-    let out = read_snapshot_in_tx(&tx)?;
+    let out = read_snapshot_in_tx(&tx, as_of)?;
     drop(tx);
     println!("{}", out);
     Ok(())
@@ -1649,18 +2379,190 @@ fn cmd_meta(db: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// 读 structure_deltas 一行并投影为 wire 形式（整数坐标 → 规范十进制字符串）。
+fn project_delta_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
+    Ok(json!({
+        "generation": row.get::<_, i64>(0)?.to_string(),
+        "session_id": row.get::<_, String>(1)?,
+        "catalog_revision": row.get::<_, String>(2)?,
+        "base_cut": row.get::<_, String>(3)?,
+        "next_cut": row.get::<_, String>(4)?,
+        "seq_range": json_column(row, 5, JsonShape::Object)?,
+        "index_frontier": row.get::<_, String>(6)?,
+        "input_frontier": row.get::<_, i64>(7)?.to_string(),
+        "delta": json_column(row, 8, JsonShape::Object)?,
+    }))
+}
+
+fn now_nanos() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos().to_string())
+        .unwrap_or_default()
+}
+
+/// S.Watch：同源读取 S 自己持久化的 StructureDelta（base_cut/next_cut/seq_range/upsert/撤回/替代/
+/// 关系/见证/index_frontier）。重复（generation ≤ cursor）不回放；缺口显式 Gap 并给重建 cut。
+fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
+    let conn = open_db(db)?;
+    ensure_initialized(&conn)?;
+    let tx = conn
+        .unchecked_transaction()
+        .map_err(|e| format!("开读事务失败：{e}"))?;
+    let meta = db_meta(&tx)?;
+    let current_gen: i64 = meta
+        .get("generation")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    let current_cut = meta.get("structure_cut").cloned().unwrap_or_default();
+
+    let rows: Vec<Value> = {
+        let mut stmt = tx
+            .prepare(
+                "SELECT generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, index_frontier, input_frontier, delta_json FROM structure_deltas WHERE generation > ?1 ORDER BY generation ASC",
+            )
+            .map_err(|e| format!("prepare watch 失败：{e}"))?;
+        let mut q = stmt
+            .query(params![after_generation])
+            .map_err(|e| format!("query watch 失败：{e}"))?;
+        let mut out: Vec<Value> = Vec::new();
+        while let Some(row) = q.next().map_err(|e| format!("query watch 失败：{e}"))? {
+            out.push(project_delta_row(row).map_err(|e| format!("读取 delta 失败：{e}"))?);
+        }
+        out
+    };
+
+    // 缺口检测：cursor 落在 0..current 之间但 cursor+1 无 delta ⟹ Gap（重建 cut = 当前结构切面）。
+    let mut gap: Value = Value::Null;
+    if after_generation >= 0 && after_generation < current_gen {
+        let first = rows
+            .first()
+            .and_then(|d| d["generation"].as_str().and_then(|s| s.parse::<i64>().ok()))
+            .unwrap_or(current_gen + 1);
+        if first != after_generation + 1 {
+            gap = json!({
+                "reason": "cursor_stale_or_retained_delta_missing",
+                "rebuild_cut": current_cut,
+            });
+        }
+    }
+
+    drop(tx);
+    println!(
+        "{}",
+        json!({
+            "ok": true,
+            "session_id": meta.get("session_id").cloned().unwrap_or_default(),
+            "generation": current_gen.to_string(),
+            "structure_cut": current_cut,
+            "after_generation": after_generation.to_string(),
+            "gap": gap,
+            "deltas": rows,
+        })
+    );
+    Ok(())
+}
+
+/// 正式 writer 换代 / 恢复：核当前持久状态，清未决 Begin（上一 writer 已退出，门保持关闭直到本
+/// 命令合法恢复），并按 `--new-epoch` 提升 writer_epoch（与 generation 同序持久历史）。旧 epoch 进程
+/// 此后重放被 StaleWriter 拒绝。这不是「手改 SQL」——是正式入口，历史写入 writer_epoch_history。
+fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
+    let new_epoch_i: i64 = parse_canonical_i64(new_epoch, "--new-epoch")?;
+    let mut conn = open_db(db)?;
+    ensure_initialized(&conn)?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|e| format!("开 recover 事务失败：{e}"))?;
+    let cur_epoch_raw = meta_get_opt(&tx, "writer_epoch")?.unwrap_or_default();
+    let cur_epoch: i64 = parse_canonical_i64(&cur_epoch_raw, "writer_epoch")?;
+    // writer 代际只准单调上升：new_epoch 必须严格大于当前；等于/回退（含重写旧 epoch）拒绝，
+    // 避免旧 owner 借同/低 epoch 重新取得写权或清不属于该恢复的未决 Begin。
+    if new_epoch_i <= cur_epoch {
+        return Err(format!(
+            "StaleWriter：recover 换代必须严格上升（当前 writer_epoch=`{cur_epoch_raw}`，请求 `{new_epoch}`）——禁止回退/重写旧 epoch"
+        ));
+    }
+    let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_else(|| "idle".to_string());
+    let generation = meta_get_opt(&tx, "generation")?.unwrap_or_default();
+
+    // 恢复引用完整性：可达根（已发布 index_frontier）必须指向仍存在的不可变 batch；缺失即
+    // StorageUnavailable，不清理门、不换代（不把坏引用当可恢复状态）。
+    let index_frontier = meta_get_opt(&tx, "index_frontier")?.unwrap_or_default();
+    if !index_frontier.is_empty() {
+        let exists: i64 = tx
+            .query_row(
+                "SELECT COUNT(*) FROM batches WHERE batch_id=?1",
+                params![index_frontier],
+                |r| r.get(0),
+            )
+            .map_err(|e| format!("核可达根失败：{e}"))?;
+        if exists != 1 {
+            return Err(format!(
+                "StorageUnavailable：可达根 index_frontier=`{index_frontier}` 无对应不可变 batch（引用不完整，拒绝恢复/换代）"
+            ));
+        }
+    }
+
+    let mut recovered_begin: Value = Value::Null;
+    let mut state_after = state.clone();
+    if state != "idle" {
+        // 未决 Begin：清门仅在真实 epoch 换代（严格上升）下发生；不删除可达根、不伪造该 Begin 发布。
+        recovered_begin = json!({
+            "advance_state": state,
+            "resolved_to": "idle",
+            "generation_at_recovery": generation,
+        });
+        meta_set(&tx, "advance_state", "idle")?;
+        meta_set(&tx, "begin_token", "")?;
+        meta_set(
+            &tx,
+            "last_recovered_begin",
+            &format!("{state}:recovered_at_generation_{generation}"),
+        )?;
+        state_after = "idle".to_string();
+    }
+    meta_set(&tx, "writer_epoch", new_epoch)?;
+    tx.execute(
+        "INSERT INTO writer_epoch_history(from_epoch, to_epoch, generation_at_transition, advance_state_at_transition, transitioned_at) VALUES(?1, ?2, ?3, ?4, ?5)",
+        params![cur_epoch_raw, new_epoch, generation, state_after, now_nanos()],
+    )
+    .map_err(|e| format!("写 writer_epoch_history 失败：{e}"))?;
+    tx.commit()
+        .map_err(|e| format!("recover commit 失败：{e}"))?;
+
+    println!(
+        "{}",
+        json!({
+            "ok": true,
+            "previous_epoch": cur_epoch_raw,
+            "new_epoch": new_epoch,
+            "epoch_transitioned": true,
+            "recovered_begin": recovered_begin,
+            "reachable_root": {
+                "generation": generation,
+                "structure_cut": meta_get_opt(&conn, "structure_cut")?.unwrap_or_default(),
+                "index_frontier": meta_get_opt(&conn, "index_frontier")?.unwrap_or_default(),
+            },
+        })
+    );
+    Ok(())
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // CLI 分发
 // ────────────────────────────────────────────────────────────────────────────
 
 fn usage() -> String {
-    "用法：s_structure_session <init|accept|advance|catalog|snapshot|meta|reset> [参数]\n\
+    "用法：s_structure_session <init|accept|advance|catalog|snapshot|meta|watch|recover|reset> [参数]\n\
      \x20 init      --db <路径> --session <id> --catalog <catalog.json>      （只允许不存在的目标）\n\
-     \x20 accept    --db <路径> --input <输入.json> --profile <profile.json>\n\
-     \x20 advance   --db <路径>\n\
+     \x20 accept    --db <路径> --input <输入.json> --profile <profile.json> [--writer-epoch <n>]\n\
+     \x20 advance   --db <路径> [--writer-epoch <n>]\n\
      \x20 catalog   --db <路径>\n\
-     \x20 snapshot  --db <路径>\n\
+     \x20 snapshot  --db <路径> [--as-of <generation>]\n\
      \x20 meta      --db <路径>\n\
+     \x20 watch     --db <路径> --after-generation <n>\n\
+     \x20 recover   --db <路径> --new-epoch <n>\n\
      \x20 reset     --db <路径> --session <id> --catalog <catalog.json>      （一次性试验：删除并重建）\n"
         .to_string()
 }
@@ -1688,6 +2590,12 @@ fn run() -> Result<(), String> {
     let catalog = arg_value(&args, "--catalog").map(PathBuf::from);
     let input = arg_value(&args, "--input").map(PathBuf::from);
     let profile = arg_value(&args, "--profile").map(PathBuf::from);
+    let configured_epoch =
+        arg_value(&args, "--writer-epoch").unwrap_or_else(|| DEFAULT_WRITER_EPOCH.to_string());
+    let as_of = arg_value(&args, "--as-of")
+        .map(|s| parse_canonical_i64(&s, "--as-of"))
+        .transpose()?;
+    let new_epoch = arg_value(&args, "--new-epoch");
 
     match cmd {
         "init" => {
@@ -1705,12 +2613,23 @@ fn run() -> Result<(), String> {
             let d = db.ok_or("缺 --db".to_string())?;
             let i = input.ok_or("缺 --input".to_string())?;
             let p = profile.ok_or("缺 --profile".to_string())?;
-            cmd_accept(&d, &i, &p)
+            cmd_accept(&d, &i, &p, &configured_epoch)
         }
-        "advance" => cmd_advance(&db.ok_or("缺 --db".to_string())?),
+        "advance" => cmd_advance(&db.ok_or("缺 --db".to_string())?, &configured_epoch),
         "catalog" => cmd_catalog(&db.ok_or("缺 --db".to_string())?),
-        "snapshot" => cmd_snapshot(&db.ok_or("缺 --db".to_string())?),
+        "snapshot" => cmd_snapshot(&db.ok_or("缺 --db".to_string())?, as_of),
         "meta" => cmd_meta(&db.ok_or("缺 --db".to_string())?),
+        "watch" => {
+            let after = arg_value(&args, "--after-generation")
+                .map(|s| parse_canonical_i64(&s, "--after-generation"))
+                .transpose()?
+                .unwrap_or(-1);
+            cmd_watch(&db.ok_or("缺 --db".to_string())?, after)
+        }
+        "recover" => {
+            let n = new_epoch.ok_or("recover 缺 --new-epoch".to_string())?;
+            cmd_recover(&db.ok_or("缺 --db".to_string())?, &n)
+        }
         other => Err(format!("未知子命令 {other}\n{}", usage())),
     }
 }
@@ -1740,7 +2659,7 @@ mod tests {
                 .as_nanos();
             let number = NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed);
             let path =
-                std::env::temp_dir().join(format!("s1370-{}-{stamp}-{number}", std::process::id()));
+                std::env::temp_dir().join(format!("s1371-{}-{stamp}-{number}", std::process::id()));
             std::fs::create_dir(&path).unwrap();
             Self(path)
         }
@@ -1774,10 +2693,60 @@ mod tests {
     }
 
     fn set_test_begin(conn: &Connection) {
-        meta_set(conn, "writer_epoch", WRITER_EPOCH).unwrap();
+        meta_set(conn, "writer_epoch", DEFAULT_WRITER_EPOCH).unwrap();
         meta_set(conn, "generation", "0").unwrap();
         meta_set(conn, "advance_state", "begun:owned:1:6").unwrap();
         meta_set(conn, "begin_token", "owned").unwrap();
+    }
+
+    fn ev(id: &str, rev: &str, seq: &str, price: &str) -> Value {
+        json!({
+            "event_id": id,
+            "revision": rev,
+            "seq": seq,
+            "received_at": "2026-09-09T00:00:00.000Z",
+            "raw_text": price,
+            "price": price,
+            "timestamp": seq,
+            "volume": "1",
+        })
+    }
+
+    fn test_input(events: &[Value]) -> Value {
+        json!({
+            "schema_revision": "1",
+            "session_id": "s-session-testonly-001",
+            "source_namespace": "testonly.tick.ohlc",
+            "source_epoch": "1",
+            "instrument": "TEST.TICK",
+            "profile": "testonly_tick_1_1_ohlc",
+            "events": events,
+        })
+    }
+
+    fn write_input(files: &TestFiles, name: &str, value: &Value) -> std::path::PathBuf {
+        let p = files.0.join(name);
+        std::fs::write(&p, value.to_string()).unwrap();
+        p
+    }
+
+    fn accept(files: &TestFiles, value: &Value, name: &str, epoch: &str) {
+        let p = write_input(files, name, value);
+        cmd_accept(
+            &files.db(),
+            &p,
+            &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+            epoch,
+        )
+        .unwrap();
+    }
+
+    fn snapshot_of(files: &TestFiles, as_of: Option<i64>) -> Value {
+        let conn = open_db(&files.db()).unwrap();
+        let tx = conn.unchecked_transaction().unwrap();
+        let out = read_snapshot_in_tx(&tx, as_of).unwrap();
+        drop(tx);
+        out
     }
 
     #[test]
@@ -1825,7 +2794,8 @@ mod tests {
         set_test_begin(&conn);
         let bytes = br#"{"objects":[],"raw_events":[],"scope":"test-phase-boundary"}"#;
         let id = format!("batch-{}", sha256_hex(bytes));
-        persist_batch_before_publish(&mut conn, "owned", 1, 6, &id, bytes).unwrap();
+        persist_batch_before_publish(&mut conn, "owned", 1, 6, &id, bytes, DEFAULT_WRITER_EPOCH)
+            .unwrap();
         let reader =
             Connection::open_with_flags(&files.db(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
                 .unwrap();
@@ -1842,14 +2812,32 @@ mod tests {
             meta_get_opt(&reader, "advance_state").unwrap().as_deref(),
             Some("begun:owned:1:6")
         );
-        assert!(persist_batch_before_publish(&mut conn, "owned", 1, 6, &id, b"changed").is_err());
+        assert!(persist_batch_before_publish(
+            &mut conn,
+            "owned",
+            1,
+            6,
+            &id,
+            b"changed",
+            DEFAULT_WRITER_EPOCH
+        )
+        .is_err());
         verify_batch_bytes(&reader, &id, bytes).unwrap();
         conn.execute(
             "UPDATE batches SET canonical_bytes=?1 WHERE batch_id=?2",
             params![b"corrupt".as_slice(), id],
         )
         .unwrap();
-        assert!(persist_batch_before_publish(&mut conn, "owned", 1, 6, &id, bytes).is_err());
+        assert!(persist_batch_before_publish(
+            &mut conn,
+            "owned",
+            1,
+            6,
+            &id,
+            bytes,
+            DEFAULT_WRITER_EPOCH
+        )
+        .is_err());
         assert_eq!(
             meta_get_opt(&reader, "structure_cut").unwrap().as_deref(),
             Some("cut-0")
@@ -1869,16 +2857,16 @@ mod tests {
             set_test_begin(&conn);
             meta_set(&conn, key, value).unwrap();
             let before = db_meta(&conn);
-            assert!(!cancel_own_begin(&mut conn, "owned", 1, 6).unwrap());
+            assert!(!cancel_own_begin(&mut conn, "owned", 1, 6, DEFAULT_WRITER_EPOCH).unwrap());
             assert_eq!(db_meta(&conn), before);
         }
         set_test_begin(&conn);
-        assert!(cancel_own_begin(&mut conn, "owned", 1, 6).unwrap());
+        assert!(cancel_own_begin(&mut conn, "owned", 1, 6, DEFAULT_WRITER_EPOCH).unwrap());
         assert_eq!(
             meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
             Some("idle")
         );
-        assert!(!cancel_own_begin(&mut conn, "owned", 1, 6).unwrap());
+        assert!(!cancel_own_begin(&mut conn, "owned", 1, 6, DEFAULT_WRITER_EPOCH).unwrap());
     }
 
     #[test]
@@ -1892,6 +2880,7 @@ mod tests {
             &files.db(),
             &fixture("inputs/cc006_four_branch.json"),
             &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+            DEFAULT_WRITER_EPOCH,
         )
         .unwrap_err();
         assert!(error.contains("StaleWriter"));
@@ -1910,8 +2899,8 @@ mod tests {
         init_test_db(&files);
         let input = fixture("inputs/cc006_four_branch.json");
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
-        cmd_accept(&files.db(), &input, &profile).unwrap();
-        cmd_advance(&files.db()).unwrap();
+        cmd_accept(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         let before = db_meta(&conn);
         let mut altered: Value =
@@ -1919,11 +2908,13 @@ mod tests {
         altered["note"] = json!("same profile_id, different canonical content");
         let other = files.0.join("changed-profile.json");
         std::fs::write(&other, altered.to_string()).unwrap();
-        assert!(cmd_accept(&files.db(), &input, &other)
-            .unwrap_err()
-            .contains("IdentityConflict"));
+        assert!(
+            cmd_accept(&files.db(), &input, &other, DEFAULT_WRITER_EPOCH)
+                .unwrap_err()
+                .contains("IdentityConflict")
+        );
         assert_eq!(db_meta(&conn), before);
-        cmd_accept(&files.db(), &input, &profile).unwrap();
+        cmd_accept(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH).unwrap();
         assert_eq!(db_meta(&conn), before);
     }
 
@@ -1947,11 +2938,12 @@ mod tests {
             &files.db(),
             &source,
             &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+            DEFAULT_WRITER_EPOCH,
         )
         .unwrap();
-        cmd_advance(&files.db()).unwrap();
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
-        let snapshot = read_snapshot_in_tx(&conn).unwrap();
+        let snapshot = read_snapshot_in_tx(&conn, None).unwrap();
         assert!(snapshot["objects"].as_array().unwrap().is_empty());
         assert_eq!(snapshot["observations"].as_array().unwrap().len(), 1);
         assert_eq!(
@@ -1960,7 +2952,7 @@ mod tests {
         );
         conn.execute("UPDATE observations SET detail_json='{'", [])
             .unwrap();
-        assert!(read_snapshot_in_tx(&conn).is_err());
+        assert!(read_snapshot_in_tx(&conn, None).is_err());
         conn.execute(
             "UPDATE catalog SET branches_json='null' WHERE catalog_id='CC-006'",
             [],
@@ -1992,7 +2984,6 @@ mod tests {
         );
     }
 
-    /// 规范十进制整数：拒绝 `+`、空白、前导零、`-0`；接受 `0` 与常规整数。
     #[test]
     fn canonical_integer_rejects_non_canonical() {
         assert!(is_canonical_integer("0"));
@@ -2008,8 +2999,6 @@ mod tests {
         assert!(parse_canonical_i64("+0010000", "x").is_err());
     }
 
-    /// WIRE：input_refs 的 merged_index 与 raw_refs[].seq、raw_bars[].seq 投影为规范十进制字符串；
-    /// 其它字段（身份/价格/字符串）原样，不全局改写。
     #[test]
     fn wire_projection_stringifies_coordinates_and_seq() {
         let refs = json!([
@@ -2030,7 +3019,498 @@ mod tests {
         assert_eq!(pbars[0]["seq"], json!("9007199254740993"));
         assert_eq!(pbars[0]["price"], json!("10000"));
 
-        // number 与字符串区分：未投影的字段仍是字符串/原值，不把价格等误转。
         assert_eq!(projected[0]["raw_refs"][0]["source_coord"], json!("0"));
+    }
+
+    // ── #1371 TB-01-B 新测试 ──
+
+    /// 核心轨迹：e0/e1/e2=10000/11000/10500 先 TOP；e2 新 revision=11500 撤 TOP 成 RISING；追加 e3=10800
+    /// 成新 TOP。旧 TOP 保留原身份/first_known/发生区间/撤回理由；as_of 回看 AsKnown 不提前出现。
+    #[test]
+    fn correction_revision_chain_withdraws_top_then_rising_then_new_top() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let s1 = snapshot_of(&files, None);
+        assert_eq!(s1["generation"], json!("1"));
+        assert_eq!(s1["history_mode"], json!("RecomputedWithRevision"));
+        let objs1 = s1["objects"].as_array().unwrap();
+        assert_eq!(objs1.len(), 1);
+        assert_eq!(objs1[0]["branch"], json!("TOP"));
+        assert_eq!(objs1[0]["source_coords"], json!(["0", "1", "2"]));
+        assert_eq!(objs1[0]["first_known_generation"], json!("1"));
+        assert_eq!(objs1[0]["lifecycle"], json!("active"));
+        let old_top_id = objs1[0]["object_id"].as_str().unwrap().to_string();
+
+        // 更正：e2 新 revision=2 → 11500（合法修订链，supersedes revision 1）。
+        accept(
+            &files,
+            &test_input(&[ev("e2", "2", "2", "11500")]),
+            "in2.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let s2 = snapshot_of(&files, None);
+        assert_eq!(s2["generation"], json!("2"));
+        let active2 = s2["objects"].as_array().unwrap();
+        assert_eq!(active2.len(), 1);
+        assert_eq!(active2[0]["branch"], json!("RISING"));
+        let withdrawn2 = s2["withdrawn_objects"].as_array().unwrap();
+        assert_eq!(withdrawn2.len(), 1);
+        assert_eq!(withdrawn2[0]["object_id"].as_str().unwrap(), old_top_id);
+        assert_eq!(withdrawn2[0]["branch"], json!("TOP"));
+        assert_eq!(withdrawn2[0]["lifecycle"], json!("withdrawn"));
+        assert_eq!(
+            withdrawn2[0]["withdrawal_reason"],
+            json!("superseded_by_revision")
+        );
+        assert_eq!(
+            withdrawn2[0]["superseded_by"].as_str().unwrap(),
+            active2[0]["object_id"].as_str().unwrap()
+        );
+        // 旧 TOP 原身份/first_known/发生区间不丢。
+        assert_eq!(withdrawn2[0]["first_known_generation"], json!("1"));
+        assert_eq!(withdrawn2[0]["source_coords"], json!(["0", "1", "2"]));
+
+        // 追加 e3=10800 成新 TOP（[1,2,3]）。
+        accept(
+            &files,
+            &test_input(&[ev("e3", "1", "3", "10800")]),
+            "in3.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let s3 = snapshot_of(&files, None);
+        assert_eq!(s3["generation"], json!("3"));
+        let active3 = s3["objects"].as_array().unwrap();
+        assert_eq!(active3.len(), 2);
+        let branches3: Vec<&str> = active3
+            .iter()
+            .map(|o| o["branch"].as_str().unwrap())
+            .collect();
+        assert_eq!(branches3, vec!["RISING", "TOP"]);
+        let top3 = active3.iter().find(|o| o["branch"] == "TOP").unwrap();
+        assert_eq!(top3["source_coords"], json!(["1", "2", "3"]));
+        assert_eq!(top3["first_known_generation"], json!("3"));
+        let w3 = s3["withdrawn_objects"].as_array().unwrap();
+        assert_eq!(w3.len(), 1);
+
+        // AsKnown 回看 generation 1：只有旧 TOP，不提前出现 RISING / 新 TOP。
+        let a1 = snapshot_of(&files, Some(1));
+        assert_eq!(a1["history_mode"], json!("AsKnown"));
+        assert_eq!(a1["as_of_generation"], json!("1"));
+        let a1o = a1["objects"].as_array().unwrap();
+        assert_eq!(a1o.len(), 1);
+        assert_eq!(a1o[0]["branch"], json!("TOP"));
+        assert_eq!(a1o[0]["object_id"].as_str().unwrap(), old_top_id);
+
+        // 源修订链：raw_history 含 e2 两个 revision 与 supersedes 关系。
+        let rh = s3["raw_history"].as_array().unwrap();
+        let e2_rows: Vec<&Value> = rh.iter().filter(|r| r["event_id"] == "e2").collect();
+        assert_eq!(e2_rows.len(), 2);
+        let rev2 = e2_rows.iter().find(|r| r["revision"] == "2").unwrap();
+        assert_eq!(rev2["supersedes_revision"], json!("1"));
+        // 有效源位置仍 4 个（不把晚到新版当第五 tick）——对象窗口源坐标覆盖 0..3。
+        let rels = s3["relations"].as_array().unwrap();
+        assert!(rels.iter().any(|r| r["relation_type"] == "replaces"));
+        assert!(rels.iter().any(|r| r["relation_type"] == "supersedes"));
+    }
+
+    #[test]
+    fn revision_replay_conflict_and_old_version_no_revive() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let p = write_input(
+            &files,
+            "a.json",
+            &test_input(&[ev("e2", "1", "2", "10500")]),
+        );
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        let out1 = cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        // 同 revision 同内容 → replay（原收据）。
+        let out2 = cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        // 同 revision 异内容 → IdentityConflict。
+        let c = write_input(&files, "c.json", &test_input(&[ev("e2", "1", "2", "9999")]));
+        let out3 = cmd_accept(&files.db(), &c, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        // 新 revision → accepted + supersedes。
+        let r2 = write_input(
+            &files,
+            "r2.json",
+            &test_input(&[ev("e2", "2", "2", "11500")]),
+        );
+        let out4 = cmd_accept(&files.db(), &r2, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        // 旧版重放 → replay（不复活、不改有效值）。
+        let out5 = cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+
+        let _ = (out1, out2, out3, out4, out5);
+
+        let conn = open_db(&files.db()).unwrap();
+        let all = read_raw_events(&conn).unwrap();
+        assert_eq!(all.len(), 2);
+        let effective = read_effective_events(&all);
+        assert_eq!(effective.len(), 1);
+        assert_eq!(effective[0]["price"], json!("11500"));
+    }
+
+    #[test]
+    fn out_of_order_late_revision_rejected() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        let r2 = write_input(
+            &files,
+            "r2.json",
+            &test_input(&[ev("e2", "2", "2", "11500")]),
+        );
+        cmd_accept(&files.db(), &r2, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        // 更低 revision 晚到（已见 rev 2）→ InvalidDomain，不新接纳。
+        let r1 = write_input(
+            &files,
+            "r1.json",
+            &test_input(&[ev("e2", "1", "2", "10500")]),
+        );
+        cmd_accept(&files.db(), &r1, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        let all = read_raw_events(&conn).unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0]["revision"], json!(2));
+    }
+
+    #[test]
+    fn writer_epoch_transition_rejects_old_writer_and_recovers_pending_begin() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+
+        // 正式换代到 epoch 2（recover：advance_state 为 idle 时仅提升 epoch）。
+        cmd_recover(&files.db(), "2").unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "writer_epoch").unwrap().as_deref(),
+            Some("2")
+        );
+
+        // 旧 epoch 进程重放 accept / advance → StaleWriter（零写入）。
+        let extra = test_input(&[ev("e3", "1", "3", "10800")]);
+        let ep = write_input(&files, "e3.json", &extra);
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        assert!(cmd_accept(&files.db(), &ep, &profile, "1")
+            .unwrap_err()
+            .contains("StaleWriter"));
+        assert!(cmd_advance(&files.db(), "1")
+            .unwrap_err()
+            .contains("StaleWriter"));
+        // 新 epoch 进程成功。
+        cmd_accept(&files.db(), &ep, &profile, "2").unwrap();
+        cmd_advance(&files.db(), "2").unwrap();
+    }
+
+    #[test]
+    fn watch_returns_ordered_delta_and_gap_detection() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept(
+            &files,
+            &test_input(&[ev("e2", "2", "2", "11500")]),
+            "in2.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+
+        let conn = open_db(&files.db()).unwrap();
+        // 从 0 起读全部 delta。
+        let mut stmt = conn
+            .prepare("SELECT delta_json FROM structure_deltas WHERE generation > 0 ORDER BY generation ASC")
+            .unwrap();
+        let rows: Vec<String> = stmt
+            .query_map([], |r| r.get::<_, String>(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(rows.len(), 2);
+        let d2: Value = serde_json::from_str(&rows[1]).unwrap();
+        assert_eq!(d2["generation"], json!("2"));
+        assert_eq!(d2["base_cut"], json!("cut-1"));
+        assert_eq!(d2["next_cut"], json!("cut-2"));
+        assert_eq!(d2["withdrawals"].as_array().unwrap().len(), 1);
+        assert_eq!(d2["replaces"].as_array().unwrap().len(), 1);
+        assert_eq!(d2["upserts"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn recover_clears_pending_begin_and_keeps_reachable_root() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        // 模拟真实 SIGKILL 后的未决 Begin（与 cmd_advance Begin 提交后状态一致）。
+        let conn = open_db(&files.db()).unwrap();
+        meta_set(&conn, "advance_state", "begun:dead:1:2").unwrap();
+        meta_set(&conn, "begin_token", "dead").unwrap();
+        assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+            .unwrap_err()
+            .contains("StaleWriter"));
+
+        cmd_recover(&files.db(), "2").unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
+            Some("idle")
+        );
+        assert_eq!(
+            meta_get_opt(&conn, "generation").unwrap().as_deref(),
+            Some("0")
+        );
+        assert_eq!(
+            meta_get_opt(&conn, "structure_cut").unwrap().as_deref(),
+            Some("cut-0")
+        );
+        // 恢复后新 writer 合法推进。
+        cmd_advance(&files.db(), "2").unwrap();
+        let s = snapshot_of(&files, None);
+        assert_eq!(s["generation"], json!("1"));
+        assert_eq!(s["objects"].as_array().unwrap().len(), 1);
+    }
+    #[test]
+    fn as_known_cut_filters_all_fields_and_no_premature_top() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        // 缺右邻：仅两点 → 无 TOP，只有知识不足观察。
+        accept(
+            &files,
+            &test_input(&[ev("e0", "1", "0", "10000"), ev("e1", "1", "1", "11000")]),
+            "p2.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let s1 = snapshot_of(&files, None);
+        assert_eq!(s1["generation"], json!("1"));
+        assert!(s1["objects"].as_array().unwrap().is_empty());
+        assert_eq!(
+            s1["observations"][0]["reason"],
+            json!("fewer_than_three_bars")
+        );
+        assert_eq!(s1["raw_history"].as_array().unwrap().len(), 2);
+        assert!(s1["witnesses"].as_array().unwrap().is_empty());
+        assert!(s1["relations"].as_array().unwrap().is_empty());
+
+        // 形成 TOP，再更正撤回，再追加新 TOP。
+        accept(
+            &files,
+            &test_input(&[ev("e2", "1", "2", "10500")]),
+            "e2.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept(
+            &files,
+            &test_input(&[ev("e2", "2", "2", "11500")]),
+            "e2c.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept(
+            &files,
+            &test_input(&[ev("e3", "1", "3", "10800")]),
+            "e3.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+
+        // AsKnown gen2（TOP 刚形成）：raw_history 只 3 条，无 replaces/supersedes，对象 active 且无撤回元数据。
+        let a2 = snapshot_of(&files, Some(2));
+        assert_eq!(a2["history_mode"], json!("AsKnown"));
+        assert_eq!(a2["raw_history"].as_array().unwrap().len(), 3);
+        let a2o = a2["objects"].as_array().unwrap();
+        assert_eq!(a2o.len(), 1);
+        assert_eq!(a2o[0]["branch"], json!("TOP"));
+        assert_eq!(a2o[0]["lifecycle"], json!("active"));
+        assert_eq!(a2o[0]["withdrawn_generation"], Value::Null);
+        assert!(a2["relations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|r| r["relation_type"] != "replaces" && r["relation_type"] != "supersedes"));
+        assert!(a2["withdrawn_objects"].as_array().unwrap().is_empty());
+
+        // AsKnown gen3（更正后）：撤旧 + RISING；raw_history 4 条，含 replaces + supersedes。
+        let a3 = snapshot_of(&files, Some(3));
+        assert_eq!(a3["raw_history"].as_array().unwrap().len(), 4);
+        assert_eq!(a3["objects"][0]["branch"], json!("RISING"));
+        assert_eq!(a3["withdrawn_objects"][0]["branch"], json!("TOP"));
+        let rel_types: Vec<&str> = a3["relations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["relation_type"].as_str().unwrap())
+            .collect();
+        assert!(rel_types.contains(&"replaces"));
+        assert!(rel_types.contains(&"supersedes"));
+
+        // 当前 cut（gen4）：两点缺右邻时的 insufficient_knowledge 观察仍在历史。
+        let cur = snapshot_of(&files, None);
+        assert_eq!(cur["generation"], json!("4"));
+        assert_eq!(cur["raw_history"].as_array().unwrap().len(), 5);
+        assert!(cur["observations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|o| o["reason"] == "fewer_than_three_bars"));
+    }
+
+    #[test]
+    fn recover_requires_strictly_increasing_epoch() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        cmd_recover(&files.db(), "2").unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "writer_epoch").unwrap().as_deref(),
+            Some("2")
+        );
+        // 同 epoch / 回退 epoch 均拒绝，不重写旧 epoch。
+        assert!(cmd_recover(&files.db(), "2")
+            .unwrap_err()
+            .contains("StaleWriter"));
+        assert!(cmd_recover(&files.db(), "1")
+            .unwrap_err()
+            .contains("StaleWriter"));
+        assert_eq!(
+            meta_get_opt(&conn, "writer_epoch").unwrap().as_deref(),
+            Some("2")
+        );
+        // 旧 epoch 进程写入拒绝，新 epoch 成功。
+        let e3 = test_input(&[ev("e3", "1", "3", "10800")]);
+        let p = write_input(&files, "e3.json", &e3);
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        assert!(cmd_accept(&files.db(), &p, &profile, "1")
+            .unwrap_err()
+            .contains("StaleWriter"));
+        cmd_accept(&files.db(), &p, &profile, "2").unwrap();
+        cmd_advance(&files.db(), "2").unwrap();
+        let s = snapshot_of(&files, None);
+        assert_eq!(s["generation"], json!("2"));
+    }
+
+    #[test]
+    fn bigint_source_coords_and_revisions_roundtrip_wire() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let big_seqs = [
+            "9007199254741000",
+            "9007199254741001",
+            "9007199254741002",
+            "9007199254741003",
+        ];
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", big_seqs[0], "10000"),
+                ev("e1", "1", big_seqs[1], "11000"),
+                ev("e2", "9007199254740993", big_seqs[2], "10500"),
+            ]),
+            "big1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept(
+            &files,
+            &test_input(&[ev("e2", "9007199254740994", big_seqs[2], "11500")]),
+            "big2.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept(
+            &files,
+            &test_input(&[ev("e3", "1", big_seqs[3], "10800")]),
+            "big3.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+
+        let s = snapshot_of(&files, None);
+        let rh = s["raw_history"].as_array().unwrap();
+        assert_eq!(rh.len(), 5);
+        let e2rev2 = rh
+            .iter()
+            .find(|r| r["revision"] == "9007199254740994")
+            .unwrap();
+        assert_eq!(e2rev2["supersedes_revision"], json!("9007199254740993"));
+        assert_eq!(e2rev2["source_coord"], json!("9007199254741002"));
+        // wire：整数坐标/版本都是规范十进制字符串，不静默舍入。
+        for r in rh {
+            assert!(r["revision"].is_string());
+            assert!(r["seq"].is_string());
+            assert!(r["source_coord"].is_string());
+        }
+        let active = s["objects"].as_array().unwrap();
+        assert_eq!(active.len(), 2);
+        assert_eq!(
+            active[0]["source_coords"],
+            json!(["9007199254741000", "9007199254741001", "9007199254741002"])
+        );
+        assert_eq!(
+            active[1]["source_coords"],
+            json!(["9007199254741001", "9007199254741002", "9007199254741003"])
+        );
+        for o in active {
+            for g in o["input_refs"].as_array().unwrap() {
+                assert!(g["merged_index"].is_string());
+                for rr in g["raw_refs"].as_array().unwrap() {
+                    assert!(rr["seq"].is_string());
+                    assert!(rr["revision"].is_string());
+                }
+            }
+        }
     }
 }

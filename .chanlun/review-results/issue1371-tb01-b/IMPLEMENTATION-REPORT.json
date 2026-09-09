@@ -1,0 +1,95 @@
+{
+  "ticket": 1371,
+  "slice": "TB-01-B",
+  "branch": "codex/1323-tb01-b-1371",
+  "baseline": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+  "number_declaration": "本提交中的 #1371 仅指 GitHub Issue。",
+  "status": "IMPLEMENTED_READY_FOR_INDEPENDENT_REVIEW",
+  "platform": "linux-aarch64-container",
+  "rustc": "1.97.1",
+  "sqlite": "3.53.2 (bundled libsqlite3-sys 0.38.2)",
+  "scope_note": "本报告是工作草稿，不是独立评审；COMPLETE 只表示返回，不表示根验或整图通过。",
+  "files_changed": [
+    "rust/src/bin/s_structure_session.rs",
+    "s_session/s_readonly_server.py",
+    "s_session/browser/index.html",
+    "s_session/launch_s.sh"
+  ],
+  "file_sha256": {
+    "rust/src/bin/s_structure_session.rs": "0c110dbea358cbbfaafcc3759cd2b5d9931ae6b2e045b88d070ef18812b638b7",
+    "s_session/s_readonly_server.py": "db8998936c5719539e672a453ac2c1b942e84a46baa87bf7d889edf675b147f5",
+    "s_session/browser/index.html": "5c311db8a9f3577379a7719289b68d34cddc72aa365014fe5573afa3a9bf42f0",
+    "s_session/launch_s.sh": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d"
+  },
+  "catalog_sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",
+  "profile_sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc",
+  "binary_sha256": "3daf4e5f30bb3c75b7c1fdf1bf9ce327dba074c50b5912d5306dc03b04571a3e",
+  "checks": {
+    "cargo_fmt_check": 0,
+    "cargo_check": 0,
+    "cargo_clippy_own_hits": 0,
+    "bin_tests": "18 passed / 0 failed",
+    "lib_local_shape_oracle": "4 passed"
+  },
+  "trajectory": {
+    "top_formed": "e0/e1/e2=10000/11000/10500 -> TOP@[0,1,2] (generation 1)",
+    "correction": "e2 revision=2 -> 11500, supersedes_revision=1 -> RISING@[0,1,2] + withdraw TOP@[0,1,2]",
+    "append": "e3=10800 -> TOP@[1,2,3]",
+    "late_arm": "e0/e1/e2/e3 first then e2 correction: TOP/BOTTOM -> RISING/TOP, still 4 effective source positions",
+    "missing_right_neighbor": "prefix 2 points -> no TOP, insufficient_knowledge (fewer_than_three_bars)"
+  },
+  "sigkill": [
+    {
+      "stage": "after_begin",
+      "pid": "captured",
+      "signal": "SIGKILL",
+      "wait_exit": -9,
+      "after": {
+        "generation": "0",
+        "batches": 0,
+        "cut": "cut-0",
+        "advance_state": "begun:*"
+      }
+    },
+    {
+      "stage": "after_batch",
+      "signal": "SIGKILL",
+      "wait_exit": -9,
+      "after": {
+        "generation": "0",
+        "batches": 1,
+        "cut": "cut-0",
+        "advance_state": "begun:*"
+      }
+    },
+    {
+      "stage": "after_commit",
+      "signal": "SIGKILL",
+      "wait_exit": -9,
+      "after": {
+        "generation": "1",
+        "batches": 1,
+        "cut": "cut-1",
+        "advance_state": "idle"
+      }
+    }
+  ],
+  "recovery": "recover --new-epoch (strictly increasing) clears pending Begin + promotes epoch; old epoch rejected; new writer advance converges to TOP",
+  "epoch_monotonic": {
+    "1_to_2": "ok",
+    "2_to_2_same": "rejected (exit 1)",
+    "2_to_1_downgrade": "rejected (exit 1)",
+    "old_epoch_write": "rejected (StaleWriter, exit 1, zero writes)"
+  },
+  "delta_snapshot_parity": "Node applyStream + canonicalFieldCompare: objects/withdrawn/witnesses/relations/observations/raw_history field-by-field equal (PASS)",
+  "bigint_wire": "source coords 9007199254741000-1003, revisions 9007199254740993/994 round-trip as exact decimal strings",
+  "storage_unavailable": "corrupt db -> accept/advance/meta exit 1 'file is not a database'; python /api/state HTTP 503 StorageUnavailable",
+  "not_run": [
+    "real GUI browser DOM rendering (no chromium/firefox in container); reproducible commands provided",
+    "macOS native build / fullfsync (Linux container only)",
+    "bigint wire through actual browser DOM",
+    "full cargo test / full history replay",
+    "pagination/retention/expiry pressure matrix (TB-01-C)",
+    "economic plan/delivered/maybe-called/filled responsibility assignment (later TB)"
+  ]
+}

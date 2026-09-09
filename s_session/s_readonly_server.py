@@ -1,21 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""#1370 TB-01-A：S 正式结构会话的只读查询外壳（前端查询外壳，独立只读进程）。
+"""#1371 TB-01-B：S 正式结构会话的只读查询外壳（前端查询外壳，独立只读进程）。
 
-C09.1：核心判断用 Rust；本进程只读 S 自己的 SQLite（`mode=ro`），承担协议与展示适配。
-读端只读已提交 cut——不把文件存在、消息到达或内存对象当持久成功；本进程只 SELECT，
-不写入、不重算结构、不选择操作级别、不推算经济资格。
-
-- PY-H01：只读连接用 URI 编码的文件 URI（`Path.as_uri()` 对 `?`/`#`/`%` 正确转义），
-  并加 `PRAGMA query_only=ON` 连接级防线——指定库的路径不会被截断成别的库。
-- PY-M01 / R1-M01 / R1-M02：所有数据库读取、JSON 解码、JSON 序列化与 UTF-8 编码都在
-  请求边界内完成并返回结构化 5xx；坏 `scope`/BLOB 值/孤立 surrogate 不再被吞成成功空值，
-  也不越过 HTTP 错误边界裸断连。
-- H1：每个 API 响应在单个读事务内读取同一已提交 cut（WAL 读快照），不跨查询拼状态。
-
-用法：
-  python3 s_readonly_server.py --db <S自己的.sqlite> --port 8787 \
-      --browser s_session/browser/index.html
+在 #1370 TB-01-A 已合的只读外壳之上补齐 B 片：修订历史（raw_history / withdrawn_objects /
+supersedes / replaces）、AsKnown（`?as_of=`）与 RecomputedWithRevision（默认）、同源 Watch
+（`/api/delta?after_generation=`）。本进程仍只读 S 自己的 SQLite（`mode=ro`），不写、不重算结构、
+不选择操作级别、不推算经济资格；坏持久值/损坏库准确 StorageUnavailable，不吞成成功空值。
 """
 
 import argparse
@@ -45,22 +35,24 @@ def meta_dict(conn):
 
 
 def _scope(meta):
-    """scope 字段：缺失 → 空对象（兼容缺项）；存在但损坏 → 抛出（进入 503 边界，不吞成 {}）。"""
     if "scope" not in meta:
         return {}
-    # 坏 JSON / BLOB 等类型错误都向上抛，由请求边界转结构化 5xx。
     return _json_field(meta["scope"], dict)
 
 
 def _num_to_str(v):
-    """与 Rust 的持久 i64 同域；损坏值不经 str() 冒充成功整数。"""
     if type(v) is not int or not -(2**63) <= v < 2**63:
         raise ValueError("持久整数必须是 i64，不能是浮点、布尔、空值或文本")
     return str(v)
 
 
+def _num_or_none_to_str(v):
+    if v is None:
+        return None
+    return _num_to_str(v)
+
+
 def _json_field(text, expected):
-    """已存在的持久 JSON 必须符合声明形状，缺失/损坏不能补成空结果。"""
     if not isinstance(text, str):
         raise ValueError("持久 JSON 必须是文本")
     value = json.loads(text)
@@ -70,7 +62,6 @@ def _json_field(text, expected):
 
 
 def _project_input_refs(refs):
-    """objects[].input_refs：merged_index（结构坐标）与 raw_refs[].seq（接纳序）→ 字符串。"""
     if not isinstance(refs, list):
         raise ValueError("input_refs 必须是数组")
     out = []
@@ -85,6 +76,8 @@ def _project_input_refs(refs):
                 raise ValueError("raw_refs 成员必须是对象")
             item = dict(item)
             item["seq"] = _num_to_str(item.get("seq"))
+            if "revision" in item:
+                item["revision"] = _num_to_str(item.get("revision"))
             projected_refs.append(item)
         g["raw_refs"] = projected_refs
         out.append(g)
@@ -92,7 +85,6 @@ def _project_input_refs(refs):
 
 
 def _project_raw_bars(bars):
-    """witnesses[].raw_bars：seq（接纳序）→ 字符串。"""
     if not isinstance(bars, list):
         raise ValueError("raw_bars 必须是数组")
     out = []
@@ -101,12 +93,13 @@ def _project_raw_bars(bars):
             raise ValueError("raw_bars 成员必须是对象")
         b = dict(b)
         b["seq"] = _num_to_str(b.get("seq"))
+        if "revision" in b:
+            b["revision"] = _num_to_str(b.get("revision"))
         out.append(b)
     return out
 
 
 def read_catalog(conn):
-    """在调用方已开启的读事务内读取目录。"""
     meta = meta_dict(conn)
     rows = []
     for (cid, kind, title, domain, branches_json, impl, proof, run, evidence_json) in conn.execute(
@@ -140,34 +133,90 @@ def read_catalog(conn):
     }
 
 
-def read_snapshot(conn):
-    """在调用方已开启的读事务内读取快照。"""
+_OBJECT_COLS = (
+    "object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, "
+    "window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, "
+    "first_known_generation, first_known_cut, published_generation, withdrawn_generation, "
+    "withdrawal_reason, superseded_by"
+)
+
+
+def _project_object_row(row, as_of=None):
+    (oid, orev, kind, batch_id, branch, dir_ab, dir_bc, ws, wm, we, cmp_json, refs_json,
+     sc_json, fkg, fkc, pg, wg, wr, sb) = row
+    # AsKnown：若对象在 as_of 之后才撤回（withdrawn_generation > as_of），按当时仍活动投影，
+    # 不把后来的撤回元数据倒填到旧 cut。
+    effective_wg = wg
+    if as_of is not None and wg is not None and wg > as_of:
+        effective_wg = None
+    return {
+        "object_id": oid,
+        "object_revision": _num_to_str(orev),
+        "kind": kind,
+        "batch_id": batch_id,
+        "branch": branch,
+        "dir_ab": dir_ab,
+        "dir_bc": dir_bc,
+        "window_start": _num_to_str(ws),
+        "window_mid": _num_to_str(wm),
+        "window_end": _num_to_str(we),
+        "comparisons": _json_field(cmp_json, list),
+        "input_refs": _project_input_refs(_json_field(refs_json, list)),
+        "source_coords": _json_field(sc_json, list),
+        "first_known_generation": _num_to_str(fkg),
+        "first_known_cut": fkc,
+        "published_generation": _num_to_str(pg),
+        "withdrawn_generation": _num_or_none_to_str(effective_wg),
+        "withdrawal_reason": wr if effective_wg is not None else None,
+        "superseded_by": sb if effective_wg is not None else None,
+        "lifecycle": "withdrawn" if effective_wg is not None else "active",
+    }
+
+
+def _read_objects_view(conn, as_of):
+    if as_of is None:
+        active_sql = ("SELECT %s FROM objects WHERE withdrawn_generation IS NULL "
+                      "ORDER BY window_start") % _OBJECT_COLS
+        withdrawn_sql = ("SELECT %s FROM objects WHERE withdrawn_generation IS NOT NULL "
+                         "ORDER BY first_known_generation") % _OBJECT_COLS
+        active = [_project_object_row(r, None) for r in conn.execute(active_sql)]
+        withdrawn = [_project_object_row(r, None) for r in conn.execute(withdrawn_sql)]
+    else:
+        active_sql = ("SELECT %s FROM objects WHERE first_known_generation <= ? AND "
+                      "(withdrawn_generation IS NULL OR withdrawn_generation > ?) "
+                      "ORDER BY window_start") % _OBJECT_COLS
+        withdrawn_sql = ("SELECT %s FROM objects WHERE withdrawn_generation IS NOT NULL "
+                         "AND withdrawn_generation <= ? ORDER BY first_known_generation") % _OBJECT_COLS
+        active = [_project_object_row(r, as_of) for r in conn.execute(active_sql, (as_of, as_of))]
+        withdrawn = [_project_object_row(r, as_of) for r in conn.execute(withdrawn_sql, (as_of,))]
+    return active, withdrawn
+
+
+def _frontier_at_generation(conn, gen):
+    if gen is None or gen <= 0:
+        return -1
+    row = conn.execute(
+        "SELECT input_frontier FROM structure_deltas WHERE generation = ?", (gen,)
+    ).fetchone()
+    return row[0] if row is not None else -1
+
+
+def read_snapshot(conn, as_of=None):
     meta = meta_dict(conn)
-    objects = []
-    for (oid, orev, kind, batch_id, branch, dir_ab, dir_bc, ws, wm, we, cmp_json, refs_json) in conn.execute(
-        "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, "
-        "window_start, window_mid, window_end, comparisons_json, input_refs_json "
-        "FROM objects ORDER BY window_start"
-    ):
-        objects.append({
-            "object_id": oid,
-            "object_revision": _num_to_str(orev),
-            "kind": kind,
-            "batch_id": batch_id,
-            "branch": branch,
-            "dir_ab": dir_ab,
-            "dir_bc": dir_bc,
-            "window_start": _num_to_str(ws),
-            "window_mid": _num_to_str(wm),
-            "window_end": _num_to_str(we),
-            "comparisons": _json_field(cmp_json, list),
-            "input_refs": _project_input_refs(_json_field(refs_json, list)),
-        })
+    objects, withdrawn = _read_objects_view(conn, as_of)
+    max_seq = _frontier_at_generation(conn, as_of) if as_of is not None else None
+
+    if as_of is None:
+        wit_sql = ("SELECT witness_id, object_id, slot, merged_source_index, merged_high, "
+                   "merged_low, merged_open, merged_close, raw_json FROM witnesses ORDER BY object_id, slot")
+        wit_rows = conn.execute(wit_sql)
+    else:
+        wit_sql = ("SELECT witness_id, object_id, slot, merged_source_index, merged_high, "
+                   "merged_low, merged_open, merged_close, raw_json FROM witnesses "
+                   "WHERE published_generation <= ? ORDER BY object_id, slot")
+        wit_rows = conn.execute(wit_sql, (as_of,))
     witnesses = []
-    for (wid, oid, slot, msi, mh, ml, mo, mc, raw_json) in conn.execute(
-        "SELECT witness_id, object_id, slot, merged_source_index, merged_high, merged_low, "
-        "merged_open, merged_close, raw_json FROM witnesses ORDER BY object_id, slot"
-    ):
+    for (wid, oid, slot, msi, mh, ml, mo, mc, raw_json) in wit_rows:
         witnesses.append({
             "witness_id": wid,
             "object_id": oid,
@@ -179,16 +228,29 @@ def read_snapshot(conn):
             "merged_close": mc,
             "raw_bars": _project_raw_bars(_json_field(raw_json, list)),
         })
+
+    if as_of is None:
+        rel_sql = "SELECT subject, relation_type, object FROM relations ORDER BY subject, relation_type, object"
+        rel_rows = conn.execute(rel_sql)
+    else:
+        rel_sql = ("SELECT subject, relation_type, object FROM relations "
+                   "WHERE published_generation <= ? ORDER BY subject, relation_type, object")
+        rel_rows = conn.execute(rel_sql, (as_of,))
     relations = []
-    for (subj, rel, obj) in conn.execute(
-        "SELECT subject, relation_type, object FROM relations ORDER BY subject, relation_type, object"
-    ):
+    for (subj, rel, obj) in rel_rows:
         relations.append({"subject": subj, "relation_type": rel, "object": obj})
+
+    if as_of is None:
+        obs_sql = ("SELECT observation_id, batch_id, kind, window_start, window_mid, window_end, "
+                   "reason, detail_json FROM observations ORDER BY kind, window_start")
+        obs_rows = conn.execute(obs_sql)
+    else:
+        obs_sql = ("SELECT observation_id, batch_id, kind, window_start, window_mid, window_end, "
+                   "reason, detail_json FROM observations WHERE published_generation <= ? "
+                   "ORDER BY kind, window_start")
+        obs_rows = conn.execute(obs_sql, (as_of,))
     observations = []
-    for (oid, batch_id, kind, ws, wm, we, reason, detail_json) in conn.execute(
-        "SELECT observation_id, batch_id, kind, window_start, window_mid, window_end, reason, "
-        "detail_json FROM observations ORDER BY kind, window_start"
-    ):
+    for (oid, batch_id, kind, ws, wm, we, reason, detail_json) in obs_rows:
         observations.append({
             "observation_id": oid,
             "batch_id": batch_id,
@@ -199,6 +261,40 @@ def read_snapshot(conn):
             "reason": reason,
             "detail": _json_field(detail_json, dict),
         })
+
+    if max_seq is None:
+        rh_sql = ("SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, "
+                  "source_namespace, source_epoch, instrument, event_id, received_at, raw_text, "
+                  "price, ts, volume, source_coord, supersedes_revision FROM raw_events ORDER BY seq ASC")
+        rh_rows = conn.execute(rh_sql)
+    else:
+        rh_sql = ("SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, "
+                  "source_namespace, source_epoch, instrument, event_id, received_at, raw_text, "
+                  "price, ts, volume, source_coord, supersedes_revision FROM raw_events "
+                  "WHERE seq <= ? ORDER BY seq ASC")
+        rh_rows = conn.execute(rh_sql, (max_seq,))
+    raw_history = []
+    for (ikey, rev, irev, ph, rid, seq, sns, sepoch, instr, eid, received, raw_text,
+         price, ts, volume, coord, sup) in rh_rows:
+        raw_history.append({
+            "identity_key": ikey,
+            "revision": _num_to_str(rev),
+            "input_revision": irev,
+            "payload_hash": ph,
+            "receipt_id": rid,
+            "seq": _num_to_str(seq),
+            "source_namespace": sns,
+            "source_epoch": sepoch,
+            "instrument": instr,
+            "event_id": eid,
+            "received_at": received,
+            "raw_text": raw_text,
+            "price": price,
+            "ts": ts,
+            "volume": volume,
+            "source_coord": coord,
+            "supersedes_revision": _num_or_none_to_str(sup),
+        })
     return {
         "session_id": meta.get("session_id", ""),
         "generation": meta.get("generation", ""),
@@ -208,17 +304,20 @@ def read_snapshot(conn):
         "index_frontier": meta.get("index_frontier", ""),
         "profile_id": meta.get("profile_id", ""),
         "profile_hash": meta.get("profile_hash", ""),
+        "history_mode": "AsKnown" if as_of is not None else "RecomputedWithRevision",
+        "as_of_generation": None if as_of is None else _num_to_str(as_of),
         "objects": objects,
+        "withdrawn_objects": withdrawn,
         "witnesses": witnesses,
         "relations": relations,
         "observations": observations,
+        "raw_history": raw_history,
     }
 
 
-def read_state(conn):
-    """在同一读事务内一次读出目录 + 快照（同一已提交 cut，供浏览器单请求使用）。"""
+def read_state(conn, as_of=None):
     catalog = read_catalog(conn)
-    snapshot = read_snapshot(conn)
+    snapshot = read_snapshot(conn, as_of)
     return {
         "cut": {
             "session_id": snapshot["session_id"],
@@ -232,11 +331,58 @@ def read_state(conn):
     }
 
 
+def read_delta(conn, after_generation):
+    meta = meta_dict(conn)
+    try:
+        current_gen = int(meta.get("generation", "0"))
+    except ValueError:
+        current_gen = 0
+    current_cut = meta.get("structure_cut", "")
+    rows = []
+    for (gen, sid, crev, base_cut, next_cut, seq_range_json, idx_frontier, input_frontier, delta_json) in conn.execute(
+        "SELECT generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, "
+        "index_frontier, input_frontier, delta_json FROM structure_deltas WHERE generation > ? ORDER BY generation ASC",
+        (after_generation,),
+    ):
+        rows.append({
+            "generation": _num_to_str(gen),
+            "session_id": sid,
+            "catalog_revision": crev,
+            "base_cut": base_cut,
+            "next_cut": next_cut,
+            "seq_range": _json_field(seq_range_json, dict),
+            "index_frontier": idx_frontier,
+            "input_frontier": _num_to_str(input_frontier),
+            "delta": _json_field(delta_json, dict),
+        })
+    gap = None
+    if 0 <= after_generation < current_gen:
+        first = None
+        if rows:
+            try:
+                first = int(rows[0]["generation"])
+            except ValueError:
+                first = None
+        if first != after_generation + 1:
+            gap = {
+                "reason": "cursor_stale_or_retained_delta_missing",
+                "rebuild_cut": current_cut,
+            }
+    return {
+        "session_id": meta.get("session_id", ""),
+        "generation": _num_to_str(current_gen),
+        "structure_cut": current_cut,
+        "after_generation": _num_to_str(after_generation),
+        "gap": gap,
+        "deltas": rows,
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     db_path = None
     browser_path = None
 
-    def log_message(self, fmt, *args):  # 安静日志
+    def log_message(self, fmt, *args):
         sys.stderr.write("[readonly] %s - %s\n" % (self.address_string(), fmt % args))
 
     def _send_bytes(self, body_bytes, status=200):
@@ -256,28 +402,44 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body_bytes)
 
     def _send_json(self, obj, status=200):
-        """在发送任何状态行之前完成序列化 + 编码（R1-M02：序列化失败不越界断连）。"""
         body = serialize_payload(obj)
         if body is None:
             body = b'{"ok": false, "error": "StorageUnavailable"}'
             status = 503
         self._send_bytes(body, status)
 
-    def _read_only(self, kind):
+    def _parse_query(self):
+        query = {}
+        if "?" in self.path:
+            qs = self.path.split("?", 1)[1]
+            for pair in qs.split("&"):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    query[k] = v
+                elif pair:
+                    query[pair] = ""
+        return query
+
+    def _read_only(self, kind, query=None):
+        query = query or {}
         payload = None
         try:
             conn = open_readonly(self.db_path)
-        except Exception as e:  # 数据库不可读 → StorageUnavailable，不伪造成功
+        except Exception as e:
             self._send_json({"ok": False, "error": "StorageUnavailable", "detail": str(e)}, 503)
             return
         try:
-            conn.execute("BEGIN")  # H1：显式读事务，固定本次快照 cut
+            conn.execute("BEGIN")
             if kind == "state":
-                payload = read_state(conn)
+                as_of = self._parse_as_of(query)
+                payload = read_state(conn, as_of)
             elif kind == "catalog":
                 payload = read_catalog(conn)
             elif kind == "snapshot":
-                payload = read_snapshot(conn)
+                as_of = self._parse_as_of(query)
+                payload = read_snapshot(conn, as_of)
+            elif kind == "delta":
+                payload = read_delta(conn, self._parse_after_generation(query))
             elif kind == "meta":
                 payload = {"meta": meta_dict(conn)}
             else:
@@ -285,7 +447,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
             conn.commit()
         except (sqlite3.Error, json.JSONDecodeError, ValueError, TypeError, UnicodeError) as e:
-            # PY-M01/R1-M01：读取/解码失败不越过 HTTP 错误边界，也不把损坏当合法空状态。
             try:
                 conn.rollback()
             except sqlite3.Error:
@@ -297,7 +458,6 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             except sqlite3.Error:
                 pass
-        # 序列化 + 编码也在错误边界内（R1-M02：坏持久值/BLOB/孤立 surrogate → 结构化 503）。
         body = serialize_payload({"ok": True, **payload})
         if body is None:
             self._send_json(
@@ -307,8 +467,33 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send_bytes(body)
 
+    def _parse_as_of(self, query):
+        raw = query.get("as_of")
+        if raw is None:
+            return None
+        if raw == "":
+            raise ValueError("as_of 不能为空")
+        if not raw.lstrip("-").isdigit():
+            raise ValueError("as_of 必须是规范十进制整数")
+        v = int(raw)
+        if not -(2**63) <= v < 2**63:
+            raise ValueError("as_of 超出 i64 精确整数域")
+        return v
+
+    def _parse_after_generation(self, query):
+        raw = query.get("after_generation")
+        if raw is None:
+            return -1
+        if not raw.lstrip("-").isdigit():
+            raise ValueError("after_generation 必须是规范十进制整数")
+        v = int(raw)
+        if not -(2**63) <= v < 2**63:
+            raise ValueError("after_generation 超出 i64 精确整数域")
+        return v
+
     def do_GET(self):
         path = self.path.split("?", 1)[0]
+        query = self._parse_query()
         if path in ("/", "/index.html"):
             try:
                 with open(self.browser_path, "rb") as f:
@@ -320,24 +505,25 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": False, "error": "browser unreadable", "detail": str(e)}, 503)
             return
         if path == "/api/state":
-            self._read_only("state")
+            self._read_only("state", query)
             return
         if path == "/api/catalog":
-            self._read_only("catalog")
+            self._read_only("catalog", query)
             return
         if path == "/api/snapshot":
-            self._read_only("snapshot")
+            self._read_only("snapshot", query)
+            return
+        if path == "/api/delta":
+            self._read_only("delta", query)
             return
         if path == "/api/meta":
-            self._read_only("meta")
+            self._read_only("meta", query)
             return
         self._send_json({"ok": False, "error": "not found"}, 404)
 
 
 def serialize_payload(obj):
-    """把 dict 序列化为 UTF-8 字节；失败返回 None（调用方转 503），不抛异常越界。"""
     try:
-        # #1370：损坏 Unicode 与非 JSON 数值必须进入失败边界，不能改编码后作为成功返回。
         return json.dumps(obj, ensure_ascii=False, allow_nan=False).encode("utf-8")
     except (TypeError, ValueError, UnicodeError, OverflowError):
         return None
