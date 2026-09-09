@@ -218,7 +218,7 @@ echo "[launcher] 2/5 S.AcceptInput（原始逐笔档案 + 具名 profile）"
 echo "[launcher] 3/5 S.Advance（Begin→同次 Rust parser→Commit）"
 "$BIN" advance --db "$DB"
 
-echo "[launcher] 4/5 启动只读查询外壳（独立只读进程，端口 $PORT）"
+echo "[launcher] 4/5 启动只读查询外壳（独立只读进程，端口 ${PORT}）"
 nohup "$PY" "$HERE/s_readonly_server.py" --db "$DB" --port "$PORT" --browser "$BROWSER" \
   > /tmp/s_session_readonly_${PORT}.log 2>&1 &
 SRV_PID=$!

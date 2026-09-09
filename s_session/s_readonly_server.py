@@ -44,11 +44,13 @@ def meta_dict(conn):
 
 def _scope(meta):
     """scope 字段：缺失 → 空对象（兼容缺项）；存在但损坏 → 抛出（进入 503 边界，不吞成 {}）。"""
-    raw = meta.get("scope")
-    if raw is None:
+    if "scope" not in meta:
         return {}
     # 坏 JSON / BLOB 等类型错误都向上抛，由请求边界转结构化 5xx。
-    return json.loads(raw)
+    scope = json.loads(meta["scope"])
+    if not isinstance(scope, dict):
+        raise ValueError("scope 必须是 JSON 对象")
+    return scope
 
 
 def read_catalog(conn):
@@ -283,14 +285,9 @@ class Handler(BaseHTTPRequestHandler):
 def serialize_payload(obj):
     """把 dict 序列化为 UTF-8 字节；失败返回 None（调用方转 503），不抛异常越界。"""
     try:
-        # ensure_ascii=False 保留可读中文；失败时回退 ensure_ascii=True 转义非 ASCII/孤立 surrogate。
-        try:
-            text = json.dumps(obj, ensure_ascii=False)
-            return text.encode("utf-8")
-        except (UnicodeEncodeError, ValueError, TypeError):
-            text = json.dumps(obj, ensure_ascii=True)
-            return text.encode("ascii", errors="replace")
-    except Exception:
+        # #1370：损坏 Unicode 与非 JSON 数值必须进入失败边界，不能改编码后作为成功返回。
+        return json.dumps(obj, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError, OverflowError):
         return None
 
 
