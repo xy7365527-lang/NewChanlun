@@ -47,34 +47,44 @@ def _scope(meta):
     if "scope" not in meta:
         return {}
     # 坏 JSON / BLOB 等类型错误都向上抛，由请求边界转结构化 5xx。
-    scope = json.loads(meta["scope"])
-    if not isinstance(scope, dict):
-        raise ValueError("scope 必须是 JSON 对象")
-    return scope
+    return _json_field(meta["scope"], dict)
 
 
 def _num_to_str(v):
-    """WIRE：把 JSON 数值（int，非 bool）投影为规范十进制字符串，其余原样。"""
-    if isinstance(v, int) and not isinstance(v, bool):
-        return str(v)
-    return v
+    """与 Rust 的持久 i64 同域；损坏值不经 str() 冒充成功整数。"""
+    if type(v) is not int or not -(2**63) <= v < 2**63:
+        raise ValueError("持久整数必须是 i64，不能是浮点、布尔、空值或文本")
+    return str(v)
+
+
+def _json_field(text, expected):
+    """已存在的持久 JSON 必须符合声明形状，缺失/损坏不能补成空结果。"""
+    if not isinstance(text, str):
+        raise ValueError("持久 JSON 必须是文本")
+    value = json.loads(text)
+    if not isinstance(value, expected):
+        raise ValueError("持久 JSON 形状不符")
+    return value
 
 
 def _project_input_refs(refs):
     """objects[].input_refs：merged_index（结构坐标）与 raw_refs[].seq（接纳序）→ 字符串。"""
     if not isinstance(refs, list):
-        return refs
+        raise ValueError("input_refs 必须是数组")
     out = []
     for g in refs:
-        g = dict(g) if isinstance(g, dict) else g
-        if isinstance(g, dict):
-            if "merged_index" in g:
-                g["merged_index"] = _num_to_str(g["merged_index"])
-            rr = g.get("raw_refs")
-            if isinstance(rr, list):
-                for item in rr:
-                    if isinstance(item, dict) and "seq" in item:
-                        item["seq"] = _num_to_str(item["seq"])
+        if not isinstance(g, dict) or not isinstance(g.get("raw_refs"), list):
+            raise ValueError("input_refs 成员必须含 raw_refs 数组")
+        g = dict(g)
+        g["merged_index"] = _num_to_str(g.get("merged_index"))
+        projected_refs = []
+        for item in g["raw_refs"]:
+            if not isinstance(item, dict):
+                raise ValueError("raw_refs 成员必须是对象")
+            item = dict(item)
+            item["seq"] = _num_to_str(item.get("seq"))
+            projected_refs.append(item)
+        g["raw_refs"] = projected_refs
         out.append(g)
     return out
 
@@ -82,12 +92,13 @@ def _project_input_refs(refs):
 def _project_raw_bars(bars):
     """witnesses[].raw_bars：seq（接纳序）→ 字符串。"""
     if not isinstance(bars, list):
-        return bars
+        raise ValueError("raw_bars 必须是数组")
     out = []
     for b in bars:
-        b = dict(b) if isinstance(b, dict) else b
-        if isinstance(b, dict) and "seq" in b:
-            b["seq"] = _num_to_str(b["seq"])
+        if not isinstance(b, dict):
+            raise ValueError("raw_bars 成员必须是对象")
+        b = dict(b)
+        b["seq"] = _num_to_str(b.get("seq"))
         out.append(b)
     return out
 
@@ -105,11 +116,11 @@ def read_catalog(conn):
             "kind": kind,
             "title": title,
             "domain": domain,
-            "branches": json.loads(branches_json) if branches_json else [],
+            "branches": _json_field(branches_json, list),
             "implementation_status": impl,
             "proof_status": proof,
             "run_status": run,
-            "evidence": json.loads(evidence_json) if evidence_json else {},
+            "evidence": _json_field(evidence_json, dict),
         })
     return {
         "session_id": meta.get("session_id", ""),
@@ -138,17 +149,17 @@ def read_snapshot(conn):
     ):
         objects.append({
             "object_id": oid,
-            "object_revision": str(orev),
+            "object_revision": _num_to_str(orev),
             "kind": kind,
             "batch_id": batch_id,
             "branch": branch,
             "dir_ab": dir_ab,
             "dir_bc": dir_bc,
-            "window_start": str(ws),
-            "window_mid": str(wm),
-            "window_end": str(we),
-            "comparisons": json.loads(cmp_json) if cmp_json else [],
-            "input_refs": _project_input_refs(json.loads(refs_json) if refs_json else []),
+            "window_start": _num_to_str(ws),
+            "window_mid": _num_to_str(wm),
+            "window_end": _num_to_str(we),
+            "comparisons": _json_field(cmp_json, list),
+            "input_refs": _project_input_refs(_json_field(refs_json, list)),
         })
     witnesses = []
     for (wid, oid, slot, msi, mh, ml, mo, mc, raw_json) in conn.execute(
@@ -158,13 +169,13 @@ def read_snapshot(conn):
         witnesses.append({
             "witness_id": wid,
             "object_id": oid,
-            "slot": str(slot),
-            "merged_source_index": str(msi),
+            "slot": _num_to_str(slot),
+            "merged_source_index": _num_to_str(msi),
             "merged_high": mh,
             "merged_low": ml,
             "merged_open": mo,
             "merged_close": mc,
-            "raw_bars": _project_raw_bars(json.loads(raw_json) if raw_json else []),
+            "raw_bars": _project_raw_bars(_json_field(raw_json, list)),
         })
     relations = []
     for (subj, rel, obj) in conn.execute(
@@ -180,11 +191,11 @@ def read_snapshot(conn):
             "observation_id": oid,
             "batch_id": batch_id,
             "kind": kind,
-            "window_start": None if ws is None else str(ws),
-            "window_mid": None if wm is None else str(wm),
-            "window_end": None if we is None else str(we),
+            "window_start": None if ws is None else _num_to_str(ws),
+            "window_mid": None if wm is None else _num_to_str(wm),
+            "window_end": None if we is None else _num_to_str(we),
             "reason": reason,
-            "detail": json.loads(detail_json) if detail_json else {},
+            "detail": _json_field(detail_json, dict),
         })
     return {
         "session_id": meta.get("session_id", ""),

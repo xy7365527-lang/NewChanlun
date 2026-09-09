@@ -129,7 +129,7 @@ function renderObjects(snap, catalogId = selectedCatalogId) {
     const ws = (byObj[o.object_id] || []).sort((a, b) => a.slot - b.slot);
     const cmpRows = (o.comparisons || []).map(c =>
       `<tr><td>${esc(c.pair)}</td><td>${esc(c.axis)}</td><td class="price">${esc(c.prev)}</td>` +
-      `<td class="price">${esc(c.cur)}</td><td>${c.strict_up ? "&gt;" : "&lt;"}</td>` +
+      `<td class="price">${esc(c.cur)}</td><td>${c.strict_up ? "cur &gt; prev" : "cur &lt; prev"}</td>` +
       `<td class="${c.held ? "cmp-held" : "cmp-fail"}">${c.held}</td></tr>`).join("");
     const refRows = (o.input_refs || []).map(g => {
       const inner = (g.raw_refs || []).map(r =>

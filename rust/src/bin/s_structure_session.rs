@@ -249,17 +249,15 @@ fn open_db(db: &Path) -> Result<Connection, String> {
     Ok(conn)
 }
 
-fn db_meta(conn: &Connection) -> BTreeMap<String, String> {
-    let mut m = BTreeMap::new();
-    if let Ok(mut stmt) = conn.prepare("SELECT key, value FROM meta") {
-        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)));
-        if let Ok(it) = rows {
-            for row in it.flatten() {
-                m.insert(row.0, row.1);
-            }
-        }
-    }
-    m
+fn db_meta(conn: &Connection) -> Result<BTreeMap<String, String>, String> {
+    let mut stmt = conn
+        .prepare("SELECT key, value FROM meta")
+        .map_err(|e| format!("读取 meta 失败：{e}"))?;
+    let rows = stmt
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+        .map_err(|e| format!("查询 meta 失败：{e}"))?;
+    rows.collect::<Result<BTreeMap<_, _>, _>>()
+        .map_err(|e| format!("meta 字段损坏：{e}"))
 }
 
 fn meta_get_opt(conn: &Connection, key: &str) -> Result<Option<String>, String> {
@@ -292,7 +290,7 @@ fn verify_writer_epoch(conn: &Connection) -> Result<(), String> {
 }
 
 fn ensure_initialized(conn: &Connection) -> Result<(), String> {
-    if db_meta(conn).contains_key("session_id") {
+    if db_meta(conn)?.contains_key("session_id") {
         Ok(())
     } else {
         Err(
@@ -778,32 +776,32 @@ fn cancel_own_begin(
     token: &str,
     gen: i64,
     frontier: i64,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("cancel Begin 事务失败：{e}"))?;
     let epoch = meta_get_opt(&tx, "writer_epoch")?.unwrap_or_default();
     if epoch != WRITER_EPOCH {
         drop(tx);
-        return Ok(());
+        return Ok(false);
     }
     let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_default();
     let expect = format!("begun:{token}:{gen}:{frontier}");
     if state != expect {
         drop(tx);
-        return Ok(());
+        return Ok(false);
     }
     let begin_token = meta_get_opt(&tx, "begin_token")?.unwrap_or_default();
     if begin_token != token {
         drop(tx);
-        return Ok(());
+        return Ok(false);
     }
     let cur_gen: i64 = meta_get_opt(&tx, "generation")?
         .and_then(|s| s.parse().ok())
         .unwrap_or(-1);
     if cur_gen != gen - 1 {
         drop(tx);
-        return Ok(());
+        return Ok(false);
     }
     meta_set(
         &tx,
@@ -814,7 +812,69 @@ fn cancel_own_begin(
     meta_set(&tx, "begin_token", "")?;
     tx.commit()
         .map_err(|e| format!("cancel Begin commit 失败：{e}"))?;
+    Ok(true)
+}
+
+/// 同一 attempt 的阶段写入共用同一所有权判据，不现读新 epoch 自授予权限。
+fn verify_begin_owner(
+    conn: &Connection,
+    token: &str,
+    gen: i64,
+    frontier: i64,
+) -> Result<(), String> {
+    verify_writer_epoch(conn)?;
+    let expected = format!("begun:{token}:{gen}:{frontier}");
+    if meta_get_opt(conn, "advance_state")?.as_deref() != Some(expected.as_str())
+        || meta_get_opt(conn, "begin_token")?.as_deref() != Some(token)
+        || meta_get_opt(conn, "generation")?.as_deref() != Some((gen - 1).to_string().as_str())
+    {
+        return Err("StaleWriter：Begin 所有权或已发布 generation 已变化".to_string());
+    }
     Ok(())
+}
+
+fn verify_batch_bytes(conn: &Connection, batch_id: &str, bytes: &[u8]) -> Result<(), String> {
+    let (stored, byte_len): (Vec<u8>, i64) = conn
+        .query_row(
+            "SELECT canonical_bytes, byte_len FROM batches WHERE batch_id=?1",
+            params![batch_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|e| format!("完整不可变批次不可读：{e}"))?;
+    if stored != bytes || usize::try_from(byte_len).ok() != Some(bytes.len()) {
+        return Err(
+            "IdentityConflict：不可变 batch 的规范字节或长度不符，拒绝覆写和发布".to_string(),
+        );
+    }
+    Ok(())
+}
+
+/// C09.4 / #1370 AC4：完整对象先独立持久；此事务不发布任何对象表或结构根。
+/// 后续发布失败时保留不可达批次与 Begin，不能用删批次冒充恢复。
+fn persist_batch_before_publish(
+    conn: &mut Connection,
+    token: &str,
+    gen: i64,
+    frontier: i64,
+    batch_id: &str,
+    bytes: &[u8],
+) -> Result<(), String> {
+    if batch_id != format!("batch-{}", sha256_hex(bytes)) {
+        return Err("IdentityConflict：batch_id 与规范字节哈希不符".to_string());
+    }
+    let byte_len = i64::try_from(bytes.len()).map_err(|_| "batch 长度超出持久 i64 域")?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|e| format!("开批次持久事务失败：{e}"))?;
+    verify_begin_owner(&tx, token, gen, frontier)?;
+    tx.execute(
+        "INSERT OR IGNORE INTO batches(batch_id, canonical_bytes, byte_len) VALUES(?1, ?2, ?3)",
+        params![batch_id, bytes, byte_len],
+    )
+    .map_err(|e| format!("持久 batch 失败：{e}"))?;
+    verify_batch_bytes(&tx, batch_id, bytes)?;
+    tx.commit()
+        .map_err(|e| format!("批次持久 commit 失败：{e}"))
 }
 
 fn cmd_advance(db: &Path) -> Result<(), String> {
@@ -1065,6 +1125,8 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
     let batch_bytes = canonical_bytes_of_value(&batch_json);
     let batch_id = format!("batch-{}", sha256_hex(&batch_bytes));
 
+    persist_batch_before_publish(&mut conn, &token, gen, frontier, &batch_id, &batch_bytes)?;
+
     // ── Commit：核 Begin/epoch/前沿仍有效后，同一事务发布对象/关系/修订/索引根/目录状态 ──
     let classified_count = objects.len();
     let mut frontier_moved = false;
@@ -1072,23 +1134,8 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开 commit 事务失败：{e}"))?;
     {
-        verify_writer_epoch(&tx)?;
-        let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_default();
-        let expect = format!("begun:{token}:{gen}:{frontier}");
-        if state != expect {
-            return Err(format!(
-                "StaleWriter：advance_state=`{state}`（期望 `{expect}`）——并发/中断推进"
-            ));
-        }
-        let cur_gen: i64 = meta_get_opt(&tx, "generation")?
-            .and_then(|s| s.parse().ok())
-            .ok_or("读 generation 失败")?;
-        if cur_gen != gen - 1 {
-            return Err(format!(
-                "StaleWriter：generation 已由 {cur_gen} 变化（期望 {}）",
-                gen - 1
-            ));
-        }
+        verify_begin_owner(&tx, &token, gen, frontier)?;
+        verify_batch_bytes(&tx, &batch_id, &batch_bytes)?;
         let cur_frontier: i64 = tx
             .query_row("SELECT COALESCE(MAX(seq), -1) FROM raw_events", [], |r| {
                 r.get(0)
@@ -1099,12 +1146,6 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
             // 事务结束后由 cancel_own_begin 条件清理自己的推进占用（不清理别人的 Begin）。
             frontier_moved = true;
         } else {
-            tx.execute(
-            "INSERT OR IGNORE INTO batches(batch_id, canonical_bytes, byte_len) VALUES(?1, ?2, ?3)",
-            params![batch_id, batch_bytes, batch_bytes.len() as i64],
-        )
-        .map_err(|e| format!("insert batch 失败：{e}"))?;
-
             tx.execute("DELETE FROM objects", [])
                 .map_err(|e| format!("clear objects 失败：{e}"))?;
             tx.execute("DELETE FROM witnesses", [])
@@ -1269,9 +1310,14 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
     if frontier_moved {
         // DUR-H01：仅清理本 attempt 自己的 Begin（token/gen/frontier 精确匹配 + epoch/generation 未变），
         // 让下一次合法推进可取得新 token；崩溃/悬挂修订仍保留 Begin/闭门。
-        cancel_own_begin(&mut conn, &token, gen, frontier)?;
+        let released = cancel_own_begin(&mut conn, &token, gen, frontier)?;
+        let disposition = if released {
+            "本 attempt 已正常取消并释放推进权"
+        } else {
+            "Begin 所有权已变化，未清理推进占用"
+        };
         return Err(format!(
-            "StaleWriter：输入前沿已由 {frontier} 变化（新输入已接纳，请重新 advance）；本 attempt 已正常取消并释放推进权"
+            "StaleWriter：输入前沿已由 {frontier} 变化（新输入已接纳，请重新 advance）；{disposition}"
         ));
     }
 
@@ -1340,61 +1386,77 @@ fn canonical_bytes_of_value(v: &Value) -> Vec<u8> {
 // 不改已签目录的有限分类码。内部计算仍在 i64/usize 精确域。
 // ────────────────────────────────────────────────────────────────────────────
 
-fn num_to_str(v: &Value) -> Value {
-    match v {
-        Value::Number(n) => Value::String(n.to_string()),
-        other => other.clone(),
-    }
+fn num_to_str(v: &Value) -> Result<Value, String> {
+    v.as_i64()
+        .map(|n| Value::String(n.to_string()))
+        .ok_or_else(|| "持久整数必须是 i64，不能是浮点、布尔、空值或文本".to_string())
 }
 
 /// `objects[].input_refs`：把 `merged_index`（结构坐标）与 `raw_refs[].seq`（接纳序）投影为字符串。
-fn project_input_refs(refs: &Value) -> Value {
-    let Value::Array(groups) = refs else {
-        return refs.clone();
-    };
-    Value::Array(
-        groups
-            .iter()
-            .map(|g| {
-                let mut g = g.clone();
-                if let Some(obj) = g.as_object_mut() {
-                    if let Some(mi) = obj.get("merged_index").cloned() {
-                        obj.insert("merged_index".to_string(), num_to_str(&mi));
-                    }
-                    if let Some(Value::Array(raw_refs)) = obj.get_mut("raw_refs") {
-                        for r in raw_refs.iter_mut() {
-                            if let Some(o) = r.as_object_mut() {
-                                if let Some(seq) = o.get("seq").cloned() {
-                                    o.insert("seq".to_string(), num_to_str(&seq));
-                                }
-                            }
-                        }
-                    }
-                }
-                g
-            })
-            .collect(),
-    )
+fn project_input_refs(refs: &Value) -> Result<Value, String> {
+    let groups = refs.as_array().ok_or("input_refs 必须是数组")?;
+    let mut out = Vec::with_capacity(groups.len());
+    for group in groups {
+        let mut obj = group
+            .as_object()
+            .ok_or("input_refs 成员必须是对象")?
+            .clone();
+        let index = num_to_str(obj.get("merged_index").unwrap_or(&Value::Null))?;
+        obj.insert("merged_index".to_string(), index);
+        let raw_refs = obj
+            .get_mut("raw_refs")
+            .and_then(Value::as_array_mut)
+            .ok_or("input_refs 成员必须含 raw_refs 数组")?;
+        for raw in raw_refs {
+            let raw = raw.as_object_mut().ok_or("raw_refs 成员必须是对象")?;
+            let seq = num_to_str(raw.get("seq").unwrap_or(&Value::Null))?;
+            raw.insert("seq".to_string(), seq);
+        }
+        out.push(Value::Object(obj));
+    }
+    Ok(Value::Array(out))
 }
 
 /// `witnesses[].raw_bars`：把 `seq`（接纳序）投影为字符串。
-fn project_raw_bars(bars: &Value) -> Value {
-    let Value::Array(arr) = bars else {
-        return bars.clone();
-    };
-    Value::Array(
-        arr.iter()
-            .map(|b| {
-                let mut b = b.clone();
-                if let Some(o) = b.as_object_mut() {
-                    if let Some(seq) = o.get("seq").cloned() {
-                        o.insert("seq".to_string(), num_to_str(&seq));
-                    }
-                }
-                b
-            })
-            .collect(),
+fn project_raw_bars(bars: &Value) -> Result<Value, String> {
+    let bars = bars.as_array().ok_or("raw_bars 必须是数组")?;
+    let mut out = Vec::with_capacity(bars.len());
+    for bar in bars {
+        let mut obj = bar.as_object().ok_or("raw_bars 成员必须是对象")?.clone();
+        let seq = num_to_str(obj.get("seq").unwrap_or(&Value::Null))?;
+        obj.insert("seq".to_string(), seq);
+        out.push(Value::Object(obj));
+    }
+    Ok(Value::Array(out))
+}
+
+fn json_shape(text: &str, is_array: bool) -> Result<Value, String> {
+    let value: Value =
+        serde_json::from_str(text).map_err(|e| format!("持久 JSON 解析失败：{e}"))?;
+    if (is_array && value.is_array()) || (!is_array && value.is_object()) {
+        Ok(value)
+    } else {
+        Err("持久 JSON 形状不符".to_string())
+    }
+}
+
+fn json_column_error(index: usize, reason: String) -> rusqlite::Error {
+    rusqlite::Error::FromSqlConversionFailure(
+        index,
+        rusqlite::types::Type::Text,
+        Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, reason)),
     )
+}
+
+fn json_column(row: &rusqlite::Row<'_>, index: usize, is_array: bool) -> rusqlite::Result<Value> {
+    json_shape(&row.get::<_, String>(index)?, is_array).map_err(|e| json_column_error(index, e))
+}
+
+fn read_scope(conn: &Connection) -> Result<Value, String> {
+    match meta_get_opt(conn, "scope")? {
+        Some(text) => json_shape(&text, false),
+        None => Ok(json!({})),
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1402,7 +1464,7 @@ fn project_raw_bars(bars: &Value) -> Value {
 // ────────────────────────────────────────────────────────────────────────────
 
 fn read_catalog_in_tx(conn: &Connection) -> Result<Value, String> {
-    let meta = db_meta(conn);
+    let meta = db_meta(conn)?;
     let mut stmt = conn
         .prepare("SELECT catalog_id, kind, title, domain, branches_json, impl_status, proof_status, run_status, evidence_json FROM catalog ORDER BY catalog_id")
         .map_err(|e| format!("prepare catalog 失败：{e}"))?;
@@ -1413,11 +1475,11 @@ fn read_catalog_in_tx(conn: &Connection) -> Result<Value, String> {
                 "kind": r.get::<_, String>(1)?,
                 "title": r.get::<_, String>(2)?,
                 "domain": r.get::<_, String>(3)?,
-                "branches": serde_json::from_str::<Value>(&r.get::<_, String>(4)?).unwrap_or(json!([])),
+                "branches": json_column(r, 4, true)?,
                 "implementation_status": r.get::<_, String>(5)?,
                 "proof_status": r.get::<_, String>(6)?,
                 "run_status": r.get::<_, String>(7)?,
-                "evidence": serde_json::from_str::<Value>(&r.get::<_, String>(8)?).unwrap_or(json!({})),
+                "evidence": json_column(r, 8, false)?,
             }))
         })
         .map_err(|e| format!("query catalog 失败：{e}"))?
@@ -1428,7 +1490,7 @@ fn read_catalog_in_tx(conn: &Connection) -> Result<Value, String> {
         "generation": meta.get("generation").cloned().unwrap_or_default(),
         "structure_cut": meta.get("structure_cut").cloned().unwrap_or_default(),
         "catalog_revision": meta.get("catalog_revision").cloned().unwrap_or_default(),
-        "scope": serde_json::from_str::<Value>(&meta.get("scope").cloned().unwrap_or_else(|| "{}".to_string())).unwrap_or(json!({})),
+        "scope": read_scope(conn)?,
         "items": rows,
         "counts": {
             "implemented": rows.iter().filter(|r| r["implementation_status"] == "implemented").count(),
@@ -1440,7 +1502,7 @@ fn read_catalog_in_tx(conn: &Connection) -> Result<Value, String> {
 }
 
 fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
-    let meta = db_meta(conn);
+    let meta = db_meta(conn)?;
     let mut ostmt = conn
         .prepare("SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json FROM objects ORDER BY window_start")
         .map_err(|e| format!("prepare objects 失败：{e}"))?;
@@ -1457,10 +1519,10 @@ fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
                 "window_start": r.get::<_, i64>(7)?.to_string(),
                 "window_mid": r.get::<_, i64>(8)?.to_string(),
                 "window_end": r.get::<_, i64>(9)?.to_string(),
-                "comparisons": serde_json::from_str::<Value>(&r.get::<_, String>(10)?).unwrap_or(json!([])),
+                "comparisons": json_column(r, 10, true)?,
                 "input_refs": project_input_refs(
-                    &serde_json::from_str::<Value>(&r.get::<_, String>(11)?).unwrap_or(json!([]))
-                ),
+                    &json_column(r, 11, true)?
+                ).map_err(|e| json_column_error(11, e))?,
             }))
         })
         .map_err(|e| format!("query objects 失败：{e}"))?
@@ -1482,8 +1544,8 @@ fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
                 "merged_open": r.get::<_, String>(6)?,
                 "merged_close": r.get::<_, String>(7)?,
                 "raw_bars": project_raw_bars(
-                    &serde_json::from_str::<Value>(&r.get::<_, String>(8)?).unwrap_or(json!([]))
-                ),
+                    &json_column(r, 8, true)?
+                ).map_err(|e| json_column_error(8, e))?,
             }))
         })
         .map_err(|e| format!("query witnesses 失败：{e}"))?
@@ -1518,7 +1580,7 @@ fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
                 "window_mid": r.get::<_, Option<i64>>(4)?.map(|v| v.to_string()),
                 "window_end": r.get::<_, Option<i64>>(5)?.map(|v| v.to_string()),
                 "reason": r.get::<_, String>(6)?,
-                "detail": serde_json::from_str::<Value>(&r.get::<_, String>(7)?).unwrap_or(json!({})),
+                "detail": json_column(r, 7, false)?,
             }))
         })
         .map_err(|e| format!("query observations 失败：{e}"))?
@@ -1530,7 +1592,7 @@ fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
         "generation": meta.get("generation").cloned().unwrap_or_default(),
         "structure_cut": meta.get("structure_cut").cloned().unwrap_or_default(),
         "catalog_revision": meta.get("catalog_revision").cloned().unwrap_or_default(),
-        "scope": serde_json::from_str::<Value>(&meta.get("scope").cloned().unwrap_or_else(|| "{}".to_string())).unwrap_or(json!({})),
+        "scope": read_scope(conn)?,
         "index_frontier": meta.get("index_frontier").cloned().unwrap_or_default(),
         "profile_id": meta.get("profile_id").cloned().unwrap_or_default(),
         "profile_hash": meta.get("profile_hash").cloned().unwrap_or_default(),
@@ -1570,7 +1632,7 @@ fn cmd_snapshot(db: &Path) -> Result<(), String> {
 fn cmd_meta(db: &Path) -> Result<(), String> {
     let conn = open_db(db)?;
     ensure_initialized(&conn)?;
-    let meta = db_meta(&conn);
+    let meta = db_meta(&conn)?;
     println!("{}", json!(meta));
     Ok(())
 }
@@ -1651,6 +1713,235 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    static NEXT_TEST_DIR: AtomicU64 = AtomicU64::new(0);
+
+    struct TestFiles(std::path::PathBuf);
+
+    impl TestFiles {
+        fn new() -> Self {
+            let stamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let number = NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed);
+            let path =
+                std::env::temp_dir().join(format!("s1370-{}-{stamp}-{number}", std::process::id()));
+            std::fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+
+        fn db(&self) -> std::path::PathBuf {
+            self.0.join("结构 ?#%.sqlite")
+        }
+    }
+
+    impl Drop for TestFiles {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn fixture(path: &str) -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("s_session")
+            .join(path)
+    }
+
+    fn init_test_db(files: &TestFiles) {
+        cmd_init(
+            &files.db(),
+            "s-session-testonly-001",
+            &fixture("catalog/signed-catalog.json"),
+        )
+        .unwrap();
+    }
+
+    fn set_test_begin(conn: &Connection) {
+        meta_set(conn, "writer_epoch", WRITER_EPOCH).unwrap();
+        meta_set(conn, "generation", "0").unwrap();
+        meta_set(conn, "advance_state", "begun:owned:1:6").unwrap();
+        meta_set(conn, "begin_token", "owned").unwrap();
+    }
+
+    #[test]
+    fn complete_batch_is_visible_before_reachable_root_and_never_overwritten() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut conn = open_db(&files.db()).unwrap();
+        set_test_begin(&conn);
+        let bytes = br#"{"objects":[],"raw_events":[],"scope":"test-phase-boundary"}"#;
+        let id = format!("batch-{}", sha256_hex(bytes));
+        persist_batch_before_publish(&mut conn, "owned", 1, 6, &id, bytes).unwrap();
+        let reader =
+            Connection::open_with_flags(&files.db(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
+        verify_batch_bytes(&reader, &id, bytes).unwrap();
+        assert_eq!(
+            meta_get_opt(&reader, "structure_cut").unwrap().as_deref(),
+            Some("cut-0")
+        );
+        assert_eq!(
+            meta_get_opt(&reader, "index_frontier").unwrap().as_deref(),
+            Some("")
+        );
+        assert_eq!(
+            meta_get_opt(&reader, "advance_state").unwrap().as_deref(),
+            Some("begun:owned:1:6")
+        );
+        assert!(persist_batch_before_publish(&mut conn, "owned", 1, 6, &id, b"changed").is_err());
+        verify_batch_bytes(&reader, &id, bytes).unwrap();
+        conn.execute(
+            "UPDATE batches SET canonical_bytes=?1 WHERE batch_id=?2",
+            params![b"corrupt".as_slice(), id],
+        )
+        .unwrap();
+        assert!(persist_batch_before_publish(&mut conn, "owned", 1, 6, &id, bytes).is_err());
+        assert_eq!(
+            meta_get_opt(&reader, "structure_cut").unwrap().as_deref(),
+            Some("cut-0")
+        );
+    }
+
+    #[test]
+    fn cancellation_preserves_foreign_begin_and_reports_actual_release() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        for (key, value) in [
+            ("writer_epoch", "2"),
+            ("begin_token", "foreign"),
+            ("generation", "1"),
+            ("advance_state", "begun:foreign:1:6"),
+        ] {
+            set_test_begin(&conn);
+            meta_set(&conn, key, value).unwrap();
+            let before = db_meta(&conn);
+            assert!(!cancel_own_begin(&mut conn, "owned", 1, 6).unwrap());
+            assert_eq!(db_meta(&conn), before);
+        }
+        set_test_begin(&conn);
+        assert!(cancel_own_begin(&mut conn, "owned", 1, 6).unwrap());
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
+            Some("idle")
+        );
+        assert!(!cancel_own_begin(&mut conn, "owned", 1, 6).unwrap());
+    }
+
+    #[test]
+    fn accept_rejects_stale_epoch_without_writing_receipts_or_metadata() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let conn = open_db(&files.db()).unwrap();
+        meta_set(&conn, "writer_epoch", "2").unwrap();
+        let before = db_meta(&conn);
+        let error = cmd_accept(
+            &files.db(),
+            &fixture("inputs/cc006_four_branch.json"),
+            &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+        )
+        .unwrap_err();
+        assert!(error.contains("StaleWriter"));
+        assert_eq!(db_meta(&conn), before);
+        assert_eq!(
+            conn.query_row("SELECT COUNT(*) FROM raw_events", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn replay_does_not_rebind_profile_of_an_existing_cut() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let input = fixture("inputs/cc006_four_branch.json");
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        cmd_accept(&files.db(), &input, &profile).unwrap();
+        cmd_advance(&files.db()).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        let before = db_meta(&conn);
+        let mut altered: Value =
+            serde_json::from_str(&std::fs::read_to_string(&profile).unwrap()).unwrap();
+        altered["note"] = json!("same profile_id, different canonical content");
+        let other = files.0.join("changed-profile.json");
+        std::fs::write(&other, altered.to_string()).unwrap();
+        assert!(cmd_accept(&files.db(), &input, &other)
+            .unwrap_err()
+            .contains("IdentityConflict"));
+        assert_eq!(db_meta(&conn), before);
+        cmd_accept(&files.db(), &input, &profile).unwrap();
+        assert_eq!(db_meta(&conn), before);
+    }
+
+    #[test]
+    fn equal_prices_publish_domain_observation_and_corrupt_json_fails_read() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut input: Value = serde_json::from_str(
+            &std::fs::read_to_string(fixture("inputs/cc006_four_branch.json")).unwrap(),
+        )
+        .unwrap();
+        let events = input["events"].as_array_mut().unwrap();
+        events.truncate(3);
+        for event in events {
+            event["price"] = json!("10000");
+            event["raw_text"] = json!("10000");
+        }
+        let source = files.0.join("equal.json");
+        std::fs::write(&source, input.to_string()).unwrap();
+        cmd_accept(
+            &files.db(),
+            &source,
+            &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+        )
+        .unwrap();
+        cmd_advance(&files.db()).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        let snapshot = read_snapshot_in_tx(&conn).unwrap();
+        assert!(snapshot["objects"].as_array().unwrap().is_empty());
+        assert_eq!(snapshot["observations"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            snapshot["observations"][0]["kind"],
+            json!("domain_not_satisfied")
+        );
+        conn.execute("UPDATE observations SET detail_json='{'", [])
+            .unwrap();
+        assert!(read_snapshot_in_tx(&conn).is_err());
+        conn.execute(
+            "UPDATE catalog SET branches_json='null' WHERE catalog_id='CC-006'",
+            [],
+        )
+        .unwrap();
+        assert!(read_catalog_in_tx(&conn).is_err());
+    }
+
+    #[test]
+    fn wire_projection_rejects_corrupt_integer_types_without_mutating_input() {
+        for value in [
+            json!(1.5),
+            json!(true),
+            Value::Null,
+            json!("1"),
+            json!(9223372036854775808_u64),
+        ] {
+            assert!(num_to_str(&value).is_err());
+            let refs = json!([{"merged_index": 0, "raw_refs": [{"seq": value}]}]);
+            let unchanged = refs.clone();
+            assert!(project_input_refs(&refs).is_err());
+            assert_eq!(refs, unchanged);
+            assert!(project_raw_bars(&json!([{"seq": value}])).is_err());
+        }
+        assert!(project_input_refs(&json!([{"raw_refs": []}])).is_err());
+        assert_eq!(
+            num_to_str(&json!(i64::MAX)).unwrap(),
+            json!(i64::MAX.to_string())
+        );
+    }
 
     /// 规范十进制整数：拒绝 `+`、空白、前导零、`-0`；接受 `0` 与常规整数。
     #[test]
@@ -1677,7 +1968,7 @@ mod tests {
                 {"identity_key": "k|1|i|e0", "seq": 9007199254740993_i64, "source_coord": "0"}
             ]}
         ]);
-        let projected = project_input_refs(&refs);
+        let projected = project_input_refs(&refs).unwrap();
         assert_eq!(projected[0]["merged_index"], json!("0"));
         assert_eq!(
             projected[0]["raw_refs"][0]["seq"],
@@ -1686,7 +1977,7 @@ mod tests {
         assert_eq!(projected[0]["raw_refs"][0]["source_coord"], json!("0"));
 
         let bars = json!([{"seq": 9007199254740993_i64, "price": "10000"}]);
-        let pbars = project_raw_bars(&bars);
+        let pbars = project_raw_bars(&bars).unwrap();
         assert_eq!(pbars[0]["seq"], json!("9007199254740993"));
         assert_eq!(pbars[0]["price"], json!("10000"));
 
