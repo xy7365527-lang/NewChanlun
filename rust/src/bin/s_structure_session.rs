@@ -43,6 +43,9 @@ use sha2::{Digest, Sha256};
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
 const RULE_REVISION: &str = "s2-axis-quantifiers";
 
+/// S 唯一结构写者被授予的 writer_epoch（SPEC.md:328/332：S/E/B 写事务核持久 writer_epoch）。
+const WRITER_EPOCH: &str = "1";
+
 fn jstr(s: &str) -> String {
     Value::String(s.to_string()).to_string()
 }
@@ -276,6 +279,18 @@ fn meta_set(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// 核持久 writer_epoch（DUR-H02）：所有 S 写入（AcceptInput / Advance 的 Begin+Commit）都必须在
+/// 各自写事务内先过此 fence；epoch 不匹配即 StaleWriter、零写入。
+fn verify_writer_epoch(conn: &Connection) -> Result<(), String> {
+    let epoch = meta_get_opt(conn, "writer_epoch")?.unwrap_or_default();
+    if epoch != WRITER_EPOCH {
+        return Err(format!(
+            "StaleWriter：writer_epoch=`{epoch}`，非当前单写者（期望 `{WRITER_EPOCH}`）"
+        ));
+    }
+    Ok(())
+}
+
 fn ensure_initialized(conn: &Connection) -> Result<(), String> {
     if db_meta(conn).contains_key("session_id") {
         Ok(())
@@ -328,7 +343,7 @@ fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String>
     meta_set(&conn, "journal_mode", &journal_mode)?;
     meta_set(&conn, "synchronous", &synchronous.to_string())?;
     meta_set(&conn, "platform", std::env::consts::OS)?;
-    meta_set(&conn, "writer_epoch", "1")?;
+    meta_set(&conn, "writer_epoch", WRITER_EPOCH)?;
     meta_set(&conn, "advance_state", "idle")?;
     meta_set(&conn, "rule_revision", RULE_REVISION)?;
     meta_set(
@@ -461,6 +476,29 @@ fn cmd_accept(db: &Path, input_path: &Path, profile_path: &Path) -> Result<(), S
         .map_err(|e| format!("开 accept 事务失败：{e}"))?;
     let mut results = Vec::new();
     {
+        // DUR-H02：AcceptInput 的写事务受同一 writer_epoch fence 约束——任何 raw/收据/profile/meta
+        // 写入前先核；epoch 不匹配即 StaleWriter、零接纳、零收据、零 profile 更新。
+        verify_writer_epoch(&tx)?;
+
+        // DUR-M01：session 的 profile 绑定在首次接纳时固定；后续同名异字节明确拒绝，不覆盖已发布
+        // cut 的来源（同一 cut/index_frontier 的 Snapshot 不得因重放而被改写 profile_hash）。
+        let bound_profile_id = meta_get_opt(&tx, "profile_id")?.unwrap_or_default();
+        if bound_profile_id.is_empty() {
+            meta_set(&tx, "profile_id", &profile_id)?;
+            meta_set(&tx, "profile_hash", &profile_hash)?;
+        } else if bound_profile_id != profile_id {
+            return Err(format!(
+                "IdentityConflict：session 已绑定 profile=`{bound_profile_id}`，本次 `{profile_id}` 不一致（不覆盖既有 cut 来源）"
+            ));
+        } else {
+            let bound_hash = meta_get_opt(&tx, "profile_hash")?.unwrap_or_default();
+            if bound_hash != profile_hash {
+                return Err(format!(
+                    "IdentityConflict：profile_id=`{profile_id}` 已绑定规范哈希 `{bound_hash}`，本次字节哈希 `{profile_hash}` 不同（同名异字节，拒绝接纳元数据偷换已提交快照来源）"
+                ));
+            }
+        }
+
         let mut stmt = tx
             .prepare("SELECT receipt_id, payload_hash, seq FROM raw_events WHERE identity_key = ?1")
             .map_err(|e| format!("prepare 查询失败：{e}"))?;
@@ -567,13 +605,12 @@ fn cmd_accept(db: &Path, input_path: &Path, profile_path: &Path) -> Result<(), S
                 "event_id": e.event_id,
                 "receipt_id": receipt_id,
                 "payload_hash": payload_hash,
-                "seq": next_seq,
+                // WIRE：接纳序是无 JS safe 上限的精确整数，外发为规范十进制字符串。
+                "seq": next_seq.to_string(),
             }));
         }
 
-        // profile / 单位 / 时钟 / 原始档案绑定到 S 会话（与接纳同事务）。
-        meta_set(&tx, "profile_id", &profile_id)?;
-        meta_set(&tx, "profile_hash", &profile_hash)?;
+        // 本次输入档案记录（不覆盖 profile 绑定；profile_id/profile_hash 已在首次接纳时固定）。
         meta_set(&tx, "input_profile", &input.profile)?;
         meta_set(&tx, "input_file_hash", &sha256_hex(text.as_bytes()))?;
     }
@@ -732,6 +769,54 @@ fn build_object_and_witnesses(
     (object, witnesses, relations)
 }
 
+/// DUR-H01：已知失败的正常收尾——仅当仍持有本 attempt 的 Begin（token/gen/frontier 精确匹配、
+/// writer_epoch 未变、published generation 仍为 gen-1）时，把本 attempt 的推进占用条件清理为 idle。
+/// 验证与变更同事务 CAS；不清除别人的 Begin、不把未知中断自动放行（崩溃/悬挂修订仍保留 Begin/闭门，
+/// 属 TB-05 恢复矩阵）。
+fn cancel_own_begin(
+    conn: &mut Connection,
+    token: &str,
+    gen: i64,
+    frontier: i64,
+) -> Result<(), String> {
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|e| format!("cancel Begin 事务失败：{e}"))?;
+    let epoch = meta_get_opt(&tx, "writer_epoch")?.unwrap_or_default();
+    if epoch != WRITER_EPOCH {
+        drop(tx);
+        return Ok(());
+    }
+    let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_default();
+    let expect = format!("begun:{token}:{gen}:{frontier}");
+    if state != expect {
+        drop(tx);
+        return Ok(());
+    }
+    let begin_token = meta_get_opt(&tx, "begin_token")?.unwrap_or_default();
+    if begin_token != token {
+        drop(tx);
+        return Ok(());
+    }
+    let cur_gen: i64 = meta_get_opt(&tx, "generation")?
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(-1);
+    if cur_gen != gen - 1 {
+        drop(tx);
+        return Ok(());
+    }
+    meta_set(
+        &tx,
+        "last_cancelled_begin",
+        &format!("{token}:{gen}:{frontier}:frontier_moved"),
+    )?;
+    meta_set(&tx, "advance_state", "idle")?;
+    meta_set(&tx, "begin_token", "")?;
+    tx.commit()
+        .map_err(|e| format!("cancel Begin commit 失败：{e}"))?;
+    Ok(())
+}
+
 fn cmd_advance(db: &Path) -> Result<(), String> {
     let mut conn = open_db(db)?;
     ensure_initialized(&conn)?;
@@ -744,10 +829,7 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
         let tx = conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|e| format!("Begin 事务失败：{e}"))?;
-        let epoch = meta_get_opt(&tx, "writer_epoch")?.unwrap_or_default();
-        if epoch != "1" {
-            return Err(format!("StaleWriter：writer_epoch=`{epoch}`，非当前单写者"));
-        }
+        verify_writer_epoch(&tx)?;
         let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_else(|| "idle".to_string());
         if state != "idle" {
             return Err(format!(
@@ -949,6 +1031,21 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
         }
     }
 
+    // 去重（DUR）：raw 级域前件（喂入 parser 前）与 merged 级 DomainNotSatisfied 可能报告同一窗口同一
+    // 违反（例：全等三K无方向时 parser 不合并，merged==raw，两处都报 window[0,1,2] adjacent_inclusion），
+    // observation 身份 = (kind, window_start, window_mid, window_end, reason)，同一事实只发布一次，
+    // 不造 UNIQUE 约束冲突，也不删合法事实（不同窗口/原因保留）。
+    {
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        observations.retain(|ob| {
+            let key = format!(
+                "{}|{:?}|{:?}|{:?}|{}",
+                ob["kind"], ob["window_start"], ob["window_mid"], ob["window_end"], ob["reason"]
+            );
+            seen.insert(key)
+        });
+    }
+
     let structure_cut = format!("cut-{gen}");
     // ── 内容寻址批次：封存完整正式结果（原始事件 + 对象 + 见证 + 关系 + 观察 + 绑定）──
     let batch_json = json!({
@@ -970,14 +1067,12 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
 
     // ── Commit：核 Begin/epoch/前沿仍有效后，同一事务发布对象/关系/修订/索引根/目录状态 ──
     let classified_count = objects.len();
+    let mut frontier_moved = false;
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开 commit 事务失败：{e}"))?;
     {
-        let epoch = meta_get_opt(&tx, "writer_epoch")?.unwrap_or_default();
-        if epoch != "1" {
-            return Err(format!("StaleWriter：writer_epoch=`{epoch}`，非当前单写者"));
-        }
+        verify_writer_epoch(&tx)?;
         let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_default();
         let expect = format!("begun:{token}:{gen}:{frontier}");
         if state != expect {
@@ -1000,178 +1095,192 @@ fn cmd_advance(db: &Path) -> Result<(), String> {
             })
             .map_err(|e| format!("读输入前沿失败：{e}"))?;
         if cur_frontier != frontier {
-            return Err(format!(
-                "StaleWriter：输入前沿已由 {frontier} 变为 {cur_frontier}（新输入已接纳，请重新 advance）"
-            ));
-        }
-
-        tx.execute(
+            // DUR-H01：已知前沿变化、本 attempt 尚未公布结构 Commit —— 本事务不做任何写入，
+            // 事务结束后由 cancel_own_begin 条件清理自己的推进占用（不清理别人的 Begin）。
+            frontier_moved = true;
+        } else {
+            tx.execute(
             "INSERT OR IGNORE INTO batches(batch_id, canonical_bytes, byte_len) VALUES(?1, ?2, ?3)",
             params![batch_id, batch_bytes, batch_bytes.len() as i64],
         )
         .map_err(|e| format!("insert batch 失败：{e}"))?;
 
-        tx.execute("DELETE FROM objects", [])
-            .map_err(|e| format!("clear objects 失败：{e}"))?;
-        tx.execute("DELETE FROM witnesses", [])
-            .map_err(|e| format!("clear witnesses 失败：{e}"))?;
-        tx.execute("DELETE FROM relations", [])
-            .map_err(|e| format!("clear relations 失败：{e}"))?;
-        tx.execute("DELETE FROM observations", [])
-            .map_err(|e| format!("clear observations 失败：{e}"))?;
+            tx.execute("DELETE FROM objects", [])
+                .map_err(|e| format!("clear objects 失败：{e}"))?;
+            tx.execute("DELETE FROM witnesses", [])
+                .map_err(|e| format!("clear witnesses 失败：{e}"))?;
+            tx.execute("DELETE FROM relations", [])
+                .map_err(|e| format!("clear relations 失败：{e}"))?;
+            tx.execute("DELETE FROM observations", [])
+                .map_err(|e| format!("clear observations 失败：{e}"))?;
 
-        {
-            let mut stmt = tx
+            {
+                let mut stmt = tx
                 .prepare(
                     "INSERT INTO objects(object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc,
                        window_start, window_mid, window_end, comparisons_json, input_refs_json)
                      VALUES(?1, 1, 'CC-006.local_shape', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 )
                 .map_err(|e| format!("prepare objects 失败：{e}"))?;
-            for o in &objects {
-                stmt.execute(params![
-                    o["object_id"].as_str().unwrap_or(""),
-                    o["batch_id"].as_str().unwrap_or(batch_id.as_str()),
-                    o["branch"].as_str().unwrap_or(""),
-                    o["dir_ab"].as_str().unwrap_or(""),
-                    o["dir_bc"].as_str().unwrap_or(""),
-                    o["window_start"].as_i64().unwrap_or(0),
-                    o["window_mid"].as_i64().unwrap_or(0),
-                    o["window_end"].as_i64().unwrap_or(0),
-                    o["comparisons_json"].as_str().unwrap_or("[]"),
-                    o["input_refs_json"].as_str().unwrap_or("[]"),
-                ])
-                .map_err(|e| format!("insert objects 失败：{e}"))?;
+                for o in &objects {
+                    stmt.execute(params![
+                        o["object_id"].as_str().unwrap_or(""),
+                        o["batch_id"].as_str().unwrap_or(batch_id.as_str()),
+                        o["branch"].as_str().unwrap_or(""),
+                        o["dir_ab"].as_str().unwrap_or(""),
+                        o["dir_bc"].as_str().unwrap_or(""),
+                        o["window_start"].as_i64().unwrap_or(0),
+                        o["window_mid"].as_i64().unwrap_or(0),
+                        o["window_end"].as_i64().unwrap_or(0),
+                        o["comparisons_json"].as_str().unwrap_or("[]"),
+                        o["input_refs_json"].as_str().unwrap_or("[]"),
+                    ])
+                    .map_err(|e| format!("insert objects 失败：{e}"))?;
+                }
             }
-        }
-        {
-            let mut stmt = tx
+            {
+                let mut stmt = tx
                 .prepare(
                     "INSERT INTO witnesses(witness_id, object_id, slot, merged_source_index, merged_high,
                        merged_low, merged_open, merged_close, raw_json)
                      VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 )
                 .map_err(|e| format!("prepare witnesses 失败：{e}"))?;
-            for w in &witnesses {
-                stmt.execute(params![
-                    w["witness_id"].as_str().unwrap_or(""),
-                    w["object_id"].as_str().unwrap_or(""),
-                    w["slot"].as_i64().unwrap_or(0),
-                    w["merged_source_index"].as_i64().unwrap_or(0),
-                    w["merged_high"].as_str().unwrap_or(""),
-                    w["merged_low"].as_str().unwrap_or(""),
-                    w["merged_open"].as_str().unwrap_or(""),
-                    w["merged_close"].as_str().unwrap_or(""),
-                    serde_json::to_string(&w["raw_bars"]).unwrap_or_else(|_| "[]".to_string()),
-                ])
-                .map_err(|e| format!("insert witnesses 失败：{e}"))?;
+                for w in &witnesses {
+                    stmt.execute(params![
+                        w["witness_id"].as_str().unwrap_or(""),
+                        w["object_id"].as_str().unwrap_or(""),
+                        w["slot"].as_i64().unwrap_or(0),
+                        w["merged_source_index"].as_i64().unwrap_or(0),
+                        w["merged_high"].as_str().unwrap_or(""),
+                        w["merged_low"].as_str().unwrap_or(""),
+                        w["merged_open"].as_str().unwrap_or(""),
+                        w["merged_close"].as_str().unwrap_or(""),
+                        serde_json::to_string(&w["raw_bars"]).unwrap_or_else(|_| "[]".to_string()),
+                    ])
+                    .map_err(|e| format!("insert witnesses 失败：{e}"))?;
+                }
             }
-        }
-        {
-            let mut stmt = tx
+            {
+                let mut stmt = tx
                 .prepare(
                     "INSERT INTO relations(relation_id, subject, relation_type, object) VALUES(?1, ?2, ?3, ?4)",
                 )
                 .map_err(|e| format!("prepare relations 失败：{e}"))?;
-            for r in &relations {
-                let rid = format!(
-                    "rel-{}",
-                    &sha256_hex(&canonical_bytes_of_value(&json!({
-                        "s": r["subject"],
-                        "t": r["relation_type"],
-                        "o": r["object"],
-                    })))[..16]
-                );
-                stmt.execute(params![
-                    rid,
-                    r["subject"].as_str().unwrap_or(""),
-                    r["relation_type"].as_str().unwrap_or(""),
-                    r["object"].as_str().unwrap_or(""),
-                ])
-                .map_err(|e| format!("insert relations 失败：{e}"))?;
+                for r in &relations {
+                    let rid = format!(
+                        "rel-{}",
+                        &sha256_hex(&canonical_bytes_of_value(&json!({
+                            "s": r["subject"],
+                            "t": r["relation_type"],
+                            "o": r["object"],
+                        })))[..16]
+                    );
+                    stmt.execute(params![
+                        rid,
+                        r["subject"].as_str().unwrap_or(""),
+                        r["relation_type"].as_str().unwrap_or(""),
+                        r["object"].as_str().unwrap_or(""),
+                    ])
+                    .map_err(|e| format!("insert relations 失败：{e}"))?;
+                }
             }
-        }
-        {
-            let mut stmt = tx
+            {
+                let mut stmt = tx
                 .prepare(
                     "INSERT INTO observations(observation_id, batch_id, kind, window_start, window_mid,
                        window_end, reason, detail_json)
                      VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 )
                 .map_err(|e| format!("prepare observations 失败：{e}"))?;
-            for ob in &observations {
-                let oid = format!(
-                    "obs-{}",
-                    &sha256_hex(&canonical_bytes_of_value(&json!({
-                        "kind": ob["kind"],
-                        "window_start": ob["window_start"],
-                        "window_mid": ob["window_mid"],
-                        "window_end": ob["window_end"],
-                        "reason": ob["reason"],
-                    })))[..16]
-                );
-                stmt.execute(params![
-                    oid,
-                    batch_id,
-                    ob["kind"].as_str().unwrap_or(""),
-                    ob["window_start"].as_i64(),
-                    ob["window_mid"].as_i64(),
-                    ob["window_end"].as_i64(),
-                    ob["reason"].as_str().unwrap_or(""),
-                    serde_json::to_string(&ob["detail"]).unwrap_or_else(|_| "{}".to_string()),
-                ])
-                .map_err(|e| format!("insert observations 失败：{e}"))?;
+                for ob in &observations {
+                    let oid = format!(
+                        "obs-{}",
+                        &sha256_hex(&canonical_bytes_of_value(&json!({
+                            "kind": ob["kind"],
+                            "window_start": ob["window_start"],
+                            "window_mid": ob["window_mid"],
+                            "window_end": ob["window_end"],
+                            "reason": ob["reason"],
+                        })))[..16]
+                    );
+                    stmt.execute(params![
+                        oid,
+                        batch_id,
+                        ob["kind"].as_str().unwrap_or(""),
+                        ob["window_start"].as_i64(),
+                        ob["window_mid"].as_i64(),
+                        ob["window_end"].as_i64(),
+                        ob["reason"].as_str().unwrap_or(""),
+                        serde_json::to_string(&ob["detail"]).unwrap_or_else(|_| "{}".to_string()),
+                    ])
+                    .map_err(|e| format!("insert observations 失败：{e}"))?;
+                }
             }
-        }
 
-        // 索引可达根：structure_cut / generation / index_frontier（与对象同事务生效）。
-        meta_set(&tx, "generation", &gen.to_string())?;
-        meta_set(&tx, "structure_cut", &structure_cut)?;
-        meta_set(&tx, "index_frontier", &batch_id)?;
+            // 索引可达根：structure_cut / generation / index_frontier（与对象同事务生效）。
+            meta_set(&tx, "generation", &gen.to_string())?;
+            meta_set(&tx, "structure_cut", &structure_cut)?;
+            meta_set(&tx, "index_frontier", &batch_id)?;
 
-        // 目录状态（H3）：实现/证明/运行分列，绑定具体证据；无实例不标 run、不伪造已证。
-        let run_status = if classified_count >= 1 {
-            "run"
-        } else {
-            "not_run"
-        };
-        let proof_status = "not_proved";
-        let evidence = json!({
-            "tested_domain": "TestOnly tick 1:1 OHLC（O=H=L=C），相邻严格无包含，初始化方向由前两点确定，无同价端点竞争",
-            "profile_id": profile_id,
-            "profile_hash": profile_hash,
-            "rule_revision": RULE_REVISION,
-            "batch_id": batch_id,
-            "structure_cut": structure_cut,
-            "classified_objects": classified_count,
-            "windows_total": wins.len(),
-            "merged_bars": merged.len(),
-            "insufficient_knowledge": observations.iter().filter(|o| o["kind"] == "insufficient_knowledge").count(),
-            "domain_not_satisfied": observations.iter().filter(|o| o["kind"] == "domain_not_satisfied").count(),
-            "oracle_test": "local_shape::tests::cc006_four_branch_oracle（独立硬编码期望值；执行记录见验证报告，本会话不据此自证）",
-            "scope": {"structure": "CompleteCut", "economic": "not_started"},
-        });
-        tx.execute(
+            // 目录状态（H3）：实现/证明/运行分列，绑定具体证据；无实例不标 run、不伪造已证。
+            let run_status = if classified_count >= 1 {
+                "run"
+            } else {
+                "not_run"
+            };
+            let proof_status = "not_proved";
+            let evidence = json!({
+                "tested_domain": "TestOnly tick 1:1 OHLC（O=H=L=C），相邻严格无包含，初始化方向由前两点确定，无同价端点竞争",
+                "profile_id": profile_id,
+                "profile_hash": profile_hash,
+                "rule_revision": RULE_REVISION,
+                "batch_id": batch_id,
+                "structure_cut": structure_cut,
+                "classified_objects": classified_count,
+                "windows_total": wins.len(),
+                "merged_bars": merged.len(),
+                "insufficient_knowledge": observations.iter().filter(|o| o["kind"] == "insufficient_knowledge").count(),
+                "domain_not_satisfied": observations.iter().filter(|o| o["kind"] == "domain_not_satisfied").count(),
+                "oracle_test": "local_shape::tests::cc006_four_branch_oracle（独立硬编码期望值；执行记录见验证报告，本会话不据此自证）",
+                "scope": {"structure": "CompleteCut", "economic": "not_started"},
+            });
+            tx.execute(
             "UPDATE catalog SET impl_status='implemented', proof_status=?1, run_status=?2, evidence_json=?3 WHERE catalog_id='CC-006'",
             params![proof_status, run_status, evidence.to_string()],
         )
         .map_err(|e| format!("update CC-006 catalog 失败：{e}"))?;
-        tx.execute(
-            "UPDATE catalog SET run_status='not_run' WHERE catalog_id <> 'CC-006'",
-            [],
-        )
-        .map_err(|e| format!("update 其余 catalog 失败：{e}"))?;
+            tx.execute(
+                "UPDATE catalog SET run_status='not_run' WHERE catalog_id <> 'CC-006'",
+                [],
+            )
+            .map_err(|e| format!("update 其余 catalog 失败：{e}"))?;
 
-        meta_set(&tx, "advance_state", "idle")?;
+            meta_set(&tx, "advance_state", "idle")?;
+        }
     }
-    tx.commit()
-        .map_err(|e| format!("advance commit 失败：{e}"))?;
+    if frontier_moved {
+        drop(tx);
+    } else {
+        tx.commit()
+            .map_err(|e| format!("advance commit 失败：{e}"))?;
+    }
+
+    if frontier_moved {
+        // DUR-H01：仅清理本 attempt 自己的 Begin（token/gen/frontier 精确匹配 + epoch/generation 未变），
+        // 让下一次合法推进可取得新 token；崩溃/悬挂修订仍保留 Begin/闭门。
+        cancel_own_begin(&mut conn, &token, gen, frontier)?;
+        return Err(format!(
+            "StaleWriter：输入前沿已由 {frontier} 变化（新输入已接纳，请重新 advance）；本 attempt 已正常取消并释放推进权"
+        ));
+    }
 
     println!(
         "{}",
         json!({
             "ok": true,
-            "generation": gen,
+            // WIRE：generation 是无 JS safe 上限的精确整数，外发为规范十进制字符串。
+            "generation": gen.to_string(),
             "structure_cut": structure_cut,
             "batch_id": batch_id,
             "merged_bars": merged.len(),
@@ -1226,6 +1335,69 @@ fn canonical_bytes_of_value(v: &Value) -> Vec<u8> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// WIRE 精确整数投影（AC5 / INTERFACE-CONTRACTS.md:11）：只转换「明确外发」的精确坐标/版本/
+// 来源游标字段为规范十进制字符串；不改内部封存（batch canonical JSON / 对象身份）的数值，
+// 不改已签目录的有限分类码。内部计算仍在 i64/usize 精确域。
+// ────────────────────────────────────────────────────────────────────────────
+
+fn num_to_str(v: &Value) -> Value {
+    match v {
+        Value::Number(n) => Value::String(n.to_string()),
+        other => other.clone(),
+    }
+}
+
+/// `objects[].input_refs`：把 `merged_index`（结构坐标）与 `raw_refs[].seq`（接纳序）投影为字符串。
+fn project_input_refs(refs: &Value) -> Value {
+    let Value::Array(groups) = refs else {
+        return refs.clone();
+    };
+    Value::Array(
+        groups
+            .iter()
+            .map(|g| {
+                let mut g = g.clone();
+                if let Some(obj) = g.as_object_mut() {
+                    if let Some(mi) = obj.get("merged_index").cloned() {
+                        obj.insert("merged_index".to_string(), num_to_str(&mi));
+                    }
+                    if let Some(Value::Array(raw_refs)) = obj.get_mut("raw_refs") {
+                        for r in raw_refs.iter_mut() {
+                            if let Some(o) = r.as_object_mut() {
+                                if let Some(seq) = o.get("seq").cloned() {
+                                    o.insert("seq".to_string(), num_to_str(&seq));
+                                }
+                            }
+                        }
+                    }
+                }
+                g
+            })
+            .collect(),
+    )
+}
+
+/// `witnesses[].raw_bars`：把 `seq`（接纳序）投影为字符串。
+fn project_raw_bars(bars: &Value) -> Value {
+    let Value::Array(arr) = bars else {
+        return bars.clone();
+    };
+    Value::Array(
+        arr.iter()
+            .map(|b| {
+                let mut b = b.clone();
+                if let Some(o) = b.as_object_mut() {
+                    if let Some(seq) = o.get("seq").cloned() {
+                        o.insert("seq".to_string(), num_to_str(&seq));
+                    }
+                }
+                b
+            })
+            .collect(),
+    )
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // S.ReadCatalog / S.Snapshot（只读查询，单个读事务内读同一已提交 cut）
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -1276,17 +1448,19 @@ fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
         .query_map([], |r| {
             Ok(json!({
                 "object_id": r.get::<_, String>(0)?,
-                "object_revision": r.get::<_, i64>(1)?,
+                "object_revision": r.get::<_, i64>(1)?.to_string(),
                 "kind": r.get::<_, String>(2)?,
                 "batch_id": r.get::<_, String>(3)?,
                 "branch": r.get::<_, String>(4)?,
                 "dir_ab": r.get::<_, String>(5)?,
                 "dir_bc": r.get::<_, String>(6)?,
-                "window_start": r.get::<_, i64>(7)?,
-                "window_mid": r.get::<_, i64>(8)?,
-                "window_end": r.get::<_, i64>(9)?,
+                "window_start": r.get::<_, i64>(7)?.to_string(),
+                "window_mid": r.get::<_, i64>(8)?.to_string(),
+                "window_end": r.get::<_, i64>(9)?.to_string(),
                 "comparisons": serde_json::from_str::<Value>(&r.get::<_, String>(10)?).unwrap_or(json!([])),
-                "input_refs": serde_json::from_str::<Value>(&r.get::<_, String>(11)?).unwrap_or(json!([])),
+                "input_refs": project_input_refs(
+                    &serde_json::from_str::<Value>(&r.get::<_, String>(11)?).unwrap_or(json!([]))
+                ),
             }))
         })
         .map_err(|e| format!("query objects 失败：{e}"))?
@@ -1301,13 +1475,15 @@ fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
             Ok(json!({
                 "witness_id": r.get::<_, String>(0)?,
                 "object_id": r.get::<_, String>(1)?,
-                "slot": r.get::<_, i64>(2)?,
-                "merged_source_index": r.get::<_, i64>(3)?,
+                "slot": r.get::<_, i64>(2)?.to_string(),
+                "merged_source_index": r.get::<_, i64>(3)?.to_string(),
                 "merged_high": r.get::<_, String>(4)?,
                 "merged_low": r.get::<_, String>(5)?,
                 "merged_open": r.get::<_, String>(6)?,
                 "merged_close": r.get::<_, String>(7)?,
-                "raw_bars": serde_json::from_str::<Value>(&r.get::<_, String>(8)?).unwrap_or(json!([])),
+                "raw_bars": project_raw_bars(
+                    &serde_json::from_str::<Value>(&r.get::<_, String>(8)?).unwrap_or(json!([]))
+                ),
             }))
         })
         .map_err(|e| format!("query witnesses 失败：{e}"))?
@@ -1338,9 +1514,9 @@ fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
                 "observation_id": r.get::<_, String>(0)?,
                 "batch_id": r.get::<_, String>(1)?,
                 "kind": r.get::<_, String>(2)?,
-                "window_start": r.get::<_, Option<i64>>(3)?,
-                "window_mid": r.get::<_, Option<i64>>(4)?,
-                "window_end": r.get::<_, Option<i64>>(5)?,
+                "window_start": r.get::<_, Option<i64>>(3)?.map(|v| v.to_string()),
+                "window_mid": r.get::<_, Option<i64>>(4)?.map(|v| v.to_string()),
+                "window_end": r.get::<_, Option<i64>>(5)?.map(|v| v.to_string()),
                 "reason": r.get::<_, String>(6)?,
                 "detail": serde_json::from_str::<Value>(&r.get::<_, String>(7)?).unwrap_or(json!({})),
             }))
@@ -1469,5 +1645,52 @@ fn main() {
     if let Err(e) = run() {
         eprintln!("{}", json!({"ok": false, "error": e}));
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 规范十进制整数：拒绝 `+`、空白、前导零、`-0`；接受 `0` 与常规整数。
+    #[test]
+    fn canonical_integer_rejects_non_canonical() {
+        assert!(is_canonical_integer("0"));
+        assert!(is_canonical_integer("10000"));
+        assert!(is_canonical_integer("-10000"));
+        assert!(!is_canonical_integer("+0010000"));
+        assert!(!is_canonical_integer(" 10000 "));
+        assert!(!is_canonical_integer("01000"));
+        assert!(!is_canonical_integer("-0"));
+        assert!(!is_canonical_integer(""));
+        assert!(!is_canonical_integer("1.5"));
+        assert!(parse_canonical_i64("9007199254740993", "x").is_ok());
+        assert!(parse_canonical_i64("+0010000", "x").is_err());
+    }
+
+    /// WIRE：input_refs 的 merged_index 与 raw_refs[].seq、raw_bars[].seq 投影为规范十进制字符串；
+    /// 其它字段（身份/价格/字符串）原样，不全局改写。
+    #[test]
+    fn wire_projection_stringifies_coordinates_and_seq() {
+        let refs = json!([
+            {"merged_index": 0, "raw_refs": [
+                {"identity_key": "k|1|i|e0", "seq": 9007199254740993_i64, "source_coord": "0"}
+            ]}
+        ]);
+        let projected = project_input_refs(&refs);
+        assert_eq!(projected[0]["merged_index"], json!("0"));
+        assert_eq!(
+            projected[0]["raw_refs"][0]["seq"],
+            json!("9007199254740993")
+        );
+        assert_eq!(projected[0]["raw_refs"][0]["source_coord"], json!("0"));
+
+        let bars = json!([{"seq": 9007199254740993_i64, "price": "10000"}]);
+        let pbars = project_raw_bars(&bars);
+        assert_eq!(pbars[0]["seq"], json!("9007199254740993"));
+        assert_eq!(pbars[0]["price"], json!("10000"));
+
+        // number 与字符串区分：未投影的字段仍是字符串/原值，不把价格等误转。
+        assert_eq!(projected[0]["raw_refs"][0]["source_coord"], json!("0"));
     }
 }

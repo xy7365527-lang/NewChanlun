@@ -53,6 +53,45 @@ def _scope(meta):
     return scope
 
 
+def _num_to_str(v):
+    """WIRE：把 JSON 数值（int，非 bool）投影为规范十进制字符串，其余原样。"""
+    if isinstance(v, int) and not isinstance(v, bool):
+        return str(v)
+    return v
+
+
+def _project_input_refs(refs):
+    """objects[].input_refs：merged_index（结构坐标）与 raw_refs[].seq（接纳序）→ 字符串。"""
+    if not isinstance(refs, list):
+        return refs
+    out = []
+    for g in refs:
+        g = dict(g) if isinstance(g, dict) else g
+        if isinstance(g, dict):
+            if "merged_index" in g:
+                g["merged_index"] = _num_to_str(g["merged_index"])
+            rr = g.get("raw_refs")
+            if isinstance(rr, list):
+                for item in rr:
+                    if isinstance(item, dict) and "seq" in item:
+                        item["seq"] = _num_to_str(item["seq"])
+        out.append(g)
+    return out
+
+
+def _project_raw_bars(bars):
+    """witnesses[].raw_bars：seq（接纳序）→ 字符串。"""
+    if not isinstance(bars, list):
+        return bars
+    out = []
+    for b in bars:
+        b = dict(b) if isinstance(b, dict) else b
+        if isinstance(b, dict) and "seq" in b:
+            b["seq"] = _num_to_str(b["seq"])
+        out.append(b)
+    return out
+
+
 def read_catalog(conn):
     """在调用方已开启的读事务内读取目录。"""
     meta = meta_dict(conn)
@@ -99,17 +138,17 @@ def read_snapshot(conn):
     ):
         objects.append({
             "object_id": oid,
-            "object_revision": orev,
+            "object_revision": str(orev),
             "kind": kind,
             "batch_id": batch_id,
             "branch": branch,
             "dir_ab": dir_ab,
             "dir_bc": dir_bc,
-            "window_start": ws,
-            "window_mid": wm,
-            "window_end": we,
+            "window_start": str(ws),
+            "window_mid": str(wm),
+            "window_end": str(we),
             "comparisons": json.loads(cmp_json) if cmp_json else [],
-            "input_refs": json.loads(refs_json) if refs_json else [],
+            "input_refs": _project_input_refs(json.loads(refs_json) if refs_json else []),
         })
     witnesses = []
     for (wid, oid, slot, msi, mh, ml, mo, mc, raw_json) in conn.execute(
@@ -119,13 +158,13 @@ def read_snapshot(conn):
         witnesses.append({
             "witness_id": wid,
             "object_id": oid,
-            "slot": slot,
-            "merged_source_index": msi,
+            "slot": str(slot),
+            "merged_source_index": str(msi),
             "merged_high": mh,
             "merged_low": ml,
             "merged_open": mo,
             "merged_close": mc,
-            "raw_bars": json.loads(raw_json) if raw_json else [],
+            "raw_bars": _project_raw_bars(json.loads(raw_json) if raw_json else []),
         })
     relations = []
     for (subj, rel, obj) in conn.execute(
@@ -141,9 +180,9 @@ def read_snapshot(conn):
             "observation_id": oid,
             "batch_id": batch_id,
             "kind": kind,
-            "window_start": ws,
-            "window_mid": wm,
-            "window_end": we,
+            "window_start": None if ws is None else str(ws),
+            "window_mid": None if wm is None else str(wm),
+            "window_end": None if we is None else str(we),
             "reason": reason,
             "detail": json.loads(detail_json) if detail_json else {},
         })

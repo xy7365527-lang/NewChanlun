@@ -1,0 +1,117 @@
+{
+  "ticket": "#1370 TB-01-A",
+  "numbering_declaration": "本提交中的 #1370 仅指 GitHub Issue。",
+  "report_kind": "实施者修复报告（工作草稿，非独立评审）",
+  "baseline": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+  "files_modified": [
+    "rust/src/bin/s_structure_session.rs",
+    "s_session/s_readonly_server.py"
+  ],
+  "not_modified": [
+    "s_session/browser/index.html（根并行修复并独立提交）"
+  ],
+  "fixes": {
+    "DUR-H01": {
+      "counterexample": "正常 accept/advance 交错后 advance_state 永久 begun，后续 advance 永远被拒",
+      "fix": "cancel_own_begin 在 Commit 检测已知前沿变化且本 attempt 未公布结构 Commit 时，CAS 核 epoch/token/gen/frontier/generation 后条件清理自己的推进占用",
+      "commands": [
+        {
+          "cmd": "python3 /tmp/s1370_interleave.py",
+          "exit": 0,
+          "note": "A exit 1（清理）→ advance_state=idle → B exit 0"
+        }
+      ],
+      "boundary": "只清理自己的已知失败 Begin；不同 token/新代际/已发布 generation 零清理；崩溃仍闭门"
+    },
+    "DUR-H02": {
+      "counterexample": "epoch=2 时 accept 仍接纳并持久收据",
+      "fix": "verify_writer_epoch 在 AcceptInput IMMEDIATE 写事务内、任何写入前过 fence；Advance Begin/Commit 复用同一谓词",
+      "commands": [
+        {
+          "cmd": "accept（受控 epoch=2）",
+          "exit": 1,
+          "note": "StaleWriter；raw_events 行数 0"
+        }
+      ],
+      "boundary": "固定 WRITER_EPOCH=1，不实现换代监督器"
+    },
+    "DUR-M01": {
+      "counterexample": "同 profile_id 异字节重放覆盖 profile_hash，同 cut 快照与封存批次失配",
+      "fix": "profile_id/profile_hash 首次接纳固定；后续同名异字节 IdentityConflict 拒绝",
+      "commands": [
+        {
+          "cmd": "accept（同 profile_id 改 note）",
+          "exit": 1,
+          "note": "IdentityConflict；profile_hash 不变"
+        }
+      ],
+      "boundary": "profile 修订另行承接，不覆盖旧 cut"
+    },
+    "same-price-observation": {
+      "counterexample": "[10000,10000,10000] advance exit 1 UNIQUE constraint observations.observation_id",
+      "fix": "observation 身份=(kind,window,reason) 去重；域外发布 domain_not_satisfied",
+      "commands": [
+        {
+          "cmd": "advance（3 同价）",
+          "exit": 0,
+          "note": "0 objects + 1 domain_not_satisfied"
+        }
+      ],
+      "boundary": "去重键不含 detail；不同窗口/原因保留"
+    },
+    "WIRE-M01": {
+      "counterexample": "接纳序/源锚/generation 以 JSON number 进入 JS，无 safe 上限",
+      "fix": "内部数值不变，外发投影转规范十进制字符串（见 field projection contract）",
+      "commands": [
+        {
+          "cmd": "cargo test --features s_session --bin s_structure_session",
+          "exit": 0,
+          "note": "2 passed"
+        },
+        {
+          "cmd": "Rust snapshot vs Python /api/snapshot 类型核对",
+          "exit": 0,
+          "note": "全部 str 且一致"
+        }
+      ],
+      "field_projection_contract": {
+        "stringified_external": [
+          "accept.results[].seq",
+          "advance.generation",
+          "snapshot.objects[].object_revision",
+          "snapshot.objects[].window_start/mid/end",
+          "snapshot.objects[].input_refs[].merged_index",
+          "snapshot.objects[].input_refs[].raw_refs[].seq",
+          "snapshot.witnesses[].slot",
+          "snapshot.witnesses[].merged_source_index",
+          "snapshot.witnesses[].raw_bars[].seq",
+          "snapshot.observations[].window_start/mid/end（非 null）"
+        ],
+        "unchanged_internal": [
+          "batch canonical JSON 数值（generation/input_frontier/seq/window/slot/merged_source_index/object_revision）",
+          "object_id/batch_id/witness_id/relation_id/observation_id",
+          "catalog 有限分类码与 counts",
+          "evidence 计数",
+          "comparisons prev/cur（已字符串）",
+          "merged OHLC 与 raw price/ts/volume（已字符串）"
+        ]
+      },
+      "boundary": "服务端投影，不替 JS 转字符串；不全局改写已签目录；不把原生小样例当全接纳序域已证"
+    }
+  },
+  "checks": {
+    "cargo_fmt_check": 0,
+    "cargo_check_all_targets_default": 0,
+    "cargo_check_features_s_session_bin": 0,
+    "cargo_build_features_s_session_bin": 0,
+    "cargo_clippy_features_s_session_bin": 0,
+    "cargo_test_lib_local_shape": "0（4 passed）",
+    "cargo_test_features_s_session_bin": "0（2 passed）"
+  },
+  "not_run": [
+    "真实 macOS launcher 与 GUI 浏览器（根接）",
+    "macOS fullfsync 前件（根接）",
+    "独立 wire 复核（根接回）",
+    "跨进程杀/重启/修订/Delta/Gap/背压/分页（TB-01-B/C、TB-05/07）"
+  ]
+}
