@@ -3,9 +3,9 @@
   "slice": "TB-01-B",
   "branch": "codex/1323-tb01-b-1371",
   "baseline": "2212eba31e0b7419907e622e79f02f7c2cc37706",
-  "repaired_from": "a9acf50ac3a700450108040ca1b2c019675df3c9",
+  "repaired_from": "58dab231e2210e1ba1e9634c936807d8492e218b",
   "number_declaration": "本提交中的 #1371 仅指 GitHub Issue。",
-  "status": "REPAIRED_PER_ROOT_R3_REVIEW_REQUEST_CHANGES_READY_FOR_RE_REVIEW",
+  "status": "REPAIRED_PER_ROOT_R4_REVIEW_REQUEST_CHANGES_READY_FOR_RE_REVIEW",
   "platform": "linux-aarch64-container",
   "rustc": "1.97.1",
   "sqlite": "3.53.2 (bundled libsqlite3-sys 0.38.2)",
@@ -17,8 +17,8 @@
     "s_session/launch_s.sh"
   ],
   "file_sha256": {
-    "rust/src/bin/s_structure_session.rs": "07a0b061a6d7b884af368929005d21e50fdc02a34897e3e18f78ef56c40b096f",
-    "s_session/s_readonly_server.py": "9a3f648cc49ea5622f3ab821bd66b0027f17adb447f4ede9835fffd236ba50d6",
+    "rust/src/bin/s_structure_session.rs": "423e847812f7de2f75e7706a1a3eefcaa155bd16c7f44b7e1c9989fe3dfebc7a",
+    "s_session/s_readonly_server.py": "03718ffd3b6e2aaa26e56fd9185328e79ee7fa4f7c7a4092fe2b99fee09bd4ac",
     "s_session/browser/index.html": "13402a4011034e624de34b4137696a3dd8d3de2e1b35ec854e3a2331ca1591ac",
     "s_session/launch_s.sh": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d"
   },
@@ -28,7 +28,7 @@
     "cargo_fmt_check": 0,
     "cargo_check": 0,
     "cargo_clippy_own_hits": 0,
-    "bin_tests": "26 passed / 0 failed",
+    "bin_tests": "28 passed / 0 failed",
     "lib_local_shape_oracle": "4 passed"
   },
   "ac_numbering_note": "AC1..AC8 按原票顺序：AC1 launcher+输入链、AC2 revision分立+幂等、AC3 Delta+浏览器原子应用、AC4 三点真杀恢复、AC5 DeliveryUnknown+旧epoch、AC6 AsKnown/Recomputed、AC7 E/B/X未启动+StorageUnavailable、AC8 证据保留。",
@@ -80,5 +80,11 @@
     "A9-H03/H04/M01": "Delta 内外身份核对+未来行拒绝；深层精确整数/生命周期枚举；ASCII+i64界统一",
     "A9-H01/H02/M02/M03": "validateState 前置提交；空增量绑定核对；标签用新快照；失败分支epoch保护",
     "fullfsync": "新增 pragma 诊断命令（writer 同连接回读 journal_mode/synchronous/fullfsync）"
+  },
+  "r4_repair_summary": {
+    "58DA-ROOT-PUBLISHED-TUPLE": "verify_reachable_root 完整同代元组：idx/cut/session/catalog/base-next链/seq前沿链/内层头==外层/batch封存坐标/未来行",
+    "58DA-VALID-EMPTY-ADVANCE": "Python reader 允许合法 frontier=-1（空输入）；empty_advance 测试+四API 200",
+    "58DA-PYTHON-DELTA-FIELD-RELATIONS": "外层seq_range规范+内层input_frontier必需+lifecycle与撤回字段一致",
+    "58DA-ACTUAL-WRITER-CONNECTION-PRAGMA": "record_connection_pragmas sidecar 从真实写连接回读三项PRAGMA"
   }
 }

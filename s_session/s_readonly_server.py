@@ -137,7 +137,8 @@ def _verify_reachable_root(conn):
     ).fetchall()
     if len(rows) != gen:
         raise ValueError("已发布代链断裂（generation=%d，仅 %d 行 Delta）" % (gen, len(rows)))
-    pub = _canonical_i64_str(meta["last_advance_frontier"], "meta.last_advance_frontier")
+    pub_raw = meta["last_advance_frontier"]
+    pub = -1 if pub_raw == "-1" else _canonical_i64_str(pub_raw, "meta.last_advance_frontier")
     for i, (g, didx, df) in enumerate(rows):
         if g != i + 1:
             raise ValueError("Delta 代际断链（第 %d 行 generation=%s）" % (i + 1, g))
@@ -547,14 +548,23 @@ def _validate_delta_shape(delta):
             raise ValueError("delta.%s 必须是数组" % key)
     if not isinstance(delta.get("seq_range"), dict):
         raise ValueError("delta.seq_range 必须是对象")
-    _canonical_int_field(delta["seq_range"], "from", "delta.seq_range")
-    _canonical_int_field(delta["seq_range"], "to", "delta.seq_range")
+    for _k in ("from", "to"):
+        _v = _req_str(delta["seq_range"], _k, "delta.seq_range")
+        if _v == "-1":
+            continue
+        _canonical_i64_str(_v, "delta.seq_range." + _k)
     _req_str(delta, "base_cut", "delta")
     _req_str(delta, "next_cut", "delta")
     _req_str(delta, "generation", "delta")
     _req_str(delta, "index_frontier", "delta")
     _req_str(delta, "session_id", "delta")
     _req_str(delta, "catalog_revision", "delta")
+    # 内层 input_frontier 为必需精确整数（允许 -1 空输入）；不得 null。
+    _if_raw = delta.get("input_frontier")
+    if _if_raw == "-1":
+        pass
+    else:
+        _canonical_i64_str(_if_raw, "delta.input_frontier")
 
     for i, u in enumerate(delta.get("upserts", [])):
         p = "delta.upserts[%d]" % i
@@ -568,6 +578,18 @@ def _validate_delta_shape(delta):
             _canonical_int_field(u, k, p)
         if u.get("lifecycle") not in ("active", "withdrawn"):
             raise ValueError("%s.lifecycle 必须是 active/withdrawn" % p)
+        # 生命周期一致性：withdrawn ⟺ withdrawn_generation 非空且 > first_known_generation；
+        # active ⟹ 无撤回代际/理由/替代。
+        wg = u.get("withdrawn_generation")
+        if u["lifecycle"] == "withdrawn":
+            if wg is None:
+                raise ValueError("%s.lifecycle=withdrawn 但 withdrawn_generation 为空" % p)
+            _canonical_i64_str(wg, p + ".withdrawn_generation")
+            if u.get("withdrawal_reason") is None or u.get("superseded_by") is None:
+                raise ValueError("%s.lifecycle=withdrawn 但 withdrawal_reason/superseded_by 缺失" % p)
+        else:
+            if wg is not None or u.get("withdrawal_reason") is not None or u.get("superseded_by") is not None:
+                raise ValueError("%s.lifecycle=active 却带撤回代际/理由/替代" % p)
         if not isinstance(u.get("comparisons"), list):
             raise ValueError("%s.comparisons 必须是数组" % p)
         if not isinstance(u.get("input_refs"), list):
@@ -662,6 +684,17 @@ def _validate_delta_shape(delta):
         _req_str_or_none(rh, "supersedes_revision", p)
 
 
+def _validate_seq_range(seq_range_json):
+    sr = _json_field(seq_range_json, dict)
+    for k in ("from", "to"):
+        v = _req_str(sr, k, "seq_range")
+        # 空输入发布的合法前沿 -1（to）与首代 from=0；-1 是合法前沿哨兵。
+        if v == "-1":
+            continue
+        _canonical_i64_str(v, "seq_range." + k)
+    return sr
+
+
 def read_delta(conn, after_generation):
     meta = meta_dict(conn)
     _verify_reachable_root(conn)
@@ -711,7 +744,7 @@ def read_delta(conn, after_generation):
             "catalog_revision": crev,
             "base_cut": base_cut,
             "next_cut": next_cut,
-            "seq_range": _json_field(seq_range_json, dict),
+            "seq_range": _validate_seq_range(seq_range_json),
             "index_frontier": idx_frontier,
             "input_frontier": _frontier_i64(input_frontier),
             "delta": delta,
