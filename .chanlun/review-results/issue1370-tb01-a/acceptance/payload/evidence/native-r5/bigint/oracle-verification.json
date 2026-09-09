@@ -1,0 +1,146 @@
+{
+  "case": "bigint",
+  "cut": {
+    "session_id": "s-session-testonly-001",
+    "generation": "4",
+    "structure_cut": "cut-4",
+    "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+    "index_frontier": "batch-21a773ebcbf728949f1ef19c72982c5b33b7b53e806efe6e87462256a7bb567b"
+  },
+  "source_commit": "76a641606d7097292fff2dc21f58c6156ae38916",
+  "input_sha256": {
+    "/tmp/newchanlun-1323-publication-20260909/evidence/native-r2/bigint/input.json": "a52cf0b476b3ed8dd78ee0390ef89dacdf5cd0ebecf347f9defbe68b5c7d8c33"
+  },
+  "checks": [
+    {
+      "name": "one_cut",
+      "passed": true
+    },
+    {
+      "name": "economic_not_started",
+      "passed": true
+    },
+    {
+      "name": "nonempty_full_windows",
+      "passed": true
+    },
+    {
+      "name": "0:strict_domain",
+      "passed": true
+    },
+    {
+      "name": "0:branch",
+      "passed": true
+    },
+    {
+      "name": "0:directions",
+      "passed": true
+    },
+    {
+      "name": "0:integer_wire",
+      "passed": true
+    },
+    {
+      "name": "0:four_comparisons",
+      "passed": true
+    },
+    {
+      "name": "0:three_witnesses",
+      "passed": true
+    },
+    {
+      "name": "0:0:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "0:0:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "0:0:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "0:0:raw_values",
+      "passed": true
+    },
+    {
+      "name": "0:0:merged_values",
+      "passed": true
+    },
+    {
+      "name": "0:0:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "0:1:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "0:1:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "0:1:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "0:1:raw_values",
+      "passed": true
+    },
+    {
+      "name": "0:1:merged_values",
+      "passed": true
+    },
+    {
+      "name": "0:1:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "0:2:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "0:2:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "0:2:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "0:2:raw_values",
+      "passed": true
+    },
+    {
+      "name": "0:2:merged_values",
+      "passed": true
+    },
+    {
+      "name": "0:2:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "restart_same_object_identities",
+      "passed": true
+    },
+    {
+      "name": "restart_receipts_and_raw_revisions",
+      "passed": true
+    },
+    {
+      "name": "restart_new_cut_same_session",
+      "passed": true
+    },
+    {
+      "name": "complete_catalog_116",
+      "passed": true
+    },
+    {
+      "name": "only_cc006_implemented_and_run",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "scope": "原生正式入口、HTTP与独立原始整数对照；旧版本收据重用；不代替独立哈希/并发/GUI评审"
+}

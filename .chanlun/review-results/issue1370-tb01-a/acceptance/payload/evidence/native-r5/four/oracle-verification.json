@@ -1,0 +1,819 @@
+{
+  "case": "four",
+  "cut": {
+    "session_id": "s-session-testonly-001",
+    "generation": "9",
+    "structure_cut": "cut-9",
+    "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+    "index_frontier": "batch-8e828ac0b31460692cd2da1916139ff58e05d4f615fe816eb79cfe9174762280"
+  },
+  "source_commit": "76a641606d7097292fff2dc21f58c6156ae38916",
+  "input_sha256": {
+    "/Users/silencehan/Projects/NewChanlun-1370-native-acceptance/s_session/inputs/cc006_four_branch.json": "7bb94ef11a40dd32bf4f05c1daa6173ce448afafe560f69298c0e83b6533b60a",
+    "/Users/silencehan/Projects/NewChanlun-1370-native-acceptance/s_session/inputs/append_more.json": "decd9aeed4986905efb56587924e8a42c2da1003bfc8cfcf173e4c2cec4f03ca"
+  },
+  "checks": [
+    {
+      "name": "one_cut",
+      "passed": true
+    },
+    {
+      "name": "economic_not_started",
+      "passed": true
+    },
+    {
+      "name": "nonempty_full_windows",
+      "passed": true
+    },
+    {
+      "name": "0:strict_domain",
+      "passed": true
+    },
+    {
+      "name": "0:branch",
+      "passed": true
+    },
+    {
+      "name": "0:directions",
+      "passed": true
+    },
+    {
+      "name": "0:integer_wire",
+      "passed": true
+    },
+    {
+      "name": "0:four_comparisons",
+      "passed": true
+    },
+    {
+      "name": "0:three_witnesses",
+      "passed": true
+    },
+    {
+      "name": "0:0:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "0:0:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "0:0:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "0:0:raw_values",
+      "passed": true
+    },
+    {
+      "name": "0:0:merged_values",
+      "passed": true
+    },
+    {
+      "name": "0:0:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "0:1:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "0:1:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "0:1:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "0:1:raw_values",
+      "passed": true
+    },
+    {
+      "name": "0:1:merged_values",
+      "passed": true
+    },
+    {
+      "name": "0:1:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "0:2:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "0:2:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "0:2:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "0:2:raw_values",
+      "passed": true
+    },
+    {
+      "name": "0:2:merged_values",
+      "passed": true
+    },
+    {
+      "name": "0:2:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "1:strict_domain",
+      "passed": true
+    },
+    {
+      "name": "1:branch",
+      "passed": true
+    },
+    {
+      "name": "1:directions",
+      "passed": true
+    },
+    {
+      "name": "1:integer_wire",
+      "passed": true
+    },
+    {
+      "name": "1:four_comparisons",
+      "passed": true
+    },
+    {
+      "name": "1:three_witnesses",
+      "passed": true
+    },
+    {
+      "name": "1:0:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "1:0:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "1:0:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "1:0:raw_values",
+      "passed": true
+    },
+    {
+      "name": "1:0:merged_values",
+      "passed": true
+    },
+    {
+      "name": "1:0:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "1:1:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "1:1:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "1:1:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "1:1:raw_values",
+      "passed": true
+    },
+    {
+      "name": "1:1:merged_values",
+      "passed": true
+    },
+    {
+      "name": "1:1:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "1:2:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "1:2:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "1:2:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "1:2:raw_values",
+      "passed": true
+    },
+    {
+      "name": "1:2:merged_values",
+      "passed": true
+    },
+    {
+      "name": "1:2:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "2:strict_domain",
+      "passed": true
+    },
+    {
+      "name": "2:branch",
+      "passed": true
+    },
+    {
+      "name": "2:directions",
+      "passed": true
+    },
+    {
+      "name": "2:integer_wire",
+      "passed": true
+    },
+    {
+      "name": "2:four_comparisons",
+      "passed": true
+    },
+    {
+      "name": "2:three_witnesses",
+      "passed": true
+    },
+    {
+      "name": "2:0:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "2:0:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "2:0:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "2:0:raw_values",
+      "passed": true
+    },
+    {
+      "name": "2:0:merged_values",
+      "passed": true
+    },
+    {
+      "name": "2:0:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "2:1:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "2:1:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "2:1:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "2:1:raw_values",
+      "passed": true
+    },
+    {
+      "name": "2:1:merged_values",
+      "passed": true
+    },
+    {
+      "name": "2:1:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "2:2:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "2:2:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "2:2:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "2:2:raw_values",
+      "passed": true
+    },
+    {
+      "name": "2:2:merged_values",
+      "passed": true
+    },
+    {
+      "name": "2:2:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "3:strict_domain",
+      "passed": true
+    },
+    {
+      "name": "3:branch",
+      "passed": true
+    },
+    {
+      "name": "3:directions",
+      "passed": true
+    },
+    {
+      "name": "3:integer_wire",
+      "passed": true
+    },
+    {
+      "name": "3:four_comparisons",
+      "passed": true
+    },
+    {
+      "name": "3:three_witnesses",
+      "passed": true
+    },
+    {
+      "name": "3:0:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "3:0:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "3:0:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "3:0:raw_values",
+      "passed": true
+    },
+    {
+      "name": "3:0:merged_values",
+      "passed": true
+    },
+    {
+      "name": "3:0:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "3:1:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "3:1:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "3:1:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "3:1:raw_values",
+      "passed": true
+    },
+    {
+      "name": "3:1:merged_values",
+      "passed": true
+    },
+    {
+      "name": "3:1:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "3:2:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "3:2:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "3:2:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "3:2:raw_values",
+      "passed": true
+    },
+    {
+      "name": "3:2:merged_values",
+      "passed": true
+    },
+    {
+      "name": "3:2:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "4:strict_domain",
+      "passed": true
+    },
+    {
+      "name": "4:branch",
+      "passed": true
+    },
+    {
+      "name": "4:directions",
+      "passed": true
+    },
+    {
+      "name": "4:integer_wire",
+      "passed": true
+    },
+    {
+      "name": "4:four_comparisons",
+      "passed": true
+    },
+    {
+      "name": "4:three_witnesses",
+      "passed": true
+    },
+    {
+      "name": "4:0:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "4:0:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "4:0:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "4:0:raw_values",
+      "passed": true
+    },
+    {
+      "name": "4:0:merged_values",
+      "passed": true
+    },
+    {
+      "name": "4:0:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "4:1:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "4:1:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "4:1:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "4:1:raw_values",
+      "passed": true
+    },
+    {
+      "name": "4:1:merged_values",
+      "passed": true
+    },
+    {
+      "name": "4:1:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "4:2:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "4:2:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "4:2:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "4:2:raw_values",
+      "passed": true
+    },
+    {
+      "name": "4:2:merged_values",
+      "passed": true
+    },
+    {
+      "name": "4:2:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "5:strict_domain",
+      "passed": true
+    },
+    {
+      "name": "5:branch",
+      "passed": true
+    },
+    {
+      "name": "5:directions",
+      "passed": true
+    },
+    {
+      "name": "5:integer_wire",
+      "passed": true
+    },
+    {
+      "name": "5:four_comparisons",
+      "passed": true
+    },
+    {
+      "name": "5:three_witnesses",
+      "passed": true
+    },
+    {
+      "name": "5:0:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "5:0:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "5:0:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "5:0:raw_values",
+      "passed": true
+    },
+    {
+      "name": "5:0:merged_values",
+      "passed": true
+    },
+    {
+      "name": "5:0:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "5:1:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "5:1:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "5:1:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "5:1:raw_values",
+      "passed": true
+    },
+    {
+      "name": "5:1:merged_values",
+      "passed": true
+    },
+    {
+      "name": "5:1:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "5:2:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "5:2:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "5:2:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "5:2:raw_values",
+      "passed": true
+    },
+    {
+      "name": "5:2:merged_values",
+      "passed": true
+    },
+    {
+      "name": "5:2:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "6:strict_domain",
+      "passed": true
+    },
+    {
+      "name": "6:branch",
+      "passed": true
+    },
+    {
+      "name": "6:directions",
+      "passed": true
+    },
+    {
+      "name": "6:integer_wire",
+      "passed": true
+    },
+    {
+      "name": "6:four_comparisons",
+      "passed": true
+    },
+    {
+      "name": "6:three_witnesses",
+      "passed": true
+    },
+    {
+      "name": "6:0:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "6:0:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "6:0:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "6:0:raw_values",
+      "passed": true
+    },
+    {
+      "name": "6:0:merged_values",
+      "passed": true
+    },
+    {
+      "name": "6:0:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "6:1:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "6:1:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "6:1:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "6:1:raw_values",
+      "passed": true
+    },
+    {
+      "name": "6:1:merged_values",
+      "passed": true
+    },
+    {
+      "name": "6:1:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "6:2:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "6:2:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "6:2:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "6:2:raw_values",
+      "passed": true
+    },
+    {
+      "name": "6:2:merged_values",
+      "passed": true
+    },
+    {
+      "name": "6:2:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "7:strict_domain",
+      "passed": true
+    },
+    {
+      "name": "7:branch",
+      "passed": true
+    },
+    {
+      "name": "7:directions",
+      "passed": true
+    },
+    {
+      "name": "7:integer_wire",
+      "passed": true
+    },
+    {
+      "name": "7:four_comparisons",
+      "passed": true
+    },
+    {
+      "name": "7:three_witnesses",
+      "passed": true
+    },
+    {
+      "name": "7:0:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "7:0:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "7:0:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "7:0:raw_values",
+      "passed": true
+    },
+    {
+      "name": "7:0:merged_values",
+      "passed": true
+    },
+    {
+      "name": "7:0:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "7:1:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "7:1:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "7:1:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "7:1:raw_values",
+      "passed": true
+    },
+    {
+      "name": "7:1:merged_values",
+      "passed": true
+    },
+    {
+      "name": "7:1:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "7:2:one_raw_ref",
+      "passed": true
+    },
+    {
+      "name": "7:2:identity_revision",
+      "passed": true
+    },
+    {
+      "name": "7:2:source_coordinates",
+      "passed": true
+    },
+    {
+      "name": "7:2:raw_values",
+      "passed": true
+    },
+    {
+      "name": "7:2:merged_values",
+      "passed": true
+    },
+    {
+      "name": "7:2:receipt_and_hash_refs",
+      "passed": true
+    },
+    {
+      "name": "restart_same_object_identities",
+      "passed": true
+    },
+    {
+      "name": "restart_receipts_and_raw_revisions",
+      "passed": true
+    },
+    {
+      "name": "restart_new_cut_same_session",
+      "passed": true
+    },
+    {
+      "name": "complete_catalog_116",
+      "passed": true
+    },
+    {
+      "name": "only_cc006_implemented_and_run",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "scope": "原生正式入口、HTTP与独立原始整数对照；旧版本收据重用；不代替独立哈希/并发/GUI评审"
+}

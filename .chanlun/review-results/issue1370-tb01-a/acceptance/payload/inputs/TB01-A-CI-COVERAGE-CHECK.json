@@ -1,0 +1,156 @@
+{
+  "ticket": 1370,
+  "baseline_commit": "f6354d3e7fb7fc863ca569e8786bd62807e85c0e",
+  "scope": "Fixed Cargo.toml/CI/old test carriers only; author repair source deliberately not read",
+  "verdict": "S_SESSION_BINARY_TESTS_NOT_COVERED_BY_EXISTING_CI",
+  "files": {
+    "rust/Cargo.toml": {
+      "sha256": "60781537ff49f30d0a4c596f1e7bb16d0e490ec8dad4561f34b1a817d59652fc",
+      "lines": 238
+    },
+    "rust/Cargo.lock": {
+      "sha256": "bc979533d9192ede438ac490f3f90ec5cd1ce26e6afd91fc5ec28ae185ee80bb",
+      "lines": 2272
+    },
+    ".github/workflows/ci.yml": {
+      "sha256": "c3b2a542ade4033791184bd7dcbd5e3558e2b5b4f2d3da4c01d520048c7a0528",
+      "lines": 288
+    },
+    ".github/scripts/run-cargo-with-telemetry.sh": {
+      "sha256": "57ae7b0a305af3a0e8948a653721721739681ce41f1a7cd359b163a164fc299e",
+      "lines": 121
+    },
+    "rust/src/bin/s_structure_session.rs": {
+      "sha256": "0369f220a84a781469b12bcf7d1f670de10ed1e9079a9f59e12230eacfe97b31",
+      "lines": 1473
+    },
+    "rust/src/theta_v0/classifier/local_shape.rs": {
+      "sha256": "57537f3a90c5efc30c8f8449bba6727d0fb69e810fd2bc4ad3ad6f9834f3ae97",
+      "lines": 346
+    },
+    "rust/src/theta_v0/classifier/mod.rs": {
+      "sha256": "2e54837c9ab774bc6dc6b9e480bbb8106c9b74de2695fc50b09f24bf555ced53",
+      "lines": 200
+    }
+  },
+  "coverage": {
+    "default_check": "cargo check --all-targets: no s_session, gated binary skipped; no test execution",
+    "backtest_check": "cargo check --all-targets --features backtest_bin: backtest_bin does not enable s_session; gated binary skipped; no test execution",
+    "default_test": "cargo test --all-targets --jobs 1: enabled lib/default targets tests execute, gated s_structure_session skipped",
+    "backtest_test": "cargo test --lib --features backtest_bin --jobs 1: lib tests only; s_session neither enabled nor bin selected",
+    "fmt": "Formatting only, cannot establish compile or test coverage"
+  },
+  "cargo_feature_facts": {
+    "default": [],
+    "backtest_bin": [
+      "nautilus",
+      "dep:sha2"
+    ],
+    "s_session": [
+      "dep:sha2",
+      "dep:rusqlite"
+    ],
+    "binary": {
+      "name": "s_structure_session",
+      "path": "src/bin/s_structure_session.rs",
+      "required-features": [
+        "s_session"
+      ]
+    }
+  },
+  "old_test_carriers": {
+    "binary_test_attributes": 0,
+    "library_local_shape_tests": [
+      "cc006_four_branch_oracle",
+      "cc006_equal_is_domain_not_satisfied",
+      "cc006_inclusion_is_domain_not_satisfied",
+      "cc006_sliding_window_count"
+    ],
+    "library_default_coverage": "classifier/mod.rs69 pub mod local_shape; four ordinary unignored lib tests are included by default cargo test"
+  },
+  "minimum_ci_step": {
+    "name": "cargo test — s_session feature (#1370)",
+    "working_directory": "rust (existing job default)",
+    "run": "../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session --jobs 1",
+    "placement": "After existing default tests and before backtest_bin library tests; target exists due preceding cargo check"
+  },
+  "requirements": [
+    "Rust/Cargo/linker and C compiler for bundled SQLite; existing rust-check already records cc",
+    "Existing PyO3 Python/link prerequisites still apply; s_session adds no new Python-package requirement",
+    "Locked Cargo.lock must match final Cargo.toml; fixed lock already contains rusqlite0.40.2/libsqlite3-sys0.38.2/cc1.2.65",
+    "Existing telemetry wrapper requires GNU/Linux utilities, existing target directory and >=2147483648 free bytes; preceding check creates target",
+    "New bin tests must be present and unignored; final test carrier and external commands must be inspected after author returns"
+  ],
+  "not_required_by_fixed_code": [
+    "system libsqlite3 install or sqlite3 CLI",
+    "Nautilus/backtest feature activation",
+    "LFS market data",
+    "E/B/X services",
+    "Existing HTTP ports or production DB",
+    "Global new secrets or economic configuration"
+  ],
+  "important_conditions": [
+    "If new regression tests live in rust/tests/<name>.rs, --bin alone does not execute them; explicitly add --test <name> or a separate targeted test step",
+    "--jobs1 limits Cargo build concurrency, not Rust test thread count; do not add test-threads1 without concrete shared-state evidence",
+    "--list and --no-run do not execute assertions; require actual nonzero passed count and named regression tests in final run logs",
+    "Ubuntu job does not establish macOS fullfsync/launcher/runtime acceptance",
+    "test job setup-python is not inherited by rust-check; Python availability is an existing runner assumption, not proven by reading this YAML"
+  ],
+  "validation_after_author_return": [
+    "Verify final test source location and no ignore/feature mismatch",
+    "Run the exact targeted command and record actual test names/count/exit code",
+    "Confirm failure propagates through telemetry and no continue-on-error",
+    "Verify actual CI run on final revision before claiming CI passed"
+  ],
+  "locked_packages": [
+    {
+      "name": "cc",
+      "version": "1.2.65",
+      "dependencies": [
+        "find-msvc-tools",
+        "shlex"
+      ]
+    },
+    {
+      "name": "libsqlite3-sys",
+      "version": "0.38.2",
+      "dependencies": [
+        "cc",
+        "pkg-config",
+        "vcpkg"
+      ]
+    },
+    {
+      "name": "pyo3",
+      "version": "0.23.5",
+      "dependencies": [
+        "cfg-if",
+        "indoc",
+        "libc",
+        "memoffset",
+        "once_cell",
+        "portable-atomic",
+        "pyo3-build-config",
+        "pyo3-ffi",
+        "pyo3-macros",
+        "unindent"
+      ]
+    },
+    {
+      "name": "rusqlite",
+      "version": "0.40.2",
+      "dependencies": [
+        "bitflags 2.13.0",
+        "fallible-iterator",
+        "fallible-streaming-iterator",
+        "hashlink",
+        "libsqlite3-sys",
+        "smallvec",
+        "sqlite-wasm-rs"
+      ]
+    }
+  ],
+  "execution": "Read-only git object inspection and local TOML parsing only; no cargo build/test/metadata, no workflow execution, no ports/DB, no source/GH changes",
+  "lookup_note": "Short f635 was ambiguous with tree/blob IDs; resolved commit f635^{commit} to full SHA, then all reads used full SHA successfully",
+  "branch_scope": "Existing CI push/PR targets main; no main write or workflow dispatch performed; approved isolated execution base unaffected"
+}

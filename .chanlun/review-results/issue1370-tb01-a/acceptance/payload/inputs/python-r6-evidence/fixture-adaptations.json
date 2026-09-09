@@ -1,0 +1,61 @@
+{
+  "r5_evidence_preserved": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r5",
+  "r5_fixture_adaptations_sha256": "24eb2880f88a6ef2a9a6b48d4d00632fee9267e288b6632310852927d07e6145",
+  "changes": [
+    "更新固定 commit、Python SHA、私有 binary binding 和模块/临时目录标签；R5 合法/非法 fixture 值与 213 个检查名保持原义。",
+    "所有临时文件由 TMPDIR 指向本独占目录 tmp；记录 ephemeral ports，禁止使用 18770–18773。",
+    "完整目录原 aggregate 检查增强为 Rust 与 HTTP catalog/state 的全部 116 项 id/kind/title/domain/branches 嵌套值、catalog_revision、初始状态/计数/evidence 同值；并保留实际 init 数据库副本。",
+    "supplemental 的旧 R3 对照模块复制到私有 reference-r3，哈希须与 R5 已封存引用相同；不执行其他工作区的源文件。"
+  ],
+  "probes": [
+    {
+      "probe": "contract_probe.py",
+      "r5_sha256": "b5f9b16eb88831a33fc5634bbea5f26268a03b57c26c27fa7e505eb8040fd9c8",
+      "r6_sha256_before_full_catalog_strengthening": "e62c5fa129c9fd3726e410c671f638bcd88ad08d8750936e1e167487e8598ba2",
+      "r6_sha256": "e62c5fa129c9fd3726e410c671f638bcd88ad08d8750936e1e167487e8598ba2"
+    },
+    {
+      "probe": "full_catalog_probe.py",
+      "r5_sha256": "dca920f2c95a5ec7dd09fb7a1f6b8ae1c37139e06da8b74942009bd08e7783c6",
+      "r6_sha256_before_full_catalog_strengthening": "e12b407787261b17fc1404fe02b5b13397e662087f123e110a18cbe33ee321f7",
+      "r6_sha256": "6282b036852800e90fe2c76156390af3cdace96a74a8aaa18abb9b468f1cd446"
+    },
+    {
+      "probe": "json_corruption_probe.py",
+      "r5_sha256": "5d8ad5bb4aceae823be077e590d018a6214312805cf76801584eadc3f960c9e7",
+      "r6_sha256_before_full_catalog_strengthening": "c08741f880002cb1ef546a435eb2fa0df8c27496bd4606acaf7b7dc4c2cb7f98",
+      "r6_sha256": "c08741f880002cb1ef546a435eb2fa0df8c27496bd4606acaf7b7dc4c2cb7f98"
+    },
+    {
+      "probe": "probe.py",
+      "r5_sha256": "fafdddb580cf260fcb408347f579f5b1a4419a1372d35c653ec25743395c6c77",
+      "r6_sha256_before_full_catalog_strengthening": "425804b784f3863a75bedd31d1c85d2fc76d4a04463ac8262851daef220cc538",
+      "r6_sha256": "425804b784f3863a75bedd31d1c85d2fc76d4a04463ac8262851daef220cc538"
+    },
+    {
+      "probe": "semantic_probe.py",
+      "r5_sha256": "acf7b8890ce4b0bc9155b0bd6085978e35485ae2d26a7417265373da14c712af",
+      "r6_sha256_before_full_catalog_strengthening": "5c1377244a9edee3ea86b2b8b24ec7b3c11ebb590d3476eece1ac82b0ab364ca",
+      "r6_sha256": "5c1377244a9edee3ea86b2b8b24ec7b3c11ebb590d3476eece1ac82b0ab364ca"
+    },
+    {
+      "probe": "supplemental_probe.py",
+      "r5_sha256": "e67a3d86246e4f02c04aefa3071862d02bfb61b7015cafbca1b55e543259e639",
+      "r6_sha256_before_full_catalog_strengthening": "f44a20be84db01434fe2469e27adf4562dd82ed406d312c5d0691247e0f103e8",
+      "r6_sha256": "f44a20be84db01434fe2469e27adf4562dd82ed406d312c5d0691247e0f103e8"
+    },
+    {
+      "probe": "type_probe.py",
+      "r5_sha256": "0f4e61c9c5da78b3e6439585192059164da68be27ae17c8c8a5c3f14020ad5ab",
+      "r6_sha256_before_full_catalog_strengthening": "218655a0d0e0a54b27a0e7c54b8ad4226050abdecb6cbb1cdbc2a29930b4342f",
+      "r6_sha256": "218655a0d0e0a54b27a0e7c54b8ad4226050abdecb6cbb1cdbc2a29930b4342f"
+    },
+    {
+      "probe": "wire_probe.py",
+      "r5_sha256": "780a47a14db2b1a6a2df295cdc3198ff33308d27318222edc108d4cb6ab45e0a",
+      "r6_sha256_before_full_catalog_strengthening": "351a298c21332034400c208ad35316e89ded300d2dcaa256c112618748c67427",
+      "r6_sha256": "351a298c21332034400c208ad35316e89ded300d2dcaa256c112618748c67427"
+    }
+  ],
+  "historical_r3_source_sha256": "69cd4e1016874d982907633ded95e8661dbc844ad55b8f3ca5f928a2ce6bfea4"
+}

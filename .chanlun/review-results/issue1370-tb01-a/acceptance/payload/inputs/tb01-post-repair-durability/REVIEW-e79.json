@@ -1,0 +1,870 @@
+{
+  "schema": "newchanlun.1370.tb01-post-repair-durability-e79.v1",
+  "created_at_utc": "2026-09-09T08:47:26.537051+00:00",
+  "status": "PASS_REQUESTED_DURABILITY_REPAIR_SCOPE",
+  "severity_counts": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "fixed_binding": {
+    "authorization": "ROOT_PROVIDED_FROZEN_NATIVE_EXECUTION",
+    "commit": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+    "source_tree": "cfb051d6f5e2b42fb715c340abc095a372309a91",
+    "publication_order_fix": "BATCH_DURABLE_BEFORE_ROOT",
+    "native_binary": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+    "native_binary_sha256": "85f247650531d2ec807f56f36e1c379d0ed34b4906d455108129737bc5b0769f",
+    "frozen_source_file": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session.rs",
+    "frozen_source_sha256": "c376159b6fb0a9542fc00cccd9061cfccd94080fd0b44ce53d0cb124ad7c9841",
+    "source_manifest": "/tmp/newchanlun-1323-publication-20260909/evidence/native-r4/rust-source-manifest.json",
+    "source_manifest_sha256": "2b2c7648bb0db255c93223f67685aa40254f3b96a582c4b92ced219bd7b7cfc0",
+    "source_count": 408,
+    "source_files_match_root_manifest": true,
+    "parent_native_binary": "/tmp/newchanlun-1323-publication-20260909/native-target/debug/s_structure_session",
+    "parent_binding": "/tmp/newchanlun-1323-publication-20260909/evidence/native-r4/native-build-binding.json",
+    "parent_binding_sha256": "b125c16e4cf1f9e8a6721cc0cbcdb1e2a9eb7315174e3c878cfbc43bbb817320",
+    "environment": {
+      "PYO3_PYTHON": "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+      "DYLD_LIBRARY_PATH": "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/lib"
+    }
+  },
+  "findings": [],
+  "closed_findings": [
+    {
+      "id": "DUR-M02",
+      "basis": "actual new batch committed readable while two fresh reader connections retain old authoritative root, followed by publication of exact same complete batch; fixed source independent transactions"
+    },
+    {
+      "id": "DUR-L01",
+      "basis": "bool cancellation result reflected in CLI text; fixed source and root same-source bin test"
+    },
+    {
+      "id": "DUR-H01",
+      "basis": "normal native accept/advance overlap cancels owned attempt and retries without reset; unreferenced batch allowed and root stays old until retry"
+    },
+    {
+      "id": "DUR-H02",
+      "basis": "native stale epoch Accept rejects with all application table logical contents unchanged"
+    },
+    {
+      "id": "DUR-M01",
+      "basis": "identical replay retains receipts; altered profile canonical bytes reject without cut/profile rebind"
+    }
+  ],
+  "runtime_scenario_count": 7,
+  "scenario_check_count": 46,
+  "command_count": 39,
+  "scenarios": [
+    {
+      "name": "publication-e79/publication-order",
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/summary.json",
+      "sha256": "b57f8cce8b916d9d16ca279c040cdd2ecfd04e40a1a9f17d8500244abab05f8c",
+      "passed": true,
+      "checks": {
+        "durable_new_batch_seen_by_fresh_readers_while_root_old": true,
+        "new_batch_independently_hash_and_reference_complete": true,
+        "commit_points_to_previously_durable_batch": true,
+        "same_precommitted_bytes_after_publication": true,
+        "old_batch_unchanged": true,
+        "next_generation_published": true,
+        "snapshot_uses_new_root": true,
+        "actual_writer_trace_present": true,
+        "actual_writer_sync_full_and_fullfsync": true
+      }
+    },
+    {
+      "name": "epoch-e79/stale-epoch",
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/epoch-e79/stale-epoch/summary.json",
+      "sha256": "8d81622e80ea1bb7a024a9c93cd31de7664cf5621c186b17794ae76e3d8942cf",
+      "passed": true,
+      "checks": {
+        "rejected": true,
+        "stale_writer_reason": true,
+        "all_application_records_unchanged": true
+      }
+    },
+    {
+      "name": "profile-e79/profile-and-batches",
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/summary.json",
+      "sha256": "7e95c99f2689b354fe288b181e4ce0cc15e57e41a06ca374121e46845a5701de",
+      "passed": true,
+      "checks": {
+        "same_profile_replay_returns_original_receipts": true,
+        "same_cut_and_root_after_profile_replay": true,
+        "snapshot_profile_matches_sealed_cut": true,
+        "snapshot_profile_not_rebound": true,
+        "old_batch_bytes_unchanged": true,
+        "two_nonempty_published_batches": true,
+        "batch_byte_lengths_match": true,
+        "all_batch_hashes_and_references_close": true
+      }
+    },
+    {
+      "name": "normal-interleave-e79/interleave-normal",
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/summary.json",
+      "sha256": "534c228e789c650ae452f401ebab33e4899cea6f2081cc59764a71f9f77024a2",
+      "passed": true,
+      "checks": {
+        "begin_observed_before_commit": true,
+        "second_advance_refused": true,
+        "append_accepted": true,
+        "no_stale_publication": true,
+        "normal_abort_released_own_begin": true,
+        "retry_commits_without_reset": true,
+        "retry_includes_newly_accepted_frontier": true,
+        "unreferenced_batch_bytes_preserved": true
+      }
+    },
+    {
+      "name": "native-guards-e79/interleave-new-epoch",
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/summary.json",
+      "sha256": "c2387ea9e9ddbc9c0e0e23f8701609024a77a74d944a44c16537c15aa0485e26",
+      "passed": true,
+      "checks": {
+        "begin_observed_before_commit": true,
+        "second_advance_refused": true,
+        "append_accepted": true,
+        "no_stale_publication": true,
+        "foreign_guard_and_cut_not_cleared": true,
+        "guarded_advance_rejected": true
+      }
+    },
+    {
+      "name": "native-guards-e79/interleave-other-token",
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/summary.json",
+      "sha256": "96cb70310e17b62148670d0cb537c6f46c58cbbfe8980829788ebda2936af6a6",
+      "passed": true,
+      "checks": {
+        "begin_observed_before_commit": true,
+        "second_advance_refused": true,
+        "append_accepted": true,
+        "no_stale_publication": true,
+        "foreign_guard_and_cut_not_cleared": true,
+        "guarded_advance_rejected": true
+      }
+    },
+    {
+      "name": "native-guards-e79/interleave-published-generation-marker",
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/summary.json",
+      "sha256": "52c059b7dc18e4aabbbb204804d23724686707bf498ac85ee0487d9cc0804925",
+      "passed": true,
+      "checks": {
+        "begin_observed_before_commit": true,
+        "second_advance_refused": true,
+        "append_accepted": true,
+        "no_stale_publication": true,
+        "foreign_guard_and_cut_not_cleared": true,
+        "guarded_advance_rejected": true
+      }
+    }
+  ],
+  "native_commands": [
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/accept-first.json",
+      "sha256": "a7cfdfa9bcd13b7c02b08c40eb624d9c7a74d0d9918da04c30ae5a1c03929e6b",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/initial.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/accept-more.json",
+      "sha256": "7d526d8797abef22046bdc0e93b85b609b94f1982cfbd4108e557d5091deddcb",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/append-512.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/advance-first.json",
+      "sha256": "aa9c1031c6fa5418a8514bd0f588016dc6d37aa1c156c89bd2e4968526c05a92",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/advance-second.json",
+      "sha256": "b42cc70bd9eb9f0947416827c6197961e42fac26ac03ea31acc4b33992dda5e7",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/init.json",
+      "sha256": "91be269a0dfa641de0bdcba89d456a3eec0b5a48d0dfe19d8ad999510d1a7421",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "init",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/structure.sqlite",
+        "--session",
+        "s-session-testonly-001",
+        "--catalog",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/catalog.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/snapshot-after.json",
+      "sha256": "a523c6520ac9416b2027caabb401485e55f46e26462396417e7cdc324a878102",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "snapshot",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/epoch-e79/stale-epoch/init.json",
+      "sha256": "8669c0928674d0ae487de6c8e8c00758fe929b2942ee3861d1aae5edc6e36458",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "init",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/epoch-e79/stale-epoch/structure.sqlite",
+        "--session",
+        "s-session-testonly-001",
+        "--catalog",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/catalog.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/epoch-e79/stale-epoch/initial-accept.json",
+      "sha256": "4466fccfc1a6c79ec1795251e4cf62a6e70edb0cd8cf4fde8eaf97c79fe217a2",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/epoch-e79/stale-epoch/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/initial.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/epoch-e79/stale-epoch/stale-accept.json",
+      "sha256": "ab6c9175cba105d5de65c9f982e1d1560baaf48bb08234c2a27cb8ac5631d08e",
+      "exit_code": 1,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/epoch-e79/stale-epoch/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/append.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/advance-one.json",
+      "sha256": "880a9e9afc49396421ef7700c05543f726a05f25b96dbe369f2d4f369d03318a",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/advance-two.json",
+      "sha256": "d931f0fc0bf58d9d5a6c137b36e2a04219f404fe5b8a069b3b415696181039f6",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/altered-profile-replay.json",
+      "sha256": "7af87826560471bcf42557fe182aaead2c4104f8342550812391a97ed122b295",
+      "exit_code": 1,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/initial.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/same-profile-new-note.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/append.json",
+      "sha256": "d77e6f86a675b12da876e81b60df88770fa805e6ec7349b1fd16b22f464fc23b",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/append.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/identical-profile-replay.json",
+      "sha256": "49c968a77d74ac0ecbff07671f2b73cfaaa54dd3a654fcb7349d9584863413f7",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/initial.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/init.json",
+      "sha256": "58a902dc1640cc8993de2b2eb93569f61ac251503bca712f7f9d421e046500e8",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "init",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/structure.sqlite",
+        "--session",
+        "s-session-testonly-001",
+        "--catalog",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/catalog.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/initial-accept.json",
+      "sha256": "b70b13ab7a008d0217cb9cb4ce8c0f475c3cec7d5477c3017bb0e8e4a9421847",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/initial.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/snapshot-after-profile-replay.json",
+      "sha256": "9571383fb5de673b590a6e4edc1928c4f8af0ecdc68df3a8fd7fe2717af038be",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "snapshot",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/snapshot-before.json",
+      "sha256": "03c728448932338a65f2e1a1f3ea03d3dca141a62a7b9c138dea64fcec2dc563",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "snapshot",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/profile-e79/profile-and-batches/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/accept-during-begin.json",
+      "sha256": "24c8bf3d3b10570aa205d06d980bf7c0fb69ab8810d93d087f0d0f22ab78590e",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/append-one.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/accept-initial.json",
+      "sha256": "2219381d823d074cc2ccd19873e74167dda27dca50d5f5b03a39532d0eca83ab",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/initial-512.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/first-advance.json",
+      "sha256": "098faf9a19af20bcc3ec08767efbf6831a8a3335c11d60fee722060c420a97ca",
+      "exit_code": 1,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/init.json",
+      "sha256": "8bec54ced228771e659d2a800911acdc52daabb117d57424a4dd0e6b57968a36",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "init",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/structure.sqlite",
+        "--session",
+        "s-session-testonly-001",
+        "--catalog",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/catalog.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/retry-advance.json",
+      "sha256": "fffcb0d541014464601b97e24ce39fb53d0bd1d4245bed6be8f9864fe682ef95",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/second-advance.json",
+      "sha256": "0269a7bb9b99762e9fa0ab99597f07691c57a51efc6ea6d2a229b21e09c5a4e2",
+      "exit_code": 1,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/normal-interleave-e79/interleave-normal/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/accept-during-begin.json",
+      "sha256": "b7c2839efd4f6c0c58e3c367312b1edd0230ace681ddedd3e3bfc25876d5bd03",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/append-one.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/accept-initial.json",
+      "sha256": "bc68582e8b621f31d2b3c91fcda54bea71087af8d80dfcb91f2ad118135fca8a",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/initial-512.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/first-advance.json",
+      "sha256": "e78cc8e5009abdf482138b1b87da5b1f079d02fcbac1a78d5a691ba2e4d6b842",
+      "exit_code": 1,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/init.json",
+      "sha256": "4acac6613ebb33651b3946c2b42af57f799999439be94d989a37fc357a522a08",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "init",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/structure.sqlite",
+        "--session",
+        "s-session-testonly-001",
+        "--catalog",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/catalog.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/second-advance.json",
+      "sha256": "6864c9348fa033ca6bc3df257aad816e78ac3d13c21bbc0337a0b0ef84bfaef0",
+      "exit_code": 1,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-new-epoch/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/accept-during-begin.json",
+      "sha256": "f21862e0bfa7d9da5cc8d27fdb89b40f7c0bb93815f136d6464e92ffb3d1f798",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/append-one.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/accept-initial.json",
+      "sha256": "c426d11ca96eb62f62723cbe84be201cfdf951fc5ffad8b1ba22c285e8dd566e",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/initial-512.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/first-advance.json",
+      "sha256": "6575c93afa2f69c644ddbd45bec65073b95b6c7845692bb9db70a6f161c70422",
+      "exit_code": 1,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/init.json",
+      "sha256": "27da3392770fbb45151fc37a767f1c3a8ce2017844252d68edaa15aec5d636d9",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "init",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/structure.sqlite",
+        "--session",
+        "s-session-testonly-001",
+        "--catalog",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/catalog.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/second-advance.json",
+      "sha256": "4dda1732d064b565438d148fb46a3dd5ab770c02829d44d36cefd02a346a7866",
+      "exit_code": 1,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-other-token/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/accept-during-begin.json",
+      "sha256": "675de6cdae6e0e8bf1a91193988b6a78a9ca9b29333aef95b18db8567077c10a",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/append-one.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/accept-initial.json",
+      "sha256": "d9840560550baebcd732bb077ae5112bad9c52ecb407d2aadfbc7fd70f218f9d",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "accept",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/structure.sqlite",
+        "--input",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/initial-512.json",
+        "--profile",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/profile.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/first-advance.json",
+      "sha256": "8a36744df383d3ed34c4304145ec59b9e4fc621dc859e8068127785aa1df6f96",
+      "exit_code": 1,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/structure.sqlite"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/init.json",
+      "sha256": "32eec9e44bdf9ac110a141f82e60a23d199ecd09c519e9d806fd2054d9941f40",
+      "exit_code": 0,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "init",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/structure.sqlite",
+        "--session",
+        "s-session-testonly-001",
+        "--catalog",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/fixtures/catalog.json"
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/second-advance.json",
+      "sha256": "1704427ed1d66566635764eb32ed5754c7de67acdd99243a030e0ecf944065a3",
+      "exit_code": 1,
+      "argv": [
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+        "advance",
+        "--db",
+        "/private/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/native-guards-e79/interleave-published-generation-marker/structure.sqlite"
+      ]
+    }
+  ],
+  "publication_observation": {
+    "old_root": "batch-cb49be6f405a8812a1b2e34bda0c098e3fc8a22d366fa6bad5a5086bc59f44a6",
+    "durable_unpublished_batch_ids": [
+      "batch-04b7ff7f02f8be5c5b01800846b278e6c6c5d14d27e61ac113fe91c149cd8d80"
+    ],
+    "intermediate_meta": {
+      "generation": "1",
+      "structure_cut": "cut-1",
+      "index_frontier": "batch-cb49be6f405a8812a1b2e34bda0c098e3fc8a22d366fa6bad5a5086bc59f44a6",
+      "advance_state": "begun:93639:1788943365295533000:2:518"
+    },
+    "intermediate_batch_count": 2,
+    "intermediate_published_objects": 5,
+    "fresh_independent_reader_logical_hashes_equal": true,
+    "new_batch_closure_counts": {
+      "raw_events": 519,
+      "objects": 517,
+      "witnesses": 1551,
+      "relations": 2068,
+      "observations": 0
+    },
+    "actual_writer_connection_trace": [
+      [
+        "batch_written",
+        "1",
+        "batch-cb49be6f405a8812a1b2e34bda0c098e3fc8a22d366fa6bad5a5086bc59f44a6",
+        "begun:93639:1788943365295533000:2:518",
+        2,
+        "3.53.2",
+        "2026-06-03 19:12:13 d6e03d8c777cfa2d35e3b60d8ec3e0187f3e9f99d8e2ee9cac695fd6fcdf1a24",
+        2,
+        1
+      ],
+      [
+        "root_changed",
+        "2",
+        "batch-04b7ff7f02f8be5c5b01800846b278e6c6c5d14d27e61ac113fe91c149cd8d80",
+        "begun:93639:1788943365295533000:2:518",
+        2,
+        "3.53.2",
+        "2026-06-03 19:12:13 d6e03d8c777cfa2d35e3b60d8ec3e0187f3e9f99d8e2ee9cac695fd6fcdf1a24",
+        2,
+        1
+      ]
+    ],
+    "after_meta": {
+      "generation": "2",
+      "structure_cut": "cut-2",
+      "index_frontier": "batch-04b7ff7f02f8be5c5b01800846b278e6c6c5d14d27e61ac113fe91c149cd8d80",
+      "advance_state": "idle"
+    },
+    "first_execution_captured_phase": true,
+    "used_process_kill_recovery": false
+  },
+  "normal_interleave_protocol": {
+    "unreferenced_batch_count_after_normal_abort": 1,
+    "old_root_after_abort": "",
+    "batch_count_after_successful_retry": 2,
+    "assertions": {
+      "begin_observed_before_commit": true,
+      "second_advance_refused": true,
+      "append_accepted": true,
+      "no_stale_publication": true,
+      "normal_abort_released_own_begin": true,
+      "retry_commits_without_reset": true,
+      "retry_includes_newly_accepted_frontier": true,
+      "unreferenced_batch_bytes_preserved": true
+    }
+  },
+  "reused_root_tests": {
+    "execution_owner": "root",
+    "receipt_path": "/tmp/newchanlun-1323-publication-20260909/evidence/native-r4/cargo-session-test-typed-meta.json",
+    "receipt_sha256": "548631eb6dccb5d5562c7450d5cdcd5977c66e56c5528d31c3bf4a8672dc7bc0",
+    "log_path": "/tmp/newchanlun-1323-publication-20260909/evidence/native-r4/cargo-session-test-typed-meta.log",
+    "log_sha256": "b053aa32ff8f0b43024be156cfa548531213f4fed67fc6ad80de8266ca0cfc6e",
+    "source_sha256": "c376159b6fb0a9542fc00cccd9061cfccd94080fd0b44ce53d0cb124ad7c9841",
+    "source_sha_matches_frozen_commit": true,
+    "exit_code": 0,
+    "passed": 8,
+    "failed": 0,
+    "rerun_by_this_reviewer": false,
+    "earlier_harness_failures": "missing std::time import and test-directory collision; original logs preserved, final same-source run passed"
+  },
+  "source_and_evidence_records": [
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/EXECUTION-BINDING-e79.json",
+      "sha256": "f609d71bc25b4f3101cdad781ac00b82b12a0cbd2870b96e2e9bd62004dd7e0a",
+      "bytes": 1526
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/SOURCE-BINDING-CHECK-e79.json",
+      "sha256": "4f09b3dda3e208f75bed117b6b50699b8bb38ec7b03262af3286ff53d8f9ebbd",
+      "bytes": 21956
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/PROBE-ADAPTATION-e79.json",
+      "sha256": "8f2a0de100d4ea58867dcccff19b59b87076034b5b1d30e6d43ee4c6130906af",
+      "bytes": 876
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session.rs",
+      "sha256": "c376159b6fb0a9542fc00cccd9061cfccd94080fd0b44ce53d0cb124ad7c9841",
+      "bytes": 84199
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+      "sha256": "85f247650531d2ec807f56f36e1c379d0ed34b4906d455108129737bc5b0769f",
+      "bytes": 4999528
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/delta-9a-e79.diff",
+      "sha256": "90495216657bc231fd7d7dfebad51100596350afe6a98c0c41feb8ce00dda05f",
+      "bytes": 29800
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/real-begin-paused.json",
+      "sha256": "b8b0cda0c7a28ec33b9c658c469e5d5199445eae8eafc1e0aeb083147daf8ffa",
+      "bytes": 30906
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/durable-batch-old-root.json",
+      "sha256": "216a9d3d2b7470d4489bebabe2c03575edf0f3aa6b676042c659966e4e732845",
+      "bytes": 2997805
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/fresh-second-reader-confirmation.json",
+      "sha256": "216a9d3d2b7470d4489bebabe2c03575edf0f3aa6b676042c659966e4e732845",
+      "bytes": 2997805
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/trace-schema.sql",
+      "sha256": "24680f7e45156721697b829c56821b343eee23c284b0223827153bf95afebb37",
+      "bytes": 1147
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/runs/publication-e79/publication-order/advance-second.json",
+      "sha256": "b42cc70bd9eb9f0947416827c6197961e42fac26ac03ea31acc4b33992dda5e7",
+      "bytes": 795
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/evidence/native-r4/cargo-session-test-typed-meta.json",
+      "sha256": "548631eb6dccb5d5562c7450d5cdcd5977c66e56c5528d31c3bf4a8672dc7bc0",
+      "bytes": 261
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/evidence/native-r4/cargo-session-test-typed-meta.log",
+      "sha256": "b053aa32ff8f0b43024be156cfa548531213f4fed67fc6ad80de8266ca0cfc6e",
+      "bytes": 19352
+    }
+  ],
+  "probe_records": [
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/run_probes.py",
+      "sha256": "237cbab7c619a6bd47528f17cd1f447ebf2822a764366995ca1d1f1cdd44298b"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/run_probes_e79.py",
+      "sha256": "aa8a81c42ee4f3845195234f253b2d7fdb8804847dcc702c071e5b80af76ece6"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/closure_check.py",
+      "sha256": "524d7ae73bd99d86bcc55753df7ff0748ec4101dd6737d3074bba2d129f73c45"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/publication_order_probe.py",
+      "sha256": "4f6dafa020ce1c08c33c2113efb2101c77ad4fe8684860ef78cc3a75213907ff"
+    }
+  ],
+  "limits": [
+    "Pass covers requested durability repair scope, not entire #1370/TB-01/#1323 or independent GUI/Python review.",
+    "Native foreign guard cases exercise stage ownership fences; cancel helper rejection branches are supported separately by frozen source and root actual same-source unit test.",
+    "Generation guard uses a controlled metadata precondition, not second real writer publication.",
+    "SIGSTOP/SIGCONT controls only owned normal native process; not power loss, crash recovery, complete historical replay or all deployment durability prerequisites.",
+    "No root databases, ports 18770-18773, GUI, E/B/X, repository or GitHub writes.",
+    "Unchanged knowledge/same-price/partial-inclusion cases reuse 9a evidence instead of redundant reruns."
+  ],
+  "end_attestation": {
+    "native_binary_sha256": "85f247650531d2ec807f56f36e1c379d0ed34b4906d455108129737bc5b0769f",
+    "frozen_source_sha256": "c376159b6fb0a9542fc00cccd9061cfccd94080fd0b44ce53d0cb124ad7c9841",
+    "all_owned_interleave_processes_finished": true,
+    "publication_native_exit_code": 0
+  },
+  "human_report": {
+    "path": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/REVIEW-e79.md",
+    "sha256": "e1b21e6ccea1d1608c87bb852ba7811eb75d978e44e3cb1ddf5dcdc62efd49cb"
+  }
+}

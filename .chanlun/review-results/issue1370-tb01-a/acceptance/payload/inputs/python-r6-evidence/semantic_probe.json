@@ -1,0 +1,823 @@
+{
+  "source": "/private/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/s_readonly_server.py",
+  "source_sha256": "63203e75dbf58a3d59ed5b0fe7a15d5eb1101be9e19945b4d47ad00f0e3e95a9",
+  "scope": "Frozen Python; synthetic SQLite; localhost temporary ports; semantic boundary supplement",
+  "checks": [
+    {
+      "name": "scope_missing",
+      "passed": true,
+      "responses": {
+        "/api/catalog": {
+          "status": 200,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": true, \"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {}, \"items\": [{\"id\": \"cut-A\", \"kind\": \"local_shape\", \"title\": \"cut-A\", \"domain\": \"S\", \"branches\": [\"RISING\"], \"implementation_status\": \"implemented\", \"proof_status\": \"bounded\", \"run_status\": \"run\", \"evidence\": {\"cut\": \"cut-A\"}}], \"counts\": {\"implemented\": 1, \"not_implemented\": 0, \"run\": 1, \"not_run\": 0}}",
+          "json": {
+            "ok": true,
+            "session_id": "cut-A",
+            "generation": "cut-A",
+            "structure_cut": "cut-A",
+            "catalog_revision": "cut-A",
+            "scope": {},
+            "items": [
+              {
+                "id": "cut-A",
+                "kind": "local_shape",
+                "title": "cut-A",
+                "domain": "S",
+                "branches": [
+                  "RISING"
+                ],
+                "implementation_status": "implemented",
+                "proof_status": "bounded",
+                "run_status": "run",
+                "evidence": {
+                  "cut": "cut-A"
+                }
+              }
+            ],
+            "counts": {
+              "implemented": 1,
+              "not_implemented": 0,
+              "run": 1,
+              "not_run": 0
+            }
+          }
+        },
+        "/api/snapshot": {
+          "status": 200,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": true, \"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {}, \"index_frontier\": \"cut-A\", \"profile_id\": \"cut-A\", \"profile_hash\": \"cut-A\", \"objects\": [{\"object_id\": \"cut-A\", \"object_revision\": \"1\", \"kind\": \"local_shape\", \"batch_id\": \"cut-A\", \"branch\": \"RISING\", \"dir_ab\": \"UP\", \"dir_bc\": \"UP\", \"window_start\": \"0\", \"window_mid\": \"1\", \"window_end\": \"2\", \"comparisons\": [{\"integer\": \"9007199254740993\"}], \"input_refs\": [{\"merged_index\": \"0\", \"raw_refs\": [{\"seq\": \"0\", \"cut\": \"cut-A\"}]}]}], \"witnesses\": [{\"witness_id\": \"cut-A\", \"object_id\": \"cut-A\", \"slot\": \"0\", \"merged_source_index\": \"0\", \"merged_high\": \"9007199254740993\", \"merged_low\": \"9007199254740993\", \"merged_open\": \"9007199254740993\", \"merged_close\": \"9007199254740993\", \"raw_bars\": [{\"seq\": \"0\", \"cut\": \"cut-A\"}]}], \"relations\": [{\"subject\": \"cut-A\", \"relation_type\": \"witness\", \"object\": \"cut-A\"}], \"observations\": [{\"observation_id\": \"cut-A\", \"batch_id\": \"cut-A\", \"kind\": \"knowledge_insufficient\", \"window_start\": \"0\", \"window_mid\": \"1\", \"window_end\": \"2\", \"reason\": \"right_missing\", \"detail\": {\"cut\": \"cut-A\"}}]}",
+          "json": {
+            "ok": true,
+            "session_id": "cut-A",
+            "generation": "cut-A",
+            "structure_cut": "cut-A",
+            "catalog_revision": "cut-A",
+            "scope": {},
+            "index_frontier": "cut-A",
+            "profile_id": "cut-A",
+            "profile_hash": "cut-A",
+            "objects": [
+              {
+                "object_id": "cut-A",
+                "object_revision": "1",
+                "kind": "local_shape",
+                "batch_id": "cut-A",
+                "branch": "RISING",
+                "dir_ab": "UP",
+                "dir_bc": "UP",
+                "window_start": "0",
+                "window_mid": "1",
+                "window_end": "2",
+                "comparisons": [
+                  {
+                    "integer": "9007199254740993"
+                  }
+                ],
+                "input_refs": [
+                  {
+                    "merged_index": "0",
+                    "raw_refs": [
+                      {
+                        "seq": "0",
+                        "cut": "cut-A"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "witnesses": [
+              {
+                "witness_id": "cut-A",
+                "object_id": "cut-A",
+                "slot": "0",
+                "merged_source_index": "0",
+                "merged_high": "9007199254740993",
+                "merged_low": "9007199254740993",
+                "merged_open": "9007199254740993",
+                "merged_close": "9007199254740993",
+                "raw_bars": [
+                  {
+                    "seq": "0",
+                    "cut": "cut-A"
+                  }
+                ]
+              }
+            ],
+            "relations": [
+              {
+                "subject": "cut-A",
+                "relation_type": "witness",
+                "object": "cut-A"
+              }
+            ],
+            "observations": [
+              {
+                "observation_id": "cut-A",
+                "batch_id": "cut-A",
+                "kind": "knowledge_insufficient",
+                "window_start": "0",
+                "window_mid": "1",
+                "window_end": "2",
+                "reason": "right_missing",
+                "detail": {
+                  "cut": "cut-A"
+                }
+              }
+            ]
+          }
+        },
+        "/api/state": {
+          "status": 200,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": true, \"cut\": {\"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"index_frontier\": \"cut-A\"}, \"catalog\": {\"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {}, \"items\": [{\"id\": \"cut-A\", \"kind\": \"local_shape\", \"title\": \"cut-A\", \"domain\": \"S\", \"branches\": [\"RISING\"], \"implementation_status\": \"implemented\", \"proof_status\": \"bounded\", \"run_status\": \"run\", \"evidence\": {\"cut\": \"cut-A\"}}], \"counts\": {\"implemented\": 1, \"not_implemented\": 0, \"run\": 1, \"not_run\": 0}}, \"snapshot\": {\"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {}, \"index_frontier\": \"cut-A\", \"profile_id\": \"cut-A\", \"profile_hash\": \"cut-A\", \"objects\": [{\"object_id\": \"cut-A\", \"object_revision\": \"1\", \"kind\": \"local_shape\", \"batch_id\": \"cut-A\", \"branch\": \"RISING\", \"dir_ab\": \"UP\", \"dir_bc\": \"UP\", \"window_start\": \"0\", \"window_mid\": \"1\", \"window_end\": \"2\", \"comparisons\": [{\"integer\": \"9007199254740993\"}], \"input_refs\": [{\"merged_index\": \"0\", \"raw_refs\": [{\"seq\": \"0\", \"cut\": \"cut-A\"}]}]}], \"witnesses\": [{\"witness_id\": \"cut-A\", \"object_id\": \"cut-A\", \"slot\": \"0\", \"merged_source_index\": \"0\", \"merged_high\": \"9007199254740993\", \"merged_low\": \"9007199254740993\", \"merged_open\": \"9007199254740993\", \"merged_close\": \"9007199254740993\", \"raw_bars\": [{\"seq\": \"0\", \"cut\": \"cut-A\"}]}], \"relations\": [{\"subject\": \"cut-A\", \"relation_type\": \"witness\", \"object\": \"cut-A\"}], \"observations\": [{\"observation_id\": \"cut-A\", \"batch_id\": \"cut-A\", \"kind\": \"knowledge_insufficient\", \"window_start\": \"0\", \"window_mid\": \"1\", \"window_end\": \"2\", \"reason\": \"right_missing\", \"detail\": {\"cut\": \"cut-A\"}}]}}",
+          "json": {
+            "ok": true,
+            "cut": {
+              "session_id": "cut-A",
+              "generation": "cut-A",
+              "structure_cut": "cut-A",
+              "catalog_revision": "cut-A",
+              "index_frontier": "cut-A"
+            },
+            "catalog": {
+              "session_id": "cut-A",
+              "generation": "cut-A",
+              "structure_cut": "cut-A",
+              "catalog_revision": "cut-A",
+              "scope": {},
+              "items": [
+                {
+                  "id": "cut-A",
+                  "kind": "local_shape",
+                  "title": "cut-A",
+                  "domain": "S",
+                  "branches": [
+                    "RISING"
+                  ],
+                  "implementation_status": "implemented",
+                  "proof_status": "bounded",
+                  "run_status": "run",
+                  "evidence": {
+                    "cut": "cut-A"
+                  }
+                }
+              ],
+              "counts": {
+                "implemented": 1,
+                "not_implemented": 0,
+                "run": 1,
+                "not_run": 0
+              }
+            },
+            "snapshot": {
+              "session_id": "cut-A",
+              "generation": "cut-A",
+              "structure_cut": "cut-A",
+              "catalog_revision": "cut-A",
+              "scope": {},
+              "index_frontier": "cut-A",
+              "profile_id": "cut-A",
+              "profile_hash": "cut-A",
+              "objects": [
+                {
+                  "object_id": "cut-A",
+                  "object_revision": "1",
+                  "kind": "local_shape",
+                  "batch_id": "cut-A",
+                  "branch": "RISING",
+                  "dir_ab": "UP",
+                  "dir_bc": "UP",
+                  "window_start": "0",
+                  "window_mid": "1",
+                  "window_end": "2",
+                  "comparisons": [
+                    {
+                      "integer": "9007199254740993"
+                    }
+                  ],
+                  "input_refs": [
+                    {
+                      "merged_index": "0",
+                      "raw_refs": [
+                        {
+                          "seq": "0",
+                          "cut": "cut-A"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "witnesses": [
+                {
+                  "witness_id": "cut-A",
+                  "object_id": "cut-A",
+                  "slot": "0",
+                  "merged_source_index": "0",
+                  "merged_high": "9007199254740993",
+                  "merged_low": "9007199254740993",
+                  "merged_open": "9007199254740993",
+                  "merged_close": "9007199254740993",
+                  "raw_bars": [
+                    {
+                      "seq": "0",
+                      "cut": "cut-A"
+                    }
+                  ]
+                }
+              ],
+              "relations": [
+                {
+                  "subject": "cut-A",
+                  "relation_type": "witness",
+                  "object": "cut-A"
+                }
+              ],
+              "observations": [
+                {
+                  "observation_id": "cut-A",
+                  "batch_id": "cut-A",
+                  "kind": "knowledge_insufficient",
+                  "window_start": "0",
+                  "window_mid": "1",
+                  "window_end": "2",
+                  "reason": "right_missing",
+                  "detail": {
+                    "cut": "cut-A"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "errors": [],
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 Unicode \u548c\u7f3a\u503c\u8fb9\u754c</h1>"
+      },
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "scope_sql_null",
+      "passed": true,
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"meta \u7684\u952e\u548c\u503c\u5fc5\u987b\u90fd\u662f\u6587\u672c\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "meta \u7684\u952e\u548c\u503c\u5fc5\u987b\u90fd\u662f\u6587\u672c"
+          }
+        },
+        "/api/snapshot": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"meta \u7684\u952e\u548c\u503c\u5fc5\u987b\u90fd\u662f\u6587\u672c\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "meta \u7684\u952e\u548c\u503c\u5fc5\u987b\u90fd\u662f\u6587\u672c"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"meta \u7684\u952e\u548c\u503c\u5fc5\u987b\u90fd\u662f\u6587\u672c\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "meta \u7684\u952e\u548c\u503c\u5fc5\u987b\u90fd\u662f\u6587\u672c"
+          }
+        }
+      },
+      "errors": [],
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 Unicode \u548c\u7f3a\u503c\u8fb9\u754c</h1>"
+      },
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "nested_high_surrogate",
+      "passed": true,
+      "persisted_json": "{\"label\": \"\\ud800\"}",
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        }
+      },
+      "errors": [],
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 Unicode \u548c\u7f3a\u503c\u8fb9\u754c</h1>"
+      },
+      "decoded_roundtrip_exact": false,
+      "decoded_json_strict_utf8_encodable": [],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "nested_low_surrogate",
+      "passed": true,
+      "persisted_json": "{\"label\": \"\\udfff\"}",
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        }
+      },
+      "errors": [],
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 Unicode \u548c\u7f3a\u503c\u8fb9\u754c</h1>"
+      },
+      "decoded_roundtrip_exact": false,
+      "decoded_json_strict_utf8_encodable": [],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "surrogate_key",
+      "passed": true,
+      "persisted_json": "{\"\\ud800\": \"value\"}",
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        }
+      },
+      "errors": [],
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 Unicode \u548c\u7f3a\u503c\u8fb9\u754c</h1>"
+      },
+      "decoded_roundtrip_exact": false,
+      "decoded_json_strict_utf8_encodable": [],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "valid_unicode",
+      "passed": true,
+      "persisted_json": "{\"label\": \"\\u4e2d\\u6587\\u3001\\u7ec4\\u5408\\u5b57\\u7b26 e\\u0301\\u3001emoji \\ud83d\\ude42\"}",
+      "responses": {
+        "/api/catalog": {
+          "status": 200,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": true, \"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {\"cut\": \"cut-A\"}, \"items\": [{\"id\": \"cut-A\", \"kind\": \"local_shape\", \"title\": \"cut-A\", \"domain\": \"S\", \"branches\": [\"RISING\"], \"implementation_status\": \"implemented\", \"proof_status\": \"bounded\", \"run_status\": \"run\", \"evidence\": {\"label\": \"\u4e2d\u6587\u3001\u7ec4\u5408\u5b57\u7b26 e\u0301\u3001emoji \ud83d\ude42\"}}], \"counts\": {\"implemented\": 1, \"not_implemented\": 0, \"run\": 1, \"not_run\": 0}}",
+          "json": {
+            "ok": true,
+            "session_id": "cut-A",
+            "generation": "cut-A",
+            "structure_cut": "cut-A",
+            "catalog_revision": "cut-A",
+            "scope": {
+              "cut": "cut-A"
+            },
+            "items": [
+              {
+                "id": "cut-A",
+                "kind": "local_shape",
+                "title": "cut-A",
+                "domain": "S",
+                "branches": [
+                  "RISING"
+                ],
+                "implementation_status": "implemented",
+                "proof_status": "bounded",
+                "run_status": "run",
+                "evidence": {
+                  "label": "\u4e2d\u6587\u3001\u7ec4\u5408\u5b57\u7b26 e\u0301\u3001emoji \ud83d\ude42"
+                }
+              }
+            ],
+            "counts": {
+              "implemented": 1,
+              "not_implemented": 0,
+              "run": 1,
+              "not_run": 0
+            }
+          }
+        },
+        "/api/state": {
+          "status": 200,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": true, \"cut\": {\"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"index_frontier\": \"cut-A\"}, \"catalog\": {\"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {\"cut\": \"cut-A\"}, \"items\": [{\"id\": \"cut-A\", \"kind\": \"local_shape\", \"title\": \"cut-A\", \"domain\": \"S\", \"branches\": [\"RISING\"], \"implementation_status\": \"implemented\", \"proof_status\": \"bounded\", \"run_status\": \"run\", \"evidence\": {\"label\": \"\u4e2d\u6587\u3001\u7ec4\u5408\u5b57\u7b26 e\u0301\u3001emoji \ud83d\ude42\"}}], \"counts\": {\"implemented\": 1, \"not_implemented\": 0, \"run\": 1, \"not_run\": 0}}, \"snapshot\": {\"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {\"cut\": \"cut-A\"}, \"index_frontier\": \"cut-A\", \"profile_id\": \"cut-A\", \"profile_hash\": \"cut-A\", \"objects\": [{\"object_id\": \"cut-A\", \"object_revision\": \"1\", \"kind\": \"local_shape\", \"batch_id\": \"cut-A\", \"branch\": \"RISING\", \"dir_ab\": \"UP\", \"dir_bc\": \"UP\", \"window_start\": \"0\", \"window_mid\": \"1\", \"window_end\": \"2\", \"comparisons\": [{\"integer\": \"9007199254740993\"}], \"input_refs\": [{\"merged_index\": \"0\", \"raw_refs\": [{\"seq\": \"0\", \"cut\": \"cut-A\"}]}]}], \"witnesses\": [{\"witness_id\": \"cut-A\", \"object_id\": \"cut-A\", \"slot\": \"0\", \"merged_source_index\": \"0\", \"merged_high\": \"9007199254740993\", \"merged_low\": \"9007199254740993\", \"merged_open\": \"9007199254740993\", \"merged_close\": \"9007199254740993\", \"raw_bars\": [{\"seq\": \"0\", \"cut\": \"cut-A\"}]}], \"relations\": [{\"subject\": \"cut-A\", \"relation_type\": \"witness\", \"object\": \"cut-A\"}], \"observations\": [{\"observation_id\": \"cut-A\", \"batch_id\": \"cut-A\", \"kind\": \"knowledge_insufficient\", \"window_start\": \"0\", \"window_mid\": \"1\", \"window_end\": \"2\", \"reason\": \"right_missing\", \"detail\": {\"cut\": \"cut-A\"}}]}}",
+          "json": {
+            "ok": true,
+            "cut": {
+              "session_id": "cut-A",
+              "generation": "cut-A",
+              "structure_cut": "cut-A",
+              "catalog_revision": "cut-A",
+              "index_frontier": "cut-A"
+            },
+            "catalog": {
+              "session_id": "cut-A",
+              "generation": "cut-A",
+              "structure_cut": "cut-A",
+              "catalog_revision": "cut-A",
+              "scope": {
+                "cut": "cut-A"
+              },
+              "items": [
+                {
+                  "id": "cut-A",
+                  "kind": "local_shape",
+                  "title": "cut-A",
+                  "domain": "S",
+                  "branches": [
+                    "RISING"
+                  ],
+                  "implementation_status": "implemented",
+                  "proof_status": "bounded",
+                  "run_status": "run",
+                  "evidence": {
+                    "label": "\u4e2d\u6587\u3001\u7ec4\u5408\u5b57\u7b26 e\u0301\u3001emoji \ud83d\ude42"
+                  }
+                }
+              ],
+              "counts": {
+                "implemented": 1,
+                "not_implemented": 0,
+                "run": 1,
+                "not_run": 0
+              }
+            },
+            "snapshot": {
+              "session_id": "cut-A",
+              "generation": "cut-A",
+              "structure_cut": "cut-A",
+              "catalog_revision": "cut-A",
+              "scope": {
+                "cut": "cut-A"
+              },
+              "index_frontier": "cut-A",
+              "profile_id": "cut-A",
+              "profile_hash": "cut-A",
+              "objects": [
+                {
+                  "object_id": "cut-A",
+                  "object_revision": "1",
+                  "kind": "local_shape",
+                  "batch_id": "cut-A",
+                  "branch": "RISING",
+                  "dir_ab": "UP",
+                  "dir_bc": "UP",
+                  "window_start": "0",
+                  "window_mid": "1",
+                  "window_end": "2",
+                  "comparisons": [
+                    {
+                      "integer": "9007199254740993"
+                    }
+                  ],
+                  "input_refs": [
+                    {
+                      "merged_index": "0",
+                      "raw_refs": [
+                        {
+                          "seq": "0",
+                          "cut": "cut-A"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "witnesses": [
+                {
+                  "witness_id": "cut-A",
+                  "object_id": "cut-A",
+                  "slot": "0",
+                  "merged_source_index": "0",
+                  "merged_high": "9007199254740993",
+                  "merged_low": "9007199254740993",
+                  "merged_open": "9007199254740993",
+                  "merged_close": "9007199254740993",
+                  "raw_bars": [
+                    {
+                      "seq": "0",
+                      "cut": "cut-A"
+                    }
+                  ]
+                }
+              ],
+              "relations": [
+                {
+                  "subject": "cut-A",
+                  "relation_type": "witness",
+                  "object": "cut-A"
+                }
+              ],
+              "observations": [
+                {
+                  "observation_id": "cut-A",
+                  "batch_id": "cut-A",
+                  "kind": "knowledge_insufficient",
+                  "window_start": "0",
+                  "window_mid": "1",
+                  "window_end": "2",
+                  "reason": "right_missing",
+                  "detail": {
+                    "cut": "cut-A"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "errors": [],
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 Unicode \u548c\u7f3a\u503c\u8fb9\u754c</h1>"
+      },
+      "decoded_roundtrip_exact": true,
+      "decoded_json_strict_utf8_encodable": [
+        true,
+        true
+      ],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "valid_surrogate_pair_json",
+      "passed": true,
+      "persisted_json": "{\"label\": \"\\ud83d\\ude00\"}",
+      "responses": {
+        "/api/catalog": {
+          "status": 200,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": true, \"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {\"cut\": \"cut-A\"}, \"items\": [{\"id\": \"cut-A\", \"kind\": \"local_shape\", \"title\": \"cut-A\", \"domain\": \"S\", \"branches\": [\"RISING\"], \"implementation_status\": \"implemented\", \"proof_status\": \"bounded\", \"run_status\": \"run\", \"evidence\": {\"label\": \"\ud83d\ude00\"}}], \"counts\": {\"implemented\": 1, \"not_implemented\": 0, \"run\": 1, \"not_run\": 0}}",
+          "json": {
+            "ok": true,
+            "session_id": "cut-A",
+            "generation": "cut-A",
+            "structure_cut": "cut-A",
+            "catalog_revision": "cut-A",
+            "scope": {
+              "cut": "cut-A"
+            },
+            "items": [
+              {
+                "id": "cut-A",
+                "kind": "local_shape",
+                "title": "cut-A",
+                "domain": "S",
+                "branches": [
+                  "RISING"
+                ],
+                "implementation_status": "implemented",
+                "proof_status": "bounded",
+                "run_status": "run",
+                "evidence": {
+                  "label": "\ud83d\ude00"
+                }
+              }
+            ],
+            "counts": {
+              "implemented": 1,
+              "not_implemented": 0,
+              "run": 1,
+              "not_run": 0
+            }
+          }
+        },
+        "/api/state": {
+          "status": 200,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": true, \"cut\": {\"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"index_frontier\": \"cut-A\"}, \"catalog\": {\"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {\"cut\": \"cut-A\"}, \"items\": [{\"id\": \"cut-A\", \"kind\": \"local_shape\", \"title\": \"cut-A\", \"domain\": \"S\", \"branches\": [\"RISING\"], \"implementation_status\": \"implemented\", \"proof_status\": \"bounded\", \"run_status\": \"run\", \"evidence\": {\"label\": \"\ud83d\ude00\"}}], \"counts\": {\"implemented\": 1, \"not_implemented\": 0, \"run\": 1, \"not_run\": 0}}, \"snapshot\": {\"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {\"cut\": \"cut-A\"}, \"index_frontier\": \"cut-A\", \"profile_id\": \"cut-A\", \"profile_hash\": \"cut-A\", \"objects\": [{\"object_id\": \"cut-A\", \"object_revision\": \"1\", \"kind\": \"local_shape\", \"batch_id\": \"cut-A\", \"branch\": \"RISING\", \"dir_ab\": \"UP\", \"dir_bc\": \"UP\", \"window_start\": \"0\", \"window_mid\": \"1\", \"window_end\": \"2\", \"comparisons\": [{\"integer\": \"9007199254740993\"}], \"input_refs\": [{\"merged_index\": \"0\", \"raw_refs\": [{\"seq\": \"0\", \"cut\": \"cut-A\"}]}]}], \"witnesses\": [{\"witness_id\": \"cut-A\", \"object_id\": \"cut-A\", \"slot\": \"0\", \"merged_source_index\": \"0\", \"merged_high\": \"9007199254740993\", \"merged_low\": \"9007199254740993\", \"merged_open\": \"9007199254740993\", \"merged_close\": \"9007199254740993\", \"raw_bars\": [{\"seq\": \"0\", \"cut\": \"cut-A\"}]}], \"relations\": [{\"subject\": \"cut-A\", \"relation_type\": \"witness\", \"object\": \"cut-A\"}], \"observations\": [{\"observation_id\": \"cut-A\", \"batch_id\": \"cut-A\", \"kind\": \"knowledge_insufficient\", \"window_start\": \"0\", \"window_mid\": \"1\", \"window_end\": \"2\", \"reason\": \"right_missing\", \"detail\": {\"cut\": \"cut-A\"}}]}}",
+          "json": {
+            "ok": true,
+            "cut": {
+              "session_id": "cut-A",
+              "generation": "cut-A",
+              "structure_cut": "cut-A",
+              "catalog_revision": "cut-A",
+              "index_frontier": "cut-A"
+            },
+            "catalog": {
+              "session_id": "cut-A",
+              "generation": "cut-A",
+              "structure_cut": "cut-A",
+              "catalog_revision": "cut-A",
+              "scope": {
+                "cut": "cut-A"
+              },
+              "items": [
+                {
+                  "id": "cut-A",
+                  "kind": "local_shape",
+                  "title": "cut-A",
+                  "domain": "S",
+                  "branches": [
+                    "RISING"
+                  ],
+                  "implementation_status": "implemented",
+                  "proof_status": "bounded",
+                  "run_status": "run",
+                  "evidence": {
+                    "label": "\ud83d\ude00"
+                  }
+                }
+              ],
+              "counts": {
+                "implemented": 1,
+                "not_implemented": 0,
+                "run": 1,
+                "not_run": 0
+              }
+            },
+            "snapshot": {
+              "session_id": "cut-A",
+              "generation": "cut-A",
+              "structure_cut": "cut-A",
+              "catalog_revision": "cut-A",
+              "scope": {
+                "cut": "cut-A"
+              },
+              "index_frontier": "cut-A",
+              "profile_id": "cut-A",
+              "profile_hash": "cut-A",
+              "objects": [
+                {
+                  "object_id": "cut-A",
+                  "object_revision": "1",
+                  "kind": "local_shape",
+                  "batch_id": "cut-A",
+                  "branch": "RISING",
+                  "dir_ab": "UP",
+                  "dir_bc": "UP",
+                  "window_start": "0",
+                  "window_mid": "1",
+                  "window_end": "2",
+                  "comparisons": [
+                    {
+                      "integer": "9007199254740993"
+                    }
+                  ],
+                  "input_refs": [
+                    {
+                      "merged_index": "0",
+                      "raw_refs": [
+                        {
+                          "seq": "0",
+                          "cut": "cut-A"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "witnesses": [
+                {
+                  "witness_id": "cut-A",
+                  "object_id": "cut-A",
+                  "slot": "0",
+                  "merged_source_index": "0",
+                  "merged_high": "9007199254740993",
+                  "merged_low": "9007199254740993",
+                  "merged_open": "9007199254740993",
+                  "merged_close": "9007199254740993",
+                  "raw_bars": [
+                    {
+                      "seq": "0",
+                      "cut": "cut-A"
+                    }
+                  ]
+                }
+              ],
+              "relations": [
+                {
+                  "subject": "cut-A",
+                  "relation_type": "witness",
+                  "object": "cut-A"
+                }
+              ],
+              "observations": [
+                {
+                  "observation_id": "cut-A",
+                  "batch_id": "cut-A",
+                  "kind": "knowledge_insufficient",
+                  "window_start": "0",
+                  "window_mid": "1",
+                  "window_end": "2",
+                  "reason": "right_missing",
+                  "detail": {
+                    "cut": "cut-A"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "errors": [],
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 Unicode \u548c\u7f3a\u503c\u8fb9\u754c</h1>"
+      },
+      "decoded_roundtrip_exact": true,
+      "decoded_json_strict_utf8_encodable": [
+        true,
+        true
+      ],
+      "database_hash_unchanged": true
+    }
+  ],
+  "counts": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0
+  },
+  "private_ports": [
+    61879,
+    61887,
+    61894,
+    61900,
+    61909,
+    61923,
+    61937
+  ]
+}

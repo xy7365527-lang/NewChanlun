@@ -1,0 +1,295 @@
+{
+  "ticket": 1370,
+  "parent_graph": 1323,
+  "review_round": "Python R5 / Rust wire cross-check",
+  "verdict": "REQUEST_FIXES_FOR_REVIEWED_BOUNDARY",
+  "finding_counts": {
+    "H": 0,
+    "M": 2,
+    "L": 0
+  },
+  "findings": [
+    {
+      "id": "PY-R5-M01",
+      "severity": "M",
+      "title": "branches 收窄为 array 使完整已签目录正常读取失败",
+      "file": "s_session/s_readonly_server.py",
+      "line": 119,
+      "related_files": [
+        {
+          "file": "rust/src/bin/s_structure_session.rs",
+          "line": 1478
+        }
+      ],
+      "issue": "e79 冻结版本的已签 catalog 共 116 项，branches 实际为 82 array + 34 object。用相同冻结 catalog 经原生 init 写入自建正式库成功且 116 项 branches 与源逐值相同；随后 Rust catalog exit 1，HTTP /api/catalog 与 /api/state 503，/api/snapshot 200。正常对象型 generator branches 被误判损坏。",
+      "fix": "对 branches 专门接受 array 或 object，继续拒绝 scalar/null/坏 JSON；不能改已签目录或重裁语义。增加完整 116 项源目录的正常读回同值测试。其他已声明单一容器形状的列保持原合同。",
+      "evidence": [
+        "python-r5/full_catalog_probe.json",
+        "python-r5/contract_probe.json:json_field_catalog_branches_json_wrong_container",
+        "python-r5/catalog-source.json"
+      ],
+      "provenance": "根在真实 launcher 验收先发现；本 reviewer 随后固定源码、目录和 binary，在自建库独立复现。"
+    },
+    {
+      "id": "PY-R5-M02",
+      "severity": "M",
+      "title": "Python meta_dict 未验证行类型，忽略未投影坏 meta，仍与 Rust typed error 不一致",
+      "file": "s_session/s_readonly_server.py",
+      "line": 40,
+      "issue": "正常 schema 可插入额外 meta BLOB 值、NULL key、BLOB key。Rust meta/catalog/snapshot 对三者全部 exit 1；Python /api/catalog/snapshot/state 对三者仍 HTTP 200。NULL key 连 /api/meta 也 HTTP 200，并序列化为 JSON 的 \"null\" 键。坏行未进入结果字段时被 Python 静默忽略。",
+      "fix": "meta_dict 在构造字典时检查每行 key/value 均为 str，任一失败抛 ValueError 进入统一 503；保留真正 scope 缺项的 {} 兼容。",
+      "evidence": [
+        "python-r5/contract_probe.json:extra_meta_blob",
+        "python-r5/contract_probe.json:null_meta_key",
+        "python-r5/contract_probe.json:blob_meta_key"
+      ],
+      "reachability": "受控坏值，但使用未改动的正式 schema；已知 generation BLOB 的对照已两端拒绝。Python 漏检是既有相邻路径，新增 Rust 严格收集使不一致明确暴露。"
+    }
+  ],
+  "source": {
+    "commit": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+    "snapshot_utc": "2026-09-09T08:42:39.456549+00:00",
+    "files": {
+      "s_readonly_server.py": {
+        "source": "s_session/s_readonly_server.py",
+        "sha256": "4c05effb0229bbb7167c69c155561bdd7730e30729a93def49785efb7f0519f6",
+        "git_show_exit_code": 0
+      },
+      "s_structure_session.rs": {
+        "source": "rust/src/bin/s_structure_session.rs",
+        "sha256": "c376159b6fb0a9542fc00cccd9061cfccd94080fd0b44ce53d0cb124ad7c9841",
+        "git_show_exit_code": 0
+      },
+      "index.html": {
+        "source": "s_session/browser/index.html",
+        "sha256": "dac86f778ad8de5219aa4c4bdd810a55e7b8f03b5b9fca0014e249b1726ecdc9",
+        "git_show_exit_code": 0
+      }
+    },
+    "source_repo": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication"
+  },
+  "native_binary_binding": {
+    "source_commit": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+    "source_tree": "cfb051d6f5e2b42fb715c340abc095a372309a91",
+    "source_manifest": "/tmp/newchanlun-1323-publication-20260909/evidence/native-r4/rust-source-manifest.json",
+    "source_count": 408,
+    "binary": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r5/s_structure_session",
+    "binary_sha256": "85f247650531d2ec807f56f36e1c379d0ed34b4906d455108129737bc5b0769f",
+    "argv": [
+      "cargo",
+      "build",
+      "--locked",
+      "--features",
+      "s_session",
+      "--bin",
+      "s_structure_session"
+    ],
+    "exit_code": 0,
+    "worktree": "/Users/silencehan/Projects/NewChanlun-1370-native-acceptance",
+    "platform": "Mach-O 64-bit executable arm64",
+    "publication_order_fix": "BATCH_DURABLE_BEFORE_ROOT",
+    "build_log": "/tmp/newchanlun-1323-publication-20260909/evidence/native-r4/cargo-build.log",
+    "environment": {
+      "PYO3_PYTHON": "/Users/silencehan/.local/share/uv/python/cpython-3.11-macos-aarch64-none/bin/python3.11",
+      "CARGO_TARGET_DIR": "/tmp/newchanlun-1323-publication-20260909/native-target"
+    },
+    "original_binary": "/tmp/newchanlun-1323-publication-20260909/native-target/debug/s_structure_session",
+    "upstream_binding": "/tmp/newchanlun-1323-publication-20260909/evidence/native-r4/native-build-binding.json"
+  },
+  "reviewed_at_utc": "2026-09-09T08:50:01.354653+00:00",
+  "commands": [
+    {
+      "command": "python3 /tmp/newchanlun-1323-publication-20260909/inputs/python-r5/probe.py",
+      "exit_code": 0,
+      "counts": {
+        "total": 44,
+        "passed": 44,
+        "failed": 0
+      },
+      "evidence": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r5/probe.json"
+    },
+    {
+      "command": "python3 /tmp/newchanlun-1323-publication-20260909/inputs/python-r5/semantic_probe.py",
+      "exit_code": 0,
+      "counts": {
+        "total": 7,
+        "passed": 7,
+        "failed": 0
+      },
+      "evidence": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r5/semantic_probe.json"
+    },
+    {
+      "command": "python3 /tmp/newchanlun-1323-publication-20260909/inputs/python-r5/type_probe.py",
+      "exit_code": 0,
+      "counts": {
+        "total": 10,
+        "passed": 10,
+        "failed": 0
+      },
+      "evidence": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r5/type_probe.json"
+    },
+    {
+      "command": "python3 /tmp/newchanlun-1323-publication-20260909/inputs/python-r5/wire_probe.py",
+      "exit_code": 0,
+      "counts": {
+        "total": 27,
+        "passed": 27,
+        "failed": 0
+      },
+      "evidence": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r5/wire_probe.json"
+    },
+    {
+      "command": "python3 /tmp/newchanlun-1323-publication-20260909/inputs/python-r5/json_corruption_probe.py",
+      "exit_code": 0,
+      "counts": {
+        "total": 7,
+        "passed": 7,
+        "failed": 0
+      },
+      "evidence": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r5/json_corruption_probe.json"
+    },
+    {
+      "command": "python3 /tmp/newchanlun-1323-publication-20260909/inputs/python-r5/supplemental_probe.py",
+      "exit_code": 0,
+      "counts": {
+        "total": 2,
+        "passed": 2,
+        "failed": 0
+      },
+      "evidence": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r5/supplemental_probe.json"
+    },
+    {
+      "command": "python3 /tmp/newchanlun-1323-publication-20260909/inputs/python-r5/contract_probe.py",
+      "exit_code": 1,
+      "counts": {
+        "total": 115,
+        "passed": 111,
+        "failed": 4
+      },
+      "evidence": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r5/contract_probe.json"
+    },
+    {
+      "command": "python3 /tmp/newchanlun-1323-publication-20260909/inputs/python-r5/full_catalog_probe.py",
+      "exit_code": 1,
+      "counts": {
+        "total": 1,
+        "passed": 0,
+        "failed": 1
+      },
+      "evidence": "/tmp/newchanlun-1323-publication-20260909/inputs/python-r5/full_catalog_probe.json"
+    }
+  ],
+  "counts": {
+    "total": 213,
+    "passed": 208,
+    "failed": 5
+  },
+  "resolved": [
+    {
+      "id": "PY-R4-M01",
+      "status": "VERIFIED_FIXED_AT_E79",
+      "evidence": "R4 replay probes now pass"
+    },
+    {
+      "id": "PY-R4-M02",
+      "status": "VERIFIED_FIXED_AT_E79",
+      "evidence": "R4 replay probes now pass"
+    },
+    {
+      "id": "PY-R4-M03",
+      "status": "VERIFIED_FIXED_AT_E79",
+      "evidence": "R4 replay probes now pass"
+    }
+  ],
+  "fixture_adaptations": [
+    "源 SHA / commit / 脚本标签及 binary binding 改为固定 R5；副本 hash 对齐 native-r4。",
+    "旧通用 HTTP 正向夹具的 revision/window/slot/index 从字符串改为整数；input_refs/raw_json 补齐合法对象与 seq；cut 标记改从已有 raw_ref.cut 读取，仍覆盖对象/见证表。",
+    "整数对拍的合成 catalog branches 暂用数组变体，保留 ranks/flags 控制值以隔离整数路径；对象 branches 也是已签合法类型，另由 contract_probe 与完整 signed-catalog 探针覆盖。这不是收窄目录合同的授权。",
+    "其余断言/负向坏值/路由/WAL 交错位置全部保留；97 组名称和计数不变。"
+  ],
+  "canonical_and_tools": {
+    "base": "754bc189d8c69e0bb67c558761865aa713f56204",
+    "head": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+    "checks": [
+      {
+        "name": "canonical_event_content",
+        "identical": true,
+        "base_sha256": "650668ab1f2c44d086dc873147d1c5e6534d6eaf70a5976b39b9f26555cd5287",
+        "head_sha256": "650668ab1f2c44d086dc873147d1c5e6534d6eaf70a5976b39b9f26555cd5287"
+      },
+      {
+        "name": "identity_key",
+        "identical": true,
+        "base_sha256": "74088919b06dde28630418500f365657737d79c00f3f009ba5078b2b68650e24",
+        "head_sha256": "74088919b06dde28630418500f365657737d79c00f3f009ba5078b2b68650e24"
+      },
+      {
+        "name": "read_raw_events",
+        "identical": true,
+        "base_sha256": "3dbe877dc306a4e8c78c3c9e23bd03bde94b6f948aaf2a27ee195b080057cd32",
+        "head_sha256": "3dbe877dc306a4e8c78c3c9e23bd03bde94b6f948aaf2a27ee195b080057cd32"
+      },
+      {
+        "name": "build_object_and_witnesses",
+        "identical": true,
+        "base_sha256": "63d2546bbb876fccdbff4bc6043dcb34f217c26ba13b963da33288f8dacebab3",
+        "head_sha256": "63d2546bbb876fccdbff4bc6043dcb34f217c26ba13b963da33288f8dacebab3"
+      },
+      {
+        "name": "canonical_json",
+        "identical": true,
+        "base_sha256": "7291fdf15d26bb0d1107072f75a745b5bc32e74e883f5be49e3ce2ecb33414a7",
+        "head_sha256": "7291fdf15d26bb0d1107072f75a745b5bc32e74e883f5be49e3ce2ecb33414a7"
+      },
+      {
+        "name": "canonical_bytes_of_value",
+        "identical": true,
+        "base_sha256": "526d12476995bc7c17025c37100e3096077471cfa9266d5592647621b1b634d3",
+        "head_sha256": "526d12476995bc7c17025c37100e3096077471cfa9266d5592647621b1b634d3"
+      },
+      {
+        "name": "SCHEMA",
+        "identical": true,
+        "base_sha256": "e0911d426c74830fd37e90f49d458588e93e75ee286169ac3c216085175d7d11",
+        "head_sha256": "e0911d426c74830fd37e90f49d458588e93e75ee286169ac3c216085175d7d11"
+      },
+      {
+        "name": "batch_canonical_and_hash",
+        "identical": true,
+        "base_sha256": "75b567fc5d3246a9e367b937a2f3d9625015bb7a369c4488d45bd2903d574325",
+        "head_sha256": "75b567fc5d3246a9e367b937a2f3d9625015bb7a369c4488d45bd2903d574325"
+      }
+    ],
+    "all_identical": true,
+    "source_hashes_rechecked": true,
+    "binary_hash_rechecked": true,
+    "python": "3.14.6 (main, Jun 10 2026, 10:03:53) [Clang 21.0.0 (clang-2100.0.123.102)]",
+    "static_tools": {
+      "ruff": {
+        "cli": null,
+        "module_available": false
+      },
+      "mypy": {
+        "cli": null,
+        "module_available": false
+      },
+      "pylint": {
+        "cli": null,
+        "module_available": false
+      },
+      "black": {
+        "cli": null,
+        "module_available": false
+      }
+    }
+  },
+  "scope": [
+    "97 项 R4 场景重放通过；新增容器/整数/meta 检查 111/115；完整已签目录正常读取 0/1。",
+    "原通用 HTTP 正向夹具的非法类型已补齐，记录了调整。整数对拍使用数组型 branches 隔离整数路径；该通过不能证明完整目录。完整目录的两种合法形状另有正式失败证据。",
+    "i64 两端边界和超界、float/bool/文本/null、嵌套缺字段/错误结构、持久 JSON 的 BLOB/空串/标量/非有限值、新 meta typed 失败均实测；仅 nullable observation 窗口保留 null，真正 missing scope 两端保留 {}。",
+    "Rust 本机私有副本来自 native-r4 绑定，运行前后 hash 一致。未重编。正常目录库通过 native init 建立；其余坏值探针在自建正式 schema 数据库受控置入。",
+    "canonical/identity/read_raw/build_object/schema/batch 内容构造 8 项源码相对 754 逐字相同；所有读取反例既存 canonical_bytes hash 不变。",
+    "新 batch 先持久再 publish 协议由耐久性工位审阅；本报告不替代最高缝、浏览器可视验收或本票/父图完成。"
+  ],
+  "mutations": "仅 R5 独占报告、python-r5/ 内冻结副本/脚本/证据；保持 R4 文件。未改仓/GitHub/根验收库，未用 18770–18773，所有服务为临时 localhost 随机端口。"
+}

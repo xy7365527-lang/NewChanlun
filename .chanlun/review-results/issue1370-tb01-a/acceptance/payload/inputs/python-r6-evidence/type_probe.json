@@ -1,0 +1,595 @@
+{
+  "source": "/private/tmp/newchanlun-1323-publication-20260909/inputs/python-r6-evidence/s_readonly_server.py",
+  "source_sha256": "63203e75dbf58a3d59ed5b0fe7a15d5eb1101be9e19945b4d47ad00f0e3e95a9",
+  "scope": "Frozen Python; synthetic SQLite; localhost temporary ports; new scope and non-finite number boundary",
+  "checks": [
+    {
+      "name": "scope_type_json_null",
+      "passed": true,
+      "persisted_scope": "null",
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        },
+        "/api/snapshot": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        }
+      },
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 JSON \u7c7b\u578b\u548c\u975e\u6709\u9650\u6570\u8fb9\u754c</h1>"
+      },
+      "errors": [],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "scope_type_json_list",
+      "passed": true,
+      "persisted_scope": "[]",
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        },
+        "/api/snapshot": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        }
+      },
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 JSON \u7c7b\u578b\u548c\u975e\u6709\u9650\u6570\u8fb9\u754c</h1>"
+      },
+      "errors": [],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "scope_type_json_scalar_string",
+      "passed": true,
+      "persisted_scope": "\"scope\"",
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        },
+        "/api/snapshot": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        }
+      },
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 JSON \u7c7b\u578b\u548c\u975e\u6709\u9650\u6570\u8fb9\u754c</h1>"
+      },
+      "errors": [],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "scope_type_json_scalar_number",
+      "passed": true,
+      "persisted_scope": "1",
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        },
+        "/api/snapshot": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        }
+      },
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 JSON \u7c7b\u578b\u548c\u975e\u6709\u9650\u6570\u8fb9\u754c</h1>"
+      },
+      "errors": [],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "scope_type_json_scalar_boolean",
+      "passed": true,
+      "persisted_scope": "true",
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        },
+        "/api/snapshot": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u6301\u4e45 JSON \u5f62\u72b6\u4e0d\u7b26"
+          }
+        }
+      },
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 JSON \u7c7b\u578b\u548c\u975e\u6709\u9650\u6570\u8fb9\u754c</h1>"
+      },
+      "errors": [],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "numeric_serialization_nan",
+      "passed": true,
+      "persisted_json": "{\"value\":NaN}",
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        }
+      },
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 JSON \u7c7b\u578b\u548c\u975e\u6709\u9650\u6570\u8fb9\u754c</h1>"
+      },
+      "errors": [],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "numeric_serialization_positive_infinity",
+      "passed": true,
+      "persisted_json": "{\"value\":Infinity}",
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        }
+      },
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 JSON \u7c7b\u578b\u548c\u975e\u6709\u9650\u6570\u8fb9\u754c</h1>"
+      },
+      "errors": [],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "numeric_serialization_negative_infinity",
+      "passed": true,
+      "persisted_json": "{\"value\":-Infinity}",
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        }
+      },
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 JSON \u7c7b\u578b\u548c\u975e\u6709\u9650\u6570\u8fb9\u754c</h1>"
+      },
+      "errors": [],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "numeric_serialization_exponent_overflow",
+      "passed": true,
+      "persisted_json": "{\"value\":1e999}",
+      "responses": {
+        "/api/catalog": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        },
+        "/api/state": {
+          "status": 503,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": false, \"error\": \"StorageUnavailable\", \"detail\": \"\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09\"}",
+          "json": {
+            "ok": false,
+            "error": "StorageUnavailable",
+            "detail": "\u54cd\u5e94\u5e8f\u5217\u5316\u5931\u8d25\uff08\u574f\u6301\u4e45\u503c\uff09"
+          }
+        }
+      },
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 JSON \u7c7b\u578b\u548c\u975e\u6709\u9650\u6570\u8fb9\u754c</h1>"
+      },
+      "errors": [],
+      "database_hash_unchanged": true
+    },
+    {
+      "name": "numeric_serialization_finite_control",
+      "passed": true,
+      "persisted_json": "{\"value\":1.25}",
+      "responses": {
+        "/api/catalog": {
+          "status": 200,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": true, \"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {\"cut\": \"cut-A\"}, \"items\": [{\"id\": \"cut-A\", \"kind\": \"local_shape\", \"title\": \"cut-A\", \"domain\": \"S\", \"branches\": [\"RISING\"], \"implementation_status\": \"implemented\", \"proof_status\": \"bounded\", \"run_status\": \"run\", \"evidence\": {\"value\": 1.25}}], \"counts\": {\"implemented\": 1, \"not_implemented\": 0, \"run\": 1, \"not_run\": 0}}",
+          "json": {
+            "ok": true,
+            "session_id": "cut-A",
+            "generation": "cut-A",
+            "structure_cut": "cut-A",
+            "catalog_revision": "cut-A",
+            "scope": {
+              "cut": "cut-A"
+            },
+            "items": [
+              {
+                "id": "cut-A",
+                "kind": "local_shape",
+                "title": "cut-A",
+                "domain": "S",
+                "branches": [
+                  "RISING"
+                ],
+                "implementation_status": "implemented",
+                "proof_status": "bounded",
+                "run_status": "run",
+                "evidence": {
+                  "value": 1.25
+                }
+              }
+            ],
+            "counts": {
+              "implemented": 1,
+              "not_implemented": 0,
+              "run": 1,
+              "not_run": 0
+            }
+          }
+        },
+        "/api/state": {
+          "status": 200,
+          "content_type": "application/json; charset=utf-8",
+          "cache_control": "no-store",
+          "body": "{\"ok\": true, \"cut\": {\"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"index_frontier\": \"cut-A\"}, \"catalog\": {\"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {\"cut\": \"cut-A\"}, \"items\": [{\"id\": \"cut-A\", \"kind\": \"local_shape\", \"title\": \"cut-A\", \"domain\": \"S\", \"branches\": [\"RISING\"], \"implementation_status\": \"implemented\", \"proof_status\": \"bounded\", \"run_status\": \"run\", \"evidence\": {\"value\": 1.25}}], \"counts\": {\"implemented\": 1, \"not_implemented\": 0, \"run\": 1, \"not_run\": 0}}, \"snapshot\": {\"session_id\": \"cut-A\", \"generation\": \"cut-A\", \"structure_cut\": \"cut-A\", \"catalog_revision\": \"cut-A\", \"scope\": {\"cut\": \"cut-A\"}, \"index_frontier\": \"cut-A\", \"profile_id\": \"cut-A\", \"profile_hash\": \"cut-A\", \"objects\": [{\"object_id\": \"cut-A\", \"object_revision\": \"1\", \"kind\": \"local_shape\", \"batch_id\": \"cut-A\", \"branch\": \"RISING\", \"dir_ab\": \"UP\", \"dir_bc\": \"UP\", \"window_start\": \"0\", \"window_mid\": \"1\", \"window_end\": \"2\", \"comparisons\": [{\"integer\": \"9007199254740993\"}], \"input_refs\": [{\"merged_index\": \"0\", \"raw_refs\": [{\"seq\": \"0\", \"cut\": \"cut-A\"}]}]}], \"witnesses\": [{\"witness_id\": \"cut-A\", \"object_id\": \"cut-A\", \"slot\": \"0\", \"merged_source_index\": \"0\", \"merged_high\": \"9007199254740993\", \"merged_low\": \"9007199254740993\", \"merged_open\": \"9007199254740993\", \"merged_close\": \"9007199254740993\", \"raw_bars\": [{\"seq\": \"0\", \"cut\": \"cut-A\"}]}], \"relations\": [{\"subject\": \"cut-A\", \"relation_type\": \"witness\", \"object\": \"cut-A\"}], \"observations\": [{\"observation_id\": \"cut-A\", \"batch_id\": \"cut-A\", \"kind\": \"knowledge_insufficient\", \"window_start\": \"0\", \"window_mid\": \"1\", \"window_end\": \"2\", \"reason\": \"right_missing\", \"detail\": {\"cut\": \"cut-A\"}}]}}",
+          "json": {
+            "ok": true,
+            "cut": {
+              "session_id": "cut-A",
+              "generation": "cut-A",
+              "structure_cut": "cut-A",
+              "catalog_revision": "cut-A",
+              "index_frontier": "cut-A"
+            },
+            "catalog": {
+              "session_id": "cut-A",
+              "generation": "cut-A",
+              "structure_cut": "cut-A",
+              "catalog_revision": "cut-A",
+              "scope": {
+                "cut": "cut-A"
+              },
+              "items": [
+                {
+                  "id": "cut-A",
+                  "kind": "local_shape",
+                  "title": "cut-A",
+                  "domain": "S",
+                  "branches": [
+                    "RISING"
+                  ],
+                  "implementation_status": "implemented",
+                  "proof_status": "bounded",
+                  "run_status": "run",
+                  "evidence": {
+                    "value": 1.25
+                  }
+                }
+              ],
+              "counts": {
+                "implemented": 1,
+                "not_implemented": 0,
+                "run": 1,
+                "not_run": 0
+              }
+            },
+            "snapshot": {
+              "session_id": "cut-A",
+              "generation": "cut-A",
+              "structure_cut": "cut-A",
+              "catalog_revision": "cut-A",
+              "scope": {
+                "cut": "cut-A"
+              },
+              "index_frontier": "cut-A",
+              "profile_id": "cut-A",
+              "profile_hash": "cut-A",
+              "objects": [
+                {
+                  "object_id": "cut-A",
+                  "object_revision": "1",
+                  "kind": "local_shape",
+                  "batch_id": "cut-A",
+                  "branch": "RISING",
+                  "dir_ab": "UP",
+                  "dir_bc": "UP",
+                  "window_start": "0",
+                  "window_mid": "1",
+                  "window_end": "2",
+                  "comparisons": [
+                    {
+                      "integer": "9007199254740993"
+                    }
+                  ],
+                  "input_refs": [
+                    {
+                      "merged_index": "0",
+                      "raw_refs": [
+                        {
+                          "seq": "0",
+                          "cut": "cut-A"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "witnesses": [
+                {
+                  "witness_id": "cut-A",
+                  "object_id": "cut-A",
+                  "slot": "0",
+                  "merged_source_index": "0",
+                  "merged_high": "9007199254740993",
+                  "merged_low": "9007199254740993",
+                  "merged_open": "9007199254740993",
+                  "merged_close": "9007199254740993",
+                  "raw_bars": [
+                    {
+                      "seq": "0",
+                      "cut": "cut-A"
+                    }
+                  ]
+                }
+              ],
+              "relations": [
+                {
+                  "subject": "cut-A",
+                  "relation_type": "witness",
+                  "object": "cut-A"
+                }
+              ],
+              "observations": [
+                {
+                  "observation_id": "cut-A",
+                  "batch_id": "cut-A",
+                  "kind": "knowledge_insufficient",
+                  "window_start": "0",
+                  "window_mid": "1",
+                  "window_end": "2",
+                  "reason": "right_missing",
+                  "detail": {
+                    "cut": "cut-A"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "next_request": {
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "cache_control": "no-store",
+        "body": "<h1>R5 JSON \u7c7b\u578b\u548c\u975e\u6709\u9650\u6570\u8fb9\u754c</h1>"
+      },
+      "errors": [],
+      "database_hash_unchanged": true
+    }
+  ],
+  "counts": {
+    "total": 10,
+    "passed": 10,
+    "failed": 0
+  },
+  "private_ports": [
+    61913,
+    61932,
+    61946,
+    61957,
+    61968,
+    61977,
+    61987,
+    61995,
+    62003,
+    62010
+  ]
+}

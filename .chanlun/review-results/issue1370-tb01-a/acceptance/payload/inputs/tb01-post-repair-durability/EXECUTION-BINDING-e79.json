@@ -1,0 +1,21 @@
+{
+  "authorization": "ROOT_PROVIDED_FROZEN_NATIVE_EXECUTION",
+  "commit": "e79c74a17a800e660b515e1f88fc9a5706826b42",
+  "source_tree": "cfb051d6f5e2b42fb715c340abc095a372309a91",
+  "publication_order_fix": "BATCH_DURABLE_BEFORE_ROOT",
+  "native_binary": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session",
+  "native_binary_sha256": "85f247650531d2ec807f56f36e1c379d0ed34b4906d455108129737bc5b0769f",
+  "frozen_source_file": "/tmp/newchanlun-1323-publication-20260909/inputs/tb01-post-repair-durability/frozen-e79/s_structure_session.rs",
+  "frozen_source_sha256": "c376159b6fb0a9542fc00cccd9061cfccd94080fd0b44ce53d0cb124ad7c9841",
+  "source_manifest": "/tmp/newchanlun-1323-publication-20260909/evidence/native-r4/rust-source-manifest.json",
+  "source_manifest_sha256": "2b2c7648bb0db255c93223f67685aa40254f3b96a582c4b92ced219bd7b7cfc0",
+  "source_count": 408,
+  "source_files_match_root_manifest": true,
+  "parent_native_binary": "/tmp/newchanlun-1323-publication-20260909/native-target/debug/s_structure_session",
+  "parent_binding": "/tmp/newchanlun-1323-publication-20260909/evidence/native-r4/native-build-binding.json",
+  "parent_binding_sha256": "b125c16e4cf1f9e8a6721cc0cbcdb1e2a9eb7315174e3c878cfbc43bbb817320",
+  "environment": {
+    "PYO3_PYTHON": "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+    "DYLD_LIBRARY_PATH": "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/lib"
+  }
+}
