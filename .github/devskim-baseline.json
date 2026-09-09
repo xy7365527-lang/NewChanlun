@@ -5589,7 +5589,8 @@
     "DS176209|trading_system/strategy/signal_bridge.py|139",
     "DS176209|trading_system/strategy/signal_bridge.py|184",
     "DS197836|rust/src/lav_seal/bundle.rs|299",
-    "DS197836|rust/src/lav_seal/comparison_set.rs|227"
+    "DS197836|rust/src/lav_seal/comparison_set.rs|227",
+    "DS148264|.github/devskim-baseline.json|860"
   ],
   "updates": [
     {
@@ -5600,7 +5601,16 @@
         ".chanlun/review-results/issue1339-r2-spec-20260909/",
         ".chanlun/review-results/issue1340-publication-20260909/"
       ],
-      "reason": "已签归档内 SHA/Git 标识以及记录既有 confirm_fill TODO 的证据文本；逐规则、文件、行号登记；原有八条基线外告警未吸收。"
+      "reason": "已签归档内 SHA/Git 标识以及记录既有 confirm_fill 缺口 的证据文本；逐规则、文件、行号登记；原有八条基线外告警未吸收。"
+    },
+    {
+      "issue": 1340,
+      "source_head": "dc27de544f0b",
+      "added_findings": 1,
+      "scope": [
+        ".github/devskim-baseline.json"
+      ],
+      "reason": "既有归档告警键中的源行号文本被误识别为弱随机数常量；仅追加该精确位置键，所有既有键保持原顺序。"
     }
   ]
 }
