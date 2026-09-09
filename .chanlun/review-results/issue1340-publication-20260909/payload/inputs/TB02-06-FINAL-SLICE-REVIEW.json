@@ -1,0 +1,111 @@
+{
+  "schema": "newchanlun.final-slice-delta-review.v1",
+  "status": "PASS",
+  "parent_map": 1323,
+  "spec_issue": 1340,
+  "reviewer": "/root/spec_completeness_inputs/slice_audit",
+  "review_date": "2026-09-09",
+  "review_scope": "复用前轮审查，仅独立复核最终 TB03-D/E 范围、TB02-B/V 前件文字、TB02-R Type1/N/A 声明及 TB02-I/N 消费归属同步差异。",
+  "reviewed_artifacts": [
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3",
+      "hash_verified": true
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB02-06-EXECUTION-SLICES.md",
+      "sha256": "16706caae5a5c1ae591039ca687648d932dd1bb9a5e52c722efba419ff642da7",
+      "hash_verified": true
+    }
+  ],
+  "checks": [
+    {
+      "id": "FINAL-TB03-D",
+      "status": "PASS",
+      "source_pointer": "/units/27",
+      "assessment": "受控事实的 B 侧身份、依据和量约束符合 C12 TB03；完整三方向生产消费仍以 cross_parent_evidence_obligations 绑定 TB02-I/Q/R/S、TB04-H，原 FG008–011、ST033–038 成功义务保留。删除整体硬边没有把受控输入当成完整生产消费。"
+    },
+    {
+      "id": "FINAL-TB03-E",
+      "status": "PASS",
+      "source_pointer": "/units/28",
+      "assessment": "仅接纳合法来源、获准适用域且责任可核的既成退出事实；业务触发、实际退出授权、未知在途及尾责仍由 TB06-G/H、RD16 等适用政策共同完成，未以基线事实应用代裁退出策略。"
+    },
+    {
+      "id": "FINAL-TB02-B-V",
+      "status": "PASS",
+      "source_pointers": ["/units/1", "/units/21"],
+      "assessment": "B 的无同价竞争基线不以 V 为自身完成前件；V 在 A/B 后承接同价实例，原一般域成功继续等待 V，原语义前件回环已关闭。"
+    },
+    {
+      "id": "FINAL-TB02-R",
+      "status": "PASS",
+      "source_pointer": "/units/17/proof_scope/local_claim",
+      "assessment": "局部声明已统一为 Type1 完整链和 Type2/3 原始 N/A，合成成功明确等待 TB02-X，不产生默认放行。"
+    }
+  ],
+  "authority": [
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/SPEC.md",
+      "sections": ["C05.1-2", "C07.10", "C12 TB03/TB04/TB06", "C12.4"]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/SPEC-COVERAGE-INPUT.json",
+      "entries": ["G-002", "G-028", "FG-008", "FG-009", "FG-010", "FG-011", "FG-004", "FG-030", "FG-031"]
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/TEST-SEAMS.json",
+      "entries": ["A01", "A04"],
+      "usage": "复用前轮已读的正式入口与非空受控事实验收边界。"
+    }
+  ],
+  "new_findings": [],
+  "closed_findings": [
+    {
+      "id": "M-01",
+      "severity": "M",
+      "status": "CLOSED",
+      "source_pointers": ["/units/8/proof_scope/local_claim", "/units/8/cross_parent_evidence_obligations", "/units/13/proof_scope/local_claim", "/units/13/cross_parent_evidence_obligations"],
+      "original_finding": "TB02-I/N 的完整消费旧指向仍依赖已收窄的 TB03-D，尤其 N 仅写由 TB03-D 承接，与其 B 侧受控绑定范围不一致。",
+      "closure_evidence": "两处局部声明及新增交叉证据义务均明确 TB03-D 仅承担 B 侧受控依据绑定；完整实际经营消费须由本片真实产物与 TB04-H 联合给出同一事实链。原 FG008/009、ST030/043、CC058 对应成功继续等待完整实际证据，没有新增整体父 TB 阻塞。"
+    }
+  ],
+  "residual_counts_in_reviewed_delta": {"H": 0, "M": 0},
+  "success_semantics_changed": false,
+  "new_global_gate_or_default_added": false,
+  "cross_parent_support_reference_check": {
+    "status": "PASS",
+    "original_parent_set_source": "/tmp/newchanlun-1323-spec-20260909/IMPLEMENTATION-CROSSWALK.json#/slice_success_obligations",
+    "meaning": "叶片 family_entry_ids 相对原父 TB 集合的差集是跨 TB 支撑引用，不新增本父成功义务、销项位置或调度边。",
+    "counts_by_parent": [
+      {"parent_tb": "TB-02", "original_family_count": 210, "support_difference_count": 1, "extra_leaf_reference_count": 1, "missing_original_family_count": 0},
+      {"parent_tb": "TB-03", "original_family_count": 186, "support_difference_count": 0, "extra_leaf_reference_count": 0, "missing_original_family_count": 0},
+      {"parent_tb": "TB-04", "original_family_count": 188, "support_difference_count": 0, "extra_leaf_reference_count": 0, "missing_original_family_count": 0},
+      {"parent_tb": "TB-05", "original_family_count": 108, "support_difference_count": 8, "extra_leaf_reference_count": 10, "missing_original_family_count": 0},
+      {"parent_tb": "TB-06", "original_family_count": 89, "support_difference_count": 13, "extra_leaf_reference_count": 18, "missing_original_family_count": 0}
+    ],
+    "parent_family_pair_count": 22,
+    "unique_support_family_count": 19,
+    "extra_leaf_reference_count": 29,
+    "representatives": [
+      {"parent_tb": "TB-02", "family_id": "FU-06", "unit_ids": ["TB-02-T"]},
+      {"parent_tb": "TB-05", "family_id": "FG-026", "unit_ids": ["TB-05-A", "TB-05-B", "TB-05-C"]},
+      {"parent_tb": "TB-06", "family_id": "FG-003", "unit_ids": ["TB-06-B", "TB-06-F", "TB-06-H", "TB-06-I"]}
+    ],
+    "ledger_verification": "22 个差集关系均未进入该父 TB 的 original_success_closure_slice_ids 或 local_contributions；原父义务并集零缺失。",
+    "violations": [],
+    "renderer_display_contract": {
+      "original_parent_obligations": "叶片 family_entry_ids 与已批原父 TB 集合的交集。",
+      "cross_parent_support_references": "叶片 family_entry_ids 与已批原父 TB 集合的差集，单独展示。",
+      "preserve_all_ids": true,
+      "support_reference_creates_scheduler_edge": false,
+      "renderer_output_verified_in_this_review": false
+    },
+    "plan_artifact_hashes_unchanged": true
+  },
+  "scope_limits": [
+    "本次是最终差异规划复核，不重新认证全部 family/A/story/CE 覆盖账。",
+    "不表示已实施、已运行或已通过生产验收。",
+    "未修改计划正文、仓库或 GitHub；未执行实现代码或测试。"
+  ]
+}

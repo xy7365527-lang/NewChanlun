@@ -1,0 +1,120 @@
+{
+  "schema": "newchanlun.1323.tb01-dispatch-review.v1",
+  "status": "PASS",
+  "reviewed_at_utc": "2026-09-09T05:44:02.234048+00:00",
+  "scope": "只读审阅 TB-01-A 的显式 implement/review 派发脚本；不执行脚本、不启动工蜂、不改变GH。",
+  "blocking_findings_for_initial_implement": [],
+  "checks": [
+    {
+      "id": "D1",
+      "status": "PASS",
+      "result": "唯一目标从 EXECUTION-SLICES-PUBLISHED 的 TB-01-A 取；无 open issue 列表或 pickIssue。运行前两次核该票正文SHA/open blockers/受派人/无sandcastle。",
+      "evidence": [
+        "work/tb01-one-shot.mts:14-37",
+        "work/tb01-one-shot.mts:67-68"
+      ]
+    },
+    {
+      "id": "D2",
+      "status": "PASS",
+      "result": "implement 拒绝复用同名分支；SDK 使用 git worktree add -b branch 精确base，容器HEAD必须逐字等 efc1ddc4d6c015f4f8c6d44f904d704a88308b46 才能run。",
+      "evidence": [
+        "work/tb01-one-shot.mts:11-26",
+        "work/tb01-one-shot.mts:56-63",
+        "SDK chunk-VOG34SRF.js:25308-25325"
+      ]
+    },
+    {
+      "id": "D3",
+      "status": "PASS",
+      "result": "该调用仅创建隔离分支、启动固定provider并定向assign叶票；无global pick、harvest、主线merge/push或关票动作。createSandbox未传merge-to-head策略。",
+      "evidence": [
+        "work/tb01-one-shot.mts:45-53",
+        "work/tb01-one-shot.mts:56-93",
+        "SDK index.js:1569-1570",
+        "SDK index.js:1682-1698"
+      ]
+    },
+    {
+      "id": "D4",
+      "status": "PASS",
+      "result": "implement/review 必须显式指定；review另起进程调用且独立证据/session目录，首round无resumeSession；其后最多两次resume同session，各SDK maxIterations=1。最多3round，无会话ID便停止，不另开新会话补跑。",
+      "evidence": [
+        "work/tb01-one-shot.mts:12-13",
+        "work/tb01-one-shot.mts:38-42",
+        "work/tb01-one-shot.mts:52-53",
+        "work/tb01-one-shot.mts:70-84",
+        "provider.ts:205-228"
+      ]
+    },
+    {
+      "id": "D5",
+      "status": "PASS_NORMAL_GIT_STATUS_ERROR_EXIT",
+      "result": "run抛错记录failed并交finally关闭容器；SDK close检测到dirty便返回preservedWorktreePath，不移除该tree，已提交分支也不删除。SDK底层git-status失败被折为clean，故不能声称覆盖git元数据损坏/不可读的绝对保留。",
+      "evidence": [
+        "work/tb01-one-shot.mts:92-93",
+        "SDK index.js:2120-2137"
+      ]
+    },
+    {
+      "id": "D6",
+      "status": "PASS_STATIC_SCOPE",
+      "result": "脚本没有读取或输出密钥值的调用；prompt明确禁密钥文件/输出，logger仅直接记录issue/branch/base/session/commit/path/status。本审阅不替代实际agent日志回核。",
+      "evidence": [
+        "work/tb01-one-shot.mts:41-43",
+        "work/tb01-one-shot.mts:50-51",
+        "work/tb01-one-shot.mts:81-92"
+      ]
+    },
+    {
+      "id": "D7",
+      "status": "PASS",
+      "result": "完成marker只终止会话，最终acceptance固定REQUIRES_ROOT_EVIDENCE_REVIEW；Linux不代macOS fullfsync/实际浏览器，AC1–AC9和父票/整图边界保留。",
+      "evidence": [
+        "work/tb01-one-shot.mts:50-53",
+        "work/tb01-one-shot.mts:88-91",
+        "tickets/TB-01-A.md:11-19",
+        "tickets/TB-01-A.md:33-35",
+        "tickets/TB-01-A.md:54-58"
+      ]
+    }
+  ],
+  "review_phase_condition": {
+    "status": "PASS_RESOLVED",
+    "result": "create/probe后、assign/run前保存worktree-status-before.json；status失败或任意dirty均拒绝implement和review。因而不再把实施遗留未提交面漏出review范围。",
+    "evidence": [
+      "work/tb01-one-shot.mts:64-68"
+    ],
+    "root_return_evidence_review_remains_required": true
+  },
+  "sources": [
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/work/tb01-one-shot.mts",
+      "sha256": "761957e9a89dd1e03d0f1e40475126a8bb771e15dd4ba3533490ee2c8c92a886"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-01-A.md",
+      "sha256": "f0c39d9383f77d57ae30f8e1ee30051f67c440951550b7e05ca68a51010ed715"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/node_modules/@ai-hero/sandcastle/dist/index.js",
+      "sha256": "81b59a1de9c5320d307b2812483d0c2f106af5e2511a613b4862ffdccb3c97f5"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/node_modules/@ai-hero/sandcastle/dist/chunk-VOG34SRF.js",
+      "sha256": "76717005026d685bf75fd4366b858accb882885cf3a1e615b6330ae92bea8ed9"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/node_modules/@ai-hero/sandcastle/dist/chunk-CP3TYXZA.js",
+      "sha256": "196bddaffbdd18c72c92542c785d9c4b335a12d009facf26081b38a10bc920a4"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/prime-agent-provider.ts",
+      "sha256": "613d2a679bf959a1a0c7f186827ce7775b0c5168638d5b3bcdf411fa8537fe1e"
+    }
+  ],
+  "syntax_check": "沿用根已报告parse PASS；本次未重跑。",
+  "runtime_execution": "NOT_RUN_BY_REVIEWER",
+  "github_writes_performed": false,
+  "blocking_findings": []
+}

@@ -1,0 +1,640 @@
+{
+  "schema": "newchanlun.1323.residual-published-verify.v1",
+  "status": "PASS",
+  "started_at_utc": "2026-09-09T05:40:06.971204+00:00",
+  "completed_at_utc": "2026-09-09T05:40:14.266863+00:00",
+  "scope": "17张已发布残留决定/适用域票的独立只读GitHub回核",
+  "read_method": "gh api GET issue body/labels; GET 1323/sub_issues --paginate --slurp; GET each issue/dependencies/blocked_by --paginate --slurp",
+  "checked_count": 17,
+  "expected_count": 17,
+  "parent_issue": 1323,
+  "parent_sub_issue_count_read": 35,
+  "checks_include_exact_label_and_native_blocker_sets": true,
+  "rows": [
+    {
+      "plan_id": "RD-01",
+      "issue_number": 1342,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1342",
+      "read_at_utc": "2026-09-09T05:40:09.174800+00:00",
+      "body_sha256_local": "78a7eea8b0e0cd84027fb80d3286c3f0e14844e9f1f3a8becb562795ab4c3392",
+      "body_sha256_live": "78a7eea8b0e0cd84027fb80d3286c3f0e14844e9f1f3a8becb562795ab4c3392",
+      "title": "[grilling] 初始包含方向策略及全包含前缀输出（#1323，G-001）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [],
+      "actual_blockers": [],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-02",
+      "issue_number": 1343,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1343",
+      "read_at_utc": "2026-09-09T05:40:09.167661+00:00",
+      "body_sha256_local": "c7ac0916153bfb3e3d71a38fc86497e2c3a430d57bc263bfaa6299686e386b11",
+      "body_sha256_live": "c7ac0916153bfb3e3d71a38fc86497e2c3a430d57bc263bfaa6299686e386b11",
+      "title": "[grilling] 同价极值端点及对象身份的确定性实例（#1323，G-002）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [],
+      "actual_blockers": [],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-03",
+      "issue_number": 1344,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1344",
+      "read_at_utc": "2026-09-09T05:40:09.192183+00:00",
+      "body_sha256_local": "9eb966eead0521156f70d5940c34e4c7645aa136fb6b8b04ae2285ba466382d4",
+      "body_sha256_live": "9eb966eead0521156f70d5940c34e4c7645aa136fb6b8b04ae2285ba466382d4",
+      "title": "[grilling] 第二特征序列扫描域与 continuation 边界（#1323，G-007）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [],
+      "actual_blockers": [],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-04",
+      "issue_number": 1345,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1345",
+      "read_at_utc": "2026-09-09T05:40:09.201338+00:00",
+      "body_sha256_local": "dc602c46fb3b4601bce0b4ba044ea28946fe8e9e8aaf8eef8ec82d120d73cd7f",
+      "body_sha256_live": "dc602c46fb3b4601bce0b4ba044ea28946fe8e9e8aaf8eef8ec82d120d73cd7f",
+      "title": "[grilling] 独立选父 NestInterval 的价格投影（#1323，G-025）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [],
+      "actual_blockers": [],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-05",
+      "issue_number": 1346,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1346",
+      "read_at_utc": "2026-09-09T05:40:10.321276+00:00",
+      "body_sha256_local": "c1343b55f62a857d6d898ef5c61535b8c6dc8c23a9f703ac96904552df3f99be",
+      "body_sha256_live": "c1343b55f62a857d6d898ef5c61535b8c6dc8c23a9f703ac96904552df3f99be",
+      "title": "[task] 已裁 Comparable/Sel 到条件候选全集的适用域桥（#1323，G-026）",
+      "expected_labels": [
+        "wayfinder:task"
+      ],
+      "actual_labels": [
+        "wayfinder:task"
+      ],
+      "expected_blockers": [],
+      "actual_blockers": [],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-06",
+      "issue_number": 1347,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1347",
+      "read_at_utc": "2026-09-09T05:40:10.329089+00:00",
+      "body_sha256_local": "dd0f6dbc1f509ff506103e6a3a329f83cf9f4212eb786380397149fd15d27d3e",
+      "body_sha256_live": "dd0f6dbc1f509ff506103e6a3a329f83cf9f4212eb786380397149fd15d27d3e",
+      "title": "[grilling] Type2/3 N/A 在递归证书中的合成处置（#1323，G-028）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [],
+      "actual_blockers": [],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-07",
+      "issue_number": 1354,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1354",
+      "read_at_utc": "2026-09-09T05:40:10.503701+00:00",
+      "body_sha256_local": "a091e76578b016fa870b47c3ec8989618047429fa633d1309f1d0d3c628198a1",
+      "body_sha256_live": "a091e76578b016fa870b47c3ec8989618047429fa633d1309f1d0d3c628198a1",
+      "title": "[grilling] 成本停止 policy 实例与基底进阶证据（#1323，G-029）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [
+        1351
+      ],
+      "actual_blockers": [
+        1351
+      ],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-08",
+      "issue_number": 1348,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1348",
+      "read_at_utc": "2026-09-09T05:40:10.396144+00:00",
+      "body_sha256_local": "f3ddd4c0b23b6a42dd14adfb37406ab8ee12992513344b5aa11c2cb4999f7fdb",
+      "body_sha256_live": "f3ddd4c0b23b6a42dd14adfb37406ab8ee12992513344b5aa11c2cb4999f7fdb",
+      "title": "[grilling] 本金与真实回收的边界会计 policy（#1323，FU-01）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [],
+      "actual_blockers": [],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-09",
+      "issue_number": 1355,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1355",
+      "read_at_utc": "2026-09-09T05:40:11.619418+00:00",
+      "body_sha256_local": "4d4da98a77da1dba1a5b5c1d6eeecdcbb1ea096129850bc77062b9cc8fd81d3e",
+      "body_sha256_live": "4d4da98a77da1dba1a5b5c1d6eeecdcbb1ea096129850bc77062b9cc8fd81d3e",
+      "title": "[grilling] 完整量档与容量经验参数 policy（#1323，FU-02）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [
+        1349
+      ],
+      "actual_blockers": [
+        1349
+      ],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-10",
+      "issue_number": 1357,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1357",
+      "read_at_utc": "2026-09-09T05:40:11.734382+00:00",
+      "body_sha256_local": "2cf31a4b4c97c586d8c055b84518024194b1fa38da5883b6d66b50850f2c9de7",
+      "body_sha256_live": "2cf31a4b4c97c586d8c055b84518024194b1fa38da5883b6d66b50850f2c9de7",
+      "title": "[grilling] 固定 Q 下增长换档的权利与会计衔接（#1323，FU-02）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [
+        1348,
+        1355
+      ],
+      "actual_blockers": [
+        1348,
+        1355
+      ],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-11",
+      "issue_number": 1349,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1349",
+      "read_at_utc": "2026-09-09T05:40:12.015210+00:00",
+      "body_sha256_local": "2b7bf800f477654fda8fe0e56698990db742f31fe93508a0d3cafe33dbbb2379",
+      "body_sha256_live": "2b7bf800f477654fda8fe0e56698990db742f31fe93508a0d3cafe33dbbb2379",
+      "title": "[grilling] 共同资金争用、cap 与公用资金进出 policy（#1323，FU-03/FU-02/FU-04）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [],
+      "actual_blockers": [],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-12",
+      "issue_number": 1350,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1350",
+      "read_at_utc": "2026-09-09T05:40:11.628678+00:00",
+      "body_sha256_local": "773062ba1fb2b0931fa46a31cf0acb82b4a1053683e9dcc0381c2b6ef0a48f61",
+      "body_sha256_live": "773062ba1fb2b0931fa46a31cf0acb82b4a1053683e9dcc0381c2b6ef0a48f61",
+      "title": "[grilling] 净额外效与部分成交费用的分配归属（#1323，FU-03）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [],
+      "actual_blockers": [],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-13",
+      "issue_number": 1351,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1351",
+      "read_at_utc": "2026-09-09T05:40:13.130469+00:00",
+      "body_sha256_local": "82e1e93d91bcd116f273dffed8a9ab44dbf53f8c7e6c4346818a333d5d65b365",
+      "body_sha256_live": "82e1e93d91bcd116f273dffed8a9ab44dbf53f8c7e6c4346818a333d5d65b365",
+      "title": "[grilling] 首个具名场所账户与验证权限 profile（#1323，FU-04）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [],
+      "actual_blockers": [],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-14",
+      "issue_number": 1356,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1356",
+      "read_at_utc": "2026-09-09T05:40:13.031622+00:00",
+      "body_sha256_local": "a9c0555b71abb89e290eef73358c4a5e756a1138d12b2c9c2c189c09170d05e9",
+      "body_sha256_live": "a9c0555b71abb89e290eef73358c4a5e756a1138d12b2c9c2c189c09170d05e9",
+      "title": "[grilling] 经营统计完整事件样本与边界规则（#1323，FU-05）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [
+        1348
+      ],
+      "actual_blockers": [
+        1348
+      ],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-15",
+      "issue_number": 1358,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1358",
+      "read_at_utc": "2026-09-09T05:40:13.003845+00:00",
+      "body_sha256_local": "42c9076ec5b669d87191bafdf38ee41421b0f7f5c0656e2707a3a97149f43062",
+      "body_sha256_live": "42c9076ec5b669d87191bafdf38ee41421b0f7f5c0656e2707a3a97149f43062",
+      "title": "[grilling] 首次触闸后的经营评价参数（#1323，FU-05）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [
+        1348,
+        1356
+      ],
+      "actual_blockers": [
+        1348,
+        1356
+      ],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-16",
+      "issue_number": 1352,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1352",
+      "read_at_utc": "2026-09-09T05:40:13.232770+00:00",
+      "body_sha256_local": "935d3f3616b0d1760d1838ec6d7bed0f065c2047353ee636190f0e866dbadb7f",
+      "body_sha256_live": "935d3f3616b0d1760d1838ec6d7bed0f065c2047353ee636190f0e866dbadb7f",
+      "title": "[grilling] 完整退出授权与责任退休 policy（#1323，FU-07）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [],
+      "actual_blockers": [],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    },
+    {
+      "plan_id": "RD-17",
+      "issue_number": 1353,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1353",
+      "read_at_utc": "2026-09-09T05:40:14.266479+00:00",
+      "body_sha256_local": "cd27d949e34e76b669cf89391ba64fe201afe9299d5becf190deb43621aff029",
+      "body_sha256_live": "cd27d949e34e76b669cf89391ba64fe201afe9299d5becf190deb43621aff029",
+      "title": "[grilling] 完整历史模拟执行模型：多重并发、混合订单与同 slot 次序（#1323，C10.3）",
+      "expected_labels": [
+        "wayfinder:grilling"
+      ],
+      "actual_labels": [
+        "wayfinder:grilling"
+      ],
+      "expected_blockers": [],
+      "actual_blockers": [],
+      "checks": {
+        "body_sha_matches_local": true,
+        "body_sha_matches_publication_record": true,
+        "title_matches_plan_and_record": true,
+        "labels_exact": true,
+        "native_parent_1323_membership": true,
+        "native_blockers_exact": true,
+        "native_blockers_only_final_17": true,
+        "no_dispatch_labels": true,
+        "issue_open": true,
+        "no_assignees": true
+      },
+      "status": "PASS"
+    }
+  ],
+  "failures": [],
+  "errors": [],
+  "sources": [
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/evidence/RESIDUAL-PUBLISHED.json",
+      "sha256": "790804cc354ad04f04bb9d820ce2138cc69aefd0776420944d91071ae1cafff0"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/RESIDUAL-TICKET-PLAN.json",
+      "sha256": "16d2fe3690ac9c25e9b38217fe87bed49be045a4e0e8a20ea6d7c5ef94417dc8"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/RD-17-MODEL-PLAN.json",
+      "sha256": "d52a6e6a2e9df6f6c7a33c0089dda99e95991c192f7eaa43b82614a453d38023"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/work/publish_residuals.py",
+      "sha256": "7b2146985b040066bac709c21570b27a65d84212e0b984be36f295e96b327f47"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-01.md",
+      "sha256": "78a7eea8b0e0cd84027fb80d3286c3f0e14844e9f1f3a8becb562795ab4c3392"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-02.md",
+      "sha256": "c7ac0916153bfb3e3d71a38fc86497e2c3a430d57bc263bfaa6299686e386b11"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-03.md",
+      "sha256": "9eb966eead0521156f70d5940c34e4c7645aa136fb6b8b04ae2285ba466382d4"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-04.md",
+      "sha256": "dc602c46fb3b4601bce0b4ba044ea28946fe8e9e8aaf8eef8ec82d120d73cd7f"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-05.md",
+      "sha256": "c1343b55f62a857d6d898ef5c61535b8c6dc8c23a9f703ac96904552df3f99be"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-06.md",
+      "sha256": "dd0f6dbc1f509ff506103e6a3a329f83cf9f4212eb786380397149fd15d27d3e"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-07.md",
+      "sha256": "a091e76578b016fa870b47c3ec8989618047429fa633d1309f1d0d3c628198a1"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-08.md",
+      "sha256": "f3ddd4c0b23b6a42dd14adfb37406ab8ee12992513344b5aa11c2cb4999f7fdb"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-09.md",
+      "sha256": "4d4da98a77da1dba1a5b5c1d6eeecdcbb1ea096129850bc77062b9cc8fd81d3e"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-10.md",
+      "sha256": "2cf31a4b4c97c586d8c055b84518024194b1fa38da5883b6d66b50850f2c9de7"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-11.md",
+      "sha256": "2b7bf800f477654fda8fe0e56698990db742f31fe93508a0d3cafe33dbbb2379"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-12.md",
+      "sha256": "773062ba1fb2b0931fa46a31cf0acb82b4a1053683e9dcc0381c2b6ef0a48f61"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-13.md",
+      "sha256": "82e1e93d91bcd116f273dffed8a9ab44dbf53f8c7e6c4346818a333d5d65b365"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-14.md",
+      "sha256": "a9c0555b71abb89e290eef73358c4a5e756a1138d12b2c9c2c189c09170d05e9"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-15.md",
+      "sha256": "42c9076ec5b669d87191bafdf38ee41421b0f7f5c0656e2707a3a97149f43062"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-16.md",
+      "sha256": "935d3f3616b0d1760d1838ec6d7bed0f065c2047353ee636190f0e866dbadb7f"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-17.md",
+      "sha256": "cd27d949e34e76b669cf89391ba64fe201afe9299d5becf190deb43621aff029"
+    }
+  ],
+  "runtime_acceptance": "NOT_RUN",
+  "github_writes_performed": false,
+  "does_not_close_or_adopt_decisions": true
+}

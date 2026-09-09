@@ -1,0 +1,373 @@
+{
+  "schema": "newchanlun.1323.tb01-entry-recon.v1",
+  "generated_at": "2026-09-09T05:07:40.746370+00:00",
+  "ticket": "#1323",
+  "status": "READ_ONLY_RECON_NOT_IMPLEMENTED_NOT_RUNTIME_ACCEPTED",
+  "base": {
+    "remote_main": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+    "local_main": "6df8d1921c72c84da90987f8f6c02ebc11fe6aac",
+    "ls_remote_matches_origin": true,
+    "left_right_origin_main_vs_local": [
+      11,
+      0
+    ],
+    "merge_base": "6df8d1921c72c84da90987f8f6c02ebc11fe6aac",
+    "refs_or_checkout_changed": false
+  },
+  "scope": "已批准TB01内部可执行单元，不改变11TB依赖语义",
+  "input_artifacts": [
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/SPEC.md",
+      "sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/INTERFACE-CONTRACTS.md",
+      "sha256": "f1a2993c6fa4c6c29c6b9a4de7c1d0334c697aaa03e282f621171c37fc01d0e7"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/IMPLEMENTATION-CROSSWALK.json",
+      "sha256": "0d31d68e75a6d672c948e8708bfb261549029c7310f7ad4dbb326c087157ce5d"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/PLANNED-DAG.json",
+      "sha256": "8ece2c702ac45c36fdcebfff4b0cb8dd2f26c740bdced6789e630f323e76d5e2"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/TEST-SEAMS.md",
+      "sha256": "2b7a59947390dd3c1d4e4de132c714f330acfbe2890a049527226d787a1e1a6f"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/SPEC-COVERAGE-INPUT.json",
+      "sha256": "76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c"
+    }
+  ],
+  "code_inventory": [
+    {
+      "path": "rust/src/theta_v0/classifier/streaming.rs",
+      "symbol": "OwnedIncrementalClassifier::append_bar / append_parse",
+      "line_start": 96,
+      "line_end": 112,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "b44de8cd27e6e624816f25b32ffe96aef78d3dd1",
+      "sha256": "b6d6c70a3a1aa86a4b648a3c8088ba8f0a914289709a066b26f16c5b05fdb590",
+      "line_count": 113,
+      "workspace_same_bytes": true,
+      "note": "现役结构计算内核；ClassifyOutput没有ParseLayer，需要在同次计算暴露观察事实"
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/pipeline.rs",
+      "symbol": "ClassifyOutput / classify / classify_incremental",
+      "line_start": 384,
+      "line_end": 491,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "a5cc6004d3a5de293034bdd46a026bda4fadf213",
+      "sha256": "40a1b5f490da8af491be146c438761ad21f464bada55b0f9b20f41d047947edb",
+      "line_count": 1811,
+      "workspace_same_bytes": true,
+      "note": "当前真实分类入口；全量classify委托同一增量核；空operating_levels可无经营旁路"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/mod.rs",
+      "symbol": "ParseLayer / parse_layer / append_incr_layer",
+      "line_start": 88,
+      "line_end": 282,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "21562834fc7ace77a9644a87b4ff62ba904b600c",
+      "sha256": "f5b612ae3dde7fb8975cbe9a175ee6cd332b3d5783b8fb8b421c0e7fb029fcd2",
+      "line_count": 399,
+      "workspace_same_bytes": true,
+      "note": "merged、fractals、strokes、segments、tail真实同源对象；不能用第二次Python判断补齐"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/fractal.rs",
+      "symbol": "detect_fractals / IncrFractals",
+      "line_start": 35,
+      "line_end": 253,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "54b0f98e34717d7ee8defa5ffcfd42230ca21969",
+      "sha256": "f5714f18ce227397772650146c01b6737af130d837fb15a627fffbd0ff713778",
+      "line_count": 401,
+      "workspace_same_bytes": true,
+      "note": "TOP/BOTTOM双条件已实现；四类窗口结果、见证、正式身份/修订仍需同核补承载"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/inclusion.rs",
+      "symbol": "process_inclusion",
+      "line_start": 103,
+      "line_end": 155,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "cf3fa5130eba3cf43ac8ebde1527a230e297bc85",
+      "sha256": "fa968583b89db63d0dcd1bce65de675e4a274cf22ea4b258b7977026fc23513b",
+      "line_count": 956,
+      "workspace_same_bytes": true,
+      "note": "首个严格非包含方向与有方向左折叠；测试域避开初始包含和同价极值政策"
+    },
+    {
+      "path": "rust/src/theta_v0/stream.rs",
+      "symbol": "ThetaPiStream::push_bar",
+      "line_start": 117,
+      "line_end": 194,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "3e5cbbf1616a0279580677cfa22cd9445bf0730f",
+      "sha256": "7363d915f0908e7c25771c79ae9a5366438e5aca052f338a570103bf8d2014e1",
+      "line_count": 389,
+      "workspace_same_bytes": true,
+      "note": "结构分类之后继续经营/账本，依赖p_t/nav，不宜整体作为S owner"
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/cand_event/book.rs",
+      "symbol": "CandidateEventBook / lifecycle tests",
+      "line_start": 17,
+      "line_end": 500,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "7b3eb2069b38a80f10ed6e1e18a07dd34eaefb99",
+      "sha256": "156b01c5ca72f99e6edc72cdd4665edd9d3d4f5584cdfbbbc89d5a01c0b0f2f3",
+      "line_count": 616,
+      "workspace_same_bytes": true,
+      "note": "候选族稳定身份、追加修订、首知钟、撤回测试形态，可复用而非全对象协议"
+    },
+    {
+      "path": "rust/src/theta_v0/classifier/level_view_store.rs",
+      "symbol": "JsonlCompletedEventStore / CompletedFreezeAdapter",
+      "line_start": 196,
+      "line_end": 409,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "90e117fe4c164b831e6f3797c62d7634caef7689",
+      "sha256": "89a33979ebd73735057d40ad4881e511ab49bf6a258b682625c2530e9e7dfb14",
+      "line_count": 716,
+      "workspace_same_bytes": true,
+      "note": "JSONL sync_data及完成冻结恢复局部先例，不是已批准独立SQLite S历史实现"
+    },
+    {
+      "path": "src/newchan/gateway.py",
+      "symbol": "_ensure_live_engine / ws_live",
+      "line_start": 855,
+      "line_end": 1004,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "3af301bfc5976abc7bf178ef69f226905c0f41ea",
+      "sha256": "2090ffc643277fdc7d80228d29ae1bccb6e6817df4ee55a1ccc9bfe01094561c",
+      "line_count": 1038,
+      "workspace_same_bytes": true,
+      "note": "现有HTTP/WS壳会创建RecursiveOrchestrator；正式只读S查询不可继续走该计算入口"
+    },
+    {
+      "path": "src/newchan/server.py",
+      "symbol": "api_newchan_overlay",
+      "line_start": 420,
+      "line_end": 475,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "7ee7c1fd48a3ebc57cfc377be0c0045ecac98bc6",
+      "sha256": "ac1bc66fa62eb2d7588ab7efef6d203c45cd7fa29c29e9909aeb23ab6e4fb15b",
+      "line_count": 649,
+      "workspace_same_bytes": true,
+      "note": "REST overlay会resample并build_overlay；展示技术可借，正式查询不得重新计算"
+    },
+    {
+      "path": "frontend/src/hooks/useLiveWebSocket.ts",
+      "symbol": "useLiveWebSocket",
+      "line_start": 69,
+      "line_end": 160,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "0f4e58d44179d58308ad41564de63a8f39c52df6",
+      "sha256": "7f08a29a6fbe20636c9f99e40b12ff6a5012996bb7d754d582561d7bfc5ae144",
+      "line_count": 161,
+      "workspace_same_bytes": true,
+      "note": "收到snapshot只console.log，overlay另轮询；未消费结构cut/delta/revision"
+    },
+    {
+      "path": "frontend/src/hooks/useOverlay.ts",
+      "symbol": "useOverlay",
+      "line_start": 20,
+      "line_end": 79,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "ddc58e6cca83168ba517efa67769bde269f59bc2",
+      "sha256": "632739d037f500055fa6c2fbca3ffaf295ccdf9dc273d4bb224364d164aeab2b",
+      "line_count": 82,
+      "workspace_same_bytes": true,
+      "note": "独立60秒REST轮询，不满足固定cut的同源视图"
+    },
+    {
+      "path": "frontend/src/types/events.ts",
+      "symbol": "WsSnapshotMessage / WsServerMessage",
+      "line_start": 206,
+      "line_end": 232,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "7d16f3f5ff3caae400455578ce443b79f79f91fd",
+      "sha256": "ecfc0830f928447ce7d45232d80b1a40f2519bf0727c8f5c88bb9ebcb95edac6",
+      "line_count": 259,
+      "workspace_same_bytes": true,
+      "note": "仅bar_idx/strokes/event_count；缺完整S协议"
+    },
+    {
+      "path": "trading_system/persistence/database.py",
+      "symbol": "TradingDatabase",
+      "line_start": 94,
+      "line_end": 104,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "5f9e6d375abd298d2b29d98761237a1578d21b7a",
+      "sha256": "f49cdcd8f6f2072940e1c28f816c21be15a8983d22824d37d2f996f8e6ee755f",
+      "line_count": 125,
+      "workspace_same_bytes": true,
+      "note": "单部署共库且synchronous=NORMAL，不能直接充当S独立持久域"
+    },
+    {
+      "path": "trading_system/live/runner.py",
+      "symbol": "main",
+      "line_start": 31,
+      "line_end": 73,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "418b8893ec18aff9509d2c0085a804552c0bcd4a",
+      "sha256": "b83fba8cdd7f426a1d5fb38e5b871f34f265d78505fcee55afe5da34cff3dc62",
+      "line_count": 73,
+      "workspace_same_bytes": true,
+      "note": "TradingNode仅docstring；实际打印未实装并返回1"
+    },
+    {
+      "path": "src/newchan/cli.py",
+      "symbol": "build_parser",
+      "line_start": 67,
+      "line_end": 76,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "95ce4f03506a2ea08770e77e56f3a71802ce8669",
+      "sha256": "c3274e64f6e649de6633b9e7c08490c8c7f84f7fc20cbb15ed1aa8a3c34d7bac",
+      "line_count": 335,
+      "workspace_same_bytes": true,
+      "note": "已有fetch/plot/chart/synthetic/fetchdb，无正式S会话命令"
+    },
+    {
+      "path": "rust/Cargo.toml",
+      "symbol": "dependencies/features",
+      "line_start": 12,
+      "line_end": 59,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "6893a49469f4f4b68e9e2b078e6e1fea26997f2d",
+      "sha256": "3947802819b863c19b6f7add05cc51615079ccf03d1a87a6c405f2b2fb503000",
+      "line_count": 223,
+      "workspace_same_bytes": false,
+      "note": "现役Rust crate无SQLite依赖；新S运行需按C09引入并锁定实际SQLite版本"
+    },
+    {
+      "path": ".sandcastle/main.mts",
+      "symbol": "createSandboxWithWorktreeRetry / implementation/review dispatch",
+      "line_start": 160,
+      "line_end": 331,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "fbe82e02902d285c5d0c16357225741f6a24505a",
+      "sha256": "e83d1d8d6b01022edfa04dddb7d5255627c0a450f69c6101390b7bfd1b75c533",
+      "line_count": 336,
+      "workspace_same_bytes": false,
+      "note": "baseBranch=main；origin/main实装/评审实际均primeAgent(REVIEWER_MODEL)，宿主实际均claudeCode"
+    },
+    {
+      "path": "docs/agents/generation-constitution.md",
+      "symbol": "名分与现役线",
+      "line_start": 8,
+      "line_end": 33,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "ebce8dcf5616e840b80cd931b2e07abe71db36a4",
+      "sha256": "6871ddb943cbc523c2c5a228bb1046adf9e27072b7c1ba929c7d8c683e23021e",
+      "line_count": 52,
+      "workspace_same_bytes": true,
+      "note": "main唯一现役git线；新生入口条件必须逐项核"
+    },
+    {
+      "path": "docs/adr/0027-classification-chong-operating-program-ownership.md",
+      "symbol": "owner/readonly boundary",
+      "line_start": 22,
+      "line_end": 59,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "52be5777fea615d21beddf5e8c77bb747705945b",
+      "sha256": "bf6eb4721ab0d56ad5f1ce3000d74eaaa79f9c497b9b5301697df79f08fa3c1b",
+      "line_count": 109,
+      "workspace_same_bytes": false,
+      "note": "正式owner边界，非旧方案扫描"
+    },
+    {
+      "path": ".chanlun/definitions/fenxing.md",
+      "symbol": "分型定义与双条件",
+      "line_start": 94,
+      "line_end": 126,
+      "base_commit": "644075a6abcbfcda74815daed68e06eff6ddaf63",
+      "git_blob": "0e6c977da22ee92b17590a7f88f2265704968052",
+      "sha256": "0285fd9d9352b63a6ec1686bd5d7543dcd2a7c2d93c9a2e47d007507fc58f88f",
+      "line_count": 162,
+      "workspace_same_bytes": true,
+      "note": "受测CC-006语义正本"
+    }
+  ],
+  "graph": {
+    "project": "Users-silencehan-Projects-NewChanlun-rust",
+    "status": "STALE_AND_INCOMPLETE",
+    "fallback_reason": "当前classify移至pipeline；snippet source unavailable；Python/TS及部分新Rust符号未索引"
+  },
+  "first_vertical_slice": {
+    "axis": "CC-006",
+    "domain": "原始tick一对一退化OHLC，初始严格非包含方向，相邻异价且无同价极值竞争",
+    "prices_in_integer_ticks": [
+      10000,
+      11000,
+      10500
+    ],
+    "correction": {
+      "event_index": 2,
+      "new_revision": 1,
+      "new_price": 11500
+    },
+    "next_tick": 10800,
+    "required_observation": [
+      "real_TOP",
+      "raw_merged_witnesses",
+      "correction_withdrawal",
+      "RISING",
+      "new_TOP",
+      "E_absent_formal_progress"
+    ],
+    "status": "PROPOSED_CONCRETE_FIXTURE_NOT_RUN",
+    "direct_success_gates_in_crosswalk": []
+  },
+  "suggested_subslices": [
+    {
+      "id": "TB01-A",
+      "behavior": "真实CC006计算、正式持久cut、目录/实例/证据到浏览器",
+      "after": []
+    },
+    {
+      "id": "TB01-B",
+      "behavior": "更正、原子delta、真实杀进程恢复到浏览器",
+      "after": [
+        "TB01-A"
+      ]
+    },
+    {
+      "id": "TB01-C",
+      "behavior": "固定cut分页、Gap/代际/背压、正式双跑与持续服务",
+      "after": [
+        "TB01-B"
+      ]
+    }
+  ],
+  "top_level_dependency_rule": "TB02/TB03仍等待完整TB01；内部完成不提前解阻或销项TB02故事",
+  "validation": {
+    "application_tests_run": false,
+    "launcher_run": false,
+    "browser_run": false,
+    "lean_run": false,
+    "sandcastle_source_parse": {
+      "workspace": "PASS",
+      "origin_main": "PASS",
+      "method": "esbuild.transformSync no execution"
+    },
+    "secret_values_read": false,
+    "services_started_or_modified": false,
+    "github_writes": false
+  },
+  "channel": {
+    "workspace_actual_agent": "claudeCode claude-opus-5",
+    "remote_actual_agent": "primeAgent deepseek-v4-pro provider deepseek",
+    "base_branch_literal": "main",
+    "running_implementation_for_tb01_proven": false,
+    "latest_workers_log_event": "2026-08-31T21:19:30.380Z #1235 sandbox closed",
+    "fresh_smoke": "NOT_RUN"
+  },
+  "report_sha256": "1f60985ca224887d68924f424991bd888a6cd995cd15a2d2db1e46e995792437"
+}
