@@ -1,0 +1,249 @@
+{
+  "issue": 1339,
+  "scope": "三个新增细分类轴静态源码核查；不是全部叶生产验收",
+  "snapshot": {
+    "repository": "/Users/silencehan/Projects/NewChanlun",
+    "head": "6df8d1921c72c84da90987f8f6c02ebc11fe6aac",
+    "read_at": "2026-09-08T08:24:11.701480+00:00",
+    "dirty": true,
+    "changed_status_lines": 245,
+    "inspected_files_with_unstaged_diff": [],
+    "basis": "dirty 工作区实际文件字节",
+    "files": [
+      {
+        "path": "formal/Origin/TrendSixState.lean",
+        "sha256": "3cf61e5b16443cb20b470b2fc00a6970dad5099f036c05a5e1685cc09bc403c8"
+      },
+      {
+        "path": "formal/Origin/CenterStates.lean",
+        "sha256": "8355eaba2ca8b0f1ef50b8167802ce2f5c6abdab188dd3f49ea25859936a1a0a"
+      },
+      {
+        "path": "formal/Origin/BuySellPredicate.lean",
+        "sha256": "662ce6e3fbccc2828e05e09eb89ec319b87054fcdf0fb10b4d3d21b68b0de301"
+      },
+      {
+        "path": "rust/src/theta_v0/classifier/mod.rs",
+        "sha256": "ef7b1796d0b019c7927f8b8b350552188ef47b4ee5f9a2714bf21b3fcce93d9f"
+      },
+      {
+        "path": "rust/src/theta_v0/classifier/pipeline.rs",
+        "sha256": "40a1b5f490da8af491be146c438761ad21f464bada55b0f9b20f41d047947edb"
+      },
+      {
+        "path": "rust/src/theta_v0/classifier/level_state.rs",
+        "sha256": "ebcfe8b6742f1e969222f000ea53c3dd27cbef9e5dbd421869f041c35e3dd08e"
+      },
+      {
+        "path": "rust/src/theta_v0/classifier/six_state.rs",
+        "sha256": "8f172502ffc2bb743b23d893e07c5998b8ab260915eaf58fd6034b6f55b905a4"
+      },
+      {
+        "path": "rust/src/theta_v0/classifier/center.rs",
+        "sha256": "06832a4649601863778548cb840dab0de99ccf192b76cb93949ab72a0e4d6c13"
+      },
+      {
+        "path": "rust/src/theta_v0/classifier/decompose.rs",
+        "sha256": "95779daefb44ffb5883d9ff04741056be93f5c23f62acc5f94dad5d624bed0d1"
+      },
+      {
+        "path": "rust/src/theta_v0/classifier/bsp.rs",
+        "sha256": "dd17a9dca0d312a77196ef2bb13e8e2d5ce7a77e11bb874f68e0808d7afea21e"
+      },
+      {
+        "path": "rust/src/theta_v0/classifier/signal.rs",
+        "sha256": "095931a397d8308eb06e0333eb3d8853b1f03112ef62394aa0dcf716725b9e28"
+      },
+      {
+        "path": "rust/src/theta_v0/classifier/signal/gates.rs",
+        "sha256": "957c236a7fbb2e7b9eddecddc965019763c515de56447d2429eb68c422e4d662"
+      },
+      {
+        "path": "rust/src/theta_v0/classifier/scan.rs",
+        "sha256": "856288de02d9b27e4f599f3dc3ce88c13237d213bf8804b85f975cbfb2d16a12"
+      },
+      {
+        "path": "rust/src/theta_v0/types.rs",
+        "sha256": "4370651d94e1be89d83d26c2d8ab00a7f7cd961693f071749afb10bf95f6bca0"
+      },
+      {
+        "path": "rust/src/theta_v0/stream.rs",
+        "sha256": "7363d915f0908e7c25771c79ae9a5366438e5aca052f338a570103bf8d2014e1"
+      },
+      {
+        "path": "rust/src/theta_v0/ffi.rs",
+        "sha256": "7b210e5d26952d967009311eadb56218c01de184228c5bd513433af846b06e55"
+      },
+      {
+        "path": "rust/src/lib.rs",
+        "sha256": "b3e8ab8309dcea55779a4552ea5e1d970ee7475c8c2a9cc3f2ce8eaa83ebf1b6"
+      },
+      {
+        "path": "rust/src/theta_v0/strategy/interp.rs",
+        "sha256": "b9b41a0252f31f788e5837bae484b467ddc1afafe25bd1116c7bc08437221a11"
+      },
+      {
+        "path": "rust/src/theta_v0/backtest/gamma_dump.rs",
+        "sha256": "a9df6b235078c93ae942a5d3702528ed563a24afcd2669e9d0e086a9461577a8"
+      },
+      {
+        "path": "rust/src/theta_v0/backtest/fill.rs",
+        "sha256": "408a8b7c02c14679d3cf6660434b76eccb18985af3e9a32542bf4c421ce72c4a"
+      },
+      {
+        "path": "rust/src/trading/tape.rs",
+        "sha256": "5fdc01ac3d1b2c8093c61b77abac1c2a802c8bc8f7cc77ee2699d2767fa389b5"
+      }
+    ]
+  },
+  "graph": {
+    "projects": [
+      "Users-silencehan-Projects-NewChanlun",
+      "Users-silencehan-Projects-NewChanlun-rust"
+    ],
+    "available": true,
+    "index_timestamp": null,
+    "index_version": null,
+    "caveats": [
+      "Classification 节点仍指向已抽离的 mod.rs:217，source not available；实际结构在 pipeline.rs:116",
+      "include_tests=false 的入站结果仍含模块内测试；人工按 cfg(test) 边界排除",
+      "图只作导航，零命中不作不存在证明"
+    ]
+  },
+  "families": [
+    {
+      "id": "trend_six_state",
+      "lean": {
+        "domain": "给定 SixStateContext(lastCenter,price,b3,s3)，有中枢时核心良构",
+        "result": "六标签全函数、穷尽、唯一",
+        "refs": [
+          "formal/Origin/TrendSixState.lean:82-124",
+          "formal/Origin/TrendSixState.lean:134-174"
+        ]
+      },
+      "rust": {
+        "implementation": "rlevel_of / RLevel / RContext / PointState",
+        "producer_status": "当前引用核查仅测试及对照包装；未接到所核生产 Classification 装配",
+        "classification_status": "实际 LevelState 无六态字段",
+        "break": "六态纯函数/对照层到生产上下文构造及 Classification 装配之间",
+        "refs": [
+          "rust/src/theta_v0/classifier/level_state.rs:32-105",
+          "rust/src/theta_v0/classifier/six_state.rs:85-103",
+          "rust/src/theta_v0/classifier/pipeline.rs:47-89",
+          "rust/src/theta_v0/classifier/pipeline.rs:1511-1519"
+        ]
+      },
+      "exports": {
+        "py_theta_stream": "不输出六态",
+        "gamma_jsonl": "不输出六态"
+      }
+    },
+    {
+      "id": "center_development",
+      "lean": {
+        "domain": "发展三态：任意良构 CenterWithOuter 对；上涨/下跌/扩展三歧：额外要求 SeparatedNewPair",
+        "result": "对应域内穷尽及互斥",
+        "refs": [
+          "formal/Origin/CenterStates.lean:168-174",
+          "formal/Origin/CenterStates.lean:237-247",
+          "formal/Origin/CenterStates.lean:314-380"
+        ]
+      },
+      "rust": {
+        "implementation": "classify_relation → CenterRelation 四态",
+        "producer_status": "decompose_resume 实际调用；pipeline 调 decompose_resume",
+        "classification_status": "非单点 MoveBlock span 与 kind/dir/level_lift 保留四关系；无专门发展态 enum 字段",
+        "domain_limit": "Rust Center 无 Lean 类型级良构证明；单中枢块不代表发生过中枢对关系",
+        "break": "完整 Classification 中保留；stream::newly_confirmed_step 清空 moves/centers",
+        "refs": [
+          "rust/src/theta_v0/classifier/center.rs:105-114",
+          "rust/src/theta_v0/classifier/center.rs:312-322",
+          "rust/src/theta_v0/classifier/decompose.rs:47-94",
+          "rust/src/theta_v0/classifier/decompose.rs:140-163",
+          "rust/src/theta_v0/classifier/pipeline.rs:1251-1255",
+          "rust/src/theta_v0/stream.rs:309-322"
+        ]
+      },
+      "exports": {
+        "py_theta_stream": "不输出发展关系",
+        "gamma_jsonl": "未输出发展关系"
+      }
+    },
+    {
+      "id": "buy_sell_64_signatures",
+      "lean": {
+        "domain": "给定 LevelView，cand1/cand2/cand3 各一 Option BspEndpoint；不构造市场投影",
+        "result": "Bool^6 编码空间 64 向量穷尽无重复且给定视图有唯一签名，不证明全64市场可达",
+        "refs": [
+          "formal/Origin/BuySellPredicate.lean:82-97",
+          "formal/Origin/BuySellPredicate.lean:169-208",
+          "formal/Origin/BuySellPredicate.lean:231-315"
+        ]
+      },
+      "rust": {
+        "implementation": "endpoint_to_bsp 在一二三类生产路径置 BspBits；class_index 编六位",
+        "producer_status": "真实生产；三类分别构造 BspPoint",
+        "classification_status": "LevelState.bsp[*].bits 六位完整；append+sort 未合成每级每时刻唯一 LevelView 签名",
+        "break": "逐条六位生产已贯通；Lean 每级投影/唯一签名与此列表组装的等价桥未由本次核查建立",
+        "refs": [
+          "rust/src/theta_v0/types.rs:201-213",
+          "rust/src/theta_v0/types.rs:291-314",
+          "rust/src/theta_v0/classifier/bsp.rs:80-114",
+          "rust/src/theta_v0/classifier/signal/gates.rs:402-429",
+          "rust/src/theta_v0/classifier/signal.rs:303-338",
+          "rust/src/theta_v0/classifier/signal.rs:745-779",
+          "rust/src/theta_v0/classifier/pipeline.rs:1336-1445",
+          "rust/src/theta_v0/classifier/pipeline.rs:1511-1519"
+        ]
+      },
+      "exports": {
+        "py_theta_stream": "不输出逐点六位签名",
+        "rust_step": "newly_confirmed_step 按 (level,source_index,bits) 去重并复制 BspPoint，保留六位",
+        "gamma_jsonl": "bsp_bits_class_index 完整保留逐候选六位；bsp_class 为另一主类字段",
+        "refs": [
+          "rust/src/theta_v0/stream.rs:284-325",
+          "rust/src/theta_v0/strategy/interp.rs:977-986",
+          "rust/src/theta_v0/backtest/gamma_dump.rs:157-180",
+          "rust/src/theta_v0/backtest/fill.rs:5645-5665"
+        ]
+      }
+    }
+  ],
+  "interfaces_examined": [
+    {
+      "name": "PyThetaStream",
+      "extent": "直接公开方法集静态读取，未调用 finish_full",
+      "refs": [
+        "rust/src/theta_v0/ffi.rs:94-251",
+        "rust/src/lib.rs:2822-2823"
+      ]
+    },
+    {
+      "name": "GammaDump JSONL",
+      "extent": "条件启用的诊断出口；非 Classification 全量序列化",
+      "refs": [
+        "rust/src/theta_v0/backtest/gamma_dump.rs:64-79",
+        "rust/src/theta_v0/backtest/gamma_dump.rs:157-180"
+      ]
+    },
+    {
+      "name": "SignalTape",
+      "extent": "仅字段观察，未追生产或 marshal，不作链路验收",
+      "refs": [
+        "rust/src/trading/tape.rs:27-65"
+      ]
+    }
+  ],
+  "excluded": [
+    "走势粗类/小转大/扩展/UI 代表链重做",
+    "全仓所有叶/全部 exporter 审计",
+    "旧1321/1322/1325/1326原件及方案原稿",
+    "运行测试/编译/回放/服务/交易",
+    "修改仓库/定义/Git/GitHub"
+  ],
+  "report": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/evidence/CLASSIFICATION-OUTPUT-PROBE.md",
+    "sha256": "2d4d30541664199ead754267d9a66881a7643534238288e508534971ce397830"
+  },
+  "validation": "仅静态读取和报告文件 JSON 生成；未运行任何项目测试或服务"
+}

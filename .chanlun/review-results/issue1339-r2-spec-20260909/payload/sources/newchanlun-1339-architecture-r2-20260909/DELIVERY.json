@@ -1,0 +1,216 @@
+{
+  "schema": "newchanlun.architecture-r2.delivery.v2",
+  "status": "REVIEWED_ARCHITECTURE_CANDIDATE_AWAITING_EXPLICIT_ADOPTION",
+  "issue": 1339,
+  "map": 1323,
+  "checked_at_utc": "2026-09-08T21:11:13.364667+00:00",
+  "user_decision": "RF-02 confirmed: formal structure must continue during economic safety failure when structural dependencies are healthy",
+  "recommendation": {
+    "document": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.md",
+    "protocol": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.md",
+    "precedence": "/tmp/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.md",
+    "adopted": false,
+    "disclosed_tradeoff": "E risks learned after irrevocable exact handoff may not stop that already handed-off command first venue call. Full liability retained; unreleased preparation has no exception; actual S/X-stage conditions remain mandatory."
+  },
+  "files": [
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/DELIVERY.md",
+      "sha256": "8b3c1dd8216ab4686636f16c942f738dae6f8c8f60b4878878776c74153a57a1",
+      "bytes": 5498
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/USER-DECISION.md",
+      "sha256": "bde32ba1369879cfec4343d0364d4cddc160238ea5b6a03c7828fe36ba94d0c9",
+      "bytes": 696
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/USER-DECISION.json",
+      "sha256": "68105375cfa35628881ddd2db271a7606b37985547921758ddd1e820bfd33a3d",
+      "bytes": 1317
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/ACCEPTANCE-RF02.md",
+      "sha256": "d1fcd8d1b36cd90910a561ee60dab1bf820b64ac49f562b3d16cf43f69ccf309",
+      "bytes": 5305
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/ACCEPTANCE-RF02.json",
+      "sha256": "57722029f83edc7f1349f4df5a72a33d4e3fe9a56777f0f625fceea197d00b40",
+      "bytes": 5077
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/NEXT-REVIEW.md",
+      "sha256": "a222aa01cb1b1551f1c2767cdb4053572f7aa7f06421d230d09a0ace21cc12e3",
+      "bytes": 1573
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.md",
+      "sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c",
+      "bytes": 26346
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.json",
+      "sha256": "46c7c0fbd53926119d45a8682ca29e8001c445835fbd00895add778d8d1e70e6",
+      "bytes": 28883
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.md",
+      "sha256": "a981bf7af3aa9500f33a7f0a8b95992deb805562bf9f9ad558e1b3067f3db0f3",
+      "bytes": 6192
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.json",
+      "sha256": "53447b7197ccc2c55348bbbdc82c4e00ada00b135c9cf746e8a6a03d2b70c95a",
+      "bytes": 7399
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/OPEN-PROTOCOL-QUESTIONS.md",
+      "sha256": "6213c37f1344c51f5d0bf7dbda78b75838a2028ea3c474dfca511541e1264adc",
+      "bytes": 2424
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.md",
+      "sha256": "ecc62a15f58b527ba78e63f9b3db18f32ee0940262cd1e0227d77c169c7b1bb0",
+      "bytes": 11957
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.json",
+      "sha256": "366a6182601226e16dce67125c894437a2c1a5e6a3654a75ad69d500a27a9657",
+      "bytes": 12872
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/BASELINE-BINDINGS.json",
+      "sha256": "ff3d560215d67f5d44b7ef6144dbb1be284998a74d9f289ca554ddcc84871ee9",
+      "bytes": 1413
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/R1-COUPLING-LOCATORS.json",
+      "sha256": "5c040da402ce51a5acb65799702b931fe3fef672740a76f11dcbc21da2193f21",
+      "bytes": 14650
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/ORDERING-COUNTEREXAMPLE.md",
+      "sha256": "deaf81c7c577112fe9964157ef1eec8cd03694df08e1676ced042904f66d7494",
+      "bytes": 953
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/ORDERING-COUNTEREXAMPLE.json",
+      "sha256": "3e47298e8572302d7b6f8e28702ce125f14eaf6769ba3f99e65d1049b97d551f",
+      "bytes": 10497
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/AUTHOR-REPAIRS.md",
+      "sha256": "fb6d5a5e512c6894358d69fc0a33f294ce5599684a232dbb3b448664d7dd3eb0",
+      "bytes": 1839
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02-R2-FIRST-PASS.md",
+      "sha256": "b0b73a11b7c67a3f8bd6ca348e9b5cd1e3817f57f2111505b4ddb63dd552fc73",
+      "bytes": 20175
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02-R2-FIRST-PASS.json",
+      "sha256": "8968781b4e8be34558552870fe6fd886c69ee353644d4e45aba391f915b7b537",
+      "bytes": 34004
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.md",
+      "sha256": "61536618576684c33f72fb4e0cde6ad99c32ab12a64be3a1b762e048d23363d8",
+      "bytes": 14782
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.json",
+      "sha256": "63556ec79cee3f734b2e97694143bba79efb1906c3556bac55eb75ae72683d1e",
+      "bytes": 988
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02.md",
+      "sha256": "d440846dfce0a66377297f2fb4fd7a5d8de0cc7e950c5b737fe61e121cd327bd",
+      "bytes": 16962
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02.json",
+      "sha256": "99a58fceb7735283d03808ba4569ea4774db443f75232aecce4c7122ead1e36d",
+      "bytes": 39319
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-COMPARISON-R2.md",
+      "sha256": "5b33afdee7f9eace327a36961ab0d5d75ab32541f506492e274d7db18077c2b8",
+      "bytes": 10572
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-COMPARISON-R2.json",
+      "sha256": "11507407602f9f7779388a673896cc943988ce9b17eea202fa8fcb4d6953f649",
+      "bytes": 13424
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/REVIEW-METADATA-REPAIR.json",
+      "sha256": "ce79078aba3109ce9ff0062d367edff4dd21e599c1a8fa7960fef3e59a139b79",
+      "bytes": 1591
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/FINAL-ARTIFACT-CHECK.json",
+      "sha256": "9be8f7ab58d08c1765c19b08485946bd968b16a3cfddd0064c0983da4e194e34",
+      "bytes": 2634
+    }
+  ],
+  "independent_reviews": {
+    "protocol": {
+      "status": "PASS_AT_ARCHITECTURE_CONTRACT_LEVEL_WITH_IMPLEMENTATION_OBLIGATIONS",
+      "residual_counts": {
+        "H": 0,
+        "M": 0,
+        "L": 0
+      },
+      "md_sha256": "d440846dfce0a66377297f2fb4fd7a5d8de0cc7e950c5b737fe61e121cd327bd",
+      "json_sha256": "99a58fceb7735283d03808ba4569ea4774db443f75232aecce4c7122ead1e36d",
+      "metadata_addendum": "METADATA_REPAIR_VERIFIED",
+      "scope": "Architecture contract and explicit implementation obligations; no implementation, venue or safety/liveness proof."
+    },
+    "integration": {
+      "status": "PASS_WITHIN_STATED_INTEGRATION_SCOPE",
+      "residual_counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "md_sha256": "5b33afdee7f9eace327a36961ab0d5d75ab32541f506492e274d7db18077c2b8",
+      "json_sha256": "11507407602f9f7779388a673896cc943988ce9b17eea202fa8fcb4d6953f649",
+      "scope": "Complete recommendation integration; not independent protocol proof or new full source scan."
+    }
+  },
+  "current_status_rule": "Authoring-stage pending-review language in frozen source documents is historical; use this manifest and the final independent reports for current status. Source signatures are preserved, with the protocol JSON three-leaf metadata correction separately signed.",
+  "counts": {
+    "ST": 44,
+    "FG": 35,
+    "classification_axes_or_formula_families": 62,
+    "cross_axis_contracts": 10,
+    "engineering_state_axes_with_R2_replacements": 16,
+    "RA": 14,
+    "CE": 19,
+    "CR": 20,
+    "OP": 5,
+    "unexecuted_implementation_obligations": 6
+  },
+  "inherited_package": {
+    "manifest_path": "/tmp/newchanlun-1339-architecture-20260908/DELIVERY.json",
+    "sha256": "5f8b81e622b85bd187d311b17655a8f20d4311bdb008dc1f447cf8a52a82cebe",
+    "files_checked_unchanged": 41
+  },
+  "artifact_check": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/FINAL-ARTIFACT-CHECK.json",
+  "not_done": [
+    "architecture adoption",
+    "spec approval",
+    "production implementation",
+    "complete classification proof",
+    "runtime/UI/replay/paper/live verification",
+    "GitHub publication",
+    "main merge",
+    "map closure"
+  ],
+  "next_decision": "Explicit adoption of the complete R2 architecture and disclosed handoff boundary as the map SPEC basis. RF-02 itself is already decided.",
+  "approval_authority": "docs/agents/wayfinder-workflow.md:135-138; existing SPEC and new tradeoff gates; no new skill approval gate",
+  "goal_complete": false,
+  "scope_and_goal_preserved": true,
+  "repository_or_GitHub_changed": false
+}

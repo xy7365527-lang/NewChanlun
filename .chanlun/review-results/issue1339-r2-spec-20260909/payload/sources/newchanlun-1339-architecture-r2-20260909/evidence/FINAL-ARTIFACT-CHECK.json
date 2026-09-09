@@ -1,0 +1,61 @@
+{
+  "schema": "newchanlun.rf02.final-artifact-check.v1",
+  "checked_at_utc": "2026-09-08T21:11:13.364667+00:00",
+  "status": "PASS_ARTIFACT_INTEGRITY_ONLY",
+  "reviewed_protocol_md": {
+    "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.md",
+    "sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c"
+  },
+  "reviewed_protocol_json_after_metadata_addendum": {
+    "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.json",
+    "sha256": "46c7c0fbd53926119d45a8682ca29e8001c445835fbd00895add778d8d1e70e6"
+  },
+  "reviewed_comparison": {
+    "md_path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.md",
+    "md_sha256": "61536618576684c33f72fb4e0cde6ad99c32ab12a64be3a1b762e048d23363d8",
+    "json_path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.json",
+    "json_sha256": "63556ec79cee3f734b2e97694143bba79efb1906c3556bac55eb75ae72683d1e"
+  },
+  "protocol_review": {
+    "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02.md",
+    "sha256": "d440846dfce0a66377297f2fb4fd7a5d8de0cc7e950c5b737fe61e121cd327bd"
+  },
+  "integration_review": {
+    "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-COMPARISON-R2.md",
+    "sha256": "5b33afdee7f9eace327a36961ab0d5d75ab32541f506492e274d7db18077c2b8"
+  },
+  "protocol_sections_md_json_match": 10,
+  "contracts_md_json_match": 20,
+  "review_mapping_counts": {
+    "closed_findings": 4,
+    "counterexample_mapping": 19,
+    "acceptance_mapping": 14,
+    "contract_mapping": 20,
+    "open_question_mapping": 5,
+    "implementation_obligations": 6
+  },
+  "integration_checks": 13,
+  "delivery_link_targets_exist": 13,
+  "inherited_package": {
+    "manifest_path": "/tmp/newchanlun-1339-architecture-20260908/DELIVERY.json",
+    "sha256": "5f8b81e622b85bd187d311b17655a8f20d4311bdb008dc1f447cf8a52a82cebe",
+    "files_checked_unchanged": 41
+  },
+  "frozen_review_manifest": {
+    "path": "/tmp/newchanlun-1339-architecture-r2-20260909/snapshots/r2-protocol-review-11f570/DELIVERY.json",
+    "sha256": "b2030cd4f038376541504de22ced99d542a30586b124b5eb7f59bbaf1c74fbb2",
+    "bound_snapshot_files_verified": 20
+  },
+  "metadata_only_addendum_verified": true,
+  "source_semantic_limits": "Exact signature and structural consistency checks only. Independent reports retain their stated reading scopes; this does not add protocol, mathematical or runtime proof.",
+  "not_run": [
+    "production",
+    "Lean",
+    "UI",
+    "replay",
+    "paper/live",
+    "venue",
+    "full state-machine model"
+  ],
+  "goal_complete": false
+}

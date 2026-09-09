@@ -1,0 +1,649 @@
+{
+  "schema": "newchanlun.1323.root-slices-publication-review.v1",
+  "status": "PASS",
+  "reviewed_at_utc": "2026-09-09T05:38:54.671255+00:00",
+  "review_scope": "独立复核TB-07至TB-11二十执行片及十一TB父票的发布草稿；不是运行或整图验收。",
+  "findings": [],
+  "checks": {
+    "root_unit_count": 20,
+    "parent_count": 11,
+    "all_parent_signed_story_family_detailed_mappings_retained": true,
+    "unit_mappings_within_parent_obligations": true,
+    "acceptance_groups_are_local_test_scopes_not_whole_parent_closure": true,
+    "combined_graph_node_count": 48,
+    "combined_graph_edge_count": 176,
+    "combined_graph_acyclic_including_rd_and_parent_completion_waits_for_children": true,
+    "no_self_parent_blocker": true,
+    "c10_all_7_clauses_retained": true,
+    "c11_all_6_clauses_retained_under_effective_r2_overrides": true,
+    "legal_cc006_testonly_domain_preserved": true,
+    "external_actions_and_main_merge_keep_actual_authorization_gates": true,
+    "parent_publisher_labels_only": [
+      "wayfinder:impl"
+    ],
+    "no_parent_worker_dispatch_label": true,
+    "oe_group_count": 45,
+    "oe_source_exit_count": 83,
+    "oe_excluded_ids": [
+      "OE41",
+      "OE42",
+      "OE45"
+    ],
+    "oe_in_scope_exit_text_retained": true,
+    "oe_identity_crosswalk_cutover_and_final_x1_x6_remain_for_h_i": true
+  },
+  "clause_mapping": {
+    "C10.1": [
+      "TB-07-A",
+      "TB-08-A"
+    ],
+    "C10.2": [
+      "TB-07-A",
+      "TB-08-A"
+    ],
+    "C10.3": [
+      "TB-07-A"
+    ],
+    "C10.4": [
+      "TB-07-B",
+      "TB-07-C"
+    ],
+    "C10.5": [
+      "TB-08-B"
+    ],
+    "C10.6": [
+      "TB-08-C",
+      "TB-09-A",
+      "TB-09-B"
+    ],
+    "C10.7": [
+      "TB-07-D",
+      "TB-11-A",
+      "TB-11-B"
+    ],
+    "C11.1": [
+      "TB-10-A",
+      "TB-10-B",
+      "TB-10-C",
+      "TB-10-D",
+      "TB-10-E",
+      "TB-10-F",
+      "TB-10-G",
+      "TB-10-I"
+    ],
+    "C11.2": [
+      "TB-10-A",
+      "TB-10-B",
+      "TB-10-C",
+      "TB-10-D",
+      "TB-10-E",
+      "TB-10-F",
+      "TB-10-G"
+    ],
+    "C11.3": [
+      "TB-09-A",
+      "TB-09-B",
+      "TB-10-G",
+      "TB-10-I"
+    ],
+    "C11.4": [
+      "TB-10-A",
+      "TB-10-B",
+      "TB-10-C",
+      "TB-10-D",
+      "TB-10-E",
+      "TB-10-F",
+      "TB-10-G",
+      "TB-10-I"
+    ],
+    "C11.5": [
+      "TB-10-H",
+      "TB-10-I"
+    ],
+    "C11.6": [
+      "TB-10-I",
+      "TB-11-A",
+      "TB-11-B"
+    ]
+  },
+  "old_entry_checks": [
+    {
+      "id": "OE01",
+      "disposition": "ADAPTER_MIGRATION",
+      "bound_units": [
+        "TB-10-A"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE02",
+      "disposition": "ADAPTER_MIGRATION",
+      "bound_units": [
+        "TB-10-A"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE03",
+      "disposition": "ADAPTER_MIGRATION",
+      "bound_units": [
+        "TB-10-A"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE04",
+      "disposition": "ADAPTER_MIGRATION",
+      "bound_units": [
+        "TB-10-A"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE05",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-A"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE06",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-A"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE07",
+      "disposition": "ADAPTER_MIGRATION",
+      "bound_units": [
+        "TB-10-B"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE08",
+      "disposition": "ADAPTER_MIGRATION",
+      "bound_units": [
+        "TB-10-B"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE09",
+      "disposition": "ADAPTER_MIGRATION",
+      "bound_units": [
+        "TB-10-B"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE10",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-B"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE11",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-B"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE12",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-B"
+      ],
+      "exit_count": 1,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE13",
+      "disposition": "ADAPTER_MIGRATION",
+      "bound_units": [
+        "TB-10-B"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE14",
+      "disposition": "SUPPORT_BY_ACTUAL_CALLER",
+      "bound_units": [
+        "TB-10-G"
+      ],
+      "exit_count": 3,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE15",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-C"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE16",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-C"
+      ],
+      "exit_count": 1,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE17",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-C"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE18",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-C"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE19",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-C"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE20",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-C"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE21",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-C"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE22",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-C"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE23",
+      "disposition": "SUPPORT_BY_ACTUAL_CALLER",
+      "bound_units": [
+        "TB-10-D"
+      ],
+      "exit_count": 1,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE24",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-D"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE25",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-D"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE26",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-D"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE27",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-D"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE28",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-D"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE29",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-D"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE30",
+      "disposition": "SUPPORT_BY_ACTUAL_CALLER",
+      "bound_units": [
+        "TB-10-E"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE31",
+      "disposition": "SUPPORT_BY_ACTUAL_CALLER",
+      "bound_units": [
+        "TB-10-E"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE32",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-E"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE33",
+      "disposition": "SUPPORT_BY_ACTUAL_CALLER",
+      "bound_units": [
+        "TB-10-F"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE34",
+      "disposition": "READONLY_OBSERVATION",
+      "bound_units": [
+        "TB-10-G"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE35",
+      "disposition": "READONLY_OBSERVATION",
+      "bound_units": [
+        "TB-10-G"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE36",
+      "disposition": "ISOLATED_COMPARISON_FREEZE",
+      "bound_units": [
+        "TB-10-E"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE37",
+      "disposition": "SUPPORT_BY_ACTUAL_CALLER",
+      "bound_units": [
+        "TB-10-F"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE38",
+      "disposition": "SUPPORT_BY_ACTUAL_CALLER",
+      "bound_units": [
+        "TB-10-E"
+      ],
+      "exit_count": 1,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE39",
+      "disposition": "READONLY_OBSERVATION",
+      "bound_units": [
+        "TB-10-F"
+      ],
+      "exit_count": 1,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE40",
+      "disposition": "SUPPORT_BY_ACTUAL_CALLER",
+      "bound_units": [
+        "TB-10-F"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE41",
+      "disposition": "OUT_OF_SCOPE_PRESERVE",
+      "bound_units": [
+        "TB-10-I"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": null
+    },
+    {
+      "id": "OE42",
+      "disposition": "OUT_OF_SCOPE_PRESERVE",
+      "bound_units": [
+        "TB-10-I"
+      ],
+      "exit_count": 1,
+      "exit_text_retained": true,
+      "production_terminal_unit": null
+    },
+    {
+      "id": "OE43",
+      "disposition": "READONLY_OBSERVATION",
+      "bound_units": [
+        "TB-10-G"
+      ],
+      "exit_count": 1,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE44",
+      "disposition": "SUPPORT_BY_ACTUAL_CALLER",
+      "bound_units": [
+        "TB-10-G"
+      ],
+      "exit_count": 2,
+      "exit_text_retained": true,
+      "production_terminal_unit": "TB-10-I"
+    },
+    {
+      "id": "OE45",
+      "disposition": "OUT_OF_SCOPE_PRESERVE",
+      "bound_units": [
+        "TB-10-I"
+      ],
+      "exit_count": 1,
+      "exit_text_retained": true,
+      "production_terminal_unit": null
+    }
+  ],
+  "sources": [
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB07-11-EXECUTION-SLICES.md",
+      "sha256": "99fe8ffdd684520c024d4ea929b31ec3c96f64228154df7bff762d3a419208d5"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/work/publish_tb_parents.py",
+      "sha256": "295432a536b4979b86fafb723c35f6cb4cd32e57af81a9fa4afb0b9fceca571c"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/RESIDUAL-TICKET-PLAN.json",
+      "sha256": "16d2fe3690ac9c25e9b38217fe87bed49be045a4e0e8a20ea6d7c5ef94417dc8"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/RD-17-MODEL-PLAN.json",
+      "sha256": "d52a6e6a2e9df6f6c7a33c0089dda99e95991c192f7eaa43b82614a453d38023"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-01.md",
+      "sha256": "5f77b5bc92222c4b301831fb01178001c47a5a777675f07723f3bebf9da9d904"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-02.md",
+      "sha256": "06c652ce5b2d8bc4ee770a57f2044c39572f160a19aa9654b93f423884007ff4"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-03.md",
+      "sha256": "40f9d8a72f925e30518fbce7e5a63b5350fb1a3c684b9bb2409e7c5e23c0b1df"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-04.md",
+      "sha256": "33d7c180432e7051cd4ad49f4b3ea1ef47b64c8138ec365e33bedfc438322d76"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-05.md",
+      "sha256": "1a1d9b10db804a355ef447476d5485eff9ee1490d27688b31008f7861f3bd4ba"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-06.md",
+      "sha256": "cff04c7e305f7a45195f85551b85be69e831a5eae9bb85d8844a02e1415e99de"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-07.md",
+      "sha256": "403b0df42d73312e0caaabfec5287cf5074d1010d46db7f930291c6744ebe853"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-08.md",
+      "sha256": "5cd130b820d3c6c3807876bda59875dfab5916ddc89d0fd2c7b5f9789aee1345"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-09.md",
+      "sha256": "347091cb7f78de954036cc8e440db0788b20b4cc777d6f20ccf81d1fbffb2afa"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-10.md",
+      "sha256": "1c5c0202e2e039a42c9f76627ce9eb902a091d8c83e59030f26c546b2caa23e2"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-11.md",
+      "sha256": "ae8951b8f4436118e8711219eb125352e87d23d5fda13aa315799f99b13a8fdf"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/SPEC.md",
+      "sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/INTERFACE-CONTRACTS.md",
+      "sha256": "f1a2993c6fa4c6c29c6b9a4de7c1d0334c697aaa03e282f621171c37fc01d0e7"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/IMPLEMENTATION-CROSSWALK.json",
+      "sha256": "0d31d68e75a6d672c948e8708bfb261549029c7310f7ad4dbb326c087157ce5d"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/PLANNED-DAG.json",
+      "sha256": "8ece2c702ac45c36fdcebfff4b0cb8dd2f26c740bdced6789e630f323e76d5e2"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/SPEC-COVERAGE-INPUT.json",
+      "sha256": "76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c"
+    }
+  ],
+  "runtime_acceptance": "NOT_RUN",
+  "publication_authority": "沿当前用户批准范围；本审阅不新增授权。"
+}

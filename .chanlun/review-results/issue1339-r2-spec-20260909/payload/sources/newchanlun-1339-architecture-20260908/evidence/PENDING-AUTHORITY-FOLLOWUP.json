@@ -1,0 +1,36 @@
+{
+  "schema": "newchanlun1339.pending-authority-followup.v1",
+  "checked_at": "2026-09-08T08:28:36.665711+00:00",
+  "queries": [
+    "gh issue list state=all: 价格挂法",
+    "gh issue list state=all: n_delta 不适用",
+    "gh issue list state=all: NestRung",
+    "rg docs/ analysis/ .chanlun/definitions/: 价格挂法 and n_delta 不适用"
+  ],
+  "findings": [
+    {
+      "id": "G-025",
+      "conclusion": "现读正本与#817最后相关勘误仍明记价格挂法未裁。命中票仅#817/#908，closed不取消明确残留。",
+      "authority": [
+        ".chanlun/definitions/qujiantao.md:1317",
+        ".chanlun/definitions/qujiantao.md:1451",
+        "https://github.com/xy7365527-lang/NewChanlun/issues/817#issuecomment-5193950348",
+        "https://github.com/xy7365527-lang/NewChanlun/issues/908#issuecomment-5187851973"
+      ]
+    },
+    {
+      "id": "G-028",
+      "conclusion": "Type2/3上级rung不适用及cand三值化已裁；正本:1106仍要求n_delta_rec处置单独裁。所查14条#817评论未提供后续处理决议。保留残留，不将票closed当已自动决定具体编码或证书。",
+      "authority": [
+        ".chanlun/definitions/qujiantao.md:1106",
+        "https://github.com/xy7365527-lang/NewChanlun/issues/817#issuecomment-5186615398"
+      ]
+    }
+  ],
+  "limitations": "关键词查重+指定票完整评论回读；不声称不存在任何别名后续裁定或全仓无人跟进。不是实现或运行证据。",
+  "project_execution": "not-run",
+  "source_bindings": {
+    "pending-followup-issue-817-comments.json": "3233994491a9681b09af875f83a8dda26e98d512b79691170fc48ac63bad768b",
+    "pending-followup-issue-908-comments.json": "d95edb86977d68e105d3529c29b2b019be26fa7c231bdde8d87ef05c1e500f43"
+  }
+}

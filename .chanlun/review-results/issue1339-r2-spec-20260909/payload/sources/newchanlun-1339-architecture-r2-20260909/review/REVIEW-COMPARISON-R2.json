@@ -1,0 +1,308 @@
+{
+  "schema": "newchanlun.review-comparison-r2.v1",
+  "reviewer": "independent_architecture",
+  "issue": 1339,
+  "map": 1323,
+  "review_type": "BOUNDED_INTEGRATION_REVIEW",
+  "verdict": "PASS_WITHIN_STATED_INTEGRATION_SCOPE",
+  "findings": [],
+  "severity_counts": {
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "review_target": {
+    "md_path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.md",
+    "md_sha256": "61536618576684c33f72fb4e0cde6ad99c32ab12a64be3a1b762e048d23363d8",
+    "json_path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.json",
+    "json_sha256": "63556ec79cee3f734b2e97694143bba79efb1906c3556bac55eb75ae72683d1e"
+  },
+  "protocol_reference_sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c",
+  "scope": "RF02后整体推荐的继承/替代、需求完整性、故障/观察边界、旧入口和后续门；不重复协议正确性独评",
+  "checks": [
+    {
+      "id": "IC-01",
+      "subject": "推荐对象与替代优先级",
+      "target_lines": [
+        3,
+        5,
+        13
+      ],
+      "result": "PASS",
+      "assessment": "推荐绑定本轮协议及20条替代关系；明确不采纳原A2或旧R1全稿，旧单M位不能与新两域协议并用。",
+      "source_relation": "CR-01–05、CR-14–19；PROTOCOL-R2前言"
+    },
+    {
+      "id": "IC-02",
+      "subject": "44 ST、35 FG完整范围",
+      "target_lines": [
+        7,
+        13,
+        19,
+        50,
+        51
+      ],
+      "result": "PASS",
+      "assessment": "全部结构/经营需求继续承接；分类、操作、重/Voice/成本/阶段/增长与尾账均未因故障隔离被缩为信号输出。机器旧矩阵为44+35+RF01=80，新RF02作为追加决定。",
+      "source_relation": "旧INDEPENDENT-DESIGN.json counts/coverage_matrix；CR-17及表后保留范围"
+    },
+    {
+      "id": "IC-03",
+      "subject": "62轴、10组合、32定位项与证明边界",
+      "target_lines": [
+        13,
+        15,
+        17,
+        19,
+        21,
+        23,
+        25
+      ],
+      "result": "PASS",
+      "assessment": "目录规模保留，分区唯一与真实输入落域、程序忠实、组合可构造、转换闭包分开；保留无实例目录、并存事实和全部实际计算，不把27抽象上界当全可达。",
+      "source_relation": "旧分类整合JSON62/10/32；CR-17"
+    },
+    {
+      "id": "IC-04",
+      "subject": "16 ES 的经济事实继承与协议替代",
+      "target_lines": [
+        13,
+        51,
+        52,
+        53
+      ],
+      "result": "PASS",
+      "assessment": "16轴描述的经济事实保留，但ES01/02/03/05/15等跨域/观察部分明确按CR14–16替代；未声称原状态机未经修改仍全适用。",
+      "source_relation": "旧工程状态JSON16轴/35FG；CR-14–16"
+    },
+    {
+      "id": "IC-05",
+      "subject": "RF-02正式结构独立发布",
+      "target_lines": [
+        5,
+        7,
+        9,
+        48,
+        50,
+        53,
+        82
+      ],
+      "result": "PASS",
+      "assessment": "接纳、计算、正式提交、索引、结构流/历史不等待经济日志、Pending、ack、经营轮或全局总览序号；图中结构自身观察直接到前端。不是诊断输出或仅原始行情缓存。",
+      "source_relation": "USER-DECISION；PROTOCOL-R2§1/2/8/9；CR-04/05/08/09/12/13"
+    },
+    {
+      "id": "IC-06",
+      "subject": "RF-01继续新增与持续输入服务",
+      "target_lines": [
+        7,
+        52,
+        72,
+        82
+      ],
+      "result": "PASS",
+      "assessment": "健康重必须继续新增；普通回报可在保留坏重界下Resolve而不等坏重Applied；持续合规请求须实际经营提交和条件核验，拒绝busy循环/市场停更/ack反压的表面通过。",
+      "source_relation": "PROTOCOL-R2§4/9；CR-06/07/11"
+    },
+    {
+      "id": "IC-07",
+      "subject": "正式观察、修订、AsKnown与经济旧cut",
+      "target_lines": [
+        48,
+        53,
+        80,
+        82,
+        84
+      ],
+      "result": "PASS",
+      "assessment": "结构本身可完整，经济缺项和可信旧cut另报，携实际consumed_structure；撤回不等反向经济索引，恢复不回填未发生经济事件。完整对象→关系→前端→历史/消费链仍在。",
+      "source_relation": "PROTOCOL-R2§8；CR-12/13/16/18；旧比较稿观察段"
+    },
+    {
+      "id": "IC-08",
+      "subject": "交付窗口与不可消除代价披露",
+      "target_lines": [
+        9,
+        52,
+        76,
+        92
+      ],
+      "result": "PASS",
+      "assessment": "推荐开头显著说明精确交付后经济新风险仍可能不能阻止首次调用、最大责任保留、普通准备无例外；采纳对象包含该窗口，不拿RF02回答当已接受。",
+      "source_relation": "PROTOCOL-R2§3–7；本检查仅核披露一致，不替协议独评证明窗口合法性"
+    },
+    {
+      "id": "IC-09",
+      "subject": "P4/P7继承与旧签署不倒签",
+      "target_lines": [
+        72,
+        74,
+        76
+      ],
+      "result": "PASS",
+      "assessment": "多token待核和坏账回报继续路径保留；100/40/20、独立潜量/原子改单共享量与终态累计证据保留。明确旧签署不覆盖新协议，新四项修订仍待本轮关项。",
+      "source_relation": "CR-07/10/11/15/19；PROTOCOL-R2§6/7；旧比较稿§4"
+    },
+    {
+      "id": "IC-10",
+      "subject": "原案比较射程与本轮推论",
+      "target_lines": [
+        57,
+        61,
+        62,
+        63,
+        64,
+        66,
+        68
+      ],
+      "result": "PASS",
+      "assessment": "四案表延续旧比较范围；RF02影响明确标本轮集成推论，未冒称重新读原案或当前全仓，未凭多日志/支持图/名称宣布满足需求。",
+      "source_relation": "旧SCHEME-COMPARISON.md§3；CR-19/20"
+    },
+    {
+      "id": "IC-11",
+      "subject": "旧入口、旧责任与收权边界",
+      "target_lines": [
+        90,
+        92,
+        94
+      ],
+      "result": "PASS",
+      "assessment": "链接既有按入口/callee/preset的终态提案，未把import关系当入口；未声称停止服务、撤发送权或退役完成；头寸、订单、费用、更正按原责任保存。",
+      "source_relation": "CR-20；旧比较稿§6；OLD-ENTRY是继承提案而非本次新源码审查"
+    },
+    {
+      "id": "IC-12",
+      "subject": "历史、paper、实施与整图目的地",
+      "target_lines": [
+        82,
+        92,
+        94
+      ],
+      "result": "PASS",
+      "assessment": "原始输入/结构、逐重经营、旧入口、前端、历史回放及paper同核目的地保留；仍需架构采纳、SPEC批准、实施DAG、独立评审和获准验收，未把文档复核称运行/关图。",
+      "source_relation": "CR-20及表后不变范围；旧比较稿§6"
+    },
+    {
+      "id": "IC-13",
+      "subject": "未裁资金政策、已裁需求与采纳边界",
+      "target_lines": [
+        3,
+        7,
+        25,
+        51,
+        92,
+        94
+      ],
+      "result": "PASS",
+      "assessment": "RF02是已定要求，不重复征求是否要产出；资金、增长会计桥、政策、场所能力仍具名待定，未填比例/时长/顺序默认；未将本次回答扩成架构或SPEC采纳。",
+      "source_relation": "USER-DECISION limits；PROTOCOL-R2§4/7/9；CR表后不变范围"
+    }
+  ],
+  "static_consistency_checks": {
+    "requirements_ids_total": 80,
+    "structure_requirements": 44,
+    "fugue_requirements": 35,
+    "original_fault_requirements": 1,
+    "rf02_is_additional_user_decision": true,
+    "classification_axes": 62,
+    "legal_combination_contracts": 10,
+    "register_items": 32,
+    "engineering_state_axes": 16,
+    "fg_state_links": 35,
+    "contract_replacements": 20,
+    "e2e_scenarios": 11,
+    "acceptance_categories": 15,
+    "document_bindings_match": true
+  },
+  "inputs": [
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.md",
+      "sha256": "61536618576684c33f72fb4e0cde6ad99c32ab12a64be3a1b762e048d23363d8",
+      "read_scope": "全文1–94行",
+      "role": "本次被评推荐"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.json",
+      "sha256": "63556ec79cee3f734b2e97694143bba79efb1906c3556bac55eb75ae72683d1e",
+      "read_scope": "全文",
+      "role": "被评推荐的字节与来源绑定"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/SCHEME-COMPARISON.md",
+      "sha256": "794c2326d4b35a50aec6360b87d9c844dfdd38414780a75f5367d5a60091a978",
+      "read_scope": "全文",
+      "role": "旧比较射程；不重新审核其禁止原件"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/USER-DECISION.md",
+      "sha256": "bde32ba1369879cfec4343d0364d4cddc160238ea5b6a03c7828fe36ba94d0c9",
+      "read_scope": "全文",
+      "role": "RF02用户决定"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/USER-DECISION.json",
+      "sha256": "68105375cfa35628881ddd2db271a7606b37985547921758ddd1e820bfd33a3d",
+      "read_scope": "全文（此前已读；本次核哈希）",
+      "role": "RF02决定与采纳限制"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.md",
+      "sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c",
+      "read_scope": "全文；仅作集成参照，协议四项关项由另一独评负责",
+      "role": "本轮协议实际承接"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.json",
+      "sha256": "97173d5cedfca3fc454841d0aefce51eb0fe98d8244db3b9ed56322b53d4966a",
+      "read_scope": "字段/状态/document与全体顶层键；不冒称新增协议正确性证明",
+      "role": "协议绑定与状态"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.md",
+      "sha256": "a981bf7af3aa9500f33a7f0a8b95992deb805562bf9f9ad558e1b3067f3db0f3",
+      "read_scope": "全文",
+      "role": "20合同替代优先级"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.json",
+      "sha256": "53447b7197ccc2c55348bbbdc82c4e00ada00b135c9cf746e8a6a03d2b70c95a",
+      "read_scope": "document、20条合同计数和引用",
+      "role": "替代文件绑定"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.json",
+      "sha256": "800ca141806e3f3814c1392ff656a4f2213b2e7b210f368a0e84e853ea14dcd1",
+      "read_scope": "counts、coverage_matrix的ID集合与首行字段、fault_contract、e2e/AC计数；旧稿此前由本评者参与编写",
+      "role": "范围一致性，不是80条行为重新验收"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.json",
+      "sha256": "251f00d938573e96516d3c1dc6f48a64241b19314fac598480dd7b1ab2e49a6d",
+      "read_scope": "counts、62轴/10组合/32定位项集合长度",
+      "role": "目录规模一致性，不是62轴数学重审"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.json",
+      "sha256": "f8b4f7057233e2c9a6bdb7d561f76112dc1f37b9e6cf4d1cbaf6bbf5b5662edf",
+      "read_scope": "16轴ID、35FG链接计数、顶层结构",
+      "role": "状态范围一致性，不是全部迁移重证"
+    }
+  ],
+  "limits": [
+    "本次只评根作者的新整体推荐与RF02/替代合同的集成；不重复rf02_protocol_challenge的协议四项关项，不给跨域原子性、真实fencing、场所能力或活性新增独立结论。",
+    "本评者此前参与旧R1和旧入口附录；未参与被评的根R2协议/新比较稿正文编写。对旧自写材料只核引用/范围一致，不以本报告为旧材料补一次独立背书。",
+    "未重读禁止的旧#1321/#1322/#1325/#1326原件，未重新评四案原始语义。四案射程仅限旧比较稿已有主张与本轮显式推论。",
+    "未重做44ST/35FG教义取证、62轴数学证明或16ES全部迁移证明；计数与合同承接可核不等于证明/实现完成。",
+    "未扫描或运行仓库、Lean、项目、服务、UI、回放、paper/live，也未验证当前broker/订单/凭据。旧入口和三轴静态断点继续保留其原来有界射程。",
+    "正文“待独立关项”是该冻结版本当时的状态，不是本报告要求重写历史；本次集成结论与后续协议关项应写入新交付清单，不能让旧签署倒签新字节。",
+    "本报告不代表用户架构采纳或SPEC批准。RF02已决定必须满足，不因协议/整合仍需验收而重新变为待裁。"
+  ],
+  "protocol_final_status": "delegated independent protocol report governs its own frozen SHA and scope; this review does not assert its final result",
+  "execution_status": "NOT_RUN; document parsing/count/hash checks only",
+  "adoption_status": "NOT_ADOPTED_NOT_SPEC_APPROVED",
+  "document": {
+    "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-COMPARISON-R2.md",
+    "sha256": "5b33afdee7f9eace327a36961ab0d5d75ab32541f506492e274d7db18077c2b8"
+  }
+}

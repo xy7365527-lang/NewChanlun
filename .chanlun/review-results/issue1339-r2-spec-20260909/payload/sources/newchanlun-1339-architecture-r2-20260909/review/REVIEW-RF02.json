@@ -1,0 +1,783 @@
+{
+  "schema": "newchanlun.rf02.independent-protocol-review.v1",
+  "issue": 1339,
+  "map": 1323,
+  "reviewer": "rf02_protocol_challenge",
+  "reviewed_at_utc": "2026-09-08T21:07:01.587532+00:00",
+  "status": "PASS_AT_ARCHITECTURE_CONTRACT_LEVEL_WITH_IMPLEMENTATION_OBLIGATIONS",
+  "protocol_sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c",
+  "reviewed_manifest_sha256": "b2030cd4f038376541504de22ced99d542a30586b124b5eb7f59bbaf1c74fbb2",
+  "verdict": "四项初评缺陷已在新稿合同中闭合；实际读取范围内未发现新增H/M/L。可继续整图候选采纳评估；不等于R2已采纳、完整安全活性证明或生产/场所验收。",
+  "residual_counts": {
+    "H": 0,
+    "M": 0,
+    "L": 0
+  },
+  "closed_findings": [
+    {
+      "id": "RF02-M01",
+      "severity_before": "M",
+      "status": "closed-at-contract-level",
+      "evidence": "§4:58；§5:76,84–86；§7:109–123",
+      "reason": "完整适用集合由获准权威与实际依赖确定，不能靠少写字段缩小；逐项列失效源、阶段、证据和能力。E-only有具名权威及不可撤责任覆盖；S/X应检条件不得省略，未分类/未覆盖/不可核均Unsupported。",
+      "scope": "条件实例和实际核验能力仍须SPEC/adapter验证，不是已穷举真实场所。"
+    },
+    {
+      "id": "RF02-M02",
+      "severity_before": "M",
+      "status": "closed-at-contract-level",
+      "evidence": "§3:44；§5:80；§9:141–150",
+      "reason": "busy只入本地Undecided队列；每次Commit后、下一Begin前有限非零服务，每个已就绪请求有限稳定点内实核。没有结构输入也服务，不无限drain，不等E/RPC/未来业务。实际核验无效则终态，原busy拒绝循环不再合法。",
+      "scope": "排队是有限服务等待，未检查前不以未来条件为唤醒源；只证明合同排除原循环，实际调度/过载/运行活性未验。"
+    },
+    {
+      "id": "RF02-M03",
+      "severity_before": "M",
+      "status": "closed-at-contract-level",
+      "evidence": "§5:75,84–88",
+      "reason": "X同ID唯一持久Ready→MayHaveCalled原子迁移；只有fresh赢家可尝试一次网络调用。重复S收据只查原状态，换plan/证书/epoch不能新建同ID。提交后崩溃或未知不重试，实际发送路径必须fence旧writer。",
+      "scope": "原两条并发处理路径最多一个CAS赢家；实际CAS、网络栅栏及场所身份/查询/幂等仍未验证，不宣称网络恰一次。"
+    },
+    {
+      "id": "RF02-L01",
+      "severity_before": "L",
+      "status": "closed-at-contract-level",
+      "evidence": "§5:80；§6:100–105",
+      "reason": "S权威Undecided/终态、X权威状态与NoRecord、观察Unknown/Unavailable分轴，带last_known/domain/query_frontier。无记录、无终态和未知均不能推出未发送或释放责任。",
+      "scope": "接口和故障展示尚未实现；文本不再把缺回执命名为NotSubmitted。"
+    }
+  ],
+  "new_findings": [],
+  "counterexample_mapping": [
+    {
+      "id": "CE-L01",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§1/2",
+      "assessment": "E不再是正式结构接纳、计算、提交与消费前置。"
+    },
+    {
+      "id": "CE-L02",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§3:44；§5:80；§9:141–150",
+      "assessment": "共轮撤销；稳定点服务同时保护结构和已就绪条件请求。"
+    },
+    {
+      "id": "CE-L03",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§8:127–133",
+      "assessment": "结构切面/流/关系闭包独立，JoinCut与经济反向索引不挡结构。"
+    },
+    {
+      "id": "CE-L04",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§1:23–25；§8:135",
+      "assessment": "禁止经济ack、共享outbox、保留回收反压；资源与归档隔离仍须实施。"
+    },
+    {
+      "id": "CE-S01",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§3–5；§7:115–123",
+      "assessment": "精确不可撤交付与S当前核验分别排序，完整阶段条件补齐；不声称两次读取共同最新。"
+    },
+    {
+      "id": "CE-S02",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§2:30–33；§5:77–80；§6:94–99",
+      "assessment": "S在first_known前本地封门；分区E镜像不能取得S许可。"
+    },
+    {
+      "id": "CE-S03",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§4:58–63；§5:75–88",
+      "assessment": "迟到回包绑定ID/依赖/epoch；终态不可复活，物理调用另作一次消费。"
+    },
+    {
+      "id": "CE-S04",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§3:41–46；§4:56–63；§5:80–88",
+      "assessment": "完整冻结、真实交付、唯一X、一次当前核验及单次调用权是实质在途合同，普通准备没有例外。"
+    },
+    {
+      "id": "CE-S05",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§4:58；§5:76,84–88",
+      "assessment": "旧epoch受实际发送栅栏约束，同epoch重复也受同ID持久CAS约束。"
+    },
+    {
+      "id": "CE-S06",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§4:57,67；CR-07；旧P4",
+      "assessment": "Capture/Pending与新Release同序，先封闸后解释；已交付仍须检其适用最终条件。"
+    },
+    {
+      "id": "CE-S07",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§2:29,35；§7:109–123",
+      "assessment": "S/E独立接纳；证书按来源、事件修订、替代和实际依赖集合核覆盖。"
+    },
+    {
+      "id": "CE-S08",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§4:67；CR-07；旧P4:217–220",
+      "assessment": "精确token/前缀/证据版本Resolve继承，旧证书不清后续待核。"
+    },
+    {
+      "id": "CE-S09",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§4:57–58；§5:76,84–86；§7:115–123",
+      "assessment": "完整阶段强制列入；过期、源连续性和时钟不可核在应检点拒绝，未分类Unsupported。"
+    },
+    {
+      "id": "CE-S10",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§1:16–25",
+      "assessment": "S小型条件结果不接管经济风险日志；职责故障隔离仍须实际注入证明。"
+    },
+    {
+      "id": "CE-S11",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§1:25；§5:73,80；§9:143–148",
+      "assessment": "S条件判定无远端RPC/经济锁，排队只等有限本地服务，不等E决议。"
+    },
+    {
+      "id": "CE-S12",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§5:84–88；§6:100–105；CR-06/10；旧P2/P6/P7",
+      "assessment": "未知保全潜量、调用权不复用，按对应终态和账收据释放，P7首次量不重测。"
+    },
+    {
+      "id": "CE-S13",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§4:63–65；§5:80–86；§9:152",
+      "assessment": "恢复查原身份，不补发历史准备；新需要按当前条件新决定，旧责任不断账。"
+    },
+    {
+      "id": "CE-RF01",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§1:12,20；§9:141–152；CR-11；旧RF01",
+      "assessment": "A界覆盖和不等A Applied保留；B新Committed及持续合规请求稳定服务机会均有合同。"
+    },
+    {
+      "id": "CE-O01",
+      "status": "closed-in-contract-not-runtime-verified",
+      "evidence": "§8:127–137",
+      "assessment": "正式结构原子撤回、固定切面、Gap、代际和AsKnown向量保留，经济恢复不回填获知史。"
+    }
+  ],
+  "acceptance_mapping": [
+    {
+      "id": "RA-01",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§1/2/4/8",
+      "assessment": "E失败无新Release；S正式结构及消费继续。"
+    },
+    {
+      "id": "RA-02",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§2:29–33",
+      "assessment": "S中途修订独立完成、去重，不等经济确认。"
+    },
+    {
+      "id": "RA-03",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§1/2/5/8",
+      "assessment": "E/S分区不阻结构；E缓存不能绕S当前许可。"
+    },
+    {
+      "id": "RA-04",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§2:30–33；§3/5/6",
+      "assessment": "first_known前先封S门，失效引用最终拒绝，已交付/执行保责。"
+    },
+    {
+      "id": "RA-05",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§3/4/5/7",
+      "assessment": "两个不可撤边界分别排序，强制阶段义务补齐，不称联合当前。"
+    },
+    {
+      "id": "RA-06",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§4:58–63；§5:75–88；§8:133,137",
+      "assessment": "传播延迟不阻结构，身份/获知史不改，重复收据不重复调用。"
+    },
+    {
+      "id": "RA-07",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§4:63–65；§5:75–88；§6:100–105",
+      "assessment": "不可撤边界前后和调用CAS明确，崩溃保责，缺证据不推未发。"
+    },
+    {
+      "id": "RA-08",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§4:58；§5:76,84–88",
+      "assessment": "同ID跨epoch不重置，实际网络旧writer栅栏为部署前件。"
+    },
+    {
+      "id": "RA-09",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§8:127–135",
+      "assessment": "结构完整独立，经济缺项、旧cut、consumed_structure明示。"
+    },
+    {
+      "id": "RA-10",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§8:129,137",
+      "assessment": "固定分页、流快照相等、Gap、旧代际及当时可知双域前沿。"
+    },
+    {
+      "id": "RA-11",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§5:80–86；§6:100–105；§9:152",
+      "assessment": "先重建责任/Pending/连续性，再新经营；旧候选不补发，L不重测。"
+    },
+    {
+      "id": "RA-12",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§1:12,20；§9:150–152；旧RF01",
+      "assessment": "健康B新Committed不等A账恢复/Applied，A最大责任保留。"
+    },
+    {
+      "id": "RA-13",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§3:44；§5:80；§9:141–150",
+      "assessment": "有限非零稳定服务和每请求有限点实核排除busy循环；不无限drain压停S。"
+    },
+    {
+      "id": "RA-14",
+      "design_status": "contract-addressed",
+      "runtime_status": "not-run",
+      "evidence": "§2:29；§7:109–123",
+      "assessment": "E不再是S唯一市场入口；估值证书缺覆盖交易拒绝而S仍发布。"
+    }
+  ],
+  "contract_mapping": [
+    {
+      "id": "CR-01",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "以新协议§1划分 S/E/Bᵢ/X；共同经济域故障不能阻断正式结构。结构侧仅有极小条件结果，不收编经济日志。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-02",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "保留财务与本地提交步骤；其任何状态都不是最终结构执行许可。按新协议§4解释，保留版本与当前失效状态，不把经济提交当场所成交。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-03",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "由§3–6两个明确边界 E-Release/S-Execute 替代；OP-01已获初评的有限肯定，代价与采纳门仍明示。补X同命令持久OwnAttempt消费，禁止沿用旧签署结论；本次修订待独立关项。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-04",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "全段由§2 S 本域 Begin/CommitStructureRevision替代；任何结构生产者不等 E 确认，不通过后改 first_known 掩盖竞态。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-05",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "全段撤销，改§9稳定点的有限、非零、公平本地服务；忙不直接最终拒绝，已就绪请求须在有限稳定点核验，失效则不可复活拒绝。结构不等经营、Pending、账回执或经济epoch。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-06",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "继承。Released 与结构执行结果各自明确，但不会因取消未知、未见成交或经济故障而释放责任。财务是否可新 Release按§4，结构是否可执行按§5。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-07",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "Capture、风险解释、Pending与新E-Release仍在E同序；不再排序结构发布。先规范封闸再解释、多token精确Resolve不变。已交付窗见§3，每项适用条件的实际检查阶段与覆盖见§7，遗漏或不可核即Unsupported。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-08",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "改§2/7两条自身接纳与证书覆盖；E接纳失败不阻S。证书绑定来源namespace/epoch、事件及修订、规范集合/前缀、替代关系和全部必要依赖；不比较无关游标，不拿对象未撤回替代估值新鲜性。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-09",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "E内部安全与公平可保留；取消对S输入、计算、提交和结构消费的反压。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-10",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "既有权利/量/归属判据继承。P6按Released前、Released后尚无结构终态、ExecuteCommitted后及X调用占有分列；S未决与观察未知分开，缺证据保全潜量；Denied只证明对应同ID不可执行。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-11",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "单坏账健康重新增义务不变；加入E/S分区、双边界崩溃、同ID重复调用、旧epoch、恢复不补发与§9稳定服务。实际新Committed及持续合规请求的真实ExecuteCommitted机会均需运行验收，不能以一般公平代替。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-12",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "§8增加结构自身完整闭包；结构范围可正式完整，经济范围缺项/旧cut另报。经济消费反向索引不挡结构来源/关系索引。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-13",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "会话身份、固定切面、原子变化、Gap、代际拒收继承；结构流单独推进，不等全局总览序号。恢复不能回写故障期间的真实结构历史或补造经济事件。",
+      "read_scope": "与已读R1协议段对照"
+    },
+    {
+      "id": "CR-14",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "ES01本地历史不倒退保留；ES02公共许可仅授财务流程。ES03以Released、S权威Undecided/终态、X唯一持久调用状态及终态证据构成受约束乘积；观察Unknown/Unavailable另轴带last_known/query_frontier。不得凭无记录释放责任。",
+      "read_scope": "只核本轮替代声明，未重开完整旧状态/分类/观察/方案/入口原件"
+    },
+    {
+      "id": "CR-15",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "保留原经济语义；ES05拆为E-Release、S-Execute及X调用占有的具体前件，适用条件按§7完整清单强制分类且可核。ES14/P7仍以首次量及所有独立潜量守恒，不因结构版本推进增发。",
+      "read_scope": "只核本轮替代声明，未重开完整旧状态/分类/观察/方案/入口原件"
+    },
+    {
+      "id": "CR-16",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "ES15完整性按请求scope和权威域说明，不能用经济缺项阻结构；ES16完整判据向量、N/A与AwaitingPolicy继承，政策等待不阻结构。",
+      "read_scope": "只核本轮替代声明，未重开完整旧状态/分类/观察/方案/入口原件"
+    },
+    {
+      "id": "CR-17",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "所有实际构造、判据、完整输出与组合义务继承；发布、消费切面、恢复依本R2§2/8。未改变分类目录、32定位项、归属、数学边界或证明状态。",
+      "read_scope": "只核本轮替代声明，未重开完整旧状态/分类/观察/方案/入口原件"
+    },
+    {
+      "id": "CR-18",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "增加RF02结构独立正式消费和RA01–14；原三条静态断点和后端实际计算验收继续，不以新协议覆盖旧实现证据。",
+      "read_scope": "只核本轮替代声明，未重开完整旧状态/分类/观察/方案/入口原件"
+    },
+    {
+      "id": "CR-19",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "原R1推荐及其采纳问题不适用于RF-02决定。R2按本协议与新独评重新评估；要产出只确认故障要求，未采纳本R2协议。初评四项修订待独立关项，不套用旧0H/0M。",
+      "read_scope": "只核本轮替代声明，未重开完整旧状态/分类/观察/方案/入口原件"
+    },
+    {
+      "id": "CR-20",
+      "status": "text-consistent-with-reviewed-protocol",
+      "r2_contract": "作为原案、既有提案及静态来源继续保留；凡同核迁移/观察接入引用R1跨域协议，须改指本轮最终获准版本。旧入口仍未实际收权，不能据本表宣称退役完成。",
+      "read_scope": "只核本轮替代声明，未重开完整旧状态/分类/观察/方案/入口原件"
+    }
+  ],
+  "open_question_mapping": [
+    {
+      "id": "OP-01",
+      "design_disposition": "candidate-level-technical-objection-closed-with-explicit-boundary",
+      "evidence": "§3/4/5/7",
+      "assessment": "精确冻结委托、一次本地核验和一次物理消费构成实质交付合同；未发现只能判作普通预留更名的具体反例。它不是两域联合当前证明，也不代替用户采纳该边界。",
+      "remaining_obligations": [
+        "I-01",
+        "I-04",
+        "I-05"
+      ]
+    },
+    {
+      "id": "OP-02",
+      "design_disposition": "closed-at-condition-contract-level",
+      "evidence": "§4:58；§5:76,84–86；§7:115–123",
+      "assessment": "适用集合不能缩小、阶段来自权威、E-only有依据、遗漏/不可核Unsupported；实际条件实例未验证。",
+      "remaining_obligations": [
+        "I-04",
+        "I-05"
+      ]
+    },
+    {
+      "id": "OP-03",
+      "design_disposition": "closed-at-certificate-contract-level",
+      "evidence": "§7:109–123",
+      "assessment": "namespace/epoch、事件及修订、规范集合、替代关系和必要依赖均明列，S核自身记录覆盖而不解释经济。",
+      "remaining_obligations": [
+        "I-04"
+      ]
+    },
+    {
+      "id": "OP-04",
+      "design_disposition": "closed-by-M03-L01-at-contract-level",
+      "evidence": "§5:75–88；§6:100–105",
+      "assessment": "同ID持久fresh CAS关闭双调用路径，权威与观察知识分轴；真实网络栅栏/场所能力未验。",
+      "remaining_obligations": [
+        "I-05"
+      ]
+    },
+    {
+      "id": "OP-05",
+      "design_disposition": "closed-by-M02-and-isolation-contracts",
+      "evidence": "§1/2/8/9",
+      "assessment": "S职责依赖独立，稳定点有限服务排除busy循环，不等E或未来条件；实际隔离与活性仍须验收。",
+      "remaining_obligations": [
+        "I-02",
+        "I-06"
+      ]
+    }
+  ],
+  "implementation_obligations": [
+    {
+      "id": "I-01",
+      "name": "真实精确交付边界",
+      "required_evidence": "证明真实生产入口在Release前已冻结全部业务/量价/投影，唯一X收的是该不可复用命令，全部最大责任持久保留；不能把未来候选当在途。采纳时保留既有精确交付不保证被后来的E风险撤回的代价。",
+      "status": "not-run-or-not-instantiated"
+    },
+    {
+      "id": "I-02",
+      "name": "结构故障隔离与正式观察",
+      "required_evidence": "分别停止/分区E日志、解析器、X及经济订阅者，S依赖健康时正式结构、修订、撤回、分页、续接、AsKnown继续。验证存储、索引、队列、ack、归档无经济反压，所有撤回生产者先走本地屏障。",
+      "status": "not-run-or-not-instantiated"
+    },
+    {
+      "id": "I-03",
+      "name": "E风险闭包与责任恢复",
+      "required_evidence": "实证Capture/Pending/Release同序、全部失效生产者、精确Resolve和源连续性恢复。P7逐步核F加全部独立潜量及终态累计完整性；A坏账但界可核时B实际新Committed。",
+      "status": "not-run-or-not-instantiated"
+    },
+    {
+      "id": "I-04",
+      "name": "完整条件实例及证书",
+      "required_evidence": "按获准政策/场所逐项实例化清单，E-only有具名语义/责任依据，必须S/X时成立者有当前核验能力。测试遗漏、错误阶段、跨源跳号、迟到/非单调更正、过期、时钟不可核。证明不了的远端读或调用时条件保持Unsupported。",
+      "status": "not-run-or-not-instantiated"
+    },
+    {
+      "id": "I-05",
+      "name": "一次调用与真实发送栅栏",
+      "required_evidence": "测试同ID并发/重复收据、CAS前后崩溃、旧epoch复活、凭据绕路与网络不明。实际X阶段条件必须和调用占有由受控路径绑定，不能以S已核代替。场所幂等/回查/终态能力逐合同验收，未知不自动重发。",
+      "status": "not-run-or-not-instantiated"
+    },
+    {
+      "id": "I-06",
+      "name": "持续输入下双向推进",
+      "required_evidence": "给出有限非零额度和公平选择；持续S提交且持续合规请求有限稳定点内实核。单重坏账、慢消费和原busy相位攻击下都观察进展；无效请求只一次终态，不靠停结构/停交易/全员轮或默认资金优先。",
+      "status": "not-run-or-not-instantiated"
+    }
+  ],
+  "administrative_closeout": [
+    {
+      "kind": "administrative-closeout-only",
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.json",
+      "field": "execution_status.independent_final_review",
+      "current": "not-completed-usage-limit",
+      "required_update": "本最终复核后由根更新为完成状态及本评审引用，留旧新SHA和精确元数据diff；正文10节与协议MD不变。不是当前额度阻塞，也不是协议缺陷。",
+      "resolution": "closed-by-independent-metadata-addendum",
+      "resolved_json_sha256": "46c7c0fbd53926119d45a8682ca29e8001c445835fbd00895add778d8d1e70e6"
+    }
+  ],
+  "source_signatures": [
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/DELIVERY.json",
+      "sha256": "b2030cd4f038376541504de22ced99d542a30586b124b5eb7f59bbaf1c74fbb2",
+      "read_scope": "全文及本次复核前20件manifest；与根提供SHA核对"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/NEXT-REVIEW.md",
+      "sha256": "68e77ead5397a711c1fc358f7a39ede7c67c65c4ff06c092521115c25c61ee65",
+      "read_scope": "全文当前关项范围"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/USER-DECISION.md",
+      "sha256": "bde32ba1369879cfec4343d0364d4cddc160238ea5b6a03c7828fe36ba94d0c9",
+      "read_scope": "全文，前轮同SHA"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/USER-DECISION.json",
+      "sha256": "68105375cfa35628881ddd2db271a7606b37985547921758ddd1e820bfd33a3d",
+      "read_scope": "全文，前轮同SHA"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/ACCEPTANCE-RF02.md",
+      "sha256": "d1fcd8d1b36cd90910a561ee60dab1bf820b64ac49f562b3d16cf43f69ccf309",
+      "read_scope": "全文14RA，前轮同SHA，逐项新稿映射"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/ACCEPTANCE-RF02.json",
+      "sha256": "57722029f83edc7f1349f4df5a72a33d4e3fe9a56777f0f625fceea197d00b40",
+      "read_scope": "全文14RA及当前SHA/数量"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.md",
+      "sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c",
+      "read_scope": "全文1–158行，10节"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.json",
+      "sha256": "97173d5cedfca3fc454841d0aefce51eb0fe98d8244db3b9ed56322b53d4966a",
+      "read_scope": "全部元数据；10节正文逐节程序核MD一致，语义据已全文读MD"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.md",
+      "sha256": "a981bf7af3aa9500f33a7f0a8b95992deb805562bf9f9ad558e1b3067f3db0f3",
+      "read_scope": "全文1–32行、20CR"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.json",
+      "sha256": "53447b7197ccc2c55348bbbdc82c4e00ada00b135c9cf746e8a6a03d2b70c95a",
+      "read_scope": "20CR逐条程序核MD一致"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/OPEN-PROTOCOL-QUESTIONS.md",
+      "sha256": "6213c37f1344c51f5d0bf7dbda78b75838a2028ea3c474dfca511541e1264adc",
+      "read_scope": "全文5OP"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/AUTHOR-REPAIRS.md",
+      "sha256": "fb6d5a5e512c6894358d69fc0a33f294ce5599684a232dbb3b448664d7dd3eb0",
+      "read_scope": "全文4项修订"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.md",
+      "sha256": "ecc62a15f58b527ba78e63f9b3db18f32ee0940262cd1e0227d77c169c7b1bb0",
+      "read_scope": "本代理原完整初始19CE，当前逐项再映射且未改"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.json",
+      "sha256": "366a6182601226e16dce67125c894437a2c1a5e6a3654a75ad69d500a27a9657",
+      "read_scope": "完整19CE/7初始不变量，未改"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02-R2-FIRST-PASS.md",
+      "sha256": "b0b73a11b7c67a3f8bd6ca348e9b5cd1e3817f57f2111505b4ddb63dd552fc73",
+      "read_scope": "本代理完整冻结初评，四项缺陷/映射；未改"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02-R2-FIRST-PASS.json",
+      "sha256": "8968781b4e8be34558552870fe6fd886c69ee353644d4e45aba391f915b7b537",
+      "read_scope": "全文结构化初评作为关项基线；未改"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/ORDERING-COUNTEREXAMPLE.md",
+      "sha256": "deaf81c7c577112fe9964157ef1eec8cd03694df08e1676ced042904f66d7494",
+      "read_scope": "全文原四事件反例及修订射程限定"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/ORDERING-COUNTEREXAMPLE.json",
+      "sha256": "3e47298e8572302d7b6f8e28702ce125f14eaf6769ba3f99e65d1049b97d551f",
+      "read_scope": "原24排列此前全文读取；当前守卫/摘要/射程及SHA重读，未重跑模型"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+      "sha256": "f6054b52f86ba80fafd6386d1ac6ede341c6c6a17cb9efbed5d2dad42571824d",
+      "read_scope": "初始直接读1–102、165–321、378–400；本次据同SHA已读P1/P4/P6/P7/RF01/O1–O3核继承，未重审分类轴"
+    }
+  ],
+  "integrity_check": {
+    "manifest_count": 20,
+    "all_match": true,
+    "files": [
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/DELIVERY.md",
+        "expected_sha256": "8c996fcc0871afdbfddcfee6f3fd18d3e8d50cad5fa269638dab0cd92191cc28",
+        "actual_sha256": "8c996fcc0871afdbfddcfee6f3fd18d3e8d50cad5fa269638dab0cd92191cc28",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/USER-DECISION.md",
+        "expected_sha256": "bde32ba1369879cfec4343d0364d4cddc160238ea5b6a03c7828fe36ba94d0c9",
+        "actual_sha256": "bde32ba1369879cfec4343d0364d4cddc160238ea5b6a03c7828fe36ba94d0c9",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/USER-DECISION.json",
+        "expected_sha256": "68105375cfa35628881ddd2db271a7606b37985547921758ddd1e820bfd33a3d",
+        "actual_sha256": "68105375cfa35628881ddd2db271a7606b37985547921758ddd1e820bfd33a3d",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/ACCEPTANCE-RF02.md",
+        "expected_sha256": "d1fcd8d1b36cd90910a561ee60dab1bf820b64ac49f562b3d16cf43f69ccf309",
+        "actual_sha256": "d1fcd8d1b36cd90910a561ee60dab1bf820b64ac49f562b3d16cf43f69ccf309",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/ACCEPTANCE-RF02.json",
+        "expected_sha256": "57722029f83edc7f1349f4df5a72a33d4e3fe9a56777f0f625fceea197d00b40",
+        "actual_sha256": "57722029f83edc7f1349f4df5a72a33d4e3fe9a56777f0f625fceea197d00b40",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/NEXT-REVIEW.md",
+        "expected_sha256": "68e77ead5397a711c1fc358f7a39ede7c67c65c4ff06c092521115c25c61ee65",
+        "actual_sha256": "68e77ead5397a711c1fc358f7a39ede7c67c65c4ff06c092521115c25c61ee65",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.md",
+        "expected_sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c",
+        "actual_sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.json",
+        "expected_sha256": "97173d5cedfca3fc454841d0aefce51eb0fe98d8244db3b9ed56322b53d4966a",
+        "actual_sha256": "97173d5cedfca3fc454841d0aefce51eb0fe98d8244db3b9ed56322b53d4966a",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.md",
+        "expected_sha256": "a981bf7af3aa9500f33a7f0a8b95992deb805562bf9f9ad558e1b3067f3db0f3",
+        "actual_sha256": "a981bf7af3aa9500f33a7f0a8b95992deb805562bf9f9ad558e1b3067f3db0f3",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.json",
+        "expected_sha256": "53447b7197ccc2c55348bbbdc82c4e00ada00b135c9cf746e8a6a03d2b70c95a",
+        "actual_sha256": "53447b7197ccc2c55348bbbdc82c4e00ada00b135c9cf746e8a6a03d2b70c95a",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/OPEN-PROTOCOL-QUESTIONS.md",
+        "expected_sha256": "6213c37f1344c51f5d0bf7dbda78b75838a2028ea3c474dfca511541e1264adc",
+        "actual_sha256": "6213c37f1344c51f5d0bf7dbda78b75838a2028ea3c474dfca511541e1264adc",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.md",
+        "expected_sha256": "ecc62a15f58b527ba78e63f9b3db18f32ee0940262cd1e0227d77c169c7b1bb0",
+        "actual_sha256": "ecc62a15f58b527ba78e63f9b3db18f32ee0940262cd1e0227d77c169c7b1bb0",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.json",
+        "expected_sha256": "366a6182601226e16dce67125c894437a2c1a5e6a3654a75ad69d500a27a9657",
+        "actual_sha256": "366a6182601226e16dce67125c894437a2c1a5e6a3654a75ad69d500a27a9657",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/BASELINE-BINDINGS.json",
+        "expected_sha256": "ff3d560215d67f5d44b7ef6144dbb1be284998a74d9f289ca554ddcc84871ee9",
+        "actual_sha256": "ff3d560215d67f5d44b7ef6144dbb1be284998a74d9f289ca554ddcc84871ee9",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/R1-COUPLING-LOCATORS.json",
+        "expected_sha256": "5c040da402ce51a5acb65799702b931fe3fef672740a76f11dcbc21da2193f21",
+        "actual_sha256": "5c040da402ce51a5acb65799702b931fe3fef672740a76f11dcbc21da2193f21",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/ORDERING-COUNTEREXAMPLE.md",
+        "expected_sha256": "deaf81c7c577112fe9964157ef1eec8cd03694df08e1676ced042904f66d7494",
+        "actual_sha256": "deaf81c7c577112fe9964157ef1eec8cd03694df08e1676ced042904f66d7494",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/ORDERING-COUNTEREXAMPLE.json",
+        "expected_sha256": "3e47298e8572302d7b6f8e28702ce125f14eaf6769ba3f99e65d1049b97d551f",
+        "actual_sha256": "3e47298e8572302d7b6f8e28702ce125f14eaf6769ba3f99e65d1049b97d551f",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/AUTHOR-REPAIRS.md",
+        "expected_sha256": "fb6d5a5e512c6894358d69fc0a33f294ce5599684a232dbb3b448664d7dd3eb0",
+        "actual_sha256": "fb6d5a5e512c6894358d69fc0a33f294ce5599684a232dbb3b448664d7dd3eb0",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02-R2-FIRST-PASS.md",
+        "expected_sha256": "b0b73a11b7c67a3f8bd6ca348e9b5cd1e3817f57f2111505b4ddb63dd552fc73",
+        "actual_sha256": "b0b73a11b7c67a3f8bd6ca348e9b5cd1e3817f57f2111505b4ddb63dd552fc73",
+        "match": true
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02-R2-FIRST-PASS.json",
+        "expected_sha256": "8968781b4e8be34558552870fe6fd886c69ee353644d4e45aba391f915b7b537",
+        "actual_sha256": "8968781b4e8be34558552870fe6fd886c69ee353644d4e45aba391f915b7b537",
+        "match": true
+      }
+    ],
+    "protocol_md_json_sections_match": 10,
+    "contract_md_json_entries_match": 20,
+    "hashed_only_not_semantically_reviewed": [
+      "DELIVERY.md",
+      "evidence/BASELINE-BINDINGS.json",
+      "evidence/R1-COUPLING-LOCATORS.json"
+    ],
+    "initial_and_first_pass_unchanged": true
+  },
+  "verification": {
+    "performed": [
+      "independent full architecture text review",
+      "adversarial trace reasoning",
+      "four findings closure",
+      "19CE/14RA/20CR/5OP mappings",
+      "SHA and MD/JSON consistency"
+    ],
+    "not_performed": [
+      "project execution/tests",
+      "Lean/theorem proof",
+      "full protocol model checking",
+      "runtime/UI/replay/paper/live",
+      "venue identity/fencing/finality validation",
+      "classification/old-entry rescan",
+      "GitHub/service/main writes"
+    ],
+    "four_event_scope": "只复用原两个守卫的24排列；不含新完整条件、稳定队列或X调用CAS；反证共同当前，不单独证明交付边界真伪。",
+    "permission_boundary": "架构/SPEC/实施/main按已有明确门；不新增经济默认，不重复询问RF02要求。"
+  },
+  "artifact_paths": [
+    "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02.md",
+    "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02.json"
+  ],
+  "metadata_addendum": {
+    "schema": "newchanlun.rf02.independent-metadata-addendum.v1",
+    "checked_at_utc": "2026-09-08T21:09:12.134020+00:00",
+    "status": "METADATA_REPAIR_VERIFIED",
+    "scope": "仅元数据差分和既有正文不变性，未重做协议语义或运行验证",
+    "old_json_sha256": "97173d5cedfca3fc454841d0aefce51eb0fe98d8244db3b9ed56322b53d4966a",
+    "new_json_sha256": "46c7c0fbd53926119d45a8682ca29e8001c445835fbd00895add778d8d1e70e6",
+    "protocol_md_sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c",
+    "old_snapshot": "/tmp/newchanlun-1339-architecture-r2-20260909/snapshots/r2-protocol-review-11f570/author/PROTOCOL-R2.json",
+    "evidence": {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/REVIEW-METADATA-REPAIR.json",
+      "sha256": "ce79078aba3109ce9ff0062d367edff4dd21e599c1a8fa7960fef3e59a139b79"
+    },
+    "changed_leaves": [
+      {
+        "path": "/authorship",
+        "old": "root author; independent first pass completed; four findings repaired pending independent closure",
+        "new": "root author; independent protocol final review completed at architecture contract level; no implementation or runtime verification"
+      },
+      {
+        "path": "/execution_status/independent_final_review",
+        "old": "not-completed-usage-limit",
+        "new": "completed-at-architecture-contract-level; review/REVIEW-RF02.md; protocol MD SHA 11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c"
+      },
+      {
+        "path": "/status",
+        "old": "DRAFT_REQUIRES_INDEPENDENT_PROTOCOL_REVIEW",
+        "new": "REVIEWED_ARCHITECTURE_CANDIDATE_NOT_ADOPTED"
+      }
+    ],
+    "checks": {
+      "only_three_metadata_leaves_changed": true,
+      "all_ten_sections_identical": true,
+      "document_binding_identical": true,
+      "protocol_md_unchanged": true,
+      "new_json_matches_reviewed_md": true
+    },
+    "conclusion": "错误额度状态已清除，新JSON仅说明架构合同层独评完成及未采纳；原协议结论和运行未验证边界不变。旧source_signatures与manifest签署保持历史值，本addendum单独绑定新JSON。"
+  }
+}

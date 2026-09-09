@@ -1,0 +1,254 @@
+{
+  "schema": "newchanlun.1323.residual-publication-review.v1",
+  "status": "PASS",
+  "review_round": "R2_FINAL_17_DRAFTS",
+  "reviewed_at": "2026-09-09T05:28:20.009127+00:00",
+  "severity_counts": {
+    "H": 0,
+    "M": 0,
+    "L": 0
+  },
+  "scope": "RD-01..RD-17拟发布正文相对已批SPEC的范围、旧裁定继承、局部成功义务及内部依赖；重点终核RP-01/RP-02修复。不是运行验收或真实发布回读。",
+  "review_inputs": [
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-01.md",
+      "sha256": "78a7eea8b0e0cd84027fb80d3286c3f0e14844e9f1f3a8becb562795ab4c3392",
+      "bytes": 3754
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-02.md",
+      "sha256": "c7ac0916153bfb3e3d71a38fc86497e2c3a430d57bc263bfaa6299686e386b11",
+      "bytes": 3655
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-03.md",
+      "sha256": "9eb966eead0521156f70d5940c34e4c7645aa136fb6b8b04ae2285ba466382d4",
+      "bytes": 3510
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-04.md",
+      "sha256": "dc602c46fb3b4601bce0b4ba044ea28946fe8e9e8aaf8eef8ec82d120d73cd7f",
+      "bytes": 3638
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-05.md",
+      "sha256": "c1343b55f62a857d6d898ef5c61535b8c6dc8c23a9f703ac96904552df3f99be",
+      "bytes": 4225
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-06.md",
+      "sha256": "dd0f6dbc1f509ff506103e6a3a329f83cf9f4212eb786380397149fd15d27d3e",
+      "bytes": 3428
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-07.md",
+      "sha256": "1ffd07e8351aff968dedb67151cad4f99fc8b10b7790c0df6935005bded8cb62",
+      "bytes": 3902
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-08.md",
+      "sha256": "f3ddd4c0b23b6a42dd14adfb37406ab8ee12992513344b5aa11c2cb4999f7fdb",
+      "bytes": 3438
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-09.md",
+      "sha256": "300f3934d5bed5475a4b2293dfaaa8fb5c19d6e491c8c400d146daf93ba828e8",
+      "bytes": 4122
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-10.md",
+      "sha256": "6b3d7507a16b284e179825c91d1ff351272f05b0b549aff036f801c4995be657",
+      "bytes": 3570
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-11.md",
+      "sha256": "2b7bf800f477654fda8fe0e56698990db742f31fe93508a0d3cafe33dbbb2379",
+      "bytes": 4173
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-12.md",
+      "sha256": "773062ba1fb2b0931fa46a31cf0acb82b4a1053683e9dcc0381c2b6ef0a48f61",
+      "bytes": 3642
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-13.md",
+      "sha256": "82e1e93d91bcd116f273dffed8a9ab44dbf53f8c7e6c4346818a333d5d65b365",
+      "bytes": 5242
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-14.md",
+      "sha256": "9fcceba8a72b41ccb0188ed7abd743af575531bbb50d1dc186b413fc37efb92a",
+      "bytes": 3432
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-15.md",
+      "sha256": "82ec869203afd966d06e7aaa530efe311ccd80ebb9b4c7f556ba7bbff39e1b36",
+      "bytes": 3656
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-16.md",
+      "sha256": "935d3f3616b0d1760d1838ec6d7bed0f065c2047353ee636190f0e866dbadb7f",
+      "bytes": 3735
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-17.md",
+      "sha256": "cd27d949e34e76b669cf89391ba64fe201afe9299d5becf190deb43621aff029",
+      "bytes": 8681
+    }
+  ],
+  "additional_input_hashes": {
+    "/tmp/newchanlun-1323-publication-20260909/inputs/RESIDUAL-TICKET-PLAN.md": "6759d1b2f78987b53203644a6b9b28fffca0a0594f79786cc36cbd4862c0afa9",
+    "/tmp/newchanlun-1323-publication-20260909/inputs/RESIDUAL-TICKET-PLAN.json": "16d2fe3690ac9c25e9b38217fe87bed49be045a4e0e8a20ea6d7c5ef94417dc8",
+    "/tmp/newchanlun-1323-publication-20260909/inputs/LEGACY-TICKET-DISPOSITION.md": "4420c525ea32a087e94eaa820ec75bbe1135a96323afcdd67c56534aa4de8ac2",
+    "/tmp/newchanlun-1323-publication-20260909/inputs/LEGACY-TICKET-DISPOSITION.json": "3892d5dd85ba8d7ff9f1db0d6424b5da72dc0e83276540160f117428cdce170b",
+    "/tmp/newchanlun-1323-spec-20260909/SPEC.md": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11",
+    "/tmp/newchanlun-1323-publication-20260909/inputs/RD-17-MODEL-PLAN.json": "d52a6e6a2e9df6f6c7a33c0089dda99e95991c192f7eaa43b82614a453d38023",
+    "/tmp/newchanlun-1323-publication-20260909/inputs/RD-17-MODEL-PLAN.md": "c294187293a3afff69b908e998d4066af00704eb4f4577de17e5f83285988063"
+  },
+  "findings": [
+    {
+      "id": "RP-01",
+      "severity": "M",
+      "status": "RESOLVED",
+      "title": "完整历史模拟执行模型缺少真实接单范围",
+      "locations": [
+        {
+          "file": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-12.md",
+          "start": 7,
+          "end": 17
+        },
+        {
+          "file": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-13.md",
+          "start": 7,
+          "end": 19
+        }
+      ],
+      "requirement_source": {
+        "file": "/tmp/newchanlun-1323-spec-20260909/SPEC.md",
+        "line": 338,
+        "section": "C10.3"
+      },
+      "description": "RD-12只决定外效发生后的分配归属，RD-13只决定场所账户/权限及真实profile；16票均未明确裁定多重并发、混合订单、同slot匹配先后与竞争的完整历史模拟执行模型。因此即使16票全关，TB-07仍只能停在ModelOrderUnspecified或TestOnly顺序，缺完整历史成功路径。",
+      "requested_repair": "用独立小范围模拟模型票，或精确扩展现有票，显式承接正式模拟能力profile、并发/混合/同slot模型及有效域；继承既有单订单规则，区分撮合发生模型与RD-12事后分配；相应TB-07成功依赖真实结果，TestOnly不能销项。",
+      "root_response": "根已接受，另委派本评审者只读查重并拟RD-17，不改原SPEC。",
+      "repair_evidence": {
+        "file": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-17.md",
+        "lines": [
+          7,
+          33,
+          34,
+          57
+        ],
+        "result": "C10.3/C10.4、DST04/05直接承接；正式simulated模型与新多重/混合/同slot域有独立交付；保留ADR既裁适用域，区分RD11准入/RD12分配/RD13实际场所。TB07为完整历史成功门，TB08仅依赖该模型的对照成功。"
+      }
+    },
+    {
+      "id": "RP-02",
+      "severity": "M",
+      "status": "RESOLVED",
+      "title": "RD-13遗漏已查明的#942取消与分项去向",
+      "locations": [
+        {
+          "file": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-13.md",
+          "start": 13,
+          "end": 19
+        },
+        {
+          "file": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-13.md",
+          "start": 46,
+          "end": 54
+        }
+      ],
+      "requirement_source": {
+        "issue": 942,
+        "url": "https://github.com/xy7365527-lang/NewChanlun/issues/942#issuecomment-5224551950",
+        "local_evidence": "/tmp/newchanlun-1323-publication-20260909/inputs/LEGACY-TICKET-DISPOSITION.json#/supplementary_issues/942"
+      },
+      "description": "RD-13要求复核#1283/#1319，却未登记#1319所引#942已有逐问处分。#942已选乙，第4强平实验明确不做，第1/3/5因凭证约束不做，第2已测未决，第6/7按有界文档结果关闭，第8–10已有#953承接。泛称实际外效另有授权不能替代这条当前已知边界，容易把旧顺测描述重新列为待决定或待执行。",
+      "requested_repair": "在RD-13正文及来源直接保留#942逐项处分、已取消强平与#953去向；不整体重开、不请求恢复；closed #942不得作隔离已实测证据。",
+      "root_response": "根已接受，将在generator overlay修复并保持取消边界。",
+      "repair_evidence": {
+        "file": "/tmp/newchanlun-1323-publication-20260909/tickets/RD-13.md",
+        "lines": [
+          14,
+          15,
+          49,
+          59
+        ],
+        "result": "与#942最终resolution逐问处分一致：1/3/5凭证约束不做；2已测未决；4乙方案不做强平；6/7有界文档结果；8-10挂953；不复活旧顺测实验，不以文档结论代实测。"
+      }
+    }
+  ],
+  "positive_checks": [
+    {
+      "scope": "RD-05",
+      "status": "PASS",
+      "finding": "task先核#1245 Comparable和#778 Closed集合Sel的对象域/投影桥；只对真实未覆盖选择再grilling。已裁工程序不因工程名分被重开，selected失败不重选保留。"
+    },
+    {
+      "scope": "既有16票局部门与RD内部依赖",
+      "status": "PASS_WITHIN_REVIEW_SCOPE",
+      "finding": "RD内部阻塞表述为完整决定/实例结果的前置，独立备料明确可继续；没有把FU全局挂到TB-01/纯结构RA-01/02。RD-15只在实际触闸后、第一次启用前激活，未预编后闸参数。"
+    },
+    {
+      "scope": "已批组织/已有规则",
+      "status": "PASS_WITHIN_REVIEW_SCOPE",
+      "finding": "R2/C09/FU-06未重开；#907后裁、N/A已裁有效域、固定Q/毛净约束等作继承；旧1327–1333没有恢复。"
+    },
+    {
+      "scope": "17票身份和发布指针",
+      "status": "PASS",
+      "finding": "RD-01..17编号唯一；正文无/tmp唯一证据指针或未替换模板；已批SPEC与S2-R1hash固定。"
+    },
+    {
+      "scope": "17票内部依赖",
+      "status": "PASS",
+      "finding": "7边无环；RD13→07，RD11→09，RD08→10，RD09→10，RD08→14，RD08→15，RD14→15。RD17无整票前置，资金/分配/实场所备料并行。"
+    },
+    {
+      "scope": "固定来源",
+      "status": "PASS",
+      "finding": "git show efc1ddc4d6c015f4f8c6d44f904d704a88308b46 的归档SPEC及ADR0018/0019与本轮核读源逐字一致；SPEC SHA42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11。"
+    },
+    {
+      "scope": "TB07/08/11关联摘要",
+      "status": "PASS_WITHIN_REVIEW_SCOPE",
+      "finding": "TB07保留完整历史模型与TestOnly不得销项；TB08保留942取消边界；TB11保留六Destination和旧票各自未覆盖条件。这不是对11TB全部正文的完整独评。"
+    }
+  ],
+  "mutation_limits": {
+    "published_ticket_drafts_modified_by_this_review": false,
+    "source_spec_modified": false,
+    "github_writes": false,
+    "rd17_plan_written_in_separate_authorized_subtask": true
+  },
+  "not_run": [
+    "程序与项目测试",
+    "真实场所/账户",
+    "GitHub发布与发布后native边/label回读",
+    "全部原文重考据",
+    "全部查重查询重跑",
+    "11份TB全文独立审阅",
+    "发布操作代码审阅"
+  ],
+  "next_review": "票号替换、真实native边和标签由发布后回读核验；本PASS不覆盖尚未执行的GitHub写入，也不表示TB实施或整图完成。",
+  "prior_review": {
+    "status": "NEEDS_REPAIR",
+    "review_round": "R1_INITIAL_16_DRAFTS",
+    "reviewed_at": "2026-09-09T05:18:37.040275+00:00",
+    "severity_counts": {
+      "H": 0,
+      "M": 2,
+      "L": 0
+    },
+    "finding_ids": [
+      "RP-01",
+      "RP-02"
+    ]
+  },
+  "reviewer_provenance": {
+    "agent": "/root/legacy_ticket_reconcile",
+    "independence_scope": "R1缺陷识别独立于根生成的16票；R2对根重新生成的17份正文与旧裁定作发布范围核对。",
+    "rd17_authorship": "本审阅者按根接受的RP-01补拟RD-17计划，因此RD-17底稿本身的本轮核对属作者回查，不冒称对底稿的另名独评；其拟票没有选定任何模拟模型。"
+  }
+}

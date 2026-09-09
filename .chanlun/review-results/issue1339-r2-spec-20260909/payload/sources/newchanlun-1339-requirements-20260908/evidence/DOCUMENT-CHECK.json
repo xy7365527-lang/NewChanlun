@@ -1,0 +1,48 @@
+{
+  "schema": "issue1339.document-mechanical-check.v1",
+  "checked_at_utc": "2026-09-08T07:31:18.499841+00:00",
+  "workspace": {
+    "head": "6df8d1921c72c84da90987f8f6c02ebc11fe6aac",
+    "head_matches_intake": true,
+    "porcelain_records": 245,
+    "porcelain_matches_intake": true,
+    "limit": "状态列表一致不证明全部dirty文件字节未变；本轮仅写外置草稿，未对仓内执行修改。"
+  },
+  "intake_artifacts": [
+    {
+      "path": "/tmp/newchanlun-codex-handoff/HANDOFF.md",
+      "sha256": "c56db8d271bf8772671bdc17963cbb7281c8abe7f26a6418a4bad534ec4ac80e",
+      "matches_intake": true
+    },
+    {
+      "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+      "sha256": "b13df8091089c38d6a4337d3ad3813e305fae8930898ec8cf5651bed9901221c",
+      "matches_intake": true
+    },
+    {
+      "path": "/tmp/issue1323-frontend-state-requirements/ROOT-RECEIPT.json",
+      "sha256": "16958f1e88f0e7793436751a3f2066930d53ec9a06f3c5ae8dad7b573fafd82c",
+      "matches_intake": true
+    },
+    {
+      "path": "/tmp/issue1323-frontend-state-requirements/EVIDENCE.json",
+      "sha256": "a525b8c3c0ddf2de47dcc4a4b8e8aa6ea6ff50c88e9b64fe8426aa8791f20907",
+      "matches_intake": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/SCHEME-DELIVERY.json",
+      "sha256": "d6f115629b92c11fcbca5a06ff138c66e8df00ded23b7ff16a3abbb924d84738",
+      "matches_intake": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+      "sha256": "4d24de8692c915f95544eb7c4f041e8dd403bfda503e9fe1a97e4a5e715455ea",
+      "matches_intake": true
+    }
+  ],
+  "coverage_row_count": 80,
+  "ids_and_references": "consistent",
+  "ob_field_copy_consistency": "consistent",
+  "execution_status": "NOT_RUN_PROJECT_TESTS_OR_UI",
+  "interpretation": "仅核文件绑定、清单与引用一致性；不替代语义独评或程序验收。"
+}

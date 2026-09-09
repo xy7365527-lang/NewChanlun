@@ -1,0 +1,462 @@
+{
+  "schema": "newchanlun.independent-protocol-review.v2",
+  "issue": 1339,
+  "whole_map": 1323,
+  "reviewer": "/root/independent_scope_review",
+  "status": "SCOPED_DOCUMENT_REVIEW_COMPLETE_R1",
+  "verdict": "0H_0M_OPEN_WITHIN_REVIEWED_PROTOCOL_TEXT",
+  "review_scope": "独立复核 R0 两项协议反例及 R1 的关联修订、工程状态合同和元数据；不签完整分类逐叶证明、全部现役入口、实现、场所能力或整图验收。",
+  "counts": {
+    "H": 0,
+    "M": 0,
+    "L": 0,
+    "open": 0,
+    "closed": 2,
+    "initial_R0_H": 1,
+    "initial_R0_M": 1
+  },
+  "input_binding": [
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+      "sha256": "f6054b52f86ba80fafd6386d1ac6ede341c6c6a17cb9efbed5d2dad42571824d",
+      "bytes": 71970,
+      "lines": 400,
+      "read_scope": "R0 full_text; R0_to_R1 full_diff plus complete P1-P4/P7 and final amendment diff"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.json",
+      "sha256": "800ca141806e3f3814c1392ff656a4f2213b2e7b210f368a0e84e853ea14dcd1",
+      "bytes": 206521,
+      "lines": 6556,
+      "read_scope": "all 80 requirement/11 FE/15 AC semantic rows in R0; R1 semantic changes and protocol/integration metadata; complete ID/anchor/source-byte checks"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.md",
+      "sha256": "f5ea3426c08bcffa5e3a40a7d29631169d1776b5ffb2a50f4c526a766bc3629d",
+      "bytes": 11152,
+      "lines": 32,
+      "read_scope": "full_text; final ES14 delta reread"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.json",
+      "sha256": "f8b4f7057233e2c9a6bdb7d561f76112dc1f37b9e6cf4d1cbaf6bbf5b5662edf",
+      "bytes": 26947,
+      "lines": 536,
+      "read_scope": "axis metadata; ES04/05/14 full structured; final ES14 reread; other axes via full markdown"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.md",
+      "sha256": "37b91d6fe61ad508e06a733b9972834bb61957f9249be8a612f7d33aa8157dd0",
+      "bytes": 24806,
+      "lines": 134,
+      "read_scope": "introductory contract lines 1-25; not all 62 leaf rows"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.json",
+      "sha256": "251f00d938573e96516d3c1dc6f48a64241b19314fac598480dd7b1ab2e49a6d",
+      "bytes": 217400,
+      "lines": 3960,
+      "read_scope": "binding and proof/execution metadata only; not all leaf semantics"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-revision-delivery.json",
+      "sha256": "47213237f3356061f3312b09fcd9ba70a7116594ed9d0f8237dc7d9bec68a30f",
+      "bytes": 3490,
+      "lines": 88,
+      "read_scope": "full_structured_and_all_artifact_byte_checks"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-protocol-review-r0.json",
+      "sha256": "0e259262461f4b0edef4f0da46e9689026cdfb27d43c354213825f675008212d",
+      "bytes": 12488,
+      "lines": 275,
+      "read_scope": "exact R0 review archive byte match"
+    }
+  ],
+  "findings": [
+    {
+      "id": "IP-H01",
+      "severity": "H",
+      "initial_status": "OPEN_R0",
+      "status": "CLOSED_IN_PROTOCOL_TEXT_R1",
+      "evidence": [
+        {
+          "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+          "line_start": 172,
+          "line_end": 175
+        },
+        {
+          "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+          "line_start": 215,
+          "line_end": 229
+        },
+        {
+          "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.json",
+          "axis_ids": [
+            "ES-04",
+            "ES-05"
+          ]
+        }
+      ],
+      "resolution": "Capture 的原报 Recorded 和保守影响域 Pending 同属 grant/MayHaveSent 的持久安全顺序，风险解释必须在屏障之后。Resolve 只消除自身具证 token、检查当前依赖和源前沿，Open 由全部 pending/缺口/证据有效条件推导。全部约束生产者及到期/时钟不可核覆盖，不以通知到达时才算 known。",
+      "counterexample_reassessment": "原 R0 Recorded→延迟失效通知→B 新 reserve/send 交错不再可达：Capture 先已封住两处边界；先跨 MayHaveSent 的外效仍保留责任。e1/e2 交错不能由 Resolve(e1) 释放 e2。Capture/Resolve 各崩溃窗口按同日志恢复，缺源或 blob 不重开。",
+      "healthy_path_check": "A 普通 fill 若可凭共同许可/场所连续事实证明仍由原保留责任覆盖，可解除该 token 而不降 A 责任、不等 A Applied；公平有限轮给 B 实际新 Committed 路径。不能把持续不可核输入误称 RF 前件成立。",
+      "remaining_validation": "实际持久原子性、所有生产者接线、fencing、输入公平调度、时效与场所责任界须实施/模型检查；本结论只关闭文字中的具体竞态。"
+    },
+    {
+      "id": "IP-M02",
+      "severity": "M",
+      "initial_status": "OPEN_R0",
+      "status": "CLOSED_IN_PROTOCOL_TEXT_R1",
+      "evidence": [
+        {
+          "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+          "line_start": 254,
+          "line_end": 267
+        },
+        {
+          "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.json",
+          "axis_ids": [
+            "ES-14"
+          ]
+        }
+      ],
+      "resolution": "LogicalOrderFamily 保留同一冻结 L；F 加各独立可成交分配潜量之和不得超过 L。具证原子 amend 的互斥版本共享一份分配，控制命令不获额；独立可成交命令逐份求和，共享/归属不明不得造额。取消后替换须不可再执行与历史累计完整证据，再以 family/version CAS 唯一转移剩余；旧潜量未证消失不得发独立替代单。",
+      "counterexample_reassessment": "100 冻结/40 已成/旧单潜量60时新独立分配为0；旧单再成20，最终确认累计60且不能再执行后，新价最多40。cancel ack 不早放额；累计已含迟到20时不得重加。原子 amend 链不把两个互斥60快照重计为120，也不把独立双活量漏算。",
+      "recovery_check": "拒绝、乱序 ack、发送不明、替换提交/receipt/发送前崩溃均按 family/revision/command 的持久唯一状态恢复；后到 bust/更正仍进 P4 并保真事实。",
+      "remaining_validation": "两类场所能力、完整累计/终态证据、净额归属政策与真实故障轨迹未验证；场所推翻此前保证时保真记超界并停止，合同不承诺控制场所违约。"
+    }
+  ],
+  "new_findings": [],
+  "initial_review": {
+    "schema": "newchanlun.independent-protocol-review.v1",
+    "issue": 1339,
+    "whole_map": 1323,
+    "reviewer": "/root/independent_scope_review",
+    "status": "CHANGES_REQUIRED_R0",
+    "review_scope": "R0协议设计及已批准聚合需求的符合性；不重做第一阶段来源精读，不签逐叶分类、当前代码入口穷尽、实现/性能/场所验证",
+    "counts": {
+      "H": 1,
+      "M": 1,
+      "L": 0,
+      "open": 2
+    },
+    "input_binding": [
+      {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/BRIEF.md",
+        "sha256": "e4a68dbbe5c738a2bfc5f3e3979daa88dba2d326408e8474822cc189d0a7e8e7",
+        "bytes": 5053,
+        "lines": 40,
+        "read_scope": "full_text"
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/COMPLETE-CLASSIFICATION-REQUIREMENT.md",
+        "sha256": "c3cc79a2bef52dff3d1f5612cf066b2466ecd370e98baad0dc077e23c894e8c9",
+        "bytes": 1428,
+        "lines": 11,
+        "read_scope": "full_text"
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CALLER-AND-CLASSIFICATION-CHECKS.md",
+        "sha256": "bfb7add061f981a82a7c5192497e10ee4d0efcfe9b1750b9afd0936a6a9de8bb",
+        "bytes": 4405,
+        "lines": 37,
+        "read_scope": "full_text"
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+        "sha256": "344c82da0b4df9cd12158185a5fe438513a04c57b054ad744513ced6899b10c4",
+        "bytes": 58262,
+        "lines": 361,
+        "read_scope": "full_text"
+      },
+      {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.json",
+        "sha256": "0eb8f0b1b587faaa298c661bf07c4c0483f884e9c2f18a1a1fe0a5a426a3c174",
+        "bytes": 189147,
+        "lines": 6073,
+        "read_scope": "structured_all_semantic_rows_protocol_metadata_references_and_byte_checks"
+      },
+      {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/SCOPE-CONFIRMATION.json",
+        "sha256": "28d9eb728617a6f6372a7b4d902d8efe15b918a26a9db21103f7b9749314f348",
+        "bytes": 1280,
+        "lines": 24,
+        "read_scope": "full_structured"
+      },
+      {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "sha256": "0eeedeb138add9138a2d904bb7fb69884876d85ae085f192d54ab32c8566f970",
+        "bytes": 750433,
+        "lines": 15605,
+        "read_scope": "RF01_full_row_and_80_id_correspondence"
+      },
+      {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.json",
+        "sha256": "65ff5481cab5caf18134d23287e34fa697a1d771b544acb0813aad380d6c9c7d",
+        "bytes": 21946,
+        "lines": 407,
+        "read_scope": "all_20_contract_semantics"
+      },
+      {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.json",
+        "sha256": "9fc12ed938b2a4949f90b265d6148208b21738f6655a6f9b9e436cc5da767b2c",
+        "bytes": 9759,
+        "lines": 127,
+        "read_scope": "all_15_semantic_rows"
+      },
+      {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "sha256": "8e3a98b1ad88ee658d98656605e1580b1d806ab3132013a13f304a957b84b04a",
+        "bytes": 87183,
+        "lines": 2087,
+        "read_scope": "FG022_FG027_FG029_FG032_FE03_and_FE_id_correspondence"
+      }
+    ],
+    "findings": [
+      {
+        "id": "IP-H01",
+        "severity": "H",
+        "status": "OPEN",
+        "title": "外部事实使责任界或共同约束失效后，尚无阻止陈旧公共许可的因果协议",
+        "requirements": [
+          "RF-01",
+          "FG-022",
+          "FG-024",
+          "FG-029",
+          "FG-032",
+          "AC-12"
+        ],
+        "locations": [
+          {
+            "path": "author/INDEPENDENT-DESIGN.md",
+            "lines": [
+              160,
+              163
+            ]
+          },
+          {
+            "path": "author/INDEPENDENT-DESIGN.md",
+            "lines": [
+              203,
+              209
+            ]
+          },
+          {
+            "path": "author/INDEPENDENT-DESIGN.md",
+            "lines": [
+              230,
+              249
+            ]
+          }
+        ],
+        "problem": "P4 允许原报先在独立事实域 Recorded；R1 随后更新责任证据，R2 的禁止新增则始于共同域写入 Unverifiable。结构撤回有 BeginRevision 在实际获知前封住 reserve 与 MayHaveSent，但责任界/共同约束失效的外部事实没有对应的前置栅栏、接纳水位检查或原子失效交接。最后发送时读取共同域的当前证据版本，并不证明另一独立域没有已经获知的失效事实。",
+        "counterexample": [
+          "A 账不可读；共同域留有当时可核的有限责任界，B 自有权利与旧版本共同约束均足够。",
+          "事实域接纳合法更正/bust、未知外部订单或费规证据，已可确定原责任界或一项适用共同约束不可核；原报已经 Recorded。",
+          "向共同域通知延迟、丢失或处理器此时崩溃，共同域仍持旧 Valid 版本。",
+          "B 在这个窗口取得新 Reserved，或已有 Committed 的命令跨过 MayHaveSent；随后才写 Unverifiable。此时 RF-01 的暂停前件已经发生，却有新增许可/外效越过。"
+        ],
+        "impact": "不能签署 RF-01 在异步外部事实更新期间的暂停保证；与单纯尚未实现存储不同，这是未闭合的两个权威域之间的先后关系。",
+        "required_resolution": "写明全部使责任界/约束改变的接纳生产者如何在首次解释/获知前或同一持久边界封住受影响准入；若采用接纳前沿与已核前沿，grant/MayHaveSent 必须原子证明没有未核输入或失效，并有域故障与重放恢复规则。允许选择其他能排除该交错的协议，但须保留真实 known 时间，不能事后改称才生效。",
+        "verification_to_add": [
+          "在失效原报持久接纳、解释、共同域失效安装各边界注入崩溃/消息延迟。",
+          "分别让 B 申请 reserve 和已有许可尝试 MayHaveSent，失效获知后均不得新越过；此前已跨边界者保留在途责任。",
+          "不能对被保证仍覆盖的普通 fill 一律等待坏 A 私账，从而破坏 RF-01 健康继续路径。"
+        ]
+      },
+      {
+        "id": "IP-M02",
+        "severity": "M",
+        "status": "OPEN",
+        "title": "部分成交后改价缺少跨旧新物理命令的冻结总量替换协议",
+        "requirements": [
+          "FG-027",
+          "FG-029",
+          "FE-03",
+          "AC-08"
+        ],
+        "locations": [
+          {
+            "path": "author/INDEPENDENT-DESIGN.md",
+            "lines": [
+              27,
+              39
+            ]
+          },
+          {
+            "path": "author/INDEPENDENT-DESIGN.md",
+            "lines": [
+              159,
+              163
+            ]
+          },
+          {
+            "path": "author/INDEPENDENT-DESIGN.md",
+            "lines": [
+              213,
+              228
+            ]
+          }
+        ],
+        "problem": "U2 和 FG-027 承诺同逻辑 key 改价而保持首次冻结量；P1 描述新 Prepared/Reserved/Committed，P6 描述取消/晚到 fill，但没有为同逻辑订单给原子 amend 能力合同或取消后替换状态机，也没有把每个物理命令的可能剩余量共同约束在这份冻结量内。唯一责任 ID、不可复用 grant 和共同毛帽都不能单独建立该逻辑量不变量。",
+        "counterexample": [
+          "逻辑订单首次冻结量为 100，原命令已成 40，旧命令仍可能执行余量 60。",
+          "核心修订需要改价；实现按现有 P1 为新价命令提交剩余 60，同时对旧命令仅发 CancelRequested。",
+          "旧命令晚到成交 20，新命令成交 60，最后累计 120。选择足够大的本重 Q、专属现金和共同帽，这一轨迹仍通过那些总额约束，却超过该逻辑订单冻结量。",
+          "若直接复用同一 grant 为替换命令发送，则又缺少旧命令授权如何被撤销/拆分以及恢复如何辨别的状态。"
+        ],
+        "impact": "当前文字没有排除双活命令导致逻辑目标超量，也没有给出 U2 所声明的部分成交后改价如何实际完成；不能靠最终将事实完整入账来恢复冻结量承诺。",
+        "required_resolution": "为逻辑订单和其物理命令族给出持久修订/替换关系与额度守恒：已确认成交加所有旧新命令可能执行量不得超过冻结许可量。选择具证的场所原子改单，或等待旧命令最终可核量后再发差额等具体路径，并写明取消确认缺口、晚到 fill、拒改单和每个崩溃窗口如何恢复；不替用户自定场所能力。",
+        "verification_to_add": [
+          "复用 100/40/20 改价轨迹，并覆盖 old cancel ack 先于迟到 fill、新旧 ack 乱序、旧命令发送不明及替换提交后崩溃。",
+          "每一步检验逻辑冻结量与全部物理命令最大余量，不能只检验毛帽或最后净头寸。"
+        ]
+      }
+    ],
+    "r0_prior_fix_assessment": [
+      {
+        "item": "结构撤回首次获知与发送排序",
+        "result": "BeginRevision 在实际计算之前建立；旧引用 reserve/MayHaveSent 暂停，真实 t1 first_known 保留，已跨发送边界归在途。该结构输入源的修复文字可成立；不能外推到外部事实域。",
+        "lines": [
+          165,
+          172
+        ]
+      },
+      {
+        "item": "故障重不挡全员经营轮",
+        "result": "有限健康代际轮、故障代际封闭与 grant 同序；未获 grant 的私有 Prepared 不冒充已枚举；已有许可保留。所列有限/公平/fencing假设下有 B 新提交路径；尚未模型检查活性。",
+        "lines": [
+          174,
+          176,
+          194,
+          237,
+          243
+        ]
+      },
+      {
+        "item": "按具体责任释放",
+        "result": "独立可证明的 B 分配只等 B 收据；A 保留界，不扩大为全物理批次；不可分共享份额的等待有明示代价。",
+        "lines": [
+          186,
+          190
+        ]
+      }
+    ],
+    "other_assessments": [
+      {
+        "area": "外部事实与尾账",
+        "result": "Recorded/Applied分离、原责任归属、因果更正、重复冲突、业务/责任退休分离与新Voice隔离已有文字；H01/M02未闭合前不签整体安全。"
+      },
+      {
+        "area": "转移托管",
+        "result": "源锁定/托管/扣出/目标Pending/双方收据唯一交付、取消决议及源尾责分开；未发现独立实质缺陷，资金政策和存储原子性仍待定。"
+      },
+      {
+        "area": "只读观察",
+        "result": "已声明闭包版本组合、固定切面分页、原子变更批次、同session续接、Gap和AsKnown/Recomputed分离；未发现额外实质缺陷，未做UI/运行验证。"
+      },
+      {
+        "area": "完全分类",
+        "result": "本次不读取也不签后交CLASSIFICATION-CATALOG的62轴/32定位项；R0仍待目录整合。泛型AxisClaim、enum、80映射均不作为分类证明。"
+      },
+      {
+        "area": "共用故障代价",
+        "result": "共同责任域故障会阻生产结构计算/发布推进，单独接纳原始行情与旧切面仍可。该取舍已显著列出，不误报为结构判据被经济改写；需要候选比较和用户选择。"
+      },
+      {
+        "area": "旧入口",
+        "result": "8入口族有候选终态方向，作者明确缺逐文件/feature/启动配置当前复验、crosswalk及有仓回退；本次不签完整当前入口枚举。"
+      }
+    ],
+    "document_checks": {
+      "design_MD_hash_matches_JSON": true,
+      "source_binding_byte_hashes_verified": 33,
+      "source_binding_failures": 0,
+      "source_semantics_reverified_by_that_check": false,
+      "coverage_unique_ids": 80,
+      "coverage_expected_ids_exact_match": true,
+      "coverage_anchor_failures": 0,
+      "FE_unique_ids": 11,
+      "FE_expected_ids_exact_match": true,
+      "AC_categories": 15,
+      "classification_leaf_complete_claim": false
+    },
+    "not_done": [
+      "repository_or_author_changes",
+      "GitHub_or_service_or_trading_actions",
+      "project_tests_or_Lean_or_runtime_model_checking",
+      "prior_architecture_candidate_comparison",
+      "subagent_spawn",
+      "architecture_adoption_or_SPEC_approval"
+    ],
+    "revision_history": [
+      {
+        "review_round": "R0",
+        "design_MD_sha256": "344c82da0b4df9cd12158185a5fe438513a04c57b054ad744513ced6899b10c4",
+        "design_JSON_sha256": "0eb8f0b1b587faaa298c661bf07c4c0483f884e9c2f18a1a1fe0a5a426a3c174",
+        "findings_open": [
+          "IP-H01",
+          "IP-M02"
+        ],
+        "verdict": "CHANGES_REQUIRED"
+      }
+    ]
+  },
+  "document_checks": {
+    "design_MD_hash_matches_JSON": true,
+    "source_binding_byte_hashes_verified": 35,
+    "source_binding_failures": 0,
+    "source_semantics_reverified_by_hash_check": false,
+    "manifest_artifacts_verified": 6,
+    "coverage_unique_ids": 80,
+    "coverage_expected_ids_exact_match": true,
+    "coverage_and_FE_and_AC_anchors_resolve": true,
+    "FE_unique_ids": 11,
+    "FE_expected_ids_exact_match": true,
+    "AC_unique_ids": 15,
+    "AC_expected_ids_exact_match": true,
+    "catalog_binding_current": true,
+    "engineering_axes_declared": 16,
+    "classification_proof_complete_claim": false
+  },
+  "retained_limits": [
+    "共同安全日志故障同时阻断新正式结构推进、规范外部接纳与新许可/发送；该可用性代价已经显著声明，是否采纳属于用户取舍。",
+    "分类整合绑定62轴/10组合/32定位项只证明本稿承接；本评未逐叶独审，不把目录规模、enum或证明包类型当作数学完备性。",
+    "工程16轴的文本迁移合同已读，数值/经济政策、源连续性及不变量尚待证明/实例验证。",
+    "有限健康轮及fencing是候选前件，未跑活性或吞吐检查。",
+    "现役旧入口逐文件枚举、有仓迁移回退、存储技术和身份保留策略继续由相关交付与后续批准处理。"
+  ],
+  "not_done": [
+    "repository_or_author_changes",
+    "GitHub_or_service_or_trading_actions",
+    "project_tests_or_Lean_or_runtime_model_checking",
+    "prior_architecture_candidate_comparison",
+    "subagent_spawn",
+    "architecture_adoption_or_SPEC_approval"
+  ],
+  "revision_history": [
+    {
+      "review_round": "R0",
+      "design_MD_sha256": "344c82da0b4df9cd12158185a5fe438513a04c57b054ad744513ced6899b10c4",
+      "design_JSON_sha256": "0eb8f0b1b587faaa298c661bf07c4c0483f884e9c2f18a1a1fe0a5a426a3c174",
+      "findings_open": [
+        "IP-H01",
+        "IP-M02"
+      ],
+      "verdict": "CHANGES_REQUIRED"
+    },
+    {
+      "review_round": "R1-final-amend-clarified",
+      "design_MD_sha256": "f6054b52f86ba80fafd6386d1ac6ede341c6c6a17cb9efbed5d2dad42571824d",
+      "design_JSON_sha256": "800ca141806e3f3814c1392ff656a4f2213b2e7b210f368a0e84e853ea14dcd1",
+      "findings_closed": [
+        "IP-H01",
+        "IP-M02"
+      ],
+      "new_findings": [],
+      "verdict": "SCOPED_PROTOCOL_TEXT_REVIEW_COMPLETE",
+      "runtime_or_formal_proof": false
+    }
+  ]
+}

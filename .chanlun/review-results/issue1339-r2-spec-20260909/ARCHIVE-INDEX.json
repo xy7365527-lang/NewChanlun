@@ -1,0 +1,1041 @@
+{
+  "schema": "newchanlun.1339.spec-archive.v1",
+  "scope": "已批准S2-R1 SPEC与必要已允许来源/独评实体；旧方案只按R2继承和替代射程解释",
+  "classification": "绑定开放1339及其下游SPEC的工作草稿；纯文档归档，不是运行交付",
+  "original_payloads_unchanged": true,
+  "path_resolution": "源JSON内原绝对路径按本索引original_path映射到archive_path，结合sha256校验；阅读视图仅改链接，原字节不改",
+  "excluded": [
+    "旧1321/1322/1325/1326原方案或审计原件",
+    "K4仓库",
+    "会话导出、工具日志、凭据和运行态"
+  ],
+  "entries": [
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/SPEC.md",
+      "archive_path": "payload/spec/SPEC.md",
+      "sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11",
+      "bytes": 68412,
+      "role": "APPROVED_SPEC_PACKAGE",
+      "portable_reading_view": "view/spec/SPEC.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/SPEC.json",
+      "archive_path": "payload/spec/SPEC.json",
+      "sha256": "47351e5741aedf5f1c34eaaa9b9126ed30458a94833a352d8ad7ec6a52f08878",
+      "bytes": 66678,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/ARCHITECTURE-ADOPTION.md",
+      "archive_path": "payload/spec/ARCHITECTURE-ADOPTION.md",
+      "sha256": "e60e806286c41974f395a0f336f0f21e6386cf70583d4007042cc43d05c4a835",
+      "bytes": 695,
+      "role": "APPROVED_SPEC_PACKAGE",
+      "portable_reading_view": "view/spec/ARCHITECTURE-ADOPTION.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/ARCHITECTURE-ADOPTION.json",
+      "archive_path": "payload/spec/ARCHITECTURE-ADOPTION.json",
+      "sha256": "c3d0c5ff1e38449704964ac7c6c0d1ab14e8a4516364a107dcfbcb7b4e7b2c1a",
+      "bytes": 2322,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/inputs/SPEC-COVERAGE-INPUT.md",
+      "archive_path": "payload/spec/inputs/SPEC-COVERAGE-INPUT.md",
+      "sha256": "a8b30f087308402874ea132ba1cc372fb3af1a16273ef5b090fbd324a5eed7a8",
+      "bytes": 130744,
+      "role": "APPROVED_SPEC_PACKAGE",
+      "portable_reading_view": "view/spec/inputs/SPEC-COVERAGE-INPUT.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/inputs/SPEC-COVERAGE-INPUT.json",
+      "archive_path": "payload/spec/inputs/SPEC-COVERAGE-INPUT.json",
+      "sha256": "76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c",
+      "bytes": 1298462,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/inputs/TEST-SEAMS.md",
+      "archive_path": "payload/spec/inputs/TEST-SEAMS.md",
+      "sha256": "2b7a59947390dd3c1d4e4de132c714f330acfbe2890a049527226d787a1e1a6f",
+      "bytes": 22567,
+      "role": "APPROVED_SPEC_PACKAGE",
+      "portable_reading_view": "view/spec/inputs/TEST-SEAMS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/inputs/TEST-SEAMS.json",
+      "archive_path": "payload/spec/inputs/TEST-SEAMS.json",
+      "sha256": "ea0d6479ec7460750e8974a733803e12173891bf857351ed1de53c59a26e5628",
+      "bytes": 25252,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/inputs/RESIDUAL-DECISIONS.md",
+      "archive_path": "payload/spec/inputs/RESIDUAL-DECISIONS.md",
+      "sha256": "cf4d78858a2b6a54c0699fef6240b68d0f66b4256de31a1ef7aa2e16bea12c3e",
+      "bytes": 21073,
+      "role": "APPROVED_SPEC_PACKAGE",
+      "portable_reading_view": "view/spec/inputs/RESIDUAL-DECISIONS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/inputs/RESIDUAL-DECISIONS.json",
+      "archive_path": "payload/spec/inputs/RESIDUAL-DECISIONS.json",
+      "sha256": "25ef584f85a7807a68adb77a4cabeb3b4dde3d46ba3c1442c4a2a49eadc0ab58",
+      "bytes": 24961,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/INTERFACE-CONTRACTS.md",
+      "archive_path": "payload/spec/INTERFACE-CONTRACTS.md",
+      "sha256": "f1a2993c6fa4c6c29c6b9a4de7c1d0334c697aaa03e282f621171c37fc01d0e7",
+      "bytes": 10889,
+      "role": "APPROVED_SPEC_PACKAGE",
+      "portable_reading_view": "view/spec/INTERFACE-CONTRACTS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/IMPLEMENTATION-CROSSWALK.md",
+      "archive_path": "payload/spec/IMPLEMENTATION-CROSSWALK.md",
+      "sha256": "028ac941954f31bc41ca20813c8b20de903dac199f39709f45115427b131093f",
+      "bytes": 19958,
+      "role": "APPROVED_SPEC_PACKAGE",
+      "portable_reading_view": "view/spec/IMPLEMENTATION-CROSSWALK.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/IMPLEMENTATION-CROSSWALK.json",
+      "archive_path": "payload/spec/IMPLEMENTATION-CROSSWALK.json",
+      "sha256": "0d31d68e75a6d672c948e8708bfb261549029c7310f7ad4dbb326c087157ce5d",
+      "bytes": 1278721,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/PLANNED-DAG.json",
+      "archive_path": "payload/spec/PLANNED-DAG.json",
+      "sha256": "8ece2c702ac45c36fdcebfff4b0cb8dd2f26c740bdced6789e630f323e76d5e2",
+      "bytes": 5019,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/EFFECTIVE-CONTRACTS.md",
+      "archive_path": "payload/spec/EFFECTIVE-CONTRACTS.md",
+      "sha256": "63e395c46702cb78f932df9c8e8dd62c1f8776c106635ddeb613c0e73b4bab85",
+      "bytes": 1733,
+      "role": "APPROVED_SPEC_PACKAGE",
+      "portable_reading_view": "view/spec/EFFECTIVE-CONTRACTS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/EFFECTIVE-CONTRACTS.json",
+      "archive_path": "payload/spec/EFFECTIVE-CONTRACTS.json",
+      "sha256": "fd67b5230744f6f826bac98b3df044fbf22c21248a5d46c74e7e8498430a54a8",
+      "bytes": 94895,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/PUBLICATION-PREPARATION.md",
+      "archive_path": "payload/spec/PUBLICATION-PREPARATION.md",
+      "sha256": "8dae5231dc1d2de5122035335f4e3f1364279a8ad86fb5935480fa1e276dc410",
+      "bytes": 3620,
+      "role": "APPROVED_SPEC_PACKAGE",
+      "portable_reading_view": "view/spec/PUBLICATION-PREPARATION.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/evidence/MAP-1323.json",
+      "archive_path": "payload/spec/evidence/MAP-1323.json",
+      "sha256": "eeb8b7e628c8f7299cbaa814e143fde10c8914c6619b012c90249cd3060d33d8",
+      "bytes": 10921,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/evidence/STORY-BINDINGS.json",
+      "archive_path": "payload/spec/evidence/STORY-BINDINGS.json",
+      "sha256": "9a52ae64f093e04897052aa7b2f79b60f7821d95d8561689aadf4065f2260177",
+      "bytes": 63431,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/evidence/DOC-VALIDATION-S2.json",
+      "archive_path": "payload/spec/evidence/DOC-VALIDATION-S2.json",
+      "sha256": "c87875bd967096299c807e3b79cd533a8250c8ade6b3c25d809de219c75bbc87",
+      "bytes": 1877,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/evidence/REVIEW-INPUTS-S2-R1.json",
+      "archive_path": "payload/spec/evidence/REVIEW-INPUTS-S2-R1.json",
+      "sha256": "38e3176b6dfff456b8e3704410401c3bedddf0671751464bb9ea5b829e460260",
+      "bytes": 4450,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/review/PROTOCOL-SPEC-REVIEW.md",
+      "archive_path": "payload/spec/review/PROTOCOL-SPEC-REVIEW.md",
+      "sha256": "5affd72c1df418890051af87d593b58654863c3ba791085ca3174355397b8706",
+      "bytes": 3171,
+      "role": "APPROVED_SPEC_PACKAGE",
+      "portable_reading_view": "view/spec/review/PROTOCOL-SPEC-REVIEW.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/review/PROTOCOL-SPEC-REVIEW.json",
+      "archive_path": "payload/spec/review/PROTOCOL-SPEC-REVIEW.json",
+      "sha256": "ffe17ccfb981f58077b94da5f744644facf9466e0626c1680d9244cdc5fdf5ec",
+      "bytes": 28391,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/review/SCOPE-SPEC-REVIEW.md",
+      "archive_path": "payload/spec/review/SCOPE-SPEC-REVIEW.md",
+      "sha256": "77879388ce9f61015d8cbe3de0d42ff95cac3953e69f33974dfb258759e057d3",
+      "bytes": 8271,
+      "role": "APPROVED_SPEC_PACKAGE",
+      "portable_reading_view": "view/spec/review/SCOPE-SPEC-REVIEW.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/review/SCOPE-SPEC-REVIEW.json",
+      "archive_path": "payload/spec/review/SCOPE-SPEC-REVIEW.json",
+      "sha256": "13daf7ffb8e2d3088d5a26ae43eb327202ea747cba4ef1c9c2ee999f25a7a1b7",
+      "bytes": 23424,
+      "role": "APPROVED_SPEC_PACKAGE"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/DELIVERY.md",
+      "archive_path": "payload/spec/DELIVERY.md",
+      "sha256": "5e3471aa53b39778a504abef036c6b8b9500f7725f3584fc7a3ee5e101e12b1d",
+      "bytes": 5071,
+      "role": "APPROVED_SPEC_PACKAGE",
+      "portable_reading_view": "view/spec/DELIVERY.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/DELIVERY.json",
+      "archive_path": "payload/spec/DELIVERY.json",
+      "sha256": "e61db78286e6d0fec8ce31cc2e175d7c8e224bc5ab4108fb014cbac702a2cb70",
+      "bytes": 7068,
+      "role": "APPROVED_SPEC_DELIVERY_MANIFEST"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/DELIVERY.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/DELIVERY.json",
+      "sha256": "5f8b81e622b85bd187d311b17655a8f20d4311bdb008dc1f447cf8a52a82cebe",
+      "bytes": 14211,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/DELIVERY.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/DELIVERY.json",
+      "sha256": "b625db5b2086deaeb8366876be1a95aeecd208275deda2d846129b0401f99f65",
+      "bytes": 9421,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.md",
+      "sha256": "61536618576684c33f72fb4e0cde6ad99c32ab12a64be3a1b762e048d23363d8",
+      "bytes": 14782,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.md",
+      "sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c",
+      "bytes": 26346,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.json",
+      "sha256": "46c7c0fbd53926119d45a8682ca29e8001c445835fbd00895add778d8d1e70e6",
+      "bytes": 28883,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.md",
+      "sha256": "a981bf7af3aa9500f33a7f0a8b95992deb805562bf9f9ad558e1b3067f3db0f3",
+      "bytes": 6192,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.json",
+      "sha256": "53447b7197ccc2c55348bbbdc82c4e00ada00b135c9cf746e8a6a03d2b70c95a",
+      "bytes": 7399,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/ACCEPTANCE-RF02.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/ACCEPTANCE-RF02.json",
+      "sha256": "57722029f83edc7f1349f4df5a72a33d4e3fe9a56777f0f625fceea197d00b40",
+      "bytes": 5077,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02.json",
+      "sha256": "99a58fceb7735283d03808ba4569ea4774db443f75232aecce4c7122ead1e36d",
+      "bytes": 39319,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.json",
+      "sha256": "800ca141806e3f3814c1392ff656a4f2213b2e7b210f368a0e84e853ea14dcd1",
+      "bytes": 206521,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+      "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+      "bytes": 279109,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.json",
+      "sha256": "f8b4f7057233e2c9a6bdb7d561f76112dc1f37b9e6cf4d1cbaf6bbf5b5662edf",
+      "bytes": 26947,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/OLD-ENTRY-DISPOSITIONS.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/OLD-ENTRY-DISPOSITIONS.json",
+      "sha256": "44f8e0ad6ef11add260cf9dede875c5daffbe8f05808cfe29a2e0e577d97d905",
+      "bytes": 143718,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/FULL-STATE-OBSERVATION.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/FULL-STATE-OBSERVATION.md",
+      "sha256": "aa65047a2887d35e3f4ec916f54f2660f789ea8e5bef32c2ce72457c2f2c689b",
+      "bytes": 5317,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/author/FULL-STATE-OBSERVATION.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+      "sha256": "0eeedeb138add9138a2d904bb7fb69884876d85ae085f192d54ab32c8566f970",
+      "bytes": 750433,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/STRUCTURE.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/parts/STRUCTURE.json",
+      "sha256": "d10aa63899bd489b546c5f5746ddd5bebebfc41c23215fe6c898d21f54f55166",
+      "bytes": 108220,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+      "sha256": "8e3a98b1ad88ee658d98656605e1580b1d806ab3132013a13f304a957b84b04a",
+      "bytes": 87183,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.json",
+      "sha256": "65ff5481cab5caf18134d23287e34fa697a1d771b544acb0813aad380d6c9c7d",
+      "bytes": 21946,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.json",
+      "sha256": "9fc12ed938b2a4949f90b265d6148208b21738f6655a6f9b9e436cc5da767b2c",
+      "bytes": 9759,
+      "role": "EXPLICIT_SPEC_SOURCE_BINDING"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/DELIVERY.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/DELIVERY.md",
+      "sha256": "8b3c1dd8216ab4686636f16c942f738dae6f8c8f60b4878878776c74153a57a1",
+      "bytes": 5498,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/DELIVERY.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/USER-DECISION.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/USER-DECISION.md",
+      "sha256": "bde32ba1369879cfec4343d0364d4cddc160238ea5b6a03c7828fe36ba94d0c9",
+      "bytes": 696,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/USER-DECISION.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/USER-DECISION.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/USER-DECISION.json",
+      "sha256": "68105375cfa35628881ddd2db271a7606b37985547921758ddd1e820bfd33a3d",
+      "bytes": 1317,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/ACCEPTANCE-RF02.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/ACCEPTANCE-RF02.md",
+      "sha256": "d1fcd8d1b36cd90910a561ee60dab1bf820b64ac49f562b3d16cf43f69ccf309",
+      "bytes": 5305,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/ACCEPTANCE-RF02.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/NEXT-REVIEW.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/NEXT-REVIEW.md",
+      "sha256": "a222aa01cb1b1551f1c2767cdb4053572f7aa7f06421d230d09a0ace21cc12e3",
+      "bytes": 1573,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/NEXT-REVIEW.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/OPEN-PROTOCOL-QUESTIONS.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/author/OPEN-PROTOCOL-QUESTIONS.md",
+      "sha256": "6213c37f1344c51f5d0bf7dbda78b75838a2028ea3c474dfca511541e1264adc",
+      "bytes": 2424,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/author/OPEN-PROTOCOL-QUESTIONS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.md",
+      "sha256": "ecc62a15f58b527ba78e63f9b3db18f32ee0940262cd1e0227d77c169c7b1bb0",
+      "bytes": 11957,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.json",
+      "sha256": "366a6182601226e16dce67125c894437a2c1a5e6a3654a75ad69d500a27a9657",
+      "bytes": 12872,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/BASELINE-BINDINGS.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/evidence/BASELINE-BINDINGS.json",
+      "sha256": "ff3d560215d67f5d44b7ef6144dbb1be284998a74d9f289ca554ddcc84871ee9",
+      "bytes": 1413,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/R1-COUPLING-LOCATORS.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/evidence/R1-COUPLING-LOCATORS.json",
+      "sha256": "5c040da402ce51a5acb65799702b931fe3fef672740a76f11dcbc21da2193f21",
+      "bytes": 14650,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/ORDERING-COUNTEREXAMPLE.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/evidence/ORDERING-COUNTEREXAMPLE.md",
+      "sha256": "deaf81c7c577112fe9964157ef1eec8cd03694df08e1676ced042904f66d7494",
+      "bytes": 953,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/evidence/ORDERING-COUNTEREXAMPLE.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/ORDERING-COUNTEREXAMPLE.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/evidence/ORDERING-COUNTEREXAMPLE.json",
+      "sha256": "3e47298e8572302d7b6f8e28702ce125f14eaf6769ba3f99e65d1049b97d551f",
+      "bytes": 10497,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/AUTHOR-REPAIRS.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/author/AUTHOR-REPAIRS.md",
+      "sha256": "fb6d5a5e512c6894358d69fc0a33f294ce5599684a232dbb3b448664d7dd3eb0",
+      "bytes": 1839,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/author/AUTHOR-REPAIRS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02-R2-FIRST-PASS.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02-R2-FIRST-PASS.md",
+      "sha256": "b0b73a11b7c67a3f8bd6ca348e9b5cd1e3817f57f2111505b4ddb63dd552fc73",
+      "bytes": 20175,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02-R2-FIRST-PASS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02-R2-FIRST-PASS.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02-R2-FIRST-PASS.json",
+      "sha256": "8968781b4e8be34558552870fe6fd886c69ee353644d4e45aba391f915b7b537",
+      "bytes": 34004,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.json",
+      "sha256": "63556ec79cee3f734b2e97694143bba79efb1906c3556bac55eb75ae72683d1e",
+      "bytes": 988,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02.md",
+      "sha256": "d440846dfce0a66377297f2fb4fd7a5d8de0cc7e950c5b737fe61e121cd327bd",
+      "bytes": 16962,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-COMPARISON-R2.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/review/REVIEW-COMPARISON-R2.md",
+      "sha256": "5b33afdee7f9eace327a36961ab0d5d75ab32541f506492e274d7db18077c2b8",
+      "bytes": 10572,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-r2-20260909/review/REVIEW-COMPARISON-R2.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-COMPARISON-R2.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/review/REVIEW-COMPARISON-R2.json",
+      "sha256": "11507407602f9f7779388a673896cc943988ce9b17eea202fa8fcb4d6953f649",
+      "bytes": 13424,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/REVIEW-METADATA-REPAIR.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/evidence/REVIEW-METADATA-REPAIR.json",
+      "sha256": "ce79078aba3109ce9ff0062d367edff4dd21e599c1a8fa7960fef3e59a139b79",
+      "bytes": 1591,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-r2-20260909/evidence/FINAL-ARTIFACT-CHECK.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-r2-20260909/evidence/FINAL-ARTIFACT-CHECK.json",
+      "sha256": "9be8f7ab58d08c1765c19b08485946bd968b16a3cfddd0064c0983da4e194e34",
+      "bytes": 2634,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/DELIVERY.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/DELIVERY.md",
+      "sha256": "5baa124117a98b93a31954ba4711713cba31890bd2db04acce0a6cdd245ef9af",
+      "bytes": 5575,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/DELIVERY.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/BRIEF.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/BRIEF.md",
+      "sha256": "e4a68dbbe5c738a2bfc5f3e3979daa88dba2d326408e8474822cc189d0a7e8e7",
+      "bytes": 5053,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/BRIEF.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/COMPLETE-CLASSIFICATION-REQUIREMENT.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/COMPLETE-CLASSIFICATION-REQUIREMENT.md",
+      "sha256": "c3cc79a2bef52dff3d1f5612cf066b2466ecd370e98baad0dc077e23c894e8c9",
+      "bytes": 1428,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/COMPLETE-CLASSIFICATION-REQUIREMENT.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/SCHEME-COMPARISON.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/SCHEME-COMPARISON.md",
+      "sha256": "794c2326d4b35a50aec6360b87d9c844dfdd38414780a75f5367d5a60091a978",
+      "bytes": 11951,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/author/SCHEME-COMPARISON.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.md",
+      "sha256": "41fe65519c011fc173b47af5ee3cc721288b2de62219059fa9e69822135eccf8",
+      "bytes": 132932,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+      "sha256": "f6054b52f86ba80fafd6386d1ac6ede341c6c6a17cb9efbed5d2dad42571824d",
+      "bytes": 71970,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.md",
+      "sha256": "37b91d6fe61ad508e06a733b9972834bb61957f9249be8a612f7d33aa8157dd0",
+      "bytes": 24806,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.json",
+      "sha256": "251f00d938573e96516d3c1dc6f48a64241b19314fac598480dd7b1ab2e49a6d",
+      "bytes": 217400,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.md",
+      "sha256": "f5ea3426c08bcffa5e3a40a7d29631169d1776b5ffb2a50f4c526a766bc3629d",
+      "bytes": 11152,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-revision-delivery.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/independent-design-revision-delivery.json",
+      "sha256": "47213237f3356061f3312b09fcd9ba70a7116594ed9d0f8237dc7d9bec68a30f",
+      "bytes": 3490,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+      "sha256": "100f97da6133f5378d7711e7f523f20401d0bbb905e0de402ea502dee6a73013",
+      "bytes": 34379,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.json",
+      "sha256": "2097721341da9021ed30d6963f6fa343d98e3c1ae14ca75995390ec0d9a921fb",
+      "bytes": 852405,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/existing-evidence-bindings.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/existing-evidence-bindings.json",
+      "sha256": "c70f303d8a7e8b944316cb165df399493076ddf3a1deeb740d200b4ce2600f53",
+      "bytes": 35278,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-CLASSIFICATION-INTEGRATION.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/EXISTING-CLASSIFICATION-INTEGRATION.md",
+      "sha256": "1579717e22287df2764579ecea1d510051792e945fd13e33796200fdb2cc5bd1",
+      "bytes": 54931,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/author/EXISTING-CLASSIFICATION-INTEGRATION.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-CLASSIFICATION-INTEGRATION.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/EXISTING-CLASSIFICATION-INTEGRATION.json",
+      "sha256": "3caab919d3504bc8afcee6a0bf4a55bab894c74b43e40f13df381d3c49ea1741",
+      "bytes": 1373112,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/OLD-ENTRY-DISPOSITIONS.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/OLD-ENTRY-DISPOSITIONS.md",
+      "sha256": "b140fda52275c7ef6614c48e323cf0a3033bab1356d39e9a499c29926c7b7b10",
+      "bytes": 52593,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/author/OLD-ENTRY-DISPOSITIONS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/author/CALLER-AND-CLASSIFICATION-CHECKS.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/author/CALLER-AND-CLASSIFICATION-CHECKS.md",
+      "sha256": "bfb7add061f981a82a7c5192497e10ee4d0efcfe9b1750b9afd0936a6a9de8bb",
+      "bytes": 4405,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/author/CALLER-AND-CLASSIFICATION-CHECKS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-ROOT.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-ROOT.md",
+      "sha256": "92c3d230009e4bff086b1e962d20df1281654c3c85bcbc501618b92f4d928559",
+      "bytes": 1612,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-ROOT.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-ROOT.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-ROOT.json",
+      "sha256": "9b30ba8266f01454d35303e195a64e9469172ef6912c193a4e89b8dd59af739a",
+      "bytes": 6690,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-SOURCES.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-SOURCES.md",
+      "sha256": "50e6ffbd8d073b3b0fdf87ea888bb33d04013aa2c21d811749757b0e0ebc4759",
+      "bytes": 2607,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-SOURCES.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-SOURCES.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-SOURCES.json",
+      "sha256": "be3e440a52abd3d0525653b2da3c6851688ed4be2590e85aa35f15747010f40f",
+      "bytes": 6299,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-SOURCES-CLOSURE.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-SOURCES-CLOSURE.json",
+      "sha256": "8b13eb1158e1e8cb393ad45590b625c0c5538655ba2bc523d6a8bed6bcd22702",
+      "bytes": 5134,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-INDEPENDENT-PROTOCOL.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/review/REVIEW-INDEPENDENT-PROTOCOL.md",
+      "sha256": "40ef47381c5e3d25e0c729955fe8c49133d089ce91d4ea3637e42ded8f80a020",
+      "bytes": 10555,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/review/REVIEW-INDEPENDENT-PROTOCOL.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-INDEPENDENT-PROTOCOL.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/review/REVIEW-INDEPENDENT-PROTOCOL.json",
+      "sha256": "7c992d9f03b5839c0e16035740736d1c4e30840209840e686edae1c721088121",
+      "bytes": 22463,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-FULL-STATE-OBSERVATION.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/review/REVIEW-FULL-STATE-OBSERVATION.md",
+      "sha256": "bc26c0665afd3d7a5388af1eac075e9f74e324127ceeaa25df181e45e2afeb6e",
+      "bytes": 1941,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/review/REVIEW-FULL-STATE-OBSERVATION.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-FULL-STATE-OBSERVATION.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/review/REVIEW-FULL-STATE-OBSERVATION.json",
+      "sha256": "1bd844e087f783e3b8f4731bac2f38af40746072b2b7247cfe167a81d401fc5f",
+      "bytes": 6520,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-COMPARISON.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/review/REVIEW-COMPARISON.md",
+      "sha256": "20a2104356293a33ff219cd98c285d0de32f6cbec5c9df2365771554f17765fc",
+      "bytes": 2215,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/review/REVIEW-COMPARISON.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-COMPARISON.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/review/REVIEW-COMPARISON.json",
+      "sha256": "0e2fce7927cc0a25468bd7f7221b1b7428d065702b09b4c8d677a34ae3cd2e13",
+      "bytes": 8414,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/evidence/CLASSIFICATION-OUTPUT-PROBE.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/evidence/CLASSIFICATION-OUTPUT-PROBE.md",
+      "sha256": "2d4d30541664199ead754267d9a66881a7643534238288e508534971ce397830",
+      "bytes": 12654,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/evidence/CLASSIFICATION-OUTPUT-PROBE.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/evidence/CLASSIFICATION-OUTPUT-PROBE.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/evidence/CLASSIFICATION-OUTPUT-PROBE.json",
+      "sha256": "fa163817464681376175a3b07cb86054d1c959906c6cdc43008b5042aceedeb6",
+      "bytes": 10213,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/evidence/INTERVAL-ORDER-ENUMERATION.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/evidence/INTERVAL-ORDER-ENUMERATION.json",
+      "sha256": "88c5f52c95becc2bdba4716055a46a115588fed19685e9f7d7bcba3306369843",
+      "bytes": 2960,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/evidence/PENDING-AUTHORITY-FOLLOWUP.md",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/evidence/PENDING-AUTHORITY-FOLLOWUP.md",
+      "sha256": "c38abafff1bd016883ce993e85c6358d5e207e6c8601001ac897008b39654c74",
+      "bytes": 562,
+      "role": "INHERITED_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-architecture-20260908/evidence/PENDING-AUTHORITY-FOLLOWUP.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/evidence/PENDING-AUTHORITY-FOLLOWUP.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/evidence/PENDING-AUTHORITY-FOLLOWUP.json",
+      "sha256": "09d0223350d31358514c9b81efba81b3113b7f551be04a942ac9e302301b896b",
+      "bytes": 1769,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/evidence/EXISTING-INTEGRATION-ROOT-CHECK.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/evidence/EXISTING-INTEGRATION-ROOT-CHECK.json",
+      "sha256": "fe84fa834851b36548f4f317d1f0bded034ffd1431720e0434098c3cf49faf2b",
+      "bytes": 943,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/evidence/FINAL-WORKSPACE-STATE.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/evidence/FINAL-WORKSPACE-STATE.json",
+      "sha256": "417738851c92b5044e4388fac596e450d195388a664ce2cc6feccca762ca1940",
+      "bytes": 526,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-architecture-20260908/evidence/OLD-ENTRY-ROOT-CHECK.json",
+      "archive_path": "payload/sources/newchanlun-1339-architecture-20260908/evidence/OLD-ENTRY-ROOT-CHECK.json",
+      "sha256": "b947d143ea2c435779510c233c8ceea3869281d450e856de4c52fd52481752b1",
+      "bytes": 2298,
+      "role": "INHERITED_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/DELIVERY.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/DELIVERY.json",
+      "sha256": "d45fbf93ff3fa018564df1bd7096559ae6889c1258fac521f5a6e9ea69c3a5bf",
+      "bytes": 8108,
+      "role": "REQUIREMENTS_SOURCE_MANIFEST"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/REQUIREMENTS.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/REQUIREMENTS.md",
+      "sha256": "690dcd65e029e5069c46d5ade40684a831405d9e5af214624136e7fd52702b19",
+      "bytes": 4702,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/author/REQUIREMENTS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/COVERAGE.md",
+      "sha256": "f937b8659546be750d28f2d82038f2f64820f4e1d75054f7fe121a3766c847d2",
+      "bytes": 48249,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/author/COVERAGE.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.md",
+      "sha256": "d7e9a66eb78434eea22bdec1eb4724c729c5726f3e5103c3e375a30260b20a2b",
+      "bytes": 17319,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.md",
+      "sha256": "b6f695cbfc1f8f34567c11476d66a3d3773bd747a1cc73898d6f8f1a4e9b825f",
+      "bytes": 8565,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.md",
+      "sha256": "21d8b29ba2b00c6dfc50acd9ab02040848df56a8c9601a0406ae376d134fbb35",
+      "bytes": 1760,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.json",
+      "sha256": "21543f6b61df3e1c94f2b96b5b153e2f492fb3e9799b5d6af9c403ac65770541",
+      "bytes": 2124,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/STRUCTURE.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/parts/STRUCTURE.md",
+      "sha256": "5addccea0f8c8697274a439b46fd18fc7243e2c7dd07acec940e539f62077cdc",
+      "bytes": 89584,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/author/parts/STRUCTURE.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+      "sha256": "9d0ff4a365963ac92393a9bf73c43d2e405f350e9c8601226954d983b6b19f01",
+      "bytes": 61066,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.md",
+      "sha256": "4d56ffca7fd01682aca65c48510230e694a040c448cb4d2bc52ed19f46c0e9d8",
+      "bytes": 45352,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.json",
+      "sha256": "ef573978d80d395363570d938b449f8809391963c913bb07eec774c29e599de7",
+      "bytes": 160376,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-STRUCTURE.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/review/REVIEW-STRUCTURE.md",
+      "sha256": "4da8547a97e2600ffb23e616dfdade9d9725f98297fc62567fe3794dbe179286",
+      "bytes": 19138,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/review/REVIEW-STRUCTURE.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-STRUCTURE.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/review/REVIEW-STRUCTURE.json",
+      "sha256": "fa634d5402bfac66e0a3394cdc5d0367f6950dbec95eb0aeff88862c9c7c4ce4",
+      "bytes": 46272,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-FG.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/review/REVIEW-FG.md",
+      "sha256": "a3023d9680221c566ad8ec26acc530eb0ac1ef5212ba9da961f496ab222bca03",
+      "bytes": 17184,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/review/REVIEW-FG.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-FG.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/review/REVIEW-FG.json",
+      "sha256": "01c4319694fe479c1bc507c32e81017b3e87c032795d6328616a5b1a0f4c81c6",
+      "bytes": 99234,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-OBS.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/review/REVIEW-OBS.md",
+      "sha256": "77212451da8a402ea89af883f1e359035a76d25da543e92e7d11c8aec9ae11b7",
+      "bytes": 12298,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/review/REVIEW-OBS.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-OBS.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/review/REVIEW-OBS.json",
+      "sha256": "42cd54d62f6c040d260b508e8c3484ff3c1c54d4b391b118796d48d75d15ba11",
+      "bytes": 57022,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-INTEGRATION.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/review/REVIEW-INTEGRATION.md",
+      "sha256": "f79a55785436d1413798e5436ec3b455ccfd252f9d928f864a11d8ae654842a4",
+      "bytes": 4551,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/review/REVIEW-INTEGRATION.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-INTEGRATION.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/review/REVIEW-INTEGRATION.json",
+      "sha256": "2a8a506fbd010d61a848b565b22a6bab342a71e0bbe997be88cab0bb59d0a96c",
+      "bytes": 100783,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/SCOPE-CONFIRMATION.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/SCOPE-CONFIRMATION.md",
+      "sha256": "c5da285049367389d02020098703ed3f5edfcb7a94f3d731bb68b43180d42e6c",
+      "bytes": 784,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/SCOPE-CONFIRMATION.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/evidence/FINAL-DOCUMENT-CHECK.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/evidence/FINAL-DOCUMENT-CHECK.json",
+      "sha256": "5df4a1c4dcd5e0cb2ceddf1db6485004e7b301790253fba0d266889df296ebea",
+      "bytes": 3920,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/evidence/DOCUMENT-CHECK.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/evidence/DOCUMENT-CHECK.json",
+      "sha256": "1bf26483d6b1335683eeeae7fb8d875e1446fda3bd38312cfc6c46532e285408",
+      "bytes": 1978,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/evidence/INTAKE-BINDINGS.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/evidence/INTAKE-BINDINGS.json",
+      "sha256": "a9191aa3af0823138f6b2d6b1ac6b15bd290b1100018ad6167676c46d380270b",
+      "bytes": 1145,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/evidence/WORKSPACE-INTAKE.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/evidence/WORKSPACE-INTAKE.json",
+      "sha256": "ba05cfdbe70b05c9e0a5dc0b9471651430bd84adbe4261df897ced1279afe590",
+      "bytes": 17784,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/evidence/issue-1323.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/evidence/issue-1323.json",
+      "sha256": "bdaaf7c893bd588672dade45cc343da73d05df73b89ec1532b2c64868c20e724",
+      "bytes": 11001,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/evidence/issue-1339.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/evidence/issue-1339.json",
+      "sha256": "5ea15e6977067b4b6ade9bd566851f557d485bf3420b99d7d89b3863d63bd799",
+      "bytes": 6899,
+      "role": "REQUIREMENTS_SOURCE_PAYLOAD"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/SCOPE-CONFIRMATION.json",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/SCOPE-CONFIRMATION.json",
+      "sha256": "28d9eb728617a6f6372a7b4d902d8efe15b918a26a9db21103f7b9749314f348",
+      "bytes": 1280,
+      "role": "REQUIREMENTS_CONFIRMATION"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1339-requirements-20260908/DELIVERY.md",
+      "archive_path": "payload/sources/newchanlun-1339-requirements-20260908/DELIVERY.md",
+      "sha256": "b0055f66219d13119b1bd1a1b7e149125592a89e99d624de8ab0fc9f1b165948",
+      "bytes": 2878,
+      "role": "REQUIREMENTS_CONFIRMATION",
+      "portable_reading_view": "view/sources/newchanlun-1339-requirements-20260908/DELIVERY.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-reviews/PROTOCOL-SPEC-REVIEW.json",
+      "archive_path": "payload/spec/snapshots/s1-initial-reviews/PROTOCOL-SPEC-REVIEW.json",
+      "sha256": "cf5e4e564d607eafaa25556500aedf3709a01a9b34741a0fc1ab235f9c89cb08",
+      "bytes": 17219,
+      "role": "REVIEW_HISTORY_NOT_CURRENT_CONTRACT"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-reviews/PROTOCOL-SPEC-REVIEW.md",
+      "archive_path": "payload/spec/snapshots/s1-initial-reviews/PROTOCOL-SPEC-REVIEW.md",
+      "sha256": "a7a37fc40695910471fbd56cd501d71e7f67e2d56a4236ac1872cfd59d868705",
+      "bytes": 10317,
+      "role": "REVIEW_HISTORY_NOT_CURRENT_CONTRACT",
+      "portable_reading_view": "view/spec/snapshots/s1-initial-reviews/PROTOCOL-SPEC-REVIEW.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-reviews/SCOPE-SPEC-REVIEW.json",
+      "archive_path": "payload/spec/snapshots/s1-initial-reviews/SCOPE-SPEC-REVIEW.json",
+      "sha256": "2fb8ac0d84b02f5a140573cab77fcdc884400fb60d27c6ea047672c412a6c254",
+      "bytes": 14918,
+      "role": "REVIEW_HISTORY_NOT_CURRENT_CONTRACT"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-reviews/SCOPE-SPEC-REVIEW.md",
+      "archive_path": "payload/spec/snapshots/s1-initial-reviews/SCOPE-SPEC-REVIEW.md",
+      "sha256": "264d9cb8e5d1e7da7346b671a13a378a8a34ef77dd144041827efcc2753246e4",
+      "bytes": 10373,
+      "role": "REVIEW_HISTORY_NOT_CURRENT_CONTRACT",
+      "portable_reading_view": "view/spec/snapshots/s1-initial-reviews/SCOPE-SPEC-REVIEW.md"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s2-intermediate-protocol-review/PROTOCOL-SPEC-REVIEW.json",
+      "archive_path": "payload/spec/snapshots/s2-intermediate-protocol-review/PROTOCOL-SPEC-REVIEW.json",
+      "sha256": "26ed3a839347d0f0477ddc0255d730e35ba30978f5c8934ea7845271538e36c1",
+      "bytes": 20011,
+      "role": "REVIEW_HISTORY_NOT_CURRENT_CONTRACT"
+    },
+    {
+      "original_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s2-intermediate-protocol-review/PROTOCOL-SPEC-REVIEW.md",
+      "archive_path": "payload/spec/snapshots/s2-intermediate-protocol-review/PROTOCOL-SPEC-REVIEW.md",
+      "sha256": "cfb94b4ad862aed31332d999c054fb201a87e4b132339fdd040d4ecc94c17d48",
+      "bytes": 11584,
+      "role": "REVIEW_HISTORY_NOT_CURRENT_CONTRACT",
+      "portable_reading_view": "view/spec/snapshots/s2-intermediate-protocol-review/PROTOCOL-SPEC-REVIEW.md"
+    }
+  ],
+  "file_count": 137,
+  "total_payload_bytes": 9129216,
+  "approved_spec_delivery_sha256": "e61db78286e6d0fec8ce31cc2e175d7c8e224bc5ab4108fb014cbac702a2cb70",
+  "approval_record": "APPROVAL.json",
+  "not_main_merged": true
+}

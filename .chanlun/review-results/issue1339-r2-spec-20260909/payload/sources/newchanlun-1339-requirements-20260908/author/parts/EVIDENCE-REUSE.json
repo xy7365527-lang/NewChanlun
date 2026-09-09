@@ -1,0 +1,4151 @@
+{
+  "schema": "issue1339.evidence-reuse-navigation.v1",
+  "issue": 1339,
+  "artifact_status": "外置工作草稿；复用导航与验收准备，非spec/架构采纳/实施验收",
+  "created_at_utc": "2026-09-08T06:44:52.597733+00:00",
+  "scope": "新#1335最终冻结扫描及#1323三代表链报告；不读旧#1321/#1322/#1325/#1326原件，不重扫仓内代码",
+  "sources": {
+    "scan_report": {
+      "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+      "sha256": "a50acf92da8f9abf878b0d9397e6a6b0dbc8fa04970ecd69aaa526fd08ffdcd1",
+      "expected_sha256": "a50acf92da8f9abf878b0d9397e6a6b0dbc8fa04970ecd69aaa526fd08ffdcd1",
+      "hash_match": true,
+      "source_selection_pointer": "/canonical_current_files/readable_report",
+      "read_scope": "全文或本映射引用行",
+      "source_kind": "frozen_scan_artifact"
+    },
+    "obligations": {
+      "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+      "sha256": "7469dd62fa74a188dbc7924aa75c35e1e0717dbf3414f3c49440764e56dd8466",
+      "expected_sha256": "7469dd62fa74a188dbc7924aa75c35e1e0717dbf3414f3c49440764e56dd8466",
+      "hash_match": true,
+      "source_selection_pointer": "/canonical_current_files/obligation_dispositions",
+      "read_scope": "全文结构及本映射引用项；不重读其指向的原源码",
+      "source_kind": "frozen_scan_artifact"
+    },
+    "semantics": {
+      "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+      "sha256": "1bb4312b02ec39d7932234c1fa8051204ac30e23a672d4398f2dcbd14786bbee",
+      "expected_sha256": "1bb4312b02ec39d7932234c1fa8051204ac30e23a672d4398f2dcbd14786bbee",
+      "hash_match": true,
+      "source_selection_pointer": "/canonical_current_files/normative_source_layers",
+      "read_scope": "全文结构及本映射引用项；不重读其指向的原源码",
+      "source_kind": "frozen_scan_artifact"
+    },
+    "contract_readable": {
+      "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+      "sha256": "cbbf3cc6203f2662475ff4119b2f20c16d16ef67eb8fa889dfbd60118d86ee9f",
+      "expected_sha256": "cbbf3cc6203f2662475ff4119b2f20c16d16ef67eb8fa889dfbd60118d86ee9f",
+      "hash_match": true,
+      "source_selection_pointer": "/canonical_current_files/contract_semantic_readable",
+      "read_scope": "全文或本映射引用行",
+      "source_kind": "frozen_scan_artifact"
+    },
+    "contracts": {
+      "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+      "sha256": "cfd2743c373760617adab87e8cbfb7437b80159c2969e7114f2ccb86dfdb7b40",
+      "expected_sha256": "cfd2743c373760617adab87e8cbfb7437b80159c2969e7114f2ccb86dfdb7b40",
+      "hash_match": true,
+      "source_selection_pointer": "/canonical_current_files/contract_semantic_dispositions",
+      "read_scope": "全文结构及本映射引用项；不重读其指向的原源码",
+      "source_kind": "frozen_scan_artifact"
+    },
+    "scan_handoff": {
+      "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+      "sha256": "af2cc7b70c0ff1646318d5b2078de5f563835c7ee4b84e3adea68ad4a386368a",
+      "expected_sha256": "af2cc7b70c0ff1646318d5b2078de5f563835c7ee4b84e3adea68ad4a386368a",
+      "hash_match": true,
+      "source_selection_pointer": "/canonical_current_files/next_stage_handoff",
+      "read_scope": "全文或本映射引用行",
+      "source_kind": "frozen_scan_artifact"
+    },
+    "findings": {
+      "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+      "sha256": "b13df8091089c38d6a4337d3ad3813e305fae8930898ec8cf5651bed9901221c",
+      "expected_sha256": "b13df8091089c38d6a4337d3ad3813e305fae8930898ec8cf5651bed9901221c",
+      "hash_match": true,
+      "read_scope": "全文",
+      "source_kind": "received_evidence_or_receipt",
+      "hash_note": "与交接给定 SHA 一致"
+    },
+    "root_receipt": {
+      "source_path": "/tmp/issue1323-frontend-state-requirements/ROOT-RECEIPT.json",
+      "sha256": "16958f1e88f0e7793436751a3f2066930d53ec9a06f3c5ae8dad7b573fafd82c",
+      "expected_sha256": null,
+      "hash_match": null,
+      "read_scope": "全文",
+      "source_kind": "received_evidence_or_receipt",
+      "hash_note": "本轮记录的现有字节 SHA；不是独立外部签名"
+    },
+    "scan_delivery": {
+      "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+      "sha256": "4d24de8692c915f95544eb7c4f041e8dd403bfda503e9fe1a97e4a5e715455ea",
+      "expected_sha256": null,
+      "hash_match": null,
+      "read_scope": "全文最终索引",
+      "source_kind": "received_evidence_or_receipt",
+      "hash_note": "本轮记录的现有字节 SHA；不是独立外部签名"
+    },
+    "three_chain_evidence_bytes": {
+      "source_path": "/tmp/issue1323-frontend-state-requirements/EVIDENCE.json",
+      "sha256": "a525b8c3c0ddf2de47dcc4a4b8e8aa6ea6ff50c88e9b64fe8426aa8791f20907",
+      "expected_sha256": "a525b8c3c0ddf2de47dcc4a4b8e8aa6ea6ff50c88e9b64fe8426aa8791f20907",
+      "hash_match": true,
+      "read_scope": "仅校验包字节；未重读全部记录，未重验91个源码文件",
+      "source_kind": "byte_only_support"
+    }
+  },
+  "evidence_domains": [
+    {
+      "id": "EV-001",
+      "title": "收据、版本与覆盖单位",
+      "reuse_summary": "复用最终封存静态扫描与三代表链报告的证据范围，保留历史版本、未读及运行未知。",
+      "contract_ids": [],
+      "sources": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+          "json_pointer": "/counts_and_units"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+          "json_pointer": "/unverified_or_not_claimed"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+          "json_pointer": "/retained_low_findings/0"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            7,
+            31
+          ]
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/ROOT-RECEIPT.json",
+          "json_pointer": "/source_file_bindings_checked"
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/ROOT-RECEIPT.json",
+          "json_pointer": "/three_representative_chains_only"
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/ROOT-RECEIPT.json",
+          "json_pointer": "/all_project_execution"
+        }
+      ],
+      "previously_checked": [
+        "#1335为171合同/94锁射程单元的静态扫描交付；其0H/0M/1L是制品评审，LOW是冻结报告否定句旧168/89计数残留。",
+        "三链报告原收据记91个来源字节绑定、0失败；本轮核报告/收据及EVIDENCE包字节，未重验这些原文件。"
+      ],
+      "not_established": [
+        "171合同不等于171个正确实现，94锁不等于94次测试通过。",
+        "#1335的源码版本644075a6、候选语义版本7af65b34与三链报告HEAD6df8d192不同；任何源事实都不自动当今日源码复验。",
+        "828条R有字面context不等全文精读；1194条R无字面context继续是未读范围，不能称无关或缺件。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "只对后续真正用作当前断言的合同核版本/变更范围；无漂移及无新问题时复用原报告，不重做全链扫描。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "验收范围",
+          "版本",
+          "读过与未读",
+          "静态与运行",
+          "计数单位"
+        ],
+        "associated_obligation_names": [
+          "全定义覆盖",
+          "逐项实现证据与运行验收分层"
+        ],
+        "directed_static_contract_ids": [],
+        "same_domain_navigation_limit": "本域只证明收据和覆盖单位，不直接证明任一ST/FG实现。",
+        "associated_observation_requirement_ids": [
+          "OB-020"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-002",
+      "title": "已有需求约束的可复用导航",
+      "reuse_summary": "16组SEM与10条原文关系是既有要求和来源标签的导航，不能成为本轮全定义需求白名单。",
+      "contract_ids": [],
+      "sources": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+          "json_pointer": "/items"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+          "json_pointer": "/original_relations"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            83,
+            93
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            16,
+            22
+          ]
+        }
+      ],
+      "previously_checked": [
+        "既有权威分层、同判据、持久重、三方向、资金与量的角色、净毛约束和未定量均分项保留。",
+        "OBLIGATION-DISPOSITIONS将义务未证、事实疑点、表示问题、缺材料、运行未知分栏。"
+      ],
+      "not_established": [
+        "这是原成果所用要求的处置，不是本轮对当前正本/110课的全覆盖精读。",
+        "不能把候选合同关联当符合性证书，不能由代码标签新定语义、Owner、资金布局或规则。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "由主线新增完整需求表对齐当前正本；发现遗漏时只补该语义或验收域，保留本表作为已查材料导航。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "权威",
+          "SEM",
+          "原文关系",
+          "义务处置",
+          "同判据"
+        ],
+        "associated_obligation_names": [
+          "16组既有义务",
+          "10条既有原文关系",
+          "当前正本全量对齐"
+        ],
+        "directed_static_contract_ids": [],
+        "same_domain_navigation_limit": "仅既有规范/义务导航；ST/FG逐项语义须对当前正本，逐项实现须另找合同原证。",
+        "associated_observation_requirement_ids": [
+          "OB-003",
+          "OB-020"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-003",
+      "title": "行情身份、时钟、会话与层级输入",
+      "reuse_summary": "生产者/消费者可比前提包含symbol/合约、行情来源、原始与合并索引、实际时间、结构级别及会话。",
+      "contract_ids": [
+        "IO-C01",
+        "IO-C02",
+        "KERNEL-C006",
+        "KERNEL-C016"
+      ],
+      "sources": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            35,
+            45
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            7,
+            9
+          ]
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            14,
+            14
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/0"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/1"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/140"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/150"
+        }
+      ],
+      "previously_checked": [
+        "缓存读合并写、REST/WS参数差异、Theta量化合成时钟、按TF各自创建引擎的回放路径均有静态合同。",
+        "显示TF、结构递归level、操作级别和Voice depth已有区分。"
+      ],
+      "not_established": [
+        "没有统一行情身份/时钟/观察版本的运行契约验收。",
+        "同TF或同裸索引不证明同结构级别/同一输入；TF并行回放不是结构递归。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "确定本轮拟支持入口后，按入口各取一个身份/时钟/版本样本核字段映射；先用既有合同，只有新增/变动边界补读。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "数据身份",
+          "输入版本",
+          "raw/merged/source索引",
+          "结构级别",
+          "操作级别",
+          "Voice depth",
+          "会话代际"
+        ],
+        "associated_obligation_names": [
+          "同一输入可比性",
+          "结构级别与操作级别区分"
+        ],
+        "directed_static_contract_ids": [
+          "IO-C01",
+          "IO-C02",
+          "KERNEL-C006",
+          "KERNEL-C016"
+        ],
+        "same_domain_navigation_limit": "数据与时钟合同已定向静态查；任何完整ST/FG身份贯通或同版本保证仍仅同域导航。",
+        "associated_observation_requirement_ids": [
+          "OB-001",
+          "OB-002",
+          "OB-015"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-004",
+      "title": "库能力与有效挂载的区分",
+      "reuse_summary": "结构分类、同级别分解、证书簿和managed授权有实现或生产体，但每个实际入口的挂载与消费必须单列。",
+      "contract_ids": [
+        "KERNEL-C008",
+        "KERNEL-C009",
+        "KERNEL-C011",
+        "KERNEL-C012",
+        "KERNEL-C013",
+        "KERNEL-C014"
+      ],
+      "sources": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            43,
+            49
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            8,
+            9
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/5"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/7"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/142"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/143"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/145"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/146"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/147"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/148"
+        }
+      ],
+      "previously_checked": [
+        "OperationSequence库与pipeline挂载存在；所核Owned流式入口传空levels，因此该通道未生效。",
+        "E2eO/managed有实际消费调用；候选和链证书保终态历史，独立active-nest/retrace有状态与恢复合同。"
+      ],
+      "not_established": [
+        "库输出不等挂入所有生产入口；managed返回或授权不等实际策略决策写回。",
+        "结构向上构造、同级别分解、多级别联立、主动定位闭环不能互替。",
+        "active-nest/retrace模块可见、重导出或手工测试不证明主入口已消费；fresh和incremental不互为完整历史oracle。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "只为完整需求表中所选入口核有效挂载/返回消费；不重查已明确OperationSequence空挂载，不以这条断边断言全仓无等义实现。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "OperationSequence",
+          "结构塔",
+          "同级别分解",
+          "联立",
+          "主动定位",
+          "证书终态",
+          "有效挂载"
+        ],
+        "associated_obligation_names": [
+          "向上构造/同级别分解/联立/主动定位互不替代",
+          "观察与授权消费分开"
+        ],
+        "directed_static_contract_ids": [
+          "KERNEL-C008",
+          "KERNEL-C009",
+          "KERNEL-C011",
+          "KERNEL-C012",
+          "KERNEL-C013",
+          "KERNEL-C014"
+        ],
+        "same_domain_navigation_limit": "给定库体、Owned空挂载和证书/授权消费是直接静态事实；完整ST/FG三方向闭环仅同域导航。",
+        "associated_observation_requirement_ids": [
+          "OB-002",
+          "OB-004",
+          "OB-005",
+          "OB-010",
+          "OB-011"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-005",
+      "title": "走势状态：Rust生产输出到UI的断边",
+      "reuse_summary": "三链R1已有Rust MoveBlock构造与Classification输出；现有图表WS另走Python，快照消费者没有安装状态。",
+      "contract_ids": [
+        "KERNEL-C002",
+        "KERNEL-C004",
+        "KERNEL-C017",
+        "IO-C06"
+      ],
+      "sources": [
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            20,
+            24
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            39,
+            47
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/136"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/138"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/151"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/5"
+        }
+      ],
+      "previously_checked": [
+        "Rust MoveBlock含kind/dir/status/level_lift，Active尾和Classification.levels[].moves实际构造已查。",
+        "所核WS生产源为Python RecursiveOrchestrator；Python move快照确实序列化；两个UI hook只log snapshot。"
+      ],
+      "not_established": [
+        "不能说后端完全没有走势分类；不能说UI已显示同一份Rust生产状态。",
+        "Python高层快照、overlay和Rust输出不能拼作一次一致观察链；未做当前服务/UI运行验证。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "以已知断边设未来验收：同一对象/切面从生产输出到传输再到显示逐字段可追溯；需求阶段补齐需显示的其它分类轴，不重复R1扫描。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "走势类型",
+          "盘整/上涨/下跌",
+          "MoveBlock",
+          "Active尾",
+          "Classification",
+          "snapshot handler"
+        ],
+        "associated_obligation_names": [
+          "全定义结构状态可观察性",
+          "生产与前端同源"
+        ],
+        "directed_static_contract_ids": [
+          "KERNEL-C002",
+          "KERNEL-C004",
+          "KERNEL-C017",
+          "IO-C06"
+        ],
+        "same_domain_navigation_limit": "R1已直接定向查Rust构造→独立Python传输→UI只log；其余走势分类轴/有效域不能借R1取得逐项实现信用。",
+        "associated_observation_requirement_ids": [
+          "OB-003",
+          "OB-005",
+          "OB-015",
+          "OB-019"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-006",
+      "title": "小转大：必要条件、生产门与事件时间",
+      "reuse_summary": "三链R2已查必要条件行的真实生产路径和信息丢失，不能把候选、准入门或无输出解释成发生/未发生。",
+      "contract_ids": [
+        "ACT-C037",
+        "KERNEL-C013"
+      ],
+      "sources": [
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            26,
+            30
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+          "line_range": [
+            79,
+            79
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/72"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/147"
+        }
+      ],
+      "previously_checked": [
+        "XiaozhuandaCandidate与RunResult.turn_class_rows有生产链；启用门且需要重建索引是产出条件。",
+        "当前投影缺完整c′、证书主键、确认/获知时点及修订历史；所核HTTP/WS/UI未接。"
+      ],
+      "not_established": [
+        "必要条件不保证大级别转折完成；经济XzdEvidence::gate_pass不是UI现象确认。",
+        "bar=turn_source不能冒充获知时点；门关闭/未重建/无命中不能统一视为不发生。",
+        "产量、非空样例、按当时可知回放未运行。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "先在验收表固定必要条件与完成事实的独立语义及时间字段；后续仅补所选生产入口的证据保真和非空用例，运行留待批准的验证阶段。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "小转大",
+          "必要条件",
+          "XiaozhuandaCandidate",
+          "turn_class_rows",
+          "获知时点",
+          "确认",
+          "准入"
+        ],
+        "associated_obligation_names": [
+          "必要条件与完成事实分开",
+          "证据/时点保真",
+          "诊断不得代准入"
+        ],
+        "directed_static_contract_ids": [
+          "ACT-C037",
+          "KERNEL-C013"
+        ],
+        "same_domain_navigation_limit": "R2已直接定向查必要条件产出门、字段投影和UI未消费；完整小转大完成/产量/因果回放仍未认证。",
+        "associated_observation_requirement_ids": [
+          "OB-003",
+          "OB-009",
+          "OB-010",
+          "OB-013",
+          "OB-017"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-007",
+      "title": "中枢扩展：关系/升档输出与完整高级结构",
+      "reuse_summary": "三链R3已核核心分离且外缘重叠判据与level_lift输出；高级别中枢全构造、血缘及发布仍未认证。",
+      "contract_ids": [
+        "KERNEL-C008",
+        "KERNEL-C017"
+      ],
+      "sources": [
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            32,
+            36
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            45,
+            49
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/142"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/151"
+        }
+      ],
+      "previously_checked": [
+        "关系判据和level_lift=1的盘整块构造已查，下一级输入另取lc.upper_moves。",
+        "HTTP overlay另算Python结构，UI画各级中枢框，未接Rust扩展关系及对象前后关联。"
+      ],
+      "not_established": [
+        "level_lift不是完整操作升档或高级中枢血缘发布证明；矩形变大/多一个框不是扩展事件验收。",
+        "本轮不能从R3得出所有高级中枢构造缺失，也不能声称全构造已完成。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "这是值得后续定点补查的链：只沿已知upper_moves入口到高级结构/血缘生产与出口，说明何时获知及修订关系；不因此重扫所有分类器。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "中枢扩展",
+          "核心分离",
+          "外缘重叠",
+          "level_lift",
+          "upper_moves",
+          "高级中枢",
+          "血缘"
+        ],
+        "associated_obligation_names": [
+          "扩展关系与高级结构完整构造分开",
+          "结构升档与经营升档分开"
+        ],
+        "directed_static_contract_ids": [
+          "KERNEL-C008",
+          "KERNEL-C017"
+        ],
+        "same_domain_navigation_limit": "R3已直接定向查关系/升档块及HTTP/UI断边；完整高级中枢构造和FG主体升档只能作同域导航。",
+        "associated_observation_requirement_ids": [
+          "OB-004",
+          "OB-005",
+          "OB-009",
+          "OB-010",
+          "OB-019"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-008",
+      "title": "传输、UI消费与撤回/upsert",
+      "reuse_summary": "后端结构diff、传输包和UI状态写者是三个不同合同；已有事件或文档不证明完整撤回安装。",
+      "contract_ids": [
+        "IO-C06",
+        "KERNEL-C003",
+        "KERNEL-C019",
+        "C-LOCK-009"
+      ],
+      "sources": [
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            24,
+            24
+          ]
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            36,
+            38
+          ]
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            46,
+            49
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            39,
+            41
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/5"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/137"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/153"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/106"
+        }
+      ],
+      "previously_checked": [
+        "Python结构diff与TaggedEvent有生产者；BSP身份diff有局部锁。",
+        "UI marker追加、move撤回忽略、move几何diff不全已定向查过；REST/WS多个写者和overlay返回校验边界已扫。"
+      ],
+      "not_established": [
+        "pure diff不是持久历史，BSP局部锁不覆盖move和全部几何/UI消费。",
+        "文档upsert_semantics不能当已接通收据；f64 first-seen追加集不提供旧前缀撤回。",
+        "现有消息格式不证明同版本完整payload、去重、顺序和旧代际隔离。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "将现有断边直接变为验收场景：同ID修改、撤回、重建、重复/乱序/旧会话消息、完整几何更新；需求阶段只查契约缺项，不先写UI。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "状态变更",
+          "结构diff",
+          "upsert",
+          "撤回",
+          "同ID修订",
+          "几何字段",
+          "乱序/重复",
+          "UI安装"
+        ],
+        "associated_obligation_names": [
+          "完整变化可观察",
+          "身份修订/撤回历史",
+          "旧消息隔离"
+        ],
+        "directed_static_contract_ids": [
+          "IO-C06",
+          "KERNEL-C003",
+          "KERNEL-C019",
+          "C-LOCK-009"
+        ],
+        "same_domain_navigation_limit": "move撤回忽略、几何diff不全和BSP局部diff锁是直接静态事实；所有ST/FG对象的完整变更/撤回实现仍仅同域导航。",
+        "associated_observation_requirement_ids": [
+          "OB-004",
+          "OB-008",
+          "OB-014",
+          "OB-015",
+          "OB-019"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-009",
+      "title": "回放、断线与结构恢复",
+      "reuse_summary": "重算、全史重放、快照反序列化、断线续接及交易回执恢复各自限域；现有独立恢复壳不补主图断边。",
+      "contract_ids": [
+        "IO-C02",
+        "IO-C07",
+        "KERNEL-C016",
+        "KERNEL-C014",
+        "ACT-C034"
+      ],
+      "sources": [
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            30,
+            30
+          ]
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            38,
+            38
+          ]
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            48,
+            48
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            39,
+            41
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            8,
+            9
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/1"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/6"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/150"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/148"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/69"
+        }
+      ],
+      "previously_checked": [
+        "REST创建会话未绑定该UI WS、seek字段不一致、WS断连不销会话/停播放均有源合同。",
+        "按TF回放预先构造全数据高TF bars；独立LiveEngine有gap/重连机制；观察dump和回放文件寿命有扫描记录。"
+      ],
+      "not_established": [
+        "独立LiveEngine定义不等主生产接线；快照恢复/journal fallback不保证完整live状态相同。",
+        "最终修订重算不能代替当时可知回放；目前未验断线续接、断档重取、同会话控制、重启恢复。",
+        "诊断dump双跑相同也不等客户端历史发布相同。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "先区分恢复对象/保留状态/失效范围，再为拟支持入口列切面+游标+时点验收；定点核相关实际consumer，运行验证另阶段。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "回放",
+          "当时可知",
+          "后来修订重算",
+          "断线续接",
+          "游标",
+          "快照",
+          "重启",
+          "缓存恢复"
+        ],
+        "associated_obligation_names": [
+          "同会话回放",
+          "断档/断线恢复",
+          "结构与交易恢复区分"
+        ],
+        "directed_static_contract_ids": [
+          "IO-C02",
+          "IO-C07",
+          "KERNEL-C016",
+          "KERNEL-C014",
+          "ACT-C034"
+        ],
+        "same_domain_navigation_limit": "指定REST/WS断边与独立恢复壳寿命已定向静态查；完整ST/FG因果回放/断线/崩溃恢复没有逐项运行证明。",
+        "associated_observation_requirement_ids": [
+          "OB-006",
+          "OB-007",
+          "OB-009",
+          "OB-015",
+          "OB-016",
+          "OB-017"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-010",
+      "title": "完整N重与独立权利的证据边界",
+      "reuse_summary": "既有扫描保留持久重、一次voice、结构layer/chain/campaign之间的身份、寿命和资金差异。",
+      "contract_ids": [
+        "ACT-C020",
+        "ACT-C038",
+        "POS-C004",
+        "POS-C005",
+        "POS-C011"
+      ],
+      "sources": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/3"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/6"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/8"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            61,
+            67
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            91,
+            91
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            19,
+            19
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/55"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/73"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/126"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/127"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/133"
+        }
+      ],
+      "previously_checked": [
+        "多个家族的生产体与必要consumer已扫；run-local账、树/链、父结算和共享pool/两书并存的实际边界有合同。",
+        "已明确每重身份/独立现金成本筹码与全局上限并存，重内不穿零、重间可反向且不仲裁。"
+      ],
+      "not_established": [
+        "voice/chain/campaign类名或结构层数不等持久重，不能据此宣称N重全经营已实现。",
+        "13个positional模式家族不是13种同义完整多重赋格实现；共同helper/trade字段不能合并它们的权利。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "本轮完整赋格要求直接挂到相应义务与合同，不重读所有家族；只有候选评估必须回答的当前identity/lifetime消费缺口才补读。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "N重",
+          "持久重",
+          "独立资金",
+          "专属筹码",
+          "独立权利",
+          "voice",
+          "chain",
+          "campaign",
+          "重内合成",
+          "重间不仲裁"
+        ],
+        "associated_obligation_names": [
+          "持久重身份与寿命",
+          "重内不穿零",
+          "跨重独立及不仲裁"
+        ],
+        "directed_static_contract_ids": [
+          "ACT-C020",
+          "ACT-C038",
+          "POS-C004",
+          "POS-C005",
+          "POS-C011"
+        ],
+        "same_domain_navigation_limit": "只对所核家族的账/树/链/寿命和共享池给直接静态事实；不把家族/合同整体关联当FG完整N重逐条实现证明。",
+        "associated_observation_requirement_ids": [
+          "OB-011",
+          "OB-012",
+          "OB-014"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-011",
+      "title": "毛约束、净额外效、阶段与量",
+      "reuse_summary": "按重毛计提与净省禁复用是既有要求；纯代数API、净目标镜像、模拟fill和venue经济事实必须区分。",
+      "contract_ids": [
+        "ACT-C009",
+        "ACT-C025",
+        "ACT-C026",
+        "ACT-C036",
+        "ACT-C038"
+      ],
+      "sources": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/9"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/10"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/14"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/15"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            57,
+            59
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            91,
+            93
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            20,
+            22
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/44"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/60"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/61"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/71"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/73"
+        }
+      ],
+      "previously_checked": [
+        "SeparateLedger有代数谓词/净投影，DualLedger有分腿fill API而主π填单不消费，模拟cash/fee/拒开/强平与TW实际来源已查。",
+        "CampaignBook阶段/核销/增股是独立模型轨，不能回填主pending fills。",
+        "行情升档部分保留与资金容量溢出分重已分开；未定规模、频率阈值和其它钱规则保持未定。"
+      ],
+      "not_established": [
+        "代数守恒和物理NETTING不证明逐重完整财产权/毛funding/borrow或交易所逐仓保护。",
+        "共用阶段/cash helper不证明主引擎经营阶段闭环；不能从默认参数裁定新钱规则。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "将需求分成经营权利账、共同毛约束、净额外效及外部回执映射四项验收；后续只核拟保留入口缺失的逐腿consumer或在途结算，不重做代数扫描。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "毛计提",
+          "净额外效",
+          "净省禁复用",
+          "SeparateLedger",
+          "DualLedger",
+          "TW",
+          "回本",
+          "增股",
+          "容量溢出",
+          "未定量"
+        ],
+        "associated_obligation_names": [
+          "posted毛约束",
+          "净省不得再部署",
+          "完整经营阶段",
+          "行情升档与资金溢出区分"
+        ],
+        "directed_static_contract_ids": [
+          "ACT-C009",
+          "ACT-C025",
+          "ACT-C026",
+          "ACT-C036",
+          "ACT-C038"
+        ],
+        "same_domain_navigation_limit": "纯代数/API、模拟fill来源和主π不消费DualLedger是直接静态事实；FG全部毛约束/阶段/独立经济权利只有要求导航，不能据此报已实现或缺实现。",
+        "associated_observation_requirement_ids": [
+          "OB-011",
+          "OB-012",
+          "OB-014"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-012",
+      "title": "订单、部分成交、退出及在途尾账恢复",
+      "reuse_summary": "真实出口、模拟fill、结构终态和经济结算不互相代替，退出不能只删结构或清UI。",
+      "contract_ids": [
+        "ACT-C003",
+        "ACT-C005",
+        "ACT-C006",
+        "ACT-C019",
+        "ACT-C038"
+      ],
+      "sources": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            51,
+            59
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            9,
+            10
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            28,
+            29
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+          "line_range": [
+            47,
+            48
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+          "line_range": [
+            80,
+            80
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/38"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/40"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/41"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/54"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/73"
+        }
+      ],
+      "previously_checked": [
+        "maker部分成交/取消、SQLite日志与全史重放、NETTING目标差下单、主策略无逐腿回执回填等实际合同已查。",
+        "结构摘挂先于经济拒绝且无统一回滚；CampaignBook满平会清除模型/核销，与venue pending不同。",
+        "在飞表API存在与被当前主链消费分开；typed闭合不自动关闭持久registry。"
+      ],
+      "not_established": [
+        "start未recover与journal延迟commit是静态边界，不等运行故障报告。",
+        "stop close_all_positions、结构清空或模型核销不能证退出后所有成交/费用/更正都结清。",
+        "未运行取消后晚到成交、重复回执、部分成交后退出、崩溃恢复等验收。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "把完成经营与继续接收尾账分别写入需求；后续围绕选定出口做一条从退出到晚到回执/费用修订的窄链补查，不重扫其它出口。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "订单",
+          "部分成交",
+          "取消",
+          "退出",
+          "在途尾账",
+          "晚到成交",
+          "journal",
+          "恢复",
+          "费用更正"
+        ],
+        "associated_obligation_names": [
+          "退出后责任存续",
+          "执行事实保留",
+          "在途回执及经济恢复"
+        ],
+        "directed_static_contract_ids": [
+          "ACT-C003",
+          "ACT-C005",
+          "ACT-C006",
+          "ACT-C019",
+          "ACT-C038"
+        ],
+        "same_domain_navigation_limit": "指定maker/journal/NETTING/campaign/registry边界已静态查；完整FG退出/尾账闭环尚无逐项证据与运行验收，不等全仓无实现。",
+        "associated_observation_requirement_ids": [
+          "OB-012",
+          "OB-014",
+          "OB-016",
+          "OB-017"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-013",
+      "title": "观察、诊断、准入与经济联合条件",
+      "reuse_summary": "观察/候选/确认/授权/准入/执行属于不同角色，容量、频率、经济及制度条件不可被统计结果或结构证书代替。",
+      "contract_ids": [
+        "KERNEL-C012",
+        "KERNEL-C013",
+        "ACT-C033",
+        "ACT-C031",
+        "ACT-C035"
+      ],
+      "sources": [
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            46,
+            51
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/7"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/12"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/13"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            69,
+            73
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            17,
+            21
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/146"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/147"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/68"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/66"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/70"
+        }
+      ],
+      "previously_checked": [
+        "typed准入实际消费、诊断信号与生产门、μ/LCB/χ训练目标与venue账区别已有静态核查。",
+        "TargetAttributes/容量与统计输出存在，测量至真实联合门不自动闭合。"
+      ],
+      "not_established": [
+        "诊断更宽不许参与准入；UI显示候选不新授交易权。",
+        "统计成功、历史绩效、cap默认值不证明实测容量/频率或最低可操作级别。",
+        "不把独立联合条件改写成新规定执行顺序。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "按每个输出登记用途资格与消费门；后续只核本轮新增的联合门输入及测量出处，保持钱规则留白。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "观察",
+          "诊断",
+          "授权",
+          "准入",
+          "经济",
+          "容量",
+          "频率",
+          "T+1",
+          "测量",
+          "最低可操作级别"
+        ],
+        "associated_obligation_names": [
+          "经济容量频率独立联合门",
+          "诊断不得兜底准入",
+          "操作级别可行性"
+        ],
+        "directed_static_contract_ids": [
+          "KERNEL-C012",
+          "KERNEL-C013",
+          "ACT-C033",
+          "ACT-C031",
+          "ACT-C035"
+        ],
+        "same_domain_navigation_limit": "所核typed门、诊断产出、统计生产与消费范围已静态查；FG完整联合门仍只是需求关联，测量产量与门有效性not-run。",
+        "associated_observation_requirement_ids": [
+          "OB-007",
+          "OB-010",
+          "OB-011",
+          "OB-013"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    },
+    {
+      "id": "EV-014",
+      "title": "锁、非空性和运行验收的上限",
+      "reuse_summary": "已有锁与形式化前件应复用其准确射程，不重复开发同名锁，也不把静态assert或共核对拍当完整链通过。",
+      "contract_ids": [
+        "C-LOCK-001",
+        "C-LOCK-003",
+        "C-LOCK-004",
+        "C-LOCK-009",
+        "C-LOCK-015",
+        "C-LOCK-021",
+        "C-LOCK-023"
+      ],
+      "sources": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            95,
+            101
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            12,
+            12
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            31,
+            31
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+          "json_pointer": "/counts_and_units"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+          "json_pointer": "/unverified_or_not_claimed"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/98"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/100"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/101"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/106"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/112"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/118"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/120"
+        }
+      ],
+      "previously_checked": [
+        "94锁单元记实际assert/Lean前件、非空/注入/退化、feature/CI选择及执行状态。",
+        "#1087包含postscan/FNV/字段装配价值；同核fresh重跑、probe投影、Missing共占位和Prelude只比同值的界限已查。",
+        "BSP diff、C2 cutoff与非空局部fill/TW锁可作为将来验收组件；stream/batch有共享输入与ExpectedRule级联限制。"
+      ],
+      "not_established": [
+        "所有项目/测试/Lean/CI/服务/交易/回放/browser/SDK/API执行均not-run。",
+        "完全分类形式化是给定前件下的结论，不构造Rust实现；空Type可能性及入口有效域必须保留。",
+        "局部非空与共享影子并不补全全定义、逐字段、独立实现或交易全链验收。"
+      ],
+      "execution_status": "not-run",
+      "suggested_bounded_followup": "在完整验收表逐项复用锁ID及实际覆盖域，再列真正缺的非空、因果、修订和多重尾账用例；批准实施验证后运行所需最小集合。",
+      "current_source_reverified": false,
+      "new_architecture_or_money_rule_selected": false,
+      "integration_navigation": {
+        "domain_keywords": [
+          "锁射程",
+          "非空",
+          "Lean前件",
+          "feature/CI",
+          "共核对拍",
+          "Missing",
+          "ExpectedRule",
+          "逐字段",
+          "因果"
+        ],
+        "associated_obligation_names": [
+          "同判据逐位要求",
+          "非空行为证据",
+          "完整输出及闭环验收"
+        ],
+        "directed_static_contract_ids": [
+          "C-LOCK-001",
+          "C-LOCK-003",
+          "C-LOCK-004",
+          "C-LOCK-009",
+          "C-LOCK-015",
+          "C-LOCK-021",
+          "C-LOCK-023"
+        ],
+        "same_domain_navigation_limit": "指定assert/feature/前件的源码射程是直接静态事实；不能迁移为ST/FG逐项通过，所有运行仍not-run。",
+        "associated_observation_requirement_ids": [
+          "OB-020"
+        ],
+        "observation_reference_kind": "本轮根代理观察契约草稿的同域导航；非冻结来源或验收签署",
+        "unknown_does_not_mean_missing_implementation": true,
+        "per_ST_FG_implementation_credit_must_be_specific": true
+      }
+    }
+  ],
+  "requirement_navigation": [
+    {
+      "constraint_id": "SEM-01",
+      "title": "语义证据权威边界",
+      "statement_from_existing_requirement": "原文管语义、Lean管原文未明端点/退化、代码不能反向立义；候选定义入口和证据权威层不混同。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/0"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/0"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          5,
+          32
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "原文、作者答疑、行内/编注、另附博文、既有推论/选择、Lean前提和代码分别归属。FR-M02曾纠正按角色推广被混标原文的问题；当前程序注释不再作为语义正本。",
+      "status_in_frozen_report": "已保持来源分层",
+      "evidenced_contract_ids": [
+        "C-LOCK-010",
+        "C-LOCK-013"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-02",
+      "title": "同一判断的宽严规则",
+      "statement_from_existing_requirement": "同一判断不得宽严互兜底；不同判断互不兜底、宽诊断不参与准入、已声明独立对照臂不作交易决策是三种合法分化。if-else/grep仅分诊。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/1"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/1"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          33,
+          56
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "对拍存在字段投影、舍入摘要、共核fresh重跑、空/注入域和配置选择；无全仓同判断、同输入、每级完整结果逐位锁的认证。缺此认证不等于已证明每个实现违规。",
+      "status_in_frozen_report": "所读锁不足以认证全仓同判断逐位",
+      "evidenced_contract_ids": [
+        "C-LOCK-004",
+        "C-LOCK-008",
+        "C-LOCK-023",
+        "KERNEL-C013",
+        "POS-C011"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-03",
+      "title": "同判定跨级语义一致性及例外",
+      "statement_from_existing_requirement": "同一份输入在两级的输出必须逐位相同。例外须实质维度差、原文/Lean依据、退场、随概念条款与票号、全仓上限3；所供片段未给当前已用配额。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/2"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/2"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          57,
+          104
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "TF、结构递归level、操作级别、图层与账本层不同。L0/高层seed门、固定op3和root重标号已有代码差异；不凭形状裁同判断，也不自动批准例外。",
+      "status_in_frozen_report": "级别/对象与输入前提仍须明示",
+      "evidenced_contract_ids": [
+        "KERNEL-C008",
+        "KERNEL-C016",
+        "POS-C009",
+        "POS-C010"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-04",
+      "title": "既定领域单位与术语区别",
+      "statement_from_existing_requirement": "持久重含标的、操作级别、专属筹码；一次买卖操作/本仓声部寿命与重不同。专属筹码判据为既有[新缠论:推论]，保留声部命名为[新缠论:选择]；不指定类/容器。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/3"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/3"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          105,
+          143
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "所读voice/chain/campaign或SlotKey多有随run/master死亡的寿命。它们不自动等于具有专属筹码和独立资金的持久重；标的/操作级别/筹码资金身份须在全边界保持，未限定必须某个新字段/owner。",
+      "status_in_frozen_report": "持久重与一次操作的实现映射未获完整证明",
+      "evidenced_contract_ids": [
+        "ACT-C020",
+        "ACT-C038",
+        "POS-C004",
+        "POS-C005"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-05",
+      "title": "既有范围要求与保证金口径",
+      "statement_from_existing_requirement": "既有重绑死标的、第一利润最大定理、分开计提要求有范围；全仓选股不排除；虚拟分账不得推实盘物理逐仓保护。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/4"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/4"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          144,
+          156
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "单标的策略壳、内部方向与NETTING输出已追。不能把物理净仓或模拟账的杠杆参数当各重独立毛保证金/成本/制度兑现证明。",
+      "status_in_frozen_report": "固定标的/方向/杠杆适用域保持，执行完整性未证",
+      "evidenced_contract_ids": [
+        "ACT-C006",
+        "ACT-C009",
+        "ACT-C026"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-06",
+      "title": "既定分解语义、多重并存与三个方向",
+      "statement_from_existing_requirement": "固定规则下唯一性与多个合法视角/重并存不冲突；构造/操作按角色区别、横向无递归及三方向按既有推论归属，不把领域关联当owner层数。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/5"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/5"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          157,
+          220
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "库有OperationSequence和挂载，Owned入口传空为有据事实；不称全仓没有其他等义分解。向上构造、横向分解、联立和下探分栏，按角色推广保既有推论标签。",
+      "status_in_frozen_report": "明确分解通道未生效与其它角色不能互相填补",
+      "evidenced_contract_ids": [
+        "KERNEL-C009",
+        "KERNEL-C012",
+        "ACT-C027"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-07",
+      "title": "独立资金、不等式及身份键",
+      "statement_from_existing_requirement": "各重独立的钱与全局不等式并存，不是共享资金强制等式；(标的,操作级别)键不含成本状态为既有推论；不能据形式推存储布局。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/6"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/6"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          221,
+          260
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "公用pool/总成本阶段、模拟voice两书和目标镜像可描述其实际账法；若拟当多个独立重，须满足每重现金/成本/筹码独立及全局上限。当前不能把结构层数或守恒残差当其实现证明。",
+      "status_in_frozen_report": "独立资金义务未由所读共享/净投影账完整落实证明",
+      "evidenced_contract_ids": [
+        "ACT-C010",
+        "ACT-C020",
+        "ACT-C026",
+        "POS-C011"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-08",
+      "title": "区间套主动定位目的与经济条件",
+      "statement_from_existing_requirement": "主动调用定位不是仅有包含性质/证书；须交易成本和交易误差经济条件，不推出每级必一类点。未供混合撤回段不能据摘录另造终止报错规则。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/7"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/7"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          261,
+          279
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "类型/包含证书、same-bar或跳级链各有实际实现，未证明主动目标段完整定位闭环。原文给缩小范围与可操作限制，不授权每层必一类点/数学唯一点/必成交。",
+      "status_in_frozen_report": "下探目的与终点边界保持",
+      "evidenced_contract_ids": [
+        "KERNEL-C013",
+        "KERNEL-C030",
+        "ACT-C033",
+        "POS-C006",
+        "POS-C009"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-09",
+      "title": "重内同向与重间反向的对象边界",
+      "statement_from_existing_requirement": "同一重合成后在自身方向0到满仓不穿零；不同独立重可反向、不相互仲裁。操作级别不等于任意塔层。既有推论及对象有效域保留。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/8"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/8"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          280,
+          326
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "同重内0到满仓不穿零，与跨独立重反向且不仲裁并存。当前反向腿转减仓、零目标仍保身份、双书共享池必须先定对象域；不以负free余额字面直接判穿零持仓。",
+      "status_in_frozen_report": "重内/重间方向规则不被净标量替代",
+      "evidenced_contract_ids": [
+        "ACT-C008",
+        "ACT-C009",
+        "ACT-C025",
+        "POS-C011"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-10",
+      "title": "记账规范、净额中间态及历史有效域",
+      "statement_from_existing_requirement": "posted=Σ n_k/L_max_k按各极性毛计提，净额节省不可再部署；分账+物理净额是允许中间态，不是物理逐仓保护。逐腿出口须毛funding/borrow口径补齐后另案，不擅自解锁。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/9"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/9"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          327,
+          355
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "posted=Σn_k/L_max_k为既有毛计提；物理净省不可再部署，分账与净额不等于物理逐仓保护。DualLedger存在而主π不消费、模拟fee/持有费条件分离是当前断点，不补称逐腿出口闭合。",
+      "status_in_frozen_report": "分账代数/物理净额/交易所保护分别保留",
+      "evidenced_contract_ids": [
+        "ACT-C025",
+        "ACT-C026",
+        "ACT-C036",
+        "C-LOCK-021"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-11",
+      "title": "量问题的范围及两个子问题",
+      "statement_from_existing_requirement": "每重规模/份数与重内动作量是两类量问题，不等于软件分层；形态/身份与投入多少不同。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/10"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/10"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          356,
+          397
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "目标/动作量、持久重资本、库存筹码、净/毛占用和观察NAV不是同一量；同价代数守恒不补风险/容量/频率/费用。代码参数不升为可导规模。",
+      "status_in_frozen_report": "量的角色已区分，未裁新规模式",
+      "evidenced_contract_ids": [
+        "ACT-C009",
+        "ACT-C019",
+        "ACT-C025",
+        "ACT-C035"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-12",
+      "title": "已采纳的量规则选择",
+      "statement_from_existing_requirement": "否决Q(ℓ)=Q₀·f^ℓ是既有选择而非原文定理；未因此获得另一公式。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/11"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/11"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          398,
+          415
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "Q0·f^level作为重规模被否决的既有选择不改。半父仓/深度权重/θ配额可能是动作量，应先辨量的角色；不把任一指数或常量出现自动认作同一被禁方案，也不批准替代规模公式。",
+      "status_in_frozen_report": "保持已否决公式，不从代码换一个默认答案",
+      "evidenced_contract_ids": [
+        "ACT-C008",
+        "ACT-C013",
+        "POS-C004",
+        "POS-C008"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-13",
+      "title": "规模容量判据及落地条件",
+      "statement_from_existing_requirement": "规模等于可容纳量、最低可行级别向上容纳是既有推论；须容量可测、频率与经济/制度条件。历史未测状态不认证当前代码仍未测。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/12"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/12"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          416,
+          465
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "源码存在容量/统计/目标属性生产和多个cap，但不能认同于实测容量、最低可行和准入门全闭合。旧“未测”或“已测”标签不描述本轮实际运行；这里仅静态源与消费范围。",
+      "status_in_frozen_report": "测量与实际联合门之间未认证完整实现",
+      "evidenced_contract_ids": [
+        "ACT-C031",
+        "ACT-C035",
+        "KERNEL-C024",
+        "AUX-C019"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-14",
+      "title": "开重频率条件",
+      "statement_from_existing_requirement": "容量管多大，频率管开不开，二者独立；平均每次利润/占用资金时间和操作频率不可混成同一量；数值低频阈值未给。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/13"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/13"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          466,
+          496
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "窗口统计、成交次数与生产准入频率不是同一量；本轮未执行测量或验证分布。不得将经济/容量/频率编成新规定顺序，也不得把费用/T+1仅当定位精度限制。",
+      "status_in_frozen_report": "频率/占款时间/费用/制度为独立联合条件",
+      "evidenced_contract_ids": [
+        "ACT-C031",
+        "ACT-C035",
+        "C-LOCK-022"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-15",
+      "title": "空仓不挪用、回本后增长及容量换档",
+      "statement_from_existing_requirement": "空仓不挪钱、留满溢出为既有选择；回本前同量、回本后增长有条件；资金超容量与行情升级触发不同，若证机制必须统一须重议；溢出仍需其它门。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/14"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/14"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          497,
+          547
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "行情级别升级且部分保留，与资金超容量主体留满、溢出分重不同。RNF θ重标根、层cap和资金池分配仅证当前实现，不能认作两类既有义务均已落实。",
+      "status_in_frozen_report": "两个升级/溢出触发没有被重标层号自动实现",
+      "evidenced_contract_ids": [
+        "POS-C010",
+        "ACT-C009",
+        "ACT-C038"
+      ],
+      "current_conformance_certified": false
+    },
+    {
+      "constraint_id": "SEM-16",
+      "title": "原文未给出的量与适用范围",
+      "statement_from_existing_requirement": "既有ADR记录容量计算/标度律、原文多重协调、T+0与非股票适用留白；区分原文未规定与项目已采纳要求，不能将全部义务降为未定。",
+      "frozen_semantic_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+        "json_pointer": "/items/15"
+      },
+      "frozen_obligation_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+        "json_pointer": "/items/15"
+      },
+      "original_requirement_locator_preserved_not_reread": {
+        "packet_path": "requirements/earlier-requirements.md",
+        "actual_line_range": [
+          548,
+          565
+        ],
+        "sha256": "d48fd039445fa7265bf3ee5d363682506149a43a04c47aac5729f35542707e1f",
+        "context_read_by": "parent"
+      },
+      "reusable_disposition": "既有未定量/测量/规模口径保持未定。当前软件默认数值、脚本历史收益和源码名字都不是裁定；后续只比较满足既有不变量的表示与算法，不在本票补数字/接口/DAG。",
+      "status_in_frozen_report": "保留未填量与后续多方案研究接口",
+      "evidenced_contract_ids": [
+        "ACT-C031",
+        "ACT-C035",
+        "POS-C009"
+      ],
+      "current_conformance_certified": false
+    }
+  ],
+  "contract_navigation": [
+    {
+      "contract_id": "ACT-C003",
+      "title": "单槽maker等待、部分成交及取消状态",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/38"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          45,
+          45
+        ]
+      },
+      "applicability_profiles": [
+        "EXECUTION"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-04",
+        "SEM-05",
+        "SEM-07",
+        "SEM-10",
+        "SEM-11",
+        "SEM-13",
+        "SEM-14",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "ACT-E0010",
+        "ACT-E0011",
+        "ACT-E0012",
+        "ACT-E0153"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C005",
+      "title": "SQLite日志与全史重放恢复上限",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/40"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          47,
+          47
+        ]
+      },
+      "applicability_profiles": [
+        "EXECUTION"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-04",
+        "SEM-05",
+        "SEM-07",
+        "SEM-10",
+        "SEM-11",
+        "SEM-13",
+        "SEM-14",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "ACT-E0016",
+        "ACT-E0017",
+        "ACT-E0018",
+        "ACT-E0019"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C006",
+      "title": "Python Theta NETTING真实仓位→目标净差下单",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/41"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          48,
+          48
+        ]
+      },
+      "applicability_profiles": [
+        "EXECUTION"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-04",
+        "SEM-05",
+        "SEM-07",
+        "SEM-10",
+        "SEM-11",
+        "SEM-13",
+        "SEM-14",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "ACT-E0020",
+        "ACT-E0021",
+        "ACT-E0022"
+      ],
+      "lock_ids": [
+        "ACT-L005"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C009",
+      "title": "Theta TW/risk协议组合与净标量/逐腿输出分层",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/44"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          51,
+          51
+        ]
+      },
+      "applicability_profiles": [
+        "ACCOUNT"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-04",
+        "SEM-05",
+        "SEM-07",
+        "SEM-09",
+        "SEM-10",
+        "SEM-11",
+        "SEM-12",
+        "SEM-13",
+        "SEM-14",
+        "SEM-15",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "ACT-E0034",
+        "ACT-E0035",
+        "ACT-E0036",
+        "ACT-E0037",
+        "ACT-E0038",
+        "ACT-E0039",
+        "THC-E008",
+        "THC-E058",
+        "THC-E012",
+        "THC-E011",
+        "THC-E013",
+        "THC-E014",
+        "THC-E057",
+        "THC-E015",
+        "THC-E016",
+        "THC-E017",
+        "THC-E035",
+        "THC-E024",
+        "THC-E062",
+        "THC-E076",
+        "THC-MFE007",
+        "THC-MFE019",
+        "THC-MFE020",
+        "THC-MFE017",
+        "THC-MFE021",
+        "THC-MFE022"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C019",
+      "title": "Theta批量风险/筛选/费率与未消费的多世代在飞表",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/54"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          61,
+          61
+        ]
+      },
+      "applicability_profiles": [
+        "ACCOUNT"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-04",
+        "SEM-05",
+        "SEM-07",
+        "SEM-09",
+        "SEM-10",
+        "SEM-11",
+        "SEM-12",
+        "SEM-13",
+        "SEM-14",
+        "SEM-15",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "ACT-E0086",
+        "ACT-E0087",
+        "ACT-E0088",
+        "ACT-E0089",
+        "ACT-E0090",
+        "ACT-E0091",
+        "ACT-E0227",
+        "ACT-E0228",
+        "THC-E031",
+        "THC-E029",
+        "THC-E025",
+        "THC-E078",
+        "THC-E075",
+        "THC-E076",
+        "THC-E037",
+        "THC-E080",
+        "THC-E072",
+        "ACT-E0287",
+        "ACT-E0288",
+        "ACT-E0289",
+        "ACT-E0290",
+        "E-LOCK-0218",
+        "E-LOCK-0219",
+        "E-LOCK-0220",
+        "E-LOCK-0221",
+        "E-LOCK-0222",
+        "E-LOCK-0223",
+        "E-LOCK-0224",
+        "E-LOCK-0225",
+        "E-LOCK-0226",
+        "E-LOCK-0227",
+        "E-LOCK-0228",
+        "E-LOCK-0229",
+        "E-LOCK-0230",
+        "E-LOCK-0231",
+        "E-LOCK-0232",
+        "E-LOCK-0233",
+        "E-LOCK-0234",
+        "E-LOCK-0235",
+        "E-LOCK-0236",
+        "E-LOCK-0259",
+        "E-LOCK-0002",
+        "ACT-E0292",
+        "ACT-E0293",
+        "ACT-E0296",
+        "ACT-E0297",
+        "ACT-E0298",
+        "ACT-E0299",
+        "ACT-E0300",
+        "ACT-E0301",
+        "THC-MFE025",
+        "THC-MFE027",
+        "THC-MFE017",
+        "THC-MFE018",
+        "THC-E138",
+        "THC-E139",
+        "THC-E140",
+        "THC-E141",
+        "THC-E142",
+        "THC-E143",
+        "THC-E144",
+        "THC-E145",
+        "THC-E146",
+        "THC-E147",
+        "THC-E148",
+        "THC-E149",
+        "THC-E150",
+        "THC-E151",
+        "THC-E152",
+        "THC-E153",
+        "THC-E154",
+        "THC-E155",
+        "THC-E156",
+        "THC-E157",
+        "THC-E158",
+        "ACT-E0306"
+      ],
+      "lock_ids": [
+        "L-LOCK-027",
+        "L-LOCK-028",
+        "L-LOCK-029",
+        "L-LOCK-030",
+        "L-LOCK-031",
+        "L-LOCK-032"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C020",
+      "title": "有机runner capability guards→master与资源槽账",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/55"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          62,
+          62
+        ]
+      },
+      "applicability_profiles": [
+        "ACCOUNT"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-04",
+        "SEM-05",
+        "SEM-07",
+        "SEM-09",
+        "SEM-10",
+        "SEM-11",
+        "SEM-12",
+        "SEM-13",
+        "SEM-14",
+        "SEM-15",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "ACT-E0092",
+        "ACT-E0093",
+        "ACT-E0094",
+        "ACT-E0095",
+        "ACT-E0096",
+        "ACT-E0149",
+        "POS-E057",
+        "POS-E058",
+        "POS-E059",
+        "POS-E060",
+        "POS-E061",
+        "POS-E062",
+        "POS-E063",
+        "POS-E064",
+        "POS-E065",
+        "POS-E066",
+        "POS-E067",
+        "POS-E068",
+        "POS-E069",
+        "POS-E070",
+        "POS-E071",
+        "POS-E072",
+        "POS-E006",
+        "POS-E002",
+        "POS-E132",
+        "POS-E133",
+        "POS-E134",
+        "POS-E136",
+        "POS-E137",
+        "POS-E138",
+        "POS-E139",
+        "POS-E140",
+        "POS-E141",
+        "POS-E142",
+        "POS-E143",
+        "POS-E144",
+        "POS-E145",
+        "POS-E146",
+        "POS-E148",
+        "POS-E149",
+        "POS-E160",
+        "POS-E161",
+        "POS-E135",
+        "POS-E147",
+        "POS-E150",
+        "POS-E157",
+        "POS-E158",
+        "POS-E159",
+        "POS-E162",
+        "POS-E163",
+        "POS-E164",
+        "POS-E165",
+        "POS-E166",
+        "POS-E167",
+        "POS-E168",
+        "POS-E169",
+        "POS-E170",
+        "POS-E171",
+        "POS-E172",
+        "POS-E173",
+        "POS-E174",
+        "POS-E175",
+        "KERNEL-E0534",
+        "KERNEL-E0535",
+        "KERNEL-E0536",
+        "KERNEL-E0537",
+        "KERNEL-E0539",
+        "KERNEL-E0540"
+      ],
+      "lock_ids": [
+        "POS-L009"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C025",
+      "title": "Theta净额和声部模拟fill、拒开余量与TW量化归账",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/60"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          67,
+          67
+        ]
+      },
+      "applicability_profiles": [
+        "ACCOUNT"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-04",
+        "SEM-05",
+        "SEM-07",
+        "SEM-09",
+        "SEM-10",
+        "SEM-11",
+        "SEM-12",
+        "SEM-13",
+        "SEM-14",
+        "SEM-15",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "ACT-E0119",
+        "ACT-E0120",
+        "ACT-E0121",
+        "ACT-E0122",
+        "ACT-E0123",
+        "ACT-E0124",
+        "ACT-E0125",
+        "THC-E061",
+        "THC-E062",
+        "THC-E063",
+        "THC-E064",
+        "THC-E065",
+        "THC-E066",
+        "THC-E067",
+        "THC-E068",
+        "THC-E069",
+        "THC-E070",
+        "THC-E071",
+        "THC-E072",
+        "THC-E035",
+        "THC-E075",
+        "THC-E076",
+        "ACT-E0287",
+        "ACT-E0288",
+        "ACT-E0289",
+        "ACT-E0290",
+        "E-LOCK-0218",
+        "E-LOCK-0219",
+        "E-LOCK-0220",
+        "E-LOCK-0221",
+        "E-LOCK-0222",
+        "E-LOCK-0223",
+        "E-LOCK-0224",
+        "E-LOCK-0225",
+        "E-LOCK-0226",
+        "E-LOCK-0227",
+        "E-LOCK-0228",
+        "E-LOCK-0229",
+        "E-LOCK-0230",
+        "E-LOCK-0231",
+        "E-LOCK-0232",
+        "E-LOCK-0233",
+        "E-LOCK-0234",
+        "E-LOCK-0235",
+        "E-LOCK-0236",
+        "E-LOCK-0259",
+        "E-LOCK-0002",
+        "ACT-E0291",
+        "ACT-E0292",
+        "ACT-E0294",
+        "ACT-E0295",
+        "ACT-E0301",
+        "ACT-E0302",
+        "ACT-E0303",
+        "ACT-E0304",
+        "ACT-E0305",
+        "THC-MFE023",
+        "THC-MFE024",
+        "THC-MFE026",
+        "THC-MFE028",
+        "ACT-E0306",
+        "THC-MFE033",
+        "THC-MFE034",
+        "THC-MFE035",
+        "THC-MFE036",
+        "THC-MFE037",
+        "THC-MFE039",
+        "THC-MFE040",
+        "THC-MFE041",
+        "THC-MFE042",
+        "THC-MFE043",
+        "THC-MFE045"
+      ],
+      "lock_ids": [
+        "L-LOCK-027",
+        "L-LOCK-028",
+        "L-LOCK-029",
+        "L-LOCK-030",
+        "L-LOCK-031",
+        "L-LOCK-032"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C026",
+      "title": "SeparateLedger代数覆盖谓词与净投影，不是NT分腿实现",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/61"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          68,
+          68
+        ]
+      },
+      "applicability_profiles": [
+        "ACCOUNT"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-04",
+        "SEM-05",
+        "SEM-07",
+        "SEM-09",
+        "SEM-10",
+        "SEM-11",
+        "SEM-12",
+        "SEM-13",
+        "SEM-14",
+        "SEM-15",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "ACT-E0154",
+        "ACT-E0155",
+        "ACT-E0156"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C031",
+      "title": "统计与窗口消费的实际基准、频率及退化域",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/66"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          73,
+          73
+        ]
+      },
+      "applicability_profiles": [
+        "MEASURE"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-11",
+        "SEM-12",
+        "SEM-13",
+        "SEM-14",
+        "SEM-15",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "ACT-E0184",
+        "ACT-E0185",
+        "ACT-E0186",
+        "ACT-E0187",
+        "ACT-E0188",
+        "ACT-E0189",
+        "ACT-E0190",
+        "ACT-E0191",
+        "ACT-E0293",
+        "ACT-E0301"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C033",
+      "title": "econ诊断信号与生产Nest/XZD/PanDiv门分层",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/68"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          75,
+          75
+        ]
+      },
+      "applicability_profiles": [
+        "ADMISSION"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08",
+        "SEM-13",
+        "SEM-14"
+      ],
+      "evidence_ids": [
+        "ACT-E0199",
+        "ACT-E0200",
+        "ACT-E0201",
+        "ACT-E0202",
+        "ACT-E0203",
+        "ACT-E0204",
+        "ACT-E0205",
+        "ACT-E0206",
+        "E-LOCK-0237",
+        "E-LOCK-0238",
+        "E-LOCK-0239",
+        "E-LOCK-0240",
+        "E-LOCK-0241",
+        "E-LOCK-0242",
+        "E-LOCK-0243",
+        "E-LOCK-0244",
+        "E-LOCK-0259",
+        "E-LOCK-0002"
+      ],
+      "lock_ids": [
+        "L-LOCK-033",
+        "L-LOCK-034"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C034",
+      "title": "观察输出的寿命、失败策略与可执行回放边界",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/69"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          76,
+          76
+        ]
+      },
+      "applicability_profiles": [
+        "OBSERVE"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "ACT-E0207",
+        "ACT-E0208",
+        "ACT-E0209",
+        "ACT-E0210",
+        "ACT-E0211",
+        "ACT-E0212",
+        "ACT-E0213",
+        "E-LOCK-0245",
+        "E-LOCK-0246",
+        "E-LOCK-0247",
+        "E-LOCK-0248",
+        "E-LOCK-0249",
+        "E-LOCK-0250",
+        "E-LOCK-0259",
+        "E-LOCK-0002"
+      ],
+      "lock_ids": [
+        "L-LOCK-035"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C035",
+      "title": "独立测量与Python结果分析，不是操作资金规则",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/70"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          77,
+          77
+        ]
+      },
+      "applicability_profiles": [
+        "MEASURE"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-11",
+        "SEM-12",
+        "SEM-13",
+        "SEM-14",
+        "SEM-15",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "ACT-E0214",
+        "ACT-E0215",
+        "ACT-E0216",
+        "ACT-E0217",
+        "ACT-E0218",
+        "ACT-E0219"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C036",
+      "title": "DualLedger分腿成交API存在，但当前π填单不消费它",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/71"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          78,
+          78
+        ]
+      },
+      "applicability_profiles": [
+        "ACCOUNT"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-04",
+        "SEM-05",
+        "SEM-07",
+        "SEM-09",
+        "SEM-10",
+        "SEM-11",
+        "SEM-12",
+        "SEM-13",
+        "SEM-14",
+        "SEM-15",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "ACT-E0220",
+        "ACT-E0221",
+        "ACT-E0222",
+        "ACT-E0223"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C037",
+      "title": "typed严格链准入与延迟turn_class生产，不等于旧L2证门",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/72"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          79,
+          79
+        ]
+      },
+      "applicability_profiles": [
+        "ADMISSION"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08",
+        "SEM-13",
+        "SEM-14"
+      ],
+      "evidence_ids": [
+        "ACT-E0264",
+        "ACT-E0265",
+        "ACT-E0266",
+        "ACT-E0267",
+        "ACT-E0268",
+        "ACT-E0269",
+        "ACT-E0270",
+        "ACT-E0271",
+        "ACT-E0272"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "ACT-C038",
+      "title": "中枢挂起动作与CampaignBook接线是独立账，不是净额fill回填",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/73"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          80,
+          80
+        ]
+      },
+      "applicability_profiles": [
+        "ADMISSION",
+        "ACCOUNT"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-04",
+        "SEM-05",
+        "SEM-06",
+        "SEM-07",
+        "SEM-08",
+        "SEM-09",
+        "SEM-10",
+        "SEM-11",
+        "SEM-12",
+        "SEM-13",
+        "SEM-14",
+        "SEM-15",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "ACT-E0273",
+        "ACT-E0274",
+        "ACT-E0275",
+        "ACT-E0276",
+        "ACT-E0277",
+        "ACT-E0278",
+        "ACT-E0279",
+        "ACT-E0280",
+        "ACT-E0281",
+        "THC-E102",
+        "THC-E103",
+        "THC-E104",
+        "THC-E105",
+        "THC-E106",
+        "THC-E107",
+        "THC-E108",
+        "THC-E109",
+        "THC-E110",
+        "THC-E111",
+        "THC-E112",
+        "THC-E113",
+        "THC-E114",
+        "THC-E115",
+        "THC-E116",
+        "THC-E117",
+        "THC-E118",
+        "THC-E119",
+        "THC-E120",
+        "THC-E121",
+        "THC-E122",
+        "THC-E123",
+        "THC-E124",
+        "THC-E125",
+        "THC-E126",
+        "THC-E127",
+        "THC-E128",
+        "THC-E129",
+        "THC-E130",
+        "THC-E131",
+        "THC-E132",
+        "THC-E133",
+        "THC-E070",
+        "THC-E075",
+        "THC-E076",
+        "THC-E077",
+        "THC-E066",
+        "THC-E068",
+        "THC-MFE030",
+        "THC-MFE022",
+        "THC-MFE038",
+        "THC-MFE037",
+        "THC-MFE033",
+        "THC-MFE042",
+        "THC-MFE043"
+      ],
+      "lock_ids": [
+        "THC-L010",
+        "THC-L011",
+        "THC-L012",
+        "THC-L013"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "C-LOCK-001",
+      "title": "CI选择与测试/形式化入口合同",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/98"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          105,
+          105
+        ]
+      },
+      "applicability_profiles": [
+        "LOCK"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "E-LOCK-0001",
+        "E-LOCK-0002",
+        "E-LOCK-0003",
+        "E-LOCK-0004",
+        "E-LOCK-0005",
+        "E-LOCK-0006",
+        "E-LOCK-0007",
+        "E-LOCK-0008",
+        "E-LOCK-0009"
+      ],
+      "lock_ids": [
+        "L-LOCK-001",
+        "L-LOCK-011",
+        "L-LOCK-016"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "C-LOCK-003",
+      "title": "完全分类/因果性与接口恒等适配的形式化前件",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/100"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          107,
+          107
+        ]
+      },
+      "applicability_profiles": [
+        "LOCK"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "E-LOCK-0015",
+        "E-LOCK-0016",
+        "E-LOCK-0017",
+        "E-LOCK-0018",
+        "E-LOCK-0019"
+      ],
+      "lock_ids": [
+        "L-LOCK-003",
+        "L-LOCK-020"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "C-LOCK-004",
+      "title": "#1087生产提取→Lean后处理/事件装配对拍",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/101"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          108,
+          108
+        ]
+      },
+      "applicability_profiles": [
+        "LOCK"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "E-LOCK-0020",
+        "E-LOCK-0021",
+        "E-LOCK-0022",
+        "E-LOCK-0023",
+        "E-LOCK-0024",
+        "E-LOCK-0025",
+        "E-LOCK-0026",
+        "E-LOCK-0027",
+        "E-LOCK-0028",
+        "E-LOCK-0029",
+        "E-LOCK-0030",
+        "E-LOCK-0162",
+        "E-LOCK-0163",
+        "E-LOCK-0164",
+        "E-LOCK-0260",
+        "E-LOCK-0261",
+        "E-LOCK-0262",
+        "E-LOCK-0263",
+        "E-LOCK-0264",
+        "E-LOCK-0265",
+        "E-LOCK-0266",
+        "E-LOCK-0267",
+        "E-LOCK-0268",
+        "E-LOCK-0269",
+        "E-LOCK-0270",
+        "E-LOCK-0271",
+        "E-LOCK-0272",
+        "E-LOCK-0273",
+        "E-LOCK-0274",
+        "E-LOCK-0275",
+        "E-LOCK-0276",
+        "E-LOCK-0277",
+        "E-LOCK-0278",
+        "E-LOCK-0279",
+        "E-LOCK-0280",
+        "E-LOCK-0281",
+        "E-LOCK-0282",
+        "E-LOCK-0283"
+      ],
+      "lock_ids": [
+        "L-LOCK-004"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "C-LOCK-009",
+      "title": "Python BSP身份diff锁：删除插入/升格与因果序",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/106"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          113,
+          113
+        ]
+      },
+      "applicability_profiles": [
+        "LOCK"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "E-LOCK-0055",
+        "E-LOCK-0056",
+        "E-LOCK-0057",
+        "E-LOCK-0058",
+        "E-LOCK-0059",
+        "E-LOCK-0060",
+        "E-LOCK-0061"
+      ],
+      "lock_ids": [
+        "L-LOCK-010"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "C-LOCK-015",
+      "title": "C2可观察级视图的feature默认拒绝与cutoff锁",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/112"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          119,
+          119
+        ]
+      },
+      "applicability_profiles": [
+        "LOCK"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "E-LOCK-0139",
+        "E-LOCK-0140",
+        "E-LOCK-0141",
+        "E-LOCK-0142",
+        "E-LOCK-0143",
+        "E-LOCK-0144",
+        "E-LOCK-0145"
+      ],
+      "lock_ids": [
+        "L-LOCK-017"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "C-LOCK-021",
+      "title": "批量成交/双账/voice嵌入锁：真实非空机制与注入边界",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/118"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          125,
+          125
+        ]
+      },
+      "applicability_profiles": [
+        "LOCK"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "E-LOCK-0218",
+        "E-LOCK-0219",
+        "E-LOCK-0220",
+        "E-LOCK-0221",
+        "E-LOCK-0222",
+        "E-LOCK-0223",
+        "E-LOCK-0224",
+        "E-LOCK-0225",
+        "E-LOCK-0226",
+        "E-LOCK-0227",
+        "E-LOCK-0228",
+        "E-LOCK-0229",
+        "E-LOCK-0230",
+        "E-LOCK-0231",
+        "E-LOCK-0232",
+        "E-LOCK-0233",
+        "E-LOCK-0234",
+        "E-LOCK-0235",
+        "E-LOCK-0236",
+        "E-LOCK-0259"
+      ],
+      "lock_ids": [
+        "L-LOCK-027",
+        "L-LOCK-028",
+        "L-LOCK-029",
+        "L-LOCK-030",
+        "L-LOCK-031",
+        "L-LOCK-032"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "C-LOCK-023",
+      "title": "stream/batch对拍的共享输入、expected-cascade和CI实际assert",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/120"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          127,
+          127
+        ]
+      },
+      "applicability_profiles": [
+        "LOCK"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "E-LOCK-0245",
+        "E-LOCK-0246",
+        "E-LOCK-0247",
+        "E-LOCK-0248",
+        "E-LOCK-0249",
+        "E-LOCK-0250",
+        "E-LOCK-0259"
+      ],
+      "lock_ids": [
+        "L-LOCK-035"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "IO-C01",
+      "title": "行情身份、缓存合并与历史查询",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/0"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          7,
+          7
+        ]
+      },
+      "applicability_profiles": [
+        "DATA"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "IO-E0001",
+        "IO-E0002",
+        "IO-E0003",
+        "IO-E0004",
+        "IO-E0005",
+        "IO-E0006"
+      ],
+      "lock_ids": [
+        "IO-L07"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "IO-C02",
+      "title": "回放会话、REST/WS控制与后台播放",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/1"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          8,
+          8
+        ]
+      },
+      "applicability_profiles": [
+        "DATA"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "IO-E0007",
+        "IO-E0008",
+        "IO-E0009",
+        "IO-E0010",
+        "IO-E0011",
+        "IO-E0012",
+        "IO-E0013"
+      ],
+      "lock_ids": [
+        "IO-L05",
+        "IO-L06",
+        "IO-L07"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "IO-C06",
+      "title": "主图UI REST/WS并行更新、回放与失效表现",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/5"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          12,
+          12
+        ]
+      },
+      "applicability_profiles": [
+        "DATA"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "IO-E0036",
+        "IO-E0037",
+        "IO-E0038",
+        "IO-E0039",
+        "IO-E0040",
+        "IO-E0041",
+        "IO-E0042",
+        "IO-E0043",
+        "IO-E0044",
+        "IO-E0045",
+        "IO-E0153",
+        "IO-E0154",
+        "IO-E0293"
+      ],
+      "lock_ids": [
+        "IO-L07"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "IO-C07",
+      "title": "独立LiveEngine/Pool及恢复封装（定义不等于挂载）",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/6"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          13,
+          13
+        ]
+      },
+      "applicability_profiles": [
+        "DATA"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "IO-E0046",
+        "IO-E0047",
+        "IO-E0048",
+        "IO-E0049"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C002",
+      "title": "Python cached segment→center→move snapshots",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/136"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          143,
+          143
+        ]
+      },
+      "applicability_profiles": [
+        "STRUCTURE"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0006",
+        "KERNEL-E0007",
+        "KERNEL-E0008",
+        "KERNEL-E0009",
+        "KERNEL-E0010",
+        "KERNEL-E0011",
+        "KERNEL-E0012"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C003",
+      "title": "Python structural diff, event identity and bus tagging",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/137"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          144,
+          144
+        ]
+      },
+      "applicability_profiles": [
+        "STRUCTURE"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0013",
+        "KERNEL-E0014",
+        "KERNEL-E0015",
+        "KERNEL-E0016",
+        "KERNEL-E0017",
+        "KERNEL-E0018",
+        "KERNEL-E0019",
+        "KERNEL-E0020",
+        "KERNEL-E0021"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C004",
+      "title": "Python recursive level production versus L1 BSP production",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/138"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          145,
+          145
+        ]
+      },
+      "applicability_profiles": [
+        "STRUCTURE"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0022",
+        "KERNEL-E0023",
+        "KERNEL-E0024",
+        "KERNEL-E0025",
+        "KERNEL-E0026",
+        "KERNEL-E0027",
+        "KERNEL-E0028",
+        "KERNEL-E0029"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C006",
+      "title": "Theta PyO3 boundary: quantized synthetic clock and target position",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/140"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          147,
+          147
+        ]
+      },
+      "applicability_profiles": [
+        "DATA"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0041",
+        "KERNEL-E0042",
+        "KERNEL-E0043",
+        "KERNEL-E0044",
+        "KERNEL-E0045",
+        "KERNEL-E0046",
+        "KERNEL-E0047",
+        "KERNEL-E0614",
+        "KERNEL-E0615",
+        "KERNEL-E0616",
+        "KERNEL-E0617"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C008",
+      "title": "Tick recursive tower: seed domains, extension/re-cut and projection lifetime",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/142"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          149,
+          149
+        ]
+      },
+      "applicability_profiles": [
+        "STRUCTURE"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0057",
+        "KERNEL-E0058",
+        "KERNEL-E0059",
+        "KERNEL-E0060",
+        "KERNEL-E0061",
+        "KERNEL-E0062",
+        "KERNEL-E0063",
+        "KERNEL-E0064",
+        "KERNEL-E0065",
+        "KERNEL-E0066",
+        "KERNEL-E0067",
+        "KERNEL-E0068",
+        "KERNEL-E0527",
+        "KERNEL-E0541",
+        "KERNEL-E0542",
+        "KERNEL-E0543",
+        "KERNEL-E0544",
+        "KERNEL-E0545",
+        "KERNEL-E0546",
+        "KERNEL-E0547",
+        "KERNEL-E0548",
+        "KERNEL-E0549",
+        "KERNEL-E0550",
+        "KERNEL-E0551",
+        "KERNEL-E0552",
+        "KERNEL-E0553",
+        "KERNEL-E0554",
+        "KERNEL-E0555",
+        "KERNEL-E0556",
+        "KERNEL-E0557",
+        "KERNEL-E0587",
+        "KERNEL-E0588",
+        "KERNEL-E0589",
+        "KERNEL-E0590",
+        "KERNEL-E0626",
+        "KERNEL-E0627",
+        "KERNEL-E0628"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C009",
+      "title": "Same-level operation decomposition, explicit mount and nonconsumption boundary",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/143"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          150,
+          150
+        ]
+      },
+      "applicability_profiles": [
+        "STRUCTURE"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0069",
+        "KERNEL-E0070",
+        "KERNEL-E0071",
+        "KERNEL-E0072",
+        "KERNEL-E0073",
+        "KERNEL-E0074"
+      ],
+      "lock_ids": [
+        "KERNEL-L002"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C011",
+      "title": "Causal candidate book and chain certificate book preserve terminal history",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/145"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          152,
+          152
+        ]
+      },
+      "applicability_profiles": [
+        "STRUCTURE"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0085",
+        "KERNEL-E0086",
+        "KERNEL-E0087",
+        "KERNEL-E0088",
+        "KERNEL-E0089",
+        "KERNEL-E0090",
+        "KERNEL-E0091",
+        "KERNEL-E0092",
+        "KERNEL-E0334",
+        "KERNEL-E0533",
+        "KERNEL-E0558",
+        "KERNEL-E0559",
+        "KERNEL-E0595"
+      ],
+      "lock_ids": [
+        "KERNEL-L001",
+        "KERNEL-L006"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C012",
+      "title": "E2eO assembly to managed BSP authorization, not decision execution",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/146"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          153,
+          153
+        ]
+      },
+      "applicability_profiles": [
+        "ADMISSION"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08",
+        "SEM-13",
+        "SEM-14"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0093",
+        "KERNEL-E0094",
+        "KERNEL-E0095",
+        "KERNEL-E0096",
+        "KERNEL-E0097",
+        "KERNEL-E0098",
+        "KERNEL-E0099"
+      ],
+      "lock_ids": [
+        "KERNEL-L003",
+        "KERNEL-L006"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C013",
+      "title": "C2 completed views, typed nest assembly, terminal endorsement and gate input",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/147"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          154,
+          154
+        ]
+      },
+      "applicability_profiles": [
+        "STRUCTURE",
+        "ADMISSION"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08",
+        "SEM-13",
+        "SEM-14"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0100",
+        "KERNEL-E0101",
+        "KERNEL-E0102",
+        "KERNEL-E0103",
+        "KERNEL-E0104",
+        "KERNEL-E0105",
+        "KERNEL-E0106",
+        "KERNEL-E0107",
+        "KERNEL-E0108",
+        "KERNEL-E0109",
+        "KERNEL-E0110",
+        "KERNEL-E0111",
+        "KERNEL-E0522",
+        "KERNEL-E0523",
+        "KERNEL-E0560",
+        "KERNEL-E0561",
+        "KERNEL-E0562",
+        "KERNEL-E0563",
+        "KERNEL-E0564",
+        "KERNEL-E0565",
+        "KERNEL-E0566",
+        "KERNEL-E0567",
+        "KERNEL-E0568",
+        "KERNEL-E0569",
+        "KERNEL-E0570",
+        "KERNEL-E0596",
+        "KERNEL-E0597",
+        "KERNEL-E0598",
+        "KERNEL-E0599",
+        "KERNEL-E0600",
+        "KERNEL-E0618",
+        "KERNEL-E0619",
+        "KERNEL-E0620"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C014",
+      "title": "Independent active-nest lifecycle ledger and completion feedback",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/148"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          155,
+          155
+        ]
+      },
+      "applicability_profiles": [
+        "STRUCTURE",
+        "ADMISSION"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08",
+        "SEM-13",
+        "SEM-14"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0112",
+        "KERNEL-E0113",
+        "KERNEL-E0114",
+        "KERNEL-E0115",
+        "KERNEL-E0116",
+        "KERNEL-E0521",
+        "KERNEL-E0524",
+        "KERNEL-E0534",
+        "KERNEL-E0535",
+        "KERNEL-E0536",
+        "KERNEL-E0571",
+        "KERNEL-E0572",
+        "KERNEL-E0573",
+        "KERNEL-E0574",
+        "KERNEL-E0575",
+        "KERNEL-E0576",
+        "KERNEL-E0577",
+        "KERNEL-E0578",
+        "KERNEL-E0579",
+        "KERNEL-E0580",
+        "KERNEL-E0581",
+        "KERNEL-E0582",
+        "KERNEL-E0583",
+        "KERNEL-E0601",
+        "KERNEL-E0602"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C016",
+      "title": "TF parallel replay and seek lifetime (not recursive levels)",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/150"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          157,
+          157
+        ]
+      },
+      "applicability_profiles": [
+        "DATA"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0173",
+        "KERNEL-E0174",
+        "KERNEL-E0175",
+        "KERNEL-E0176"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C017",
+      "title": "HTTP overlay composes two different Python structural pipelines",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/151"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          158,
+          158
+        ]
+      },
+      "applicability_profiles": [
+        "STRUCTURE"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0177",
+        "KERNEL-E0178",
+        "KERNEL-E0179",
+        "KERNEL-E0180",
+        "KERNEL-E0181",
+        "KERNEL-E0182",
+        "KERNEL-E0216",
+        "KERNEL-E0217",
+        "KERNEL-E0218",
+        "KERNEL-E0219",
+        "KERNEL-E0220",
+        "KERNEL-E0221",
+        "KERNEL-E0222",
+        "KERNEL-E0223",
+        "KERNEL-E0224",
+        "KERNEL-E0225",
+        "KERNEL-E0226"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "KERNEL-C019",
+      "title": "f64 bi/trend surfacing deltas and append-only seen-state",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/153"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          160,
+          160
+        ]
+      },
+      "applicability_profiles": [
+        "STRUCTURE"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-06",
+        "SEM-08"
+      ],
+      "evidence_ids": [
+        "KERNEL-E0206",
+        "KERNEL-E0207",
+        "KERNEL-E0208",
+        "KERNEL-E0209",
+        "KERNEL-E0210",
+        "KERNEL-E0211",
+        "KERNEL-E0212",
+        "KERNEL-E0213",
+        "KERNEL-E0214",
+        "KERNEL-E0215"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "POS-C004",
+      "title": "Nested fugue chain: tail-only recursive allocation and unwind",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/126"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          133,
+          133
+        ]
+      },
+      "applicability_profiles": [
+        "ADMISSION",
+        "ACCOUNT"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-04",
+        "SEM-05",
+        "SEM-06",
+        "SEM-07",
+        "SEM-08",
+        "SEM-09",
+        "SEM-10",
+        "SEM-11",
+        "SEM-12",
+        "SEM-13",
+        "SEM-14",
+        "SEM-15",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "POS-E002",
+        "POS-E003",
+        "POS-E031",
+        "POS-E032",
+        "POS-E033",
+        "POS-E034",
+        "POS-E035",
+        "POS-E036",
+        "POS-E037",
+        "POS-E054",
+        "POS-E079",
+        "POS-E097",
+        "POS-E098",
+        "POS-E102",
+        "POS-E103",
+        "POS-E106",
+        "POS-E107",
+        "POS-E109",
+        "POS-E110"
+      ],
+      "lock_ids": [],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "POS-C005",
+      "title": "Isolated voice forest: tree links, per-voice actions and parent settlement",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/127"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          134,
+          134
+        ]
+      },
+      "applicability_profiles": [
+        "ADMISSION",
+        "ACCOUNT"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-04",
+        "SEM-05",
+        "SEM-06",
+        "SEM-07",
+        "SEM-08",
+        "SEM-09",
+        "SEM-10",
+        "SEM-11",
+        "SEM-12",
+        "SEM-13",
+        "SEM-14",
+        "SEM-15",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "POS-E002",
+        "POS-E038",
+        "POS-E039",
+        "POS-E040",
+        "POS-E041",
+        "POS-E042",
+        "POS-E043",
+        "POS-E032",
+        "POS-E033",
+        "POS-E054"
+      ],
+      "lock_ids": [
+        "POS-L001"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    },
+    {
+      "contract_id": "POS-C011",
+      "title": "DualVoice: configurable two books, shared funding and deep-window evidence",
+      "source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+        "json_pointer": "/contracts/133"
+      },
+      "readable_source": {
+        "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+        "line_range": [
+          140,
+          140
+        ]
+      },
+      "applicability_profiles": [
+        "ADMISSION",
+        "ACCOUNT"
+      ],
+      "constraint_ids": [
+        "SEM-01",
+        "SEM-02",
+        "SEM-03",
+        "SEM-04",
+        "SEM-05",
+        "SEM-06",
+        "SEM-07",
+        "SEM-08",
+        "SEM-09",
+        "SEM-10",
+        "SEM-11",
+        "SEM-12",
+        "SEM-13",
+        "SEM-14",
+        "SEM-15",
+        "SEM-16"
+      ],
+      "evidence_ids": [
+        "POS-E002",
+        "POS-E003",
+        "POS-E001",
+        "POS-E005",
+        "POS-E006",
+        "POS-E054",
+        "POS-E011",
+        "POS-E013",
+        "POS-E023",
+        "POS-E024",
+        "POS-E033",
+        "POS-E112",
+        "POS-E113",
+        "POS-E114",
+        "POS-E115",
+        "POS-E116",
+        "POS-E118",
+        "POS-E123",
+        "POS-E124",
+        "POS-E126"
+      ],
+      "lock_ids": [
+        "POS-L008"
+      ],
+      "execution_status": "not-run",
+      "meaning": "既有冻结合同导航；不是新增实读原证或当前源码复验"
+    }
+  ],
+  "global_limits": [
+    "本轮只核所读/引用制品的字节，未把旧源码绑定核验冒称今日源码复验。",
+    "SCAN-REPORT冻结作者正文中的待终审及旧计数残句按历史原字节保留；最终验收状态取SCAN-DELIVERY。",
+    "16组要求、10条关系、三个代表链都不缩小#1339全定义及完整多重赋格范围。",
+    "B/A2/C3推荐不在本工作包重评；无候选预设，架构重评等待完整需求/验收范围。",
+    "本轮无项目执行、测试、Lean、CI、服务、交易、回放或浏览器验证。",
+    "只写这两个约定的外置草稿，所有封存原件、主仓未提交文件、Git/GitHub保持不动。"
+  ],
+  "suggested_followup_order": [
+    "由本轮正本/赋格与观察契约工作汇成完整需求验收表；本导航直接填入已查静态证据，避免重扫。",
+    "为尚未覆盖条目区分新需求遗漏、旧资料未读、当前版本未核、源不可得与not-run。",
+    "仅在完整高级中枢血缘、选定入口实际挂载、观察一致性与退出在途尾账等具体缺口补读有意义producer/consumer；不重新通读171合同来源。",
+    "用户确认完整范围后，用同一组场景重评三候选；之后方向/spec/实施/运行验收按主线批准门推进。"
+  ],
+  "integration_rule": "ST/FG/OB汇合时，先引用EV的具体已查断言，再给相应条目证据信用；同域合同/关键词只能用于找证据，不等完整条目已查。未查/未认证不判缺实现。"
+}

@@ -1,0 +1,100 @@
+[
+  {
+    "id": "EXT-001",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/INTERFACES-AND-STATE.md:279",
+    "upstream_issue": 1336,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-002",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/SCHEME.md:144",
+    "upstream_issue": 1336,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-003",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/TRADEOFFS-AND-RED-FLAGS.md:33",
+    "upstream_issue": 1336,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-004",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/INTERFACES-AND-STATE.md:80",
+    "upstream_issue": 1336,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-005",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/INTERFACES-AND-STATE.md:170",
+    "upstream_issue": 1336,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-006",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/OPERATING-CONTRACTS.md:55",
+    "upstream_issue": 1336,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-007",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/USAGE.md:238",
+    "upstream_issue": 1336,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-008",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/INTERFACES-AND-STATE.md:104",
+    "upstream_issue": 1336,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-009",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/INTERFACES-AND-STATE.md:138",
+    "upstream_issue": 1336,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-010",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/MIGRATION-AND-VALIDATION.md:49",
+    "upstream_issue": 1336,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-011",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/INTERFACES-AND-STATE.md:76",
+    "upstream_issue": 1336,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-012",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/MIGRATION-AND-VALIDATION.md:44",
+    "upstream_issue": 1336,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-013",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/OLD-ENTRY-DISPOSITIONS.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+    "upstream_issue": 1335,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  },
+  {
+    "id": "EXT-014",
+    "referring_original": "/tmp/newchanlun-1339-architecture-20260908/author/OLD-ENTRY-DISPOSITIONS.md",
+    "original_locator": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CURRENT-ENTRY-CONSUMER-REGISTRY.json",
+    "upstream_issue": 1335,
+    "status": "UPSTREAM_REFERENCE_NOT_BUNDLED_NOT_CURRENT_SPEC_OVERRIDE"
+  }
+]

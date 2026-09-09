@@ -1,0 +1,3960 @@
+{
+  "schema": "newchanlun.independent-classification-integration.v1",
+  "issue": 1339,
+  "phase_revision": "R1",
+  "source_catalog": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+    "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+    "revision": "r2-reviewable",
+    "read_scope": "全部62轴的语义字段、10组合、32定位项、44ST映射、合同和证明元信息；来源原件以本方案source_binding已列实际读取范围为限"
+  },
+  "status": "ALL_CATALOG_ENTRIES_INTEGRATED_DESIGN_ONLY_NOT_COMPLETENESS_PROOF",
+  "counts": {
+    "axes": 62,
+    "legal_combination_contracts": 10,
+    "proof_sync_choice_items": 32,
+    "structure_requirement_rows": 44
+  },
+  "obligation_distinctions": [
+    "角色/变量/关系schema不按互斥标签计；其子有限分类轴另证",
+    "公式分区、raw落域、实现忠实、可达组合、转换闭包、身份唯一是不同义务",
+    "G003不是新语义缺口；G021不要求本轮设计交易档",
+    "CC058仅桥接ST与FG，工程协议完整轴在independent-design-state-contracts.md/json"
+  ],
+  "axes": [
+    {
+      "id": "CC-001",
+      "name": "有序值的原子三分",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/0"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-001",
+        "ST-003",
+        "ST-004",
+        "ST-006",
+        "ST-011",
+        "ST-014",
+        "ST-024",
+        "ST-030",
+        "ST-031",
+        "ST-034"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/有序几何",
+      "internal_call": "exact_compare(a,b)",
+      "persisted_output": "精确LT/EQ/GT；等号见证保留",
+      "catalog_output_contract": "返回比较两值、单位、坐标、等号命中及源对象；UI不得把相切画成严格分离。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "数值随新事实可在任意三支间迁移；已封存版本值不回写，修订生成新版本。",
+      "validation_obligation": "三分覆盖/互斥与数值投影等价，不能epsilon",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-002",
+      "name": "两闭区间全端点关系",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/1"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-001",
+        "ST-007",
+        "ST-008",
+        "ST-011",
+        "ST-013",
+        "ST-014",
+        "ST-034"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/有序几何",
+      "internal_call": "interval_relation(I,J)",
+      "persisted_output": "26端点秩叶及包含/重叠/gap多投影",
+      "catalog_output_contract": "返回全部四端点顺序叶，以及可同时成立的contains/overlap/gap投影和作用域。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "端点变化按全部26×26有序叶对记录；是否可由同一结构对象的合法延展到达另验构造规则，不能由几何可能推出可达。",
+      "validation_obligation": "退化闭区间全26叶；严格子域13叶；同一原子叶推出各关系",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-003",
+      "name": "相邻K线包含和无包含方向",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/2"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-001"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/包含构造",
+      "internal_call": "bar_pair_signature(a,b)",
+      "persisted_output": "9比较签名及有包含/无包含方向",
+      "catalog_output_contract": "显示原始两K和9叶、包含方向两个位、有效合并方向及来源。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "按左到右处理；非包含追加并更新方向；包含合并后重检相邻，禁止任意括号重排。",
+      "validation_obligation": "完整9签名与方向来源；包含投影不first-match丢重叠",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-004",
+      "name": "包含折叠输入及方向来源",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/3"
+      },
+      "axis_kind": "SEMANTIC_STATE_OR_EVENT",
+      "requirement_ids": [
+        "ST-001",
+        "ST-002"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/包含构造",
+      "internal_call": "fold_prefix(prefix,init_policy)",
+      "persisted_output": "7叶：空/单根/非包含UP追加/非包含DOWN追加/UP合并/DOWN合并/包含未建方向",
+      "catalog_output_contract": "输出当前处理raw索引、累加器尾、包含判据、七叶、追加或合并动作、方向值及建立/策略来源；两根非包含K不得丢失或误报初始化缺口。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "EMPTY→SINGLE；每次n>=2步在APPEND_UP/APPEND_DOWN/MERGE_UP/MERGE_DOWN/INITIAL_DIRECTION_UNESTABLISHED恰一支。非包含追加更新方向并可解除尚未建立方向；包含合并保留组成员和既定方向来源；方向未建立请求只有得到有依据的初始化/追加状态后继续。",
+      "validation_obligation": "初始方向无证据时具体等待G001；非包含建立方向后才能用其合并",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-001"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-005",
+      "name": "三种坐标及组映射",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/4"
+      },
+      "axis_kind": "ROLE_OR_RELATION_SCHEMA",
+      "requirement_ids": [
+        "ST-002",
+        "ST-004",
+        "ST-034"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接，不从代码或本方案重定义分支。角色/关系schema不是互斥市场标签；子版本轴/原子比较轴各按自己的域验证。",
+      "compute_owner": "结构与操作读法Module/坐标/身份",
+      "internal_call": "coordinate_map(group)",
+      "persisted_output": "raw/merged/代表根三个角色与成员映射",
+      "catalog_output_contract": "所有索引声明raw/merged/极值角色，显示组成员并可定位实际极值；不能靠一个idx装三者。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "组扩展更新成员映射；稳定raw身份不因merged重编号更换；修订重算要新代际。",
+      "validation_obligation": "三角色不当互斥市场态；等价极值tie身份G002",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-002"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-006",
+      "name": "无包含三K的四种局部形态",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/5"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-003"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/分型",
+      "internal_call": "fractal(local_triple)",
+      "persisted_output": "无包含三K四局部形态",
+      "catalog_output_contract": "显示四类之一、四个严格比较与对应三根原始/merged见证。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "滑窗a,b,c→b,c,d重新判；少于三K为输入不足。窗口判顶/底不等于后续形成有效笔。",
+      "validation_obligation": "证明输入已去包含，逐个满足形态判据",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-007",
+      "name": "分型描述与已实现后续发展",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/6"
+      },
+      "axis_kind": "OBSERVATION_OR_KNOWLEDGE",
+      "requirement_ids": [
+        "ST-045"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/只读描述",
+      "internal_call": "describe_fractal(fractal,prefix)",
+      "persisted_output": "实体/影线及后续已发生事实",
+      "catalog_output_contract": "展示顶底已定义分类；强弱描述标明规则未形式化，不以Unknown补齐一个声称已完备的轴。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "标签的获知时点和后续事件时点分开；无正式描述分类器前只能给原始证据或有出处的人工描述。",
+      "validation_obligation": "不创造强弱阈值叶；描述不准入",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-008",
+      "name": "新笔候选的完整条件签名",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/7"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-004"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/新笔",
+      "internal_call": "new_bi_candidates(fractals,coordinates)",
+      "persisted_output": "18条件签名及原始/合并距离",
+      "catalog_output_contract": "返回两个方向/同型叶、三个条件位、merged和raw距离、顶底价，全部失败原因而非firstfail。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "同型去重后重新考察异型端点；新数据可改变候选尾部，已确认笔的变化遵CC-010和版本轴。",
+      "validation_obligation": "双坐标域完整且不以一种坐标替另一种",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-009",
+      "name": "同型分型去重与极值身份",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/8"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-005"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/新笔",
+      "internal_call": "deduplicate_same_type(candidates)",
+      "persisted_output": "同型六支、同价tie全候选和选根",
+      "catalog_output_contract": "记录被保留和被替代候选、价格判据、身份tie与策略版本。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "严格更极端→替换当前候选；严格较弱→保留；EQ不得无来源地声称首/末唯一。",
+      "validation_obligation": "极值价格唯一不推出根唯一；G002定实例",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-002"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-010",
+      "name": "笔形成和确认",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/9"
+      },
+      "axis_kind": "SEMANTIC_STATE_OR_EVENT",
+      "requirement_ids": [
+        "ST-005",
+        "ST-019",
+        "ST-032"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/笔确认",
+      "internal_call": "bi_lifecycle(prefix)",
+      "persisted_output": "形成/确认及所依赖后续对象",
+      "catalog_output_contract": "尾笔虚实、延伸端点、确认依据及known_at，提供前缀重放。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "合法追加下未确认可延伸并最终确认；同一代际已确认不得退回；行情纠错需要撤回/新版本，非语义倒退。",
+      "validation_obligation": "原始合法追加确认单调，修订单独代际G004",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-004"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-011",
+      "name": "线段构造候选条件",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/10"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-006",
+        "ST-048"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/线段构造",
+      "internal_call": "segment_seed(bis)",
+      "persisted_output": "五长度域/16条件签名、闭公共重叠",
+      "catalog_output_contract": "列全部构造条件、前三笔共同区间及相切叶、方向、起止笔ID。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "候选只有满足构造条件才成段；笔破坏/第一第二特征序列确认决定旧段终结，参CC-012..014。",
+      "validation_obligation": "三笔相切闭边界已裁；不得套正式center严格端点",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-005"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-012",
+      "name": "特征序列作用域与标准化",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/11"
+      },
+      "axis_kind": "ROLE_OR_RELATION_SCHEMA",
+      "requirement_ids": [
+        "ST-007"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接，不从代码或本方案重定义分支。角色/关系schema不是互斥市场标签；子版本轴/原子比较轴各按自己的域验证。",
+      "compute_owner": "结构与操作读法Module/特征序列",
+      "internal_call": "feature_sequences(segment)",
+      "persisted_output": "三序列角色及各自成员/包含域",
+      "catalog_output_contract": "显示first/second身份、极值锚、原笔映射和包含组，禁止UI只画一条混合特征线。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "先按序列独立标准化→找分型；若第一有缺口才启动第二；新事实追加不跨作用域吸收。",
+      "validation_obligation": "第二序列同向正确成员；角色共存不当互斥",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-006"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-013",
+      "name": "线段终结的两情况与完整条件族",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/12"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-007",
+        "ST-008"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/线段终结",
+      "internal_call": "segment_termination(features)",
+      "persisted_output": "32条件签名及5语义处理结果/两情况",
+      "catalog_output_contract": "输出选择两情况的缺口证据、两个序列的分型与封闭证据、终结获知时点及扫描范围。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "NONE→case1终结，或→case2等待→case2终结；一次候选失效可重扫后续窗口，不能把未扫完当不存在。",
+      "validation_obligation": "两情况/任意分型/G4 strict封闭统一投影G006",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-006"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-014",
+      "name": "笔破坏、段破坏、扫描完整性",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/13"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-008",
+        "ST-048"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/线段扫描",
+      "internal_call": "scan_destruction(prefix,scope)",
+      "persisted_output": "笔破坏/段破坏独立事实与扫描完整性",
+      "catalog_output_contract": "分别显示笔破坏/段破坏、扫描起止/预算是否耗尽；禁止“扫描不足⇒没有段破坏”。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "已成新段→旧段终结；未形成则旧段续；INCOMPLETE允许后续补扫恢复COMPLETE。",
+      "validation_obligation": "窗口G007具名；耗尽预算不等无终结",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-007"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-015",
+      "name": "构造、操作读法与定位读法",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/14"
+      },
+      "axis_kind": "ROLE_OR_RELATION_SCHEMA",
+      "requirement_ids": [
+        "ST-009",
+        "ST-033"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接，不从代码或本方案重定义分支。角色/关系schema不是互斥市场标签；子版本轴/原子比较轴各按自己的域验证。",
+      "compute_owner": "结构与操作读法Module/读法分层",
+      "internal_call": "views(classification,role,policy)",
+      "persisted_output": "主构造/操作/定位三个具名读法",
+      "catalog_output_contract": "返回role、source_tower_version、operation_level或target_interval、完整分解成员与未分配范围。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "主塔生成后可派生两旁路；旁路读法变化只生成新读法实例和源版本绑定。",
+      "validation_obligation": "唯一主塔+每读法唯一分解，不要求旁路等同主塔G008",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-008"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-016",
+      "name": "正式中枢的seed判定",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/15"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-011"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/中枢构造",
+      "internal_call": "center_seed(real_children)",
+      "persisted_output": "32条件签名、核心<=>三几何叶",
+      "catalog_output_contract": "输出三个次级单元ID、级别/完成/方向/连续见证、ZD/ZG精确值及相切排除。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "仅11111建立新正式中枢身份；失败保留构造尝试证据，不能下放宽松几何条件重判。",
+      "validation_obligation": "输入真次级/完成/连续，strict seed；无候选冒充center",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-009"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-017",
+      "name": "中枢核心和外缘变量角色",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/16"
+      },
+      "axis_kind": "ROLE_OR_RELATION_SCHEMA",
+      "requirement_ids": [
+        "ST-012"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接，不从代码或本方案重定义分支。角色/关系schema不是互斥市场标签；子版本轴/原子比较轴各按自己的域验证。",
+      "compute_owner": "结构与操作读法Module/中枢发展",
+      "internal_call": "center_geometry(center,members)",
+      "persisted_output": "冻结ZD/ZG、全成员GG/G/D/DD及成员",
+      "catalog_output_contract": "同时显示六变量及冻结/动态属性、成员贡献、上版差异和known_at。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "纳入Zn时按min/max更新四外缘统计，核心保持不变；有新seed才新核心身份。",
+      "validation_obligation": "六变量角色并列；D>G合法，不误作核心非空",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-018",
+      "name": "单走势单元相对中枢核心的位置",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/17"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-013",
+        "ST-031"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/中枢关系",
+      "internal_call": "unit_vs_core(unit,core)",
+      "persisted_output": "单元对核心5位置关系",
+      "catalog_output_contract": "保留相切单独叶、离开方向、对应单元及核心版本；不由一根越界直接显示“中心死亡”。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "当前单元从core内到外可离开，后续返回是新相对事件；是否正式延伸成员须满足结构和计数域。",
+      "validation_obligation": "闭边界全部；单元与点位置轴不同",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-019",
+      "name": "中枢离开后首回试与破坏",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/18"
+      },
+      "axis_kind": "SEMANTIC_STATE_OR_EVENT",
+      "requirement_ids": [
+        "ST-013",
+        "ST-031"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/中枢发展",
+      "internal_call": "leave_first_retest(center,path)",
+      "persisted_output": "10离开/首回试情形及三类/破坏事实",
+      "catalog_output_contract": "同时画leave、first retest、完成、比较端点、B3/S3及中心破坏事件，含known_at。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "leave完成→first-retest形成→完成后固定成立或失败；中枢成员入外缘规则不能因为一类点而统一终止同级所有枢。",
+      "validation_obligation": "第一次真实完成回试与严格三类端点G010",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-010"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-020",
+      "name": "相邻正式中枢对的完整发展分类",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/19"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-014",
+        "ST-047"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/中枢对",
+      "internal_call": "center_pair(left,right)",
+      "persisted_output": "5对分类及完整外缘不等式",
+      "catalog_output_contract": "显示5叶、core和outer全部比较、两个center ID及关系获知时间；分别显示新生和扩展方向。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "新B确认后生成A→B关系；可作为高级构造输入，禁止lower输出自行强塞level_lift。各pair保留，不以优先级删除另一个pair关系。",
+      "validation_obligation": "core未分离与向上/下新生/扩展，关系不冒充高级对象",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-009"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-021",
+      "name": "九段升级及构造尝试",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/20"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-015"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/升级构造",
+      "internal_call": "nine_unit_recut(center,units)",
+      "persisted_output": "九段计数向量、所有重切子窗与高级构造",
+      "catalog_output_contract": "输出完整计数贡献、排除项理由、达到9的known_at、每个重切窗口成败与高级血缘。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "3..8逐段增加→>=9触发升级处理；重切结果逐一记录，旧父子关系由新代际切换。",
+      "validation_obligation": "无波动排除实例G011；每个子窗仍需strict seed",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-011"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-022",
+      "name": "中枢成员、连接与尚未归属单元",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/21"
+      },
+      "axis_kind": "SEMANTIC_STATE_OR_EVENT",
+      "requirement_ids": [
+        "ST-016"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/分解归属",
+      "internal_call": "assign_units(view,units)",
+      "persisted_output": "成员/连接/尚未分配，续扫起点",
+      "catalog_output_contract": "前端可查每单元归属和续扫位置，明确未覆盖尾部，不能消失。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "扫完某枢后从last_member+2跳连接续扫；新事实使未归属→成员/连接，已定结构仍受版本单调边界。",
+      "validation_obligation": "全覆盖且不重复归属；Unassigned真实尾部不是完成走势类",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-008"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-023",
+      "name": "已完成走势类型三分类",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/22"
+      },
+      "axis_kind": "SEMANTIC_STATE_OR_EVENT",
+      "requirement_ids": [
+        "ST-017"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/完成走势",
+      "internal_call": "classify_completed(move)",
+      "persisted_output": "盘整/上涨/下跌恰一类",
+      "catalog_output_contract": "输出三类、q、全中枢证据、分解身份、完成见证；无D证明时另报输入域未证而非第四类型。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "形成盘整可发展为趋势或高级结构；已完成旧T保持三类，后续T为新身份。禁止同级完成UP+UP或DOWN+DOWN当两个独立相邻类型。",
+      "validation_obligation": "真实完成对象落良构域G012；多枢flat须正确分解/升层",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-012"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-024",
+      "name": "盘整语义方向与技术突破方向",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/23"
+      },
+      "axis_kind": "SEMANTIC_STATE_OR_EVENT",
+      "requirement_ids": [
+        "ST-018"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/走势方向",
+      "internal_call": "semantic_and_break_direction(move)",
+      "persisted_output": "盘整无语义方向，技术突破字段单列",
+      "catalog_output_contract": "趋势标签和break_direction分字段，盘整UI不画成必然多头/空头。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "盘整内技术方向可随离开/回归更新；这不把盘整改成趋势。",
+      "validation_obligation": "旧兼容字段及消费者退场G013",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-013"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-025",
+      "name": "形成、完成、同级继任与中阴",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/24"
+      },
+      "axis_kind": "SEMANTIC_STATE_OR_EVENT",
+      "requirement_ids": [
+        "ST-019",
+        "ST-026",
+        "ST-044"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/完成/转折",
+      "internal_call": "completion_successor(move,prefix)",
+      "persisted_output": "形成、完成、真实同级继任和中阴分轴",
+      "catalog_output_contract": "并列显示形成、完成依据、同级旧/新ID、known_at与发生位置；小转大完成不能强制要求本级Div。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "在无行情修订的合法前缀上UNFORMED→FORMED_OPEN→COMPLETED_*；出现继任可从无继任→有继任；不得把同一T自身当successor。即时可跨过中间观察状态但需有证据。",
+      "validation_obligation": "一般Move与Turn窄Completed桥G014；不能把Div当所有完成",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-014"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-026",
+      "name": "走势的六态观察",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/25"
+      },
+      "axis_kind": "OBSERVATION_OR_KNOWLEDGE",
+      "requirement_ids": [
+        "ST-013",
+        "ST-018",
+        "ST-044"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/六态观察",
+      "internal_call": "six_state(same_context)",
+      "persisted_output": "六标签及完整center/p/B3/S3证据",
+      "catalog_output_contract": "同源返回6态及来源context；UI可展示六态、完整BSP事实和历史变化，无价格门反向准入。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "价格和已知BSP变化可引发六态迁移；全36有序状态对仅是表现变化空间，真实可达须由原始前缀与center身份规则证明，不能生成独立FSM控制交易。",
+      "validation_obligation": "给定Context∃!不证raw→Context；36转移编码非可达性G015",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-015"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-027",
+      "name": "递归构造级别与停止",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/26"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-020",
+        "ST-021"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/递归构造",
+      "internal_call": "compose_next(real_level)",
+      "persisted_output": "基底/上载/停止及三种级别身份",
+      "catalog_output_contract": "每级给构造参数/基底、父子来源、已结算供给量、自然/资源停止理由。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "下层settled对象供上层；数量/候选不足自然停止，后续新事实可恢复；资源中断须显式可续算。",
+      "validation_obligation": "级别差、真实血缘及自然停止；资源耗尽独立知识状态",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-009"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-028",
+      "name": "跨级同判据与真实父子",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/27"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-021",
+        "ST-034"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/跨级判据",
+      "internal_call": "judge_same_predicate(real_units)",
+      "persisted_output": "各级同一输入判定及父子见证",
+      "catalog_output_contract": "给每级同输入对拍证据、parent_id和member证明；绘图连边区分构造和几何。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "追加产生新成员边；既有边的修订以结构代际表达；旁路不能改构造血缘。",
+      "validation_obligation": "真实构造/包含/级差与同输入同输出G009",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-009"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-029",
+      "name": "描述中枢形态与正式对象名分",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/28"
+      },
+      "axis_kind": "ROLE_OR_RELATION_SCHEMA",
+      "requirement_ids": [
+        "ST-022"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接，不从代码或本方案重定义分支。角色/关系schema不是互斥市场标签；子版本轴/原子比较轴各按自己的域验证。",
+      "compute_owner": "结构与操作读法Module/只读名分",
+      "internal_call": "describe_center_or_analogy(object)",
+      "persisted_output": "正式/基底类比/PH描述具名角色",
+      "catalog_output_contract": "UI明确对象类型；形态只能附原文描述与证据，不能新增未定义生产分类。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "名分不能通过渲染样式或相似几何升级；正式center必须有独立seed证据。",
+      "validation_obligation": "形态和PH类比无生产权，不立额外穷尽分档",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-030",
+      "name": "背驰比较对象与适用域",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/29"
+      },
+      "axis_kind": "SEMANTIC_STATE_OR_EVENT",
+      "requirement_ids": [
+        "ST-023"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/背驰配对",
+      "internal_call": "structural_pairs(view)",
+      "persisted_output": "趋势b/c、盘整首/重复比较和内部段语境",
+      "catalog_output_contract": "标明TREND/RANGE和first/repeat、b/c对象及选择来源，显示被排除内部段。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "只有结构pair成立才计算独立力度关系；无pair输出适用域不足，不能弱配对fallback。",
+      "validation_obligation": "先结构后力度，完整候选配对G016",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-016"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-031",
+      "name": "趋势背驰五结构条件签名",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/30"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-023",
+        "ST-029"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/背驰结构",
+      "internal_call": "trend_pair_conditions(pair)",
+      "persisted_output": "5条件全32签名及失败集合",
+      "catalog_output_contract": "输出5位及每位来源对象/known_at，所有失败原因和不适用项分开。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "结构条件随发展态可能逐项取得；只有当前齐备时才有当下结构背驰判断，未来成立不得回灌到过去。",
+      "validation_obligation": "Extreme等逐项保留，不从未来NE倒推条件",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-016"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-032",
+      "name": "力度样本与数值全分类",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/31"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-024"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/力度",
+      "internal_call": "force_velocity(real_strokes)",
+      "persisted_output": "接口空/非空无效/有效单笔/有效多笔四分；仅有效域给首末端点和L",
+      "catalog_output_contract": "输出interface_case和domain_status；只有D_L内输出semantic_L及首/末笔、四端点、Δindex、v首/末。空表和无效记录返回明确原因、semantic_L缺席；可附totalized_debug_value但不得绘成零力度。比较端仅接受两个语义有效L及同单位坐标。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "接口EMPTY可在追加有效样本后进入SINGLE_VALID/MULTI_VALID；无效输入校正须相应代际，记录旧失败。D_L内发展样本改变首/末边界可更新L；旧版本样本和known_at不回写。",
+      "validation_obligation": "接口域I→语义D_L→比较D_pair分开；有效单笔L=0；有效多笔符号三支，空/无效无语义L",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-017"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-033",
+      "name": "力度比较、结构背驰与代理状态",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/32"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-023",
+        "ST-024",
+        "ST-025"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/力度比较",
+      "internal_call": "compare_force(pair)",
+      "persisted_output": "LT/EQ/GT与独立Div/代理结果",
+      "catalog_output_contract": "展示结构是否成立、L三分、Div结果和辅助读数分别字段。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "L变化重新判3分；不能把候选内Cand的3条件和Weak合并成同一层门。",
+      "validation_obligation": "L相对变化不等绝对强度；代理失败不可换判断",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-034",
+      "name": "MACD辅助完整逻辑签名",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/33"
+      },
+      "axis_kind": "OBSERVATION_OR_KNOWLEDGE",
+      "requirement_ids": [
+        "ST-025"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/MACD观察",
+      "internal_call": "macd_aux(pair,context)",
+      "persisted_output": "趋势16/盘整8签名，各维OR/T4适用域",
+      "catalog_output_contract": "同时显示三维全部位与数值、T4、缺数理由；辅助结果不能冒充结构背驰结论。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "每次同一数据前缀更新三维和前提；每个proxy取值的采样窗口可追溯。",
+      "validation_obligation": "同色带符号面积采样；非sumabs；不得声称与Δv普适等价",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-018"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-035",
+      "name": "Div、NE、Turn及高级结果的分轴",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/34"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-026",
+        "ST-047"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/转折因果",
+      "internal_call": "div_ne_turn_evidence(move)",
+      "persisted_output": "16原始签名及各独立证据/获知时点",
+      "catalog_output_contract": "前端逐命题显示已知证据和关系，不把“有背驰”直接画作高级反趋势已完成。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "Div/完成/继任可同一known_at或分次获知；高级结果稍后归类，保留原时点未知事实的知识状态。",
+      "validation_obligation": "Div⇒NE/Turn非循环桥G019，非16均市场可达",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-014",
+        "G-019"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-036",
+      "name": "所有已发生转折的级别二分",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/35"
+      },
+      "axis_kind": "SEMANTIC_STATE_OR_EVENT",
+      "requirement_ids": [
+        "ST-027"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/小转大",
+      "internal_call": "realized_turn_relation(q_turn)",
+      "persisted_output": "r=q或r<q及真实q/r对象",
+      "catalog_output_contract": "显示旧q走势、新q继任、r级背驰位置、r/q、发生与获知时点；必要条件另标。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "只有q级转折证据和r级定位均有才确定分支；此前保留必要条件/局部发展，不预告SMALL_TO_LARGE。",
+      "validation_obligation": "仅给已发生转折；不要求预知未来的充分条件",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-020"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-037",
+      "name": "小转大必要条件和发生的合法组合",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/36"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-027"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/必要/发生",
+      "internal_call": "necessary_outcome_pair(target)",
+      "persisted_output": "r<q上下文三合法N/X组合；r=q不属此X；UP末中枢三卖、DOWN三买",
+      "catalog_output_contract": "显示“必要条件已出现”与“小转大已发生”两个事实、各自known_at及见证。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "在固定r<q上下文内，N可先成立而X仍false；只有小转大实际发生且见证足够时才进入N_AND_X。r=q转折通过CC-036.SAME_LEVEL_DIVERGENCE记录，不通过本轴制造X&&!N违规。",
+      "validation_obligation": "X⇒N仅该小转大域，N不推出X；同级转折不能因无N被误拒",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-038",
+      "name": "小背驰后的局部中枢出口和相邻关系",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/37"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-027",
+        "ST-047"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/小转大局部",
+      "internal_call": "local_exit_overlap(small_div)",
+      "persisted_output": "3出口×2重叠局部签名",
+      "catalog_output_contract": "画小背驰、C、B及完整关系，对继续原趋势和更高级构造保留历史因果链。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "小背驰→形成C→出口和关系逐项获知；任一部分尚缺时记录知识而不填另一出口。",
+      "validation_obligation": "本地几何与真实q转折证据分开G020",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-020"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-039",
+      "name": "小转大答疑与操作落点的观察轴",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/38"
+      },
+      "axis_kind": "OBSERVATION_OR_KNOWLEDGE",
+      "requirement_ids": [
+        "ST-027",
+        "ST-030",
+        "ST-043"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/操作观察",
+      "internal_call": "reference_price_observations(turn)",
+      "persisted_output": "全部12参考价原子关系",
+      "catalog_output_contract": "输出参考对象、三分关系、center触及与背驰证据，经营接口接结构事实而非本目录决定仓位。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "先后次序保留：突破、反弹、次级转折各不同事件，不能倒序解释旧信号。",
+      "validation_obligation": "原子比较可展示；不发明最强/最弱交易准入档",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-021"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-040",
+      "name": "背驰转折后的三个高级结果",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/39"
+      },
+      "axis_kind": "SEMANTIC_STATE_OR_EVENT",
+      "requirement_ids": [
+        "ST-047"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/转折结果",
+      "internal_call": "realized_outcome(turn,reading,horizon)",
+      "persisted_output": "三结果、高级对象、回拉极值/外缘关系",
+      "catalog_output_contract": "显示Outcome³、分解边界、比较级别与完成见证、回拉关系另轴。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "结果尚未形成/完成时只标待观察，不能提前归三叶；完成证据出现后归类，并可解释此前局部状态。",
+      "validation_obligation": "反向趋势level≥q；最弱可只触DD/GG；固定分解语境G022",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-022"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-041",
+      "name": "买卖点六谓词的完整签名",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/40"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-028"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/买卖点",
+      "internal_call": "all_six_predicates(level_view)",
+      "persisted_output": "64编码、37同类B/S同真排除、至多27抽象允许；逐点和LevelView分载体",
+      "catalog_output_contract": "若输出名为LevelView签名，必须同时给cand1/2/3身份、side、厚谓词见证及三条互斥检查；逐点BspBits和Γ候选六位另标carrier_kind，不冒充每级每时刻投影。UI允许跨不同类别反向标签，拒绝同一类B/S同真却标成有效LevelView。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "每个新前缀若构成新的D_LevelView，输出必须仍满足三条同类排斥；保留原候选ID与投影版本。Rust逐点列表的增删/排序不是这一步投影的证明，需单独桥接；单一签名不作对象ID。",
+      "validation_obligation": "LevelView每类一个候选且Bk/Sk互斥；27不等全部可构造，逐点列表须另证投影G023",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-023"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-042",
+      "name": "同端同级同side买卖标签合法集合",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/41"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-028",
+        "ST-030"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/买卖点组合",
+      "internal_call": "local_bsp_set(endpoint,q,side)",
+      "persisted_output": "空/1/2/3/2+3五合法集合",
+      "catalog_output_contract": "重合同时画2/3、分别给理由；最多5集合的约束须由实际投影不变量证明。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "同一个端点新增证据可使NONE→某标签或TYPE2/TYPE3→TYPE2_TYPE3；确认后标签撤回只能由版本修订/证明推翻事件表达，不靠first-match。",
+      "validation_obligation": "约束仅同端同级同side，不全LevelView排斥",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-023"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-043",
+      "name": "第一类点完整条件族",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/42"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-029"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/一类点",
+      "internal_call": "type1_conditions(candidate)",
+      "persisted_output": "每方向8条件签名及本级核心/背驰",
+      "catalog_output_contract": "显示三条件和同级core、趋势pair与力度、side和known_at。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "只在全部结构条件当前成立时发布Type1；不把Turn逆推Div当证据。",
+      "validation_obligation": "全部真实结构条件，不以Weak代理替完整一类",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-023"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-044",
+      "name": "第二类构成结构的次级序列与首个后继",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/43"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-030"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/二类点",
+      "internal_call": "type2_descend_sequence(parent)",
+      "persisted_output": "q−1 m1/i1、i2=i1+1/m2及全部构成见证",
+      "catalog_output_contract": "列q级parent/转折锚、q-1的subs/m1/m2、i1/i2、c1/divPair、回拉方向与完成，显示实际索引域和全部见证。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "取得m1次级一类→同subs首个后继m2→回拉完成见证→二类确认；不可把后续任意m2替掉不存在的i1+1。q级锚有无一类不改变这个索引域，但两者的具体对象对应须单独证。",
+      "validation_obligation": "索引属于descend(parent)；faithful和双向桥G024/G032未证",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-024",
+        "G-032"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-045",
+      "name": "第三类点的严格端点与首回试",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/44"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-031"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/三类点",
+      "internal_call": "type3_conditions(center,leave,retest)",
+      "persisted_output": "接口I/完整编码E96/完成域24/正式首回试6/确认2及strict端点",
+      "catalog_output_contract": "输出I/E/D_completed/D_first成员资格、全部完成/first/left证据和比较叶；数据不齐给精确缺项，未完成显示等待或发展，不显示已确认三类；最终确认以冻结core及完成次级对象绑定。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "请求先补齐对象和值进入E；leave/retest各自完成使E进入D_completed；此时结构first/left和严格边界决定成立/失败。未完成时仅更新候选/发展事实；完成不得仅由当前价格位置代替，后续单元不更改first身份，修订另代际。",
+      "validation_obligation": "72未完成码不确认；18已完成非首/非离开不成立；2严格成立码，缺值走CC054",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-010"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-046",
+      "name": "买卖点确认与结构归因",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/45"
+      },
+      "axis_kind": "SEMANTIC_STATE_OR_EVENT",
+      "requirement_ids": [
+        "ST-032"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/确认因果",
+      "internal_call": "bsp_confirmation(prefix)",
+      "persisted_output": "未确认/确认及所依赖完成对象",
+      "catalog_output_contract": "确认旗标、完成见证、形成/确认各known_at与撤回因果可查询。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "合法追加下未确认→确认，确认不可退；证据失效通过撤回和新版本，不静默改原known_at。",
+      "validation_obligation": "前缀单调与修订代际分开G004",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-004"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-047",
+      "name": "区间套坐标与几何包含",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/46"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-033",
+        "ST-034"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/定位坐标",
+      "internal_call": "interval_nesting(parent,child)",
+      "persisted_output": "26索引×26价格×3级别几何码、实际血缘",
+      "catalog_output_contract": "显示区间端点、subset证据、真实parent或仅几何关系、完整祖先路径和坐标版本。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "向下定位逐级生成区间链；索引映射变更须同源版本重算，不把显示merged索引当raw比较。",
+      "validation_obligation": "几何码不是全部可达；独立选父价格挂法G025未裁",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-025"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-048",
+      "name": "Cand元素三条件全签名",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/47"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-035"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/定位候选",
+      "internal_call": "candidate_elements(conditioned_domain)",
+      "persisted_output": "Comparable/Direction/Extreme全8签名",
+      "catalog_output_contract": "返回8位分组的候选全集、被排除原因、上级条件和力度另轴。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "构造可以bottom-up形成条件候选；top-down求值传入所选上级区间过滤；两个方向是不同环节可并存。",
+      "validation_obligation": "Cand不含Weak；输入先按上层选区间条件化",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-026"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-049",
+      "name": "Cand集合非空和Sel选择",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/48"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-035"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/定位选择",
+      "internal_call": "select_from_complete_candidates(C,policy)",
+      "persisted_output": "空/单/多及完整C、Sel和版本",
+      "catalog_output_contract": "显示候选数/全集、选中ID、选择规则及参数，多个候选不能隐藏。 同时返回selected_id、selector_version、selected_gate_name/适用域、selected_gate_result；全部候选评估放只读observation字段，证书消费者不得读取any_success代替selected_gate_result。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "C随上级区间和事实版本变化可0/1/多任意迁移；已封存查询的C与Sel不变，重算另版本。 一次请求内顺序C确定→s确定→适用独立门G(s)；失败仍保留s。新原始事实/合法策略新版本可形成新请求，但不是同请求失败fallback。",
+      "validation_obligation": "固定Sel先选s再判适用G(s)；其他候选成功只读，不重选或救回失败G026",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-026"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-050",
+      "name": "区间链的完整约束签名",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/49"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-036"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/定位证书",
+      "internal_call": "validate_chain(chain,context)",
+      "persisted_output": "公式化全边/rung签名、Confirm、失败集合",
+      "catalog_output_contract": "全rung/边见证、有效域、证书版本、Confirm位置、完整失败集合和获知时间可下钻查看。 每个被消费的门结果必须带selected_id及predicate_id，不以全集存在性观察充当选中见证。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "构造链→验完整rung/边→叶Confirm→证书；任一实际失败保留全失败位。链变更重新验证，不复用不匹配祖先/版本的证书。",
+      "validation_obligation": "空链另域；三骨架和N/A处理不能严失败转宽G027",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-027"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-051",
+      "name": "Type2/3的区间套适用域",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/50"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-036"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/定位适用性",
+      "internal_call": "rung_applicability(point_type)",
+      "persisted_output": "Type1适用/Type2不适用/Type3不适用",
+      "catalog_output_contract": "UI展示“不适用：该点型无此rung要求”，并列真正适用的构成/完成证据。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "按入口对象分派语义适用域，同一Type不会因rung失败改成另一Type。",
+      "validation_obligation": "N/A不是true；仍验证真正次级构成义务G028",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-028"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-052",
+      "name": "下钻选择后判定与全候选观察分轴",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/51"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-038"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/定位知识",
+      "internal_call": "complete_descent_result(request)",
+      "persisted_output": "选中请求四分、全集观察四分、同G时五合法联合；带predicate_id",
+      "catalog_output_contract": "返回subs、完整C、selected_id、selector_version、selected_gate{predicate_id,applicability,result,evidence}及readonly_candidate_evaluations；证书/经营只能按合同消费selected_gate，UI并排显示选中失败和其他候选成功，不把ANY_GATE_TRUE渲染为本请求已通过。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "同请求先建立C、按固定Sel确定s，再评价适用G(s)；只读评价其他候选不得反馈重选。新事实可生成新版本请求，但旧s和结果不变。选中门真之后仍须继续其余链/叶确认，不能提前发布完整证书。",
+      "validation_obligation": "selected=false/any=true合法并存；证书仅消费selected_gate，不从观察any成功补证",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-026"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-053",
+      "name": "下钻成本门与塔底停止",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/52"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-037"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/定位停止",
+      "internal_call": "descent_stop(cost,base)",
+      "persisted_output": "继续/仅成本/仅基底/两者四签名",
+      "catalog_output_contract": "显示两停止位、成本读数/参数版本、底层身份及触发时间。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "CONTINUE可向下一层；任一停止位为真就停在当前合法端点，缺成本数据另知识状态，不虚报stop=false。",
+      "validation_obligation": "OR双触发不first-match；成本政策未齐单列G029",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-029"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-054",
+      "name": "数据、适用域、计算完成和结果有效性",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/53"
+      },
+      "axis_kind": "OBSERVATION_OR_KNOWLEDGE",
+      "requirement_ids": [
+        "ST-010",
+        "ST-038",
+        "ST-044"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/结果元信息",
+      "internal_call": "result_qualification(request)",
+      "persisted_output": "输入3×域3×完成2×有效性3元信息",
+      "catalog_output_contract": "每条结果附四轴和精确原因；UI明确“结构不成立”“尚缺证据”“不适用”的区别。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "输入补齐/证明补齐/继续计算可恢复；修订使旧结果superseded或withdrawn并链接新版本，不能逆写语义确认。",
+      "validation_obligation": "54原始元码不填市场叶；旧有效切面与新未完成可并存",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-055",
+      "name": "全对象关系与变更事件身份",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/54"
+      },
+      "axis_kind": "ROLE_OR_RELATION_SCHEMA",
+      "requirement_ids": [
+        "ST-044"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接，不从代码或本方案重定义分支。角色/关系schema不是互斥市场标签；子版本轴/原子比较轴各按自己的域验证。",
+      "compute_owner": "结构与操作读法Module/全对象变化",
+      "internal_call": "typed_relations_and_delta(revision)",
+      "persisted_output": "12具名关系族/4delta形式与全部前后对象",
+      "catalog_output_contract": "查询同源快照、全关系、按游标变化、撤回因果及按当时可知回放；前端只消费同源计算结果。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "建立/发展/确认依各CC轴前件；撤回只走版本和来源修订。一个输入可产生多个合法变化事件，全部发出，不全局first-match。",
+      "validation_obligation": "逐轴见证和全事件闭包G030；不把关系名enum当本体穷尽",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-030"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-056",
+      "name": "唯一归类和对象唯一身份的不同义务",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/55"
+      },
+      "axis_kind": "ROLE_OR_RELATION_SCHEMA",
+      "requirement_ids": [
+        "ST-002",
+        "ST-005",
+        "ST-044"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接，不从代码或本方案重定义分支。角色/关系schema不是互斥市场标签；子版本轴/原子比较轴各按自己的域验证。",
+      "compute_owner": "结构与操作读法Module/对象身份",
+      "internal_call": "object_version_identity(input,role)",
+      "persisted_output": "追加/输入修订/规则参数变化及稳定ID",
+      "catalog_output_contract": "返回input_frontier、semantic_version、policy_version、view_role、object_generation，可比对同输入重放。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "追加只用已允许发展转换；修订或规则变化新代际，保存旧版和替代原因。",
+      "validation_obligation": "分支唯一与对象ID唯一不同；tie/读法证明G002/G030",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-002",
+        "G-030"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-057",
+      "name": "多级联立与共振",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/56"
+      },
+      "axis_kind": "OBSERVATION_OR_KNOWLEDGE",
+      "requirement_ids": [
+        "ST-046"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/跨级观察",
+      "internal_call": "joint_level_facts(cut,levels)",
+      "persisted_output": "编码64^m；各级均属LevelView时最多27^m抽象允许；载体和共振见证",
+      "catalog_output_contract": "以级别×事实矩阵显示完整联合向量及血缘关系；保留多个级别标签和各known_at。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "新级别事实到来产生新截面；未来确认不能回填过去同知时点，按旧前缀可复演。",
+      "validation_obligation": "每级同类B/S互斥后再核共享血缘同知G031；逐点列表不能直接套27^m",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-031"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-058",
+      "name": "结构到持久重经营的接口名分",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/57"
+      },
+      "axis_kind": "ROLE_OR_RELATION_SCHEMA",
+      "requirement_ids": [
+        "ST-043"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接，不从代码或本方案重定义分支。角色/关系schema不是互斥市场标签；子版本轴/原子比较轴各按自己的域验证。",
+      "compute_owner": "结构与操作读法Module/结构经营桥",
+      "internal_call": "consumption_links(structure,decisions)",
+      "persisted_output": "结构事实/经营上下文/经济外效角色及全引用",
+      "catalog_output_contract": "每重可查采用哪些结构对象/事件及当时版本；UI同图呈现结构与经营而非靠价格重算结构。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "结构变化以不可歧义引用输入FG流程；经营不会反向修改主塔定义或选择另一个较松结构判据。",
+      "validation_obligation": "三角色可共存，仅接口；35FG与工程状态另承接",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-059",
+      "name": "二类点转折锚有无同级一类的完整补充分支",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/58"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-027",
+        "ST-030",
+        "ST-043"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/二类补充分支",
+      "internal_call": "type2_anchor_case(q_turn,sub_roundtrip)",
+      "persisted_output": "有无q一类×side×比较×盘背24签名",
+      "catalog_output_contract": "前端明确“同级一类有/无”、转折锚、小级背驰、首次往返、极值三分和盘背证据；不得为了单一路径生成虚构同级一类。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "小转大实际转折→首次次级往返→相应不创新极值或盘背/下级构成见证齐备→二类确认；未有本级一类不阻断此支。",
+      "validation_obligation": "053:28不创新极值含EQ或盘背；不伪造q一类，真构成桥待证",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-024",
+        "G-032"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-060",
+      "name": "点相对中枢的位置三态",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/59"
+      },
+      "axis_kind": "OBSERVATION_OR_KNOWLEDGE",
+      "requirement_ids": [
+        "ST-013",
+        "ST-018",
+        "ST-031",
+        "ST-044"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/位置观察",
+      "internal_call": "point_position(center,p)",
+      "persisted_output": "Below/Within/Above且边界含等",
+      "catalog_output_contract": "显示位置三态与p、ZD/ZG，保留等边界，供六态与第三类严格性复核。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "任意新p可改变观察标签；三态静态证明不证明必须按BELOW→WITHIN→ABOVE顺次交易。",
+      "validation_obligation": "形式Center.valid可退化，正式center仍strict；非交易FSM",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-015"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-061",
+      "name": "中枢结束后两种发展结果",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/60"
+      },
+      "axis_kind": "SEMANTIC_STATE_OR_EVENT",
+      "requirement_ids": [
+        "ST-013",
+        "ST-014",
+        "ST-031",
+        "ST-047"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/中心后续结果",
+      "internal_call": "center_end_outcome(center,reading,horizon)",
+      "persisted_output": "高级中枢/新同级中枢结果及构造证据",
+      "catalog_output_contract": "同时显示中心结束事件、后续二分结果及构造证据，不直接把三类标签解释成趋势已成。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "center三类结束→等待结构完成→相应结果；当下只能先发三类/结束事件，再发已形成结果。",
+      "validation_obligation": "三类先结束后果再形成；不与29三结果全局互斥G022",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-022"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    },
+    {
+      "id": "CC-062",
+      "name": "同级已完成走势连接和读法约束",
+      "source_axis": {
+        "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+        "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+        "json_pointer": "/axes/61"
+      },
+      "axis_kind": "FINITE_PREDICATE_OR_SIGNATURE_FAMILY",
+      "requirement_ids": [
+        "ST-009",
+        "ST-017",
+        "ST-019"
+      ],
+      "semantic_contract_fields": [
+        "domain",
+        "branches",
+        "branch_count",
+        "sources",
+        "legal_combinations_and_exclusions",
+        "legal_transitions"
+      ],
+      "semantic_contract_rule": "按绑定目录原字段承接；生成签名的编码穷尽不等于全部组合语义可达。",
+      "compute_owner": "结构与操作读法Module/读法连接",
+      "internal_call": "completed_adjacency(T1,T2,reading)",
+      "persisted_output": "9类型对、禁U→U/D→D、余7及本读法证据",
+      "catalog_output_contract": "给连接两端类型、q、读法、边界和完成见证；图上旁路连法注明来源。",
+      "consumer": "同源观察 catalog→按axis筛选snapshot→对象/关系→全部变化→依据；经营仅按已裁适用关系消费具版本证据，描述/代理/元信息无新增准入权。",
+      "transition_contract": "已完成旧T→新实例；同向延续应仍属同实例发展或正确更级分解，不为事件展示制造同级同向继任。",
+      "validation_obligation": "操作旁路P→P保留；主塔可达另证G008/G012",
+      "six_proof_layers": {
+        "domain_partition": "目录提供定义/公式或来源论证；本轮未运行机器证明",
+        "implementation_equivalence": "NOT_IMPLEMENTED_OR_VERIFIED_HERE",
+        "raw_input_lands_in_domain": "NOT_PROVED_HERE",
+        "semantic_combination_reachability": "NOT_PROVED_HERE",
+        "transition_reachability_and_exclusion": "NOT_PROVED_HERE",
+        "same_input_identity_and_replay": "NOT_PROVED_HERE"
+      },
+      "retained_gap_ids": [
+        "G-008",
+        "G-012"
+      ],
+      "design_evidence": "INDEPENDENT-DESIGN.md#s3; INDEPENDENT-DESIGN.md#s8",
+      "static_proof_package": "按axis/semantic_version/implementation_hash/数值和构造策略版本绑定域分区、互斥、等价及不变量证明；版本不变可复用，不逐bar运行Lean",
+      "runtime_receipt": "本次input_frontier、domain_witness、所用proof_package、全部结果/候选集合覆盖与转换前后引用；必须实际计算相关全输出，证明包不能替代执行",
+      "runtime_validation": "NOT_RUN"
+    }
+  ],
+  "legal_combinations": [
+    {
+      "id": "LC-01",
+      "axes": [
+        "CC-001",
+        "CC-002",
+        "CC-003"
+      ],
+      "rule": "每一具体几何输入落唯一原子叶；包含、闭重叠、gap为该叶的确定投影，允许多标签，不以优先级删去包含且重叠。",
+      "source_pointer": "/legal_combination_contracts/0",
+      "owner": "结构与操作读法Module在ClassificationRevision发布前验证全组合；观察Module无权删冲突事实来修正",
+      "failure_behavior": "保留冲突/失败位并标本次完整性失败或具体未证项；不发布伪完整分类，不将其降格为空集合",
+      "validation": "生成签名后按本合同筛合法域；对保留分支给真实构造见证，对排除分支给理由；本轮未执行",
+      "changes": "所有同次成立的对象/关系按同一revision发布，before/after/known_at完整"
+    },
+    {
+      "id": "LC-02",
+      "axes": [
+        "CC-006",
+        "CC-008",
+        "CC-010",
+        "CC-011",
+        "CC-013"
+      ],
+      "rule": "四分型→新笔条件→成笔/确认→线段条件→两情况，每层只有先证明输入属D才判断下一层；上一层失败不能改用另一宽档。",
+      "source_pointer": "/legal_combination_contracts/1",
+      "owner": "结构与操作读法Module在ClassificationRevision发布前验证全组合；观察Module无权删冲突事实来修正",
+      "failure_behavior": "保留冲突/失败位并标本次完整性失败或具体未证项；不发布伪完整分类，不将其降格为空集合",
+      "validation": "生成签名后按本合同筛合法域；对保留分支给真实构造见证，对排除分支给理由；本轮未执行",
+      "changes": "所有同次成立的对象/关系按同一revision发布，before/after/known_at完整"
+    },
+    {
+      "id": "LC-03",
+      "axes": [
+        "CC-016",
+        "CC-017",
+        "CC-018",
+        "CC-019",
+        "CC-020",
+        "CC-021"
+      ],
+      "rule": "正式center只有strict seed；核心冻结；单元离开、首回试三类/破坏、pair扩展、新生、九段处理分对象可同次更新并发出，九段优先级只作用其已裁互竞构造决策，不抹别的关系事实。",
+      "source_pointer": "/legal_combination_contracts/2",
+      "owner": "结构与操作读法Module在ClassificationRevision发布前验证全组合；观察Module无权删冲突事实来修正",
+      "failure_behavior": "保留冲突/失败位并标本次完整性失败或具体未证项；不发布伪完整分类，不将其降格为空集合",
+      "validation": "生成签名后按本合同筛合法域；对保留分支给真实构造见证，对排除分支给理由；本轮未执行",
+      "changes": "所有同次成立的对象/关系按同一revision发布，before/after/known_at完整"
+    },
+    {
+      "id": "LC-04",
+      "axes": [
+        "CC-023",
+        "CC-025",
+        "CC-026",
+        "CC-060"
+      ],
+      "rule": "完成三类型、形成完成继任、六态、点位置三态分别字段；由同context一致性约束绑定。任何一个标签不替代另外三个轴。",
+      "source_pointer": "/legal_combination_contracts/3",
+      "owner": "结构与操作读法Module在ClassificationRevision发布前验证全组合；观察Module无权删冲突事实来修正",
+      "failure_behavior": "保留冲突/失败位并标本次完整性失败或具体未证项；不发布伪完整分类，不将其降格为空集合",
+      "validation": "生成签名后按本合同筛合法域；对保留分支给真实构造见证，对排除分支给理由；本轮未执行",
+      "changes": "所有同次成立的对象/关系按同一revision发布，before/after/known_at完整"
+    },
+    {
+      "id": "LC-05",
+      "axes": [
+        "CC-030",
+        "CC-031",
+        "CC-032",
+        "CC-033",
+        "CC-034",
+        "CC-035"
+      ],
+      "rule": "结构pair/五前提→精确力度→Div，代理只读；NE/Turn及高级结果有独立见证，不作Div循环前提。",
+      "source_pointer": "/legal_combination_contracts/4",
+      "owner": "结构与操作读法Module在ClassificationRevision发布前验证全组合；观察Module无权删冲突事实来修正",
+      "failure_behavior": "保留冲突/失败位并标本次完整性失败或具体未证项；不发布伪完整分类，不将其降格为空集合",
+      "validation": "生成签名后按本合同筛合法域；对保留分支给真实构造见证，对排除分支给理由；本轮未执行",
+      "changes": "所有同次成立的对象/关系按同一revision发布，before/after/known_at完整"
+    },
+    {
+      "id": "LC-06",
+      "axes": [
+        "CC-036",
+        "CC-037",
+        "CC-038",
+        "CC-039",
+        "CC-040",
+        "CC-061"
+      ],
+      "rule": "r=q/r<q只分类已发生q转折；末次级三类是必要而非充分；局部中心出口/重叠与高级结果独立，保留未发生转折继续原趋势分支。",
+      "source_pointer": "/legal_combination_contracts/5",
+      "owner": "结构与操作读法Module在ClassificationRevision发布前验证全组合；观察Module无权删冲突事实来修正",
+      "failure_behavior": "保留冲突/失败位并标本次完整性失败或具体未证项；不发布伪完整分类，不将其降格为空集合",
+      "validation": "生成签名后按本合同筛合法域；对保留分支给真实构造见证，对排除分支给理由；本轮未执行",
+      "changes": "所有同次成立的对象/关系按同一revision发布，before/after/known_at完整"
+    },
+    {
+      "id": "LC-07",
+      "axes": [
+        "CC-041",
+        "CC-042",
+        "CC-043",
+        "CC-044",
+        "CC-045",
+        "CC-046",
+        "CC-059"
+      ],
+      "rule": "Origin LevelView逐类满足∀k¬(Bk∧Sk)，64编码仅至多27个已知约束允许签名；同端同级同side仍仅空、1、2、3、2+3，两个限制作用域不同。不同类别可不同端点反向并存；无同级一类的二类支必须覆盖。Rust逐点bits列表、Γ逐候选六位不自动构成每级LevelView；其投影/可达性另证。",
+      "source_pointer": "/legal_combination_contracts/6",
+      "owner": "结构与操作读法Module在ClassificationRevision发布前验证全组合；观察Module无权删冲突事实来修正",
+      "failure_behavior": "保留冲突/失败位并标本次完整性失败或具体未证项；不发布伪完整分类，不将其降格为空集合",
+      "validation": "生成签名后按本合同筛合法域；对保留分支给真实构造见证，对排除分支给理由；本轮未执行",
+      "changes": "所有同次成立的对象/关系按同一revision发布，before/after/known_at完整"
+    },
+    {
+      "id": "LC-08",
+      "axes": [
+        "CC-047",
+        "CC-048",
+        "CC-049",
+        "CC-050",
+        "CC-051",
+        "CC-052",
+        "CC-053"
+      ],
+      "rule": "真实父子/几何包含→条件化Cand全集→固定Sel选中s→完整链及适用门G(s)/叶Confirm；全候选ANY_GATE_TRUE仅只读观察，不得替选中失败或触发重选。不是每个rung都新增Weak。不适用不填真、停止两触发可同真、下钻失败不是小转大。",
+      "source_pointer": "/legal_combination_contracts/7",
+      "owner": "结构与操作读法Module在ClassificationRevision发布前验证全组合；观察Module无权删冲突事实来修正",
+      "failure_behavior": "保留冲突/失败位并标本次完整性失败或具体未证项；不发布伪完整分类，不将其降格为空集合",
+      "validation": "生成签名后按本合同筛合法域；对保留分支给真实构造见证，对排除分支给理由；本轮未执行",
+      "changes": "所有同次成立的对象/关系按同一revision发布，before/after/known_at完整"
+    },
+    {
+      "id": "LC-09",
+      "axes": [
+        "CC-007",
+        "CC-029",
+        "CC-034",
+        "CC-039",
+        "CC-054"
+      ],
+      "rule": "观察描述、MACD、计算知识/有效性均不得填补市场定义分支或直接升级生产准入；保留可见性而不造新阈值。",
+      "source_pointer": "/legal_combination_contracts/8",
+      "owner": "结构与操作读法Module在ClassificationRevision发布前验证全组合；观察Module无权删冲突事实来修正",
+      "failure_behavior": "保留冲突/失败位并标本次完整性失败或具体未证项；不发布伪完整分类，不将其降格为空集合",
+      "validation": "生成签名后按本合同筛合法域；对保留分支给真实构造见证，对排除分支给理由；本轮未执行",
+      "changes": "所有同次成立的对象/关系按同一revision发布，before/after/known_at完整"
+    },
+    {
+      "id": "LC-10",
+      "axes": [
+        "CC-015",
+        "CC-055",
+        "CC-056",
+        "CC-057",
+        "CC-058",
+        "CC-062"
+      ],
+      "rule": "唯一主塔、多操作读法、定位查询的身份不混；所有结构/关系/变化同源版本+known_at；经营消费不会回写主塔，跨级联合签名必须保留全部见证。",
+      "source_pointer": "/legal_combination_contracts/9",
+      "owner": "结构与操作读法Module在ClassificationRevision发布前验证全组合；观察Module无权删冲突事实来修正",
+      "failure_behavior": "保留冲突/失败位并标本次完整性失败或具体未证项；不发布伪完整分类，不将其降格为空集合",
+      "validation": "生成签名后按本合同筛合法域；对保留分支给真实构造见证，对排除分支给理由；本轮未执行",
+      "changes": "所有同次成立的对象/关系按同一revision发布，before/after/known_at完整"
+    }
+  ],
+  "retained_register": [
+    {
+      "id": "G-001",
+      "kind": "ENGINEERING_CHOICE_INSTANCE",
+      "title": "包含输入初始方向未建时的处理",
+      "sources": [
+        ".chanlun/definitions/baohan.md:115-155"
+      ],
+      "what_is_already_defined": "UP/DOWN合并规则与非包含方向已定义；初始默认UP在文字中是工程处理。",
+      "missing_obligation": "明确前缀建立方向或初始化策略及其输出影响；不得默默把默认UP当原文唯一方向。",
+      "affected_axes": [
+        "CC-004"
+      ],
+      "source_pointer": "/proof_sync_choice_register/0",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-002",
+      "kind": "PROOF_OR_IDENTITY_INSTANCE",
+      "title": "等价极值和端点身份唯一",
+      "sources": [
+        ".chanlun/definitions/bi.md:163-210",
+        ".chanlun/definitions/bi.md:386-392"
+      ],
+      "what_is_already_defined": "最极端价格选择已定义，价格最值唯一不自动推出raw端点身份唯一。",
+      "missing_obligation": "极值同价多根、同型同价端点的稳定身份选择及原始/合并映射确定性。",
+      "affected_axes": [
+        "CC-005",
+        "CC-009",
+        "CC-056"
+      ],
+      "source_pointer": "/proof_sync_choice_register/1",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-003",
+      "kind": "OBSERVATION_ONLY_NOT_A_GAP",
+      "title": "描述性强弱和中枢形态不升格分类",
+      "sources": [
+        ".chanlun/definitions/fenxing.md:64-88",
+        ".chanlun/definitions/zhongshu.md:450-462"
+      ],
+      "what_is_already_defined": "中枢形态正文明排除；分型强弱为描述性补充，不作为本轮强制穷尽标签。",
+      "missing_obligation": "保留来源和可观察证据；不要求本轮发明互斥数值分档。",
+      "affected_axes": [],
+      "source_pointer": "/proof_sync_choice_register/2",
+      "architecture_disposition": "OBSERVATION_ONLY_NO_NEW_CLASSIFICATION_REQUIRED",
+      "effect": "不发明阈值；保留原始观察且不参与准入",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-004",
+      "kind": "PROOF_BOUNDARY",
+      "title": "确认的跨对象前缀单调桥",
+      "sources": [
+        ".chanlun/definitions/bi.md:386-392",
+        ".chanlun/definitions/maimai.md:308-367",
+        ".chanlun/definitions/level_recursion.md:329-340"
+      ],
+      "what_is_already_defined": "本轮未取得统一证明/实例化；不声称全仓不存在",
+      "missing_obligation": "以原始合法追加前缀证明笔/段/Move/BSP确认不倒退，修订另代际。",
+      "affected_axes": [
+        "CC-010",
+        "CC-046"
+      ],
+      "source_pointer": "/proof_sync_choice_register/3",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-005",
+      "kind": "RULING_SYNC",
+      "title": "三笔相切已裁，旧正本登记未同步",
+      "sources": [
+        "classification-evidence-issue-246.json",
+        "classification-evidence-issue-249.json",
+        ".chanlun/definitions/xianduan.md:303-305",
+        "formal/Origin/SegmentFeatureSeq.lean:101-127"
+      ],
+      "what_is_already_defined": "#246/#249明确相切算重叠且三笔起点<=；Origin缺口↔闭重叠已有定理。正式center非退化另域。",
+      "missing_obligation": "遵闭公共重叠；同步旧“未裁”登记及核对受影响实现，当前仅目录报告不改仓。",
+      "affected_axes": [
+        "CC-011"
+      ],
+      "source_pointer": "/proof_sync_choice_register/4",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-006",
+      "kind": "DEFINED_SEMANTICS_PROJECTION_ALIGNMENT",
+      "title": "特征序列两情况、同向第二序列和G4封闭的统一桥",
+      "sources": [
+        ".chanlun/definitions/xianduan.md:118-176",
+        "formal/Origin/SegmentAutoConstruct.lean:130-195"
+      ],
+      "what_is_already_defined": "P2两情况、同向第二序列、任意分型及strict封闭已裁；本轮只核到局部形式函数，未证明统一构造。",
+      "missing_obligation": "第二序列必须正确笔集合且接受任意分型；独立包含作用域和strict封闭对象须统一对齐；不能以旧提取revSeq或布尔case穷尽替代源语义。",
+      "affected_axes": [
+        "CC-012",
+        "CC-013"
+      ],
+      "source_pointer": "/proof_sync_choice_register/5",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-007",
+      "kind": "EXPLICIT_PENDING_OR_STALE_IMPLEMENTATION_CHOICE",
+      "title": "第二特征序列扫描窗口",
+      "sources": [
+        ".chanlun/definitions/xianduan.md:180-198",
+        ".chanlun/definitions/xianduan.md:327-340"
+      ],
+      "what_is_already_defined": "xianduan现有文字明确“待裁”；其族I现役身份是历史陈述，本轮未把它当当前生产事实。",
+      "missing_obligation": "核查后续实施/裁定是否已统一50与完整扫描；任何预算耗尽都不得判为结构否定。",
+      "affected_axes": [
+        "CC-014"
+      ],
+      "source_pointer": "/proof_sync_choice_register/6",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-008",
+      "kind": "PROOF_OR_ALGORITHM_INSTANCE",
+      "title": "唯一主塔与多读法的分解全覆盖",
+      "sources": [
+        ".chanlun/definitions/fenjie.md:1-45",
+        "docs/adr/0011-operation-decomposition-layer.md:29-95"
+      ],
+      "what_is_already_defined": "本轮未取得统一证明/实例化；不声称全仓不存在",
+      "missing_obligation": "给主塔及固定三格旁路各自Φ、未分配尾部、无重复归属和可达连接证明，不要求二者逐字段相同。",
+      "affected_axes": [
+        "CC-015",
+        "CC-022",
+        "CC-062"
+      ],
+      "source_pointer": "/proof_sync_choice_register/7",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-009",
+      "kind": "PROOF_BOUNDARY",
+      "title": "真实递归输入到中枢与外缘的桥",
+      "sources": [
+        "formal/Origin/CenterStates.lean:36-41",
+        "formal/Origin/CenterStates.lean:215-250",
+        ".chanlun/definitions/level_recursion.md:117-178"
+      ],
+      "what_is_already_defined": "本轮未取得统一证明/实例化；不声称全仓不存在",
+      "missing_obligation": "原始事实→真实完成次级单元→strict seed→全成员外缘→父子级差/覆盖→各级同判据；局部几何定理不能替这条链。",
+      "affected_axes": [
+        "CC-016",
+        "CC-020",
+        "CC-027",
+        "CC-028"
+      ],
+      "source_pointer": "/proof_sync_choice_register/8",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-010",
+      "kind": "FORMAL_ENDPOINT_DEFINED_SYNC_TENSION",
+      "title": "第三类严格端点与旧文字/实现张力",
+      "sources": [
+        "formal/Origin/BspClassification.lean:113-127",
+        "formal/Origin/BuySellPredicate.lean:419-429",
+        ".chanlun/definitions/maimai.md:136-149"
+      ],
+      "what_is_already_defined": "Origin已经定义B3 core.zg<retracePrice与S3 retracePrice<core.zd，并有reenter反例；本轮无新端点选择。",
+      "missing_obligation": "把Origin严格端点作为本目录边界，后续核并同步文字与实现；不得同时放行inclusive宽档。",
+      "affected_axes": [
+        "CC-019",
+        "CC-045"
+      ],
+      "source_pointer": "/proof_sync_choice_register/9",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-011",
+      "kind": "ENGINEERING_PREDICATE_INSTANCE",
+      "title": "升级计数的无波动排除实例",
+      "sources": [
+        ".chanlun/definitions/zhongshu.md:268-276"
+      ],
+      "what_is_already_defined": "九段阈值和无波动不参与已裁；判据形状明归实施细节，不登记成教义未裁。",
+      "missing_obligation": "给无波动判法的可执行实例及其与源语义等价证据；不凭描述自定额外阈值。",
+      "affected_axes": [
+        "CC-021"
+      ],
+      "source_pointer": "/proof_sync_choice_register/10",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-012",
+      "kind": "PROOF_BOUNDARY",
+      "title": "三走势的真实良构域覆盖",
+      "sources": [
+        "formal/Origin/TrendCompleteClassification.lean:34-88",
+        ".chanlun/definitions/zoushi.md:111-120"
+      ],
+      "what_is_already_defined": "给定布尔/TrendSpec的total/unique不等于原始流构造域完备；本目录未提供后者证书。",
+      "missing_obligation": "证明完成对象总落恰一枢盘整/同向多枢趋势之一；多枢flat等输入必须正确升层或重分解。",
+      "affected_axes": [
+        "CC-023",
+        "CC-062"
+      ],
+      "source_pointer": "/proof_sync_choice_register/11",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-013",
+      "kind": "RULING_SYNC_OR_COMPATIBILITY_RETIREMENT",
+      "title": "盘整无方向与Compose技术方向",
+      "sources": [
+        ".chanlun/definitions/qushi.md:179-200",
+        ".chanlun/definitions/zoushi.md:129-131"
+      ],
+      "what_is_already_defined": "盘整无语义方向已定；旧字段兼容不是另一教义。",
+      "missing_obligation": "技术break_direction与语义type分开，核既有兼容字段退场和下游消费者。",
+      "affected_axes": [
+        "CC-024"
+      ],
+      "source_pointer": "/proof_sync_choice_register/12",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-014",
+      "kind": "PROOF_BOUNDARY",
+      "title": "一般Move完成和Turn窄Completed的桥",
+      "sources": [
+        "formal/Origin/Turn.lean:40-105",
+        ".chanlun/definitions/level_recursion.md:329-340",
+        ".chanlun/definitions/beichi.md:504-584"
+      ],
+      "what_is_already_defined": "本轮未取得统一证明/实例化；不声称全仓不存在",
+      "missing_obligation": "一般完成含小转大、盘整等语境；不能用Completed=Div的窄模型排除其他完成。继任须真实同级且不同身份。",
+      "affected_axes": [
+        "CC-025",
+        "CC-035"
+      ],
+      "source_pointer": "/proof_sync_choice_register/13",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-015",
+      "kind": "PROOF_BOUNDARY",
+      "title": "原始结构投影到位置/六态Context",
+      "sources": [
+        "formal/Origin/CenterStates.lean:50-112",
+        "formal/Origin/TrendSixState.lean:1-185"
+      ],
+      "what_is_already_defined": "位置三态、六态在给定context域上已有定义/证明源；本轮未运行Lean，也未证投影。",
+      "missing_obligation": "证明center,p,b3,s3同源、绑定正确center且当时可知；静态3/6态定理不提供顺序交易FSM。",
+      "affected_axes": [
+        "CC-026",
+        "CC-060"
+      ],
+      "source_pointer": "/proof_sync_choice_register/14",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-016",
+      "kind": "PROOF_BOUNDARY",
+      "title": "b/c结构配对和发展态投影",
+      "sources": [
+        ".chanlun/definitions/beichi.md:261-284",
+        ".chanlun/definitions/beichi.md:504-534"
+      ],
+      "what_is_already_defined": "本轮未取得统一证明/实例化；不声称全仓不存在",
+      "missing_obligation": "真实走势按最后中心进入b及后续c、盘整最近跨界对象配对；先结构后力度，当前前缀因果。",
+      "affected_axes": [
+        "CC-030",
+        "CC-031"
+      ],
+      "source_pointer": "/proof_sync_choice_register/15",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-017",
+      "kind": "EXPLICIT_DEFINITION_SAMPLING_BRIDGE",
+      "title": "力度已有定义，实际样本桥待证",
+      "sources": [
+        "formal/Origin/ForceVelocity.lean:1-68",
+        ".chanlun/definitions/beichi.md:336-373",
+        ".chanlun/definitions/beichi.md:463-469"
+      ],
+      "what_is_already_defined": "v=Δp/Δindex及L=v末−v首明确存在；不是力度未定义。",
+      "missing_obligation": "如何由每个实际发展段给首/末笔和四端点，并满足WellFormed和同坐标；空/零duration总化不得冒充语义样本。",
+      "affected_axes": [
+        "CC-032"
+      ],
+      "source_pointer": "/proof_sync_choice_register/16",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-018",
+      "kind": "PROOF_BOUNDARY",
+      "title": "MACD辅助和精确力度的适用边界",
+      "sources": [
+        ".chanlun/definitions/beichi.md:792-830",
+        ".chanlun/definitions/beichi.md:374-396",
+        ".chanlun/definitions/beichi.md:1005-1019"
+      ],
+      "what_is_already_defined": "三维组合和不回退已裁；近似论证与历史实现情况不是当前实证。",
+      "missing_obligation": "三维OR、T4域、符号面积采样对齐；不能以近似来源声称MACD与Δv在任意行情等价。",
+      "affected_axes": [
+        "CC-034"
+      ],
+      "source_pointer": "/proof_sync_choice_register/17",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-019",
+      "kind": "PROOF_BOUNDARY",
+      "title": "Div⇒NE/Turn的非循环实现桥",
+      "sources": [
+        ".chanlun/definitions/beichi.md:504-584",
+        "formal/Origin/Turn.lean:40-105"
+      ],
+      "what_is_already_defined": "本轮未取得统一证明/实例化；不声称全仓不存在",
+      "missing_obligation": "不得把NE/Turn当前/未来事实当前件循环定义Div；提供EM等实际桥的定义域及证据。",
+      "affected_axes": [
+        "CC-035"
+      ],
+      "source_pointer": "/proof_sync_choice_register/18",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-020",
+      "kind": "PROOF_BOUNDARY",
+      "title": "小转大已经发生的定位见证",
+      "sources": [
+        "docs/chanlun/text/blog/043-第43课.md:18-48",
+        "docs/chanlun/text/blog/044-第44课.md:24-30",
+        ".chanlun/definitions/beichi.md:127-145",
+        ".chanlun/definitions/beichi.md:164-199"
+      ],
+      "what_is_already_defined": "r=q/r<q二分明确；没有保证未来的充分条件是原文明说的边界，不是需要补的预测缺口。",
+      "missing_obligation": "真实q转折、r<q背驰、末次级中心相应三类必要条件均可定位；不能把候选/下钻失败当发生。",
+      "affected_axes": [
+        "CC-036",
+        "CC-038"
+      ],
+      "source_pointer": "/proof_sync_choice_register/19",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-021",
+      "kind": "OBSERVATION_ONLY_OR_SEPARATE_OPERATION_CHOICE",
+      "title": "操作描述的边界不冒充结构分类",
+      "sources": [
+        "docs/chanlun/text/blog/043-第43课.md:186-220",
+        "docs/chanlun/text/blog/044-第44课.md:34-38"
+      ],
+      "what_is_already_defined": "原文操作情形可作为完整原子关系观察；没有强制将所有行情分成这些描述词的教义义务。",
+      "missing_obligation": "参考价LT/EQ/GT全部可展示；本轮不立最强/普通/最弱交易档，也不在FG之外增加价格准入。",
+      "affected_axes": [
+        "CC-039"
+      ],
+      "source_pointer": "/proof_sync_choice_register/20",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "不发明阈值；保留原始观察且不参与准入",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-022",
+      "kind": "PROOF_BOUNDARY_AND_SOURCE_TEXT_TENSION",
+      "title": "高级结果分解和回拉外缘/核心",
+      "sources": [
+        "docs/chanlun/text/blog/029-第29课.md:16-52",
+        "docs/chanlun/text/blog/053-第53课.md:30-32",
+        ".chanlun/definitions/beichi.md:649-658"
+      ],
+      "what_is_already_defined": "原文已给分类和最弱边界；本轮未证从任意实际发展流识别结果的完备性。",
+      "missing_obligation": "兑现29三结果与53中心结束二结果的不同域；029:30最弱触DD/GG与旧beichi:651必回核心冲突按原文优先，不作同级整齐对齐。",
+      "affected_axes": [
+        "CC-040",
+        "CC-061"
+      ],
+      "source_pointer": "/proof_sync_choice_register/21",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-023",
+      "kind": "PROOF_BOUNDARY",
+      "title": "64编码、27约束允许上界及实际LevelView/逐点载体桥",
+      "sources": [
+        "formal/Origin/BuySellPredicate.lean:385-429",
+        "formal/Origin/BspClassification.lean:218-242",
+        ".chanlun/definitions/maimai.md:172-178",
+        "formal/Origin/BuySellPredicate.lean:82-97",
+        "formal/Origin/BuySellPredicate.lean:169-208"
+      ],
+      "what_is_already_defined": "Origin LevelView每类一个Option端点；同类Bk/Sk互斥已有定理，因此64编码中仅27不违反这一约束。该27子集每项是否可由厚谓词构造，以及Rust逐点列表到每级LevelView桥，本轮未证明。",
+      "missing_obligation": "明确载体；LevelView必须保持∀k¬(Bk∧Sk)，并与局部同端同side五集合一致。补真实市场投影/逐点列表聚合与所有声称可达签名的见证，不能再说六位语义无条件独立。",
+      "affected_axes": [
+        "CC-041",
+        "CC-042",
+        "CC-043"
+      ],
+      "source_pointer": "/proof_sync_choice_register/22",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-024",
+      "kind": "PROOF_BOUNDARY",
+      "title": "二类构成形与可观测形双向桥",
+      "sources": [
+        "formal/Origin/BspClassification.lean:131-179",
+        ".chanlun/definitions/maimai.md:154-164"
+      ],
+      "what_is_already_defined": "形式源明确将faithful参数与反向未证登记；本目录没有把参数当定理。",
+      "missing_obligation": "SubOf反自反/同side/真实次级归属；构成⇒观测和观测⇒构成皆需在实际实例证明，常规after&&notbroke不能替代原文所有二类。",
+      "affected_axes": [
+        "CC-044",
+        "CC-059"
+      ],
+      "source_pointer": "/proof_sync_choice_register/23",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-025",
+      "kind": "EXPLICIT_SEMANTIC_CHOICE_PENDING",
+      "title": "独立选父NestInterval的价格挂法",
+      "sources": [
+        ".chanlun/definitions/qujiantao.md:1317-1318"
+      ],
+      "what_is_already_defined": "同文件1266“未裁空”被1317明确“当前未裁”的追加残留覆盖；这是具体条款内部张力，不自称已无缺口。",
+      "missing_obligation": "按既有#817残留明确价格挂法，再验证跨级price-subset；不得用真实descendant的min/max单调性跨域。",
+      "affected_axes": [
+        "CC-047"
+      ],
+      "source_pointer": "/proof_sync_choice_register/24",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-026",
+      "kind": "PROOF_OR_SELECTOR_INSTANCE",
+      "title": "候选全集、条件集合与Sel实例",
+      "sources": [
+        ".chanlun/definitions/qujiantao.md:729-819"
+      ],
+      "what_is_already_defined": "Cand三条件与集合非空已定义；Sel为已承认选择，其参数/算法实例不能凭教义留白捏造。",
+      "missing_obligation": "实例化Comparable/Extreme的对象投影、候选全集完整性与确定Sel；多候选全保留，选择不可越集合。 Sel后失败必须保留；候选全集任何真值观察不得重选或替换适用的selected gate。",
+      "affected_axes": [
+        "CC-048",
+        "CC-049",
+        "CC-052"
+      ],
+      "source_pointer": "/proof_sync_choice_register/25",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-027",
+      "kind": "PROOF_BOUNDARY",
+      "title": "三套链骨架的有效域和证书桥",
+      "sources": [
+        ".chanlun/definitions/qujiantao.md:599-689",
+        ".chanlun/definitions/qujiantao.md:883-912"
+      ],
+      "what_is_already_defined": "本轮未取得统一证明/实例化；不声称全仓不存在",
+      "missing_obligation": "明确每套骨架D、Confirm内外和成员/层级不变量；跨骨架等价或退场条件需真正证明/验收。",
+      "affected_axes": [
+        "CC-050"
+      ],
+      "source_pointer": "/proof_sync_choice_register/26",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-028",
+      "kind": "EXPLICIT_CERTIFICATE_HANDLING_PENDING",
+      "title": "Type2/3上级rung不适用的n_delta处置",
+      "sources": [
+        ".chanlun/definitions/qujiantao.md:1084-1111"
+      ],
+      "what_is_already_defined": "有效域Type1及Type2/3 N/A已裁；n_delta_rec如何处理N/A是正本明示残留，不因10.1总标题“未裁空”消失。",
+      "missing_obligation": "按1106仍需单独裁的处理来统一证书；不适用不得填true或因false翻掉所有Type2/3。",
+      "affected_axes": [
+        "CC-051"
+      ],
+      "source_pointer": "/proof_sync_choice_register/27",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-029",
+      "kind": "ENGINEERING_POLICY_INSTANCE",
+      "title": "成本停止门参数和基底进阶条件",
+      "sources": [
+        ".chanlun/definitions/qujiantao.md:408-449",
+        ".chanlun/definitions/qujiantao.md:477-518"
+      ],
+      "what_is_already_defined": "stop两个触发与阶段方向已裁，不新增数值、资金政策或自动降到底门。",
+      "missing_obligation": "具体成本量与任务policy版本，当前底线段；阶段二必须满足原定两层条件，非本轮实施。",
+      "affected_axes": [
+        "CC-053"
+      ],
+      "source_pointer": "/proof_sync_choice_register/28",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-030",
+      "kind": "PROOF_BOUNDARY",
+      "title": "全对象转换与版本因果闭包",
+      "sources": [
+        ".chanlun/definitions/结构判据.md:9-39",
+        ".chanlun/definitions/level_recursion.md:329-356",
+        ".chanlun/definitions/maimai.md:308-367"
+      ],
+      "what_is_already_defined": "本轮未取得统一证明/实例化；不声称全仓不存在",
+      "missing_obligation": "给每个可达转换的来源、不能发生转换的否证、事件多发不丢失、稳定身份和按当时可知回放；本目录仅列来源规则/必要约束，未证明全局可达图。",
+      "affected_axes": [
+        "CC-055",
+        "CC-056"
+      ],
+      "source_pointer": "/proof_sync_choice_register/29",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-031",
+      "kind": "PROOF_BOUNDARY",
+      "title": "多级联合签名合法可达性",
+      "sources": [
+        "docs/chanlun/text/blog/017-第17课.md:66-72",
+        ".chanlun/definitions/zoushi.md:298-313"
+      ],
+      "what_is_already_defined": "本轮未取得统一证明/实例化；不声称全仓不存在",
+      "missing_obligation": "共享血缘和同知时点下，LevelView联合像必须先落A_27^m（每类买卖互斥），再证明其他跨级约束；原始编码64^m与上界27^m均不是可达性证明。生产逐点集合另需投影。",
+      "affected_axes": [
+        "CC-057"
+      ],
+      "source_pointer": "/proof_sync_choice_register/30",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    },
+    {
+      "id": "G-032",
+      "kind": "SOURCE_SEMANTICS_DEFINED_COMMON_MODEL_INCOMPLETE",
+      "title": "小转大无同级一类仍有二类",
+      "sources": [
+        "docs/chanlun/text/blog/053-第53课.md:26-32",
+        ".chanlun/definitions/maimai.md:120-133",
+        ".chanlun/definitions/maimai.md:277-280",
+        "formal/Origin/BspClassification.lean:131-179"
+      ],
+      "what_is_already_defined": "053:28及maimai:280明确已有无q级一类支；RMoveCompose:217-238已将i1/i1+1定义在descend(parent)次级序列内。第一阶段ST-030没有显式禁止无同级一类，本项是层级消歧和覆盖桥，不是查实生产漏判。",
+      "missing_obligation": "分别给q级转折锚、q-1构成一类m1、同descend序列后继m2，以及053:28一般往返的对象映射；拒绝伪造q级Type1事件来初始化i1。",
+      "affected_axes": [
+        "CC-044",
+        "CC-059"
+      ],
+      "source_pointer": "/proof_sync_choice_register/31",
+      "architecture_disposition": "RETAINED_SOURCE_BOUNDARY_NOT_RESOLVED_BY_ARCHITECTURE",
+      "effect": "对应axis输出必须标实际证明/实例状态；依赖未齐时不声称生产分类/证书已完成，不删除定义域",
+      "implementation_authorization": "本轮无新语义/实现批准"
+    }
+  ],
+  "requirement_coverage": [
+    {
+      "id": "ST-001",
+      "title": "包含关系、顺序合并与方向来源",
+      "axis_ids": [
+        "CC-001",
+        "CC-002",
+        "CC-003",
+        "CC-004"
+      ]
+    },
+    {
+      "id": "ST-002",
+      "title": "包含组锚、成员映射与原始极值定位",
+      "axis_ids": [
+        "CC-004",
+        "CC-005",
+        "CC-056"
+      ]
+    },
+    {
+      "id": "ST-003",
+      "title": "分型的局部分类与成立条件",
+      "axis_ids": [
+        "CC-001",
+        "CC-006"
+      ]
+    },
+    {
+      "id": "ST-004",
+      "title": "生产新笔的双坐标成立条件",
+      "axis_ids": [
+        "CC-001",
+        "CC-005",
+        "CC-008"
+      ]
+    },
+    {
+      "id": "ST-005",
+      "title": "笔序列、去重、延伸与确认边界",
+      "axis_ids": [
+        "CC-009",
+        "CC-010",
+        "CC-056"
+      ]
+    },
+    {
+      "id": "ST-006",
+      "title": "线段基本良构与正本范式",
+      "axis_ids": [
+        "CC-001",
+        "CC-011"
+      ]
+    },
+    {
+      "id": "ST-007",
+      "title": "特征序列构造、包含作用域与两类终结",
+      "axis_ids": [
+        "CC-002",
+        "CC-012",
+        "CC-013"
+      ]
+    },
+    {
+      "id": "ST-008",
+      "title": "缺口封闭、笔破坏与段破坏的独立事实",
+      "axis_ids": [
+        "CC-002",
+        "CC-013",
+        "CC-014"
+      ]
+    },
+    {
+      "id": "ST-009",
+      "title": "构造唯一与多读法分解分层",
+      "axis_ids": [
+        "CC-015",
+        "CC-062"
+      ]
+    },
+    {
+      "id": "ST-010",
+      "title": "结构判据与观察准入边界",
+      "axis_ids": [
+        "CC-054"
+      ]
+    },
+    {
+      "id": "ST-011",
+      "title": "中枢由三个连续次级别走势构成及严格核心",
+      "axis_ids": [
+        "CC-001",
+        "CC-002",
+        "CC-016"
+      ]
+    },
+    {
+      "id": "ST-012",
+      "title": "冻结核心与动态 GG/G/D/DD 全量可查",
+      "axis_ids": [
+        "CC-017"
+      ]
+    },
+    {
+      "id": "ST-013",
+      "title": "中枢延伸、离开与回归分别发布",
+      "axis_ids": [
+        "CC-002",
+        "CC-018",
+        "CC-019",
+        "CC-026",
+        "CC-060",
+        "CC-061"
+      ]
+    },
+    {
+      "id": "ST-014",
+      "title": "新生趋势与扩展关系的完整不等式",
+      "axis_ids": [
+        "CC-001",
+        "CC-002",
+        "CC-020",
+        "CC-061"
+      ]
+    },
+    {
+      "id": "ST-015",
+      "title": "九段升级计数、重切与高级血缘",
+      "axis_ids": [
+        "CC-021"
+      ]
+    },
+    {
+      "id": "ST-016",
+      "title": "中枢续扫起点、连接段归属与无候选态",
+      "axis_ids": [
+        "CC-022"
+      ]
+    },
+    {
+      "id": "ST-017",
+      "title": "走势三分类与相应级别的有效域",
+      "axis_ids": [
+        "CC-023",
+        "CC-062"
+      ]
+    },
+    {
+      "id": "ST-018",
+      "title": "盘整无语义方向与技术突破方向",
+      "axis_ids": [
+        "CC-024",
+        "CC-026",
+        "CC-060"
+      ]
+    },
+    {
+      "id": "ST-019",
+      "title": "构造、形成、完成、转折与过渡状态分轴",
+      "axis_ids": [
+        "CC-010",
+        "CC-025",
+        "CC-062"
+      ]
+    },
+    {
+      "id": "ST-020",
+      "title": "递归层级、基底、自然停止与三种级别身份",
+      "axis_ids": [
+        "CC-027"
+      ]
+    },
+    {
+      "id": "ST-021",
+      "title": "每级同一判据、构造父子不变量与可复验边界",
+      "axis_ids": [
+        "CC-027",
+        "CC-028"
+      ]
+    },
+    {
+      "id": "ST-022",
+      "title": "描述形态与PH类比结构名分分离",
+      "axis_ids": [
+        "CC-029"
+      ]
+    },
+    {
+      "id": "ST-023",
+      "title": "背驰先结构配对后力度及范围边界",
+      "axis_ids": [
+        "CC-030",
+        "CC-031",
+        "CC-033"
+      ]
+    },
+    {
+      "id": "ST-024",
+      "title": "力度精确定义、速度坐标与符号值",
+      "axis_ids": [
+        "CC-001",
+        "CC-032",
+        "CC-033"
+      ]
+    },
+    {
+      "id": "ST-025",
+      "title": "MACD 辅助判据、数据不足与多代理禁兜底",
+      "axis_ids": [
+        "CC-033",
+        "CC-034"
+      ]
+    },
+    {
+      "id": "ST-026",
+      "title": "Div、NE、Turn 命题与当时可知事实",
+      "axis_ids": [
+        "CC-025",
+        "CC-035"
+      ]
+    },
+    {
+      "id": "ST-027",
+      "title": "小转大为转折级别关系，必要条件与发生分离",
+      "axis_ids": [
+        "CC-036",
+        "CC-037",
+        "CC-038",
+        "CC-039",
+        "CC-059"
+      ]
+    },
+    {
+      "id": "ST-028",
+      "title": "六买卖谓词与可重合事实",
+      "axis_ids": [
+        "CC-041",
+        "CC-042"
+      ]
+    },
+    {
+      "id": "ST-029",
+      "title": "第一类点的背驰与本级核心破坏结构",
+      "axis_ids": [
+        "CC-031",
+        "CC-043"
+      ]
+    },
+    {
+      "id": "ST-030",
+      "title": "第二类点组成、回调越一类极值与非门化注记",
+      "axis_ids": [
+        "CC-001",
+        "CC-039",
+        "CC-042",
+        "CC-044",
+        "CC-059"
+      ]
+    },
+    {
+      "id": "ST-031",
+      "title": "第三类点首回试、冻结核心与等号待核",
+      "axis_ids": [
+        "CC-001",
+        "CC-018",
+        "CC-019",
+        "CC-045",
+        "CC-060",
+        "CC-061"
+      ]
+    },
+    {
+      "id": "ST-032",
+      "title": "买卖点确认单调性与数据修订分离",
+      "axis_ids": [
+        "CC-010",
+        "CC-046"
+      ]
+    },
+    {
+      "id": "ST-033",
+      "title": "区间套主动向下定位与向上构造分工",
+      "axis_ids": [
+        "CC-015",
+        "CC-047"
+      ]
+    },
+    {
+      "id": "ST-034",
+      "title": "区间套统一坐标、闭包含与真正父子来源",
+      "axis_ids": [
+        "CC-001",
+        "CC-002",
+        "CC-005",
+        "CC-028",
+        "CC-047"
+      ]
+    },
+    {
+      "id": "ST-035",
+      "title": "Cand 元素、集合非空和独立力度门",
+      "axis_ids": [
+        "CC-048",
+        "CC-049"
+      ]
+    },
+    {
+      "id": "ST-036",
+      "title": "完整区间链、有效域、不适用与证书可复验性",
+      "axis_ids": [
+        "CC-050",
+        "CC-051"
+      ]
+    },
+    {
+      "id": "ST-037",
+      "title": "区间套成本停止、塔底及阶段进阶证据",
+      "axis_ids": [
+        "CC-053"
+      ]
+    },
+    {
+      "id": "ST-038",
+      "title": "下钻失败分类与知识状态独立于结构分类",
+      "axis_ids": [
+        "CC-052",
+        "CC-054"
+      ]
+    },
+    {
+      "id": "ST-043",
+      "title": "生成态风控/交易体系与经营结构关联",
+      "axis_ids": [
+        "CC-039",
+        "CC-058",
+        "CC-059"
+      ]
+    },
+    {
+      "id": "ST-044",
+      "title": "全对象关系和每次结构变化可追溯",
+      "axis_ids": [
+        "CC-025",
+        "CC-026",
+        "CC-054",
+        "CC-055",
+        "CC-056",
+        "CC-060"
+      ]
+    },
+    {
+      "id": "ST-045",
+      "title": "分型强弱、中继描述与其后发展分开",
+      "axis_ids": [
+        "CC-007"
+      ]
+    },
+    {
+      "id": "ST-046",
+      "title": "多级别联立与同步现象的同知时点",
+      "axis_ids": [
+        "CC-057"
+      ]
+    },
+    {
+      "id": "ST-047",
+      "title": "转折后的高级结果、回拉与中心生死关系",
+      "axis_ids": [
+        "CC-020",
+        "CC-035",
+        "CC-038",
+        "CC-040",
+        "CC-061"
+      ]
+    },
+    {
+      "id": "ST-048",
+      "title": "线段扫描上限、相切与结果完整性",
+      "axis_ids": [
+        "CC-011",
+        "CC-014"
+      ]
+    }
+  ],
+  "artifact_validation": {
+    "ids_unique": true,
+    "62_axis_set_matches_catalog": true,
+    "10_combination_set_matches_catalog": true,
+    "32_register_set_matches_catalog": true,
+    "all_44_ST_ids_have_axes": true,
+    "runtime_tests": "NOT_RUN",
+    "proof_closure": "NOT_CLAIMED"
+  }
+}

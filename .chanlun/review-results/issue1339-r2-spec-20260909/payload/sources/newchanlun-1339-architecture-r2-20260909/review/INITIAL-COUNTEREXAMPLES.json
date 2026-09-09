@@ -1,0 +1,222 @@
+{
+  "schema": "newchanlun.architecture-rf02-initial-review.v1",
+  "issue": 1339,
+  "map": 1323,
+  "reviewer": "rf02_protocol_challenge",
+  "status": "initial-counterexamples-awaiting-r2",
+  "created_at_utc": "2026-09-08T19:51:42.071711+00:00",
+  "authority": "RF-02 用户新决定；RF-01 保留",
+  "scope": "只审旧稿协议缺陷及新稿必须回答的竞态；不预选存储，不重做分类/代码扫描",
+  "sources": [
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/USER-DECISION.md",
+      "sha256": "bde32ba1369879cfec4343d0364d4cddc160238ea5b6a03c7828fe36ba94d0c9",
+      "read_scope": "全文"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/USER-DECISION.json",
+      "sha256": "68105375cfa35628881ddd2db271a7606b37985547921758ddd1e820bfd33a3d",
+      "read_scope": "全文"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+      "sha256": "f6054b52f86ba80fafd6386d1ac6ede341c6c6a17cb9efbed5d2dad42571824d",
+      "read_scope": "语义读取行 1-102、165-321、378-400；3节仅标题/匹配行导航；全文件字节仅用于 SHA-256"
+    }
+  ],
+  "minimum_constraints": [
+    {
+      "id": "I-RF02",
+      "statement": "结构自身输入、计算与持久发布可用且获得公平调度时，经济域失败/分区不阻止正式结构及其闭包消费推进。不能要求经济轮、Pending、JoinCut 或经济 ack 完成。"
+    },
+    {
+      "id": "I-AUTH",
+      "statement": "每一份新的不可重复外效资格必须绑定唯一命令/冻结计划及写者代际；协议给出它相对结构失效和经济失效的可证明顺序。两次新鲜读取或异步撤销不足。"
+    },
+    {
+      "id": "I-PENDING",
+      "statement": "风险语义首次规范解释前必须封住保守影响范围；被封或未知有效条件的范围不产生新发送，Resolve 不能抹掉未覆盖事实。"
+    },
+    {
+      "id": "I-WINDOW",
+      "statement": "严格区分尚可撤的准备/预留与已进入真实不可判定外效窗口者；后者保留完整最大责任并按原身份查询/幂等恢复，不能自动产生新外效。"
+    },
+    {
+      "id": "I-RF01",
+      "statement": "单个经营账故障时，只要已持久责任上界、当前结构及全部共同约束仍可核，健康重合规请求须实际继续新增；不等故障账回执。"
+    },
+    {
+      "id": "I-OBS",
+      "statement": "正式结构快照、原子变化/撤回、续接及 AsKnown 历史有独立可推进闭包；跨域总览准确标缺、旧消费水位与不可用，不伪造同步最新。"
+    },
+    {
+      "id": "I-RECOVERY",
+      "statement": "每个中间态均有持久恢复判据；旧 epoch/迟到消息不能复活资格，经济恢复不把历史结构候选补发为当前命令。"
+    }
+  ],
+  "counterexamples": [
+    {
+      "id": "CE-L01",
+      "kind": "旧稿确定冲突",
+      "anchor": "P1:179-190",
+      "trace": "共同经济域不可用，结构输入/计算/持久存储均健康；BeginRevision 无法提交，于是生产结构不计算、不发布。",
+      "obligation": "RF-02",
+      "required_answer": "删除公共经济确认作为正式计算和提交的前置；必须有持久结构、关系、修订、撤回及前端消费的实际推进路径。"
+    },
+    {
+      "id": "CE-L02",
+      "kind": "旧稿确定冲突",
+      "anchor": "P1:186-190 / P4:227",
+      "trace": "只把 BeginRevision 移走但保留“完成经营轮后才下一输入”；共同域、资金政策等待或健康写者不返回使轮不封闭，结构仍停。",
+      "obligation": "RF-02",
+      "required_answer": "结构调度不能等经济轮、slot、Pending Resolve、应用收据或故障代际确认。有限调度公平可以约束机会，不能借此恢复反压。"
+    },
+    {
+      "id": "CE-L03",
+      "kind": "候选必须回答",
+      "anchor": "O1:305-315",
+      "trace": "结构独立提交 s2 撤回；JoinCut/全局流序号/反向消费索引等不到经济版本 e2，前端只见 s1，正式发布名存实亡。",
+      "obligation": "RF-02 / 观察",
+      "required_answer": "结构自身依赖闭包和流必须能单独推进；经济 last-known、missing、unavailable 必须有明示语义，跨域组合不能挡结构。"
+    },
+    {
+      "id": "CE-L04",
+      "kind": "候选必须回答",
+      "anchor": "P1/P4/O1 集成边界",
+      "trace": "异步经济订阅者断线；共享队列、写事务、outbox 确认或保留回收要求其 ack，积压最后阻止结构提交。",
+      "obligation": "RF-02",
+      "required_answer": "给出不依赖经济确认的结构提交及消费路径，区分结构自身资源耗尽和经济故障引起的设计性阻断；不能只承诺本地纯函数可算。"
+    },
+    {
+      "id": "CE-S01",
+      "kind": "候选必须回答",
+      "anchor": "P1 最后授权边界",
+      "trace": "读结构 s1 当前→读经济 e1 可用→结构提交撤回 s2→以两次读取签发新发送；反向顺序则读 e1→读 s1→Capture 风险 e2→发送。",
+      "obligation": "结构及共同约束安全",
+      "required_answer": "指出真正将两个失效源与不可重复外效许可排序的原子或可证明协议；任何有限次“再读一次”后仍留另一侧变化缝。"
+    },
+    {
+      "id": "CE-S02",
+      "kind": "候选必须回答",
+      "anchor": "P1 first_known / 撤回传播",
+      "trace": "结构在自身域 t1 获知并持久发布撤回；连接经济/执行域分区，远端继续按旧镜像签发普通 grant 或新发送。",
+      "obligation": "结构有效性",
+      "required_answer": "安全不能以消息最终到达为前提，也不能把 first_known 改写为远端收件时间；明确分区两侧谁能继续什么以及不可绕过的 fence。"
+    },
+    {
+      "id": "CE-S03",
+      "kind": "候选必须回答",
+      "anchor": "P1 远程许可回包",
+      "trace": "经济域在旧结构下处理请求，但许可回包延迟；结构已发布 s2；旧回包到达后本地把它升级为新外效资格。",
+      "obligation": "延迟许可",
+      "required_answer": "许可必须绑定精确决定/命令/结构与写者代际，并在真正一次性提交边界检查失效；远程回包不是新鲜性证明。"
+    },
+    {
+      "id": "CE-S04",
+      "kind": "候选必须回答",
+      "anchor": "P1 MayHaveSent 语义",
+      "trace": "把普通 Prepared/Reserved 提前命名 MayHaveSent，给许多未来候选预先生成“已在途”身份；撤回后首次发送都被解释为旧在途。",
+      "obligation": "不可偷扩外效窗",
+      "required_answer": "列出跨边界前后可达状态、唯一执行者、计划冻结、不可复用身份、最大责任及实际可能外效窗口；普通可撤准备不能只改名成为不可撤责任。"
+    },
+    {
+      "id": "CE-S05",
+      "kind": "候选必须回答",
+      "anchor": "P1/P3 fencing",
+      "trace": "旧 writer 在暂停后恢复，持旧许可/旧 epoch 与迟到 ack；新 writer 已推进结构/恢复经济；旧 writer 绕新状态写回或发送。",
+      "obligation": "单写者与外效唯一性",
+      "required_answer": "持久写入者、许可消费点及最终执行入口都拒旧 epoch；换代不是内存租约/超时推定。"
+    },
+    {
+      "id": "CE-S06",
+      "kind": "候选必须回答",
+      "anchor": "P4 Capture/Recorded/Pending",
+      "trace": "外部原报在独立事实域被规范接纳或解析为风险，Pending 通知尚未到最终发送域；后者以旧 Open 放行。",
+      "obligation": "共同证据有效性",
+      "required_answer": "规范捕获、保守影响范围封闸、最终新发送必须有真实因果屏障；只允许传输缓存先收字节，不能先解释后通知。"
+    },
+    {
+      "id": "CE-S07",
+      "kind": "候选必须回答",
+      "anchor": "P4 同源结构和估值输入",
+      "trace": "同一市场更正已用于正式结构并揭示新估值/汇率风险，而经济镜像未追上；协议只撤结构相关引用，未封其余受估值影响命令。",
+      "obligation": "失效生产者闭包",
+      "required_answer": "明确同一输入的两个消费者和影响范围，结构继续时不得把陈旧估值视作当前有效；不靠等待经济计算来阻止结构。"
+    },
+    {
+      "id": "CE-S08",
+      "kind": "候选必须回答",
+      "anchor": "P4 ResolveEvidence",
+      "trace": "Capture e1、Capture e2，迟到 Resolve(e1) 把共享 Valid 设真或删整个 pending；e2 尚未解释时新发送。",
+      "obligation": "待核集合完整性",
+      "required_answer": "按 token/前缀/证据版本精确消除；范围缩窄需证明；依赖版本变化后旧 Resolve 不可清新障碍。"
+    },
+    {
+      "id": "CE-S09",
+      "kind": "候选必须回答",
+      "anchor": "P4 源连续性与时效",
+      "trace": "最后一次读取合法后证据到期、源断线、时钟失去可核性；没有定时通知，缓存继续 Open。",
+      "obligation": "未知约束阻断",
+      "required_answer": "最终授权点验证有效条件、时效及源连续性；无法核实时关闭，不发明时长或容忍窗口。"
+    },
+    {
+      "id": "CE-S10",
+      "kind": "候选必须回答",
+      "anchor": "故障域与权威归属",
+      "trace": "把共同经济日志、事实 Capture、责任和发送状态整体搬到“结构权威/许可核心”；它坏时结构一起停，再把此故障称为结构存储故障。",
+      "obligation": "RF-02 反重命名",
+      "required_answer": "按职责、依赖边和可注入故障识别隔离；证明经济功能失败/分区而结构自身资源可用时正式链仍推进。"
+    },
+    {
+      "id": "CE-S11",
+      "kind": "候选必须回答",
+      "anchor": "两阶段/跨域锁",
+      "trace": "经济取得结构读锁、prepared vote 或不可撤 ticket 后宕机；结构为安全等经济决议，永久停。若单方超时撤销，迟到 commit 又取得发送。",
+      "obligation": "RF-02 / 安全",
+      "required_answer": "所有经济中间态均不能持有阻止结构更新的不可终止锁；单方失效需持久且迟到决议不可逆转，并解释与最终外效边界的顺序。"
+    },
+    {
+      "id": "CE-S12",
+      "kind": "候选必须回答",
+      "anchor": "P6/P7 责任释放",
+      "trace": "暂停期间取消发出无应答；恢复把旧潜量归零，用剩余冻结量重发；旧单/迟到 fill 又执行，或公共域已放额度但旧执行许可仍可消费。",
+      "obligation": "责任及逻辑量守恒",
+      "required_answer": "未知发送及取消无终态均保留最大潜量；释放以不可再执行和累计完整性及所需账收据为依据，发送能力与责任不能分离释放。"
+    },
+    {
+      "id": "CE-S13",
+      "kind": "候选必须回答",
+      "anchor": "恢复/回放",
+      "trace": "经济恢复后从结构积压中逐条运行旧候选，或重试旧 Reserved/Committed，把 RF-02 期间仅供正式观察的历史变为当前订单。",
+      "obligation": "不得补发历史",
+      "required_answer": "恢复先对账并恢复当前资格；旧决定保留原身份及状态，不自动补发或倒插 slot；AsKnown/重算/经营恢复明确区分。"
+    },
+    {
+      "id": "CE-RF01",
+      "kind": "保留既有义务",
+      "anchor": "R1 / P3 / P4",
+      "trace": "A 私账损坏但共同保留责任和所有约束可核；新方案为推进 Capture、发布 cut 或封闭轮要求 A Applied/slot-end，从而 B 永久只得到可查看或允许标志。",
+      "obligation": "RF-01",
+      "required_answer": "A 旧代际封闭后，其已有最大责任继续计入；普通回报可不降 A 界而独立 Resolve；B 必须实际持久新增 Committed，不能以 PartialView 代替。"
+    },
+    {
+      "id": "CE-O01",
+      "kind": "候选必须回答",
+      "anchor": "O2/O3",
+      "trace": "经济故障时结构 s2 撤回、s3 替代都正式发布；恢复经济后重建全局 cut 把历史 first_known 前移/后移，客户端跨流安装旧代际 s1 或跳过缺批次。",
+      "obligation": "正式观察及回放",
+      "required_answer": "结构 cursor/base/next、原子批次、撤回边端点及代际拒收完整保留；历史获知时点不由后来 JoinCut 反写，缺口显式返回 Gap。"
+    }
+  ],
+  "verification": {
+    "project_execution": "not-run",
+    "model_check": "not-run",
+    "venue_check": "not-run",
+    "code_review": "out-of-scope",
+    "basis": "架构文本及对抗时序推导"
+  },
+  "writes": [
+    "/tmp/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.md",
+    "/tmp/newchanlun-1339-architecture-r2-20260909/review/INITIAL-COUNTEREXAMPLES.json"
+  ]
+}

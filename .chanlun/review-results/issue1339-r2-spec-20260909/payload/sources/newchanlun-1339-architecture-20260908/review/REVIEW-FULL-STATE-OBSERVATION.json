@@ -1,0 +1,213 @@
+{
+  "schema": "newchanlun.focused-observation-document-review.v1",
+  "issue": 1339,
+  "reviewer": "/root/independent_scope_review",
+  "status": "PASS_FOCUSED_DOCUMENT_SCOPE",
+  "counts": {
+    "H": 0,
+    "M": 0,
+    "L": 0,
+    "open": 0
+  },
+  "reviewed_target": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/author/FULL-STATE-OBSERVATION.md",
+    "sha256": "aa65047a2887d35e3f4ec916f54f2660f789ea8e5bef32c2ce72457c2f2c689b",
+    "bytes": 5317,
+    "lines": 57,
+    "read_scope": [
+      [
+        1,
+        57
+      ]
+    ],
+    "read_mode": "full_text"
+  },
+  "input_binding": [
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/FULL-STATE-OBSERVATION.md",
+      "sha256": "aa65047a2887d35e3f4ec916f54f2660f789ea8e5bef32c2ce72457c2f2c689b",
+      "bytes": 5317,
+      "lines": 57,
+      "read_scope": [
+        [
+          1,
+          57
+        ]
+      ],
+      "read_mode": "full_text"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/evidence/CLASSIFICATION-OUTPUT-PROBE.md",
+      "sha256": "2d4d30541664199ead754267d9a66881a7643534238288e508534971ce397830",
+      "bytes": 12654,
+      "lines": 100,
+      "read_scope": [
+        [
+          1,
+          100
+        ]
+      ],
+      "read_mode": "full_text_report_only_not_code_reverification"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+      "sha256": "7b954f7c1deb40db31f9339304688e6ac9da464c934534533ea7fdbb22e9c07a",
+      "bytes": 231873,
+      "lines": 4903,
+      "read_scope": [
+        "CC-020",
+        "CC-022",
+        "CC-036",
+        "CC-037",
+        "CC-059"
+      ],
+      "read_mode": "selected_entries_only_not_leaf_signoff"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/beichi.md",
+      "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+      "bytes": 108519,
+      "lines": 1020,
+      "read_scope": [
+        [
+          124,
+          145
+        ],
+        [
+          164,
+          199
+        ],
+        [
+          217,
+          225
+        ]
+      ],
+      "read_mode": "targeted_semantic_source"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/maimai.md",
+      "sha256": "69602124af5676c8df68bffc9cdf6544c8cedd456d71be74118ff6540b89447a",
+      "bytes": 39973,
+      "lines": 520,
+      "read_scope": [
+        [
+          120,
+          133
+        ],
+        [
+          277,
+          280
+        ]
+      ],
+      "read_mode": "targeted_semantic_source"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/zhongshu.md",
+      "sha256": "069fc240c8476cc3df62c01d1b658c42f00ec4428777d479163beaadc48ec882",
+      "bytes": 53981,
+      "lines": 592,
+      "read_scope": [
+        [
+          218,
+          275
+        ]
+      ],
+      "read_mode": "targeted_semantic_source"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/043-第43课.md",
+      "sha256": "f28824c26843e5799ad8f07db6bb9b02956d0fc7ac97d9d3d2fc70a7c3004909",
+      "bytes": 25182,
+      "lines": 321,
+      "read_scope": [
+        [
+          12,
+          36
+        ],
+        [
+          50,
+          53
+        ]
+      ],
+      "read_mode": "canonical_original_body_attribution_checked"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/044-第44课.md",
+      "sha256": "827191f7e01799d606520b8774bcc5948b35324dbde6d9a3f05fb5a83be8f70b",
+      "bytes": 21419,
+      "lines": 312,
+      "read_scope": [
+        [
+          20,
+          30
+        ],
+        [
+          66,
+          66
+        ]
+      ],
+      "read_mode": "canonical_original_body_attribution_checked"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/053-第53课.md",
+      "sha256": "004a77af0349566b2673cfdc0b5c5cef43d57617cfc2e5eab174414c28c794e1",
+      "bytes": 21708,
+      "lines": 237,
+      "read_scope": [
+        [
+          12,
+          36
+        ]
+      ],
+      "read_mode": "canonical_original_body_attribution_checked"
+    }
+  ],
+  "checks": [
+    {
+      "item": "已确认范围及职责",
+      "verdict": "PASS_DOCUMENT_SCOPE",
+      "evidence": "目标文档3,7–21,25–35,55–57；不指定候选owner/storage，不给UI写入结构或经济准入，逐层验收未由枚举/hash/样例替代。"
+    },
+    {
+      "item": "小转大与二类补充分支",
+      "verdict": "PASS_FOCUSED_SEMANTICS",
+      "evidence": "目标39；beichi127–145/164–199，043:26/32–34，044:24/26/30，053:28。necessary非sufficient，r<q已发生归因，下钻无锚不补标签；本级一类缺失与次级一类构成分开。"
+    },
+    {
+      "item": "扩展关系与真实构造",
+      "verdict": "PASS_FOCUSED_SEMANTICS",
+      "evidence": "目标41；zhongshu218–275；已列核心/外缘和高级实际构件、缺件、九段重切，不将level_lift或不同对象发展状态互换。"
+    },
+    {
+      "item": "知识/未定边界的名分",
+      "verdict": "PASS_DOCUMENT_SCOPE",
+      "evidence": "目标27–35/55；Other不能填漏支，数据不足/计算未完/失效不能令全分类完成验收通过。"
+    },
+    {
+      "item": "三轴probe射程",
+      "verdict": "PASS_DERIVATIVE_REPORT_LIMIT",
+      "evidence": "目标45–51准确保留dirty字节快照/有界静态及指定出口边界；六态断在生产装配、关系完整载体后被信号差分清空、逐点BSP六位不等每级唯一LevelView桥，与probe13–15/29–31/56–58/77/83–91一致。"
+    }
+  ],
+  "findings": [],
+  "separate_navigation_issue": {
+    "catalog_entries": [
+      "CC-036",
+      "CC-037"
+    ],
+    "description": "所选目录行的beichi引用范围漂移：87–95/261–289/289–334非对应小转大正本段；当前为127–145及164–199。目录另有直接原课来源仍支持目标语义；已通知root交目录评审修正。此问题不属于本目标文件的错误，也不与完整CC独评混算。"
+  },
+  "not_claimed": [
+    "complete_62_axis_or_32_item_catalog_review",
+    "formal_leaf_partition_or_market_reachability_proof",
+    "production_code_or_all_exporter_reverification",
+    "runtime_or_UI_or_paper_acceptance",
+    "architecture_adoption_or_SPEC_approval"
+  ],
+  "not_done": [
+    "author_or_repository_edits",
+    "GitHub_writes",
+    "project_tests_or_Lean_or_service_or_trading",
+    "subagent_spawn"
+  ]
+}

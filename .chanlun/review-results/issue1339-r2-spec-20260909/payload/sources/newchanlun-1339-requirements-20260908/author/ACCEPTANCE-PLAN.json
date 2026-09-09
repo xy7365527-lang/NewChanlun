@@ -1,0 +1,127 @@
+{
+  "schema": "issue1339.acceptance-plan.v0",
+  "ticket": 1339,
+  "status": "DRAFT_NOT_EXECUTED",
+  "requirements": [
+    {
+      "id": "AC-01",
+      "topic": "范围与出处可追溯",
+      "required_behavior": "对本轮NewChanlun相关的现行正本逐项取证；仓内K4及其独立仓库任务材料仅登记排除原因，不因同目录存在就纳入。语义ADR、词汇表和必要Lean/原文补充分别列来源、读取范围与有效域。",
+      "expected_evidence": "当前正本文档＋需求条目＋未决项；不把目录名/标题命中当精读。",
+      "failure_or_limit": "目录枚举不是需求边界。已废止、未定和现行要求分开；来源冲突不靠现役代码或作者推测定夺。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-02",
+      "topic": "判据与边界",
+      "required_behavior": "每个结构分类轴有适用对象/级别/视角/输入域、正常分支、端点/退化反例和证据不足情形。同判断同完整输入在各级输出相同。",
+      "expected_evidence": "ST逐项情景及对应行为对拍，实际断言和执行结果绑定版本；已有锁可复用，但须核射程。",
+      "failure_or_limit": "不同轴可并存；只编译不执行或零命中grep不能证明#804行为不变式。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-03",
+      "topic": "完整结构构造与关系",
+      "required_behavior": "从基础结构直到相应级别走势、中枢发展与跨级关系，逐项有真实构造、必要组成/血缘及完成依据；高级中枢不以level_lift标记替代。",
+      "expected_evidence": "每个已列对象/关系的具体实例、反例、生产输出以及下游消费证据。",
+      "failure_or_limit": "三代表链只是覆盖集合内的实例；不以它们代替全ST表。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-04",
+      "topic": "多级别联立与主动定位",
+      "required_behavior": "区分结构端点、Cand/力度/链证书、选取与条件化定位；操作视角不回流改变主干判据，定位失败不换弱判断放行。",
+      "expected_evidence": "实际同级别分解与向下定位轨迹；各步输入、返回、消费和原因可查；Type1/2/3适用性不同分别验证。",
+      "failure_or_limit": "证书存在不等经济准入；缺锚不能自动翻译成小转大。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-05",
+      "topic": "多个重的独立行为",
+      "required_behavior": "验证已定N个持久重各有目标、筹码、经营史与权利；覆盖各重方向相同或相反、同时发生动作及共同约束生效的情景，检查实际状态和结果。",
+      "expected_evidence": "逐重Chong/TStage/Voice、毛账、计划、物理投影与成交归属轨迹；同净额不同逐重状态的反例。",
+      "failure_or_limit": "N来自既有完整多重赋格要求，具体测试样本数量不在本草案添加成产品门槛。单重故障时其它重继续新增操作的条件已由用户确认，见RF-01。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-06",
+      "topic": "完整经营阶段",
+      "required_behavior": "覆盖建仓、短差/回补、成本变化、本金回收资格与实际事实、赚股阶段、容量/频率及两种换档、退出和再次等待。",
+      "expected_evidence": "FG逐项状态及事件轨迹，包括真实亏损、费用、尚未收回本金和资格等待；所需金额规则先有依据。",
+      "failure_or_limit": "不只跑到一笔买卖；不以删除旧尾或重置成本/Voice抹掉持久历史；未定钱规则不可填默认。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-07",
+      "topic": "毛账、净额与责任一致",
+      "required_behavior": "共同毛约束、独立资金筹码、物理净额、内部归属与外部成交分开；净省不能生成可部署现金或重复释放权利；已定费用口径和实际费用来源各自明确。",
+      "expected_evidence": "逐重义务与物理最坏在途量、真实成交、费用及两账对应关系；一份净头寸对应不同毛账的反例。",
+      "failure_or_limit": "内部权利交付不冒称venue fill；净额为0不证明各重无持仓/责任；不能多扣假费用。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-08",
+      "topic": "部分成交、撤回、退出与晚到尾账",
+      "required_behavior": "覆盖未发送、发送不明、部分成交、撤余中、取消确认、晚到fill、更正/bust、费用晚到，以及退出中仍有原目的责任的分支。",
+      "expected_evidence": "带原订单/责任身份的事件与状态轨迹，终结条件及剩余量；恢复前后逐重账对应。",
+      "failure_or_limit": "CancelRequested、超时、Recorded、Applied与最终释放不能互替；一次扁平快照或h=0不能代表退出完成。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-09",
+      "topic": "一致观察和可追溯呈现",
+      "required_behavior": "每个ST/FG项沿其输出、OB传输合同、显示/详情或时间线、对应验证证据形成一条可检验路径。完整快照和分页绑定一致切面，局部结果如实标缺口。",
+      "expected_evidence": "同一对象/修订在生产输出、传输和UI可对应；快照/增量结果对拍；全部要求有可达观察入口。",
+      "failure_or_limit": "不要求所有信息同时铺在一屏；不能用UI简化删掉后端义务，也不能混拼各域新旧版本。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-10",
+      "topic": "断线、重复、乱序和代际切换",
+      "required_behavior": "断线后有效游标可续接；过期明确重取；重复/乱序处理不会遗漏修订撤回；新会话拒绝旧代际消息。",
+      "expected_evidence": "同一源事件序列在正常、重复、乱序和断档恢复情况下，与相应切面快照的对拍；会话绑定证据。",
+      "failure_or_limit": "不声称网络恰一次；REST建会话与WS订阅必须属于声明的同一逻辑回放会话及一致输入切面。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-11",
+      "topic": "按当时可知回放与确定性",
+      "required_behavior": "区分市场发生区间、获知前沿、确认时点和后续修订；历史回放按选择的知识模式重现完整结构及逐重经营、执行/账本事实。",
+      "expected_evidence": "相同明确输入和版本的双跑逐项对拍；确认前后可见性与回补修订情景；经济恢复的输入须包括必要权利/执行历史。",
+      "failure_or_limit": "最终全历史结构不是当时可知oracle；bars不能代替真实钱账或外部成交。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-12",
+      "topic": "恢复与故障责任",
+      "required_behavior": "每个候选必须满足RF-01：单个重的账目故障时，若其他重的账目完好、故障重可能占用的资金上限及共同约束仍可核实，其他重必须能继续新增操作；共同约束无法核实时暂停新增操作。结构、经济资源、执行和观察各域故障的可信事实及恢复过程须说明。",
+      "expected_evidence": "在相同故障情景下给状态/协议和终结条件；实施阶段再以受控故障注入和恢复后对账验证。",
+      "failure_or_limit": "故障重的权利和尾账不得转借、抹除或默认结清。局部账目故障与共同约束失真分开；此要求不等于外部场所的物理逐仓隔离，也没有承诺零停顿时延。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-13",
+      "topic": "历史、paper与live边界",
+      "required_behavior": "完整程序的共同判定核、各模式输入/时钟/撮合/场所/执行Adapter职责及唯一事实来源须明确；每个宣称支持的入口各有覆盖。",
+      "expected_evidence": "模式/入口矩阵和相同判据输入的行为证据；历史回放与paper目标列入完整程序验收计划。",
+      "failure_or_limit": "本阶段不启动paper/live交易；实盘交易权限/场所能力和数据授权不能被观察需求或设计采纳代替。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-14",
+      "topic": "评价口径与不确定性",
+      "required_behavior": "保留成本轨迹、净额账、逐重毛账归因、操作频率及样本充分性；已裁费后门和统计法按ADR0022/0024，未定参数继续等待。验收账本遵守ADR0021:73/#937的条件式切换：逐笔独立形态获准落地后改毛账，生效前净账维持。",
+      "expected_evidence": "指标口径、全部原始盈亏/费用事件、采样条件、窗口与来源；正式计样规则的已识别张力先澄清。",
+      "failure_or_limit": "不以零样本/只收正收益或稀疏读数宣布通过；实现正确性、统计优势和性能是不同验收结论。",
+      "execution_status": "NOT_RUN"
+    },
+    {
+      "id": "AC-15",
+      "topic": "逐项证据强度",
+      "required_behavior": "每条记录分别标正本要求、实现/生产挂载、输出、传输、消费、实际靶向执行和端到端验收；未读/未查/未运行保持原名。",
+      "expected_evidence": "具体commit/文件SHA、入口、输入、执行命令、输出或验收制品及其范围；新文档也有独立复核。",
+      "failure_or_limit": "静态171合同/94锁、91文件旧绑定、方案评审0H等均不等于完整程序通过；源码未复验不冒称当前。",
+      "execution_status": "NOT_RUN"
+    }
+  ]
+}

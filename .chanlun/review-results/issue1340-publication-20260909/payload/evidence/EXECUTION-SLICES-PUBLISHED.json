@@ -1,0 +1,1551 @@
+{
+  "TB-01-A": {
+    "id": 5395478146,
+    "number": 1370,
+    "title": "[impl] TB-01-A 正式Rust结构会话将同次计算的分型、持久快照和证据交到浏览器（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1370",
+    "body_sha256": "f0c39d9383f77d57ae30f8e1ee30051f67c440951550b7e05ca68a51010ed715",
+    "plan_source": {
+      "file": "TB01-EXECUTION-SLICES.json",
+      "sha256": "16e1e89efc24afbbea5c1b1c43ec44fa5a513e70098c83b24a56c6d1847f701e"
+    },
+    "parent_tb": "TB-01",
+    "parent_number": 1359,
+    "parent_linked": true
+  },
+  "TB-01-B": {
+    "id": 5395478734,
+    "number": 1371,
+    "title": "[impl] TB-01-B 原始更正驱动原子撤回并在真实进程恢复后保留浏览器历史（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1371",
+    "body_sha256": "71672e11e78d9cd2739f9d45a4a10c8a8b3420e2c1ccd11032e30858e7e4e3b5",
+    "plan_source": {
+      "file": "TB01-EXECUTION-SLICES.json",
+      "sha256": "16e1e89efc24afbbea5c1b1c43ec44fa5a513e70098c83b24a56c6d1847f701e"
+    },
+    "parent_tb": "TB-01",
+    "parent_number": 1359,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-01-A": 1370
+    }
+  },
+  "TB-01-C": {
+    "id": 5395479413,
+    "number": 1372,
+    "title": "[impl] TB-01-C 固定结构cut分页与断线续接在持续输入和独立重启下保持同源（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1372",
+    "body_sha256": "c8eddb266a2e90a124e02eac6918ccce04f27b514a83f12cf6ea3e1c1fa007a3",
+    "plan_source": {
+      "file": "TB01-EXECUTION-SLICES.json",
+      "sha256": "16e1e89efc24afbbea5c1b1c43ec44fa5a513e70098c83b24a56c6d1847f701e"
+    },
+    "parent_tb": "TB-01",
+    "parent_number": 1359,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-01-B": 1371
+    }
+  },
+  "TB-02-A": {
+    "id": 5395587761,
+    "number": 1373,
+    "title": "[impl] TB-02-A 已定方向与无同价竞争的包含及局部分型（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1373",
+    "body_sha256": "68db60e3e48d8175eabfa09f6274abde9429a45b17c3138148557f56c92abf55",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-01": 1359
+    }
+  },
+  "TB-03-A": {
+    "id": 5395588449,
+    "number": 1374,
+    "title": "[impl] TB-03-A 非空持久重、固定 Q 与 Voice 身份（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1374",
+    "body_sha256": "83e5f75e4a43110488df646e769a8a6de815a976f1ba69b608c9a9e9b16df589",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-03",
+    "parent_number": 1361,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-01": 1359
+    }
+  },
+  "TB-04-A": {
+    "id": 5395589148,
+    "number": 1375,
+    "title": "[impl] TB-04-A 外部先接纳封闸与精确 Resolve（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1375",
+    "body_sha256": "12337c189498dc0c77b6fc0ae4d353865c576a3a77edcc5f725321503447f596",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-04",
+    "parent_number": 1362,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-03": 1361
+    }
+  },
+  "TB-05-A": {
+    "id": 5395589837,
+    "number": 1376,
+    "title": "[impl] TB-05-A 经济全故障时结构正式持续（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1376",
+    "body_sha256": "260a0e9e488b4c4fec7f691b0f9634ead640ccd8565bae2dd44ea8a5cd64b883",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-05",
+    "parent_number": 1363,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04": 1362
+    }
+  },
+  "TB-06-A": {
+    "id": 5395590461,
+    "number": 1377,
+    "title": "[impl] TB-06-A 满仓基线与回本前短差回补（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1377",
+    "body_sha256": "1c425b76d5309df651bc4ecdfce645eea0585b291e9ce1eccf2eff3ccc5ef894",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-06",
+    "parent_number": 1364,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-03": 1361,
+      "TB-04": 1362,
+      "RD-09": 1355
+    }
+  },
+  "TB-06-B": {
+    "id": 5395591367,
+    "number": 1378,
+    "title": "[impl] TB-06-B 本金回收与多空五阶段签名（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1378",
+    "body_sha256": "d771bb64eea0a8a0dff5c61bd973efff844772b5684b375286b850e3e4fdd170",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-06",
+    "parent_number": 1364,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-03": 1361,
+      "TB-04": 1362,
+      "RD-08": 1348
+    }
+  },
+  "TB-06-D": {
+    "id": 5395592465,
+    "number": 1379,
+    "title": "[impl] TB-06-D 固定身份权利转移与唯一激活（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1379",
+    "body_sha256": "d0b6bd33baab9973c25b16cb7c9599e2fc58d0e556b18b957f0f3f301d7fcf50",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-06",
+    "parent_number": 1364,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-03": 1361,
+      "TB-04": 1362
+    }
+  },
+  "TB-06-G": {
+    "id": 5395593309,
+    "number": 1380,
+    "title": "[impl] TB-06-G 结构撤回、业务退出与在途保留（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1380",
+    "body_sha256": "5a3f4f798bb2d1c112abc252267a1b01a107059b262af8e2fbab7066faadf848",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-06",
+    "parent_number": 1364,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-03": 1361,
+      "TB-04": 1362,
+      "RD-16": 1352
+    }
+  },
+  "TB-07-A": {
+    "id": 5395594354,
+    "number": 1381,
+    "title": "[impl] TB-07-A 完整历史输入推动全部权威域并生成可追溯回放（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1381",
+    "body_sha256": "fef32812b6a38f428bf4538554766744a7f42ce9955d749ebecd5cdbdff4b67d",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-07",
+    "parent_number": 1366,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-06": 1364,
+      "RD-17": 1353
+    }
+  },
+  "TB-08-A": {
+    "id": 5395595429,
+    "number": 1382,
+    "title": "[impl] TB-08-A 历史与paper模式由同一入口使用受控adapter（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1382",
+    "body_sha256": "ab63301485768457a0f9dc44bc195b640b56b9076225fd0de6455c6f47b619b7",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-08",
+    "parent_number": 1367,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04": 1362,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-09": 1365,
+      "RD-17": 1353
+    }
+  },
+  "TB-09-A": {
+    "id": 5395596920,
+    "number": 1383,
+    "title": "[impl] TB-09-A 目标部署预检实际拒绝旧写入口绕过（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1383",
+    "body_sha256": "f43c8aa68822e9d92e6784512597187200382f9a044817753c169f1b7870fb35",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-09",
+    "parent_number": 1365,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04": 1362,
+      "RD-13": 1351
+    }
+  },
+  "TB-10-A": {
+    "id": 5395597625,
+    "number": 1384,
+    "title": "[impl] TB-10-A 图表与Python结构入口改接唯一S（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1384",
+    "body_sha256": "fc9bbdcff774ee4e07becf5bf550095f918481f9727fe126e1f11976a7dcf082",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-10",
+    "parent_number": 1368,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365
+    }
+  },
+  "TB-10-B": {
+    "id": 5395599188,
+    "number": 1385,
+    "title": "[impl] TB-10-B 旧策略和多重装配入口完成R2迁移准备（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1385",
+    "body_sha256": "27112930a5725cadb4604baf3a1aca36f5ab4f39976c20094ccca9527bfe5797",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-10",
+    "parent_number": 1368,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365
+    }
+  },
+  "TB-10-C": {
+    "id": 5395600423,
+    "number": 1386,
+    "title": "[impl] TB-10-C Organic与positional核心旧经济臂隔离准备（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1386",
+    "body_sha256": "3c1fc6bd1054048f8774de267e252225fc182741be520313854370b1fcf247dd",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-10",
+    "parent_number": 1368,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365
+    }
+  },
+  "TB-10-D": {
+    "id": 5395602001,
+    "number": 1387,
+    "title": "[impl] TB-10-D positional延续与fusion变体旧写权隔离准备（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1387",
+    "body_sha256": "260ad2f4932d821262ae7a7474fc01fb07fd0926626aaec01216218680858d99",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-10",
+    "parent_number": 1368,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365
+    }
+  },
+  "TB-10-E": {
+    "id": 5395603327,
+    "number": 1388,
+    "title": "[impl] TB-10-E 混合经济臂及旧π组织完成逐族迁移准备（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1388",
+    "body_sha256": "b939666ec1a6aad1f6e3eeaf110b5c6a092ba9b6c7453a13e6d0580ffbc1ce58",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-10",
+    "parent_number": 1368,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365
+    }
+  },
+  "TB-10-F": {
+    "id": 5395604813,
+    "number": 1389,
+    "title": "[impl] TB-10-F 严格构造费用统计与形式锁收编（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1389",
+    "body_sha256": "643706ec14d5e5c466091fbbc74a3671a80e850dfcaecbed05b966b4da6b8106",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-10",
+    "parent_number": 1368,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365
+    }
+  },
+  "TB-10-G": {
+    "id": 5395606240,
+    "number": 1390,
+    "title": "[impl] TB-10-G 探针研究及封存支持的退出准备（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1390",
+    "body_sha256": "9b7cd2e0edda8b35f220d8e4240b87b2cc2d1b054efa7077583360a73ee9a3a5",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-10",
+    "parent_number": 1368,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365
+    }
+  },
+  "TB-11-A": {
+    "id": 5395607578,
+    "number": 1391,
+    "title": "[impl] TB-11-A 完整程序验收与旧关联票义务逐项对账（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1391",
+    "body_sha256": "f9f28ac2c3016a8429dc289ed54c00445556492233e1baad132c1604ca8f96e4",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-11",
+    "parent_number": 1369,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-01": 1359,
+      "TB-02": 1360,
+      "TB-03": 1361,
+      "TB-04": 1362,
+      "TB-05": 1363,
+      "TB-06": 1364,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365,
+      "TB-10": 1368
+    }
+  },
+  "TB-02-B": {
+    "id": 5395609953,
+    "number": 1392,
+    "title": "[impl] TB-02-B 无同价竞争域的新笔成立、延伸与确认（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1392",
+    "body_sha256": "9d898659f88f8a0794ea8274f52c001e964018be188d00315cf3b1d9cec74548",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-A": 1373,
+      "TB-01": 1359
+    },
+    "body_transforms": [
+      {
+        "from_sha256": "314374713063b8463ce8ce7b201cb7615bb744eed78fab82951cd579091862e3",
+        "to_sha256": "9d898659f88f8a0794ea8274f52c001e964018be188d00315cf3b1d9cec74548",
+        "reason": "resolve forward cross-obligation links to actual published issue IDs; no scope change"
+      }
+    ]
+  },
+  "TB-02-U": {
+    "id": 5395610729,
+    "number": 1393,
+    "title": "[impl] TB-02-U 未建方向与全包含前缀的获准工程实例（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1393",
+    "body_sha256": "7dd93c23e549ce760a500849c86009380dfb0e792bb8412f95d2e5ae984fae76",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-A": 1373,
+      "TB-01": 1359,
+      "RD-01": 1342
+    }
+  },
+  "TB-03-B": {
+    "id": 5395611465,
+    "number": 1394,
+    "title": "[impl] TB-03-B 财务准备、责任先增与本地提交史（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1394",
+    "body_sha256": "8822bfb1acd75e034f1552082b9a3a049c197468d68c2675294b9f5d64c45884",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-03",
+    "parent_number": 1361,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-03-A": 1374,
+      "TB-01": 1359
+    }
+  },
+  "TB-04-B": {
+    "id": 5395612485,
+    "number": 1395,
+    "title": "[impl] TB-04-B 可共同满足域的完整slot与毛责任保留（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1395",
+    "body_sha256": "9d10cbf308f34d49387719f80572bdc8692ec5a4da619e660fd2e19b76d634c3",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-04",
+    "parent_number": 1362,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04-A": 1375,
+      "TB-03": 1361
+    }
+  },
+  "TB-05-B": {
+    "id": 5395613153,
+    "number": 1396,
+    "title": "[impl] TB-05-B 分区与恢复期间的真实获知前沿（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1396",
+    "body_sha256": "8f21df829cfb411fb273dc0aeeb8e67759cd8745df4ea89a75659e3d32a367e9",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-05",
+    "parent_number": 1363,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-05-A": 1376,
+      "TB-04": 1362
+    }
+  },
+  "TB-06-H": {
+    "id": 5395613865,
+    "number": 1397,
+    "title": "[impl] TB-06-H 退出后迟到尾账与责任重开（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1397",
+    "body_sha256": "fc7abf74693d50543bad4e2009243509a7aa8f1ef45fa1bc6d76c8725c781f1e",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-06",
+    "parent_number": 1364,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-06-G": 1380,
+      "TB-03": 1361,
+      "TB-04": 1362,
+      "RD-08": 1348,
+      "RD-12": 1350,
+      "RD-16": 1352
+    }
+  },
+  "TB-06-I": {
+    "id": 5395615185,
+    "number": 1398,
+    "title": "[impl] TB-06-I 完整经济事件样本与闸门前统计（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1398",
+    "body_sha256": "5cd2b829fb3af56460256771b6e35f6bae1a542251ff227eb2714e41b2d37d51",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-06",
+    "parent_number": 1364,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-06-A": 1377,
+      "TB-06-B": 1378,
+      "TB-03": 1361,
+      "TB-04": 1362,
+      "RD-14": 1356
+    }
+  },
+  "TB-07-B": {
+    "id": 5395616370,
+    "number": 1399,
+    "title": "[impl] TB-07-B 历史seek与修订重算各自保留真实获知时间（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1399",
+    "body_sha256": "9895f4680e169232bc974907d9434807a25002b96d5685619019b193ea134f35",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-07",
+    "parent_number": 1366,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-07-A": 1381,
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-06": 1364
+    }
+  },
+  "TB-08-B": {
+    "id": 5395617489,
+    "number": 1400,
+    "title": "[impl] TB-08-B 具名场所只读能力与事实完整性接入会话（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1400",
+    "body_sha256": "3625610fe81e333e4b43e1b13ba4a88bc4fac2b7a8dccef6be1883e816c26960",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-08",
+    "parent_number": 1367,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-08-A": 1382,
+      "TB-04": 1362,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-09": 1365,
+      "RD-13": 1351
+    }
+  },
+  "TB-09-B": {
+    "id": 5395619033,
+    "number": 1401,
+    "title": "[impl] TB-09-B X换代必须隔离旧发送者并保留在途责任（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1401",
+    "body_sha256": "4f6ac3e7e1ee06dcbcedfdd5983a7df46590fcfd8d40237c2e214c4640fac414",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-09",
+    "parent_number": 1365,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-09-A": 1383,
+      "TB-04": 1362,
+      "RD-13": 1351
+    }
+  },
+  "TB-10-H": {
+    "id": 5395619858,
+    "number": 1402,
+    "title": "[impl] TB-10-H 非空持仓与尾责迁移及回退不丢权利（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1402",
+    "body_sha256": "224e1adba9e89b3e154f776f5a844b54a753cb36bdc740efce90496683481279",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-10",
+    "parent_number": 1368,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-10-A": 1384,
+      "TB-10-B": 1385,
+      "TB-10-C": 1386,
+      "TB-10-D": 1387,
+      "TB-10-E": 1388,
+      "TB-10-F": 1389,
+      "TB-10-G": 1390,
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365,
+      "RD-10": 1357,
+      "RD-13": 1351,
+      "RD-16": 1352
+    }
+  },
+  "TB-11-B": {
+    "id": 5395622237,
+    "number": 1403,
+    "title": "[impl] TB-11-B 独立总验与主线证据满足整图关票门（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1403",
+    "body_sha256": "c5bd82c9087ce686bdd84c0476f590d8dcb96492cee28c2d9a324bc007ca3b8d",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-11",
+    "parent_number": 1369,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-11-A": 1391,
+      "TB-01": 1359,
+      "TB-02": 1360,
+      "TB-03": 1361,
+      "TB-04": 1362,
+      "TB-05": 1363,
+      "TB-06": 1364,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365,
+      "TB-10": 1368
+    }
+  },
+  "TB-02-C": {
+    "id": 5395624213,
+    "number": 1404,
+    "title": "[impl] TB-02-C 线段 seed 与第一种终结（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1404",
+    "body_sha256": "2eb35ca2dcae7a565d8ba4598019cb93cd5a9aebca46902ebab604f0e16886ba",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-B": 1392,
+      "TB-01": 1359
+    }
+  },
+  "TB-02-V": {
+    "id": 5395625088,
+    "number": 1405,
+    "title": "[impl] TB-02-V 同价端点与极值身份的获准工程实例（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1405",
+    "body_sha256": "b21ae933ac0ac72bd9e2820c5674b58ca0d38d7e92a32f06baa748c947affc23",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-A": 1373,
+      "TB-02-B": 1392,
+      "TB-01": 1359,
+      "RD-02": 1343
+    }
+  },
+  "TB-03-C": {
+    "id": 5395626115,
+    "number": 1406,
+    "title": "[impl] TB-03-C 受控事实唯一应用与原经济归属（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1406",
+    "body_sha256": "cf67a313fdc5b99ea10f1830fbaad71a31e2ddccf63038c994e93a6fcbd68fd3",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-03",
+    "parent_number": 1361,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-03-B": 1394,
+      "TB-01": 1359
+    }
+  },
+  "TB-04-C": {
+    "id": 5395626948,
+    "number": 1407,
+    "title": "[impl] TB-04-C 不可改精确交付与阶段条件清单（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1407",
+    "body_sha256": "9e97135705d1802f38475a3be97177da6814c5da56e3fa4b46580a64c98a8620",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-04",
+    "parent_number": 1362,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04-B": 1395,
+      "TB-03": 1361
+    }
+  },
+  "TB-04-I": {
+    "id": 5395627844,
+    "number": 1408,
+    "title": "[impl] TB-04-I 并发资金政策的正式实例与保留结果（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1408",
+    "body_sha256": "4c6d25496fa86c2e7618affd4c733e5a03503335995acb88f34b64cda0ab1eee",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-04",
+    "parent_number": 1362,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04-B": 1395,
+      "TB-03": 1361,
+      "RD-11": 1349
+    }
+  },
+  "TB-05-C": {
+    "id": 5395628816,
+    "number": 1409,
+    "title": "[impl] TB-05-C 双边界崩溃、旧写者与不补发（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1409",
+    "body_sha256": "969ad6f8699eda856fe2b8ac0ae923b0dcae7ed5871cf7b9f33da4ebc01db9af",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-05",
+    "parent_number": 1363,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-05-B": 1396,
+      "TB-04": 1362
+    }
+  },
+  "TB-06-J": {
+    "id": 5395629577,
+    "number": 1410,
+    "title": "[impl] TB-06-J 触闸后参数生效与评价（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1410",
+    "body_sha256": "a6b421414b626ed9c88fd33f13c839c31fb234a7a69ed878134b140318741f10",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-06",
+    "parent_number": 1364,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-06-B": 1378,
+      "TB-06-I": 1398,
+      "TB-03": 1361,
+      "TB-04": 1362,
+      "RD-15": 1358
+    }
+  },
+  "TB-07-C": {
+    "id": 5395630999,
+    "number": 1411,
+    "title": "[impl] TB-07-C 完整会话双进程与崩溃恢复保持全状态一致（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1411",
+    "body_sha256": "3e5b2a826f39fe63e7bd3b4fae553a66be9128f0b4fa944e9d5cbc4de40fd93f",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-07",
+    "parent_number": 1366,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-07-A": 1381,
+      "TB-07-B": 1399,
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-06": 1364
+    }
+  },
+  "TB-08-C": {
+    "id": 5395632312,
+    "number": 1412,
+    "title": "[impl] TB-08-C 获准场所调用及回报完成严格逐重闭环（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1412",
+    "body_sha256": "9215dbd70c92d9a4dad0539b7ee7c49a184c00f38539845dd1b92b1f5534e4eb",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-08",
+    "parent_number": 1367,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-08-B": 1400,
+      "TB-04": 1362,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-09": 1365,
+      "RD-11": 1349,
+      "RD-12": 1350,
+      "RD-13": 1351,
+      "RD-16": 1352
+    }
+  },
+  "TB-10-I": {
+    "id": 5395634152,
+    "number": 1413,
+    "title": "[impl] TB-10-I 默认启动只到新核并核全入口排除边界（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1413",
+    "body_sha256": "c66eedea58eb9c1eea3aec945a42b3b5358a89877effeedd004c6cef368a243f",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-10",
+    "parent_number": 1368,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-10-H": 1402,
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365,
+      "RD-13": 1351
+    }
+  },
+  "TB-02-D": {
+    "id": 5395635715,
+    "number": 1414,
+    "title": "[impl] TB-02-D 已裁第二特征序列与带缺口终结（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1414",
+    "body_sha256": "f72b9b5a34cb92ed3aeda320846deddb9606095d42f000fc334336d826d34007",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-C": 1404,
+      "TB-01": 1359
+    }
+  },
+  "TB-03-D": {
+    "id": 5395636384,
+    "number": 1415,
+    "title": "[impl] TB-03-D 受控事实的依据绑定与重内量约束（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1415",
+    "body_sha256": "19ea271425e839599809c12023c01b63a6bf681b10e0fcc4ee493095747fa78d",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-03",
+    "parent_number": 1361,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-03-B": 1394,
+      "TB-03-C": 1406,
+      "TB-01": 1359
+    },
+    "body_transforms": [
+      {
+        "from_sha256": "875765b1cb42e79ed4ed5a1dffd91ed0b19b7fef79c12a55fe617b138e7e20fa",
+        "to_sha256": "19ea271425e839599809c12023c01b63a6bf681b10e0fcc4ee493095747fa78d",
+        "reason": "resolve forward cross-obligation links to actual published issue IDs; no scope change"
+      }
+    ]
+  },
+  "TB-04-D": {
+    "id": 5395637413,
+    "number": 1416,
+    "title": "[impl] TB-04-D S 条件核验与稳定点公平服务（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1416",
+    "body_sha256": "e573f8b383c0079adfd313c4aa998bf90eb8c0b80fc05556ce9ea780f76e1368",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-04",
+    "parent_number": 1362,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04-C": 1407,
+      "TB-03": 1361
+    }
+  },
+  "TB-05-D": {
+    "id": 5395638409,
+    "number": 1417,
+    "title": "[impl] TB-05-D 坏重保界而健康重实际新增（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1417",
+    "body_sha256": "2f336aef0a05069cb51214fbfff377d87f2ed2429a69ad0327dfe4a29bfedad8",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-05",
+    "parent_number": 1363,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-05-C": 1409,
+      "TB-04": 1362
+    }
+  },
+  "TB-07-D": {
+    "id": 5395639125,
+    "number": 1418,
+    "title": "[impl] TB-07-D 回放验收报告器与生产改动回归锁上线（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1418",
+    "body_sha256": "38d575e20696237ffc8b748bc522fb947e87c1740da827f4058633470b9cc2ef",
+    "plan_source": {
+      "file": "TB07-11-EXECUTION-SLICES.json",
+      "sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9"
+    },
+    "parent_tb": "TB-07",
+    "parent_number": 1366,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-07-C": 1411,
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-06": 1364
+    }
+  },
+  "TB-02-E": {
+    "id": 5395640282,
+    "number": 1419,
+    "title": "[impl] TB-02-E 中枢 seed、核心、外缘与成员（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1419",
+    "body_sha256": "eb30afbfa03950527de1e7f4a24531854d386b2412f53fc49d49bc63c6723e89",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-D": 1414,
+      "TB-01": 1359
+    }
+  },
+  "TB-02-W": {
+    "id": 5395641129,
+    "number": 1420,
+    "title": "[impl] TB-02-W 扫描边界、续扫与恢复的获准实例（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1420",
+    "body_sha256": "912788f09cca430ef24456ddc57b689d61e5e1fd76d1a31954e1c6a8036f00f1",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-D": 1414,
+      "TB-01": 1359,
+      "RD-03": 1344
+    }
+  },
+  "TB-03-E": {
+    "id": 5395642038,
+    "number": 1421,
+    "title": "[impl] TB-03-E 既成退出事实后的Voice换代与持久重（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1421",
+    "body_sha256": "b196f0dac251c9fe77a868e7520504cb915fcfe357f4acbc1357b99718c1de4a",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-03",
+    "parent_number": 1361,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-03-C": 1406,
+      "TB-03-D": 1415,
+      "TB-01": 1359
+    }
+  },
+  "TB-04-E": {
+    "id": 5395643032,
+    "number": 1422,
+    "title": "[impl] TB-04-E X 一次占有与实际受控调用（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1422",
+    "body_sha256": "8b1bf9d1b7bbd6f421aa2028a9949bf68573e1ff0a0d2c93d475c22d69f13bd2",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-04",
+    "parent_number": 1362,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04-D": 1416,
+      "TB-03": 1361
+    }
+  },
+  "TB-05-E": {
+    "id": 5395643833,
+    "number": 1423,
+    "title": "[impl] TB-05-E 既有持仓、订单与事实责任的非空恢复（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1423",
+    "body_sha256": "0dcb5bfbb1c1b83be4775521f496b97f80917ad62226e726f14feaeeb2628c46",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-05",
+    "parent_number": 1363,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-05-D": 1417,
+      "TB-04": 1362
+    }
+  },
+  "TB-02-F": {
+    "id": 5395644706,
+    "number": 1424,
+    "title": "[impl] TB-02-F 相邻中枢发展与扩展关系（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1424",
+    "body_sha256": "7f358f2ebc7cf94f477f1fa56fe1dc2a07e34818e66af78c453922fe47933adc",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-E": 1419,
+      "TB-01": 1359
+    }
+  },
+  "TB-04-F": {
+    "id": 5395645587,
+    "number": 1425,
+    "title": "[impl] TB-04-F 单一明确归属的回报应用与责任减保留（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1425",
+    "body_sha256": "a1b172ae8371b22d468c1388ca2188737900887eaf12de166a9d738db09b4981",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-04",
+    "parent_number": 1362,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04-A": 1375,
+      "TB-04-E": 1422,
+      "TB-03": 1361
+    }
+  },
+  "TB-02-G": {
+    "id": 5395646522,
+    "number": 1426,
+    "title": "[impl] TB-02-G 完成走势三分与形成/完成分轴（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1426",
+    "body_sha256": "89bb68bad391474398a897a3c7999259f4476b9808f1c9598dd8b2b051e5a3e7",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-E": 1419,
+      "TB-02-F": 1424,
+      "TB-01": 1359
+    }
+  },
+  "TB-04-G": {
+    "id": 5395647614,
+    "number": 1427,
+    "title": "[impl] TB-04-G 订单首次量与取消改单的剩余额度（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1427",
+    "body_sha256": "001cdd524e58691e71f6ae467dabf4b2f71cc86661edd8141e9f04d7e134c1b8",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-04",
+    "parent_number": 1362,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04-F": 1425,
+      "TB-03": 1361
+    }
+  },
+  "TB-04-J": {
+    "id": 5395648536,
+    "number": 1428,
+    "title": "[impl] TB-04-J 多重及配对分配政策的正式事实实例（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1428",
+    "body_sha256": "46ca4e2d3e5899e1bff7d548c6830c77aefb3d7c50f2144e6fa2f65e999a8922",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-04",
+    "parent_number": 1362,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04-F": 1425,
+      "TB-03": 1361,
+      "RD-12": 1350
+    }
+  },
+  "TB-02-H": {
+    "id": 5395649414,
+    "number": 1429,
+    "title": "[impl] TB-02-H 九段升级、自然递归与全级同判据（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1429",
+    "body_sha256": "bf31a3b3792862ef0dd6255abb54553c7be11a60ff604cfe1da5411c76344757",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-G": 1426,
+      "TB-01": 1359
+    }
+  },
+  "TB-04-H": {
+    "id": 5395650149,
+    "number": 1430,
+    "title": "[impl] TB-04-H 两道交付窗口与完整条件交错汇验（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1430",
+    "body_sha256": "d4e307cee3ceb42034945b6b9335ea9e5fafeba45ab901778feb7bd3a2cebdb7",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-04",
+    "parent_number": 1362,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04-A": 1375,
+      "TB-04-B": 1395,
+      "TB-04-C": 1407,
+      "TB-04-D": 1416,
+      "TB-04-E": 1422,
+      "TB-04-F": 1425,
+      "TB-04-G": 1427,
+      "TB-04-I": 1408,
+      "TB-04-J": 1428,
+      "TB-03": 1361
+    }
+  },
+  "TB-02-I": {
+    "id": 5395652192,
+    "number": 1431,
+    "title": "[impl] TB-02-I 同级别操作分解与只读多读法（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1431",
+    "body_sha256": "f4fb6ef322d1a004c23a20ded031eaea479f7e7f60aebcafcb821aa796745b82",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-H": 1429,
+      "TB-01": 1359
+    }
+  },
+  "TB-02-J": {
+    "id": 5395652931,
+    "number": 1432,
+    "title": "[impl] TB-02-J 结构配对、精确力度与 MACD 辅助（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1432",
+    "body_sha256": "657515ea632796cc8f7fed7c1d3860ff9a7b956bae3320d1da933ef51a854870",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-H": 1429,
+      "TB-01": 1359
+    }
+  },
+  "TB-02-K": {
+    "id": 5395653795,
+    "number": 1433,
+    "title": "[impl] TB-02-K 背驰、一类点及 NE/Turn 桥（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1433",
+    "body_sha256": "64ec8594f38b0ca320d67438b83b63495afea1c15e789540d45a7aa0a70ce774",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-J": 1432,
+      "TB-01": 1359
+    }
+  },
+  "TB-02-L": {
+    "id": 5395654519,
+    "number": 1434,
+    "title": "[impl] TB-02-L 三类首回试、位置三态与六态（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1434",
+    "body_sha256": "8af6f2815df7d293e3de90441c78487b00e101e2064669619bb9c6b48a511d91",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-H": 1429,
+      "TB-02-K": 1433,
+      "TB-01": 1359
+    }
+  },
+  "TB-02-M": {
+    "id": 5395655357,
+    "number": 1435,
+    "title": "[impl] TB-02-M 小转大发生见证与高级结果（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1435",
+    "body_sha256": "5226ccf952c4044420e7856baab7d7a5e3ae4eebb37258949f0d7aec8f73485b",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-K": 1433,
+      "TB-02-L": 1434,
+      "TB-01": 1359
+    }
+  },
+  "TB-02-N": {
+    "id": 5395656311,
+    "number": 1436,
+    "title": "[impl] TB-02-N 二类构成与无同级一类的补充分支（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1436",
+    "body_sha256": "193280d2ce4be37c3f1e193dded8c60730e1a90728873bc01c6589ae9f053e84",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-M": 1435,
+      "TB-01": 1359
+    }
+  },
+  "TB-02-O": {
+    "id": 5395657051,
+    "number": 1437,
+    "title": "[impl] TB-02-O BSP 全标签、确认与多级联立（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1437",
+    "body_sha256": "03466b3a1562da8572e27cf92bdbef7cdb7b0f9ba31fff1e56c376a5e6d2e892",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-K": 1433,
+      "TB-02-L": 1434,
+      "TB-02-N": 1436,
+      "TB-01": 1359
+    }
+  },
+  "TB-02-P": {
+    "id": 5395658170,
+    "number": 1438,
+    "title": "[impl] TB-02-P 区间套坐标与选父几何（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1438",
+    "body_sha256": "76513099c1f558c094ba9aeb609d869a06b891bd80c36972aaabd7dd536a2f35",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-I": 1431,
+      "TB-02-O": 1437,
+      "TB-01": 1359,
+      "RD-04": 1345
+    }
+  },
+  "TB-02-Q": {
+    "id": 5395659356,
+    "number": 1439,
+    "title": "[impl] TB-02-Q 候选全集与固定选中后门（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1439",
+    "body_sha256": "b8c7e853e7edea63d2c9e4f8e5d11688a242657e34acdbb4f81bc24e855aa0e4",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-P": 1438,
+      "TB-01": 1359,
+      "RD-05": 1346
+    }
+  },
+  "TB-02-R": {
+    "id": 5395660478,
+    "number": 1440,
+    "title": "[impl] TB-02-R 已裁Type1完整链与原始N/A事实（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1440",
+    "body_sha256": "ce93c351aa7ed7f61b7da36de7be50f94d4fdc056b4cce8076b8f38ea4ffc047",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-Q": 1439,
+      "TB-01": 1359
+    }
+  },
+  "TB-02-S": {
+    "id": 5395661414,
+    "number": 1441,
+    "title": "[impl] TB-02-S 成本停止与基底进阶的具名证据（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1441",
+    "body_sha256": "d28d6f668aa16fdab885a413d2af93ee55f476095234aaa488a66b196a40428b",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-R": 1440,
+      "TB-01": 1359,
+      "RD-07": 1354
+    },
+    "body_transforms": [
+      {
+        "from_sha256": "29ed9a82b3b5929652d5f975a9e3c14cab98c56ea5ce7c3ee6031e9cc20e4707",
+        "to_sha256": "d28d6f668aa16fdab885a413d2af93ee55f476095234aaa488a66b196a40428b",
+        "reason": "resolve forward cross-obligation links to actual published issue IDs; no scope change"
+      }
+    ]
+  },
+  "TB-02-X": {
+    "id": 5395662409,
+    "number": 1442,
+    "title": "[impl] TB-02-X Type2/3 N/A合成处置的获准实例（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1442",
+    "body_sha256": "02d3300e925739b5737f7bda2d1204fcbe1e40ab84ed1b2520c5f1125902fd53",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-R": 1440,
+      "TB-01": 1359,
+      "RD-06": 1347
+    }
+  },
+  "TB-02-T": {
+    "id": 5395663286,
+    "number": 1443,
+    "title": "[impl] TB-02-T 全分类组合、全对象变化与同源闭包汇验（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1443",
+    "body_sha256": "2cf0f9b4828e78bc034c44e6139796c521ed0bad8701cba27936f98631fcadf5",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-02",
+    "parent_number": 1360,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-A": 1373,
+      "TB-02-B": 1392,
+      "TB-02-C": 1404,
+      "TB-02-D": 1414,
+      "TB-02-E": 1419,
+      "TB-02-F": 1424,
+      "TB-02-G": 1426,
+      "TB-02-H": 1429,
+      "TB-02-I": 1431,
+      "TB-02-J": 1432,
+      "TB-02-K": 1433,
+      "TB-02-L": 1434,
+      "TB-02-M": 1435,
+      "TB-02-N": 1436,
+      "TB-02-O": 1437,
+      "TB-02-P": 1438,
+      "TB-02-Q": 1439,
+      "TB-02-R": 1440,
+      "TB-02-S": 1441,
+      "TB-02-U": 1393,
+      "TB-02-V": 1405,
+      "TB-02-W": 1420,
+      "TB-02-X": 1442,
+      "TB-01": 1359
+    }
+  },
+  "TB-06-C": {
+    "id": 5395667738,
+    "number": 1444,
+    "title": "[impl] TB-06-C 容量规模与频率开重的独立门（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1444",
+    "body_sha256": "9b8f33681ff546fca9d458de53ae556f9e67cc4837ede6355fe6b1aa8c81fe9f",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-06",
+    "parent_number": 1364,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02-S": 1441,
+      "TB-03": 1361,
+      "TB-04": 1362,
+      "RD-09": 1355
+    }
+  },
+  "TB-06-E": {
+    "id": 5395668774,
+    "number": 1445,
+    "title": "[impl] TB-06-E 行情换档与原重持续经营（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1445",
+    "body_sha256": "3a9448f13dad93de2cdee5edaf1b07680a3730779658042a1630e26a0e13fa8c",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-06",
+    "parent_number": 1364,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-06-C": 1444,
+      "TB-06-D": 1379,
+      "TB-03": 1361,
+      "TB-04": 1362,
+      "RD-09": 1355,
+      "RD-11": 1349
+    }
+  },
+  "TB-06-F": {
+    "id": 5395670289,
+    "number": 1446,
+    "title": "[impl] TB-06-F 赚股增长与资金溢出换档（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1446",
+    "body_sha256": "020fbdde3f956d14beb7e287b0f86212e8adf959ba4506a38232ca8ab7b68211",
+    "plan_source": {
+      "file": "TB02-06-EXECUTION-SLICES.json",
+      "sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3"
+    },
+    "parent_tb": "TB-06",
+    "parent_number": 1364,
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-06-B": 1378,
+      "TB-06-C": 1444,
+      "TB-06-D": 1379,
+      "TB-03": 1361,
+      "TB-04": 1362,
+      "RD-10": 1357
+    }
+  }
+}

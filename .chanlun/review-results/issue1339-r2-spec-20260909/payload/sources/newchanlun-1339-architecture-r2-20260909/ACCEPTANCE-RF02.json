@@ -1,0 +1,80 @@
+{
+  "schema": "newchanlun.rf02.acceptance_obligations.v1",
+  "document": {
+    "path": "/tmp/newchanlun-1339-architecture-r2-20260909/ACCEPTANCE-RF02.md",
+    "sha256": "d1fcd8d1b36cd90910a561ee60dab1bf820b64ac49f562b3d16cf43f69ccf309"
+  },
+  "status": "DRAFT_NOT_EXECUTED_OR_ADOPTED",
+  "acceptance_obligations": [
+    {
+      "id": "RA-01",
+      "source_or_scenario": "共同经济日志在新结构输入到来前停止读写",
+      "required_change_or_result": "同一正式运行代际继续发布新增结构，已有结构订阅可见；交易不得使用内存中的旧 Open 状态取得新发送能力。"
+    },
+    {
+      "id": "RA-02",
+      "source_or_scenario": "经济域在结构计算中途或发布前故障",
+      "required_change_or_result": "当前结构修订完成自身正式提交，不等待经济 Begin/End、receipt 或经营轮结束；恢复不能重复发布同一逻辑修订。"
+    },
+    {
+      "id": "RA-03",
+      "source_or_scenario": "结构与经济之间双向分区，结构自身与前端正常",
+      "required_change_or_result": "结构快照、分页、变化、续接均可使用；隔离经济写者不能用缓存结构证明生成新的发送资格。"
+    },
+    {
+      "id": "RA-04",
+      "source_or_scenario": "故障期间结构相继修订和撤回，撤回波及已准备/已承诺交易",
+      "required_change_or_result": "first_known_at 保持真实顺序；未越合法外效边界的旧命令失去发送能力。确已越界者保留可能全量责任与查询/退出路径，不能假定撤回消除在途外效。"
+    },
+    {
+      "id": "RA-05",
+      "source_or_scenario": "先检查财务有效，随后结构撤回；或先检查结构有效，随后 Capture 未核财务事件",
+      "required_change_or_result": "协议分别解释两种交错的唯一线性化点；两次独立读到新值不能当作共同有效证明。不得把普通缓存许可更名为已发来消解反例。"
+    },
+    {
+      "id": "RA-06",
+      "source_or_scenario": "结构已发布，经济收件延迟/重复/丢失/乱序",
+      "required_change_or_result": "结构无须回滚或停发；经济按依赖和已消费前沿核对，不能用收到通知的时间替换结构首次获知。重试不产生第二条命令身份。"
+    },
+    {
+      "id": "RA-07",
+      "source_or_scenario": "经济在许可持久化、结构核验、最后发送、回报 Capture 等各边界崩溃",
+      "required_change_or_result": "恢复明确区分确定未发与可能已发，保留潜在责任；记录丢失或不确定不能触发自动重发。每个跨域待决状态均有可核去向。"
+    },
+    {
+      "id": "RA-08",
+      "source_or_scenario": "旧经济或执行写者恢复，带旧 epoch/游标/令牌重试",
+      "required_change_or_result": "旧代际不能取得新外效。若声称远端已不可执行，必须给实际可核的 fencing/身份假设，不依赖本地自觉退出。"
+    },
+    {
+      "id": "RA-09",
+      "source_or_scenario": "共同经济域不可用，汇合观察无法取得当前经济账",
+      "required_change_or_result": "结构范围是正式且完整的结果；界面独立显示经济侧缺失或可信旧版本及 consumed_structure。不能等待全系统 JoinCut 才发布结构，也不能标整个系统当前完整。"
+    },
+    {
+      "id": "RA-10",
+      "source_or_scenario": "在故障期浏览、分页、断线续接及 AsKnown 回放",
+      "required_change_or_result": "固定结构切面分页不漂；连续流与相同切面快照逐字段相等；结构修订史和当时已知关系可查。故障时不存在的经济新事件不得事后补造为当时已发生。"
+    },
+    {
+      "id": "RA-11",
+      "source_or_scenario": "经济恢复而结构已推进多个版本",
+      "required_change_or_result": "先重建责任/Pending/源连续性，再核当前结构及尚存资格；不按历史候选逐条补发。旧责任、成交、更正继续归原身份，P7 冻结总量不重测。"
+    },
+    {
+      "id": "RA-12",
+      "source_or_scenario": "恢复后 RF-01：A 重账仍坏，界仍可核，B 健康且合规",
+      "required_change_or_result": "B 实际产生新的 Committed；不能只返回可交易标签，也不能因重放 A 或等待全体经营完成而持续挡住 B。"
+    },
+    {
+      "id": "RA-13",
+      "source_or_scenario": "结构输入持续，经济消费者慢或故障",
+      "required_change_or_result": "结构调度不等待经营轮；满足前件的经济工作恢复后得到公平机会。不得靠永远停结构或永远停交易使另一项表面成立；不以队列处理顺序默认分配资金。"
+    },
+    {
+      "id": "RA-14",
+      "source_or_scenario": "同一行情既供结构计算又供经济估值，经济解析或接纳故障",
+      "required_change_or_result": "正式结构仍可获知并发布；相应估值/共同约束若未核则交易关闭。不能以经济 Capture 是唯一市场入口，使经济故障从输入端再次阻断结构。"
+    }
+  ]
+}

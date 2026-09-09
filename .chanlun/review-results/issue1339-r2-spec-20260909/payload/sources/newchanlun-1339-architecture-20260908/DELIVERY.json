@@ -1,0 +1,308 @@
+{
+  "schema": "newchanlun1339.architecture-delivery.v1",
+  "issue": 1339,
+  "map_issue": 1323,
+  "created_at": "2026-09-08T09:11:57.651973+00:00",
+  "status": "DESIGN_PACKAGE_READY_FOR_ARCHITECTURE_DECISION",
+  "scope_confirmation": "/tmp/newchanlun-1339-requirements-20260908/SCOPE-CONFIRMATION.json",
+  "user_requirements": [
+    "complete mutually exclusive classification per applicable axis",
+    "backend computes full structural states relations transitions",
+    "frontend consumes same-source outputs",
+    "RF-01 healthy chong continues when all shared constraints verifiable",
+    "K4 excluded"
+  ],
+  "recommendation": {
+    "entry": "/tmp/newchanlun-1339-architecture-20260908/author/SCHEME-COMPARISON.md",
+    "candidate": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+    "relation_to_originals": "独立推导与A2逐重权威账/共同责任组织趋同；采用本修订具体协议，不自动采纳原A2其他合同。",
+    "material_tradeoff": "共同安全日志不可用会暂停新提交、规范外部接纳及新的正式结构推进；原始市场输入和已提交历史可保留。",
+    "architecture_adopted": false,
+    "SPEC_approved": false
+  },
+  "counts": {
+    "structural_requirements": 44,
+    "fugue_requirements": 35,
+    "RF_requirement": 1,
+    "classification_axes_or_families": 62,
+    "legal_combination_contracts": 10,
+    "proof_sync_choice_locators": 32,
+    "candidate_engineering_axes": 16,
+    "existing_axis_candidate_entries": 248,
+    "existing_combination_candidate_entries": 40
+  },
+  "proof_and_execution": {
+    "catalog_review_completed_with_scoped_receipts": true,
+    "full_raw_market_domain_proof_complete": false,
+    "all_reachable_joint_signatures_proven": false,
+    "global_transition_closure_proven": false,
+    "implementation_complete": false,
+    "current_repository_all_entries_reverified": false,
+    "project_tests": "not-run",
+    "Lean": "not-run",
+    "UI": "not-run",
+    "replay_paper_live": "not-run",
+    "GitHub_writes": "none",
+    "main_merge": "none"
+  },
+  "review_scope_rule": "复核仅在各报告明确射程和签署SHA上生效；历史OPEN由具名r2/R1关闭收据接续，不能把0H0M提升为完整理论或运行验收。",
+  "current_files": [
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/DELIVERY.md",
+      "relative_path": "DELIVERY.md",
+      "sha256": "5baa124117a98b93a31954ba4711713cba31890bd2db04acce0a6cdd245ef9af",
+      "bytes": 5575
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/BRIEF.md",
+      "relative_path": "BRIEF.md",
+      "sha256": "e4a68dbbe5c738a2bfc5f3e3979daa88dba2d326408e8474822cc189d0a7e8e7",
+      "bytes": 5053
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/COMPLETE-CLASSIFICATION-REQUIREMENT.md",
+      "relative_path": "COMPLETE-CLASSIFICATION-REQUIREMENT.md",
+      "sha256": "c3cc79a2bef52dff3d1f5612cf066b2466ecd370e98baad0dc077e23c894e8c9",
+      "bytes": 1428
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/SCHEME-COMPARISON.md",
+      "relative_path": "author/SCHEME-COMPARISON.md",
+      "sha256": "794c2326d4b35a50aec6360b87d9c844dfdd38414780a75f5367d5a60091a978",
+      "bytes": 11951
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.md",
+      "relative_path": "author/CLASSIFICATION-CATALOG.md",
+      "sha256": "41fe65519c011fc173b47af5ee3cc721288b2de62219059fa9e69822135eccf8",
+      "bytes": 132932
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+      "relative_path": "author/CLASSIFICATION-CATALOG.json",
+      "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+      "bytes": 279109
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+      "relative_path": "author/INDEPENDENT-DESIGN.md",
+      "sha256": "f6054b52f86ba80fafd6386d1ac6ede341c6c6a17cb9efbed5d2dad42571824d",
+      "bytes": 71970
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.json",
+      "relative_path": "author/INDEPENDENT-DESIGN.json",
+      "sha256": "800ca141806e3f3814c1392ff656a4f2213b2e7b210f368a0e84e853ea14dcd1",
+      "bytes": 206521
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.md",
+      "relative_path": "author/independent-design-classification-integration.md",
+      "sha256": "37b91d6fe61ad508e06a733b9972834bb61957f9249be8a612f7d33aa8157dd0",
+      "bytes": 24806
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.json",
+      "relative_path": "author/independent-design-classification-integration.json",
+      "sha256": "251f00d938573e96516d3c1dc6f48a64241b19314fac598480dd7b1ab2e49a6d",
+      "bytes": 217400
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.md",
+      "relative_path": "author/independent-design-state-contracts.md",
+      "sha256": "f5ea3426c08bcffa5e3a40a7d29631169d1776b5ffb2a50f4c526a766bc3629d",
+      "bytes": 11152
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.json",
+      "relative_path": "author/independent-design-state-contracts.json",
+      "sha256": "f8b4f7057233e2c9a6bdb7d561f76112dc1f37b9e6cf4d1cbaf6bbf5b5662edf",
+      "bytes": 26947
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-revision-delivery.json",
+      "relative_path": "author/independent-design-revision-delivery.json",
+      "sha256": "47213237f3356061f3312b09fcd9ba70a7116594ed9d0f8237dc7d9bec68a30f",
+      "bytes": 3490
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/FULL-STATE-OBSERVATION.md",
+      "relative_path": "author/FULL-STATE-OBSERVATION.md",
+      "sha256": "aa65047a2887d35e3f4ec916f54f2660f789ea8e5bef32c2ce72457c2f2c689b",
+      "bytes": 5317
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+      "relative_path": "author/EXISTING-REEVALUATION.md",
+      "sha256": "100f97da6133f5378d7711e7f523f20401d0bbb905e0de402ea502dee6a73013",
+      "bytes": 34379
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.json",
+      "relative_path": "author/EXISTING-REEVALUATION.json",
+      "sha256": "2097721341da9021ed30d6963f6fa343d98e3c1ae14ca75995390ec0d9a921fb",
+      "bytes": 852405
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/existing-evidence-bindings.json",
+      "relative_path": "author/existing-evidence-bindings.json",
+      "sha256": "c70f303d8a7e8b944316cb165df399493076ddf3a1deeb740d200b4ce2600f53",
+      "bytes": 35278
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-CLASSIFICATION-INTEGRATION.md",
+      "relative_path": "author/EXISTING-CLASSIFICATION-INTEGRATION.md",
+      "sha256": "1579717e22287df2764579ecea1d510051792e945fd13e33796200fdb2cc5bd1",
+      "bytes": 54931
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-CLASSIFICATION-INTEGRATION.json",
+      "relative_path": "author/EXISTING-CLASSIFICATION-INTEGRATION.json",
+      "sha256": "3caab919d3504bc8afcee6a0bf4a55bab894c74b43e40f13df381d3c49ea1741",
+      "bytes": 1373112
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/OLD-ENTRY-DISPOSITIONS.md",
+      "relative_path": "author/OLD-ENTRY-DISPOSITIONS.md",
+      "sha256": "b140fda52275c7ef6614c48e323cf0a3033bab1356d39e9a499c29926c7b7b10",
+      "bytes": 52593
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/OLD-ENTRY-DISPOSITIONS.json",
+      "relative_path": "author/OLD-ENTRY-DISPOSITIONS.json",
+      "sha256": "44f8e0ad6ef11add260cf9dede875c5daffbe8f05808cfe29a2e0e577d97d905",
+      "bytes": 143718
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/CALLER-AND-CLASSIFICATION-CHECKS.md",
+      "relative_path": "author/CALLER-AND-CLASSIFICATION-CHECKS.md",
+      "sha256": "bfb7add061f981a82a7c5192497e10ee4d0efcfe9b1750b9afd0936a6a9de8bb",
+      "bytes": 4405
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-ROOT.md",
+      "relative_path": "review/REVIEW-CLASSIFICATION-ROOT.md",
+      "sha256": "92c3d230009e4bff086b1e962d20df1281654c3c85bcbc501618b92f4d928559",
+      "bytes": 1612
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-ROOT.json",
+      "relative_path": "review/REVIEW-CLASSIFICATION-ROOT.json",
+      "sha256": "9b30ba8266f01454d35303e195a64e9469172ef6912c193a4e89b8dd59af739a",
+      "bytes": 6690
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-SOURCES.md",
+      "relative_path": "review/REVIEW-CLASSIFICATION-SOURCES.md",
+      "sha256": "50e6ffbd8d073b3b0fdf87ea888bb33d04013aa2c21d811749757b0e0ebc4759",
+      "bytes": 2607
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-SOURCES.json",
+      "relative_path": "review/REVIEW-CLASSIFICATION-SOURCES.json",
+      "sha256": "be3e440a52abd3d0525653b2da3c6851688ed4be2590e85aa35f15747010f40f",
+      "bytes": 6299
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-SOURCES-CLOSURE.json",
+      "relative_path": "review/REVIEW-CLASSIFICATION-SOURCES-CLOSURE.json",
+      "sha256": "8b13eb1158e1e8cb393ad45590b625c0c5538655ba2bc523d6a8bed6bcd22702",
+      "bytes": 5134
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-INDEPENDENT-PROTOCOL.md",
+      "relative_path": "review/REVIEW-INDEPENDENT-PROTOCOL.md",
+      "sha256": "40ef47381c5e3d25e0c729955fe8c49133d089ce91d4ea3637e42ded8f80a020",
+      "bytes": 10555
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-INDEPENDENT-PROTOCOL.json",
+      "relative_path": "review/REVIEW-INDEPENDENT-PROTOCOL.json",
+      "sha256": "7c992d9f03b5839c0e16035740736d1c4e30840209840e686edae1c721088121",
+      "bytes": 22463
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-FULL-STATE-OBSERVATION.md",
+      "relative_path": "review/REVIEW-FULL-STATE-OBSERVATION.md",
+      "sha256": "bc26c0665afd3d7a5388af1eac075e9f74e324127ceeaa25df181e45e2afeb6e",
+      "bytes": 1941
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-FULL-STATE-OBSERVATION.json",
+      "relative_path": "review/REVIEW-FULL-STATE-OBSERVATION.json",
+      "sha256": "1bd844e087f783e3b8f4731bac2f38af40746072b2b7247cfe167a81d401fc5f",
+      "bytes": 6520
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-COMPARISON.md",
+      "relative_path": "review/REVIEW-COMPARISON.md",
+      "sha256": "20a2104356293a33ff219cd98c285d0de32f6cbec5c9df2365771554f17765fc",
+      "bytes": 2215
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-COMPARISON.json",
+      "relative_path": "review/REVIEW-COMPARISON.json",
+      "sha256": "0e2fce7927cc0a25468bd7f7221b1b7428d065702b09b4c8d677a34ae3cd2e13",
+      "bytes": 8414
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/evidence/CLASSIFICATION-OUTPUT-PROBE.md",
+      "relative_path": "evidence/CLASSIFICATION-OUTPUT-PROBE.md",
+      "sha256": "2d4d30541664199ead754267d9a66881a7643534238288e508534971ce397830",
+      "bytes": 12654
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/evidence/CLASSIFICATION-OUTPUT-PROBE.json",
+      "relative_path": "evidence/CLASSIFICATION-OUTPUT-PROBE.json",
+      "sha256": "fa163817464681376175a3b07cb86054d1c959906c6cdc43008b5042aceedeb6",
+      "bytes": 10213
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/evidence/INTERVAL-ORDER-ENUMERATION.json",
+      "relative_path": "evidence/INTERVAL-ORDER-ENUMERATION.json",
+      "sha256": "88c5f52c95becc2bdba4716055a46a115588fed19685e9f7d7bcba3306369843",
+      "bytes": 2960
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/evidence/PENDING-AUTHORITY-FOLLOWUP.md",
+      "relative_path": "evidence/PENDING-AUTHORITY-FOLLOWUP.md",
+      "sha256": "c38abafff1bd016883ce993e85c6358d5e207e6c8601001ac897008b39654c74",
+      "bytes": 562
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/evidence/PENDING-AUTHORITY-FOLLOWUP.json",
+      "relative_path": "evidence/PENDING-AUTHORITY-FOLLOWUP.json",
+      "sha256": "09d0223350d31358514c9b81efba81b3113b7f551be04a942ac9e302301b896b",
+      "bytes": 1769
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/evidence/EXISTING-INTEGRATION-ROOT-CHECK.json",
+      "relative_path": "evidence/EXISTING-INTEGRATION-ROOT-CHECK.json",
+      "sha256": "fe84fa834851b36548f4f317d1f0bded034ffd1431720e0434098c3cf49faf2b",
+      "bytes": 943
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/evidence/FINAL-WORKSPACE-STATE.json",
+      "relative_path": "evidence/FINAL-WORKSPACE-STATE.json",
+      "sha256": "417738851c92b5044e4388fac596e450d195388a664ce2cc6feccca762ca1940",
+      "bytes": 526
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/evidence/OLD-ENTRY-ROOT-CHECK.json",
+      "relative_path": "evidence/OLD-ENTRY-ROOT-CHECK.json",
+      "sha256": "b947d143ea2c435779510c233c8ceea3869281d450e856de4c52fd52481752b1",
+      "bytes": 2298
+    }
+  ],
+  "checked_entry_links": 27,
+  "excluded_from_current_entries": [
+    "临时生成器",
+    "旧草稿与中途快照",
+    "备份",
+    "原#1338封存包改写",
+    "旧#1321/#1322/#1325/#1326原件"
+  ],
+  "map_goal_status": "active",
+  "goal_complete": false,
+  "next_decision": "用户是否接受修订架构及主要可用性取舍作为图内SPEC基础。新取舍门来自docs/agents/wayfinder-workflow.md:135-138，不重问已确认需求范围。"
+}

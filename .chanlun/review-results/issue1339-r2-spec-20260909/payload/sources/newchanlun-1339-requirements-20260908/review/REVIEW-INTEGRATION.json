@@ -1,0 +1,3840 @@
+{
+  "schema": "issue1339.independent-integration-review.v1",
+  "issue": 1339,
+  "parent_goal_issue": 1323,
+  "reviewer": "/root/independent_scope_review",
+  "reviewed_at_utc": "2026-09-08T07:42:14.497192+00:00",
+  "status": "PASS_WITHIN_NINE_FILE_REQUIREMENTS_INTEGRATION_REVIEW",
+  "open_findings": {
+    "H": 0,
+    "M": 0,
+    "L": 0
+  },
+  "initial_findings": {
+    "H": 0,
+    "M": 2,
+    "L": 0
+  },
+  "resolved_findings": {
+    "H": 0,
+    "M": 2,
+    "L": 0
+  },
+  "signed_author_input_bindings": [
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/REQUIREMENTS.md",
+      "sha256": "690dcd65e029e5069c46d5ade40684a831405d9e5af214624136e7fd52702b19",
+      "bytes": 4702
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.md",
+      "sha256": "f937b8659546be750d28f2d82038f2f64820f4e1d75054f7fe121a3766c847d2",
+      "bytes": 48249
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+      "sha256": "0eeedeb138add9138a2d904bb7fb69884876d85ae085f192d54ab32c8566f970",
+      "bytes": 750433
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.md",
+      "sha256": "21d8b29ba2b00c6dfc50acd9ab02040848df56a8c9601a0406ae376d134fbb35",
+      "bytes": 1760
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.json",
+      "sha256": "21543f6b61df3e1c94f2b96b5b153e2f492fb3e9799b5d6af9c403ac65770541",
+      "bytes": 2124
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.md",
+      "sha256": "b6f695cbfc1f8f34567c11476d66a3d3773bd747a1cc73898d6f8f1a4e9b825f",
+      "bytes": 8565
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.json",
+      "sha256": "9fc12ed938b2a4949f90b265d6148208b21738f6655a6f9b9e436cc5da767b2c",
+      "bytes": 9759
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.md",
+      "sha256": "d7e9a66eb78434eea22bdec1eb4724c729c5726f3e5103c3e375a30260b20a2b",
+      "bytes": 17319
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.json",
+      "sha256": "65ff5481cab5caf18134d23287e34fa697a1d771b544acb0813aad380d6c9c7d",
+      "bytes": 21946
+    }
+  ],
+  "reused_signed_part_bindings": [
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/STRUCTURE.md",
+      "sha256": "5addccea0f8c8697274a439b46fd18fc7243e2c7dd07acec940e539f62077cdc",
+      "bytes": 89584,
+      "prior_review": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-STRUCTURE.json",
+      "matches_signed_input": true
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/STRUCTURE.json",
+      "sha256": "d10aa63899bd489b546c5f5746ddd5bebebfc41c23215fe6c898d21f54f55166",
+      "bytes": 108220,
+      "prior_review": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-STRUCTURE.json",
+      "matches_signed_input": true
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+      "sha256": "9d0ff4a365963ac92393a9bf73c43d2e405f350e9c8601226954d983b6b19f01",
+      "bytes": 61066,
+      "prior_review": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-FG.json",
+      "matches_signed_input": true
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+      "sha256": "8e3a98b1ad88ee658d98656605e1580b1d806ab3132013a13f304a957b84b04a",
+      "bytes": 87183,
+      "prior_review": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-FG.json",
+      "matches_signed_input": true
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.md",
+      "sha256": "4d56ffca7fd01682aca65c48510230e694a040c448cb4d2bc52ed19f46c0e9d8",
+      "bytes": 45352,
+      "prior_review": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-OBS.json",
+      "matches_signed_input": true
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.json",
+      "sha256": "ef573978d80d395363570d938b449f8809391963c913bb07eec774c29e599de7",
+      "bytes": 160376,
+      "prior_review": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-OBS.json",
+      "matches_signed_input": true
+    }
+  ],
+  "scope": "仅签作者9件需求汇合文本；逐项对照已签ST44、FG35和EV历史导航，核RF01及当前OB20/AC15；不签DELIVERY/manifest、不选择架构、不确认用户整体范围、不完成#1323整图goal。",
+  "current_user_boundaries": [
+    "#1323是整图goal，#1339是当前需求与验收范围票；需求之后尚有架构、SPEC、实施和验收。",
+    "RF01已由用户确认：其他重账完好、故障重最大资金责任及共同约束可核实时，其他重必须能继续新增操作；条件不可核实时暂停新增并保责任。",
+    "K4/跨标的独立任务排除；不以定义目录旧材料重启，不设置至少几个重的产品门槛，不复活多重非空经营自造概念。",
+    "允许从头设计；现有候选仅参考，没有选定A2/C3/B或由观察协议暗定owner/提交/恢复机制。",
+    "固定Q已定边界、条件净→毛验收与未定钱规则同时保留；未授实际交易或逐腿出口切换权限。"
+  ],
+  "findings": [
+    {
+      "id": "INT-M01",
+      "severity": "M",
+      "status": "CLOSED_AFTER_INDEPENDENT_REREVIEW",
+      "title": "RF-01验收把共同约束收窄成共同上限",
+      "initial_locations": [
+        {
+          "file": "/tmp/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.json",
+          "json_pointers": [
+            "/decisions/0/acceptance/0",
+            "/decisions/0/acceptance/1"
+          ]
+        },
+        {
+          "file": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+          "json_pointers": [
+            "/rows/79/acceptance_scenarios/0",
+            "/rows/79/acceptance_scenarios/1"
+          ]
+        },
+        {
+          "file": "/tmp/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.md",
+          "initial_lines": [
+            13,
+            14
+          ]
+        }
+      ],
+      "problem": "主要求、AC-12和用户确认均说共同约束，初稿两个验收分支却只写共同上限，漏掉资金责任上界仍可信但某项既有共同约束不可核实的暂停分支。",
+      "authority": "本会话用户明确RF-01及USER-DECISIONS /decisions/0/requirement；ACCEPTANCE-PLAN /requirements/11/required_behavior。",
+      "required_correction": "覆盖全部适用的既有共同约束，补上界仍可信但另一项已有共同约束不可信的暂停反例；不引入新约束或数值政策。",
+      "resolution": "当前四条验收分别覆盖条件齐全必须能新增、故障重责任上界未知暂停、上界可信但某项既有共同约束未知暂停、恢复后保留其他重已发生动作及原尾账归属。MD/JSON与COVERAGE当前RF行一致。",
+      "resolved_pointers": [
+        "USER-DECISIONS.json#/decisions/0/acceptance",
+        "COVERAGE.json#/rows/79/acceptance_scenarios"
+      ],
+      "review_basis": "只读子复核structure_predicate_check提出；主独评回读当前四条验收和映射后关闭。"
+    },
+    {
+      "id": "INT-M02",
+      "severity": "M",
+      "status": "CLOSED_AFTER_INDEPENDENT_REREVIEW",
+      "title": "35个FG对象与观察轴槽误填名分状态",
+      "initial_locations": [
+        {
+          "file": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+          "json_pointer_pattern": "/rows/44..78/definition_object_and_axes",
+          "example_pointer": "/rows/57/definition_object_and_axes"
+        }
+      ],
+      "problem": "原35项均以requirement_class＋settlement_status填对象/轴。例如FG014填“领域义务；已定形态及公式；参数/外推限制须保留”，该内容不表达动作量、固定Q、相对深度或测量有效域。",
+      "authority": "#1339票面要求逐项定义→类型/判据→输出→传输→消费→证据；作者已审FG条目的requirement及required_observation。",
+      "required_correction": "逐项写实际对象和观察维度，把原名分/结算状态另列；不引入新教义规则。",
+      "resolution": "35项已逐条提取真实对象、级别/数量/时间/版本等观察维度；与已审FG requirement/required_observation逐项对读。requirement_class及settlement_status另列并与FG原值完全相同，判据、边界、输出与AC/OB/EV映射未被替换。",
+      "resolved_pointer_pattern": "COVERAGE.json#/rows/44..78/definition_object_and_axes",
+      "review_basis": "主独评提出并逐35条对读关闭。"
+    }
+  ],
+  "mechanical_checks": {
+    "coverage_rows": 80,
+    "structure_rows": 44,
+    "fugue_rows": 35,
+    "user_requirement_rows": 1,
+    "coverage_id_set_exact_match": true,
+    "part_field_checks": 562,
+    "accepted_source_normalizations": 3,
+    "obligation_references_and_payload_mappings": 1334,
+    "acceptance_category_references": 411,
+    "historical_evidence_references_and_summary_limit_copies": 217,
+    "fugue_full_scenario_references": 71,
+    "ob_markdown_json_field_checks": 100,
+    "ac_markdown_json_field_checks": 60,
+    "rf_markdown_json_field_checks": 15,
+    "coverage_markdown_rows": 80,
+    "coverage_markdown_field_checks": 1044,
+    "errors": [],
+    "meaning": "仅验证文档复制、链接、映射及签署版本一致性；不证明算法实现、生产挂载、输出传输、UI或执行正确。"
+  },
+  "accepted_source_normalizations": [
+    {
+      "requirement_id": "FG-029",
+      "pointer": "/rows/72/definition_sources",
+      "assessment": "已审FG是工程需求草案且原sources为空；总表补evidence/issue-1339.json /body作为用户范围出处。已回读票面，分别明确支持部分成交与乱序、恢复、同源观察回放；没有给该补充来源实现信用。"
+    },
+    {
+      "requirement_id": "FG-032",
+      "pointer": "/rows/75/definition_sources",
+      "assessment": "已审FG是工程需求草案且原sources为空；总表补evidence/issue-1339.json /body作为用户范围出处。已回读票面，分别明确支持部分成交与乱序、恢复、同源观察回放；没有给该补充来源实现信用。"
+    },
+    {
+      "requirement_id": "FG-033",
+      "pointer": "/rows/76/definition_sources",
+      "assessment": "已审FG是工程需求草案且原sources为空；总表补evidence/issue-1339.json /body作为用户范围出处。已回读票面，分别明确支持部分成交与乱序、恢复、同源观察回放；没有给该补充来源实现信用。"
+    }
+  ],
+  "observation_revision_review": {
+    "scope": "当前20条完整重核，不能沿用旧OBS签名覆盖不同字节。",
+    "checks": [
+      "OB001已删比价，仍保标的/源/输入/规则/会话/代际/视角；K4不回流。",
+      "OB011/012同时引用户票面/body与有界历史报告，完整赋格范围不再仅挂三代表链证据。",
+      "OB015声明同一逻辑回放会话及一致输入切面，不偷定单进程/物理实例。",
+      "OB007局部观察不授新资格，RF01的新增授权来自用户规定的条件；二者不冲突。",
+      "OB013的未知/诊断状态不改变既有不放行语义，N/A不暗改准入。",
+      "全部OB验证状态为NOT_RUN_REQUIREMENT_DRAFT，全部AC执行状态为NOT_RUN。"
+    ]
+  },
+  "semantic_integration_checks": [
+    "44个ST保留最新修正，包括读法职责、L端速净增量、T4前提、六谓词关系、二类首次紧随、超大级类一、共振名分和盘背后续观察。",
+    "35个FG保持完整经营与执行责任；固定Q及其增长/换档衔接未定域不互相覆盖。",
+    "FG021/023/034及AC14明确当前净额执行净账验收、批准的逐笔独立形态落地后按#937改毛账、生效前净账维持。",
+    "80行的具体输出为载荷内容依据；通用OB字段只承接身份、版本、时间、状态、来源和访问方式，不要求每对象冗余存储全部通用字段。",
+    "每行有对应前端可达消费要求及场景；指标/证据数量均不转化为已实现数量。",
+    "EV的217个展开只复制原summary及not_established边界，全部navigation_only=true和current_source_reverified=false；targeted_execution/end_to_end全not-run。",
+    "主读入口链接结构、赋格、观察、RF、贯通表和验收计划，明确当前#1339与整图#1323的关系；状态句只指向明确签署的文件SHA，不自称整体验收。"
+  ],
+  "row_reviews": [
+    {
+      "id": "ST-001",
+      "coverage_pointer": "/rows/0",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-002",
+      "coverage_pointer": "/rows/1",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-003",
+      "coverage_pointer": "/rows/2",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-004",
+      "coverage_pointer": "/rows/3",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-005",
+      "coverage_pointer": "/rows/4",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-006",
+      "coverage_pointer": "/rows/5",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-007",
+      "coverage_pointer": "/rows/6",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-008",
+      "coverage_pointer": "/rows/7",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-009",
+      "coverage_pointer": "/rows/8",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-010",
+      "coverage_pointer": "/rows/9",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-011",
+      "coverage_pointer": "/rows/10",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-007",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-012",
+      "coverage_pointer": "/rows/11",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-007",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-013",
+      "coverage_pointer": "/rows/12",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-007",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-014",
+      "coverage_pointer": "/rows/13",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-007",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-015",
+      "coverage_pointer": "/rows/14",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-007",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-016",
+      "coverage_pointer": "/rows/15",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-007",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-017",
+      "coverage_pointer": "/rows/16",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-005",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-018",
+      "coverage_pointer": "/rows/17",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-005",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-019",
+      "coverage_pointer": "/rows/18",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-005",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-020",
+      "coverage_pointer": "/rows/19",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-005",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-021",
+      "coverage_pointer": "/rows/20",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-005",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-022",
+      "coverage_pointer": "/rows/21",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-023",
+      "coverage_pointer": "/rows/22",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-006",
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-024",
+      "coverage_pointer": "/rows/23",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-006",
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-025",
+      "coverage_pointer": "/rows/24",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-006",
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-026",
+      "coverage_pointer": "/rows/25",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-006",
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-027",
+      "coverage_pointer": "/rows/26",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-006",
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-028",
+      "coverage_pointer": "/rows/27",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-029",
+      "coverage_pointer": "/rows/28",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-030",
+      "coverage_pointer": "/rows/29",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-031",
+      "coverage_pointer": "/rows/30",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-032",
+      "coverage_pointer": "/rows/31",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-033",
+      "coverage_pointer": "/rows/32",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-09",
+        "AC-11",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-034",
+      "coverage_pointer": "/rows/33",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-09",
+        "AC-11",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-035",
+      "coverage_pointer": "/rows/34",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-09",
+        "AC-11",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-036",
+      "coverage_pointer": "/rows/35",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-09",
+        "AC-11",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-037",
+      "coverage_pointer": "/rows/36",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-09",
+        "AC-11",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-038",
+      "coverage_pointer": "/rows/37",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-09",
+        "AC-11",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-013",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-043",
+      "coverage_pointer": "/rows/38",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-04",
+        "AC-06",
+        "AC-08",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-044",
+      "coverage_pointer": "/rows/39",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-03",
+        "AC-09",
+        "AC-10",
+        "AC-11",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-008",
+        "EV-009"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-045",
+      "coverage_pointer": "/rows/40",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-046",
+      "coverage_pointer": "/rows/41",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-005",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-047",
+      "coverage_pointer": "/rows/42",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-007",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "ST-048",
+      "coverage_pointer": "/rows/43",
+      "source_part": "parts/STRUCTURE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-004",
+        "EV-008",
+        "EV-014"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-001",
+      "coverage_pointer": "/rows/44",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-01",
+        "FE-02"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-002",
+      "coverage_pointer": "/rows/45",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-02",
+        "FE-06"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-003",
+      "coverage_pointer": "/rows/46",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-01",
+        "FE-04"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-004",
+      "coverage_pointer": "/rows/47",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-01",
+        "FE-09"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-005",
+      "coverage_pointer": "/rows/48",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-02",
+        "FE-03"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-006",
+      "coverage_pointer": "/rows/49",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-02",
+        "FE-06"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-007",
+      "coverage_pointer": "/rows/50",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-02",
+        "FE-05"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-008",
+      "coverage_pointer": "/rows/51",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-04",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-01",
+        "FE-05"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-009",
+      "coverage_pointer": "/rows/52",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-04",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-01",
+        "FE-05"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-010",
+      "coverage_pointer": "/rows/53",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-04",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-05"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-011",
+      "coverage_pointer": "/rows/54",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-04",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-05",
+        "FE-10"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-012",
+      "coverage_pointer": "/rows/55",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-01",
+        "FE-03"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-013",
+      "coverage_pointer": "/rows/56",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-03",
+        "FE-07"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-014",
+      "coverage_pointer": "/rows/57",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-03",
+        "FE-06"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-015",
+      "coverage_pointer": "/rows/58",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-03",
+        "FE-04"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-016",
+      "coverage_pointer": "/rows/59",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-04",
+        "FE-10"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-017",
+      "coverage_pointer": "/rows/60",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-04",
+        "FE-06"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-018",
+      "coverage_pointer": "/rows/61",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-06"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-019",
+      "coverage_pointer": "/rows/62",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-06",
+        "FE-11"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-020",
+      "coverage_pointer": "/rows/63",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-06",
+        "FE-07"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-010",
+        "EV-011",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-021",
+      "coverage_pointer": "/rows/64",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-02",
+        "FE-07"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-011",
+        "EV-012",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-022",
+      "coverage_pointer": "/rows/65",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-02",
+        "FE-06",
+        "FE-08"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-011",
+        "EV-012",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-023",
+      "coverage_pointer": "/rows/66",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-02",
+        "FE-04",
+        "FE-10"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-011",
+        "EV-012",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-024",
+      "coverage_pointer": "/rows/67",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-02",
+        "FE-11"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-011",
+        "EV-012",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-025",
+      "coverage_pointer": "/rows/68",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-04",
+        "FE-11"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-011",
+        "EV-012",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-026",
+      "coverage_pointer": "/rows/69",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-09",
+        "AC-10",
+        "AC-11",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-03",
+        "FE-07",
+        "FE-09"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-008",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-027",
+      "coverage_pointer": "/rows/70",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-12",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-03",
+        "FE-07"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-012"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-028",
+      "coverage_pointer": "/rows/71",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-12",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-03",
+        "FE-08",
+        "FE-10"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-012"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-029",
+      "coverage_pointer": "/rows/72",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-12",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-03",
+        "FE-08"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-012"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-030",
+      "coverage_pointer": "/rows/73",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-12",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-07",
+        "FE-08"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-012"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-031",
+      "coverage_pointer": "/rows/74",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-12",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-07",
+        "FE-08"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-012"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-032",
+      "coverage_pointer": "/rows/75",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-08",
+        "AC-10",
+        "AC-11",
+        "AC-12",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-08",
+        "FE-09"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-009",
+        "EV-012"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-033",
+      "coverage_pointer": "/rows/76",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-09",
+        "AC-10",
+        "AC-11",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-09"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-008",
+        "EV-009"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-034",
+      "coverage_pointer": "/rows/77",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-07",
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-10"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-003",
+        "EV-012",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "FG-035",
+      "coverage_pointer": "/rows/78",
+      "source_part": "parts/FUGUE.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_SIGNED_PART",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-09",
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "full_scenario_ids": [
+        "FE-06",
+        "FE-10",
+        "FE-11"
+      ],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-001",
+        "EV-002",
+        "EV-013"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    },
+    {
+      "id": "RF-01",
+      "coverage_pointer": "/rows/79",
+      "source_part": "USER-DECISIONS.json",
+      "object_and_axes_checked": true,
+      "criterion_boundary_output_check": "MATCHES_USER_CONFIRMED_RF01",
+      "transport_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013"
+      ],
+      "transport_fields_match_ob": true,
+      "frontend_consumption": "REQUIRED_READONLY_OBSERVATION_NOT_IMPLEMENTATION_PROOF",
+      "acceptance_plan_ids": [
+        "AC-05",
+        "AC-08",
+        "AC-12",
+        "AC-15"
+      ],
+      "full_scenario_ids": [],
+      "scenarios_and_boundaries_preserved": true,
+      "evidence_navigation_ids": [
+        "EV-009",
+        "EV-010",
+        "EV-011",
+        "EV-012"
+      ],
+      "historical_navigation_only": true,
+      "current_runtime_credit": false
+    }
+  ],
+  "read_scope_and_limits": [
+    "读取并审查9件当前作者文本；80行采用全量结构化逐字段核对加语义域逐项对读，未把743KB重复展开计作全仓代码精读。",
+    "沿用ST、FG、EV各自已签且当前哈希一致的专项内容，没有重开这些来源专项。当前OB已变化，另行读审20条与MD一致性。",
+    "RF子复核独立读取用户决定、主入口、AC相关条目及RF行，提出INT-M01；主代理复核修正文后关闭。",
+    "初始两项缺陷按实际首次读到的文本、稳定ID及JSON指针留档；未将修后哈希冒称初始缺陷字节。签名只绑定本报告列出的当前9件。",
+    "没有读取旧#1321/#1322/#1325/#1326方案或候选比较原件，没有修改author、仓内文件、Git或GitHub。",
+    "没有运行项目、Lean、服务、浏览器、UI、回放、恢复、paper/live、性能或统计验收。"
+  ],
+  "author_scope_confirmed_by_user": false,
+  "architecture_selected": false,
+  "runtime_acceptance": "NOT_RUN",
+  "whole_goal_complete": false
+}

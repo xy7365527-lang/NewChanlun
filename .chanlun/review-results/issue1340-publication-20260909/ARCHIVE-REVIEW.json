@@ -1,0 +1,540 @@
+{
+  "schema": "newchanlun.1340.publication-archive-review.v1",
+  "status": "PASS",
+  "reviewed_at_utc": "2026-09-09T06:19:53.782010+00:00",
+  "reviewer": "/root/spec_completeness_inputs",
+  "secondary_reading_view_reviewer": "/root/spec_completeness_inputs/slice_audit",
+  "scope": "只核新归档包与roster的字节、链接、名分和发布收据完整性；不重新审阅本体所著MAP报告的语义，不把其复制当作新的独立语义结论。",
+  "archive_root": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.chanlun/review-results/issue1340-publication-20260909",
+  "archive_bindings": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.chanlun/review-results/issue1340-publication-20260909/ARCHIVE-INDEX.json",
+      "sha256": "001ab91d9de013d4022a0983fd41b7159b5b0c82173fa568c89e44fe0ee0057f"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.chanlun/review-results/issue1340-publication-20260909/ARCHIVE-VALIDATION.json",
+      "sha256": "26638d90a99d299d78388e13cd615ae89497be244d297706dfc8de9ebc073c09"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.chanlun/review-results/issue1340-publication-20260909/README.md",
+      "sha256": "fe4e3d1088fe59a8430e26b1f082eca1220174e80947d7529903548d582a5781"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.chanlun/review-results/issue1340-publication-20260909/UNBUNDLED-REFERENCES.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.chanlun/review-results/issue1340-publication-20260909/UNBUNDLED-REFERENCES.md",
+      "sha256": "ad5324dcff4c8a01cd0e848ad36de2d6d8330d550f58280702b4d0b022abd1b4"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.chanlun/agent-roster-2026-09-09.md",
+      "sha256": "65137e40839f54ccb202fc2d6877cd44c130f4368cb570284f767d054282a5b2"
+    }
+  ],
+  "findings": [],
+  "residual_counts": {
+    "H": 0,
+    "M": 0
+  },
+  "payload_checks": [
+    {
+      "archive_path": "payload/inputs/RESIDUAL-TICKET-PLAN.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/RESIDUAL-TICKET-PLAN.md",
+      "expected_sha256": "6759d1b2f78987b53203644a6b9b28fffca0a0594f79786cc36cbd4862c0afa9",
+      "actual_sha256": "6759d1b2f78987b53203644a6b9b28fffca0a0594f79786cc36cbd4862c0afa9",
+      "bytes": 36935,
+      "declared_bytes": 36935,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/RESIDUAL-TICKET-PLAN.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/RESIDUAL-TICKET-PLAN.json",
+      "expected_sha256": "16d2fe3690ac9c25e9b38217fe87bed49be045a4e0e8a20ea6d7c5ef94417dc8",
+      "actual_sha256": "16d2fe3690ac9c25e9b38217fe87bed49be045a4e0e8a20ea6d7c5ef94417dc8",
+      "bytes": 393401,
+      "declared_bytes": 393401,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/RD-17-MODEL-PLAN.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/RD-17-MODEL-PLAN.md",
+      "expected_sha256": "c294187293a3afff69b908e998d4066af00704eb4f4577de17e5f83285988063",
+      "actual_sha256": "c294187293a3afff69b908e998d4066af00704eb4f4577de17e5f83285988063",
+      "bytes": 10238,
+      "declared_bytes": 10238,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/RD-17-MODEL-PLAN.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/RD-17-MODEL-PLAN.json",
+      "expected_sha256": "d52a6e6a2e9df6f6c7a33c0089dda99e95991c192f7eaa43b82614a453d38023",
+      "actual_sha256": "d52a6e6a2e9df6f6c7a33c0089dda99e95991c192f7eaa43b82614a453d38023",
+      "bytes": 217398,
+      "declared_bytes": 217398,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/RESIDUAL-PUBLICATION-REVIEW.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/RESIDUAL-PUBLICATION-REVIEW.md",
+      "expected_sha256": "9b80f47bae43b580c3e8b6c1b9269b442e89ff50ad8422c902bdbc6155f1ee37",
+      "actual_sha256": "9b80f47bae43b580c3e8b6c1b9269b442e89ff50ad8422c902bdbc6155f1ee37",
+      "bytes": 3244,
+      "declared_bytes": 3244,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/RESIDUAL-PUBLICATION-REVIEW.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/RESIDUAL-PUBLICATION-REVIEW.json",
+      "expected_sha256": "66950007d16d9e4c7a7b9b1fb7e08df5784d3346a1c1eb0036ea21a60cd01aa5",
+      "actual_sha256": "66950007d16d9e4c7a7b9b1fb7e08df5784d3346a1c1eb0036ea21a60cd01aa5",
+      "bytes": 11838,
+      "declared_bytes": 11838,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/RESIDUAL-PUBLISHED-VERIFY.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/RESIDUAL-PUBLISHED-VERIFY.md",
+      "expected_sha256": "44272477ee9c638aaa8cc710980536bd3b60d2aab0ad97c12e3d3cffcb6d83af",
+      "actual_sha256": "44272477ee9c638aaa8cc710980536bd3b60d2aab0ad97c12e3d3cffcb6d83af",
+      "bytes": 2135,
+      "declared_bytes": 2135,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/RESIDUAL-PUBLISHED-VERIFY.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/RESIDUAL-PUBLISHED-VERIFY.json",
+      "expected_sha256": "ed5743fa7fdbe321ca13cad4356c4e8b1913d659d292c2f6a1bc5abb7f1629c9",
+      "actual_sha256": "ed5743fa7fdbe321ca13cad4356c4e8b1913d659d292c2f6a1bc5abb7f1629c9",
+      "bytes": 23693,
+      "declared_bytes": 23693,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/LEGACY-TICKET-DISPOSITION.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/LEGACY-TICKET-DISPOSITION.md",
+      "expected_sha256": "4420c525ea32a087e94eaa820ec75bbe1135a96323afcdd67c56534aa4de8ac2",
+      "actual_sha256": "4420c525ea32a087e94eaa820ec75bbe1135a96323afcdd67c56534aa4de8ac2",
+      "bytes": 18990,
+      "declared_bytes": 18990,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/LEGACY-TICKET-DISPOSITION.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/LEGACY-TICKET-DISPOSITION.json",
+      "expected_sha256": "3892d5dd85ba8d7ff9f1db0d6424b5da72dc0e83276540160f117428cdce170b",
+      "actual_sha256": "3892d5dd85ba8d7ff9f1db0d6424b5da72dc0e83276540160f117428cdce170b",
+      "bytes": 350958,
+      "declared_bytes": 350958,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB01-ENTRY-RECON.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB01-ENTRY-RECON.md",
+      "expected_sha256": "1f60985ca224887d68924f424991bd888a6cd995cd15a2d2db1e46e995792437",
+      "actual_sha256": "1f60985ca224887d68924f424991bd888a6cd995cd15a2d2db1e46e995792437",
+      "bytes": 20962,
+      "declared_bytes": 20962,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB01-ENTRY-RECON.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB01-ENTRY-RECON.json",
+      "expected_sha256": "32a6d7e0417f1da5a8e67c654dd0300d5243012e2223bb9dc8f5125ddf37e1d3",
+      "actual_sha256": "32a6d7e0417f1da5a8e67c654dd0300d5243012e2223bb9dc8f5125ddf37e1d3",
+      "bytes": 15102,
+      "declared_bytes": 15102,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB01-EXECUTION-SLICES.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB01-EXECUTION-SLICES.md",
+      "expected_sha256": "499e6b406e596db74c940b6810b2832ed288367c2d1cbb114fc20d6f4ac51c51",
+      "actual_sha256": "499e6b406e596db74c940b6810b2832ed288367c2d1cbb114fc20d6f4ac51c51",
+      "bytes": 17206,
+      "declared_bytes": 17206,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB01-EXECUTION-SLICES.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB01-EXECUTION-SLICES.json",
+      "expected_sha256": "16e1e89efc24afbbea5c1b1c43ec44fa5a513e70098c83b24a56c6d1847f701e",
+      "actual_sha256": "16e1e89efc24afbbea5c1b1c43ec44fa5a513e70098c83b24a56c6d1847f701e",
+      "bytes": 22240,
+      "declared_bytes": 22240,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB01-PARENT-CONTRIBUTION.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB01-PARENT-CONTRIBUTION.md",
+      "expected_sha256": "cfd615b57a5210e2b27ac1e47edc4e222800fdf3a447614b5c989939bd85c211",
+      "actual_sha256": "cfd615b57a5210e2b27ac1e47edc4e222800fdf3a447614b5c989939bd85c211",
+      "bytes": 114753,
+      "declared_bytes": 114753,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB01-PARENT-CONTRIBUTION.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB01-PARENT-CONTRIBUTION.json",
+      "expected_sha256": "1508fb3b63d1bc34cc62cebde35304832df69c09296e9d41c7b12157eed6d4af",
+      "actual_sha256": "1508fb3b63d1bc34cc62cebde35304832df69c09296e9d41c7b12157eed6d4af",
+      "bytes": 1571584,
+      "declared_bytes": 1571584,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB02-06-EXECUTION-SLICES.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB02-06-EXECUTION-SLICES.md",
+      "expected_sha256": "16706caae5a5c1ae591039ca687648d932dd1bb9a5e52c722efba419ff642da7",
+      "actual_sha256": "16706caae5a5c1ae591039ca687648d932dd1bb9a5e52c722efba419ff642da7",
+      "bytes": 64718,
+      "declared_bytes": 64718,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB02-06-EXECUTION-SLICES.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB02-06-EXECUTION-SLICES.json",
+      "expected_sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3",
+      "actual_sha256": "fb07f5b7dd73c8475305941e51cd70ce442ec825b19a5758c7e10bbfbda4d8d3",
+      "bytes": 1756504,
+      "declared_bytes": 1756504,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB02-06-FINAL-SLICE-REVIEW.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB02-06-FINAL-SLICE-REVIEW.md",
+      "expected_sha256": "11fb79fecb4a5b5f19d87623f6d885d37271b64aa4e5cadb29e98762aad1da89",
+      "actual_sha256": "11fb79fecb4a5b5f19d87623f6d885d37271b64aa4e5cadb29e98762aad1da89",
+      "bytes": 4294,
+      "declared_bytes": 4294,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB02-06-FINAL-SLICE-REVIEW.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB02-06-FINAL-SLICE-REVIEW.json",
+      "expected_sha256": "11233223bf1fe2b355e39936ff7ff51e0fbedc17a130690b6c06b56468b6d97e",
+      "actual_sha256": "11233223bf1fe2b355e39936ff7ff51e0fbedc17a130690b6c06b56468b6d97e",
+      "bytes": 6281,
+      "declared_bytes": 6281,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB07-11-EXECUTION-SLICES.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB07-11-EXECUTION-SLICES.md",
+      "expected_sha256": "99fe8ffdd684520c024d4ea929b31ec3c96f64228154df7bff762d3a419208d5",
+      "actual_sha256": "99fe8ffdd684520c024d4ea929b31ec3c96f64228154df7bff762d3a419208d5",
+      "bytes": 47155,
+      "declared_bytes": 47155,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB07-11-EXECUTION-SLICES.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB07-11-EXECUTION-SLICES.json",
+      "expected_sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9",
+      "actual_sha256": "00ace9e1990af319976d83e077ad6fc870cad67d793ba7f0d7f728c0a58c16f9",
+      "bytes": 160800,
+      "declared_bytes": 160800,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/ROOT-SLICES-PUBLICATION-REVIEW.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/ROOT-SLICES-PUBLICATION-REVIEW.md",
+      "expected_sha256": "624c0a02f96336e1bc77c37eba4bee4d4d86dd6f0c6f4c12386a4e69d77cd50b",
+      "actual_sha256": "624c0a02f96336e1bc77c37eba4bee4d4d86dd6f0c6f4c12386a4e69d77cd50b",
+      "bytes": 1169,
+      "declared_bytes": 1169,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/ROOT-SLICES-PUBLICATION-REVIEW.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/ROOT-SLICES-PUBLICATION-REVIEW.json",
+      "expected_sha256": "e6483a6119ef67829240e1a4d9d8393bf363ba4f44462d3a004bb5e8e3b786f7",
+      "actual_sha256": "e6483a6119ef67829240e1a4d9d8393bf363ba4f44462d3a004bb5e8e3b786f7",
+      "bytes": 16721,
+      "declared_bytes": 16721,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/PUBLISHED-GRAPH-VERIFY.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/PUBLISHED-GRAPH-VERIFY.md",
+      "expected_sha256": "45b8c3500715c869d2ef9d88287505e4db09844c9457199aa5435e0f7a2ad7c9",
+      "actual_sha256": "45b8c3500715c869d2ef9d88287505e4db09844c9457199aa5435e0f7a2ad7c9",
+      "bytes": 863,
+      "declared_bytes": 863,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/PUBLISHED-GRAPH-VERIFY.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/PUBLISHED-GRAPH-VERIFY.json",
+      "expected_sha256": "d689c9586d2ac2c8250a2be76daad6c7f388931b5e4fbcb886d0f10c1612ffa2",
+      "actual_sha256": "d689c9586d2ac2c8250a2be76daad6c7f388931b5e4fbcb886d0f10c1612ffa2",
+      "bytes": 44931,
+      "declared_bytes": 44931,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/FULL-LEAF-PUBLISHED-VERIFY.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/FULL-LEAF-PUBLISHED-VERIFY.md",
+      "expected_sha256": "72e1e5d662f98ca9cbb8be019eca35be4c683e6c4ff18c7239d00bc7f1894c10",
+      "actual_sha256": "72e1e5d662f98ca9cbb8be019eca35be4c683e6c4ff18c7239d00bc7f1894c10",
+      "bytes": 1212,
+      "declared_bytes": 1212,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/FULL-LEAF-PUBLISHED-VERIFY.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/FULL-LEAF-PUBLISHED-VERIFY.json",
+      "expected_sha256": "29cfbc39a87a8d82732d6c5af502805dca60853c7f9c1f6a9be08d7d1cb73073",
+      "actual_sha256": "29cfbc39a87a8d82732d6c5af502805dca60853c7f9c1f6a9be08d7d1cb73073",
+      "bytes": 170563,
+      "declared_bytes": 170563,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/MAP-UPDATE-REVIEW.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/MAP-UPDATE-REVIEW.md",
+      "expected_sha256": "f3a503b906ed2da2edd2fcfe9dc60446245fbe81bfdf68948df5f9f97e8676dc",
+      "actual_sha256": "f3a503b906ed2da2edd2fcfe9dc60446245fbe81bfdf68948df5f9f97e8676dc",
+      "bytes": 1754,
+      "declared_bytes": 1754,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/MAP-UPDATE-REVIEW.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/MAP-UPDATE-REVIEW.json",
+      "expected_sha256": "ad78f7ea209339ca7f5d153cc29992b9cb5a36eb8e0661d9dcb82874f3e11536",
+      "actual_sha256": "ad78f7ea209339ca7f5d153cc29992b9cb5a36eb8e0661d9dcb82874f3e11536",
+      "bytes": 12188,
+      "declared_bytes": 12188,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/EXECUTION-CHANNEL-READINESS.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/EXECUTION-CHANNEL-READINESS.md",
+      "expected_sha256": "2a1317488a871ef2c728d13c7645513189016563778c209f0d471e001269c45f",
+      "actual_sha256": "2a1317488a871ef2c728d13c7645513189016563778c209f0d471e001269c45f",
+      "bytes": 15137,
+      "declared_bytes": 15137,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/EXECUTION-CHANNEL-READINESS.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/EXECUTION-CHANNEL-READINESS.json",
+      "expected_sha256": "c3bb5727d644cb6c8d2e82e4760afd9379fb028aa44c272d9bd6bda8361cfd8b",
+      "actual_sha256": "c3bb5727d644cb6c8d2e82e4760afd9379fb028aa44c272d9bd6bda8361cfd8b",
+      "bytes": 9203,
+      "declared_bytes": 9203,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB01-DISPATCH-REVIEW.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB01-DISPATCH-REVIEW.md",
+      "expected_sha256": "40fc58ad468ccc6102c9f35349b14528606db00872f9138f1aa975e1af7202c6",
+      "actual_sha256": "40fc58ad468ccc6102c9f35349b14528606db00872f9138f1aa975e1af7202c6",
+      "bytes": 1000,
+      "declared_bytes": 1000,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/inputs/TB01-DISPATCH-REVIEW.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB01-DISPATCH-REVIEW.json",
+      "expected_sha256": "a1c01d0fe2242484085f5586e39c854ad1a4e65f266deb49545e8424dd729dac",
+      "actual_sha256": "a1c01d0fe2242484085f5586e39c854ad1a4e65f266deb49545e8424dd729dac",
+      "bytes": 5159,
+      "declared_bytes": 5159,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/evidence/PUBLISHED.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/evidence/PUBLISHED.json",
+      "expected_sha256": "c11931a2fa885c06b9399a2da3615c1278b7f2e8f81bdc6a78ae7cab8a8178b7",
+      "actual_sha256": "c11931a2fa885c06b9399a2da3615c1278b7f2e8f81bdc6a78ae7cab8a8178b7",
+      "bytes": 229,
+      "declared_bytes": 229,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/evidence/RESIDUAL-PUBLISHED.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/evidence/RESIDUAL-PUBLISHED.json",
+      "expected_sha256": "790804cc354ad04f04bb9d820ce2138cc69aefd0776420944d91071ae1cafff0",
+      "actual_sha256": "790804cc354ad04f04bb9d820ce2138cc69aefd0776420944d91071ae1cafff0",
+      "bytes": 6163,
+      "declared_bytes": 6163,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/evidence/TB-PUBLISHED.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/evidence/TB-PUBLISHED.json",
+      "expected_sha256": "3d62530ca0333cd699131f5c62e1e3a42f1c29896d3ab9463bb8956fed2f7fd4",
+      "actual_sha256": "3d62530ca0333cd699131f5c62e1e3a42f1c29896d3ab9463bb8956fed2f7fd4",
+      "bytes": 4601,
+      "declared_bytes": 4601,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/evidence/EXECUTION-SLICES-PUBLISHED.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/evidence/EXECUTION-SLICES-PUBLISHED.json",
+      "expected_sha256": "cb4afc661f303c55efc31d7e88f46c66ba2d0c7a2e0181a126e250e82b39555d",
+      "actual_sha256": "cb4afc661f303c55efc31d7e88f46c66ba2d0c7a2e0181a126e250e82b39555d",
+      "bytes": 52568,
+      "declared_bytes": 52568,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/evidence/LEGACY-COMMENTS-PUBLISHED.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/evidence/LEGACY-COMMENTS-PUBLISHED.json",
+      "expected_sha256": "5bb96e92ba2f02d8f49cd5ba6dd686c0cfea9c4ca0ee6b6b29198a6f58ac9fc8",
+      "actual_sha256": "5bb96e92ba2f02d8f49cd5ba6dd686c0cfea9c4ca0ee6b6b29198a6f58ac9fc8",
+      "bytes": 4119,
+      "declared_bytes": 4119,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/evidence/EXECUTION-SLICES-VALIDATION.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/evidence/EXECUTION-SLICES-VALIDATION.json",
+      "expected_sha256": "ebb23da87d1a6323502a5f7df123f8d7d59e0bbcda467b49da30bd85b02a8fc7",
+      "actual_sha256": "ebb23da87d1a6323502a5f7df123f8d7d59e0bbcda467b49da30bd85b02a8fc7",
+      "bytes": 40184,
+      "declared_bytes": 40184,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/evidence/MAP-1323-UPDATED.json",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/evidence/MAP-1323-UPDATED.json",
+      "expected_sha256": "164c93c09cda602102adcd947a1040d1ece0898881ce4966c34104fb4354237f",
+      "actual_sha256": "164c93c09cda602102adcd947a1040d1ece0898881ce4966c34104fb4354237f",
+      "bytes": 413,
+      "declared_bytes": 413,
+      "source_bytes_match": true,
+      "index_matches": true
+    },
+    {
+      "archive_path": "payload/tickets/1323-UPDATED.md",
+      "original_path": "/tmp/newchanlun-1323-publication-20260909/tickets/1323-UPDATED.md",
+      "expected_sha256": "53b04ddb9efd72021b9f6bb1d35c5fc60487b12dc2177bdb8c328c3e8aff5ba6",
+      "actual_sha256": "53b04ddb9efd72021b9f6bb1d35c5fc60487b12dc2177bdb8c328c3e8aff5ba6",
+      "bytes": 14271,
+      "declared_bytes": 14271,
+      "source_bytes_match": true,
+      "index_matches": true
+    }
+  ],
+  "payload_summary": {
+    "index_count": 42,
+    "actual_payload_count": 42,
+    "archive_paths_unique": true,
+    "declared_and_actual_payload_sets_match": true,
+    "total_bytes": 5272877,
+    "all_original_and_archive_hashes_match": true
+  },
+  "view_review": {
+    "status": "PASS",
+    "view_count": 18,
+    "allowed_delta": "每份仅增加来源banner及必要Markdown目标链接转写；源正文其他字节不变。",
+    "target_rewrite_count": 3,
+    "resolved_relative_link_count": 40,
+    "read_scope": "18份view Markdown和归档入口相对链接；上一规范包相对入口及固定commit README存在。",
+    "index_portable_view_mappings_complete": true,
+    "secondary_reviewer_wrote_files": false
+  },
+  "prior_normative_package": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.chanlun/review-results/issue1339-r2-spec-20260909",
+    "expected_payload_count": 137,
+    "actual_payload_count": 137,
+    "all_index_hashes_and_sizes_match": true,
+    "git_diff_against_efc1_exit": 0,
+    "unchanged_against_commit": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+    "scope": "读取索引与机器比较字节，未重读隔离旧原件的实质内容。"
+  },
+  "publication_consistency": {
+    "leaf_count": 77,
+    "tb_count": 11,
+    "residual_ticket_count": 17,
+    "all_mapping_issue_numbers_unique_within_group": true,
+    "full_leaf_verify_status": "PASS",
+    "verified_leaf_rows": 77,
+    "leaf_errors": 0,
+    "leaf_failures": 0,
+    "map_verify_status": "PASS",
+    "map_read_count": 1,
+    "map_state": "open",
+    "map_updated_at": "2026-09-09T06:11:46Z",
+    "map_body_sha256": "53b04ddb9efd72021b9f6bb1d35c5fc60487b12dc2177bdb8c328c3e8aff5ba6",
+    "map_receipt_and_archived_body_and_independent_readback_match": true,
+    "map_runtime_acceptance": "NOT_EVALUATED",
+    "independent_readback_provenance": "归档复制了指定独立发布审阅者的最终一次主图回读及77叶凭证；本审不重复live回读。"
+  },
+  "roster_review": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.chanlun/agent-roster-2026-09-09.md",
+    "sha256": "65137e40839f54ccb202fc2d6877cd44c130f4368cb570284f767d054282a5b2",
+    "publication_worktree_branch_verified": "codex/1323-spec-publication-20260909",
+    "implementation_worktree_exists_and_branch_verified": "codex/1323-tb01-a-1370",
+    "open_ticket_binding": "#1340/#1339/#1323；实施#1370",
+    "published_counts_match": true,
+    "implementation_baseline": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+    "state_boundary": "启动登记不等运行成功；运行验收和独评待真实结果，main合入单独批准。",
+    "status_diff_scope": "仅当日roster变更和新归档目录；未见规范旧包或代码文件diff。"
+  },
+  "classification_and_content_checks": {
+    "working_draft_bound_to_open_tickets": true,
+    "readme_explicit_not_main_merged": true,
+    "readme_explicit_no_runtime_acceptance": true,
+    "old_dag_paused_and_extra_obligations_retained": true,
+    "all_archive_file_extensions": [
+      ".json",
+      ".md"
+    ],
+    "code_files_present": false,
+    "session_or_tool_log_artifact_filenames_present": false,
+    "secret_signature_scan_hits": 0,
+    "literal_secret_candidate_scan_hits": 0,
+    "scan_output_redacted": true,
+    "secret_scan_limit": "检查密钥/令牌常见签名与显式长值赋值，结合文件清单与内容用途检查；零命中不声称所有未知编码均已密码学证明无秘密。",
+    "recorded_source_evidence_boundary": "GH票面/查重/发布核验等具名报告保留原字节，未归档模型会话导出、终端/工蜂工具流水日志或实际服务状态容器。"
+  },
+  "scope_limits": [
+    "自己MAP报告只核归档原字节与最新发布收据对应关系，未当作新独立语义审阅。",
+    "不执行实现测试，不认证程序运行或main/关票完成。",
+    "未改A、roster、仓库或GitHub；仅写P/inputs/PUBLICATION-ARCHIVE-REVIEW.md/json。"
+  ]
+}

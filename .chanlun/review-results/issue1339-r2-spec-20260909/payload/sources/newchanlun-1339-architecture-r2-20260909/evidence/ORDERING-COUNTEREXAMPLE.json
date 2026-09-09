@@ -1,0 +1,355 @@
+{
+  "schema": "newchanlun.rf02.ordering-counterexample.v1",
+  "status": "BOUNDED_COUNTEREXAMPLE_NOT_PROTOCOL_PROOF",
+  "method": "Enumerate all 24 permutations of four single-occurrence events with guard checks exactly stated here. No concurrency implementation, clocks, RPC, monetary state, source parsing, physical gateway or venue modeled.",
+  "guards": [
+    "E_RELEASE requires economic-valid at that event",
+    "S_EXECUTE requires prior E_RELEASE and structural-valid at that event"
+  ],
+  "purpose": "Do not claim simultaneous current validity of both domains from the staged proposal; preserve OP-01/02 for review.",
+  "protocol_sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c",
+  "all_permutations": [
+    {
+      "sequence": [
+        "E_RELEASE",
+        "E_INVALIDATE",
+        "S_EXECUTE",
+        "S_INVALIDATE"
+      ],
+      "permitted_by_two_boundary_rules": true,
+      "economic_condition_current_at_s_execute": false,
+      "rejection_reasons": []
+    },
+    {
+      "sequence": [
+        "E_RELEASE",
+        "E_INVALIDATE",
+        "S_INVALIDATE",
+        "S_EXECUTE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": false,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "E_RELEASE",
+        "S_EXECUTE",
+        "E_INVALIDATE",
+        "S_INVALIDATE"
+      ],
+      "permitted_by_two_boundary_rules": true,
+      "economic_condition_current_at_s_execute": true,
+      "rejection_reasons": []
+    },
+    {
+      "sequence": [
+        "E_RELEASE",
+        "S_EXECUTE",
+        "S_INVALIDATE",
+        "E_INVALIDATE"
+      ],
+      "permitted_by_two_boundary_rules": true,
+      "economic_condition_current_at_s_execute": true,
+      "rejection_reasons": []
+    },
+    {
+      "sequence": [
+        "E_RELEASE",
+        "S_INVALIDATE",
+        "E_INVALIDATE",
+        "S_EXECUTE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": false,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "E_RELEASE",
+        "S_INVALIDATE",
+        "S_EXECUTE",
+        "E_INVALIDATE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": true,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "E_INVALIDATE",
+        "E_RELEASE",
+        "S_EXECUTE",
+        "S_INVALIDATE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": false,
+      "rejection_reasons": [
+        "release after economic invalidation",
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "E_INVALIDATE",
+        "E_RELEASE",
+        "S_INVALIDATE",
+        "S_EXECUTE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": false,
+      "rejection_reasons": [
+        "release after economic invalidation",
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "E_INVALIDATE",
+        "S_EXECUTE",
+        "E_RELEASE",
+        "S_INVALIDATE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": false,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first",
+        "release after economic invalidation"
+      ]
+    },
+    {
+      "sequence": [
+        "E_INVALIDATE",
+        "S_EXECUTE",
+        "S_INVALIDATE",
+        "E_RELEASE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": false,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first",
+        "release after economic invalidation"
+      ]
+    },
+    {
+      "sequence": [
+        "E_INVALIDATE",
+        "S_INVALIDATE",
+        "E_RELEASE",
+        "S_EXECUTE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": false,
+      "rejection_reasons": [
+        "release after economic invalidation",
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "E_INVALIDATE",
+        "S_INVALIDATE",
+        "S_EXECUTE",
+        "E_RELEASE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": false,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first",
+        "release after economic invalidation"
+      ]
+    },
+    {
+      "sequence": [
+        "S_EXECUTE",
+        "E_RELEASE",
+        "E_INVALIDATE",
+        "S_INVALIDATE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": true,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "S_EXECUTE",
+        "E_RELEASE",
+        "S_INVALIDATE",
+        "E_INVALIDATE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": true,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "S_EXECUTE",
+        "E_INVALIDATE",
+        "E_RELEASE",
+        "S_INVALIDATE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": true,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first",
+        "release after economic invalidation"
+      ]
+    },
+    {
+      "sequence": [
+        "S_EXECUTE",
+        "E_INVALIDATE",
+        "S_INVALIDATE",
+        "E_RELEASE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": true,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first",
+        "release after economic invalidation"
+      ]
+    },
+    {
+      "sequence": [
+        "S_EXECUTE",
+        "S_INVALIDATE",
+        "E_RELEASE",
+        "E_INVALIDATE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": true,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "S_EXECUTE",
+        "S_INVALIDATE",
+        "E_INVALIDATE",
+        "E_RELEASE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": true,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first",
+        "release after economic invalidation"
+      ]
+    },
+    {
+      "sequence": [
+        "S_INVALIDATE",
+        "E_RELEASE",
+        "E_INVALIDATE",
+        "S_EXECUTE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": false,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "S_INVALIDATE",
+        "E_RELEASE",
+        "S_EXECUTE",
+        "E_INVALIDATE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": true,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "S_INVALIDATE",
+        "E_INVALIDATE",
+        "E_RELEASE",
+        "S_EXECUTE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": false,
+      "rejection_reasons": [
+        "release after economic invalidation",
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "S_INVALIDATE",
+        "E_INVALIDATE",
+        "S_EXECUTE",
+        "E_RELEASE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": false,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first",
+        "release after economic invalidation"
+      ]
+    },
+    {
+      "sequence": [
+        "S_INVALIDATE",
+        "S_EXECUTE",
+        "E_RELEASE",
+        "E_INVALIDATE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": true,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first"
+      ]
+    },
+    {
+      "sequence": [
+        "S_INVALIDATE",
+        "S_EXECUTE",
+        "E_INVALIDATE",
+        "E_RELEASE"
+      ],
+      "permitted_by_two_boundary_rules": false,
+      "economic_condition_current_at_s_execute": true,
+      "rejection_reasons": [
+        "no released exact command or structural invalidation first",
+        "release after economic invalidation"
+      ]
+    }
+  ],
+  "permitted_count": 3,
+  "economic_invalid_before_s_execute_count": 1,
+  "counterexample": {
+    "sequence": [
+      "E_RELEASE",
+      "E_INVALIDATE",
+      "S_EXECUTE",
+      "S_INVALIDATE"
+    ],
+    "permitted_by_two_boundary_rules": true,
+    "economic_condition_current_at_s_execute": false,
+    "rejection_reasons": []
+  },
+  "conclusion": "The candidate admits E_RELEASE -> E_INVALIDATE -> S_EXECUTE -> S_INVALIDATE. Acceptance requires proving this is a legitimate already-handed-off exact-command window; it does not prove that economic constraints remain current at S_EXECUTE.",
+  "not_established": [
+    "安全或活性证明",
+    "与R1原要求语义等价",
+    "真实不可撤交付窗口",
+    "场所与fencing能力",
+    "RF01或RF02实际运行验收",
+    "完整分类证明"
+  ],
+  "refinement_scope": "Original two-guard four-event abstraction reused unchanged. Does not model the revised complete condition phases, stable local service queue or X atomic call consumption. It only excludes a claim that E and S are necessarily both current at S-Execute; permitted orders require their actual condition classification.",
+  "original_protocol_sha256": "8570fc96b47ec90f3a87ac829b78322f1aad9384d95694aafdb53fd5f712e1c5"
+}

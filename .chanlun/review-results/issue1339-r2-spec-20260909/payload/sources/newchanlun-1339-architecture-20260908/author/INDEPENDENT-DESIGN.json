@@ -1,0 +1,6556 @@
+{
+  "schema": "newchanlun.independent-production-architecture-candidate.v1",
+  "issue": 1339,
+  "whole_map": 1323,
+  "status": "PHASE_R1_CLASSIFICATION_INTEGRATED_PROTOCOL_FINDINGS_REVISED_PENDING_INDEPENDENT_REVIEW",
+  "author": "/root/independent_architecture",
+  "independence": {
+    "prior_architecture_candidates_read": false,
+    "comparison_map_read": false,
+    "old_1321_1322_1325_1326_read": false,
+    "possible_convergence": "not_assessed"
+  },
+  "document": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+    "sha256": "f6054b52f86ba80fafd6386d1ac6ede341c6c6a17cb9efbed5d2dad42571824d"
+  },
+  "source_binding": [
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/BRIEF.md",
+      "sha256": "e4a68dbbe5c738a2bfc5f3e3979daa88dba2d326408e8474822cc189d0a7e8e7",
+      "bytes": 5053,
+      "read_mode": "full_text",
+      "scope": "本次授权、范围、共同调用检查；未读既有候选"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/COMPLETE-CLASSIFICATION-REQUIREMENT.md",
+      "sha256": "c3cc79a2bef52dff3d1f5612cf066b2466ecd370e98baad0dc077e23c894e8c9",
+      "bytes": 1428,
+      "read_mode": "full_text",
+      "scope": "本次授权、范围、共同调用检查；未读既有候选"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-goal-20260908/GOAL.md",
+      "sha256": "a18dc15315b55d3ba2900fcd25deedd9cd4191aab69a968bc405fdf1ac8266f7",
+      "bytes": 4594,
+      "read_mode": "full_text",
+      "scope": "本次授权、范围、共同调用检查；未读既有候选"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/REQUIREMENTS.md",
+      "sha256": "690dcd65e029e5069c46d5ade40684a831405d9e5af214624136e7fd52702b19",
+      "bytes": 4702,
+      "read_mode": "full_text",
+      "scope": "本次授权、范围、共同调用检查；未读既有候选"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/CALLER-AND-CLASSIFICATION-CHECKS.md",
+      "sha256": "bfb7add061f981a82a7c5192497e10ee4d0efcfe9b1750b9afd0936a6a9de8bb",
+      "bytes": 4405,
+      "read_mode": "full_text",
+      "scope": "full read including corrected C-03 relation versus higher-object construction; latest exact bytes"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+      "sha256": "0eeedeb138add9138a2d904bb7fb69884876d85ae085f192d54ab32c8566f970",
+      "bytes": 750433,
+      "read_mode": "structured_projection",
+      "scope": "all 80 rows semantic fields and references; long repeated transport/history objects not claimed literal full reading"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.json",
+      "sha256": "65ff5481cab5caf18134d23287e34fa697a1d771b544acb0813aad380d6c9c7d",
+      "bytes": 21946,
+      "read_mode": "structured_projection",
+      "scope": "all 20 requirements excluding source-list repetition"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.json",
+      "sha256": "9fc12ed938b2a4949f90b265d6148208b21738f6655a6f9b9e436cc5da767b2c",
+      "bytes": 9759,
+      "read_mode": "structured_projection",
+      "scope": "all 15 requirements"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+      "sha256": "8e3a98b1ad88ee658d98656605e1580b1d806ab3132013a13f304a957b84b04a",
+      "bytes": 87183,
+      "read_mode": "structured_projection",
+      "scope": "all 35 requirement semantics, 11 e2e scenarios, 7 unresolved and selected source references; source manifests used as navigation only"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/STRUCTURE.json",
+      "sha256": "d10aa63899bd489b546c5f5746ddd5bebebfc41c23215fe6c898d21f54f55166",
+      "bytes": 108220,
+      "read_mode": "structured_projection",
+      "scope": "all 44 requirement semantics, document_caveats, source_tensions; source manifests used as navigation only"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0010-chong-persistent-operating-unit.md",
+      "sha256": "d4b15a7d59156aeb347d01f8d6805c3c14b22d05b5667f84b087abe51da6b050",
+      "bytes": 8685,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          19,
+          55
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+      "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860",
+      "bytes": 14485,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          35,
+          83
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+      "sha256": "d2412a9bd0404e930b89c2522d76f99e6cb917047139f9cd5f658679a2253cb5",
+      "bytes": 46002,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          50,
+          91
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+      "sha256": "83cfd1e1b3ff62a2f87b27cf5027703ea8c30e2c97441ec8079560c0110fb06c",
+      "bytes": 31015,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          112,
+          162
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+      "sha256": "8f132dabcd8c69d78113173c34b78c6e797e7c89bf20b990d46c65a97ca27222",
+      "bytes": 50052,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          106,
+          126
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0018-limit-order-fill-model.md",
+      "sha256": "8e56fa7a415c617addb1ab3122ff0e13ed55f2f128d5c8cdd7fe3c0449cebdd9",
+      "bytes": 24158,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          69,
+          82
+        ],
+        [
+          134,
+          169
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0019-limit-order-state-flow-interface.md",
+      "sha256": "f4a22720edb43c24354d02120ad78a78b10ac755fe1fd053039a5b1a3a5f01cd",
+      "bytes": 62989,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          79,
+          123
+        ],
+        [
+          306,
+          310
+        ],
+        [
+          355,
+          381
+        ],
+        [
+          456,
+          513
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0020-backtest-cash-live-perp-filtered.md",
+      "sha256": "383777615a0a9796b2646ccd720a24e60e8cebfd01ec92b0f6529d9f48663e84",
+      "bytes": 16018,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          141,
+          160
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0021-venue-selection-deferred.md",
+      "sha256": "a8a18e71653cc4a33efd84c1a3d8ed3e8556554d83e127d6937184ec84df7de0",
+      "bytes": 14233,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          66,
+          81
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+      "sha256": "78fdad819328c7bb29703711cfcdcbfbf4a0b40cde8f713ae7b844fa719013fb",
+      "bytes": 6477,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          13,
+          47
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/beichi.md",
+      "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+      "bytes": 108519,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          261,
+          278
+        ],
+        [
+          455,
+          469
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/qujiantao.md",
+      "sha256": "6a4f8e0a152f31e3e9aa90d3d88a4f715d347b11682d267b61eb86073f98fdd3",
+      "bytes": 247983,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          760,
+          775
+        ],
+        [
+          1098,
+          1108
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/maimai.md",
+      "sha256": "69602124af5676c8df68bffc9cdf6544c8cedd456d71be74118ff6540b89447a",
+      "bytes": 39973,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          330,
+          342
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/formal/Origin/BuySellPredicate.lean",
+      "sha256": "662ce6e3fbccc2828e05e09eb89ec319b87054fcdf0fb10b4d3d21b68b0de301",
+      "bytes": 28945,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          404,
+          424
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/.agents/skills/codebase-design/SKILL.md",
+      "sha256": "6d8f40d5f43ec51681b51825ab5452e44fb3f9a4662878344cfcaf5de651d283",
+      "bytes": 11953,
+      "read_mode": "full_text",
+      "scope": "usage-first, core types, deep modules and information leakage"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/formal/Origin/ForceVelocity.lean",
+      "sha256": "9690245077a125451c97f3ab1ca67cfc3cd43553c671009a3eba682ace6a0773",
+      "bytes": 8790,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          1,
+          68
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/formal/Origin/BspClassification.lean",
+      "sha256": "3616443ae1f7314480b78d302e4588a72d6ae0fce4e4c058faa2cbc297c1278f",
+      "bytes": 26898,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          113,
+          127
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/formal/Origin/TrendSixState.lean",
+      "sha256": "3cf61e5b16443cb20b470b2fc00a6970dad5099f036c05a5e1685cc09bc403c8",
+      "bytes": 26327,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          115,
+          124
+        ],
+        [
+          160,
+          180
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/formal/Origin/SegmentFeatureSeq.lean",
+      "sha256": "4f727a53f24ee548abd340ab6894be5f976d21ef4bd1d12bde18f5e3973429dc",
+      "bytes": 24663,
+      "read_mode": "literal_line_ranges",
+      "scope": [
+        [
+          102,
+          119
+        ]
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/classification-evidence-issue-246.json",
+      "sha256": "e096a435854a00ff7dafe55a473549ff1209e863a41c8427381c096f5fdf788c",
+      "bytes": 6530,
+      "read_mode": "structured_projection",
+      "scope": "body/title and Resolution/tangency/closure comments; #246 exact closing scope examined; raw GitHub mirror authored by classification workline, not fetched by this author"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/classification-evidence-issue-249.json",
+      "sha256": "77afa6eeddd31b1dd1622e28a5d745a238ed69b0e315dbd87692d15918071d4f",
+      "bytes": 14154,
+      "read_mode": "structured_projection",
+      "scope": "body/title and Resolution/tangency/closure comments; #246 exact closing scope examined; raw GitHub mirror authored by classification workline, not fetched by this author"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+      "sha256": "4d24de8692c915f95544eb7c4f041e8dd403bfda503e9fe1a97e4a5e715455ea",
+      "bytes": 10520,
+      "read_mode": "full_text",
+      "scope": "canonical bounded static scan entry only; no architecture candidate read"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CURRENT-ENTRY-CONSUMER-REGISTRY.json",
+      "sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+      "bytes": 2951091,
+      "read_mode": "bounded_structured_projection",
+      "scope": "IO-FR001..014; selected current_frontiers producer/consumer/mode/sink for ACT-FR003/005/016/017/020/021/048..061/076/077/079/083/085/094..097/127/131/132/142 and AUX-FR0002; no claim of all 1815 frontier reading/current source revalidation; incidental K4 reference excluded"
+    },
+    {
+      "path": "/private/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+      "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+      "bytes": 279109,
+      "read_mode": "all_structured_semantic_fields",
+      "scope": "62axes/10LC/32G/44ST合同与字段全读；r2修订及27条beichi主张收据已读；原件不冒充本作者重审"
+    },
+    {
+      "path": "/private/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-INDEPENDENT-PROTOCOL.json",
+      "sha256": "0e259262461f4b0edef4f0da46e9689026cdfb27d43c354213825f675008212d",
+      "bytes": 12488,
+      "read_mode": "full_structured",
+      "scope": "R0正式IP-H01/IP-M02反例及要求全读；修订接受其缺陷，不冒充复核通过"
+    }
+  ],
+  "classification_catalog_binding": {
+    "status": "BOUND_TO_FROZEN_R2_ALL_ENTRIES_INTEGRATED",
+    "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+    "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f",
+    "revision": "r2-reviewable",
+    "complete_classification_proved": false,
+    "integration": {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.json",
+      "sha256": "251f00d938573e96516d3c1dc6f48a64241b19314fac598480dd7b1ab2e49a6d",
+      "markdown_path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.md",
+      "markdown_sha256": "37b91d6fe61ad508e06a733b9972834bb61957f9249be8a612f7d33aa8157dd0"
+    },
+    "counts": {
+      "axes": 62,
+      "legal_combination_contracts": 10,
+      "proof_sync_choice_items": 32,
+      "structure_requirement_rows": 44
+    },
+    "proof_package_contract": "静态分区/互斥/实现等价/不变量按语义及程序/数值/构造策略版本验证复用，不逐bar运行Lean；运行时必须实际算全输出并检查具体域/见证、发带proof_package_refs的EvaluationReceipt。",
+    "r2_required_semantic_corrections": [
+      "CC004 seven fold leaves including non-containing append without prior direction",
+      "CC032 interface I, semantic D_L, pair comparison domains distinct; empty/invalid no semantic L; valid single stroke L=0",
+      "CC037 X only r<q; UP necessary N is final subcenter S3 and DOWN B3; r=q outside X",
+      "CC041 Origin LevelView 64 encoding,37 excluded,at most27 abstract allowed; per-point carrier distinct",
+      "CC045 I/E96/D_completed24/D_first6/confirmed2 distinguished; unfinished72 not confirmed",
+      "CC049/050/052 fixed Sel first, selected gate then; readonly any_success cannot replace selected failure or trigger reselection",
+      "CC055 exactly12 named relation kinds, not closed market ontology",
+      "CC057 LevelView-specific upper bound27^m not production point-list or reachable-count proof",
+      "CC044/059 q-1 sequence i1/i2 distinct from q turn anchor with/without same-q Type1",
+      "CC040 reverse trend level>=q; weakest may touch outer DD/GG only; CC061 separate horizon/context",
+      "G003 descriptive strength not missing required taxonomy"
+    ]
+  },
+  "counts": {
+    "coverage_rows": 80,
+    "structure_rows": 44,
+    "fugue_rows": 35,
+    "fault_requirements": 1,
+    "e2e_scenarios": 11,
+    "acceptance_categories": 15,
+    "observation_contracts": 20,
+    "classification_axes_bound": 62,
+    "classification_combination_contracts": 10,
+    "classification_register_items": 32,
+    "declared_engineering_state_axes": 16
+  },
+  "coverage_matrix": [
+    {
+      "id": "ST-001",
+      "title": "包含关系、顺序合并与方向来源",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/包含",
+      "specific_delivery": "包含左折叠七叶完整：空/单/非包含UP或DOWN追加/有方向UP或DOWN合并/包含未建方向；全部成员和方向来源可查。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/0"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/baohan.md",
+          "line_start": 86,
+          "line_end": 135
+        },
+        {
+          "source_path": ".chanlun/definitions/baohan.md",
+          "line_start": 168,
+          "line_end": 179
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "初始无方向时的工程策略须显式标识；正本内部v1.3已结算与末尾旧未结算段并存，不据旧实现自选新口径。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-001",
+        "CC-002",
+        "CC-003",
+        "CC-004"
+      ]
+    },
+    {
+      "id": "ST-002",
+      "title": "包含组锚、成员映射与原始极值定位",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s2"
+      },
+      "responsible_module": "结构/坐标",
+      "specific_delivery": "raw-merged双向索引同时保存首锚与内部极值根；不按图上位置充身份。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/1"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/baohan.md",
+          "line_start": 137,
+          "line_end": 159
+        },
+        {
+          "source_path": ".chanlun/definitions/bi.md",
+          "line_start": 112,
+          "line_end": 121
+        },
+        {
+          "source_path": ".chanlun/definitions/bi.md",
+          "line_start": 163,
+          "line_end": 171
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "跨语言投影对拍现状为正本历史登记，本轮不声称已或未完成。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-004",
+        "CC-005",
+        "CC-056"
+      ]
+    },
+    {
+      "id": "ST-003",
+      "title": "分型的局部分类与成立条件",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/分型",
+      "specific_delivery": "无相邻包含良构域四分支与右邻获知前沿，强弱描述另轴。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/2"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/fenxing.md",
+          "line_start": 92,
+          "line_end": 126
+        },
+        {
+          "source_path": ".chanlun/definitions/fenxing.md",
+          "line_start": 135,
+          "line_end": 153
+        },
+        {
+          "source_path": ".chanlun/definitions/bi.md",
+          "line_start": 204,
+          "line_end": 210
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "分型强弱/中继描述为后续独立观察轴，不能偷加为分型基本准入。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-001",
+        "CC-006"
+      ]
+    },
+    {
+      "id": "ST-004",
+      "title": "生产新笔的双坐标成立条件",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/新笔",
+      "specific_delivery": "merged不共用与raw极值间距共同输出，生产新笔失败无旧笔兜底。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/3"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/bi.md",
+          "line_start": 100,
+          "line_end": 121
+        },
+        {
+          "source_path": ".chanlun/definitions/bi.md",
+          "line_start": 287,
+          "line_end": 309
+        },
+        {
+          "source_path": ".chanlun/definitions/bi.md",
+          "line_start": 175,
+          "line_end": 200
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "正本:305记3为可传形参，但原文语义至少3不能被前端或架构暗改；任何非标准阈值须显式政策名分。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-001",
+        "CC-005",
+        "CC-008"
+      ]
+    },
+    {
+      "id": "ST-005",
+      "title": "笔序列、去重、延伸与确认边界",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/笔发展",
+      "specific_delivery": "稳定对象修订、异性序列、前缀与尾部、缺映射原因共同发布。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/4"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/bi.md",
+          "line_start": 311,
+          "line_end": 345
+        },
+        {
+          "source_path": ".chanlun/definitions/bi.md",
+          "line_start": 386,
+          "line_end": 403
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "正本S-4跨族确认语义仍记待核；不直接承诺所有历史对象永不可撤回，须与后端修订契约和数据更正区分。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-009",
+        "CC-010",
+        "CC-056"
+      ]
+    },
+    {
+      "id": "ST-006",
+      "title": "线段基本良构与正本范式",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/P2线段",
+      "specific_delivery": "全成员笔链、奇数约束、前三闭重叠max(low)<=min(high)与成段终结证据；#246/#249已裁相切。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/5"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/xianduan.md",
+          "line_start": 23,
+          "line_end": 39
+        },
+        {
+          "source_path": ".chanlun/definitions/xianduan.md",
+          "line_start": 283,
+          "line_end": 305
+        },
+        {
+          "source_path": ".chanlun/definitions/xianduan.md",
+          "line_start": 327,
+          "line_end": 346
+        },
+        {
+          "source_path": ".chanlun/definitions/xianduan.md",
+          "line_start": 364,
+          "line_end": 370
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "三笔重叠相切不是未裁；旧文字未同步、实现与机器见证对齐待核。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "signed_requirement_boundary_original": "前三笔恰相切边界在本正本仍未裁，须追后续Lean裁定或登记未定；不能在本草案擅定。",
+      "correction_evidence": "INDEPENDENT-DESIGN.md#s3",
+      "classification_axis_ids": [
+        "CC-001",
+        "CC-011"
+      ]
+    },
+    {
+      "id": "ST-007",
+      "title": "特征序列构造、包含作用域与两类终结",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/P2线段",
+      "specific_delivery": "两特征序列及各自包含作用域、gap和终结获知前沿完整输出。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/6"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/xianduan.md",
+          "line_start": 106,
+          "line_end": 148
+        },
+        {
+          "source_path": ".chanlun/definitions/xianduan.md",
+          "line_start": 251,
+          "line_end": 266
+        },
+        {
+          "source_path": ".chanlun/definitions/xianduan.md",
+          "line_start": 327,
+          "line_end": 340
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "第二特征序列扫描上限50与无限在正文仍待裁，不能将截断误报为完整无证据。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-002",
+        "CC-012",
+        "CC-013"
+      ]
+    },
+    {
+      "id": "ST-008",
+      "title": "缺口封闭、笔破坏与段破坏的独立事实",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/P2线段",
+      "specific_delivery": "缺口严格分离/闭重叠已裁互补；笔破坏/段终结分别输出；第二序列扫描范围仍独立待裁。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/7"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/xianduan.md",
+          "line_start": 157,
+          "line_end": 176
+        },
+        {
+          "source_path": ".chanlun/definitions/xianduan.md",
+          "line_start": 180,
+          "line_end": 220
+        },
+        {
+          "source_path": ".chanlun/definitions/xianduan.md",
+          "line_start": 364,
+          "line_end": 370
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "不重开#246相切裁定；G4/D5及扫描范围的具体剩余义务待目录绑定。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "signed_requirement_boundary_original": "G4与D5一致性、相切、扫描窗在正文待裁指针保留；本轮须由上层确认最新裁定，不以旧表作现行实现断言。",
+      "correction_evidence": "INDEPENDENT-DESIGN.md#s3",
+      "classification_axis_ids": [
+        "CC-002",
+        "CC-013",
+        "CC-014"
+      ]
+    },
+    {
+      "id": "ST-009",
+      "title": "构造唯一与多读法分解分层",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/操作读法",
+      "specific_delivery": "单主干和N读法分开；条件seed/恒三格/不延伸/连续盘整与余段可查。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/8"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/fenjie.md",
+          "line_start": 9,
+          "line_end": 35
+        },
+        {
+          "source_path": "docs/adr/0011-operation-decomposition-layer.md",
+          "line_start": 29,
+          "line_end": 95
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "Φ_n实例化、Unassigned生产化、续扫C口径须由现行证据核验能力；此处只纳入要求。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-015",
+        "CC-062"
+      ]
+    },
+    {
+      "id": "ST-010",
+      "title": "结构判据与观察准入边界",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/判定核",
+      "specific_delivery": "目录逐轴绑定适用域、权威和例外；全级同输入执行锁，诊断不准入。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/9"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/结构判据.md",
+          "line_start": 7,
+          "line_end": 22
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "8列历史登记收口不证明本轮整个生产/前端已运行；完整判定点能力由现行链路证据表另填。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-054"
+      ]
+    },
+    {
+      "id": "ST-011",
+      "title": "中枢由三个连续次级别走势构成及严格核心",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/中枢构造",
+      "specific_delivery": "三成员加连接血缘、严格核心、相邻级别、真实上级对象，退化不产中枢。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/10"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 41,
+          "line_end": 126
+        },
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 130,
+          "line_end": 190
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "正文 Z-3 定方向交替，同时记录上级旧输入不保证交替/E1撤销的范围；不得拿L0可达域恒等证明泛化所有上级输入。现行能力由已有扫描另核。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-001",
+        "CC-002",
+        "CC-016"
+      ]
+    },
+    {
+      "id": "ST-012",
+      "title": "冻结核心与动态 GG/G/D/DD 全量可查",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/中枢属性",
+      "specific_delivery": "冻结形成核心与动态GG/G/D/DD及Zn依据分别记录，G/D有只读入口。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/11"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 194,
+          "line_end": 214
+        },
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 220,
+          "line_end": 228
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "正本原不实现 G/D 的理由是无消费者；本票全定义观察为消费者。要求后端同源结果可查，不强制 Rust/Lean 本体冗余增加字段，也不新增准入。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-017"
+      ]
+    },
+    {
+      "id": "ST-013",
+      "title": "中枢延伸、离开与回归分别发布",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/中枢关系",
+      "specific_delivery": "每次延伸/离开/回归/首回试/破坏及外缘变化分别发布。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/12"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 220,
+          "line_end": 230
+        },
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 300,
+          "line_end": 370
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "本条需求不预选实现；当前能力及验收运行状态由总表另列。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-002",
+        "CC-018",
+        "CC-019",
+        "CC-026",
+        "CC-060",
+        "CC-061"
+      ]
+    },
+    {
+      "id": "ST-014",
+      "title": "新生趋势与扩展关系的完整不等式",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/中枢关系",
+      "specific_delivery": "在正确核心分离域核完整外缘不等式，关系与上级实际构造分时输出。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/13"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 232,
+          "line_end": 244
+        },
+        {
+          "source_path": ".chanlun/definitions/qushi.md",
+          "line_start": 124,
+          "line_end": 175
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "本条需求不预选实现；当前能力及验收运行状态由总表另列。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-001",
+        "CC-002",
+        "CC-020",
+        "CC-061"
+      ]
+    },
+    {
+      "id": "ST-015",
+      "title": "九段升级计数、重切与高级血缘",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/九段重切",
+      "specific_delivery": "全部有效段计数、每子窗自算核心、退化窗/余段与高级对象血缘。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/14"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 246,
+          "line_end": 298
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "无波动的精确计算口径正文留给实施，不能在需求稿偷偷用某阈值。历史表中高级闭环状态不作当前已实现证明。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-021"
+      ]
+    },
+    {
+      "id": "ST-016",
+      "title": "中枢续扫起点、连接段归属与无候选态",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/续扫",
+      "specific_delivery": "连接段独立归属、last_member+2、无候选中枢；缺素材是构造未完成。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/15"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 374,
+          "line_end": 408
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "本条需求不预选实现；当前能力及验收运行状态由总表另列。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-022"
+      ]
+    },
+    {
+      "id": "ST-017",
+      "title": "走势三分类与相应级别的有效域",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/走势",
+      "specific_delivery": "完成良构域三分类，不把发展态或多个低级中心直接强归高级趋势。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/16"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/zoushi.md",
+          "line_start": 111,
+          "line_end": 144
+        },
+        {
+          "source_path": ".chanlun/definitions/qushi.md",
+          "line_start": 40,
+          "line_end": 104
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "本条需求不预选实现；当前能力及验收运行状态由总表另列。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-023",
+        "CC-062"
+      ]
+    },
+    {
+      "id": "ST-018",
+      "title": "盘整无语义方向与技术突破方向",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/走势",
+      "specific_delivery": "盘整语义方向N/A与技术break_direction分栏，不改趋势分类。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/17"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/zoushi.md",
+          "line_start": 126,
+          "line_end": 135
+        },
+        {
+          "source_path": ".chanlun/definitions/qushi.md",
+          "line_start": 179,
+          "line_end": 201
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "qushi 的单中枢 Compose 例外与无方向语义的现存退场指针 #900 保留，不能以界面字段决定概念。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-024",
+        "CC-026",
+        "CC-060"
+      ]
+    },
+    {
+      "id": "ST-019",
+      "title": "构造、形成、完成、转折与过渡状态分轴",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/走势发展",
+      "specific_delivery": "形成/settled/Turn/继任/过渡知识分别存，确认时间不从最终态反推。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/18"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/level_recursion.md",
+          "line_start": 329,
+          "line_end": 340
+        },
+        {
+          "source_path": ".chanlun/definitions/qushi.md",
+          "line_start": 221,
+          "line_end": 237
+        },
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 535,
+          "line_end": 547
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "qushi:226 的旧比较段写法应服从 beichi 已裁配对；转折兑现时间尺度正文未定，不能预设时限。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-010",
+        "CC-025",
+        "CC-062"
+      ]
+    },
+    {
+      "id": "ST-020",
+      "title": "递归层级、基底、自然停止与三种级别身份",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s2"
+      },
+      "responsible_module": "结构/塔身份",
+      "specific_delivery": "塔/基底/层级与操作级别/Voice代际分型，自然停与资源截断明确分开。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/19"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/level_recursion.md",
+          "line_start": 16,
+          "line_end": 69
+        },
+        {
+          "source_path": ".chanlun/definitions/level_recursion.md",
+          "line_start": 117,
+          "line_end": 178
+        },
+        {
+          "source_path": ".chanlun/definitions/level_recursion.md",
+          "line_start": 268,
+          "line_end": 297
+        },
+        {
+          "source_path": ".chanlun/definitions/level_recursion.md",
+          "line_start": 342,
+          "line_end": 356
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "本条需求不预选实现；当前能力及验收运行状态由总表另列。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-027"
+      ]
+    },
+    {
+      "id": "ST-021",
+      "title": "每级同一判据、构造父子不变量与可复验边界",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/唯一判据",
+      "specific_delivery": "同输入跨级逐位对拍；每条血缘与证书校验射程可复核。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/20"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/zoushi.md",
+          "line_start": 437,
+          "line_end": 455
+        },
+        {
+          "source_path": ".chanlun/definitions/level_recursion.md",
+          "line_start": 223,
+          "line_end": 264
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 1001,
+          "line_end": 1014
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "level_recursion 的旧 candidate center/血缘有效性措辞与后续中枢正本不同，采用最新明确裁定并保留冲突说明。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-027",
+        "CC-028"
+      ]
+    },
+    {
+      "id": "ST-022",
+      "title": "描述形态与PH类比结构名分分离",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/描述",
+      "specific_delivery": "描述性形态引用已构造对象，不能替代缠论中枢或准入；K4排除。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/21"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 450,
+          "line_end": 474
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "本条需求不预选实现；当前能力及验收运行状态由总表另列。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-029"
+      ]
+    },
+    {
+      "id": "ST-023",
+      "title": "背驰先结构配对后力度及范围边界",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/背驰配对",
+      "specific_delivery": "完整结构Cand集合与正式比较对分别存，保留跨文对象范围待对齐。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/22"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 261,
+          "line_end": 284
+        },
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 286,
+          "line_end": 305
+        },
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 508,
+          "line_end": 518
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "qujiantao:773 对宽候选集合擅自归约最近同向段判违规，不能与 beichi:265 的已裁跨界配对静默合并。集合保留与正式比较对选择分别输出；两处关联若改变准入，需现行裁定链进一步闭合。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-030",
+        "CC-031",
+        "CC-033"
+      ]
+    },
+    {
+      "id": "ST-024",
+      "title": "力度精确定义、速度坐标与符号值",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/力度",
+      "specific_delivery": "接口空/无效/有效单笔/有效多笔分开；仅D_L内输出有符号L及真实首末四端点，单笔有效L=0。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/23"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 336,
+          "line_end": 469
+        },
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 561,
+          "line_end": 569
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "ForceVelocity已有形式定义；beichi旧未落定文字需同步，真实样本WellFormed/非空与索引坐标桥未证。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "signed_requirement_boundary_original": "正本:463–466明确v(段初)取第一笔速度还是零、v(段末)取当下笔还是末完成笔尚未落定，归#872工程选型。草案保留此边界，不自行选择时间编码、费用或交易阈值。",
+      "correction_evidence": "INDEPENDENT-DESIGN.md#s3",
+      "classification_axis_ids": [
+        "CC-001",
+        "CC-032",
+        "CC-033"
+      ]
+    },
+    {
+      "id": "ST-025",
+      "title": "MACD 辅助判据、数据不足与多代理禁兜底",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/MACD辅助",
+      "specific_delivery": "结构前提/T4与OR各项、代理名分和缺数据原因分别出，无替代代理放行。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/24"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 274,
+          "line_end": 278
+        },
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 801,
+          "line_end": 830
+        },
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 419,
+          "line_end": 469
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "具体采用何种已授权生产计算路径及 #985/#994 历史处置由能力表核验；展示所有名分不等于批准多代理交易。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-033",
+        "CC-034"
+      ]
+    },
+    {
+      "id": "ST-026",
+      "title": "Div、NE、Turn 命题与当时可知事实",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/命题",
+      "specific_delivery": "Div/NE/Turn与高级实际结果分轴，按q与获知前沿追溯。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/25"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 504,
+          "line_end": 584
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "NE完整验证桥 EM 未公开；四条弱约束只能排错，不证明唯一正确。接替时间尺度未定，不能用固定倒计时做教义保证。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-025",
+        "CC-035"
+      ]
+    },
+    {
+      "id": "ST-027",
+      "title": "小转大为转折级别关系，必要条件与发生分离",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/转折级别关系",
+      "specific_delivery": "已发生r=q/r<q转折二分；N/X仅r<q域，UP末次级三卖/DOWN三买必要而不充分，不将r=q无N判为违规。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/26"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 164,
+          "line_end": 224
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 1024,
+          "line_end": 1049
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "本条需求不预选实现；当前能力及验收运行状态由总表另列。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-036",
+        "CC-037",
+        "CC-038",
+        "CC-039",
+        "CC-059"
+      ]
+    },
+    {
+      "id": "ST-028",
+      "title": "六买卖谓词与可重合事实",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/六谓词",
+      "specific_delivery": "逐点六谓词全事实；另有真实投影证据才输出Origin LevelView签名，64码中37已排除、至多27抽象允许，局部2/3重合保留。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/27"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/maimai.md",
+          "line_start": 106,
+          "line_end": 180
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "本条需求不预选实现；当前能力及验收运行状态由总表另列。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-041",
+        "CC-042"
+      ]
+    },
+    {
+      "id": "ST-029",
+      "title": "第一类点的背驰与本级核心破坏结构",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/一类点",
+      "specific_delivery": "正式Type1、次级Extreme、普通盘背和超大级类一观察有效域分开。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/28"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/maimai.md",
+          "line_start": 194,
+          "line_end": 213
+        },
+        {
+          "source_path": ".chanlun/definitions/maimai.md",
+          "line_start": 358,
+          "line_end": 379
+        },
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 286,
+          "line_end": 305
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "本条需求不预选实现；当前能力及验收运行状态由总表另列。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-031",
+        "CC-043"
+      ]
+    },
+    {
+      "id": "ST-030",
+      "title": "第二类点组成、回调越一类极值与非门化注记",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/二类点",
+      "specific_delivery": "q-1 descend(parent)序列的m1一类及m2=i1+1回拉、所有构成见证；q转折锚有无同级一类独立保留，不能伪造q级一类；极值LT/EQ/GT只按来源用途消费。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/29"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/maimai.md",
+          "line_start": 215,
+          "line_end": 229
+        },
+        {
+          "source_path": ".chanlun/definitions/maimai.md",
+          "line_start": 358,
+          "line_end": 379
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "CC044/059的q-1构成和q锚双向桥G024/G032未证；同级无Type1支必须保留，不由afterTypeOne字段直接排除。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-001",
+        "CC-039",
+        "CC-042",
+        "CC-044",
+        "CC-059"
+      ]
+    },
+    {
+      "id": "ST-031",
+      "title": "第三类点首回试、冻结核心与等号待核",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/三类点",
+      "specific_delivery": "冻结核心strict三类端点；I缺项/E96完整字段/D_completed24/D_first6/两成立码分开，72未完成码不冒充确认。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/30"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/maimai.md",
+          "line_start": 231,
+          "line_end": 237
+        },
+        {
+          "source_path": ".chanlun/definitions/maimai.md",
+          "line_start": 332,
+          "line_end": 340
+        },
+        {
+          "source_path": ".chanlun/definitions/maimai.md",
+          "line_start": 383,
+          "line_end": 408
+        },
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 300,
+          "line_end": 370
+        },
+        {
+          "source_path": "formal/Origin/BuySellPredicate.lean",
+          "line_start": 419,
+          "line_end": 422
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "Origin严格端点已有定义；BuySellPredicate登记旧reference/Rust含等号冲突，属于对齐/桥缺口，非任意二选一。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "signed_requirement_boundary_original": "maimai:336 写 low>ZG，而部分文本不跌破可读为≥；formal/Origin/BuySellPredicate.lean:419–422 现文明确 >/>= 旧冲突未裁。范围纳入边界验收，但不能本稿选一边。",
+      "correction_evidence": "INDEPENDENT-DESIGN.md#s3",
+      "classification_axis_ids": [
+        "CC-001",
+        "CC-018",
+        "CC-019",
+        "CC-045",
+        "CC-060",
+        "CC-061"
+      ]
+    },
+    {
+      "id": "ST-032",
+      "title": "买卖点确认单调性与数据修订分离",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s8"
+      },
+      "responsible_module": "结构与观察",
+      "specific_delivery": "正式确认与数据更正修订不同轴，保留旧版审计及明确撤回。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/31"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/maimai.md",
+          "line_start": 308,
+          "line_end": 355
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "行情修订的观察契约属于本票草案，不能冒称 maimai 已给分布式更正协议。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-010",
+        "CC-046"
+      ]
+    },
+    {
+      "id": "ST-033",
+      "title": "区间套主动向下定位与向上构造分工",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s1"
+      },
+      "responsible_module": "结构/主动定位",
+      "specific_delivery": "chong.advance实际调用decompose/locate并产逐级轨迹，不只等marker。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/32"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 147,
+          "line_end": 214
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 599,
+          "line_end": 625
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-09",
+        "AC-11",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "本条需求不预选实现；当前能力及验收运行状态由总表另列。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-015",
+        "CC-047"
+      ]
+    },
+    {
+      "id": "ST-034",
+      "title": "区间套统一坐标、闭包含与真正父子来源",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s2"
+      },
+      "responsible_module": "结构/定位坐标",
+      "specific_delivery": "raw与merged同源名字空间、闭包含和真实父边分开，价格挂法未裁。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/33"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 245,
+          "line_end": 309
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 338,
+          "line_end": 376
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 1317,
+          "line_end": 1318
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-09",
+        "AC-11",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "跨级价格挂法 qujiantao:1317 明确未裁；不在观察契约添加价格包含硬门。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-001",
+        "CC-002",
+        "CC-005",
+        "CC-028",
+        "CC-047"
+      ]
+    },
+    {
+      "id": "ST-035",
+      "title": "Cand 元素、集合非空和独立力度门",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/条件候选",
+      "specific_delivery": "完整条件C和固定Sel；先选s再判适用G(s)，其他候选成功只读，不重选救回失败。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/34"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 729,
+          "line_end": 775
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 807,
+          "line_end": 819
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-09",
+        "AC-11",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "Sel_Θ 三键工程选择、ADR0006 映射成立与PDF三条件的残留差异需显式记录；不能以界面排序暗定生产选择。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-048",
+        "CC-049"
+      ]
+    },
+    {
+      "id": "ST-036",
+      "title": "完整区间链、有效域、不适用与证书可复验性",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/链证书",
+      "specific_delivery": "完整rung/边/Confirm/适用域及所消费selected_id/predicate_id；N/A不填true，any_success不可代selected_gate。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/35"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 628,
+          "line_end": 642
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 671,
+          "line_end": 689
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 1001,
+          "line_end": 1014
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 1084,
+          "line_end": 1111
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-09",
+        "AC-11",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "三套Lean骨架本来无等价证明，真链消费触发 Confirm内外处置；本票不得把现存并存自动当最终架构。 正本qujiantao:1106明确n_delta对非I型时的N/A处理仍未裁；观察可如实标不适用，但不得暗选为true、false或以它新增/否决准入。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-050",
+        "CC-051"
+      ]
+    },
+    {
+      "id": "ST-037",
+      "title": "区间套成本停止、塔底及阶段进阶证据",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "结构/定位与经营",
+      "specific_delivery": "成本与塔底先到停，费用/误差/波幅缺项及进阶证据可追，不默认0费。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/36"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 396,
+          "line_end": 449
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 477,
+          "line_end": 518
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 1196,
+          "line_end": 1204
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-09",
+        "AC-11",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "正文有∧文字而S10补记明确先到者，稿使用两限制取先到的既有说明；费用/波幅量与资金政策仍未定。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-053"
+      ]
+    },
+    {
+      "id": "ST-038",
+      "title": "下钻失败分类与知识状态独立于结构分类",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/操作结果",
+      "specific_delivery": "选中请求四分与全集只读四分分别输出；同G的五合法联合包含selected_false+any_true，不同门带predicate_id且不自造蕴含。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/37"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 1041,
+          "line_end": 1049
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 1100,
+          "line_end": 1108
+        },
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 309,
+          "line_end": 334
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-09",
+        "AC-11",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "本条需求不预选实现；当前能力及验收运行状态由总表另列。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-052",
+        "CC-054"
+      ]
+    },
+    {
+      "id": "ST-043",
+      "title": "生成态风控/交易体系与经营结构关联",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "结构与经营关联",
+      "specific_delivery": "逐重结构消费与阶段/风险参数/退出尾责关联，不从生成态口号选Module。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/38"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/fengkong.md",
+          "line_start": 1,
+          "line_end": 38
+        },
+        {
+          "source_path": ".chanlun/definitions/fengkong.md",
+          "line_start": 243,
+          "line_end": 286
+        },
+        {
+          "source_path": ".chanlun/definitions/fengkong.md",
+          "line_start": 364,
+          "line_end": 367
+        },
+        {
+          "source_path": ".chanlun/definitions/chanlun-trading-system.md",
+          "line_start": 1,
+          "line_end": 35
+        },
+        {
+          "source_path": ".chanlun/definitions/chanlun-trading-system.md",
+          "line_start": 76,
+          "line_end": 113
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-04",
+        "AC-06",
+        "AC-08",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "完整N重、资金筹码、毛约束/物理净额/净省禁复用及退出恢复由 FUGUE.md 完整承接。本条只列结构接口，未批准钱规则、交易权限或新退出语义。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-039",
+        "CC-058",
+        "CC-059"
+      ]
+    },
+    {
+      "id": "ST-044",
+      "title": "全对象关系和每次结构变化可追溯",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s8"
+      },
+      "responsible_module": "结构与观察",
+      "specific_delivery": "实体/关系完整切面与增改替换重切升级确认转折撤回，前后引用同版本。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/39"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/fenjie.md",
+          "line_start": 9,
+          "line_end": 35
+        },
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 194,
+          "line_end": 298
+        },
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 504,
+          "line_end": 569
+        },
+        {
+          "source_path": ".chanlun/definitions/maimai.md",
+          "line_start": 308,
+          "line_end": 355
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 338,
+          "line_end": 376
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005",
+        "OB-011",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-03",
+        "AC-09",
+        "AC-10",
+        "AC-11",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "传输选择、存储形状、性能/历史保留/数值精度由总观察契约及架构阶段处理，不能把本文字段名直接冻结为实施API。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-025",
+        "CC-026",
+        "CC-054",
+        "CC-055",
+        "CC-056",
+        "CC-060"
+      ]
+    },
+    {
+      "id": "ST-045",
+      "title": "分型强弱、中继描述与其后发展分开",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/描述",
+      "specific_delivery": "描述性的实体/影线及其后发展原事实可查，不在本轮要求强弱数值互斥分档。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/40"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/fenxing.md",
+          "line_start": 64,
+          "line_end": 88
+        },
+        {
+          "source_path": ".chanlun/definitions/fenxing.md",
+          "line_start": 92,
+          "line_end": 126
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "G003/CC007：描述不升格强制分类，不要求发明强弱阈值；原始观察完整保留且不准入。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-007"
+      ]
+    },
+    {
+      "id": "ST-046",
+      "title": "多级别联立与同步现象的同知时点",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/多级事实",
+      "specific_delivery": "同知时点真实血缘联合；编码64^m与各层Origin LevelView时至多27^m分开，逐点列表另核载体。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/41"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/zoushi.md",
+          "line_start": 298,
+          "line_end": 313
+        },
+        {
+          "source_path": ".chanlun/definitions/maimai.md",
+          "line_start": 277,
+          "line_end": 283
+        },
+        {
+          "source_path": ".chanlun/definitions/qujiantao.md",
+          "line_start": 451,
+          "line_end": 459
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "现文称共振强度最大但无数值尺度，不据此批准评分/仓位或经济仲裁；支持观察与完整经营关联，不新选交易政策。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-057"
+      ]
+    },
+    {
+      "id": "ST-047",
+      "title": "转折后的高级结果、回拉与中心生死关系",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/高级发展",
+      "specific_delivery": "29课三结果与53课中心后两结果按各自语境/终点输出；反向趋势level>=q，弱回拉可只触DD/GG，非必回核心。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/42"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 87,
+          "line_end": 95
+        },
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 521,
+          "line_end": 547
+        },
+        {
+          "source_path": ".chanlun/definitions/beichi.md",
+          "line_start": 649,
+          "line_end": 658
+        },
+        {
+          "source_path": ".chanlun/definitions/zhongshu.md",
+          "line_start": 340,
+          "line_end": 370
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "G022结果分解/回拉的真实构造和旧文字冲突仍保留；不能把静态来源描述当当下预测或收益保证。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "classification_axis_ids": [
+        "CC-020",
+        "CC-035",
+        "CC-038",
+        "CC-040",
+        "CC-061"
+      ]
+    },
+    {
+      "id": "ST-048",
+      "title": "线段扫描上限、相切与结果完整性",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/P2完备性",
+      "specific_delivery": "扫描水位/资源截断与缓存形状分离；#246闭重叠相切已裁，51项见证不能被50项截断报全否。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/43"
+      },
+      "source_navigation": [
+        {
+          "source_path": ".chanlun/definitions/xianduan.md",
+          "line_start": 157,
+          "line_end": 220
+        },
+        {
+          "source_path": ".chanlun/definitions/xianduan.md",
+          "line_start": 297,
+          "line_end": 307
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-003",
+        "OB-005"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "第二序列扫描50/无限仍须源裁定；已裁的缺口strict与闭重叠相切不再标未裁。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "ALL_BOUND_CATALOG_AXES_MAPPED_PROOF_AND_IMPLEMENTATION_NOT_CLAIMED",
+      "signed_requirement_boundary_original": "xianduan G4与另一条D5的一致性、G5a扫描窗、相切 < / ≤ 正文均留后续裁定；不由需求稿设一个更宽fallback。",
+      "correction_evidence": "INDEPENDENT-DESIGN.md#s3",
+      "classification_axis_ids": [
+        "CC-011",
+        "CC-014"
+      ]
+    },
+    {
+      "id": "FG-001",
+      "title": "N个持久重与专属筹码身份",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "逐重经营账",
+      "specific_delivery": "N个不透明持久重各有S/操作级别/固定Q与完整史，Voice终结不删重。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/44"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            19,
+            27
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            9,
+            14
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/038-第38课.md",
+          "lines": [
+            30,
+            30
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/040-第40课.md",
+          "lines": [
+            20,
+            22
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-01",
+        "FE-02"
+      ],
+      "retained_boundary_or_unknown": "N个持久重并存的能力来自既有要求；不在本草案另加最低测试数量。持久性不等于无限运行授权，旧类名或账本布局不从重的三要件推出。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-08",
+        "ES-09",
+        "ES-12"
+      ]
+    },
+    {
+      "id": "FG-002",
+      "title": "独立资金和权利与共同上限同时成立",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s5"
+      },
+      "responsible_module": "逐重经营账+共同责任",
+      "specific_delivery": "私有权利锁定与公共毛帽分别核，闲置权利及净省不出借。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/45"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            15,
+            27
+          ]
+        },
+        {
+          "path": "docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            32,
+            44
+          ]
+        },
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            13,
+            20
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-02",
+        "FE-06"
+      ],
+      "retained_boundary_or_unknown": "不同重的资金不得因另一重平仓/闲置自动释放；物理净额省下保证金不扩大任何重权利。总上限的数值和资金政策仍待定。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-01",
+        "ES-02",
+        "ES-05",
+        "ES-09",
+        "ES-13"
+      ]
+    },
+    {
+      "id": "FG-003",
+      "title": "目标、一个成本与一个TStage随重持久",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "逐重经营账",
+      "specific_delivery": "每重单一TStage和成本，所有结构级短差进入该重同账。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/46"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            49,
+            54
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            29,
+            46
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-01",
+        "FE-04"
+      ],
+      "retained_boundary_or_unknown": "目标/成本状态是状态而非身份键；当前文字语义键为(S,操作级别)，其软件唯一性和额外ID不在本票选择。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-08",
+        "ES-10",
+        "ES-11",
+        "ES-12"
+      ]
+    },
+    {
+      "id": "FG-004",
+      "title": "一次Voice的生命周期与不可变开局依据",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s2"
+      },
+      "responsible_module": "逐重经营账",
+      "specific_delivery": "Voice开局证书/方向/量依据冻结，责任尾账与业务终结分开。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/47"
+      },
+      "source_navigation": [
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            35,
+            45
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            47,
+            51
+          ]
+        },
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            123,
+            132
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-01",
+        "FE-09"
+      ],
+      "retained_boundary_or_unknown": "不得把重的持久Q与campaign开局冻结量混为一件事；这里不规定持久化格式。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-08"
+      ]
+    },
+    {
+      "id": "FG-005",
+      "title": "重内有向合成且不穿零",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "逐重经营账",
+      "specific_delivery": "同重合成在本地同一跃迁核不穿零和[0,Q]，不逐信号各自放行。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/48"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            17,
+            30
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            15,
+            15
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/026-第26课.md",
+          "lines": [
+            34,
+            34
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-02",
+        "FE-03"
+      ],
+      "retained_boundary_or_unknown": "子级反向操作可以是减持/回补或形式腿，不能被误解为本重获准翻方向；Q/可用量的账目语义须先有据。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-09",
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-006",
+      "title": "重间不作方向仲裁",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s5"
+      },
+      "responsible_module": "逐重经营账+共同责任",
+      "specific_delivery": "相反重均保留信号和决定，共同资源限制不改结构方向；争用政策未裁。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/49"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            32,
+            60
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            87,
+            113
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-02",
+        "FE-06"
+      ],
+      "retained_boundary_or_unknown": "共同毛约束/资源不足可以限制经济准入，但不能伪装成结构方向仲裁；同slot资金不足的具体协调规则仍是后续设计/政策项。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-05",
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-007",
+      "title": "结构级别、操作级别、Voice代际和区间套深度分开",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s2"
+      },
+      "responsible_module": "结构+逐重经营账",
+      "specific_delivery": "结构层/操作层/Voice代际/定位深度独立类型与参照系。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/50"
+      },
+      "source_navigation": [
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            29,
+            33
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            74,
+            89
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            33,
+            46
+          ]
+        },
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            45,
+            46
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-05",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-02",
+        "FE-05"
+      ],
+      "retained_boundary_or_unknown": "现有根级别-depth关系的有界实测不等于全球身份方案；不得用分钟时间周期或裸depth代替所有轴。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-08"
+      ]
+    },
+    {
+      "id": "FG-008",
+      "title": "三方向联立且经营结果不回写结构",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "结构+逐重经营账",
+      "specific_delivery": "一份Classification供向上/横向/向下三方向使用，经营不写主干。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/51"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            13,
+            21
+          ]
+        },
+        {
+          "path": "docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            88,
+            99
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            115,
+            129
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-04",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-01",
+        "FE-05"
+      ],
+      "retained_boundary_or_unknown": "三个语义作用不预定三个服务或owner；一套判据可多重实例化，不能用N重增加判据。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-009",
+      "title": "同级别操作分解的唯一性与角色",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/操作读法",
+      "specific_delivery": "固定规则下唯一完整序列含并列盘整和Unassigned，独立主干构造读法。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/52"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            25,
+            39
+          ]
+        },
+        {
+          "path": "docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            55,
+            85
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/038-第38课.md",
+          "lines": [
+            18,
+            30
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-04",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-01",
+        "FE-05"
+      ],
+      "retained_boundary_or_unknown": "不同合法视角可同时成立；横向一次切分不称递归；ADR0011的软件模块形状作为既有参考，不预锁此次组织。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-010",
+      "title": "主动定位过程、可知边界和未成功原因",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s3"
+      },
+      "responsible_module": "结构/主动定位",
+      "specific_delivery": "每层全候选/选择/力度/收缩/停止轨迹可查，不强每级一类。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/53"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            119,
+            129
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            235,
+            274
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/035-第35课.md",
+          "lines": [
+            30,
+            36
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/qujiantao.md",
+          "lines": [
+            1024,
+            1049
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/qujiantao.md",
+          "lines": [
+            1100,
+            1108
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-04",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-05"
+      ],
+      "retained_boundary_or_unknown": "不得声称每级必为一类点；ADR0013:291残留强报错句不直接成为需求。qujiantao后裁要求把EmptySubs/NoAlign/DivFalse分开，下钻无锚不等于教义小转大，不适用不等于通过，几何链长不等于判据深度。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-011",
+      "title": "可操作下限包含成本、误差与交易制度",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "逐重经营账",
+      "specific_delivery": "成本/误差/制度/资金条件独立于结构判断；缺阈值只阻塞相关准入。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/54"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/chanlun/text/blog/035-第35课.md",
+          "lines": [
+            30,
+            32
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            289,
+            290
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/fengkong.md",
+          "lines": [
+            274,
+            286
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/qujiantao.md",
+          "lines": [
+            495,
+            513
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/qujiantao.md",
+          "lines": [
+            1201,
+            1201
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-04",
+        "AC-06",
+        "AC-09",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-05",
+        "FE-10"
+      ],
+      "retained_boundary_or_unknown": "成本/误差相对波幅的量化阈值和现场交易权限仍待定；成本门与塔底按先到者终止，不能人为提前停。进一步下延已批准方向但须满足成本不确定性/逐窗/样本/聚簇及已到现底条件；不能默认手续费为0、T+0或无限精度。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-012",
+      "title": "满仓基线、回本前同量回补",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "逐重经营账",
+      "specific_delivery": "基线d=0/短差d≥1，部分建仓量、回本前同量回补配对及缺口。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/55"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            52,
+            75
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            74,
+            85
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/026-第26课.md",
+          "lines": [
+            34,
+            34
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/031-第31课.md",
+          "lines": [
+            24,
+            30
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/031-第31课.md",
+          "lines": [
+            169,
+            169
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-01",
+        "FE-03"
+      ],
+      "retained_boundary_or_unknown": "一次性建仓是目标权利形态，不表示真实订单只能整笔成交；部分成交必须反映未完成量。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-09",
+        "ES-14",
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-013",
+      "title": "中枢震荡、移动与回补终止域",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "逐重经营账",
+      "specific_delivery": "中枢震荡/上移/三卖终止旧回补域，旧框清算和新中枢经营分开。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/56"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            91,
+            109
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/049-第49课.md",
+          "lines": [
+            50,
+            64
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-03",
+        "FE-07"
+      ],
+      "retained_boundary_or_unknown": "重内禁短差不令其他独立重静默；方向对称扩展不能超出既有载体/证书权利。旧框清算和当前框挂价分开。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-08",
+        "ES-14",
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-014",
+      "title": "重内动作量的固定基与经验有效域",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "逐重经营账",
+      "specific_delivery": "w(d)Q固定基及量测有效域/冻结来源，高档不足不复制0.32。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/57"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            111,
+            153
+          ]
+        },
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            176,
+            195
+          ]
+        },
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            211,
+            251
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-03",
+        "FE-06"
+      ],
+      "retained_boundary_or_unknown": "公式属既有选择；底档经验值约0.32不是全级别常数或置信区间，上档测不出；绝对容量与比值有效域不同。未定输入/标定不得由方案补成默认值。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-09",
+        "ES-14",
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-015",
+      "title": "成本只随真实经济事件变化并包括亏损",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s6"
+      },
+      "responsible_module": "逐重经营账+执行事实",
+      "specific_delivery": "真实现金流含亏损费用应用一次才改成本，行情估值不改成本。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/58"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0015-cost-trajectory-acceptance-metric.md",
+          "lines": [
+            33,
+            53
+          ]
+        },
+        {
+          "path": "docs/adr/0015-cost-trajectory-acceptance-metric.md",
+          "lines": [
+            83,
+            94
+          ]
+        },
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            27,
+            32
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            295,
+            297
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-03",
+        "FE-04"
+      ],
+      "retained_boundary_or_unknown": "负现金由真实亏损造成不等于可继续部署；货透支仍是错误。费用归属/配对或本金定义未齐时不得伪造精确成本。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-06",
+        "ES-07",
+        "ES-10"
+      ]
+    },
+    {
+      "id": "FG-016",
+      "title": "本金回收闸门和多空阶段非对称",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "逐重经营账",
+      "specific_delivery": "本金回收与阶段实际事件链，空头无第三相且保留欠付义务。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/59"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            48,
+            85
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/031-第31课.md",
+          "lines": [
+            24,
+            30
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/031-第31课.md",
+          "lines": [
+            169,
+            169
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-04",
+        "FE-10"
+      ],
+      "retained_boundary_or_unknown": "逐仓损失有界是条件要求，虚拟分账不能证物理隔离；投入保证金/本金测量和闸门后量政策未齐时显示待定，不启用交易。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-10",
+        "ES-11",
+        "ES-12"
+      ]
+    },
+    {
+      "id": "FG-017",
+      "title": "回本后增长与固定Q的衔接不能暗填",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "逐重经营账",
+      "specific_delivery": "资本/权益/固定Q/增长权属分栏，需批准会计桥推动增长与换档。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/60"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            74,
+            85
+          ]
+        },
+        {
+          "path": "docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            135,
+            159
+          ]
+        },
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            113,
+            132
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-04",
+        "FE-06"
+      ],
+      "retained_boundary_or_unknown": "ADR0013:77下一段更大量、0016:155W>C溢出与0017:119Q终身不变之间需显式区分资本/权益/基线/容量；本稿不判如何更新。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-09",
+        "ES-11",
+        "ES-12",
+        "ES-13"
+      ]
+    },
+    {
+      "id": "FG-018",
+      "title": "规模取容量、开局从最低可行级别向上",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "逐重经营账",
+      "specific_delivery": "最低可行层承载及容量测量/窗口/域，容量未知非无限。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/61"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            68,
+            102
+          ]
+        },
+        {
+          "path": "docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            182,
+            188
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-06"
+      ],
+      "retained_boundary_or_unknown": "容量不是级别函数已知数表；缺测量不能伪造任意几何衰减或固定比例。用户未给总投入不阻止设计表达未知。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-019",
+      "title": "容量与频率两道独立门",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "逐重经营账",
+      "specific_delivery": "容量取大小、买卖分列频率决定是否开重，阈值/稀疏名分保留。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/62"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            104,
+            124
+          ]
+        },
+        {
+          "path": "docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            35,
+            49
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-06",
+        "FE-11"
+      ],
+      "retained_boundary_or_unknown": "低频阈值未获数值不能自定；结构性稀疏不是通过或失败。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-020",
+      "title": "行情换档与资金溢出换档分别保留",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s5"
+      },
+      "responsible_module": "逐重经营账+共同责任",
+      "specific_delivery": "行情/资金溢出两个转移族，源锁/托管/扣出/目标待激活/唯一交付保旧尾账。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/63"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            25,
+            25
+          ]
+        },
+        {
+          "path": "docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            125,
+            159
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/040-第40课.md",
+          "lines": [
+            14,
+            22
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-06",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-06",
+        "FE-07"
+      ],
+      "retained_boundary_or_unknown": "两类换档方向/触发不同，不自动统一；换档不等于既有重之间随意挪钱。新重仍受容量、频率、毛约束。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-13"
+      ]
+    },
+    {
+      "id": "FG-021",
+      "title": "毛账归因与净额外效分离",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s6"
+      },
+      "responsible_module": "执行事实与投影",
+      "specific_delivery": "毛权利不被净零抹去；净→毛验收随#937获准形态同代际切换。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/64"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            32,
+            44
+          ]
+        },
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            17,
+            25
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            281,
+            293
+          ]
+        },
+        {
+          "path": "docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            66,
+            81
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-02",
+        "FE-07"
+      ],
+      "retained_boundary_or_unknown": "净额为零仍可能有两份非零经济义务；不得用虚拟分账证明真实逐仓保护。ADR0021:73要求重启时携带账目与执行切换件；记录该条件不表示现在已生效或获准启动。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-06",
+        "ES-07",
+        "ES-09",
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-022",
+      "title": "净省禁复用覆盖并发、撤回和在途",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s5"
+      },
+      "responsible_module": "共同责任",
+      "specific_delivery": "最大责任先留后发、真实终态且私账已应用后才减，跨并发/重启禁净省复用。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/65"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            34,
+            44
+          ]
+        },
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            34,
+            44
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-02",
+        "FE-06",
+        "FE-08"
+      ],
+      "retained_boundary_or_unknown": "预留等是工程观察草案，不由本文预定承诺核/分布式提交；未知外部结果不能等同释放。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-01",
+        "ES-02",
+        "ES-03",
+        "ES-05",
+        "ES-14"
+      ]
+    },
+    {
+      "id": "FG-023",
+      "title": "费用方向、计提坐标和解锁条件",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s6"
+      },
+      "responsible_module": "执行事实+逐重经营账",
+      "specific_delivery": "实际外费与毛funding/空腿borrow归因并列，未知归属不造成本。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/66"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0015-cost-trajectory-acceptance-metric.md",
+          "lines": [
+            83,
+            94
+          ]
+        },
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            41,
+            44
+          ]
+        },
+        {
+          "path": "docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            66,
+            81
+          ]
+        },
+        {
+          "path": "docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            22,
+            26
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-02",
+        "FE-04",
+        "FE-10"
+      ],
+      "retained_boundary_or_unknown": "ADR0024补齐口径只使逐腿出口有另案资格，未自动批准启用；费率与映射、按净执行时毛费归因不能拍脑袋。账本验收同时遵守#937/ADR0021:73的条件式切换，毛费用坐标本身不证明该切换已生效。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-04",
+        "ES-06",
+        "ES-07",
+        "ES-10"
+      ]
+    },
+    {
+      "id": "FG-024",
+      "title": "共同毛净上限与对账关系",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s5"
+      },
+      "responsible_module": "共同责任+执行事实",
+      "specific_delivery": "毛/净/逐重/币种等所有适用帽对可能责任集合核，毛净账逐条对账。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/67"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            13,
+            39
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-02",
+        "FE-11"
+      ],
+      "retained_boundary_or_unknown": "表中两段对账的数学要求不构成本轮已证明；期望层细/粗条件信息差不能替代账目恒等。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-04",
+        "ES-05",
+        "ES-09"
+      ]
+    },
+    {
+      "id": "FG-025",
+      "title": "经营验收用成本事件并保留统计边界",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s4"
+      },
+      "responsible_module": "逐重经营账/评价只读",
+      "specific_delivery": "全正负费事件、样本/窗/排除原因和已裁统计法，未决采样不报通过。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/68"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0015-cost-trajectory-acceptance-metric.md",
+          "lines": [
+            17,
+            79
+          ]
+        },
+        {
+          "path": "docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            13,
+            58
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            295,
+            297
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-07",
+        "AC-09",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-04",
+        "FE-11"
+      ],
+      "retained_boundary_or_unknown": "全量原始盈亏/费用均须可观察。ADR0022:17『成本实际下降事件』与费后≤0零假设的采样选择需澄清，不能只采盈利；零时长、C_before≤0和阶段切分边界不得私定。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-10",
+        "ES-11",
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-026",
+      "title": "结构事实、经营答案、外部事实和有效性分开输出",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s2"
+      },
+      "responsible_module": "逐重经营账+观察",
+      "specific_delivery": "原谓词/typed动作/许可/外效/有效性分别持久关联，一动作不删多事实。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/69"
+      },
+      "source_navigation": [
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            249,
+            267
+          ]
+        },
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            79,
+            85
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-09",
+        "AC-10",
+        "AC-11",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-03",
+        "FE-07",
+        "FE-09"
+      ],
+      "retained_boundary_or_unknown": "原始谓词可同时为真；一个Voice本刻typed exit的互斥不允许把全定义事实先first-match删掉。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-01",
+        "ES-02",
+        "ES-03",
+        "ES-06",
+        "ES-07",
+        "ES-15",
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-027",
+      "title": "订单身份、冻结量、当前挂价与旧框清算区分",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s6"
+      },
+      "responsible_module": "逐重经营账+执行",
+      "specific_delivery": "同逻辑key/冻结L/旧框/当前价分开，全部物理改单族共享L，P7只有具证原子amend或取消后可靠终态累计量再替换。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/70"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            101,
+            123
+          ]
+        },
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            306,
+            310
+          ]
+        },
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            361,
+            374
+          ]
+        },
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            456,
+            511
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-12",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-03",
+        "FE-07"
+      ],
+      "retained_boundary_or_unknown": "裸start_index是有范围的回测订单键，不能升成多重/多会话全球ID；maker冻结亦为该模型口径，真实场所改单角色需外部回报。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-02",
+        "ES-03",
+        "ES-14"
+      ]
+    },
+    {
+      "id": "FG-028",
+      "title": "回测成交假设与真实外部成交不能混证",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s9"
+      },
+      "responsible_module": "执行Adapter",
+      "specific_delivery": "严格穿越/开盘取优/GTC/双滑点纪律；同slot未定义次序具名等待。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/71"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0018-limit-order-fill-model.md",
+          "lines": [
+            69,
+            169
+          ]
+        },
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            39,
+            57
+          ]
+        },
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            249,
+            253
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-12",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-03",
+        "FE-08",
+        "FE-10"
+      ],
+      "retained_boundary_or_unknown": "ADR0018同bar反向开仓次序与0019市价+限价同bar次序未定义；完整N重使这些不能靠单净单不可达跳过。旧回测接口形状不锁新架构。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-03",
+        "ES-06",
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-029",
+      "title": "部分成交、重复和乱序事实的完整接纳",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s6"
+      },
+      "responsible_module": "执行事实+逐重经营账",
+      "specific_delivery": "P4同域Recorded+Pending先于解释，Resolved与逐重Applied分开；更正因果/去重；P7的100/40/20轨迹替换最多40。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/72"
+      },
+      "source_navigation": [
+        {
+          "path": "evidence/issue-1339.json",
+          "json_pointer": "/body",
+          "role": "用户要求，工程草案"
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-12",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-03",
+        "FE-08"
+      ],
+      "retained_boundary_or_unknown": "上述生命周期状态是工程草案，不新增缠论判据；请求取消不等于交易所已取消，超时不等于没成交。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-03",
+        "ES-04",
+        "ES-06",
+        "ES-07",
+        "ES-14"
+      ]
+    },
+    {
+      "id": "FG-030",
+      "title": "结构撤回后处理真实在途与退出",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s6"
+      },
+      "responsible_module": "共同责任+执行+逐重账",
+      "specific_delivery": "撤回和MayHaveSent同顺序域，分别处理未发/不明/部分/全成，权限具名。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/73"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/chanlun/text/blog/049-第49课.md",
+          "lines": [
+            52,
+            62
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/fengkong.md",
+          "lines": [
+            30,
+            34
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/fengkong.md",
+          "lines": [
+            364,
+            367
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-12",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-07",
+        "FE-08"
+      ],
+      "retained_boundary_or_unknown": "冻结的早期13课退出语义不得升级新硬门；究竟取消/补偿/等待/人工接管属于待设计协议和权限，不能前端暗作。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-02",
+        "ES-03",
+        "ES-08",
+        "ES-14"
+      ]
+    },
+    {
+      "id": "FG-031",
+      "title": "退出后的在途尾账不随业务实体删除",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s6"
+      },
+      "responsible_module": "逐重经营账+执行事实",
+      "specific_delivery": "业务退休和责任退休两套条件；旧Voice/重接尾fill/fee/bust不串新实例。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/74"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            49,
+            54
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            47,
+            51
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            87,
+            91
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-12",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-07",
+        "FE-08"
+      ],
+      "retained_boundary_or_unknown": "父Voice剪枝只作用所属结构活动集，不能因此清掉独立重；何时达到可退休终态由后续协议明确。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-03",
+        "ES-07",
+        "ES-08"
+      ]
+    },
+    {
+      "id": "FG-032",
+      "title": "恢复已有持仓、经营史与未结责任",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s7"
+      },
+      "responsible_module": "逐重经营账+共同责任+执行",
+      "specific_delivery": "检查点/收据/grant/fact和P4待核集合恢复；启动关闭直到源游标/版本重核，P7按同family/command/revision查询，不重发。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/75"
+      },
+      "source_navigation": [
+        {
+          "path": "evidence/issue-1339.json",
+          "json_pointer": "/body",
+          "role": "用户要求，工程草案"
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-08",
+        "AC-10",
+        "AC-11",
+        "AC-12",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-08",
+        "FE-09"
+      ],
+      "retained_boundary_or_unknown": "不得把空账户demo或单重marker重放当恢复验收；恢复组织与一致性提交方式不在本稿选择。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-01",
+        "ES-02",
+        "ES-03",
+        "ES-04",
+        "ES-05",
+        "ES-06",
+        "ES-07",
+        "ES-08",
+        "ES-13",
+        "ES-14"
+      ]
+    },
+    {
+      "id": "FG-033",
+      "title": "同源一致观察与按当时可知回放",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s8"
+      },
+      "responsible_module": "同源观察",
+      "specific_delivery": "闭包版本组合、同会话快照/流/续接、AsKnown与后修重算分开。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/76"
+      },
+      "source_navigation": [
+        {
+          "path": "evidence/issue-1339.json",
+          "json_pointer": "/body",
+          "role": "用户要求，工程草案"
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-09",
+        "AC-10",
+        "AC-11",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-09"
+      ],
+      "retained_boundary_or_unknown": "具体快照一致性范围、游标协议和存储owner待架构阶段；局部仍可展示不自动证明其它重可继续经济准入。完整字段和语义此阶段交用户审阅，不能由前端另算成本或判结构。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-15"
+      ]
+    },
+    {
+      "id": "FG-034",
+      "title": "结构源和执行源分离、场所不预锁",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s9"
+      },
+      "responsible_module": "输入与执行Adapter",
+      "specific_delivery": "结构统一美股tick，永续只执行，多场所能力/权限显式；#937条件承接。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/77"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0020-backtest-cash-live-perp-filtered.md",
+          "lines": [
+            141,
+            160
+          ]
+        },
+        {
+          "path": "docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            7,
+            13
+          ]
+        },
+        {
+          "path": "docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            54,
+            81
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-07",
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-10"
+      ],
+      "retained_boundary_or_unknown": "ADR0020标题/前半的A/C双源与源头过滤已被141–160重写，不可复活。场所旧快照不认证当前能力/隔离，观察契约不授交易权限。ADR0021:73的重启条件携带#937账目/执行切换义务：逐笔独立形态获准落地后毛账验收，生效前净账维持；旧VOICE_EXEC/sep_legs只是原实施载体，不预锁新架构组织。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-04",
+        "ES-05",
+        "ES-06",
+        "ES-16"
+      ]
+    },
+    {
+      "id": "FG-035",
+      "title": "未定钱规则和软件组织保持显式未定",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s11"
+      },
+      "responsible_module": "逐重经营账+规则/政策注册",
+      "specific_delivery": "每个未决具名来源与阻塞动作；已裁保持，架构候选未代采纳。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/78"
+      },
+      "source_navigation": [
+        {
+          "path": "docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            182,
+            188
+          ]
+        },
+        {
+          "path": "docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            26,
+            26
+          ]
+        },
+        {
+          "path": "docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            41,
+            43
+          ]
+        },
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            29,
+            43
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/fengkong.md",
+          "lines": [
+            30,
+            34
+          ]
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-002",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013",
+        "OB-014"
+      ],
+      "acceptance_plan_ids": [
+        "AC-01",
+        "AC-09",
+        "AC-13",
+        "AC-14",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [
+        "FE-06",
+        "FE-10",
+        "FE-11"
+      ],
+      "retained_boundary_or_unknown": "独立重不推出A2私账，丰富观察不推出C3答案治理，统一义务不推出B承诺核；不得未经设计拼案。已裁部分也不能全部重标未定。",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF",
+      "engineering_state_axis_ids": [
+        "ES-16"
+      ]
+    },
+    {
+      "id": "RF-01",
+      "title": "单重账目故障时其他重有条件继续新增操作",
+      "design_status": "DESIGNED_NOT_IMPLEMENTED",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s7"
+      },
+      "responsible_module": "共同责任+逐重经营账",
+      "specific_delivery": "A账仍坏，普通回报在原界覆盖内经P4Resolve即可让B新Committed，不等A Applied；任何相关Pending/缺口/过期不得新reserve/MayHaveSent。",
+      "requirement_binding": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+        "json_pointer": "/rows/79"
+      },
+      "source_navigation": [
+        {
+          "path": "USER-DECISIONS.json",
+          "json_pointer": "/decisions/0",
+          "role": "本轮用户已确认"
+        }
+      ],
+      "observable_path": "catalog -> snapshot/filter -> object or chong details -> relations and change timeline -> evidence/decision/responsibility/fact/application",
+      "observation_contract_ids": [
+        "OB-001",
+        "OB-004",
+        "OB-006",
+        "OB-008",
+        "OB-009",
+        "OB-010",
+        "OB-015",
+        "OB-016",
+        "OB-017",
+        "OB-018",
+        "OB-019",
+        "OB-020",
+        "OB-007",
+        "OB-011",
+        "OB-012",
+        "OB-013"
+      ],
+      "acceptance_plan_ids": [
+        "AC-05",
+        "AC-08",
+        "AC-12",
+        "AC-15"
+      ],
+      "e2e_scenario_ids": [],
+      "retained_boundary_or_unknown": "",
+      "implementation_current_code": "NOT_INSPECTED_FOR_THIS_DESIGN",
+      "runtime_validation": "NOT_RUN",
+      "classification_leaf_coverage": "NOT_A_LEAF_PROOF"
+    }
+  ],
+  "e2e_scenarios": [
+    {
+      "id": "FE-01",
+      "title": "持久重的完整经营过程",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s10"
+      },
+      "input_source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "json_pointer": "/e2e_scenarios/0"
+      },
+      "status": "DESIGNED_NOT_RUN",
+      "requirements": [
+        "FG-001",
+        "FG-003",
+        "FG-004",
+        "FG-008",
+        "FG-009",
+        "FG-012"
+      ]
+    },
+    {
+      "id": "FE-02",
+      "title": "相反独立重、净零和共同毛约束",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s10"
+      },
+      "input_source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "json_pointer": "/e2e_scenarios/1"
+      },
+      "status": "DESIGNED_NOT_RUN",
+      "requirements": [
+        "FG-001",
+        "FG-002",
+        "FG-005",
+        "FG-006",
+        "FG-007",
+        "FG-021",
+        "FG-022",
+        "FG-023",
+        "FG-024"
+      ]
+    },
+    {
+      "id": "FE-03",
+      "title": "短差全生命周期和部分成交",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s10"
+      },
+      "input_source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "json_pointer": "/e2e_scenarios/2"
+      },
+      "status": "DESIGNED_NOT_RUN",
+      "requirements": [
+        "FG-005",
+        "FG-012",
+        "FG-013",
+        "FG-014",
+        "FG-015",
+        "FG-026",
+        "FG-027",
+        "FG-028",
+        "FG-029"
+      ],
+      "added_protocol_checks": [
+        "P7 total family cap before and after each old/new fill, including100/40/20 replacement40"
+      ]
+    },
+    {
+      "id": "FE-04",
+      "title": "本金回收、赚股与空头非对称",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s10"
+      },
+      "input_source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "json_pointer": "/e2e_scenarios/3"
+      },
+      "status": "DESIGNED_NOT_RUN",
+      "requirements": [
+        "FG-003",
+        "FG-015",
+        "FG-016",
+        "FG-017",
+        "FG-023",
+        "FG-025"
+      ]
+    },
+    {
+      "id": "FE-05",
+      "title": "多级别联立、主动定位和知识不足",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s10"
+      },
+      "input_source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "json_pointer": "/e2e_scenarios/4"
+      },
+      "status": "DESIGNED_NOT_RUN",
+      "requirements": [
+        "FG-007",
+        "FG-008",
+        "FG-009",
+        "FG-010",
+        "FG-011"
+      ]
+    },
+    {
+      "id": "FE-06",
+      "title": "容量、频率、两类换档与资金并发",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s10"
+      },
+      "input_source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "json_pointer": "/e2e_scenarios/5"
+      },
+      "status": "DESIGNED_NOT_RUN",
+      "requirements": [
+        "FG-002",
+        "FG-006",
+        "FG-014",
+        "FG-017",
+        "FG-018",
+        "FG-019",
+        "FG-020",
+        "FG-022",
+        "FG-035"
+      ]
+    },
+    {
+      "id": "FE-07",
+      "title": "结构撤回、经营退出与迟到尾账",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s10"
+      },
+      "input_source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "json_pointer": "/e2e_scenarios/6"
+      },
+      "status": "DESIGNED_NOT_RUN",
+      "requirements": [
+        "FG-013",
+        "FG-020",
+        "FG-021",
+        "FG-026",
+        "FG-027",
+        "FG-030",
+        "FG-031"
+      ]
+    },
+    {
+      "id": "FE-08",
+      "title": "持仓和未决外效的故障恢复",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s10"
+      },
+      "input_source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "json_pointer": "/e2e_scenarios/7"
+      },
+      "status": "DESIGNED_NOT_RUN",
+      "requirements": [
+        "FG-022",
+        "FG-028",
+        "FG-029",
+        "FG-030",
+        "FG-031",
+        "FG-032"
+      ],
+      "added_protocol_checks": [
+        "P4 Capture/parse/Resolve pending and restart boundaries",
+        "P7 cancel/finality/remainder/local commit/public transfer/MayHaveSent windows"
+      ]
+    },
+    {
+      "id": "FE-09",
+      "title": "一致快照、断线续接与按当时可知回放",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s10"
+      },
+      "input_source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "json_pointer": "/e2e_scenarios/8"
+      },
+      "status": "DESIGNED_NOT_RUN",
+      "requirements": [
+        "FG-004",
+        "FG-026",
+        "FG-032",
+        "FG-033"
+      ]
+    },
+    {
+      "id": "FE-10",
+      "title": "源头、模型、权限与场所失败",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s10"
+      },
+      "input_source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "json_pointer": "/e2e_scenarios/9"
+      },
+      "status": "DESIGNED_NOT_RUN",
+      "requirements": [
+        "FG-011",
+        "FG-016",
+        "FG-023",
+        "FG-028",
+        "FG-034",
+        "FG-035"
+      ]
+    },
+    {
+      "id": "FE-11",
+      "title": "经营与资金验收证据边界",
+      "design_evidence": {
+        "path": "INDEPENDENT-DESIGN.md",
+        "anchor": "s10"
+      },
+      "input_source": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "json_pointer": "/e2e_scenarios/10"
+      },
+      "status": "DESIGNED_NOT_RUN",
+      "requirements": [
+        "FG-019",
+        "FG-024",
+        "FG-025",
+        "FG-035"
+      ]
+    }
+  ],
+  "acceptance_map": [
+    {
+      "id": "AC-01",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "AC-02",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "AC-03",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "AC-04",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "AC-05",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "AC-06",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "AC-07",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "AC-08",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN",
+      "r1_protocol_scope": "P7 frozen logical quantity across all physical revisions; no replacement from unresolved old potential"
+    },
+    {
+      "id": "AC-09",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "AC-10",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "AC-11",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "AC-12",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN",
+      "r1_protocol_scope": "P4 before-interpret atomic capture and pending, token-specific resolve, bounded A fact without A applied, startup closed"
+    },
+    {
+      "id": "AC-13",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "AC-14",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "AC-15",
+      "design_evidence": "INDEPENDENT-DESIGN.md#s10",
+      "execution": "NOT_RUN"
+    }
+  ],
+  "fault_contract": {
+    "rf01_candidate_path": "INDEPENDENT-DESIGN.md#s7",
+    "shared_owner": "共同责任Module；Capture/约束闸/Reserved/MayHaveSent共用持久安全顺序域",
+    "economic_truth_owner": "每重经营账",
+    "external_fact_owner": "执行Module唯一接纳Interface，规范Recorded+Pending在共同安全顺序域；独立blob/inbox仅传输或读索引",
+    "availability_condition": "unreadable chong book, intact other books, independently verifiable maximum liability set, all applicable common constraints verifiable, own authority and request feasible",
+    "must_continue": "healthy chong reaches new durable Committed while failed book remains unavailable",
+    "pause_condition": "每项相关Pending非空、缺口未解、证据/源连续性/时效/writer fencing不能核实即不签新reserve/MayHaveSent；首次风险解释前已封闸",
+    "multi_input_safety": "Resolve e1 only removes its proven token/constraint entries; e2 cannot be erased or reopened; grant verifies entire current pending set in same transaction",
+    "ordinary_fact_progress": "若A回报能证明被原界覆盖，可保留原界清pending而不等A Applied；B本身合规且全部约束有效则必须实际新Committed"
+  },
+  "gaps": [
+    "catalog_domain_projection_implementation_equivalence_semantic_reachability_transition_and_identity_proofs_remain",
+    "unsettled_principal_growth_allocation_fee_and_same_slot_model_policies",
+    "venue_liability_upper_bound_and_all_common_constraints_not_instantiated",
+    "storage_atomicity_and_writer_fencing_not_implemented",
+    "legacy_entry_inventory_and_terminal_disposition_not_performed",
+    "identity_spec_and_history_retention_not_chosen",
+    "frontend_not_built",
+    "all_runtime_and_formal_checks_not_run",
+    "all_risk_invalidation_producers_and_venue_terminal_amend_capabilities_require_implementation_and_evidence",
+    "16_engineering_axes_are_design_contracts_not_model_checked"
+  ],
+  "not_done": [
+    "repository_or_canonical_changes",
+    "GitHub_writes",
+    "old_candidate_reading",
+    "project_services_tests_Lean_or_backtest_execution",
+    "real_trading_paper_live_or_harvest",
+    "architecture_adoption_or_SPEC_approval"
+  ],
+  "phase_revision": "R1",
+  "legacy_dispositions": {
+    "status": "EIGHT_FAMILIES_CANDIDATE_TERMINALS_NOT_EXHAUSTIVE_CURRENT_CODE_INVENTORY",
+    "design_evidence": "INDEPENDENT-DESIGN.md#s9",
+    "families": 8,
+    "remaining_gap": "per-file/feature/launch-config enumeration, issue1096 complete closure criteria, migration crosswalk and funded rollback evidence"
+  },
+  "protocol_changes_from_initial_text": [
+    "BeginRevision barrier before interpreting possible structural revision, preserve real first_known, common store coordination coupling visible",
+    "finite structural/operating rounds with healthy epochs; bad A cannot hold batch open; no money priority policy invented",
+    "ungranted Prepared not claimed publicly enumerated; A grant versus fence serialized",
+    "release receipts scoped to concrete responsibility or determined allocation share, not all accounts in a physical batch",
+    "IP-H01: canonical external Capture+Pending and public grants/MayHaveSent serialized in same durable safety domain; token-specific Resolve and evidence versions prevent stale reopening; startup closed and normal bounded A fact does not wait for A Applied",
+    "IP-M02: one logical family frozen L includes all physical revisions; native amend only with aggregate-cap evidence or cancel+proven terminal cumulative fill before unique remainder transfer; unresolved old quantity never funds replacement"
+  ],
+  "stage_validation": {
+    "type": "DOCUMENT_ONLY",
+    "checks": [
+      "80 unique requirement ids exactly match signed coverage",
+      "11 unique FE ids exactly match signed scenario list",
+      "all local design anchors resolve",
+      "MD hash stored in JSON matches current file",
+      "source bindings hash verified at phase seal",
+      "62 axis ids/10 legal combination ids/32 register ids match frozen catalog r2",
+      "16 engineering state axes and35FG links resolve",
+      "catalog hash drift guard enforced before binding",
+      "R0 own originals retained with old hashes"
+    ],
+    "not_claimed": [
+      "protocol proof",
+      "runtime behavior",
+      "source-wide legacy inventory",
+      "architecture adoption",
+      "independent review passed",
+      "classification proof closure",
+      "engineering transition reachability proof"
+    ]
+  },
+  "engineering_state_contracts": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.json",
+    "sha256": "f8b4f7057233e2c9a6bdb7d561f76112dc1f37b9e6cf4d1cbaf6bbf5b5662edf",
+    "markdown_path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.md",
+    "markdown_sha256": "f5ea3426c08bcffa5e3a40a7d29631169d1776b5ffb2a50f4c526a766bc3629d",
+    "axis_count": 16,
+    "fg_mapping_count": 35,
+    "proof_closure": false
+  },
+  "protocol_review_response": {
+    "review_path": "independent-design-protocol-review-r0.json",
+    "review_sha256": "0e259262461f4b0edef4f0da46e9689026cdfb27d43c354213825f675008212d",
+    "items": [
+      {
+        "id": "IP-H01",
+        "status": "AUTHOR_REVISED_PENDING_REVIEW",
+        "evidence": "INDEPENDENT-DESIGN.md#s6 P4; #s7 R1/R2/R4; engineering ES04/05",
+        "counterexamples_to_validate": [
+          "Capture e1->Capture e2->Resolve e1 cannot open e2",
+          "Captured invalidation followed by lost notification/crash blocks B reserve and pre-MayHaveSent command",
+          "ordinary covered A fill resolves while A book remains unavailable and B reaches new Committed",
+          "valuation/FX/fees/permissions/source expiry all same pre-interpret gate"
+        ]
+      },
+      {
+        "id": "IP-M02",
+        "status": "AUTHOR_REVISED_PENDING_REVIEW",
+        "evidence": "INDEPENDENT-DESIGN.md#s6 P7; engineering ES03/14",
+        "counterexamples_to_validate": [
+          "L100 fill40 cancel request new price cannot issue60 while old60 possible",
+          "old late20 => final cumulative60 => new at most40",
+          "cancel ack before delayed old fill must not free potential unless cumulative-complete proof includes it",
+          "lost cancel/new ack and each remainder-transfer crash reuse family/revision/command identities"
+        ]
+      }
+    ],
+    "runtime_verification": "NOT_RUN",
+    "amend_clarification": {
+      "finding": "IP-M02 reviewer follow-up: mutually exclusive physical versions must not be double counted",
+      "rule": "Sum independent executable allocations; one evidenced native-amend chain shares one aggregate cap/potential across mutually exclusive versions; amend control message has no new executable allowance; unknown sharing or ownership must not double allocate.",
+      "pre_clarification_md_sha256": "8f08abb5e16cd5cb1ccad8d0fd292184c078cb42d6c871d5ea3d11fc39c91068",
+      "pre_clarification_json_sha256": "28303f59a6540c364e4641c366f6ee0fb4e533c055f55a8192ad5783b6a53ed1",
+      "status": "AUTHOR_MINIMAL_CLARIFICATION_PENDING_REVIEW"
+    }
+  }
+}

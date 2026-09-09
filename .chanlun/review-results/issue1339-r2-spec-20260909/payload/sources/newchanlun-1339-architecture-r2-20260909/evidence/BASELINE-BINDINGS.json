@@ -1,0 +1,33 @@
+{
+  "checked_at_utc": "2026-09-08T19:49:23.360266+00:00",
+  "baseline_files": [
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/DELIVERY.json",
+      "sha256": "5f8b81e622b85bd187d311b17655a8f20d4311bdb008dc1f447cf8a52a82cebe"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+      "sha256": "f6054b52f86ba80fafd6386d1ac6ede341c6c6a17cb9efbed5d2dad42571824d"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.json",
+      "sha256": "800ca141806e3f3814c1392ff656a4f2213b2e7b210f368a0e84e853ea14dcd1"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/SCHEME-COMPARISON.md",
+      "sha256": "794c2326d4b35a50aec6360b87d9c844dfdd38414780a75f5367d5a60091a978"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/FULL-STATE-OBSERVATION.md",
+      "sha256": "aa65047a2887d35e3f4ec916f54f2660f789ea8e5bef32c2ce72457c2f2c689b"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.md",
+      "sha256": "f5ea3426c08bcffa5e3a40a7d29631169d1776b5ffb2a50f4c526a766bc3629d"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.md",
+      "sha256": "37b91d6fe61ad508e06a733b9972834bb61957f9249be8a612f7d33aa8157dd0"
+    }
+  ]
+}

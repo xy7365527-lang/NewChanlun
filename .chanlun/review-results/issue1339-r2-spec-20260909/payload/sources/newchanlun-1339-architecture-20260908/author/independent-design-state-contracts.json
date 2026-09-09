@@ -1,0 +1,536 @@
+{
+  "schema": "newchanlun.independent-engineering-state-contracts.v1",
+  "issue": 1339,
+  "revision": "R1",
+  "document": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.md",
+    "sha256": "f5ea3426c08bcffa5e3a40a7d29631169d1776b5ffb2a50f4c526a766bc3629d"
+  },
+  "status": "COMPLETE_DECLARED_SOFTWARE_AXIS_BRANCHES_AND_TRANSITION_OBLIGATIONS_DESIGN_ONLY",
+  "qualification": "本轮声明的16工程/经营轴有全分支和允许/待裁迁移；不宣称所有35FG行为、数值模型和场所域已经完成证明或实现。缺政策/不良构/事实超界显式另列，不能合法化违例。",
+  "axes": [
+    {
+      "id": "ES-01",
+      "object_and_domain": "ES-01 私有决定尝试，已保留attempt_id及本地日志前缀",
+      "branches": "尚无Prepared；Prepared；Committed；AbortedBeforeCommit 四叶，由唯一日志终点决定",
+      "transitions_and_constraints": "无→Prepared；Prepared→Committed或Aborted；Committed不可改写为未发生。已Committed撤回由许可/外效/尾责轴表达。重复相同事件为自环；其他迁移拒绝。",
+      "observable_delivery": "Decision尝试、账版本/锁定/收据和撤回关系；重→决定→完整尝试史",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-02",
+      "object_and_domain": "ES-02 每个公共责任的新增发送资格",
+      "branches": "Absent；Reserved；Dispatchable；Closed 四叶",
+      "transitions_and_constraints": "Absent→Reserved；Reserved→Dispatchable或Closed；Dispatchable→Closed。Closed对该授权终结，不靠新epoch复活，合法新决定须新责任身份。Closed不表示责任上界为零，也不抹已MayHaveSent。",
+      "observable_delivery": "grant状态、许可版本/关闭原因、全部命令；共同责任详情",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-03",
+      "object_and_domain": "ES-03 已创建物理命令的不可逆发送位M与已证不可再执行位T",
+      "branches": "(0,0)、(1,0)、(0,1)、(1,1) 四个原始签名",
+      "transitions_and_constraints": "M只能0→1，由P1同域MayHaveSent提交；T只由可证未发关闭或场所终态/完整累计证据置1。M0T1是永不发送已关闭；M1T1仍可接迟到已发生成交细节。T后语义更正不重新发送旧命令；推翻证据时标失效并封闸。",
+      "observable_delivery": "command全状态、发送/终态证据、历史累计前沿；逻辑订单→物理命令",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-04",
+      "object_and_domain": "ES-04 一个Capture token对一个可能受影响约束",
+      "branches": "Pending；ResolvedCovered；ResolvedUnverifiable 三叶",
+      "transitions_and_constraints": "Capture创建Pending；核证后只对该token/约束转Covered或Unverifiable；新事实用新token。重新核实可将Unverifiable→Covered并保留旧判断版本；不能用e1删除e2。逻辑Open由ES-05计算。",
+      "observable_delivery": "影响范围、token来源/前沿、逐约束证书/缺口；外部事实→责任约束",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-05",
+      "object_and_domain": "ES-05 单个共同约束的当前准入条件，所有校验位已可判",
+      "branches": "P=存在未核token、U=未解缺口、V=当前证据/时效/源连续性有效，(P,U,V)∈Bool³共8签名；仅(0,0,1)Open，其余7关闭",
+      "transitions_and_constraints": "Capture/Resolve/新缺口/证据失效各按同域事务改变相应字段；不直接写Open。多个约束全Open才满足共同条件；缺任一可判证据将U置真而非假设V。新证据重核可以复开。",
+      "observable_delivery": "全部失败位和受影响准入、证据版本；共同约束矩阵",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-06",
+      "object_and_domain": "ES-06 外部事实的归属资格，已规范Recorded且语义已解析",
+      "branches": "Unmatched；UniqueAssignment；ConflictingAssignments 三叶（可证明的完整分配映射候选数0、1、>1或相互矛盾；一份唯一映射可同时归多个重，不以收款重数计）",
+      "transitions_and_constraints": "解析/查询可补齐到Unique；新证据推翻原匹配则新版本冲突并先P4封闸。仅Unique及费用/分配政策齐备才可正式应用；三状态不删除原报。原报尚未解析仍由Pending覆盖，不假称已知Unmatched。",
+      "observable_delivery": "原报/命令/责任关联、候选归属与冲突；事实详情",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-07",
+      "object_and_domain": "ES-07 每个已存在的(fact或allocation,chong)应用目标",
+      "branches": "NotApplied；Applied 两叶；期望目标尚无法确定时不创建虚构键，保留ES-06",
+      "transitions_and_constraints": "NotApplied→Applied仅本重原子事务；重放相同内容自环，异内容产生冲突事件且旧收据不覆写。更正是新fact、新应用键，旧Applied不倒退。",
+      "observable_delivery": "ApplicationReceipt、账前后差异/原责任；事实→各重入账",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-08",
+      "object_and_domain": "ES-08 已建立Voice的业务许可与责任尾账",
+      "branches": "B∈{Active,Exited} × R∈{Outstanding,Retired}四原始组合，受实际证据约束",
+      "transitions_and_constraints": "B只能Active→Exited；新Voice另ID。R只有证明所有原责任可核、已应用、尾费有覆盖或为零才Retired；后续推翻覆盖的更正可重开Outstanding，归原Voice。Active且暂无尾责不等Voice退出；Exited且Outstanding必须保留可见。",
+      "observable_delivery": "业务退出与责任退休分列、旧Voice晚到事实；Voice时间线",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-09",
+      "object_and_domain": "ES-09 固定Q>0、已可核的本重同方向筹码量q",
+      "branches": "合法域0≤q≤Q分q=0、0<q<Q、q=Q三叶；已齐原始数值域另保留q<0、q>Q违例两叶",
+      "transitions_and_constraints": "任何合法本地合成前后都核整体q及全部未决；q在合法三叶间的迁移须真实fill/权益转移及已批动作。外部超界仍如实记账并冻结，不能截断成0/Q。多空方向另由Voice不可变语义指定。",
+      "observable_delivery": "固定Q、实际量、未决潜量、超界原事实；重→专属筹码",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-10",
+      "object_and_domain": "ES-10 已按批准会计定义可求的每重成本C，以及两个连续已知成本值",
+      "branches": "状态C<0、C=0、C>0；事件(old_sign,new_sign)∈三值²共9签名，另带实际ΔC和事件来源",
+      "transitions_and_constraints": "只有真实经济应用或已批会计调整变C，行情估值不触发。到零事件为new=0且old≠0；继续零成本自环不是再次回本。9符号码只是完整描述，不能自动决定TStage；分母/定义未齐不给伪C。",
+      "observable_delivery": "成本状态、正负现金流/费用、到零事件和原收据；成本曲线+事件账",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-11",
+      "object_and_domain": "ES-11 已具名本金目标P及实际回收R、固定货币/会计版本",
+      "branches": "R<P、R=P、R>P三叶（R的负数同样是<P）；P尚未定义的请求不在此语义域",
+      "transitions_and_constraints": "回收由真实事件及批准本金/费用政策改变；跨过等号与超回收均保留，不能只看C符号。新政策不得回写当时值；费用更正按原史应用。",
+      "observable_delivery": "本金目标/回收/缺口及政策来源；阶段→回本链",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-12",
+      "object_and_domain": "ES-12 已开户且完成阶段初始化的一个TStage与方向",
+      "branches": "Long:{降成本,退本金,赚股}；Short:{降成本,退本金}，共5方向×阶段合法签名；Short赚股为禁止项",
+      "transitions_and_constraints": "已裁通常向降成本→退本金→Long赚股推进；每条转移须真实成本/回本前件、获准政策和单重事件。费用导致跨零后的反向/重新分类处理、初始本金定义未齐部分保留FU缺口，不在本轮自定迁移。待初始化单列请求资格，不能伪设一个阶段。",
+      "observable_delivery": "唯一TStage、实际前件、未批准转移及政策；重阶段历史",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-13",
+      "object_and_domain": "ES-13 P3单份权利转移，固定donor/recipient/rights及批准政策",
+      "branches": "Proposed；SourceLocked；Escrowed；DonorDebited；RecipientPending；Activated；Cancelled 七叶",
+      "transitions_and_constraints": "Proposed→SourceLocked→Escrowed→DonorDebited→RecipientPending→Activated。前两态可有据取消并本地解锁；Escrowed以后取消须同公共域唯一未激活决议、源/目标回执及回还协议；已Activated不就地Cancelled，反向转移另身份。历史经过的各步保留。",
+      "observable_delivery": "源权利锁、托管、双方账收据和唯一激活；换档→权利转移",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-14",
+      "object_and_domain": "ES-14 同逻辑订单family一次改价尝试",
+      "branches": "Active；CancelRequested；AwaitingFinality；RemainderCertified；ReplacementPrepared；ReplacementCommitted；Installed；Abandoned 八叶",
+      "transitions_and_constraints": "按P7顺序进入下一步；Installed把新revision作为family当前Active并保留旧尝试。放弃新价可进Abandoned但不能取消已知外效或直接释放旧潜量；若旧单已确证取消，放弃只留下未用权利，是否新经营再决定。每family最多一个未决剩余分配转移。原子amend是具证能力路径，其请求/回应/查询同此family，不能并列两份额度。",
+      "observable_delivery": "L、F、各独立成交分配潜量及共享/互斥物理修订、剩余转移及取消/改单证据；逻辑订单修订史",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-15",
+      "object_and_domain": "ES-15 同一观察请求的交付资格与历史模式",
+      "branches": "交付:{CompleteCut,PartialCut,Gap}；历史:{AsKnown,RecomputedWithRevision}，6个原始组合",
+      "transitions_and_constraints": "Complete/Partial须给固定cut与缺项清单；Gap须给缺口及新快照token，不假称空结果。后续请求可得到任一交付结果；每一session/请求的历史模式不可悄悄切换，重算另具名请求。",
+      "observable_delivery": "当前切面/缺项、续接、模式/版本；完整观察导航",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    },
+    {
+      "id": "ES-16",
+      "object_and_domain": "ES-16 同一经营请求的判据向量与政策资格",
+      "branches": "已批准且适用的n个门分别Pass/Fail；不适用门带N/A且不参与AND，故原始码{Pass,Fail,N/A}^n再受各门适用域约束；政策依赖的缺项集合K为空/非空另轴",
+      "transitions_and_constraints": "所有Fail完整保留；N/A不能填Pass；K非空只产生AwaitingPolicy(K)，不伪造Hold或结构否定。全适用门通过且K空才可尝试P1，能否分资金仍须P3已批准政策；改变政策/输入新请求，不以失败改窄宽判断。",
+      "observable_delivery": "完整判据向量、适用域、K及typed动作；经营决定→准入依据",
+      "proof": "DESIGN_ONLY_NOT_MACHINE_PROVED",
+      "execution": "NOT_RUN"
+    }
+  ],
+  "fg_coverage": [
+    {
+      "id": "FG-001",
+      "state_axis_ids": [
+        "ES-08",
+        "ES-09",
+        "ES-12"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-002",
+      "state_axis_ids": [
+        "ES-01",
+        "ES-02",
+        "ES-05",
+        "ES-09",
+        "ES-13"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-003",
+      "state_axis_ids": [
+        "ES-08",
+        "ES-10",
+        "ES-11",
+        "ES-12"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-004",
+      "state_axis_ids": [
+        "ES-08"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-005",
+      "state_axis_ids": [
+        "ES-09",
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-006",
+      "state_axis_ids": [
+        "ES-05",
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-007",
+      "state_axis_ids": [
+        "ES-08"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-008",
+      "state_axis_ids": [
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-009",
+      "state_axis_ids": [
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-010",
+      "state_axis_ids": [
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-011",
+      "state_axis_ids": [
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-012",
+      "state_axis_ids": [
+        "ES-09",
+        "ES-14",
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-013",
+      "state_axis_ids": [
+        "ES-08",
+        "ES-14",
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-014",
+      "state_axis_ids": [
+        "ES-09",
+        "ES-14",
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-015",
+      "state_axis_ids": [
+        "ES-06",
+        "ES-07",
+        "ES-10"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-016",
+      "state_axis_ids": [
+        "ES-10",
+        "ES-11",
+        "ES-12"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-017",
+      "state_axis_ids": [
+        "ES-09",
+        "ES-11",
+        "ES-12",
+        "ES-13"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-018",
+      "state_axis_ids": [
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-019",
+      "state_axis_ids": [
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-020",
+      "state_axis_ids": [
+        "ES-13"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-021",
+      "state_axis_ids": [
+        "ES-06",
+        "ES-07",
+        "ES-09",
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-022",
+      "state_axis_ids": [
+        "ES-01",
+        "ES-02",
+        "ES-03",
+        "ES-05",
+        "ES-14"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-023",
+      "state_axis_ids": [
+        "ES-04",
+        "ES-06",
+        "ES-07",
+        "ES-10"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-024",
+      "state_axis_ids": [
+        "ES-04",
+        "ES-05",
+        "ES-09"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-025",
+      "state_axis_ids": [
+        "ES-10",
+        "ES-11",
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-026",
+      "state_axis_ids": [
+        "ES-01",
+        "ES-02",
+        "ES-03",
+        "ES-06",
+        "ES-07",
+        "ES-15",
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-027",
+      "state_axis_ids": [
+        "ES-02",
+        "ES-03",
+        "ES-14"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-028",
+      "state_axis_ids": [
+        "ES-03",
+        "ES-06",
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-029",
+      "state_axis_ids": [
+        "ES-03",
+        "ES-04",
+        "ES-06",
+        "ES-07",
+        "ES-14"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-030",
+      "state_axis_ids": [
+        "ES-02",
+        "ES-03",
+        "ES-08",
+        "ES-14"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-031",
+      "state_axis_ids": [
+        "ES-03",
+        "ES-07",
+        "ES-08"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-032",
+      "state_axis_ids": [
+        "ES-01",
+        "ES-02",
+        "ES-03",
+        "ES-04",
+        "ES-05",
+        "ES-06",
+        "ES-07",
+        "ES-08",
+        "ES-13",
+        "ES-14"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-033",
+      "state_axis_ids": [
+        "ES-15"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-034",
+      "state_axis_ids": [
+        "ES-04",
+        "ES-05",
+        "ES-06",
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    },
+    {
+      "id": "FG-035",
+      "state_axis_ids": [
+        "ES-16"
+      ],
+      "additional_contract": "INDEPENDENT-DESIGN.md#s4..s9以及结构整合对应CC轴；数值/集合有效域按已签FG及实际批准政策，不由状态枚举替代"
+    }
+  ],
+  "retained_policy_gaps": [
+    {
+      "id": "FU-01",
+      "topic": "本金/回收/成本口径细节",
+      "known": "费用应含手续费与资金费率，成本由真实经济回收解释。",
+      "unknown": "本金在保证金/现金/增长权益之间的精确定义；分红除权；费用造成跨零后的阶段回退；零数量/零成本分母。",
+      "impact": "FG-015/016/017/025；可先保存原始经济事实，不能用0或默认公式暗判闸门。"
+    },
+    {
+      "id": "FU-02",
+      "topic": "动作量及固定Q与增长",
+      "known": "w(d)×Q及容量比形状已有裁定；容量/频率各管一维。",
+      "unknown": "完整高档有效量、绝对容量、投入总额、经验值更新策略，以及固定Q约束下增长通过换档时的会计与权利分拆衔接；不重开固定Q的已定边界。",
+      "impact": "FG-014/017/018/020；未知不削减目标阶段，先作带未知项设计。"
+    },
+    {
+      "id": "FU-03",
+      "topic": "并发资源不足/配对/费用归属",
+      "known": "重间不仲裁方向、共同毛约束、净省禁复用。",
+      "unknown": "同slot多重请求超共同上限时的资金政策；净额外效分配到各重/各订单/费用与部分成交配对；公用资金的注入/退出政策。",
+      "impact": "FG-006/022/023/024/028/029；协议可比较但当前不替用户裁钱。"
+    },
+    {
+      "id": "FU-04",
+      "topic": "完整执行场景与权限",
+      "known": "实盘/逐腿出口另有条件门；场所不锁死，模拟与真实分证。",
+      "unknown": "首个交付是否只需确定性回放+模拟/受控适配，真实场所验证何时授权；具体cap/费率/账户隔离与退出权限。",
+      "impact": "FG-028–034；属于需求阶段真正可问的运行验收范围，不需重问完整多重是否必须。"
+    },
+    {
+      "id": "FU-05",
+      "topic": "经营统计计样和闸门后评价",
+      "known": "费后成本速率、置信下界、月块与窗纪律已定。",
+      "unknown": "ADR0022:17只写成本下降事件，与全部亏损/费用的取样语义如何一致；同时间多事件、跨闸、短仓基价正负口径；闸门后参数暂缺。",
+      "impact": "FG-025；先保留全部事件和排除原因，不只筛正收益。"
+    },
+    {
+      "id": "FU-06",
+      "topic": "软件组织选择",
+      "known": "N重权利与可观察语义必须完整；已有三案可复用，用户允许从头设计。",
+      "unknown": "权威经济状态是否集中/分重/资源基座；结构/经营输出提交边界；恢复协调、事务/日志及观察发布机制。",
+      "impact": "不得先画服务图或写owner当作需求；按相同FE场景评估B-r1/A2-r3/C3-r1及有据新方案。"
+    },
+    {
+      "id": "FU-07",
+      "topic": "旧退出命名和残留文字张力",
+      "known": "#659把13课均线退出论证降级；系统自设Theta_risk与结构判据分开。",
+      "unknown": "新完整方案下退出授权策略及历史文本中的Q/阶段/采样等张力何处落定。",
+      "impact": "FG-030；不从生成态文档推出风险模块禁令、不恢复旧方案或暂停票链。"
+    }
+  ],
+  "cross_axis_invariants": [
+    "Dispatchable requires local Committed receipt",
+    "MayHaveSent requires all relevant evidence gates Open, valid structure generation, current authority, P7 family cap",
+    "Closed grant need not mean never-sent or zero liability",
+    "Applied alone does not release a bound; P2 specific scope receipts plus external evidence required",
+    "Voice exited does not mean responsibility retired",
+    "zero cost does not automatically prove principal recovered",
+    "one escrow share can activate once",
+    "replacement requires unique remaining allocation; old potential cannot be double spent",
+    "P7 sums independent executable allocations; evidenced atomic-amend mutually exclusive versions share one cap and one potential; ambiguous allocation never mints a second budget"
+  ],
+  "verification_plan": "按版本验证静态有限分区/归约器与不变量；运行时每次事务验证域与前后见证；未知阶段/资金迁移保持来源缺口；本轮未跑项目测试。"
+}

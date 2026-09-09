@@ -1,0 +1,20 @@
+{
+  "schema": "newchanlun.1323.spec-user-approval.v1",
+  "recorded_at_utc": "2026-09-09T05:05:31.780281+00:00",
+  "source": "本Codex会话中用户在最终SPEC发布与拆票批准请求后的直接回复",
+  "user_reply": "批准",
+  "approved_scope": "S2-R1完整图内SPEC、规范附件及其中C09技术提案；按其发布与拆票，依本图workflow推进已满足依赖的实施",
+  "spec_sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11",
+  "review_manifest_sha256": "38e3176b6dfff456b8e3704410401c3bedddf0671751464bb9ea5b829e460260",
+  "approved_delivery_manifest_sha256": "e61db78286e6d0fec8ce31cc2e175d7c8e224bc5ab4108fb014cbac702a2cb70",
+  "already_adopted": "R2及披露的精确命令交付窗口继续有效",
+  "not_granted": [
+    "未定语义或资金规则的默认值",
+    "合入main",
+    "未经批准的生产切换和真实交易",
+    "旧1327–1333自动恢复",
+    "旧1321/1322/1325/1326原件对照",
+    "Prime运行态迁移"
+  ],
+  "goal_scope": "完整1323六项Destination，不能以SPEC或局部票完成代替"
+}

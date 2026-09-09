@@ -1,0 +1,46 @@
+{
+  "schema": "newchanlun.1323.architecture-adoption.v1",
+  "recorded_at_utc": "2026-09-09T03:47:31.228926+00:00",
+  "source": "Current user reply in this conversation",
+  "user_reply": "可以",
+  "accepted": "Complete R2 architecture and disclosed irrevocable exact-command handoff boundary, as the basis for map #1323 SPEC",
+  "boundary": "After irrevocable exact handoff, a newly learned E risk may not stop that command first venue call; retain full maximum liability, no exemption for ordinary unreleased preparation, all applicable S/X-stage conditions still mandatory.",
+  "RF01": "Previously accepted and retained",
+  "RF02": "Previously accepted and retained; formal structure continues during E failure while structural domain healthy",
+  "bindings": [
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/DELIVERY.json",
+      "sha256": "b625db5b2086deaeb8366876be1a95aeecd208275deda2d846129b0401f99f65"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.md",
+      "sha256": "61536618576684c33f72fb4e0cde6ad99c32ab12a64be3a1b762e048d23363d8"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.md",
+      "sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/CONTRACT-REPLACEMENTS.md",
+      "sha256": "a981bf7af3aa9500f33a7f0a8b95992deb805562bf9f9ad558e1b3067f3db0f3"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-RF02.md",
+      "sha256": "d440846dfce0a66377297f2fb4fd7a5d8de0cc7e950c5b737fe61e121cd327bd"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-r2-20260909/review/REVIEW-COMPARISON-R2.md",
+      "sha256": "5b33afdee7f9eace327a36961ab0d5d75ab32541f506492e274d7db18077c2b8"
+    }
+  ],
+  "authorized_next_step": "Synthesize and independently review the complete in-map SPEC; continue necessary read-only fact work",
+  "not_authorized_by_this_reply": [
+    "SPEC approval or publication",
+    "implementation",
+    "main merge",
+    "live trading",
+    "new financial or semantic defaults"
+  ],
+  "scope": "Entire #1323 goal remains unchanged; #1339 is its current requirement/architecture step",
+  "immutable_prior_artifacts": true
+}

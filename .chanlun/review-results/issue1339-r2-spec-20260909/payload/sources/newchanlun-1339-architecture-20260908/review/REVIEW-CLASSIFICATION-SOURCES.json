@@ -1,0 +1,199 @@
+{
+  "schema": "newchanlun.classification-single-source-review.v1",
+  "issue": 1339,
+  "reviewer": "/root/independent_scope_review",
+  "status": "TARGETED_SOURCE_REFERENCES_REQUIRE_CORRECTION",
+  "counts": {
+    "H": 0,
+    "M": 3,
+    "open_at_review_snapshot": 3,
+    "unique_beichi_ranges": 13,
+    "reference_occurrences": 26,
+    "wrong_reference_occurrences": 6
+  },
+  "catalog_snapshot": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+    "sha256": "a15205810bffd5ab08812b0a21b16f5a95b104ba6998e9a7f986b094d37b5d3c",
+    "read_scope": "全部axes/proof_sync_choice_register中含beichi.md的source组及被援引主张，非全62轴语义读审；作者正在并行修订，结论绑定此读取快照"
+  },
+  "source_binding": {
+    "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/beichi.md",
+    "sha256": "3a3fbe6cad78a402bb3d3d8931e85ce5bfb009c30007f3fa4573e7eb3a2055c6",
+    "bytes": 108519,
+    "lines": 1020,
+    "read_scope": "13个唯一被引范围全文，加127-145/164-199/261-278替代位置；只审该正本"
+  },
+  "source_group_audit": [
+    {
+      "range": "504-584",
+      "uses": [
+        "CC-025",
+        "CC-033",
+        "CC-035",
+        "G-014",
+        "G-019"
+      ],
+      "assessment": "支持Div结构+力度、NE/Turn和完成桥限制，不能扩大为一般完成已证明"
+    },
+    {
+      "range": "164-224",
+      "uses": [
+        "CC-030",
+        "G-016"
+      ],
+      "assessment": "错误：本段为小转大名分；配对定位应261-278"
+    },
+    {
+      "range": "261-334",
+      "uses": [
+        "CC-030"
+      ],
+      "assessment": "261-278明确趋势b/c和盘整最近同向跨界；范围可缩紧"
+    },
+    {
+      "range": "504-534",
+      "uses": [
+        "CC-031",
+        "G-016"
+      ],
+      "assessment": "510-512支持五结构条件与Div；配对盘背另需261-278"
+    },
+    {
+      "range": "419-469",
+      "uses": [
+        "CC-032",
+        "G-017"
+      ],
+      "assessment": "支持速度累积差与实际取样/未验证边界；显式笔速度公式另外引Origin，不单凭此范围宣称完整定义桥"
+    },
+    {
+      "range": "694-727",
+      "uses": [
+        "CC-034",
+        "G-018"
+      ],
+      "assessment": "支持T4/辅助适用边界，三维精确逻辑另由801-830承重"
+    },
+    {
+      "range": "801-830",
+      "uses": [
+        "CC-034",
+        "G-018"
+      ],
+      "assessment": "支持三条件OR、代理名分、T6/T2/T7及T4整体前提"
+    },
+    {
+      "range": "1005-1019",
+      "uses": [
+        "CC-034",
+        "G-018"
+      ],
+      "assessment": "支持已裁同色带号面积与TV退役等历史订正；不是当前代码执行证据或原作者原文"
+    },
+    {
+      "range": "87-95",
+      "uses": [
+        "CC-036"
+      ],
+      "assessment": "错误：29课高级结果概述，不含r=q/r<q二分类；用127-145及164-199"
+    },
+    {
+      "range": "261-289",
+      "uses": [
+        "CC-036",
+        "CC-052"
+      ],
+      "assessment": "CC-036错指；CC-052可用于先结构后独立度量、无代理兜底和次级Extreme的限域支撑"
+    },
+    {
+      "range": "289-334",
+      "uses": [
+        "CC-037"
+      ],
+      "assessment": "错误：次级Extreme/力度类型段，不含小转大末次级三类必要条件；用135-145"
+    },
+    {
+      "range": "135-145",
+      "uses": [
+        "CC-037"
+      ],
+      "assessment": "支持小转大必要非充分且不推广一般跨级必要性"
+    },
+    {
+      "range": "649-658",
+      "uses": [
+        "CC-038",
+        "CC-040",
+        "G-022"
+      ],
+      "assessment": "CC-038不含局部C出口/C-B关系；CC-040/G-022可作为651必回核心的张力来源，不能当高级三结果正面证明"
+    }
+  ],
+  "findings": [
+    {
+      "id": "CS-M01",
+      "severity": "M",
+      "status": "OPEN_AT_REVIEW_SNAPSHOT",
+      "affected": [
+        "CC-030",
+        "G-016"
+      ],
+      "bad_references": [
+        "beichi.md:164-224"
+      ],
+      "actual_content": "小转大名分与两层替代物，不是b/c或盘背配对规则。",
+      "correction": "CC030已有261-334，可缩261-278并删错指；G016改261-278，趋势五条件504-517另保留。"
+    },
+    {
+      "id": "CS-M02",
+      "severity": "M",
+      "status": "OPEN_AT_REVIEW_SNAPSHOT",
+      "affected": [
+        "CC-036",
+        "CC-037"
+      ],
+      "bad_references": [
+        "CC-036 beichi.md:87-95",
+        "CC-036 beichi.md:261-289",
+        "CC-037 beichi.md:289-334"
+      ],
+      "actual_content": "依次为29课高级结果概述、结构配对/次级Extreme、次级Extreme/力度类型；均不承载对应小转大级别二分或末次级三类必要条件。",
+      "correction": "级别二分正本127-145及164-199；必要非充分135-145。新增正确引用后须删除错误正面指引，不能留下多个来源仿佛均为同义证据。"
+    },
+    {
+      "id": "CS-M03",
+      "severity": "M",
+      "status": "OPEN_AT_REVIEW_SNAPSHOT",
+      "affected": [
+        "CC-038"
+      ],
+      "bad_references": [
+        "beichi.md:649-658"
+      ],
+      "actual_content": "背驰后回拉核心保证、盘背后续及幅度级别概述，无局部C形成/出口和C-B重叠分支。",
+      "correction": "删除该分支正面依据或明确仅为背景/不同命题；直接043:34/38/44/48有对应文字，38末娇注与48行内/末注不可冒充作者原文。CC040/G022的同一范围用于明确的来源张力，可保留。"
+    }
+  ],
+  "original_attribution_check": {
+    "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/043-第43课.md",
+    "body_boundary": 52,
+    "checked_lines": [
+      34,
+      38,
+      44,
+      48
+    ],
+    "inline_notes_excluded": [
+      "38末娇注",
+      "48行内注及末注"
+    ],
+    "purpose": "仅核CC038替代指引；已知正确043/044/053原课未为本专项重新普查"
+  },
+  "disposition": "全部精确列表已发complete_classification与root；作者修改，root核关闭。未改catalog/正本。",
+  "not_claimed": [
+    "all_leaf_semantic_completeness",
+    "market_reachability_or_Lean_proof",
+    "all_sources_or_all_repository_scan",
+    "current_runtime_correctness"
+  ]
+}

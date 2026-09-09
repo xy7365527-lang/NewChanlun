@@ -1,0 +1,813 @@
+{
+  "canonical_delivery": {
+    "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/SCHEME-DELIVERY.json",
+    "sha256": "d6f115629b92c11fcbca5a06ff138c66e8df00ded23b7ff16a3abbb924d84738"
+  },
+  "candidates": [
+    {
+      "candidate": "B-r1",
+      "manifest_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/CANDIDATE-DELIVERY.json",
+      "manifest_sha256": "ca268baf8fcd29e219ce0a7a34019bfbd027da088febbb5b413ef885a16fa573",
+      "canonical_entry": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/SCHEME.md",
+      "files": [
+        {
+          "relative_path": "ARTIFACT-CHECKS.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/ARTIFACT-CHECKS.json",
+          "sha256": "328c03b55ba8fc179ef464708c8b48585bc79e83b25c347aa2ad4c0058a396a6",
+          "bytes": 19337,
+          "lines": 696,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "AUTHOR-SELF-REVIEW.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/AUTHOR-SELF-REVIEW.md",
+          "sha256": "af536ba174fce3b417b1f57c05e432eacf674246b0d1aa2420e4544181dc25ce",
+          "bytes": 3408,
+          "lines": 25,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "CHANGES.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/CHANGES.json",
+          "sha256": "e0c9005c344d9594cca02cbaca86fa6ddf14f90c0f7db2d12c18f6682adcec73",
+          "bytes": 24538,
+          "lines": 887,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "CHANGES.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/CHANGES.md",
+          "sha256": "7459b34b8765ab2930d4a18c0d78a1840dfde571fc6d4557d5d6f01f6495c554",
+          "bytes": 5839,
+          "lines": 76,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "INTERFACES-AND-STATE.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/INTERFACES-AND-STATE.md",
+          "sha256": "752807aafaa0f13f590358ce28fffd5f1928012222e1c47005462d58062a6604",
+          "bytes": 35037,
+          "lines": 340,
+          "actual_read_ranges": [
+            [
+              1,
+              340
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "INVARIANT-MAP.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/INVARIANT-MAP.json",
+          "sha256": "d5cdf9fd946e49fcbce18b14407ea2b00e4d027ae901ea4b318178ac8892e05b",
+          "bytes": 95691,
+          "lines": 2764,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "MIGRATION-AND-VALIDATION.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/MIGRATION-AND-VALIDATION.md",
+          "sha256": "fa8115224ca3972fdd2f677c695d272801123582d98c2bcde3876b434041a125",
+          "bytes": 20379,
+          "lines": 197,
+          "actual_read_ranges": [
+            [
+              1,
+              197
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "OPEN-DECISIONS.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/OPEN-DECISIONS.json",
+          "sha256": "67dce8a7e892134f3e9300690fe6250619c02365f8902b3fe6c831556e4026e6",
+          "bytes": 21802,
+          "lines": 429,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "SCHEME.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/SCHEME.md",
+          "sha256": "37a552132447ab902483b553849f3700931e04d80cfdd3d48041926265ad0200",
+          "bytes": 27949,
+          "lines": 178,
+          "actual_read_ranges": [
+            [
+              1,
+              178
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "SOURCES.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/SOURCES.json",
+          "sha256": "19bc91e55d426b10b26c9dcf32ff5620ae30ed15bc9c25706c26fd3d54dd9702",
+          "bytes": 121396,
+          "lines": 2530,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "STATUS.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/STATUS.json",
+          "sha256": "8b5470876a8c0ad8319f6d2b746900d4776505c2485e41731d4a3c378cb365e4",
+          "bytes": 3056,
+          "lines": 61,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "STRUCTURE-WALKTHROUGH.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/STRUCTURE-WALKTHROUGH.md",
+          "sha256": "92e6d08e9daabdedf649dc73582185b522e89744db949222ae0f30fa8a695ebb",
+          "bytes": 11809,
+          "lines": 81,
+          "actual_read_ranges": [
+            [
+              1,
+              81
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "TRADEOFFS-AND-RED-FLAGS.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/TRADEOFFS-AND-RED-FLAGS.md",
+          "sha256": "dbf143b9e35733f677d5b7186da3abf10e255a2678edcc8c672fa94292c0d908",
+          "bytes": 10604,
+          "lines": 80,
+          "actual_read_ranges": [
+            [
+              1,
+              80
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "USAGE.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/USAGE.md",
+          "sha256": "b0f0ecf5ff190194594008dd80ad0ae64c30bc3dab466d55d6e9688a5fa0aa3f",
+          "bytes": 23373,
+          "lines": 238,
+          "actual_read_ranges": [
+            [
+              1,
+              238
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "diagrams/BOUNDARIES.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/diagrams/BOUNDARIES.md",
+          "sha256": "d690a9ebb007732254261f3524cb400db8a58f74eb97e91d78ce5eda6bb94dd0",
+          "bytes": 2317,
+          "lines": 37,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/BUY-EVIDENCE.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/diagrams/BUY-EVIDENCE.md",
+          "sha256": "6d216da44635be922607dd0895cd8c432c23d7fdc30a8da9d7a210f36e77b6a9",
+          "bytes": 1890,
+          "lines": 40,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/NETTING-AND-RECOVERY.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/diagrams/NETTING-AND-RECOVERY.md",
+          "sha256": "b8253066a6fd4d4c570d8403fdb9d350d82d9e0fc155b6cb3ec91af33a2c16eb",
+          "bytes": 1360,
+          "lines": 32,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/REVISION-AND-COMMIT.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/diagrams/REVISION-AND-COMMIT.md",
+          "sha256": "c350f5af72aca57ab7b7ad6b4eb0b5df60383ab7f96f0f529aa36c87d5b24f8d",
+          "bytes": 1700,
+          "lines": 39,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        }
+      ]
+    },
+    {
+      "candidate": "A2-r3",
+      "manifest_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/CANDIDATE-DELIVERY.json",
+      "manifest_sha256": "175dcf3d3526fe2b649a10c467b32b173a95f0becd61fbf40999e581d1243cf8",
+      "canonical_entry": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/SCHEME.md",
+      "files": [
+        {
+          "relative_path": "ARTIFACT-CHECKS.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/ARTIFACT-CHECKS.json",
+          "sha256": "384efeed010bbda4d35317c10392ecef6435bcb216d0b73e7d12a073a45f59f3",
+          "bytes": 3216,
+          "lines": 110,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "CHANGES.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/CHANGES.md",
+          "sha256": "50e2a83d3123291f29448ae1efaa6e7d5a9138c173aebc57b6d58908ee74b74b",
+          "bytes": 5884,
+          "lines": 46,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "DIFFERENCE-FROM-A0.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/DIFFERENCE-FROM-A0.md",
+          "sha256": "d61b8ea32336ad8d7366d34720289add494a219e6223eb226374bf6865c6484b",
+          "bytes": 10292,
+          "lines": 86,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "INTERFACES-AND-STATE.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/INTERFACES-AND-STATE.md",
+          "sha256": "751efc80ba52bddbc9dd0543bf2f7c12950303f7752320c2c08aae3a05b98414",
+          "bytes": 32459,
+          "lines": 291,
+          "actual_read_ranges": [
+            [
+              1,
+              291
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "INVARIANT-MAP.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/INVARIANT-MAP.json",
+          "sha256": "3cb1b185a5198dbd0a232bf091274681a9de1f1c23e9a14a5231911f26c0647a",
+          "bytes": 135310,
+          "lines": 5415,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "MIGRATION-AND-VALIDATION.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/MIGRATION-AND-VALIDATION.md",
+          "sha256": "05ad7e63a2d6473b39690faf81d97cf447c4cb787011f689e10c78744ce1802e",
+          "bytes": 15857,
+          "lines": 99,
+          "actual_read_ranges": [
+            [
+              1,
+              99
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "OPEN-DECISIONS.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/OPEN-DECISIONS.json",
+          "sha256": "630bc9bf618332dad8f3c23fb0c6dfd337a4259a47147d281113155351572352",
+          "bytes": 19143,
+          "lines": 320,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "OPERATING-CONTRACTS.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/OPERATING-CONTRACTS.md",
+          "sha256": "f690d8069be6ed03ee06cf9edf2453f32035d38571448a5cc1052551f09826da",
+          "bytes": 39552,
+          "lines": 312,
+          "actual_read_ranges": [
+            [
+              1,
+              312
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "SCHEME.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/SCHEME.md",
+          "sha256": "74ae78532ec61b811d2e98aeba5a1a78cc37c781b9e946e9cdc130c4d555702a",
+          "bytes": 29609,
+          "lines": 170,
+          "actual_read_ranges": [
+            [
+              1,
+              170
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "SELF-CHECK.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/SELF-CHECK.md",
+          "sha256": "30f84e02bca83e4d5b6ce520516cbab8823953c0320b48b1b51faa33e7c4b929",
+          "bytes": 4100,
+          "lines": 33,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "SOURCES.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/SOURCES.json",
+          "sha256": "5f3dcf80eadf1b249d76c47c3f0025adc6766c157cdec1c42cdcb4306dfb92b2",
+          "bytes": 149068,
+          "lines": 3776,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "STATUS.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/STATUS.json",
+          "sha256": "f75641cfecd4630254dd76a86973653f33444ae5f9e6e4250092aed544605f67",
+          "bytes": 3717,
+          "lines": 59,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "TASK-AND-READING-NOTES.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/TASK-AND-READING-NOTES.md",
+          "sha256": "d37085ff7a12790723f5fd45445570ee7e9236b7aad29f434174282880a326f2",
+          "bytes": 2217,
+          "lines": 19,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "TRADEOFFS-AND-RED-FLAGS.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/TRADEOFFS-AND-RED-FLAGS.md",
+          "sha256": "2e5936c3018f0818b0617c14215a10a8cf529e2703a40f73440ce01176edadb4",
+          "bytes": 8733,
+          "lines": 62,
+          "actual_read_ranges": [
+            [
+              1,
+              62
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "USAGE.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/USAGE.md",
+          "sha256": "5e4fa4b53220fb5edfdc8103d942ecfc89143cbfe2c1874926732782a6801540",
+          "bytes": 33059,
+          "lines": 252,
+          "actual_read_ranges": [
+            [
+              1,
+              252
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "diagrams/01-authority-boundaries.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/diagrams/01-authority-boundaries.md",
+          "sha256": "864631a89286fe99c712a1a18ef879eaca76f94001d27dc3c1b39278a8056d31",
+          "bytes": 1759,
+          "lines": 33,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/02-commit-and-materialization.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/diagrams/02-commit-and-materialization.md",
+          "sha256": "6cc67b0b0291ed177e5a902c04060b172dcaf6afaa6aaa52c4dd4e1f3262f828",
+          "bytes": 1101,
+          "lines": 26,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/03-local-and-common-failures.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/diagrams/03-local-and-common-failures.md",
+          "sha256": "19ef9d40cf2a93f247b7d6a0a07a4016db02317646b1b23268d732213fa03008",
+          "bytes": 1180,
+          "lines": 25,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/04-local-replacement.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/diagrams/04-local-replacement.md",
+          "sha256": "65c10181c3d1d62e675b27238178e42ea1886b35602e007ca9cc4f2e9501c2bb",
+          "bytes": 1258,
+          "lines": 22,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/05-exit-barrier-and-consumer.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/diagrams/05-exit-barrier-and-consumer.md",
+          "sha256": "03160dc490c158b0ebcf2426cd7e2aee33adb9258f1b2bba52403c6c9183a746",
+          "bytes": 1583,
+          "lines": 34,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/06-acyclic-identities.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/diagrams/06-acyclic-identities.md",
+          "sha256": "255e4f743b1465a55ba80e50688a4c285eeacab28dbfc9fba933004d9e83c97e",
+          "bytes": 929,
+          "lines": 20,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        }
+      ]
+    },
+    {
+      "candidate": "C3-r1",
+      "manifest_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/CANDIDATE-DELIVERY.json",
+      "manifest_sha256": "475885eb73e2bc237cf2456a220c7066dce29150892ea823f0a9e9b29ff684e8",
+      "canonical_entry": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/SCHEME.md",
+      "files": [
+        {
+          "relative_path": "DESIGN-KERNEL.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/DESIGN-KERNEL.json",
+          "sha256": "eceb18a724fa01c2d8349dbb2ef61be38bd94ab9a8457b586798820359c06310",
+          "bytes": 1746,
+          "lines": 19,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "DIFFERENCES.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/DIFFERENCES.md",
+          "sha256": "63fcc8be19d677d09b9088f3a5de8c9e357fd0b32c2f6fc2e13c496c541d4684",
+          "bytes": 13603,
+          "lines": 87,
+          "actual_read_ranges": [
+            [
+              1,
+              87
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "ECONOMIC-CONTRACTS.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/ECONOMIC-CONTRACTS.md",
+          "sha256": "e40bee80d1ce178eaa3bdd7287695b2fe1a6ee9701a33b15917df2bf3ae95ea7",
+          "bytes": 14001,
+          "lines": 101,
+          "actual_read_ranges": [
+            [
+              1,
+              101
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "EXPLORATION.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/EXPLORATION.md",
+          "sha256": "368d4aa4dda83ce2cf8799a742671c521bffa25d4395e47f62a8cd386dc2d9c9",
+          "bytes": 4701,
+          "lines": 30,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "INTERFACES-AND-STATE.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/INTERFACES-AND-STATE.md",
+          "sha256": "6f06706472c25ff3ae6d4621b61dd73409e53491db592091d67dcc2f6d444cff",
+          "bytes": 23927,
+          "lines": 183,
+          "actual_read_ranges": [
+            [
+              1,
+              183
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "INVARIANT-MAP.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/INVARIANT-MAP.json",
+          "sha256": "f19e31d22e2b51af465eabda1bb0d46b46aadc7ed4153a3935463aa8a24a4673",
+          "bytes": 70598,
+          "lines": 2614,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "MIGRATION-AND-VALIDATION.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/MIGRATION-AND-VALIDATION.md",
+          "sha256": "f5e6ecd933361f6c6f3aaf3dbd96b18df6d00881fe91a12e5a6bdc330f6f4317",
+          "bytes": 15108,
+          "lines": 100,
+          "actual_read_ranges": [
+            [
+              1,
+              100
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "OPEN-DECISIONS.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/OPEN-DECISIONS.json",
+          "sha256": "55d32886191232338cb4e3b650a1fda172dff504af099fced9549d8dee9a293d",
+          "bytes": 22985,
+          "lines": 557,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "PEER-EXPOSURE.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/PEER-EXPOSURE.json",
+          "sha256": "0b2f3087d64a2ef1a3395203be5f1680030aa0b3e244eb84cfa78c748c71f679",
+          "bytes": 5741,
+          "lines": 114,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "SCHEME.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/SCHEME.md",
+          "sha256": "dd8c5311b78c4c19ae2c76f0a22a1970b79c7cb4318b5f04f36e7ed5696475b1",
+          "bytes": 23634,
+          "lines": 141,
+          "actual_read_ranges": [
+            [
+              1,
+              141
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "SELF-CHECK.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/SELF-CHECK.md",
+          "sha256": "b1122075b607521fe376c224ac831b5d2e0cb7147bf397cdd2ac49685cc1c214",
+          "bytes": 4904,
+          "lines": 32,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "SOURCES.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/SOURCES.json",
+          "sha256": "a32b75aa696bdc452a52e4e40d10f80e93f6c655329308b4daa90d39cd36d2ae",
+          "bytes": 103018,
+          "lines": 2779,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "STATUS.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/STATUS.json",
+          "sha256": "90ecc2b09ded72b31bc4bf251f9b350cc6e89305a94962dab2ec9d131a16a1b4",
+          "bytes": 9301,
+          "lines": 198,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "TASK-AND-READING-NOTES.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/TASK-AND-READING-NOTES.md",
+          "sha256": "f370daabaa0e8e11419920b79b14e7cf323479cd155576ac1e276cac3ea7c31a",
+          "bytes": 1942,
+          "lines": 13,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "TRADEOFFS-AND-RED-FLAGS.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/TRADEOFFS-AND-RED-FLAGS.md",
+          "sha256": "35a4a23b7af200388d01584760c48ad532cc21e4c62be3bded0d422a785e4d46",
+          "bytes": 7002,
+          "lines": 48,
+          "actual_read_ranges": [
+            [
+              1,
+              48
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "USAGE.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/USAGE.md",
+          "sha256": "ed1ee58eaf87515dcb78b8ac15eaf5a7a6bbec08746e1cc339606583147ddc2e",
+          "bytes": 15813,
+          "lines": 131,
+          "actual_read_ranges": [
+            [
+              1,
+              131
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "diagrams/01-knowledge-and-resources.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/diagrams/01-knowledge-and-resources.md",
+          "sha256": "4375cb17806c513887a3e0ba11f6f8160d948f15ffc7bbd4ccff2885dbc591cf",
+          "bytes": 2235,
+          "lines": 37,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/02-dependencies-and-lifetimes.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/diagrams/02-dependencies-and-lifetimes.md",
+          "sha256": "dae8f2dda29c920fa40e58073d2950a1bdbf17b0494c8d0339f68652382263db",
+          "bytes": 1453,
+          "lines": 28,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/03-netting-and-effects.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/diagrams/03-netting-and-effects.md",
+          "sha256": "ceb3147a000933a7eaf5a602ce3c809b31a8ffa93f31aa8a63a7837f285b764e",
+          "bytes": 1655,
+          "lines": 26,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/04-maintenance-comparison.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/diagrams/04-maintenance-comparison.md",
+          "sha256": "f1f185899385405fecad89d07985f74a4870f5b6b9eea7636a03fe34a2d40d3c",
+          "bytes": 1462,
+          "lines": 26,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        }
+      ]
+    },
+    {
+      "candidate": "C2-r2",
+      "manifest_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/CANDIDATE-DELIVERY.json",
+      "manifest_sha256": "48ec26f5d3e763ede590da91f9d4436b0a74ba7b8897815e0b0d29d3a3e39344",
+      "canonical_entry": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/SCHEME.md",
+      "files": [
+        {
+          "relative_path": "CHANGES.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/CHANGES.md",
+          "sha256": "e2a956ef9309afe4d4e72fa1bd8211847e1c16eac85e7fc0fe973e6f7d7d258a",
+          "bytes": 16714,
+          "lines": 164,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "INTERFACES-AND-STATE.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/INTERFACES-AND-STATE.md",
+          "sha256": "4e9cbf7e8807d9a78f3f63b9e70d3a805a61917d5e830c3b90993e977bfa4622",
+          "bytes": 53554,
+          "lines": 449,
+          "actual_read_ranges": [
+            [
+              1,
+              449
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "INVARIANT-MAP.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/INVARIANT-MAP.json",
+          "sha256": "96c617022ede891c621a3860ae5de62e5cf8e4fb78ae65c1f67b3f5c630b0bf2",
+          "bytes": 115650,
+          "lines": 3882,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "MIGRATION-AND-VALIDATION.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/MIGRATION-AND-VALIDATION.md",
+          "sha256": "728907fd15ee19e8a9aab65335c1e89bc60f8e12e5ea04ffba50184e2606be27",
+          "bytes": 22904,
+          "lines": 129,
+          "actual_read_ranges": [
+            [
+              1,
+              129
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "OPEN-DECISIONS.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/OPEN-DECISIONS.json",
+          "sha256": "c89c3e0b174535c5f0b09886bbfee8ac97bd5ac082e0212f4a6320cc4a71db10",
+          "bytes": 36875,
+          "lines": 763,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "SCHEME.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/SCHEME.md",
+          "sha256": "e27933d558392ce5d1b76e8e4d6a629a660dba7594a705307b685800df41108b",
+          "bytes": 32156,
+          "lines": 146,
+          "actual_read_ranges": [
+            [
+              1,
+              146
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "SELF-CHECK.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/SELF-CHECK.md",
+          "sha256": "9dc56e3bc2943d991b25e83669dec3a11e322105f08e8d5f5205ac5483f97315",
+          "bytes": 5656,
+          "lines": 41,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "SOURCES.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/SOURCES.json",
+          "sha256": "30f4fb6640b3f1ea77fa5c5c95014cba18f3f13ea2e33d1685728e5d594e8be9",
+          "bytes": 79183,
+          "lines": 2173,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "STATUS.json",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/STATUS.json",
+          "sha256": "b1d5c0332211921c09aa124e9af32639036b05d93abe6c7d3cc38ebf3c0b1c68",
+          "bytes": 4306,
+          "lines": 94,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "TRADEOFFS-AND-RED-FLAGS.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/TRADEOFFS-AND-RED-FLAGS.md",
+          "sha256": "00653588870bc3de10c541f2c2332f740f713a2b924c1d18c5dc422842b847b7",
+          "bytes": 9843,
+          "lines": 65,
+          "actual_read_ranges": [
+            [
+              1,
+              65
+            ]
+          ],
+          "read_scope": "FULL_BODY_READ"
+        },
+        {
+          "relative_path": "USAGE.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/USAGE.md",
+          "sha256": "58e111e1bae91bf944430c5a9d68c0a1ea610b65cbeb0ef1645238a9ddbcf749",
+          "bytes": 32097,
+          "lines": 244,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/01-boundaries.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/diagrams/01-boundaries.md",
+          "sha256": "62db4b14ef90899bfa17540a3f89017f2dbc73c8265c0178bdfacb6c45b5845c",
+          "bytes": 2149,
+          "lines": 34,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/02-lifetimes.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/diagrams/02-lifetimes.md",
+          "sha256": "ca604c25feafe96a2c0b330f07a1bf1b7954c5aa71ae4300f95631d12df699bc",
+          "bytes": 2290,
+          "lines": 29,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        },
+        {
+          "relative_path": "diagrams/03-netting-and-replacement.md",
+          "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/diagrams/03-netting-and-replacement.md",
+          "sha256": "a5d895fec7f26ad6bc152ba2f76bf3497a9eb8569bf1c10a0207e3f1a899859a",
+          "bytes": 2169,
+          "lines": 38,
+          "actual_read_ranges": [],
+          "read_scope": "HASH_VERIFIED_ONLY"
+        }
+      ]
+    }
+  ],
+  "scope": "Mechanical hashes only do not claim semantic reading. Actual ranges will be filled from displayed reads."
+}

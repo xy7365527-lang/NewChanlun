@@ -1,0 +1,2087 @@
+{
+  "schema": "issue1339.fugue-requirements.v1",
+  "issue": 1339,
+  "status": "AUTHOR_DRAFT_NOT_USER_CONFIRMED",
+  "created_at": "2026-09-08T06:51:02.026172+00:00",
+  "author": "/root/fugue_requirements",
+  "scope": "完整多重赋格、经营、经济权利、外部执行事实及恢复的需求/验收草案；不选架构、不实施、不合入",
+  "scope_counts": {
+    "requirements": 35,
+    "e2e_scenarios": 11,
+    "unresolved_groups": 7
+  },
+  "authority_policy": [
+    "教义/已裁领域口径必须保留；工程观察契约是草案。",
+    "ADR内历史软件owner、旧模块布局、候选字母和实施排程不自动成为本次用户采纳。",
+    "生成态定义的强断言必须带#659及后裁修订；不从目录名推合法性。",
+    "各来源的历史代码/场所读数只是原裁定背景，不认证2026-09-08当前运行状态。"
+  ],
+  "external_source": {
+    "issue_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1339",
+    "read_via": "gh issue view --json",
+    "observed_state": "OPEN",
+    "title": "[task] 完整多重赋格与结构状态可观察性：需求、验收范围及架构选型约束",
+    "sections_used": [
+      "核心目标",
+      "第一阶段：需求与验收范围，先于架构定案",
+      "第二阶段：按需求重评候选，需求清单确认后定案"
+    ],
+    "note": "FG-029至035中无独立逐字教义出处的外部生命周期/观察要求来自本票与用户goal，均标工程草案。"
+  },
+  "requirements": [
+    {
+      "id": "FG-001",
+      "title": "N个持久重与专属筹码身份",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            19,
+            27
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            9,
+            14
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/038-第38课.md",
+          "lines": [
+            30,
+            30
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/040-第40课.md",
+          "lines": [
+            20,
+            22
+          ]
+        }
+      ],
+      "requirement": "支持N个同时存在的持久重；每重有标的S、操作级别ℓ和专属筹码Q，跨越多次建仓不终结；没有专属筹码的从属操作不冒充独立重。",
+      "boundary": "N个持久重并存的能力来自既有要求；不在本草案另加最低测试数量。持久性不等于无限运行授权，旧类名或账本布局不从重的三要件推出。",
+      "required_observation": "重身份、标的、操作级别、专属筹码来源、开户/退出时点、历次Voice与经营事件链。",
+      "acceptance": "多个独立重可在不同操作级别并存；重经历再次建仓后仍保有自身身份和完整经营史。具体样例数量由需要证明的行为确定，不成为产品门槛。",
+      "counterexample": "只有一个总账户复制N个图层；清仓后把该重与成本史删除。",
+      "scenario_ids": [
+        "FE-01",
+        "FE-02"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-002",
+      "title": "独立资金和权利与共同上限同时成立",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            15,
+            27
+          ]
+        },
+        {
+          "path": "docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            32,
+            44
+          ]
+        },
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            13,
+            20
+          ]
+        }
+      ],
+      "requirement": "各重开户取得自己的钱与筹码，独立经济权利，不把N重解释成一份钱的递归等式切片；共同总保证金/总名义采用不等式约束。",
+      "boundary": "不同重的资金不得因另一重平仓/闲置自动释放；物理净额省下保证金不扩大任何重权利。总上限的数值和资金政策仍待定。",
+      "required_observation": "逐重权利/已用/预留/可用、投入和回收、共同毛上限及每次受限依据。",
+      "acceptance": "一重有闲置资金而另一重请求增用时，仍按各自权利和共同毛上限判定。",
+      "counterexample": "因为总净头寸小，把另一重闲置或相反腿省出的额度再部署。",
+      "scenario_ids": [
+        "FE-02",
+        "FE-06"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-003",
+      "title": "目标、一个成本与一个TStage随重持久",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            49,
+            54
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            29,
+            46
+          ]
+        }
+      ],
+      "requirement": "每重有自己的经营目标、总体成本和三阶段状态；该重内部各结构级的短差进入该重同一个成本，不能每塔层各造一份TStage。",
+      "boundary": "目标/成本状态是状态而非身份键；当前文字语义键为(S,操作级别)，其软件唯一性和额外ID不在本票选择。",
+      "required_observation": "目标版本、TStage前后值、成本基/数量/已回收本金、触发事件与结构版本、归属重。",
+      "acceptance": "同重两个不同结构级短差产生不同损益但更新同一成本；其他重成本不变。",
+      "counterexample": "全局一个TStage，或因成本过零换成一个全新重。",
+      "scenario_ids": [
+        "FE-01",
+        "FE-04"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-004",
+      "title": "一次Voice的生命周期与不可变开局依据",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            35,
+            45
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            47,
+            51
+          ]
+        },
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            123,
+            132
+          ]
+        }
+      ],
+      "requirement": "Voice表示一次建仓生命周期，一经建立其载体、证书、方向和代际身份不可变，出场终结；重包含多次Voice而不随Voice死亡。",
+      "boundary": "不得把重的持久Q与campaign开局冻结量混为一件事；这里不规定持久化格式。",
+      "required_observation": "Voice身份、所属重、开局结构/证书/数量依据、parent关系、开/平事件、终结后只读历史。",
+      "acceptance": "同重反复操作保留两次独立Voice，成本史不断；重新送达旧开局事件不能创造新Voice。",
+      "counterexample": "为追随重基/新价直接改写既有Voice的开局证书或方向。",
+      "scenario_ids": [
+        "FE-01",
+        "FE-09"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-005",
+      "title": "重内有向合成且不穿零",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            17,
+            30
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            15,
+            15
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/026-第26课.md",
+          "lines": [
+            34,
+            34
+          ]
+        }
+      ],
+      "requirement": "同一重内不同结构级操作合成后处于该重自身方向的[0,Q]区间，不能穿零；要同时持多与持空须独立专属筹码。",
+      "boundary": "子级反向操作可以是减持/回补或形式腿，不能被误解为本重获准翻方向；Q/可用量的账目语义须先有据。",
+      "required_observation": "各结构级贡献、合成前后目标、方向界、持有量/可减量、被拒的越界原因。",
+      "acceptance": "两个子级同时减量时检验总减量不超过本重可用筹码；回补只恢复许可量。",
+      "counterexample": "每条子信号单看未超量，合成后却穿零；用净额遮住本重越界。",
+      "scenario_ids": [
+        "FE-02",
+        "FE-03"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-006",
+      "title": "重间不作方向仲裁",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            32,
+            60
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            87,
+            113
+          ]
+        }
+      ],
+      "requirement": "独立重相反动作并存，各按自己的信号经营；不能设大级别优先或因高层退出消灭另一重的预算。",
+      "boundary": "共同毛约束/资源不足可以限制经济准入，但不能伪装成结构方向仲裁；同slot资金不足的具体协调规则仍是后续设计/政策项。",
+      "required_observation": "两重原始意图、各自依据、资源判定、独立结果及净额合成关系。",
+      "acceptance": "高操作级别持多并退出时，较低级别独立空重可继续；共同限额紧张时保留两项有效语义及经济拒因。",
+      "counterexample": "把低级别相反信号标成无效，或高层平仓自动cascade清掉独立低重。",
+      "scenario_ids": [
+        "FE-02",
+        "FE-06"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-007",
+      "title": "结构级别、操作级别、Voice代际和区间套深度分开",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            29,
+            33
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            74,
+            89
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            33,
+            46
+          ]
+        },
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            45,
+            46
+          ]
+        }
+      ],
+      "requirement": "结构级别属于构造，操作级别属于重的经营视角；Voice代际是相对父链位置，区间套深度是定位收缩层数。需要共同解释时显式给参照系。",
+      "boundary": "现有根级别-depth关系的有界实测不等于全球身份方案；不得用分钟时间周期或裸depth代替所有轴。",
+      "required_observation": "每项输出附适用的轴与参照系；结构对象、重、Voice、定位链相互可追。",
+      "acceptance": "同一结构级别被多个不同操作级别的重使用时，显示不同经营含义且不覆盖彼此。",
+      "counterexample": "UI一个level字段同时表示塔层/操作层/嵌套代数。",
+      "scenario_ids": [
+        "FE-02",
+        "FE-05"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-008",
+      "title": "三方向联立且经营结果不回写结构",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            13,
+            21
+          ]
+        },
+        {
+          "path": "docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            88,
+            99
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            115,
+            129
+          ]
+        }
+      ],
+      "requirement": "经营需纵向向上构造、横向同级分解、主动纵向向下定位三者；横向和定位消费结构事实，其经营结果不反向改构造。",
+      "boundary": "三个语义作用不预定三个服务或owner；一套判据可多重实例化，不能用N重增加判据。",
+      "required_observation": "每重挂载层、选段结果、定位请求/收缩过程、所消费结构版本及判断依据。",
+      "acceptance": "同一结构版本供两重使用，切换一重经营参数不改变另一重或主干构造。",
+      "counterexample": "只展示塔与BSP便称已实现多重经营；操作层重算结构并反喂主干。",
+      "scenario_ids": [
+        "FE-01",
+        "FE-05"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-009",
+      "title": "同级别操作分解的唯一性与角色",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            25,
+            39
+          ]
+        },
+        {
+          "path": "docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            55,
+            85
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/038-第38课.md",
+          "lines": [
+            18,
+            30
+          ]
+        }
+      ],
+      "requirement": "每个固定规则和视角下的操作分解有唯一序列，允许并列盘整；用于继续上构造的延伸与用于经营的非延伸读法按角色区别。",
+      "boundary": "不同合法视角可同时成立；横向一次切分不称递归；ADR0011的软件模块形状作为既有参考，不预锁此次组织。",
+      "required_observation": "分解规则/角色/操作级别、完整段序列、相邻连接与来源构件。",
+      "acceptance": "同底层数据同时输出用于上构造和两个重经营的读法，信息不互相丢失。",
+      "counterexample": "把构造层连续盘整合并后的有损块当成全部操作机会。",
+      "scenario_ids": [
+        "FE-01",
+        "FE-05"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-010",
+      "title": "主动定位过程、可知边界和未成功原因",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            119,
+            129
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            235,
+            274
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/035-第35课.md",
+          "lines": [
+            30,
+            36
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/qujiantao.md",
+          "lines": [
+            1024,
+            1049
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/qujiantao.md",
+          "lines": [
+            1100,
+            1108
+          ]
+        }
+      ],
+      "requirement": "能实际反复下钻背驰段以缩小定位范围，保留每步证据与停止原因；端点存在、证书确认、定位足够精确是不同结论。",
+      "boundary": "不得声称每级必为一类点；ADR0013:291残留强报错句不直接成为需求。qujiantao后裁要求把EmptySubs/NoAlign/DivFalse分开，下钻无锚不等于教义小转大，不适用不等于通过，几何链长不等于判据深度。",
+      "required_observation": "请求目标、每级输入域和收缩区间、各步判据、时点、基底/成本门/EmptySubs/NoAlign/DivFalse/不适用等停止或不足原因。",
+      "acceptance": "构造可下钻两级的案例真正执行两步；遇次级别二类事实仍按合法定位判据处理，不强改标签。",
+      "counterexample": "只检查is_some后丢深度；用端点存在证明全链已确认。",
+      "scenario_ids": [
+        "FE-05"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-011",
+      "title": "可操作下限包含成本、误差与交易制度",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/chanlun/text/blog/035-第35课.md",
+          "lines": [
+            30,
+            32
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            289,
+            290
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/fengkong.md",
+          "lines": [
+            274,
+            286
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/qujiantao.md",
+          "lines": [
+            495,
+            513
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/qujiantao.md",
+          "lines": [
+            1201,
+            1201
+          ]
+        }
+      ],
+      "requirement": "能否经营该级别同时取决于交易成本、交易误差、资金条件和兑现制度，不是越细越好。",
+      "boundary": "成本/误差相对波幅的量化阈值和现场交易权限仍待定；成本门与塔底按先到者终止，不能人为提前停。进一步下延已批准方向但须满足成本不确定性/逐窗/样本/聚簇及已到现底条件；不能默认手续费为0、T+0或无限精度。",
+      "required_observation": "价差/费率/延迟/波幅、制度配置、测量有效域、准入通过/不足/不适用原因。",
+      "acceptance": "同结构点在受限制度或高延迟条件下有相同结构结论而经营资格不同。",
+      "counterexample": "定位更细即默认可交易；填0费用消灭成本门。",
+      "scenario_ids": [
+        "FE-05",
+        "FE-10"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-012",
+      "title": "满仓基线、回本前同量回补",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            52,
+            75
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            74,
+            85
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/026-第26课.md",
+          "lines": [
+            34,
+            34
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/031-第31课.md",
+          "lines": [
+            24,
+            30
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/031-第31课.md",
+          "lines": [
+            169,
+            169
+          ]
+        }
+      ],
+      "requirement": "基线为一次性买够/建立许可筹码，再在基线下减持回补；回本前同股数M=N，短差不扩本金持仓。d=0是基线，d≥1才是短差。",
+      "boundary": "一次性建仓是目标权利形态，不表示真实订单只能整笔成交；部分成交必须反映未完成量。",
+      "required_observation": "固定基线、目标量、实际填充、未成交量、短差卖出/回补配对与剩余缺口。",
+      "acceptance": "部分建仓→完成基线→卖出q→分两次回补总q；回本前不得因利润或NAV上涨增大Q。",
+      "counterexample": "每bar按现价/NAV重算初始目标；把部分成交当成完整满仓。",
+      "scenario_ids": [
+        "FE-01",
+        "FE-03"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-013",
+      "title": "中枢震荡、移动与回补终止域",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            91,
+            109
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/049-第49课.md",
+          "lines": [
+            50,
+            64
+          ]
+        }
+      ],
+      "requirement": "同一重围绕仍有效中枢做差价；中枢上方减、下方补。第三类卖点之后旧震荡回补域终止；该重中枢完成向上移动段保持基线、不做该重短差，新中枢后按新依据经营。",
+      "boundary": "重内禁短差不令其他独立重静默；方向对称扩展不能超出既有载体/证书权利。旧框清算和当前框挂价分开。",
+      "required_observation": "中枢身份/有效性、位置关系、经营阶段、第三类点依据、旧域结束/新域启动。",
+      "acceptance": "已减持后出现第三类卖点，旧回补义务停止新准入并处理真实在途；另一个独立重不被清空。",
+      "counterexample": "把第三类卖点后的回补幅度设成小值继续买；全局静默所有重。",
+      "scenario_ids": [
+        "FE-03",
+        "FE-07"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-014",
+      "title": "重内动作量的固定基与经验有效域",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定形态及公式；参数/外推限制须保留",
+      "sources": [
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            111,
+            153
+          ]
+        },
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            176,
+            195
+          ]
+        },
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            211,
+            251
+          ]
+        }
+      ],
+      "requirement": "短差动作量形态w(d)×Q，以该重固定专属筹码为基；已裁容量比幂律w(d)=(Aℓ−d/Aℓ)^(1/δ)，按相对深度索引。",
+      "boundary": "公式属既有选择；底档经验值约0.32不是全级别常数或置信区间，上档测不出；绝对容量与比值有效域不同。未定输入/标定不得由方案补成默认值。",
+      "required_observation": "Q、d、波幅输入、δ及敏感性、测量窗口/样本/有效域、无法得量原因。",
+      "acceptance": "同一重连续短差保持同一基；高档缺数据时显式不足，不照搬底档0.32。",
+      "counterexample": "把w解释成分配总钱百分比，或把不可判上档当0/底档默认。",
+      "scenario_ids": [
+        "FE-03",
+        "FE-06"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-015",
+      "title": "成本只随真实经济事件变化并包括亏损",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0015-cost-trajectory-acceptance-metric.md",
+          "lines": [
+            33,
+            53
+          ]
+        },
+        {
+          "path": "docs/adr/0015-cost-trajectory-acceptance-metric.md",
+          "lines": [
+            83,
+            94
+          ]
+        },
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            27,
+            32
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            295,
+            297
+          ]
+        }
+      ],
+      "requirement": "成本基由历史投入、已实现回收及应计费用解释，不能由行情涨跌直接改变；亏损往返如实入账，多头降成本与空头抬高开空基价分方向解释。",
+      "boundary": "负现金由真实亏损造成不等于可继续部署；货透支仍是错误。费用归属/配对或本金定义未齐时不得伪造精确成本。",
+      "required_observation": "原始经济事件、毛/费后损益、成本前后值、数量分母、归属、费用事件及未能归因部分。",
+      "acceptance": "同持仓价格涨跌不凭空降成本；亏损往返使成本上升，原始现金流保留。",
+      "counterexample": "删除亏损往返，或按估值上涨将成本归零。",
+      "scenario_ids": [
+        "FE-03",
+        "FE-04"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-016",
+      "title": "本金回收闸门和多空阶段非对称",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            48,
+            85
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/031-第31课.md",
+          "lines": [
+            24,
+            30
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/031-第31课.md",
+          "lines": [
+            169,
+            169
+          ]
+        }
+      ],
+      "requirement": "保留降成本、退本金、赚股完整阶段。线性多头可有赚股阶段，线性空头仅降成本/退本金；空头回本不消除欠付上涨风险。",
+      "boundary": "逐仓损失有界是条件要求，虚拟分账不能证物理隔离；投入保证金/本金测量和闸门后量政策未齐时显示待定，不启用交易。",
+      "required_observation": "回收本金目标/累计回收、阶段转换依据、载体/方向、剩余权利和风险敞口、未定政策。",
+      "acceptance": "多头回本后留有非零筹码继续经营；空头回本后仍显示未平空义务，不能标无风险赚股。",
+      "counterexample": "仅看成本marker为0便宣称隔离或无风险；空头复制多头第三相。",
+      "scenario_ids": [
+        "FE-04",
+        "FE-10"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-017",
+      "title": "回本后增长与固定Q的衔接不能暗填",
+      "requirement_class": "领域义务",
+      "settlement_status": "增长义务已定；具体会计衔接待澄清",
+      "sources": [
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            74,
+            85
+          ]
+        },
+        {
+          "path": "docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            135,
+            159
+          ]
+        },
+        {
+          "path": "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            113,
+            132
+          ]
+        }
+      ],
+      "requirement": "系统须能表达回本后利润再投入、赚股与容量换档后的完整经济史，而非只完成降成本前半段。",
+      "boundary": "ADR0013:77下一段更大量、0016:155W>C溢出与0017:119Q终身不变之间需显式区分资本/权益/基线/容量；本稿不判如何更新。",
+      "required_observation": "回本前后资本、权益、筹码基、增长所得、换档来源/去向及每次决定的政策版本。",
+      "acceptance": "给定批准的非零增长输入，能够追踪增量归谁、是否越容量及后续新重。",
+      "counterexample": "直接覆盖Q丢旧史，或冻结Q为借口永远不实现赚股/增长。",
+      "scenario_ids": [
+        "FE-04",
+        "FE-06"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-018",
+      "title": "规模取容量、开局从最低可行级别向上",
+      "requirement_class": "领域义务",
+      "settlement_status": "判据已定；绝对容量测量和总投入仍有待定项",
+      "sources": [
+        {
+          "path": "docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            68,
+            102
+          ]
+        },
+        {
+          "path": "docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            182,
+            188
+          ]
+        }
+      ],
+      "requirement": "重的规模依该操作级别可容纳量；在经济与制度可行前提下先最低可行级别，超出再向上承载。",
+      "boundary": "容量不是级别函数已知数表；缺测量不能伪造任意几何衰减或固定比例。用户未给总投入不阻止设计表达未知。",
+      "required_observation": "容量估计/方法/时间窗/适用域、投入总量参数、逐级可行性和装载结果。",
+      "acceptance": "容量不足与未知两种输入给出不同解释；超容量部分可追到更高重或明确待定。",
+      "counterexample": "用最高级优先分配，或把unknown容量当无限大。",
+      "scenario_ids": [
+        "FE-06"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-019",
+      "title": "容量与频率两道独立门",
+      "requirement_class": "领域义务",
+      "settlement_status": "门分立已定；开重低频阈值仍待定",
+      "sources": [
+        {
+          "path": "docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            104,
+            124
+          ]
+        },
+        {
+          "path": "docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            35,
+            49
+          ]
+        }
+      ],
+      "requirement": "容量决定多大，频率决定开不开重；交易频率买卖分列，不能用高频抵销低质量或把频率乘进成本验收标量。",
+      "boundary": "低频阈值未获数值不能自定；结构性稀疏不是通过或失败。",
+      "required_observation": "每重候选级别买/卖计数、活跃窗口、样本量、门状态及阈值来源。",
+      "acceptance": "大容量零卖点的级别显示不具备可判经营频率，不分配闲置大额。",
+      "counterexample": "只报买卖总和隐藏单边缺失；容量大即默认开重。",
+      "scenario_ids": [
+        "FE-06",
+        "FE-11"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-020",
+      "title": "行情换档与资金溢出换档分别保留",
+      "requirement_class": "领域义务",
+      "settlement_status": "两类触发已定；具体权利/尾账交接待设计与钱政策",
+      "sources": [
+        {
+          "path": "docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            25,
+            25
+          ]
+        },
+        {
+          "path": "docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            125,
+            159
+          ]
+        },
+        {
+          "path": "docs/chanlun/text/blog/040-第40课.md",
+          "lines": [
+            14,
+            22
+          ]
+        }
+      ],
+      "requirement": "支持行情更大级别走好引发的主体升级/部分保留，以及资金W>C引发原级别留C、溢出向上开新重；空仓资金留本重。",
+      "boundary": "两类换档方向/触发不同，不自动统一；换档不等于既有重之间随意挪钱。新重仍受容量、频率、毛约束。",
+      "required_observation": "触发种类、结构/资本证据、旧新重关联、分出权利、保留筹码、开闭时点和未结尾账。",
+      "acceptance": "分别运行行情换档和资本换档；旧重历史/未结部分不因新重出现消失。",
+      "counterexample": "只有rename操作级别而无新旧权利追踪，或闲置资金悄悄借给其他重。",
+      "scenario_ids": [
+        "FE-06",
+        "FE-07"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-021",
+      "title": "毛账归因与净额外效分离",
+      "requirement_class": "领域义务",
+      "settlement_status": "毛净分离已定；账本验收随已裁执行形态条件切换",
+      "sources": [
+        {
+          "path": "docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            32,
+            44
+          ]
+        },
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            17,
+            25
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            281,
+            293
+          ]
+        },
+        {
+          "path": "docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            66,
+            81
+          ]
+        }
+      ],
+      "requirement": "逐重/逐腿的毛权利和暴露不可被物理净额抵消抹掉。验收口径须带执行形态：当前净额执行按净账验收并保留逐重毛账；按#937条件式裁定，逐笔独立场所获准落地后改用毛账验收。生效前维持净账口径，不能把两种有效域写成同一条无条件规则。",
+      "boundary": "净额为零仍可能有两份非零经济义务；不得用虚拟分账证明真实逐仓保护。ADR0021:73要求重启时携带账目与执行切换件；记录该条件不表示现在已生效或获准启动。",
+      "required_observation": "毛多/毛空/毛占用、净目标/净成交、外效映射、差额、账实对账。当前执行形态、验收账本、切换条件及其生效依据。",
+      "acceptance": "两个重相等反向净额为零时仍显示两份权利和共同毛占用；单边退出再产生正确外效。",
+      "counterexample": "总净=0就清空毛账或宣称无持仓风险。",
+      "scenario_ids": [
+        "FE-02",
+        "FE-07"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-022",
+      "title": "净省禁复用覆盖并发、撤回和在途",
+      "requirement_class": "领域义务",
+      "settlement_status": "已定（承接既有裁定，非本次重新选择）",
+      "sources": [
+        {
+          "path": "docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            34,
+            44
+          ]
+        },
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            34,
+            44
+          ]
+        }
+      ],
+      "requirement": "净额节省不得成为可再部署权利；这个不变量必须跨请求、预留、提交、成交、撤销、退出和重启都能验证。",
+      "boundary": "预留等是工程观察草案，不由本文预定承诺核/分布式提交；未知外部结果不能等同释放。",
+      "required_observation": "逐重毛预留/占用、净省隔离项、共同限额、占用变化原因及未决外效。",
+      "acceptance": "并发反向意图提交及部分撤回期间，第三请求不能占用净省；重启后同样成立。",
+      "counterexample": "先净后毛、撤单已发即释放、超时重启释放并被另一重重复使用。",
+      "scenario_ids": [
+        "FE-02",
+        "FE-06",
+        "FE-08"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-023",
+      "title": "费用方向、计提坐标和解锁条件",
+      "requirement_class": "领域义务",
+      "settlement_status": "毛费用坐标已定；费率/来源/分配仍待定",
+      "sources": [
+        {
+          "path": "docs/adr/0015-cost-trajectory-acceptance-metric.md",
+          "lines": [
+            83,
+            94
+          ]
+        },
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            41,
+            44
+          ]
+        },
+        {
+          "path": "docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            66,
+            81
+          ]
+        },
+        {
+          "path": "docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            22,
+            26
+          ]
+        }
+      ],
+      "requirement": "成本含手续费/资金费率；funding按每腿毛暴露，borrow按空腿借券市值；报告同时保留实际外部收费与内部归因。",
+      "boundary": "ADR0024补齐口径只使逐腿出口有另案资格，未自动批准启用；费率与映射、按净执行时毛费归因不能拍脑袋。账本验收同时遵守#937/ADR0021:73的条件式切换，毛费用坐标本身不证明该切换已生效。",
+      "required_observation": "实际费用/时间/资产/订单、费用来源版本、归因方法、毛/净差异及未知费用。",
+      "acceptance": "相反两重净=0仍列毛费用语义，实际外部费用不伪造；未定费用项显式待定。",
+      "counterexample": "净额为零自动免掉毛费用义务，或直接计两个虚构外部账单。",
+      "scenario_ids": [
+        "FE-02",
+        "FE-04",
+        "FE-10"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-024",
+      "title": "共同毛净上限与对账关系",
+      "requirement_class": "领域义务",
+      "settlement_status": "上限作用和对账要求已定；数值/完整证明待定",
+      "sources": [
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            13,
+            39
+          ]
+        }
+      ],
+      "requirement": "合计超过本金属于杠杆；共同毛上限管杠杆、净上限管净额约束，逐重约束仍存在。建立无成本毛净收益账目恒等与费用分配后的对账。",
+      "boundary": "表中两段对账的数学要求不构成本轮已证明；期望层细/粗条件信息差不能替代账目恒等。",
+      "required_observation": "总本金、毛/净名义与杠杆、各帽生效值来源、逐项对账差额与归因条件。",
+      "acceptance": "多重各自满仓且合计超本金时明确显示杠杆；外部成交/费用回填可逐项对账。",
+      "counterexample": "拿N个满仓掩饰N倍杠杆，或用净NAV变化解释所有重的经营成绩。",
+      "scenario_ids": [
+        "FE-02",
+        "FE-11"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-025",
+      "title": "经营验收用成本事件并保留统计边界",
+      "requirement_class": "领域义务",
+      "settlement_status": "既有方法已定；取样边界与闸门后参数待澄清",
+      "sources": [
+        {
+          "path": "docs/adr/0015-cost-trajectory-acceptance-metric.md",
+          "lines": [
+            17,
+            79
+          ]
+        },
+        {
+          "path": "docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            13,
+            58
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            295,
+            297
+          ]
+        }
+      ],
+      "requirement": "闸门前按费后成本相对降幅/占用时间评价；单边95%下界、按月分块bootstrap；事件≥30、月块≥12，≥3非重叠窗且各过线、合计≥50%全史；闸门后净头寸价值参数有条件待定。",
+      "boundary": "全量原始盈亏/费用均须可观察。ADR0022:17『成本实际下降事件』与费后≤0零假设的采样选择需澄清，不能只采盈利；零时长、C_before≤0和阶段切分边界不得私定。",
+      "required_observation": "全部落袋事件/费用、成本前后、持续时间、原始样本和排除原因、每窗结果/下界、未知或稀疏原因。",
+      "acceptance": "加入亏损和同日费用后不会从历史中消失；样本不足明确不可判，价格牛市不自动成功。",
+      "counterexample": "以Sharpe=0否认成本经营，或用只含正事件的中位数/总窗平均声称验收。",
+      "scenario_ids": [
+        "FE-04",
+        "FE-11"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-026",
+      "title": "结构事实、经营答案、外部事实和有效性分开输出",
+      "requirement_class": "工程观察契约草案",
+      "settlement_status": "草案待需求范围确认；不预定软件组织",
+      "sources": [
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            249,
+            267
+          ]
+        },
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            79,
+            85
+          ]
+        }
+      ],
+      "requirement": "每次经营结果关联重/目标/结构版本/原始谓词/裁决/经济准入/执行状态；外部已成交事实不可被结构撤回抹掉。",
+      "boundary": "原始谓词可同时为真；一个Voice本刻typed exit的互斥不允许把全定义事实先first-match删掉。",
+      "required_observation": "原始并存判据、选定动作及理由、准入/拒绝、实际提交/成交/撤单、结果有效性与修订链。",
+      "acceptance": "同一时刻出现多个结构事实，UI全部能追溯，并解释为何该Voice本刻取Hold/Reduce/Close。",
+      "counterexample": "只发布最终buy/sell marker，反推所有结构/经营状态。",
+      "scenario_ids": [
+        "FE-03",
+        "FE-07",
+        "FE-09"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-027",
+      "title": "订单身份、冻结量、当前挂价与旧框清算区分",
+      "requirement_class": "已裁工程边界",
+      "settlement_status": "回测臂既有裁定；多重命名域与新协议待设计",
+      "sources": [
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            101,
+            123
+          ]
+        },
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            306,
+            310
+          ]
+        },
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            361,
+            374
+          ]
+        },
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            456,
+            511
+          ]
+        }
+      ],
+      "requirement": "可辨同一订单续挂/新挂/撤销。既有回测口径按中枢起点+方向识别，量冻结、当前挂价随核心修订，清算仍用首次冻结旧框。",
+      "boundary": "裸start_index是有范围的回测订单键，不能升成多重/多会话全球ID；maker冻结亦为该模型口径，真实场所改单角色需外部回报。",
+      "required_observation": "订单逻辑身份/版本、所属重/运行会话、中枢锚、首次量、当前价与旧框、每次改单/撤销外部回报。",
+      "acceptance": "同key核心价格修订时保持许可量且只改挂价；旧框清算依据仍可回看。",
+      "counterexample": "把价格放进身份每bar新建量，或用新框追改旧单清算依据。",
+      "scenario_ids": [
+        "FE-03",
+        "FE-07"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-028",
+      "title": "回测成交假设与真实外部成交不能混证",
+      "requirement_class": "已裁工程边界",
+      "settlement_status": "既有模拟口径已定；完整N重并发次序待设计",
+      "sources": [
+        {
+          "path": "docs/adr/0018-limit-order-fill-model.md",
+          "lines": [
+            69,
+            169
+          ]
+        },
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            39,
+            57
+          ]
+        },
+        {
+          "path": "docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            249,
+            253
+          ]
+        }
+      ],
+      "requirement": "回测限价严格穿越才成交、开盘取优、GTC随当前结构有效性；禁止预知中枢失效的expiry。保留两种滑点口径的比较纪律及真实/模拟来源。",
+      "boundary": "ADR0018同bar反向开仓次序与0019市价+限价同bar次序未定义；完整N重使这些不能靠单净单不可达跳过。旧回测接口形状不锁新架构。",
+      "required_observation": "挂出/触发/成交时间、模拟模型和版本、OHLC已知性、价格/流动性角色、外部确认、同slot顺序依据。",
+      "acceptance": "触及不穿越不成交；有预挂且开盘穿越按模型取优；同时两重反向/市价限价混合必须交付明确的候选协议解释。",
+      "counterexample": "用OHLC猜先高后低造撮合路径；模型通过冒充实盘成交可保证。",
+      "scenario_ids": [
+        "FE-03",
+        "FE-08",
+        "FE-10"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-029",
+      "title": "部分成交、重复和乱序事实的完整接纳",
+      "requirement_class": "工程观察契约草案",
+      "settlement_status": "草案待需求范围确认；不预定软件组织",
+      "sources": [],
+      "requirement": "设计须表达提交、确认、部分成交、完全成交、拒绝、取消请求与结果未知，处理重复/乱序外部消息而不重复计量。",
+      "boundary": "上述生命周期状态是工程草案，不新增缠论判据；请求取消不等于交易所已取消，超时不等于没成交。",
+      "required_observation": "client/external关联、已成交/剩余量、每条原始回报、去重依据、状态版本和未知区间。",
+      "acceptance": "40%成交→取消请求→尾成交20%→取消确认，最终量60%且每条重复消息不再增仓。",
+      "counterexample": "只允许全成/全撤；未知结果重发导致双倍外效。",
+      "scenario_ids": [
+        "FE-03",
+        "FE-08"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-030",
+      "title": "结构撤回后处理真实在途与退出",
+      "requirement_class": "工程观察契约草案",
+      "settlement_status": "草案待需求范围确认；不预定软件组织",
+      "sources": [
+        {
+          "path": "docs/chanlun/text/blog/049-第49课.md",
+          "lines": [
+            52,
+            62
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/fengkong.md",
+          "lines": [
+            30,
+            34
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/fengkong.md",
+          "lines": [
+            364,
+            367
+          ]
+        }
+      ],
+      "requirement": "结构/经营依据被修订或撤回后，后端应停止旧依据产生新准入，并处理已发/已成/结果未知的尾账；退出必须有明确原因及外部完成证据。",
+      "boundary": "冻结的早期13课退出语义不得升级新硬门；究竟取消/补偿/等待/人工接管属于待设计协议和权限，不能前端暗作。",
+      "required_observation": "撤回对象与获知时点、受影响目标/计划、已成不可逆事实、退出进展/残余权利及阻塞原因。",
+      "acceptance": "撤回发生在部分成交之后，保留真实成交和费用，追踪剩余量至外部已结或明确未决。",
+      "counterexample": "撤回一个marker就删除相应持仓/资金占用。",
+      "scenario_ids": [
+        "FE-07",
+        "FE-08"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-031",
+      "title": "退出后的在途尾账不随业务实体删除",
+      "requirement_class": "工程观察契约草案",
+      "settlement_status": "草案待需求范围确认；不预定软件组织",
+      "sources": [
+        {
+          "path": "docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            49,
+            54
+          ]
+        },
+        {
+          "path": "CONTEXT.md",
+          "lines": [
+            47,
+            51
+          ]
+        },
+        {
+          "path": "docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            87,
+            91
+          ]
+        }
+      ],
+      "requirement": "Voice/重停止经营与其外部责任结清是不同事实；保留退出后尾成交、费用、对账和恢复，不能让终结实体丢失收据归属。",
+      "boundary": "父Voice剪枝只作用所属结构活动集，不能因此清掉独立重；何时达到可退休终态由后续协议明确。",
+      "required_observation": "停止准入时点、业务终态、外部未决清单、尾账/费用、占用释放和归属继承。",
+      "acceptance": "一个重退出后收到迟到成交/费用，仍归原重历史并修正总账，不写入新重。",
+      "counterexample": "delete重级联删订单，迟到消息无主或记到当前同名重。",
+      "scenario_ids": [
+        "FE-07",
+        "FE-08"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-032",
+      "title": "恢复已有持仓、经营史与未结责任",
+      "requirement_class": "工程观察契约草案",
+      "settlement_status": "草案待需求范围确认；不预定软件组织",
+      "sources": [],
+      "requirement": "恢复保存重/Voice/阶段/成本/目标/结构版本/许可权利/预留/未决外效/外部游标和尾账；重启后核对外部事实再恢复新准入。",
+      "boundary": "不得把空账户demo或单重marker重放当恢复验收；恢复组织与一致性提交方式不在本稿选择。",
+      "required_observation": "恢复检查点、日志/外部游标、缺口和重接决议、重复/缺失消息、保留的未知责任。",
+      "acceptance": "在多个重已有持仓及成本变化、存在未决订单和退出尾账时模拟崩溃；恢复后逐项账实一致且不重复执行。",
+      "counterexample": "重启清空预留或重新生成全部订单；只比较最后净头寸。",
+      "scenario_ids": [
+        "FE-08",
+        "FE-09"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-033",
+      "title": "同源一致观察与按当时可知回放",
+      "requirement_class": "工程观察契约草案",
+      "settlement_status": "草案待需求范围确认；不预定软件组织",
+      "sources": [],
+      "requirement": "同一已声明版本切面贯通结构快照、各重经营结果、毛约束与外部事实，版本切面可由版本组合表达；按游标获取变更/撤回，按获知时间重建历史，隔离会话与代际。",
+      "boundary": "具体快照一致性范围、游标协议和存储owner待架构阶段；局部仍可展示不自动证明其它重可继续经济准入。完整字段和语义此阶段交用户审阅，不能由前端另算成本或判结构。",
+      "required_observation": "对象/重/会话ID、前后版本、事件时间/获知时间、因果依据、修订/撤回、缺口及补齐状态。",
+      "acceptance": "两个客户端断线不同时间后续接到相同版本，能解释当时未知、后续修订与真实成交。",
+      "counterexample": "用最终结构重放早期决策而不标前视；拼接不同版本成本与结构。",
+      "scenario_ids": [
+        "FE-09"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-034",
+      "title": "结构源和执行源分离、场所不预锁",
+      "requirement_class": "已裁工程边界",
+      "settlement_status": "现有范围约束已定；实际权限/适配边界待定",
+      "sources": [
+        {
+          "path": "docs/adr/0020-backtest-cash-live-perp-filtered.md",
+          "lines": [
+            141,
+            160
+          ]
+        },
+        {
+          "path": "docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            7,
+            13
+          ]
+        },
+        {
+          "path": "docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            54,
+            81
+          ]
+        }
+      ],
+      "requirement": "既有更新口径为结构/决策统一美股tick，永续仅执行源；价差/滑点是执行成本，不反写结构。不能写死单一执行场所，实盘启动另有批准/验证。",
+      "boundary": "ADR0020标题/前半的A/C双源与源头过滤已被141–160重写，不可复活。场所旧快照不认证当前能力/隔离，观察契约不授交易权限。ADR0021:73的重启条件携带#937账目/执行切换义务：逐笔独立形态获准落地后毛账验收，生效前净账维持；旧VOICE_EXEC/sep_legs只是原实施载体，不预锁新架构组织。",
+      "required_observation": "结构源/执行源标的映射、数据版本、运行模式、外部权限和隔离证据、休市/断流原因。",
+      "acceptance": "同一结构输入通过两种执行适配形成不同外部事实，结构结论不变；未获许可模式只观察。",
+      "counterexample": "用永续价回填结构或把旧Hyperliquid倾向当用户已选定场所。",
+      "scenario_ids": [
+        "FE-10"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    },
+    {
+      "id": "FG-035",
+      "title": "未定钱规则和软件组织保持显式未定",
+      "requirement_class": "工程观察契约草案",
+      "settlement_status": "草案待需求范围确认；不预定软件组织",
+      "sources": [
+        {
+          "path": "docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            182,
+            188
+          ]
+        },
+        {
+          "path": "docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            26,
+            26
+          ]
+        },
+        {
+          "path": "docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            41,
+            43
+          ]
+        },
+        {
+          "path": "docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            29,
+            43
+          ]
+        },
+        {
+          "path": ".chanlun/definitions/fengkong.md",
+          "lines": [
+            30,
+            34
+          ]
+        }
+      ],
+      "requirement": "显式记录未定量/费用/本金/配对/资金政策/交易权限及其阻塞的动作和可继续的观察；设计覆盖完整状态而不代替用户采纳。",
+      "boundary": "独立重不推出A2私账，丰富观察不推出C3答案治理，统一义务不推出B承诺核；不得未经设计拼案。已裁部分也不能全部重标未定。",
+      "required_observation": "每个政策项的状态/依据/决定者/版本/适用域、等待原因和不依赖项。",
+      "acceptance": "用显式未定值仍能完整展示历史和推导缺口；任何经济动作都可追到具体有效政策而非默认。",
+      "counterexample": "表单默认0费率/固定本金/FIFO或cap数值，保存展示就自动批准。",
+      "scenario_ids": [
+        "FE-06",
+        "FE-10",
+        "FE-11"
+      ],
+      "evidence_status": "需求取证/静态；未跑程序、成交、回放或性能验收"
+    }
+  ],
+  "e2e_scenarios": [
+    {
+      "id": "FE-01",
+      "title": "持久重的完整经营过程",
+      "setup": "多个操作级别的独立重，分别已有资金、筹码、成本和结构版本。经济参数须标为测试输入；场景中的具体数量不成为产品定义或生产授权。",
+      "sequence": [
+        "主动选段并真实下钻，建立许可满仓目标，允许分批成交完成。",
+        "同重不同结构级先后做至少两次短差，含一次盈利、一次亏损及费用；成本逐项归因。",
+        "出现中枢完成移动，维持该重基线；新中枢到来恢复合法经营。",
+        "一重完成整次退出又重新建仓，Voice变化而重与成本史连续。"
+      ],
+      "assertions": [
+        "三方向均有真实调用/结果证据。",
+        "逐重权利和经营史不互串；实现回收事件可沿成本轨迹逐项核对，空账不能证明这些行为。",
+        "结构、决策、外效、账目和前端展示同源相连。"
+      ],
+      "anti_shortcut": "只造N个空Book、只渲染marker、只跑单根同向持仓均不满足。"
+    },
+    {
+      "id": "FE-02",
+      "title": "相反独立重、净零和共同毛约束",
+      "setup": "示例：重甲持多Q1、重乙持空Q2，取Q1=Q2观察净零；另设丙请求新权利，以检查净省禁复用。甲乙丙仅说明事件关系，不规定最低重数。",
+      "sequence": [
+        "甲乙依据不同级别合法事实同时提交相反意图。",
+        "记录两份毛权利与实际净额外效。",
+        "净零期间丙请求使用被净抵消省下的额度。",
+        "甲先退出、乙继续存活，再接外部成交。"
+      ],
+      "assertions": [
+        "净零不抹掉甲乙毛账、TStage或未来退出义务。",
+        "丙不能复用净省。",
+        "甲退出不仲裁乙；单边变化产生可追外效。"
+      ],
+      "anti_shortcut": "仅比较净NAV/净仓位不能验各重独立性。"
+    },
+    {
+      "id": "FE-03",
+      "title": "短差全生命周期和部分成交",
+      "setup": "已有多头基线、合法中枢震荡和两个相对深度动作。",
+      "sequence": [
+        "ZG上方减持，部分成交40%，继续成交20%。",
+        "ZD下方回补，重复/乱序回报去重；一次回补为亏损。",
+        "核心修订使挂价变化但量不重算；清算旧框保留。",
+        "随后出现第三类卖点，旧回补域终止；处理仍在途部分。"
+      ],
+      "assertions": [
+        "Q基冻结、合成不穿零、回本前同量回补。",
+        "盈利亏损费用完整，动作量不随NAV漂。",
+        "旧依据退出与真实尾成交同时存在并被追踪。"
+      ],
+      "anti_shortcut": "全成全撤两态、丢负样本、撤marker即撤账均不满足。"
+    },
+    {
+      "id": "FE-04",
+      "title": "本金回收、赚股与空头非对称",
+      "setup": "至少一重临近回本、一独立空重尚有未平义务；使用注明测试用的本金/费用/增长政策。",
+      "sequence": [
+        "费后已实现回收使多头进入回本状态，剩余非零筹码。",
+        "执行回本后的抛出再回补，展示增长所得和量基关系。",
+        "空头回本，仍保留空头债务和风险敞口。",
+        "再发生费用/亏损，展示成本状态是否需重评及待定规则。"
+      ],
+      "assertions": [
+        "不能靠价格上涨直接把成本清零。",
+        "多头赚股完整，不仅画零成本线。",
+        "空头不伪造第三相；未定跨阶段规则显式暴露。"
+      ],
+      "anti_shortcut": "手工给TStage=3而无本金回收事件链不算覆盖。"
+    },
+    {
+      "id": "FE-05",
+      "title": "多级别联立、主动定位和知识不足",
+      "setup": "同一结构版本同时被两个操作级别的重使用，包含可下钻≥2级的构造fixture及一例判据不足。",
+      "sequence": [
+        "分别作横向分解与向下定位。",
+        "沿途存在不同BSP类型或暂缺证据。",
+        "引入高延迟/交易制度差异，使结构结论不变但经济可行性变化。",
+        "回放到证书尚未知时点。"
+      ],
+      "assertions": [
+        "记录每一步收缩、依据、停止原因；不要求每级一类。",
+        "操作视角不反写结构。",
+        "不足不被弱判据接管，不获交易资格。"
+      ],
+      "anti_shortcut": "仅有塔包含关系/一层is_some不算主动定位。"
+    },
+    {
+      "id": "FE-06",
+      "title": "容量、频率、两类换档与资金并发",
+      "setup": "旧重已有持仓、费用和成本历史；给出分别可判、稀疏、未知的容量和频率输入。",
+      "sequence": [
+        "开局从最低可行层承载；低频层不能只因容量大开重。",
+        "场景A由更高级行情走好触发换档、部分保留。",
+        "场景B由已实现增长超容量触发原层留满、溢出向上。",
+        "新重建立同时发生另一重增用请求、共同毛cap收紧或额度不足。"
+      ],
+      "assertions": [
+        "两类触发与权利流可区分，旧重不被改名抹史。",
+        "未知量不填默认，空仓不挪钱。",
+        "并发协议必须解释资源结果；当前未选定协议时明确待设计而不判通过。"
+      ],
+      "anti_shortcut": "单重更换level字段或硬编码溢出比例不能代表N重生长。"
+    },
+    {
+      "id": "FE-07",
+      "title": "结构撤回、经营退出与迟到尾账",
+      "setup": "一重部分成交中，另一重持有反向权利；存在将被重切/撤回的结构依据。",
+      "sequence": [
+        "后端获得修订/撤回，影响本重目标。",
+        "本重停止新准入并进入退出，另一重继续。",
+        "退出后到达迟到成交、手续费或取消失败。",
+        "同标的/操作级别出现新经营实例或新Voice。"
+      ],
+      "assertions": [
+        "迟到事实归原责任实体，不塞给新实例。",
+        "未决数量/权利持续保留直到事实结清。",
+        "历史显示当时依据、后来撤回及已成不可逆外效。"
+      ],
+      "anti_shortcut": "把撤回当从未发生或把停止经营当责任已清均不满足。"
+    },
+    {
+      "id": "FE-08",
+      "title": "持仓和未决外效的故障恢复",
+      "setup": "多个重已有经营史；测试输入分别覆盖成本变化、订单部分成交、已退出但尾账未清，可分案例验证，不要求固定三个重。",
+      "sequence": [
+        "在预留后未发送、发送后未确认、部分成交后未入本地账、撤单未确认四个边界分别模拟崩溃。",
+        "恢复并重接外部快照/游标，送重复和乱序回报。",
+        "重新开放准入前对账。"
+      ],
+      "assertions": [
+        "既有权利/毛占用/TStage/未决尾账无丢失或重复。",
+        "未知结果显式保留，不被timeout当取消。",
+        "每个边界都比较完整经济状态与外部效应计数。"
+      ],
+      "anti_shortcut": "只复原空仓或最后净头寸不算恢复验收。"
+    },
+    {
+      "id": "FE-09",
+      "title": "一致快照、断线续接与按当时可知回放",
+      "setup": "两个客户端处于同一经营会话不同游标，后端继续产生结构修订、资金变化、部分成交。",
+      "sequence": [
+        "客户端甲断线，乙继续消费。",
+        "甲按游标续接；超出保留窗时显式补快照。",
+        "回放早期时点，再推进至撤回获知时点。",
+        "建立新会话/代际并向其发送旧回报。"
+      ],
+      "assertions": [
+        "客户端最终同版本同状态；途中不拼错结构/账目版本。",
+        "回放不使用未来确认；旧会话消息不污染新会话。",
+        "所有重的历史可追，不局限当前活动marker。"
+      ],
+      "anti_shortcut": "最终态重画历史、refresh清空再画不算语义续接。"
+    },
+    {
+      "id": "FE-10",
+      "title": "源头、模型、权限与场所失败",
+      "setup": "同一结构源，模拟执行与一个受控外部接口fixture；权限设观察/待批，不进行真实交易。",
+      "sequence": [
+        "回测检查严格穿越、开盘取优与GTC。",
+        "构造同slot相反开仓及市价/限价并存。",
+        "模拟断流、拒单、停牌、强制结算、费率未知。",
+        "区分配置的隔离条件与已证明的实际隔离。"
+      ],
+      "assertions": [
+        "结构源不受执行价差改写。",
+        "每项真实/模拟/假设/未测标签可见。",
+        "未批交易权限保持关闭，场所未选不冒充部署成功。",
+        "分别检查当前净额执行与条件满足后的逐笔独立执行所用验收账本；测试分支不能代替切换批准。"
+      ],
+      "anti_shortcut": "用旧场所文档或回测模型证明真实爆仓隔离/成交概率不算。"
+    },
+    {
+      "id": "FE-11",
+      "title": "经营与资金验收证据边界",
+      "setup": "含正负成本事件及费率事件的数据fixture；另备稀疏样本和不重叠窗不足fixture。",
+      "sequence": [
+        "保留全部原始经济事件并列取样规则。",
+        "逐窗按已裁方法出读数，显示不足或待定边界。",
+        "毛净账逐项对账并显示杠杆。",
+        "分开报告软件行为覆盖、经济指标检验和真实场所验证。"
+      ],
+      "assertions": [
+        "不以空账、零动作、只编译或文件存在作通过。",
+        "负事件不能被筛掉；后闸参数未定不得出通过结论。",
+        "测试fixture证明逻辑，不能证明市场有效性或收益。",
+        "当前净额形态与获准切换后的逐笔独立形态分别采用对应验收账本，均保留毛净对账和来源。"
+      ],
+      "anti_shortcut": "绿测试=完整经营成功、点估计=置信门通过均不满足。"
+    }
+  ],
+  "unresolved": [
+    {
+      "id": "FU-01",
+      "topic": "本金/回收/成本口径细节",
+      "known": "费用应含手续费与资金费率，成本由真实经济回收解释。",
+      "unknown": "本金在保证金/现金/增长权益之间的精确定义；分红除权；费用造成跨零后的阶段回退；零数量/零成本分母。",
+      "impact": "FG-015/016/017/025；可先保存原始经济事实，不能用0或默认公式暗判闸门。"
+    },
+    {
+      "id": "FU-02",
+      "topic": "动作量及固定Q与增长",
+      "known": "w(d)×Q及容量比形状已有裁定；容量/频率各管一维。",
+      "unknown": "完整高档有效量、绝对容量、投入总额、经验值更新策略，以及固定Q约束下增长通过换档时的会计与权利分拆衔接；不重开固定Q的已定边界。",
+      "impact": "FG-014/017/018/020；未知不削减目标阶段，先作带未知项设计。"
+    },
+    {
+      "id": "FU-03",
+      "topic": "并发资源不足/配对/费用归属",
+      "known": "重间不仲裁方向、共同毛约束、净省禁复用。",
+      "unknown": "同slot多重请求超共同上限时的资金政策；净额外效分配到各重/各订单/费用与部分成交配对；公用资金的注入/退出政策。",
+      "impact": "FG-006/022/023/024/028/029；协议可比较但当前不替用户裁钱。"
+    },
+    {
+      "id": "FU-04",
+      "topic": "完整执行场景与权限",
+      "known": "实盘/逐腿出口另有条件门；场所不锁死，模拟与真实分证。",
+      "unknown": "首个交付是否只需确定性回放+模拟/受控适配，真实场所验证何时授权；具体cap/费率/账户隔离与退出权限。",
+      "impact": "FG-028–034；属于需求阶段真正可问的运行验收范围，不需重问完整多重是否必须。"
+    },
+    {
+      "id": "FU-05",
+      "topic": "经营统计计样和闸门后评价",
+      "known": "费后成本速率、置信下界、月块与窗纪律已定。",
+      "unknown": "ADR0022:17只写成本下降事件，与全部亏损/费用的取样语义如何一致；同时间多事件、跨闸、短仓基价正负口径；闸门后参数暂缺。",
+      "impact": "FG-025；先保留全部事件和排除原因，不只筛正收益。"
+    },
+    {
+      "id": "FU-06",
+      "topic": "软件组织选择",
+      "known": "N重权利与可观察语义必须完整；已有三案可复用，用户允许从头设计。",
+      "unknown": "权威经济状态是否集中/分重/资源基座；结构/经营输出提交边界；恢复协调、事务/日志及观察发布机制。",
+      "impact": "不得先画服务图或写owner当作需求；按相同FE场景评估B-r1/A2-r3/C3-r1及有据新方案。"
+    },
+    {
+      "id": "FU-07",
+      "topic": "旧退出命名和残留文字张力",
+      "known": "#659把13课均线退出论证降级；系统自设Theta_risk与结构判据分开。",
+      "unknown": "新完整方案下退出授权策略及历史文本中的Q/阶段/采样等张力何处落定。",
+      "impact": "FG-030；不从生成态文档推出风险模块禁令、不恢复旧方案或暂停票链。"
+    }
+  ],
+  "read_manifest": [
+    {
+      "source_key": "CTX",
+      "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+      "sha256": "0df94022d60f4d07bb6a023d2cdc380c4c35d15d541c31411d1b10d83b18c2c5",
+      "bytes": 45239,
+      "line_count": 297,
+      "literal_read_ranges": [
+        [
+          9,
+          51
+        ],
+        [
+          74,
+          89
+        ],
+        [
+          242,
+          297
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "CAN",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/unified-architecture-canon.md",
+      "sha256": "b569192cd4eea10286a9f35526685cc46a76f2624d8226e3ca863ed693100bb4",
+      "bytes": 15986,
+      "line_count": 173,
+      "literal_read_ranges": [
+        [
+          1,
+          173
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "10",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0010-chong-persistent-operating-unit.md",
+      "sha256": "d4b15a7d59156aeb347d01f8d6805c3c14b22d05b5667f84b087abe51da6b050",
+      "bytes": 8685,
+      "line_count": 78,
+      "literal_read_ranges": [
+        [
+          1,
+          78
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "11",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+      "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860",
+      "bytes": 14485,
+      "line_count": 126,
+      "literal_read_ranges": [
+        [
+          1,
+          126
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "13",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+      "sha256": "d2412a9bd0404e930b89c2522d76f99e6cb917047139f9cd5f658679a2253cb5",
+      "bytes": 46002,
+      "line_count": 328,
+      "literal_read_ranges": [
+        [
+          1,
+          328
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "14",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+      "sha256": "8cb9c8ad9fba6d85a544ec68ea319a9e36e6dab113933a775a66ff8d58c49a73",
+      "bytes": 14586,
+      "line_count": 115,
+      "literal_read_ranges": [
+        [
+          1,
+          115
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "15",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0015-cost-trajectory-acceptance-metric.md",
+      "sha256": "4f01a99c5bb888b0b12eb7047cb256bcb96db2d7d42fc4bb3254f7654be6e8e8",
+      "bytes": 18614,
+      "line_count": 198,
+      "literal_read_ranges": [
+        [
+          1,
+          155
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "16",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+      "sha256": "83cfd1e1b3ff62a2f87b27cf5027703ea8c30e2c97441ec8079560c0110fb06c",
+      "bytes": 31015,
+      "line_count": 321,
+      "literal_read_ranges": [
+        [
+          44,
+          242
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "17",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+      "sha256": "8f132dabcd8c69d78113173c34b78c6e797e7c89bf20b990d46c65a97ca27222",
+      "bytes": 50052,
+      "line_count": 440,
+      "literal_read_ranges": [
+        [
+          1,
+          329
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "18",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0018-limit-order-fill-model.md",
+      "sha256": "8e56fa7a415c617addb1ab3122ff0e13ed55f2f128d5c8cdd7fe3c0449cebdd9",
+      "bytes": 24158,
+      "line_count": 193,
+      "literal_read_ranges": [
+        [
+          57,
+          170
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "19",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0019-limit-order-state-flow-interface.md",
+      "sha256": "f4a22720edb43c24354d02120ad78a78b10ac755fe1fd053039a5b1a3a5f01cd",
+      "bytes": 62989,
+      "line_count": 553,
+      "literal_read_ranges": [
+        [
+          25,
+          123
+        ],
+        [
+          198,
+          269
+        ],
+        [
+          306,
+          311
+        ],
+        [
+          355,
+          381
+        ],
+        [
+          456,
+          513
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "20",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0020-backtest-cash-live-perp-filtered.md",
+      "sha256": "383777615a0a9796b2646ccd720a24e60e8cebfd01ec92b0f6529d9f48663e84",
+      "bytes": 16018,
+      "line_count": 160,
+      "literal_read_ranges": [
+        [
+          92,
+          160
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "21",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0021-venue-selection-deferred.md",
+      "sha256": "a8a18e71653cc4a33efd84c1a3d8ed3e8556554d83e127d6937184ec84df7de0",
+      "bytes": 14233,
+      "line_count": 126,
+      "literal_read_ranges": [
+        [
+          1,
+          96
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "22",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0022-acceptance-criterion-parameters.md",
+      "sha256": "bb80d2ef56ad8e42015051fdf19e4ee07281f05365dd95a9e406c85448a22773",
+      "bytes": 6903,
+      "line_count": 83,
+      "literal_read_ranges": [
+        [
+          1,
+          83
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "24",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+      "sha256": "78fdad819328c7bb29703711cfcdcbfbf4a0b40cde8f713ae7b844fa719013fb",
+      "bytes": 6477,
+      "line_count": 67,
+      "literal_read_ranges": [
+        [
+          1,
+          67
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "RISK",
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/fengkong.md",
+      "sha256": "82b25e1dd9227310ca7ba4248022c04d82c3d16c002fac15146a56947df0d494",
+      "bytes": 23198,
+      "line_count": 472,
+      "literal_read_ranges": [
+        [
+          1,
+          472
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "SYS",
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/chanlun-trading-system.md",
+      "sha256": "f25f4ef37137189b699845cba293e9404500420b2f380ac9f6f0b4beb7e1fdd8",
+      "bytes": 9305,
+      "line_count": 191,
+      "literal_read_ranges": [
+        [
+          1,
+          191
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "B26",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/026-第26课.md",
+      "sha256": "196024ed0c823c9b0a7137c876bd69e421aae01076aac42cdca49fcb1384dea5",
+      "bytes": 45452,
+      "line_count": 575,
+      "literal_read_ranges": [
+        [
+          30,
+          42
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "B31",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/031-第31课.md",
+      "sha256": "c784ee15c21cef965b6e073a89224e56b29bad03a9ecd1dc9e130c54083d47d5",
+      "bytes": 80982,
+      "line_count": 927,
+      "literal_read_ranges": [
+        [
+          20,
+          34
+        ],
+        [
+          163,
+          171
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "B35",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+      "bytes": 19125,
+      "line_count": 192,
+      "literal_read_ranges": [
+        [
+          14,
+          40
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "B38",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/038-第38课.md",
+      "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b",
+      "bytes": 24251,
+      "line_count": 334,
+      "literal_read_ranges": [
+        [
+          16,
+          46
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "B40",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/040-第40课.md",
+      "sha256": "12e5884bf07671fdb63ff4c4efa96a7385c95c88150a7305d4b3a02efc7097e1",
+      "bytes": 27336,
+      "line_count": 78,
+      "literal_read_ranges": [
+        [
+          10,
+          26
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "B49",
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/049-第49课.md",
+      "sha256": "9aacf49b222c2bda2f607d7b918590ceebaac1194bab87c9af9e073a8fd25bcb",
+      "bytes": 21786,
+      "line_count": 210,
+      "literal_read_ranges": [
+        [
+          48,
+          78
+        ]
+      ],
+      "semantic_scope": "条目引用范围逐行核验；未列范围未宣称全量精读",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+      "sha256": "4d24de8692c915f95544eb7c4f041e8dd403bfda503e9fe1a97e4a5e715455ea",
+      "bytes": 10520,
+      "line_count": 201,
+      "literal_read_ranges": [
+        [
+          1,
+          201
+        ]
+      ],
+      "semantic_scope": "完整阅读作为封存新扫描入口",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+      "sha256": "1bb4312b02ec39d7932234c1fa8051204ac30e23a672d4398f2dcbd14786bbee",
+      "bytes": 28526,
+      "line_count": 808,
+      "literal_read_ranges": [
+        [
+          1,
+          808
+        ]
+      ],
+      "semantic_scope": "完整16组语义约束与10条关系，用作需求导航，不将候选合同映射当符合性证明",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "path": "/tmp/newchanlun-codex-handoff/HANDOFF.md",
+      "sha256": "c56db8d271bf8772671bdc17963cbb7281c8abe7f26a6418a4bad534ec4ac80e",
+      "bytes": 5642,
+      "line_count": 38,
+      "literal_read_ranges": [
+        [
+          1,
+          38
+        ]
+      ],
+      "semantic_scope": "完整读取交接授权与禁读边界",
+      "reader": "/root/fugue_requirements"
+    },
+    {
+      "source_key": "NEST",
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/qujiantao.md",
+      "sha256": "6a4f8e0a152f31e3e9aa90d3d88a4f715d347b11682d267b61eb86073f98fdd3",
+      "bytes": 247983,
+      "line_count": 1451,
+      "literal_read_ranges": [
+        [
+          492,
+          513
+        ],
+        [
+          1024,
+          1049
+        ],
+        [
+          1100,
+          1108
+        ],
+        [
+          1200,
+          1204
+        ]
+      ],
+      "semantic_scope": "结构工位全读后提供导航，本工位只复核所列后裁范围；非全文件精读",
+      "reader": "/root/fugue_requirements"
+    }
+  ],
+  "source_corrections": [
+    {
+      "source": "docs/adr/0018-limit-order-fill-model.md:125",
+      "correction": "该处引049:51，现博客正本对应正文实际在049:62。本稿按实际已读049:52/54/60/62使用，不沿用旧行号。"
+    },
+    {
+      "source": "docs/adr/0020-backtest-cash-live-perp-filtered.md:141-160",
+      "correction": "最新重写废止旧A/C双源与过滤，不能因标题沿用旧口径。"
+    },
+    {
+      "source": "docs/adr/0013-partition-machine-bidirectional-form.md:235-291",
+      "correction": "四命题拆分已废每级必一类；:291残留强报错句不直接成为需求。已交叉核qujiantao:495–513/1024–1049/1100–1108/1201后裁，分清真实失败与不适用、成本门和塔底先到者。"
+    },
+    {
+      "source": "docs/adr/0024-total-ledger-convention.md:41-44",
+      "correction": "毛funding/borrow口径已定；不再沿用ADR0014旧句将整个口径标未补齐，但出口仍需另案授权。"
+    },
+    {
+      "source": "docs/adr/0021-venue-selection-deferred.md:66-81；#937 Resolution https://github.com/xy7365527-lang/NewChanlun/issues/937#issuecomment-5309565712",
+      "correction": "补齐条件式验收净→毛及账目/执行协同切换义务。生效前净账维持；不据本次草案判断条件已满足、不启动切换、不预锁旧软件载体。"
+    }
+  ],
+  "not_done": [
+    "未读取/对照旧#1321/#1322/#1325/#1326方案审计对照原件",
+    "未改仓内文件、未提交Git/GitHub、未恢复旧排程",
+    "未运行测试/回测/服务/真实订单/恢复/性能；没有符合性通过结论",
+    "未形成新架构、未采纳B/A2/C3或任一软件owner",
+    "未给用户已声明待定的钱规则/交易权限填默认值"
+  ],
+  "revision": {
+    "editor": "/root",
+    "reason": "用户范围和词义纠正、FG独评三项修改",
+    "status": "等待独立复核修订字节"
+  }
+}

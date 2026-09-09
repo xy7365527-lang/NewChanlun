@@ -1,0 +1,213 @@
+{
+  "ticket_scope": [
+    1323,
+    1340
+  ],
+  "observed_at_utc": "2026-09-09T05:21:12.691746+00:00",
+  "result": "DO_NOT_LABEL_YET; SDK_ONE_SHOT_FEASIBLE_PENDING_FRESH_SMOKE",
+  "writes_performed": [
+    "this Markdown report",
+    "this JSON report"
+  ],
+  "workers_started": false,
+  "services_changed": false,
+  "github_mutations": false,
+  "secrets_read": false,
+  "hosts": {
+    "interactive": {
+      "path": "/Users/silencehan/Projects/NewChanlun",
+      "head": "6df8d1921c72c84da90987f8f6c02ebc11fe6aac",
+      "branch": "main"
+    },
+    "actual_claimer": {
+      "path": "/Users/silencehan/Projects/NewChanlun-sandcastle-host",
+      "head": "44917408b0f83203fe8eb3ace49172313291ec9c",
+      "origin_main_cached": "44917408b0f83203fe8eb3ace49172313291ec9c",
+      "dirty_paths": [
+        "uv.lock"
+      ],
+      "main_implementation_agent": {
+        "runtime": "prime-agent",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro"
+      },
+      "review_agent": {
+        "runtime": "prime-agent",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro"
+      },
+      "auto_update_in_installed_plist": false,
+      "launchctl_auto_update_value": "empty",
+      "spawn_cwd": "/Users/silencehan/Projects/NewChanlun-sandcastle-host"
+    },
+    "isolated_publication": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication",
+      "head": "efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+      "branch": "codex/1323-spec-publication-20260909",
+      "status": "",
+      "common_git_dir": "/Users/silencehan/Projects/NewChanlun/.git",
+      "node_modules_present": false,
+      "sandcastle_env_present": false
+    },
+    "remote_main_live": "644075a6abcbfcda74815daed68e06eff6ddaf63"
+  },
+  "services": [
+    {
+      "name": "com.newchanlun.sandcastle-claimer",
+      "pid": 31156,
+      "worker_node_pid": 31193,
+      "mode": "live",
+      "cwd": "/Users/silencehan/Projects/NewChanlun-sandcastle-host"
+    },
+    {
+      "name": "com.newchanlun.wayfinder-engine",
+      "pid": 1116,
+      "worker_node_pid": 1393,
+      "mode": "live",
+      "cwd": "/Users/silencehan/Projects/NewChanlun"
+    },
+    {
+      "name": "com.newchanlun.sandcastle-watcher",
+      "period_seconds": 600,
+      "purpose": "status only"
+    }
+  ],
+  "worker_registry_last_event": {
+    "ts": "2026-08-31T21:19:30.380Z",
+    "ticket": 1235,
+    "branch": "sandcastle/issue-1235",
+    "phase": "sandbox",
+    "status": "closed"
+  },
+  "queue": {
+    "sandcastle_open": [
+      1237
+    ],
+    "runnable": [],
+    "1237_open_blockers": [
+      1240
+    ],
+    "1237_closed_blockers": [
+      1235,
+      1238
+    ],
+    "claimer_dry_run": "exit 0; frontier queue 1, no runnable; no stale rollback printed",
+    "ready_open_count_observed": 26,
+    "ready_impl_titles": [
+      1045
+    ],
+    "1045_open_blockers": [
+      1046
+    ]
+  },
+  "main_gate": {
+    "claimer_calls_harvest": false,
+    "main_calls_harvest": false,
+    "active_harvest_process_found": false,
+    "installed_harvest_launchd_or_cron_found": false,
+    "agent_prompts_forbid": [
+      "push",
+      "merge",
+      "main modification",
+      "issue close"
+    ],
+    "harvest_if_invoked": "scans all sandcastle/issue-* in interactive repo; tests then push origin main and closes issues; equivalent path closes without testing; no user approval or reviewer-result gate"
+  },
+  "graphwalker": {
+    "recursive_subissues": false,
+    "map_selection": "open + wayfinder:map, limit 100",
+    "spec_title_patterns": [
+      "^\\s*📋\\s*SPEC",
+      "^\\s*\\[spec\\]"
+    ],
+    "impl_title_pattern": "^\\s*\\[impl\\]",
+    "typed_labels_used_for_impl_recognition": false,
+    "approval_inheritance": "first OPEN recognized SPEC per open map -> immediate children only",
+    "automatic_release": "open ready-for-agent + [impl] title + same direct-map approved SPEC + unassigned + zero OPEN blockers -> sandcastle",
+    "claimer_release": "open sandcastle + unassigned + zero OPEN blockers, independent of title/ready/spec",
+    "observed_1340_title_recognized_as_spec": false,
+    "hierarchy_consequence": "1323 -> 1340 -> TB -> leaf does not inherit approval; keep hierarchy and dispatch one leaf manually; do not mark aggregations ready/sandcastle"
+  },
+  "runtime_preflight": {
+    "colima": "running; Virtualization.Framework; virtiofs; aarch64",
+    "docker": "29.5.2; linux/aarch64; Ubuntu 24.04.4 LTS",
+    "running_containers": 0,
+    "image": "sandcastle:newchanlun",
+    "image_id": "sha256:bfe1f69550e32dd6ef557c2972621ad010cd2e04c1129ccb7f2488319b9b63d8",
+    "image_created": "2026-08-31T15:55:14.826157569+08:00",
+    "sdk_version": "0.12.0",
+    "main_source_transpile": "MAIN_TRANSPILE_OK, in-memory only",
+    "fresh_container_started": false,
+    "fresh_provider_call": false,
+    "sandbox_infeasibility_evidence": false
+  },
+  "one_shot": {
+    "direct_existing_main_from_W": "not supported: branch=main assertion, global queue, hardcoded baseBranch main, no ticket/ref args",
+    "recommended": "dedicated one-shot SDK wrapper with cwd W, immutable base SHA, unique codex/ leaf branch, explicit issue; preserve actual host provider/model; inline reviewer prompt naming immutable base; no main/claimer/harvest",
+    "dependency_root": "/Users/silencehan/Projects/NewChanlun/node_modules",
+    "provider_module": "/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/prime-agent-provider.ts",
+    "credential_preparation": "W lacks .sandcastle/.env; a temporary ignored symlink to H .sandcastle/.env lets existing SDK resolve existing credentials without printing/copying them; not created in this recon",
+    "sdk_env_resolution": "reads <cwd>/.sandcastle/.env, only declared nonempty keys; process.env fallback for declared empty keys",
+    "sdk_base": "fresh branch git worktree add -b BRANCH PATH BASE_REF; no fetch in new-branch path; existing branch ignores baseBranch",
+    "review_target": "promptFile built-in TARGET_BRANCH resolves cwd branch and cannot be overridden; inline prompt permits explicit immutable base SHA",
+    "merge_behavior": "createSandbox branch is passed to orchestrate; no merge-to-head; close removes clean worktree, preserves dirty worktree, retains branch commits"
+  },
+  "sources": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/main.mts",
+      "lines": "34-45,62-79,82-106,161-168,183-193,212-239,245-269,290-335",
+      "sha256": "e83d1d8d6b01022edfa04dddb7d5255627c0a450f69c6101390b7bfd1b75c533"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/claim-loop.mts",
+      "lines": "43-50,74-89,125-149,154-168,193-223,236-282",
+      "sha256": "121c5794c0eb23fe7b10f0de5bdacad1301c22e451d021d1e581bd4593c34da4"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/harvest.sh",
+      "lines": "9-29,72-119",
+      "sha256": "59d81100bbc9275bccd06d5ae1c3003fccd555e14b4fa03e8c26c37b99ac7237"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/prime-agent-provider.ts",
+      "lines": "31-50,153-228",
+      "sha256": "613d2a679bf959a1a0c7f186827ce7775b0c5168638d5b3bcdf411fa8537fe1e"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/implement-prompt.md",
+      "lines": "13-26",
+      "sha256": "82b02b85b323a976bd45c05d2b5e08a79bb022cc070e69c108c6b9e81a886014"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/review-prompt.md",
+      "lines": "19-32",
+      "sha256": "65f47181649ee42da7ee33954453545f608b19f0de1f4cbc8f6ac7235ced5a73"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/scripts/wayfinder_engine.mts",
+      "lines": "127-164,292-323,418-448,552-629,949-1002",
+      "sha256": "a664be9f1b4d2cdc106472cc431c6eea4240e7d6e78d5a7f21a3ac8df33b61b3"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/node_modules/@ai-hero/sandcastle/dist/index.js",
+      "lines": "627-640,1599-1629,1993-2047,2110-2158",
+      "sha256": "81b59a1de9c5320d307b2812483d0c2f106af5e2511a613b4862ffdccb3c97f5"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/node_modules/@ai-hero/sandcastle/dist/chunk-VOG34SRF.js",
+      "lines": "25265-25355",
+      "sha256": "76717005026d685bf75fd4366b858accb882885cf3a1e615b6330ae92bea8ed9"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/node_modules/@ai-hero/sandcastle/dist/index.d.ts",
+      "lines": "709-733,745-808,841-883",
+      "sha256": "39f4ca91da566a7620930ba4811360c697d6b2be1630a540f91f91e9c4095457"
+    }
+  ],
+  "limitations": [
+    "No actual sandbox/provider smoke or worker started; credentials not inspected.",
+    "Observed queue and service state are point-in-time and require refreshing before dispatch.",
+    "No harvested runner found among actual processes and installed launchd/cron; this is not a guarantee against a future manual harvest invocation.",
+    "If daemon host is fast-forwarded to latest main, main.mts provider changes relative to observed fixed channel; do not call that routine base synchronization without accounting for channel drift."
+  ]
+}

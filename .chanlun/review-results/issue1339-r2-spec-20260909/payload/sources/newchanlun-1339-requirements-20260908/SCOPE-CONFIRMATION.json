@@ -1,0 +1,24 @@
+{
+  "schema": "issue1339.scope-confirmation.v1",
+  "recorded_at_utc": "2026-09-08T07:44:38.935154+00:00",
+  "source": "当前Codex会话用户对需求范围确认问题的明确答复",
+  "question": "是否确认这份需求与验收范围，进入整图#1323的完整架构重评？包括完整结构、N个持久重的完整经营、账目与执行责任、同源观察及已确认故障继续条件；K4排除，未定资金规则保留；不采纳任何现有方案。",
+  "user_answer": "确认，进入架构重评（推荐）",
+  "approved_action": "按此完整需求与验收范围重评现有候选及允许的新设计",
+  "bound_requirement_entry": {
+    "path": "/tmp/newchanlun-1339-requirements-20260908/author/REQUIREMENTS.md",
+    "sha256": "690dcd65e029e5069c46d5ade40684a831405d9e5af214624136e7fd52702b19",
+    "bytes": 4702
+  },
+  "bound_coverage": {
+    "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+    "sha256": "0eeedeb138add9138a2d904bb7fb69884876d85ae085f192d54ab32c8566f970",
+    "bytes": 750433
+  },
+  "not_approved": [
+    "未采纳软件组织方案",
+    "未裁定新语义或资金政策",
+    "未批准SPEC、实施链、合入或真实交易"
+  ],
+  "goal": "#1323整图保持active；#1339第二阶段继续"
+}
