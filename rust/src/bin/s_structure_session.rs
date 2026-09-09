@@ -323,21 +323,120 @@ fn verify_writer_epoch(conn: &Connection, configured: &str) -> Result<(), String
 
 /// 核已发布可达根（index_frontier 指向的不可变 batch 必须仍存在）。所有正式写入入口（accept/advance/
 /// recover）在同一序边界核此前件：自身存储坏（悬空根）不得被当作成功或用新 cut 掩盖。
-fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
-    let index_frontier = meta_get_opt(conn, "index_frontier")?.unwrap_or_default();
-    if !index_frontier.is_empty() {
-        let exists: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM batches WHERE batch_id=?1",
-                params![index_frontier],
-                |r| r.get(0),
-            )
-            .map_err(|e| format!("核可达根失败：{e}"))?;
-        if exists != 1 {
+/// 核单个不可变 batch 的规范内容寻址完整性：batch_id = "batch-" + sha256(canonical_bytes)，
+/// byte_len == canonical_bytes.len()。缺失/坏字节/坏长度均 StorageUnavailable。
+fn verify_stored_batch(conn: &Connection, batch_id: &str) -> Result<(), String> {
+    let row: Option<(Vec<u8>, i64)> = conn
+        .query_row(
+            "SELECT canonical_bytes, byte_len FROM batches WHERE batch_id=?1",
+            params![batch_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()
+        .map_err(|e| format!("读 batch {batch_id} 失败：{e}"))?;
+    let (bytes, byte_len) = row.ok_or_else(|| {
+        format!("StorageUnavailable：可达 batch `{batch_id}` 不存在（引用不完整，拒绝写入）")
+    })?;
+    let expect_hash = match batch_id.strip_prefix("batch-") {
+        Some(h) if h.len() == 64 => h,
+        _ => {
             return Err(format!(
-                "StorageUnavailable：可达根 index_frontier=`{index_frontier}` 无对应不可变 batch（引用不完整，拒绝写入）"
+                "StorageUnavailable：batch_id `{batch_id}` 非规范内容寻址形态"
+            ))
+        }
+    };
+    let actual_hash = sha256_hex(&bytes);
+    if actual_hash != expect_hash || usize::try_from(byte_len).ok() != Some(bytes.len()) {
+        return Err(format!(
+            "StorageUnavailable：batch `{batch_id}` 规范字节/长度与内容寻址不符（坏 bytes/byte_len），拒绝写入"
+        ));
+    }
+    Ok(())
+}
+
+/// 核已发布可达根与全部历史可达引用（ROOT-B-R2-01）：
+/// - generation==0（真正初态）⟹ index_frontier 必须空且无 delta 行；
+/// - generation>=1 ⟹ meta.index_frontier 必须存在且非空、指向内容完整的 batch，并与
+///   structure_deltas[generation].index_frontier 一致；每条已发布 delta 的 index_frontier 也
+///   必须指向内容完整的 batch。孤儿 batch（after_batch 未提交）不在此列，不算坏根。
+fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
+    let generation: i64 = meta_get_opt(conn, "generation")?
+        .and_then(|s| s.parse().ok())
+        .ok_or("StorageUnavailable：meta.generation 缺失或非规范十进制整数")?;
+    if generation < 0 {
+        return Err("StorageUnavailable：meta.generation 为负".to_string());
+    }
+    if generation == 0 {
+        let idx = meta_get_opt(conn, "index_frontier")?.unwrap_or_default();
+        if !idx.is_empty() {
+            return Err(format!(
+                "StorageUnavailable：初态 generation=0 却存在 index_frontier=`{idx}`（不一致）"
             ));
         }
+        let deltas: i64 = conn
+            .query_row("SELECT COUNT(*) FROM structure_deltas", [], |r| r.get(0))
+            .map_err(|e| format!("核初态失败：{e}"))?;
+        if deltas != 0 {
+            return Err(
+                "StorageUnavailable：初态 generation=0 却存在持久 Delta（不一致）".to_string(),
+            );
+        }
+        return Ok(());
+    }
+    let index_frontier = meta_get_opt(conn, "index_frontier")?.ok_or_else(|| {
+        "StorageUnavailable：已发布代缺 index_frontier meta（不得把缺 meta 当空根兜底）".to_string()
+    })?;
+    if index_frontier.is_empty() {
+        return Err(format!(
+            "StorageUnavailable：generation={generation} 已发布却 index_frontier 为空（缺根 meta）"
+        ));
+    }
+    verify_stored_batch(conn, &index_frontier)?;
+    // 当前根与最新 delta 一致。
+    let delta_idx: Option<String> = conn
+        .query_row(
+            "SELECT index_frontier FROM structure_deltas WHERE generation=?1",
+            params![generation],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(|e| format!("读 delta[{generation}] 失败：{e}"))?;
+    match delta_idx {
+        None => {
+            return Err(format!(
+                "StorageUnavailable：generation={generation} 无对应持久 Delta（根/历史引用断裂）"
+            ))
+        }
+        Some(d) if d != index_frontier => {
+            return Err(format!(
+                "StorageUnavailable：meta.index_frontier=`{index_frontier}` 与 delta[{generation}].index_frontier=`{d}` 不一致"
+            ))
+        }
+        Some(_) => {}
+    }
+    // 全部历史 delta 的 index_frontier 也须可达且内容完整。
+    let mut stmt = conn
+        .prepare("SELECT generation, index_frontier FROM structure_deltas WHERE generation <= ?1 ORDER BY generation ASC")
+        .map_err(|e| format!("prepare 历史可达核失败：{e}"))?;
+    let rows = stmt
+        .query_map(params![generation], |r| {
+            Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
+        })
+        .map_err(|e| format!("query 历史可达失败：{e}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("collect 历史可达失败：{e}"))?;
+    if rows.is_empty() {
+        return Err(format!(
+            "StorageUnavailable：generation={generation} 但无任何持久 Delta（历史引用断裂）"
+        ));
+    }
+    for (g, didx) in &rows {
+        if didx.is_empty() {
+            return Err(format!(
+                "StorageUnavailable：delta[{g}].index_frontier 为空（已发布 cut 缺批次引用）"
+            ));
+        }
+        verify_stored_batch(conn, didx)?;
     }
     Ok(())
 }
@@ -376,6 +475,7 @@ fn testonly_pause(stage: &str) {
     let db = std::env::var("S_SESSION_PAUSE_DB").unwrap_or_default();
     let marker = std::env::var("S_SESSION_PAUSE_MARKER")
         .unwrap_or_else(|_| format!("/tmp/s_session_pause_{stage}.pid"));
+    let release = std::env::var("S_SESSION_PAUSE_RELEASE").unwrap_or_default();
     let exe = std::env::current_exe()
         .map(|p| p.display().to_string())
         .unwrap_or_default();
@@ -386,8 +486,14 @@ fn testonly_pause(stage: &str) {
             std::process::id()
         ),
     );
+    // 具名 TestOnly 受控暂停：可被 SIGKILL（真实恢复试验），也可由 release 文件显式解除（用于
+    // 活旧 writer 跨 epoch 交错的受控试验）；生产路径不设 S_SESSION_PAUSE，不受影响。
     loop {
-        std::thread::sleep(std::time::Duration::from_secs(3600));
+        if !release.is_empty() && std::path::Path::new(&release).exists() {
+            let _ = std::fs::remove_file(&release);
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
     }
 }
 
@@ -2712,23 +2818,9 @@ fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
     let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_else(|| "idle".to_string());
     let generation = meta_get_opt(&tx, "generation")?.unwrap_or_default();
 
-    // 恢复引用完整性：可达根（已发布 index_frontier）必须指向仍存在的不可变 batch；缺失即
-    // StorageUnavailable，不清理门、不换代（不把坏引用当可恢复状态）。
-    let index_frontier = meta_get_opt(&tx, "index_frontier")?.unwrap_or_default();
-    if !index_frontier.is_empty() {
-        let exists: i64 = tx
-            .query_row(
-                "SELECT COUNT(*) FROM batches WHERE batch_id=?1",
-                params![index_frontier],
-                |r| r.get(0),
-            )
-            .map_err(|e| format!("核可达根失败：{e}"))?;
-        if exists != 1 {
-            return Err(format!(
-                "StorageUnavailable：可达根 index_frontier=`{index_frontier}` 无对应不可变 batch（引用不完整，拒绝恢复/换代）"
-            ));
-        }
-    }
+    // 恢复引用完整性：与 accept/advance 同一严格可达根核（坏 bytes/缺历史引用/缺根 meta 均拒绝，
+    // 不清理门、不换代）。
+    verify_reachable_root(&tx)?;
 
     let mut recovered_begin: Value = Value::Null;
     let mut state_after = state.clone();
@@ -3802,6 +3894,88 @@ mod tests {
         assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
             .unwrap_err()
             .contains("StorageUnavailable"));
+    }
+
+    #[test]
+    fn corrupt_root_variants_block_all_writes() {
+        // gen1 TOP + gen2 更正（RISING 撤旧 TOP）→ 三个已发布 cut 的库。
+        let build = |files: &TestFiles| {
+            init_test_db(files);
+            accept(
+                files,
+                &test_input(&[
+                    ev("e0", "1", "0", "10000"),
+                    ev("e1", "1", "1", "11000"),
+                    ev("e2", "1", "2", "10500"),
+                ]),
+                "in1.json",
+                DEFAULT_WRITER_EPOCH,
+            );
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            accept(
+                files,
+                &test_input(&[ev("e2", "2", "2", "11500")]),
+                "in2.json",
+                DEFAULT_WRITER_EPOCH,
+            );
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        };
+        let extra = test_input(&[ev("e3", "1", "3", "10800")]);
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        let assert_reject = |files: &TestFiles| {
+            let p = write_input(files, "e3.json", &extra);
+            assert!(cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+                .unwrap_err()
+                .contains("StorageUnavailable"));
+            assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+                .unwrap_err()
+                .contains("StorageUnavailable"));
+            assert!(cmd_recover(&files.db(), "2")
+                .unwrap_err()
+                .contains("StorageUnavailable"));
+        };
+
+        // 1) 当前根 batch 坏 bytes。
+        {
+            let files = TestFiles::new();
+            build(&files);
+            let conn = open_db(&files.db()).unwrap();
+            let idx = meta_get_opt(&conn, "index_frontier").unwrap().unwrap();
+            conn.execute(
+                "UPDATE batches SET canonical_bytes=x'7b7d' WHERE batch_id=?1",
+                params![idx],
+            )
+            .unwrap();
+            drop(conn);
+            assert_reject(&files);
+        }
+        // 2) 历史 delta[1] 的 batch 被删（缺历史引用）。
+        {
+            let files = TestFiles::new();
+            build(&files);
+            let conn = open_db(&files.db()).unwrap();
+            let idx: String = conn
+                .query_row(
+                    "SELECT index_frontier FROM structure_deltas WHERE generation=1",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            conn.execute("DELETE FROM batches WHERE batch_id=?1", params![idx])
+                .unwrap();
+            drop(conn);
+            assert_reject(&files);
+        }
+        // 3) 缺 index_frontier meta（缺根 meta）。
+        {
+            let files = TestFiles::new();
+            build(&files);
+            let conn = open_db(&files.db()).unwrap();
+            conn.execute("DELETE FROM meta WHERE key='index_frontier'", [])
+                .unwrap();
+            drop(conn);
+            assert_reject(&files);
+        }
     }
 
     #[test]

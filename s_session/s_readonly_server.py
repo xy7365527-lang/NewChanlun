@@ -85,7 +85,50 @@ def _canonical_gen(v):
 def _frontier_i64(v):
     if type(v) is not int or not -(2**63) <= v < 2**63:
         raise ValueError("input_frontier 必须是 i64，不能是浮点/布尔/文本")
+    # 正式域：-1 仅初态/空输入；其余必须是非负接纳前沿。
+    if v < -1:
+        raise ValueError("input_frontier 越域：只允许 -1（初态）或非负接纳前沿")
     return v
+
+
+def _req_str(d, key, path):
+    if not isinstance(d, dict) or type(d.get(key)) is not str:
+        raise ValueError("%s.%s 缺失或非文本" % (path, key))
+    return d[key]
+
+
+def _req_str_or_none(d, key, path):
+    v = d.get(key)
+    if v is not None and type(v) is not str:
+        raise ValueError("%s.%s 必须是文本或 null" % (path, key))
+    return v
+
+
+def _validate_required_meta(meta):
+    """所有结构读取入口共享的必需 meta 校验：缺失/损坏 → 503，不默认空串/0。"""
+    sid = meta.get("session_id")
+    if type(sid) is not str or sid == "":
+        raise ValueError("meta.session_id 缺失或非文本")
+    gen = _canonical_gen(meta.get("generation"))
+    cut = meta.get("structure_cut")
+    if type(cut) is not str or cut == "":
+        raise ValueError("meta.structure_cut 缺失或非文本")
+    cat = meta.get("catalog_revision")
+    if type(cat) is not str or cat == "":
+        raise ValueError("meta.catalog_revision 缺失或非文本")
+    idx = meta.get("index_frontier")
+    if type(idx) is not str:
+        raise ValueError("meta.index_frontier 缺失或非文本")
+    if gen > 0 and idx == "":
+        raise ValueError("meta.index_frontier 为空但 generation>0（缺根 meta）")
+    pub = meta.get("last_advance_frontier")
+    try:
+        pub_n = int(pub) if type(pub) is str and (pub == "-1" or (pub.isdigit() and not (len(pub) > 1 and pub[0] == "0"))) else None
+    except ValueError:
+        pub_n = None
+    if pub_n is None or pub_n < -1:
+        raise ValueError("meta.last_advance_frontier 缺失或非规范十进制整数")
+    return gen
 
 
 def _project_input_refs(refs):
@@ -154,6 +197,7 @@ def _frontier_at_generation(conn, gen):
 
 def read_catalog(conn, as_of=None):
     meta = meta_dict(conn)
+    current_gen = _validate_required_meta(meta)
     if as_of is None:
         header_gen = meta.get("generation", "")
         header_cut = meta.get("structure_cut", "")
@@ -163,7 +207,6 @@ def read_catalog(conn, as_of=None):
     else:
         if as_of < 0:
             raise InvalidQuery("as_of 必须 >= 0")
-        current_gen = _canonical_gen(meta.get("generation"))
         if as_of > current_gen:
             raise ValueError("Unavailable：请求的 cut generation=%d 尚未发布" % as_of)
         idx, cat = _header_at_generation(conn, as_of)
@@ -278,6 +321,7 @@ def _read_objects_view(conn, as_of):
 
 def read_snapshot(conn, as_of=None):
     meta = meta_dict(conn)
+    current_gen = _validate_required_meta(meta)
     objects, withdrawn = _read_objects_view(conn, as_of)
 
     if as_of is None:
@@ -296,7 +340,6 @@ def read_snapshot(conn, as_of=None):
     else:
         if as_of < 0:
             raise InvalidQuery("as_of 必须 >= 0")
-        current_gen = _canonical_gen(meta.get("generation"))
         if as_of > current_gen:
             raise ValueError("Unavailable：请求的 cut generation=%d 尚未发布" % as_of)
         header_idx, header_cat = _header_at_generation(conn, as_of)
@@ -424,33 +467,115 @@ def read_state(conn, as_of=None):
 
 
 def _validate_delta_shape(delta):
-    """持久 Delta 的已声明字段形状校验：不匹配 → 503（不把坏持久值当成功传出）。"""
+    """持久 Delta 逐字段形状 + 精确整数 wire 校验：任何坏持久值 → 503，不以成功 wire 传出。"""
     if not isinstance(delta, dict):
         raise ValueError("delta_json 顶层必须是对象")
     for key in ("upserts", "withdrawals", "replaces", "witnesses", "relations",
                 "observations", "raw_history_added"):
         if key in delta and not isinstance(delta[key], list):
             raise ValueError("delta.%s 必须是数组" % key)
-    for u in delta.get("upserts", []):
-        if not isinstance(u, dict) or not isinstance(u.get("object_id"), str):
-            raise ValueError("delta.upserts 成员必须是含 object_id 的对象")
-    for w in delta.get("withdrawals", []):
-        if not isinstance(w, dict) or not isinstance(w.get("object_id"), str):
-            raise ValueError("delta.withdrawals 成员必须是含 object_id 的对象")
-    for r in delta.get("relations", []):
-        if not isinstance(r, dict) or "subject" not in r or "relation_type" not in r or "object" not in r:
-            raise ValueError("delta.relations 成员必须是含 subject/relation_type/object 的对象")
-    if "seq_range" in delta and not isinstance(delta["seq_range"], dict):
+    if not isinstance(delta.get("seq_range"), dict):
         raise ValueError("delta.seq_range 必须是对象")
+    _req_str(delta["seq_range"], "from", "delta.seq_range")
+    _req_str(delta["seq_range"], "to", "delta.seq_range")
+    _req_str(delta, "base_cut", "delta")
+    _req_str(delta, "next_cut", "delta")
+    _req_str(delta, "generation", "delta")
+    _req_str(delta, "index_frontier", "delta")
+    _req_str(delta, "session_id", "delta")
+    _req_str(delta, "catalog_revision", "delta")
+
+    for i, u in enumerate(delta.get("upserts", [])):
+        p = "delta.upserts[%d]" % i
+        if not isinstance(u, dict):
+            raise ValueError("%s 必须是对象" % p)
+        for k in ("object_id", "object_revision", "kind", "batch_id", "branch", "dir_ab",
+                  "dir_bc", "window_start", "window_mid", "window_end", "first_known_generation",
+                  "first_known_cut", "published_generation", "lifecycle"):
+            _req_str(u, k, p)
+        if not isinstance(u.get("comparisons"), list):
+            raise ValueError("%s.comparisons 必须是数组" % p)
+        if not isinstance(u.get("input_refs"), list):
+            raise ValueError("%s.input_refs 必须是数组" % p)
+        for g in u["input_refs"]:
+            if not isinstance(g, dict):
+                raise ValueError("%s.input_refs 成员必须是对象" % p)
+            _req_str(g, "merged_index", p + ".input_refs")
+            if not isinstance(g.get("raw_refs"), list):
+                raise ValueError("%s.input_refs.raw_refs 必须是数组" % p)
+            for rr in g["raw_refs"]:
+                if not isinstance(rr, dict):
+                    raise ValueError("%s.input_refs.raw_refs 成员必须是对象" % p)
+                for k in ("identity_key", "receipt_id", "event_id", "input_revision",
+                          "revision", "seq", "source_coord"):
+                    _req_str(rr, k, p + ".input_refs.raw_refs")
+        if not isinstance(u.get("source_coords"), list) or any(type(s) is not str for s in u["source_coords"]):
+            raise ValueError("%s.source_coords 必须是字符串数组" % p)
+        _req_str_or_none(u, "withdrawn_generation", p)
+        _req_str_or_none(u, "withdrawal_reason", p)
+        _req_str_or_none(u, "superseded_by", p)
+
+    for i, w in enumerate(delta.get("withdrawals", [])):
+        p = "delta.withdrawals[%d]" % i
+        if not isinstance(w, dict):
+            raise ValueError("%s 必须是对象" % p)
+        for k in ("object_id", "window_start", "window_mid", "window_end", "reason"):
+            _req_str(w, k, p)
+        _req_str_or_none(w, "superseded_by", p)
+
+    for i, r in enumerate(delta.get("replaces", [])):
+        p = "delta.replaces[%d]" % i
+        if not isinstance(r, dict):
+            raise ValueError("%s 必须是对象" % p)
+        _req_str(r, "new_object_id", p)
+        _req_str(r, "old_object_id", p)
+
+    for i, w in enumerate(delta.get("witnesses", [])):
+        p = "delta.witnesses[%d]" % i
+        if not isinstance(w, dict):
+            raise ValueError("%s 必须是对象（不得为 null）" % p)
+        for k in ("witness_id", "object_id", "slot", "merged_source_index", "merged_high",
+                  "merged_low", "merged_open", "merged_close"):
+            _req_str(w, k, p)
+        if not isinstance(w.get("raw_bars"), list):
+            raise ValueError("%s.raw_bars 必须是数组" % p)
+
+    for i, r in enumerate(delta.get("relations", [])):
+        p = "delta.relations[%d]" % i
+        if not isinstance(r, dict):
+            raise ValueError("%s 必须是对象" % p)
+        _req_str(r, "subject", p)
+        _req_str(r, "relation_type", p)
+        _req_str(r, "object", p)
+
+    for i, o in enumerate(delta.get("observations", [])):
+        p = "delta.observations[%d]" % i
+        if not isinstance(o, dict):
+            raise ValueError("%s 必须是对象（不得为标量）" % p)
+        _req_str(o, "observation_id", p)
+        _req_str(o, "batch_id", p)
+        _req_str(o, "kind", p)
+        _req_str(o, "reason", p)
+        if not isinstance(o.get("detail"), dict):
+            raise ValueError("%s.detail 必须是对象" % p)
+        for k in ("window_start", "window_mid", "window_end"):
+            _req_str_or_none(o, k, p)
+
+    for i, rh in enumerate(delta.get("raw_history_added", [])):
+        p = "delta.raw_history_added[%d]" % i
+        if not isinstance(rh, dict):
+            raise ValueError("%s 必须是对象" % p)
+        for k in ("identity_key", "revision", "input_revision", "payload_hash", "receipt_id",
+                  "seq", "event_id", "source_coord", "price"):
+            _req_str(rh, k, p)
+        _req_str_or_none(rh, "supersedes_revision", p)
 
 
 def read_delta(conn, after_generation):
     meta = meta_dict(conn)
-    current_gen = _canonical_gen(meta.get("generation"))
-    current_cut = meta.get("structure_cut", "")
-    session_id = meta.get("session_id", "")
-    if not isinstance(session_id, str) or session_id == "":
-        raise ValueError("meta.session_id 缺失或非文本")
+    current_gen = _validate_required_meta(meta)
+    current_cut = meta["structure_cut"]
+    session_id = meta["session_id"]
 
     if after_generation > current_gen:
         # 游标超前（旧页面游标用于新会话/被重建的会话）→ 显式重建，不静默“无更新”。
@@ -492,6 +617,20 @@ def read_delta(conn, after_generation):
         expected = list(range(after_generation + 1, current_gen + 1))
         if gens != expected:
             gap = {"reason": "cursor_stale_or_retained_delta_missing", "rebuild_cut": current_cut}
+        else:
+            # cut 链完整性：首条 base_cut == cut-{after}，逐条 next == 下一 base，末条 next == 当前 cut。
+            # 断裂是持久损坏 → 503（不是 Gap）。
+            prev_cut = "cut-%d" % after_generation
+            for r in rows:
+                if r["base_cut"] != prev_cut:
+                    raise ValueError(
+                        "structure_deltas cut 链断裂：期望 base_cut=%s，实际 %s（generation=%s）"
+                        % (prev_cut, r["base_cut"], r["generation"]))
+                prev_cut = r["next_cut"]
+            if prev_cut != current_cut:
+                raise ValueError(
+                    "structure_deltas cut 链末端不一致：末 next_cut=%s，当前 structure_cut=%s"
+                    % (prev_cut, current_cut))
     return {
         "session_id": session_id,
         "generation": _num_to_str(current_gen),
@@ -549,14 +688,15 @@ class Handler(BaseHTTPRequestHandler):
         raw = query.get(key)
         if raw is None:
             return default
-        if raw == "" or not raw.isdigit() or (len(raw) > 1 and raw[0] == "0"):
+        # ASCII 规范十进制：拒绝空、非 ASCII 数字（如 ²）、前导零、负号。
+        if raw == "" or not raw.isascii() or not raw.isdigit() or (len(raw) > 1 and raw[0] == "0"):
             raise InvalidQuery("%s 必须是规范十进制整数且 >= 0" % key)
         v = int(raw)
         if not -(2**63) <= v < 2**63:
             raise InvalidQuery("%s 超出 i64 精确整数域" % key)
         return v
 
-    def _read_only(self, kind, query=None):
+    def _read_only(self, kind, query=None, as_of=None, after_generation=None):
         query = query or {}
         payload = None
         try:
@@ -567,17 +707,13 @@ class Handler(BaseHTTPRequestHandler):
         try:
             conn.execute("BEGIN")
             if kind == "state":
-                as_of = self._parse_nonneg(query, "as_of", None)
                 payload = read_state(conn, as_of)
             elif kind == "catalog":
-                as_of = self._parse_nonneg(query, "as_of", None)
                 payload = read_catalog(conn, as_of)
             elif kind == "snapshot":
-                as_of = self._parse_nonneg(query, "as_of", None)
                 payload = read_snapshot(conn, as_of)
             elif kind == "delta":
-                after = self._parse_nonneg(query, "after_generation", 0)
-                payload = read_delta(conn, after)
+                payload = read_delta(conn, after_generation)
             elif kind == "meta":
                 payload = {"meta": meta_dict(conn)}
             else:
@@ -617,6 +753,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             pairs = self._parse_query()
             query = self._query_map(pairs)
+            # 参数解析在开库前完成：参数错误 → 400（缺库也先报参数错误），不把参数错误当存储故障。
+            as_of = self._parse_nonneg(query, "as_of", None)
+            after_generation = self._parse_nonneg(query, "after_generation", 0)
         except InvalidQuery as e:
             self._send_json({"ok": False, "error": "InvalidQuery", "detail": str(e)}, 400)
             return
@@ -631,16 +770,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": False, "error": "browser unreadable", "detail": str(e)}, 503)
             return
         if path == "/api/state":
-            self._read_only("state", query)
+            self._read_only("state", query, as_of=as_of)
             return
         if path == "/api/catalog":
-            self._read_only("catalog", query)
+            self._read_only("catalog", query, as_of=as_of)
             return
         if path == "/api/snapshot":
-            self._read_only("snapshot", query)
+            self._read_only("snapshot", query, as_of=as_of)
             return
         if path == "/api/delta":
-            self._read_only("delta", query)
+            self._read_only("delta", query, after_generation=after_generation)
             return
         if path == "/api/meta":
             self._read_only("meta", query)

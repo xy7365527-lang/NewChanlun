@@ -3,9 +3,9 @@
   "slice": "TB-01-B",
   "branch": "codex/1323-tb01-b-1371",
   "baseline": "2212eba31e0b7419907e622e79f02f7c2cc37706",
-  "repaired_from": "8c868f968c5f937870a4305dca05a0e0162b5131",
+  "repaired_from": "0298cf429804c611d6ee5f691a1f36ee2a720fba",
   "number_declaration": "本提交中的 #1371 仅指 GitHub Issue。",
-  "status": "REPAIRED_PER_ROOT_REVIEW_INCOMPLETE_READY_FOR_RE_REVIEW",
+  "status": "REPAIRED_PER_ROOT_R2_REVIEW_REQUEST_CHANGES_READY_FOR_RE_REVIEW",
   "platform": "linux-aarch64-container",
   "rustc": "1.97.1",
   "sqlite": "3.53.2 (bundled libsqlite3-sys 0.38.2)",
@@ -17,9 +17,9 @@
     "s_session/launch_s.sh"
   ],
   "file_sha256": {
-    "rust/src/bin/s_structure_session.rs": "2e06b83eb220934aba6f88f3be31ea876fe21b63984ce0a78dc162549dfdeb9e",
-    "s_session/s_readonly_server.py": "8024b01ca38215a23357afd8354c76b392565c895bac472269617fb531addef1",
-    "s_session/browser/index.html": "bbc86d0158bfebc5a9f5e73070f99a19f89532c4a35f28f477d076c7ca0c5084",
+    "rust/src/bin/s_structure_session.rs": "1d19627dfed365b0782cc62651773ece7a9afd2a2df9905c8428dbc3786516da",
+    "s_session/s_readonly_server.py": "f01988cf118b874b9f4b2c8221b4a00f2dd53a5df6f0f80c1675f39522405578",
+    "s_session/browser/index.html": "ce4732b38a04c034cea336ba13e78db1f184220f333d2470674a937d2fb97d77",
     "s_session/launch_s.sh": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d"
   },
   "catalog_sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",
@@ -28,7 +28,7 @@
     "cargo_fmt_check": 0,
     "cargo_check": 0,
     "cargo_clippy_own_hits": 0,
-    "bin_tests": "22 passed / 0 failed",
+    "bin_tests": "23 passed / 0 failed",
     "lib_local_shape_oracle": "4 passed"
   },
   "ac_numbering_note": "AC1..AC8 按原票顺序：AC1 launcher+输入链、AC2 revision分立+幂等、AC3 Delta+浏览器原子应用、AC4 三点真杀恢复、AC5 DeliveryUnknown+旧epoch、AC6 AsKnown/Recomputed、AC7 E/B/X未启动+StorageUnavailable、AC8 证据保留。",
@@ -61,5 +61,15 @@
     "full cargo test / full history replay",
     "pagination/retention/expiry pressure matrix (TB-01-C)",
     "economic responsibility assignment (later TB)"
-  ]
+  ],
+  "r2_repair_summary": {
+    "ROOT-B-R2-01": "verify_reachable_root 强化（bytes/hash/len、历史引用、缺根 meta、gen 感知）三入口统一",
+    "ROOT-B-R2-02": "reader 统一必需 meta/域/cut 链/深层形状/精确整数校验；参数 400 存储 503",
+    "ROOT-B-R2-03": "浏览器提交前校验 session/catalog/cut 链/末端 cut，断链不提交",
+    "ROOT-B-R2-04": "current 提交原子同步 historyMode/标签/按钮",
+    "PY-H02/H03": "deepClone 撤回成员；pageEpoch 请求代际防晚响应回滚",
+    "PY-H01/H05": "Delta envelope 与快照 session/catalog/cut 身份核对",
+    "PY-M01/M03": "Gap 真重建六集合缓存；会话重绑保存旧 id",
+    "pause_release": "S_SESSION_PAUSE_RELEASE 显式解除（活旧 writer 跨 epoch 受控试验）"
+  }
 }

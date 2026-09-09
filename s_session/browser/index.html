@@ -126,7 +126,7 @@
 let currentState = null;
 let selectedCatalogId = "CC-006";
 let historyMode = "current";
-// 已提交（已验证）的应用状态；精确整数一律用字符串 + BigInt 比较，不经 Number()。
+// 已提交（已验证）状态；精确整数一律字符串 + BigInt 比较，不经 Number()。
 let appliedObjects = new Map();
 let appliedWithdrawn = new Map();
 let appliedWitnesses = new Map();
@@ -134,16 +134,33 @@ let appliedRelations = new Map();
 let appliedObservations = new Map();
 let appliedRawHistory = new Map();
 let lastAppliedGen = "0";
-let sessionBinding = null; // {session_id, structure_cut, generation}
+let sessionBinding = null; // {session_id, structure_cut, generation, catalog_revision}
+let pageEpoch = 0;          // 请求代际：晚到响应不覆盖新提交
 
 function esc(s) { const d = document.createElement("div"); d.textContent = String(s); return d.innerHTML; }
 function escAttr(s) { return esc(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
 function bigAddOne(s) { try { return (BigInt(s) + 1n).toString(); } catch (e) { return null; } }
 function bigLe(a, b) { try { return BigInt(a) <= BigInt(b); } catch (e) { return false; } }
 function bigEq(a, b) { try { return BigInt(a) === BigInt(b); } catch (e) { return false; } }
+function deepClone(o) { return (typeof structuredClone === "function") ? structuredClone(o) : JSON.parse(JSON.stringify(o)); }
+function beginRequest() { return ++pageEpoch; }
+function resetCommitted() {
+  appliedObjects = new Map(); appliedWithdrawn = new Map(); appliedWitnesses = new Map();
+  appliedRelations = new Map(); appliedObservations = new Map(); appliedRawHistory = new Map();
+  lastAppliedGen = "0"; sessionBinding = null;
+}
 function renderStatus(text, cls) {
   const el = document.getElementById("status-section");
   el.innerHTML = text ? `<div class="${cls}">${esc(text)}</div>` : "";
+}
+function syncModeUI(mode) {
+  historyMode = mode;
+  document.getElementById("mode-indicator").textContent =
+    mode === "asof" && currentState
+      ? `当前：${currentState.snapshot.history_mode} @ generation ${currentState.snapshot.as_of_generation}`
+      : `当前：RecomputedWithRevision（当前）`;
+  document.getElementById("btn-current").classList.toggle("active", mode === "current");
+  document.getElementById("btn-asof").classList.toggle("active", mode === "asof");
 }
 function renderMeta(snap, cat) {
   const kv = [
@@ -269,11 +286,9 @@ function renderCatalog(cat) {
   }).join("");
 }
 function renderAsOfOptions(snap) {
-  const gen = snap.generation;
   const input = document.getElementById("asof-input");
-  // 有界：只提示当前代，不回填无界 0..generation 枚举。
-  input.placeholder = `0..${gen}（默认 0）`;
-  if (input.value === "" ) input.value = "0";
+  input.placeholder = `0..${snap.generation}（默认 0）`;
+  if (input.value === "") input.value = "0";
 }
 async function fetchJson(url) {
   let res;
@@ -305,17 +320,16 @@ function renderAllFromState(state) {
   if (historyMode === "current") renderAsOfOptions(snap);
 }
 async function load(mode = "current", asOfGen) {
+  const epoch = beginRequest();
   renderStatus("", "");
   try {
     const url = mode === "asof" ? `/api/state?as_of=${asOfGen}` : "/api/state";
     const state = await fetchJson(url);
-    historyMode = mode;
-    document.getElementById("mode-indicator").textContent =
-      `当前：${state.snapshot.history_mode}` + (state.snapshot.as_of_generation != null ? ` @ generation ${state.snapshot.as_of_generation}` : "");
-    document.getElementById("btn-current").classList.toggle("active", mode === "current");
-    document.getElementById("btn-asof").classList.toggle("active", mode === "asof");
+    if (epoch !== pageEpoch) return; // 晚到响应不覆盖新请求
+    syncModeUI(mode);
     renderAllFromState(state);
   } catch (e) {
+    if (epoch !== pageEpoch) return;
     currentState = null;
     renderStatus("读取失败：" + e, "err-box");
     document.getElementById("meta-kv").innerHTML = `<dd class="muted">—</dd>`;
@@ -353,30 +367,51 @@ function cmpMaps(appliedMap, snapArr, label, keyFn, diffs) {
   }
   for (const id of snapMap.keys()) if (!appliedMap.has(id)) diffs.push(`${label} ${id} 未在应用状态`);
 }
+function rebuildCommittedFromState(state) {
+  const snap = state.snapshot;
+  appliedObjects = new Map((snap.objects || []).map(o => [o.object_id, o]));
+  appliedWithdrawn = new Map((snap.withdrawn_objects || []).map(o => [o.object_id, o]));
+  appliedWitnesses = new Map((snap.witnesses || []).map(w => [w.witness_id, w]));
+  appliedRelations = new Map((snap.relations || []).map(r => [JSON.stringify([r.subject, r.relation_type, r.object]), r]));
+  appliedObservations = new Map((snap.observations || []).map(o => [o.observation_id, o]));
+  appliedRawHistory = new Map((snap.raw_history || []).map(r => [`${r.identity_key}@${r.revision}`, r]));
+  lastAppliedGen = snap.generation;
+  sessionBinding = { session_id: snap.session_id, structure_cut: snap.structure_cut,
+                     generation: snap.generation, catalog_revision: snap.catalog_revision };
+}
 async function applyStream() {
   const el = document.getElementById("stream-result");
   const cursorEl = document.getElementById("stream-cursor");
+  const epoch = beginRequest();
   renderStatus("", "");
   try {
     const deltaResp = await fetchJson(`/api/delta?after_generation=${lastAppliedGen}`);
+    if (epoch !== pageEpoch) return;
     if (deltaResp.gap) {
-      // Gap：重建（清已提交缓存，回读当前快照），不静默吞差异。
-      appliedObjects = new Map(); appliedWithdrawn = new Map(); appliedWitnesses = new Map();
-      appliedRelations = new Map(); appliedObservations = new Map(); appliedRawHistory = new Map();
-      lastAppliedGen = "0"; sessionBinding = null;
-      el.innerHTML = `<div class="warn-box">Gap：${esc(JSON.stringify(deltaResp.gap))}（已重建游标，需重新对拍）</div>`;
-      cursorEl.textContent = `游标已重建`;
+      // Gap：按返回 rebuild_cut 真正读取当前快照并重建缓存/游标/绑定（清空不是重建）。
+      let st;
+      try { st = await fetchJson("/api/state"); }
+      catch (e) {
+        el.innerHTML = `<div class="warn-box">Gap（${esc(JSON.stringify(deltaResp.gap))}）且当前快照读取失败（${esc(e)}）：尚未重建，请重试</div>`;
+        return;
+      }
+      if (epoch !== pageEpoch) return;
+      rebuildCommittedFromState(st);
+      renderAllFromState(st);
+      syncModeUI("current");
+      cursorEl.textContent = `已从 cut ${sessionBinding.structure_cut} 重建（session ${sessionBinding.session_id}）`;
+      el.innerHTML = `<div class="warn-box">Gap：${esc(JSON.stringify(deltaResp.gap))}。已按当前同 cut Snapshot 重建六集合缓存/游标/绑定。</div>`;
       return;
     }
     if (sessionBinding && deltaResp.session_id !== sessionBinding.session_id) {
-      appliedObjects = new Map(); appliedWithdrawn = new Map(); appliedWitnesses = new Map();
-      appliedRelations = new Map(); appliedObservations = new Map(); appliedRawHistory = new Map();
-      lastAppliedGen = "0"; sessionBinding = null;
-      el.innerHTML = `<div class="warn-box">会话身份变化（${esc(sessionBinding.session_id)} → ${esc(deltaResp.session_id)}），已重建缓存，请重新对拍</div>`;
+      const oldSid = sessionBinding.session_id;
+      resetCommitted();
+      cursorEl.textContent = `会话已切换（原 ${oldSid}）→ 请重新对拍`;
+      el.innerHTML = `<div class="warn-box">会话身份变化（${esc(oldSid)} → ${esc(deltaResp.session_id)}）：已重置缓存/游标，请重新对拍</div>`;
       return;
     }
     const deltas = deltaResp.deltas || [];
-    // 暂存状态（成功验证后才提交；失败不抹掉未验证门）。
+    // 暂存状态（成员在改写时深拷贝，不改已提交对象）。
     const tmpObjects = new Map(appliedObjects);
     const tmpWithdrawn = new Map(appliedWithdrawn);
     const tmpWitnesses = new Map(appliedWitnesses);
@@ -385,6 +420,7 @@ async function applyStream() {
     const tmpRawHistory = new Map(appliedRawHistory);
     let tmpGen = lastAppliedGen;
     const appliedLines = [];
+    let expectedPrevCut = sessionBinding ? sessionBinding.structure_cut : "cut-0";
     for (const d of deltas) {
       const gen = d.generation;
       if (bigLe(gen, tmpGen)) { appliedLines.push(`gen ${gen}：重复投递，不重复生效`); continue; }
@@ -393,31 +429,58 @@ async function applyStream() {
         el.innerHTML = `<div class="warn-box">乱序/断档：期望 gen ${expect}，收到 gen ${gen}（显式 Gap，不拼接错切面，游标未提交）</div>`;
         return;
       }
+      // cut 链：base_cut 必须续接已提交 cut，next_cut 逐条衔接。
+      if (d.base_cut !== expectedPrevCut) {
+        el.innerHTML = `<div class="err-box">cut 链断裂：期望 base_cut=${esc(expectedPrevCut)}，收到 ${esc(d.base_cut)}（gen ${gen}）：游标/状态未提交</div>`;
+        return;
+      }
+      expectedPrevCut = d.next_cut;
       const dd = d.delta || {};
       for (const w of (dd.withdrawals || [])) {
-        const o = tmpObjects.get(w.object_id);
-        if (o) { o.lifecycle = "withdrawn"; o.withdrawal_reason = w.reason; o.superseded_by = w.superseded_by; o.withdrawn_generation = gen; tmpWithdrawn.set(w.object_id, o); tmpObjects.delete(w.object_id); }
+        const prev = tmpObjects.get(w.object_id);
+        if (prev) {
+          const o = deepClone(prev);
+          o.lifecycle = "withdrawn"; o.withdrawal_reason = w.reason; o.superseded_by = w.superseded_by;
+          o.withdrawn_generation = gen;
+          tmpWithdrawn.set(w.object_id, o);
+          tmpObjects.delete(w.object_id);
+        }
       }
-      for (const u of (dd.upserts || [])) { u.lifecycle = "active"; tmpObjects.set(u.object_id, u); tmpWithdrawn.delete(u.object_id); }
+      for (const u of (dd.upserts || [])) { const o = deepClone(u); o.lifecycle = "active"; tmpObjects.set(o.object_id, o); tmpWithdrawn.delete(o.object_id); }
       for (const w of (dd.witnesses || [])) tmpWitnesses.set(w.witness_id, w);
       for (const r of (dd.relations || [])) tmpRelations.set(JSON.stringify([r.subject, r.relation_type, r.object]), r);
       for (const o of (dd.observations || [])) tmpObservations.set(o.observation_id, o);
       for (const rh of (dd.raw_history_added || [])) tmpRawHistory.set(`${rh.identity_key}@${rh.revision}`, rh);
       tmpGen = gen;
-      appliedLines.push(`gen ${gen}：${d.base_cut} → ${d.next_cut}（upserts ${(dd.upserts || []).length} / 撤回 ${(dd.withdrawals || []).length} / 替代 ${(dd.replaces || []).length} / 见证 ${(dd.witnesses || []).length} / 关系 ${(dd.relations || []).length} / 观察 ${(dd.observations || []).length} / 源事件 ${(dd.raw_history_added || []).length}）`);
+      appliedLines.push(`gen ${gen}：${d.base_cut} → ${d.next_cut}（upserts ${(dd.upserts || []).length} / 撤回 ${(dd.withdrawals || []).length} / 替代 ${(dd.replaces || []).length}）`);
     }
-    // 权威状态：无论有无新 Delta 都取当前 cut 并全字段对拍（空 Delta 也不吞差异）。
+    // 权威状态：无论有无新 Delta 都取当前 cut 并做完整身份 + 全字段对拍（空增量不吞差异）。
     let state;
-    try {
-      state = await fetchJson("/api/state");
-    } catch (e) {
-      el.innerHTML = `<div class="err-box">快照读取失败（${esc(e)}）：已应用游标未提交，请重试</div>`;
+    try { state = await fetchJson("/api/state"); }
+    catch (e) {
+      el.innerHTML = `<div class="err-box">快照读取失败（${esc(e)}）：游标/状态未提交，请重试</div>`;
       return;
     }
+    if (epoch !== pageEpoch) return;
     const snap = state.snapshot;
+    // 身份与 cut 链完整性（不只比较 generation 与六集合）。
+    if (snap.session_id !== deltaResp.session_id) {
+      el.innerHTML = `<div class="err-box">会话身份不一致（Delta ${esc(deltaResp.session_id)} vs 快照 ${esc(snap.session_id)}）：游标未提交</div>`;
+      return;
+    }
     if (!bigEq(snap.generation, tmpGen)) {
       el.innerHTML = `<div class="err-box">应用代际与快照代际不一致（应用 ${esc(tmpGen)}，快照 ${esc(snap.generation)}）：游标未提交</div>`;
       return;
+    }
+    if (snap.structure_cut !== expectedPrevCut) {
+      el.innerHTML = `<div class="err-box">cut 链末端不一致（期望 ${esc(expectedPrevCut)}，快照 ${esc(snap.structure_cut)}）：游标未提交</div>`;
+      return;
+    }
+    for (const d of deltas) {
+      if (d.catalog_revision !== snap.catalog_revision) {
+        el.innerHTML = `<div class="err-box">catalog_revision 不一致（Delta ${esc(d.catalog_revision)} vs 快照 ${esc(snap.catalog_revision)}）：游标未提交</div>`;
+        return;
+      }
     }
     const diffs = [];
     cmpMaps(tmpObjects, snap.objects || [], "对象", o => o.object_id, diffs);
@@ -430,19 +493,22 @@ async function applyStream() {
       el.innerHTML = `<div class="err-box">对拍差异 ${diffs.length} 项（游标/状态未提交，强制重验）：${diffs.slice(0, 20).map(esc).join("；")}</div>`;
       return;
     }
-    // 提交：验证通过后才提交缓存 + 游标 + 会话绑定，并驱动正式渲染（元数据/对象/撤回/见证/关系/历史/目录）。
+    // 原子提交：验证全部通过后一次更新缓存/游标/绑定/模式/页面。
     appliedObjects = tmpObjects; appliedWithdrawn = tmpWithdrawn; appliedWitnesses = tmpWitnesses;
     appliedRelations = tmpRelations; appliedObservations = tmpObservations; appliedRawHistory = tmpRawHistory;
     lastAppliedGen = tmpGen;
-    sessionBinding = { session_id: snap.session_id, structure_cut: snap.structure_cut, generation: snap.generation };
+    sessionBinding = { session_id: snap.session_id, structure_cut: snap.structure_cut,
+                       generation: snap.generation, catalog_revision: snap.catalog_revision };
+    syncModeUI("current");
     renderAllFromState(state);
-    cursorEl.textContent = `已提交并验证 generation ≤ ${lastAppliedGen}（session ${sessionBinding.session_id}）`;
+    cursorEl.textContent = `已提交并验证 generation ≤ ${lastAppliedGen}（session ${sessionBinding.session_id}，cut ${sessionBinding.structure_cut}）`;
     const summary = deltas.length
-      ? `同源读取 ${deltas.length} 个 Delta；应用后与同 cut Snapshot（generation ${snap.generation}）全字段对拍：` +
+      ? `同源读取 ${deltas.length} 个 Delta；应用后与同 cut Snapshot（generation ${snap.generation}）全字段 + 会话/cut/catalog 身份对拍：` +
         `<span class="ok-box">${tmpObjects.size} 活动 + ${tmpWithdrawn.size} 撤回 + ${tmpWitnesses.size} 见证 + ${tmpRelations.size} 关系 + ${tmpObservations.size} 观察 + ${tmpRawHistory.size} 源事件，逐字段一致（已驱动正式渲染）</span>`
-      : `无新 Delta；已与同 cut Snapshot（generation ${snap.generation}）全字段复核一致（空增量不吞差异）。`;
+      : `无新 Delta；已与同 cut Snapshot（generation ${snap.generation}）全字段 + 会话/cut/catalog 身份复核一致。`;
     el.innerHTML = `<ul>${appliedLines.map(l => `<li>${l}</li>`).join("")}</ul>${summary}`;
   } catch (e) {
+    if (epoch !== pageEpoch) return;
     el.innerHTML = `<div class="err-box">Delta 处理失败：${esc(e)}</div>`;
   }
 }
