@@ -1,0 +1,14 @@
+{
+  "classification": "归档完整性证据，非运行验收",
+  "payload_files": 137,
+  "payload_sha256_verification": "PASS",
+  "portable_reading_views": 63,
+  "portable_local_link_resolution": "PASS",
+  "external_source_references": 14,
+  "git_diff_check": "EXPECTED_ORIGINAL_WHITESPACE_ONLY",
+  "whitespace_details": [
+    "原始requirements OBSERVATION-CONTRACT.md末尾空行照原字节保留；阅读版同样保留。未修改已签署原件以迎合格式检查。"
+  ],
+  "implementation_tests": "NOT_APPLICABLE_DOCUMENT_ARCHIVE",
+  "main_merge": "NOT_AUTHORIZED"
+}

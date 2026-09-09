@@ -1,0 +1,139 @@
+{
+  "schema": "newchanlun1339.root-classification-review.v1",
+  "reviewer": "root (未参与CLASSIFICATION-CATALOG作者写作)",
+  "scope": "通读62轴/10组合/32定位项及44ST表；针对列出五项回核指定权威；不是全部源逐字或项目运行证明",
+  "author_sha256": {
+    "CLASSIFICATION-CATALOG.md": "41fe65519c011fc173b47af5ee3cc721288b2de62219059fa9e69822135eccf8",
+    "CLASSIFICATION-CATALOG.json": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f"
+  },
+  "findings": [
+    {
+      "id": "RC-M01",
+      "severity": "M",
+      "axes": [
+        "CC-004"
+      ],
+      "title": "包含折叠分区漏掉非包含追加",
+      "counterexample": "两根连续非包含UP K线；n=2，无当前包含合并，也不是开头连续包含未建方向，四叶均不匹配。",
+      "required_fix": "对全部有限前缀/当前折叠步明确输入域，补非包含追加及方向建立分支，合并有方向/无方向两支只在包含域。",
+      "sources": [
+        ".chanlun/definitions/baohan.md:117-135"
+      ],
+      "status": "CLOSED_BY_ROOT_RECHECK_R2",
+      "resolution": "补UP/DOWN非包含追加，把两种有方向合并和未建方向限定包含域；共7叶。"
+    },
+    {
+      "id": "RC-M02",
+      "severity": "M",
+      "axes": [
+        "CC-037"
+      ],
+      "title": "小转大必要条件的主语被泛化成全部q级转折",
+      "counterexample": "目录X仅写q级转折，因而同级背驰导致的转折也被X&&!N分支判为违例；源定理仅约束小背驰引发大转折。",
+      "required_fix": "把X明确定义为已发生的r<q小转大，或显式限定相应小背驰上下文；N固定为原UP趋势末次级枢三卖/DOWN趋势三买。",
+      "sources": [
+        ".chanlun/definitions/beichi.md:135-144",
+        "docs/chanlun/text/blog/044-第44课.md:24-30"
+      ],
+      "status": "CLOSED_BY_ROOT_RECHECK_R2",
+      "resolution": "把X限定为r<q已发生小转大，并明确N的旧趋势方向对偶。"
+    },
+    {
+      "id": "RC-M03",
+      "severity": "M",
+      "axes": [
+        "CC-049",
+        "CC-052"
+      ],
+      "title": "候选全集背驰观察可能替换固定选择后的判定",
+      "counterexample": "C={a,b}、Sel_Theta(C)=a、Div(a)=false、Div(b)=true。CC052仅以任意候选成功判DIV_TRUE，而当前目录并未定义它只是观察；消费为证书成功会绕过已选择a的失败。1024-1049只为历史None三分命名，不授权这一新存在性准入。",
+      "required_fix": "分别给全候选的独立Div观察和Sel选择后相应判定；准确标作用域/用途，不在选中失败时择优重选；若4支仅观察须明写及给生产消费接口。",
+      "sources": [
+        ".chanlun/definitions/qujiantao.md:760-764",
+        ".chanlun/definitions/qujiantao.md:811-817",
+        ".chanlun/definitions/qujiantao.md:1024-1049"
+      ],
+      "status": "CLOSED_BY_ROOT_RECHECK_R2",
+      "resolution": "分开固定Sel后门判定与全候选只读观察，禁止选中失败后择优重选；观察ANY_GATE_TRUE不能供证书消费。"
+    },
+    {
+      "id": "RC-M04",
+      "severity": "M",
+      "axes": [
+        "CC-032",
+        "CC-045"
+      ],
+      "title": "声明定义域与生成族边界不一致",
+      "counterexample": "CC032 D要求至少一笔却在同轴列空列表为样本分支；CC045 D要求leave/retest均已完成却生成含二者未完成的96签名。接口输入和语义子域混同，后端无法按同一D兑现覆盖断言。",
+      "required_fix": "分开接口输入域与语义有效子域/原始编码族，说明空样本、未完成及不适用的精确去向和各计数射程；不得静默删除输入。",
+      "sources": [
+        "formal/Origin/ForceVelocity.lean:1-68",
+        "formal/Origin/BspClassification.lean:113-127"
+      ],
+      "status": "CLOSED_BY_ROOT_RECHECK_R2",
+      "resolution": "明确接口域、语义子域和不同数量射程；空样本、无效记录、缺数据及未完成签名均有明确去向。"
+    },
+    {
+      "id": "RC-L01",
+      "severity": "L",
+      "axes": [
+        "CC-055"
+      ],
+      "title": "关系数量三处不一致",
+      "counterexample": "branch_count关系13，relation_family实列12，尾文又称14种。",
+      "required_fix": "以实际具名列表为单一数据源导出关系数量并同步文本；不为凑数新造关系。",
+      "sources": [
+        "author/CLASSIFICATION-CATALOG.json:CC-055"
+      ],
+      "status": "CLOSED_BY_ROOT_RECHECK_R2",
+      "resolution": "原有12个具名关系不变，数量改为从唯一列表len导出，删除错误13/14表述。"
+    },
+    {
+      "id": "RC-M05",
+      "severity": "M",
+      "axes": [
+        "CC-041",
+        "LC-07"
+      ],
+      "title": "遗漏LevelView同类别买卖互斥的现有定理约束",
+      "counterexample": "六位向量B1=S1=true属于64编码空间，却被LevelView每类单一Option候选和现有buy1_sell1互斥定理排除。目录仅泛称64不全可达，未将已知排斥写入完整合法组合合同。",
+      "required_fix": "明列每类k不可Bk与Sk同时真；编码64经此必要约束至多27个抽象签名，再区分实际可构造域与同端同side五集合，不自动声称27全可达。",
+      "sources": [
+        "evidence/CLASSIFICATION-OUTPUT-PROBE.md (独立explorer源码核查)",
+        "formal/Origin/BuySellPredicate.lean:82-97",
+        "formal/Origin/BuySellPredicate.lean:207-208"
+      ],
+      "status": "CLOSED_BY_ROOT_RECHECK_R2",
+      "resolution": "加入LevelView每类买卖排斥：64编码→37已排除→至多27抽象允许；修订跨级上界与逐点BspBits/LevelView区分。"
+    }
+  ],
+  "counts": {
+    "H": 0,
+    "M": 0,
+    "L": 0
+  },
+  "project_execution": "not-run",
+  "reviewed_at": "2026-09-08T08:44:51.202437+00:00",
+  "initial_review": {
+    "author_sha256": {
+      "CLASSIFICATION-CATALOG.md": "87963f91816da65f5423bf8f503cf98dc91244fa846b6ba66e9879e3d7e3cffa",
+      "CLASSIFICATION-CATALOG.json": "7b954f7c1deb40db31f9339304688e6ac9da464c934534533ea7fdbb22e9c07a"
+    },
+    "counts": {
+      "H": 0,
+      "M": 5,
+      "L": 1
+    },
+    "reviewed_at": "2026-09-08T08:25:16.663040+00:00"
+  },
+  "closure_scope": "原六项发现逐项核修订字段及受影响组合；不新增全行情可达或全部转换闭包证明声明。",
+  "bounded_recheck": {
+    "interval_pairs_and_directions": 675,
+    "bsp_encoding": 64,
+    "same_class_excluded": 37,
+    "abstract_allowed_upper_bound": 27,
+    "selector_nonempty_joint_signatures": 3,
+    "source_receipts_hash_and_anchor": 27,
+    "project_execution": "not-run"
+  }
+}

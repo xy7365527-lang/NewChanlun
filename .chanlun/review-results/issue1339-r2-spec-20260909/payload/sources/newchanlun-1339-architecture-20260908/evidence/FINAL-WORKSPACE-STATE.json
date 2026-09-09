@@ -1,0 +1,13 @@
+{
+  "observed_at": "2026-09-08T08:54:42.457013+00:00",
+  "head": "6df8d1921c72c84da90987f8f6c02ebc11fe6aac",
+  "branch": "main",
+  "dirty_entries": 245,
+  "intake_head_equal": true,
+  "porcelain_list_equal_to_intake": true,
+  "not_a_dirty_byte_snapshot": true,
+  "root_and_agents_artifact_writes": "only /tmp/newchanlun-1339-* external draft roots",
+  "project_execution": "not-run",
+  "GitHub_writes": "none",
+  "limits": "状态清单相同不证明dirty每个文件字节未由其他任务改变；本轮未写仓内。"
+}

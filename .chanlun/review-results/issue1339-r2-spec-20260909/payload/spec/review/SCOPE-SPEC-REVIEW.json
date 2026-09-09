@@ -1,0 +1,439 @@
+{
+  "schema": "newchanlun.1323.scope-spec-review.v2",
+  "phase": "FINAL_INDEPENDENT_REVIEW_S2_R1",
+  "reviewed_at_utc": "2026-09-09T04:47:59.688563+00:00",
+  "reviewer_role": "独立范围、忠实性、可执行切片与验收完整性评审；未编写或修改任何输入",
+  "verdict": "PASS_WITH_GATES",
+  "verdict_scope": "仅当前20输入的文档范围合同；不代表SPEC已获用户批准、实现/证明/测试/场所/生产验收通过。",
+  "counts": {
+    "H": 0,
+    "M": 0,
+    "L": 0
+  },
+  "findings": [],
+  "spec_sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11",
+  "input_manifest_path": "/tmp/newchanlun-1323-spec-20260909/evidence/REVIEW-INPUTS-S2-R1.json",
+  "input_manifest_sha256": "38e3176b6dfff456b8e3704410401c3bedddf0671751464bb9ea5b829e460260",
+  "inputs": [
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/SPEC.md",
+      "sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11",
+      "bytes": 68412,
+      "match": true,
+      "read_scope": "S1正文全文实读；S2全部正文差异及新增规范附件规则实读。R1正文逐字节不变。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/SPEC.json",
+      "sha256": "47351e5741aedf5f1c34eaaa9b9126ed30458a94833a352d8ad7ec6a52f08878",
+      "bytes": 66678,
+      "match": true,
+      "read_scope": "完整JSON解析，97故事与故事绑定/跨表同集、C/AT/TB引用和规范附件哈希检查；所有R1差异实读。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/ARCHITECTURE-ADOPTION.md",
+      "sha256": "e60e806286c41974f395a0f336f0f21e6386cf70583d4007042cc43d05c4a835",
+      "bytes": 695,
+      "match": true,
+      "read_scope": "S1全文实读；终版与S1字节一致并重新核哈希。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/ARCHITECTURE-ADOPTION.json",
+      "sha256": "c3d0c5ff1e38449704964ac7c6c0d1ab14e8a4516364a107dcfbcb7b4e7b2c1a",
+      "bytes": 2322,
+      "match": true,
+      "read_scope": "S1全部采纳状态及约束实读；终版字节一致并重新核哈希。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/SPEC-COVERAGE-INPUT.md",
+      "sha256": "a8b30f087308402874ea132ba1cc372fb3af1a16273ef5b090fbd324a5eed7a8",
+      "bytes": 130744,
+      "match": true,
+      "read_scope": "S1全文实读；S2新增规则和修订说明实读，改动表格与对应JSON有效合同交叉核对；R1字节不变。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/SPEC-COVERAGE-INPUT.json",
+      "sha256": "76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c",
+      "bytes": 1298462,
+      "match": true,
+      "read_scope": "全文解析；S1全族语义已实读，S2逐62项实读量词/79具名子轴/非分区义务/共存约束，逐16ES、45OE及5需求和G029有效修订实读。248个新A以完整已读组成项逐条精确校验，代表项正文逐字实读；所有345源条目与496A指针独立核对。未逐字重读未变的重复源元数据。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/TEST-SEAMS.md",
+      "sha256": "2b7a59947390dd3c1d4e4de132c714f330acfbe2890a049527226d787a1e1a6f",
+      "bytes": 22567,
+      "match": true,
+      "read_scope": "S1全文实读；S2 A01语义时间硬判修订及附记实读；12先例的未运行射程保持。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/TEST-SEAMS.json",
+      "sha256": "ea0d6479ec7460750e8974a733803e12173891bf857351ed1de53c59a26e5628",
+      "bytes": 25252,
+      "match": true,
+      "read_scope": "S1全部先例与验收缝语义实读；S2完整结构差异实读，A01与Markdown一致。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/RESIDUAL-DECISIONS.md",
+      "sha256": "cf4d78858a2b6a54c0699fef6240b68d0f66b4256de31a1ef7aa2e16bea12c3e",
+      "bytes": 21073,
+      "match": true,
+      "read_scope": "S1全文实读，特别核G029后裁及真残留边界；终版与S1字节一致。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/RESIDUAL-DECISIONS.json",
+      "sha256": "25ef584f85a7807a68adb77a4cabeb3b4dde3d46ba3c1442c4a2a49eadc0ab58",
+      "bytes": 24961,
+      "match": true,
+      "read_scope": "S1各残留项语义实读；终版与S1字节一致，未重新访问其外部链接或上游源原件。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/INTERFACE-CONTRACTS.md",
+      "sha256": "f1a2993c6fa4c6c29c6b9a4de7c1d0334c697aaa03e282f621171c37fc01d0e7",
+      "bytes": 10889,
+      "match": true,
+      "read_scope": "S2全文实读，含身份/精确数值、各域输入输出/原子提交、只读操作定位、typed结构结果及恢复边界；R1字节不变。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/IMPLEMENTATION-CROSSWALK.md",
+      "sha256": "028ac941954f31bc41ca20813c8b20de903dac199f39709f45115427b131093f",
+      "bytes": 19958,
+      "match": true,
+      "read_scope": "S2全部97故事表与销项规则实读；R1全部新增20项RA/I具体义务表及规则实读。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/IMPLEMENTATION-CROSSWALK.json",
+      "sha256": "0d31d68e75a6d672c948e8708bfb261549029c7310f7ad4dbb326c087157ce5d",
+      "bytes": 1278721,
+      "match": true,
+      "read_scope": "全文解析；全部97故事、345family、496A和源指针/引用/聚合独立校验，结合已读源语义逐族核映射。R1所有20项义务差异实读，34A与family逐字段对齐；97故事反向关联、11切片/6DST的family/A/门聚合独立核验。大规模重复聚合列表作机器集合核验，未将其称为逐字正文阅读。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/PLANNED-DAG.json",
+      "sha256": "8ece2c702ac45c36fdcebfff4b0cb8dd2f26c740bdced6789e630f323e76d5e2",
+      "bytes": 5019,
+      "match": true,
+      "read_scope": "S2全部11节点及排程规则实读，并独立拓扑排序；R1字节不变。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/EFFECTIVE-CONTRACTS.md",
+      "sha256": "63e395c46702cb78f932df9c8e8dd62c1f8776c106635ddeb613c0e73b4bab85",
+      "bytes": 1733,
+      "match": true,
+      "read_scope": "S2全文实读；R1字节不变。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/EFFECTIVE-CONTRACTS.json",
+      "sha256": "fd67b5230744f6f826bac98b3df044fbf22c21248a5d46c74e7e8498430a54a8",
+      "bytes": 94895,
+      "match": true,
+      "read_scope": "全文解析，适用/历史/优先规则实读，129覆盖条目的现行与历史指针逐一解析并核对象身份；对应有效合同正文按覆盖JSON实读。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/PUBLICATION-PREPARATION.md",
+      "sha256": "8dae5231dc1d2de5122035335f4e3f1364279a8ad86fb5935480fa1e276dc410",
+      "bytes": 3620,
+      "match": true,
+      "read_scope": "S2全文实读；发布、真实依赖接入、旧图状态及外部批准边界未当执行完成。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/evidence/MAP-1323.json",
+      "sha256": "eeb8b7e628c8f7299cbaa814e143fde10c8914c6619b012c90249cd3060d33d8",
+      "bytes": 10921,
+      "match": true,
+      "read_scope": "S1正文及六Destination/相关工作线范围实读；终版字节一致并重新核哈希，不当实时GitHub状态。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/evidence/STORY-BINDINGS.json",
+      "sha256": "9a52ae64f093e04897052aa7b2f79b60f7821d95d8561689aadf4065f2260177",
+      "bytes": 63431,
+      "match": true,
+      "read_scope": "S1全部97故事实读；S2 FG035采纳措辞修订核对，当前97项与SPEC/crosswalk身份完整一致。"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/evidence/DOC-VALIDATION-S2.json",
+      "sha256": "c87875bd967096299c807e3b79cd533a8250c8ade6b3c25d809de219c75bbc87",
+      "bytes": 1877,
+      "match": true,
+      "read_scope": "当前全文实读，仅作为作者自检声明；本报告的计数、指针、聚合、拓扑和哈希结论均另行核算，未继承其24上游来源重哈希或108链接声明。"
+    }
+  ],
+  "initial_review_history": {
+    "verdict": "REQUEST_CHANGES",
+    "counts": {
+      "H": 0,
+      "M": 3,
+      "L": 1
+    },
+    "spec_sha256": "79b6aba5290f35fdec2ffb297967c11128f195395a05a739fa70d8b9ab101c00",
+    "manifest_sha256": "ed7f6997d23fb3619f6ed967afe397f3251cb59fccb5ceca69b4dfbc5bb2c6e9",
+    "report_json_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-reviews/SCOPE-SPEC-REVIEW.json",
+    "report_json_sha256": "2fb8ac0d84b02f5a140573cab77fcdc884400fb60d27c6ea047672c412a6c254",
+    "report_md_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-reviews/SCOPE-SPEC-REVIEW.md",
+    "report_md_sha256": "264d9cb8e5d1e7da7346b671a13a378a8a34ef77dd144041827efcc2753246e4",
+    "immutable_snapshot": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5"
+  },
+  "historical_findings_and_closures": [
+    {
+      "id": "SCOPE-M01",
+      "severity": "M",
+      "status": "CLOSED_IN_S2",
+      "title": "62类目录被无差别施加恰一分支验收，误伤同时必需的角色与关系",
+      "locations": [
+        "inputs/SPEC-COVERAGE-INPUT.json:7372",
+        "inputs/SPEC-COVERAGE-INPUT.json:8217",
+        "inputs/SPEC-COVERAGE-INPUT.json:8272",
+        "SPEC.md:259",
+        "SPEC.md:402"
+      ],
+      "json_pointers": [
+        "/classification_axes/4/acceptance_points/1",
+        "/classification_axes/16/acceptance_points/1"
+      ],
+      "evidence": "62/62轴均含相同A-CC-xxx-02：同一轴同一对象同一版本至多一个分支成立。CC-005明确三支为可并存坐标角色；CC-017对同一正式中枢列CORE/OUTER/INNER_EXTREMA并要求六变量同时可查。它们不是三个互斥中心类型。",
+      "impact": "若按附件逐项生成机械锁，会拒绝正确同时输出或诱使实现删除G/D等必需事实；也可能把CC-007/039描述观察变成新强制分类。",
+      "required_change": "逐62项按真实量化对象、子轴和适用域确定验收模式；仅对真正互斥的同轴同对象分区验证恰一，角色/关系/公式/描述分别验证完整字段、允许共存、身份和引用。主稿AT-01同步限定；保留全部原语义与独立证明义务。不要仅改名称或靠全局免责声明冲掉逐条A。",
+      "initial_status": "OPEN_AT_INITIAL_REVIEW",
+      "closure": {
+        "status": "CLOSED_IN_S2",
+        "evidence": [
+          "inputs/SPEC-COVERAGE-INPUT.json /classification_axes/*/acceptance_mode、quantified_domain、partition_scopes、non_partition_obligations、coexistence_requirements、acceptance_points",
+          "SPEC.md C03/AT-01",
+          "INTERFACE-CONTRACTS.md StructureRecord"
+        ],
+        "result": "62项量词和79具名子轴全部按对象、请求、完整值或角色定义；248A完整承接对应义务。CC005三坐标角色、CC017六变量、CC044全部m1/后继、CC052选中失败与其他成功、CC055多关系多事件均保留；描述轴不新增数值分区。原通用A只在historical字段。"
+      }
+    },
+    {
+      "id": "SCOPE-M02",
+      "severity": "M",
+      "status": "CLOSED_IN_S2_R1",
+      "title": "缺少故事到具体AT/TB/Destination和成功路径门的可追踪连接",
+      "locations": [
+        "SPEC.md:44",
+        "SPEC.md:110",
+        "SPEC.md:122",
+        "SPEC.md:360",
+        "SPEC.md:361",
+        "SPEC.md:372",
+        "evidence/STORY-BINDINGS.json:1"
+      ],
+      "json_pointers": [
+        "/stories",
+        "/requirements",
+        "/classification_axes",
+        "/fugue_end_to_end_scenarios"
+      ],
+      "evidence": "97项故事只有sections；没有AT/TB/Destination/gate字段。覆盖JSON中AT-/TB-引用为0，只有原A-/AC。C08/C12是大量条目的公共章，不能由此唯一推出测试或拆票去向。TB-02声称44ST全部贯通但只列TB-01及G；其中US-ST-033要求chong.advance主动调用，US-ST-043/CC-058要求真实重消费，TB-03/04却未纳入其前件或分项闭合。",
+      "impact": "to-tickets容易仅分派章标题或接口，丢失496条验收输入与FE场景的后续承接；可能把结构切片完成误报为包含真实重消费的44ST完成。",
+      "required_change": "补显式、可校验crosswalk：原需求/细项A及family到97故事、C、具体AT、TB、六Destination和成功路径残留门。允许多对多和按子义务拆分，但完整追踪主动定位、实际B消费与场所成功路径；每门区分语义/资金/权限/工程实例与已裁证明同步义务。核非孤儿、无悬空、切片依赖无环且真正覆盖成功路径；新待决先前置真实承接边，不能无阻塞ready。",
+      "initial_status": "OPEN_AT_INITIAL_REVIEW",
+      "closure": {
+        "status": "CLOSED_IN_S2_R1",
+        "evidence": [
+          "IMPLEMENTATION-CROSSWALK.json /rows、/family_entry_links、/detailed_acceptance_links、/slice_success_obligations、/destination_success_obligations",
+          "IMPLEMENTATION-CROSSWALK.md 全97故事及20项具体义务表",
+          "PLANNED-DAG.json /nodes"
+        ],
+        "result": "97故事/345family/496A与来源、章节、AT、TB、DST和真实成功门可追踪。ST033需实际主动定位与B消费，ST043/CC058需真实跨域消费，不由TB02提前销项。S2中I03/04/05及RA08定向缺口经R1补齐并贯通34A、97故事关联和11切片/6DST聚合；销项集合未被转换为新排程边。"
+      }
+    },
+    {
+      "id": "SCOPE-M03",
+      "severity": "M",
+      "status": "CLOSED_IN_S2",
+      "title": "测试附件把时间字段整体排除，削弱AsKnown与因果确定性硬判",
+      "locations": [
+        "inputs/TEST-SEAMS.md:186",
+        "SPEC.md:315",
+        "SPEC.md:339",
+        "SPEC.md:425"
+      ],
+      "json_pointers": [
+        "/acceptance_seams/0/oracles"
+      ],
+      "evidence": "A01写时间/性能字段明确从等价比较排除，而同一夹具负责逐事件身份顺序确定性；主稿则要求固定时钟、实际获知史、AsKnown不回填且仅允许非语义字段预先声明重命名。",
+      "impact": "依附件实现比较器可能漏掉first_known、confirmed、received/applied前沿及语义时间关系漂移，造成未来确认回填仍通过。",
+      "required_change": "仅允许排除具名非语义墙钟耗时/性能测量；市场发生区间、实际获知/确认/接纳/应用前沿及固定clock所定义语义时间必须硬比。明确各例外字段及理由；受控新进程双跑、重启和客户端观察都沿用同一比较域。",
+      "initial_status": "OPEN_AT_INITIAL_REVIEW",
+      "closure": {
+        "status": "CLOSED_IN_S2",
+        "evidence": [
+          "inputs/TEST-SEAMS.json /acceptance_seams/0/oracles",
+          "inputs/TEST-SEAMS.md A01"
+        ],
+        "result": "仅实际墙钟耗时、性能及预先声明的非语义运行身份一一重命名可排除；发生、获知、确认、接纳、应用时刻/前沿及固定clock关系必须硬判，AsKnown不被时间白名单绕过。"
+      }
+    },
+    {
+      "id": "SCOPE-L01",
+      "severity": "L",
+      "status": "CLOSED_IN_S2",
+      "title": "主稿已修正的历史措辞仍留在附件当前字段，后续拆票须机械应用覆盖",
+      "locations": [
+        "inputs/SPEC-COVERAGE-INPUT.json:801",
+        "inputs/SPEC-COVERAGE-INPUT.json:2094",
+        "inputs/SPEC-COVERAGE-INPUT.json:15112",
+        "inputs/SPEC-COVERAGE-INPUT.md:439",
+        "inputs/SPEC-COVERAGE-INPUT.md:486",
+        "SPEC.md:272",
+        "SPEC.md:445"
+      ],
+      "evidence": "ST-008.retained_boundary仍把相切待裁，ST-024.retained_boundary仍将首笔/零及末完成笔列未定；G-029与OE行仍保留旧阶段/R1文字。主稿、残留核查和r2_destination_rule已有上位解释，因此本轮未据这些旧字误裁，但机器当前字段可能被直接取用。",
+      "required_change": "在根拥有的有效合同层按路径/JSON pointer列出历史字段、现行内容、取代依据及适用范围；至少覆盖ST-008/ST-024、G-029 #907、ES03/05/15和所有OE/R1去向。保留封存原文，避免全局字符串替换或把closed票扩成新决定。",
+      "initial_status": "OPEN_AT_INITIAL_REVIEW",
+      "closure": {
+        "status": "CLOSED_IN_S2",
+        "evidence": [
+          "EFFECTIVE-CONTRACTS.json /overrides、/global_current_json_pointers",
+          "inputs/SPEC-COVERAGE-INPUT.json 有效ST008/ST024/ST037/FG011/FG035/G029、全部ES与OE"
+        ],
+        "result": "129条有效覆盖指针可解析。ST008相切、ST024力度定义、G029 #907后裁、ES03/05/15与45OE当前去向均有有效正文，旧合同明确仅历史。已采纳R2不重开，未定资金/语义不从历史默认补齐。"
+      }
+    }
+  ],
+  "intermediate_s2_review": {
+    "manifest_sha256": "75a06b0e77b0966c85933c646b0bcf0bcb80b512e909efd1854e80019d530585",
+    "crosswalk_sha256": "1ca1f6a49d637864ed7ff31ba39b4c2fdd4b762ff33fdf21f3d2749f5c08e85c",
+    "snapshot": "/tmp/newchanlun-1323-spec-20260909/snapshots/s2-frozen-42fc34cd",
+    "cross_reviewer_finding": "PS-S2-M01",
+    "scope_accounting": "SCOPE-M02在S2的残余，同一缺口未重复新增编号",
+    "independently_confirmed": "I03缺AT10；I04/I05/RA08缺实际场所/部署AT/TB，不足以由RF故事并集销项。",
+    "status": "CLOSED_IN_S2_R1",
+    "closure": "20RA/I逐项映射，34A与family同步，I03加AT10/15与TB08，I04/I05/RA08加AT15与TB08/09，I05/RA08加AT16；所有绑定及聚合逐项核算通过。"
+  },
+  "static_validation": {
+    "review_input_files": 20,
+    "input_hash_mismatches": 0,
+    "stories": 97,
+    "family_entries": 345,
+    "acceptance_points": 496,
+    "classification_axes": 62,
+    "classification_partition_scopes": 79,
+    "rewritten_CC_acceptance_points": 248,
+    "chapters": 12,
+    "acceptance_groups": 18,
+    "slices": 11,
+    "destinations": 6,
+    "effective_override_entries": 129,
+    "story_identity_sets_equal": true,
+    "source_family_identity_sets_equal": true,
+    "source_acceptance_identity_sets_equal": true,
+    "all_841_source_pointers_resolve_to_same_id": true,
+    "all_known_C_AT_TB_DST_story_refs_resolve": true,
+    "effective_pointer_errors": 0,
+    "all_CC_quantifier_and_partition_refs_match": true,
+    "all_248_A_preserve_read_nonpartition_coexistence_observation_and_scope_content": true,
+    "obligation_specific_families": 20,
+    "obligation_specific_acceptance_points": 34,
+    "story_specific_reverse_links_exact": true,
+    "family_acceptance_mapping_mismatches": 0,
+    "slice_destination_family_acceptance_aggregation_errors": 0,
+    "required_gate_aggregation_omissions": 0,
+    "DAG_acyclic": true,
+    "independent_topological_order": [
+      "TB-01",
+      "TB-02",
+      "TB-03",
+      "TB-04",
+      "TB-05",
+      "TB-06",
+      "TB-09",
+      "TB-07",
+      "TB-08",
+      "TB-10",
+      "TB-11"
+    ],
+    "upstream_source_files_rehashed_by_this_reviewer": false,
+    "root_self_check_used_as_semantic_proof": false,
+    "machine_document_checks_are_not_project_tests": true
+  },
+  "scope_retention": {
+    "ST": 44,
+    "FG": 35,
+    "RF": 2,
+    "CC": 62,
+    "LC": 10,
+    "ES": 16,
+    "RA": 14,
+    "I": 6,
+    "OB": 20,
+    "AC": 15,
+    "FE": 11,
+    "G": 32,
+    "FU": 7,
+    "CR": 20,
+    "OE": 45,
+    "DST": 6,
+    "result": "全部原有家族、六Destination、故事及细项身份保留。完整S、逐重经营/主动定位、真实外效/毛账、完整回放、场所共核、旧入口终态与总验仍须实际交付。#1339不等#1323完成；#1304/#1319/#1096及#1279关图门保持。",
+    "unchanged_semantic_families_since_s1": [
+      "LC",
+      "RA",
+      "I",
+      "DST",
+      "FU",
+      "OB",
+      "AC",
+      "FE",
+      "CR"
+    ],
+    "R2_adoption": "完整R2及已披露精确交付窗口已经采纳；本稿不重新选择A2/B/C3或原R1组织。"
+  },
+  "retained_gates": [
+    "用户对当前SPEC具体技术承载的批准；独评通过不代签。",
+    "G001/G002/G007/G025/G026/G028等有效实例或语义决定只阻依赖能力；已裁同步/构造/证明仍为实施义务。",
+    "G029沿#907当前L0余量、延伸后立即复测与ROUNDTRIP；具体成本policy、第二层实际到底/失败及不确定性证据仍需当前验证。",
+    "FU01本金/回收/分红/跨零，FU02动作量/固定Q与增长，FU03并发资金/配对/费用归属，FU04实际场所/权限，FU05计样与闸后评价，FU07退出授权残留继续；FU06组织采纳不被重开。",
+    "完整成功路径必须使用获准实际policy/capability profile；AwaitingPolicy、Unsupported、Unknown及TestOnly机制演示不能销整图。",
+    "TB09真实目标部署旧写入口/凭据/网络隔离先于TB08能力验收；TB10后续带仓/全旧终态/默认启用前重核实际目标。实验profile证据不代生产部署。",
+    "后续项目实现、针对性测试、独立运行审查、formal变更时fixture漂移检查、发布/合入/生产切换与实际外部动作仍按原授权和验收门。"
+  ],
+  "not_read_or_claimed": [
+    "禁止范围内的旧#1321/#1322/#1325/#1326方案/审计原件和K4仓库均未读。",
+    "未重查规范覆盖文件所引用的上游源代码/教义/外部链接原件；原输入内来源声明不升格为本工位现查。",
+    "未声称逐字重新阅读百万字节JSON中的所有重复聚合ID和历史元数据；这些部分按全文解析/差异/指针/集合核验，具体射程逐文件列示。",
+    "DOC-VALIDATION-S2.json的作者自检不替代独评语义判断。"
+  ],
+  "not_run": [
+    "项目程序或launcher",
+    "项目测试",
+    "Lean",
+    "UI",
+    "崩溃注入",
+    "paper",
+    "live",
+    "协议模型运行"
+  ],
+  "not_written": [
+    "输入文件",
+    "仓库文件",
+    "GitHub",
+    "main",
+    "服务/交易配置"
+  ],
+  "writes": [
+    "/tmp/newchanlun-1323-spec-20260909/review/SCOPE-SPEC-REVIEW.md",
+    "/tmp/newchanlun-1323-spec-20260909/review/SCOPE-SPEC-REVIEW.json"
+  ],
+  "status": "FINAL_S2_R1_INDEPENDENT_DOCUMENT_REVIEW_COMPLETE",
+  "read_scope": {
+    "current_manifest": "/tmp/newchanlun-1323-spec-20260909/evidence/REVIEW-INPUTS-S2-R1.json",
+    "current_manifest_sha256": "38e3176b6dfff456b8e3704410401c3bedddf0671751464bb9ea5b829e460260",
+    "current_input_count": 20,
+    "per_file_detail_field": "inputs[].read_scope",
+    "historical_material_rule": "S1和中间S2仅用于原问题及差异复核，旧版本的结论和限制不作当前输入合同。",
+    "semantic_review": "已实读的规范语义与本工位独立文档计算共同构成本评审；哈希校验或作者自检不单独证明语义。",
+    "source_restriction": "未读旧#1321/#1322/#1325/#1326方案/审计原件或K4；未重查上游源原件。"
+  },
+  "boundary": {
+    "document_scope_verdict": "PASS_WITH_GATES",
+    "user_SPEC_approval": "NOT_GRANTED_BY_REVIEW",
+    "implementation": "NOT_STARTED_BY_REVIEWER",
+    "runtime_tests": "NOT_RUN",
+    "Lean": "NOT_RUN",
+    "UI": "NOT_RUN",
+    "paper_live": "NOT_RUN",
+    "GitHub_writes": "NONE",
+    "main_merge": "NONE",
+    "production_permissions": "UNCHANGED",
+    "writes": "仅本工位两份评审文件"
+  }
+}

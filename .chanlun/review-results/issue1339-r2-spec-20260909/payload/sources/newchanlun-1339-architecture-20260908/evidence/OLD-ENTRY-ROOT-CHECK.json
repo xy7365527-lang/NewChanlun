@@ -1,0 +1,48 @@
+{
+  "schema": "newchanlun1339.old-entry-root-check.v1",
+  "reviewer": "root independent of OLD author",
+  "author_artifacts": {
+    "md": "b140fda52275c7ef6614c48e323cf0a3033bab1356d39e9a499c29926c7b7b10",
+    "json": "44f8e0ad6ef11add260cf9dede875c5daffbe8f05808cfe29a2e0e577d97d905"
+  },
+  "source_registry": {
+    "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CURRENT-ENTRY-CONSUMER-REGISTRY.json",
+    "sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f"
+  },
+  "checks": {
+    "all_45_group_bodies_read": true,
+    "exactly_once_506_nonimport_relation_mapping": true,
+    "excluded_1309_import_locators": true,
+    "all_record_ids_and_json_pointers_match": true,
+    "each_group_has_destination_and_specific_exit_conditions": true,
+    "six_common_exit_conditions_preserve_facts_responsibilities_permission_and_forward_rollback": true,
+    "fusion_v_and_six_continuation_groups_separate": true,
+    "support_and_outside_scope_groups_not_new_owners": true
+  },
+  "review_actions": [
+    {
+      "id": "OE-R01",
+      "status": "CLOSED",
+      "resolution": "FG025已裁统计门直接承接；仅具名剩余参数/采样/后闸保留待定，不重开已裁。"
+    },
+    {
+      "id": "OE-R02",
+      "status": "SOURCE_DESCRIPTION_CLARIFIED_NOT_A_SEMANTIC_FINDING",
+      "resolution": "Retrace代表家族可由同一registry深层packet_paths定位，补精确文件和来源；没有判其不存在，不重扫源码。"
+    }
+  ],
+  "counts": {
+    "H": 0,
+    "M": 0,
+    "L": 0
+  },
+  "scope": "全文阅读45组提案和6共同退场条件；机器核506关系映射及scope分组来源；对OE41/OE44/OE45范围边界和支持来源逐条检索冻结登记导航；不重复上游全部源码阅读。",
+  "limits": [
+    "45 groups and 506 relations are not executable entry counts",
+    "OE13 four launcher file names remain explicit current-binding obligation before SPEC/implementation",
+    "deep aggregates and tests not re-read function by function",
+    "current deployment source bytes processes accounts orders and all runtime paths unverified",
+    "migration dispositions are proposals only not changes executed"
+  ],
+  "project_execution": "not-run"
+}

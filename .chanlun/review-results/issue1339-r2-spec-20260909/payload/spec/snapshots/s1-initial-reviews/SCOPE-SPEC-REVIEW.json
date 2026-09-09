@@ -1,0 +1,316 @@
+{
+  "schema": "newchanlun.1323.scope-spec-review.v1",
+  "phase": "INITIAL_REVIEW",
+  "reviewed_at_utc": "2026-09-09T04:11:50.444728+00:00",
+  "verdict": "REQUEST_CHANGES",
+  "counts": {
+    "H": 0,
+    "M": 3,
+    "L": 1
+  },
+  "spec_sha256": "79b6aba5290f35fdec2ffb297967c11128f195395a05a739fa70d8b9ab101c00",
+  "input_manifest_sha256": "ed7f6997d23fb3619f6ed967afe397f3251cb59fccb5ceca69b4dfbc5bb2c6e9",
+  "snapshot_root": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5",
+  "reviewer_role": "independent scope, fidelity, executable slicing and test completeness reviewer; not input author",
+  "inputs": [
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/SPEC.md",
+      "reviewed_snapshot_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5/SPEC.md",
+      "sha256": "79b6aba5290f35fdec2ffb297967c11128f195395a05a739fa70d8b9ab101c00",
+      "bytes": 66157,
+      "match": true
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/ARCHITECTURE-ADOPTION.md",
+      "reviewed_snapshot_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5/ARCHITECTURE-ADOPTION.md",
+      "sha256": "e60e806286c41974f395a0f336f0f21e6386cf70583d4007042cc43d05c4a835",
+      "bytes": 695,
+      "match": true
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/ARCHITECTURE-ADOPTION.json",
+      "reviewed_snapshot_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5/ARCHITECTURE-ADOPTION.json",
+      "sha256": "c3d0c5ff1e38449704964ac7c6c0d1ab14e8a4516364a107dcfbcb7b4e7b2c1a",
+      "bytes": 2322,
+      "match": true
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/SPEC-COVERAGE-INPUT.md",
+      "reviewed_snapshot_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5/inputs/SPEC-COVERAGE-INPUT.md",
+      "sha256": "3d625b20810fb5f21e8ffaaefdaf6c655595137f5f9a8783416a9f3309b1e941",
+      "bytes": 108533,
+      "match": true
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/SPEC-COVERAGE-INPUT.json",
+      "reviewed_snapshot_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5/inputs/SPEC-COVERAGE-INPUT.json",
+      "sha256": "a65f453d00848ce6f86211c8511d43f1dffca5a85193b4d6c53e52f7da276f6d",
+      "bytes": 830773,
+      "match": true
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/TEST-SEAMS.md",
+      "reviewed_snapshot_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5/inputs/TEST-SEAMS.md",
+      "sha256": "11671a1783e35628ff5d2a0b556bf889552499abbf830ca94c9b81dc015e0640",
+      "bytes": 22047,
+      "match": true
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/TEST-SEAMS.json",
+      "reviewed_snapshot_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5/inputs/TEST-SEAMS.json",
+      "sha256": "8bbdbc6ebd7465067a7489d40f34268cb7ec710847d019105ddf90f5e82f4ff6",
+      "bytes": 24851,
+      "match": true
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/RESIDUAL-DECISIONS.md",
+      "reviewed_snapshot_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5/inputs/RESIDUAL-DECISIONS.md",
+      "sha256": "cf4d78858a2b6a54c0699fef6240b68d0f66b4256de31a1ef7aa2e16bea12c3e",
+      "bytes": 21073,
+      "match": true
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/RESIDUAL-DECISIONS.json",
+      "reviewed_snapshot_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5/inputs/RESIDUAL-DECISIONS.json",
+      "sha256": "25ef584f85a7807a68adb77a4cabeb3b4dde3d46ba3c1442c4a2a49eadc0ab58",
+      "bytes": 24961,
+      "match": true
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/evidence/MAP-1323.json",
+      "reviewed_snapshot_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5/evidence/MAP-1323.json",
+      "sha256": "eeb8b7e628c8f7299cbaa814e143fde10c8914c6619b012c90249cd3060d33d8",
+      "bytes": 10921,
+      "match": true
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/evidence/STORY-BINDINGS.json",
+      "reviewed_snapshot_path": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-79b6aba5/evidence/STORY-BINDINGS.json",
+      "sha256": "f0b015d7bcb8da5b6995dac9e820c58383b51419369addd2114f9de1089f6388",
+      "bytes": 62709,
+      "match": true
+    }
+  ],
+  "read_scope": {
+    "markdown": "SPEC 445 lines, adoption 7 lines, coverage 498 lines, TEST-SEAMS 233 lines, RESIDUAL-DECISIONS 202 lines fully read",
+    "json": "All supplied JSON fully parsed; all 81 requirement semantic/boundary rows, 62 CC domains/branches/combinations/transitions/output, 10 LC, 16 ES inherited/effective contracts, 14 RA, 6 I, 20 OB, 15 AC, 11 FE sequences/assertions, 32 G, 7 FU, 20 CR, 45 OE specific conditions, six Destination and 97 story bindings inspected",
+    "not_read": [
+      "upstream referenced source files outside original eleven inputs",
+      "old #1321/#1322/#1325/#1326 scheme/audit originals",
+      "K4 repository",
+      "INTERFACE-CONTRACTS.md or later unmanifested revisions",
+      "extra initial SPEC.json in snapshot"
+    ],
+    "not_run": [
+      "project programs",
+      "project tests",
+      "Lean",
+      "UI",
+      "paper",
+      "live",
+      "launcher",
+      "protocol bounded models"
+    ],
+    "writes": [
+      "review/SCOPE-SPEC-REVIEW.md",
+      "review/SCOPE-SPEC-REVIEW.json"
+    ]
+  },
+  "static_validation": {
+    "input_hash_mismatches": 0,
+    "stories": 97,
+    "unique_story_ids": 97,
+    "all_story_texts_match_spec": true,
+    "chapters": 12,
+    "acceptance_groups": 18,
+    "slices": 10,
+    "source_acceptance_points": 496,
+    "family_id_duplicates": 0,
+    "unresolved_existing_id_refs": 0,
+    "story_direct_at_tb_dst_gate_fields": 0,
+    "coverage_at_tb_refs": 0,
+    "generic_exclusivity_axis_count": 62,
+    "upstream_source_hashes_not_rechecked": true
+  },
+  "family_review": [
+    {
+      "family": "ST",
+      "count": 44,
+      "status": "PASS_WITH_M01_M02",
+      "result": "44故事全部保留，实际构造、观察、历史和逐重使用未缩；TB-02子义务须分清。"
+    },
+    {
+      "family": "FG",
+      "count": 35,
+      "status": "PASS_WITH_M02",
+      "result": "完整阶段、相反独立重、固定Q/增长衔接、两类换档、净省、费用和尾账保留。"
+    },
+    {
+      "family": "RF",
+      "count": 2,
+      "status": "PASS_REQUIREMENTS_NOT_RUN",
+      "result": "RF-01要求健康B真实新Committed；RF-02要求S正式新增、修订、撤回和观察继续。"
+    },
+    {
+      "family": "CC",
+      "count": 62,
+      "status": "BLOCKED_BY_M01",
+      "result": "所有域/分支/组合/迁移/输出逐项读取；通用互斥验收必须改。"
+    },
+    {
+      "family": "LC",
+      "count": 10,
+      "status": "PASS_REQUIREMENTS_NOT_RUN",
+      "result": "并存事实、LevelView与逐点载体、selected与any_success等区分保留。"
+    },
+    {
+      "family": "ES",
+      "count": 16,
+      "status": "PASS_REQUIREMENTS_NOT_RUN",
+      "result": "原经济语义及R2有效替代并列，未知知识与权威状态分轴。"
+    },
+    {
+      "family": "RA",
+      "count": 14,
+      "status": "PASS_REQUIREMENTS_NOT_RUN",
+      "result": "全部故障场景保留；合同回应不等运行通过。"
+    },
+    {
+      "family": "I",
+      "count": 6,
+      "status": "PASS_REQUIREMENTS_NOT_RUN",
+      "result": "六项实证义务均保持未实例化/未运行。"
+    },
+    {
+      "family": "OB",
+      "count": 20,
+      "status": "PASS_WITH_M02_M03",
+      "result": "同源对象/关系/获知/续接/前端入口及证据强度保持。"
+    },
+    {
+      "family": "AC",
+      "count": 15,
+      "status": "PASS_WITH_M02",
+      "result": "全部原验收项在附件，尚需明确到AT/TB。"
+    },
+    {
+      "family": "FE",
+      "count": 11,
+      "status": "PASS_WITH_M02",
+      "result": "setup、全部步骤、断言与anti_shortcut齐；FE05主动定位无缺。"
+    },
+    {
+      "family": "G",
+      "count": 32,
+      "status": "PASS_WITH_L01",
+      "result": "已裁同步、证明、工程实例、真语义残留区分；G029后裁主稿正确。"
+    },
+    {
+      "family": "FU",
+      "count": 7,
+      "status": "PASS_DEPENDENCIES_UNRESOLVED",
+      "result": "本金/分红/跨零/增长/量/分配/计样/权限/退出未被隐藏；FU06组织已采纳。"
+    },
+    {
+      "family": "CR",
+      "count": 20,
+      "status": "PASS_WITH_L01",
+      "result": "旧共轮、单MayHaveSent和共同故障停结构已在正文撤销；附件历史字样须有效覆盖。"
+    },
+    {
+      "family": "OE",
+      "count": 45,
+      "status": "PASS_WITH_M02_L01",
+      "result": "全部专属条件保留；45组仅静态导航，不冒称全入口退役；范围外组不扩任务。"
+    },
+    {
+      "family": "Destination",
+      "count": 6,
+      "status": "PASS_SCOPE_NOT_ACCEPTANCE",
+      "result": "与MAP逐项对应；所有终点共同成立及#1279门保留。"
+    }
+  ],
+  "findings": [
+    {
+      "id": "SCOPE-M01",
+      "severity": "M",
+      "status": "OPEN_AT_INITIAL_REVIEW",
+      "title": "62类目录被无差别施加恰一分支验收，误伤同时必需的角色与关系",
+      "locations": [
+        "inputs/SPEC-COVERAGE-INPUT.json:7372",
+        "inputs/SPEC-COVERAGE-INPUT.json:8217",
+        "inputs/SPEC-COVERAGE-INPUT.json:8272",
+        "SPEC.md:259",
+        "SPEC.md:402"
+      ],
+      "json_pointers": [
+        "/classification_axes/4/acceptance_points/1",
+        "/classification_axes/16/acceptance_points/1"
+      ],
+      "evidence": "62/62轴均含相同A-CC-xxx-02：同一轴同一对象同一版本至多一个分支成立。CC-005明确三支为可并存坐标角色；CC-017对同一正式中枢列CORE/OUTER/INNER_EXTREMA并要求六变量同时可查。它们不是三个互斥中心类型。",
+      "impact": "若按附件逐项生成机械锁，会拒绝正确同时输出或诱使实现删除G/D等必需事实；也可能把CC-007/039描述观察变成新强制分类。",
+      "required_change": "逐62项按真实量化对象、子轴和适用域确定验收模式；仅对真正互斥的同轴同对象分区验证恰一，角色/关系/公式/描述分别验证完整字段、允许共存、身份和引用。主稿AT-01同步限定；保留全部原语义与独立证明义务。不要仅改名称或靠全局免责声明冲掉逐条A。"
+    },
+    {
+      "id": "SCOPE-M02",
+      "severity": "M",
+      "status": "OPEN_AT_INITIAL_REVIEW",
+      "title": "缺少故事到具体AT/TB/Destination和成功路径门的可追踪连接",
+      "locations": [
+        "SPEC.md:44",
+        "SPEC.md:110",
+        "SPEC.md:122",
+        "SPEC.md:360",
+        "SPEC.md:361",
+        "SPEC.md:372",
+        "evidence/STORY-BINDINGS.json:1"
+      ],
+      "json_pointers": [
+        "/stories",
+        "/requirements",
+        "/classification_axes",
+        "/fugue_end_to_end_scenarios"
+      ],
+      "evidence": "97项故事只有sections；没有AT/TB/Destination/gate字段。覆盖JSON中AT-/TB-引用为0，只有原A-/AC。C08/C12是大量条目的公共章，不能由此唯一推出测试或拆票去向。TB-02声称44ST全部贯通但只列TB-01及G；其中US-ST-033要求chong.advance主动调用，US-ST-043/CC-058要求真实重消费，TB-03/04却未纳入其前件或分项闭合。",
+      "impact": "to-tickets容易仅分派章标题或接口，丢失496条验收输入与FE场景的后续承接；可能把结构切片完成误报为包含真实重消费的44ST完成。",
+      "required_change": "补显式、可校验crosswalk：原需求/细项A及family到97故事、C、具体AT、TB、六Destination和成功路径残留门。允许多对多和按子义务拆分，但完整追踪主动定位、实际B消费与场所成功路径；每门区分语义/资金/权限/工程实例与已裁证明同步义务。核非孤儿、无悬空、切片依赖无环且真正覆盖成功路径；新待决先前置真实承接边，不能无阻塞ready。"
+    },
+    {
+      "id": "SCOPE-M03",
+      "severity": "M",
+      "status": "OPEN_AT_INITIAL_REVIEW",
+      "title": "测试附件把时间字段整体排除，削弱AsKnown与因果确定性硬判",
+      "locations": [
+        "inputs/TEST-SEAMS.md:186",
+        "SPEC.md:315",
+        "SPEC.md:339",
+        "SPEC.md:425"
+      ],
+      "json_pointers": [
+        "/acceptance_seams/0/oracles"
+      ],
+      "evidence": "A01写时间/性能字段明确从等价比较排除，而同一夹具负责逐事件身份顺序确定性；主稿则要求固定时钟、实际获知史、AsKnown不回填且仅允许非语义字段预先声明重命名。",
+      "impact": "依附件实现比较器可能漏掉first_known、confirmed、received/applied前沿及语义时间关系漂移，造成未来确认回填仍通过。",
+      "required_change": "仅允许排除具名非语义墙钟耗时/性能测量；市场发生区间、实际获知/确认/接纳/应用前沿及固定clock所定义语义时间必须硬比。明确各例外字段及理由；受控新进程双跑、重启和客户端观察都沿用同一比较域。"
+    },
+    {
+      "id": "SCOPE-L01",
+      "severity": "L",
+      "status": "OPEN_AT_INITIAL_REVIEW",
+      "title": "主稿已修正的历史措辞仍留在附件当前字段，后续拆票须机械应用覆盖",
+      "locations": [
+        "inputs/SPEC-COVERAGE-INPUT.json:801",
+        "inputs/SPEC-COVERAGE-INPUT.json:2094",
+        "inputs/SPEC-COVERAGE-INPUT.json:15112",
+        "inputs/SPEC-COVERAGE-INPUT.md:439",
+        "inputs/SPEC-COVERAGE-INPUT.md:486",
+        "SPEC.md:272",
+        "SPEC.md:445"
+      ],
+      "evidence": "ST-008.retained_boundary仍把相切待裁，ST-024.retained_boundary仍将首笔/零及末完成笔列未定；G-029与OE行仍保留旧阶段/R1文字。主稿、残留核查和r2_destination_rule已有上位解释，因此本轮未据这些旧字误裁，但机器当前字段可能被直接取用。",
+      "required_change": "在根拥有的有效合同层按路径/JSON pointer列出历史字段、现行内容、取代依据及适用范围；至少覆盖ST-008/ST-024、G-029 #907、ES03/05/15和所有OE/R1去向。保留封存原文，避免全局字符串替换或把closed票扩成新决定。"
+    }
+  ],
+  "adoption_and_gates": "R2 and disclosed exact-command handoff already adopted. SPEC approval remains pending. No extra skill approval gate was introduced. Decisions gate only dependent capabilities; AwaitingPolicy/Unsupported cannot close required success paths or the whole map.",
+  "revision_notice": "Parent reports candidate fixes are in preparation. These are not included in initial eleven-file read scope or signed by this review; final review must bind a new manifest and exact changed bytes."
+}

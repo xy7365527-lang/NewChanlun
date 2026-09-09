@@ -1,0 +1,72 @@
+{
+  "schema": "newchanlun.1323.document-validation.v1",
+  "status": "PASS_STATIC_DOCUMENT_INTEGRITY_ONLY",
+  "stories": 97,
+  "family_entries": 345,
+  "acceptance_points": 496,
+  "classification_axes": 62,
+  "classification_partition_scopes": 79,
+  "chapters": 12,
+  "acceptance_groups": 18,
+  "proposed_slices": 11,
+  "destinations": 6,
+  "all_story_texts_equal": true,
+  "current_source_bindings_rehashed": 24,
+  "source_hash_mismatches": [],
+  "local_links_checked": 108,
+  "broken_links": [],
+  "dag_validation": {
+    "acyclic": true,
+    "one_valid_order": [
+      "TB-01",
+      "TB-02",
+      "TB-03",
+      "TB-04",
+      "TB-05",
+      "TB-06",
+      "TB-09",
+      "TB-07",
+      "TB-08",
+      "TB-10",
+      "TB-11"
+    ],
+    "does_not_prove_semantic_or_implementation_success": true
+  },
+  "crosswalk_validation": {
+    "story_count": 97,
+    "family_entry_count": 345,
+    "detailed_acceptance_count": 496,
+    "unique_detail_ids": true,
+    "all_story_refs_resolve": true,
+    "all_fine_points_have_explicit_AT_TB_DST": true,
+    "does_not_mark_any_runtime_or_proof_complete": true
+  },
+  "modified_story_ids": [
+    "US-FG-035"
+  ],
+  "not_run": [
+    "project implementation",
+    "project tests",
+    "Lean",
+    "UI",
+    "process crash",
+    "paper",
+    "live"
+  ],
+  "not_done": [
+    "GitHub publication",
+    "ticket dispatch",
+    "main merge",
+    "service or trading changes"
+  ],
+  "revision": "S2-R1",
+  "obligation_specific_mapping_checks": {
+    "I-04": "PASS_EXPLICIT_MECHANISM_VENUE_AND_DEPLOYMENT_MAP",
+    "I-05": "PASS_EXPLICIT_MECHANISM_VENUE_AND_DEPLOYMENT_MAP",
+    "RA-08": "PASS_EXPLICIT_MECHANISM_VENUE_AND_DEPLOYMENT_MAP"
+  },
+  "P7_I03_AT10": true,
+  "family_and_fine_aggregation_closed": true,
+  "pure_structural_RA01_RA02_have_no_new_venue_gate": true,
+  "review_fix": "PS-S2-M01 obligation-specific AT/TB/DST and aggregation"
+}

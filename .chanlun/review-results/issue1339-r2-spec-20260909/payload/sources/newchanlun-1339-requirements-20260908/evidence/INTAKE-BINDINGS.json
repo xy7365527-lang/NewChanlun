@@ -1,0 +1,32 @@
+[
+  {
+    "path": "/tmp/newchanlun-codex-handoff/HANDOFF.md",
+    "sha256": "c56db8d271bf8772671bdc17963cbb7281c8abe7f26a6418a4bad534ec4ac80e",
+    "bytes": 5642
+  },
+  {
+    "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+    "sha256": "b13df8091089c38d6a4337d3ad3813e305fae8930898ec8cf5651bed9901221c",
+    "bytes": 9037
+  },
+  {
+    "path": "/tmp/issue1323-frontend-state-requirements/ROOT-RECEIPT.json",
+    "sha256": "16958f1e88f0e7793436751a3f2066930d53ec9a06f3c5ae8dad7b573fafd82c",
+    "bytes": 940
+  },
+  {
+    "path": "/tmp/issue1323-frontend-state-requirements/EVIDENCE.json",
+    "sha256": "a525b8c3c0ddf2de47dcc4a4b8e8aa6ea6ff50c88e9b64fe8426aa8791f20907",
+    "bytes": 201602
+  },
+  {
+    "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/SCHEME-DELIVERY.json",
+    "sha256": "d6f115629b92c11fcbca5a06ff138c66e8df00ded23b7ff16a3abbb924d84738",
+    "bytes": 6686
+  },
+  {
+    "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+    "sha256": "4d24de8692c915f95544eb7c4f041e8dd403bfda503e9fe1a97e4a5e715455ea",
+    "bytes": 10520
+  }
+]

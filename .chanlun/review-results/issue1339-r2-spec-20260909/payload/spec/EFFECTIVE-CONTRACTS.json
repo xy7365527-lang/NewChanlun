@@ -1,0 +1,2038 @@
+{
+  "schema": "newchanlun.1323.effective-contract-index.v1",
+  "status": "S2_CURRENT_POINTER_INDEX_AWAITING_SPEC_APPROVAL",
+  "coverage_path": "/tmp/newchanlun-1323-spec-20260909/inputs/SPEC-COVERAGE-INPUT.json",
+  "coverage_sha256": "76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c",
+  "pointer_interpretation": "JSON pointers解析至上述绑定文件的现行内容；本索引不复制正文或新增语义。",
+  "scope_rule": "完整345条目和496验收点全部保留；索引重点覆盖初评发现的量词/时态修复，未列入overrides的LC/RA/I/OB/AC/FE/FU/CR/DST及其当前合同仍是规范范围，不因未列而删除。",
+  "historical_rule": "任何键名含historical或not_effective者均为非生效追溯资料。不得直接将源branches总数、旧ES合同或旧OE候选去向生成执行判据；当前具名子轴、类型及域决定使用方式。",
+  "current_path_patterns": [
+    "/requirements/*/criterion_or_requirement",
+    "/requirements/*/applicable_domain",
+    "/requirements/*/backend_outputs",
+    "/requirements/*/retained_boundary",
+    "/requirements/*/acceptance_points",
+    "/classification_axes/*/acceptance_mode",
+    "/classification_axes/*/quantified_domain",
+    "/classification_axes/*/partition_scopes",
+    "/classification_axes/*/non_partition_obligations",
+    "/classification_axes/*/coexistence_requirements",
+    "/classification_axes/*/acceptance_points",
+    "/engineering_state_axes_with_r2_replacements/*/effective_state_contract",
+    "/engineering_state_axes_with_r2_replacements/*/acceptance_points",
+    "/old_entry_groups/*/effective_disposition",
+    "/old_entry_groups/*/effective_entry_exit_conditions",
+    "/old_entry_groups/*/effective_common_exit_condition_ids",
+    "/effective_old_entry_common_exit_conditions",
+    "/proof_sync_choice_locator_dispositions/*/what_is_already_defined",
+    "/proof_sync_choice_locator_dispositions/*/missing_obligation",
+    "/proof_sync_choice_locator_dispositions/*/normalized_disposition"
+  ],
+  "overrides": [
+    {
+      "id": "ST-008",
+      "family": "requirements",
+      "current_json_pointers": [
+        "/requirements/7/user_story",
+        "/requirements/7/criterion_or_requirement",
+        "/requirements/7/applicable_domain",
+        "/requirements/7/backend_outputs",
+        "/requirements/7/retained_boundary",
+        "/requirements/7/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/requirements/7/historical_source_wording_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ST-024",
+      "family": "requirements",
+      "current_json_pointers": [
+        "/requirements/23/user_story",
+        "/requirements/23/criterion_or_requirement",
+        "/requirements/23/applicable_domain",
+        "/requirements/23/backend_outputs",
+        "/requirements/23/retained_boundary",
+        "/requirements/23/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/requirements/23/historical_source_wording_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ST-037",
+      "family": "requirements",
+      "current_json_pointers": [
+        "/requirements/36/user_story",
+        "/requirements/36/criterion_or_requirement",
+        "/requirements/36/applicable_domain",
+        "/requirements/36/backend_outputs",
+        "/requirements/36/retained_boundary",
+        "/requirements/36/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/requirements/36/historical_source_wording_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "FG-011",
+      "family": "requirements",
+      "current_json_pointers": [
+        "/requirements/54/user_story",
+        "/requirements/54/criterion_or_requirement",
+        "/requirements/54/applicable_domain",
+        "/requirements/54/backend_outputs",
+        "/requirements/54/retained_boundary",
+        "/requirements/54/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/requirements/54/historical_source_wording_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "FG-035",
+      "family": "requirements",
+      "current_json_pointers": [
+        "/requirements/78/user_story",
+        "/requirements/78/criterion_or_requirement",
+        "/requirements/78/applicable_domain",
+        "/requirements/78/backend_outputs",
+        "/requirements/78/retained_boundary",
+        "/requirements/78/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/requirements/78/historical_source_wording_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-001",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/0/acceptance_mode",
+        "/classification_axes/0/quantified_domain",
+        "/classification_axes/0/partition_scopes",
+        "/classification_axes/0/non_partition_obligations",
+        "/classification_axes/0/coexistence_requirements",
+        "/classification_axes/0/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/0/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-002",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/1/acceptance_mode",
+        "/classification_axes/1/quantified_domain",
+        "/classification_axes/1/partition_scopes",
+        "/classification_axes/1/non_partition_obligations",
+        "/classification_axes/1/coexistence_requirements",
+        "/classification_axes/1/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/1/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-003",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/2/acceptance_mode",
+        "/classification_axes/2/quantified_domain",
+        "/classification_axes/2/partition_scopes",
+        "/classification_axes/2/non_partition_obligations",
+        "/classification_axes/2/coexistence_requirements",
+        "/classification_axes/2/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/2/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-004",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/3/acceptance_mode",
+        "/classification_axes/3/quantified_domain",
+        "/classification_axes/3/partition_scopes",
+        "/classification_axes/3/non_partition_obligations",
+        "/classification_axes/3/coexistence_requirements",
+        "/classification_axes/3/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/3/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-005",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/4/acceptance_mode",
+        "/classification_axes/4/quantified_domain",
+        "/classification_axes/4/partition_scopes",
+        "/classification_axes/4/non_partition_obligations",
+        "/classification_axes/4/coexistence_requirements",
+        "/classification_axes/4/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/4/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-006",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/5/acceptance_mode",
+        "/classification_axes/5/quantified_domain",
+        "/classification_axes/5/partition_scopes",
+        "/classification_axes/5/non_partition_obligations",
+        "/classification_axes/5/coexistence_requirements",
+        "/classification_axes/5/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/5/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-007",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/6/acceptance_mode",
+        "/classification_axes/6/quantified_domain",
+        "/classification_axes/6/partition_scopes",
+        "/classification_axes/6/non_partition_obligations",
+        "/classification_axes/6/coexistence_requirements",
+        "/classification_axes/6/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/6/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-008",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/7/acceptance_mode",
+        "/classification_axes/7/quantified_domain",
+        "/classification_axes/7/partition_scopes",
+        "/classification_axes/7/non_partition_obligations",
+        "/classification_axes/7/coexistence_requirements",
+        "/classification_axes/7/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/7/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-009",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/8/acceptance_mode",
+        "/classification_axes/8/quantified_domain",
+        "/classification_axes/8/partition_scopes",
+        "/classification_axes/8/non_partition_obligations",
+        "/classification_axes/8/coexistence_requirements",
+        "/classification_axes/8/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/8/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-010",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/9/acceptance_mode",
+        "/classification_axes/9/quantified_domain",
+        "/classification_axes/9/partition_scopes",
+        "/classification_axes/9/non_partition_obligations",
+        "/classification_axes/9/coexistence_requirements",
+        "/classification_axes/9/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/9/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-011",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/10/acceptance_mode",
+        "/classification_axes/10/quantified_domain",
+        "/classification_axes/10/partition_scopes",
+        "/classification_axes/10/non_partition_obligations",
+        "/classification_axes/10/coexistence_requirements",
+        "/classification_axes/10/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/10/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-012",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/11/acceptance_mode",
+        "/classification_axes/11/quantified_domain",
+        "/classification_axes/11/partition_scopes",
+        "/classification_axes/11/non_partition_obligations",
+        "/classification_axes/11/coexistence_requirements",
+        "/classification_axes/11/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/11/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-013",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/12/acceptance_mode",
+        "/classification_axes/12/quantified_domain",
+        "/classification_axes/12/partition_scopes",
+        "/classification_axes/12/non_partition_obligations",
+        "/classification_axes/12/coexistence_requirements",
+        "/classification_axes/12/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/12/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-014",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/13/acceptance_mode",
+        "/classification_axes/13/quantified_domain",
+        "/classification_axes/13/partition_scopes",
+        "/classification_axes/13/non_partition_obligations",
+        "/classification_axes/13/coexistence_requirements",
+        "/classification_axes/13/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/13/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-015",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/14/acceptance_mode",
+        "/classification_axes/14/quantified_domain",
+        "/classification_axes/14/partition_scopes",
+        "/classification_axes/14/non_partition_obligations",
+        "/classification_axes/14/coexistence_requirements",
+        "/classification_axes/14/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/14/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-016",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/15/acceptance_mode",
+        "/classification_axes/15/quantified_domain",
+        "/classification_axes/15/partition_scopes",
+        "/classification_axes/15/non_partition_obligations",
+        "/classification_axes/15/coexistence_requirements",
+        "/classification_axes/15/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/15/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-017",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/16/acceptance_mode",
+        "/classification_axes/16/quantified_domain",
+        "/classification_axes/16/partition_scopes",
+        "/classification_axes/16/non_partition_obligations",
+        "/classification_axes/16/coexistence_requirements",
+        "/classification_axes/16/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/16/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-018",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/17/acceptance_mode",
+        "/classification_axes/17/quantified_domain",
+        "/classification_axes/17/partition_scopes",
+        "/classification_axes/17/non_partition_obligations",
+        "/classification_axes/17/coexistence_requirements",
+        "/classification_axes/17/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/17/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-019",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/18/acceptance_mode",
+        "/classification_axes/18/quantified_domain",
+        "/classification_axes/18/partition_scopes",
+        "/classification_axes/18/non_partition_obligations",
+        "/classification_axes/18/coexistence_requirements",
+        "/classification_axes/18/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/18/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-020",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/19/acceptance_mode",
+        "/classification_axes/19/quantified_domain",
+        "/classification_axes/19/partition_scopes",
+        "/classification_axes/19/non_partition_obligations",
+        "/classification_axes/19/coexistence_requirements",
+        "/classification_axes/19/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/19/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-021",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/20/acceptance_mode",
+        "/classification_axes/20/quantified_domain",
+        "/classification_axes/20/partition_scopes",
+        "/classification_axes/20/non_partition_obligations",
+        "/classification_axes/20/coexistence_requirements",
+        "/classification_axes/20/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/20/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-022",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/21/acceptance_mode",
+        "/classification_axes/21/quantified_domain",
+        "/classification_axes/21/partition_scopes",
+        "/classification_axes/21/non_partition_obligations",
+        "/classification_axes/21/coexistence_requirements",
+        "/classification_axes/21/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/21/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-023",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/22/acceptance_mode",
+        "/classification_axes/22/quantified_domain",
+        "/classification_axes/22/partition_scopes",
+        "/classification_axes/22/non_partition_obligations",
+        "/classification_axes/22/coexistence_requirements",
+        "/classification_axes/22/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/22/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-024",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/23/acceptance_mode",
+        "/classification_axes/23/quantified_domain",
+        "/classification_axes/23/partition_scopes",
+        "/classification_axes/23/non_partition_obligations",
+        "/classification_axes/23/coexistence_requirements",
+        "/classification_axes/23/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/23/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-025",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/24/acceptance_mode",
+        "/classification_axes/24/quantified_domain",
+        "/classification_axes/24/partition_scopes",
+        "/classification_axes/24/non_partition_obligations",
+        "/classification_axes/24/coexistence_requirements",
+        "/classification_axes/24/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/24/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-026",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/25/acceptance_mode",
+        "/classification_axes/25/quantified_domain",
+        "/classification_axes/25/partition_scopes",
+        "/classification_axes/25/non_partition_obligations",
+        "/classification_axes/25/coexistence_requirements",
+        "/classification_axes/25/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/25/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-027",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/26/acceptance_mode",
+        "/classification_axes/26/quantified_domain",
+        "/classification_axes/26/partition_scopes",
+        "/classification_axes/26/non_partition_obligations",
+        "/classification_axes/26/coexistence_requirements",
+        "/classification_axes/26/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/26/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-028",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/27/acceptance_mode",
+        "/classification_axes/27/quantified_domain",
+        "/classification_axes/27/partition_scopes",
+        "/classification_axes/27/non_partition_obligations",
+        "/classification_axes/27/coexistence_requirements",
+        "/classification_axes/27/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/27/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-029",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/28/acceptance_mode",
+        "/classification_axes/28/quantified_domain",
+        "/classification_axes/28/partition_scopes",
+        "/classification_axes/28/non_partition_obligations",
+        "/classification_axes/28/coexistence_requirements",
+        "/classification_axes/28/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/28/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-030",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/29/acceptance_mode",
+        "/classification_axes/29/quantified_domain",
+        "/classification_axes/29/partition_scopes",
+        "/classification_axes/29/non_partition_obligations",
+        "/classification_axes/29/coexistence_requirements",
+        "/classification_axes/29/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/29/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-031",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/30/acceptance_mode",
+        "/classification_axes/30/quantified_domain",
+        "/classification_axes/30/partition_scopes",
+        "/classification_axes/30/non_partition_obligations",
+        "/classification_axes/30/coexistence_requirements",
+        "/classification_axes/30/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/30/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-032",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/31/acceptance_mode",
+        "/classification_axes/31/quantified_domain",
+        "/classification_axes/31/partition_scopes",
+        "/classification_axes/31/non_partition_obligations",
+        "/classification_axes/31/coexistence_requirements",
+        "/classification_axes/31/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/31/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-033",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/32/acceptance_mode",
+        "/classification_axes/32/quantified_domain",
+        "/classification_axes/32/partition_scopes",
+        "/classification_axes/32/non_partition_obligations",
+        "/classification_axes/32/coexistence_requirements",
+        "/classification_axes/32/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/32/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-034",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/33/acceptance_mode",
+        "/classification_axes/33/quantified_domain",
+        "/classification_axes/33/partition_scopes",
+        "/classification_axes/33/non_partition_obligations",
+        "/classification_axes/33/coexistence_requirements",
+        "/classification_axes/33/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/33/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-035",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/34/acceptance_mode",
+        "/classification_axes/34/quantified_domain",
+        "/classification_axes/34/partition_scopes",
+        "/classification_axes/34/non_partition_obligations",
+        "/classification_axes/34/coexistence_requirements",
+        "/classification_axes/34/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/34/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-036",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/35/acceptance_mode",
+        "/classification_axes/35/quantified_domain",
+        "/classification_axes/35/partition_scopes",
+        "/classification_axes/35/non_partition_obligations",
+        "/classification_axes/35/coexistence_requirements",
+        "/classification_axes/35/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/35/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-037",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/36/acceptance_mode",
+        "/classification_axes/36/quantified_domain",
+        "/classification_axes/36/partition_scopes",
+        "/classification_axes/36/non_partition_obligations",
+        "/classification_axes/36/coexistence_requirements",
+        "/classification_axes/36/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/36/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-038",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/37/acceptance_mode",
+        "/classification_axes/37/quantified_domain",
+        "/classification_axes/37/partition_scopes",
+        "/classification_axes/37/non_partition_obligations",
+        "/classification_axes/37/coexistence_requirements",
+        "/classification_axes/37/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/37/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-039",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/38/acceptance_mode",
+        "/classification_axes/38/quantified_domain",
+        "/classification_axes/38/partition_scopes",
+        "/classification_axes/38/non_partition_obligations",
+        "/classification_axes/38/coexistence_requirements",
+        "/classification_axes/38/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/38/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-040",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/39/acceptance_mode",
+        "/classification_axes/39/quantified_domain",
+        "/classification_axes/39/partition_scopes",
+        "/classification_axes/39/non_partition_obligations",
+        "/classification_axes/39/coexistence_requirements",
+        "/classification_axes/39/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/39/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-041",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/40/acceptance_mode",
+        "/classification_axes/40/quantified_domain",
+        "/classification_axes/40/partition_scopes",
+        "/classification_axes/40/non_partition_obligations",
+        "/classification_axes/40/coexistence_requirements",
+        "/classification_axes/40/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/40/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-042",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/41/acceptance_mode",
+        "/classification_axes/41/quantified_domain",
+        "/classification_axes/41/partition_scopes",
+        "/classification_axes/41/non_partition_obligations",
+        "/classification_axes/41/coexistence_requirements",
+        "/classification_axes/41/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/41/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-043",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/42/acceptance_mode",
+        "/classification_axes/42/quantified_domain",
+        "/classification_axes/42/partition_scopes",
+        "/classification_axes/42/non_partition_obligations",
+        "/classification_axes/42/coexistence_requirements",
+        "/classification_axes/42/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/42/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-044",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/43/acceptance_mode",
+        "/classification_axes/43/quantified_domain",
+        "/classification_axes/43/partition_scopes",
+        "/classification_axes/43/non_partition_obligations",
+        "/classification_axes/43/coexistence_requirements",
+        "/classification_axes/43/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/43/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-045",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/44/acceptance_mode",
+        "/classification_axes/44/quantified_domain",
+        "/classification_axes/44/partition_scopes",
+        "/classification_axes/44/non_partition_obligations",
+        "/classification_axes/44/coexistence_requirements",
+        "/classification_axes/44/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/44/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-046",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/45/acceptance_mode",
+        "/classification_axes/45/quantified_domain",
+        "/classification_axes/45/partition_scopes",
+        "/classification_axes/45/non_partition_obligations",
+        "/classification_axes/45/coexistence_requirements",
+        "/classification_axes/45/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/45/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-047",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/46/acceptance_mode",
+        "/classification_axes/46/quantified_domain",
+        "/classification_axes/46/partition_scopes",
+        "/classification_axes/46/non_partition_obligations",
+        "/classification_axes/46/coexistence_requirements",
+        "/classification_axes/46/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/46/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-048",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/47/acceptance_mode",
+        "/classification_axes/47/quantified_domain",
+        "/classification_axes/47/partition_scopes",
+        "/classification_axes/47/non_partition_obligations",
+        "/classification_axes/47/coexistence_requirements",
+        "/classification_axes/47/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/47/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-049",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/48/acceptance_mode",
+        "/classification_axes/48/quantified_domain",
+        "/classification_axes/48/partition_scopes",
+        "/classification_axes/48/non_partition_obligations",
+        "/classification_axes/48/coexistence_requirements",
+        "/classification_axes/48/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/48/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-050",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/49/acceptance_mode",
+        "/classification_axes/49/quantified_domain",
+        "/classification_axes/49/partition_scopes",
+        "/classification_axes/49/non_partition_obligations",
+        "/classification_axes/49/coexistence_requirements",
+        "/classification_axes/49/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/49/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-051",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/50/acceptance_mode",
+        "/classification_axes/50/quantified_domain",
+        "/classification_axes/50/partition_scopes",
+        "/classification_axes/50/non_partition_obligations",
+        "/classification_axes/50/coexistence_requirements",
+        "/classification_axes/50/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/50/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-052",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/51/acceptance_mode",
+        "/classification_axes/51/quantified_domain",
+        "/classification_axes/51/partition_scopes",
+        "/classification_axes/51/non_partition_obligations",
+        "/classification_axes/51/coexistence_requirements",
+        "/classification_axes/51/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/51/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-053",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/52/acceptance_mode",
+        "/classification_axes/52/quantified_domain",
+        "/classification_axes/52/partition_scopes",
+        "/classification_axes/52/non_partition_obligations",
+        "/classification_axes/52/coexistence_requirements",
+        "/classification_axes/52/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/52/historical_generic_acceptance_not_effective",
+        "/classification_axes/52/historical_source_wording_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-054",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/53/acceptance_mode",
+        "/classification_axes/53/quantified_domain",
+        "/classification_axes/53/partition_scopes",
+        "/classification_axes/53/non_partition_obligations",
+        "/classification_axes/53/coexistence_requirements",
+        "/classification_axes/53/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/53/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-055",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/54/acceptance_mode",
+        "/classification_axes/54/quantified_domain",
+        "/classification_axes/54/partition_scopes",
+        "/classification_axes/54/non_partition_obligations",
+        "/classification_axes/54/coexistence_requirements",
+        "/classification_axes/54/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/54/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-056",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/55/acceptance_mode",
+        "/classification_axes/55/quantified_domain",
+        "/classification_axes/55/partition_scopes",
+        "/classification_axes/55/non_partition_obligations",
+        "/classification_axes/55/coexistence_requirements",
+        "/classification_axes/55/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/55/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-057",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/56/acceptance_mode",
+        "/classification_axes/56/quantified_domain",
+        "/classification_axes/56/partition_scopes",
+        "/classification_axes/56/non_partition_obligations",
+        "/classification_axes/56/coexistence_requirements",
+        "/classification_axes/56/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/56/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-058",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/57/acceptance_mode",
+        "/classification_axes/57/quantified_domain",
+        "/classification_axes/57/partition_scopes",
+        "/classification_axes/57/non_partition_obligations",
+        "/classification_axes/57/coexistence_requirements",
+        "/classification_axes/57/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/57/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-059",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/58/acceptance_mode",
+        "/classification_axes/58/quantified_domain",
+        "/classification_axes/58/partition_scopes",
+        "/classification_axes/58/non_partition_obligations",
+        "/classification_axes/58/coexistence_requirements",
+        "/classification_axes/58/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/58/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-060",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/59/acceptance_mode",
+        "/classification_axes/59/quantified_domain",
+        "/classification_axes/59/partition_scopes",
+        "/classification_axes/59/non_partition_obligations",
+        "/classification_axes/59/coexistence_requirements",
+        "/classification_axes/59/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/59/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-061",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/60/acceptance_mode",
+        "/classification_axes/60/quantified_domain",
+        "/classification_axes/60/partition_scopes",
+        "/classification_axes/60/non_partition_obligations",
+        "/classification_axes/60/coexistence_requirements",
+        "/classification_axes/60/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/60/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "CC-062",
+      "family": "classification_axes",
+      "current_json_pointers": [
+        "/classification_axes/61/acceptance_mode",
+        "/classification_axes/61/quantified_domain",
+        "/classification_axes/61/partition_scopes",
+        "/classification_axes/61/non_partition_obligations",
+        "/classification_axes/61/coexistence_requirements",
+        "/classification_axes/61/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/classification_axes/61/historical_generic_acceptance_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-01",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/0/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/0/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/0/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-02",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/1/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/1/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/1/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-03",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/2/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/2/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/2/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-04",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/3/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/3/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/3/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-05",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/4/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/4/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/4/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-06",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/5/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/5/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/5/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-07",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/6/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/6/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/6/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-08",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/7/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/7/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/7/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-09",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/8/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/8/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/8/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-10",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/9/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/9/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/9/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-11",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/10/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/10/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/10/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-12",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/11/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/11/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/11/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-13",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/12/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/12/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/12/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-14",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/13/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/13/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/13/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-15",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/14/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/14/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/14/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "ES-16",
+      "family": "engineering_state_axes_with_r2_replacements",
+      "current_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/15/effective_state_contract",
+        "/engineering_state_axes_with_r2_replacements/15/acceptance_points"
+      ],
+      "inactive_historical_json_pointers": [
+        "/engineering_state_axes_with_r2_replacements/15/historical_inherited_source_contract_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE01",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/0/effective_disposition",
+        "/old_entry_groups/0/effective_entry_exit_conditions",
+        "/old_entry_groups/0/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/0/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE02",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/1/effective_disposition",
+        "/old_entry_groups/1/effective_entry_exit_conditions",
+        "/old_entry_groups/1/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/1/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE03",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/2/effective_disposition",
+        "/old_entry_groups/2/effective_entry_exit_conditions",
+        "/old_entry_groups/2/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/2/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE04",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/3/effective_disposition",
+        "/old_entry_groups/3/effective_entry_exit_conditions",
+        "/old_entry_groups/3/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/3/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE05",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/4/effective_disposition",
+        "/old_entry_groups/4/effective_entry_exit_conditions",
+        "/old_entry_groups/4/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/4/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE06",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/5/effective_disposition",
+        "/old_entry_groups/5/effective_entry_exit_conditions",
+        "/old_entry_groups/5/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/5/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE07",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/6/effective_disposition",
+        "/old_entry_groups/6/effective_entry_exit_conditions",
+        "/old_entry_groups/6/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/6/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE08",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/7/effective_disposition",
+        "/old_entry_groups/7/effective_entry_exit_conditions",
+        "/old_entry_groups/7/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/7/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE09",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/8/effective_disposition",
+        "/old_entry_groups/8/effective_entry_exit_conditions",
+        "/old_entry_groups/8/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/8/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE10",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/9/effective_disposition",
+        "/old_entry_groups/9/effective_entry_exit_conditions",
+        "/old_entry_groups/9/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/9/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE11",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/10/effective_disposition",
+        "/old_entry_groups/10/effective_entry_exit_conditions",
+        "/old_entry_groups/10/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/10/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE12",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/11/effective_disposition",
+        "/old_entry_groups/11/effective_entry_exit_conditions",
+        "/old_entry_groups/11/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/11/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE13",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/12/effective_disposition",
+        "/old_entry_groups/12/effective_entry_exit_conditions",
+        "/old_entry_groups/12/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/12/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE14",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/13/effective_disposition",
+        "/old_entry_groups/13/effective_entry_exit_conditions",
+        "/old_entry_groups/13/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/13/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE15",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/14/effective_disposition",
+        "/old_entry_groups/14/effective_entry_exit_conditions",
+        "/old_entry_groups/14/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/14/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE16",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/15/effective_disposition",
+        "/old_entry_groups/15/effective_entry_exit_conditions",
+        "/old_entry_groups/15/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/15/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE17",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/16/effective_disposition",
+        "/old_entry_groups/16/effective_entry_exit_conditions",
+        "/old_entry_groups/16/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/16/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE18",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/17/effective_disposition",
+        "/old_entry_groups/17/effective_entry_exit_conditions",
+        "/old_entry_groups/17/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/17/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE19",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/18/effective_disposition",
+        "/old_entry_groups/18/effective_entry_exit_conditions",
+        "/old_entry_groups/18/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/18/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE20",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/19/effective_disposition",
+        "/old_entry_groups/19/effective_entry_exit_conditions",
+        "/old_entry_groups/19/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/19/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE21",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/20/effective_disposition",
+        "/old_entry_groups/20/effective_entry_exit_conditions",
+        "/old_entry_groups/20/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/20/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE22",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/21/effective_disposition",
+        "/old_entry_groups/21/effective_entry_exit_conditions",
+        "/old_entry_groups/21/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/21/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE23",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/22/effective_disposition",
+        "/old_entry_groups/22/effective_entry_exit_conditions",
+        "/old_entry_groups/22/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/22/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE24",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/23/effective_disposition",
+        "/old_entry_groups/23/effective_entry_exit_conditions",
+        "/old_entry_groups/23/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/23/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE25",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/24/effective_disposition",
+        "/old_entry_groups/24/effective_entry_exit_conditions",
+        "/old_entry_groups/24/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/24/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE26",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/25/effective_disposition",
+        "/old_entry_groups/25/effective_entry_exit_conditions",
+        "/old_entry_groups/25/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/25/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE27",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/26/effective_disposition",
+        "/old_entry_groups/26/effective_entry_exit_conditions",
+        "/old_entry_groups/26/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/26/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE28",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/27/effective_disposition",
+        "/old_entry_groups/27/effective_entry_exit_conditions",
+        "/old_entry_groups/27/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/27/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE29",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/28/effective_disposition",
+        "/old_entry_groups/28/effective_entry_exit_conditions",
+        "/old_entry_groups/28/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/28/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE30",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/29/effective_disposition",
+        "/old_entry_groups/29/effective_entry_exit_conditions",
+        "/old_entry_groups/29/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/29/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE31",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/30/effective_disposition",
+        "/old_entry_groups/30/effective_entry_exit_conditions",
+        "/old_entry_groups/30/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/30/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE32",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/31/effective_disposition",
+        "/old_entry_groups/31/effective_entry_exit_conditions",
+        "/old_entry_groups/31/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/31/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE33",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/32/effective_disposition",
+        "/old_entry_groups/32/effective_entry_exit_conditions",
+        "/old_entry_groups/32/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/32/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE34",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/33/effective_disposition",
+        "/old_entry_groups/33/effective_entry_exit_conditions",
+        "/old_entry_groups/33/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/33/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE35",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/34/effective_disposition",
+        "/old_entry_groups/34/effective_entry_exit_conditions",
+        "/old_entry_groups/34/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/34/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE36",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/35/effective_disposition",
+        "/old_entry_groups/35/effective_entry_exit_conditions",
+        "/old_entry_groups/35/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/35/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE37",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/36/effective_disposition",
+        "/old_entry_groups/36/effective_entry_exit_conditions",
+        "/old_entry_groups/36/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/36/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE38",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/37/effective_disposition",
+        "/old_entry_groups/37/effective_entry_exit_conditions",
+        "/old_entry_groups/37/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/37/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE39",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/38/effective_disposition",
+        "/old_entry_groups/38/effective_entry_exit_conditions",
+        "/old_entry_groups/38/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/38/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE40",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/39/effective_disposition",
+        "/old_entry_groups/39/effective_entry_exit_conditions",
+        "/old_entry_groups/39/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/39/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE41",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/40/effective_disposition",
+        "/old_entry_groups/40/effective_entry_exit_conditions",
+        "/old_entry_groups/40/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/40/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE42",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/41/effective_disposition",
+        "/old_entry_groups/41/effective_entry_exit_conditions",
+        "/old_entry_groups/41/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/41/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE43",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/42/effective_disposition",
+        "/old_entry_groups/42/effective_entry_exit_conditions",
+        "/old_entry_groups/42/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/42/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE44",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/43/effective_disposition",
+        "/old_entry_groups/43/effective_entry_exit_conditions",
+        "/old_entry_groups/43/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/43/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "OE45",
+      "family": "old_entry_groups",
+      "current_json_pointers": [
+        "/old_entry_groups/44/effective_disposition",
+        "/old_entry_groups/44/effective_entry_exit_conditions",
+        "/old_entry_groups/44/effective_common_exit_condition_ids"
+      ],
+      "inactive_historical_json_pointers": [
+        "/old_entry_groups/44/historical_source_disposition_not_effective"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    },
+    {
+      "id": "G-029",
+      "family": "proof_sync_choice_locator_dispositions",
+      "current_json_pointers": [
+        "/proof_sync_choice_locator_dispositions/28/what_is_already_defined",
+        "/proof_sync_choice_locator_dispositions/28/missing_obligation",
+        "/proof_sync_choice_locator_dispositions/28/normalized_disposition",
+        "/proof_sync_choice_locator_dispositions/28/later_ruling_source"
+      ],
+      "inactive_historical_json_pointers": [
+        "/proof_sync_choice_locator_dispositions/28/historical_source_wording_not_effective",
+        "/proof_sync_choice_locator_dispositions/28/historical_execution_limit"
+      ],
+      "governing_basis": "本轮62CC量词逐项修订、已采纳R2替代及具名已裁语义；后裁限于RESIDUAL-DECISIONS对应实际射程",
+      "implementation_and_proof_status": "REQUIRED_NOT_RUN"
+    }
+  ],
+  "global_current_json_pointers": [
+    "/effective_old_entry_common_exit_conditions",
+    "/effective_contract_rule",
+    "/classification_acceptance_rule"
+  ],
+  "precedence": [
+    "已采纳R2及本SPEC获批后的技术提案各在其射程内有效",
+    "当前有效字段与具名后裁修复覆盖封存旧字",
+    "资金和语义真实残留仍待决定；同步/构造/证明为实施义务",
+    "所有原始材料仍按权威链取证，历史记录不倒改"
+  ]
+}

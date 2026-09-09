@@ -1,0 +1,30 @@
+{
+  "schema": "newchanlun.rf02.metadata-repair.v1",
+  "status": "ROOT_CHECKED_PENDING_INDEPENDENT_ADDENDUM",
+  "file": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.json",
+  "old_sha256": "97173d5cedfca3fc454841d0aefce51eb0fe98d8244db3b9ed56322b53d4966a",
+  "new_sha256": "46c7c0fbd53926119d45a8682ca29e8001c445835fbd00895add778d8d1e70e6",
+  "old_snapshot": "/tmp/newchanlun-1339-architecture-r2-20260909/snapshots/r2-protocol-review-11f570/author/PROTOCOL-R2.json",
+  "protocol_md_sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c",
+  "changed_leaves": [
+    {
+      "path": "/status",
+      "old": "DRAFT_REQUIRES_INDEPENDENT_PROTOCOL_REVIEW",
+      "new": "REVIEWED_ARCHITECTURE_CANDIDATE_NOT_ADOPTED"
+    },
+    {
+      "path": "/authorship",
+      "old": "root author; independent first pass completed; four findings repaired pending independent closure",
+      "new": "root author; independent protocol final review completed at architecture contract level; no implementation or runtime verification"
+    },
+    {
+      "path": "/execution_status/independent_final_review",
+      "old": "not-completed-usage-limit",
+      "new": "completed-at-architecture-contract-level; review/REVIEW-RF02.md; protocol MD SHA 11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c"
+    }
+  ],
+  "only_these_leaves_changed": true,
+  "all_10_sections_identical": true,
+  "protocol_md_unchanged": true,
+  "reason": "Correct obsolete usage-limit state after completed independent review, without changing protocol or claiming runtime validation."
+}

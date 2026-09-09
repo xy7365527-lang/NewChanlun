@@ -1,0 +1,88 @@
+{
+  "schema": "newchanlun.independent-design-revision-delivery.v1",
+  "issue": 1339,
+  "revision": "R1",
+  "status": "FROZEN_FOR_INDEPENDENT_PROTOCOL_REVIEW",
+  "previous_revision": {
+    "revision": "R0",
+    "md_sha256": "344c82da0b4df9cd12158185a5fe438513a04c57b054ad744513ced6899b10c4",
+    "json_sha256": "0eb8f0b1b587faaa298c661bf07c4c0483f884e9c2f18a1a1fe0a5a426a3c174"
+  },
+  "artifacts": [
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+      "sha256": "f6054b52f86ba80fafd6386d1ac6ede341c6c6a17cb9efbed5d2dad42571824d",
+      "bytes": 71970
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.json",
+      "sha256": "800ca141806e3f3814c1392ff656a4f2213b2e7b210f368a0e84e853ea14dcd1",
+      "bytes": 206521
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.md",
+      "sha256": "37b91d6fe61ad508e06a733b9972834bb61957f9249be8a612f7d33aa8157dd0",
+      "bytes": 24806
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-classification-integration.json",
+      "sha256": "251f00d938573e96516d3c1dc6f48a64241b19314fac598480dd7b1ab2e49a6d",
+      "bytes": 217400
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.md",
+      "sha256": "f5ea3426c08bcffa5e3a40a7d29631169d1776b5ffb2a50f4c526a766bc3629d",
+      "bytes": 11152
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-state-contracts.json",
+      "sha256": "f8b4f7057233e2c9a6bdb7d561f76112dc1f37b9e6cf4d1cbaf6bbf5b5662edf",
+      "bytes": 26947
+    }
+  ],
+  "catalog_binding": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json",
+    "sha256": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f"
+  },
+  "review_findings_revised": [
+    "IP-H01",
+    "IP-M02"
+  ],
+  "author_validation": {
+    "source_bindings_checked": 35,
+    "source_binding_failures": 0,
+    "unique_requirements": 80,
+    "unique_FE_scenarios": 11,
+    "AC_categories": 15,
+    "classification_axes": 62,
+    "legal_combinations": 10,
+    "register_items": 32,
+    "engineering_axes": 16,
+    "FG_state_links": 35,
+    "all_design_anchors_resolve": true,
+    "R0_copies_intact": true,
+    "test_type": "ARTIFACT_SCHEMA_AND_BYTE_HASH_ONLY",
+    "project_tests": "NOT_RUN",
+    "formal_or_runtime_proof": "NOT_RUN"
+  },
+  "not_claimed": [
+    "independent_review_passed",
+    "classification_proof_complete",
+    "current_legacy_entry_inventory_complete",
+    "implementation_or_frontend_completed",
+    "venue_capability_validated",
+    "architecture_adoption",
+    "SPEC_approval"
+  ],
+  "review_input_preservation": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/author/independent-design-protocol-review-r0.json",
+    "sha256": "0e259262461f4b0edef4f0da46e9689026cdfb27d43c354213825f675008212d",
+    "change": "仅把R0评审输入指向自身不可变归档；协议正文8f08abb5不变"
+  },
+  "amend_clarification_history": {
+    "pre_md_sha256": "8f08abb5e16cd5cb1ccad8d0fd292184c078cb42d6c871d5ea3d11fc39c91068",
+    "pre_json_sha256": "28303f59a6540c364e4641c366f6ee0fb4e533c055f55a8192ad5783b6a53ed1",
+    "snapshots": "independent-design-r1-before-amend-clarification.md/json",
+    "change": "P7及ES14最小计量对象消歧，不改其他协议。"
+  }
+}

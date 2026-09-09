@@ -1,0 +1,104 @@
+{
+  "schema": "issue1339.final-document-check.v1",
+  "checked_at_utc": "2026-09-08T07:39:31.534316+00:00",
+  "status": "PASS_DOCUMENT_MECHANICS_ONLY",
+  "counts": {
+    "ST": 44,
+    "FG": 35,
+    "RF": 1,
+    "OB": 20,
+    "AC": 15,
+    "EV": 14
+  },
+  "checks": [
+    "80行唯一ID与原始需求集合完全相同",
+    "逐项对象/轴、判据、适用域非空",
+    "OB/AC/EV引用均存在，OB字段复制完全一致",
+    "35项FG名分单列，未再以名分占对象/轴字段",
+    "RF-01四条验收与总表一致",
+    "所有条目运行证据仍not-run"
+  ],
+  "author_bindings": [
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/REQUIREMENTS.md",
+      "sha256": "690dcd65e029e5069c46d5ade40684a831405d9e5af214624136e7fd52702b19",
+      "bytes": 4702
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.md",
+      "sha256": "f937b8659546be750d28f2d82038f2f64820f4e1d75054f7fe121a3766c847d2",
+      "bytes": 48249
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+      "sha256": "0eeedeb138add9138a2d904bb7fb69884876d85ae085f192d54ab32c8566f970",
+      "bytes": 750433
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.md",
+      "sha256": "21d8b29ba2b00c6dfc50acd9ab02040848df56a8c9601a0406ae376d134fbb35",
+      "bytes": 1760
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.json",
+      "sha256": "21543f6b61df3e1c94f2b96b5b153e2f492fb3e9799b5d6af9c403ac65770541",
+      "bytes": 2124
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.md",
+      "sha256": "b6f695cbfc1f8f34567c11476d66a3d3773bd747a1cc73898d6f8f1a4e9b825f",
+      "bytes": 8565
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.json",
+      "sha256": "9fc12ed938b2a4949f90b265d6148208b21738f6655a6f9b9e436cc5da767b2c",
+      "bytes": 9759
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.md",
+      "sha256": "d7e9a66eb78434eea22bdec1eb4724c729c5726f3e5103c3e375a30260b20a2b",
+      "bytes": 17319
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.json",
+      "sha256": "65ff5481cab5caf18134d23287e34fa697a1d771b544acb0813aad380d6c9c7d",
+      "bytes": 21946
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/STRUCTURE.md",
+      "sha256": "5addccea0f8c8697274a439b46fd18fc7243e2c7dd07acec940e539f62077cdc",
+      "bytes": 89584
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/STRUCTURE.json",
+      "sha256": "d10aa63899bd489b546c5f5746ddd5bebebfc41c23215fe6c898d21f54f55166",
+      "bytes": 108220
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+      "sha256": "9d0ff4a365963ac92393a9bf73c43d2e405f350e9c8601226954d983b6b19f01",
+      "bytes": 61066
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+      "sha256": "8e3a98b1ad88ee658d98656605e1580b1d806ab3132013a13f304a957b84b04a",
+      "bytes": 87183
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.md",
+      "sha256": "4d56ffca7fd01682aca65c48510230e694a040c448cb4d2bc52ed19f46c0e9d8",
+      "bytes": 45352
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.json",
+      "sha256": "ef573978d80d395363570d938b449f8809391963c913bb07eec774c29e599de7",
+      "bytes": 160376
+    }
+  ],
+  "limits": [
+    "不替代需求语义独立评审",
+    "不表示用户已采纳整体需求或架构",
+    "本轮没有项目、UI、回放、恢复、paper/live或经济指标执行结果"
+  ],
+  "baseline_receipt": "DOCUMENT-CHECK.json"
+}

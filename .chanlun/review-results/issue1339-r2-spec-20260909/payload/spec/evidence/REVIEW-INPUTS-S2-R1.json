@@ -1,0 +1,116 @@
+{
+  "schema": "newchanlun.1323.review-inputs.v2",
+  "status": "FROZEN_S2_R1_FOR_FINAL_INDEPENDENT_REVIEW",
+  "files": [
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/SPEC.md",
+      "sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/SPEC.json",
+      "sha256": "47351e5741aedf5f1c34eaaa9b9126ed30458a94833a352d8ad7ec6a52f08878"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/ARCHITECTURE-ADOPTION.md",
+      "sha256": "e60e806286c41974f395a0f336f0f21e6386cf70583d4007042cc43d05c4a835"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/ARCHITECTURE-ADOPTION.json",
+      "sha256": "c3d0c5ff1e38449704964ac7c6c0d1ab14e8a4516364a107dcfbcb7b4e7b2c1a"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/SPEC-COVERAGE-INPUT.md",
+      "sha256": "a8b30f087308402874ea132ba1cc372fb3af1a16273ef5b090fbd324a5eed7a8"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/SPEC-COVERAGE-INPUT.json",
+      "sha256": "76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/TEST-SEAMS.md",
+      "sha256": "2b7a59947390dd3c1d4e4de132c714f330acfbe2890a049527226d787a1e1a6f"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/TEST-SEAMS.json",
+      "sha256": "ea0d6479ec7460750e8974a733803e12173891bf857351ed1de53c59a26e5628"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/RESIDUAL-DECISIONS.md",
+      "sha256": "cf4d78858a2b6a54c0699fef6240b68d0f66b4256de31a1ef7aa2e16bea12c3e"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/inputs/RESIDUAL-DECISIONS.json",
+      "sha256": "25ef584f85a7807a68adb77a4cabeb3b4dde3d46ba3c1442c4a2a49eadc0ab58"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/INTERFACE-CONTRACTS.md",
+      "sha256": "f1a2993c6fa4c6c29c6b9a4de7c1d0334c697aaa03e282f621171c37fc01d0e7"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/IMPLEMENTATION-CROSSWALK.md",
+      "sha256": "028ac941954f31bc41ca20813c8b20de903dac199f39709f45115427b131093f"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/IMPLEMENTATION-CROSSWALK.json",
+      "sha256": "0d31d68e75a6d672c948e8708bfb261549029c7310f7ad4dbb326c087157ce5d"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/PLANNED-DAG.json",
+      "sha256": "8ece2c702ac45c36fdcebfff4b0cb8dd2f26c740bdced6789e630f323e76d5e2"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/EFFECTIVE-CONTRACTS.md",
+      "sha256": "63e395c46702cb78f932df9c8e8dd62c1f8776c106635ddeb613c0e73b4bab85"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/EFFECTIVE-CONTRACTS.json",
+      "sha256": "fd67b5230744f6f826bac98b3df044fbf22c21248a5d46c74e7e8498430a54a8"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/PUBLICATION-PREPARATION.md",
+      "sha256": "8dae5231dc1d2de5122035335f4e3f1364279a8ad86fb5935480fa1e276dc410"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/evidence/MAP-1323.json",
+      "sha256": "eeb8b7e628c8f7299cbaa814e143fde10c8914c6619b012c90249cd3060d33d8"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/evidence/STORY-BINDINGS.json",
+      "sha256": "9a52ae64f093e04897052aa7b2f79b60f7821d95d8561689aadf4065f2260177"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/evidence/DOC-VALIDATION-S2.json",
+      "sha256": "c87875bd967096299c807e3b79cd533a8250c8ade6b3c25d809de219c75bbc87"
+    }
+  ],
+  "counts": {
+    "stories": 97,
+    "family_entries": 345,
+    "acceptance_points": 496,
+    "classification_axes": 62,
+    "classification_partition_scopes": 79,
+    "chapters": 12,
+    "acceptance_groups": 18,
+    "proposed_slices": 11,
+    "destinations": 6
+  },
+  "initial_review_history": "/tmp/newchanlun-1323-spec-20260909/snapshots/s1-initial-reviews",
+  "not_run": [
+    "project implementation",
+    "project tests",
+    "Lean",
+    "UI",
+    "process crash",
+    "paper",
+    "live"
+  ],
+  "revision": "S2-R1",
+  "previous_manifest_sha256": "75a06b0e77b0966c85933c646b0bcf0bcb80b512e909efd1854e80019d530585",
+  "previous_snapshot": "/tmp/newchanlun-1323-spec-20260909/snapshots/s2-frozen-42fc34cd",
+  "changed_files_from_S2": [
+    "SPEC.json",
+    "IMPLEMENTATION-CROSSWALK.md",
+    "IMPLEMENTATION-CROSSWALK.json",
+    "evidence/DOC-VALIDATION-S2.json"
+  ]
+}

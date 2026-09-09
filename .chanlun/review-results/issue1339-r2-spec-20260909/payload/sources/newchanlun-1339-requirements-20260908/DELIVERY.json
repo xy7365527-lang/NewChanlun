@@ -1,0 +1,203 @@
+{
+  "schema": "issue1339.requirements-delivery.v1",
+  "issue": 1339,
+  "parent_goal_issue": 1323,
+  "delivered_at_utc": "2026-09-08T07:44:38.935154+00:00",
+  "status": "REQUIREMENTS_REVIEWED_USER_SCOPE_CONFIRMED_ARCHITECTURE_REASSESSMENT_NEXT",
+  "counts": {
+    "ST": 44,
+    "FG": 35,
+    "RF": 1,
+    "OB": 20,
+    "AC": 15,
+    "EV": 14
+  },
+  "entrypoint": {
+    "path": "/tmp/newchanlun-1339-requirements-20260908/author/REQUIREMENTS.md",
+    "sha256": "690dcd65e029e5069c46d5ade40684a831405d9e5af214624136e7fd52702b19",
+    "bytes": 4702
+  },
+  "author_payloads": [
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/REQUIREMENTS.md",
+      "sha256": "690dcd65e029e5069c46d5ade40684a831405d9e5af214624136e7fd52702b19",
+      "bytes": 4702
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.md",
+      "sha256": "f937b8659546be750d28f2d82038f2f64820f4e1d75054f7fe121a3766c847d2",
+      "bytes": 48249
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/COVERAGE.json",
+      "sha256": "0eeedeb138add9138a2d904bb7fb69884876d85ae085f192d54ab32c8566f970",
+      "bytes": 750433
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.md",
+      "sha256": "d7e9a66eb78434eea22bdec1eb4724c729c5726f3e5103c3e375a30260b20a2b",
+      "bytes": 17319
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.json",
+      "sha256": "65ff5481cab5caf18134d23287e34fa697a1d771b544acb0813aad380d6c9c7d",
+      "bytes": 21946
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.md",
+      "sha256": "b6f695cbfc1f8f34567c11476d66a3d3773bd747a1cc73898d6f8f1a4e9b825f",
+      "bytes": 8565
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/ACCEPTANCE-PLAN.json",
+      "sha256": "9fc12ed938b2a4949f90b265d6148208b21738f6655a6f9b9e436cc5da767b2c",
+      "bytes": 9759
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.md",
+      "sha256": "21d8b29ba2b00c6dfc50acd9ab02040848df56a8c9601a0406ae376d134fbb35",
+      "bytes": 1760
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/USER-DECISIONS.json",
+      "sha256": "21543f6b61df3e1c94f2b96b5b153e2f492fb3e9799b5d6af9c403ac65770541",
+      "bytes": 2124
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/STRUCTURE.md",
+      "sha256": "5addccea0f8c8697274a439b46fd18fc7243e2c7dd07acec940e539f62077cdc",
+      "bytes": 89584
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/STRUCTURE.json",
+      "sha256": "d10aa63899bd489b546c5f5746ddd5bebebfc41c23215fe6c898d21f54f55166",
+      "bytes": 108220
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+      "sha256": "9d0ff4a365963ac92393a9bf73c43d2e405f350e9c8601226954d983b6b19f01",
+      "bytes": 61066
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+      "sha256": "8e3a98b1ad88ee658d98656605e1580b1d806ab3132013a13f304a957b84b04a",
+      "bytes": 87183
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.md",
+      "sha256": "4d56ffca7fd01682aca65c48510230e694a040c448cb4d2bc52ed19f46c0e9d8",
+      "bytes": 45352
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.json",
+      "sha256": "ef573978d80d395363570d938b449f8809391963c913bb07eec774c29e599de7",
+      "bytes": 160376
+    }
+  ],
+  "review_payloads": [
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-STRUCTURE.md",
+      "sha256": "4da8547a97e2600ffb23e616dfdade9d9725f98297fc62567fe3794dbe179286",
+      "bytes": 19138
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-STRUCTURE.json",
+      "sha256": "fa634d5402bfac66e0a3394cdc5d0367f6950dbec95eb0aeff88862c9c7c4ce4",
+      "bytes": 46272
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-FG.md",
+      "sha256": "a3023d9680221c566ad8ec26acc530eb0ac1ef5212ba9da961f496ab222bca03",
+      "bytes": 17184
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-FG.json",
+      "sha256": "01c4319694fe479c1bc507c32e81017b3e87c032795d6328616a5b1a0f4c81c6",
+      "bytes": 99234
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-OBS.md",
+      "sha256": "77212451da8a402ea89af883f1e359035a76d25da543e92e7d11c8aec9ae11b7",
+      "bytes": 12298
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-OBS.json",
+      "sha256": "42cd54d62f6c040d260b508e8c3484ff3c1c54d4b391b118796d48d75d15ba11",
+      "bytes": 57022
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-INTEGRATION.md",
+      "sha256": "f79a55785436d1413798e5436ec3b455ccfd252f9d928f864a11d8ae654842a4",
+      "bytes": 4551
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-INTEGRATION.json",
+      "sha256": "2a8a506fbd010d61a848b565b22a6bab342a71e0bbe997be88cab0bb59d0a96c",
+      "bytes": 100783
+    }
+  ],
+  "scope_confirmation": {
+    "path": "/tmp/newchanlun-1339-requirements-20260908/SCOPE-CONFIRMATION.json",
+    "sha256": "28d9eb728617a6f6372a7b4d902d8efe15b918a26a9db21103f7b9749314f348",
+    "bytes": 1280
+  },
+  "supporting_records": [
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/SCOPE-CONFIRMATION.md",
+      "sha256": "c5da285049367389d02020098703ed3f5edfcb7a94f3d731bb68b43180d42e6c",
+      "bytes": 784
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/FINAL-DOCUMENT-CHECK.json",
+      "sha256": "5df4a1c4dcd5e0cb2ceddf1db6485004e7b301790253fba0d266889df296ebea",
+      "bytes": 3920
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/DOCUMENT-CHECK.json",
+      "sha256": "1bf26483d6b1335683eeeae7fb8d875e1446fda3bd38312cfc6c46532e285408",
+      "bytes": 1978
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/INTAKE-BINDINGS.json",
+      "sha256": "a9191aa3af0823138f6b2d6b1ac6b15bd290b1100018ad6167676c46d380270b",
+      "bytes": 1145
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/WORKSPACE-INTAKE.json",
+      "sha256": "ba05cfdbe70b05c9e0a5dc0b9471651430bd84adbe4261df897ced1279afe590",
+      "bytes": 17784
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/issue-1323.json",
+      "sha256": "bdaaf7c893bd588672dade45cc343da73d05df73b89ec1532b2c64868c20e724",
+      "bytes": 11001
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/issue-1339.json",
+      "sha256": "5ea15e6977067b4b6ade9bd566851f557d485bf3420b99d7d89b3863d63bd799",
+      "bytes": 6899
+    }
+  ],
+  "index": {
+    "path": "/tmp/newchanlun-1339-requirements-20260908/DELIVERY.md",
+    "sha256": "b0055f66219d13119b1bd1a1b7e149125592a89e99d624de8ab0fc9f1b165948",
+    "bytes": 2878
+  },
+  "review_note": "各专项只按报告明列作者SHA生效；当前OB/AC/RF/COVERAGE由INTEGRATION签署，旧OBS专项仅复用仍匹配的EV实体。root交付清单及确认记录由本体据工具与用户答复核对，不属于独立作者文本评审。",
+  "all_project_execution": "not-run",
+  "whole_goal_complete": false,
+  "github_issue_closed": false,
+  "repository_modified_by_this_work": false,
+  "excluded": [
+    "history/",
+    "work/",
+    "evidence/ARITHMETIC-COUNTEREXAMPLES.json"
+  ],
+  "next_authorized_step": "补完全分类目录并作为共同依据进行完整架构重评；用户选择架构前不进入SPEC或实施",
+  "post_confirmation_user_requirement": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/COMPLETE-CLASSIFICATION-REQUIREMENT.md",
+    "sha256": "c3cc79a2bef52dff3d1f5612cf066b2466ecd370e98baad0dc077e23c894e8c9",
+    "bytes": 1428
+  },
+  "leaf_classification_catalog_complete": false
+}

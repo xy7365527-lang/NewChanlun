@@ -1,0 +1,200 @@
+{
+  "schema": "newchanlun.scheme-comparison-independent-review.v1",
+  "issue": 1339,
+  "whole_map": 1323,
+  "reviewer": "/root/independent_scope_review",
+  "status": "SCOPED_REVIEW_COMPLETE_NO_SUBSTANTIVE_HM",
+  "counts": {
+    "H": 0,
+    "M": 0,
+    "L": 0,
+    "open": 0
+  },
+  "input_binding": [
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/SCHEME-COMPARISON.md",
+      "sha256": "794c2326d4b35a50aec6360b87d9c844dfdd38414780a75f5367d5a60091a978",
+      "bytes": 11951,
+      "lines": 89,
+      "read_scope": "full_text 89 lines; line71 final amendment reread"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-REEVALUATION.md",
+      "sha256": "100f97da6133f5378d7711e7f523f20401d0bbb905e0de402ea502dee6a73013",
+      "bytes": 34379,
+      "lines": 221,
+      "read_scope": "lines1-74 full RF/organization/observation summary; lines98-221 selected matrix/OB/AC/FE/evidence portions; not complete rereview of all80 matrix rows"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+      "sha256": "f6054b52f86ba80fafd6386d1ac6ede341c6c6a17cb9efbed5d2dad42571824d",
+      "bytes": 71970,
+      "lines": 400,
+      "read_scope": "reused independent R0/R1 protocol review; final amended P7 checked"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/FULL-STATE-OBSERVATION.md",
+      "sha256": "aa65047a2887d35e3f4ec916f54f2660f789ea8e5bef32c2ce72457c2f2c689b",
+      "bytes": 5317,
+      "lines": 57,
+      "read_scope": "full_text; reused signed independent observation review and reread all57 lines"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/evidence/CLASSIFICATION-OUTPUT-PROBE.md",
+      "sha256": "2d4d30541664199ead754267d9a66881a7643534238288e508534971ce397830",
+      "bytes": 12654,
+      "lines": 100,
+      "read_scope": "reused prior full-text reading in REVIEW-FULL-STATE-OBSERVATION; no fresh whole-code scan"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-INDEPENDENT-PROTOCOL.json",
+      "sha256": "7c992d9f03b5839c0e16035740736d1c4e30840209840e686edae1c721088121",
+      "bytes": 22463,
+      "lines": 462,
+      "read_scope": "current independent signed scoped protocol review"
+    },
+    {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-FULL-STATE-OBSERVATION.json",
+      "sha256": "1bd844e087f783e3b8f4731bac2f38af40746072b2b7247cfe167a81d401fc5f",
+      "bytes": 6520,
+      "lines": 213,
+      "read_scope": "prior signed limited observation review"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-B-r1/INTERFACES-AND-STATE.md",
+      "sha256": "752807aafaa0f13f590358ce28fffd5f1928012222e1c47005462d58062a6604",
+      "bytes": 35037,
+      "lines": 340,
+      "read_scope": "lines 279-287 only"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/USAGE.md",
+      "sha256": "5e4fa4b53220fb5edfdc8103d942ecfc89143cbfe2c1874926732782a6801540",
+      "bytes": 33059,
+      "lines": 252,
+      "read_scope": "lines 238-250 only"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-A2-r3/OPERATING-CONTRACTS.md",
+      "sha256": "f690d8069be6ed03ee06cf9edf2453f32035d38571448a5cc1052551f09826da",
+      "bytes": 39552,
+      "lines": 312,
+      "read_scope": "lines 55-61 only"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/INTERFACES-AND-STATE.md",
+      "sha256": "6f06706472c25ff3ae6d4621b61dd73409e53491db592091d67dcc2f6d444cff",
+      "bytes": 23927,
+      "lines": 183,
+      "read_scope": "lines 104-120 only"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/alternatives/C-C3-r1/MIGRATION-AND-VALIDATION.md",
+      "sha256": "f5e6ecd933361f6c6f3aaf3dbd96b18df6d00881fe91a12e5a6bdc330f6f4317",
+      "bytes": 15108,
+      "lines": 100,
+      "read_scope": "lines 49-55 only"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/INTERFACES-AND-STATE.md",
+      "sha256": "4e9cbf7e8807d9a78f3f63b9e70d3a805a61917d5e830c3b90993e977bfa4622",
+      "bytes": 53554,
+      "lines": 449,
+      "read_scope": "lines 76-105 only"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scheme/intake/revisions/C-C-r2/MIGRATION-AND-VALIDATION.md",
+      "sha256": "728907fd15ee19e8a9aab65335c1e89bc60f8e12e5ea04ffba50184e2606be27",
+      "bytes": 22904,
+      "lines": 129,
+      "read_scope": "lines 44-54 only"
+    }
+  ],
+  "findings": [],
+  "checks": [
+    {
+      "topic": "推荐与批准边界",
+      "locations": [
+        3,
+        5,
+        65,
+        87,
+        89
+      ],
+      "result": "推荐本次独立修订作为SPEC基础，与A2组织趋同的理由由RF条件给出；不将建议当已采纳、不自动继承A2全稿，不授实施/合入/外部写入。"
+    },
+    {
+      "topic": "公共故障与可用性代价",
+      "locations": [
+        9,
+        44,
+        47,
+        69
+      ],
+      "result": "第9行醒目说明共同安全日志故障同时暂停新经营提交、规范外部接纳和新的正式结构推进；原始输入/旧历史可保留，排队/背压及无吞吐实测也明写。"
+    },
+    {
+      "topic": "四案RF差异",
+      "locations": [
+        60,
+        61,
+        62,
+        63,
+        65
+      ],
+      "result": "与原作者EXISTING-REEVALUATION的故障读集、权威/恢复合同一致；抽查原B完整恢复、A2不可恢复A而B继续、C3资源共同恢复、C2完整状态与迁入条款支持该比较。未因共享数据库形状直接判组织，也未把publisher隔离当坏权威账可继续。"
+    },
+    {
+      "topic": "完全分类限域",
+      "locations": [
+        13,
+        15,
+        17,
+        19,
+        21,
+        23,
+        25
+      ],
+      "result": "62轴/10组合/32定位和16工程轴明确为目录规模；域内不漏不重、实际构造、程序等价、组合可达、迁移不变量仍分别需验。至多27是约束上界，不报全可达；每bar复用证明包不能代替实际计算。此项只核说法和边界，不签全部CC证明。"
+    },
+    {
+      "topic": "R1协议修复",
+      "locations": [
+        69,
+        71,
+        73
+      ],
+      "result": "Capture/Pending与最后许可同序、普通覆盖回报不等A Applied，与已审P4一致。改价100/40/20反例及独立分配/共享原子amend计量，与最终P7一致；明确反例闭合不等模型或场所验证。"
+    },
+    {
+      "topic": "观察与有限静态证据",
+      "locations": [
+        49,
+        52,
+        77,
+        79,
+        81
+      ],
+      "result": "与已签完整观察合同一致：必要条件/转折/获知时点及中心关系/高级对象分别保留；同源切面与可达UI逐层验收。三轴断点限定已核路径，不扩称全仓或全44项已查。"
+    },
+    {
+      "topic": "整图交付范围",
+      "locations": [
+        85,
+        87,
+        89
+      ],
+      "result": "旧入口去向仍是提案，有仓责任保留；后续SPEC、逐层实现、历史、前端、paper和合法关图仍需完成。新增链接最终存在性及其独立内容验收由主控收齐，不在本次有限比较独审签署范围。"
+    }
+  ],
+  "review_scope": "有限独审SCHEME-COMPARISON是否准确承接已审R1协议/全观察合同、作者原案重评及指定原文边界；不重扫四案或当前仓库，不签全部分类证明。",
+  "excluded_signoffs": [
+    "全62轴/10组合数学完备性、可达性与程序等价",
+    "35经营需求所有数值/场所/资金政策已验证",
+    "原四案全部文件与80项矩阵重新独立审阅",
+    "EXISTING-CLASSIFICATION-INTEGRATION和OLD-ENTRY-DISPOSITIONS及DELIVERY最终链接/内容验收（主控收尾）",
+    "实现、项目/Lean、UI、运行、paper/live、吞吐恢复实测",
+    "架构采纳、SPEC批准、GitHub发布、main合入及关图"
+  ],
+  "changes_by_reviewer": "仅写review/REVIEW-COMPARISON.md/json，未修改主文或原案。"
+}

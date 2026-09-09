@@ -1,0 +1,2936 @@
+{
+  "schema": "issue1339.independent-fg-review.v2",
+  "issue": 1339,
+  "reviewed_at_utc": "2026-09-08T07:13:01.089328+00:00",
+  "reviewer": "/root/handoff_evidence",
+  "independence": "未参与FG作者；本轮只审FG，不审本代理写的EV。",
+  "verdict": "PASS_WITHIN_REQUIREMENTS_REVIEW_SCOPE",
+  "findings_count": {
+    "H": 0,
+    "M": 0,
+    "L": 0
+  },
+  "author_input_bindings": [
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+      "sha256": "9d0ff4a365963ac92393a9bf73c43d2e405f350e9c8601226954d983b6b19f01",
+      "bytes": 61066
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+      "sha256": "8e3a98b1ad88ee658d98656605e1580b1d806ab3132013a13f304a957b84b04a",
+      "bytes": 87183
+    }
+  ],
+  "findings": [
+    {
+      "id": "FG-M01",
+      "severity": "M",
+      "title": "N个持久重被额外改成至少三个重的验收数量门",
+      "locations": [
+        {
+          "markdown": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+            "lines": [
+              53,
+              57
+            ]
+          },
+          "json": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+            "pointers": [
+              "/requirements/0/boundary",
+              "/requirements/0/acceptance"
+            ]
+          }
+        },
+        {
+          "markdown": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+            "lines": [
+              543,
+              545
+            ]
+          },
+          "json": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+            "pointers": [
+              "/e2e_scenarios/0/setup"
+            ]
+          }
+        },
+        {
+          "markdown": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+            "lines": [
+              634,
+              636
+            ]
+          },
+          "json": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+            "pointers": [
+              "/e2e_scenarios/7/setup"
+            ]
+          }
+        }
+      ],
+      "problem": "FG-001把已定的N个持久重与跨多次经营写成“至少三个非空重”；FE-01/FE-08再固定三重。这是作者新增的最低数量和组合fixture门，没有相应用户要求或源裁定，且用户现已明确纠正。支持N重不等于用户要求必须先过三重数量验收。",
+      "source_evidence": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            23,
+            25
+          ],
+          "observation": "定义重的三要件及独立筹码判别，不规定最低三重。"
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            37,
+            39
+          ],
+          "observation": "要求多个同时存在，未增加至少三重的数量门。"
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/040-第40课.md",
+          "lines": [
+            20,
+            22
+          ],
+          "observation": "写N重和独立资金筹码/节奏，不规定至少三个验收对象。"
+        }
+      ],
+      "latest_user_constraint": "用户已纠正“至少三个重”是草案额外添加的验收数量；不由本轮再请求确认该数量。",
+      "required_change": "删除至少三重/三重固定起点等新增数量门。回到N个持久重可配置并存、各自持仓/成本/Voice历史独立、相反动作不仲裁、退出尾账可归属的具体行为；场景中只为说明行为使用的对象应标示例，不得成为用户需求数量。不得因此删除完整多重赋格。",
+      "affected_requirements": [
+        "FG-001"
+      ],
+      "affected_scenarios": [
+        "FE-01",
+        "FE-02",
+        "FE-08"
+      ],
+      "status": "CLOSED_BY_REVISION",
+      "original_status": "OPEN",
+      "rereview_resolution": {
+        "finding_id": "FG-M01",
+        "status": "CLOSED_BY_REVISION",
+        "checked_requirements": [
+          "FG-001"
+        ],
+        "checked_scenarios": [
+          "FE-01",
+          "FE-02",
+          "FE-08"
+        ],
+        "current_markdown_lines": [
+          [
+            49,
+            61
+          ],
+          [
+            543,
+            554
+          ],
+          [
+            556,
+            567
+          ],
+          [
+            634,
+            644
+          ],
+          [
+            752,
+            754
+          ]
+        ],
+        "assessment": "已删除最低三个重及固定三重起点。FG-001保留N重并存与持久史，FE-01/08改为具体经营事实，FE-02明确甲乙丙只是说明净省禁复用的示例。具体数量不再成为产品门槛，完整多重赋格未删减。"
+      }
+    },
+    {
+      "id": "FG-M02",
+      "severity": "M",
+      "title": "用“非空经营/非空恢复”重新命名用户未提出的验收对象",
+      "locations": [
+        {
+          "markdown": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+            "lines": [
+              483,
+              491
+            ]
+          },
+          "json": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+            "pointers": [
+              "/requirements/31/title",
+              "/requirements/31/acceptance"
+            ]
+          }
+        },
+        {
+          "markdown": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+            "lines": [
+              543,
+              545
+            ]
+          },
+          "json": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+            "pointers": [
+              "/e2e_scenarios/0/title"
+            ]
+          }
+        },
+        {
+          "markdown": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+            "lines": [
+              634,
+              636
+            ]
+          },
+          "json": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+            "pointers": [
+              "/e2e_scenarios/7/title"
+            ]
+          }
+        }
+      ],
+      "problem": "“恢复必须恢复非空经营”“完整非空持久经营”“非空恢复”是作者组织验证的标签，被写成FG需求名和完整场景名。它没有独立领域定义/用户出处，容易把用户的完整多重赋格转成一个新造名词；用户现已明确质疑该扩写。防止只测空账户的意图应落在可观察事实和具体行为，而不是新设经营概念。",
+      "source_evidence": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            9,
+            12
+          ],
+          "observation": "定义持久重及专属筹码，未定义“非空经营”。"
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            35,
+            39
+          ],
+          "observation": "已提醒不能由赋格比喻推一次Voice性质，领域词义须明确。"
+        },
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1339",
+          "section": "核心目标",
+          "observation": "票面要求完整经营史、部分成交/撤回/退出/在途尾账及恢复，没有“非空经营”这个需求名。"
+        }
+      ],
+      "latest_user_constraint": "用户明确指出“多重非空经营”是草案自造术语；修复为回到既有具体行为，不请用户为自造概念背书。",
+      "required_change": "去掉“非空经营/非空恢复”等新造标题和概念化表述，直接写恢复已有持仓、成本变化、部分成交、未决订单和退出后的责任归属；保留“空账/零动作不能证明这些行为”的验证限制，但不把它命名为新的领域义务或单独阶段。",
+      "affected_requirements": [
+        "FG-032"
+      ],
+      "affected_scenarios": [
+        "FE-01",
+        "FE-08"
+      ],
+      "status": "CLOSED_BY_REVISION",
+      "original_status": "OPEN",
+      "rereview_resolution": {
+        "finding_id": "FG-M02",
+        "status": "CLOSED_BY_REVISION",
+        "checked_requirements": [
+          "FG-032"
+        ],
+        "checked_scenarios": [
+          "FE-01",
+          "FE-06",
+          "FE-08"
+        ],
+        "current_markdown_lines": [
+          [
+            483,
+            495
+          ],
+          [
+            543,
+            554
+          ],
+          [
+            608,
+            610
+          ],
+          [
+            634,
+            644
+          ],
+          [
+            752,
+            754
+          ]
+        ],
+        "assessment": "已将自造标题改为持久重完整经营、恢复已有持仓经营史与未结责任、持仓及未决外效故障恢复。实际持仓、成本变化、部分成交、未决订单、退出尾账及防空账假验收约束均保留；末尾出现旧词仅说明撤回，不作为需求命名。"
+      }
+    },
+    {
+      "id": "FG-M03",
+      "severity": "M",
+      "title": "净账验收的有效域漏掉逐笔独立后的条件式毛账切换",
+      "locations": [
+        {
+          "markdown": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+            "lines": [
+              329,
+              341
+            ]
+          },
+          "json": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+            "pointers": [
+              "/requirements/20/requirement",
+              "/requirements/20/boundary"
+            ]
+          }
+        },
+        {
+          "markdown": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+            "lines": [
+              357,
+              369
+            ]
+          },
+          "json": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+            "pointers": [
+              "/requirements/22/boundary"
+            ]
+          }
+        },
+        {
+          "markdown": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+            "lines": [
+              511,
+              521
+            ]
+          },
+          "json": {
+            "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+            "pointers": [
+              "/requirements/33/requirement",
+              "/requirements/33/boundary"
+            ]
+          }
+        }
+      ],
+      "problem": "FG-021把“净额成交按实际外效验收、毛账解释归因”作为通用已定边界，FG-023只保留“逐腿出口另案资格”，FG-034谈多场所和启动权限但未承接其已引ADR0021:73的条件式账本名分切换。#937已裁：逐笔独立场所落地后验收改用毛账；生效前净账维持。省掉该分支会使后续完整执行候选按错误的统一验收口径被评估。",
+      "source_evidence": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            17,
+            25
+          ],
+          "observation": "当前两账分工和对账要求，不能单独覆盖条件切换后的形态。"
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            66,
+            73
+          ],
+          "observation": "第4条显式承接#937：重启时携带毛账验收、相关账本切换及数学名分激活。"
+        },
+        {
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/937#issuecomment-5309565712",
+          "section": "Resolution 问1、问4、触发器",
+          "observation": "问1明确条件式：逐笔独立场所落地后改毛账，之前净账及既有回测维持；问4是同条件切换。已用gh只读核本条Resolution。"
+        }
+      ],
+      "required_change": "为FG-021/023/034补两种执行形态的准确有效域：当前净额执行按净账验收并保毛账；若逐笔独立形态在批准条件下落地，按#937改用毛账验收并保对账关系。只记录条件，不现在启动实盘、逐腿出口或重开票；旧VOICE_EXEC/sep_legs字段是原实施载体，不得被抄成新架构的固定组织。",
+      "affected_requirements": [
+        "FG-021",
+        "FG-023",
+        "FG-034"
+      ],
+      "affected_scenarios": [
+        "FE-10",
+        "FE-11"
+      ],
+      "status": "CLOSED_BY_REVISION",
+      "original_status": "OPEN",
+      "rereview_resolution": {
+        "finding_id": "FG-M03",
+        "status": "CLOSED_BY_REVISION",
+        "checked_requirements": [
+          "FG-021",
+          "FG-023",
+          "FG-034"
+        ],
+        "checked_scenarios": [
+          "FE-10",
+          "FE-11"
+        ],
+        "current_markdown_lines": [
+          [
+            329,
+            341
+          ],
+          [
+            357,
+            369
+          ],
+          [
+            511,
+            523
+          ],
+          [
+            756,
+            760
+          ]
+        ],
+        "assessment": "已补当前净额执行按净账验收、批准条件下逐笔独立场所落地后改毛账、生效前净账维持，保留毛净对账。FG-021含执行形态、验收账本与生效依据的观察义务；FG-023/034承接ADR0021:73/#937条件；FE-10/11在JSON主场景和MD末尾L758/L760补充段具有一致断言。未据此宣称切换已生效，未预锁旧VOICE_EXEC/sep_legs组织。"
+      }
+    }
+  ],
+  "coverage": {
+    "requirements_reviewed": 35,
+    "scenarios_reviewed": 11,
+    "unresolved_groups_reviewed": 7,
+    "requirement_source_references_read": 100,
+    "unique_cited_source_files": 22,
+    "unique_cited_source_lines": 1172,
+    "source_hashes_matched_author": 22,
+    "markdown_json_requirement_fields_checked": 175,
+    "markdown_json_mismatches": [],
+    "mechanical_pointer_check_not_semantic_reading_credit": true
+  },
+  "source_read_manifest": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/fengkong.md",
+      "sha256": "82b25e1dd9227310ca7ba4248022c04d82c3d16c002fac15146a56947df0d494",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          30,
+          34
+        ],
+        [
+          274,
+          286
+        ],
+        [
+          364,
+          367
+        ]
+      ],
+      "unique_cited_lines": 22,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/qujiantao.md",
+      "sha256": "6a4f8e0a152f31e3e9aa90d3d88a4f715d347b11682d267b61eb86073f98fdd3",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          495,
+          513
+        ],
+        [
+          1024,
+          1049
+        ],
+        [
+          1100,
+          1108
+        ],
+        [
+          1201,
+          1201
+        ]
+      ],
+      "unique_cited_lines": 55,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+      "sha256": "0df94022d60f4d07bb6a023d2cdc380c4c35d15d541c31411d1b10d83b18c2c5",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          9,
+          15
+        ],
+        [
+          29,
+          33
+        ],
+        [
+          35,
+          45
+        ],
+        [
+          47,
+          51
+        ],
+        [
+          74,
+          89
+        ],
+        [
+          249,
+          267
+        ],
+        [
+          281,
+          293
+        ],
+        [
+          295,
+          297
+        ]
+      ],
+      "unique_cited_lines": 79,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0010-chong-persistent-operating-unit.md",
+      "sha256": "d4b15a7d59156aeb347d01f8d6805c3c14b22d05b5667f84b087abe51da6b050",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          19,
+          27
+        ],
+        [
+          49,
+          54
+        ]
+      ],
+      "unique_cited_lines": 15,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+      "sha256": "30098873c67878af850e8ff9502fdf69e332343e3576e551bab6768d6eb59860",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          13,
+          21
+        ],
+        [
+          25,
+          39
+        ],
+        [
+          55,
+          85
+        ],
+        [
+          88,
+          99
+        ]
+      ],
+      "unique_cited_lines": 67,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+      "sha256": "d2412a9bd0404e930b89c2522d76f99e6cb917047139f9cd5f658679a2253cb5",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          15,
+          27
+        ],
+        [
+          29,
+          46
+        ],
+        [
+          48,
+          85
+        ],
+        [
+          87,
+          113
+        ],
+        [
+          115,
+          129
+        ],
+        [
+          235,
+          274
+        ],
+        [
+          289,
+          290
+        ]
+      ],
+      "unique_cited_lines": 153,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+      "sha256": "8cb9c8ad9fba6d85a544ec68ea319a9e36e6dab113933a775a66ff8d58c49a73",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          17,
+          30
+        ],
+        [
+          32,
+          60
+        ]
+      ],
+      "unique_cited_lines": 43,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0015-cost-trajectory-acceptance-metric.md",
+      "sha256": "4f01a99c5bb888b0b12eb7047cb256bcb96db2d7d42fc4bb3254f7654be6e8e8",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          17,
+          79
+        ],
+        [
+          83,
+          94
+        ]
+      ],
+      "unique_cited_lines": 75,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+      "sha256": "83cfd1e1b3ff62a2f87b27cf5027703ea8c30e2c97441ec8079560c0110fb06c",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          68,
+          102
+        ],
+        [
+          104,
+          159
+        ],
+        [
+          182,
+          188
+        ]
+      ],
+      "unique_cited_lines": 98,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+      "sha256": "8f132dabcd8c69d78113173c34b78c6e797e7c89bf20b990d46c65a97ca27222",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          45,
+          46
+        ],
+        [
+          52,
+          75
+        ],
+        [
+          91,
+          109
+        ],
+        [
+          111,
+          153
+        ],
+        [
+          176,
+          195
+        ],
+        [
+          211,
+          251
+        ]
+      ],
+      "unique_cited_lines": 149,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0018-limit-order-fill-model.md",
+      "sha256": "8e56fa7a415c617addb1ab3122ff0e13ed55f2f128d5c8cdd7fe3c0449cebdd9",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          69,
+          169
+        ]
+      ],
+      "unique_cited_lines": 101,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0019-limit-order-state-flow-interface.md",
+      "sha256": "f4a22720edb43c24354d02120ad78a78b10ac755fe1fd053039a5b1a3a5f01cd",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          39,
+          57
+        ],
+        [
+          79,
+          85
+        ],
+        [
+          101,
+          123
+        ],
+        [
+          249,
+          253
+        ],
+        [
+          306,
+          310
+        ],
+        [
+          361,
+          374
+        ],
+        [
+          456,
+          511
+        ]
+      ],
+      "unique_cited_lines": 129,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0020-backtest-cash-live-perp-filtered.md",
+      "sha256": "383777615a0a9796b2646ccd720a24e60e8cebfd01ec92b0f6529d9f48663e84",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          141,
+          160
+        ]
+      ],
+      "unique_cited_lines": 20,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0021-venue-selection-deferred.md",
+      "sha256": "a8a18e71653cc4a33efd84c1a3d8ed3e8556554d83e127d6937184ec84df7de0",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          7,
+          13
+        ],
+        [
+          54,
+          81
+        ]
+      ],
+      "unique_cited_lines": 35,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0022-acceptance-criterion-parameters.md",
+      "sha256": "bb80d2ef56ad8e42015051fdf19e4ee07281f05365dd95a9e406c85448a22773",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          13,
+          58
+        ]
+      ],
+      "unique_cited_lines": 46,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+      "sha256": "78fdad819328c7bb29703711cfcdcbfbf4a0b40cde8f713ae7b844fa719013fb",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          13,
+          44
+        ]
+      ],
+      "unique_cited_lines": 32,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/026-第26课.md",
+      "sha256": "196024ed0c823c9b0a7137c876bd69e421aae01076aac42cdca49fcb1384dea5",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          34,
+          34
+        ]
+      ],
+      "unique_cited_lines": 1,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/031-第31课.md",
+      "sha256": "c784ee15c21cef965b6e073a89224e56b29bad03a9ecd1dc9e130c54083d47d5",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          24,
+          30
+        ],
+        [
+          169,
+          169
+        ]
+      ],
+      "unique_cited_lines": 8,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/035-第35课.md",
+      "sha256": "0bb81a62b58ecf8900f6c40227194c1fbb139975bae5aa34d7a881363067b023",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          30,
+          36
+        ]
+      ],
+      "unique_cited_lines": 7,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/038-第38课.md",
+      "sha256": "983ce94575d61ed645fcc753eb59f9a28e8e749826a30d7bf87f19721baedc7b",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          18,
+          30
+        ]
+      ],
+      "unique_cited_lines": 13,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/040-第40课.md",
+      "sha256": "12e5884bf07671fdb63ff4c4efa96a7385c95c88150a7305d4b3a02efc7097e1",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          14,
+          22
+        ]
+      ],
+      "unique_cited_lines": 9,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/049-第49课.md",
+      "sha256": "9aacf49b222c2bda2f607d7b918590ceebaac1194bab87c9af9e073a8fd25bcb",
+      "matches_author_manifest": true,
+      "actual_reviewed_cited_ranges": [
+        [
+          50,
+          64
+        ]
+      ],
+      "unique_cited_lines": 15,
+      "claim": "逐字读取引用行并审该条主张；非全文精读/实现审查"
+    }
+  ],
+  "supplemental_reading": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+      "lines": [
+        [
+          1,
+          12
+        ],
+        [
+          45,
+          67
+        ]
+      ],
+      "purpose": "确认日期、作用与下游范围，未把源代码现状当今日实现。"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/031-第31课.md",
+      "lines": [
+        [
+          163,
+          171
+        ]
+      ],
+      "purpose": "确认169为作者答疑，不是主体正文。"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/qujiantao.md",
+      "lines": [
+        [
+          1,
+          30
+        ]
+      ],
+      "purpose": "确认完整正本与后裁来源状态。"
+    },
+    {
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/937",
+      "read_method": "gh issue view --json body,comments",
+      "source_comment": "https://github.com/xy7365527-lang/NewChanlun/issues/937#issuecomment-5309565712",
+      "observed_state": "CLOSED",
+      "purpose": "核条件式毛账验收裁定及生效前净账维持。"
+    },
+    {
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1339",
+      "read_method": "gh issue view --json body",
+      "observed_state": "OPEN",
+      "purpose": "核用户目标与工程草案授权边界，不据票面新造非空经营或三重门。"
+    }
+  ],
+  "per_requirement_review": [
+    {
+      "id": "FG-001",
+      "title": "N个持久重与专属筹码身份",
+      "author_json_pointer": "/requirements/0",
+      "author_markdown_lines": [
+        49,
+        61
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            19,
+            27
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            9,
+            14
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/038-第38课.md",
+          "lines": [
+            30,
+            30
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/040-第40课.md",
+          "lines": [
+            20,
+            22
+          ]
+        }
+      ],
+      "source_reference_count": 4,
+      "review_status": "需修订",
+      "finding_ids": [
+        "FG-M01"
+      ],
+      "assessment": "领域定义和持久性有据；最低三重数量门无据，见FG-M01。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-002",
+      "title": "独立资金和权利与共同上限同时成立",
+      "author_json_pointer": "/requirements/1",
+      "author_markdown_lines": [
+        63,
+        75
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            15,
+            27
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            32,
+            44
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            13,
+            20
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "独立资金、逐重权利与总不等式有据；闲置/净省不授权跨重再部署。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-003",
+      "title": "目标、一个成本与一个TStage随重持久",
+      "author_json_pointer": "/requirements/2",
+      "author_markdown_lines": [
+        77,
+        89
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            49,
+            54
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            29,
+            46
+          ]
+        }
+      ],
+      "source_reference_count": 2,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "一个重一个成本/TStage有据；结构级别不另造TStage，状态不进身份键。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-004",
+      "title": "一次Voice的生命周期与不可变开局依据",
+      "author_json_pointer": "/requirements/3",
+      "author_markdown_lines": [
+        91,
+        103
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            35,
+            45
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            47,
+            51
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            123,
+            132
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "一次Voice不可变/出场终结与持久重分开有据；重复消息验收属于工程草案补充。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-005",
+      "title": "重内有向合成且不穿零",
+      "author_json_pointer": "/requirements/4",
+      "author_markdown_lines": [
+        105,
+        117
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            17,
+            30
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            15,
+            15
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/026-第26课.md",
+          "lines": [
+            34,
+            34
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "重内[0,Q]不穿零有据；这是合成后的重状态，不把反向子腿当独立重。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-006",
+      "title": "重间不作方向仲裁",
+      "author_json_pointer": "/requirements/5",
+      "author_markdown_lines": [
+        119,
+        131
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            32,
+            60
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            87,
+            113
+          ]
+        }
+      ],
+      "source_reference_count": 2,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "重间不仲裁及高层退出不消灭独立重预算有据；并发资金政策保持未定。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-007",
+      "title": "结构级别、操作级别、Voice代际和区间套深度分开",
+      "author_json_pointer": "/requirements/6",
+      "author_markdown_lines": [
+        133,
+        145
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            29,
+            33
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            74,
+            89
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            33,
+            46
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            45,
+            46
+          ]
+        }
+      ],
+      "source_reference_count": 4,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "结构/操作/Voice相对代际/区间套深度区分有据；没有把历史相对坐标关系外推全球身份。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-008",
+      "title": "三方向联立且经营结果不回写结构",
+      "author_json_pointer": "/requirements/7",
+      "author_markdown_lines": [
+        147,
+        159
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            13,
+            21
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            88,
+            99
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            115,
+            129
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "三方向与不回写结构有据；未把三个作用直接变三个服务。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-009",
+      "title": "同级别操作分解的唯一性与角色",
+      "author_json_pointer": "/requirements/8",
+      "author_markdown_lines": [
+        161,
+        173
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            25,
+            39
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+          "lines": [
+            55,
+            85
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/038-第38课.md",
+          "lines": [
+            18,
+            30
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "固定规则唯一性及按角色区别已标ADR推论背景；没有将角色推广冒称第38课逐字原文。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-010",
+      "title": "主动定位过程、可知边界和未成功原因",
+      "author_json_pointer": "/requirements/9",
+      "author_markdown_lines": [
+        175,
+        187
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            119,
+            129
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            235,
+            274
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/035-第35课.md",
+          "lines": [
+            30,
+            36
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/qujiantao.md",
+          "lines": [
+            1024,
+            1049
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/qujiantao.md",
+          "lines": [
+            1100,
+            1108
+          ]
+        }
+      ],
+      "source_reference_count": 5,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "每级一类已排除；EmptySubs/NoAlign/DivFalse、不适用及几何链长边界已承接后裁。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-011",
+      "title": "可操作下限包含成本、误差与交易制度",
+      "author_json_pointer": "/requirements/10",
+      "author_markdown_lines": [
+        189,
+        201
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/035-第35课.md",
+          "lines": [
+            30,
+            32
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            289,
+            290
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/fengkong.md",
+          "lines": [
+            274,
+            286
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/qujiantao.md",
+          "lines": [
+            495,
+            513
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/qujiantao.md",
+          "lines": [
+            1201,
+            1201
+          ]
+        }
+      ],
+      "source_reference_count": 5,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "成本/误差/T+1与塔底先到者有据；进一步下延为已批方向待条件，未新增本轮实施授权。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-012",
+      "title": "满仓基线、回本前同量回补",
+      "author_json_pointer": "/requirements/11",
+      "author_markdown_lines": [
+        203,
+        215
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            52,
+            75
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            74,
+            85
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/026-第26课.md",
+          "lines": [
+            34,
+            34
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/031-第31课.md",
+          "lines": [
+            24,
+            30
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/031-第31课.md",
+          "lines": [
+            169,
+            169
+          ]
+        }
+      ],
+      "source_reference_count": 5,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "固定基线与回本前同量有据；目标一次建足与真实分批成交分开。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-013",
+      "title": "中枢震荡、移动与回补终止域",
+      "author_json_pointer": "/requirements/12",
+      "author_markdown_lines": [
+        217,
+        229
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            91,
+            109
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/049-第49课.md",
+          "lines": [
+            50,
+            64
+          ]
+        }
+      ],
+      "source_reference_count": 2,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "震荡/中枢完成移动/三卖终止有据；只禁本重短差，不静默其它独立重。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-014",
+      "title": "重内动作量的固定基与经验有效域",
+      "author_json_pointer": "/requirements/13",
+      "author_markdown_lines": [
+        231,
+        243
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            111,
+            153
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            176,
+            195
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            211,
+            251
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "w(d)×Q和容量比公式有已裁选择；底档经验值、上档不可判、非置信区间的限制已保留。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-015",
+      "title": "成本只随真实经济事件变化并包括亏损",
+      "author_json_pointer": "/requirements/14",
+      "author_markdown_lines": [
+        245,
+        257
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0015-cost-trajectory-acceptance-metric.md",
+          "lines": [
+            33,
+            53
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0015-cost-trajectory-acceptance-metric.md",
+          "lines": [
+            83,
+            94
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            27,
+            32
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            295,
+            297
+          ]
+        }
+      ],
+      "source_reference_count": 4,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "真实亏损与费用均入账有据；行情估值变化不直接变成本，负现金不等继续部署。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-016",
+      "title": "本金回收闸门和多空阶段非对称",
+      "author_json_pointer": "/requirements/15",
+      "author_markdown_lines": [
+        259,
+        271
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            48,
+            85
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/031-第31课.md",
+          "lines": [
+            24,
+            30
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/031-第31课.md",
+          "lines": [
+            169,
+            169
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "多头三阶段/线性空头两相有据；空头回本仍有债务风险，未把虚拟分账当物理隔离。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-017",
+      "title": "回本后增长与固定Q的衔接不能暗填",
+      "author_json_pointer": "/requirements/16",
+      "author_markdown_lines": [
+        273,
+        285
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            74,
+            85
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            135,
+            159
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+          "lines": [
+            113,
+            132
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "增长义务保留且未直接改Q；会计衔接未定应受ADR0017:119固定Q/换档已定规则约束，本轮不裁新钱。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-018",
+      "title": "规模取容量、开局从最低可行级别向上",
+      "author_json_pointer": "/requirements/17",
+      "author_markdown_lines": [
+        287,
+        299
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            68,
+            102
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            182,
+            188
+          ]
+        }
+      ],
+      "source_reference_count": 2,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "规模/最低可行级别/向上承载有据；当前按固定品种第一套经营，不从ADR残留引入K4或换股。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-019",
+      "title": "容量与频率两道独立门",
+      "author_json_pointer": "/requirements/18",
+      "author_markdown_lines": [
+        301,
+        313
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            104,
+            124
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            35,
+            49
+          ]
+        }
+      ],
+      "source_reference_count": 2,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "容量与频率分门、买卖分列/稀疏不可判有据，未暗填低频数值。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-020",
+      "title": "行情换档与资金溢出换档分别保留",
+      "author_json_pointer": "/requirements/19",
+      "author_markdown_lines": [
+        315,
+        327
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            25,
+            25
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            125,
+            159
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/040-第40课.md",
+          "lines": [
+            14,
+            22
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "行情主体升级部分保留与W>C溢出两触发有据，未混为同机制。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-021",
+      "title": "毛账归因与净额外效分离",
+      "author_json_pointer": "/requirements/20",
+      "author_markdown_lines": [
+        329,
+        341
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            32,
+            44
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            17,
+            25
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            281,
+            293
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "需修订",
+      "finding_ids": [
+        "FG-M03"
+      ],
+      "assessment": "毛权利/净外效分开有据；净账验收被写得过于通用，漏条件切换，见FG-M03。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-022",
+      "title": "净省禁复用覆盖并发、撤回和在途",
+      "author_json_pointer": "/requirements/21",
+      "author_markdown_lines": [
+        343,
+        355
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md",
+          "lines": [
+            34,
+            44
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            34,
+            44
+          ]
+        }
+      ],
+      "source_reference_count": 2,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "净省禁复用有据；预留/未知外效/重启只是所需工程状态，未暗定提交组织。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-023",
+      "title": "费用方向、计提坐标和解锁条件",
+      "author_json_pointer": "/requirements/22",
+      "author_markdown_lines": [
+        357,
+        369
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0015-cost-trajectory-acceptance-metric.md",
+          "lines": [
+            83,
+            94
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            41,
+            44
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            66,
+            81
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            22,
+            26
+          ]
+        }
+      ],
+      "source_reference_count": 4,
+      "review_status": "需修订",
+      "finding_ids": [
+        "FG-M03"
+      ],
+      "assessment": "毛funding与空腿borrow坐标及真实收费/内部归因分开有据；须补#937条件分支，见FG-M03。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-024",
+      "title": "共同毛净上限与对账关系",
+      "author_json_pointer": "/requirements/23",
+      "author_markdown_lines": [
+        371,
+        383
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            13,
+            39
+          ]
+        }
+      ],
+      "source_reference_count": 1,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "毛净上限/杠杆/无成本与分费后对账有据；形式化和cap数值未冒称已定/已证。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-025",
+      "title": "经营验收用成本事件并保留统计边界",
+      "author_json_pointer": "/requirements/24",
+      "author_markdown_lines": [
+        385,
+        397
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0015-cost-trajectory-acceptance-metric.md",
+          "lines": [
+            17,
+            79
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            13,
+            58
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            295,
+            297
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "95%下界、月块、30事件/12月/3窗/50%来自已裁ADR0022，不是作者新设；保留亏损与取样张力。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-026",
+      "title": "结构事实、经营答案、外部事实和有效性分开输出",
+      "author_json_pointer": "/requirements/25",
+      "author_markdown_lines": [
+        399,
+        411
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            249,
+            267
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            79,
+            85
+          ]
+        }
+      ],
+      "source_reference_count": 2,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "原始多谓词与typed exit互斥区分正确；观察字段明确工程草案，未让前端另判。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-027",
+      "title": "订单身份、冻结量、当前挂价与旧框清算区分",
+      "author_json_pointer": "/requirements/26",
+      "author_markdown_lines": [
+        413,
+        425
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            101,
+            123
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            306,
+            310
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            361,
+            374
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            456,
+            511
+          ]
+        }
+      ],
+      "source_reference_count": 4,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "裸start_index、qty冻结、现框挂价/旧框清算在回测有效域内有据；未升成全球ID。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-028",
+      "title": "回测成交假设与真实外部成交不能混证",
+      "author_json_pointer": "/requirements/27",
+      "author_markdown_lines": [
+        427,
+        439
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0018-limit-order-fill-model.md",
+          "lines": [
+            69,
+            169
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            39,
+            57
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0019-limit-order-state-flow-interface.md",
+          "lines": [
+            249,
+            253
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "严格穿越/开盘取优/GTC/双滑点纪律有据；已指出旧单净单不可达不能排除N重并发，未冒称venue撮合。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-029",
+      "title": "部分成交、重复和乱序事实的完整接纳",
+      "author_json_pointer": "/requirements/28",
+      "author_markdown_lines": [
+        441,
+        453
+      ],
+      "sources_read": [],
+      "source_reference_count": 0,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "没有独立教义引文，明确工程草案；与#1339部分成交/在途责任要求相容，例中比例是示例而非领域常数。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-030",
+      "title": "结构撤回后处理真实在途与退出",
+      "author_json_pointer": "/requirements/29",
+      "author_markdown_lines": [
+        455,
+        467
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/049-第49课.md",
+          "lines": [
+            52,
+            62
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/fengkong.md",
+          "lines": [
+            30,
+            34
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/fengkong.md",
+          "lines": [
+            364,
+            367
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "#659生成态退出降级已承接；撤回后真实事实/未决尾账处理为工程草案，没有新定均线硬门。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-031",
+      "title": "退出后的在途尾账不随业务实体删除",
+      "author_json_pointer": "/requirements/30",
+      "author_markdown_lines": [
+        469,
+        481
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0010-chong-persistent-operating-unit.md",
+          "lines": [
+            49,
+            54
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+          "lines": [
+            47,
+            51
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0013-partition-machine-bidirectional-form.md",
+          "lines": [
+            87,
+            91
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "业务终态与外部责任结清分开符合目标；父Voice剪枝没有扩到独立重。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-032",
+      "title": "恢复必须恢复非空经营与经济责任",
+      "author_json_pointer": "/requirements/31",
+      "author_markdown_lines": [
+        483,
+        495
+      ],
+      "sources_read": [],
+      "source_reference_count": 0,
+      "review_status": "需修订",
+      "finding_ids": [
+        "FG-M02"
+      ],
+      "assessment": "持仓/成本/阶段/未决外效恢复内容符合用户目标；“非空经营”自造名称及三重设定须去除，见FG-M01/M02。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-033",
+      "title": "同源一致观察与按当时可知回放",
+      "author_json_pointer": "/requirements/32",
+      "author_markdown_lines": [
+        497,
+        509
+      ],
+      "sources_read": [],
+      "source_reference_count": 0,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "切面可为版本组合且当时可知/后修订分开；无全局单事务预设，具体协议待架构。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-034",
+      "title": "结构源和执行源分离、场所不预锁",
+      "author_json_pointer": "/requirements/33",
+      "author_markdown_lines": [
+        511,
+        523
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0020-backtest-cash-live-perp-filtered.md",
+          "lines": [
+            141,
+            160
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            7,
+            13
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            54,
+            81
+          ]
+        }
+      ],
+      "source_reference_count": 3,
+      "review_status": "需修订",
+      "finding_ids": [
+        "FG-M03"
+      ],
+      "assessment": "ADR0020最新统一美股tick/执行源分离已用正确后裁；但条件式账本切换未带出，见FG-M03。",
+      "runtime_acceptance": "not-run"
+    },
+    {
+      "id": "FG-035",
+      "title": "未定钱规则和软件组织保持显式未定",
+      "author_json_pointer": "/requirements/34",
+      "author_markdown_lines": [
+        525,
+        537
+      ],
+      "sources_read": [
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md",
+          "lines": [
+            182,
+            188
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            26,
+            26
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0022-acceptance-criterion-parameters.md",
+          "lines": [
+            41,
+            43
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+          "lines": [
+            29,
+            43
+          ]
+        },
+        {
+          "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/fengkong.md",
+          "lines": [
+            30,
+            34
+          ]
+        }
+      ],
+      "source_reference_count": 5,
+      "review_status": "有界来源与名分核查未发现阻断项",
+      "finding_ids": [],
+      "assessment": "未定钱规则/权限与软件选择明确保留；未预设B/A2/C3，也未把已定部分全部降未定。",
+      "runtime_acceptance": "not-run"
+    }
+  ],
+  "per_scenario_review": [
+    {
+      "id": "FE-01",
+      "author_json_pointer": "/e2e_scenarios/0",
+      "finding_ids": [
+        "FG-M01",
+        "FG-M02"
+      ],
+      "assessment": "跨多次经营、三方向、损益和主线可追明确；删三重门和自造非空经营标题，不删除完整经营行为。",
+      "actual_execution": "not-run"
+    },
+    {
+      "id": "FE-02",
+      "author_json_pointer": "/e2e_scenarios/1",
+      "finding_ids": [
+        "FG-M01"
+      ],
+      "assessment": "相反重、净零仍有毛责任、净省禁复用、单边退出已覆盖；第三请求只可说明行为，不是最低三重要求。",
+      "actual_execution": "not-run"
+    },
+    {
+      "id": "FE-03",
+      "author_json_pointer": "/e2e_scenarios/2",
+      "finding_ids": [],
+      "assessment": "减持/部分成交/乱序重复/亏损/核心修订/三卖后尾账覆盖明确；例用40/20为测试输入，无生产比例裁定。",
+      "actual_execution": "not-run"
+    },
+    {
+      "id": "FE-04",
+      "author_json_pointer": "/e2e_scenarios/3",
+      "finding_ids": [],
+      "assessment": "降成本→本金回收→多头赚股、空头风险及费用后重评覆盖；增长政策必须测试标识且不替用户裁定。",
+      "actual_execution": "not-run"
+    },
+    {
+      "id": "FE-05",
+      "author_json_pointer": "/e2e_scenarios/4",
+      "finding_ids": [],
+      "assessment": "联立与主动反复下钻、成本制度改变经营可行性、知识不足和因果时点覆盖；两步反复是行为见证，不是可交易深度上限。",
+      "actual_execution": "not-run"
+    },
+    {
+      "id": "FE-06",
+      "author_json_pointer": "/e2e_scenarios/5",
+      "finding_ids": [],
+      "assessment": "两类换档、容量频率不足/未知、并发请求和cap紧张均覆盖；资源政策待设计不伪装通过。",
+      "actual_execution": "not-run"
+    },
+    {
+      "id": "FE-07",
+      "author_json_pointer": "/e2e_scenarios/6",
+      "finding_ids": [],
+      "assessment": "撤回后停止新准入、迟到成交/费用/取消失败、新旧责任归属覆盖。",
+      "actual_execution": "not-run"
+    },
+    {
+      "id": "FE-08",
+      "author_json_pointer": "/e2e_scenarios/7",
+      "finding_ids": [
+        "FG-M01",
+        "FG-M02"
+      ],
+      "assessment": "四个崩溃位置、重复/乱序、未知责任与重新准入前对账覆盖；删固定三重和非空恢复新名称。",
+      "actual_execution": "not-run"
+    },
+    {
+      "id": "FE-09",
+      "author_json_pointer": "/e2e_scenarios/8",
+      "finding_ids": [],
+      "assessment": "客户端续接、快照补齐、当时可知/后修订、旧会话隔离覆盖；不运行就不声称一致。",
+      "actual_execution": "not-run"
+    },
+    {
+      "id": "FE-10",
+      "author_json_pointer": "/e2e_scenarios/9",
+      "finding_ids": [
+        "FG-M03"
+      ],
+      "assessment": "模拟模型、混合同slot、断流拒单停牌/强结、权限和隔离来源分清；须带#937条件式账本验收分支。",
+      "actual_execution": "not-run"
+    },
+    {
+      "id": "FE-11",
+      "author_json_pointer": "/e2e_scenarios/10",
+      "finding_ids": [
+        "FG-M03"
+      ],
+      "assessment": "正负事件、稀疏与窗不足、账目对账/杠杆、软件/指标/venue分证覆盖；须说明条件切换后的账目口径。",
+      "actual_execution": "not-run"
+    }
+  ],
+  "per_unresolved_review": [
+    {
+      "id": "FU-01",
+      "author_json_pointer": "/unresolved/0",
+      "assessment": "本金/保证金/增长权益、分红除权和阶段退回/零分母需保留；不把成本已定公式全部重开。",
+      "new_decision_made": false
+    },
+    {
+      "id": "FU-02",
+      "author_json_pointer": "/unresolved/1",
+      "assessment": "测量/绝对容量/总投入和权利分拆表示保持未定；固定Q及增长走换档已有后裁，未定范围须守其边界。",
+      "new_decision_made": false
+    },
+    {
+      "id": "FU-03",
+      "author_json_pointer": "/unresolved/2",
+      "assessment": "资金不足下协调、实际净外效归因、费用/部分成交配对未暗定FIFO或资金优先级。",
+      "new_decision_made": false
+    },
+    {
+      "id": "FU-04",
+      "author_json_pointer": "/unresolved/3",
+      "assessment": "真实场所何时获授权是运行范围问题；只读需求准备不需要先得到实盘权限。补#937后仍不得现在自动切换。",
+      "new_decision_made": false
+    },
+    {
+      "id": "FU-05",
+      "author_json_pointer": "/unresolved/4",
+      "assessment": "ADR0022成本下降采样与费后非正零假设张力被显式保留，全部正负事件先存不偏删。",
+      "new_decision_made": false
+    },
+    {
+      "id": "FU-06",
+      "author_json_pointer": "/unresolved/5",
+      "assessment": "用户允许新架构但未确认需求范围；三案及新方案均不能先定组织，保留正确。",
+      "new_decision_made": false
+    },
+    {
+      "id": "FU-07",
+      "author_json_pointer": "/unresolved/6",
+      "assessment": "#659均线退出语义冻结未被升级新硬门；退出权限细则不由报告补填。",
+      "new_decision_made": false
+    }
+  ],
+  "scope_correction": {
+    "latest_user_constraint": "K4拓扑与NewChanlun是不同仓库；本轮不得纳入K4或驱动换股经营，不向用户重新询问已纠正边界。",
+    "fg_text_literal_result": "FUGUE.md/json未发现直接K4或换股条目，因此不伪造FG含该需求的finding。",
+    "source_residue": "CONTEXT.md:13将K4列本仓支柱的历史归属文字不得作为当前仓库/任务边界；只可保留本轮相关的固定品种经营语义。",
+    "self_coined_terms": "本稿对非空经营/非空恢复与至少三重分别报FG-M01/M02，不撤掉完整多重赋格。"
+  },
+  "source_attribution_checks": [
+    "31课169已回查163–171，是作者答疑，无内注，不标主体正文。",
+    "49课52含行内娇注，FG摘用注外语义；正文界78已核。",
+    "26/35/38/40所引行均在正文界前；正文界分别40/38/44/24。",
+    "fengkong:31为生成态无结算裁定，#659:34仅标注/降级；没有把生成态整件当当前新硬门。",
+    "qujiantao早段499与后落点1201共同读取；成本门与塔底先到者、非每级一类与不适用不能当true已保留。",
+    "ADR0020:141–160更新优先于旧标题/A-C双源；FG已正确使用。",
+    "ADR0019回测单净单/挂单键有效域未被FG推广成完整N重全球ID或真实撮合保证。"
+  ],
+  "not_reviewed_or_not_claimed": [
+    "没有审EV、ST、OB或总汇稿。",
+    "没有全文复读作者read_manifest的27件；只读35项直接引用所涉22件的1172个去重行和列明补充范围。",
+    "没有通读全部教义/110课，未审这些文件所有未引用主张。",
+    "没有回读引用链中的旧分析、旧#1321/#1322/#1325/#1326原件、封存候选方案、原始实测数据或PDF。",
+    "没有代码符合性、Lean证明、编译/测试、服务/UI、交易、回放、崩溃恢复或性能运行；全部not-run。",
+    "没有批准需求范围、钱规则、架构采纳、实施、实盘或Git/main合入。"
+  ],
+  "mutations": "本轮只更新review/REVIEW-FG.md/json；原审缺陷/证据/逐条记录及前后字节绑定保留，作者稿与仓内来源均未改。",
+  "initial_review": {
+    "reviewed_at_utc": "2026-09-08T07:05:06.965820+00:00",
+    "verdict": "REVISE_REQUIREMENTS_DRAFT",
+    "findings_count": {
+      "H": 0,
+      "M": 3,
+      "L": 0
+    },
+    "author_input_bindings": [
+      {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+        "sha256": "b86ad5c3d076a044cf54578a7d44c8c1b3d4fd3a9fe403e40da4687bc7307adc",
+        "bytes": 58701
+      },
+      {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "sha256": "22cea673739b999fd19edc25a8acb40fa74fdce67475d43d62bec695c01b7f65",
+        "bytes": 85170
+      }
+    ],
+    "review_json_sha256": "ac57c9b918ad6d36d3ab9c56e75e836ad7df8d2f219fe05c0eae8209f33ce0eb",
+    "review_md_sha256": "f43b4132384879a442da710b21de56dd788b54bdd5624c33124c51ef578c7ab9",
+    "findings": [
+      {
+        "id": "FG-M01",
+        "severity": "M",
+        "title": "N个持久重被额外改成至少三个重的验收数量门",
+        "locations": [
+          {
+            "markdown": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+              "lines": [
+                53,
+                57
+              ]
+            },
+            "json": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+              "pointers": [
+                "/requirements/0/boundary",
+                "/requirements/0/acceptance"
+              ]
+            }
+          },
+          {
+            "markdown": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+              "lines": [
+                543,
+                545
+              ]
+            },
+            "json": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+              "pointers": [
+                "/e2e_scenarios/0/setup"
+              ]
+            }
+          },
+          {
+            "markdown": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+              "lines": [
+                634,
+                636
+              ]
+            },
+            "json": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+              "pointers": [
+                "/e2e_scenarios/7/setup"
+              ]
+            }
+          }
+        ],
+        "problem": "FG-001把已定的N个持久重与跨多次经营写成“至少三个非空重”；FE-01/FE-08再固定三重。这是作者新增的最低数量和组合fixture门，没有相应用户要求或源裁定，且用户现已明确纠正。支持N重不等于用户要求必须先过三重数量验收。",
+        "source_evidence": [
+          {
+            "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0010-chong-persistent-operating-unit.md",
+            "lines": [
+              23,
+              25
+            ],
+            "observation": "定义重的三要件及独立筹码判别，不规定最低三重。"
+          },
+          {
+            "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0011-operation-decomposition-layer.md",
+            "lines": [
+              37,
+              39
+            ],
+            "observation": "要求多个同时存在，未增加至少三重的数量门。"
+          },
+          {
+            "path": "/Users/silencehan/Projects/NewChanlun/docs/chanlun/text/blog/040-第40课.md",
+            "lines": [
+              20,
+              22
+            ],
+            "observation": "写N重和独立资金筹码/节奏，不规定至少三个验收对象。"
+          }
+        ],
+        "latest_user_constraint": "用户已纠正“至少三个重”是草案额外添加的验收数量；不由本轮再请求确认该数量。",
+        "required_change": "删除至少三重/三重固定起点等新增数量门。回到N个持久重可配置并存、各自持仓/成本/Voice历史独立、相反动作不仲裁、退出尾账可归属的具体行为；场景中只为说明行为使用的对象应标示例，不得成为用户需求数量。不得因此删除完整多重赋格。",
+        "affected_requirements": [
+          "FG-001"
+        ],
+        "affected_scenarios": [
+          "FE-01",
+          "FE-02",
+          "FE-08"
+        ],
+        "status": "OPEN"
+      },
+      {
+        "id": "FG-M02",
+        "severity": "M",
+        "title": "用“非空经营/非空恢复”重新命名用户未提出的验收对象",
+        "locations": [
+          {
+            "markdown": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+              "lines": [
+                483,
+                491
+              ]
+            },
+            "json": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+              "pointers": [
+                "/requirements/31/title",
+                "/requirements/31/acceptance"
+              ]
+            }
+          },
+          {
+            "markdown": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+              "lines": [
+                543,
+                545
+              ]
+            },
+            "json": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+              "pointers": [
+                "/e2e_scenarios/0/title"
+              ]
+            }
+          },
+          {
+            "markdown": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+              "lines": [
+                634,
+                636
+              ]
+            },
+            "json": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+              "pointers": [
+                "/e2e_scenarios/7/title"
+              ]
+            }
+          }
+        ],
+        "problem": "“恢复必须恢复非空经营”“完整非空持久经营”“非空恢复”是作者组织验证的标签，被写成FG需求名和完整场景名。它没有独立领域定义/用户出处，容易把用户的完整多重赋格转成一个新造名词；用户现已明确质疑该扩写。防止只测空账户的意图应落在可观察事实和具体行为，而不是新设经营概念。",
+        "source_evidence": [
+          {
+            "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+            "lines": [
+              9,
+              12
+            ],
+            "observation": "定义持久重及专属筹码，未定义“非空经营”。"
+          },
+          {
+            "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+            "lines": [
+              35,
+              39
+            ],
+            "observation": "已提醒不能由赋格比喻推一次Voice性质，领域词义须明确。"
+          },
+          {
+            "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1339",
+            "section": "核心目标",
+            "observation": "票面要求完整经营史、部分成交/撤回/退出/在途尾账及恢复，没有“非空经营”这个需求名。"
+          }
+        ],
+        "latest_user_constraint": "用户明确指出“多重非空经营”是草案自造术语；修复为回到既有具体行为，不请用户为自造概念背书。",
+        "required_change": "去掉“非空经营/非空恢复”等新造标题和概念化表述，直接写恢复已有持仓、成本变化、部分成交、未决订单和退出后的责任归属；保留“空账/零动作不能证明这些行为”的验证限制，但不把它命名为新的领域义务或单独阶段。",
+        "affected_requirements": [
+          "FG-032"
+        ],
+        "affected_scenarios": [
+          "FE-01",
+          "FE-08"
+        ],
+        "status": "OPEN"
+      },
+      {
+        "id": "FG-M03",
+        "severity": "M",
+        "title": "净账验收的有效域漏掉逐笔独立后的条件式毛账切换",
+        "locations": [
+          {
+            "markdown": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+              "lines": [
+                329,
+                341
+              ]
+            },
+            "json": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+              "pointers": [
+                "/requirements/20/requirement",
+                "/requirements/20/boundary"
+              ]
+            }
+          },
+          {
+            "markdown": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+              "lines": [
+                357,
+                369
+              ]
+            },
+            "json": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+              "pointers": [
+                "/requirements/22/boundary"
+              ]
+            }
+          },
+          {
+            "markdown": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.md",
+              "lines": [
+                511,
+                521
+              ]
+            },
+            "json": {
+              "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+              "pointers": [
+                "/requirements/33/requirement",
+                "/requirements/33/boundary"
+              ]
+            }
+          }
+        ],
+        "problem": "FG-021把“净额成交按实际外效验收、毛账解释归因”作为通用已定边界，FG-023只保留“逐腿出口另案资格”，FG-034谈多场所和启动权限但未承接其已引ADR0021:73的条件式账本名分切换。#937已裁：逐笔独立场所落地后验收改用毛账；生效前净账维持。省掉该分支会使后续完整执行候选按错误的统一验收口径被评估。",
+        "source_evidence": [
+          {
+            "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0024-total-ledger-convention.md",
+            "lines": [
+              17,
+              25
+            ],
+            "observation": "当前两账分工和对账要求，不能单独覆盖条件切换后的形态。"
+          },
+          {
+            "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0021-venue-selection-deferred.md",
+            "lines": [
+              66,
+              73
+            ],
+            "observation": "第4条显式承接#937：重启时携带毛账验收、相关账本切换及数学名分激活。"
+          },
+          {
+            "url": "https://github.com/xy7365527-lang/NewChanlun/issues/937#issuecomment-5309565712",
+            "section": "Resolution 问1、问4、触发器",
+            "observation": "问1明确条件式：逐笔独立场所落地后改毛账，之前净账及既有回测维持；问4是同条件切换。已用gh只读核本条Resolution。"
+          }
+        ],
+        "required_change": "为FG-021/023/034补两种执行形态的准确有效域：当前净额执行按净账验收并保毛账；若逐笔独立形态在批准条件下落地，按#937改用毛账验收并保对账关系。只记录条件，不现在启动实盘、逐腿出口或重开票；旧VOICE_EXEC/sep_legs字段是原实施载体，不得被抄成新架构的固定组织。",
+        "affected_requirements": [
+          "FG-021",
+          "FG-023",
+          "FG-034"
+        ],
+        "affected_scenarios": [
+          "FE-10",
+          "FE-11"
+        ],
+        "status": "OPEN"
+      }
+    ],
+    "scope_note": "首次逐条评审内容继续保留于per_requirement_review/per_scenario_review/per_unresolved_review和MD原审正文；其中需改/遗漏措辞属于原稿状态，最新状态以本轮复审为准。"
+  },
+  "rereview": {
+    "reviewed_at_utc": "2026-09-08T07:13:01.089328+00:00",
+    "reviewer": "/root/handoff_evidence",
+    "verdict": "PASS_WITHIN_REQUIREMENTS_REVIEW_SCOPE",
+    "open_findings_count": {
+      "H": 0,
+      "M": 0,
+      "L": 0
+    },
+    "closed_findings": [
+      "FG-M01",
+      "FG-M02",
+      "FG-M03"
+    ],
+    "baseline_snapshot_paths": [
+      "/tmp/newchanlun-1339-requirements-20260908/history/before-user-scope-correction/author/parts/FUGUE.md",
+      "/tmp/newchanlun-1339-requirements-20260908/history/before-user-scope-correction/author/parts/FUGUE.json"
+    ],
+    "baseline_hashes_match_initial_review": true,
+    "changed_json_fields_or_added_nodes": 23,
+    "json_diff": [
+      {
+        "pointer": "/e2e_scenarios/0/assertions/1",
+        "kind": "changed",
+        "before": "逐重权利和经营史不互串；至少两个已实现回收事件，不能空账过关。",
+        "after": "逐重权利和经营史不互串；实现回收事件可沿成本轨迹逐项核对，空账不能证明这些行为。"
+      },
+      {
+        "pointer": "/e2e_scenarios/0/setup",
+        "kind": "changed",
+        "before": "同一标的至少三个操作级别的独立非空重，已获有效经济参数仅作为测试fixture，不为生产授权；每个重有独立资金、成本与结构版本。",
+        "after": "多个操作级别的独立重，分别已有资金、筹码、成本和结构版本。经济参数须标为测试输入；场景中的具体数量不成为产品定义或生产授权。"
+      },
+      {
+        "pointer": "/e2e_scenarios/0/title",
+        "kind": "changed",
+        "before": "完整非空持久经营主场景",
+        "after": "持久重的完整经营过程"
+      },
+      {
+        "pointer": "/e2e_scenarios/1/setup",
+        "kind": "changed",
+        "before": "重甲持多Q1、重乙持空Q2，Q1=Q2可构造净零；第三重丙请求新权利。",
+        "after": "示例：重甲持多Q1、重乙持空Q2，取Q1=Q2观察净零；另设丙请求新权利，以检查净省禁复用。甲乙丙仅说明事件关系，不规定最低重数。"
+      },
+      {
+        "pointer": "/e2e_scenarios/5/setup",
+        "kind": "changed",
+        "before": "旧重非空且有费用/成本史；给出分别可判、稀疏、未知的容量和频率输入。",
+        "after": "旧重已有持仓、费用和成本历史；给出分别可判、稀疏、未知的容量和频率输入。"
+      },
+      {
+        "pointer": "/e2e_scenarios/7/setup",
+        "kind": "changed",
+        "before": "三重均有历史，其中一重盈利后成本变化，一重订单部分成交，一重已退出但尾账未清。",
+        "after": "多个重已有经营史；测试输入分别覆盖成本变化、订单部分成交、已退出但尾账未清，可分案例验证，不要求固定三个重。"
+      },
+      {
+        "pointer": "/e2e_scenarios/7/title",
+        "kind": "changed",
+        "before": "非空恢复与外部不确定窗口",
+        "after": "持仓和未决外效的故障恢复"
+      },
+      {
+        "pointer": "/e2e_scenarios/9/assertions/3",
+        "kind": "added",
+        "after": "分别检查当前净额执行与条件满足后的逐笔独立执行所用验收账本；测试分支不能代替切换批准。"
+      },
+      {
+        "pointer": "/e2e_scenarios/10/assertions/3",
+        "kind": "added",
+        "after": "当前净额形态与获准切换后的逐笔独立形态分别采用对应验收账本，均保留毛净对账和来源。"
+      },
+      {
+        "pointer": "/requirements/0/acceptance",
+        "kind": "changed",
+        "before": "至少三个非空重在不同操作级别并存；其中一重两次建平仓后仍保有同一经营史。",
+        "after": "多个独立重可在不同操作级别并存；重经历再次建仓后仍保有自身身份和完整经营史。具体样例数量由需要证明的行为确定，不成为产品门槛。"
+      },
+      {
+        "pointer": "/requirements/0/boundary",
+        "kind": "changed",
+        "before": "N不是写死的1或2；持久性不等于无限运行授权。旧软件中的类名/Book布局不从三要件推出。",
+        "after": "N个持久重并存的能力来自既有要求；不在本草案另加最低测试数量。持久性不等于无限运行授权，旧类名或账本布局不从重的三要件推出。"
+      },
+      {
+        "pointer": "/requirements/20/boundary",
+        "kind": "changed",
+        "before": "净额为零仍可能有两份非零经济义务；不得用虚拟分账证明真实逐仓保护。是否启用逐腿出口另有条件批准。",
+        "after": "净额为零仍可能有两份非零经济义务；不得用虚拟分账证明真实逐仓保护。ADR0021:73要求重启时携带账目与执行切换件；记录该条件不表示现在已生效或获准启动。"
+      },
+      {
+        "pointer": "/requirements/20/required_observation",
+        "kind": "changed",
+        "before": "毛多/毛空/毛占用、净目标/净成交、外效映射、差额、账实对账。",
+        "after": "毛多/毛空/毛占用、净目标/净成交、外效映射、差额、账实对账。当前执行形态、验收账本、切换条件及其生效依据。"
+      },
+      {
+        "pointer": "/requirements/20/requirement",
+        "kind": "changed",
+        "before": "逐重/逐腿的毛权利和暴露不可被物理净额抵消抹掉；净额成交按实际外效验收，毛账解释归因与杠杆。",
+        "after": "逐重/逐腿的毛权利和暴露不可被物理净额抵消抹掉。验收口径须带执行形态：当前净额执行按净账验收并保留逐重毛账；按#937条件式裁定，逐笔独立场所获准落地后改用毛账验收。生效前维持净账口径，不能把两种有效域写成同一条无条件规则。"
+      },
+      {
+        "pointer": "/requirements/20/settlement_status",
+        "kind": "changed",
+        "before": "已定（承接既有裁定，非本次重新选择）",
+        "after": "毛净分离已定；账本验收随已裁执行形态条件切换"
+      },
+      {
+        "pointer": "/requirements/20/sources/3",
+        "kind": "added",
+        "after": {
+          "path": "docs/adr/0021-venue-selection-deferred.md",
+          "lines": [
+            66,
+            81
+          ]
+        }
+      },
+      {
+        "pointer": "/requirements/22/boundary",
+        "kind": "changed",
+        "before": "ADR0024补齐口径只使逐腿出口有另案资格，未自动批准启用；费率与映射、按净执行时毛费归因不能拍脑袋。",
+        "after": "ADR0024补齐口径只使逐腿出口有另案资格，未自动批准启用；费率与映射、按净执行时毛费归因不能拍脑袋。账本验收同时遵守#937/ADR0021:73的条件式切换，毛费用坐标本身不证明该切换已生效。"
+      },
+      {
+        "pointer": "/requirements/31/acceptance",
+        "kind": "changed",
+        "before": "在非空多重、成本已变、一个未决订单和一个退出尾账时崩溃；恢复后逐项账实一致且不重复执行。",
+        "after": "在多个重已有持仓及成本变化、存在未决订单和退出尾账时模拟崩溃；恢复后逐项账实一致且不重复执行。"
+      },
+      {
+        "pointer": "/requirements/31/title",
+        "kind": "changed",
+        "before": "恢复必须恢复非空经营与经济责任",
+        "after": "恢复已有持仓、经营史与未结责任"
+      },
+      {
+        "pointer": "/requirements/33/boundary",
+        "kind": "changed",
+        "before": "ADR0020标题/前半的A/C双源与源头过滤已被141–160重写，不可复活。场所旧快照不认证当前能力/隔离，观察契约不授交易权限。",
+        "after": "ADR0020标题/前半的A/C双源与源头过滤已被141–160重写，不可复活。场所旧快照不认证当前能力/隔离，观察契约不授交易权限。ADR0021:73的重启条件携带#937账目/执行切换义务：逐笔独立形态获准落地后毛账验收，生效前净账维持；旧VOICE_EXEC/sep_legs只是原实施载体，不预锁新架构组织。"
+      },
+      {
+        "pointer": "/revision",
+        "kind": "added",
+        "after": {
+          "editor": "/root",
+          "reason": "用户范围和词义纠正、FG独评三项修改",
+          "status": "等待独立复核修订字节"
+        }
+      },
+      {
+        "pointer": "/source_corrections/4",
+        "kind": "added",
+        "after": {
+          "source": "docs/adr/0021-venue-selection-deferred.md:66-81；#937 Resolution https://github.com/xy7365527-lang/NewChanlun/issues/937#issuecomment-5309565712",
+          "correction": "补齐条件式验收净→毛及账目/执行协同切换义务。生效前净账维持；不据本次草案判断条件已满足、不启动切换、不预锁旧软件载体。"
+        }
+      },
+      {
+        "pointer": "/unresolved/1/unknown",
+        "kind": "changed",
+        "before": "完整高档有效量、绝对容量、投入总额、经验值更新策略、Q与闸门后增长及换档权利分拆衔接。",
+        "after": "完整高档有效量、绝对容量、投入总额、经验值更新策略，以及固定Q约束下增长通过换档时的会计与权利分拆衔接；不重开固定Q的已定边界。"
+      }
+    ],
+    "closures": [
+      {
+        "finding_id": "FG-M01",
+        "status": "CLOSED_BY_REVISION",
+        "checked_requirements": [
+          "FG-001"
+        ],
+        "checked_scenarios": [
+          "FE-01",
+          "FE-02",
+          "FE-08"
+        ],
+        "current_markdown_lines": [
+          [
+            49,
+            61
+          ],
+          [
+            543,
+            554
+          ],
+          [
+            556,
+            567
+          ],
+          [
+            634,
+            644
+          ],
+          [
+            752,
+            754
+          ]
+        ],
+        "assessment": "已删除最低三个重及固定三重起点。FG-001保留N重并存与持久史，FE-01/08改为具体经营事实，FE-02明确甲乙丙只是说明净省禁复用的示例。具体数量不再成为产品门槛，完整多重赋格未删减。"
+      },
+      {
+        "finding_id": "FG-M02",
+        "status": "CLOSED_BY_REVISION",
+        "checked_requirements": [
+          "FG-032"
+        ],
+        "checked_scenarios": [
+          "FE-01",
+          "FE-06",
+          "FE-08"
+        ],
+        "current_markdown_lines": [
+          [
+            483,
+            495
+          ],
+          [
+            543,
+            554
+          ],
+          [
+            608,
+            610
+          ],
+          [
+            634,
+            644
+          ],
+          [
+            752,
+            754
+          ]
+        ],
+        "assessment": "已将自造标题改为持久重完整经营、恢复已有持仓经营史与未结责任、持仓及未决外效故障恢复。实际持仓、成本变化、部分成交、未决订单、退出尾账及防空账假验收约束均保留；末尾出现旧词仅说明撤回，不作为需求命名。"
+      },
+      {
+        "finding_id": "FG-M03",
+        "status": "CLOSED_BY_REVISION",
+        "checked_requirements": [
+          "FG-021",
+          "FG-023",
+          "FG-034"
+        ],
+        "checked_scenarios": [
+          "FE-10",
+          "FE-11"
+        ],
+        "current_markdown_lines": [
+          [
+            329,
+            341
+          ],
+          [
+            357,
+            369
+          ],
+          [
+            511,
+            523
+          ],
+          [
+            756,
+            760
+          ]
+        ],
+        "assessment": "已补当前净额执行按净账验收、批准条件下逐笔独立场所落地后改毛账、生效前净账维持，保留毛净对账。FG-021含执行形态、验收账本与生效依据的观察义务；FG-023/034承接ADR0021:73/#937条件；FE-10/11在JSON主场景和MD末尾L758/L760补充段具有一致断言。未据此宣称切换已生效，未预锁旧VOICE_EXEC/sep_legs组织。"
+      }
+    ],
+    "additional_check": {
+      "id": "FU-02",
+      "status": "CONFIRMED_BOUNDARY_PRESERVED",
+      "assessment": "未定项现已明确限于固定Q下增长换档的会计和权利分拆衔接，不重开ADR0017:119的生命周期固定Q裁定。",
+      "source": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md:119"
+    },
+    "artifact_checks": {
+      "requirements": 35,
+      "e2e_scenarios": 11,
+      "unresolved_groups": 7,
+      "current_direct_source_references": 101,
+      "major_requirement_fields_checked": 175,
+      "scenario_strings_checked": 111,
+      "markdown_json_mismatches": [],
+      "source_files_rehashed": 22,
+      "source_drift": [],
+      "mechanical_checks_are_not_semantic_reading_or_runtime_credit": true
+    },
+    "source_reread_ranges": [
+      {
+        "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0021-venue-selection-deferred.md",
+        "lines": [
+          60,
+          83
+        ]
+      },
+      {
+        "path": "/Users/silencehan/Projects/NewChanlun/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md",
+        "lines": [
+          112,
+          128
+        ]
+      }
+    ],
+    "independence": "根修订作者稿；本代理仅独立复核并修改评审两件，未改FG作者或本次引用的仓内来源。",
+    "scope_exclusion": "用户新决定RF-01及其总稿/AC承接由根处理，不计作FG原审遗漏，本轮未审其汇合实现。",
+    "runtime_status": "not-run",
+    "meaning": "三项草案修订已闭合；不是用户确认需求、软件符合性、实盘切换、架构采纳或运行验收通过。"
+  }
+}

@@ -1,0 +1,173 @@
+{
+  "schema": "newchanlun1339.source-review-closure.v1",
+  "reviewer": "root",
+  "original_review": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/review/REVIEW-CLASSIFICATION-SOURCES.json",
+    "sha256": "be3e440a52abd3d0525653b2da3c6851688ed4be2590e85aa35f15747010f40f"
+  },
+  "catalog_sha256": {
+    "CLASSIFICATION-CATALOG.md": "41fe65519c011fc173b47af5ee3cc721288b2de62219059fa9e69822135eccf8",
+    "CLASSIFICATION-CATALOG.json": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f"
+  },
+  "scope": "原独立专项提出的三项M及六处错误指引；根按约定复核关闭，不冒称专项作者签署整个r2。",
+  "findings": [
+    {
+      "id": "CS-M01",
+      "status": "CLOSED",
+      "resolution": "CC030/G016改261-284，移除164-224错误配对来源。"
+    },
+    {
+      "id": "CS-M02",
+      "status": "CLOSED",
+      "resolution": "CC036/037改127-145及164-199，删除旧87-95/261-289/289-334错指。"
+    },
+    {
+      "id": "CS-M03",
+      "status": "CLOSED",
+      "resolution": "CC038删649-658局部出口正面依据；CC040/G022同范围仅登记来源冲突。"
+    }
+  ],
+  "counts": {
+    "H": 0,
+    "M": 0,
+    "L": 0
+  },
+  "source_receipts": [
+    {
+      "object_id": "CC-025",
+      "reference": ".chanlun/definitions/beichi.md:504-584",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-030",
+      "reference": ".chanlun/definitions/beichi.md:261-284",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-031",
+      "reference": ".chanlun/definitions/beichi.md:504-534",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-031",
+      "reference": ".chanlun/definitions/beichi.md:286-303",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-032",
+      "reference": ".chanlun/definitions/beichi.md:336-373",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-032",
+      "reference": ".chanlun/definitions/beichi.md:463-469",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-033",
+      "reference": ".chanlun/definitions/beichi.md:504-584",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-034",
+      "reference": ".chanlun/definitions/beichi.md:792-830",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-034",
+      "reference": ".chanlun/definitions/beichi.md:374-396",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-034",
+      "reference": ".chanlun/definitions/beichi.md:1005-1019",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-035",
+      "reference": ".chanlun/definitions/beichi.md:504-584",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-036",
+      "reference": ".chanlun/definitions/beichi.md:127-145",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-036",
+      "reference": ".chanlun/definitions/beichi.md:164-199",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-037",
+      "reference": ".chanlun/definitions/beichi.md:127-145",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "CC-040",
+      "reference": ".chanlun/definitions/beichi.md:649-658",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "G-014",
+      "reference": ".chanlun/definitions/beichi.md:504-584",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "G-016",
+      "reference": ".chanlun/definitions/beichi.md:261-284",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "G-016",
+      "reference": ".chanlun/definitions/beichi.md:504-534",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "G-017",
+      "reference": ".chanlun/definitions/beichi.md:336-373",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "G-017",
+      "reference": ".chanlun/definitions/beichi.md:463-469",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "G-018",
+      "reference": ".chanlun/definitions/beichi.md:792-830",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "G-018",
+      "reference": ".chanlun/definitions/beichi.md:374-396",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "G-018",
+      "reference": ".chanlun/definitions/beichi.md:1005-1019",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "G-019",
+      "reference": ".chanlun/definitions/beichi.md:504-584",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "G-020",
+      "reference": ".chanlun/definitions/beichi.md:127-145",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "G-020",
+      "reference": ".chanlun/definitions/beichi.md:164-199",
+      "range_sha_and_anchor_match": true
+    },
+    {
+      "object_id": "G-022",
+      "reference": ".chanlun/definitions/beichi.md:649-658",
+      "range_sha_and_anchor_match": true
+    }
+  ],
+  "project_execution": "not-run"
+}

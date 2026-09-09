@@ -1,0 +1,16 @@
+{
+  "schema": "newchanlun1339.root-integration-check.v1",
+  "inputs": {
+    "/tmp/newchanlun-1339-architecture-20260908/author/EXISTING-CLASSIFICATION-INTEGRATION.json": "3caab919d3504bc8afcee6a0bf4a55bab894c74b43e40f13df381d3c49ea1741",
+    "/tmp/newchanlun-1339-architecture-20260908/author/CLASSIFICATION-CATALOG.json": "b8713384045dd3f15dad14cd5f77d89a92c4176bbe3487d6ba4a09432041106f"
+  },
+  "axis_count": 62,
+  "axis_candidate_entries": 248,
+  "combination_count": 10,
+  "combination_candidate_entries": 40,
+  "axis_domain_count_payload_sources_matched": true,
+  "original_reference_files_sha_checked": 12,
+  "scope": "逐条机器核域/数量/需求/payload/缺口与冻结目录一致、四案齐备及实际引用文件SHA；本体阅读新增轴验收和全部LC、五订正及责任路线，不冒称重读每个重复矩阵格或全部原稿。",
+  "semantic_market_reachability": "NOT_PROVED",
+  "project_execution": "not-run"
+}

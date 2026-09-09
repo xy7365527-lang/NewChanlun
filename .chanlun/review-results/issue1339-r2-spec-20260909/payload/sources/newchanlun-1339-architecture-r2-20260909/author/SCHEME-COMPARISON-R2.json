@@ -1,0 +1,21 @@
+{
+  "schema": "newchanlun.architecture-r2.comparison.v1",
+  "status": "DRAFT_PENDING_PROTOCOL_AND_INTEGRATION_REVIEW",
+  "author": "root",
+  "issue": 1339,
+  "map": 1323,
+  "document": {
+    "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/SCHEME-COMPARISON-R2.md",
+    "sha256": "61536618576684c33f72fb4e0cde6ad99c32ab12a64be3a1b762e048d23363d8"
+  },
+  "source_comparison": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/author/SCHEME-COMPARISON.md",
+    "sha256": "794c2326d4b35a50aec6360b87d9c844dfdd38414780a75f5367d5a60091a978"
+  },
+  "protocol": {
+    "path": "/tmp/newchanlun-1339-architecture-r2-20260909/author/PROTOCOL-R2.md",
+    "sha256": "11f5704589cc1b646b2aa5b9f29fff808fa3af9393e1a31f98e8febc48497a3c"
+  },
+  "user_adoption": false,
+  "source_scope": "Inherited reviewed comparison evidence; RF-02 candidate effects explicitly marked as current integration inferences; no full new repository scan or re-review of prohibited original candidates."
+}

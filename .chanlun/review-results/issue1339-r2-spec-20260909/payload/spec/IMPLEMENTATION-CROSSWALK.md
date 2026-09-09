@@ -1,0 +1,140 @@
+# #1323 故事到实施与验收的显式映射
+
+名分：本 SPEC 的义务映射；不是已创建票、执行许可或运行验收。97个故事逐一对应 C、AT、TB、Destination 及成功路径依赖。
+
+“主切片”负责该故事主要实现；“销项切片”列出该故事成功所需的结构、经营、外效、观察等子义务。销项集合不是新的排程依赖边，实际DAG按正文TB表及具体子义务拆分，不能机械将集合连成环。TB-02完成结构子义务不会自动关闭需要真实chong.advance/消费/执行的ST-033/043等故事。
+
+表中G/FU表示该故事所涉的真实残留或实例，不表示它们整个内容都未裁。已定数学同步与证明另列在JSON，均要实际完成。FU-06技术提案由本SPEC批准；所有实际经济场景还需完整已批政策/能力profile。真实场所权限与main批准仍分别处理。AwaitingPolicy/Unsupported只能完成失败路径验收。
+
+| 故事 | 章节 | AT | 主切片 / 销项切片 | Destination | 成功路径直接门 |
+|---|---|---|---|---|---|
+| US-ST-001 | C03,C02,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | G-001 |
+| US-ST-002 | C03,C02,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | G-001,G-002 |
+| US-ST-003 | C03,C02,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-004 | C03,C02,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | G-002 |
+| US-ST-005 | C03,C02,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | G-002 |
+| US-ST-006 | C03,C02,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-007 | C03,C02,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-008 | C03,C02,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | G-007 |
+| US-ST-009 | C04,C08,C12 | AT-01,AT-02,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-010 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-011 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-012 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-013 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-014 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-015 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-016 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-017 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-018 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-019 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-020 | C03,C02,C08,C12 | AT-01,AT-02,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-021 | C03,C02,C08,C12 | AT-01,AT-02,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-022 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-023 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-024 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-025 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-026 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-027 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-028 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-029 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-030 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-031 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-032 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-033 | C04,C08,C12 | AT-01,AT-02,AT-03,AT-04,AT-05,AT-08,AT-14 | TB-02 / TB-01,TB-02,TB-03,TB-04,TB-07 | DST-01,DST-02,DST-04 | G-025 |
+| US-ST-034 | C04,C08,C12 | AT-01,AT-02,AT-03,AT-04,AT-05,AT-08,AT-14 | TB-02 / TB-01,TB-02,TB-03,TB-04,TB-07 | DST-01,DST-02,DST-04 | G-002,G-025 |
+| US-ST-035 | C04,C08,C12 | AT-01,AT-02,AT-03,AT-04,AT-05,AT-08,AT-14 | TB-02 / TB-01,TB-02,TB-03,TB-04,TB-07 | DST-01,DST-02,DST-04 | G-026 |
+| US-ST-036 | C04,C08,C12 | AT-01,AT-02,AT-03,AT-04,AT-05,AT-08,AT-14 | TB-02 / TB-01,TB-02,TB-03,TB-04,TB-07 | DST-01,DST-02,DST-04 | G-028 |
+| US-ST-037 | C04,C08,C12 | AT-01,AT-02,AT-03,AT-04,AT-05,AT-08,AT-14 | TB-02 / TB-01,TB-02,TB-03,TB-04,TB-07 | DST-01,DST-02,DST-04 | FU-04,G-029 |
+| US-ST-038 | C04,C08,C12 | AT-01,AT-02,AT-03,AT-04,AT-05,AT-08,AT-14 | TB-02 / TB-01,TB-02,TB-03,TB-04,TB-07 | DST-01,DST-02,DST-04 | G-026 |
+| US-ST-043 | C05,C08,C12 | AT-01,AT-02,AT-03,AT-04,AT-05,AT-08,AT-10,AT-13,AT-14 | TB-02 / TB-01,TB-02,TB-03,TB-04,TB-06,TB-07 | DST-01,DST-02,DST-04 | FU-07 |
+| US-ST-044 | C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | G-002 |
+| US-ST-045 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-046 | C03,C08,C12 | AT-01,AT-02,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-047 | C03,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ST-048 | C03,C02,C08,C12 | AT-01,AT-03,AT-04,AT-14 | TB-02 / TB-01,TB-02,TB-07 | DST-01,DST-02,DST-04 | G-007 |
+| US-FG-001 | C05,C08,C12 | AT-04,AT-05,AT-13 | TB-03 / TB-03,TB-04,TB-07 | DST-01,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-FG-002 | C05,C06,C08,C12 | AT-04,AT-05,AT-07 | TB-03 / TB-03,TB-04,TB-05,TB-07 | DST-01,DST-04 | FU-03 |
+| US-FG-003 | C05,C08,C12 | AT-04,AT-05,AT-06,AT-17 | TB-03 / TB-03,TB-04,TB-07 | DST-01,DST-04 | FU-01,FU-05 |
+| US-FG-004 | C05,C08,C12 | AT-04,AT-05,AT-10,AT-13 | TB-03 / TB-03,TB-04,TB-07 | DST-01,DST-04 | FU-07 |
+| US-FG-005 | C05,C06,C08,C12 | AT-04,AT-05 | TB-03 / TB-03,TB-04,TB-07 | DST-01,DST-04 | FU-02 |
+| US-FG-006 | C06,C08,C12 | AT-04,AT-05,AT-07 | TB-03 / TB-03,TB-04,TB-07 | DST-01,DST-04 | FU-03 |
+| US-FG-007 | C05,C08,C12 | AT-02,AT-04,AT-05 | TB-03 / TB-02,TB-03,TB-04,TB-07 | DST-01,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-FG-008 | C04,C08,C12 | AT-02,AT-04,AT-05 | TB-03 / TB-02,TB-03,TB-04,TB-07 | DST-01,DST-04 | G-026 |
+| US-FG-009 | C04,C08,C12 | AT-01,AT-02,AT-03,AT-04 | TB-02 / TB-02,TB-03,TB-04,TB-07 | DST-01,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-FG-010 | C04,C08,C12 | AT-01,AT-02,AT-03,AT-04 | TB-02 / TB-02,TB-03,TB-04,TB-07 | DST-01,DST-04 | G-025,G-026,G-028,G-029 |
+| US-FG-011 | C04,C08,C12 | AT-02,AT-04,AT-06 | TB-02 / TB-02,TB-03,TB-04,TB-07 | DST-01,DST-04 | FU-04,G-029 |
+| US-FG-012 | C05,C06,C08,C12 | AT-04,AT-05,AT-06 | TB-06 / TB-03,TB-04,TB-06,TB-07 | DST-01,DST-04 | FU-02 |
+| US-FG-013 | C05,C08,C12 | AT-04,AT-06,AT-10 | TB-06 / TB-03,TB-04,TB-06,TB-07 | DST-01,DST-04 | FU-07 |
+| US-FG-014 | C05,C06,C08,C12 | AT-04,AT-06 | TB-06 / TB-03,TB-04,TB-06,TB-07 | DST-01,DST-04 | FU-02 |
+| US-FG-015 | C05,C06,C08,C12 | AT-04,AT-06,AT-10,AT-17 | TB-06 / TB-03,TB-04,TB-06,TB-07 | DST-01,DST-04 | FU-01,FU-03 |
+| US-FG-016 | C05,C06,C08,C12 | AT-04,AT-06,AT-17 | TB-06 / TB-03,TB-04,TB-06,TB-07 | DST-01,DST-04 | FU-01 |
+| US-FG-017 | C05,C06,C08,C12 | AT-04,AT-06,AT-13 | TB-06 / TB-03,TB-04,TB-06,TB-07 | DST-01,DST-04 | FU-01,FU-02 |
+| US-FG-018 | C05,C06,C08,C12 | AT-04,AT-06 | TB-06 / TB-03,TB-04,TB-06,TB-07 | DST-01,DST-04 | FU-02 |
+| US-FG-019 | C05,C06,C08,C12 | AT-04,AT-06,AT-17 | TB-06 / TB-03,TB-04,TB-06,TB-07 | DST-01,DST-04 | FU-02,FU-05 |
+| US-FG-020 | C05,C06,C08,C12 | AT-04,AT-06,AT-13 | TB-06 / TB-03,TB-04,TB-06,TB-07 | DST-01,DST-04 | FU-02,FU-03 |
+| US-FG-021 | C06,C08,C12 | AT-04,AT-05,AT-10,AT-15 | TB-04 / TB-03,TB-04,TB-07 | DST-01,DST-04,DST-05 | FU-03,FU-04 |
+| US-FG-022 | C06,C08,C12 | AT-04,AT-05,AT-07,AT-10 | TB-04 / TB-03,TB-04,TB-05,TB-07 | DST-01,DST-04 | FU-03 |
+| US-FG-023 | C06,C08,C12 | AT-04,AT-07,AT-10,AT-17 | TB-04 / TB-03,TB-04,TB-07 | DST-01,DST-04,DST-05 | FU-01,FU-03,FU-04 |
+| US-FG-024 | C06,C08,C12 | AT-04,AT-05,AT-07,AT-15 | TB-04 / TB-03,TB-04,TB-07 | DST-01,DST-04,DST-05 | FU-03,FU-04 |
+| US-FG-025 | C05,C06,C08,C12 | AT-04,AT-17 | TB-06 / TB-03,TB-04,TB-06,TB-07 | DST-01,DST-04 | FU-01,FU-05 |
+| US-FG-026 | C08,C12 | AT-03,AT-04,AT-08,AT-10 | TB-04 / TB-03,TB-04,TB-07 | DST-01,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-FG-027 | C07,C08,C12 | AT-04,AT-08,AT-10 | TB-04 / TB-03,TB-04,TB-07 | DST-01,DST-04,DST-05 | FU-03,FU-04 |
+| US-FG-028 | C07,C08,C12 | AT-04,AT-10,AT-14,AT-15 | TB-07 / TB-03,TB-04,TB-07 | DST-01,DST-04,DST-05 | FU-03,FU-04 |
+| US-FG-029 | C07,C08,C12 | AT-04,AT-07,AT-10,AT-13 | TB-04 / TB-03,TB-04,TB-05,TB-07 | DST-01,DST-04,DST-05 | FU-03,FU-04 |
+| US-FG-030 | C07,C08,C12 | AT-04,AT-08,AT-10,AT-13 | TB-06 / TB-03,TB-04,TB-06,TB-07 | DST-01,DST-04,DST-05 | FU-04,FU-07 |
+| US-FG-031 | C07,C08,C12 | AT-04,AT-10,AT-13 | TB-06 / TB-03,TB-04,TB-06,TB-07 | DST-01,DST-04,DST-05 | FU-01,FU-04,FU-07 |
+| US-FG-032 | C09,C08,C12 | AT-04,AT-07,AT-09,AT-13 | TB-05 / TB-03,TB-04,TB-05,TB-07 | DST-01,DST-04,DST-05 | FU-03,FU-04,FU-07 |
+| US-FG-033 | C08,C12 | AT-04,AT-11,AT-14 | TB-07 / TB-01,TB-03,TB-04,TB-05,TB-07 | DST-01,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-FG-034 | C10,C08,C12 | AT-04,AT-14,AT-15,AT-16 | TB-08 / TB-03,TB-04,TB-07,TB-08,TB-09,TB-10 | DST-01,DST-02,DST-03,DST-04,DST-05 | FU-04 |
+| US-FG-035 | C01,C06,C08,C12 | AT-01,AT-04,AT-06,AT-15,AT-18 | TB-11 / TB-01,TB-02,TB-03,TB-04,TB-05,TB-06,TB-07,TB-08,TB-09,TB-10,TB-11 | DST-01,DST-02,DST-03,DST-04,DST-05,DST-06 | FU-01,FU-02,FU-03,FU-04,FU-05,FU-07 |
+| US-RF-01 | C06,C09,C12 | AT-05,AT-07,AT-08,AT-09,AT-12,AT-13 | TB-05 / TB-01,TB-03,TB-04,TB-05,TB-07 | DST-01,DST-04,DST-05 | FU-03,FU-04 |
+| US-RF-02 | C02,C07,C08,C09,C12 | AT-03,AT-04,AT-08,AT-09,AT-11,AT-12,AT-14 | TB-05 / TB-01,TB-03,TB-04,TB-05,TB-07 | DST-01,DST-04,DST-05 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-DST-01 | C02,C03,C04,C05,C06,C07,C12 | AT-01,AT-02,AT-03,AT-04,AT-05,AT-06,AT-07,AT-08,AT-09,AT-10,AT-11,AT-12,AT-13,AT-17 | TB-11 / TB-01,TB-02,TB-03,TB-04,TB-05,TB-06,TB-07,TB-09,TB-10 | DST-01 | 汇总对应子故事门 |
+| US-DST-02 | C02,C03,C04,C05,C11,C12 | AT-01,AT-02,AT-09,AT-16 | TB-11 / TB-01,TB-02,TB-03,TB-04,TB-05,TB-09,TB-10 | DST-02 | 汇总对应子故事门 |
+| US-DST-03 | C11,C12 | AT-13,AT-16,AT-18 | TB-11 / TB-09,TB-10,TB-11 | DST-03 | 汇总对应子故事门 |
+| US-DST-04 | C05,C06,C07,C08,C10,C12 | AT-03,AT-04,AT-05,AT-06,AT-07,AT-08,AT-09,AT-10,AT-11,AT-12,AT-13,AT-14,AT-17 | TB-11 / TB-01,TB-02,TB-03,TB-04,TB-05,TB-06,TB-07 | DST-04 | 汇总对应子故事门 |
+| US-DST-05 | C07,C10,C12 | AT-08,AT-09,AT-10,AT-13,AT-14,AT-15,AT-16 | TB-11 / TB-04,TB-05,TB-07,TB-08,TB-09,TB-10 | DST-05 | 汇总对应子故事门 |
+| US-DST-06 | C01,C10,C12 | AT-14,AT-15,AT-16,AT-18 | TB-11 / TB-07,TB-08,TB-09,TB-10,TB-11 | DST-06 | 汇总对应子故事门 |
+| US-ENG-01 | C08,C09 | AT-03,AT-04,AT-11,AT-14 | TB-01 / TB-01,TB-05,TB-07 | DST-01,DST-04,DST-05 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ENG-02 | C07,C09 | AT-08,AT-09,AT-12 | TB-04 / TB-04,TB-05 | DST-01,DST-04,DST-05 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ENG-03 | C07,C09 | AT-08,AT-09,AT-10,AT-13 | TB-04 / TB-04,TB-05 | DST-02,DST-04,DST-05 | FU-04 |
+| US-ENG-04 | C10,C12 | AT-14,AT-16,AT-18 | TB-07 / TB-07,TB-09,TB-10,TB-11 | DST-02,DST-03,DST-04,DST-05,DST-06 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ENG-05 | C10 | AT-14,AT-15 | TB-07 / TB-07,TB-08 | DST-04,DST-05 | FU-04 |
+| US-ENG-06 | C08 | AT-03,AT-04,AT-14 | TB-01 / TB-01,TB-07 | DST-01,DST-04 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ENG-07 | C09,C11 | AT-09,AT-13,AT-16 | TB-05 / TB-05,TB-09,TB-10 | DST-02,DST-03,DST-04,DST-05 | FU-04,FU-07 |
+| US-ENG-08 | C11 | AT-16,AT-18 | TB-09 / TB-09,TB-10,TB-11 | DST-02,DST-03,DST-06 | 无本行新增决定；仍核实际profile与全部证明义务 |
+| US-ENG-09 | C01,C04,C05,C07 | AT-01,AT-02,AT-06,AT-08,AT-15 | TB-02 / TB-02,TB-03,TB-04,TB-06,TB-08 | DST-01,DST-02,DST-04,DST-05 | FU-01,FU-02,FU-03,FU-04,FU-05,FU-07 |
+| US-ENG-10 | C12 | AT-18 | TB-11 / TB-11 | DST-01,DST-02,DST-03,DST-04,DST-05,DST-06 | 无本行新增决定；仍核实际profile与全部证明义务 |
+
+完整 JSON 包含原需求/分类轴、证明/同步义务、切片与Destination聚合门、成功闭合说明及未执行状态：[IMPLEMENTATION-CROSSWALK.json](/tmp/newchanlun-1323-spec-20260909/IMPLEMENTATION-CROSSWALK.json)。
+
+所有故事和验收目前均未实施、未运行。未来拆票必须用具体子义务和真实blocking边表达依赖，不能因为目录存在或模糊地映射C08/C12就把故事提前销项。
+
+逐细项机器连接：345个family条目和496个细项验收输入均有来源JSON指针、故事、AT、TB和Destination。G/FU列具名当前门；OE41/OE45只验排除与防混用边界，不派发K4工作。源文字/断言由规范覆盖文件对应指针解析，不复制成另一份会漂的验收正文。
+
+## 独立义务的具体销项
+
+I/RA的每项机制、场所能力和目标部署义务分别记账，不能仅用宽泛RF故事切片的并集销项。故事JSON列关联义务，切片与Destination聚合同时列family和细A及真实门；所有集合仍不是排程边。
+
+| 义务 | 必需AT | 销项切片 | 具体子义务 |
+|---|---|---|---|
+| RA-01 | AT-03,AT-04,AT-08,AT-09,AT-11,AT-12,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | S继续正式发布与E无新Release同时成立。 |
+| RA-02 | AT-03,AT-04,AT-08,AT-09,AT-11,AT-12,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | 正式提交去重和恢复获知史均验证。 |
+| RA-03 | AT-03,AT-04,AT-08,AT-09,AT-11,AT-12,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | 客户端续接与隔离经济写者不能绕S条件同时验证。 |
+| RA-04 | AT-03,AT-04,AT-08,AT-09,AT-10,AT-11,AT-12,AT-13,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-06,TB-07 | 撤回/获知、双边界资格、最大责任和查询/退出尾账分别验证。 |
+| RA-05 | AT-03,AT-04,AT-07,AT-08,AT-09,AT-11,AT-12,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | 每个线性化交错与必要阶段检查显式验证。 |
+| RA-06 | AT-03,AT-04,AT-08,AT-09,AT-11,AT-12,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | 传播乱序、真实获知和重复收据不重复调用均硬判。 |
+| RA-07 | AT-03,AT-04,AT-07,AT-08,AT-09,AT-10,AT-11,AT-12,AT-13,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | 各持久/调用边界崩溃后责任和未决身份去向分别验证。 |
+| RA-08 | AT-03,AT-04,AT-08,AT-09,AT-11,AT-12,AT-14,AT-15,AT-16 | TB-01,TB-03,TB-04,TB-05,TB-07,TB-08,TB-09 | 旧epoch本地锁、对应场所/网络身份能力和目标部署旧写入口隔离分别验证；实验profile不能代生产部署。 |
+| RA-09 | AT-03,AT-04,AT-08,AT-09,AT-11,AT-12,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | 按scope观察结构完整与经济缺项。 |
+| RA-10 | AT-03,AT-04,AT-08,AT-09,AT-11,AT-12,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | 故障期客户端分页/续接/AsKnown保持完整语义时间。 |
+| RA-11 | AT-03,AT-04,AT-07,AT-08,AT-09,AT-10,AT-11,AT-12,AT-13,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | 责任/Pending重建、禁历史补发和P7量界恢复均硬判。 |
+| RA-12 | AT-05,AT-07,AT-08,AT-09,AT-12,AT-13 | TB-01,TB-03,TB-04,TB-05,TB-07 | 健康B真实新增而非可交易标签。 |
+| RA-13 | AT-03,AT-04,AT-08,AT-09,AT-11,AT-12,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | 结构和持续合规请求均实际推进，排程不代裁资金。 |
+| RA-14 | AT-03,AT-04,AT-08,AT-09,AT-11,AT-12,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | S独立行情入口与估值缺覆盖交易拒绝同时验证。 |
+| I-01 | AT-03,AT-04,AT-05,AT-07,AT-08,AT-09,AT-11,AT-12,AT-13,AT-14,AT-16 | TB-01,TB-03,TB-04,TB-05,TB-07,TB-09 | 正式launcher中真实冻结和精确交付、目标X独占路径分别验证。 |
+| I-02 | AT-03,AT-04,AT-05,AT-07,AT-08,AT-09,AT-11,AT-12,AT-13,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | 存储/队列/索引隔离和客户端历史均实际验证。 |
+| I-03 | AT-03,AT-04,AT-05,AT-07,AT-08,AT-09,AT-10,AT-11,AT-12,AT-13,AT-14,AT-15 | TB-01,TB-03,TB-04,TB-05,TB-07,TB-08 | P7逐步F与各独立潜量在AT10硬判；所用终态累计完整性还须对应场所profile验收。 |
+| I-04 | AT-03,AT-04,AT-05,AT-07,AT-08,AT-09,AT-11,AT-12,AT-13,AT-14,AT-15 | TB-01,TB-03,TB-04,TB-05,TB-07,TB-08,TB-09 | 机制条件检查、实际场所profile及目标部署X调用阶段能力分别验收。 |
+| I-05 | AT-03,AT-04,AT-05,AT-07,AT-08,AT-09,AT-11,AT-12,AT-13,AT-14,AT-15,AT-16 | TB-01,TB-03,TB-04,TB-05,TB-07,TB-08,TB-09 | 机制CAS/崩溃只关闭机制子项；场所回查/终态能力由TB08，旧凭据/launcher/OS身份/网络绕路由TB09验收；生产首次发送前按TB10重核目标部署隔离。 |
+| I-06 | AT-03,AT-04,AT-05,AT-07,AT-08,AT-09,AT-11,AT-12,AT-13,AT-14 | TB-01,TB-03,TB-04,TB-05,TB-07 | 持续结构、持续合规核验和单重故障下真实进展均保留。 |

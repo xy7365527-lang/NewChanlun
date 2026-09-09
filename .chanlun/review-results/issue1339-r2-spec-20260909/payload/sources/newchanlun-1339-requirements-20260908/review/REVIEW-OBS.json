@@ -1,0 +1,1359 @@
+{
+  "schema": "newchanlun.issue1339.independent-review.observation-and-evidence.v1",
+  "issue": 1339,
+  "reviewer": "independent_scope_review",
+  "created_at_utc": "2026-09-08T06:56:58.171142+00:00",
+  "status": "SCOPED_REVIEW_COMPLETE_AFTER_TWO_FIXES_NOT_FULL_PACKAGE_OR_RUNTIME_ACCEPTANCE",
+  "open_findings": {
+    "H": 0,
+    "M": 0,
+    "L": 0
+  },
+  "initial_findings": {
+    "H": 0,
+    "M": 1,
+    "L": 1
+  },
+  "resolved_findings": {
+    "H": 0,
+    "M": 1,
+    "L": 1
+  },
+  "reviewed_input_bindings": [
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/AUTHORIZATION.md",
+      "sha256": "527bb51ecc076022996471c4e2f765d39fe06a7b3fb4eeb6af8047410b583d65",
+      "bytes": 1985
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.md",
+      "sha256": "c0c226a4d237ccc611b70d4909cd35e141db43df2d3a466aece87ea3ecc0c7da",
+      "bytes": 17293
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.json",
+      "sha256": "8dcb9aca177511bbd1c2407f7d81586ab3f9820f59274246ca2e0d444b2ca4a9",
+      "bytes": 21959
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.md",
+      "sha256": "4d56ffca7fd01682aca65c48510230e694a040c448cb4d2bc52ed19f46c0e9d8",
+      "bytes": 45352
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/EVIDENCE-REUSE.json",
+      "sha256": "ef573978d80d395363570d938b449f8809391963c913bb07eec774c29e599de7",
+      "bytes": 160376
+    }
+  ],
+  "first_read_observation_bindings": [
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.md",
+      "sha256": "05106d6b36c90a208ad1d7ffad3e676a625a24360021e4f480f42326682aee51",
+      "bytes": 16801
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.json",
+      "sha256": "91d86e8b062cc1e263755c270f152fea46dd3fec2776acb128cf3e2e341ae7e9",
+      "bytes": 21487
+    }
+  ],
+  "scope_authority": [
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/issue-1339.json",
+      "json_pointer": "/body"
+    },
+    {
+      "path": "/tmp/newchanlun-codex-handoff/HANDOFF.md",
+      "line_ranges": [
+        [
+          7,
+          16
+        ],
+        [
+          20,
+          32
+        ]
+      ]
+    },
+    {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/AUTHORIZATION.md",
+      "line_ranges": [
+        [
+          5,
+          15
+        ]
+      ]
+    }
+  ],
+  "current_user_amendment": "允许从头设计；仍先需求/验收范围确认，再架构、spec、实施与合入。",
+  "findings": [
+    {
+      "id": "OBS-M01",
+      "severity": "M",
+      "status": "RESOLVED_AFTER_INDEPENDENT_RECHECK",
+      "title": "OB-011/012逐项来源未覆盖完整赋格义务",
+      "original_author_locations": [
+        {
+          "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.md",
+          "lines": [
+            136,
+            158
+          ]
+        },
+        {
+          "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.json",
+          "json_pointers": [
+            "/requirements/10/sources",
+            "/requirements/11/sources"
+          ]
+        }
+      ],
+      "original_problem": "唯一所列FINDINGS 49-59未建立逐重目标、独立经济权利、毛账与未定资金义务；总体授权存在但逐项导航不足。",
+      "source_evidence": [
+        {
+          "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/issue-1339.json",
+          "json_pointer": "/body",
+          "section": "核心目标与第一阶段第3项"
+        },
+        {
+          "path": "/tmp/newchanlun-codex-handoff/HANDOFF.md",
+          "lines": [
+            7,
+            7
+          ]
+        },
+        {
+          "path": "/tmp/newchanlun-codex-handoff/HANDOFF.md",
+          "lines": [
+            29,
+            30
+          ]
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "lines": [
+            49,
+            59
+          ]
+        }
+      ],
+      "resolution": "MD146/158逐条明确票面核心目标/第一阶段为范围依据；JSON两项sources/0加入issue-1339.json /body及explicit_user_requirement_scope_not_three_chain_code_evidence角色，三链只作观察导航。",
+      "verified_changed_locations": [
+        "author/OBSERVATION-CONTRACT.md:146",
+        "author/OBSERVATION-CONTRACT.md:158",
+        "author/OBSERVATION-CONTRACT.json /requirements/10/sources/0",
+        "author/OBSERVATION-CONTRACT.json /requirements/11/sources/0"
+      ],
+      "not_claimed": "未因此认证FG全表或新增教义。"
+    },
+    {
+      "id": "OBS-L01",
+      "severity": "L",
+      "status": "RESOLVED_AFTER_INDEPENDENT_RECHECK",
+      "title": "同一实例可能预定物理驻留",
+      "original_author_locations": [
+        {
+          "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.md",
+          "lines": [
+            190,
+            190
+          ]
+        },
+        {
+          "path": "/tmp/newchanlun-1339-requirements-20260908/author/OBSERVATION-CONTRACT.json",
+          "json_pointer": "/requirements/14/acceptance_scenario"
+        }
+      ],
+      "original_problem": "同一实例可能将逻辑会话同一性收窄为同进程/同引擎对象，源要求未作此架构裁定。",
+      "source_evidence": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "lines": [
+            38,
+            51
+          ]
+        },
+        {
+          "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/issue-1339.json",
+          "json_pointer": "/body",
+          "section": "第一阶段观察快照与会话条目"
+        }
+      ],
+      "resolution": "MD190和JSON该情景已改同一逻辑回放会话及一致输入切面，逻辑语义与物理驻留区分明确。",
+      "verified_changed_locations": [
+        "author/OBSERVATION-CONTRACT.md:190",
+        "author/OBSERVATION-CONTRACT.json /requirements/14/acceptance_scenario"
+      ]
+    }
+  ],
+  "observation_reviews": [
+    {
+      "id": "OB-001",
+      "source_check": "FINDINGS 14、46–48；票面观察条目",
+      "conclusion_and_limit": "通过。会话隔离反例可判；scope/source/rules 等为草案字段，没有声称是既有API。",
+      "author_json_pointer": "/requirements/0",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 14,
+          "line_end": 14,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 46,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-002",
+      "source_check": "FINDINGS 14；CONTEXT 74–88",
+      "conclusion_and_limit": "通过。结构级别、操作级别、Voice相对代际分开，允许视角引用，未强制在每个对象复制级别。Voice代际与会话代际仍须按命名上下文分开。",
+      "author_json_pointer": "/requirements/1",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 14,
+          "line_end": 46,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-003",
+      "source_check": "FINDINGS 9–14；qushi 40–61、124–144；maimai 172–180；zhongshu 394–406",
+      "conclusion_and_limit": "通过。固定对象/轴/良构域、2B/3B可重合、完成域和知识/失效说明分开；没有新造中枢候选教义。",
+      "author_json_pointer": "/requirements/2",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 9,
+          "line_end": 14,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-004",
+      "source_check": "FINDINGS 38、46–48",
+      "conclusion_and_limit": "通过。同对象修订、新对象替代、跨代际不复活的反例可判，具体身份规则留spec，没有指定主键存储。",
+      "author_json_pointer": "/requirements/3",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 38,
+          "line_end": 47,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-005",
+      "source_check": "FINDINGS 34–36、46–49；zhongshu 238–244",
+      "conclusion_and_limit": "观察要求成立；逐类型字段、边界和高级构造验收依赖尚未审的ST表，不能由本轮宣布完整覆盖。",
+      "author_json_pointer": "/requirements/4",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 34,
+          "line_end": 36,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 46,
+          "line_end": 49,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-006",
+      "source_check": "FINDINGS 42、46–48、51",
+      "conclusion_and_limit": "通过。依赖切面/版本组合与分页一致，未要求全局原子资金事务；组合兼容性协议须后续方案给出。",
+      "author_json_pointer": "/requirements/5",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 42,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-007",
+      "source_check": "FINDINGS 14、46、48–49",
+      "conclusion_and_limit": "通过。真实空集、未算出、源缺失、最近可信记录可区分；只允许局部观察，未给予其它重经济故障隔离权。",
+      "author_json_pointer": "/requirements/6",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 14,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-008",
+      "source_check": "FINDINGS 38、46–48",
+      "conclusion_and_limit": "通过。增量涵盖字段/依据修订与撤回，重复乱序/断档后的同切面快照等价是行为标准。",
+      "author_json_pointer": "/requirements/7",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 38,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-009",
+      "source_check": "FINDINGS 28–30、47–48",
+      "conclusion_and_limit": "通过。市场区间、首次获知和确认前沿分开；确认前不提前显示、后来更正保留原获知记录可判。",
+      "author_json_pointer": "/requirements/8",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 28,
+          "line_end": 30,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 47,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-010",
+      "source_check": "FINDINGS 28–30、46–49；beichi 164–199、217–224",
+      "conclusion_and_limit": "通过。必要条件和现象完成/经济门分开；gate_pass不能改名小转大发生。没有从必要条件新增未来必然性。",
+      "author_json_pointer": "/requirements/9",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 28,
+          "line_end": 30,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 46,
+          "line_end": 49,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-011",
+      "source_check": "FINDINGS 49–59 与票面/交接对读",
+      "conclusion_and_limit": "通过，OBS-M01已修正。新增票面/body直接来源及范围角色；逐重受结构修订影响的情景本身可判。",
+      "author_json_pointer": "/requirements/10",
+      "sources": [
+        {
+          "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/issue-1339.json",
+          "json_pointer": "/body",
+          "role": "explicit_user_requirement_scope_not_three_chain_code_evidence"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 49,
+          "line_end": 59,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-012",
+      "source_check": "FINDINGS 49–59 与票面/交接对读",
+      "conclusion_and_limit": "通过，OBS-M01已修正且不重复计数。已补毛账/净额与未定资金规则直接范围来源；完整经营阶段与尾账依赖FG。",
+      "author_json_pointer": "/requirements/11",
+      "sources": [
+        {
+          "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/issue-1339.json",
+          "json_pointer": "/body",
+          "role": "explicit_user_requirement_scope_not_three_chain_code_evidence"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 49,
+          "line_end": 59,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-013",
+      "source_check": "FINDINGS 11–14、49；zhongshu 394–406",
+      "conclusion_and_limit": "通过。诊断、教义事实和准入用途分开，未知不是教义False/已拒绝/已通过；本条未授交易权。",
+      "author_json_pointer": "/requirements/12",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 11,
+          "line_end": 14,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 49,
+          "line_end": 49,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-014",
+      "source_check": "FINDINGS 47–49；票面完整赋格段；HANDOFF 7",
+      "conclusion_and_limit": "通过。结构/资格撤回不抹实际成交，未发/可能已发/已成部分分开；补救授权不由观察者生成。",
+      "author_json_pointer": "/requirements/13",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 47,
+          "line_end": 49,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-015",
+      "source_check": "FINDINGS 38、42、48、51",
+      "conclusion_and_limit": "通过，OBS-L01已修正。明确同一逻辑回放会话及一致输入切面。",
+      "author_json_pointer": "/requirements/14",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 38,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-016",
+      "source_check": "FINDINGS 38、48",
+      "conclusion_and_limit": "通过。断线跨更新/撤回、有效/过期游标及重取快照情景可判，未要求网络恰一次。",
+      "author_json_pointer": "/requirements/15",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 38,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-017",
+      "source_check": "FINDINGS 30、38、48、59；票面回放/恢复范围",
+      "conclusion_and_limit": "通过。两种回放语义分开，确认前沿和真实经营/执行输入保留；“双跑相同”单独不构成正确性证明，须与前沿断言及未来FG情景同验。",
+      "author_json_pointer": "/requirements/16",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 30,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 59,
+          "line_end": 59,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-018",
+      "source_check": "FINDINGS 49、59",
+      "conclusion_and_limit": "通过。筛选子集、回到详情和后台完整事实分开；没有从界面上限删除后端义务。",
+      "author_json_pointer": "/requirements/17",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 49,
+          "line_end": 59,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-019",
+      "source_check": "FINDINGS 42、46–49、59",
+      "conclusion_and_limit": "可达性要求成立；逐个ST/FG真实场景与输出到呈现路径需全包补审，单有字段或页面不构成语义验收。",
+      "author_json_pointer": "/requirements/18",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 42,
+          "line_end": 49,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 59,
+          "line_end": 59,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "OB-020",
+      "source_check": "FINDINGS 5、59；SCAN-DELIVERY counts_and_units/unverified_or_not_claimed；ROOT-RECEIPT",
+      "conclusion_and_limit": "通过。定义、构造、接线、靶向执行、E2E信用分层，171/94/91三种单位不混用。",
+      "author_json_pointer": "/requirements/19",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 5,
+          "line_end": 5,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 59,
+          "line_end": 59,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    }
+  ],
+  "evidence_domain_reviews": [
+    {
+      "id": "EV-001",
+      "content_check": "SCAN-REPORT 7–31、真实交付/ROOT收据的计数和not-run字段",
+      "credit_limit": "仅封存版本、字节与原阅读范围；未读1194条不改成缺件。",
+      "author_json_pointer": "/evidence_domains/0",
+      "source_navigation_references": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+          "json_pointer": "/counts_and_units"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+          "json_pointer": "/unverified_or_not_claimed"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+          "json_pointer": "/retained_low_findings/0"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            7,
+            31
+          ]
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/ROOT-RECEIPT.json",
+          "json_pointer": "/source_file_bindings_checked"
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/ROOT-RECEIPT.json",
+          "json_pointer": "/three_representative_chains_only"
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/ROOT-RECEIPT.json",
+          "json_pointer": "/all_project_execution"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-002",
+      "content_check": "SEM/OBLIGATION的16项、original_relations及SCAN-REPORT 83–93",
+      "credit_limit": "既有要求/义务导航，不是当前全定义或逐实现符合性。",
+      "author_json_pointer": "/evidence_domains/1",
+      "source_navigation_references": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+          "json_pointer": "/items"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SEMANTIC-CONSTRAINTS.json",
+          "json_pointer": "/original_relations"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            83,
+            93
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            16,
+            22
+          ]
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-003",
+      "content_check": "SCAN-REPORT 35–45、交棒7–9、IO-C01/02与KERNEL-C006/016实际字段",
+      "credit_limit": "身份/时钟/TF边界静态事实；不推出当前同版本完整链。",
+      "author_json_pointer": "/evidence_domains/2",
+      "source_navigation_references": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            35,
+            45
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            7,
+            9
+          ]
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            14,
+            14
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/0"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/1"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/140"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/150"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-004",
+      "content_check": "SCAN-REPORT 43–49、KERNEL-C008/009/011–014字段、SEM-06/08",
+      "credit_limit": "有库构造、空levels挂载与证书/授权消费各有限域；不互替三方向闭环。",
+      "author_json_pointer": "/evidence_domains/3",
+      "source_navigation_references": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            43,
+            49
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            8,
+            9
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/5"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/7"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/142"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/143"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/145"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/146"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/147"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/148"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-005",
+      "content_check": "FINDINGS 20–24、SCAN-REPORT 39–47及合同定位",
+      "credit_limit": "R1实际构造与所核UI断边；不推广其它分类轴。",
+      "author_json_pointer": "/evidence_domains/4",
+      "source_navigation_references": [
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            20,
+            24
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            39,
+            47
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/136"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/138"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/151"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/5"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-006",
+      "content_check": "FINDINGS 26–30、ACT-C037/KERNEL-C013定位",
+      "credit_limit": "R2必要条件生产与投影缺口；不认证完成、产量、回放或准入。",
+      "author_json_pointer": "/evidence_domains/5",
+      "source_navigation_references": [
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            26,
+            30
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+          "line_range": [
+            79,
+            79
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/72"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/147"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-007",
+      "content_check": "FINDINGS 32–36、SCAN-REPORT 45–49、KERNEL-C008/017",
+      "credit_limit": "关系/level_lift与overlay边界；高级中枢完整构造/血缘尚未认证。",
+      "author_json_pointer": "/evidence_domains/6",
+      "source_navigation_references": [
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            32,
+            36
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            45,
+            49
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/142"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/151"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-008",
+      "content_check": "FINDINGS 24、36–38、46–49；IO-C06、KERNEL-C003/019、C-LOCK-009",
+      "credit_limit": "指定move撤回/几何diff断边与局部BSP锁；不授全对象差量完成信用。",
+      "author_json_pointer": "/evidence_domains/7",
+      "source_navigation_references": [
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            24,
+            24
+          ]
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            36,
+            38
+          ]
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            46,
+            49
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            39,
+            41
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/5"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/137"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/153"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/106"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-009",
+      "content_check": "FINDINGS 30、38、48；IO-C02/07、KERNEL-C014/016、ACT-C034",
+      "credit_limit": "指定会话/独立恢复壳静态边界；不替代当时可知或崩溃/尾账恢复运行验收。",
+      "author_json_pointer": "/evidence_domains/8",
+      "source_navigation_references": [
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            30,
+            30
+          ]
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            38,
+            38
+          ]
+        },
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            48,
+            48
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            39,
+            41
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            8,
+            9
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/1"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/6"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/150"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/148"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/69"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-010",
+      "content_check": "SCAN-REPORT 61–67、91；SEM-04/07/09；ACT-C020/038、POS-C004/005/011",
+      "credit_limit": "保留持久重/voice/chain/campaign及私有权利差异；13模式族不等13份完整赋格实现。",
+      "author_json_pointer": "/evidence_domains/9",
+      "source_navigation_references": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/3"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/6"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/8"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            61,
+            67
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            91,
+            91
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            19,
+            19
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/55"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/73"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/126"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/127"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/133"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-011",
+      "content_check": "SCAN-REPORT 57–59、91–93；SEM-10/11/15/16；ACT-C009/025/026/036/038",
+      "credit_limit": "模拟fill、代数API与venue事实分开；净省禁复用、两类换档和未定量未弱化。",
+      "author_json_pointer": "/evidence_domains/10",
+      "source_navigation_references": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/9"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/10"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/14"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/15"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            57,
+            59
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            91,
+            93
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            20,
+            22
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/44"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/60"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/61"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/71"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/73"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-012",
+      "content_check": "SCAN-REPORT 51–59、交棒9–10、28–29；ACT-C003/005/006/019/038",
+      "credit_limit": "结构终态与真实尾账不互代；缺恢复运行证据不报告实际故障。",
+      "author_json_pointer": "/evidence_domains/11",
+      "source_navigation_references": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            51,
+            59
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            9,
+            10
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            28,
+            29
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+          "line_range": [
+            47,
+            48
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.md",
+          "line_range": [
+            80,
+            80
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/38"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/40"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/41"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/54"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/73"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-013",
+      "content_check": "FINDINGS 46–51、SCAN-REPORT 69–73、SEM-08/13/14、相关门合同",
+      "credit_limit": "诊断/确认/授权/准入/执行分角色；经济/容量/频率不强加顺序。",
+      "author_json_pointer": "/evidence_domains/12",
+      "source_navigation_references": [
+        {
+          "source_path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_range": [
+            46,
+            51
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/7"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/12"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/OBLIGATION-DISPOSITIONS.json",
+          "json_pointer": "/items/13"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            69,
+            73
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            17,
+            21
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/146"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/147"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/68"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/66"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/70"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    },
+    {
+      "id": "EV-014",
+      "content_check": "SCAN-REPORT 95–101、C-LOCK-001/003/004/009/015/021/023真实前件/输入/输出字段",
+      "credit_limit": "94锁是射程单位；共核/缺值/注入/局部非空不膨胀成完整运行通过。",
+      "author_json_pointer": "/evidence_domains/13",
+      "source_navigation_references": [
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/SCAN-REPORT.md",
+          "line_range": [
+            95,
+            101
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            12,
+            12
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/NEXT-STAGE-HANDOFF.md",
+          "line_range": [
+            31,
+            31
+          ]
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+          "json_pointer": "/counts_and_units"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+          "json_pointer": "/unverified_or_not_claimed"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/98"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/100"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/101"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/106"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/112"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/118"
+        },
+        {
+          "source_path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CONTRACT-SEMANTIC-DISPOSITIONS.json",
+          "json_pointer": "/contracts/120"
+        }
+      ],
+      "runtime_status": "NOT_RUN"
+    }
+  ],
+  "mechanical_checks": {
+    "observation_items": 20,
+    "observation_md_json_payload_fields_match": true,
+    "ev_domains": 14,
+    "ev_pointer_and_line_range_occurrences_resolved": 117,
+    "declared_source_hashes_recomputed": 10,
+    "frozen_source_paths_and_hashes_crosschecked_with_real_scan_delivery": 6,
+    "semantic_navigation_items_compared": 16,
+    "original_relation_entries_read": 10,
+    "contract_navigation_items_and_readable_lines_compared": 42,
+    "navigation_or_hash_mismatches": [],
+    "meaning": "记录与导航检查；语义判断另见逐项审阅，不等运行或符合性通过"
+  },
+  "direct_current_doctrine_spot_reads": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/qushi.md",
+      "line_ranges": [
+        [
+          40,
+          61
+        ],
+        [
+          124,
+          144
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/maimai.md",
+      "line_ranges": [
+        [
+          172,
+          180
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/zhongshu.md",
+      "line_ranges": [
+        [
+          238,
+          244
+        ],
+        [
+          394,
+          406
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.chanlun/definitions/beichi.md",
+      "line_ranges": [
+        [
+          164,
+          199
+        ],
+        [
+          217,
+          224
+        ]
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/CONTEXT.md",
+      "line_ranges": [
+        [
+          74,
+          88
+        ]
+      ]
+    }
+  ],
+  "unreviewed": [
+    "STRUCTURE完整表",
+    "FG完整表",
+    "总验收计划及未决问题/架构约束汇合稿",
+    "171合同原代码全链重新扫描",
+    "91原源码字节重新核验",
+    "原requirements包及全部博文原件",
+    "三候选与新架构方向的满足度比较"
+  ],
+  "all_project_execution": "NOT_RUN",
+  "old_1321_1322_1325_1326_originals_accessed": false,
+  "author_repository_git_or_github_modified": false,
+  "only_review_files_written": [
+    "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-OBS.md",
+    "/tmp/newchanlun-1339-requirements-20260908/review/REVIEW-OBS.json"
+  ],
+  "full_package_complete": false,
+  "user_scope_confirmed": false,
+  "architecture_adopted": false,
+  "spec_approved": false,
+  "implementation_authorized_by_this_review": false
+}

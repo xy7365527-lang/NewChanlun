@@ -1,0 +1,2888 @@
+{
+  "schema": "newchanlun.old-entry-dispositions.v1",
+  "status": "CANDIDATE_R1_STATIC_DISPOSITION_NOT_ADOPTED_NOT_EXECUTED",
+  "language": "zh-CN",
+  "scope": "#1339 独立 R1 旧入口/实际公共 callee 去向；不新增代码 census",
+  "source_bindings": {
+    "scan_delivery": {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/SCAN-DELIVERY.json",
+      "sha256": "4d24de8692c915f95544eb7c4f041e8dd403bfda503e9fe1a97e4a5e715455ea",
+      "status": "SEALED_BOUNDED_STATIC_SCAN"
+    },
+    "canonical_registry": {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/CURRENT-ENTRY-CONSUMER-REGISTRY.json",
+      "sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+      "pointer": "/current_frontiers"
+    },
+    "r1_md": {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.md",
+      "sha256": "f6054b52f86ba80fafd6386d1ac6ede341c6c6a17cb9efbed5d2dad42571824d"
+    },
+    "r1_json": {
+      "path": "/tmp/newchanlun-1339-architecture-20260908/author/INDEPENDENT-DESIGN.json",
+      "sha256": "800ca141806e3f3814c1392ff656a4f2213b2e7b210f368a0e84e853ea14dcd1"
+    },
+    "approved_source_registry_metadata": {
+      "path": "/Users/silencehan/Projects/NewChanlun-independent-1334/artifacts/scan/fanin/candidate-r2-preparation/20260906T130901299141Z/parent/evidence/APPROVED-SOURCE-REGISTRY.json",
+      "sha256": "e1f91d8bc3ac92ce55f5cd21b027162ab62e676741b1c725421fb7decec3e00a",
+      "read_scope": "only source/raw/path/hash metadata; no source content"
+    },
+    "signed_fugue_requirements": {
+      "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+      "sha256": "8e3a98b1ad88ee658d98656605e1580b1d806ab3132013a13f304a957b84b04a",
+      "read_scope": "FG-025 and FU-05 already-authorized signed requirements; not old implementation source"
+    }
+  },
+  "common_exit_conditions": [
+    {
+      "id": "X1",
+      "condition": "确定实际入口/constructor/feature/env/default preset 的最终清单；映射 session、数据、账户/子账户、venue、重、voice、逻辑/物理订单、执行 epoch、旧版本。冻结登记不足以替代上线前当前状态核对。"
+    },
+    {
+      "id": "X2",
+      "condition": "新 R1 必需实现通过完整分类输入桥与产出验证（62CC/10LC/32义务按各自性质结清）、资金决策的明确批准、各重账务与 FE01–FE11/相应 AC、O1–O3、RF-01；协议的 0H/0M 静态评审不等于实现验收。"
+    },
+    {
+      "id": "X3",
+      "condition": "保存全部旧事实、真实账户余额/仓位/订单、未决 Prepared/Reserved/MayHaveSent、未入账回报、费用/修正、成对差价责任和退出尾债；做身份交叉表和可重放导入。不能迁移一个净值数字便声称账已迁完。"
+    },
+    {
+      "id": "X4",
+      "condition": "新唯一发送者完成账户/venue 能力验证及 P1/P4/P7 崩溃、重复、延迟、部分成交、并发改价测试；证明旧引擎无旁路发单。paper 有独立身份和凭据隔离，同协议但不冒称外部成交。"
+    },
+    {
+      "id": "X5",
+      "condition": "得到明确的生产切换/撤旧发送权限批准后才执行：先停旧新增授权并在公共顺序中 fence 旧 epoch，保留既有可能外部效应责任及查询/回报入口，再按已验收切换方案启用新唯一发送者；任何时刻不能让两个经济内核独立支配同一账户。"
+    },
+    {
+      "id": "X6",
+      "condition": "回滚预案必须接受切换之后已发生的新事实和资金责任；只能交棒写权限，不能倒退账本或释放未终结责任。旧观察/隔离对照可长期保留；文件删除是后续逐依赖验收事项，不由本候选自动授权。"
+    }
+  ],
+  "groups": [
+    {
+      "id": "OE01",
+      "title": "newchan CLI、Bottle 图表服务与开发启动入口",
+      "kind": "入口",
+      "registry_record_ids": [
+        "IO-FR001",
+        "IO-FR002",
+        "AUX-FR0009"
+      ],
+      "representative_snapshot_files": [
+        "pyproject.toml",
+        "src/newchan/cli.py",
+        "src/newchan/server.py",
+        "scripts/dev.ps1"
+      ],
+      "observed_static_role": "project.scripts→cli.main；chart→Bottle run_server。Bottle 8765 与 ASGI 8766 是不同服务；登记的 dev.ps1 请求 serve，而 CLI 仅注册 chart，不能视为已打通的启动链。",
+      "candidate_disposition": "保留入口或适配职责，迁移到 R1；旧判定/经济/独立发送连接在验收后退役",
+      "r1_responsibility_destination": "启动清单只装配 R1 数据/观测适配器；状态和判定从同一生产核心读取。",
+      "entry_specific_exit_conditions": [
+        "逐一核对实际 CLI 命令、参数、默认 preset、端口与生命周期；消除 serve/chart 错配后做一次启动/停止验收。",
+        "图表启动不得隐式启动另一套交易策略；保留纯观测启动方式。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/0",
+          "/current_frontiers/1",
+          "/current_frontiers/287"
+        ],
+        "record_ids_sha256": "63ae772ee7fb19df52469d84c64bd18bfc783353f94cce57163fc961261d8813",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/auxiliary-entries/frontiers.json#sha256=8e5b5729cc753d647c3512b670e7e7922a890cf4a79d6d172eaf304939595fab",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/io-runtime/frontiers.json#sha256=56fd59f1b3f5239e6797cce391e542f0d8518e60ec299f1fe35453497af2a7c8"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE02",
+      "title": "行情获取、缓存、重采样前的数据适配",
+      "kind": "入口与数据支持",
+      "registry_record_ids": [
+        "IO-FR003",
+        "IO-FR004",
+        "IO-FR005",
+        "IO-FR006",
+        "IO-FR007",
+        "ACT-FR034",
+        "ACT-FR035",
+        "ACT-FR113",
+        "ACT-FR114",
+        "ACT-FR115",
+        "AUX-FR0020",
+        "AUX-FR0021",
+        "AUX-FR0022",
+        "AUX-FR0023",
+        "AUX-FR0039"
+      ],
+      "representative_snapshot_files": [
+        "src/newchan/data_databento.py",
+        "src/newchan/cache.py",
+        "trading_system/data/databento_loader.py",
+        "trading_system/data/feed_abstraction.py",
+        "trading_system/config/instruments.py",
+        "scripts/fetch_1m_databento_10y.py",
+        "scripts/consolidate_massive_tick.py",
+        "scripts/cdp_extract_ohlcv.py"
+      ],
+      "observed_static_role": "抓取/缓存/NT catalog、feed 选择、SIP 合并、TV 导出属于输入职责。live feeder 到 gateway 的 on_bar 接缝尚未由该登记证明；AUX20 同时有 K4 读者，不能把该读者迁入本候选。",
+      "candidate_disposition": "保留入口或适配职责，迁移到 R1；旧判定/经济/独立发送连接在验收后退役",
+      "r1_responsibility_destination": "R1 唯一市场输入及数据身份适配；行情不携带旧结构/资金决策。",
+      "entry_specific_exit_conditions": [
+        "核 symbol、venue、时间单位、交易日、修订、重复与缺口；生产结构输入按 R1 BeginRevision 顺序进入。",
+        "证明 feeder 实际送达；数据退役/删除原始文件是独立操作，不能随架构迁移自动执行。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/2",
+          "/current_frontiers/3",
+          "/current_frontiers/4",
+          "/current_frontiers/5",
+          "/current_frontiers/6",
+          "/current_frontiers/165",
+          "/current_frontiers/166",
+          "/current_frontiers/244",
+          "/current_frontiers/245",
+          "/current_frontiers/246",
+          "/current_frontiers/298",
+          "/current_frontiers/299",
+          "/current_frontiers/300",
+          "/current_frontiers/301",
+          "/current_frontiers/317"
+        ],
+        "record_ids_sha256": "cdb762b6d6433061eca1f4edeaa03394f39c2bc716b1cffea2d0d7139a56557b",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/auxiliary-entries/frontiers.json#sha256=8e5b5729cc753d647c3512b670e7e7922a890cf4a79d6d172eaf304939595fab",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/io-runtime/frontiers.json#sha256=56fd59f1b3f5239e6797cce391e542f0d8518e60ec299f1fe35453497af2a7c8"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE03",
+      "title": "REST/WS replay 与 TFOrchestrator",
+      "kind": "入口",
+      "registry_record_ids": [
+        "IO-FR008",
+        "IO-FR009",
+        "IO-FR010",
+        "IO-FR012",
+        "IO-FR013",
+        "IO-FR014",
+        "IO-FR132",
+        "KERNEL-FR028",
+        "KERNEL-FR029"
+      ],
+      "representative_snapshot_files": [
+        "src/newchan/gateway.py",
+        "src/newchan/replay.py",
+        "src/newchan/orchestrator/timeframes.py",
+        "src/newchan/b_timeframe.py",
+        "frontend/src/hooks/useReplay.ts",
+        "frontend/src/hooks/useEventFeed.ts"
+      ],
+      "observed_static_role": "REST replay 可选 mode/timeframes；WS start 使用默认 Recursive/1min。ReplaySession step/seek 重放旧 Python 核心；进程全局 session、WS 断开、stop 删除分别有不同生命周期，seek 消息契约存在接缝。",
+      "candidate_disposition": "保留入口或适配职责，迁移到 R1；旧判定/经济/独立发送连接在验收后退役",
+      "r1_responsibility_destination": "同一 R1 核心的 session/游标适配；时间框数据输入与结构级别分开。",
+      "entry_specific_exit_conditions": [
+        "REST、WS、逐步、seek、重连在相同 cut 下读出同一完整对象；每个 session 明确身份、epoch 和销毁边界。",
+        "明确历史 seek 为只读重建或隔离回放，不能重发历史交易；不用 TF 时间框数量伪装递归级别。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/7",
+          "/current_frontiers/8",
+          "/current_frontiers/9",
+          "/current_frontiers/11",
+          "/current_frontiers/12",
+          "/current_frontiers/13",
+          "/current_frontiers/131",
+          "/current_frontiers/1704",
+          "/current_frontiers/1705"
+        ],
+        "record_ids_sha256": "c84b4934ef0a5eb76e1a90f600e6bd57f83d27fbcb7793b7cfcee029129eb067",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/io-runtime/frontiers.json#sha256=56fd59f1b3f5239e6797cce391e542f0d8518e60ec299f1fe35453497af2a7c8",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE04",
+      "title": "overlay、前端与 realtime_server 查看入口",
+      "kind": "入口与读端",
+      "registry_record_ids": [
+        "IO-FR011",
+        "IO-FR040",
+        "IO-FR041",
+        "KERNEL-FR030",
+        "KERNEL-FR031",
+        "KERNEL-FR032",
+        "KERNEL-FR033",
+        "KERNEL-FR036",
+        "KERNEL-FR048",
+        "AUX-FR0002",
+        "AUX-FR0003"
+      ],
+      "representative_snapshot_files": [
+        "src/newchan/ab_bridge_newchan.py",
+        "src/newchan/a_recursive_engine.py",
+        "src/newchan/a_center_v0.py",
+        "src/newchan/a_trendtype_v0.py",
+        "src/newchan/a_level_fsm_newchan.py",
+        "src/newchan/nested_pipeline.py",
+        "scripts/realtime_server.py",
+        "analysis/chanlun_viewer.html",
+        "frontend/index.html"
+      ],
+      "observed_static_role": "overlay 内部另跑 A 递归、中枢/趋势、lstar、nested 搜索及 BSP；realtime_server 也持有 Python Recursive 核心。两个查看器不是天然同源。",
+      "candidate_disposition": "保留入口或适配职责，迁移到 R1；旧判定/经济/独立发送连接在验收后退役",
+      "r1_responsibility_destination": "保留呈现与订阅；结构/操作/账务视图仅投影 R1 Observation cut。",
+      "entry_specific_exit_conditions": [
+        "撤除查看接口内独立重判和 lstar 选择权；对象保留完整类型、来源、首次得知时间和修订链。",
+        "实时、回放和 UI 同 cut 对拍；前端无交易写权限；原视图若保留比较须展示不同 run/core 版本。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/10",
+          "/current_frontiers/39",
+          "/current_frontiers/40",
+          "/current_frontiers/1706",
+          "/current_frontiers/1707",
+          "/current_frontiers/1708",
+          "/current_frontiers/1709",
+          "/current_frontiers/1717",
+          "/current_frontiers/1729",
+          "/current_frontiers/280",
+          "/current_frontiers/281"
+        ],
+        "record_ids_sha256": "29f674c3b3c6891adb6a2309491fba1ebfc82ceae1c837da9b0ac234af4858ad",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/auxiliary-entries/frontiers.json#sha256=8e5b5729cc753d647c3512b670e7e7922a890cf4a79d6d172eaf304939595fab",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/io-runtime/frontiers.json#sha256=56fd59f1b3f5239e6797cce391e542f0d8518e60ec299f1fe35453497af2a7c8",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE05",
+      "title": "Python RecursiveOrchestrator 及其结构流水线",
+      "kind": "旧公共核心",
+      "registry_record_ids": [
+        "KERNEL-FR001",
+        "KERNEL-FR002",
+        "KERNEL-FR003",
+        "KERNEL-FR004",
+        "KERNEL-FR005",
+        "KERNEL-FR006",
+        "KERNEL-FR007"
+      ],
+      "representative_snapshot_files": [
+        "src/newchan/orchestrator/recursive.py",
+        "src/newchan/bi_engine.py",
+        "src/newchan/core/recursion/segment_engine.py",
+        "src/newchan/core/recursion/zhongshu_engine.py",
+        "src/newchan/core/recursion/move_engine.py",
+        "src/newchan/core/recursion/recursive_stack.py",
+        "src/newchan/core/recursion/buysellpoint_engine.py",
+        "src/newchan/orchestrator/bus.py"
+      ],
+      "observed_static_role": "Python 每 bar 分别推进笔、段、中枢、走势、递归及 BSP/event bus；其构造参数和级别标记是冻结观察，不是 R1 定义依据。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "R1 Classification/Operation 读取取代旧整条权威；可按独立证明复用纯计算。",
+      "entry_specific_exit_conditions": [
+        "切断 OE03/OE04/旧 reader 的默认生产连接；完成 CC001–CC062 实际数据域桥与层级同判据验证。",
+        "保留旧输入/输出作有版本的对照，不以旧结果给新判据失败兜底。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1677",
+          "/current_frontiers/1678",
+          "/current_frontiers/1679",
+          "/current_frontiers/1680",
+          "/current_frontiers/1681",
+          "/current_frontiers/1682",
+          "/current_frontiers/1683"
+        ],
+        "record_ids_sha256": "387f954e644c8580c0d974b6f16cbbc42e5cae0372cf5a172645c3655d6ab92e",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE06",
+      "title": "PyRecursiveOrchestrator / Rust RecursiveOrchestrator",
+      "kind": "旧 FFI 公共核心",
+      "registry_record_ids": [
+        "KERNEL-FR009",
+        "KERNEL-FR037",
+        "KERNEL-FR046",
+        "KERNEL-FR047"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/lib.rs",
+        "rust/src/orchestrator.rs",
+        "rust/src/bi_zhongshu_bsp.rs",
+        "rust/src/zhongshu.rs",
+        "rust/src/moves.rs",
+        "rust/src/divergence.rs",
+        "rust/src/buysellpoint.rs"
+      ],
+      "observed_static_role": "PyRecursive 的 enable_bsp 同时控制递归栈；take_trend/take_bi、旧 MACD/幅度/confirm ratio 链被策略与研究 reader 消费。导出类存在不证明现役服务已采用。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "FFI 兼容层若保留必须显式绑定 R1 版本；旧类只能隔离对照。",
+      "entry_specific_exit_conditions": [
+        "清点这个类的真实构造者与 preset；旧 take_* 不能继续成为任何 R1 交易信号来源。",
+        "新 FFI 暴露完整分类与对象身份，不能只用旧信号 tape 作为强制语义接口。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [
+        "OE07",
+        "OE15",
+        "OE41"
+      ],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1685",
+          "/current_frontiers/1718",
+          "/current_frontiers/1727",
+          "/current_frontiers/1728"
+        ],
+        "record_ids_sha256": "f1b36dded6dcef3cc2864265584107b14e0c78873421c07ab397a0b5288ef6bb",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE07",
+      "title": "ChanlunStrategy、ChanlunBridge 与 MakerOptimizer",
+      "kind": "策略和实际外部适配链",
+      "registry_record_ids": [
+        "ACT-FR003",
+        "ACT-FR004",
+        "ACT-FR005",
+        "ACT-FR006",
+        "ACT-FR007",
+        "ACT-FR116",
+        "ACT-FR117",
+        "ACT-FR118",
+        "ACT-FR119",
+        "ACT-FR120",
+        "ACT-FR121",
+        "ACT-FR122",
+        "ACT-FR123"
+      ],
+      "representative_snapshot_files": [
+        "trading_system/strategy/chanlun_strategy.py",
+        "trading_system/strategy/signal_bridge.py",
+        "trading_system/strategy/bar_counter.py",
+        "trading_system/execution/maker_optimizer.py",
+        "trading_system/execution/lmt_executor.py",
+        "trading_system/execution/leverage_calculator.py",
+        "trading_system/execution/risk_controls.py",
+        "trading_system/persistence/trade_journal.py",
+        "trading_system/persistence/database.py",
+        "trading_system/persistence/bar_cache.py"
+      ],
+      "observed_static_role": "旧 Recursive events→ChanlunBridge→策略→MakerOptimizer→NT 下单；RiskGate 与恢复数据库不能从声明推定已完整挂载。现有 first-seen watermark、计时改价和 journal 不等于 R1 协议。",
+      "candidate_disposition": "保留入口或适配职责，迁移到 R1；旧判定/经济/独立发送连接在验收后退役",
+      "r1_responsibility_destination": "保留 venue/NT 编码、查询、行情适配职责；经济判断归各重账，所有实际发送归公共授权后的唯一执行器。",
+      "entry_specific_exit_conditions": [
+        "P1/P4/P7 覆盖 submit、定时重定价、部分成交、撤单、断线恢复；证明逻辑数量上限跨独立可执行 allocation 成立。",
+        "所有外部回报先经共同 CaptureExternal；旧 journal 迁为事实来源，不能由另一个策略恢复后继续独立发单。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/134",
+          "/current_frontiers/135",
+          "/current_frontiers/136",
+          "/current_frontiers/137",
+          "/current_frontiers/138",
+          "/current_frontiers/247",
+          "/current_frontiers/248",
+          "/current_frontiers/249",
+          "/current_frontiers/250",
+          "/current_frontiers/251",
+          "/current_frontiers/252",
+          "/current_frontiers/253",
+          "/current_frontiers/254"
+        ],
+        "record_ids_sha256": "976b005d24443f537d877541b1ecfdf8fd1ef8ee5910ab7bcec0f41e3e0be48f",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE08",
+      "title": "PyThetaStream、ThetaPiStream 与 ThetaRecStrategy",
+      "kind": "旧 FFI/策略入口",
+      "registry_record_ids": [
+        "ACT-FR008",
+        "ACT-FR009",
+        "ACT-FR010",
+        "ACT-FR011",
+        "KERNEL-FR008",
+        "KERNEL-FR010",
+        "KERNEL-FR012",
+        "KERNEL-FR020",
+        "KERNEL-FR022"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/theta_v0/ffi.rs",
+        "rust/src/theta_v0/stream.rs",
+        "rust/src/theta_v0/classifier/streaming.rs",
+        "rust/src/theta_v0/classifier/e2eo.rs",
+        "rust/src/theta_v0/strategy/consume_router.rs",
+        "trading_system/strategy/theta_rec_strategy.py"
+      ],
+      "observed_static_role": "默认 cdylib 注册 PyThetaStream；ThetaRecStrategy 按 bar 推入并按净头寸行动；owned classifier 以 operating_levels=&[] 调用，stream 输出消费未构成外部成交回灌；registry 查询本身不具备恢复闭环。",
+      "candidate_disposition": "保留入口或适配职责，迁移到 R1；旧判定/经济/独立发送连接在验收后退役",
+      "r1_responsibility_destination": "公开流适配可迁移；旧 stream 的聚合资金与自动信号消费连接退役，R1 重/分支挂载必须显式。",
+      "entry_specific_exit_conditions": [
+        "真实 operating mount、完整分类输出、各重 ledger、外部 fill/bust 回灌和重启重放闭环全部接通。",
+        "禁止 nav fallback 充当账本真值；on_stop close-all 与 finish 必须服从退出尾债协议，不能借停止清除责任。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/139",
+          "/current_frontiers/140",
+          "/current_frontiers/141",
+          "/current_frontiers/142",
+          "/current_frontiers/1684",
+          "/current_frontiers/1686",
+          "/current_frontiers/1688",
+          "/current_frontiers/1696",
+          "/current_frontiers/1698"
+        ],
+        "record_ids_sha256": "3ab13fe030c39aacc527005d310cb81fb98e444a2ab5a9a8153fd0cc4e541ede",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE09",
+      "title": "Rust run_theta_backtest / Nautilus ThetaStrategy",
+      "kind": "旧回测/策略入口",
+      "registry_record_ids": [
+        "ACT-FR016",
+        "ACT-FR017",
+        "ACT-FR094",
+        "ACT-FR095",
+        "ACT-FR096",
+        "ACT-FR097",
+        "THC-FR003"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/theta_v0/nautilus/backtest_engine.rs",
+        "rust/src/theta_v0/nautilus/strategy.rs",
+        "rust/src/theta_v0/nautilus/account_adapter.rs",
+        "rust/src/theta_v0/nautilus/bar_adapter.rs",
+        "rust/src/theta_v0/nautilus/order_adapter.rs"
+      ],
+      "observed_static_role": "feature nautilus/backtest_bin 的装配运行 ThetaStrategy/ThetaCore；recognize_nested/plan_orders 是独立旧决策链。登记范围 BTC/CASH/NETTING，position closed 清理不证明部分成交恢复正确。",
+      "candidate_disposition": "保留入口或适配职责，迁移到 R1；旧判定/经济/独立发送连接在验收后退役",
+      "r1_responsibility_destination": "回测 driver/NT 数据与订单编码适配到同一 R1 内核；旧 ThetaCore 决策/持仓状态退役。",
+      "entry_specific_exit_conditions": [
+        "回测、paper 与真实适配共享逻辑命令及账务协议；模拟终态/成交不得用更宽准入。",
+        "补部分成交、撤单未终态、回报延迟、账户身份和初始净值一致性；没有通过前只作旧对照。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/147",
+          "/current_frontiers/148",
+          "/current_frontiers/225",
+          "/current_frontiers/226",
+          "/current_frontiers/227",
+          "/current_frontiers/228",
+          "/current_frontiers/1655"
+        ],
+        "record_ids_sha256": "510dcaf2d20efe22b9758b3255d95745923f49919a653b46b10aaee4d0a1f7fd",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/theta-state-closure/frontiers.json#sha256=bcbc1f8156475554568206a054b7e74721dfc7f8e2a315ac7efae7125638f130"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE10",
+      "title": "fugue_v3 / PyFugueV3Stream 与批量入口",
+      "kind": "旧引擎家族",
+      "registry_record_ids": [
+        "ACT-FR018",
+        "ACT-FR033",
+        "ACT-FR038",
+        "ACT-FR039",
+        "ACT-FR040",
+        "ACT-FR041",
+        "ACT-FR042",
+        "ACT-FR043",
+        "ACT-FR044",
+        "ACT-FR045",
+        "ACT-FR046",
+        "ACT-FR047"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/fugue_v3/ffi.rs",
+        "rust/src/fugue_v3/engine.rs",
+        "rust/src/fugue_v3/operate.rs",
+        "rust/src/fugue_v3/accounting.rs",
+        "rust/src/fugue_v3/axis.rs",
+        "rust/src/fugue_v3/cycle.rs",
+        "rust/src/fugue_v3/layer.rs",
+        "rust/src/fugue_v3/morphology.rs",
+        "rust/src/fugue_v3/observe.rs",
+        "rust/src/fugue_v3/prove.rs"
+      ],
+      "observed_static_role": "Signal/Morphology/Observe→Operate/accounting/cycle；FUGUE_LONG_ONLY 依环境变量存在与否生效。Morphology 也被 Spiral/recursive_t 消费，因此不能只退 recursive_t 而遗留同权威分支。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "旧整个资金/操作组织冻结；R1 每重状态和持久责任替代；形态函数仅在同语义域证明后复用。",
+      "entry_specific_exit_conditions": [
+        "对所有 FFI/批量装配写明旧 core id 和无外部发送权限；逐一替换真实调用者。",
+        "旧 Long-only、floor、成本门与共享状态均不能默认继承为新资金政策。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/149",
+          "/current_frontiers/164",
+          "/current_frontiers/169",
+          "/current_frontiers/170",
+          "/current_frontiers/171",
+          "/current_frontiers/172",
+          "/current_frontiers/173",
+          "/current_frontiers/174",
+          "/current_frontiers/175",
+          "/current_frontiers/176",
+          "/current_frontiers/177",
+          "/current_frontiers/178"
+        ],
+        "record_ids_sha256": "204bdaf4aa41c0736a600e1e2efb331c9edfaabe318fa147232a47a345369a60",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE11",
+      "title": "recursive_t、RecTStream / TFugueStream / PyRecStream",
+      "kind": "旧引擎家族",
+      "registry_record_ids": [
+        "ACT-FR020",
+        "ACT-FR021",
+        "ACT-FR048",
+        "ACT-FR049",
+        "ACT-FR050",
+        "ACT-FR051",
+        "ACT-FR052",
+        "ACT-FR053",
+        "ACT-FR054",
+        "ACT-FR055",
+        "ACT-FR056",
+        "ACT-FR057",
+        "ACT-FR058",
+        "ACT-FR059",
+        "ACT-FR060",
+        "ACT-FR061",
+        "ACT-FR131",
+        "ACT-FR132"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/recursive_t/ffi.rs",
+        "rust/src/recursive_t/rec_stream.rs",
+        "rust/src/recursive_t/rec_driver.rs",
+        "rust/src/recursive_t/rec_engine.rs",
+        "rust/src/recursive_t/stream.rs",
+        "rust/src/recursive_t/t_engine.rs",
+        "rust/src/recursive_t/backtest.rs",
+        "rust/src/recursive_t/backtest_run.rs",
+        "rust/src/recursive_t/t_engine_run.rs"
+      ],
+      "observed_static_role": "RecTStream push/target_net/snapshot/finish 与 TFugue trade11 被 Python/NT 壳消费；Python new_production 与 Rust env constructor 默认路线不同。8×3 runner 是研究输出，不能据此声称外部执行。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "冻结整个旧生产组织及默认 FFI；R1 新结构读取、各重账户和授权执行承接生产职责。",
+      "entry_specific_exit_conditions": [
+        "enumerate 实际 constructor/feature/env/NT 壳，不能只删模块名而保留 target_net 发送旁门。",
+        "旧账户历史、未完成 T/voice 与可能外部尾债先做身份映射和可回放记录，再撤销旧发送 epoch。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/151",
+          "/current_frontiers/152",
+          "/current_frontiers/179",
+          "/current_frontiers/180",
+          "/current_frontiers/181",
+          "/current_frontiers/182",
+          "/current_frontiers/183",
+          "/current_frontiers/184",
+          "/current_frontiers/185",
+          "/current_frontiers/186",
+          "/current_frontiers/187",
+          "/current_frontiers/188",
+          "/current_frontiers/189",
+          "/current_frontiers/190",
+          "/current_frontiers/191",
+          "/current_frontiers/192",
+          "/current_frontiers/262",
+          "/current_frontiers/263"
+        ],
+        "record_ids_sha256": "167ab353de3ab560028ba0e38fc5283ad4f866eb0c5881a01152ec92367a4b6a",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE12",
+      "title": "SpiralEngine 家族与 FFI",
+      "kind": "旧引擎家族",
+      "registry_record_ids": [
+        "ACT-FR019",
+        "ACT-FR062",
+        "ACT-FR063",
+        "ACT-FR064",
+        "ACT-FR065",
+        "ACT-FR066",
+        "ACT-FR067",
+        "ACT-FR068",
+        "ACT-FR069",
+        "ACT-FR070",
+        "ACT-FR071"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/spiral/ffi.rs",
+        "rust/src/spiral/engine.rs",
+        "rust/src/spiral/accounting.rs",
+        "rust/src/spiral/operation.rs",
+        "rust/src/spiral/closure.rs",
+        "rust/src/spiral/signal.rs",
+        "rust/src/spiral/state.rs",
+        "rust/src/spiral/voice.rs"
+      ],
+      "observed_static_role": "SpiralEngineCore→close_voice/try_spawn_cost_gated；signal/形态被其他旧引擎复用。研究结果或纯 for-loop 不等于交易 venue 回报闭环。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "R1 各重账/完整生命周期承接，旧独立经济模型保留隔离比较。",
+      "entry_specific_exit_conditions": [
+        "确认所有脚本/FFI 核心版本；不得把 cost-gated spawn 自动翻译成 R1 初始/追加资金政策。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/150",
+          "/current_frontiers/193",
+          "/current_frontiers/194",
+          "/current_frontiers/195",
+          "/current_frontiers/196",
+          "/current_frontiers/197",
+          "/current_frontiers/198",
+          "/current_frontiers/199",
+          "/current_frontiers/200",
+          "/current_frontiers/201",
+          "/current_frontiers/202"
+        ],
+        "record_ids_sha256": "8535a66a50c9f593598e0d4e5e7571f9c1050dd46a008bd12881bc6d409b968f",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE13",
+      "title": "NT backtest/live/paper 装配面",
+      "kind": "装配入口登记",
+      "registry_record_ids": [
+        "ACT-FR025"
+      ],
+      "representative_snapshot_files": [
+        "trading_system/",
+        "trading_system/strategy/chanlun_strategy.py",
+        "trading_system/strategy/theta_rec_strategy.py"
+      ],
+      "observed_static_role": "登记 ACT-ENT009/010/011/012 指向两个实际回测装配、一个 data-only node 与一个纯 stub；BZ 默认 enable-orders 关闭。BTC 回测 capital=1e5 与 Theta 默认 initial_nav=1e6 未统一。",
+      "candidate_disposition": "保留入口或适配职责，迁移到 R1；旧判定/经济/独立发送连接在验收后退役",
+      "r1_responsibility_destination": "driver/环境只选择 R1 同一个内核和隔离账户；paper 独立 account/run id、模拟外部事实适配。",
+      "entry_specific_exit_conditions": [
+        "逐个 origin_entry_id 补出准确 launcher 文件/命令、配置、启动清单；不得将纯 stub 或 data-only 填报为已实现 paper。",
+        "paper 模拟延迟/成交/撤单/改价依同一 P1/P4/P7；禁用真实凭据；真实迁移另经明确验收。"
+      ],
+      "evidence_limits": "本附录只读 canonical registry；该聚合记录未给四个 main 的逐文件名称，不能冒称逐入口命令清单已齐。",
+      "related_groups": [
+        "OE07",
+        "OE08",
+        "OE09"
+      ],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/156"
+        ],
+        "record_ids_sha256": "2738a1da8cbe861247652dd6e6c5537317392f8ab059bf8a89b01947151880d8",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE14",
+      "title": "人工 HL 验证脚本与 IB warrant 工具",
+      "kind": "已知人工外部发送入口",
+      "registry_record_ids": [
+        "ACT-FR031",
+        "AUX-FR0001"
+      ],
+      "representative_snapshot_files": [
+        "trading_system/live/hl_verify_*.py",
+        "analysis/buy_28316_warrant.py"
+      ],
+      "observed_static_role": "HL 脚本可走 NT submit 或 SDK order/cancel；IB 脚本 main 可经 TWS7496 place/cancel，人工 y 触发且 DAY 单可能存续。这是静态能力，不是当前在挂单。",
+      "candidate_disposition": "挂靠实际调用者的支持模块；逐函数判定复用，不能成为新账本或发送者",
+      "r1_responsibility_destination": "保留明确批准的维护工具身份；涉及同账户的每个实际外部动作纳入 R1 风险事实和维护期栅栏。",
+      "entry_specific_exit_conditions": [
+        "迁移验收清点这些 launcher 的真实账户、凭据和可执行权限；自动策略必须能获知维护订单/成交。",
+        "若保留绕过自动命令流的人工下单，则先关相应账户新单 gate 并对账恢复；不能并发创建隐藏风险。",
+        "不删除工具，不运行脚本，不取消现有订单；实际操作须后续明确授权。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/162",
+          "/current_frontiers/279"
+        ],
+        "record_ids_sha256": "73eed888e1bb5281af455ecc423fe531db3ecf794968ceee2324f47dfc65e6cf",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/auxiliary-entries/frontiers.json#sha256=8e5b5729cc753d647c3512b670e7e7922a890cf4a79d6d172eaf304939595fab"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE15",
+      "title": "OrganicTape / StreamingSignalReader / UnnStream 输入及比较壳",
+      "kind": "旧信号公共接口",
+      "registry_record_ids": [
+        "ACT-FR032",
+        "ACT-FR126",
+        "AUX-FR0015",
+        "AUX-FR0016",
+        "AUX-FR0017",
+        "AUX-FR0018",
+        "AUX-FR0019",
+        "AUX-FR0035",
+        "AUX-FR0036",
+        "AUX-FR0037"
+      ],
+      "representative_snapshot_files": [
+        "analysis/organic_signals.py",
+        "analysis/organic_fugue_rust_check.py",
+        "analysis/_dump_tape_rust.py",
+        "analysis/organic_fugue.py",
+        "analysis/fugue_version_i.py",
+        "analysis/fugue_v2_full_backtest.py",
+        "rust/src/lib.rs",
+        "rust/src/trading/trade_behavior.rs",
+        "trading_system/backtest_unn_stream.py"
+      ],
+      "observed_static_role": "readers→pack_tape/push_signal→OrganicTape/UnnStream；settled 默认与 NT 显式值不同，字段 capability 缺省不同。旧 MACD true 的独立 div 列空、BSP 仍另算，不能把空列叫完整分类。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "保留旧 tape 格式和比较脚本；新生产读取 R1 完整分类对象，bar 数据适配可迁移。",
+      "entry_specific_exit_conditions": [
+        "新的 FFI/tape 必须有版本、字段完整性及来源身份，不以旧任意 true 字段替代 domain witness。",
+        "研究脚本指明 core/run id 且不能持有生产发送权限；新输出与历史格式差异显式展示。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/163",
+          "/current_frontiers/257",
+          "/current_frontiers/293",
+          "/current_frontiers/294",
+          "/current_frontiers/295",
+          "/current_frontiers/296",
+          "/current_frontiers/297",
+          "/current_frontiers/313",
+          "/current_frontiers/314",
+          "/current_frontiers/315"
+        ],
+        "record_ids_sha256": "1551e29ce1ba70a93dd8090242f4ab2a8da01621b3ceafad57c93961264418bc",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/auxiliary-entries/frontiers.json#sha256=8e5b5729cc753d647c3512b670e7e7922a890cf4a79d6d172eaf304939595fab"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE16",
+      "title": "run_organic / OrganicLedger / VoiceUnit",
+      "kind": "旧经济入口",
+      "registry_record_ids": [
+        "ACT-FR028",
+        "ACT-FR029",
+        "POS-FR007"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/trading/runner.rs",
+        "rust/src/trading/ledger.rs",
+        "rust/src/trading/level_operating_unit.rs",
+        "rust/src/lib.rs"
+      ],
+      "observed_static_role": "run_organic→OrganicLedger/VoiceUnit；ACT29 是限定七个实际 callee 的分派登记，不是七套新 owner。Stock/Fsm/Full/Signal、PerpShort 等参数是旧行为。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "R1 每重 ledger/操作读取承接；旧 runner 只比较。",
+      "entry_specific_exit_conditions": [
+        "不能继承旧共享池、分区、摩擦率和仓位默认作为未决政策的答案；每个外部采用方迁到明确 R1 配置。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [
+        "OE17",
+        "OE18",
+        "OE19",
+        "OE20",
+        "OE21",
+        "OE22"
+      ],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/159",
+          "/current_frontiers/160",
+          "/current_frontiers/1667"
+        ],
+        "record_ids_sha256": "45097457bf22655ed764c9c8cb9905a99cf364421b8a94d7085745e3bb2508dd",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure/frontiers.json#sha256=4690bce250bc70a24394d154daae979cc006e21c9ae00df49b3e582817f19214"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE17",
+      "title": "run_positional 本体",
+      "kind": "实际公开分派 callee",
+      "registry_record_ids": [
+        "POS-FR001"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/lib.rs",
+        "rust/src/trading/positional.rs",
+        "rust/src/trading/positional.rs"
+      ],
+      "observed_static_role": "run_positional；本体通过 run_positional_rust 暴露；其他模式分派另列，不能以读过本体代替全部 callee。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "R1 替代旧经济入口；旧 public name 可保留在显式 legacy comparison 命名空间。",
+      "entry_specific_exit_conditions": [
+        "真实模式别名、参数和默认启动调用者需与冻结记录对应；通过新资金/账务政策及 FE/RF 验收后才切换生产调用。",
+        "保留旧虚拟/实际账户来源和未完责任，不能直接把旧聚合净值当各重期初账。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1661"
+        ],
+        "record_ids_sha256": "5d3c2dff4d1ae3052a715659371db0a3317dc6981066b6d72f6314ab6c202598",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure/frontiers.json#sha256=4690bce250bc70a24394d154daae979cc006e21c9ae00df49b3e582817f19214"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE18",
+      "title": "positional_fusion",
+      "kind": "实际公开分派 callee",
+      "registry_record_ids": [
+        "POS-FR002"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/lib.rs",
+        "rust/src/trading/positional.rs",
+        "rust/src/trading/positional_fusion.rs"
+      ],
+      "observed_static_role": "run_fusion；限定七中的独立 callee；不把它和 unified_voice 的 fusion_v 混为同一模式。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "R1 替代旧经济入口；旧 public name 可保留在显式 legacy comparison 命名空间。",
+      "entry_specific_exit_conditions": [
+        "真实模式别名、参数和默认启动调用者需与冻结记录对应；通过新资金/账务政策及 FE/RF 验收后才切换生产调用。",
+        "保留旧虚拟/实际账户来源和未完责任，不能直接把旧聚合净值当各重期初账。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1662"
+        ],
+        "record_ids_sha256": "f806a6ddb73bb64cb773f767b77618326dd50fce3c1ef8439654ddbee229ffce",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure/frontiers.json#sha256=4690bce250bc70a24394d154daae979cc006e21c9ae00df49b3e582817f19214"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE19",
+      "title": "unified_necessity / UnnStreamCore",
+      "kind": "实际公开分派 callee",
+      "registry_record_ids": [
+        "POS-FR003"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/lib.rs",
+        "rust/src/trading/positional.rs",
+        "rust/src/trading/unified_necessity.rs"
+      ],
+      "observed_static_role": "run_unified_necessity / UnnStreamCore；同时有 stream 公共消费面；完整流恢复需要独立验收。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "R1 替代旧经济入口；旧 public name 可保留在显式 legacy comparison 命名空间。",
+      "entry_specific_exit_conditions": [
+        "真实模式别名、参数和默认启动调用者需与冻结记录对应；通过新资金/账务政策及 FE/RF 验收后才切换生产调用。",
+        "保留旧虚拟/实际账户来源和未完责任，不能直接把旧聚合净值当各重期初账。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1663"
+        ],
+        "record_ids_sha256": "4fbfdd28001a05aa02dd17085093d31a949edfb1f84bf7ba41de0656201d4a4f",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure/frontiers.json#sha256=4690bce250bc70a24394d154daae979cc006e21c9ae00df49b3e582817f19214"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE20",
+      "title": "fusion_v / unified_voice",
+      "kind": "实际公开分派 callee",
+      "registry_record_ids": [
+        "POS-FR004"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/lib.rs",
+        "rust/src/trading/positional.rs",
+        "rust/src/trading/unified_voice.rs"
+      ],
+      "observed_static_role": "run_unified_voice；fusion_v 独立于 dual_voice 的 fusion_vd/vn/vdn；两者必须各有退场记录。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "R1 替代旧经济入口；旧 public name 可保留在显式 legacy comparison 命名空间。",
+      "entry_specific_exit_conditions": [
+        "真实模式别名、参数和默认启动调用者需与冻结记录对应；通过新资金/账务政策及 FE/RF 验收后才切换生产调用。",
+        "保留旧虚拟/实际账户来源和未完责任，不能直接把旧聚合净值当各重期初账。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1664"
+        ],
+        "record_ids_sha256": "a7111bb2e465b12bac4d45010484abfaa0701e50a685063a21caa8b5fb8a10ed",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure/frontiers.json#sha256=4690bce250bc70a24394d154daae979cc006e21c9ae00df49b3e582817f19214"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE21",
+      "title": "nested_fugue",
+      "kind": "实际公开分派 callee",
+      "registry_record_ids": [
+        "POS-FR005"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/lib.rs",
+        "rust/src/trading/positional.rs",
+        "rust/src/trading/nested_fugue.rs"
+      ],
+      "observed_static_role": "run_nested_fugue；限定七的独立虚拟账户实现。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "R1 替代旧经济入口；旧 public name 可保留在显式 legacy comparison 命名空间。",
+      "entry_specific_exit_conditions": [
+        "真实模式别名、参数和默认启动调用者需与冻结记录对应；通过新资金/账务政策及 FE/RF 验收后才切换生产调用。",
+        "保留旧虚拟/实际账户来源和未完责任，不能直接把旧聚合净值当各重期初账。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1665"
+        ],
+        "record_ids_sha256": "625e0a25cfb1fc4c8a9d06b4133f79fc4f7d8c754b1130fc9ea8adbfb836462e",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure/frontiers.json#sha256=4690bce250bc70a24394d154daae979cc006e21c9ae00df49b3e582817f19214"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE22",
+      "title": "isolated_fugue",
+      "kind": "实际公开分派 callee",
+      "registry_record_ids": [
+        "POS-FR006"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/lib.rs",
+        "rust/src/trading/positional.rs",
+        "rust/src/trading/isolated_fugue.rs"
+      ],
+      "observed_static_role": "run_isolated_fugue；文件名 isolated 不能证明其账户、事实记录和恢复已经满足 R1 隔离。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "R1 替代旧经济入口；旧 public name 可保留在显式 legacy comparison 命名空间。",
+      "entry_specific_exit_conditions": [
+        "真实模式别名、参数和默认启动调用者需与冻结记录对应；通过新资金/账务政策及 FE/RF 验收后才切换生产调用。",
+        "保留旧虚拟/实际账户来源和未完责任，不能直接把旧聚合净值当各重期初账。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1666"
+        ],
+        "record_ids_sha256": "491341ab1b090682293f66eba0c7a16b48b23c6f0fc2a9ee76ff4b5e57e78eb3",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure/frontiers.json#sha256=4690bce250bc70a24394d154daae979cc006e21c9ae00df49b3e582817f19214"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE23",
+      "title": "run_positional 延续模式分派表",
+      "kind": "已有入口的分派证据",
+      "registry_record_ids": [
+        "POS-FR008",
+        "ACT-FR144"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/trading/positional.rs"
+      ],
+      "observed_static_role": "POS008/ACT144 指向六组真实延续 callee；不新增入口数量或资金 owner。",
+      "candidate_disposition": "挂靠实际调用者的支持模块；逐函数判定复用，不能成为新账本或发送者",
+      "r1_responsibility_destination": "挂靠 OE17；每个实际模式落 OE24–OE29。",
+      "entry_specific_exit_conditions": [
+        "记录每个分支在构建/启动时的选择值；下列模式全部有独立处置后才能说本入口完成迁移。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [
+        "OE24",
+        "OE25",
+        "OE26",
+        "OE27",
+        "OE28",
+        "OE29"
+      ],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1668",
+          "/current_frontiers/275"
+        ],
+        "record_ids_sha256": "a5ea6ff74d8bf659b49bdd1dd082acf78f1af385a77def6535ce5ecf68672aab",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure/frontiers.json#sha256=4690bce250bc70a24394d154daae979cc006e21c9ae00df49b3e582817f19214"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE24",
+      "title": "fusion_va",
+      "kind": "实际模式/preset",
+      "registry_record_ids": [
+        "POS-FR009"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/trading/positional.rs",
+        "rust/src/trading/axiom_voice.rs"
+      ],
+      "observed_static_role": "run_axiom_voice；Long/Gated 实际可达而真 Short 不可达；PairedOut 全卖后名义 Long 保留、钱进同批共享池，恢复并无独立 escrow。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "各模式仅作隔离对照；R1 的选择必须从已签需求和未决政策独立落定。",
+      "entry_specific_exit_conditions": [
+        "不能把 PairedOut/restore_due 翻译成已资助 Short；R1 对应动作必须有本重资金、冻结责任与成对尾债。",
+        "保留模式/config/core id 的历史记录；撤销旧生产接线需共同退出条件 X1–X6。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1669"
+        ],
+        "record_ids_sha256": "929c1b508b84584fc63f292bab6efb5e654e35fdffd59da016a1759667e29a5a",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure--continuation-six/frontiers.json#sha256=0bc8af6b5e81c74cadbfbd53f229d5ae8c696acf3cdce7053058c0abd158773d"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE25",
+      "title": "urs",
+      "kind": "实际模式/preset",
+      "registry_record_ids": [
+        "POS-FR010"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/trading/positional.rs",
+        "rust/src/trading/unified_recursive.rs"
+      ],
+      "observed_static_role": "run_unified_recursive；C_CLEAR_NOT_FLIP=false，root E* 触发整仓翻 Short、子级零 Long 壳；内部池半分。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "各模式仅作隔离对照；R1 的选择必须从已签需求和未决政策独立落定。",
+      "entry_specific_exit_conditions": [
+        "明确清算/翻仓与子树生命周期；旧 half split 和 root 规则不是新资金政策。",
+        "保留模式/config/core id 的历史记录；撤销旧生产接线需共同退出条件 X1–X6。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1670"
+        ],
+        "record_ids_sha256": "f9d1bbf316386cd53f3ce547ffc874f63419e9df6b7590fc9cda0cf50fc4f3f1",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure--continuation-six/frontiers.json#sha256=0bc8af6b5e81c74cadbfbd53f229d5ae8c696acf3cdce7053058c0abd158773d"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE26",
+      "title": "pcf",
+      "kind": "实际模式/preset",
+      "registry_record_ids": [
+        "POS-FR011"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/trading/positional.rs",
+        "rust/src/trading/positioning_chain_fugue.rs"
+      ],
+      "observed_static_role": "run_positioning_chain_fugue；op_ladder 固定 3，来源前缀 stamp 不等于真实链证书；theta 权重共享池。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "各模式仅作隔离对照；R1 的选择必须从已签需求和未决政策独立落定。",
+      "entry_specific_exit_conditions": [
+        "用 R1 真实 parent/anchor/chain 证据替代前缀猜测；不能把固定 3 固化为所有级别规则。",
+        "保留模式/config/core id 的历史记录；撤销旧生产接线需共同退出条件 X1–X6。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1671"
+        ],
+        "record_ids_sha256": "9fce152eaee3fdbc5a30af1924b6e9bf59aea10ff876c161b9dbef6f631b40a9",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure--continuation-six/frontiers.json#sha256=0bc8af6b5e81c74cadbfbd53f229d5ae8c696acf3cdce7053058c0abd158773d"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE27",
+      "title": "nifN",
+      "kind": "实际模式/preset",
+      "registry_record_ids": [
+        "POS-FR012"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/trading/positional.rs",
+        "rust/src/trading/nested_interval_fugue.rs"
+      ],
+      "observed_static_role": "run_nested_interval_fugue；N 是 numeric trade floor，已见 wrapper 3/4；root<=min 清、以上翻，不是 urs 的同名别称。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "各模式仅作隔离对照；R1 的选择必须从已签需求和未决政策独立落定。",
+      "entry_specific_exit_conditions": [
+        "列出各已采用 N 的 preset；不外推 nif2=urs；逐个核级别/清翻/资金边界。",
+        "保留模式/config/core id 的历史记录；撤销旧生产接线需共同退出条件 X1–X6。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1672"
+        ],
+        "record_ids_sha256": "ddfc477c15d7c4be1c6e31c29e2e5bf489866aa0af3aff2beeb7e278a7a174c0",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure--continuation-six/frontiers.json#sha256=0bc8af6b5e81c74cadbfbd53f229d5ae8c696acf3cdce7053058c0abd158773d"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE28",
+      "title": "rnf",
+      "kind": "实际模式/preset",
+      "registry_record_ids": [
+        "POS-FR013"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/trading/positional.rs",
+        "rust/src/trading/recursive_nested_fugue.rs"
+      ],
+      "observed_static_role": "run_recursive_nested_fugue；root 级别重标、无 C-clear，内部池半分。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "各模式仅作隔离对照；R1 的选择必须从已签需求和未决政策独立落定。",
+      "entry_specific_exit_conditions": [
+        "新 root 变动依 R1 修订和持久责任协议；不能重标后丢掉旧持仓与 tail debt。",
+        "保留模式/config/core id 的历史记录；撤销旧生产接线需共同退出条件 X1–X6。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1673"
+        ],
+        "record_ids_sha256": "47a5048a238de0a8fc0b5243818ebedfeba0ebc47b9031ef825e0821f3c73c18",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure--continuation-six/frontiers.json#sha256=0bc8af6b5e81c74cadbfbd53f229d5ae8c696acf3cdce7053058c0abd158773d"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE29",
+      "title": "fusion_vd / fusion_vn / fusion_vdn",
+      "kind": "实际模式/preset",
+      "registry_record_ids": [
+        "POS-FR014"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/trading/positional.rs",
+        "rust/src/trading/dual_voice.rs"
+      ],
+      "observed_static_role": "run_dual_voice：vd=(dual_book=true,nest_deep=false)，vn=(false,true)，vdn=(true,true)；直接调用 false/false 不推出存在第四命名 preset。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "各模式仅作隔离对照；R1 的选择必须从已签需求和未决政策独立落定。",
+      "entry_specific_exit_conditions": [
+        "三命名组合分别对照双账/深窗真实消费；不能把共享池、恢复配额和非对称门翻译成 R1 资金权利。",
+        "保留模式/config/core id 的历史记录；撤销旧生产接线需共同退出条件 X1–X6。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1674"
+        ],
+        "record_ids_sha256": "46a464e35d8fa58ff4fc561eef1f24080ac08f824c431ad3ac2523d9d016ea94",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure--continuation-six/frontiers.json#sha256=0bc8af6b5e81c74cadbfbd53f229d5ae8c696acf3cdce7053058c0abd158773d"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE30",
+      "title": "POS015 mixed family 与配置/共享 helper",
+      "kind": "附属调用证据",
+      "registry_record_ids": [
+        "POS-FR015",
+        "KERNEL-FR-OPEN-F64-TRADING"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/trading/config.rs",
+        "rust/src/trading/allocator.rs",
+        "rust/src/trading/center_book.rs",
+        "rust/src/trading/ledger.rs",
+        "rust/src/trading/master.rs",
+        "rust/src/trading/third_point_book.rs"
+      ],
+      "observed_static_role": "mixed35 覆盖 run_organic_rust/config::variant、run_positional 实际 callee、独立 run_recursive_rust、支持 API 和 cfg(test) 子域。该分类记录不是额外发送者。",
+      "candidate_disposition": "挂靠实际调用者的支持模块；逐函数判定复用，不能成为新账本或发送者",
+      "r1_responsibility_destination": "每个 helper 依真实调用边归 OE16–OE29，未挂载 API 保持未挂载；纯函数可逐项证明后复用。",
+      "entry_specific_exit_conditions": [
+        "实施清单按 raw id/实际 callee 展开；不因 mixed 标签整目录删除，也不把 config 模块提升成公共资金权威。",
+        "分别核 production body、测试断言、未挂载 API；旧总池状态不可换个名字接进 R1。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1675",
+          "/current_frontiers/1712"
+        ],
+        "record_ids_sha256": "29203bfd24d8fb2c423abe66b958d158f204f14af8df7dabafaff7caa0b3851f",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure--mixed-family/frontiers.json#sha256=1a343a00fa33792cb0a47262281742c87088c8e77aadae3b2df4e0a0f371e547",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE31",
+      "title": "POS016 RetraceLedger、book/portal/log/audit",
+      "kind": "结构记录支持",
+      "registry_record_ids": [
+        "POS-FR016"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/theta_v0/classifier/retrace_ledger/adapter.rs",
+        "rust/src/theta_v0/classifier/retrace_ledger/audit.rs",
+        "rust/src/theta_v0/classifier/retrace_ledger/book.rs",
+        "rust/src/theta_v0/classifier/retrace_ledger/established.rs",
+        "rust/src/theta_v0/classifier/retrace_ledger/log.rs",
+        "rust/src/theta_v0/classifier/retrace_ledger/mod.rs",
+        "rust/src/theta_v0/classifier/retrace_ledger/portal.rs",
+        "rust/src/trading/center_book.rs",
+        "rust/src/trading/third_point_book.rs"
+      ],
+      "observed_static_role": "typed retrace observation/truth→RetraceLedger adapter/book/portal/log/audit→CenterBook/ThirdPointBook/ShortRetracePortal；结构 truth ledger 与资金 ledger 同名异物。",
+      "candidate_disposition": "挂靠实际调用者的支持模块；逐函数判定复用，不能成为新账本或发送者",
+      "r1_responsibility_destination": "结构证据层或只读审计支持；资金和发送权限仍只在 R1 对应模块。",
+      "entry_specific_exit_conditions": [
+        "按 POS016 的 R00805–R00825 逐项判用途；canonical approved_source_registry 已逐 raw 映射：R00805–R00811 是 adapter/audit/book/established/log/mod/portal 七份生产文件，R00812–R00825 是十四份 tests 文件。路径与源哈希见 JSON，另与 KERNEL-FR-OPEN-DEEP-SUBSTRATE.packet_paths 相符；这是冻结元数据核对，不是测试源码重读/运行或当前文件验收。",
+        "只有满足修订/身份/完整分类域的结构记录可迁移；不得因叫 ledger 就删除或当账户账本。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1676"
+        ],
+        "record_ids_sha256": "a92eaadf48c0db6fd427a46fc4e81fb56cb3cc6abf004a5fb3af68909c461ac0",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/positional-closure--mixed-family/frontiers.json#sha256=1a343a00fa33792cb0a47262281742c87088c8e77aadae3b2df4e0a0f371e547"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态",
+      "supporting_cross_reference_record_ids": [
+        "KERNEL-FR-OPEN-DEEP-SUBSTRATE"
+      ],
+      "approved_source_metadata_bindings": [
+        {
+          "raw_id": "R00805",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/adapter.rs",
+          "source_sha256": "5f6222ce7f778d3fa7f0269c6587c99bd5ae8d4713612ba6c05bf2f1a67ce948",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1adapter.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00806",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/audit.rs",
+          "source_sha256": "a9507689cf8e4555cdb0f3ca999f3b9f5a405c1c50944fc18234790e5111301a",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1audit.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00807",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/book.rs",
+          "source_sha256": "0f11f3a94489841bc24ccfff898d429fcad34921c8a05053be1f5c3984ea5ea6",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1book.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00808",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/established.rs",
+          "source_sha256": "92b679d43a2a4b43bf0f24cc5c8d13f29548f29c3987f49031a990388bb47584",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1established.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00809",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/log.rs",
+          "source_sha256": "e32a57db2a148bd283cddc560a0e3d43b5d4b7c3e9cf8ef5479392a8af0fb4bb",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1log.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00810",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/mod.rs",
+          "source_sha256": "95d5c12bace46015444a426caeee10966cea71f121748442a0854fb915390ba6",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1mod.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00811",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/portal.rs",
+          "source_sha256": "4ba7ade8e256e2fecd2bed83e07036bb54ae5d21059c6b2378a3462eba24084d",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1portal.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00812",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/clocks.rs",
+          "source_sha256": "144c92c9528e68566fccabfed9a3312159da4c90a6d5bec1de8d3be6b2b0735a",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1clocks.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00813",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/dead_center.rs",
+          "source_sha256": "183896c11cecdb06e514b9400e553fd77c0b7859b80b006cbce339e00892fda5",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1dead_center.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00814",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/golden_log.rs",
+          "source_sha256": "1ea9a271bc9d00d2e7c1425333a4d8390a72b0a20a34015f314653d1ef37028a",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1golden_log.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00815",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/log_replay.rs",
+          "source_sha256": "db0aea6bcb78bf90747453eba948b07a6359bbba1d8a0cda31615d5143a2ad6b",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1log_replay.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00816",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/mod.rs",
+          "source_sha256": "5e4794da80db128e9a18cfb33fd93885e1b540bc3a31fbed0b4f16b9122ecb43",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1mod.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00817",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/portal.rs",
+          "source_sha256": "c9bffa56caae851e5887d809c0d9bea8b2ba8d672ea8359dc421ce845d73d363",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1portal.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00818",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/rebase.rs",
+          "source_sha256": "eb028e862d6e532f1893fd377e567df16e6b265ac912df5244b25f8d7036d81b",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1rebase.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00819",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/rebase_audit.rs",
+          "source_sha256": "c2068958c0fd34be80b46faca6b06a6c8a8b96c6528c0d167bdcf64bf1734915",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1rebase_audit.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00820",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/recovery_guard.rs",
+          "source_sha256": "0c4a1334a648ea6cf3b3ac3bf6cff39ad0378fad4eb3cc6c6209aaf7a67c805c",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1recovery_guard.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00821",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/replay_parity.rs",
+          "source_sha256": "9d0cdc1576d5b0afcd0475f5c7692d4e1e15c8743b443f2a537101ebaf43775f",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1replay_parity.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00822",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/short_retrace.rs",
+          "source_sha256": "a20768975caf4726cbd8c3bb61eee41cb01c12539b9c3b5497142cf449cd8bb6",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1short_retrace.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00823",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/standby.rs",
+          "source_sha256": "4a6cc870243e37436645d86c2f29579a375a7c166fa428a7129858c79cc92868",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1standby.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00824",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/state_machine.rs",
+          "source_sha256": "c6f80b97566596acb08105b1e4bd049b0163d13824d3aca09d5435c2e6dd3d29",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1state_machine.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R00825",
+          "packet_path": "code-observation/source/rust/src/theta_v0/classifier/retrace_ledger/tests/two_pass_evidence.rs",
+          "source_sha256": "a72b9c4f3cc7a4caaecf0342da11e4eb56622a5475c5434ab597db5f30b8ac79",
+          "approved_registry_pointer": "/sources/code-observation~1source~1rust~1src~1theta_v0~1classifier~1retrace_ledger~1tests~1two_pass_evidence.rs",
+          "read_scope": "metadata path/hash only; source body not reread"
+        }
+      ],
+      "approved_source_metadata_scope": {
+        "production_sources": "R00805–R00811 (seven exact files)",
+        "test_sources": "R00812–R00825 (fourteen test files); metadata mapping does not claim tests read or run"
+      }
+    },
+    {
+      "id": "OE32",
+      "title": "theta_v0 π fill、coverage、TW、campaign 旧组织",
+      "kind": "旧经济核心及挂载状态",
+      "registry_record_ids": [
+        "ACT-FR012",
+        "ACT-FR013",
+        "ACT-FR014",
+        "ACT-FR015",
+        "ACT-FR026",
+        "ACT-FR027",
+        "ACT-FR036",
+        "ACT-FR037",
+        "ACT-FR072",
+        "ACT-FR076",
+        "ACT-FR077",
+        "ACT-FR079",
+        "ACT-FR080",
+        "ACT-FR083",
+        "ACT-FR085",
+        "ACT-FR091",
+        "ACT-FR092",
+        "ACT-FR127",
+        "ACT-FR143",
+        "ACT-FR145",
+        "ACT-FR146",
+        "THC-FR001",
+        "THC-FR002",
+        "THC-FR004",
+        "THC-FR005",
+        "THC-FR006",
+        "THC-MFFR001",
+        "THC-MFFR002",
+        "KERNEL-FR-OPEN-THETA-STRATEGY",
+        "KERNEL-FR-THC-CANDIDATE-FINGERPRINT"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/theta_v0/backtest/fill.rs",
+        "rust/src/theta_v0/backtest/ledger.rs",
+        "rust/src/theta_v0/backtest/admission.rs",
+        "rust/src/theta_v0/backtest/econ_positive.rs",
+        "rust/src/theta_v0/backtest/treasury.rs",
+        "rust/src/theta_v0/strategy/coverage/",
+        "rust/src/theta_v0/strategy/account.rs",
+        "rust/src/theta_v0/strategy/campaign_book.rs",
+        "rust/src/theta_v0/strategy/short_diff_bucket.rs",
+        "rust/src/theta_v0/closed_loop/"
+      ],
+      "observed_static_role": "π fill 的预算、pending、typed fill、TW、coverage/held、campaign、mu/selector 与额外 closed_loop pass 分别有实效范围；额外结构 pass 不等于真实 fill/TW 来源，声明同状态也不足。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "R1 分解为结构/操作读取、各重账、公共约束、外部事实与观察；旧聚合调度退出生产。",
+      "entry_specific_exit_conditions": [
+        "把当前有资金权/状态变化的实际调用逐一对到 R1 单一权威；不得把旧门、mirror、optional seed 当完整恢复证据。",
+        "62CC/16ES 的输入桥和账务政策未全落地前不判某个现役 helper 已获复用许可；保留比较/否决读数。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/143",
+          "/current_frontiers/144",
+          "/current_frontiers/145",
+          "/current_frontiers/146",
+          "/current_frontiers/157",
+          "/current_frontiers/158",
+          "/current_frontiers/167",
+          "/current_frontiers/168",
+          "/current_frontiers/203",
+          "/current_frontiers/207",
+          "/current_frontiers/208",
+          "/current_frontiers/210",
+          "/current_frontiers/211",
+          "/current_frontiers/214",
+          "/current_frontiers/216",
+          "/current_frontiers/222",
+          "/current_frontiers/223",
+          "/current_frontiers/258",
+          "/current_frontiers/274",
+          "/current_frontiers/276",
+          "/current_frontiers/277",
+          "/current_frontiers/1653",
+          "/current_frontiers/1654",
+          "/current_frontiers/1656",
+          "/current_frontiers/1657",
+          "/current_frontiers/1658",
+          "/current_frontiers/1659",
+          "/current_frontiers/1660",
+          "/current_frontiers/1713",
+          "/current_frontiers/1802"
+        ],
+        "record_ids_sha256": "0cf815bf059c975cccf15eae5aba3273fdde23b13ab42d0d05f88430997acc70",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/theta-state-closure--mixed-family/frontiers.json#sha256=7ab777780be9a5438372311c0886e5a9169f63637bc15b7edf0f8eb0b2c33571",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/theta-state-closure/frontiers.json#sha256=bcbc1f8156475554568206a054b7e74721dfc7f8e2a315ac7efae7125638f130"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE33",
+      "title": "theta_v0 parser/classifier 与因果账支持",
+      "kind": "候选算法/结构支持",
+      "registry_record_ids": [
+        "KERNEL-FR011",
+        "KERNEL-FR013",
+        "KERNEL-FR014",
+        "KERNEL-FR015",
+        "KERNEL-FR016",
+        "KERNEL-FR017",
+        "KERNEL-FR018",
+        "KERNEL-FR019",
+        "KERNEL-FR021",
+        "KERNEL-FR023",
+        "KERNEL-FR024",
+        "KERNEL-FR025",
+        "KERNEL-FR027",
+        "KERNEL-FR049",
+        "KERNEL-FR050",
+        "KERNEL-FR051",
+        "KERNEL-FR052",
+        "KERNEL-FR053",
+        "KERNEL-FR054",
+        "KERNEL-FR055",
+        "KERNEL-FR056",
+        "KERNEL-FR057",
+        "KERNEL-FR058",
+        "KERNEL-FR059"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/theta_v0/parser/",
+        "rust/src/theta_v0/classifier/",
+        "rust/src/theta_v0/lineage_book.rs"
+      ],
+      "observed_static_role": "解析、递归构造、投影、判据、nest/candidate、修订 lineage 和结构 ledger 已有实际消费关系；选定函数可成为 R1 候选实现，现有代码不能裁定其语义。",
+      "candidate_disposition": "挂靠实际调用者的支持模块；逐函数判定复用，不能成为新账本或发送者",
+      "r1_responsibility_destination": "挂靠 R1 Classification/Operation；先按版本化 StaticProofPackage/EvaluationReceipt 判逐函数适配。",
+      "entry_specific_exit_conditions": [
+        "对 62 分类轴、10 合法组合、32 待清义务逐项证明实现域与实际产出；诊断 relaxed candidate 不进入准入。",
+        "有状态的 parser/lineage/book 必须保留回滚/修订/身份，不因本行称支持就当纯函数移植。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1687",
+          "/current_frontiers/1689",
+          "/current_frontiers/1690",
+          "/current_frontiers/1691",
+          "/current_frontiers/1692",
+          "/current_frontiers/1693",
+          "/current_frontiers/1694",
+          "/current_frontiers/1695",
+          "/current_frontiers/1697",
+          "/current_frontiers/1699",
+          "/current_frontiers/1700",
+          "/current_frontiers/1701",
+          "/current_frontiers/1703",
+          "/current_frontiers/1803",
+          "/current_frontiers/1804",
+          "/current_frontiers/1805",
+          "/current_frontiers/1806",
+          "/current_frontiers/1807",
+          "/current_frontiers/1808",
+          "/current_frontiers/1809",
+          "/current_frontiers/1810",
+          "/current_frontiers/1811",
+          "/current_frontiers/1812",
+          "/current_frontiers/1813"
+        ],
+        "record_ids_sha256": "84dd45a1d63743a4a34039f42c32b1182aa11e8f6d8c3852044380bf4ed7cefa",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE34",
+      "title": "Gamma、opsem、replay dump 与对拍输出",
+      "kind": "读端和比较入口",
+      "registry_record_ids": [
+        "ACT-FR078",
+        "ACT-FR084",
+        "ACT-FR088",
+        "ACT-FR089",
+        "ACT-FR093",
+        "ACT-FR128",
+        "KERNEL-FR-CLI-R00630",
+        "KERNEL-FR-CLI-R00631",
+        "KERNEL-FR-CLI-R00632",
+        "KERNEL-FR-CLI-R00633",
+        "KERNEL-FR-CLI-R02019"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/theta_v0/backtest/incremental.rs",
+        "rust/src/theta_v0/backtest/opsem_dump.rs",
+        "rust/src/theta_v0/backtest/replay_dump.rs",
+        "rust/src/theta_v0/backtest/theta_pi_diff.rs",
+        "rust/src/bin/theta_accept.rs",
+        "rust/src/bin/theta_backtest.rs",
+        "rust/src/bin/theta_overlay.rs",
+        "rust/src/bin/theta_replay.rs",
+        "rust/src/bin/theta_m1_dual.rs"
+      ],
+      "observed_static_role": "Gamma/Opsem/replay/capture 各自输出；登记存在按 run 截断文件与信号面 diff 的边界。CLI 是报告/回放/回测调用面，不构成另一个分类 owner。",
+      "candidate_disposition": "保留为只读观测或诊断旁路；不得参与生产准入、资金分配或外部交易指令",
+      "r1_responsibility_destination": "迁为 R1 O1–O3 同 cut 观测与有版本比较；旧信号差异报告保留受限名分。",
+      "entry_specific_exit_conditions": [
+        "保留完整分类、账务尾债、首次得知/生效时钟、来源和修订，不让 dump 反向决定 p_star。",
+        "恢复 run/session 时不能截断历史事实；输出格式改版明确，bit-exact 仅限声明字段域。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/209",
+          "/current_frontiers/215",
+          "/current_frontiers/219",
+          "/current_frontiers/220",
+          "/current_frontiers/224",
+          "/current_frontiers/259",
+          "/current_frontiers/1788",
+          "/current_frontiers/1789",
+          "/current_frontiers/1790",
+          "/current_frontiers/1791",
+          "/current_frontiers/1792"
+        ],
+        "record_ids_sha256": "5a289651365e5ebcc6c50e953fc7640ee6d11b6ebea4163763cc98f7c96dd696",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE35",
+      "title": "研究 runner、结构探针与离线 CLI",
+      "kind": "诊断入口",
+      "registry_record_ids": [
+        "ACT-FR133",
+        "ACT-FR134",
+        "ACT-FR135",
+        "ACT-FR136",
+        "ACT-FR137",
+        "ACT-FR138",
+        "ACT-FR139",
+        "ACT-FR140",
+        "ACT-FR141",
+        "ACT-FR142",
+        "KERNEL-FR026",
+        "KERNEL-FR-CLI-R00571",
+        "KERNEL-FR-CLI-R00572",
+        "KERNEL-FR-CLI-R00573",
+        "KERNEL-FR-CLI-R00574",
+        "KERNEL-FR-CLI-R00575",
+        "KERNEL-FR-CLI-R00576",
+        "KERNEL-FR-CLI-R00577",
+        "KERNEL-FR-CLI-R00578",
+        "KERNEL-FR-CLI-R00579",
+        "KERNEL-FR-CLI-R00580",
+        "KERNEL-FR-CLI-R00581",
+        "KERNEL-FR-CLI-R00582",
+        "KERNEL-FR-CLI-R00583",
+        "KERNEL-FR-CLI-R00584",
+        "KERNEL-FR-CLI-R00585",
+        "KERNEL-FR-CLI-R00586",
+        "KERNEL-FR-CLI-R00587",
+        "KERNEL-FR-CLI-R00588",
+        "KERNEL-FR-CLI-R00589",
+        "KERNEL-FR-CLI-R00590",
+        "KERNEL-FR-CLI-R00591",
+        "KERNEL-FR-CLI-R00592",
+        "KERNEL-FR-CLI-R00593",
+        "KERNEL-FR-CLI-R00594",
+        "KERNEL-FR-CLI-R00595",
+        "KERNEL-FR-CLI-R00596",
+        "KERNEL-FR-CLI-R00597",
+        "KERNEL-FR-CLI-R00598",
+        "KERNEL-FR-CLI-R00599",
+        "KERNEL-FR-CLI-R00600",
+        "KERNEL-FR-CLI-R00601",
+        "KERNEL-FR-CLI-R00602",
+        "KERNEL-FR-CLI-R00603",
+        "KERNEL-FR-CLI-R00604",
+        "KERNEL-FR-CLI-R00605",
+        "KERNEL-FR-CLI-R00606",
+        "KERNEL-FR-CLI-R00607",
+        "KERNEL-FR-CLI-R00608",
+        "KERNEL-FR-CLI-R00609",
+        "KERNEL-FR-CLI-R00610",
+        "KERNEL-FR-CLI-R00611",
+        "KERNEL-FR-CLI-R00612",
+        "KERNEL-FR-CLI-R00613",
+        "KERNEL-FR-CLI-R00614",
+        "KERNEL-FR-CLI-R00615",
+        "KERNEL-FR-CLI-R00616",
+        "KERNEL-FR-CLI-R00617",
+        "KERNEL-FR-CLI-R00618",
+        "KERNEL-FR-CLI-R00619",
+        "KERNEL-FR-CLI-R00620",
+        "KERNEL-FR-CLI-R00621",
+        "KERNEL-FR-CLI-R00622",
+        "KERNEL-FR-CLI-R00623",
+        "KERNEL-FR-CLI-R00624",
+        "KERNEL-FR-CLI-R00626",
+        "KERNEL-FR-CLI-R00627",
+        "KERNEL-FR-CLI-R00628",
+        "KERNEL-FR-CLI-R00629",
+        "KERNEL-FR-OPEN-BIN-OTHERS"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/bin/",
+        "rust/src/theta_v0/backtest/issue837_probe.rs",
+        "rust/src/theta_v0/backtest/issue841_probe.rs",
+        "rust/src/theta_v0/backtest/l3_pi_probe.rs"
+      ],
+      "observed_static_role": "CLI 包含因果账、终端前缀、symbol 统计、gauge、旧 dump 重建、浮点/计时/工件封存等；名称 production_orders 也不能证明在发外部单。ACT141/142 是受限 cfg(test) 断言。",
+      "candidate_disposition": "保留为只读观测或诊断旁路；不得参与生产准入、资金分配或外部交易指令",
+      "r1_responsibility_destination": "保留诊断/否决/比较能力；每次产出声明 core/run/proof/配置域。",
+      "entry_specific_exit_conditions": [
+        "真实 report 入口只读生产快照或独立回放；不能以探针通过替代 FE/RF 与外部闭环测试。",
+        "KERNEL-OPEN-BIN-OTHERS 聚合定位项只挂既有诊断族；其中未逐入口读取的参数/命令不声称已验收。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/264",
+          "/current_frontiers/265",
+          "/current_frontiers/266",
+          "/current_frontiers/267",
+          "/current_frontiers/268",
+          "/current_frontiers/269",
+          "/current_frontiers/270",
+          "/current_frontiers/271",
+          "/current_frontiers/272",
+          "/current_frontiers/273",
+          "/current_frontiers/1702",
+          "/current_frontiers/1730",
+          "/current_frontiers/1731",
+          "/current_frontiers/1732",
+          "/current_frontiers/1733",
+          "/current_frontiers/1734",
+          "/current_frontiers/1735",
+          "/current_frontiers/1736",
+          "/current_frontiers/1737",
+          "/current_frontiers/1738",
+          "/current_frontiers/1739",
+          "/current_frontiers/1740",
+          "/current_frontiers/1741",
+          "/current_frontiers/1742",
+          "/current_frontiers/1743",
+          "/current_frontiers/1744",
+          "/current_frontiers/1745",
+          "/current_frontiers/1746",
+          "/current_frontiers/1747",
+          "/current_frontiers/1748",
+          "/current_frontiers/1749",
+          "/current_frontiers/1750",
+          "/current_frontiers/1751",
+          "/current_frontiers/1752",
+          "/current_frontiers/1753",
+          "/current_frontiers/1754",
+          "/current_frontiers/1755",
+          "/current_frontiers/1756",
+          "/current_frontiers/1757",
+          "/current_frontiers/1758",
+          "/current_frontiers/1759",
+          "/current_frontiers/1760",
+          "/current_frontiers/1761",
+          "/current_frontiers/1762",
+          "/current_frontiers/1763",
+          "/current_frontiers/1764",
+          "/current_frontiers/1765",
+          "/current_frontiers/1766",
+          "/current_frontiers/1767",
+          "/current_frontiers/1768",
+          "/current_frontiers/1769",
+          "/current_frontiers/1770",
+          "/current_frontiers/1771",
+          "/current_frontiers/1772",
+          "/current_frontiers/1773",
+          "/current_frontiers/1774",
+          "/current_frontiers/1775",
+          "/current_frontiers/1776",
+          "/current_frontiers/1777",
+          "/current_frontiers/1778",
+          "/current_frontiers/1779",
+          "/current_frontiers/1780",
+          "/current_frontiers/1781",
+          "/current_frontiers/1782",
+          "/current_frontiers/1783",
+          "/current_frontiers/1784",
+          "/current_frontiers/1785",
+          "/current_frontiers/1786",
+          "/current_frontiers/1787",
+          "/current_frontiers/1715"
+        ],
+        "record_ids_sha256": "484af00c71dcfeb859c5b442dd77e3491de2f6b8dae41991efd67264fe243734",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE36",
+      "title": "Python FugueEngine、scanner_fugue、FSM、路径经济实现",
+      "kind": "旧经济/扫描消费家族",
+      "registry_record_ids": [
+        "ACT-FR001",
+        "ACT-FR022",
+        "ACT-FR023",
+        "ACT-FR024",
+        "ACT-FR030",
+        "ACT-FR099",
+        "ACT-FR101",
+        "ACT-FR102",
+        "ACT-FR103",
+        "ACT-FR104",
+        "ACT-FR105",
+        "ACT-FR106",
+        "ACT-FR107",
+        "ACT-FR108",
+        "ACT-FR109",
+        "ACT-FR110",
+        "ACT-FR111",
+        "AUX-FR0004",
+        "AUX-FR0005",
+        "AUX-FR0026"
+      ],
+      "representative_snapshot_files": [
+        "src/newchan/fugue_engine.py",
+        "src/newchan/trading/scanner_fugue.py",
+        "src/newchan/trading/cost_reduction_fsm.py",
+        "src/newchan/trading/paths.py",
+        "src/newchan/trading/ph_fugue.py",
+        "src/newchan/backtest/state_machine.py",
+        "scripts/position_manager.py",
+        "prototypes/no-gate-two-books/sim.py"
+      ],
+      "observed_static_role": "scanner event/路径/四层机/FugueVoice 分别改变旧本地成本与账户；position_manager 有硬编码比例，某些 helper 未挂主链；原型即使形似双账也不是生产架构验收。",
+      "candidate_disposition": "冻结为有独立身份的隔离对照；从生产装配撤除旧权威，不自动删文件",
+      "r1_responsibility_destination": "旧经济/策略组织仅隔离对照；可迁数据/展示职责；K4 producer 仍范围外。",
+      "entry_specific_exit_conditions": [
+        "不能把旧 confidence、scanner gate 或比例默认为 R1 资金政策；先用签署需求与完整分类映射实际动作。",
+        "原型/模拟无真实发送权，不因未来替换生产就删除历史研究。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/132",
+          "/current_frontiers/153",
+          "/current_frontiers/154",
+          "/current_frontiers/155",
+          "/current_frontiers/161",
+          "/current_frontiers/230",
+          "/current_frontiers/232",
+          "/current_frontiers/233",
+          "/current_frontiers/234",
+          "/current_frontiers/235",
+          "/current_frontiers/236",
+          "/current_frontiers/237",
+          "/current_frontiers/238",
+          "/current_frontiers/239",
+          "/current_frontiers/240",
+          "/current_frontiers/241",
+          "/current_frontiers/242",
+          "/current_frontiers/282",
+          "/current_frontiers/283",
+          "/current_frontiers/304"
+        ],
+        "record_ids_sha256": "401dd86ecb3b5e38232332dc962d47629ae8c915f20f4168c91b82dccb31b71f",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/auxiliary-entries/frontiers.json#sha256=8e5b5729cc753d647c3512b670e7e7922a890cf4a79d6d172eaf304939595fab"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE37",
+      "title": "FeeQuoter / FeeSchedule",
+      "kind": "费用接口支持",
+      "registry_record_ids": [
+        "ACT-FR147"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/theta_v0/backtest/treasury.rs",
+        "rust/src/theta_v0/config.rs"
+      ],
+      "observed_static_role": "fee schedule/quoter→VoiceExecBook；Some/None、Taker 与直接角色 API、per_notional/per_share、datum IO 的生效范围不同。",
+      "candidate_disposition": "挂靠实际调用者的支持模块；逐函数判定复用，不能成为新账本或发送者",
+      "r1_responsibility_destination": "可迁为 R1 venue 费用证据/报价适配；共享安全域核版本/有效期，各重记实际费用。",
+      "entry_specific_exit_conditions": [
+        "核精度/币种/角色/费率单位/舍入与失效；外部费规变化先经 P4 闭门，不能先解释后通知。",
+        "费用上界与资金政策分别落定；不能把缺 schedule 当零费用。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/278"
+        ],
+        "record_ids_sha256": "693594ab17a253474ca50fbf9c86171b9e1aec4a0b53479bd56327eb1a8fe9c5",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE38",
+      "title": "SeparateLedger / DualLedger 未挂载或测试 API",
+      "kind": "支持库",
+      "registry_record_ids": [
+        "ACT-FR075",
+        "ACT-FR124",
+        "ACT-FR130"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/theta_v0/ledger/separate.rs",
+        "rust/src/theta_v0/backtest/dual_ledger.rs"
+      ],
+      "observed_static_role": "SeparateLedger 真实位置轨迹到 nu 的构造仍缺挂载；DualLedger direct API/本地 tests 不等于 π fill 生产消费者。",
+      "candidate_disposition": "挂靠实际调用者的支持模块；逐函数判定复用，不能成为新账本或发送者",
+      "r1_responsibility_destination": "保持已知挂载名分；若复用仅是受 R1 各重账约束的实现部件。",
+      "entry_specific_exit_conditions": [
+        "不得凭 API 名称宣布双账生产已完成；实际输入账和事件因果桥验收前不挂新权威。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/206",
+          "/current_frontiers/255",
+          "/current_frontiers/261"
+        ],
+        "record_ids_sha256": "b7879d94f124ddcca485a528e877ac993f459bcba587fa67e03a948ee62934ff",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE39",
+      "title": "统计、显著性与指标旁路",
+      "kind": "只读支持",
+      "registry_record_ids": [
+        "ACT-FR073",
+        "ACT-FR074",
+        "ACT-FR082",
+        "ACT-FR086",
+        "ACT-FR087",
+        "ACT-FR112",
+        "ACT-FR125"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/theta_v0/backtest/metrics.rs",
+        "rust/src/theta_v0/backtest/decontam.rs",
+        "rust/src/theta_v0/backtest/pooling_icc.rs",
+        "rust/src/theta_v0/backtest/prereg_windows.rs",
+        "trading_system/analyze_fugue_v3_losses.py"
+      ],
+      "observed_static_role": "RunResult/ResidualTrade/窗口→metrics/perm_test/decontam/ICC 等读数。诊断输出不能反向成为交易批准。",
+      "candidate_disposition": "保留为只读观测或诊断旁路；不得参与生产准入、资金分配或外部交易指令",
+      "r1_responsibility_destination": "R1 完整事实和同 cut 只读结果。FG-025 已裁的闸门前费后成本相对降幅/占用时间、单边 95% 下界、按月分块 bootstrap、事件≥30、月块≥12、≥3 非重叠窗且各过线、合计≥50% 全史直接承接，不重新等待批准。仅 FU-05 具名的取样语义、同时间多事件、跨闸、短仓基价正负/零时长/C_before≤0 边界及闸门后评价参数保持待澄清；全部盈亏/费用和排除原因先完整保留，不只采正事件。",
+      "entry_specific_exit_conditions": [
+        "保留分母、窗口、fee/gauge 与实际成交来源；新旧结果不可混池冒充一致样本。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/204",
+          "/current_frontiers/205",
+          "/current_frontiers/213",
+          "/current_frontiers/217",
+          "/current_frontiers/218",
+          "/current_frontiers/243",
+          "/current_frontiers/256"
+        ],
+        "record_ids_sha256": "f9d41c31938aaf9d59f92f01d8362c59473578e31fd2155663c81f908596d50d",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态",
+      "requirement_evidence": {
+        "path": "/tmp/newchanlun-1339-requirements-20260908/author/parts/FUGUE.json",
+        "sha256": "8e3a98b1ad88ee658d98656605e1580b1d806ab3132013a13f304a957b84b04a",
+        "requirement_id": "FG-025",
+        "remaining_question_id": "FU-05",
+        "scope": "signed requirement row only; inherited settled gate versus specifically named residual boundaries"
+      }
+    },
+    {
+      "id": "OE40",
+      "title": "CI、Lean mirror、fixture 与局部测试锁",
+      "kind": "验证设施",
+      "registry_record_ids": [
+        "FRO-LOCK-CI",
+        "FRO-LOCK-FIXTURE",
+        "FRO-LOCK-ABSTRACT",
+        "FRO-LOCK-MIRROR-SOURCE",
+        "FRO-LOCK-CHECKPOINT",
+        "FRO-LOCK-NEGATIVE",
+        "FRO-LOCK-UNIFIED",
+        "FRO-LOCK-PYTHETA",
+        "FRO-LOCK-PYFULL",
+        "FRO-LOCK-NOFUTURE",
+        "FRO-LOCK-BSPDIFF",
+        "FRO-LOCK-NEST",
+        "FRO-LOCK-GAP",
+        "FRO-LOCK-FORCE",
+        "FRO-LOCK-SECURITY",
+        "FRO-LOCK-NODE",
+        "FRO-LOCK-C2",
+        "FRO-LOCK-E2E",
+        "FRO-LOCK-GUARD",
+        "FRO-LOCK-ACT-U005",
+        "FRO-LOCK-CLI-R00627",
+        "FRO-LOCK-CLI-R00628",
+        "FRO-LOCK-CLI-R00614",
+        "FRO-LOCK-CLI-R00615",
+        "FRO-LOCK-CLI-R00616",
+        "KERNEL-FR034",
+        "KERNEL-FR035"
+      ],
+      "representative_snapshot_files": [
+        ".github/workflows/ci.yml",
+        "scripts/check_fixture_drift.py",
+        "rust/src/bin/strict_nest_check.rs",
+        "rust/src/theta_v0/classifier/lean_mirror.rs",
+        "formal/Origin/ScanAssemblyBridge.lean"
+      ],
+      "observed_static_role": "冻结登记区分抽象定理、导出 fixture、逐事件 mirror、checkpoint 与负例、普通测试和未执行诊断。锁的声明不等于运行通过。",
+      "candidate_disposition": "挂靠实际调用者的支持模块；逐函数判定复用，不能成为新账本或发送者",
+      "r1_responsibility_destination": "保留验证设施并按 R1 新域补锁；不拥有生产判据。",
+      "entry_specific_exit_conditions": [
+        "版本化输入域、输出字段、证明边界和实际执行记录；更改 formal 依项目要求跑 fixture drift。",
+        "本附录没有跑任何这些工具，亦未完整重读每个测试源码/断言。"
+      ],
+      "evidence_limits": "除 FRO 登记关系外，.github/workflows/ci.yml（R00023）与 scripts/check_fixture_drift.py（R01015）的完整冻结路径由同一 SCAN canonical approved_source_registry 元数据定位；本轮未读取它们的源码或运行验证。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1628",
+          "/current_frontiers/1629",
+          "/current_frontiers/1630",
+          "/current_frontiers/1631",
+          "/current_frontiers/1632",
+          "/current_frontiers/1633",
+          "/current_frontiers/1634",
+          "/current_frontiers/1635",
+          "/current_frontiers/1636",
+          "/current_frontiers/1637",
+          "/current_frontiers/1638",
+          "/current_frontiers/1639",
+          "/current_frontiers/1640",
+          "/current_frontiers/1641",
+          "/current_frontiers/1642",
+          "/current_frontiers/1643",
+          "/current_frontiers/1644",
+          "/current_frontiers/1645",
+          "/current_frontiers/1646",
+          "/current_frontiers/1647",
+          "/current_frontiers/1648",
+          "/current_frontiers/1649",
+          "/current_frontiers/1650",
+          "/current_frontiers/1651",
+          "/current_frontiers/1652",
+          "/current_frontiers/1710",
+          "/current_frontiers/1711"
+        ],
+        "record_ids_sha256": "137d2eb3c04dec66d2680bc75004999cd5ea0a4339f07f5bbe71c0c8c15c35f3",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/locks-formal/frontiers.json#sha256=75000381f2b77d6b824902ea560fe654471c026cc20e734ae756f7f923db4412",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态",
+      "approved_source_metadata_bindings": [
+        {
+          "raw_id": "R00023",
+          "packet_path": "code-observation/source/.github/workflows/ci.yml",
+          "source_sha256": "c3b2a542ade4033791184bd7dcbd5e3558e2b5b4f2d3da4c01d520048c7a0528",
+          "approved_registry_pointer": "/sources/code-observation~1source~1.github~1workflows~1ci.yml",
+          "read_scope": "metadata path/hash only; source body not reread"
+        },
+        {
+          "raw_id": "R01015",
+          "packet_path": "code-observation/source/scripts/check_fixture_drift.py",
+          "source_sha256": "d676e1760bfc140b27cb06f0e48bbb49b00930a2d8b3627be260137314a0feed",
+          "approved_registry_pointer": "/sources/code-observation~1source~1scripts~1check_fixture_drift.py",
+          "read_scope": "metadata path/hash only; source body not reread"
+        }
+      ]
+    },
+    {
+      "id": "OE41",
+      "title": "K4/PH/跨国 topology 及混合统计输入",
+      "kind": "范围边界",
+      "registry_record_ids": [
+        "ACT-FR002",
+        "ACT-FR081",
+        "ACT-FR090",
+        "ACT-FR098",
+        "ACT-FR100",
+        "ACT-FR129",
+        "KERNEL-FR038",
+        "KERNEL-FR039",
+        "KERNEL-FR040",
+        "KERNEL-FR041",
+        "KERNEL-FR042",
+        "KERNEL-FR043",
+        "KERNEL-FR044",
+        "KERNEL-FR045",
+        "KERNEL-FR-OPEN-TOPOLOGY",
+        "AUX-FR0013",
+        "AUX-FR0014",
+        "AUX-FR0033",
+        "AUX-FR0034"
+      ],
+      "representative_snapshot_files": [
+        "src/newchan/topology/",
+        "src/newchan/backtest/analysis.py",
+        "src/newchan/backtest/types.py",
+        "rust/src/theta_v0/backtest/m1_dual.rs",
+        "rust/src/theta_v0/backtest/tick.rs",
+        "analysis/k4_1min_lib.py",
+        "analysis/k4_1min_rust_lib.py"
+      ],
+      "observed_static_role": "部分记录同时包含市场 TickFeed/统计与 K4State/scanner/拓扑消费。它们不是一个可整体删除或迁入的生产家族。",
+      "candidate_disposition": "本次交易架构范围外，保留原物；本候选不授予其 R1 生产权限",
+      "r1_responsibility_destination": "K4 不进入本 R1 候选；纯行情部分可由 OE02 独立承接，统计按 OE39 只读保留。",
+      "entry_specific_exit_conditions": [
+        "若后续要接 K4，另行明确需求与授权；当前保持原调用名分，不跨仓追读或导入。",
+        "不能因保留 K4 研究就保留旧核心的生产交易权限；独立比较身份及数据接口必须明确。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/133",
+          "/current_frontiers/212",
+          "/current_frontiers/221",
+          "/current_frontiers/229",
+          "/current_frontiers/231",
+          "/current_frontiers/260",
+          "/current_frontiers/1719",
+          "/current_frontiers/1720",
+          "/current_frontiers/1721",
+          "/current_frontiers/1722",
+          "/current_frontiers/1723",
+          "/current_frontiers/1724",
+          "/current_frontiers/1725",
+          "/current_frontiers/1726",
+          "/current_frontiers/1714",
+          "/current_frontiers/291",
+          "/current_frontiers/292",
+          "/current_frontiers/311",
+          "/current_frontiers/312"
+        ],
+        "record_ids_sha256": "55e6294de52ba8b48340ca7b731b62780a42daf800f13c1e5de7b5a024291588",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/action-accounting/frontiers.json#sha256=719e87f25a3afb28c881b99b1e414dba245f69f12e74fc284bf31369a732971f",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/auxiliary-entries/frontiers.json#sha256=8e5b5729cc753d647c3512b670e7e7922a890cf4a79d6d172eaf304939595fab",
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE42",
+      "title": "审阅/派发/知识图与部署工具",
+      "kind": "范围外工具",
+      "registry_record_ids": [
+        "AUX-FR0006",
+        "AUX-FR0007",
+        "AUX-FR0008",
+        "AUX-FR0010",
+        "AUX-FR0011",
+        "AUX-FR0012",
+        "AUX-FR0027",
+        "AUX-FR0028",
+        "AUX-FR0029",
+        "AUX-FR0030",
+        "AUX-FR0031",
+        "AUX-FR0032",
+        "AUX-FR0038",
+        "AUX-FR0040"
+      ],
+      "representative_snapshot_files": [
+        "scripts/start_with_gateway.sh",
+        "scripts/stance_parser.py",
+        "scripts/consensus_trigger.py",
+        "scripts/block_topology.py",
+        "scripts/reflexive_layer.py",
+        "scripts/chanlun/dag_executor.py",
+        "scripts/ipfs_deploy.py"
+      ],
+      "observed_static_role": "这些是 daemon、审阅协议、块拓扑、历史审计、派发或部署工具；有写文件/发布能力不等于交易发送者。",
+      "candidate_disposition": "本次交易架构范围外，保留原物；本候选不授予其 R1 生产权限",
+      "r1_responsibility_destination": "本架构不改动；任何独立部署/写入仍遵其原授权。",
+      "entry_specific_exit_conditions": [
+        "不从 import/脚本位置推导新交易 owner；不能拿不相干工具数量扩张旧引擎退役分母。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/284",
+          "/current_frontiers/285",
+          "/current_frontiers/286",
+          "/current_frontiers/288",
+          "/current_frontiers/289",
+          "/current_frontiers/290",
+          "/current_frontiers/305",
+          "/current_frontiers/306",
+          "/current_frontiers/307",
+          "/current_frontiers/308",
+          "/current_frontiers/309",
+          "/current_frontiers/310",
+          "/current_frontiers/316",
+          "/current_frontiers/318"
+        ],
+        "record_ids_sha256": "401da382b313960a4e34680f51874bf5ab32ef251473fcbf2992ba41300cf878",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/auxiliary-entries/frontiers.json#sha256=8e5b5729cc753d647c3512b670e7e7922a890cf4a79d6d172eaf304939595fab"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE43",
+      "title": "独立 ledger-adopt / gap-connector 原型",
+      "kind": "隔离原型",
+      "registry_record_ids": [
+        "AUX-FR0024",
+        "AUX-FR0025"
+      ],
+      "representative_snapshot_files": [
+        "prototypes/task68-ledger-adopt/src/main.rs",
+        "prototypes/task68-ledger-adopt/src/lib.rs",
+        "prototypes/task72-gap-connector/src/main.rs",
+        "prototypes/task72-gap-connector/src/lib.rs"
+      ],
+      "observed_static_role": "独立 Cargo 原型，对 fixture/as_of/candidate 做集成演示；其选择首个、Other 等局部行为不因此进入新完整分类。",
+      "candidate_disposition": "保留为只读观测或诊断旁路；不得参与生产准入、资金分配或外部交易指令",
+      "r1_responsibility_destination": "保留为实验材料；结果不得当 R1 生产定义或已完成证明。",
+      "entry_specific_exit_conditions": [
+        "若抽取实现，重新证明输入域与语义映射；不自动迁移原型选择规则。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/302",
+          "/current_frontiers/303"
+        ],
+        "record_ids_sha256": "98fbaef41fba25f74ea81d499b4860a15a2e5dc760fd086e73a1a906c10199cd",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/auxiliary-entries/frontiers.json#sha256=8e5b5729cc753d647c3512b670e7e7922a890cf4a79d6d172eaf304939595fab"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE44",
+      "title": "封存/深层支持库与交易外数据读者",
+      "kind": "支持证据",
+      "registry_record_ids": [
+        "KERNEL-FR060",
+        "KERNEL-FR-OPEN-DEEP-SUBSTRATE",
+        "KERNEL-FR-PYREADER-R00351",
+        "KERNEL-FR-PYREADER-R00352",
+        "KERNEL-FR-PYREADER-R00353",
+        "KERNEL-FR-PYREADER-R00354",
+        "KERNEL-FR-PYREADER-R00355",
+        "KERNEL-FR-PYREADER-R00356",
+        "KERNEL-FR-PYREADER-R00357",
+        "KERNEL-FR-PYREADER-R00358",
+        "KERNEL-FR-PYREADER-R00359"
+      ],
+      "representative_snapshot_files": [
+        "rust/src/lav_seal/",
+        "rust/src/theta_v0/classifier/",
+        "analysis/"
+      ],
+      "observed_static_role": "seal sample/bundle 与深层65raw/独立 Python reader 的记录是支持/消费者证据，不是额外生产入口。各自具体用途与测试界限仍由冻结登记承担。",
+      "candidate_disposition": "挂靠实际调用者的支持模块；逐函数判定复用，不能成为新账本或发送者",
+      "r1_responsibility_destination": "工件封存、读端/比较或实际旧调用者的支持；不改变 R1 账务/发送所有权。",
+      "entry_specific_exit_conditions": [
+        "逐函数复用先查所属真实调用者；未逐正文读取的聚合 raw 明确保留未审语义边界。",
+        "本附录仅作去向挂靠，不宣布这些库已符合 R1，也不广播删除。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/1814",
+          "/current_frontiers/1716",
+          "/current_frontiers/1793",
+          "/current_frontiers/1794",
+          "/current_frontiers/1795",
+          "/current_frontiers/1796",
+          "/current_frontiers/1797",
+          "/current_frontiers/1798",
+          "/current_frontiers/1799",
+          "/current_frontiers/1800",
+          "/current_frontiers/1801"
+        ],
+        "record_ids_sha256": "078192030055425164a052231ae813a2b3f807cfd49f431a3f7af7330589a260",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/structure-kernels/frontiers.json#sha256=0db12bd4f96c9abead897980720b575bb1850abffc43ba246c95ad81d1e818df"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    },
+    {
+      "id": "OE45",
+      "title": "topological-computation daemon/前端及代理服务",
+      "kind": "范围外运行入口",
+      "registry_record_ids": [
+        "IO-FR015",
+        "IO-FR016",
+        "IO-FR017",
+        "IO-FR018",
+        "IO-FR019",
+        "IO-FR020",
+        "IO-FR021",
+        "IO-FR022",
+        "IO-FR023",
+        "IO-FR024",
+        "IO-FR025",
+        "IO-FR026",
+        "IO-FR027",
+        "IO-FR028",
+        "IO-FR029",
+        "IO-FR030",
+        "IO-FR031",
+        "IO-FR032",
+        "IO-FR033",
+        "IO-FR034",
+        "IO-FR035",
+        "IO-FR036",
+        "IO-FR037",
+        "IO-FR038",
+        "IO-FR039",
+        "IO-FR042",
+        "IO-FR043",
+        "IO-FR044",
+        "IO-FR045",
+        "IO-FR046",
+        "IO-FR047",
+        "IO-FR048",
+        "IO-FR049",
+        "IO-FR050",
+        "IO-FR051",
+        "IO-FR052",
+        "IO-FR053",
+        "IO-FR054",
+        "IO-FR055",
+        "IO-FR056",
+        "IO-FR057",
+        "IO-FR058",
+        "IO-FR059",
+        "IO-FR060",
+        "IO-FR061",
+        "IO-FR062",
+        "IO-FR063",
+        "IO-FR064",
+        "IO-FR065",
+        "IO-FR066",
+        "IO-FR067",
+        "IO-FR068",
+        "IO-FR069",
+        "IO-FR070",
+        "IO-FR071",
+        "IO-FR072",
+        "IO-FR073",
+        "IO-FR074",
+        "IO-FR075",
+        "IO-FR076",
+        "IO-FR077",
+        "IO-FR078",
+        "IO-FR079",
+        "IO-FR080",
+        "IO-FR081",
+        "IO-FR082",
+        "IO-FR083",
+        "IO-FR084",
+        "IO-FR085",
+        "IO-FR086",
+        "IO-FR087",
+        "IO-FR088",
+        "IO-FR089",
+        "IO-FR090",
+        "IO-FR091",
+        "IO-FR092",
+        "IO-FR093",
+        "IO-FR094",
+        "IO-FR095",
+        "IO-FR096",
+        "IO-FR097",
+        "IO-FR098",
+        "IO-FR099",
+        "IO-FR100",
+        "IO-FR101",
+        "IO-FR102",
+        "IO-FR103",
+        "IO-FR104",
+        "IO-FR105",
+        "IO-FR106",
+        "IO-FR107",
+        "IO-FR108",
+        "IO-FR109",
+        "IO-FR110",
+        "IO-FR111",
+        "IO-FR112",
+        "IO-FR113",
+        "IO-FR114",
+        "IO-FR115",
+        "IO-FR116",
+        "IO-FR117",
+        "IO-FR118",
+        "IO-FR119",
+        "IO-FR120",
+        "IO-FR121",
+        "IO-FR122",
+        "IO-FR123",
+        "IO-FR124",
+        "IO-FR125",
+        "IO-FR126",
+        "IO-FR127",
+        "IO-FR128",
+        "IO-FR129",
+        "IO-FR130",
+        "IO-FR131"
+      ],
+      "representative_snapshot_files": [
+        "topological-computation/",
+        "src/newchan/codex/",
+        "src/newchan/gemini/"
+      ],
+      "observed_static_role": "剩余 IO 登记涉及 topological-computation daemon/前端、代理审阅和 VCP 等执行设施；与交易 CLI/Bottle/replay 已分开。",
+      "candidate_disposition": "本次交易架构范围外，保留原物；本候选不授予其 R1 生产权限",
+      "r1_responsibility_destination": "保留原运行设施，不纳入本交易架构新发送者或旧引擎删除面。",
+      "entry_specific_exit_conditions": [
+        "此组只声明范围，不据冻结关系声明当前在线；其独立退役/部署须另定范围。"
+      ],
+      "evidence_limits": "冻结登记的静态调用/配置范围；没有验证当前进程、当前凭据、外部订单或全量运行。",
+      "related_groups": [],
+      "source_binding": {
+        "registry_sha256": "fd2547944345274391c72f516bb90de0c4c8ace41dc084757af77723efc7376f",
+        "json_pointers": [
+          "/current_frontiers/14",
+          "/current_frontiers/15",
+          "/current_frontiers/16",
+          "/current_frontiers/17",
+          "/current_frontiers/18",
+          "/current_frontiers/19",
+          "/current_frontiers/20",
+          "/current_frontiers/21",
+          "/current_frontiers/22",
+          "/current_frontiers/23",
+          "/current_frontiers/24",
+          "/current_frontiers/25",
+          "/current_frontiers/26",
+          "/current_frontiers/27",
+          "/current_frontiers/28",
+          "/current_frontiers/29",
+          "/current_frontiers/30",
+          "/current_frontiers/31",
+          "/current_frontiers/32",
+          "/current_frontiers/33",
+          "/current_frontiers/34",
+          "/current_frontiers/35",
+          "/current_frontiers/36",
+          "/current_frontiers/37",
+          "/current_frontiers/38",
+          "/current_frontiers/41",
+          "/current_frontiers/42",
+          "/current_frontiers/43",
+          "/current_frontiers/44",
+          "/current_frontiers/45",
+          "/current_frontiers/46",
+          "/current_frontiers/47",
+          "/current_frontiers/48",
+          "/current_frontiers/49",
+          "/current_frontiers/50",
+          "/current_frontiers/51",
+          "/current_frontiers/52",
+          "/current_frontiers/53",
+          "/current_frontiers/54",
+          "/current_frontiers/55",
+          "/current_frontiers/56",
+          "/current_frontiers/57",
+          "/current_frontiers/58",
+          "/current_frontiers/59",
+          "/current_frontiers/60",
+          "/current_frontiers/61",
+          "/current_frontiers/62",
+          "/current_frontiers/63",
+          "/current_frontiers/64",
+          "/current_frontiers/65",
+          "/current_frontiers/66",
+          "/current_frontiers/67",
+          "/current_frontiers/68",
+          "/current_frontiers/69",
+          "/current_frontiers/70",
+          "/current_frontiers/71",
+          "/current_frontiers/72",
+          "/current_frontiers/73",
+          "/current_frontiers/74",
+          "/current_frontiers/75",
+          "/current_frontiers/76",
+          "/current_frontiers/77",
+          "/current_frontiers/78",
+          "/current_frontiers/79",
+          "/current_frontiers/80",
+          "/current_frontiers/81",
+          "/current_frontiers/82",
+          "/current_frontiers/83",
+          "/current_frontiers/84",
+          "/current_frontiers/85",
+          "/current_frontiers/86",
+          "/current_frontiers/87",
+          "/current_frontiers/88",
+          "/current_frontiers/89",
+          "/current_frontiers/90",
+          "/current_frontiers/91",
+          "/current_frontiers/92",
+          "/current_frontiers/93",
+          "/current_frontiers/94",
+          "/current_frontiers/95",
+          "/current_frontiers/96",
+          "/current_frontiers/97",
+          "/current_frontiers/98",
+          "/current_frontiers/99",
+          "/current_frontiers/100",
+          "/current_frontiers/101",
+          "/current_frontiers/102",
+          "/current_frontiers/103",
+          "/current_frontiers/104",
+          "/current_frontiers/105",
+          "/current_frontiers/106",
+          "/current_frontiers/107",
+          "/current_frontiers/108",
+          "/current_frontiers/109",
+          "/current_frontiers/110",
+          "/current_frontiers/111",
+          "/current_frontiers/112",
+          "/current_frontiers/113",
+          "/current_frontiers/114",
+          "/current_frontiers/115",
+          "/current_frontiers/116",
+          "/current_frontiers/117",
+          "/current_frontiers/118",
+          "/current_frontiers/119",
+          "/current_frontiers/120",
+          "/current_frontiers/121",
+          "/current_frontiers/122",
+          "/current_frontiers/123",
+          "/current_frontiers/124",
+          "/current_frontiers/125",
+          "/current_frontiers/126",
+          "/current_frontiers/127",
+          "/current_frontiers/128",
+          "/current_frontiers/129",
+          "/current_frontiers/130"
+        ],
+        "record_ids_sha256": "051f2e55916b5965005dc88cc11bfc2b8a5faa2059826f84653ec794ab0ec3fb",
+        "upstream_snapshots": [
+          "fanin/candidate-r2-preparation/20260906T130901299141Z/io-runtime/frontiers.json#sha256=56fd59f1b3f5239e6797cce391e542f0d8518e60ec299f1fe35453497af2a7c8"
+        ]
+      },
+      "disposition_status": "R1 候选终态；未采纳、未执行、非当前部署状态"
+    }
+  ],
+  "mapping_coverage": {
+    "registry_relationship_records": 1815,
+    "non_import_relationship_records": 506,
+    "non_import_assigned_exactly_once": 506,
+    "disposition_groups": 45,
+    "unassigned_non_import_record_ids": [],
+    "multiply_assigned_record_ids": [],
+    "import_locator_records_excluded": 1309,
+    "import_exclusion_rule": "'import-locator' in current_frontiers[*].data.edge_kind; not call proof",
+    "excluded_import_id_set_sha256": "44c07aabace0b7c4cad5af043b6f02950d8b9e914e2e21b84cd71977940263ac",
+    "group_membership_covers_relationships_not_runtime_entries": true,
+    "by_partition": {
+      "io-runtime": 132,
+      "auxiliary-entries": 40,
+      "action-accounting": 147,
+      "structure-kernels": 138,
+      "theta-state-closure": 6,
+      "positional-closure": 8,
+      "positional-closure--continuation-six": 6,
+      "positional-closure--mixed-family": 2,
+      "theta-state-closure--mixed-family": 2,
+      "locks-formal": 25
+    },
+    "by_kind": {
+      "入口": 2,
+      "入口与数据支持": 1,
+      "入口与读端": 1,
+      "旧公共核心": 1,
+      "旧 FFI 公共核心": 1,
+      "策略和实际外部适配链": 1,
+      "旧 FFI/策略入口": 1,
+      "旧回测/策略入口": 1,
+      "旧引擎家族": 3,
+      "装配入口登记": 1,
+      "已知人工外部发送入口": 1,
+      "旧信号公共接口": 1,
+      "旧经济入口": 1,
+      "实际公开分派 callee": 6,
+      "已有入口的分派证据": 1,
+      "实际模式/preset": 6,
+      "附属调用证据": 1,
+      "结构记录支持": 1,
+      "旧经济核心及挂载状态": 1,
+      "候选算法/结构支持": 1,
+      "读端和比较入口": 1,
+      "诊断入口": 1,
+      "旧经济/扫描消费家族": 1,
+      "费用接口支持": 1,
+      "支持库": 1,
+      "只读支持": 1,
+      "验证设施": 1,
+      "范围边界": 1,
+      "范围外工具": 1,
+      "隔离原型": 1,
+      "支持证据": 1,
+      "范围外运行入口": 1
+    }
+  },
+  "unread_and_candidate_limits": [
+    "本轮旧实现行为来源仅为 SCAN-DELIVERY 指定的 canonical CURRENT-ENTRY-CONSUMER-REGISTRY；完整冻结路径/源哈希仅补查同一 SCAN 的 approved_source_registry 元数据，FG-025/FU-05 的名分沿用已签 FUGUE 需求。未读取旧架构候选/归档方案，也未重新扫当前代码或运行项目。",
+    "1815 是 current_frontiers 关系记录，不是 1815 个入口。1309 条 import-locator 明确不是调用证明，本文件不复制、不计入入口退役。506 个非 import 记录被挂靠 45 组；组有真实入口、分派/支持/验证和范围边界等不同种类，45 也不是可执行入口数。",
+    "各组代表路径来自冻结登记和该登记已给的入口定位；目录/通配符只表达族。没有据此验证当前文件哈希、当前默认启动、运行进程、broker 账户或挂单。",
+    "登记原作者 production body 已读的结论只是上游来源陈述；本作者读取了本任务相关登记字段，未冒领逐生产源码或全部 cfg(test) 的阅读/运行覆盖。",
+    "锁/THC mixed/deep substrate 等聚合项仅做用途挂靠；未展开的逐测试断言、公共 API 全调用域、命令/feature/env 与完整默认 launcher 清单仍未验收。OE13 明列四个 origin_entry_id 的逐 launcher 名称缺口。",
+    "每一去向都是独立 R1 候选的设计终态。当前未修改代码、构建配置、凭据、账户、任务、票或生产进程；没有删除任何旧事实，也没有执行撤权/发单/撤单。",
+    "选择保留 adapter 不代表接受其原实现正确；选择隔离旧引擎也不代表全目录可删。纯函数、账务 helper、结构 ledger、配置和诊断须按实际调用者逐项验收。",
+    "进入 SPEC 前，将本附录的冻结源/登记哈希与拟实施基线核对；只查变动文件、实际 launcher/default/feature/env 及受影响调用边，更新具体实施清单。该核对未执行，不能用本附录声称当前全仓已验证；不为此重启全仓 census。"
+  ],
+  "validation": {
+    "method": "artifact-only: sha bindings, all referenced IDs valid, disjoint assignment of exactly 506 non-import records, 1309 locators excluded, parent-required families/presets and mixed support separately present",
+    "runtime_tests": "not-run",
+    "production_writes": "none",
+    "r1_main_files_changed": false,
+    "current_baseline_diff_before_spec": "required-not-run; targeted changed-file and launcher/call-edge verification, no new whole-repo census",
+    "representative_path_metadata_check": {
+      "unique_paths_checked": 198,
+      "unmatched_paths": [],
+      "relationship_literal_paths": 196,
+      "source_registry_supplement_paths": {
+        ".github/workflows/ci.yml": "canonical approved source metadata: R00023",
+        "scripts/check_fixture_drift.py": "canonical approved source metadata: R01015"
+      },
+      "limitation": "literal/source metadata presence identifies frozen path only; no runtime/source-body/complete-caller proof"
+    }
+  },
+  "document": {
+    "path": "/tmp/newchanlun-1339-architecture-20260908/author/OLD-ENTRY-DISPOSITIONS.md",
+    "sha256": "b140fda52275c7ef6614c48e323cf0a3033bab1356d39e9a499c29926c7b7b10"
+  },
+  "revision_response": {
+    "prior_artifacts": {
+      "OLD-ENTRY-DISPOSITIONS.md": "67ad7f2b543597e71d1a4daeb9dbf8f2d8cb30273892944fb5277772c4f3a34f",
+      "OLD-ENTRY-DISPOSITIONS.json": "fd24b03106703c318cf1455a6431472d1127c2f3c77a7c91a64e7040db672d19"
+    },
+    "root_findings": [
+      {
+        "id": "OLD-OE39-SETTLED-GATE",
+        "resolution": "FG-025 settled after-fee gate inherited verbatim in substance; only named FU-05 sampling/boundary/post-gate parameters unresolved"
+      },
+      {
+        "id": "OLD-OE31-PATH-PROVENANCE",
+        "resolution": "seven exact production paths and fourteen test paths mapped to R00805–R00825 with approved metadata source hashes; no imaginary-path claim or source reread"
+      },
+      {
+        "id": "OLD-OE40-SUPPLEMENT-PATHS",
+        "resolution": "R00023/R01015 approved metadata supplies two complete paths absent verbatim from abbreviated relationship records"
+      }
+    ],
+    "r1_main_unchanged": true
+  }
+}

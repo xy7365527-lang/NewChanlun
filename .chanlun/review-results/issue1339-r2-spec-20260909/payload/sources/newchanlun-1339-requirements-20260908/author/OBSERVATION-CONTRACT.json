@@ -1,0 +1,407 @@
+{
+  "schema": "newchanlun.requirements.observation-draft.v0",
+  "ticket": 1339,
+  "status": "DRAFT_FOR_SCOPE_REVIEW_NOT_IMPLEMENTATION_SPEC",
+  "authority": "需求票与用户目标为范围依据；以下是由调用者需要推导的观察合同草案，不是新增缠论教义或已采纳软件组织。",
+  "source_document": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+  "requirements": [
+    {
+      "id": "OB-001",
+      "topic": "观察范围与来源",
+      "requirement": "每次查询、快照和变化均绑定标的、数据来源与输入版本、规则版本、运行模式、会话及代际、观察视角和请求覆盖范围。",
+      "proposed_payload_or_surface": "scope、instrument/source、input_revision、rules_revision、run/session/generation、view、mode；名称为草案。",
+      "acceptance_scenario": "同一标的的历史回放与实时观察同时打开，任何旧会话消息不能改写另一会话；切换视角不会串用旧对象。",
+      "counterexample": "跨会话/跨数据源同名标的仅靠symbol匹配。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 14,
+          "line_end": 14,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 46,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-002",
+      "topic": "三种层次分别表达",
+      "requirement": "结构级别、操作级别、Voice相对代际分别可查；级别归属可由观察视角及引用确定，不要求冗余复制。",
+      "proposed_payload_or_surface": "structural_level/context、operation_level、voice_depth/generation。",
+      "acceptance_scenario": "同一结构供两个不同操作级别的重消费，UI能分清使用关系；Voice深度变化不改写结构级别。",
+      "counterexample": "把显示K线周期或裸depth当作全部层次。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 14,
+          "line_end": 46,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-003",
+      "topic": "分类轴与适用域",
+      "requirement": "每个互斥分类附对象、相应级别、分解视角及良构域；允许不同轴/级别事实并存。知识不足和失效不混进教义分类。",
+      "proposed_payload_or_surface": "object_ref、axis、domain/assumptions、value、evidence_refs；适用性与知识/有效性分别说明。",
+      "acceptance_scenario": "同一个点同时具有正本允许的2B和3B，两个事实都保留；不满足完成域的走势不硬归入完成三分类。",
+      "counterexample": "全局first-match；为消冲突换宽判据；中枢教义候选态。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 9,
+          "line_end": 14,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-004",
+      "topic": "对象身份与修订",
+      "requirement": "可追溯同一观察代际内的对象及其修订；重切、替代、合并或拆分须给新旧关联，身份规则在后续spec明确。",
+      "proposed_payload_or_surface": "object_id、revision、supersedes/replaces、input_span、structural_key/context。",
+      "acceptance_scenario": "相同对象修改几何或依据时按revision更新；重切产生新对象时可追溯被替代对象，跨代际不意外复活。",
+      "counterexample": "只按数组序号/marker位置追加；更改坐标后保留两个假对象。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 38,
+          "line_end": 47,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-005",
+      "topic": "完整结构载荷",
+      "requirement": "后端提供覆盖表中对象、轴、边界、组成、血缘和完成依据；前端可折叠分页，但被折叠的语义仍可查询。",
+      "proposed_payload_or_surface": "geometry、range/core/envelope按对象适用；children、relations、completion_basis、tail_scope；均引用ST表。",
+      "acceptance_scenario": "用户打开任一已列结构类型及变化，可看到其适用字段和依据；中心扩展同时可追踪关系与高级构造是否成立。",
+      "counterexample": "只返回marker、布尔level_lift或矩形包围盒就宣称完整。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 34,
+          "line_end": 36,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 46,
+          "line_end": 49,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-006",
+      "topic": "完整快照的切面",
+      "requirement": "完整查询返回请求范围在一个可说明的一致切面上的状态；分页仍绑定同一切面。多权威域可用可验证的版本组合，不要求先选全局事务。",
+      "proposed_payload_or_surface": "snapshot_id、cut/版本组合、scope_manifest、cursor、complete_for_scope、missing/pending原因。",
+      "acceptance_scenario": "并发结构修订与经济成交发生时，每份宣称完整的快照能说明所用各域版本及依赖；同快照翻页不偷偷读取新头。",
+      "counterexample": "把新结构、旧资格、新资源无标注拼成一个完整现在。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 42,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-007",
+      "topic": "局部结果与等待",
+      "requirement": "结果不齐时明确缺哪一域、哪个前置及其最近可信切面。可以提供局部观察，但不能冒称完整，也不能因此新增交易资格。是否默认展示局部结果属于呈现取舍。",
+      "proposed_payload_or_surface": "completeness、missing_scopes、pending_reason、last_trustworthy_cut、staleness。",
+      "acceptance_scenario": "某一重或专题暂不可用，调用者能区分真实空集、暂未算出、源缺失和最近可信记录；恢复后再给完整结果。",
+      "counterexample": "将超时/无响应填false或空数组；由UI补算。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 14,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-008",
+      "topic": "游标后的完整变化",
+      "requirement": "变化查询相对指定快照切面，覆盖新增、字段更新、依据更新、修订/替代和撤回；说明顺序域与重复处理方式。",
+      "proposed_payload_or_surface": "change_id、base_cut、next_cursor、object_ref、before_revision、after_revision、operation、causal_refs。",
+      "acceptance_scenario": "重复投递、乱序和批间断档后，按合同处理结果等于同切面重取快照；漏任何已列语义字段变化都能被识别。",
+      "counterexample": "仅追加marker，忽略move撤回或几何变化。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 38,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-009",
+      "topic": "发生区间与何时获知",
+      "requirement": "保留结构所涉市场区间、系统首次获知与确认的输入前沿，必要时另有收件/应用时间；未知时间明确未知。",
+      "proposed_payload_or_surface": "market_span、first_known_at/input_cursor、confirmed_at/evidence_frontier、received_at、applied_at。",
+      "acceptance_scenario": "后续输入确认了较早区间的事实，回看较早时点不能提前显示为已确认；后续更正保留原获知记录。",
+      "counterexample": "用turn_source bar、最终计算时间或绘图横坐标冒充首次确认。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 28,
+          "line_end": 30,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 47,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-010",
+      "topic": "判定依据追溯",
+      "requirement": "每个展示事实可查询对应版本的结构锚、有效输入域、判据/规则版本、证书及依赖；必要条件、完成事实与经济准入有明确不同用途。",
+      "proposed_payload_or_surface": "evidence_ref、certificate_ref、rule_ref、input_refs、dependency_cut、claim_kind/use。",
+      "acceptance_scenario": "小转大必要条件出现时只能显示其真实判定内容；点击可追到来源，不能把gate_pass改名为现象完成。",
+      "counterexample": "看到经济门通过就宣布结构现象发生。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 28,
+          "line_end": 30,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 46,
+          "line_end": 49,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-011",
+      "topic": "结构与重的使用关系",
+      "requirement": "展示每个重的目标、结构视角及所用版本，哪项证据触发了哪项经营判断或状态变化；共享结构不授予重间仲裁权。",
+      "proposed_payload_or_surface": "chong_id、target_ref、operation_view、consumed_structure_cut、decision_ref、evidence_refs。",
+      "acceptance_scenario": "同一结构修订影响多个重，逐重说明已吸收/尚待处理及其影响，不自动统一各重方向。",
+      "counterexample": "只给市场状态和总仓位，看不到各重依据及独立权利。",
+      "sources": [
+        {
+          "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/issue-1339.json",
+          "json_pointer": "/body",
+          "role": "explicit_user_requirement_scope_not_three_chain_code_evidence"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 49,
+          "line_end": 59,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-012",
+      "topic": "经营观察与权威分离",
+      "requirement": "逐重提供FG表要求的状态与经济事实，分别标明经营判断、授权/义务、真实执行事实及观察投影；只读观察不会创建经济权利。",
+      "proposed_payload_or_surface": "chong/voice/stage、cash/lot/cost/principal/claim按批准口径、gross_obligations、physical_projection、source_refs。",
+      "acceptance_scenario": "同一净头寸对应不同逐重毛账时，UI保持逐重差异；未定资金规则显示未定，不填默认钱。",
+      "counterexample": "净额回推出私有账；观察者重算并写入本金或资格。",
+      "sources": [
+        {
+          "path": "/tmp/newchanlun-1339-requirements-20260908/evidence/issue-1339.json",
+          "json_pointer": "/body",
+          "role": "explicit_user_requirement_scope_not_three_chain_code_evidence"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 49,
+          "line_end": 59,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-013",
+      "topic": "诊断、结构事实与交易准入",
+      "requirement": "诊断推测/必要条件、教义已成立事实、生产准入结果分别说明语义和用途；诊断不得兜底准入失败。",
+      "proposed_payload_or_surface": "purpose、claim_kind、evidence_sufficiency、admission_ref/拒绝原因（适用时）。",
+      "acceptance_scenario": "同样输入下诊断项可显示更多线索，但生产准入结论不被更改；未知不当拒绝或通过。",
+      "counterexample": "弱版本补判后放行；中枢未存在却包装为候选中枢事实。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 11,
+          "line_end": 14,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 49,
+          "line_end": 49,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-014",
+      "topic": "撤回不抹账",
+      "requirement": "结构/资格修订和撤回保留历史与被影响引用；实际成交和既成经济责任依据其真实来源保留，后续补救另有授权。",
+      "proposed_payload_or_surface": "retraction、affected_refs、economic_application_refs、correction/compensation_refs（如有）。",
+      "acceptance_scenario": "结构撤回时同时存在未发计划、可能已发订单与已成部分，展示各自去向；已成交不随图形消失。",
+      "counterexample": "删图形等于撤单完成；撤结构就删除真实成交或恢复现金。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 47,
+          "line_end": 49,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-015",
+      "topic": "HTTP/流式会话同一性",
+      "requirement": "任何快照和增量传输共享声明的session/generation/cut语义；传输技术可后选。",
+      "proposed_payload_or_surface": "session_handle、snapshot_cursor、stream_binding、generation。",
+      "acceptance_scenario": "REST建立回放会话后，流式订阅绑定同一逻辑回放会话及一致输入切面；重建会话后旧连接消息被隔离。",
+      "counterexample": "HTTP一个回放，WS另起默认实时或独立回放。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 38,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-016",
+      "topic": "断线续接与断档",
+      "requirement": "可从有效游标继续；游标过期或不可恢复须明确要求重取快照，并保留可说明的缺口范围。",
+      "proposed_payload_or_surface": "resume_cursor、retention_boundary、gap/resnapshot_reason。",
+      "acceptance_scenario": "断线跨越更新/撤回后重连，最终状态与同切面快照一致；过期游标不会悄悄丢变化。",
+      "counterexample": "丢消息后继续追加而不告知断档；宣称传输网络恰一次。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 38,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-017",
+      "topic": "按当时可知回放",
+      "requirement": "历史回放明确『当时可知』与『使用后来修订重算』两模式；前者不使用未来证据，后者另标来源版本，经济回放还绑定真实经营/执行输入。",
+      "proposed_payload_or_surface": "replay_semantics、input_frontier、knowledge_cut、revision_policy、operating_input_refs。",
+      "acceptance_scenario": "逐步推进到确认前后，事实只在相应前沿出现；以同源输入双跑比较状态/关系/事件；经营恢复不能只靠bars猜钱。",
+      "counterexample": "拿全历史最终结构往过去贴；回放和实时用两套判据。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 30,
+          "line_end": 48,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 59,
+          "line_end": 59,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-018",
+      "topic": "范围过滤与完整性声明",
+      "requirement": "查询按标的、级别、重、时间和对象类型过滤时声明筛选范围与被省略项；分页/降采样不改变后台判据与原始事实。",
+      "proposed_payload_or_surface": "filters、scope_manifest、page_cut、omitted/aggregated、detail_ref。",
+      "acceptance_scenario": "用户过滤掉部分重或对象后仍知道这是子集；打开详情可恢复原始证据，不能因显示上限删后台对象。",
+      "counterexample": "前端只画三例就把支持列表写成全定义；用采样图替代完整状态。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 49,
+          "line_end": 59,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-019",
+      "topic": "完整后端与可用呈现",
+      "requirement": "所有覆盖项均有明确可达的观察入口；常用层显示概览，其余可通过筛选/详情/时间线访问，无需全部同时铺满图表。布局尚未定案。",
+      "proposed_payload_or_surface": "capability/catalog、对象详情、关系/变化查询、逐重经营视图、evidence link。",
+      "acceptance_scenario": "对每个ST/FG项从后端结果到可见状态或详情形成可验证路径；鼠标点marker不是唯一可用入口。",
+      "counterexample": "库里有enum、接口字段或图上有节点就算可呈现。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 42,
+          "line_end": 49,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 59,
+          "line_end": 59,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    },
+    {
+      "id": "OB-020",
+      "topic": "可核验的能力与版本声明",
+      "requirement": "明确哪些入口/模式/对象当前支持、受限或未支持；区分定义覆盖、字段存在、实际构造、接线、靶向执行和端到端验收。",
+      "proposed_payload_or_surface": "capability_manifest、mode_matrix、evidence_status、implementation_revision、known_limits。",
+      "acceptance_scenario": "对每个验收项能指出哪个版本/场景/输入/输出证明；未运行项保持not-run，未读源码保持未复验。",
+      "counterexample": "把171合同、94锁、91文件字节核验当作实现与运行通过。",
+      "sources": [
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 5,
+          "line_end": 5,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        },
+        {
+          "path": "/tmp/issue1323-frontend-state-requirements/FINDINGS.md",
+          "line_start": 59,
+          "line_end": 59,
+          "role": "accepted_bounded_report_and_prior_requirement_proposal"
+        }
+      ],
+      "verification_status": "NOT_RUN_REQUIREMENT_DRAFT"
+    }
+  ]
+}

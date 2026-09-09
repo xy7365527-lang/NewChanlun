@@ -1,0 +1,147 @@
+{
+  "schema": "newchanlun.1323.planned-dag.v1",
+  "status": "PROPOSED_NOT_PUBLISHED",
+  "scope": "全部六项Destination；11个纵向切片",
+  "rules": [
+    "编号不是执行顺序。",
+    "此表只列切片排程边；故事销项集合用于子义务记账，不机械新增反向排程边。",
+    "G/FU及权限绑定到所依赖的实际子义务，具体未决依赖先建真实承接再发布阻塞关系。",
+    "TB09是TB08前置，TB10才完成所有旧入口和生产带仓启用。",
+    "实验部署能力证据只适用于其绑定profile，不能代替生产首次发送前目标部署隔离证据。"
+  ],
+  "nodes": [
+    {
+      "id": "TB-01",
+      "title": "正式结构和只读观察",
+      "blocking_slice_ids": [],
+      "additional_gate_source": "SPEC C12、IMPLEMENTATION-CROSSWALK对应成功义务和RESIDUAL-DECISIONS当前具名残留；批准及权限不由拓扑推断",
+      "runtime_acceptance": "NOT_RUN"
+    },
+    {
+      "id": "TB-02",
+      "title": "全部结构分类及构造子义务",
+      "blocking_slice_ids": [
+        "TB-01"
+      ],
+      "additional_gate_source": "SPEC C12、IMPLEMENTATION-CROSSWALK对应成功义务和RESIDUAL-DECISIONS当前具名残留；批准及权限不由拓扑推断",
+      "runtime_acceptance": "NOT_RUN"
+    },
+    {
+      "id": "TB-03",
+      "title": "持久重经营与事实应用",
+      "blocking_slice_ids": [
+        "TB-01"
+      ],
+      "additional_gate_source": "SPEC C12、IMPLEMENTATION-CROSSWALK对应成功义务和RESIDUAL-DECISIONS当前具名残留；批准及权限不由拓扑推断",
+      "runtime_acceptance": "NOT_RUN"
+    },
+    {
+      "id": "TB-04",
+      "title": "责任到实际调用及回报闭环",
+      "blocking_slice_ids": [
+        "TB-03"
+      ],
+      "additional_gate_source": "SPEC C12、IMPLEMENTATION-CROSSWALK对应成功义务和RESIDUAL-DECISIONS当前具名残留；批准及权限不由拓扑推断",
+      "runtime_acceptance": "NOT_RUN"
+    },
+    {
+      "id": "TB-05",
+      "title": "故障隔离及持续服务",
+      "blocking_slice_ids": [
+        "TB-04"
+      ],
+      "additional_gate_source": "SPEC C12、IMPLEMENTATION-CROSSWALK对应成功义务和RESIDUAL-DECISIONS当前具名残留；批准及权限不由拓扑推断",
+      "runtime_acceptance": "NOT_RUN"
+    },
+    {
+      "id": "TB-06",
+      "title": "完整阶段、换档与尾账",
+      "blocking_slice_ids": [
+        "TB-03",
+        "TB-04"
+      ],
+      "additional_gate_source": "SPEC C12、IMPLEMENTATION-CROSSWALK对应成功义务和RESIDUAL-DECISIONS当前具名残留；批准及权限不由拓扑推断",
+      "runtime_acceptance": "NOT_RUN"
+    },
+    {
+      "id": "TB-07",
+      "title": "完整历史及恢复",
+      "blocking_slice_ids": [
+        "TB-02",
+        "TB-05",
+        "TB-06"
+      ],
+      "additional_gate_source": "SPEC C12、IMPLEMENTATION-CROSSWALK对应成功义务和RESIDUAL-DECISIONS当前具名残留；批准及权限不由拓扑推断",
+      "runtime_acceptance": "NOT_RUN"
+    },
+    {
+      "id": "TB-08",
+      "title": "场所共核与能力验收",
+      "blocking_slice_ids": [
+        "TB-04",
+        "TB-05",
+        "TB-07",
+        "TB-09"
+      ],
+      "additional_gate_source": "SPEC C12、IMPLEMENTATION-CROSSWALK对应成功义务和RESIDUAL-DECISIONS当前具名残留；批准及权限不由拓扑推断",
+      "runtime_acceptance": "NOT_RUN"
+    },
+    {
+      "id": "TB-09",
+      "title": "目标部署旧写入口隔离及X排他",
+      "blocking_slice_ids": [
+        "TB-04"
+      ],
+      "additional_gate_source": "SPEC C12、IMPLEMENTATION-CROSSWALK对应成功义务和RESIDUAL-DECISIONS当前具名残留；批准及权限不由拓扑推断",
+      "runtime_acceptance": "NOT_RUN"
+    },
+    {
+      "id": "TB-10",
+      "title": "带仓迁移、旧入口终态及默认启用",
+      "blocking_slice_ids": [
+        "TB-02",
+        "TB-05",
+        "TB-07",
+        "TB-08",
+        "TB-09"
+      ],
+      "additional_gate_source": "SPEC C12、IMPLEMENTATION-CROSSWALK对应成功义务和RESIDUAL-DECISIONS当前具名残留；批准及权限不由拓扑推断",
+      "runtime_acceptance": "NOT_RUN"
+    },
+    {
+      "id": "TB-11",
+      "title": "整图实装和独立总验",
+      "blocking_slice_ids": [
+        "TB-01",
+        "TB-02",
+        "TB-03",
+        "TB-04",
+        "TB-05",
+        "TB-06",
+        "TB-07",
+        "TB-08",
+        "TB-09",
+        "TB-10"
+      ],
+      "additional_gate_source": "SPEC C12、IMPLEMENTATION-CROSSWALK对应成功义务和RESIDUAL-DECISIONS当前具名残留；批准及权限不由拓扑推断",
+      "runtime_acceptance": "NOT_RUN"
+    }
+  ],
+  "structural_validation": {
+    "acyclic": true,
+    "one_valid_order": [
+      "TB-01",
+      "TB-02",
+      "TB-03",
+      "TB-04",
+      "TB-05",
+      "TB-06",
+      "TB-09",
+      "TB-07",
+      "TB-08",
+      "TB-10",
+      "TB-11"
+    ],
+    "does_not_prove_semantic_or_implementation_success": true
+  }
+}
