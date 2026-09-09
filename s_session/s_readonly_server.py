@@ -947,9 +947,22 @@ class Handler(BaseHTTPRequestHandler):
         self._send_json({"ok": False, "error": "not found"}, 404)
 
 
+def _project_wire_integers(v):
+    """最终 wire 边界的安全递归精确整数投影：int → 规范十进制字符串；bool/null/float/str 原值保持。"""
+    if type(v) is bool:
+        return v
+    if type(v) is int:
+        return str(v)
+    if isinstance(v, dict):
+        return {k: _project_wire_integers(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_project_wire_integers(x) for x in v]
+    return v
+
+
 def serialize_payload(obj):
     try:
-        return json.dumps(obj, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        return json.dumps(_project_wire_integers(obj), ensure_ascii=False, allow_nan=False).encode("utf-8")
     except (TypeError, ValueError, UnicodeError, OverflowError):
         return None
 

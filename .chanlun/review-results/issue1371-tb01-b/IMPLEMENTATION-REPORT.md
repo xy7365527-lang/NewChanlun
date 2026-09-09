@@ -81,6 +81,13 @@ AsKnown/RecomputedWithRevision 分栏、同源 Watch 续接，并已按根评审
 | R6-H2（raw_bars.supersedes_revision 及 CatalogEvidence 计数用 JSON number） | Rust `project_raw_bars` 与 Python `_project_raw_bars` 投影 `supersedes_revision`（i64→字符串，null 保 null）；catalog evidence 八个计数（classified_objects/windows_total/merged_bars/effective_source_positions/withdrawals/replaces/insufficient_knowledge/domain_not_satisfied）全部规范十进制字符串 |
 | R6-REGRESSION | 新增 `large_predecessor_supersedes_and_evidence_wire_are_strings` 测试（连续两次 >2^53 修订，supersedes 引用精确字符串往返 + evidence 计数字符串断言）；保留 10 字段内外对应、空 -1、三类已修坏值 |
 
+## 0a7. R7 修复（相对 4a3da3787，针对根 R7 复审 REQUEST_CHANGES）
+
+| 根发现 | 修复 |
+|---|---|
+| R7-H1（已发布历史 Delta 与 Catalog 仍泄漏 JSON 整数：watch/HTTP Delta 的 witness.raw_bars.supersedes_revision、旧 evidence 计数仍 number） | 最终 wire 边界新增安全递归精确整数投影 `project_wire_integers`（Rust）/ `_project_wire_integers`（Python）：JSON 整数(i64/u64) → 规范十进制字符串；bool 仍 bool、null 仍 null、浮点/非整数原值保持。应用于 catalog/snapshot/query/watch（Rust）与 serialize_payload（Python），覆盖已发布当前/历史 Delta、Catalog evidence 及目录整数 rank/code/set 的读取输出；不改变内部存储/已发布 DB/BLOB/hash/cut/first_known |
+| R7-REGRESSION | 新增 `wire_integer_projection_preserves_bool_null_float` 测试（整数→文本、bool/null/float/str 不误改）；实测连续两次 >2^53 修订 supersedes 精确文本、模拟旧记录（delta_json witness supersedes 为 JSON 整数、catalog evidence 整数计数）经 watch/HTTP/catalog 均投影为字符串 |
+
 ## 0b. 改动面（只改本票模块）
 
 `rust/src/bin/s_structure_session.rs`、`s_session/s_readonly_server.py`、`s_session/browser/index.html`、
@@ -131,7 +138,7 @@ AsKnown/RecomputedWithRevision 分栏、同源 Watch 续接，并已按根评审
 - 平台前件：Linux 实测 sqlite 3.53.2、wal、synchronous=2(FULL)、platform=linux；macOS fullfsync/GUI 未验（交根）。
 
 ### AC8 —— 证据保留 + 检查 + 未验
-- 检查：fmt 0、check 0、clippy 本片 0 命中、bin 测试 30 passed（A 原 9 + B 21）、`--lib local_shape` 4 passed。
+- 检查：fmt 0、check 0、clippy 本片 0 命中、bin 测试 31 passed（A 原 9 + B 22）、`--lib local_shape` 4 passed。
 - 证据：命令/退出码、输入/构建/目录 hash、PID/信号/退出/重启/持久状态、API 前后、Node 全字段对拍、杀点输入（/tmp/s_b_*，工作草稿证据不入仓）。
 
 ## 2. 17 细项绑定（结论：本片范围内均已完成；未销项见下）
@@ -163,7 +170,7 @@ AsKnown/RecomputedWithRevision 分栏、同源 Watch 续接，并已按根评审
 | cargo fmt -- --check | 0 |
 | cargo check --features s_session --bin s_structure_session | 0 |
 | cargo clippy --features s_session --bin s_structure_session | 0（本片 0 命中） |
-| cargo test --features s_session --bin s_structure_session --jobs 1 | 0（30 passed） |
+| cargo test --features s_session --bin s_structure_session --jobs 1 | 0（31 passed） |
 | cargo test --lib local_shape | 0（4 passed，A oracle） |
 | ./s_session/launch_s.sh --testonly … | 0 |
 | /tmp/s_b_kill_test.py（三点 SIGKILL+恢复，从已发布旧 TOP 起） | 0（wait_exit=-9） |
@@ -178,8 +185,8 @@ AsKnown/RecomputedWithRevision 分栏、同源 Watch 续接，并已按根评审
 - `signed-catalog.json`：`938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069`（与 A 一致）。
 - TestOnly profile：`2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc`（与 A 一致）。
 - 本片四文件（本轮修复后）：
-  - `rust/src/bin/s_structure_session.rs`：`c7813827bc3e43a253bf5d66fbf3ae0456baee1abbbc6868f51f2c77506da861`
-  - `s_session/s_readonly_server.py`：`a9475590c77c3a48e65de6b54b386c6f29085c830060de104f265e89abc892f1`
+  - `rust/src/bin/s_structure_session.rs`：`0718729cf3535b128ff995d1f6aad75b5385c9042140f5a053db970a75f3dfb2`
+  - `s_session/s_readonly_server.py`：`ee29bf801dfec475f603ab9c2aa98b616fdbceb33f3d3a573d18e9d05146e4b6`
   - `s_session/browser/index.html`：`13402a4011034e624de34b4137696a3dd8d3de2e1b35ec854e3a2331ca1591ac`
   - `s_session/launch_s.sh`：`65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d`（epoch 透传，本轮未再改）
 

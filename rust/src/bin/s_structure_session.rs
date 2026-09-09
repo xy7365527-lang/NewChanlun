@@ -2195,6 +2195,32 @@ fn canonical_bytes_of_value(v: &Value) -> Vec<u8> {
     canonical_json(v).into_bytes()
 }
 
+/// 最终 wire 边界的安全递归精确整数投影：JSON 整数（i64/u64）→ 规范十进制字符串；
+/// bool 仍 bool、null 仍 null、浮点/非整数原值保持。用于已发布历史/Delta/Catalog 的读取输出，
+/// 不改变内部存储/已发布 DB/BLOB/hash/cut/first_known。
+fn project_wire_integers(v: &Value) -> Value {
+    match v {
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Value::String(i.to_string())
+            } else if let Some(u) = n.as_u64() {
+                Value::String(u.to_string())
+            } else {
+                Value::Number(n.clone())
+            }
+        }
+        Value::Array(arr) => Value::Array(arr.iter().map(project_wire_integers).collect()),
+        Value::Object(map) => {
+            let mut out = serde_json::Map::new();
+            for (k, val) in map {
+                out.insert(k.clone(), project_wire_integers(val));
+            }
+            Value::Object(out)
+        }
+        other => other.clone(),
+    }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // WIRE 精确整数投影：把「明确外发」的精确坐标/版本/来源游标字段投影为规范十进制字符串。
 // ────────────────────────────────────────────────────────────────────────────
@@ -2891,7 +2917,7 @@ fn cmd_catalog(db: &Path, as_of: Option<i64>) -> Result<(), String> {
     verify_reachable_root(&tx)?;
     let out = read_catalog_in_tx(&tx, as_of)?;
     drop(tx);
-    println!("{}", out);
+    println!("{}", project_wire_integers(&out));
     Ok(())
 }
 
@@ -2904,7 +2930,7 @@ fn cmd_snapshot(db: &Path, as_of: Option<i64>) -> Result<(), String> {
     verify_reachable_root(&tx)?;
     let out = read_snapshot_in_tx(&tx, as_of)?;
     drop(tx);
-    println!("{}", out);
+    println!("{}", project_wire_integers(&out));
     Ok(())
 }
 
@@ -2966,24 +2992,22 @@ fn cmd_query(db: &Path, identity_key: &str) -> Result<(), String> {
         })
         .unwrap_or(false);
     drop(tx);
-    println!(
-        "{}",
-        json!({
-            "ok": true,
-            "identity_key": identity_key,
-            "published_frontier": published_frontier.to_string(),
-            "records": rows,
-            "latest": latest,
-            "latest_published": published,
-            "note": if rows.is_empty() {
-                "NoRecord：该业务身份无接纳记录（不据此自动新建动作）"
-            } else if published {
-                "已接纳且已进入已发布前沿（权威结果）"
-            } else {
-                "已接纳但尚未进入已发布前沿（未 Advance）"
-            },
-        })
-    );
+    let out = json!({
+        "ok": true,
+        "identity_key": identity_key,
+        "published_frontier": published_frontier.to_string(),
+        "records": rows,
+        "latest": latest,
+        "latest_published": published,
+        "note": if rows.is_empty() {
+            "NoRecord：该业务身份无接纳记录（不据此自动新建动作）"
+        } else if published {
+            "已接纳且已进入已发布前沿（权威结果）"
+        } else {
+            "已接纳但尚未进入已发布前沿（未 Advance）"
+        },
+    });
+    println!("{}", project_wire_integers(&out));
     Ok(())
 }
 
@@ -3111,18 +3135,16 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
     }
 
     drop(tx);
-    println!(
-        "{}",
-        json!({
-            "ok": true,
-            "session_id": meta.get("session_id").cloned().unwrap_or_default(),
-            "generation": current_gen.to_string(),
-            "structure_cut": current_cut,
-            "after_generation": after_generation.to_string(),
-            "gap": gap,
-            "deltas": rows,
-        })
-    );
+    let out = json!({
+        "ok": true,
+        "session_id": meta.get("session_id").cloned().unwrap_or_default(),
+        "generation": current_gen.to_string(),
+        "structure_cut": current_cut,
+        "after_generation": after_generation.to_string(),
+        "gap": gap,
+        "deltas": rows,
+    });
+    println!("{}", project_wire_integers(&out));
     Ok(())
 }
 
@@ -4694,6 +4716,32 @@ mod tests {
                 cc["evidence"][k]
             );
         }
+    }
+
+    #[test]
+    fn wire_integer_projection_preserves_bool_null_float() {
+        let v = json!({
+            "i64": 9007199254740993_i64,
+            "small": 2,
+            "negative": -1,
+            "bool_true": true,
+            "bool_false": false,
+            "null": null,
+            "float": 1.5,
+            "str": "9007199254740993",
+            "nested": {"a": 3, "b": [4, 5]},
+        });
+        let p = project_wire_integers(&v);
+        assert_eq!(p["i64"], json!("9007199254740993"));
+        assert_eq!(p["small"], json!("2"));
+        assert_eq!(p["negative"], json!("-1"));
+        assert_eq!(p["bool_true"], json!(true));
+        assert_eq!(p["bool_false"], json!(false));
+        assert_eq!(p["null"], Value::Null);
+        assert_eq!(p["float"], json!(1.5));
+        assert_eq!(p["str"], json!("9007199254740993"));
+        assert_eq!(p["nested"]["a"], json!("3"));
+        assert_eq!(p["nested"]["b"], json!(["4", "5"]));
     }
 
     #[test]
