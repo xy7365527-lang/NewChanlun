@@ -1,0 +1,12 @@
+{
+  "profile_id": "testonly_tick_1_1_ohlc",
+  "unit": "tick",
+  "price_scale": "exact_integer_decimal_string",
+  "tick_size": "1",
+  "clock": "fixed_seq_clock",
+  "aggregation": "one_to_one_ohlc",
+  "resample": "none",
+  "volume_unit": "1",
+  "not_product_default": true,
+  "note": "TestOnly 标记描述可再生产输入来源，不把预制结果变成结构事实；本 profile 不成为产品默认。"
+}

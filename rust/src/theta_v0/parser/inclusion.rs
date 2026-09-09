@@ -35,7 +35,10 @@ type MergeDir = Direction;
 /// 判断两 K 是否包含（一方闭区间 [low,high] 含另一方）。
 ///
 /// 边界条件：相等区间（A==B）视为包含（互含）——按合并规则处理为一根。
-fn contains(a: &Bar, b: &Bar) -> bool {
+///
+/// `pub(crate)`（#1370 TB-01-A）：CC-006 `local_shape` 的域前件「相邻两对均非包含」复用
+/// 本谓词（与 inclusion 同一判断，不另起第二查法）。
+pub(crate) fn contains(a: &Bar, b: &Bar) -> bool {
     (a.high >= b.high && a.low <= b.low) || (b.high >= a.high && b.low <= a.low)
 }
 
@@ -70,7 +73,11 @@ fn merge(acc: &Bar, b: &Bar, dir: MergeDir) -> Bar {
 /// 严格高高、低低 → Up；严格低低、低高 → Down；非严格（任一相等或矛盾）→ None。
 /// 这是「前一对非包含 K 的严格高低变化」——只有两个区间**严格**单调（high 与 low
 /// 同向严格变化）才确定方向。
-fn strict_dir(prev: &Bar, cur: &Bar) -> Option<MergeDir> {
+///
+/// `pub(crate)`（#1370 TB-01-A）：CC-006 `local_shape` 的两次方向（dir(a,b)/dir(b,c)）复用
+/// 本谓词（与 inclusion 同一判断，不另起第二查法）。返回类型改为公开的 [`Direction`]
+/// （原私有别名 `MergeDir` = `Direction`，语义不变）。
+pub(crate) fn strict_dir(prev: &Bar, cur: &Bar) -> Option<Direction> {
     if cur.high > prev.high && cur.low > prev.low {
         Some(Direction::Up)
     } else if cur.high < prev.high && cur.low < prev.low {

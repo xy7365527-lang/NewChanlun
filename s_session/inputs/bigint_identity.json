@@ -1,0 +1,40 @@
+{
+  "schema_revision": "1",
+  "session_id": "s-session-testonly-001",
+  "source_namespace": "testonly.tick.ohlc",
+  "source_epoch": "1",
+  "instrument": "TEST.TICK",
+  "profile": "testonly_tick_1_1_ohlc",
+  "events": [
+    {
+      "event_id": "bigint-a",
+      "revision": "1",
+      "seq": "0",
+      "received_at": "2026-09-09T00:00:00.000Z",
+      "raw_text": "9007199254740993",
+      "price": "9007199254740993",
+      "timestamp": "0",
+      "volume": "1"
+    },
+    {
+      "event_id": "bigint-b",
+      "revision": "1",
+      "seq": "1",
+      "received_at": "2026-09-09T00:00:01.000Z",
+      "raw_text": "9007199254740991",
+      "price": "9007199254740991",
+      "timestamp": "1",
+      "volume": "1"
+    },
+    {
+      "event_id": "bigint-c",
+      "revision": "1",
+      "seq": "2",
+      "received_at": "2026-09-09T00:00:02.000Z",
+      "raw_text": "9007199254740990",
+      "price": "9007199254740990",
+      "timestamp": "2",
+      "volume": "1"
+    }
+  ]
+}
