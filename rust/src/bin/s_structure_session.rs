@@ -1430,10 +1430,22 @@ fn project_raw_bars(bars: &Value) -> Result<Value, String> {
     Ok(Value::Array(out))
 }
 
-fn json_shape(text: &str, is_array: bool) -> Result<Value, String> {
+enum JsonShape {
+    Array,
+    Object,
+    CatalogBranches,
+}
+
+fn json_shape(text: &str, shape: JsonShape) -> Result<Value, String> {
     let value: Value =
         serde_json::from_str(text).map_err(|e| format!("持久 JSON 解析失败：{e}"))?;
-    if (is_array && value.is_array()) || (!is_array && value.is_object()) {
+    let valid = match shape {
+        JsonShape::Array => value.is_array(),
+        JsonShape::Object => value.is_object(),
+        // 已签目录允许枚举数组或生成式对象，不改写二者。
+        JsonShape::CatalogBranches => value.is_array() || value.is_object(),
+    };
+    if valid {
         Ok(value)
     } else {
         Err("持久 JSON 形状不符".to_string())
@@ -1448,13 +1460,13 @@ fn json_column_error(index: usize, reason: String) -> rusqlite::Error {
     )
 }
 
-fn json_column(row: &rusqlite::Row<'_>, index: usize, is_array: bool) -> rusqlite::Result<Value> {
-    json_shape(&row.get::<_, String>(index)?, is_array).map_err(|e| json_column_error(index, e))
+fn json_column(row: &rusqlite::Row<'_>, index: usize, shape: JsonShape) -> rusqlite::Result<Value> {
+    json_shape(&row.get::<_, String>(index)?, shape).map_err(|e| json_column_error(index, e))
 }
 
 fn read_scope(conn: &Connection) -> Result<Value, String> {
     match meta_get_opt(conn, "scope")? {
-        Some(text) => json_shape(&text, false),
+        Some(text) => json_shape(&text, JsonShape::Object),
         None => Ok(json!({})),
     }
 }
@@ -1475,11 +1487,11 @@ fn read_catalog_in_tx(conn: &Connection) -> Result<Value, String> {
                 "kind": r.get::<_, String>(1)?,
                 "title": r.get::<_, String>(2)?,
                 "domain": r.get::<_, String>(3)?,
-                "branches": json_column(r, 4, true)?,
+                "branches": json_column(r, 4, JsonShape::CatalogBranches)?,
                 "implementation_status": r.get::<_, String>(5)?,
                 "proof_status": r.get::<_, String>(6)?,
                 "run_status": r.get::<_, String>(7)?,
-                "evidence": json_column(r, 8, false)?,
+                "evidence": json_column(r, 8, JsonShape::Object)?,
             }))
         })
         .map_err(|e| format!("query catalog 失败：{e}"))?
@@ -1519,9 +1531,9 @@ fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
                 "window_start": r.get::<_, i64>(7)?.to_string(),
                 "window_mid": r.get::<_, i64>(8)?.to_string(),
                 "window_end": r.get::<_, i64>(9)?.to_string(),
-                "comparisons": json_column(r, 10, true)?,
+                "comparisons": json_column(r, 10, JsonShape::Array)?,
                 "input_refs": project_input_refs(
-                    &json_column(r, 11, true)?
+                    &json_column(r, 11, JsonShape::Array)?
                 ).map_err(|e| json_column_error(11, e))?,
             }))
         })
@@ -1544,7 +1556,7 @@ fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
                 "merged_open": r.get::<_, String>(6)?,
                 "merged_close": r.get::<_, String>(7)?,
                 "raw_bars": project_raw_bars(
-                    &json_column(r, 8, true)?
+                    &json_column(r, 8, JsonShape::Array)?
                 ).map_err(|e| json_column_error(8, e))?,
             }))
         })
@@ -1580,7 +1592,7 @@ fn read_snapshot_in_tx(conn: &Connection) -> Result<Value, String> {
                 "window_mid": r.get::<_, Option<i64>>(4)?.map(|v| v.to_string()),
                 "window_end": r.get::<_, Option<i64>>(5)?.map(|v| v.to_string()),
                 "reason": r.get::<_, String>(6)?,
-                "detail": json_column(r, 7, false)?,
+                "detail": json_column(r, 7, JsonShape::Object)?,
             }))
         })
         .map_err(|e| format!("query observations 失败：{e}"))?
@@ -1766,6 +1778,43 @@ mod tests {
         meta_set(conn, "generation", "0").unwrap();
         meta_set(conn, "advance_state", "begun:owned:1:6").unwrap();
         meta_set(conn, "begin_token", "owned").unwrap();
+    }
+
+    #[test]
+    fn full_signed_catalog_preserves_both_declared_branch_shapes() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let conn = open_db(&files.db()).unwrap();
+        let signed: Value = serde_json::from_str(
+            &std::fs::read_to_string(fixture("catalog/signed-catalog.json")).unwrap(),
+        )
+        .unwrap();
+        let actual = read_catalog_in_tx(&conn).unwrap();
+        let expected = signed["items"].as_array().unwrap();
+        let rows = actual["items"].as_array().unwrap();
+        assert_eq!(expected.len(), 116);
+        assert_eq!(rows.len(), expected.len());
+        assert_eq!(
+            expected.iter().filter(|r| r["branches"].is_array()).count(),
+            82
+        );
+        assert_eq!(
+            expected
+                .iter()
+                .filter(|r| r["branches"].is_object())
+                .count(),
+            34
+        );
+        for item in expected {
+            let row = rows.iter().find(|r| r["id"] == item["id"]).unwrap();
+            assert_eq!(row["branches"], item["branches"]);
+            assert_eq!(row["title"], item["title"]);
+            assert_eq!(row["domain"], item["domain"]);
+            assert_eq!(row["implementation_status"], json!("not_implemented"));
+        }
+        for bad in ["null", "true", "1", "\"text\"", "{"] {
+            assert!(json_shape(bad, JsonShape::CatalogBranches).is_err());
+        }
     }
 
     #[test]

@@ -32,7 +32,7 @@ curl http://127.0.0.1:8787/api/snapshot
 `rust/target/debug/s_structure_session`（`cargo build --features s_session --bin s_structure_session`）：
 
 - `init --db <路径> --session <id> --catalog <catalog.json>`
-- `accept --db <路径> --input <输入.json>`（S.AcceptInput；同身份同内容→replay，异内容→IdentityConflict）
+- `accept --db <路径> --input <输入.json> --profile <profile.json>`（S.AcceptInput；同身份同内容→replay，异内容→IdentityConflict）
 - `advance --db <路径>`（S.Advance；Begin→同次 Rust `ParseLayerIncr`→CC-006→Commit）
 - `catalog --db <路径>`（S.ReadCatalog）
 - `snapshot --db <路径>`（S.Snapshot）

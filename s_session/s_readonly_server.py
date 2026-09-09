@@ -38,6 +38,8 @@ def open_readonly(db_path):
 def meta_dict(conn):
     out = {}
     for key, value in conn.execute("SELECT key, value FROM meta"):
+        if type(key) is not str or type(value) is not str:
+            raise ValueError("meta 的键和值必须都是文本")
         out[key] = value
     return out
 
@@ -116,7 +118,7 @@ def read_catalog(conn):
             "kind": kind,
             "title": title,
             "domain": domain,
-            "branches": _json_field(branches_json, list),
+            "branches": _json_field(branches_json, (list, dict)),
             "implementation_status": impl,
             "proof_status": proof,
             "run_status": run,
