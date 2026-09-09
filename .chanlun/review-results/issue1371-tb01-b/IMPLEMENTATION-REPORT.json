@@ -3,12 +3,13 @@
   "slice": "TB-01-B",
   "branch": "codex/1323-tb01-b-1371",
   "baseline": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+  "repaired_from": "8c868f968c5f937870a4305dca05a0e0162b5131",
   "number_declaration": "本提交中的 #1371 仅指 GitHub Issue。",
-  "status": "IMPLEMENTED_READY_FOR_INDEPENDENT_REVIEW",
+  "status": "REPAIRED_PER_ROOT_REVIEW_INCOMPLETE_READY_FOR_RE_REVIEW",
   "platform": "linux-aarch64-container",
   "rustc": "1.97.1",
   "sqlite": "3.53.2 (bundled libsqlite3-sys 0.38.2)",
-  "scope_note": "本报告是工作草稿，不是独立评审；COMPLETE 只表示返回，不表示根验或整图通过。",
+  "scope_note": "工作草稿，非独立评审；COMPLETE 只是返回，不表示根验/整图通过。",
   "files_changed": [
     "rust/src/bin/s_structure_session.rs",
     "s_session/s_readonly_server.py",
@@ -16,80 +17,49 @@
     "s_session/launch_s.sh"
   ],
   "file_sha256": {
-    "rust/src/bin/s_structure_session.rs": "0c110dbea358cbbfaafcc3759cd2b5d9931ae6b2e045b88d070ef18812b638b7",
-    "s_session/s_readonly_server.py": "db8998936c5719539e672a453ac2c1b942e84a46baa87bf7d889edf675b147f5",
-    "s_session/browser/index.html": "5c311db8a9f3577379a7719289b68d34cddc72aa365014fe5573afa3a9bf42f0",
+    "rust/src/bin/s_structure_session.rs": "2e06b83eb220934aba6f88f3be31ea876fe21b63984ce0a78dc162549dfdeb9e",
+    "s_session/s_readonly_server.py": "8024b01ca38215a23357afd8354c76b392565c895bac472269617fb531addef1",
+    "s_session/browser/index.html": "bbc86d0158bfebc5a9f5e73070f99a19f89532c4a35f28f477d076c7ca0c5084",
     "s_session/launch_s.sh": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d"
   },
   "catalog_sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",
   "profile_sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc",
-  "binary_sha256": "3daf4e5f30bb3c75b7c1fdf1bf9ce327dba074c50b5912d5306dc03b04571a3e",
   "checks": {
     "cargo_fmt_check": 0,
     "cargo_check": 0,
     "cargo_clippy_own_hits": 0,
-    "bin_tests": "18 passed / 0 failed",
+    "bin_tests": "22 passed / 0 failed",
     "lib_local_shape_oracle": "4 passed"
   },
+  "ac_numbering_note": "AC1..AC8 按原票顺序：AC1 launcher+输入链、AC2 revision分立+幂等、AC3 Delta+浏览器原子应用、AC4 三点真杀恢复、AC5 DeliveryUnknown+旧epoch、AC6 AsKnown/Recomputed、AC7 E/B/X未启动+StorageUnavailable、AC8 证据保留。",
+  "repair_summary": {
+    "ROOT-B-R1-01": "历史 cut 元数据/目录证据不可变 + 对象 batch/published 首发布稳定",
+    "ROOT-B-R1-02": "Delta 验证通过后驱动正式渲染",
+    "ROOT-B-R1-03": "快照失败/差异不提交游标；空增量全字段复核",
+    "ROOT-B-R1-04": "load('current') 默认 + 有界 AsKnown 输入",
+    "ROOT-B-R1-05": "reader 严格校验坏持久值；参数 400 / 存储 503",
+    "ROOT-B-R1-06": "accept/advance/recover 核可达根",
+    "native_crash_delivery": "query --identity-key + 幂等 advance（不产新 cut）",
+    "native_crash_snapshot_cut": "current 以已发布前沿为界；未发布 as_of 显式 Unavailable",
+    "python_H01_H07": "generation/frontier 严格校验；完整连续性+末端+sesssion 绑定+Delta 形状"
+  },
   "trajectory": {
-    "top_formed": "e0/e1/e2=10000/11000/10500 -> TOP@[0,1,2] (generation 1)",
-    "correction": "e2 revision=2 -> 11500, supersedes_revision=1 -> RISING@[0,1,2] + withdraw TOP@[0,1,2]",
+    "top": "10000/11000/10500 -> TOP@[0,1,2]",
+    "correction": "e2 rev2=11500 supersedes rev1 -> RISING@[0,1,2] + withdraw TOP@[0,1,2]",
     "append": "e3=10800 -> TOP@[1,2,3]",
-    "late_arm": "e0/e1/e2/e3 first then e2 correction: TOP/BOTTOM -> RISING/TOP, still 4 effective source positions",
-    "missing_right_neighbor": "prefix 2 points -> no TOP, insufficient_knowledge (fewer_than_three_bars)"
+    "late_arm": "e0..e3 first then correction -> RISING/TOP, 4 effective source positions",
+    "missing_right_neighbor": "2 points -> no TOP, insufficient_knowledge"
   },
-  "sigkill": [
-    {
-      "stage": "after_begin",
-      "pid": "captured",
-      "signal": "SIGKILL",
-      "wait_exit": -9,
-      "after": {
-        "generation": "0",
-        "batches": 0,
-        "cut": "cut-0",
-        "advance_state": "begun:*"
-      }
-    },
-    {
-      "stage": "after_batch",
-      "signal": "SIGKILL",
-      "wait_exit": -9,
-      "after": {
-        "generation": "0",
-        "batches": 1,
-        "cut": "cut-0",
-        "advance_state": "begun:*"
-      }
-    },
-    {
-      "stage": "after_commit",
-      "signal": "SIGKILL",
-      "wait_exit": -9,
-      "after": {
-        "generation": "1",
-        "batches": 1,
-        "cut": "cut-1",
-        "advance_state": "idle"
-      }
-    }
-  ],
-  "recovery": "recover --new-epoch (strictly increasing) clears pending Begin + promotes epoch; old epoch rejected; new writer advance converges to TOP",
-  "epoch_monotonic": {
-    "1_to_2": "ok",
-    "2_to_2_same": "rejected (exit 1)",
-    "2_to_1_downgrade": "rejected (exit 1)",
-    "old_epoch_write": "rejected (StaleWriter, exit 1, zero writes)"
-  },
-  "delta_snapshot_parity": "Node applyStream + canonicalFieldCompare: objects/withdrawn/witnesses/relations/observations/raw_history field-by-field equal (PASS)",
-  "bigint_wire": "source coords 9007199254741000-1003, revisions 9007199254740993/994 round-trip as exact decimal strings",
-  "storage_unavailable": "corrupt db -> accept/advance/meta exit 1 'file is not a database'; python /api/state HTTP 503 StorageUnavailable",
+  "sigkill_three_points": "from published TOP: accept e0/e1/e2 + advance (gen1 TOP), accept correction e2 rev2, advance killed at after_begin/after_batch/after_commit (SIGKILL wait_exit=-9); recover + new epoch advance converges to RISING active + TOP withdrawn; after_commit retry idempotent",
+  "delta_snapshot_parity": "objects/withdrawn/witnesses/relations/observations/raw_history field-by-field equal (PASS)",
+  "bigint_wire": "source coords 9007199254741000-1003, revisions 9007199254740993/994 round-trip as decimal strings",
+  "storage_unavailable": "corrupt db header + dangling reachable root -> accept/advance/meta exit 1; python 503",
   "not_run": [
-    "real GUI browser DOM rendering (no chromium/firefox in container); reproducible commands provided",
-    "macOS native build / fullfsync (Linux container only)",
+    "real GUI browser DOM rendering",
+    "macOS native build / fullfsync",
     "bigint wire through actual browser DOM",
     "full cargo test / full history replay",
     "pagination/retention/expiry pressure matrix (TB-01-C)",
-    "economic plan/delivered/maybe-called/filled responsibility assignment (later TB)"
+    "economic responsibility assignment (later TB)"
   ]
 }

@@ -246,6 +246,8 @@ CREATE TABLE IF NOT EXISTS structure_deltas (
   seq_range_json TEXT NOT NULL,
   index_frontier TEXT NOT NULL,
   input_frontier INTEGER NOT NULL,
+  catalog_run_status TEXT NOT NULL,
+  catalog_evidence_json TEXT NOT NULL,
   delta_json TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS writer_epoch_history (
@@ -315,6 +317,27 @@ fn verify_writer_epoch(conn: &Connection, configured: &str) -> Result<(), String
         return Err(format!(
             "StaleWriter：writer_epoch=`{epoch}`，非本进程被授予的 `{configured}`（换代后旧 writer 拒绝，零写入）"
         ));
+    }
+    Ok(())
+}
+
+/// 核已发布可达根（index_frontier 指向的不可变 batch 必须仍存在）。所有正式写入入口（accept/advance/
+/// recover）在同一序边界核此前件：自身存储坏（悬空根）不得被当作成功或用新 cut 掩盖。
+fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
+    let index_frontier = meta_get_opt(conn, "index_frontier")?.unwrap_or_default();
+    if !index_frontier.is_empty() {
+        let exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM batches WHERE batch_id=?1",
+                params![index_frontier],
+                |r| r.get(0),
+            )
+            .map_err(|e| format!("核可达根失败：{e}"))?;
+        if exists != 1 {
+            return Err(format!(
+                "StorageUnavailable：可达根 index_frontier=`{index_frontier}` 无对应不可变 batch（引用不完整，拒绝写入）"
+            ));
+        }
     }
     Ok(())
 }
@@ -536,6 +559,7 @@ fn cmd_accept(
     let mut results = Vec::new();
     {
         verify_writer_epoch(&tx, configured_epoch)?;
+        verify_reachable_root(&tx)?;
 
         let bound_profile_id = meta_get_opt(&tx, "profile_id")?.unwrap_or_default();
         if bound_profile_id.is_empty() {
@@ -921,7 +945,7 @@ fn build_object_and_witnesses(
 fn read_active_objects(conn: &Connection) -> Result<Vec<Value>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT object_id, branch, window_start, window_mid, window_end, first_known_generation, first_known_cut FROM objects WHERE withdrawn_generation IS NULL ORDER BY window_start",
+            "SELECT object_id, branch, window_start, window_mid, window_end, first_known_generation, first_known_cut, batch_id, published_generation FROM objects WHERE withdrawn_generation IS NULL ORDER BY window_start",
         )
         .map_err(|e| format!("prepare 读活动对象失败：{e}"))?;
     let rows = stmt
@@ -934,6 +958,8 @@ fn read_active_objects(conn: &Connection) -> Result<Vec<Value>, String> {
                 "window_end": r.get::<_, i64>(4)?,
                 "first_known_generation": r.get::<_, i64>(5)?,
                 "first_known_cut": r.get::<_, String>(6)?,
+                "batch_id": r.get::<_, String>(7)?,
+                "published_generation": r.get::<_, i64>(8)?,
             }))
         })
         .map_err(|e| format!("query 活动对象失败：{e}"))?
@@ -1129,6 +1155,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|e| format!("Begin 事务失败：{e}"))?;
         verify_writer_epoch(&tx, configured_epoch)?;
+        verify_reachable_root(&tx)?;
         let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_else(|| "idle".to_string());
         if state != "idle" {
             return Err(format!(
@@ -1138,12 +1165,34 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
         let cur_gen: i64 = meta_get_opt(&tx, "generation")?
             .and_then(|s| s.parse().ok())
             .ok_or("读 generation 失败")?;
-        let gen = cur_gen + 1;
         let frontier: i64 = tx
             .query_row("SELECT COALESCE(MAX(seq), -1) FROM raw_events", [], |r| {
                 r.get(0)
             })
             .map_err(|e| format!("读输入前沿失败：{e}"))?;
+        // 幂等重试：无新输入（frontier == 已提交前沿）且已有已发布代 → 不产新 cut，返回现有已提交结果。
+        // （after_commit 丢回执后同 argv 重试不再新增 generation；DeliveryUnknown 按原身份查权威结果。）
+        let last_frontier: i64 = meta_get_opt(&tx, "last_advance_frontier")?
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(-1);
+        if frontier == last_frontier && cur_gen >= 1 {
+            let structure_cut = meta_get_opt(&tx, "structure_cut")?.unwrap_or_default();
+            let index_frontier = meta_get_opt(&tx, "index_frontier")?.unwrap_or_default();
+            drop(tx);
+            println!(
+                "{}",
+                json!({
+                    "ok": true,
+                    "idempotent": true,
+                    "generation": cur_gen.to_string(),
+                    "structure_cut": structure_cut,
+                    "index_frontier": index_frontier,
+                    "note": "无新输入（frontier 已提交），不产新 cut；DeliveryUnknown 请按原业务身份查询权威结果",
+                })
+            );
+            return Ok(());
+        }
+        let gen = cur_gen + 1;
         let base_cut = meta_get_opt(&tx, "structure_cut")?.unwrap_or_else(|| "cut-0".to_string());
         let token = make_token();
         meta_set(
@@ -1420,8 +1469,11 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
                 let oid = o["object_id"].as_str().unwrap_or("").to_string();
                 let mut obj = o.clone();
                 if let Some(ex) = existing_by_id.get(&oid) {
+                    // 未变对象沿用既有 first_known / batch / published（首发布即历史稳定值，不因重发布前移）。
                     obj["first_known_generation"] = ex["first_known_generation"].clone();
                     obj["first_known_cut"] = ex["first_known_cut"].clone();
+                    obj["batch_id"] = ex["batch_id"].clone();
+                    obj["published_generation"] = ex["published_generation"].clone();
                 }
                 delta_upserts.push(obj);
             }
@@ -1453,7 +1505,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
                        window_start, window_mid, window_end, comparisons_json, input_refs_json,
                        source_coords_json, first_known_generation, first_known_cut, published_generation)
                      VALUES(?1, 1, 'CC-006.local_shape', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
-                     ON CONFLICT(object_id) DO UPDATE SET published_generation=excluded.published_generation, batch_id=excluded.batch_id",
+                     ON CONFLICT(object_id) DO NOTHING",
                 )
                 .map_err(|e| format!("prepare objects 失败：{e}"))?;
                 for o in &objects {
@@ -1597,6 +1649,29 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
                 "from": (prev_frontier + 1).to_string(),
                 "to": frontier.to_string(),
             });
+            // 本代目录运行证据（随代持久，供 AsKnown 历史 cut 复现；不引用未来 cut）。
+            let run_status = if classified_count >= 1 {
+                "run"
+            } else {
+                "not_run"
+            };
+            let evidence = json!({
+                "tested_domain": "TestOnly tick 1:1 OHLC（O=H=L=C），相邻严格无包含，初始化方向由前两点确定，无同价端点竞争",
+                "profile_id": profile_id,
+                "profile_hash": profile_hash,
+                "rule_revision": RULE_REVISION,
+                "batch_id": batch_id,
+                "structure_cut": structure_cut,
+                "classified_objects": classified_count,
+                "windows_total": wins.len(),
+                "merged_bars": merged.len(),
+                "effective_source_positions": effective.len(),
+                "withdrawals": withdrawals.len(),
+                "replaces": replaces.len(),
+                "insufficient_knowledge": observations.iter().filter(|o| o["kind"] == "insufficient_knowledge").count(),
+                "domain_not_satisfied": observations.iter().filter(|o| o["kind"] == "domain_not_satisfied").count(),
+                "scope": {"structure": "CompleteCut", "economic": "not_started"},
+            });
             // wire 形态：整数坐标/版本 → 规范十进制字符串，与同 cut Snapshot 逐字段对齐。
             let wire_upserts: Vec<Value> = delta_upserts
                 .iter()
@@ -1629,6 +1704,8 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
                 "seq_range": seq_range,
                 "input_frontier": frontier.to_string(),
                 "index_frontier": batch_id,
+                "catalog_run_status": run_status,
+                "catalog_evidence": evidence,
                 "upserts": wire_upserts,
                 "withdrawals": wire_withdrawals,
                 "replaces": replaces,
@@ -1638,8 +1715,8 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
                 "raw_history_added": wire_raw_history_added,
             });
             tx.execute(
-                "INSERT OR REPLACE INTO structure_deltas(generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, index_frontier, input_frontier, delta_json)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                "INSERT OR REPLACE INTO structure_deltas(generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, index_frontier, input_frontier, catalog_run_status, catalog_evidence_json, delta_json)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 params![
                     gen,
                     meta_get_opt(&tx, "session_id")?.unwrap_or_default(),
@@ -1649,6 +1726,8 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
                     seq_range.to_string(),
                     batch_id,
                     frontier,
+                    run_status,
+                    evidence.to_string(),
                     canonical_json(&delta_json),
                 ],
             )
@@ -1660,29 +1739,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
             meta_set(&tx, "index_frontier", &batch_id)?;
             meta_set(&tx, "last_advance_frontier", &frontier.to_string())?;
 
-            // 6) 目录状态：实现/证明/运行分列。
-            let run_status = if classified_count >= 1 {
-                "run"
-            } else {
-                "not_run"
-            };
-            let evidence = json!({
-                "tested_domain": "TestOnly tick 1:1 OHLC（O=H=L=C），相邻严格无包含，初始化方向由前两点确定，无同价端点竞争",
-                "profile_id": profile_id,
-                "profile_hash": profile_hash,
-                "rule_revision": RULE_REVISION,
-                "batch_id": batch_id,
-                "structure_cut": structure_cut,
-                "classified_objects": classified_count,
-                "windows_total": wins.len(),
-                "merged_bars": merged.len(),
-                "effective_source_positions": effective.len(),
-                "withdrawals": withdrawals.len(),
-                "replaces": replaces.len(),
-                "insufficient_knowledge": observations.iter().filter(|o| o["kind"] == "insufficient_knowledge").count(),
-                "domain_not_satisfied": observations.iter().filter(|o| o["kind"] == "domain_not_satisfied").count(),
-                "scope": {"structure": "CompleteCut", "economic": "not_started"},
-            });
+            // 6) 目录状态：实现/证明/运行分列（与 delta 同代证据一致）。
             tx.execute(
             "UPDATE catalog SET impl_status='implemented', proof_status='not_proved', run_status=?1, evidence_json=?2 WHERE catalog_id='CC-006'",
             params![run_status, evidence.to_string()],
@@ -2001,23 +2058,74 @@ fn read_scope(conn: &Connection) -> Result<Value, String> {
 // S.ReadCatalog / S.Snapshot / S.Watch（只读查询，单个读事务内读同一已提交 cut）
 // ────────────────────────────────────────────────────────────────────────────
 
-fn read_catalog_in_tx(conn: &Connection) -> Result<Value, String> {
+fn read_catalog_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, String> {
     let meta = db_meta(conn)?;
+    // 历史 cut 头：AsKnown 取该代持久头；CC-006 的 run_status/evidence 也来自该代（不引用未来）。
+    let (header_gen, header_cut, header_cat, cc006_run, cc006_evidence) = match as_of {
+        None => (
+            meta.get("generation").cloned().unwrap_or_default(),
+            meta.get("structure_cut").cloned().unwrap_or_default(),
+            meta.get("catalog_revision").cloned().unwrap_or_default(),
+            None,
+            None,
+        ),
+        Some(n) => {
+            if n < 0 {
+                return Err("InvalidDomain：catalog as_of 必须 >= 0".to_string());
+            }
+            let (idx, cat, run, ev) = if n == 0 {
+                (
+                    "".to_string(),
+                    meta.get("catalog_revision").cloned().unwrap_or_default(),
+                    "not_run".to_string(),
+                    json!({}).to_string(),
+                )
+            } else {
+                let row: (String, String, String, String) = conn
+                    .query_row(
+                        "SELECT index_frontier, catalog_revision, catalog_run_status, catalog_evidence_json FROM structure_deltas WHERE generation=?1",
+                        params![n],
+                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+                    )
+                    .optional()
+                    .map_err(|e| format!("读 generation {n} 目录头失败：{e}"))?
+                    .ok_or_else(|| {
+                        format!("Unavailable：请求的 cut generation={n} 尚未发布（无对应持久 Delta）")
+                    })?;
+                (row.0, row.1, row.2, row.3)
+            };
+            let _ = idx;
+            (n.to_string(), format!("cut-{n}"), cat, Some(run), Some(ev))
+        }
+    };
+
     let mut stmt = conn
         .prepare("SELECT catalog_id, kind, title, domain, branches_json, impl_status, proof_status, run_status, evidence_json FROM catalog ORDER BY catalog_id")
         .map_err(|e| format!("prepare catalog 失败：{e}"))?;
     let rows = stmt
         .query_map([], |r| {
+            let cid = r.get::<_, String>(0)?;
+            let mut run_status = r.get::<_, String>(7)?;
+            let mut evidence = json_column(r, 8, JsonShape::Object)?;
+            if cid == "CC-006" {
+                if let Some(rs) = &cc006_run {
+                    run_status = rs.clone();
+                }
+                if let Some(ev) = &cc006_evidence {
+                    evidence =
+                        json_shape(ev, JsonShape::Object).map_err(|e| json_column_error(8, e))?;
+                }
+            }
             Ok(json!({
-                "id": r.get::<_, String>(0)?,
+                "id": cid,
                 "kind": r.get::<_, String>(1)?,
                 "title": r.get::<_, String>(2)?,
                 "domain": r.get::<_, String>(3)?,
                 "branches": json_column(r, 4, JsonShape::CatalogBranches)?,
                 "implementation_status": r.get::<_, String>(5)?,
                 "proof_status": r.get::<_, String>(6)?,
-                "run_status": r.get::<_, String>(7)?,
-                "evidence": json_column(r, 8, JsonShape::Object)?,
+                "run_status": run_status,
+                "evidence": evidence,
             }))
         })
         .map_err(|e| format!("query catalog 失败：{e}"))?
@@ -2025,9 +2133,9 @@ fn read_catalog_in_tx(conn: &Connection) -> Result<Value, String> {
         .map_err(|e| format!("collect catalog 失败：{e}"))?;
     Ok(json!({
         "session_id": meta.get("session_id").cloned().unwrap_or_default(),
-        "generation": meta.get("generation").cloned().unwrap_or_default(),
-        "structure_cut": meta.get("structure_cut").cloned().unwrap_or_default(),
-        "catalog_revision": meta.get("catalog_revision").cloned().unwrap_or_default(),
+        "generation": header_gen,
+        "structure_cut": header_cut,
+        "catalog_revision": header_cat,
         "scope": read_scope(conn)?,
         "items": rows,
         "counts": {
@@ -2141,10 +2249,15 @@ fn project_object_row(row: &rusqlite::Row<'_>, as_of: Option<i64>) -> rusqlite::
     }))
 }
 
-/// 指定 generation 的输入前沿（该代提交后的接纳序上限）；generation ≤ 0 ⟹ -1。
-fn frontier_at_generation(conn: &Connection, gen: i64) -> Result<i64, String> {
-    if gen <= 0 {
-        return Ok(-1);
+/// 指定 generation 的输入前沿（该代提交后的接纳序上限）。
+/// gen == 0 ⟹ Some(-1)（初始空 cut）；gen > 0 且 delta 行存在 ⟹ Some(frontier)；
+/// delta 行不存在（该 cut 尚未发布）⟹ None（显式不可用，不回退 -1 泄漏空/未来）。
+fn frontier_at_generation(conn: &Connection, gen: i64) -> Result<Option<i64>, String> {
+    if gen == 0 {
+        return Ok(Some(-1));
+    }
+    if gen < 0 {
+        return Ok(None);
     }
     conn.query_row(
         "SELECT input_frontier FROM structure_deltas WHERE generation=?1",
@@ -2152,7 +2265,6 @@ fn frontier_at_generation(conn: &Connection, gen: i64) -> Result<i64, String> {
         |r| r.get(0),
     )
     .optional()
-    .map(|o| o.unwrap_or(-1))
     .map_err(|e| format!("读 generation {gen} 输入前沿失败：{e}"))
 }
 
@@ -2210,10 +2322,44 @@ fn read_raw_history(conn: &Connection, max_seq: Option<i64>) -> Result<Vec<Value
 fn read_snapshot_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, String> {
     let meta = db_meta(conn)?;
     let (objects, withdrawn) = read_objects_view(conn, as_of)?;
-    // AsKnown：按「发布代际 ≤ N」过滤见证/关系/观察；raw_history 按该代输入前沿过滤。
-    let max_seq = match as_of {
-        Some(n) => Some(frontier_at_generation(conn, n)?),
-        None => None,
+    // 历史/当前切面头：AsKnown 取该代持久头（不可变）；current 用当前已提交头。
+    // raw_history：AsKnown 按该代输入前沿；current 只到「已发布前沿」（未 Advance 的接纳日志不得混入）。
+    let (header_gen, header_cut, header_index, header_cat, max_seq) = match as_of {
+        Some(n) => {
+            let fr = frontier_at_generation(conn, n)?;
+            let fr = fr.ok_or_else(|| {
+                format!("Unavailable：请求的 cut generation={n} 尚未发布（无对应持久 Delta），不返回混合/空历史")
+            })?;
+            let (idx, cat) = if n == 0 {
+                (
+                    "".to_string(),
+                    meta.get("catalog_revision").cloned().unwrap_or_default(),
+                )
+            } else {
+                let row: (String, String) = conn
+                    .query_row(
+                        "SELECT index_frontier, catalog_revision FROM structure_deltas WHERE generation=?1",
+                        params![n],
+                        |r| Ok((r.get(0)?, r.get(1)?)),
+                    )
+                    .map_err(|e| format!("读 generation {n} 历史头失败：{e}"))?;
+                (row.0, row.1)
+            };
+            (n.to_string(), format!("cut-{n}"), idx, cat, Some(fr))
+        }
+        None => {
+            let published_frontier: i64 = meta
+                .get("last_advance_frontier")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(-1);
+            (
+                meta.get("generation").cloned().unwrap_or_default(),
+                meta.get("structure_cut").cloned().unwrap_or_default(),
+                meta.get("index_frontier").cloned().unwrap_or_default(),
+                meta.get("catalog_revision").cloned().unwrap_or_default(),
+                Some(published_frontier),
+            )
+        }
     };
 
     let wit_sql = match as_of {
@@ -2329,11 +2475,11 @@ fn read_snapshot_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, S
 
     Ok(json!({
         "session_id": meta.get("session_id").cloned().unwrap_or_default(),
-        "generation": meta.get("generation").cloned().unwrap_or_default(),
-        "structure_cut": meta.get("structure_cut").cloned().unwrap_or_default(),
-        "catalog_revision": meta.get("catalog_revision").cloned().unwrap_or_default(),
+        "generation": header_gen,
+        "structure_cut": header_cut,
+        "catalog_revision": header_cat,
         "scope": read_scope(conn)?,
-        "index_frontier": meta.get("index_frontier").cloned().unwrap_or_default(),
+        "index_frontier": header_index,
         "profile_id": meta.get("profile_id").cloned().unwrap_or_default(),
         "profile_hash": meta.get("profile_hash").cloned().unwrap_or_default(),
         "history_mode": if as_of.is_some() { "AsKnown" } else { "RecomputedWithRevision" },
@@ -2347,13 +2493,13 @@ fn read_snapshot_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, S
     }))
 }
 
-fn cmd_catalog(db: &Path) -> Result<(), String> {
+fn cmd_catalog(db: &Path, as_of: Option<i64>) -> Result<(), String> {
     let conn = open_db(db)?;
     ensure_initialized(&conn)?;
     let tx = conn
         .unchecked_transaction()
         .map_err(|e| format!("开读事务失败：{e}"))?;
-    let out = read_catalog_in_tx(&tx)?;
+    let out = read_catalog_in_tx(&tx, as_of)?;
     drop(tx);
     println!("{}", out);
     Ok(())
@@ -2368,6 +2514,86 @@ fn cmd_snapshot(db: &Path, as_of: Option<i64>) -> Result<(), String> {
     let out = read_snapshot_in_tx(&tx, as_of)?;
     drop(tx);
     println!("{}", out);
+    Ok(())
+}
+
+/// DeliveryUnknown 权威查询：按原输入业务身份（identity_key = namespace|epoch|instrument|event_id）
+/// 只读返回该身份的全部接纳修订与收据，并注明是否已进入已发布前沿。不产生写入、不新建动作。
+fn cmd_query(db: &Path, identity_key: &str) -> Result<(), String> {
+    let conn = open_db(db)?;
+    ensure_initialized(&conn)?;
+    let tx = conn
+        .unchecked_transaction()
+        .map_err(|e| format!("开读事务失败：{e}"))?;
+    let published_frontier: i64 = meta_get_opt(&tx, "last_advance_frontier")?
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(-1);
+    let rows: Vec<Value> = {
+        let mut stmt = tx
+            .prepare(
+                "SELECT revision, input_revision, payload_hash, receipt_id, seq, source_coord, price, supersedes_revision FROM raw_events WHERE identity_key=?1 ORDER BY revision ASC",
+            )
+            .map_err(|e| format!("prepare query 失败：{e}"))?;
+        let mut q = stmt
+            .query(params![identity_key])
+            .map_err(|e| format!("query identity 失败：{e}"))?;
+        let mut out: Vec<Value> = Vec::new();
+        while let Some(row) = q.next().map_err(|e| format!("query identity 失败：{e}"))? {
+            let rec: Value = (|| -> rusqlite::Result<Value> {
+                Ok(json!({
+                    "revision": row.get::<_, i64>(0)?.to_string(),
+                    "input_revision": row.get::<_, String>(1)?,
+                    "payload_hash": row.get::<_, String>(2)?,
+                    "receipt_id": row.get::<_, String>(3)?,
+                    "seq": row.get::<_, i64>(4)?.to_string(),
+                    "source_coord": row.get::<_, String>(5)?,
+                    "price": row.get::<_, String>(6)?,
+                    "supersedes_revision": row.get::<_, Option<i64>>(7)?.map(|v| v.to_string()),
+                }))
+            })()
+            .map_err(|e| format!("query identity 失败：{e}"))?;
+            out.push(rec);
+        }
+        out
+    };
+    let latest = rows
+        .iter()
+        .max_by_key(|r| {
+            r["revision"]
+                .as_str()
+                .and_then(|s| s.parse::<i64>().ok())
+                .unwrap_or(0)
+        })
+        .cloned();
+    let published = latest
+        .as_ref()
+        .map(|r| {
+            r["seq"]
+                .as_str()
+                .and_then(|s| s.parse::<i64>().ok())
+                .unwrap_or(-1)
+                <= published_frontier
+        })
+        .unwrap_or(false);
+    drop(tx);
+    println!(
+        "{}",
+        json!({
+            "ok": true,
+            "identity_key": identity_key,
+            "published_frontier": published_frontier.to_string(),
+            "records": rows,
+            "latest": latest,
+            "latest_published": published,
+            "note": if rows.is_empty() {
+                "NoRecord：该业务身份无接纳记录（不据此自动新建动作）"
+            } else if published {
+                "已接纳且已进入已发布前沿（权威结果）"
+            } else {
+                "已接纳但尚未进入已发布前沿（未 Advance）"
+            },
+        })
+    );
     Ok(())
 }
 
@@ -2558,9 +2784,10 @@ fn usage() -> String {
      \x20 init      --db <路径> --session <id> --catalog <catalog.json>      （只允许不存在的目标）\n\
      \x20 accept    --db <路径> --input <输入.json> --profile <profile.json> [--writer-epoch <n>]\n\
      \x20 advance   --db <路径> [--writer-epoch <n>]\n\
-     \x20 catalog   --db <路径>\n\
+     \x20 catalog   --db <路径> [--as-of <generation>]\n\
      \x20 snapshot  --db <路径> [--as-of <generation>]\n\
      \x20 meta      --db <路径>\n\
+     \x20 query     --db <路径> --identity-key <k>\n\
      \x20 watch     --db <路径> --after-generation <n>\n\
      \x20 recover   --db <路径> --new-epoch <n>\n\
      \x20 reset     --db <路径> --session <id> --catalog <catalog.json>      （一次性试验：删除并重建）\n"
@@ -2594,8 +2821,17 @@ fn run() -> Result<(), String> {
         arg_value(&args, "--writer-epoch").unwrap_or_else(|| DEFAULT_WRITER_EPOCH.to_string());
     let as_of = arg_value(&args, "--as-of")
         .map(|s| parse_canonical_i64(&s, "--as-of"))
+        .transpose()?
+        .map(|v| {
+            if v < 0 {
+                Err("InvalidDomain：--as-of 必须 >= 0".to_string())
+            } else {
+                Ok(v)
+            }
+        })
         .transpose()?;
     let new_epoch = arg_value(&args, "--new-epoch");
+    let identity_key = arg_value(&args, "--identity-key");
 
     match cmd {
         "init" => {
@@ -2616,14 +2852,21 @@ fn run() -> Result<(), String> {
             cmd_accept(&d, &i, &p, &configured_epoch)
         }
         "advance" => cmd_advance(&db.ok_or("缺 --db".to_string())?, &configured_epoch),
-        "catalog" => cmd_catalog(&db.ok_or("缺 --db".to_string())?),
+        "catalog" => cmd_catalog(&db.ok_or("缺 --db".to_string())?, as_of),
         "snapshot" => cmd_snapshot(&db.ok_or("缺 --db".to_string())?, as_of),
         "meta" => cmd_meta(&db.ok_or("缺 --db".to_string())?),
+        "query" => {
+            let k = identity_key.ok_or("query 缺 --identity-key".to_string())?;
+            cmd_query(&db.ok_or("缺 --db".to_string())?, &k)
+        }
         "watch" => {
             let after = arg_value(&args, "--after-generation")
                 .map(|s| parse_canonical_i64(&s, "--after-generation"))
                 .transpose()?
-                .unwrap_or(-1);
+                .unwrap_or(0);
+            if after < 0 {
+                return Err("InvalidDomain：--after-generation 必须 >= 0".to_string());
+            }
             cmd_watch(&db.ok_or("缺 --db".to_string())?, after)
         }
         "recover" => {
@@ -2758,7 +3001,7 @@ mod tests {
             &std::fs::read_to_string(fixture("catalog/signed-catalog.json")).unwrap(),
         )
         .unwrap();
-        let actual = read_catalog_in_tx(&conn).unwrap();
+        let actual = read_catalog_in_tx(&conn, None).unwrap();
         let expected = signed["items"].as_array().unwrap();
         let rows = actual["items"].as_array().unwrap();
         assert_eq!(expected.len(), 116);
@@ -2958,7 +3201,7 @@ mod tests {
             [],
         )
         .unwrap();
-        assert!(read_catalog_in_tx(&conn).is_err());
+        assert!(read_catalog_in_tx(&conn, None).is_err());
     }
 
     #[test]
@@ -3440,6 +3683,125 @@ mod tests {
         cmd_advance(&files.db(), "2").unwrap();
         let s = snapshot_of(&files, None);
         assert_eq!(s["generation"], json!("2"));
+    }
+
+    #[test]
+    fn advance_without_new_input_is_idempotent() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "generation").unwrap().as_deref(),
+            Some("1")
+        );
+        // 无新输入重试（after_commit 丢回执同 argv 重试）→ 不产新 cut。
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "generation").unwrap().as_deref(),
+            Some("1")
+        );
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
+            Some("idle")
+        );
+    }
+
+    #[test]
+    fn as_of_unpublished_cut_is_rejected() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        let tx = conn.unchecked_transaction().unwrap();
+        let err = read_snapshot_in_tx(&tx, Some(5)).unwrap_err();
+        assert!(err.contains("尚未发布"), "{}", err);
+        drop(tx);
+    }
+
+    #[test]
+    fn current_snapshot_excludes_unpublished_accepted_revision() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        // 接纳 e2 rev2 但不 advance：当前 cut 的 raw_history 不得混入未发布修订。
+        accept(
+            &files,
+            &test_input(&[ev("e2", "2", "2", "11500")]),
+            "in2.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        let s = snapshot_of(&files, None);
+        assert_eq!(s["generation"], json!("1"));
+        assert_eq!(s["raw_history"].as_array().unwrap().len(), 3);
+        assert!(s["raw_history"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|r| r["revision"] == "1"));
+    }
+
+    #[test]
+    fn corrupt_reachable_root_blocks_writes() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        {
+            let conn = open_db(&files.db()).unwrap();
+            let idx = meta_get_opt(&conn, "index_frontier").unwrap().unwrap();
+            conn.execute("DELETE FROM batches WHERE batch_id=?1", params![idx])
+                .unwrap();
+        }
+        let extra = test_input(&[ev("e3", "1", "3", "10800")]);
+        let p = write_input(&files, "e3.json", &extra);
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        assert!(cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
     }
 
     #[test]

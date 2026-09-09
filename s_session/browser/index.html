@@ -40,7 +40,7 @@
   .controls { margin:8px 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
   button { background:#21262d; color:var(--fg); border:1px solid var(--line); padding:4px 10px; border-radius:6px; cursor:pointer; }
   button.active { border-color:var(--accent); color:var(--accent); }
-  select { background:#21262d; color:var(--fg); border:1px solid var(--line); padding:4px 8px; border-radius:6px; }
+  input, select { background:#21262d; color:var(--fg); border:1px solid var(--line); padding:4px 8px; border-radius:6px; }
   .hidden { display:none; }
   a { color:var(--accent); }
   #instance-section { scroll-margin-top:16px; }
@@ -67,7 +67,7 @@
     <div class="controls">
       <button id="btn-current" class="active" type="button">RecomputedWithRevision（当前）</button>
       <label class="muted">AsKnown 回看 generation：</label>
-      <select id="asof-select"></select>
+      <input id="asof-input" type="text" size="8" value="0" inputmode="numeric">
       <button id="btn-asof" type="button">查看 AsKnown</button>
       <span class="muted" id="mode-indicator"></span>
     </div>
@@ -125,17 +125,22 @@
 "use strict";
 let currentState = null;
 let selectedCatalogId = "CC-006";
-let historyMode = "current"; // "current" | "asof"
-let appliedObjects = new Map();   // object_id -> object (wire)
-let appliedWithdrawn = new Map(); // object_id -> object (wire)
-let appliedWitnesses = new Map(); // witness_id -> witness
-let appliedRelations = new Map(); // [subject,type,object] -> relation
-let appliedObservations = new Map(); // observation_id -> observation
-let appliedRawHistory = new Map(); // identity@revision -> raw event
-let lastAppliedGen = 0;
+let historyMode = "current";
+// 已提交（已验证）的应用状态；精确整数一律用字符串 + BigInt 比较，不经 Number()。
+let appliedObjects = new Map();
+let appliedWithdrawn = new Map();
+let appliedWitnesses = new Map();
+let appliedRelations = new Map();
+let appliedObservations = new Map();
+let appliedRawHistory = new Map();
+let lastAppliedGen = "0";
+let sessionBinding = null; // {session_id, structure_cut, generation}
 
 function esc(s) { const d = document.createElement("div"); d.textContent = String(s); return d.innerHTML; }
 function escAttr(s) { return esc(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
+function bigAddOne(s) { try { return (BigInt(s) + 1n).toString(); } catch (e) { return null; } }
+function bigLe(a, b) { try { return BigInt(a) <= BigInt(b); } catch (e) { return false; } }
+function bigEq(a, b) { try { return BigInt(a) === BigInt(b); } catch (e) { return false; } }
 function renderStatus(text, cls) {
   const el = document.getElementById("status-section");
   el.innerHTML = text ? `<div class="${cls}">${esc(text)}</div>` : "";
@@ -166,7 +171,7 @@ function renderObjectCard(o, snap, cls) {
   const witnesses = snap.witnesses || [];
   const byObj = {};
   for (const w of witnesses) { (byObj[w.object_id] = byObj[w.object_id] || []).push(w); }
-  const ws = (byObj[o.object_id] || []).sort((a, b) => Number(a.slot) - Number(b.slot));
+  const ws = (byObj[o.object_id] || []).sort((a, b) => (BigInt(a.slot) < BigInt(b.slot) ? -1 : 1));
   const cmpRows = (o.comparisons || []).map(c =>
     `<tr><td>${esc(c.pair)}</td><td>${esc(c.axis)}</td><td class="price">${esc(c.prev)}</td>` +
     `<td class="price">${esc(c.cur)}</td><td>${c.strict_up ? "cur &gt; prev" : "cur &lt; prev"}</td>` +
@@ -196,7 +201,7 @@ function renderObjectCard(o, snap, cls) {
   return `<details open id="${escAttr(o.object_id)}"><summary class="${cls || ""}"><span class="branch ${esc(o.branch)}">${esc(o.branch)}</span> · ` +
     `窗口源坐标 [${esc(o.window_start)},${esc(o.window_mid)},${esc(o.window_end)}] · ` +
     `dir(a,b)=${esc(o.dir_ab)} dir(b,c)=${esc(o.dir_bc)} · object_id=${esc(o.object_id)} · ` +
-    `object_revision=${esc(o.object_revision)} · first_known_generation=${esc(o.first_known_generation)} · published=${esc(o.published_generation)}${withdrawLine}</summary>` +
+    `object_revision=${esc(o.object_revision)} · first_known_generation=${esc(o.first_known_generation)} · published=${esc(o.published_generation)} · batch=${esc(o.batch_id)}${withdrawLine}</summary>` +
     `<table><thead><tr><th>pair</th><th>axis</th><th>prev</th><th>cur</th><th>关系</th><th>held</th></tr></thead><tbody>${cmpRows}</tbody></table>` +
     `<details><summary>input_refs（对象绑定输入身份/修订/收据）</summary><ul>${refRows || "<li class='muted'>（无）</li>"}</ul></details>` +
     `<details><summary>关系（服务返回的对象与见证引用）</summary><ul>${relationRows || "<li class=\"muted\">（无关系）</li>"}</ul></details>` +
@@ -240,18 +245,10 @@ function renderObservations(snap) {
   const rows = [];
   const insuff = obs.filter(o => o.kind === "insufficient_knowledge");
   const domain = obs.filter(o => o.kind === "domain_not_satisfied");
-  if (objects.length > 0) {
-    rows.push(`<div class="muted">已发布 ${objects.length} 个 CC-006 分类对象（非空实例）。</div>`);
-  }
-  if (insuff.length > 0) {
-    rows.push(`<div class="warn-box">知识不足：${insuff.map(o => `${esc(o.reason)}`).join("；")}</div>`);
-  }
-  if (domain.length > 0) {
-    rows.push(`<div class="warn-box">域不满足：${domain.map(o => `窗口[${esc(o.window_start)},${esc(o.window_mid)},${esc(o.window_end)}] ${esc(o.reason)}`).join("；")}（不造第五 Other 分型）</div>`);
-  }
-  if (objects.length === 0 && insuff.length === 0 && domain.length === 0) {
-    rows.push(`<div class="muted">当前无 CC-006 实例（实例集合为空，不是 PASS）。</div>`);
-  }
+  if (objects.length > 0) rows.push(`<div class="muted">已发布 ${objects.length} 个 CC-006 分类对象（非空实例）。</div>`);
+  if (insuff.length > 0) rows.push(`<div class="warn-box">知识不足：${insuff.map(o => esc(o.reason)).join("；")}</div>`);
+  if (domain.length > 0) rows.push(`<div class="warn-box">域不满足：${domain.map(o => `窗口[${esc(o.window_start)},${esc(o.window_mid)},${esc(o.window_end)}] ${esc(o.reason)}`).join("；")}（不造第五 Other 分型）</div>`);
+  if (objects.length === 0 && insuff.length === 0 && domain.length === 0) rows.push(`<div class="muted">当前无 CC-006 实例（实例集合为空，不是 PASS）。</div>`);
   el.innerHTML = rows.join("");
 }
 function renderCatalog(cat) {
@@ -272,13 +269,11 @@ function renderCatalog(cat) {
   }).join("");
 }
 function renderAsOfOptions(snap) {
-  const gen = Number(snap.generation);
-  const sel = document.getElementById("asof-select");
-  const current = sel.value;
-  const opts = [];
-  for (let g = 0; g <= gen; g++) opts.push(g);
-  sel.innerHTML = opts.map(g => `<option value="${g}">${g}</option>`).join("");
-  if (opts.includes(Number(current))) sel.value = current;
+  const gen = snap.generation;
+  const input = document.getElementById("asof-input");
+  // 有界：只提示当前代，不回填无界 0..generation 枚举。
+  input.placeholder = `0..${gen}（默认 0）`;
+  if (input.value === "" ) input.value = "0";
 }
 async function fetchJson(url) {
   let res;
@@ -292,31 +287,34 @@ async function fetchJson(url) {
   }
   return body;
 }
-async function load(mode, asOfGen) {
+function renderAllFromState(state) {
+  const cat = state.catalog;
+  const snap = state.snapshot;
+  if (cat.catalog_revision !== snap.catalog_revision ||
+      cat.structure_cut !== snap.structure_cut ||
+      cat.generation !== snap.generation) {
+    throw new Error("cut 版本不一致（catalog/snapshot 不属于同一已提交 cut），请刷新");
+  }
+  currentState = state;
+  renderMeta(snap, cat);
+  renderObjects(snap);
+  renderWithdrawn(snap);
+  renderRawHistory(snap);
+  renderObservations(snap);
+  renderCatalog(cat);
+  if (historyMode === "current") renderAsOfOptions(snap);
+}
+async function load(mode = "current", asOfGen) {
   renderStatus("", "");
   try {
     const url = mode === "asof" ? `/api/state?as_of=${asOfGen}` : "/api/state";
     const state = await fetchJson(url);
-    const cat = state.catalog;
-    const snap = state.snapshot;
-    if (cat.catalog_revision !== snap.catalog_revision ||
-        cat.structure_cut !== snap.structure_cut ||
-        cat.generation !== snap.generation) {
-      throw new Error("cut 版本不一致（catalog/snapshot 不属于同一已提交 cut），请刷新");
-    }
-    currentState = state;
     historyMode = mode;
     document.getElementById("mode-indicator").textContent =
-      `当前：${snap.history_mode}` + (snap.as_of_generation != null ? ` @ generation ${snap.as_of_generation}` : "");
+      `当前：${state.snapshot.history_mode}` + (state.snapshot.as_of_generation != null ? ` @ generation ${state.snapshot.as_of_generation}` : "");
     document.getElementById("btn-current").classList.toggle("active", mode === "current");
     document.getElementById("btn-asof").classList.toggle("active", mode === "asof");
-    renderMeta(snap, cat);
-    renderObjects(snap);
-    renderWithdrawn(snap);
-    renderRawHistory(snap);
-    renderObservations(snap);
-    renderCatalog(cat);
-    if (mode === "current") renderAsOfOptions(snap);
+    renderAllFromState(state);
   } catch (e) {
     currentState = null;
     renderStatus("读取失败：" + e, "err-box");
@@ -330,13 +328,9 @@ async function load(mode, asOfGen) {
   }
 }
 function canonicalFieldCompare(a, b, path) {
-  // 逐字段比较：字符串相等；数组/对象递归。返回差异列表。
   const diffs = [];
   if (typeof a !== typeof b) { diffs.push(path + ": 类型 " + typeof a + " != " + typeof b); return diffs; }
-  if (a === null || b === null) {
-    if (a !== b) diffs.push(path + ": " + JSON.stringify(a) + " != " + JSON.stringify(b));
-    return diffs;
-  }
+  if (a === null || b === null) { if (a !== b) diffs.push(path + ": " + JSON.stringify(a) + " != " + JSON.stringify(b)); return diffs; }
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) { diffs.push(path + ": 长度 " + a.length + " != " + b.length); return diffs; }
     for (let i = 0; i < a.length; i++) diffs.push(...canonicalFieldCompare(a[i], b[i], path + "[" + i + "]"));
@@ -344,14 +338,20 @@ function canonicalFieldCompare(a, b, path) {
   }
   if (typeof a === "object" && typeof b === "object") {
     const ka = Object.keys(a).sort(), kb = Object.keys(b).sort();
-    if (JSON.stringify(ka) !== JSON.stringify(kb)) diffs.push(path + ": 键集不同 " + JSON.stringify(ka) + " != " + JSON.stringify(kb));
-    for (const k of ka) {
-      if (k in b) diffs.push(...canonicalFieldCompare(a[k], b[k], path + "." + k));
-    }
+    if (JSON.stringify(ka) !== JSON.stringify(kb)) diffs.push(path + ": 键集不同");
+    for (const k of ka) if (k in b) diffs.push(...canonicalFieldCompare(a[k], b[k], path + "." + k));
     return diffs;
   }
   if (a !== b) diffs.push(path + ": " + JSON.stringify(a) + " != " + JSON.stringify(b));
   return diffs;
+}
+function cmpMaps(appliedMap, snapArr, label, keyFn, diffs) {
+  const snapMap = new Map(snapArr.map(o => [keyFn(o), o]));
+  for (const [id, o] of appliedMap) {
+    if (!snapMap.has(id)) { diffs.push(`${label} ${id} 缺失于快照`); continue; }
+    diffs.push(...canonicalFieldCompare(o, snapMap.get(id), label + " " + id));
+  }
+  for (const id of snapMap.keys()) if (!appliedMap.has(id)) diffs.push(`${label} ${id} 未在应用状态`);
 }
 async function applyStream() {
   const el = document.getElementById("stream-result");
@@ -360,66 +360,99 @@ async function applyStream() {
   try {
     const deltaResp = await fetchJson(`/api/delta?after_generation=${lastAppliedGen}`);
     if (deltaResp.gap) {
-      el.innerHTML = `<div class="warn-box">Gap：${esc(JSON.stringify(deltaResp.gap))}（需同 cut 重建，不悄悄丢变化）</div>`;
+      // Gap：重建（清已提交缓存，回读当前快照），不静默吞差异。
+      appliedObjects = new Map(); appliedWithdrawn = new Map(); appliedWitnesses = new Map();
+      appliedRelations = new Map(); appliedObservations = new Map(); appliedRawHistory = new Map();
+      lastAppliedGen = "0"; sessionBinding = null;
+      el.innerHTML = `<div class="warn-box">Gap：${esc(JSON.stringify(deltaResp.gap))}（已重建游标，需重新对拍）</div>`;
+      cursorEl.textContent = `游标已重建`;
+      return;
+    }
+    if (sessionBinding && deltaResp.session_id !== sessionBinding.session_id) {
+      appliedObjects = new Map(); appliedWithdrawn = new Map(); appliedWitnesses = new Map();
+      appliedRelations = new Map(); appliedObservations = new Map(); appliedRawHistory = new Map();
+      lastAppliedGen = "0"; sessionBinding = null;
+      el.innerHTML = `<div class="warn-box">会话身份变化（${esc(sessionBinding.session_id)} → ${esc(deltaResp.session_id)}），已重建缓存，请重新对拍</div>`;
       return;
     }
     const deltas = deltaResp.deltas || [];
+    // 暂存状态（成功验证后才提交；失败不抹掉未验证门）。
+    const tmpObjects = new Map(appliedObjects);
+    const tmpWithdrawn = new Map(appliedWithdrawn);
+    const tmpWitnesses = new Map(appliedWitnesses);
+    const tmpRelations = new Map(appliedRelations);
+    const tmpObservations = new Map(appliedObservations);
+    const tmpRawHistory = new Map(appliedRawHistory);
+    let tmpGen = lastAppliedGen;
     const appliedLines = [];
     for (const d of deltas) {
-      const gen = Number(d.generation);
-      if (gen <= lastAppliedGen) { appliedLines.push(`gen ${d.generation}：重复投递，不重复生效`); continue; }
-      if (gen !== lastAppliedGen + 1) {
-        el.innerHTML = `<div class="warn-box">乱序/断档：期望 gen ${lastAppliedGen + 1}，收到 gen ${gen}（显式 Gap，不拼接错切面）</div>`;
+      const gen = d.generation;
+      if (bigLe(gen, tmpGen)) { appliedLines.push(`gen ${gen}：重复投递，不重复生效`); continue; }
+      const expect = bigAddOne(tmpGen);
+      if (expect === null || gen !== expect) {
+        el.innerHTML = `<div class="warn-box">乱序/断档：期望 gen ${expect}，收到 gen ${gen}（显式 Gap，不拼接错切面，游标未提交）</div>`;
         return;
       }
       const dd = d.delta || {};
       for (const w of (dd.withdrawals || [])) {
-        const o = appliedObjects.get(w.object_id);
-        if (o) { o.lifecycle = "withdrawn"; o.withdrawal_reason = w.reason; o.superseded_by = w.superseded_by; o.withdrawn_generation = gen.toString(); appliedWithdrawn.set(w.object_id, o); appliedObjects.delete(w.object_id); }
+        const o = tmpObjects.get(w.object_id);
+        if (o) { o.lifecycle = "withdrawn"; o.withdrawal_reason = w.reason; o.superseded_by = w.superseded_by; o.withdrawn_generation = gen; tmpWithdrawn.set(w.object_id, o); tmpObjects.delete(w.object_id); }
       }
-      for (const u of (dd.upserts || [])) {
-        u.lifecycle = "active";
-        appliedObjects.set(u.object_id, u);
-        appliedWithdrawn.delete(u.object_id);
-      }
-      for (const w of (dd.witnesses || [])) appliedWitnesses.set(w.witness_id, w);
-      for (const r of (dd.relations || [])) appliedRelations.set(JSON.stringify([r.subject, r.relation_type, r.object]), r);
-      for (const o of (dd.observations || [])) appliedObservations.set(o.observation_id, o);
-      for (const rh of (dd.raw_history_added || [])) appliedRawHistory.set(`${rh.identity_key}@${rh.revision}`, rh);
-      lastAppliedGen = gen;
-      appliedLines.push(`gen ${d.generation}：${esc(d.base_cut)} → ${esc(d.next_cut)}（upserts ${(dd.upserts || []).length} / 撤回 ${(dd.withdrawals || []).length} / 替代 ${(dd.replaces || []).length} / 见证 ${(dd.witnesses || []).length} / 关系 ${(dd.relations || []).length} / 观察 ${(dd.observations || []).length} / 源事件 ${(dd.raw_history_added || []).length}）`);
+      for (const u of (dd.upserts || [])) { u.lifecycle = "active"; tmpObjects.set(u.object_id, u); tmpWithdrawn.delete(u.object_id); }
+      for (const w of (dd.witnesses || [])) tmpWitnesses.set(w.witness_id, w);
+      for (const r of (dd.relations || [])) tmpRelations.set(JSON.stringify([r.subject, r.relation_type, r.object]), r);
+      for (const o of (dd.observations || [])) tmpObservations.set(o.observation_id, o);
+      for (const rh of (dd.raw_history_added || [])) tmpRawHistory.set(`${rh.identity_key}@${rh.revision}`, rh);
+      tmpGen = gen;
+      appliedLines.push(`gen ${gen}：${d.base_cut} → ${d.next_cut}（upserts ${(dd.upserts || []).length} / 撤回 ${(dd.withdrawals || []).length} / 替代 ${(dd.replaces || []).length} / 见证 ${(dd.witnesses || []).length} / 关系 ${(dd.relations || []).length} / 观察 ${(dd.observations || []).length} / 源事件 ${(dd.raw_history_added || []).length}）`);
     }
-    cursorEl.textContent = `已应用 generation ≤ ${lastAppliedGen}`;
-    // 对拍：应用后的完整对象/撤回/见证/关系/观察/源历史逐字段等于同 cut Snapshot。
-    const snap = await fetchJson("/api/snapshot");
-    const cmpById = (appliedMap, snapArr, label, keyFn) => {
-      const snapMap = new Map(snapArr.map(o => [keyFn(o), o]));
-      for (const [id, o] of appliedMap) {
-        if (!snapMap.has(id)) { diffs.push(`${label} ${id} 缺失于快照`); continue; }
-        diffs.push(...canonicalFieldCompare(o, snapMap.get(id), label + " " + id));
-      }
-      for (const id of snapMap.keys()) if (!appliedMap.has(id)) diffs.push(`${label} ${id} 未在应用状态`);
-    };
+    // 权威状态：无论有无新 Delta 都取当前 cut 并全字段对拍（空 Delta 也不吞差异）。
+    let state;
+    try {
+      state = await fetchJson("/api/state");
+    } catch (e) {
+      el.innerHTML = `<div class="err-box">快照读取失败（${esc(e)}）：已应用游标未提交，请重试</div>`;
+      return;
+    }
+    const snap = state.snapshot;
+    if (!bigEq(snap.generation, tmpGen)) {
+      el.innerHTML = `<div class="err-box">应用代际与快照代际不一致（应用 ${esc(tmpGen)}，快照 ${esc(snap.generation)}）：游标未提交</div>`;
+      return;
+    }
     const diffs = [];
-    cmpById(appliedObjects, snap.objects || [], "对象", o => o.object_id);
-    cmpById(appliedWithdrawn, snap.withdrawn_objects || [], "撤回", o => o.object_id);
-    cmpById(appliedWitnesses, snap.witnesses || [], "见证", o => o.witness_id);
-    cmpById(appliedRelations, snap.relations || [], "关系", o => JSON.stringify([o.subject, o.relation_type, o.object]));
-    cmpById(appliedObservations, snap.observations || [], "观察", o => o.observation_id);
-    cmpById(appliedRawHistory, snap.raw_history || [], "源历史", o => `${o.identity_key}@${o.revision}`);
+    cmpMaps(tmpObjects, snap.objects || [], "对象", o => o.object_id, diffs);
+    cmpMaps(tmpWithdrawn, snap.withdrawn_objects || [], "撤回", o => o.object_id, diffs);
+    cmpMaps(tmpWitnesses, snap.witnesses || [], "见证", o => o.witness_id, diffs);
+    cmpMaps(tmpRelations, snap.relations || [], "关系", o => JSON.stringify([o.subject, o.relation_type, o.object]), diffs);
+    cmpMaps(tmpObservations, snap.observations || [], "观察", o => o.observation_id, diffs);
+    cmpMaps(tmpRawHistory, snap.raw_history || [], "源历史", o => `${o.identity_key}@${o.revision}`, diffs);
+    if (diffs.length > 0) {
+      el.innerHTML = `<div class="err-box">对拍差异 ${diffs.length} 项（游标/状态未提交，强制重验）：${diffs.slice(0, 20).map(esc).join("；")}</div>`;
+      return;
+    }
+    // 提交：验证通过后才提交缓存 + 游标 + 会话绑定，并驱动正式渲染（元数据/对象/撤回/见证/关系/历史/目录）。
+    appliedObjects = tmpObjects; appliedWithdrawn = tmpWithdrawn; appliedWitnesses = tmpWitnesses;
+    appliedRelations = tmpRelations; appliedObservations = tmpObservations; appliedRawHistory = tmpRawHistory;
+    lastAppliedGen = tmpGen;
+    sessionBinding = { session_id: snap.session_id, structure_cut: snap.structure_cut, generation: snap.generation };
+    renderAllFromState(state);
+    cursorEl.textContent = `已提交并验证 generation ≤ ${lastAppliedGen}（session ${sessionBinding.session_id}）`;
     const summary = deltas.length
-      ? `同源读取 ${deltas.length} 个 Delta；应用后与同 cut Snapshot（generation ${snap.generation}）逐字段对拍：` +
-        (diffs.length === 0 ? `<span class="ok-box">${appliedObjects.size} 活动 + ${appliedWithdrawn.size} 撤回 + ${appliedWitnesses.size} 见证 + ${appliedRelations.size} 关系 + ${appliedObservations.size} 观察 + ${appliedRawHistory.size} 源事件，逐字段一致</span>`
-                            : `<span class="err-box">差异 ${diffs.length} 项：${diffs.slice(0, 20).map(esc).join("；")}</span>`)
-      : `无新 Delta（当前已应用 generation ${lastAppliedGen}）。`;
+      ? `同源读取 ${deltas.length} 个 Delta；应用后与同 cut Snapshot（generation ${snap.generation}）全字段对拍：` +
+        `<span class="ok-box">${tmpObjects.size} 活动 + ${tmpWithdrawn.size} 撤回 + ${tmpWitnesses.size} 见证 + ${tmpRelations.size} 关系 + ${tmpObservations.size} 观察 + ${tmpRawHistory.size} 源事件，逐字段一致（已驱动正式渲染）</span>`
+      : `无新 Delta；已与同 cut Snapshot（generation ${snap.generation}）全字段复核一致（空增量不吞差异）。`;
     el.innerHTML = `<ul>${appliedLines.map(l => `<li>${l}</li>`).join("")}</ul>${summary}`;
   } catch (e) {
-    el.innerHTML = `<div class="err-box">Delta 读取失败：${esc(e)}</div>`;
+    el.innerHTML = `<div class="err-box">Delta 处理失败：${esc(e)}</div>`;
   }
 }
 document.getElementById("btn-current").addEventListener("click", () => load("current"));
 document.getElementById("btn-asof").addEventListener("click", () => {
-  const g = document.getElementById("asof-select").value;
+  const g = document.getElementById("asof-input").value.trim();
+  if (g === "" || !/^\d+$/.test(g)) {
+    renderStatus("AsKnown 输入必须是规范十进制整数且 >= 0", "err-box");
+    return;
+  }
   load("asof", g).then(() => {}).catch(() => {});
 });
 document.getElementById("btn-stream").addEventListener("click", () => applyStream());
@@ -436,9 +469,10 @@ document.getElementById("catalog-table").addEventListener("click", event => {
   section.scrollIntoView({block: "start"});
 });
 document.getElementById("show-unimpl").addEventListener("change", () => {
-  load(historyMode === "asof" ? "asof" : "current", historyMode === "asof" ? document.getElementById("asof-select").value : undefined).then(() => {}).catch(() => {});
+  const mode = historyMode === "asof" ? "asof" : "current";
+  load(mode, mode === "asof" ? document.getElementById("asof-input").value.trim() : undefined).then(() => {}).catch(() => {});
 });
-load();
+load("current");
 </script>
 </body>
 </html>
