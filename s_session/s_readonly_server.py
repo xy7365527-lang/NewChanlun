@@ -68,18 +68,31 @@ def _json_field(text, expected):
     return value
 
 
+def _is_canonical_dec(s):
+    """ASCII 规范十进制整数（无 +、无空白、无前导零、无 Unicode 数字）。"""
+    if type(s) is not str or s == "":
+        return False
+    if not s.isascii() or not s.isdigit():
+        return False
+    if len(s) > 1 and s[0] == "0":
+        return False
+    return True
+
+
+def _canonical_i64_str(s, what):
+    if not _is_canonical_dec(s):
+        raise ValueError("%s 不是规范十进制整数（要求 ASCII、无前导零）" % what)
+    n = int(s)
+    if not -(2**63) <= n < 2**63:
+        raise ValueError("%s 超出 i64 精确整数域" % what)
+    return n
+
+
 def _canonical_gen(v):
     """meta.generation 必填并校验规范十进制（缺失/损坏 → 503，不默认 0）。"""
     if type(v) is not str or v == "":
         raise ValueError("meta.generation 缺失或非文本")
-    if v == "0":
-        return 0
-    if not v.isdigit() or v[0] == "0":
-        raise ValueError("meta.generation 不是规范十进制整数")
-    n = int(v)
-    if not -(2**63) <= n < 2**63:
-        raise ValueError("meta.generation 超出 i64 精确整数域")
-    return n
+    return _canonical_i64_str(v, "meta.generation")
 
 
 def _frontier_i64(v):
@@ -89,6 +102,50 @@ def _frontier_i64(v):
     if v < -1:
         raise ValueError("input_frontier 越域：只允许 -1（初态）或非负接纳前沿")
     return v
+
+
+def _verify_batch_integrity(conn, batch_id):
+    import hashlib
+    if type(batch_id) is not str or not batch_id.startswith("batch-") or len(batch_id) != 6 + 64:
+        raise ValueError("batch_id 非规范内容寻址形态")
+    row = conn.execute(
+        "SELECT canonical_bytes, byte_len FROM batches WHERE batch_id = ?", (batch_id,)
+    ).fetchone()
+    if row is None:
+        raise ValueError("可达 batch %s 不存在（引用不完整）" % batch_id)
+    b, l = row
+    if not isinstance(b, (bytes, bytearray)) or type(l) is not int:
+        raise ValueError("batch 内容/长度类型损坏")
+    if hashlib.sha256(bytes(b)).hexdigest() != batch_id[6:] or l != len(b):
+        raise ValueError("batch 规范字节/长度与内容寻址不符")
+
+
+def _verify_reachable_root(conn):
+    """reader 与 writer 共享的可达根/元数据/代际链校验（坏根/坏链 → 503）。"""
+    meta = meta_dict(conn)
+    gen = _validate_required_meta(meta)
+    if gen == 0:
+        cnt = conn.execute("SELECT COUNT(*) FROM structure_deltas").fetchone()[0]
+        if cnt != 0:
+            raise ValueError("初态 generation=0 却存在持久 Delta")
+        return
+    idx = meta["index_frontier"]
+    _verify_batch_integrity(conn, idx)
+    rows = conn.execute(
+        "SELECT generation, index_frontier, input_frontier FROM structure_deltas "
+        "WHERE generation <= ? ORDER BY generation ASC", (gen,)
+    ).fetchall()
+    if len(rows) != gen:
+        raise ValueError("已发布代链断裂（generation=%d，仅 %d 行 Delta）" % (gen, len(rows)))
+    pub = _canonical_i64_str(meta["last_advance_frontier"], "meta.last_advance_frontier")
+    for i, (g, didx, df) in enumerate(rows):
+        if g != i + 1:
+            raise ValueError("Delta 代际断链（第 %d 行 generation=%s）" % (i + 1, g))
+        if type(didx) is not str or didx == "":
+            raise ValueError("delta[%d].index_frontier 为空" % g)
+        _verify_batch_integrity(conn, didx)
+        if g == gen and _frontier_i64(df) != pub:
+            raise ValueError("meta.last_advance_frontier 与 delta[%d].input_frontier 不一致" % g)
 
 
 def _req_str(d, key, path):
@@ -121,13 +178,13 @@ def _validate_required_meta(meta):
         raise ValueError("meta.index_frontier 缺失或非文本")
     if gen > 0 and idx == "":
         raise ValueError("meta.index_frontier 为空但 generation>0（缺根 meta）")
-    pub = meta.get("last_advance_frontier")
-    try:
-        pub_n = int(pub) if type(pub) is str and (pub == "-1" or (pub.isdigit() and not (len(pub) > 1 and pub[0] == "0"))) else None
-    except ValueError:
-        pub_n = None
-    if pub_n is None or pub_n < -1:
-        raise ValueError("meta.last_advance_frontier 缺失或非规范十进制整数")
+    pub_raw = meta.get("last_advance_frontier")
+    if pub_raw == "-1":
+        pub_n = -1
+    else:
+        pub_n = _canonical_i64_str(pub_raw, "meta.last_advance_frontier")
+    if pub_n < -1:
+        raise ValueError("meta.last_advance_frontier 越域：只允许 -1 或非负")
     return gen
 
 
@@ -197,6 +254,7 @@ def _frontier_at_generation(conn, gen):
 
 def read_catalog(conn, as_of=None):
     meta = meta_dict(conn)
+    _verify_reachable_root(conn)
     current_gen = _validate_required_meta(meta)
     if as_of is None:
         header_gen = meta.get("generation", "")
@@ -301,6 +359,12 @@ def _project_object_row(row, as_of=None):
 
 
 def _read_objects_view(conn, as_of):
+    invalid_lifecycle = conn.execute(
+        "SELECT COUNT(*) FROM objects WHERE withdrawn_generation IS NOT NULL "
+        "AND withdrawn_generation <= first_known_generation"
+    ).fetchone()[0]
+    if invalid_lifecycle != 0:
+        raise ValueError("对象生命周期非法（withdrawn_generation <= first_known_generation）")
     if as_of is None:
         active_sql = ("SELECT %s FROM objects WHERE withdrawn_generation IS NULL "
                       "ORDER BY window_start") % _OBJECT_COLS
@@ -321,6 +385,7 @@ def _read_objects_view(conn, as_of):
 
 def read_snapshot(conn, as_of=None):
     meta = meta_dict(conn)
+    _verify_reachable_root(conn)
     current_gen = _validate_required_meta(meta)
     objects, withdrawn = _read_objects_view(conn, as_of)
 
@@ -466,6 +531,12 @@ def read_state(conn, as_of=None):
     }
 
 
+def _canonical_int_field(d, key, path):
+    v = _req_str(d, key, path)
+    _canonical_i64_str(v, "%s.%s" % (path, key))
+    return v
+
+
 def _validate_delta_shape(delta):
     """持久 Delta 逐字段形状 + 精确整数 wire 校验：任何坏持久值 → 503，不以成功 wire 传出。"""
     if not isinstance(delta, dict):
@@ -476,8 +547,8 @@ def _validate_delta_shape(delta):
             raise ValueError("delta.%s 必须是数组" % key)
     if not isinstance(delta.get("seq_range"), dict):
         raise ValueError("delta.seq_range 必须是对象")
-    _req_str(delta["seq_range"], "from", "delta.seq_range")
-    _req_str(delta["seq_range"], "to", "delta.seq_range")
+    _canonical_int_field(delta["seq_range"], "from", "delta.seq_range")
+    _canonical_int_field(delta["seq_range"], "to", "delta.seq_range")
     _req_str(delta, "base_cut", "delta")
     _req_str(delta, "next_cut", "delta")
     _req_str(delta, "generation", "delta")
@@ -489,10 +560,14 @@ def _validate_delta_shape(delta):
         p = "delta.upserts[%d]" % i
         if not isinstance(u, dict):
             raise ValueError("%s 必须是对象" % p)
-        for k in ("object_id", "object_revision", "kind", "batch_id", "branch", "dir_ab",
-                  "dir_bc", "window_start", "window_mid", "window_end", "first_known_generation",
-                  "first_known_cut", "published_generation", "lifecycle"):
+        for k in ("object_id", "kind", "batch_id", "branch", "dir_ab", "dir_bc",
+                  "first_known_cut"):
             _req_str(u, k, p)
+        for k in ("object_revision", "window_start", "window_mid", "window_end",
+                  "first_known_generation", "published_generation"):
+            _canonical_int_field(u, k, p)
+        if u.get("lifecycle") not in ("active", "withdrawn"):
+            raise ValueError("%s.lifecycle 必须是 active/withdrawn" % p)
         if not isinstance(u.get("comparisons"), list):
             raise ValueError("%s.comparisons 必须是数组" % p)
         if not isinstance(u.get("input_refs"), list):
@@ -507,11 +582,14 @@ def _validate_delta_shape(delta):
                 if not isinstance(rr, dict):
                     raise ValueError("%s.input_refs.raw_refs 成员必须是对象" % p)
                 for k in ("identity_key", "receipt_id", "event_id", "input_revision",
-                          "revision", "seq", "source_coord"):
+                          "source_coord"):
                     _req_str(rr, k, p + ".input_refs.raw_refs")
+                _canonical_int_field(rr, "revision", p + ".input_refs.raw_refs")
+                _canonical_int_field(rr, "seq", p + ".input_refs.raw_refs")
         if not isinstance(u.get("source_coords"), list) or any(type(s) is not str for s in u["source_coords"]):
             raise ValueError("%s.source_coords 必须是字符串数组" % p)
-        _req_str_or_none(u, "withdrawn_generation", p)
+        if u.get("withdrawn_generation") is not None:
+            _canonical_int_field(u, "withdrawn_generation", p)
         _req_str_or_none(u, "withdrawal_reason", p)
         _req_str_or_none(u, "superseded_by", p)
 
@@ -519,8 +597,10 @@ def _validate_delta_shape(delta):
         p = "delta.withdrawals[%d]" % i
         if not isinstance(w, dict):
             raise ValueError("%s 必须是对象" % p)
-        for k in ("object_id", "window_start", "window_mid", "window_end", "reason"):
-            _req_str(w, k, p)
+        _req_str(w, "object_id", p)
+        _req_str(w, "reason", p)
+        for k in ("window_start", "window_mid", "window_end"):
+            _canonical_int_field(w, k, p)
         _req_str_or_none(w, "superseded_by", p)
 
     for i, r in enumerate(delta.get("replaces", [])):
@@ -534,11 +614,19 @@ def _validate_delta_shape(delta):
         p = "delta.witnesses[%d]" % i
         if not isinstance(w, dict):
             raise ValueError("%s 必须是对象（不得为 null）" % p)
-        for k in ("witness_id", "object_id", "slot", "merged_source_index", "merged_high",
-                  "merged_low", "merged_open", "merged_close"):
+        for k in ("witness_id", "object_id", "merged_high", "merged_low", "merged_open",
+                  "merged_close"):
             _req_str(w, k, p)
+        _canonical_int_field(w, "slot", p)
+        _canonical_int_field(w, "merged_source_index", p)
         if not isinstance(w.get("raw_bars"), list):
             raise ValueError("%s.raw_bars 必须是数组" % p)
+        for j, rb in enumerate(w["raw_bars"]):
+            if not isinstance(rb, dict):
+                raise ValueError("%s.raw_bars[%d] 必须是对象（不得为 null/标量）" % (p, j))
+            _canonical_int_field(rb, "seq", "%s.raw_bars[%d]" % (p, j))
+            if "revision" in rb:
+                _canonical_int_field(rb, "revision", "%s.raw_bars[%d]" % (p, j))
 
     for i, r in enumerate(delta.get("relations", [])):
         p = "delta.relations[%d]" % i
@@ -559,20 +647,24 @@ def _validate_delta_shape(delta):
         if not isinstance(o.get("detail"), dict):
             raise ValueError("%s.detail 必须是对象" % p)
         for k in ("window_start", "window_mid", "window_end"):
-            _req_str_or_none(o, k, p)
+            if o.get(k) is not None:
+                _canonical_int_field(o, k, p)
 
     for i, rh in enumerate(delta.get("raw_history_added", [])):
         p = "delta.raw_history_added[%d]" % i
         if not isinstance(rh, dict):
             raise ValueError("%s 必须是对象" % p)
-        for k in ("identity_key", "revision", "input_revision", "payload_hash", "receipt_id",
-                  "seq", "event_id", "source_coord", "price"):
+        for k in ("identity_key", "input_revision", "payload_hash", "receipt_id",
+                  "event_id", "source_coord", "price"):
             _req_str(rh, k, p)
+        _canonical_int_field(rh, "revision", p)
+        _canonical_int_field(rh, "seq", p)
         _req_str_or_none(rh, "supersedes_revision", p)
 
 
 def read_delta(conn, after_generation):
     meta = meta_dict(conn)
+    _verify_reachable_root(conn)
     current_gen = _validate_required_meta(meta)
     current_cut = meta["structure_cut"]
     session_id = meta["session_id"]
@@ -594,10 +686,25 @@ def read_delta(conn, after_generation):
         "index_frontier, input_frontier, delta_json FROM structure_deltas WHERE generation > ? ORDER BY generation ASC",
         (after_generation,),
     ):
+        if gen > current_gen:
+            raise ValueError("structure_deltas 存在超出当前 generation 的未来行（generation=%d）" % gen)
         if sid != session_id:
             raise ValueError("structure_deltas 行的 session_id 与 meta.session_id 不一致")
         delta = _json_field(delta_json, dict)
         _validate_delta_shape(delta)
+        # 内层头与外层行/当前 meta 同一身份（冲突 → 503，不作为正常增量发布）。
+        if delta.get("session_id") != sid:
+            raise ValueError("delta 内层 session_id 与外层行不一致")
+        if delta.get("generation") != str(gen):
+            raise ValueError("delta 内层 generation 与外层行不一致")
+        if delta.get("base_cut") != base_cut:
+            raise ValueError("delta 内层 base_cut 与外层行不一致")
+        if delta.get("next_cut") != next_cut:
+            raise ValueError("delta 内层 next_cut 与外层行不一致")
+        if delta.get("catalog_revision") != crev:
+            raise ValueError("delta 内层 catalog_revision 与外层行不一致")
+        if delta.get("index_frontier") != idx_frontier:
+            raise ValueError("delta 内层 index_frontier 与外层行不一致")
         rows.append({
             "generation": _num_to_str(gen),
             "session_id": sid,

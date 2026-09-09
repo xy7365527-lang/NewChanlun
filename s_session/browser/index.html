@@ -153,12 +153,12 @@ function renderStatus(text, cls) {
   const el = document.getElementById("status-section");
   el.innerHTML = text ? `<div class="${cls}">${esc(text)}</div>` : "";
 }
-function syncModeUI(mode) {
+function syncModeUI(mode, snap) {
   historyMode = mode;
   document.getElementById("mode-indicator").textContent =
-    mode === "asof" && currentState
-      ? `当前：${currentState.snapshot.history_mode} @ generation ${currentState.snapshot.as_of_generation}`
-      : `当前：RecomputedWithRevision（当前）`;
+    mode === "asof" && snap
+      ? `${snap.history_mode} @ generation ${snap.as_of_generation}`
+      : "RecomputedWithRevision（当前）";
   document.getElementById("btn-current").classList.toggle("active", mode === "current");
   document.getElementById("btn-asof").classList.toggle("active", mode === "asof");
 }
@@ -302,14 +302,19 @@ async function fetchJson(url) {
   }
   return body;
 }
-function renderAllFromState(state) {
+function validateState(state) {
   const cat = state.catalog;
   const snap = state.snapshot;
+  if (!cat || !snap) throw new Error("state 缺 catalog/snapshot");
   if (cat.catalog_revision !== snap.catalog_revision ||
       cat.structure_cut !== snap.structure_cut ||
       cat.generation !== snap.generation) {
     throw new Error("cut 版本不一致（catalog/snapshot 不属于同一已提交 cut），请刷新");
   }
+}
+function renderAllFromState(state) {
+  const cat = state.catalog;
+  const snap = state.snapshot;
   currentState = state;
   renderMeta(snap, cat);
   renderObjects(snap);
@@ -326,7 +331,8 @@ async function load(mode = "current", asOfGen) {
     const url = mode === "asof" ? `/api/state?as_of=${asOfGen}` : "/api/state";
     const state = await fetchJson(url);
     if (epoch !== pageEpoch) return; // 晚到响应不覆盖新请求
-    syncModeUI(mode);
+    validateState(state); // 先验证整份 state，再提交渲染
+    syncModeUI(mode, state.snapshot);
     renderAllFromState(state);
   } catch (e) {
     if (epoch !== pageEpoch) return;
@@ -392,13 +398,16 @@ async function applyStream() {
       let st;
       try { st = await fetchJson("/api/state"); }
       catch (e) {
+        if (epoch !== pageEpoch) return;
         el.innerHTML = `<div class="warn-box">Gap（${esc(JSON.stringify(deltaResp.gap))}）且当前快照读取失败（${esc(e)}）：尚未重建，请重试</div>`;
         return;
       }
       if (epoch !== pageEpoch) return;
+      try { validateState(st); }
+      catch (e) { el.innerHTML = `<div class="err-box">重建校验失败（${esc(e)}）：状态未提交</div>`; return; }
       rebuildCommittedFromState(st);
       renderAllFromState(st);
-      syncModeUI("current");
+      syncModeUI("current", st.snapshot);
       cursorEl.textContent = `已从 cut ${sessionBinding.structure_cut} 重建（session ${sessionBinding.session_id}）`;
       el.innerHTML = `<div class="warn-box">Gap：${esc(JSON.stringify(deltaResp.gap))}。已按当前同 cut Snapshot 重建六集合缓存/游标/绑定。</div>`;
       return;
@@ -458,10 +467,13 @@ async function applyStream() {
     let state;
     try { state = await fetchJson("/api/state"); }
     catch (e) {
+      if (epoch !== pageEpoch) return;
       el.innerHTML = `<div class="err-box">快照读取失败（${esc(e)}）：游标/状态未提交，请重试</div>`;
       return;
     }
     if (epoch !== pageEpoch) return;
+    try { validateState(state); }
+    catch (e) { el.innerHTML = `<div class="err-box">整份 State 校验失败（${esc(e)}）：游标/状态未提交</div>`; return; }
     const snap = state.snapshot;
     // 身份与 cut 链完整性（不只比较 generation 与六集合）。
     if (snap.session_id !== deltaResp.session_id) {
@@ -471,6 +483,16 @@ async function applyStream() {
     if (!bigEq(snap.generation, tmpGen)) {
       el.innerHTML = `<div class="err-box">应用代际与快照代际不一致（应用 ${esc(tmpGen)}，快照 ${esc(snap.generation)}）：游标未提交</div>`;
       return;
+    }
+    if (deltas.length === 0 && sessionBinding) {
+      // 空增量也必须核对已绑定身份的完整一致（session/cut/generation/catalog），不静默重绑。
+      if (snap.session_id !== sessionBinding.session_id ||
+          snap.structure_cut !== sessionBinding.structure_cut ||
+          snap.catalog_revision !== sessionBinding.catalog_revision ||
+          !bigEq(snap.generation, sessionBinding.generation)) {
+        el.innerHTML = `<div class="err-box">空增量下已绑定身份与快照不一致（session/cut/catalog/generation 变化）：拒绝静默重绑，请走重建</div>`;
+        return;
+      }
     }
     if (snap.structure_cut !== expectedPrevCut) {
       el.innerHTML = `<div class="err-box">cut 链末端不一致（期望 ${esc(expectedPrevCut)}，快照 ${esc(snap.structure_cut)}）：游标未提交</div>`;
@@ -499,7 +521,7 @@ async function applyStream() {
     lastAppliedGen = tmpGen;
     sessionBinding = { session_id: snap.session_id, structure_cut: snap.structure_cut,
                        generation: snap.generation, catalog_revision: snap.catalog_revision };
-    syncModeUI("current");
+    syncModeUI("current", snap);
     renderAllFromState(state);
     cursorEl.textContent = `已提交并验证 generation ≤ ${lastAppliedGen}（session ${sessionBinding.session_id}，cut ${sessionBinding.structure_cut}）`;
     const summary = deltas.length

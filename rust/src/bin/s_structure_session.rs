@@ -359,20 +359,86 @@ fn verify_stored_batch(conn: &Connection, batch_id: &str) -> Result<(), String> 
 /// - generation>=1 ⟹ meta.index_frontier 必须存在且非空、指向内容完整的 batch，并与
 ///   structure_deltas[generation].index_frontier 一致；每条已发布 delta 的 index_frontier 也
 ///   必须指向内容完整的 batch。孤儿 batch（after_batch 未提交）不在此列，不算坏根。
-fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
-    let generation: i64 = meta_get_opt(conn, "generation")?
-        .and_then(|s| s.parse().ok())
-        .ok_or("StorageUnavailable：meta.generation 缺失或非规范十进制整数")?;
+fn meta_i64(conn: &Connection, key: &str) -> Result<i64, String> {
+    let v =
+        meta_get_opt(conn, key)?.ok_or_else(|| format!("StorageUnavailable：meta.{key} 缺失"))?;
+    parse_canonical_i64(&v, &format!("meta.{key}")).map_err(|e| format!("StorageUnavailable：{e}"))
+}
+
+/// 必需 meta 的存在/规范整数/域与同 cut 对应关系校验（所有读/写入口共享；坏缺值不得
+/// unwrap_or(-1)/空串成功兜底）。返回 generation。
+fn verify_required_meta(conn: &Connection) -> Result<i64, String> {
+    let session_id =
+        meta_get_opt(conn, "session_id")?.ok_or("StorageUnavailable：meta.session_id 缺失")?;
+    if session_id.is_empty() {
+        return Err("StorageUnavailable：meta.session_id 为空".to_string());
+    }
+    let generation = meta_i64(conn, "generation")?;
     if generation < 0 {
         return Err("StorageUnavailable：meta.generation 为负".to_string());
     }
-    if generation == 0 {
-        let idx = meta_get_opt(conn, "index_frontier")?.unwrap_or_default();
+    let cut = meta_get_opt(conn, "structure_cut")?.unwrap_or_default();
+    if cut.is_empty() {
+        return Err("StorageUnavailable：meta.structure_cut 缺失或为空".to_string());
+    }
+    let cat = meta_get_opt(conn, "catalog_revision")?.unwrap_or_default();
+    if cat.is_empty() {
+        return Err("StorageUnavailable：meta.catalog_revision 缺失或为空".to_string());
+    }
+    let idx = meta_get_opt(conn, "index_frontier")?.unwrap_or_default();
+    let published_frontier = meta_i64(conn, "last_advance_frontier")?;
+    if published_frontier < -1 {
+        return Err(format!(
+            "StorageUnavailable：meta.last_advance_frontier=`{published_frontier}` 越域（只允许 -1 或非负）"
+        ));
+    }
+    // last_advance_frontier 必须与当前已发布 Delta 的 input_frontier 一致（不得由新 advance 掩盖坏值）。
+    if generation > 0 {
+        if idx.is_empty() {
+            return Err(format!(
+                "StorageUnavailable：generation={generation} 已发布却 index_frontier 为空（缺根 meta）"
+            ));
+        }
+        let delta_frontier: Option<i64> = conn
+            .query_row(
+                "SELECT input_frontier FROM structure_deltas WHERE generation=?1",
+                params![generation],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| format!("读 delta[{generation}].input_frontier 失败：{e}"))?;
+        match delta_frontier {
+            None => {
+                return Err(format!(
+                    "StorageUnavailable：generation={generation} 无对应持久 Delta（根/历史引用断裂）"
+                ))
+            }
+            Some(df) if df != published_frontier => {
+                return Err(format!(
+                    "StorageUnavailable：meta.last_advance_frontier=`{published_frontier}` 与 delta[{generation}].input_frontier=`{df}` 不一致"
+                ))
+            }
+            Some(_) => {}
+        }
+    } else {
         if !idx.is_empty() {
             return Err(format!(
                 "StorageUnavailable：初态 generation=0 却存在 index_frontier=`{idx}`（不一致）"
             ));
         }
+        if published_frontier != -1 {
+            return Err(format!(
+                "StorageUnavailable：初态 generation=0 却 last_advance_frontier=`{published_frontier}`（应 -1）"
+            ));
+        }
+    }
+    read_scope(conn)?;
+    Ok(generation)
+}
+
+fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
+    let generation = verify_required_meta(conn)?;
+    if generation == 0 {
         let deltas: i64 = conn
             .query_row("SELECT COUNT(*) FROM structure_deltas", [], |r| r.get(0))
             .map_err(|e| format!("核初态失败：{e}"))?;
@@ -383,38 +449,9 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
         }
         return Ok(());
     }
-    let index_frontier = meta_get_opt(conn, "index_frontier")?.ok_or_else(|| {
-        "StorageUnavailable：已发布代缺 index_frontier meta（不得把缺 meta 当空根兜底）".to_string()
-    })?;
-    if index_frontier.is_empty() {
-        return Err(format!(
-            "StorageUnavailable：generation={generation} 已发布却 index_frontier 为空（缺根 meta）"
-        ));
-    }
+    let index_frontier = meta_get_opt(conn, "index_frontier")?.unwrap_or_default();
     verify_stored_batch(conn, &index_frontier)?;
-    // 当前根与最新 delta 一致。
-    let delta_idx: Option<String> = conn
-        .query_row(
-            "SELECT index_frontier FROM structure_deltas WHERE generation=?1",
-            params![generation],
-            |r| r.get(0),
-        )
-        .optional()
-        .map_err(|e| format!("读 delta[{generation}] 失败：{e}"))?;
-    match delta_idx {
-        None => {
-            return Err(format!(
-                "StorageUnavailable：generation={generation} 无对应持久 Delta（根/历史引用断裂）"
-            ))
-        }
-        Some(d) if d != index_frontier => {
-            return Err(format!(
-                "StorageUnavailable：meta.index_frontier=`{index_frontier}` 与 delta[{generation}].index_frontier=`{d}` 不一致"
-            ))
-        }
-        Some(_) => {}
-    }
-    // 全部历史 delta 的 index_frontier 也须可达且内容完整。
+    // 完整已发布代链 1..=generation 连续（含中间与尾部），且每代 index_frontier 可达且内容完整。
     let mut stmt = conn
         .prepare("SELECT generation, index_frontier FROM structure_deltas WHERE generation <= ?1 ORDER BY generation ASC")
         .map_err(|e| format!("prepare 历史可达核失败：{e}"))?;
@@ -425,12 +462,20 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
         .map_err(|e| format!("query 历史可达失败：{e}"))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("collect 历史可达失败：{e}"))?;
-    if rows.is_empty() {
+    if rows.len() != generation as usize {
         return Err(format!(
-            "StorageUnavailable：generation={generation} 但无任何持久 Delta（历史引用断裂）"
+            "StorageUnavailable：已发布代链断裂（generation={generation}，仅 {} 行 Delta）",
+            rows.len()
         ));
     }
-    for (g, didx) in &rows {
+    for (i, (g, didx)) in rows.iter().enumerate() {
+        let expect = (i + 1) as i64;
+        if *g != expect {
+            return Err(format!(
+                "StorageUnavailable：Delta 代际断链（第 {} 行 generation={g}，应 {expect}）",
+                i + 1
+            ));
+        }
         if didx.is_empty() {
             return Err(format!(
                 "StorageUnavailable：delta[{g}].index_frontier 为空（已发布 cut 缺批次引用）"
@@ -1278,9 +1323,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
             .map_err(|e| format!("读输入前沿失败：{e}"))?;
         // 幂等重试：无新输入（frontier == 已提交前沿）且已有已发布代 → 不产新 cut，返回现有已提交结果。
         // （after_commit 丢回执后同 argv 重试不再新增 generation；DeliveryUnknown 按原身份查权威结果。）
-        let last_frontier: i64 = meta_get_opt(&tx, "last_advance_frontier")?
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(-1);
+        let last_frontier: i64 = meta_i64(&tx, "last_advance_frontier")?;
         if frontier == last_frontier && cur_gen >= 1 {
             let structure_cut = meta_get_opt(&tx, "structure_cut")?.unwrap_or_default();
             let index_frontier = meta_get_opt(&tx, "index_frontier")?.unwrap_or_default();
@@ -2258,6 +2301,17 @@ fn read_objects_view(
     conn: &Connection,
     as_of: Option<i64>,
 ) -> Result<(Vec<Value>, Vec<Value>), String> {
+    // 合法生命周期域：撤回代必须晚于首获知代；wg<=fkg 为持久损坏，不得被 as_of 过滤隐藏后成功。
+    let invalid_lifecycle: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM objects WHERE withdrawn_generation IS NOT NULL AND withdrawn_generation <= first_known_generation",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(|e| format!("核对象生命周期失败：{e}"))?;
+    if invalid_lifecycle != 0 {
+        return Err("StorageUnavailable：对象生命周期非法（withdrawn_generation <= first_known_generation）".to_string());
+    }
     let active_sql = match as_of {
         None => {
             "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE withdrawn_generation IS NULL ORDER BY window_start"
@@ -2274,7 +2328,7 @@ fn read_objects_view(
                 .to_string()
         }
         Some(_) => {
-            "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE withdrawn_generation IS NOT NULL AND withdrawn_generation <= ?1 ORDER BY first_known_generation"
+            "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE withdrawn_generation IS NOT NULL AND withdrawn_generation <= ?1 AND first_known_generation <= ?1 ORDER BY first_known_generation"
                 .to_string()
         }
     };
@@ -2318,6 +2372,16 @@ fn read_objects_view(
 /// 按「当时仍活动」投影（不把后来的撤回元数据倒填到旧 cut）。
 fn project_object_row(row: &rusqlite::Row<'_>, as_of: Option<i64>) -> rusqlite::Result<Value> {
     let wg: Option<i64> = row.get(16)?;
+    // 合法生命周期：撤回代必须晚于首获知代（wg > fkg）；wg<=fkg 为持久损坏，不得投影后成功。
+    let fkg_raw: i64 = row.get(13)?;
+    if let Some(w) = wg {
+        if w <= fkg_raw {
+            return Err(json_column_error(
+                16,
+                format!("对象生命周期非法：withdrawn_generation={w} <= first_known_generation={fkg_raw}"),
+            ));
+        }
+    }
     let effective_wg = match (as_of, wg) {
         (Some(n), Some(w)) if w > n => None,
         _ => wg,
@@ -2605,6 +2669,7 @@ fn cmd_catalog(db: &Path, as_of: Option<i64>) -> Result<(), String> {
     let tx = conn
         .unchecked_transaction()
         .map_err(|e| format!("开读事务失败：{e}"))?;
+    verify_reachable_root(&tx)?;
     let out = read_catalog_in_tx(&tx, as_of)?;
     drop(tx);
     println!("{}", out);
@@ -2617,6 +2682,7 @@ fn cmd_snapshot(db: &Path, as_of: Option<i64>) -> Result<(), String> {
     let tx = conn
         .unchecked_transaction()
         .map_err(|e| format!("开读事务失败：{e}"))?;
+    verify_reachable_root(&tx)?;
     let out = read_snapshot_in_tx(&tx, as_of)?;
     drop(tx);
     println!("{}", out);
@@ -2631,9 +2697,8 @@ fn cmd_query(db: &Path, identity_key: &str) -> Result<(), String> {
     let tx = conn
         .unchecked_transaction()
         .map_err(|e| format!("开读事务失败：{e}"))?;
-    let published_frontier: i64 = meta_get_opt(&tx, "last_advance_frontier")?
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(-1);
+    verify_reachable_root(&tx)?;
+    let published_frontier: i64 = meta_i64(&tx, "last_advance_frontier")?;
     let rows: Vec<Value> = {
         let mut stmt = tx
             .prepare(
@@ -2711,6 +2776,43 @@ fn cmd_meta(db: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// TestOnly 诊断：用与 accept/advance/recover 相同的 open_db 连接，读回实际 PRAGMA
+/// （journal_mode / synchronous / fullfsync）。供 macOS 根验从真实 writer 连接取证 fullfsync；
+/// 不是持久性自证，仅记录该连接的实际平台前件读数。
+fn cmd_pragma(db: &Path) -> Result<(), String> {
+    let conn = open_db(db)?;
+    let journal_mode: String = conn
+        .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+        .map_err(|e| format!("读 journal_mode 失败：{e}"))?;
+    let synchronous: i64 = conn
+        .query_row("PRAGMA synchronous", [], |r| r.get(0))
+        .map_err(|e| format!("读 synchronous 失败：{e}"))?;
+    let fullfsync: Option<i64> = {
+        #[cfg(target_os = "macos")]
+        {
+            Some(
+                conn.query_row("PRAGMA fullfsync", [], |r| r.get(0))
+                    .map_err(|e| format!("读 fullfsync 失败：{e}"))?,
+            )
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            None
+        }
+    };
+    println!(
+        "{}",
+        json!({
+            "ok": true,
+            "platform": std::env::consts::OS,
+            "journal_mode": journal_mode,
+            "synchronous": synchronous,
+            "fullfsync": fullfsync,
+        })
+    );
+    Ok(())
+}
+
 /// 读 structure_deltas 一行并投影为 wire 形式（整数坐标 → 规范十进制字符串）。
 fn project_delta_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
     Ok(json!({
@@ -2742,11 +2844,9 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
     let tx = conn
         .unchecked_transaction()
         .map_err(|e| format!("开读事务失败：{e}"))?;
+    verify_reachable_root(&tx)?;
     let meta = db_meta(&tx)?;
-    let current_gen: i64 = meta
-        .get("generation")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
+    let current_gen: i64 = meta_i64(&tx, "generation")?;
     let current_cut = meta.get("structure_cut").cloned().unwrap_or_default();
 
     let rows: Vec<Value> = {
@@ -2765,14 +2865,25 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
         out
     };
 
-    // 缺口检测：cursor 落在 0..current 之间但 cursor+1 无 delta ⟹ Gap（重建 cut = 当前结构切面）。
+    // 缺口检测：cursor 落后时核完整连续序列与末端抵达 current；游标超前（重建会话）显式 Gap。
     let mut gap: Value = Value::Null;
-    if after_generation >= 0 && after_generation < current_gen {
-        let first = rows
-            .first()
-            .and_then(|d| d["generation"].as_str().and_then(|s| s.parse::<i64>().ok()))
-            .unwrap_or(current_gen + 1);
-        if first != after_generation + 1 {
+    if after_generation > current_gen {
+        gap = json!({
+            "reason": "cursor_ahead_or_session_rebuilt",
+            "rebuild_cut": current_cut,
+        });
+    } else if after_generation < current_gen {
+        let gens: Vec<i64> = rows
+            .iter()
+            .map(|d| {
+                d["generation"]
+                    .as_str()
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .unwrap_or(-1)
+            })
+            .collect();
+        let expected: Vec<i64> = (after_generation + 1..=current_gen).collect();
+        if gens != expected {
             gap = json!({
                 "reason": "cursor_stale_or_retained_delta_missing",
                 "rebuild_cut": current_cut,
@@ -2879,6 +2990,7 @@ fn usage() -> String {
      \x20 catalog   --db <路径> [--as-of <generation>]\n\
      \x20 snapshot  --db <路径> [--as-of <generation>]\n\
      \x20 meta      --db <路径>\n\
+     \x20 pragma    --db <路径>\n\
      \x20 query     --db <路径> --identity-key <k>\n\
      \x20 watch     --db <路径> --after-generation <n>\n\
      \x20 recover   --db <路径> --new-epoch <n>\n\
@@ -2947,6 +3059,7 @@ fn run() -> Result<(), String> {
         "catalog" => cmd_catalog(&db.ok_or("缺 --db".to_string())?, as_of),
         "snapshot" => cmd_snapshot(&db.ok_or("缺 --db".to_string())?, as_of),
         "meta" => cmd_meta(&db.ok_or("缺 --db".to_string())?),
+        "pragma" => cmd_pragma(&db.ok_or("缺 --db".to_string())?),
         "query" => {
             let k = identity_key.ok_or("query 缺 --identity-key".to_string())?;
             cmd_query(&db.ok_or("缺 --db".to_string())?, &k)
@@ -3976,6 +4089,134 @@ mod tests {
             drop(conn);
             assert_reject(&files);
         }
+    }
+
+    #[test]
+    fn interior_delta_missing_blocks_writes_and_reads() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept(
+            &files,
+            &test_input(&[ev("e2", "2", "2", "11500")]),
+            "in2.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept(
+            &files,
+            &test_input(&[ev("e3", "1", "3", "10800")]),
+            "in3.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        {
+            let conn = open_db(&files.db()).unwrap();
+            conn.execute("DELETE FROM structure_deltas WHERE generation=2", [])
+                .unwrap();
+        }
+        let extra = test_input(&[ev("e4", "1", "4", "10900")]);
+        let p = write_input(&files, "e4.json", &extra);
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        assert!(cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        assert!(cmd_recover(&files.db(), "2")
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        // 读入口也拒绝（正式 cmd_snapshot 路径，含可达根核）。
+        assert!(cmd_snapshot(&files.db(), None)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+    }
+
+    #[test]
+    fn bad_last_advance_frontier_blocks_reads_and_writes() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        {
+            let conn = open_db(&files.db()).unwrap();
+            meta_set(&conn, "last_advance_frontier", "broken").unwrap();
+        }
+        let extra = test_input(&[ev("e3", "1", "3", "10800")]);
+        let p = write_input(&files, "e3.json", &extra);
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        assert!(cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        assert!(cmd_recover(&files.db(), "2")
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        // 读入口也拒绝（正式 cmd_snapshot 路径）。
+        assert!(cmd_snapshot(&files.db(), None)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+    }
+
+    #[test]
+    fn future_withdrawn_object_is_rejected_as_corrupt() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept(
+            &files,
+            &test_input(&[ev("e2", "2", "2", "11500")]),
+            "in2.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        // 撤回对象 first_known=1，withdrawn=2；改为 withdrawn=0 → 非法生命周期。
+        {
+            let conn = open_db(&files.db()).unwrap();
+            conn.execute(
+                "UPDATE objects SET withdrawn_generation=0 WHERE withdrawn_generation IS NOT NULL",
+                [],
+            )
+            .unwrap();
+        }
+        assert!(cmd_snapshot(&files.db(), None)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        assert!(cmd_snapshot(&files.db(), Some(0))
+            .unwrap_err()
+            .contains("StorageUnavailable"));
     }
 
     #[test]

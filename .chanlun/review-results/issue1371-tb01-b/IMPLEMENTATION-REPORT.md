@@ -42,6 +42,20 @@ AsKnown/RecomputedWithRevision 分栏、同源 Watch 续接，并已按根评审
 | PY-M01/M03（Gap 只清零/会话重绑 null 解引用） | Gap 真正读 `/api/state` 重建六集合缓存+游标+绑定；会话切换先保存旧 session_id 再重置 |
 | 修复期望 4（release 机制） | `testonly_pause` 支持 `S_SESSION_PAUSE_RELEASE` 文件显式解除（SIGKILL 仍可杀），供活旧 writer 跨 epoch 交错受控试验 |
 
+## 0a3. R3（a9）修复（相对 a9acf50a，针对根 R3 复审 REQUEST_CHANGES）
+
+| 根/辅助发现 | 修复 |
+|---|---|
+| A9-ROOT-META-AND-READ（last_advance_frontier 坏/缺仍写/读成功） | 新增 `verify_required_meta`（session/generation/structure_cut/catalog_revision/index_frontier/last_advance_frontier/scope 存在+规范 i64+域+与 delta[gen].input_frontier 一致），`verify_reachable_root` 与读入口（snapshot/catalog/query/watch）共用；`cmd_query` 用严格 `meta_i64` 不再 unwrap_or(-1)；advance 幂等前沿同严格 |
+| A9-ROOT-DELTA-CHAIN（删中/尾 Delta 三写仍过、watch gap=null） | `verify_reachable_root` 核完整代链 1..generation 连续（含中间/尾部）；`cmd_watch` 核完整连续+末端抵达 current+超前游标 Gap |
+| A9-ROOT-LIFECYCLE（wg=0 未来对象进 AsKnown0） | withdrawn as_of SQL 增 `first_known_generation<=N`；`read_objects_view` 核 wg<=fkg 为持久损坏（Python/Rust 两侧）；`project_object_row` 同校验 |
+| A9-ROOT-PYTHON-STORAGE（reader 不拒可达根损坏） | Python `_verify_reachable_root`（batch sha256/byte_len + 代链 + frontier 一致）在 read_catalog/snapshot/delta 共用 |
+| A9-H03（Delta 内外身份未核对/未来行） | read_delta 逐行核内层 session/generation/base_cut/next_cut/catalog_revision/index_frontier 与外层一致；拒绝 generation>current |
+| A9-H04（深层坏成员/非整数/非法 lifecycle） | `_validate_delta_shape` 逐字段规范十进制（object_revision/window/slot/seq/revision/merged_index/seq_range）、lifecycle 枚举、raw_bars 成员对象+规范整数、observation/withdrawal/raw 整数域 |
+| A9-M01（非 ASCII/溢出 meta） | `_canonical_i64_str` 统一 ASCII+前导零+i64 界；last_advance_frontier 只 -1 或非负 |
+| A9-H01/H02/M02/M03（浏览器原子性/空增量/标签/晚到失败） | `validateState` 前置于任何提交（含 Gap 重建）；空增量核对已绑定 session/cut/catalog/generation；`syncModeUI(mode, snap)` 用新快照标签；快照失败内层 catch 也核 epoch |
+| 验证期望 4（fullfsync 回读） | 新增 `pragma` 诊断命令（与 writer 同 open_db 连接回读 journal_mode/synchronous/fullfsync） |
+
 ## 0b. 改动面（只改本票模块）
 
 `rust/src/bin/s_structure_session.rs`、`s_session/s_readonly_server.py`、`s_session/browser/index.html`、
@@ -92,7 +106,7 @@ AsKnown/RecomputedWithRevision 分栏、同源 Watch 续接，并已按根评审
 - 平台前件：Linux 实测 sqlite 3.53.2、wal、synchronous=2(FULL)、platform=linux；macOS fullfsync/GUI 未验（交根）。
 
 ### AC8 —— 证据保留 + 检查 + 未验
-- 检查：fmt 0、check 0、clippy 本片 0 命中、bin 测试 23 passed（A 原 9 + B 14）、`--lib local_shape` 4 passed。
+- 检查：fmt 0、check 0、clippy 本片 0 命中、bin 测试 26 passed（A 原 9 + B 17）、`--lib local_shape` 4 passed。
 - 证据：命令/退出码、输入/构建/目录 hash、PID/信号/退出/重启/持久状态、API 前后、Node 全字段对拍、杀点输入（/tmp/s_b_*，工作草稿证据不入仓）。
 
 ## 2. 17 细项绑定（结论：本片范围内均已完成；未销项见下）
@@ -124,7 +138,7 @@ AsKnown/RecomputedWithRevision 分栏、同源 Watch 续接，并已按根评审
 | cargo fmt -- --check | 0 |
 | cargo check --features s_session --bin s_structure_session | 0 |
 | cargo clippy --features s_session --bin s_structure_session | 0（本片 0 命中） |
-| cargo test --features s_session --bin s_structure_session --jobs 1 | 0（23 passed） |
+| cargo test --features s_session --bin s_structure_session --jobs 1 | 0（26 passed） |
 | cargo test --lib local_shape | 0（4 passed，A oracle） |
 | ./s_session/launch_s.sh --testonly … | 0 |
 | /tmp/s_b_kill_test.py（三点 SIGKILL+恢复，从已发布旧 TOP 起） | 0（wait_exit=-9） |
@@ -139,9 +153,9 @@ AsKnown/RecomputedWithRevision 分栏、同源 Watch 续接，并已按根评审
 - `signed-catalog.json`：`938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069`（与 A 一致）。
 - TestOnly profile：`2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc`（与 A 一致）。
 - 本片四文件（本轮修复后）：
-  - `rust/src/bin/s_structure_session.rs`：`1d19627dfed365b0782cc62651773ece7a9afd2a2df9905c8428dbc3786516da`
-  - `s_session/s_readonly_server.py`：`f01988cf118b874b9f4b2c8221b4a00f2dd53a5df6f0f80c1675f39522405578`
-  - `s_session/browser/index.html`：`ce4732b38a04c034cea336ba13e78db1f184220f333d2470674a937d2fb97d77`
+  - `rust/src/bin/s_structure_session.rs`：`07a0b061a6d7b884af368929005d21e50fdc02a34897e3e18f78ef56c40b096f`
+  - `s_session/s_readonly_server.py`：`9a3f648cc49ea5622f3ab821bd66b0027f17adb447f4ede9835fffd236ba50d6`
+  - `s_session/browser/index.html`：`13402a4011034e624de34b4137696a3dd8d3de2e1b35ec854e3a2331ca1591ac`
   - `s_session/launch_s.sh`：`65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d`（epoch 透传，本轮未再改）
 
 ## 5. NOT_RUN / 未验（照实，交根）
