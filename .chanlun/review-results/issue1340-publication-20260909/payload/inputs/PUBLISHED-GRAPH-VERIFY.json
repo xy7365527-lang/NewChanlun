@@ -1,0 +1,1443 @@
+{
+  "schema": "newchanlun.1323.published-graph-verify.v1",
+  "status": "PASS",
+  "phase": "FIRST_PUBLICATION_STAGE",
+  "started_at_utc": "2026-09-09T05:47:46.961051+00:00",
+  "completed_at_utc": "2026-09-09T05:48:01.277344+00:00",
+  "scope": "11 TB父票、3 TB-01叶票、12旧票承接评论；17RD复用前轮已通过核验，其余待发布执行片及主图后续delta不在本轮。",
+  "new_issue_count": 14,
+  "legacy_comment_count": 12,
+  "reused_rd_verification": {
+    "path": "/tmp/newchanlun-1323-publication-20260909/inputs/RESIDUAL-PUBLISHED-VERIFY.json",
+    "status": "PASS",
+    "count": 17,
+    "completed_at_utc": "2026-09-09T05:40:14.266863+00:00",
+    "not_reread_this_round": true
+  },
+  "live_assignee_expected_for_1370": "xy7365527-lang",
+  "rows": [
+    {
+      "kind": "legacy_comment",
+      "key": "1096",
+      "issue_number": 1096,
+      "comment_id": 5596450827,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1096#issuecomment-5596450827",
+      "read_at_utc": "2026-09-09T05:47:53.895085+00:00",
+      "comment_body_sha256": "550d377f7ffb1776e8a5094abff55ba11ac29fb28ea66d8e8ae73460ee968c03",
+      "actual_state": "open",
+      "actual_labels": [
+        "debt",
+        "enhancement",
+        "ready-for-agent"
+      ],
+      "actual_parent": null,
+      "before_blocked_by": [
+        1332
+      ],
+      "actual_blocked_by": [
+        1332
+      ],
+      "before_blocking": [],
+      "actual_blocking": [],
+      "obligation_links": [
+        {
+          "key": "TB-10",
+          "printed_issue": 1368,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1368",
+          "correct": true
+        },
+        {
+          "key": "TB-09",
+          "printed_issue": 1365,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1365",
+          "correct": true
+        },
+        {
+          "key": "TB-11",
+          "printed_issue": 1369,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1369",
+          "correct": true
+        }
+      ],
+      "checks": {
+        "comment_body_equals_local_bytes": true,
+        "comment_body_equals_publication_sha": true,
+        "comment_on_expected_issue": true,
+        "state_unchanged": true,
+        "labels_unchanged": true,
+        "assignees_unchanged": true,
+        "native_parent_unchanged": true,
+        "native_blocked_by_unchanged": true,
+        "native_blocking_unchanged": true,
+        "old_issue_body_unchanged": true,
+        "all_obligation_links_exact": true,
+        "no_sandcastle": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "legacy_comment",
+      "key": "1279",
+      "issue_number": 1279,
+      "comment_id": 5596452227,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1279#issuecomment-5596452227",
+      "read_at_utc": "2026-09-09T05:47:54.093109+00:00",
+      "comment_body_sha256": "4c451869a4ff4dad0aced14ec674bd526b6990f9f945a8045e0d9d583cb56cd2",
+      "actual_state": "open",
+      "actual_labels": [
+        "needs-triage"
+      ],
+      "actual_parent": null,
+      "before_blocked_by": [
+        1323
+      ],
+      "actual_blocked_by": [
+        1323
+      ],
+      "before_blocking": [],
+      "actual_blocking": [],
+      "obligation_links": [
+        {
+          "key": "TB-11",
+          "printed_issue": 1369,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1369",
+          "correct": true
+        }
+      ],
+      "checks": {
+        "comment_body_equals_local_bytes": true,
+        "comment_body_equals_publication_sha": true,
+        "comment_on_expected_issue": true,
+        "state_unchanged": true,
+        "labels_unchanged": true,
+        "assignees_unchanged": true,
+        "native_parent_unchanged": true,
+        "native_blocked_by_unchanged": true,
+        "native_blocking_unchanged": true,
+        "old_issue_body_unchanged": true,
+        "all_obligation_links_exact": true,
+        "no_sandcastle": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "legacy_comment",
+      "key": "1304",
+      "issue_number": 1304,
+      "comment_id": 5596451156,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1304#issuecomment-5596451156",
+      "read_at_utc": "2026-09-09T05:47:56.101956+00:00",
+      "comment_body_sha256": "a07e12348bdd826c844e85a73231a674d7e6fcd7cab93a2f8cdff53476728a79",
+      "actual_state": "open",
+      "actual_labels": [
+        "needs-triage"
+      ],
+      "actual_parent": null,
+      "before_blocked_by": [
+        1333
+      ],
+      "actual_blocked_by": [
+        1333
+      ],
+      "before_blocking": [],
+      "actual_blocking": [],
+      "obligation_links": [
+        {
+          "key": "TB-07",
+          "printed_issue": 1366,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1366",
+          "correct": true
+        },
+        {
+          "key": "TB-08",
+          "printed_issue": 1367,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1367",
+          "correct": true
+        },
+        {
+          "key": "TB-11",
+          "printed_issue": 1369,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1369",
+          "correct": true
+        }
+      ],
+      "checks": {
+        "comment_body_equals_local_bytes": true,
+        "comment_body_equals_publication_sha": true,
+        "comment_on_expected_issue": true,
+        "state_unchanged": true,
+        "labels_unchanged": true,
+        "assignees_unchanged": true,
+        "native_parent_unchanged": true,
+        "native_blocked_by_unchanged": true,
+        "native_blocking_unchanged": true,
+        "old_issue_body_unchanged": true,
+        "all_obligation_links_exact": true,
+        "no_sandcastle": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "legacy_comment",
+      "key": "1319",
+      "issue_number": 1319,
+      "comment_id": 5596451506,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1319#issuecomment-5596451506",
+      "read_at_utc": "2026-09-09T05:47:55.510249+00:00",
+      "comment_body_sha256": "4f99e19edac13c4aea6ea15be2b4e7614733f7ba1e8270d18306a2a4fdd4eefe",
+      "actual_state": "open",
+      "actual_labels": [
+        "needs-triage"
+      ],
+      "actual_parent": null,
+      "before_blocked_by": [
+        1321,
+        1322,
+        1323
+      ],
+      "actual_blocked_by": [
+        1321,
+        1322,
+        1323
+      ],
+      "before_blocking": [],
+      "actual_blocking": [],
+      "obligation_links": [
+        {
+          "key": "TB-08",
+          "printed_issue": 1367,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1367",
+          "correct": true
+        },
+        {
+          "key": "TB-04",
+          "printed_issue": 1362,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1362",
+          "correct": true
+        },
+        {
+          "key": "TB-09",
+          "printed_issue": 1365,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1365",
+          "correct": true
+        },
+        {
+          "key": "RD-13",
+          "printed_issue": 1351,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1351",
+          "correct": true
+        }
+      ],
+      "checks": {
+        "comment_body_equals_local_bytes": true,
+        "comment_body_equals_publication_sha": true,
+        "comment_on_expected_issue": true,
+        "state_unchanged": true,
+        "labels_unchanged": true,
+        "assignees_unchanged": true,
+        "native_parent_unchanged": true,
+        "native_blocked_by_unchanged": true,
+        "native_blocking_unchanged": true,
+        "old_issue_body_unchanged": true,
+        "all_obligation_links_exact": true,
+        "no_sandcastle": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "legacy_comment",
+      "key": "1320",
+      "issue_number": 1320,
+      "comment_id": 5596451863,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1320#issuecomment-5596451863",
+      "read_at_utc": "2026-09-09T05:47:56.729915+00:00",
+      "comment_body_sha256": "17ae9513eeb25a9da2f7e7836448fc02f07aff25a0f9b1a766b4035868808941",
+      "actual_state": "open",
+      "actual_labels": [
+        "needs-triage"
+      ],
+      "actual_parent": null,
+      "before_blocked_by": [
+        1321,
+        1322,
+        1323
+      ],
+      "actual_blocked_by": [
+        1321,
+        1322,
+        1323
+      ],
+      "before_blocking": [],
+      "actual_blocking": [],
+      "obligation_links": [
+        {
+          "key": "TB-07",
+          "printed_issue": 1366,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1366",
+          "correct": true
+        },
+        {
+          "key": "TB-11",
+          "printed_issue": 1369,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1369",
+          "correct": true
+        }
+      ],
+      "checks": {
+        "comment_body_equals_local_bytes": true,
+        "comment_body_equals_publication_sha": true,
+        "comment_on_expected_issue": true,
+        "state_unchanged": true,
+        "labels_unchanged": true,
+        "assignees_unchanged": true,
+        "native_parent_unchanged": true,
+        "native_blocked_by_unchanged": true,
+        "native_blocking_unchanged": true,
+        "old_issue_body_unchanged": true,
+        "all_obligation_links_exact": true,
+        "no_sandcastle": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "legacy_comment",
+      "key": "1327",
+      "issue_number": 1327,
+      "comment_id": 5596448141,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1327#issuecomment-5596448141",
+      "read_at_utc": "2026-09-09T05:47:56.721381+00:00",
+      "comment_body_sha256": "1582923ebc6c2534441d36e16f3841cc949de773bf6eadcf1a0734d48705f54d",
+      "actual_state": "open",
+      "actual_labels": [
+        "ready-for-human",
+        "wayfinder:grilling"
+      ],
+      "actual_parent": 1323,
+      "before_blocked_by": [],
+      "actual_blocked_by": [],
+      "before_blocking": [
+        1328
+      ],
+      "actual_blocking": [
+        1328
+      ],
+      "obligation_links": [
+        {
+          "key": "TB-01",
+          "printed_issue": 1359,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1359",
+          "correct": true
+        },
+        {
+          "key": "TB-02",
+          "printed_issue": 1360,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1360",
+          "correct": true
+        },
+        {
+          "key": "TB-04",
+          "printed_issue": 1362,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1362",
+          "correct": true
+        },
+        {
+          "key": "TB-07",
+          "printed_issue": 1366,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1366",
+          "correct": true
+        }
+      ],
+      "checks": {
+        "comment_body_equals_local_bytes": true,
+        "comment_body_equals_publication_sha": true,
+        "comment_on_expected_issue": true,
+        "state_unchanged": true,
+        "labels_unchanged": true,
+        "assignees_unchanged": true,
+        "native_parent_unchanged": true,
+        "native_blocked_by_unchanged": true,
+        "native_blocking_unchanged": true,
+        "old_issue_body_unchanged": true,
+        "all_obligation_links_exact": true,
+        "no_sandcastle": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "legacy_comment",
+      "key": "1328",
+      "issue_number": 1328,
+      "comment_id": 5596448566,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1328#issuecomment-5596448566",
+      "read_at_utc": "2026-09-09T05:47:58.181011+00:00",
+      "comment_body_sha256": "70454be8b609ec847beb8dab2579d037adffe074e384b50c511870bc1396ef3e",
+      "actual_state": "open",
+      "actual_labels": [
+        "ready-for-human",
+        "wayfinder:grilling"
+      ],
+      "actual_parent": 1323,
+      "before_blocked_by": [
+        1327
+      ],
+      "actual_blocked_by": [
+        1327
+      ],
+      "before_blocking": [
+        1329,
+        1330,
+        1332
+      ],
+      "actual_blocking": [
+        1329,
+        1330,
+        1332
+      ],
+      "obligation_links": [
+        {
+          "key": "TB-03",
+          "printed_issue": 1361,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1361",
+          "correct": true
+        },
+        {
+          "key": "TB-04",
+          "printed_issue": 1362,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1362",
+          "correct": true
+        },
+        {
+          "key": "TB-05",
+          "printed_issue": 1363,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1363",
+          "correct": true
+        },
+        {
+          "key": "TB-06",
+          "printed_issue": 1364,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1364",
+          "correct": true
+        },
+        {
+          "key": "TB-10",
+          "printed_issue": 1368,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1368",
+          "correct": true
+        }
+      ],
+      "checks": {
+        "comment_body_equals_local_bytes": true,
+        "comment_body_equals_publication_sha": true,
+        "comment_on_expected_issue": true,
+        "state_unchanged": true,
+        "labels_unchanged": true,
+        "assignees_unchanged": true,
+        "native_parent_unchanged": true,
+        "native_blocked_by_unchanged": true,
+        "native_blocking_unchanged": true,
+        "old_issue_body_unchanged": true,
+        "all_obligation_links_exact": true,
+        "no_sandcastle": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "legacy_comment",
+      "key": "1329",
+      "issue_number": 1329,
+      "comment_id": 5596449009,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1329#issuecomment-5596449009",
+      "read_at_utc": "2026-09-09T05:47:58.749912+00:00",
+      "comment_body_sha256": "65c47ca903ffbc90815a3c4b6ef7acbb336b4fa28dd0763a45c53b0dad1bfd04",
+      "actual_state": "open",
+      "actual_labels": [
+        "ready-for-human",
+        "wayfinder:grilling"
+      ],
+      "actual_parent": 1323,
+      "before_blocked_by": [
+        1328
+      ],
+      "actual_blocked_by": [
+        1328
+      ],
+      "before_blocking": [
+        1331
+      ],
+      "actual_blocking": [
+        1331
+      ],
+      "obligation_links": [
+        {
+          "key": "TB-07",
+          "printed_issue": 1366,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1366",
+          "correct": true
+        },
+        {
+          "key": "TB-08",
+          "printed_issue": 1367,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1367",
+          "correct": true
+        },
+        {
+          "key": "TB-09",
+          "printed_issue": 1365,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1365",
+          "correct": true
+        },
+        {
+          "key": "TB-11",
+          "printed_issue": 1369,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1369",
+          "correct": true
+        }
+      ],
+      "checks": {
+        "comment_body_equals_local_bytes": true,
+        "comment_body_equals_publication_sha": true,
+        "comment_on_expected_issue": true,
+        "state_unchanged": true,
+        "labels_unchanged": true,
+        "assignees_unchanged": true,
+        "native_parent_unchanged": true,
+        "native_blocked_by_unchanged": true,
+        "native_blocking_unchanged": true,
+        "old_issue_body_unchanged": true,
+        "all_obligation_links_exact": true,
+        "no_sandcastle": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "legacy_comment",
+      "key": "1330",
+      "issue_number": 1330,
+      "comment_id": 5596449355,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1330#issuecomment-5596449355",
+      "read_at_utc": "2026-09-09T05:47:59.313467+00:00",
+      "comment_body_sha256": "d5336266b4098df6623a87457891a25114474ab3bc3ea964bebfb59bcebfb4a9",
+      "actual_state": "open",
+      "actual_labels": [
+        "ready-for-human",
+        "wayfinder:grilling"
+      ],
+      "actual_parent": 1323,
+      "before_blocked_by": [
+        1328
+      ],
+      "actual_blocked_by": [
+        1328
+      ],
+      "before_blocking": [
+        1331
+      ],
+      "actual_blocking": [
+        1331
+      ],
+      "obligation_links": [
+        {
+          "key": "TB-04",
+          "printed_issue": 1362,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1362",
+          "correct": true
+        },
+        {
+          "key": "TB-05",
+          "printed_issue": 1363,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1363",
+          "correct": true
+        },
+        {
+          "key": "TB-06",
+          "printed_issue": 1364,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1364",
+          "correct": true
+        },
+        {
+          "key": "TB-07",
+          "printed_issue": 1366,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1366",
+          "correct": true
+        },
+        {
+          "key": "TB-08",
+          "printed_issue": 1367,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1367",
+          "correct": true
+        },
+        {
+          "key": "TB-09",
+          "printed_issue": 1365,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1365",
+          "correct": true
+        },
+        {
+          "key": "TB-10",
+          "printed_issue": 1368,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1368",
+          "correct": true
+        }
+      ],
+      "checks": {
+        "comment_body_equals_local_bytes": true,
+        "comment_body_equals_publication_sha": true,
+        "comment_on_expected_issue": true,
+        "state_unchanged": true,
+        "labels_unchanged": true,
+        "assignees_unchanged": true,
+        "native_parent_unchanged": true,
+        "native_blocked_by_unchanged": true,
+        "native_blocking_unchanged": true,
+        "old_issue_body_unchanged": true,
+        "all_obligation_links_exact": true,
+        "no_sandcastle": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "legacy_comment",
+      "key": "1331",
+      "issue_number": 1331,
+      "comment_id": 5596449701,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1331#issuecomment-5596449701",
+      "read_at_utc": "2026-09-09T05:47:59.323854+00:00",
+      "comment_body_sha256": "0c6c50bac67e33df645902f5e72a49314fa56d729b757436494e43d416d3abb2",
+      "actual_state": "open",
+      "actual_labels": [
+        "ready-for-human",
+        "wayfinder:grilling"
+      ],
+      "actual_parent": 1323,
+      "before_blocked_by": [
+        1329,
+        1330
+      ],
+      "actual_blocked_by": [
+        1329,
+        1330
+      ],
+      "before_blocking": [
+        1333
+      ],
+      "actual_blocking": [
+        1333
+      ],
+      "obligation_links": [
+        {
+          "key": "TB-01",
+          "printed_issue": 1359,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1359",
+          "correct": true
+        },
+        {
+          "key": "TB-02",
+          "printed_issue": 1360,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1360",
+          "correct": true
+        },
+        {
+          "key": "TB-03",
+          "printed_issue": 1361,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1361",
+          "correct": true
+        },
+        {
+          "key": "TB-04",
+          "printed_issue": 1362,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1362",
+          "correct": true
+        },
+        {
+          "key": "TB-05",
+          "printed_issue": 1363,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1363",
+          "correct": true
+        },
+        {
+          "key": "TB-06",
+          "printed_issue": 1364,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1364",
+          "correct": true
+        },
+        {
+          "key": "TB-07",
+          "printed_issue": 1366,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1366",
+          "correct": true
+        },
+        {
+          "key": "TB-10",
+          "printed_issue": 1368,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1368",
+          "correct": true
+        }
+      ],
+      "checks": {
+        "comment_body_equals_local_bytes": true,
+        "comment_body_equals_publication_sha": true,
+        "comment_on_expected_issue": true,
+        "state_unchanged": true,
+        "labels_unchanged": true,
+        "assignees_unchanged": true,
+        "native_parent_unchanged": true,
+        "native_blocked_by_unchanged": true,
+        "native_blocking_unchanged": true,
+        "old_issue_body_unchanged": true,
+        "all_obligation_links_exact": true,
+        "no_sandcastle": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "legacy_comment",
+      "key": "1332",
+      "issue_number": 1332,
+      "comment_id": 5596450107,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1332#issuecomment-5596450107",
+      "read_at_utc": "2026-09-09T05:48:00.906332+00:00",
+      "comment_body_sha256": "f7c5a4d454a247c5cbec51829c84bd30282e21ff08202ebbf4e665349fce35a0",
+      "actual_state": "open",
+      "actual_labels": [
+        "ready-for-human",
+        "wayfinder:grilling"
+      ],
+      "actual_parent": 1323,
+      "before_blocked_by": [
+        1328
+      ],
+      "actual_blocked_by": [
+        1328
+      ],
+      "before_blocking": [
+        1096,
+        1333
+      ],
+      "actual_blocking": [
+        1096,
+        1333
+      ],
+      "obligation_links": [
+        {
+          "key": "TB-09",
+          "printed_issue": 1365,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1365",
+          "correct": true
+        },
+        {
+          "key": "TB-10",
+          "printed_issue": 1368,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1368",
+          "correct": true
+        },
+        {
+          "key": "TB-11",
+          "printed_issue": 1369,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1369",
+          "correct": true
+        }
+      ],
+      "checks": {
+        "comment_body_equals_local_bytes": true,
+        "comment_body_equals_publication_sha": true,
+        "comment_on_expected_issue": true,
+        "state_unchanged": true,
+        "labels_unchanged": true,
+        "assignees_unchanged": true,
+        "native_parent_unchanged": true,
+        "native_blocked_by_unchanged": true,
+        "native_blocking_unchanged": true,
+        "old_issue_body_unchanged": true,
+        "all_obligation_links_exact": true,
+        "no_sandcastle": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "legacy_comment",
+      "key": "1333",
+      "issue_number": 1333,
+      "comment_id": 5596450447,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1333#issuecomment-5596450447",
+      "read_at_utc": "2026-09-09T05:48:01.276890+00:00",
+      "comment_body_sha256": "d080021094fe986c6b55025e181e68f3eabe99af9f5b8a32983bca30d0dcb75f",
+      "actual_state": "open",
+      "actual_labels": [
+        "ready-for-human",
+        "wayfinder:grilling"
+      ],
+      "actual_parent": 1323,
+      "before_blocked_by": [
+        1331,
+        1332
+      ],
+      "actual_blocked_by": [
+        1331,
+        1332
+      ],
+      "before_blocking": [
+        1304
+      ],
+      "actual_blocking": [
+        1304
+      ],
+      "obligation_links": [
+        {
+          "key": "TB-11",
+          "printed_issue": 1369,
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1369",
+          "correct": true
+        }
+      ],
+      "checks": {
+        "comment_body_equals_local_bytes": true,
+        "comment_body_equals_publication_sha": true,
+        "comment_on_expected_issue": true,
+        "state_unchanged": true,
+        "labels_unchanged": true,
+        "assignees_unchanged": true,
+        "native_parent_unchanged": true,
+        "native_blocked_by_unchanged": true,
+        "native_blocking_unchanged": true,
+        "old_issue_body_unchanged": true,
+        "all_obligation_links_exact": true,
+        "no_sandcastle": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-01",
+      "issue_number": 1359,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1359",
+      "read_at_utc": "2026-09-09T05:47:48.766926+00:00",
+      "body_sha256": "5f77b5bc92222c4b301831fb01178001c47a5a777675f07723f3bebf9da9d904",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1340,
+      "expected_parent": 1340,
+      "actual_blockers": [],
+      "expected_blockers": [],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-01-A",
+      "issue_number": 1370,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1370",
+      "read_at_utc": "2026-09-09T05:47:48.665572+00:00",
+      "body_sha256": "f0c39d9383f77d57ae30f8e1ee30051f67c440951550b7e05ca68a51010ed715",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [
+        "xy7365527-lang"
+      ],
+      "actual_parent": 1359,
+      "expected_parent": 1359,
+      "actual_blockers": [],
+      "expected_blockers": [],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-01-B",
+      "issue_number": 1371,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1371",
+      "read_at_utc": "2026-09-09T05:47:48.763675+00:00",
+      "body_sha256": "71672e11e78d9cd2739f9d45a4a10c8a8b3420e2c1ccd11032e30858e7e4e3b5",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1359,
+      "expected_parent": 1359,
+      "actual_blockers": [
+        1370
+      ],
+      "expected_blockers": [
+        1370
+      ],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-01-C",
+      "issue_number": 1372,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1372",
+      "read_at_utc": "2026-09-09T05:47:48.890174+00:00",
+      "body_sha256": "c8eddb266a2e90a124e02eac6918ccce04f27b514a83f12cf6ea3e1c1fa007a3",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1359,
+      "expected_parent": 1359,
+      "actual_blockers": [
+        1371
+      ],
+      "expected_blockers": [
+        1371
+      ],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-02",
+      "issue_number": 1360,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1360",
+      "read_at_utc": "2026-09-09T05:47:49.991142+00:00",
+      "body_sha256": "25aae8857d342c07c21f62459af1bdd2b2641dd5b135d4986edea1c2c3221c96",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1340,
+      "expected_parent": 1340,
+      "actual_blockers": [
+        1359
+      ],
+      "expected_blockers": [
+        1359
+      ],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-03",
+      "issue_number": 1361,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1361",
+      "read_at_utc": "2026-09-09T05:47:50.016331+00:00",
+      "body_sha256": "407251e916484e6517e3c637f66ae511db17e6c34bef810ca97ae4240cfc8c45",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1340,
+      "expected_parent": 1340,
+      "actual_blockers": [
+        1359
+      ],
+      "expected_blockers": [
+        1359
+      ],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-04",
+      "issue_number": 1362,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1362",
+      "read_at_utc": "2026-09-09T05:47:50.144863+00:00",
+      "body_sha256": "50eb214f5d4641b60c6e8fc38b8e23b94779f560487f1abd3346cb04a907d3be",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1340,
+      "expected_parent": 1340,
+      "actual_blockers": [
+        1361
+      ],
+      "expected_blockers": [
+        1361
+      ],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-05",
+      "issue_number": 1363,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1363",
+      "read_at_utc": "2026-09-09T05:47:50.222856+00:00",
+      "body_sha256": "3ca1c56a7991c89c7ad9e1ca55a6ff6071c4fc11fcb594cd78d538fc40885063",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1340,
+      "expected_parent": 1340,
+      "actual_blockers": [
+        1362
+      ],
+      "expected_blockers": [
+        1362
+      ],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-06",
+      "issue_number": 1364,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1364",
+      "read_at_utc": "2026-09-09T05:47:51.381151+00:00",
+      "body_sha256": "7f10f722764317a11c65dad1f116baebeb8f95872fcf03af568969496d629de1",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1340,
+      "expected_parent": 1340,
+      "actual_blockers": [
+        1361,
+        1362
+      ],
+      "expected_blockers": [
+        1361,
+        1362
+      ],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-07",
+      "issue_number": 1366,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1366",
+      "read_at_utc": "2026-09-09T05:47:51.332810+00:00",
+      "body_sha256": "1c6af0451cb34c56982aa49a25402fe02a2ac3f50434db818673622c84d771ff",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1340,
+      "expected_parent": 1340,
+      "actual_blockers": [
+        1360,
+        1363,
+        1364
+      ],
+      "expected_blockers": [
+        1360,
+        1363,
+        1364
+      ],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-08",
+      "issue_number": 1367,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1367",
+      "read_at_utc": "2026-09-09T05:47:51.397652+00:00",
+      "body_sha256": "82c5f4e352aef22736e8f5d2fe57f05f843e05afb29a22f68739cb0fd6e65bfa",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1340,
+      "expected_parent": 1340,
+      "actual_blockers": [
+        1362,
+        1363,
+        1365,
+        1366
+      ],
+      "expected_blockers": [
+        1362,
+        1363,
+        1365,
+        1366
+      ],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-09",
+      "issue_number": 1365,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1365",
+      "read_at_utc": "2026-09-09T05:47:51.549000+00:00",
+      "body_sha256": "3e600741c1e52dd29538bd85a20cc199271211f26496ad29d95846bacffe7709",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1340,
+      "expected_parent": 1340,
+      "actual_blockers": [
+        1362
+      ],
+      "expected_blockers": [
+        1362
+      ],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-10",
+      "issue_number": 1368,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1368",
+      "read_at_utc": "2026-09-09T05:47:52.925777+00:00",
+      "body_sha256": "2356ca0942bc1c51d7f246547215e55fbd38eeecd4ec97b744fc6b30e8e1303c",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1340,
+      "expected_parent": 1340,
+      "actual_blockers": [
+        1360,
+        1363,
+        1365,
+        1366,
+        1367
+      ],
+      "expected_blockers": [
+        1360,
+        1363,
+        1365,
+        1366,
+        1367
+      ],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    },
+    {
+      "kind": "new_issue",
+      "key": "TB-11",
+      "issue_number": 1369,
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1369",
+      "read_at_utc": "2026-09-09T05:47:52.904474+00:00",
+      "body_sha256": "f2d1df1375dcb066875c6159669edfc080282557a366c625adeceaa0cd909a1c",
+      "actual_labels": [
+        "wayfinder:impl"
+      ],
+      "actual_assignees": [],
+      "actual_parent": 1340,
+      "expected_parent": 1340,
+      "actual_blockers": [
+        1359,
+        1360,
+        1361,
+        1362,
+        1363,
+        1364,
+        1365,
+        1366,
+        1367,
+        1368
+      ],
+      "expected_blockers": [
+        1359,
+        1360,
+        1361,
+        1362,
+        1363,
+        1364,
+        1365,
+        1366,
+        1367,
+        1368
+      ],
+      "checks": {
+        "body_equals_local_bytes": true,
+        "body_equals_published_sha": true,
+        "title_matches_record": true,
+        "only_impl_label": true,
+        "no_sandcastle": true,
+        "native_parent_exact": true,
+        "native_blockers_exact": true,
+        "record_native_blockers_exact": true,
+        "assignees_expected": true,
+        "state_open": true
+      },
+      "status": "PASS"
+    }
+  ],
+  "failures": [],
+  "errors": [],
+  "sources": [
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/evidence/TB-PUBLISHED.json",
+      "sha256": "3d62530ca0333cd699131f5c62e1e3a42f1c29896d3ab9463bb8956fed2f7fd4"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/evidence/EXECUTION-SLICES-PUBLISHED.json",
+      "sha256": "f2acc0de6562702620700c6be85a0dee45f1d731d59de666b94ad9e5379389e8"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/evidence/LEGACY-COMMENTS-PUBLISHED.json",
+      "sha256": "5bb96e92ba2f02d8f49cd5ba6dd686c0cfea9c4ca0ee6b6b29198a6f58ac9fc8"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/LEGACY-TICKET-DISPOSITION.json",
+      "sha256": "3892d5dd85ba8d7ff9f1db0d6424b5da72dc0e83276540160f117428cdce170b"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/RESIDUAL-PUBLISHED-VERIFY.json",
+      "sha256": "ed5743fa7fdbe321ca13cad4356c4e8b1913d659d292c2f6a1bc5abb7f1629c9"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/inputs/TB01-EXECUTION-SLICES.json",
+      "sha256": "16e1e89efc24afbbea5c1b1c43ec44fa5a513e70098c83b24a56c6d1847f701e"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/PLANNED-DAG.json",
+      "sha256": "8ece2c702ac45c36fdcebfff4b0cb8dd2f26c740bdced6789e630f323e76d5e2"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-01.md",
+      "sha256": "5f77b5bc92222c4b301831fb01178001c47a5a777675f07723f3bebf9da9d904"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-01-A.md",
+      "sha256": "f0c39d9383f77d57ae30f8e1ee30051f67c440951550b7e05ca68a51010ed715"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-01-B.md",
+      "sha256": "71672e11e78d9cd2739f9d45a4a10c8a8b3420e2c1ccd11032e30858e7e4e3b5"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-01-C.md",
+      "sha256": "c8eddb266a2e90a124e02eac6918ccce04f27b514a83f12cf6ea3e1c1fa007a3"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-02.md",
+      "sha256": "25aae8857d342c07c21f62459af1bdd2b2641dd5b135d4986edea1c2c3221c96"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-03.md",
+      "sha256": "407251e916484e6517e3c637f66ae511db17e6c34bef810ca97ae4240cfc8c45"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-04.md",
+      "sha256": "50eb214f5d4641b60c6e8fc38b8e23b94779f560487f1abd3346cb04a907d3be"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-05.md",
+      "sha256": "3ca1c56a7991c89c7ad9e1ca55a6ff6071c4fc11fcb594cd78d538fc40885063"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-06.md",
+      "sha256": "7f10f722764317a11c65dad1f116baebeb8f95872fcf03af568969496d629de1"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-07.md",
+      "sha256": "1c6af0451cb34c56982aa49a25402fe02a2ac3f50434db818673622c84d771ff"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-08.md",
+      "sha256": "82c5f4e352aef22736e8f5d2fe57f05f843e05afb29a22f68739cb0fd6e65bfa"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-09.md",
+      "sha256": "3e600741c1e52dd29538bd85a20cc199271211f26496ad29d95846bacffe7709"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-10.md",
+      "sha256": "2356ca0942bc1c51d7f246547215e55fbd38eeecd4ec97b744fc6b30e8e1303c"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/TB-11.md",
+      "sha256": "f2d1df1375dcb066875c6159669edfc080282557a366c625adeceaa0cd909a1c"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/LEGACY-1096.md",
+      "sha256": "550d377f7ffb1776e8a5094abff55ba11ac29fb28ea66d8e8ae73460ee968c03"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/LEGACY-1279.md",
+      "sha256": "4c451869a4ff4dad0aced14ec674bd526b6990f9f945a8045e0d9d583cb56cd2"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/LEGACY-1304.md",
+      "sha256": "a07e12348bdd826c844e85a73231a674d7e6fcd7cab93a2f8cdff53476728a79"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/LEGACY-1319.md",
+      "sha256": "4f99e19edac13c4aea6ea15be2b4e7614733f7ba1e8270d18306a2a4fdd4eefe"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/LEGACY-1320.md",
+      "sha256": "17ae9513eeb25a9da2f7e7836448fc02f07aff25a0f9b1a766b4035868808941"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/LEGACY-1327.md",
+      "sha256": "1582923ebc6c2534441d36e16f3841cc949de773bf6eadcf1a0734d48705f54d"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/LEGACY-1328.md",
+      "sha256": "70454be8b609ec847beb8dab2579d037adffe074e384b50c511870bc1396ef3e"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/LEGACY-1329.md",
+      "sha256": "65c47ca903ffbc90815a3c4b6ef7acbb336b4fa28dd0763a45c53b0dad1bfd04"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/LEGACY-1330.md",
+      "sha256": "d5336266b4098df6623a87457891a25114474ab3bc3ea964bebfb59bcebfb4a9"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/LEGACY-1331.md",
+      "sha256": "0c6c50bac67e33df645902f5e72a49314fa56d729b757436494e43d416d3abb2"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/LEGACY-1332.md",
+      "sha256": "f7c5a4d454a247c5cbec51829c84bd30282e21ff08202ebbf4e665349fce35a0"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/tickets/LEGACY-1333.md",
+      "sha256": "d080021094fe986c6b55025e181e68f3eabe99af9f5b8a32983bca30d0dcb75f"
+    }
+  ],
+  "github_writes_performed": false,
+  "implementation_code_review_performed": false,
+  "runtime_acceptance": "NOT_EVALUATED",
+  "read_method": "gh api GET；依赖集合全分页--paginate --slurp；原关系比对发布前只读快照。"
+}

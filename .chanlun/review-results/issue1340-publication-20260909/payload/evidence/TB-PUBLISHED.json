@@ -1,0 +1,139 @@
+{
+  "TB-01": {
+    "id": 5395460688,
+    "number": 1359,
+    "title": "TB-01 验收汇总：正式结构和只读观察（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1359",
+    "body_sha256": "5f77b5bc92222c4b301831fb01178001c47a5a777675f07723f3bebf9da9d904",
+    "parent_linked": true
+  },
+  "TB-02": {
+    "id": 5395461109,
+    "number": 1360,
+    "title": "TB-02 验收汇总：全部结构分类及构造子义务（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1360",
+    "body_sha256": "25aae8857d342c07c21f62459af1bdd2b2641dd5b135d4986edea1c2c3221c96",
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-01": 1359
+    }
+  },
+  "TB-03": {
+    "id": 5395461719,
+    "number": 1361,
+    "title": "TB-03 验收汇总：持久重经营与事实应用（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1361",
+    "body_sha256": "407251e916484e6517e3c637f66ae511db17e6c34bef810ca97ae4240cfc8c45",
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-01": 1359
+    }
+  },
+  "TB-04": {
+    "id": 5395462294,
+    "number": 1362,
+    "title": "TB-04 验收汇总：责任到实际调用及回报闭环（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1362",
+    "body_sha256": "50eb214f5d4641b60c6e8fc38b8e23b94779f560487f1abd3346cb04a907d3be",
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-03": 1361
+    }
+  },
+  "TB-05": {
+    "id": 5395462818,
+    "number": 1363,
+    "title": "TB-05 验收汇总：故障隔离及持续服务（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1363",
+    "body_sha256": "3ca1c56a7991c89c7ad9e1ca55a6ff6071c4fc11fcb594cd78d538fc40885063",
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04": 1362
+    }
+  },
+  "TB-06": {
+    "id": 5395463329,
+    "number": 1364,
+    "title": "TB-06 验收汇总：完整阶段、换档与尾账（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1364",
+    "body_sha256": "7f10f722764317a11c65dad1f116baebeb8f95872fcf03af568969496d629de1",
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-03": 1361,
+      "TB-04": 1362
+    }
+  },
+  "TB-09": {
+    "id": 5395464150,
+    "number": 1365,
+    "title": "TB-09 验收汇总：目标部署旧写入口隔离及X排他（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1365",
+    "body_sha256": "3e600741c1e52dd29538bd85a20cc199271211f26496ad29d95846bacffe7709",
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04": 1362
+    }
+  },
+  "TB-07": {
+    "id": 5395464792,
+    "number": 1366,
+    "title": "TB-07 验收汇总：完整历史及恢复（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1366",
+    "body_sha256": "1c6af0451cb34c56982aa49a25402fe02a2ac3f50434db818673622c84d771ff",
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-06": 1364
+    }
+  },
+  "TB-08": {
+    "id": 5395465712,
+    "number": 1367,
+    "title": "TB-08 验收汇总：场所共核与能力验收（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1367",
+    "body_sha256": "82c5f4e352aef22736e8f5d2fe57f05f843e05afb29a22f68739cb0fd6e65bfa",
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-04": 1362,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-09": 1365
+    }
+  },
+  "TB-10": {
+    "id": 5395466771,
+    "number": 1368,
+    "title": "TB-10 验收汇总：带仓迁移、旧入口终态及默认启用（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1368",
+    "body_sha256": "2356ca0942bc1c51d7f246547215e55fbd38eeecd4ec97b744fc6b30e8e1303c",
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-02": 1360,
+      "TB-05": 1363,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365
+    }
+  },
+  "TB-11": {
+    "id": 5395468075,
+    "number": 1369,
+    "title": "TB-11 验收汇总：整图实装和独立总验（SPEC #1340）",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1369",
+    "body_sha256": "f2d1df1375dcb066875c6159669edfc080282557a366c625adeceaa0cd909a1c",
+    "parent_linked": true,
+    "native_blockers": {
+      "TB-01": 1359,
+      "TB-02": 1360,
+      "TB-03": 1361,
+      "TB-04": 1362,
+      "TB-05": 1363,
+      "TB-06": 1364,
+      "TB-07": 1366,
+      "TB-08": 1367,
+      "TB-09": 1365,
+      "TB-10": 1368
+    }
+  }
+}

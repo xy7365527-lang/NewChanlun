@@ -1,0 +1,248 @@
+{
+  "schema": "newchanlun.map-update-review.v1",
+  "status": "PASS_FINAL_PROPOSED_BODY",
+  "reviewed_at_utc": "2026-09-09T06:10:18.072227+00:00",
+  "reviewer": "/root/spec_completeness_inputs",
+  "independent_secondary_check": "/root/spec_completeness_inputs/slice_audit",
+  "reviewed_script": {
+    "path": "/tmp/newchanlun-1323-publication-20260909/work/update_map.py",
+    "sha256": "47f8b37cf03705bdaa36fcd2167be21052972c4c9c6678945f8cfcd2847561a4"
+  },
+  "scope": "静态审阅主图1323拟更新内容和逻辑；未执行脚本，未改脚本/仓库/GitHub。",
+  "source_bindings": [
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/SPEC.md",
+      "sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-spec-20260909/evidence/MAP-1323.json",
+      "sha256": "eeb8b7e628c8f7299cbaa814e143fde10c8914c6619b012c90249cd3060d33d8"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/evidence/TB-PUBLISHED.json",
+      "sha256": "3d62530ca0333cd699131f5c62e1e3a42f1c29896d3ab9463bb8956fed2f7fd4"
+    },
+    {
+      "path": "/tmp/newchanlun-1323-publication-20260909/evidence/RESIDUAL-PUBLISHED.json",
+      "sha256": "790804cc354ad04f04bb9d820ce2138cc69aefd0776420944d91071ae1cafff0"
+    }
+  ],
+  "live_source_checks": [
+    {
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1339#issuecomment-5596164716",
+      "kind": "current approval/publication comment",
+      "verified": true
+    },
+    {
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1303",
+      "kind": "unresolved legacy disposition",
+      "verified": true,
+      "state": "OPEN"
+    }
+  ],
+  "residual_counts": {
+    "H": 0,
+    "M": 0
+  },
+  "checks": [
+    {
+      "id": "APPROVED_BASELINE",
+      "status": "PASS",
+      "evidence": "已实读#1339 comment5596164716，确认R2/窗口/S2-R1 SPEC发布拆票批准、137载荷与固定commit；脚本manifest和SPEC正文SHA与现输入一致。",
+      "not_claimed": "脚本中的已批准不代表实现、场所或main验收。"
+    },
+    {
+      "id": "SIX_DESTINATIONS",
+      "status": "PASS_STATIC_TRANSFORM",
+      "evidence": "脚本:15保整个##Notes之前前缀，:61逐字断言；所有替换目标均在其后。与已批MAP快照的六终点兼容。",
+      "limit": "未执行脚本，发布前须核实际live前缀仍为原六项；不得只靠标题存在代逐字比较。"
+    },
+    {
+      "id": "REDLINES_AND_OUT_OF_SCOPE",
+      "status": "PASS_STATIC_TRANSFORM",
+      "evidence": "红线和既有Decisions保持；:59–60保Outofscope标题及完整后缀。"
+    },
+    {
+      "id": "OLD_DAG_AND_ONGOING_OBLIGATIONS",
+      "status": "PASS",
+      "evidence": "旧DAG实际拓扑继续保留在既有Decisions-so-far；新Notes/Decisions/Frontier明确1327–1333继续暂停、原生边/旧blocker保留，1320重型7/7、1304报告器、1319实场所、1279就绪、1338单独归档门均仍写出。",
+      "condition": "M01已修；#1303未决去向当前显式保留。"
+    },
+    {
+      "id": "SCHEDULING_AND_97_STORIES",
+      "status": "PASS_SCOPE_DECLARATION",
+      "evidence": "完整SPEC#1340仍总单；11TB只汇总、内部叶只销子义务；跨TB共同销项不机械变排程；列示TB04→TB09→TB08→TB10→TB11与已批C12相同。345/496/97为规范覆盖引用，正文明确运行全未验收。",
+      "limit": "该图概述不重列97US每条量词，也不改变其规范总账；叶发布最终原生依赖/正文另由发布核验完成，本审不冒充逐票最终验收。"
+    },
+    {
+      "id": "NO_PREMATURE_RUNTIME_OR_GRAPH_CLOSE",
+      "status": "PASS",
+      "evidence": "首片明确运行未验收/独评待后续；CC006不关闭完整分类；末段保全部成功路径、真实权限、最终独评、main/CI及六Destination未完成；仅PATCH body未关票。"
+    },
+    {
+      "id": "CONCURRENT_EDIT_PROTECTION",
+      "status": "PASS_BOUNDED",
+      "evidence": "发布前二次读取body与updated_at，并在不同则assert拒覆盖；写后assert返回正文一致。",
+      "limit": "不声称GitHub原子CAS或并发零风险。"
+    },
+    {
+      "id": "FIX_DIFF_SYNTAX_AND_FINGERPRINT",
+      "status": "PASS",
+      "evidence": "修后Python AST可解析；逐字核3处修复与最终脚本SHA；没有执行脚本。"
+    }
+  ],
+  "pending_final_data": [
+    {
+      "id": "DELEGATED_LEAF_EDGE_LABEL_READBACK",
+      "kind": "PARALLEL_VERIFICATION_OWNED_BY_TB01_REVIEWER",
+      "requirement": "77叶forward引用最后刷新及标签/原生边回读由指定tb01审阅者报告收口，本审不重复。",
+      "is_current_logic_bug": false
+    },
+    {
+      "id": "LIVE_PREIMAGE_AND_POST_PUBLISH_READBACK",
+      "kind": "PUBLICATION_TIME_CHECK",
+      "requirement": "真正PATCH前脚本再次核live body/updated_at未并行变化；发布后核回读正文等于本拟文SHA、issue仍OPEN、新updated_at正确。若拟文或状态再变，则按实际差异处理。",
+      "is_current_logic_bug": false
+    }
+  ],
+  "blocked_publication_reason": null,
+  "written_paths_only": [
+    "/tmp/newchanlun-1323-publication-20260909/inputs/MAP-UPDATE-REVIEW.md",
+    "/tmp/newchanlun-1323-publication-20260909/inputs/MAP-UPDATE-REVIEW.json"
+  ],
+  "verification_limits": [
+    "本次没有重读隔离旧1321/1322/1325/1326原件。",
+    "未重复54片独评；保留其最终审查和总账作为既有上下文。",
+    "没有实际运行、生产验收或整图关闭结论。"
+  ],
+  "closed_findings": [
+    {
+      "id": "MAP-M01",
+      "severity": "M",
+      "kind": "UNRESOLVED_OBLIGATION_DROPPED",
+      "script_lines": [
+        28,
+        41
+      ],
+      "source": "MAP-1323.json#/body:Not yet specified/10；现场#1303 OPEN",
+      "finding": "旧Fog明确保留“#1303图/链表示终局是否进入后续frontier”，脚本整段替换Fog后无任何#1303保留、承接或具名排除。新SPEC与新17RD存在不能自动决定这条旧未决去向。",
+      "required_fix": "在新Fog保留#1303当前缓办/是否纳入后续frontier的未决名分，或附已有具名承接/排除依据；不得自行重启或完成#1303。",
+      "verified_live_issue": {
+        "number": 1303,
+        "state": "OPEN",
+        "title": "[design] 解栈机制收敛到图：森林⊇链表示统一（B7c 终局，与 #1293 同批缓办）",
+        "body_scope": "Part of #1278 B7c缓办；图表示收敛设计→编排者裁定→实装票；依B7c对拍锁及#1283引擎链定位。"
+      },
+      "status": "CLOSED_IN_DIFFERENTIAL_REVIEW",
+      "closure": {
+        "lines": [
+          37
+        ],
+        "evidence": "Fog具名保留#1303 OPEN缓办、B7c锁/#1283定位前件、后续frontier未决；明确不自动采纳/消失或成为全局blocker。"
+      }
+    },
+    {
+      "id": "MAP-M02",
+      "severity": "M",
+      "kind": "PUBLICATION_EVIDENCE_TIMESTAMP_BUG",
+      "script_lines": [
+        66,
+        74
+      ],
+      "finding": "meta含updated_at=now旧时间；发布证据字典先设result新updated_at再展开**meta，Python后值覆盖前值，最终文件记录旧时间，不能作为发布后版本凭证。",
+      "required_fix": "分别保存before_updated_at与after_updated_at，或保证最终updated_at在**meta之后由result值设置；保留before/after正文哈希。",
+      "scope": "影响发布证据正确性，不会改变PATCH已写的正文。",
+      "status": "CLOSED_IN_DIFFERENTIAL_REVIEW",
+      "closure": {
+        "lines": [
+          75
+        ],
+        "evidence": "展开**meta在先，最终updated_at由result提供，另存before_updated_at=meta旧值；新旧版本凭证各归其位。"
+      }
+    },
+    {
+      "id": "MAP-M03",
+      "severity": "M",
+      "kind": "EXISTING_AUTHORIZATION_BOUNDARY_OMITTED",
+      "script_lines": [
+        16,
+        17,
+        40,
+        60
+      ],
+      "source": "旧Notes明确“旧对照仍须明确授权”；当前任务仍禁止读取隔离旧结果原件。",
+      "finding": "新当前状态只写“未做旧结果对照”，替换掉的旧Notes/Fog/Frontier不再明确原对照授权门。未做这一事实不等于保留未来动作边界；现有证据没有新的旧结果对照授权。",
+      "required_fix": "在独立发生史或当前状态保留“旧结果对照仍须明确授权”，不改变旧原件签署与对照尚未执行的事实。",
+      "status": "CLOSED_IN_DIFFERENTIAL_REVIEW",
+      "closure": {
+        "lines": [
+          17
+        ],
+        "evidence": "独立发生史明确“查阅或比较隔离旧成果仍须用户明确授权”，旧对照未执行与未来动作门同时保留。"
+      }
+    }
+  ],
+  "findings": [],
+  "ready_for_next_step": "最终拟文与已审脚本、批准范围和准备凭证一致；可交根完成并行叶票核验和实际发布。此PASS不是已写GitHub或运行验收。",
+  "review_history_note": "首次只读发现3项M并报根，根随即修复；本报告最终绑定修后脚本SHA和闭项差异，不把初审旧行号当当前未修缺陷。",
+  "final_body_review": {
+    "status": "PASS",
+    "scope": "只审本轮实际生成拟文和准备记录，复用已审未变脚本；不执行更新、不代验77叶标签/原生边。",
+    "artifact_bindings": [
+      {
+        "path": "/tmp/newchanlun-1323-publication-20260909/tickets/1323-UPDATED.md",
+        "sha256": "53b04ddb9efd72021b9f6bb1d35c5fc60487b12dc2177bdb8c328c3e8aff5ba6"
+      },
+      {
+        "path": "/tmp/newchanlun-1323-publication-20260909/evidence/MAP-1323-BEFORE-UPDATE.json",
+        "sha256": "8465633a9dea5e1ad0324770cc28490c25faf0f7b3fbb77c841c7b9c16730810"
+      },
+      {
+        "path": "/tmp/newchanlun-1323-publication-20260909/evidence/MAP-1323-UPDATE.diff",
+        "sha256": "9c749fd6eb1a3ed2d9f0bef3066183f4367fc3acc50dbca3457283965030cfb9"
+      },
+      {
+        "path": "/tmp/newchanlun-1323-publication-20260909/evidence/MAP-1323-UPDATE-PREPARED.json",
+        "sha256": "e2d7c29f20093dfc3e559d435c1a2110537a584f88c75f86668349318e408ab1"
+      },
+      {
+        "path": "/tmp/newchanlun-1323-publication-20260909/work/update_map.py",
+        "sha256": "47f8b37cf03705bdaa36fcd2167be21052972c4c9c6678945f8cfcd2847561a4"
+      }
+    ],
+    "proposed_sha256": "53b04ddb9efd72021b9f6bb1d35c5fc60487b12dc2177bdb8c328c3e8aff5ba6",
+    "before_body_sha256": "f77785c3d4d94f0e17bca7cb13a7376404af9b10606a3d955959a1d26edd9f49",
+    "prepared_updated_at_matches_preimage": true,
+    "recomputed_diff_matches_exactly": true,
+    "six_destination_prefix_matches_live_preimage_and_approved_snapshot": true,
+    "six_destination_count": 6,
+    "redlines_unchanged": true,
+    "out_of_scope_unchanged": true,
+    "prior_decisions_and_old_dag_topology_preserved": true,
+    "all_rendered_tb_rd_leaf_references_match_publication_registry": true,
+    "published_registry_leaf_count": 77,
+    "unique_published_leaf_numbers": 77,
+    "tb_count": 11,
+    "rd_count": 17,
+    "approved_script_unchanged": true,
+    "closed_findings_remain_fixed": true,
+    "no_runtime_or_whole_graph_completion_claim_added": true
+  },
+  "external_fresh_facts": [
+    {
+      "fact": "TB01-A #1370 round1仍运行、无result",
+      "source": "父代理本轮现场运行日志核查：最新2026-09-09T06:08:05Z仍在snapshot实测；本审未重复读运行日志。",
+      "use": "支持当前“首个在跑纵片/运行尚未验收”的范围状态；不以issue OPEN当运行证据。"
+    },
+    {
+      "fact": "PR1341 OPEN Draft、未merged、head=efc1ddc4d6c015f4f8c6d44f904d704a88308b46",
+      "source": "父代理本轮live核实；本审未重复该请求。",
+      "use": "与拟文归档尚未main的陈述一致。"
+    },
+    {
+      "fact": "77叶均创建及原生关联，forward引用刷新在另一进程收尾",
+      "source": "父代理本轮发布状态；本审独立读取77条索引并核号码唯一，原生关系由指定tb01审阅者回读。",
+      "use": "本文只显示真实索引里的TB/RD/首三叶链接，不将标签/边的最终复核标成自己已验。"
+    }
+  ]
+}

@@ -1,0 +1,3759 @@
+{
+  "schema": "newchanlun.1323.rd17-model-plan.v1",
+  "status": "PROPOSED_NOT_CREATED_READY_FOR_ROOT_OVERLAY",
+  "read_at": "2026-09-09T05:19:15.515689+00:00",
+  "github_dedupe": [
+    {
+      "query": "撮合",
+      "argv": [
+        "gh",
+        "issue",
+        "list",
+        "--repo",
+        "xy7365527-lang/NewChanlun",
+        "--search",
+        "撮合",
+        "--state",
+        "all",
+        "--limit",
+        "150",
+        "--json",
+        "number,title,state,url,labels"
+      ],
+      "exit_code": 0,
+      "results": [
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtKw",
+              "name": "ready-for-human",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1329,
+          "state": "OPEN",
+          "title": "[grilling] C3 环境无关完整生产周期：历史、paper、live 同核与 Adapter seam",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1329"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtKw",
+              "name": "ready-for-human",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1283,
+          "state": "CLOSED",
+          "title": "[grilling] paper 链执行场所裁定：ADR 0021 重开（#1279 检查单 B1，试运行第一阻塞）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1283"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1340,
+          "state": "OPEN",
+          "title": "SPEC：完整生产程序、结构全分类与逐重经营（#1323，R2）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1340"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1311,
+          "state": "CLOSED",
+          "title": "[impl] T2 paper 首跑：Hyperliquid 适配 + 风控四条 + BTC 实时 feed + 首单 live（#1283 Q1/Q3，T1 后置）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1311"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 926,
+          "state": "CLOSED",
+          "title": "[task] 勘察：生产三条成交回路的订单排序与寿命语义现状（喂 ADR 0018 裁定四的接口改动）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/926"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtKw",
+              "name": "ready-for-human",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1321,
+          "state": "CLOSED",
+          "title": "[grilling] 完整生产程序声明边界：M1 的 π 批量链、organic 赋格/声部链与 paper 执行链如何归名",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1321"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 918,
+          "state": "CLOSED",
+          "title": "[grilling] 回测与执行的成交模型保真度：限价语义要不要做、做到哪一档（map #787，接 #914 价位驱动短差）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/918"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 154,
+          "state": "CLOSED",
+          "title": "端到端覆盖盘点：现有代码距完整端到端（含独立多空双开）差什么",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/154"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 927,
+          "state": "CLOSED",
+          "title": "[grilling] 订单接口：事件流 → 状态流（ADR 0018 裁定四的硬约束落地形态）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/927"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 423,
+          "state": "CLOSED",
+          "title": "层4 恢复：scalar 成本口径按档位形态分叉（按金额档良定义，按股档维持 fail-loud）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/423"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 849,
+          "state": "CLOSED",
+          "title": "[task] 勘察：仓内 hedge-mode 双仓到底什么状态——执行侧是净额还是双仓（map #787，喂 ADR 0014 裁定二落地）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/849"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 907,
+          "state": "CLOSED",
+          "title": "[task] 探针：成本门咬在哪一级——逐级算「平均买卖点间波幅 ÷（交易成本+误差）」（map #787，喂 #817 N-2 阶段二上限）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/907"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 463,
+          "state": "CLOSED",
+          "title": "[research] fill 两家族的名分：π 家族 vs v1/dual 是世代关系还是并列口径（#433 重构前置）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/463"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 787,
+          "state": "CLOSED",
+          "title": "🗺️ 缠论量化交易系统统一架构正本：疆域测绘 → 三层推导链 → 线的归位",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/787"
+        }
+      ],
+      "error": ""
+    },
+    {
+      "query": "模拟 限价",
+      "argv": [
+        "gh",
+        "issue",
+        "list",
+        "--repo",
+        "xy7365527-lang/NewChanlun",
+        "--search",
+        "模拟 限价",
+        "--state",
+        "all",
+        "--limit",
+        "150",
+        "--json",
+        "number,title,state,url,labels"
+      ],
+      "exit_code": 0,
+      "results": [
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1340,
+          "state": "OPEN",
+          "title": "SPEC：完整生产程序、结构全分类与逐重经营（#1323，R2）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1340"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmds9Q",
+              "name": "needs-triage",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1335,
+          "state": "CLOSED",
+          "title": "[task] GPT-6 独立全链扫描：新 Archify 后的调用、契约与测试锁取证",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1335"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 1336,
+          "state": "CLOSED",
+          "title": "[task] GPT-6 独立完整新方案：多候选软件组织、接口与验证路径",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1336"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 938,
+          "state": "CLOSED",
+          "title": "[grilling] 键相同但挂单价漂了怎么办：ADR 0019 裁定三降到 start_index 之后的缺口（map #787，从 #929 毕业）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/938"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACwjyYkw",
+              "name": "sandcastle",
+              "description": "sandcastle 蜂群拾取闸：带此标的 open 未认领 issue 才会被 .sandcastle/main.mts 拾取",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 1013,
+          "state": "CLOSED",
+          "title": "影子评审：#922 坏 tick 闸（commit a1d09cf44a）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1013"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 933,
+          "state": "CLOSED",
+          "title": "[task] 探针：BingX / Hyperliquid 股票永续的冲击成本——每一重能装多少钱（map #931）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/933"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 799,
+          "state": "CLOSED",
+          "title": "[grilling] 递归式统一怎么落地：判定模块每级复用的形态、验收判据与例外（map #787）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/799"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 787,
+          "state": "CLOSED",
+          "title": "🗺️ 缠论量化交易系统统一架构正本：疆域测绘 → 三层推导链 → 线的归位",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/787"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 907,
+          "state": "CLOSED",
+          "title": "[task] 探针：成本门咬在哪一级——逐级算「平均买卖点间波幅 ÷（交易成本+误差）」（map #787，喂 #817 N-2 阶段二上限）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/907"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 815,
+          "state": "CLOSED",
+          "title": "[grilling] 走势类型与级别的教义正本：4 组分歧，含「级别是递归还是涌现簇」（map #787 第二批 4/6）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/815"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 915,
+          "state": "CLOSED",
+          "title": "[task] 探针：逐级测「能容纳的资金量」与「信号频率」——ADR 0016 裁定三/四的落地前置（map #787，从 #835 毕业）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/915"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 813,
+          "state": "CLOSED",
+          "title": "[grilling] 笔与线段的教义正本：9 组分歧，两概念合并不拆（map #787 第二批 2/6）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/813"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 174,
+          "state": "CLOSED",
+          "title": "出场通道结构收敛（ADR 0001 教义-生产接线图）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/174"
+        }
+      ],
+      "error": ""
+    },
+    {
+      "query": "开盘 取优",
+      "argv": [
+        "gh",
+        "issue",
+        "list",
+        "--repo",
+        "xy7365527-lang/NewChanlun",
+        "--search",
+        "开盘 取优",
+        "--state",
+        "all",
+        "--limit",
+        "150",
+        "--json",
+        "number,title,state,url,labels"
+      ],
+      "exit_code": 0,
+      "results": [
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1340,
+          "state": "OPEN",
+          "title": "SPEC：完整生产程序、结构全分类与逐重经营（#1323，R2）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1340"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1250,
+          "state": "CLOSED",
+          "title": "[research] 盘背 A 锚窄→A′ 回退三面证据：R3 教义逐字 + #799/#804 判别式边界 + 两锚代码差异（#1230 前置）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1250"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 1039,
+          "state": "CLOSED",
+          "title": "[research] 数据层成本事实核实：Databento tick 档定价 + 磁盘市价 + 算力量级（喂 D5 #1038）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1039"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACXFra4g",
+              "name": "enhancement",
+              "description": "New feature or request",
+              "color": "a2eeef"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1226,
+          "state": "CLOSED",
+          "title": "🗺️ 判据完全分类化：全仓转折/买卖点判定对齐缠师完全分类轴 + 全部重测（#1220/#1223 先例扩展）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1226"
+        },
+        {
+          "labels": [],
+          "number": 1040,
+          "state": "CLOSED",
+          "title": "[impl] Massive 全史 tick 拉取管线（ADR 0023 §四-3，十标 2003→今）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1040"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 918,
+          "state": "CLOSED",
+          "title": "[grilling] 回测与执行的成交模型保真度：限价语义要不要做、做到哪一档（map #787，接 #914 价位驱动短差）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/918"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 385,
+          "state": "CLOSED",
+          "title": "SPEC：修复后口径的三阶段 treasury 重验落盘（map #59 /to-spec 交棒件）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/385"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 1119,
+          "state": "CLOSED",
+          "title": "🗺️ Prime Agent pstack-lite：Matt Wayfinder 总控下的精选移植",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1119"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 931,
+          "state": "CLOSED",
+          "title": "🗺️ 多层资金的执行场所：真隔离能力测绘 → 场所选定 → 约束回写架构",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/931"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 908,
+          "state": "CLOSED",
+          "title": "[task] 探针：NestInterval 那条链上被套的两个区间是不是父子——给 N-1「价格包含恒真」补有效域（map #787，喂 #817 N-1/N-6）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/908"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 856,
+          "state": "CLOSED",
+          "title": "[task] 探针：ED 的数据检验——确认延伸边上，后段的中枢停留级别分布是否真的一阶随机占优（map #854）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/856"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 421,
+          "state": "CLOSED",
+          "title": "📋 SPEC：活假设账本接生产（三前置已清）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/421"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 853,
+          "state": "CLOSED",
+          "title": "[grilling] 新验收判据的参数：成本下降速率的通过阈值、最小样本量、置信下界与频率合成（map #787，ADR 0015 裁定六毕业）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/853"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACXFra4g",
+              "name": "enhancement",
+              "description": "New feature or request",
+              "color": "a2eeef"
+            }
+          ],
+          "number": 872,
+          "state": "CLOSED",
+          "title": "[task] 把已定的力度定义接到生产塔上：段→笔映射在生产链上不存在 + 五套实现收编 + 盘整背驰度量层（map #854 下游）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/872"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 776,
+          "state": "CLOSED",
+          "title": "[grilling] 并行吞吐：HITL 瓶颈与 batch 化（map #767）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/776"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtKw",
+              "name": "ready-for-human",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 932,
+          "state": "CLOSED",
+          "title": "[task] 实测：Binance 子账户能不能当「重」的隔离槽——股票永续可用性 + 配额 + 强平边界（map #931）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/932"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 135,
+          "state": "CLOSED",
+          "title": "🗺️ 按级别管理出场：多级别仓位的独立出场机制",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/135"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 854,
+          "state": "CLOSED",
+          "title": "🗺️ 力度与背驰的精确定义：测度论重建与「背驰必转折」的可证性",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/854"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 787,
+          "state": "CLOSED",
+          "title": "🗺️ 缠论量化交易系统统一架构正本：疆域测绘 → 三层推导链 → 线的归位",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/787"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 136,
+          "state": "CLOSED",
+          "title": "当前出场逻辑审计：CloseShortDiff/CloseRoot/ReduceCore 的级别感知",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/136"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 734,
+          "state": "CLOSED",
+          "title": "[task] L46 ADR 0001 文本债修订（含 L13 两项 + L12 加注，map #695）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/734"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 864,
+          "state": "CLOSED",
+          "title": "[task] 第三轮推导：把 72/30 课的两个动力学前提加进约束集重推——地基没进过前两轮（map #854）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/864"
+        },
+        {
+          "labels": [],
+          "number": 384,
+          "state": "CLOSED",
+          "title": "终验：enabled=true 双臂 wf8——亏损入账/清算两终局/多空对称/阶段推进见证",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/384"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 423,
+          "state": "CLOSED",
+          "title": "层4 恢复：scalar 成本口径按档位形态分叉（按金额档良定义，按股档维持 fail-loud）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/423"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 843,
+          "state": "CLOSED",
+          "title": "[research] 仓位管理的原文正本：机动资金比例、一次性买入、头寸上限与借贷禁令——博文 112 处「仓位」+ 天道第 7 章（10 节全未覆盖）（map #787，喂 #842）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/843"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmds9Q",
+              "name": "needs-triage",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 258,
+          "state": "CLOSED",
+          "title": "📋 SPEC：Cand^δ 窄化是否正确——区间套候选谓词的形式化定义式与对照（#257 实装依据）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/258"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmds9Q",
+              "name": "needs-triage",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1335,
+          "state": "CLOSED",
+          "title": "[task] GPT-6 独立全链扫描：新 Archify 后的调用、契约与测试锁取证",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1335"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 927,
+          "state": "CLOSED",
+          "title": "[grilling] 订单接口：事件流 → 状态流（ADR 0018 裁定四的硬约束落地形态）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/927"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 154,
+          "state": "CLOSED",
+          "title": "端到端覆盖盘点：现有代码距完整端到端（含独立多空双开）差什么",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/154"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 862,
+          "state": "CLOSED",
+          "title": "[grilling] 力度的教义正本：两层结构 + 五套实现的处置（map #787，从 #814 D-1 拆出）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/862"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 847,
+          "state": "CLOSED",
+          "title": "📋 SPEC：统一架构结构层实施总单（map #787 交棒）——重的实例化 + 操作级别挂载 + 区间套下钻接线",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/847"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACs7NWmQ",
+              "name": "wayfinder:prototype",
+              "description": "",
+              "color": "5319e7"
+            }
+          ],
+          "number": 842,
+          "state": "CLOSED",
+          "title": "[prototype] 分区卷钱的机械 v0：双向市场下的完整形态，逐条标注原文/推论/自定（map #787，本仓首张原型票）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/842"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 859,
+          "state": "CLOSED",
+          "title": "[grilling] 那组比重由什么决定：中枢停留级别 + 中枢个数（map #854，主干 D-2）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/859"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 390,
+          "state": "CLOSED",
+          "title": "🗺️ 验收判据口径唯一性：什么算验收，越线的怎么办",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/390"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 812,
+          "state": "CLOSED",
+          "title": "[grilling] 中枢的教义正本：7 组分歧 + E1 例外的退场条件（map #787 第二批 1/6）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/812"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 914,
+          "state": "CLOSED",
+          "title": "[grilling] 量层·分子：一份筹码内部，各结构级别信号触发时动多少量（map #787，从 #835 拆出，承接 #348）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/914"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 485,
+          "state": "CLOSED",
+          "title": "[SPEC] 高级别三类点产出链修复：anchor 门 + 归属链 + 终态切换（#473）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/485"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1120,
+          "state": "CLOSED",
+          "title": "[research] pstack 候选 Skills → Prime Agent 运行时兼容矩阵",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1120"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 138,
+          "state": "CLOSED",
+          "title": "出场机制精确盘点：#136/#137 审计是否已覆盖四种出场的级别感知",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/138"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 925,
+          "state": "CLOSED",
+          "title": "[grilling] 542 的 λ 该不该回填实测值：自陈「未独立测、初始取 2」，而 #907 测出时间比 5.96、#915 测出容量比 3.10（map #787，ADR 0017 连带处置 b）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/925"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 771,
+          "state": "CLOSED",
+          "title": "[grilling] 两种图分家：一次寻路图 vs 长驻总账图（map #767）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/771"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 838,
+          "state": "CLOSED",
+          "title": "[research] 缠师凭什么说「不可能发生」：反向持仓在原文系统里为何无法表示，本仓少了哪一样（map #787，喂 #834）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/838"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 157,
+          "state": "CLOSED",
+          "title": "[grilling] 独立反向声部准入语义：多重赋格双开的裁定",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/157"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 839,
+          "state": "CLOSED",
+          "title": "[grilling] 分区卷钱的机械在双向市场上长什么样：形态定型（map #787，四张会计票的前置）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/839"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 299,
+          "state": "CLOSED",
+          "title": "[P0a] NestLifecycleBook 状态机不变量 Lean 形式化（价值序 P0a，编排者指定 Opus 5 实装）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/299"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 871,
+          "state": "CLOSED",
+          "title": "[task] 形式化实装：判定函数的 soundness 契约（buildCert 正确性已拆出为 #896）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/871"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 674,
+          "state": "CLOSED",
+          "title": "影子评审：#257 Lift/Context 1–3 项（两轴，新上下文禁自评）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/674"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 59,
+          "state": "CLOSED",
+          "title": "🗺️ 全定义策略端到端落地收口：v1 真链验收 + 剩余接线",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/59"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 873,
+          "state": "CLOSED",
+          "title": "[grilling] 力度的定义能不能从约束集推出来——兼复核 D-2 的名分裁定（map #854）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/873"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 769,
+          "state": "CLOSED",
+          "title": "[grilling] 原型票在本仓的形态与准入判据：0/0 怎么破（map #767）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/769"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1121,
+          "state": "CLOSED",
+          "title": "[task] 盘点 NewChanlun 现有 Skills 与 pstack 候选的重叠冲突",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1121"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 529,
+          "state": "CLOSED",
+          "title": "📒 塔内原生化长线：跨级链塔内原生终局（E2E-O + Consume_at + N0-N7）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/529"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 249,
+          "state": "CLOSED",
+          "title": "📋 SPEC：相切=重合 口径统一（特征序列缺口 + 三笔起点，#248 实装依据）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/249"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 219,
+          "state": "CLOSED",
+          "title": "[spec] owner 归属修正实装（路线 B）：归属/确认分层 + 二类载体一类点锚 + 两族判同（#218 实装依据）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/219"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 248,
+          "state": "CLOSED",
+          "title": "相切=重合 口径落码：feature_seq 缺口 + segment 三笔起点两处同批改（#246 裁定）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/248"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 865,
+          "state": "CLOSED",
+          "title": "[grilling] 力度是什么类型的量：标量还是集合的量、全序还是偏序、跨级别怎么一致（map #854，主干 D-1）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/865"
+        }
+      ],
+      "error": ""
+    },
+    {
+      "query": "混合 订单",
+      "argv": [
+        "gh",
+        "issue",
+        "list",
+        "--repo",
+        "xy7365527-lang/NewChanlun",
+        "--search",
+        "混合 订单",
+        "--state",
+        "all",
+        "--limit",
+        "150",
+        "--json",
+        "number,title,state,url,labels"
+      ],
+      "exit_code": 0,
+      "results": [
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 1323,
+          "state": "OPEN",
+          "title": "🗺️ 完整生产程序接线总单：#787 严格多重赋格落地 → 旧实现收敛 → 历史回放与 paper 同核",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1323"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1340,
+          "state": "OPEN",
+          "title": "SPEC：完整生产程序、结构全分类与逐重经营（#1323，R2）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1340"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 988,
+          "state": "CLOSED",
+          "title": "[impl] I-0：segment_macd_area 同色化（SPEC #987 拆出，#985 裁定一）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/988"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 982,
+          "state": "CLOSED",
+          "title": "[grilling] N7 Consume_at 签名缺口：授权 BSP 集合从哪来（closed_lineage 只带候选事件，映射在 N4 桥接边）——map #529",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/982"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 309,
+          "state": "CLOSED",
+          "title": "[task] LEE M3 事件门控：Ledger_ℓ 只在 clock_ℓ 事件时点重估目标（设计文档 §D M3，订单流与 M0 分叉起點，独立评审强制）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/309"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 1186,
+          "state": "CLOSED",
+          "title": "🗺️ 架构深化第 4 轮：econ 测试分家 + nest_lifecycle 接票 #454 + trading 考古 + oscillation 评估",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1186"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmds9Q",
+              "name": "needs-triage",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1335,
+          "state": "CLOSED",
+          "title": "[task] GPT-6 独立全链扫描：新 Archify 后的调用、契约与测试锁取证",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1335"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 1075,
+          "state": "CLOSED",
+          "title": "[grilling] wayfinder 流程修订：决策与实装合一（两段式废除，图默认带实装）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1075"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 912,
+          "state": "CLOSED",
+          "title": "[debt] bi.md 升 v2.1：补 #813 关票后产生的三条（TV 命名第七处同名异物 / 方向是推论不是条件 / 旧记忆混淆）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/912"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 743,
+          "state": "CLOSED",
+          "title": "[map] 端到端模块化：递归走势类型本体下的深模块收敛（fable 勘察 C1-C6 路线）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/743"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 1055,
+          "state": "CLOSED",
+          "title": "🗺️ 五候选架构深化：扫描唯一 / E2E-O 簿装配 / Massive 抓取（improve-codebase-architecture 2026-08-18）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1055"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 853,
+          "state": "CLOSED",
+          "title": "[grilling] 新验收判据的参数：成本下降速率的通过阈值、最小样本量、置信下界与频率合成（map #787，ADR 0015 裁定六毕业）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/853"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1077,
+          "state": "CLOSED",
+          "title": "📋 SPEC：五候选架构深化实施总单（map #1055 交棒）——3a/3b 扫描唯一 + E2E-O 装配 + Massive/K4 抓取",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1077"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 667,
+          "state": "CLOSED",
+          "title": "尾部影子评审：#641 N3 收口批增量（双路径真锁/Absent 落 Open/并车归一，新上下文禁自评）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/667"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 987,
+          "state": "CLOSED",
+          "title": "📋 SPEC：力度接生产塔实施总单（map #974 交棒）——同色化 + 反查载体 + 收编切换 + 退役 + 基线",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/987"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 550,
+          "state": "CLOSED",
+          "title": "[N1-T1] 候选事件对象 + 主路径内联产出 + 输出通道（tracer，SPEC #547）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/550"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 938,
+          "state": "CLOSED",
+          "title": "[grilling] 键相同但挂单价漂了怎么办：ADR 0019 裁定三降到 start_index 之后的缺口（map #787，从 #929 毕业）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/938"
+        },
+        {
+          "labels": [],
+          "number": 381,
+          "state": "CLOSED",
+          "title": "空头 campaign 支持：键形状 (level, side) + 多空镜像口径",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/381"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtKw",
+              "name": "ready-for-human",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1321,
+          "state": "CLOSED",
+          "title": "[grilling] 完整生产程序声明边界：M1 的 π 批量链、organic 赋格/声部链与 paper 执行链如何归名",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1321"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 847,
+          "state": "CLOSED",
+          "title": "📋 SPEC：统一架构结构层实施总单（map #787 交棒）——重的实例化 + 操作级别挂载 + 区间套下钻接线",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/847"
+        },
+        {
+          "labels": [],
+          "number": 366,
+          "state": "CLOSED",
+          "title": "中枢震荡短差判据对齐缠师原文：废中轴二分，改 ZG/ZD+次级别背驰（触发+收手）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/366"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1064,
+          "state": "CLOSED",
+          "title": "[impl] S-a4 同笔跨所多报聚类（第四判据草案 + 对拍，目标 SIP 全合并口径）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1064"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 1336,
+          "state": "CLOSED",
+          "title": "[task] GPT-6 独立完整新方案：多候选软件组织、接口与验证路径",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1336"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 771,
+          "state": "CLOSED",
+          "title": "[grilling] 两种图分家：一次寻路图 vs 长驻总账图（map #767）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/771"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 193,
+          "state": "CLOSED",
+          "title": "Spec：会计层对准已有蓝图（地图 #174 出口，2026-07-23 定稿）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/193"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 775,
+          "state": "CLOSED",
+          "title": "[grilling] spec 的两种名分：交棒件 vs 总说明书（map #767）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/775"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 547,
+          "state": "CLOSED",
+          "title": "📋 SPEC：背驰段候选事件塔内原生实装（N1）+ 跨级区间包含谓词（N2）（map #529）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/547"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 184,
+          "state": "CLOSED",
+          "title": "ADR 0001 说明书修订：文本债②③（废编号改语义名 + 追认现行序）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/184"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 59,
+          "state": "CLOSED",
+          "title": "🗺️ 全定义策略端到端落地收口：v1 真链验收 + 剩余接线",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/59"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 231,
+          "state": "CLOSED",
+          "title": "[task] V3 NestLifecycleBook 重建：活假设状态机（实装卡+勘误合并规格，T11 按 pan 活窗重写）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/231"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 219,
+          "state": "CLOSED",
+          "title": "[spec] owner 归属修正实装（路线 B）：归属/确认分层 + 二类载体一类点锚 + 两族判同（#218 实装依据）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/219"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 597,
+          "state": "CLOSED",
+          "title": "[wayfinder:map] PanLive 全层级完成前可见（L2/L3 + 身份桥接语义）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/597"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 817,
+          "state": "CLOSED",
+          "title": "[grilling] 区间套的教义正本：6 组分歧，最烂一块，排最后（map #787 第二批 6/6）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/817"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 467,
+          "state": "CLOSED",
+          "title": "📋 SPEC（2026-07-28 重裁）：链门语义订正——π 单门双覆盖钉案 + 出场归因统计落可达臂（#433 交棒件）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/467"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 796,
+          "state": "CLOSED",
+          "title": "[task] 开区间套证书门跑一次：那四条线通电之后活不活（map #787）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/796"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 787,
+          "state": "CLOSED",
+          "title": "🗺️ 缠论量化交易系统统一架构正本：疆域测绘 → 三层推导链 → 线的归位",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/787"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 415,
+          "state": "CLOSED",
+          "title": "[grilling] 盘整活窗什么算「结构完成」：structure_completed 判据（记录洪水 / Confirmed 不可达 / 死假设挂账 三症状同根）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/415"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 187,
+          "state": "CLOSED",
+          "title": "研究：会计层实现考古与生产漂移（spiral/ledger/SplitLegLedger）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/187"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 395,
+          "state": "CLOSED",
+          "title": "[grilling] 已用第二套口径算出的结论怎么处置",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/395"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 917,
+          "state": "CLOSED",
+          "title": "[research] 市场冲击的可测代理：平方根律的文献正本 + 只用 OHLCV 能标定到什么程度（map #787，喂 #914 Q4 与 #915）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/917"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 767,
+          "state": "CLOSED",
+          "title": "🗺️ 本仓 wayfinder 工作流正本：路由表、四票型形态、并行纪律",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/767"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 776,
+          "state": "CLOSED",
+          "title": "[grilling] 并行吞吐：HITL 瓶颈与 batch 化（map #767）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/776"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 911,
+          "state": "CLOSED",
+          "title": "[task] 探针：按补齐后的四条判据重测 rung 长度分布——N-6 退场条款到底触发没触发（map #787）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/911"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 419,
+          "state": "CLOSED",
+          "title": "承接：OKLO 真实窗接入 treasury 三阶段层（US10 未达部分，新工作线）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/419"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 770,
+          "state": "CLOSED",
+          "title": "[grilling] task 票名分收束：解阻塞 vs 交付（map #767）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/770"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 840,
+          "state": "CLOSED",
+          "title": "[research] 三阶段/多重赋格/立体性各自挂在哪根轴上：横向同级别分解 vs 纵向区间套的表述分离（map #787，喂 #839）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/840"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 529,
+          "state": "CLOSED",
+          "title": "📒 塔内原生化长线：跨级链塔内原生终局（E2E-O + Consume_at + N0-N7）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/529"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 137,
+          "state": "CLOSED",
+          "title": "V4 出场路径 + 完全平仓 vs 短差出场分流审计",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/137"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 915,
+          "state": "CLOSED",
+          "title": "[task] 探针：逐级测「能容纳的资金量」与「信号频率」——ADR 0016 裁定三/四的落地前置（map #787，从 #835 毕业）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/915"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACXFrayw",
+              "name": "bug",
+              "description": "Something isn't working",
+              "color": "d73a4a"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 870,
+          "state": "CLOSED",
+          "title": "[bug] 下钻 92% 对不上：修完判据后重测 301 条并归因——多少是判据缺陷、多少是转折没定义完整、多少是市场事实",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/870"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtKw",
+              "name": "ready-for-human",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 932,
+          "state": "CLOSED",
+          "title": "[task] 实测：Binance 子账户能不能当「重」的隔离槽——股票永续可用性 + 配额 + 强平边界（map #931）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/932"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACXFra4g",
+              "name": "enhancement",
+              "description": "New feature or request",
+              "color": "a2eeef"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtKw",
+              "name": "ready-for-human",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1126,
+          "state": "CLOSED",
+          "title": "[task] Prime 上游 Discussion/RFC：remote-child/v1 + durable admission / broker 分层",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1126"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 813,
+          "state": "CLOSED",
+          "title": "[grilling] 笔与线段的教义正本：9 组分歧，两概念合并不拆（map #787 第二批 2/6）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/813"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 232,
+          "state": "CLOSED",
+          "title": "[spec] V3 NestLifecycleBook 重建：活假设状态机（实装卡+勘误+#78 修复合并规格，#231 实装依据）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/232"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 835,
+          "state": "CLOSED",
+          "title": "[grilling] 分区比例：各级别分多少筹码、按什么键分（map #787，#828 欠下三块之一）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/835"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 333,
+          "state": "CLOSED",
+          "title": "[task] 相切=重合口径在 Nautilus(NT) 生产引擎侧的影响量化（#246 封口空白声明，theta_backtest ⑥ 段）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/333"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 815,
+          "state": "CLOSED",
+          "title": "[grilling] 走势类型与级别的教义正本：4 组分歧，含「级别是递归还是涌现簇」（map #787 第二批 4/6）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/815"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 812,
+          "state": "CLOSED",
+          "title": "[grilling] 中枢的教义正本：7 组分歧 + E1 例外的退场条件（map #787 第二批 1/6）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/812"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 854,
+          "state": "CLOSED",
+          "title": "🗺️ 力度与背驰的精确定义：测度论重建与「背驰必转折」的可证性",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/854"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 480,
+          "state": "CLOSED",
+          "title": "📋 SPEC：交付纪律规范（map #445 /to-spec 交棒件）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/480"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 250,
+          "state": "CLOSED",
+          "title": "🗺️ wf7 跨级链死活判定：稀薄是教义事实还是实现限制",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/250"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 403,
+          "state": "CLOSED",
+          "title": "[grilling] 这条口径标注规范由谁批准、怎么生效",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/403"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtKw",
+              "name": "ready-for-human",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 627,
+          "state": "CLOSED",
+          "title": "[簿记] 引用链补洞：补充十三引用档 thirdclass-level-doctrine-research-20260727.md 仓内缺失（#574/ADR-0008 上报②）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/627"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 769,
+          "state": "CLOSED",
+          "title": "[grilling] 原型票在本仓的形态与准入判据：0/0 怎么破（map #767）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/769"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACXFra4g",
+              "name": "enhancement",
+              "description": "New feature or request",
+              "color": "a2eeef"
+            }
+          ],
+          "number": 872,
+          "state": "CLOSED",
+          "title": "[task] 把已定的力度定义接到生产塔上：段→笔映射在生产链上不存在 + 五套实现收编 + 盘整背驰度量层（map #854 下游）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/872"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 782,
+          "state": "CLOSED",
+          "title": "[grilling] 丁类/戊类票的归属：文书簿记与贴错标签该怎么算（map #767）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/782"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkpg",
+              "name": "wayfinder:grilling",
+              "description": "",
+              "color": "D93F0B"
+            }
+          ],
+          "number": 574,
+          "state": "CLOSED",
+          "title": "[grilling] T2 买卖点身份账本语义定义链（#465 裁定 A）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/574"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 443,
+          "state": "CLOSED",
+          "title": "📋 SPEC：统计口径标注规范（map #390 /to-spec 交棒件）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/443"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 768,
+          "state": "CLOSED",
+          "title": "[research] 三方口径差异清单：视频 vs skill 正文 vs ask-matt（map #767）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/768"
+        }
+      ],
+      "error": ""
+    },
+    {
+      "query": "同slot",
+      "argv": [
+        "gh",
+        "issue",
+        "list",
+        "--repo",
+        "xy7365527-lang/NewChanlun",
+        "--search",
+        "同slot",
+        "--state",
+        "all",
+        "--limit",
+        "150",
+        "--json",
+        "number,title,state,url,labels"
+      ],
+      "exit_code": 0,
+      "results": [
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1340,
+          "state": "OPEN",
+          "title": "SPEC：完整生产程序、结构全分类与逐重经营（#1323，R2）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1340"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 981,
+          "state": "CLOSED",
+          "title": "[task] N7 Consume_at 签名冻结落地：类型族 + 函数签名（逻辑 stub，map #529）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/981"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 983,
+          "state": "CLOSED",
+          "title": "[task] N7 consume_at 逻辑实装：Closed 门 + 幂等创建 + BspLink 组内写入 + 四错误分支（map #529）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/983"
+        },
+        {
+          "labels": [],
+          "number": 474,
+          "state": "CLOSED",
+          "title": "重审补充四「一类点清空整场」：无原文依据 + 代码非全杀（#456 题一移交）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/474"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 200,
+          "state": "CLOSED",
+          "title": "修复：二类开空通道 + 风险强平展开为单账户单",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/200"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 157,
+          "state": "CLOSED",
+          "title": "[grilling] 独立反向声部准入语义：多重赋格双开的裁定",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/157"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkYQ",
+              "name": "wayfinder:research",
+              "description": "",
+              "color": "0E8A16"
+            }
+          ],
+          "number": 154,
+          "state": "CLOSED",
+          "title": "端到端覆盖盘点：现有代码距完整端到端（含独立多空双开）差什么",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/154"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACu-UmKw",
+              "name": "debt",
+              "description": "技术债：与在飞决策不挂钩的欠账，不进 wayfinder 图",
+              "color": "C2E0C6"
+            }
+          ],
+          "number": 180,
+          "state": "CLOSED",
+          "title": "裁决：ADR 0001 文本债（二类反向归属、P4 编号错位、短差插槽）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/180"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            }
+          ],
+          "number": 837,
+          "state": "CLOSED",
+          "title": "[task] 探针：跨级别反向动作的真实频次——缠师说「不可能发生」，我们的 N 层并行呢（map #787，喂 #834）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/837"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 396,
+          "state": "CLOSED",
+          "title": "interp.rs fold 双驱动合并：规则2 输入源提为参数，消除 67 行人工同步",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/396"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCkBg",
+              "name": "wayfinder:map",
+              "description": "",
+              "color": "7B68EE"
+            }
+          ],
+          "number": 787,
+          "state": "CLOSED",
+          "title": "🗺️ 缠论量化交易系统统一架构正本：疆域测绘 → 三层推导链 → 线的归位",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/787"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 398,
+          "state": "CLOSED",
+          "title": "coverage.rs 拆分成果合并落地：三个 commit 从 worktree 合进 main（#359 关票依据订正）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/398"
+        },
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmCk0A",
+              "name": "wayfinder:task",
+              "description": "",
+              "color": "1D76DB"
+            },
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 734,
+          "state": "CLOSED",
+          "title": "[task] L46 ADR 0001 文本债修订（含 L13 两项 + L12 加注，map #695）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/734"
+        }
+      ],
+      "error": ""
+    },
+    {
+      "query": "ModelOrderUnspecified",
+      "argv": [
+        "gh",
+        "issue",
+        "list",
+        "--repo",
+        "xy7365527-lang/NewChanlun",
+        "--search",
+        "ModelOrderUnspecified",
+        "--state",
+        "all",
+        "--limit",
+        "150",
+        "--json",
+        "number,title,state,url,labels"
+      ],
+      "exit_code": 0,
+      "results": [
+        {
+          "labels": [
+            {
+              "id": "LA_kwDORJC4uM8AAAACsmdtEw",
+              "name": "ready-for-agent",
+              "description": "",
+              "color": "FBCA04"
+            }
+          ],
+          "number": 1340,
+          "state": "OPEN",
+          "title": "SPEC：完整生产程序、结构全分类与逐重经营（#1323，R2）",
+          "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1340"
+        }
+      ],
+      "error": ""
+    }
+  ],
+  "repository_dedupe": [
+    {
+      "pattern": "开盘.{0,12}取优|限价.{0,12}穿越|bar.{0,20}限价|GTC|ModelOrderUnspecified",
+      "argv": [
+        "rg",
+        "-n",
+        "-i",
+        "--glob",
+        "!**/issue1321*",
+        "--glob",
+        "!**/issue1322*",
+        "--glob",
+        "!**/issue1325*",
+        "--glob",
+        "!**/issue1326*",
+        "开盘.{0,12}取优|限价.{0,12}穿越|bar.{0,20}限价|GTC|ModelOrderUnspecified",
+        "analysis/",
+        "docs/",
+        ".chanlun/"
+      ],
+      "exit_code": 0,
+      "total_matching_lines": 30,
+      "retained_matching_lines": [
+        "docs/adr/0019-limit-order-state-flow-interface.md:45:| 一（穿越才成交）、二（开盘取优） | **回测臂** `pi_theta_fill_loop_overlay` | 成交判据在成交那一行，NT 臂的撮合归 venue（`nautilus/strategy.rs:133-137` 自陈），本仓不做撮合 |",
+        "docs/adr/0019-limit-order-state-flow-interface.md:46:| 四（GTC）、五（限价不扣滑点） | **回测臂** 同上 | 同上 |",
+        "docs/adr/0019-limit-order-state-flow-interface.md:251:- **两套并存 ⟹ 同 bar 既有市价单又有限价单时，成交次序未定义。** ADR 0018「有效域」已登记过一条同类缺口（`0018:169`：「裁定三③：同 bar 反向开仓单的次序**未定义**」）。",
+        "docs/adr/0019-limit-order-state-flow-interface.md:475:- **裁定四的不可达断言降级**：「同 bar 市价 + 限价并存」只写「已查到的路径上不可达」，非「不会发生」。",
+        "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md:296:**裁定四的中枢位置驱动是价位动作**：ZG/ZD 是**提前已知**的价位，不需要等 bar 走完 ⟹ 天然是限价挂单。",
+        "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md:300:> 「生产成交路径**恒为 Taker**：现执行层按 bar close 市价成交，**无限价挂单语义** ⟹ 声称 maker 档是声明膨胀（090）。Maker 档只在真限价执行模型实装后启用。」",
+        "docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md:342:| T-12 | `rust/src/theta_v0/venue_fee.rs:58-59` + `:41` | 「现执行层按 bar close 市价成交，**无限价挂单语义**」「maker/taker：…**无挂单概念** ⟹ 生产路径**一律 Taker**」 | 归 #918（档位已裁 (乙)）；本 ADR 裁的短差方向规则**执行层目前表达不了** | 否 |",
+        "docs/nautilustrader_research.md:311:- 支持 GTC、GTD、IOC、FOK 等时效",
+        "docs/adr/0018-limit-order-fill-model.md:1:# ADR 0018：限价成交模型——穿越才成交、开盘取优、先平后开、GTC、限价不扣滑点",
+        "docs/adr/0018-limit-order-fill-model.md:62:| 二 | **开盘取优**：成交价 = `min(open, 挂单价)`（买）/ `max`（卖） | 撮合语义（限价 = 该价或更优） |",
+        "docs/adr/0018-limit-order-fill-model.md:64:| 四 | **GTC**，寿命绑中枢存续；**撤单不得用预算到期 bar**（前视） | `049:51`【正文】 |",
+        "docs/adr/0018-limit-order-fill-model.md:77:3. **否则等于按每根 bar 的极值给自己成交**，这是限价回测最经典的过拟合来源；而它伪造出的假 alpha 恰好长得像「短差做得准」——正是本图要验的东西。",
+        "docs/adr/0018-limit-order-fill-model.md:121:## 裁定四：GTC，寿命绑中枢存续；撤单不得用预算到期 bar",
+        "docs/adr/0018-limit-order-fill-model.md:128:（振幅那句是**未实测的量级判断**，但它不承重：`049:53` 讲的是中枢存续期间一直成立的持仓规则，语义上本就是 GTC。）",
+        "docs/adr/0018-limit-order-fill-model.md:134:唯一可行路径：**strategy 层每根 bar 输出「此刻应挂的限价单集合」，fill 层每根 bar 取最新集合**。撤单变成隐式（不在集合里即撤），无需前视，无需新的撤单消息类型。",
+        "docs/adr/0018-limit-order-fill-model.md:182:**订正三：裁定四的接口改动不是从零造。** 状态流上游**已在生产**——`p_star`（目标净持仓）每决策 bar 一份，`Order = f(目标 − 当前)`（`strategy/coverage/sizing.rs:524`，`qty==0` 退化 `Hold`/`Wait`）。更完整的 `LevelOrderPlan`/`LevelOrderLedger` 骨架已在场（`strategy/level_order.rs:328-334`/`:458`/`:550`/`:573`）但**无生产消费者**（7 处非定义命中全是注释，三处自陈未接线）。缺的只是把**限价单集合**也做成 per-bar 状态。**且限价接入点已预留**：`nautilus/strategy.rs:317` 的 `entry_tick_for` 忽略入参恒返 `None`，doc `:315-318` 自陈「限价腿 entry 价回填待 `plan_orders` 接口扩展」。",
+        "docs/all_memory_constraints.md:556:- **执行规则：** 只用LMT，下单前拉bid/ask/mid，IPE单腿tif='DAY'，combo可GTC",
+        "docs/nautilus-integration-design.md:93:- `order_factory().limit(instrument_id, side, qty, price, Some(TimeInForce::Gtc), None, post_only, reduce_only, ...)`",
+        "docs/quant-platform-research-2026.md:217:    .tif(TimeInForce::GTC)",
+        ".chanlun/review-results/issue938-center-open-or-sealed-20260807.md:167:**不要外推的地方**：258 是「链尾核心被改写的 **bar 次**」，**不是**「会导致限价单错价的**订单**数」——后者取决于触发时点与挂单存续期，本探针没测（见 §5）。",
+        "analysis/interval_nesting_reverse_backtest.md:119:**3. 边界条件**（结论何时翻转）：(a) **θ=1% 固定阈值不跨波动率域**——QQQ（低波动）P4 主腿被门杀到 12 对（门拒 2071），P4 vs_B0 仍负（-3.5pp）；若 θ 不按标的波动率缩放，P4 步在低波动标的退化为『关闭主腿』，P5 增量全靠域腿。(b) **同锚 type1 买正常回补是空有效域**（formalization-validity-domain：n_close_normal=0 × 3 标的）——type1 买点锚定下跌走势的中枢，与开腿的上行离开中枢**必然异锚**，该规则在 BSP 语义下永不触发；『价格回到锚中枢区间』才是回归判据的可实现形式（域腿逻辑）。(c) 成交=信号 bar 收盘价，无滑点/费率——P5 短差 avg_diff 仅 +0.24/+0.04/+0.04%，QQQ/BRN 的单腿优势在 ~4bps 量级，**实际费率 >2bps/腿即可吞噬 QQQ/BRN 的域腿优势**（OKLO +30bps 稳健）。(d) 与 v2 bracket 最优政策相比（OKLO +923pp、BRN +784pp vs_B0），P5（+450.6/+131.5pp）**仍低**——bracket 依赖 intrabar 限价成交假设，P5 是纯信号类；不在同一成交模型认识论上，不可直接合并排序。(e) 强趋势满仓标的上 E 系（无降成本）仍可能整体占优（本实验只裁决短差层内部）。(f) **买回侧次级别定位的危害与出场频率/标的噪声结构相关**：P6 在 OKLO(+67.4pp)/QQQ(+8.2pp) 仍正、在 BRN(−204.7pp) 强负——BRN 1329 笔高频出场把悬挂腿（错过 ZD 触线后反弹）的强平尾部放大；若标的出场稀疏且回调深，合取条件的危害减弱但仍劣于触线（OKLO P7 +630 < P5 +741）。(g) 域腿低吸=锚 ZD 触线是收盘价判定（c ≤ ZD），非 intrabar 限价——比 bracket 保守，但仍假设 ZD 触线 bar 可按收盘成交。",
+        ".chanlun/review-results/issue917-market-impact-proxy-20260805.md:342:| **算价差成本 / 盘口深度** | **不够** | 需盘口（`rust/src/theta_v0/venue_fee.rs:58-59` 已自陈「按 bar close 市价成交，无限价挂单语义」） |",
+        ".chanlun/review-results/binance-tradfi-subaccount-live-20260808.md:81: \"origQty\":\"0.02\",\"executedQty\":\"0.00\",\"cumQty\":\"0.00\",\"timeInForce\":\"GTC\",\"type\":\"MARKET\",\"reduceOnly\":false,",
+        "analysis/maker_fill_rate_feasibility.md:25:对每个 fill（在 bar close 价 p 挂限价单），统计其后 W 秒内：",
+        "analysis/maker_fill_rate_bounds.py:4:在 fill bar 的 close 价 p 挂限价单，问真实 1s 行情在其后 W 秒内：",
+        "analysis/maker_fill_rate_bounds.py:75:    # 守卫：fill 价必须等于该 bar close（限价挂在信号价）",
+        "analysis/cl_1s_maker_execution_results.md:99:  （信号在 1s bar close 生成，限价单可休息多秒），不靠队列前排速度。",
+        "analysis/interval_nesting_reverse_backtest.py:370:             \"vs_B0），P5（+450.6/+131.5pp）**仍低**——bracket 依赖 intrabar 限价成交\"",
+        "analysis/interval_nesting_reverse_backtest.py:377:             \"+741）。(g) 域腿低吸=锚 ZD 触线是收盘价判定（c ≤ ZD），非 intrabar 限价\"",
+        "analysis/v2_selloff_fix_experiments.py:141:    同 bar 双触取止损（最坏情形）。pen 模式：限价需穿透 5bps 才成交，止损加 5bps 滑点。"
+      ],
+      "output_truncated": false,
+      "error": ""
+    },
+    {
+      "pattern": "撮合.{0,25}(并发|顺序|多重|混合)|模拟.{0,25}(并发|混合订单|顺序)|同.?slot|TestOnly",
+      "argv": [
+        "rg",
+        "-n",
+        "-i",
+        "--glob",
+        "!**/issue1321*",
+        "--glob",
+        "!**/issue1322*",
+        "--glob",
+        "!**/issue1325*",
+        "--glob",
+        "!**/issue1326*",
+        "撮合.{0,25}(并发|顺序|多重|混合)|模拟.{0,25}(并发|混合订单|顺序)|同.?slot|TestOnly",
+        "analysis/",
+        "docs/",
+        ".chanlun/"
+      ],
+      "exit_code": 0,
+      "total_matching_lines": 3,
+      "retained_matching_lines": [
+        ".chanlun/goals/events.jsonl:164:{\"event\": \"EVIDENCE\", \"sub_goal_id\": \"g-sigma-complete-l2-nautilus\", \"artifact\": \"[acceptance[4]终局·codex O(n)突破裁决] 编排者要解决O(n),codex实读源码裁决4前提全不可推翻:①bsp~n^1.26不可推翻(源码candidate来自levels[*].bsp全量interp.rs:554,除非结构定理证BSP线性=唯一突破口)②放弃每bar完整fold=改语义(prev_active进interpret是缠论本质coverage.rs:1782,逐bar extensional等价不可放弃)③A_t局部性非突破口(bucket是同级slot全局谓词interp.rs:892非依附单腿)④BSP压缩可优化不破Ω(n^1.26)。真实下界:完整物化Ω(n^2.26)/最强增量Ω(n^1.26)。O(n)=错误目标,正确目标output-sensitive O(n+B(n)+frontier_delta)。acceptance[4]exp≈1.0=错误设定(6工位已2.00→1.89),不开第七工位硬追(no-workaround)。唯一突破口=证bsp实际O(n)(连新goal g-mutex-eat-every-element #23推导,须L0结构定理非工程)。L0否定性(231号)。\", \"ts\": \"2026-06-30T03:43:17Z\"}",
+        ".chanlun/codex-on-breakthrough-verdict-2026-06-30.md:12:**③ A_t局部性:不可作突破口**。bucket规则非按parent_leg,而是按候选level/dir/bits+当前active同级腿状态(interp.rs:892)。单腿变化只影响同level方向流,但非'只影响依附该腿BSP'=同级slot全局谓词。要输出完整record序列仍须表示同级大量未变候选。",
+        "analysis/nautilus_integration_design.md:311:- **意图≠成交**：voice 状态机发出意图后进入 `PENDING` 态，confirm 前不再对同 slot 发新意图"
+      ],
+      "output_truncated": false,
+      "error": ""
+    }
+  ],
+  "issue_detail_evidence": [
+    {
+      "number": 918,
+      "issue": {
+        "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/918",
+        "repository_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun",
+        "labels_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/918/labels{/name}",
+        "comments_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/918/comments",
+        "events_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/918/events",
+        "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/918",
+        "id": 5076423667,
+        "node_id": "I_kwDORJC4uM8AAAABLpQT8w",
+        "number": 918,
+        "title": "[grilling] 回测与执行的成交模型保真度：限价语义要不要做、做到哪一档（map #787，接 #914 价位驱动短差）",
+        "user": {
+          "login": "xy7365527-lang",
+          "id": 221749430,
+          "node_id": "U_kgDODTegtg",
+          "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/xy7365527-lang",
+          "html_url": "https://github.com/xy7365527-lang",
+          "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+          "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+          "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+          "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "labels": [
+          {
+            "id": 11582612646,
+            "node_id": "LA_kwDORJC4uM8AAAACsmCkpg",
+            "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/labels/wayfinder:grilling",
+            "name": "wayfinder:grilling",
+            "color": "D93F0B",
+            "default": false,
+            "description": ""
+          }
+        ],
+        "state": "closed",
+        "locked": false,
+        "assignees": [
+          {
+            "login": "xy7365527-lang",
+            "id": 221749430,
+            "node_id": "U_kgDODTegtg",
+            "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/xy7365527-lang",
+            "html_url": "https://github.com/xy7365527-lang",
+            "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+            "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+            "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+            "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+            "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+            "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+            "type": "User",
+            "user_view_type": "public",
+            "site_admin": false
+          }
+        ],
+        "milestone": null,
+        "comments": 2,
+        "created_at": "2026-08-06T00:31:52Z",
+        "updated_at": "2026-08-07T01:06:40Z",
+        "closed_at": "2026-08-07T01:06:40Z",
+        "assignee": {
+          "login": "xy7365527-lang",
+          "id": 221749430,
+          "node_id": "U_kgDODTegtg",
+          "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/xy7365527-lang",
+          "html_url": "https://github.com/xy7365527-lang",
+          "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+          "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+          "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+          "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "author_association": "OWNER",
+        "active_lock_reason": null,
+        "sub_issues_summary": {
+          "total": 0,
+          "completed": 0,
+          "percent_completed": 0
+        },
+        "parent_issue_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/787",
+        "issue_dependencies_summary": {
+          "blocked_by": 0,
+          "total_blocked_by": 0,
+          "blocking": 0,
+          "total_blocking": 1
+        },
+        "body": "Part of #787\n\n## Question\n\n**回测与执行的成交模型要做到什么保真度——限价挂单语义要不要做、做到哪一档？**\n\n由 [量层·分子 #914](https://github.com/xy7365527-lang/NewChanlun/issues/914) 走图当场浮出（2026-08-05）。**本票不开新图**：执行层那八条悬空线索里 5 条已有主，无主的 3 条（无限价语义 / `uncalibrated_addon` 裂缝 3 / 无逐笔无盘口数据）全部挂在本票这一个问题下 ⟹ 按 `docs/agents/wayfinder-workflow.md` 入流判据第一条（*一个问题、对话能 settle 完 → 单会话 grilling，不开图*），一张票足够。\n\n### 为什么现在需要它：它跟 [#914](https://github.com/xy7365527-lang/NewChanlun/issues/914) 刚裁的东西直接咬合\n\n**缠论的动作有两种，现在的执行层只能表达一种。**\n\n- **信号驱动**：三类买点确认了才成立，信号在 bar 收盘那一刻才知道 ⟹ 按 close 市价成交是**对的**。\n- **价位驱动**：`049-第49课.md:52`【正文】「在中枢上方仓位减少，在中枢下方仓位增加」——中枢上下沿 ZG/ZD 是**提前已知的价位**，不需要等 bar 走完 ⟹ 这是天然的**限价挂单**。\n\n**而价位驱动那一条，正是 [#914](https://github.com/xy7365527-lang/NewChanlun/issues/914) 这一轮裁定的短差方向规则。⟹ 本图刚裁出来的短差层，执行层现在表达不了。**\n\n偏差是方向性的，不是随机噪声：策略说「在中枢下沿买」，真挂限价成交在下沿；回测按 close 成交，而下探到下沿的那根 bar 收盘往往已弹回 ⟹ **回测买价系统性高于真实可得价**。这不是保守估计，是一个**从未被量过**的偏差。\n\n### 仓内现状（2026-08-05 主控逐条复核，逐字）\n\n- `rust/src/theta_v0/venue_fee.rs:58-59`：「现执行层按 bar close 市价成交，**无限价挂单语义** ⟹ 声称 maker 档是声明膨胀（090）。Maker 档只在真限价执行模型实装后启用。」\n- `rust/src/theta_v0/venue_fee.rs:41`：「maker/taker：现执行层全部按 bar close 成交、**无挂单概念** ⟹ 生产路径**一律 Taker**」\n- `rust/src/theta_v0/backtest/fill.rs:63`：「**成交价 = 该 bar 的 close**」\n- `rust/src/theta_v0/venue_fee.rs:36-45`：`uncalibrated_addon` = 2bp 滑点加在 venue 费率上，该文件自己把「价差/冲击 datum」登记为**未做的裂缝 3**。\n- Bar schema 有 `open/high/low/close/volume`（`rust/src/theta_v0/types.rs:49-58`）；**无**逐笔成交、**无**订单簿深度、**无** `quote_volume`/`trade_count`（本轮只读盘点，见 [#917](https://github.com/xy7365527-lang/NewChanlun/issues/917) 票面「仓内现状」段）。\n\n### 三档（编排者已裁 (乙)，见 resolution comment）\n\n- **(甲) 维持现状 + 标定**：继续 bar close 市价成交，滑点/冲击换成 [#917](https://github.com/xy7365527-lang/NewChanlun/issues/917) 标定过的模型。代价：价位驱动的短差在回测里永远表达不了，[#914](https://github.com/xy7365527-lang/NewChanlun/issues/914) 裁的规则有一半验不了。\n- **(乙) 加限价语义，仍用 bar 数据**：用 bar 的 `high`/`low` 判断限价有没有被触及。回测界标准做法，**不需要新数据源**。代价：成交概率是假设不是实测。\n- **(丙) 高保真**：接逐笔/盘口重放。代价：数据要接、撮合引擎要写，是一整条新线。**这一档若选，那才是开新图的时刻**；且撞 [#817](https://github.com/xy7365527-lang/NewChanlun/issues/817) N-2 的次序护栏（[#792](https://github.com/xy7365527-lang/NewChanlun/issues/792) 实测目前无一条路通到实盘）。\n\n### ★ 档位已裁，本票剩下的真问题\n\n**(乙) 里的成交假设怎么定？** 这一层裁定当场没做，且它有可能把偏差**翻到另一边**：\n\n1. **触及 ≠ 成交。** bar 的 `low` 触到限价就算成交吗？只擦一下就弹走，真实排队里你多半没排上。默认「触及即成交」会让回测**系统性乐观**——恰好是现状偏差的反方向，所以 (乙) 不是「更准」，是「换一种偏法」，得说清换成哪一种。\n2. **穿越 vs 相等。** `low < 限价` 与 `low == 限价` 要不要分开判？本仓在中枢判同上已有「相切算包含」的先例（`#246`），这里要不要同款口径。\n3. **同 bar 内多个限价单**的成交次序（bar 内无时间信息）。\n4. **未成交的挂单活多久**——挂到取消还是当根 bar 失效。\n5. **maker 费率能不能启用**：`venue_fee.rs:59` 明写「Maker 档只在真限价执行模型实装后启用」⟹ (乙) 落地会解锁 maker 档，费率口径要一并裁（现生产恒 Taker，`analysis/data_cache/venue_fee_binance_spot_20260726.json` VIP0 taker 10.0 bps/side、BNB25 7.5）。\n\n### 纪律\n\n`/grill-with-docs`，**一次一问**，agent 不得替人答。票内查事实按代价分。**落完文档才关票。**\n引原文须核三项（行号／逐字／作者归属）。涉及「照着哪一行／哪个函数」的断言，须由落文档的人独立逐条打开复核。\n",
+        "closed_by": {
+          "login": "xy7365527-lang",
+          "id": 221749430,
+          "node_id": "U_kgDODTegtg",
+          "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/xy7365527-lang",
+          "html_url": "https://github.com/xy7365527-lang",
+          "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+          "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+          "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+          "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "reactions": {
+          "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/918/reactions",
+          "total_count": 0,
+          "+1": 0,
+          "-1": 0,
+          "laugh": 0,
+          "hooray": 0,
+          "confused": 0,
+          "heart": 0,
+          "rocket": 0,
+          "eyes": 0
+        },
+        "timeline_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/918/timeline",
+        "performed_via_github_app": null,
+        "state_reason": "completed",
+        "pinned_comment": null
+      },
+      "comments": [
+        {
+          "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/comments/5199016024",
+          "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/918#issuecomment-5199016024",
+          "issue_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/918",
+          "id": 5199016024,
+          "node_id": "IC_kwDORJC4uM8AAAABNeKwWA",
+          "user": {
+            "login": "xy7365527-lang",
+            "id": 221749430,
+            "node_id": "U_kgDODTegtg",
+            "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/xy7365527-lang",
+            "html_url": "https://github.com/xy7365527-lang",
+            "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+            "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+            "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+            "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+            "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+            "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+            "type": "User",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "created_at": "2026-08-06T00:32:15Z",
+          "updated_at": "2026-08-06T00:32:15Z",
+          "body": "## 档位裁定：**(乙) 加限价挂单语义，仍用 bar 数据**（编排者 2026-08-05 会话中裁定）\n\n**⚠️ 本条在 [#914](https://github.com/xy7365527-lang/NewChanlun/issues/914) 的走图会话中当场裁出，破了「一票一会话」默认节奏——照实记录**（同 [#817](https://github.com/xy7365527-lang/NewChanlun/issues/817) N-2 那次的处理方式，不掩盖）。**本票不因此关闭**：档位定了，(乙) 内部的成交假设（票面 ★ 段五问）未裁，且落文档未做。\n\n### 选它的理由（走图当场给出）\n\n1. **唯一能表达价位驱动动作、又不需要新数据源的档位。** [#914](https://github.com/xy7365527-lang/NewChanlun/issues/914) 刚裁的短差方向规则锚在 `049:52`「中枢上方仓位减少，中枢下方仓位增加」——那是**提前已知的价位**，天然是限价动作。(甲) 表达不了它，(丙) 要接逐笔/盘口数据。\n2. **(丙) 撞次序护栏。** [#817](https://github.com/xy7365527-lang/NewChanlun/issues/817) N-2 明写「高频是终点定位不是下一步，本裁定不得被引作『现在就该接实盘』的依据」，且 [#792](https://github.com/xy7365527-lang/NewChanlun/issues/792) 实测目前无任何一条路拿缠论信号实盘下单。屋子没打扫完。\n3. **Bar 数据够用**：`rust/src/theta_v0/types.rs:49-58` 的 `Bar` 有 `high`/`low`（主控复核）。\n\n### 代价照记，两条\n\n- **偏差方向会翻。** 现状（bar close 市价）对价位驱动动作是**系统性悲观**；(乙) 若取「触及即成交」则变成**系统性乐观**。⟹ **(乙) 不是「更准」，是「换一种偏法」**，换成哪一种由票面 ★ 段第 1 问决定，那一问未裁。\n- **它会解锁 maker 档。** `venue_fee.rs:59` 明写「Maker 档只在真限价执行模型实装后启用」——(乙) 落地即触发该条件，费率口径须一并裁（现生产恒 Taker）。\n\n### 本票剩下要走的\n\n档位已定 ⟹ 下一会话的题面是票面 ★ 段那五问（触及 vs 成交、穿越 vs 相等、同 bar 次序、挂单寿命、maker 费率），**一次一问**。落完文档才关票。\n",
+          "author_association": "OWNER",
+          "pin": null,
+          "reactions": {
+            "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/comments/5199016024/reactions",
+            "total_count": 0,
+            "+1": 0,
+            "-1": 0,
+            "laugh": 0,
+            "hooray": 0,
+            "confused": 0,
+            "heart": 0,
+            "rocket": 0,
+            "eyes": 0
+          },
+          "performed_via_github_app": null,
+          "minimized": null
+        },
+        {
+          "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/comments/5210716261",
+          "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/918#issuecomment-5210716261",
+          "issue_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/918",
+          "id": 5210716261,
+          "node_id": "IC_kwDORJC4uM8AAAABNpU4ZQ",
+          "user": {
+            "login": "xy7365527-lang",
+            "id": 221749430,
+            "node_id": "U_kgDODTegtg",
+            "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/xy7365527-lang",
+            "html_url": "https://github.com/xy7365527-lang",
+            "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+            "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+            "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+            "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+            "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+            "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+            "type": "User",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "created_at": "2026-08-07T01:05:13Z",
+          "updated_at": "2026-08-07T01:05:13Z",
+          "body": "## Resolution：(乙) 内部五条成交假设全部裁定，落 [ADR 0018](https://github.com/xy7365527-lang/NewChanlun/blob/main/docs/adr/0018-limit-order-fill-model.md)\n\n档位 (乙) 已于 2026-08-05 裁定（见上一条 comment）。本会话走完票面 ★ 段，**一次一问**，五问全裁。详情正本 = `docs/adr/0018-limit-order-fill-model.md`，本 comment 只作索引。\n\n| 裁定 | 一句话 |\n|---|---|\n| 一 | **穿越才成交**：买单 `low < 挂单价` 严格小于，**打平不成交**；卖单对称 |\n| 二 | **开盘取优**：成交价 = `min(open, 挂单价)`（买）/ `max`（卖） |\n| 三 | **同 bar 三级排序键**：先平后开 → 同类内价格优先 → 并列保出现顺序（标未定义有效域） |\n| 四 | **GTC**，寿命绑中枢存续；**撤单不得实现为预算好的到期 bar**（那是前视） |\n| 五 | **限价路径不扣 `slippage_bps`**，绑双口径报告纪律；maker/taker 按是否预先在簿判 |\n\n### 三处必须留在票面的东西\n\n**① 裁定一与裁定二偏差方向相反，是刻意的。** 一取严（取松会**凭空造出**假 alpha），二取松（取严会**凭空抹掉**真 alpha——急跌插针正是「中枢下方如数接回」最赚钱那类 bar，一律保守会把 [ADR 0017](https://github.com/xy7365527-lang/NewChanlun/blob/main/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md) 那批规则判成假阴性）。\n\n**② 裁定五带一个准入条件，不是可选补充。** 它让限价路径比市价便宜 2bp/side，而本图正在验「限价短差是否更好」——顺风是我们自己造的。⟹ **任何「限价短差优于市价」的结论，必须在 `slippage_bps=0` 与照旧全扣两种口径下各跑一遍，两边都成立才算数。** 只裁前半不绑这条，裁定五不成立。\n\n**③ 裁定四的硬约束改变了下游形态。** strategy 层挂单那一刻算不出中枢何时失效（未来信息）⟹ 给 `Order` 加 `expiry_index` 的做法**用了就是前视**。唯一可行路径 = 订单接口从**事件流**改**状态流**（每根 bar 输出「此刻应挂的限价单集合」，不在集合里即为撤单）。该改动动 `fill.rs` 与 strategy 的边界，**不在本票**，另立子票承接。\n\n### ⚠️ 上游引用订正：5 处全错，结论均不变\n\n逐条打开复核后，本票票面与本会话口头断言里的援引全部有误。**每条结论都对，错的是论据**——`docs/agents/wayfinder-workflow.md`「三条证据纪律」之三点名的 ★ 类，本轮 5/5 又中。\n\n| # | 原断言 | 实测 |\n|---|---|---|\n| 1 | `049-第49课.md:52`【正文】「在中枢上方仓位减少，在中枢下方仓位增加」 | ❌ **`:52` 是空行**，正文在 **`:53`**；且该句**非逐字**，是转述。逐字更强：「本质上是应该**全仓操作**的，也就是在中枢上方**全部抛出筹码**，在下方**如数接回**」 |\n| 2 | 票面「仓内现状」段：`fill.rs:63` 成交价 = 该 bar 的 close | ❌ **引错对象**——该行在 `simulate_fills` 内，而 `runner.rs:24` 明写其「**生产零调用**，现仅测试消费」（全仓 grep 除 `runner_tests.rs:8319/8355` 外无调用点）。**生产成交价在 `fill.rs:4604`** |\n| 3 | `config.rs:284-285` 列 `simulate_fills` 为「四条生产成交回路」之一 | ❌ 与 `runner.rs:24` 正面矛盾，清单已过期 |\n| 4 | 本会话口头「现金约束在 `fill.rs:117`」 | ❌ 实为 **`fill.rs:115`** |\n| 5 | `fill.rs:23` 注释引「`types.rs:218`」为 `exec_index` 出处 | ❌ 实为 **`types.rs:364`**（仓内既有漂移，非本轮引入） |\n\n**顺带的收获**：核 `049:52` 时读到同段上一句 `049-第49课.md:51`【正文】——「在出现第三类买点之前，中枢未被破坏，当然有所谓的中枢震荡，**其后，中枢已经完成就无所谓中枢震荡了**」。⟹ **裁定四的挂单寿命边界是原文自己划的**，比会话中给出的工程理由更硬。\n\n### 已核实的仓内现状（打开确认）\n\n- 生产成交价 = bar close：`fill.rs:4604`（在 `pi_theta_fill_loop_overlay` 内）\n- `fill.rs` 全文用 `high`/`low` **只有 4 处**（`:4241`–`:4245`），**全是诊断打印，无成交语义** ⟹ 限价语义是从零加\n- `Bar.high/low` 为**整数 tick 域**：`types.rs:52-55` —— 裁定一的物理基础\n- 先平后开 canonical FULL §20：`fill.rs:106`；现金约束：`fill.rs:115`\n- 生产恒 Taker：`venue_fee.rs:41` / `:58-59`，常量本体 `venue_fee.rs:112`\n- **BTC 现货 maker == taker 逐位相等**（VIP0 10.0/10.0，BNB25 7.5/7.5）⟹ 启用 maker **对 PnL 零影响**；`venue_fee.rs:271` 早有登记\n\n### 未核项（诚实标注，不得据本票假定）\n\n生产三条回路（`pi_theta_fill_loop_overlay` / `plan_and_fill_mtm` / `plan_and_fill_mtm_dual`）**现有的订单排序与寿命语义**未在本会话核实（`fill.rs` 6575 行，只读复核未在会话内返回）⟹ 随接口子票一并勘察。\n\n### 落文档\n\n`docs/adr/0018-limit-order-fill-model.md`（新建）。**`venue_fee.rs:58-59` 与 `PRODUCTION_LIQUIDITY_ROLE`（`:112`）的注释不在本票改**——(乙) 尚未实装，此刻改会让注释先于事实变假；随实装票同步。\n\n### 移交\n\n- **接口改状态流 + 生产回路现状勘察** → 另立子票（本票 blocking）\n- `config.rs:284-285` 过期清单、`fill.rs:23` 行号漂移 → 与在飞决策不挂钩的文本欠账，**不进图**，走 triage 挂 `debt`\n",
+          "author_association": "OWNER",
+          "pin": null,
+          "reactions": {
+            "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/comments/5210716261/reactions",
+            "total_count": 0,
+            "+1": 0,
+            "-1": 0,
+            "laugh": 0,
+            "hooray": 0,
+            "confused": 0,
+            "heart": 0,
+            "rocket": 0,
+            "eyes": 0
+          },
+          "performed_via_github_app": null,
+          "minimized": null
+        }
+      ],
+      "pagination_complete": true
+    },
+    {
+      "number": 926,
+      "issue": {
+        "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/926",
+        "repository_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun",
+        "labels_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/926/labels{/name}",
+        "comments_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/926/comments",
+        "events_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/926/events",
+        "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/926",
+        "id": 5085878105,
+        "node_id": "I_kwDORJC4uM8AAAABLyRXWQ",
+        "number": 926,
+        "title": "[task] 勘察：生产三条成交回路的订单排序与寿命语义现状（喂 ADR 0018 裁定四的接口改动）",
+        "user": {
+          "login": "xy7365527-lang",
+          "id": 221749430,
+          "node_id": "U_kgDODTegtg",
+          "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/xy7365527-lang",
+          "html_url": "https://github.com/xy7365527-lang",
+          "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+          "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+          "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+          "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "labels": [
+          {
+            "id": 11582612688,
+            "node_id": "LA_kwDORJC4uM8AAAACsmCk0A",
+            "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/labels/wayfinder:task",
+            "name": "wayfinder:task",
+            "color": "1D76DB",
+            "default": false,
+            "description": ""
+          }
+        ],
+        "state": "closed",
+        "locked": false,
+        "assignees": [
+          {
+            "login": "xy7365527-lang",
+            "id": 221749430,
+            "node_id": "U_kgDODTegtg",
+            "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/xy7365527-lang",
+            "html_url": "https://github.com/xy7365527-lang",
+            "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+            "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+            "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+            "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+            "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+            "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+            "type": "User",
+            "user_view_type": "public",
+            "site_admin": false
+          }
+        ],
+        "milestone": null,
+        "comments": 1,
+        "created_at": "2026-08-07T01:05:48Z",
+        "updated_at": "2026-08-07T01:19:16Z",
+        "closed_at": "2026-08-07T01:19:16Z",
+        "assignee": {
+          "login": "xy7365527-lang",
+          "id": 221749430,
+          "node_id": "U_kgDODTegtg",
+          "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/xy7365527-lang",
+          "html_url": "https://github.com/xy7365527-lang",
+          "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+          "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+          "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+          "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "author_association": "OWNER",
+        "active_lock_reason": null,
+        "sub_issues_summary": {
+          "total": 0,
+          "completed": 0,
+          "percent_completed": 0
+        },
+        "parent_issue_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/787",
+        "issue_dependencies_summary": {
+          "blocked_by": 0,
+          "total_blocked_by": 0,
+          "blocking": 0,
+          "total_blocking": 1
+        },
+        "body": "Part of #787\n\n## Question\n\n**生产三条成交回路现在的订单排序与订单寿命语义，事实上是什么？**\n\n由 [成交模型保真度 #918](https://github.com/xy7365527-lang/NewChanlun/issues/918) 收口时浮出，作为该票的**未核项**移交。**AFK 勘察票**（乙类：产读数/事实喂决策），喂下游那张接口形态决策票。\n\n### 为什么必须单独勘察\n\n[#918](https://github.com/xy7365527-lang/NewChanlun/issues/918) 会话中查实：**票面原引的 `fill.rs:63`（成交价 = bar close）属于 `simulate_fills`，而 `runner.rs:24` 明写它「生产零调用，现仅测试消费」**——全仓 grep 除 `runner_tests.rs:8319/8355` 外无调用点。⟹ 该票会话中关于「现状是按订单出现顺序成交」的描述，说的是一个**生产不走的函数**。\n\n真回路是 `pi_theta_fill_loop_overlay`（`pi_theta_fill_loop` 是其 wrapper）/ `plan_and_fill_mtm` / `plan_and_fill_mtm_dual`。`fill.rs` 有 6575 行，[#918](https://github.com/xy7365527-lang/NewChanlun/issues/918) 会话内的只读复核未返回结论。\n\n**⚠️ `config.rs:284-285` 把 `simulate_fills` 列进「四条生产成交回路」，与 `runner.rs:24` 正面矛盾**——勘察时不得以任一处注释为准，以实际调用链为准。\n\n### 已核实（不必重查）\n\n- 生产成交价 = bar close：`rust/src/theta_v0/backtest/fill.rs:4604`（在 `pi_theta_fill_loop_overlay` 内）\n- `fill.rs` 全文用到 `bar.high` / `bar.low` **只有 4 处**（`:4241`–`:4245`），全为诊断打印（`.map(...).unwrap_or(f64::NAN)`），**无成交语义**\n\n### 要产的读数（每条须带打开确认过的 file:line）\n\n1. 三条回路各自，同一根 bar 内有多个订单时，**成交次序由什么决定**？有无显式排序？排序键是什么？\n2. 订单在其指定 bar **未能成交**时（`untradable` / `qty<=0` / 现金不足等），会被**保留到后续 bar 重试**还是直接丢弃？\n3. 订单从生成到消费，**是事件流还是已经带状态流成分**（有无「每 bar 重发挂单集合」的既有形态可复用）？\n4. `Order`（`rust/src/theta_v0/types.rs:364` 附近）现有字段清单，以及哪些消费点会因加字段而受影响。\n\n### 纪律\n\n只读，**不改任何文件**。**穷举断言（「唯一」「全部」「N 处」）必须附检索式与覆盖目录**，举不出来就写「已查到的有 N 处」。**「课号:行号」形式的在案引用不构成已核实**——每条 file:line 必须真打开确认（[#918](https://github.com/xy7365527-lang/NewChanlun/issues/918) 本轮 5/5 援引全错，全是「结论对、论据假」）。\n",
+        "closed_by": {
+          "login": "xy7365527-lang",
+          "id": 221749430,
+          "node_id": "U_kgDODTegtg",
+          "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/xy7365527-lang",
+          "html_url": "https://github.com/xy7365527-lang",
+          "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+          "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+          "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+          "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "reactions": {
+          "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/926/reactions",
+          "total_count": 0,
+          "+1": 0,
+          "-1": 0,
+          "laugh": 0,
+          "hooray": 0,
+          "confused": 0,
+          "heart": 0,
+          "rocket": 0,
+          "eyes": 0
+        },
+        "timeline_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/926/timeline",
+        "performed_via_github_app": null,
+        "state_reason": "completed",
+        "pinned_comment": null
+      },
+      "comments": [
+        {
+          "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/comments/5210868134",
+          "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/926#issuecomment-5210868134",
+          "issue_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/926",
+          "id": 5210868134,
+          "node_id": "IC_kwDORJC4uM8AAAABNpeJpg",
+          "user": {
+            "login": "xy7365527-lang",
+            "id": 221749430,
+            "node_id": "U_kgDODTegtg",
+            "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/xy7365527-lang",
+            "html_url": "https://github.com/xy7365527-lang",
+            "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+            "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+            "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+            "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+            "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+            "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+            "type": "User",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "created_at": "2026-08-07T01:19:15Z",
+          "updated_at": "2026-08-07T01:19:15Z",
+          "body": "## Resolution：四节读数全出，并**推翻本票票面自己的一个前提**\n\nAFK 勘察票，只读，无写入。以下每条 file:line 均经打开确认（测试侧与两处边界的诚实缺口见末节）。\n\n---\n\n### ★ 前置订正：`plan_and_fill_mtm` / `plan_and_fill_mtm_dual` **在本仓不存在**\n\n本票票面（承自 [成交模型保真度 #918](https://github.com/xy7365527-lang/NewChanlun/issues/918) 与 [ADR 0018](https://github.com/xy7365527-lang/NewChanlun/blob/main-rewritten/docs/adr/0018-limit-order-fill-model.md)）把这两个列为「真正的生产回路」——**查实已被删除**：\n\n- `grep -rn \"fn plan_and_fill\" rust/` → **零匹配**；`grep -rn \"plan_and_fill_mtm\" rust/src rust/tests` → 11 处命中**全是注释**\n- `runner.rs:5` 逐字：「**已退役的是 v1 runner**（`run_theta_v0`/`plan_and_fill_mtm`…；#499 退役）」\n- `git log -S\"fn plan_and_fill_mtm\" -- rust/` → 末次改动 `94e0837f0e refactor(backtest): #499 v1/dual 家族退役——删两代死引擎`\n\n⟹ **`config.rs:284-285` 那份「四条生产成交回路」清单，四条里坏了三条**（`simulate_fills` 非生产 + 两条不存在）。[#928](https://github.com/xy7365527-lang/NewChanlun/issues/928) 的严重程度据此上调。\n\n**⟹ 而 [ADR 0018](https://github.com/xy7365527-lang/NewChanlun/blob/main-rewritten/docs/adr/0018-limit-order-fill-model.md) 与本票票面照抄了这份清单**——虽然都标注了「该清单已过期」，却仍拿它当回路名单用。**同一类错在识破它的同一份文档里复发。**\n\n**真实回路只有一条**：`pi_theta_fill_loop_overlay`（`fill.rs:4369`）。`pi_theta_fill_loop`（`:746`）是 `overlay=None` 的 wrapper（`:767` 直接转调），`pi_theta_fill_loop_voice`（`:788`）是 `#[cfg(test)]`。生产入口三个：`runner.rs:311` / `:525` / `:678`。\n\n**票面遗漏的第二条订单产出路径**：`strategy::plan_orders`（`strategy/mod.rs:302`），由 NT 适配层 `nautilus/strategy.rs:208` / `:219` 消费。它不做 fill（撮合归 venue），但它是 `Order` 的第二个生产级生产者，**且它才是有显式冲突排序的那条**。\n\n---\n\n### 1. 同 bar 多订单的成交次序\n\n**净额回路（`pi_theta_fill_loop_overlay`）：无任何排序。** 队列 `let mut pending: Vec<Vec<Order>> = vec![Vec::new(); n];`（`fill.rs:4429`），唯一入队点 `fill.rs:5824`，出队 `fill.rs:4624-4627` 按 `Vec` 迭代顺序，**无 sort、无优先级键**（`grep -n \"pending\\[\" fill.rs` 仅 4624/4625/5824 三处）。\n\n**它靠「每 bar 只产一个净额订单」回避同 bar 冲突**：`order` 由 `pi_theta_step_traced_with_risk_seeds` 单点返回（`fill.rs:5141`），唯一覆写点 `fill.rs:5198`（M4 级别帽，`enforce_level_cap` 默认 false）。`pending[ei]` 出现 ≥2 单的**唯一途径**＝多个信号 bar 被 `fill_bar_index`（`strategy/exec.rs:42-53`，落点 untradable 则顺延）映射到同一 `ei`，此时次序 = 信号 bar 升序。\n\n**★ `strategy::plan_orders` 已有真正的冲突排序**（`strategy/mod.rs:372` `planned.sort_by_key(|(key, _)| *key);`），键 = `exec::ConflictKey`（`strategy/exec.rs:145-158`）字典序六元组：\n\n```\nexit_first: u8   // 退出/止损=0，开仓=1\nlevel_desc: u32  // u32::MAX - level（高 level 先）\nbsp_class: u8    // 同 level 按 1/2/3 类\ntimestamp: i64\nsource_index: usize\ndepth: u32       // 终局裁决，保证全序\n```\n\n**⟹ [ADR 0018](https://github.com/xy7365527-lang/NewChanlun/blob/main-rewritten/docs/adr/0018-limit-order-fill-model.md) 裁定三①「平仓类先于开仓类」在本仓已有实现**（`exit_first`），且 `plan_orders` 的语义与 canonical §20 同源。**裁定三不该新造排序键，应复用 `ConflictKey`**——这一条直接改写 [订单接口：事件流 → 状态流 #927](https://github.com/xy7365527-lang/NewChanlun/issues/927) 的形态空间。\n\n**声部臂 `pending_voice`**（`VOICE_EXEC=1` 才开）：无排序键，但 `fill.rs:5835-5878` 硬编码 push 次序——先 `Close`（`:5847`）后 `Open`（`:5867`），注释 `:5833` 明说「平单先挂、开单后挂 ⟹ fill 序 = 先平后开」。\n\n**`simulate_fills`（非生产）**：`fill.rs:53` `sort_by_key(|o| o.exec_index)`，稳定排序，**同 bar 内无二级键**。\n\n### 2. 未成交订单：**一律丢弃，零重试机制**\n\n三个丢弃点：\n\n- **(a) `qty <= 0` 根本不入队**：`fill.rs:5821` `if order.qty > 0`（声部臂同理 `:5866` `q >= lot`）\n- **(b) `untradable` / `px <= 0` 留在 `pending[i]` 里烂掉**：`fill.rs:4624` 的 `if` 不成立 ⟹ `mem::take` 不执行，而主循环 `for i in 0..n` 单调递增、`pending[i]` 再无第二读点，窗口终点强平（`fill.rs:5947-6032`）也不读 `pending`。\n  *诚实附注*：净额臂上 `untradable` 分支**实际不可达**（`exec.rs:46-49` 保证 `exec_index` 落在可交易 bar），是防御性死代码；`px <= 0` 仍可触发。\n- **(c) 现金不足 / 超仓余量 → `rejected_qty` 静默作废**：`apply_fill`（`fill.rs:239-249` / `:271`）把未成交量放进 `rejected_qty`，而 `grep -n \"rejected_qty\" fill.rs` 全部 6 处命中都在构造/定义/文档里——**主循环从不读它**，`fill.rs:4641` 只看 `executed_qty > 0.0`。\n\n**⟹ 现状确证为 [ADR 0018](https://github.com/xy7365527-lang/NewChanlun/blob/main-rewritten/docs/adr/0018-limit-order-fill-model.md) 裁定四所否掉的「当根 bar 作废」档**，该裁定的改动面属实。\n\n### 3. 事件流 vs 状态流：**两者都有，状态流是主的，`Order` 是它的差分产物**\n\n- **账户层目标仓位 `p_star`（生产，每决策 bar 一份）**：`strategy/coverage/sizing.rs:524` `schedule_order(p_star, p_t, exec_index)` → `delta = p_star - p_t`，`qty==0` 退化为 `Hold`/`Wait`（`:529-534`）。**即 `Order = f(目标状态 − 当前状态)`，每根 bar 都有显式的「当前应处仓位」读数。**\n- **逐级别 `LevelOrderPlan` / `LevelOrderLedger`（形态齐备，生产未接线）**：`strategy/level_order.rs:328-334`（`targets` / `deltas` / `order_units`）、`:458` / `:573` / `:550`。这是**最接近「每 bar 重出一份应挂集合」的既有骨架**。但 7 处非定义命中**全是注释**，三处自陈未接线（`fill.rs:5172`、`sizing.rs:280`、`level_risk.rs:12`）。\n- **NT 适配层 `plan_for_bar`（生产）**：`nautilus/strategy.rs:138` 每 bar 返回 `Vec<OrderIntent>`，用 `held[depth].exit_pending`（`:175-177`/`:200`）跨 bar 去重。**是集合形态，但语义为「本 bar 新增意图」不是「当前应挂全量」**；doc `:133-137` 明说生产路径无延迟队列，撮合时序归 venue。\n\n**⟹ 裁定四的「接口改状态流」不是从零造** —— `p_star` 这个状态流上游已在生产，`LevelOrderLedger` 骨架已在场。缺的是把**限价单集合**也做成 per-bar 状态。\n\n### 4. `Order` 字段与波及面\n\n`types.rs:357-365`，**共 3 个字段**，`derive(Debug, Clone, Copy, PartialEq, Eq)`：`action: StrictAction` / `qty: i64` / `exec_index: usize`。`StrictAction`（`types.rs:345-355`）7 构造子。\n\n**加字段会让每个构造点编译失败**（全部字面量构造，无 `..Default`、无 `#[non_exhaustive]`）——**这是好消息，不会静默漏**。\n\n检索式：`grep -rn \"Order {\" rust/src/theta_v0` + `grep -rn \"types::Order\\|types::{.*Order\" rust/src/theta_v0`，手工剔除同名异物（`VoiceOrder`/`LevelOrderPlan`/`OpenOrder`/`AccountOrder`/`LegOrder`/`OrderIntent`）与 `#[cfg(test)]`。下列每行已单独打开确认。\n\n**A. 生产构造点（4 处）**：`strategy/coverage/sizing.rs:558`（净额回路唯一订单出口）、`strategy/mod.rs:440`（开仓）、`strategy/mod.rs:462`（平仓）、`backtest/dual_ledger.rs:258`\n\n**B. 在场但未接线（3 处）**：`strategy/level_order.rs:417` / `:423`、`backtest/dual_ledger.rs:320`（`dual_ledger` 非测试调用点**已查到的为 0**）\n\n**C. 字段读取消费点**：`fill.rs:4627` / `:4630` / `:5821` / `:135-148`（`match o.action` 7 构造子全覆盖）/ `:53`/`:67`/`:70`（测试路径）；`nautilus/order_adapter.rs:77` / `:80-114`（`exec_index` 在 NT 侧**仅供诊断对账**，doc `:60-62`）；`nautilus/strategy.rs:223-226`；`dual_ledger.rs:251-266`；`strategy/mod.rs:945`（`LegOrder` 包装型，doc `:934` 明写「**types.rs `Order` 不加字段**，冲突面零改」——**既有的规避先例**）；`strategy/coverage/mod.rs:66`（`pub type OrderDecision = Order;`）\n\n**★ 限价接入点已预留**：`nautilus/strategy.rs:317` `entry_tick_for(&self, _order: &Order)` **忽略入参恒返 `None`**，doc `:315-318` 自陈「限价腿 entry 价回填待 `plan_orders` 接口扩展」。\n\n---\n\n### 未能确认的部分（诚实标注，不得当已核）\n\n1. **`Order` 测试侧构造/断言点未穷举打开**（`runner_tests.rs:8307/8312/8350/…`、`order_adapter.rs:122`、`sizing_tests_1/2.rs` 等只报 grep 命中）。生产侧 A/B/C 组每行已打开。\n2. **`rust/tests/` 集成测试目录未纳入 `Order` 消费点检索**（检索面仅 `rust/src/theta_v0`）。\n3. **第 2 节「无重试」的强度 = 在 `pending` 这个名字上穷举成立**，非对 `fill.rs` 4700–5100 / 5250–5950 两段（~1200 行）的通读结论。若那里以别名/间接方式操作队列，本次看不到。\n4. `fill.rs` 内 `#[cfg(test)]` 边界未逐一核定（`:1502–2500` 一片 `AccountOrder {…}` 未纳入任何计数）。\n5. `config.rs:284-285` 清单里那两条**为何被写进去**（历史遗留 vs 曾指向别物）未追查，只确认了删除事实（`94e0837f0e`）。\n",
+          "author_association": "OWNER",
+          "pin": null,
+          "reactions": {
+            "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/comments/5210868134/reactions",
+            "total_count": 0,
+            "+1": 0,
+            "-1": 0,
+            "laugh": 0,
+            "hooray": 0,
+            "confused": 0,
+            "heart": 0,
+            "rocket": 0,
+            "eyes": 0
+          },
+          "performed_via_github_app": null,
+          "minimized": null
+        }
+      ],
+      "pagination_complete": true
+    },
+    {
+      "number": 927,
+      "issue": {
+        "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/927",
+        "repository_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun",
+        "labels_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/927/labels{/name}",
+        "comments_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/927/comments",
+        "events_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/927/events",
+        "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/927",
+        "id": 5085880071,
+        "node_id": "I_kwDORJC4uM8AAAABLyRfBw",
+        "number": 927,
+        "title": "[grilling] 订单接口：事件流 → 状态流（ADR 0018 裁定四的硬约束落地形态）",
+        "user": {
+          "login": "xy7365527-lang",
+          "id": 221749430,
+          "node_id": "U_kgDODTegtg",
+          "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/xy7365527-lang",
+          "html_url": "https://github.com/xy7365527-lang",
+          "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+          "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+          "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+          "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "labels": [
+          {
+            "id": 11582612646,
+            "node_id": "LA_kwDORJC4uM8AAAACsmCkpg",
+            "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/labels/wayfinder:grilling",
+            "name": "wayfinder:grilling",
+            "color": "D93F0B",
+            "default": false,
+            "description": ""
+          }
+        ],
+        "state": "closed",
+        "locked": false,
+        "assignees": [
+          {
+            "login": "xy7365527-lang",
+            "id": 221749430,
+            "node_id": "U_kgDODTegtg",
+            "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/xy7365527-lang",
+            "html_url": "https://github.com/xy7365527-lang",
+            "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+            "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+            "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+            "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+            "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+            "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+            "type": "User",
+            "user_view_type": "public",
+            "site_admin": false
+          }
+        ],
+        "milestone": null,
+        "comments": 2,
+        "created_at": "2026-08-07T01:06:13Z",
+        "updated_at": "2026-08-07T01:51:30Z",
+        "closed_at": "2026-08-07T01:51:30Z",
+        "assignee": {
+          "login": "xy7365527-lang",
+          "id": 221749430,
+          "node_id": "U_kgDODTegtg",
+          "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/xy7365527-lang",
+          "html_url": "https://github.com/xy7365527-lang",
+          "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+          "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+          "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+          "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "author_association": "OWNER",
+        "active_lock_reason": null,
+        "sub_issues_summary": {
+          "total": 0,
+          "completed": 0,
+          "percent_completed": 0
+        },
+        "parent_issue_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/787",
+        "issue_dependencies_summary": {
+          "blocked_by": 0,
+          "total_blocked_by": 2,
+          "blocking": 0,
+          "total_blocking": 0
+        },
+        "body": "Part of #787\n\n## Question\n\n**订单接口从事件流改成状态流，形态怎么定？**\n\n由 [ADR 0018](https://github.com/xy7365527-lang/NewChanlun/blob/main/docs/adr/0018-limit-order-fill-model.md) **裁定四的硬约束**直接牵出，见 [成交模型保真度 #918](https://github.com/xy7365527-lang/NewChanlun/issues/918) resolution。\n\n### 约束（已裁定，本票不重开）\n\n[ADR 0018](https://github.com/xy7365527-lang/NewChanlun/blob/main/docs/adr/0018-limit-order-fill-model.md) 裁定四：限价单 **GTC，寿命绑中枢存续，中枢失效即撤**。原文依据 `049-第49课.md:51`【正文】：「在出现第三类买点之前，中枢未被破坏，当然有所谓的中枢震荡，**其后，中枢已经完成就无所谓中枢震荡了**」。\n\n**硬约束**：strategy 层在挂单那一刻**算不出中枢何时失效——那是未来信息**。⟹ 照 `fill.rs:23` 那条既有分层（延迟在 strategy 层算好、fill 只消费 `Order.exec_index` 一个数）给 `Order` 加一个 `expiry_index` 的做法，**用了就是前视**，已被排除。\n\n**唯一可行路径**：strategy 层每根 bar 输出「**此刻应挂的限价单集合**」，fill 层每根 bar 取最新集合；撤单变成隐式（不在集合里即为撤），无需前视，无需新的撤单消息类型。\n\n### 本票要裁的\n\n1. **集合的载体形态**：全量快照还是增量 diff？`Order.exec_index`（`rust/src/theta_v0/types.rs:364`）的语义如何重解或退役？\n2. **市价单与限价单在新接口下如何共存**——现有的 close 市价路径（`fill.rs:4604`）不能被改坏，[ADR 0018](https://github.com/xy7365527-lang/NewChanlun/blob/main/docs/adr/0018-limit-order-fill-model.md) 裁定五要求两条路径的滑点口径**不同**（限价不扣、市价照扣）。\n3. **bit-exact 回归怎么锁**：本仓既有做法是 `overlay=None ⟹ 逐字节不变`（`fill.rs:764-766` 附近的 ★M5 wrapper 注释）。新接口要不要同款 gate？\n4. **改动落在图里还是图外**：map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787) 是**纯决策图**（其 Destination 段明写「它仍是纯决策图，实装不进来」）⟹ **实装票不得挂本图**。本票只裁形态，实装线另开，且须满足 [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787) 关图条件②「下游实施线已开、有票号、有主」。\n\n### 前置\n\n被 [勘察：生产三条成交回路的订单排序与寿命语义现状 #926](https://github.com/xy7365527-lang/NewChanlun/issues/926) 挡着——**不知道现状就没法裁改法**。[#918](https://github.com/xy7365527-lang/NewChanlun/issues/918) 已实证：以为在描述生产路径，实际描述的是一个生产零调用的函数。\n\n### 纪律\n\n`/grill-with-docs`，**一次一问**，agent 不得替人答。**落完文档才关票。** 涉及「照着哪一行／哪个函数」的断言，须由落文档的人独立逐条打开复核。\n",
+        "closed_by": {
+          "login": "xy7365527-lang",
+          "id": 221749430,
+          "node_id": "U_kgDODTegtg",
+          "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/xy7365527-lang",
+          "html_url": "https://github.com/xy7365527-lang",
+          "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+          "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+          "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+          "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "reactions": {
+          "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/927/reactions",
+          "total_count": 0,
+          "+1": 0,
+          "-1": 0,
+          "laugh": 0,
+          "hooray": 0,
+          "confused": 0,
+          "heart": 0,
+          "rocket": 0,
+          "eyes": 0
+        },
+        "timeline_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/927/timeline",
+        "performed_via_github_app": null,
+        "state_reason": "completed",
+        "pinned_comment": null
+      },
+      "comments": [
+        {
+          "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/comments/5210890300",
+          "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/927#issuecomment-5210890300",
+          "issue_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/927",
+          "id": 5210890300,
+          "node_id": "IC_kwDORJC4uM8AAAABNpfgPA",
+          "user": {
+            "login": "xy7365527-lang",
+            "id": 221749430,
+            "node_id": "U_kgDODTegtg",
+            "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/xy7365527-lang",
+            "html_url": "https://github.com/xy7365527-lang",
+            "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+            "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+            "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+            "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+            "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+            "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+            "type": "User",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "created_at": "2026-08-07T01:21:40Z",
+          "updated_at": "2026-08-07T01:21:40Z",
+          "body": "## 前置 [#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) 已完成 —— 本票形态空间收窄两处，且票面一处前提被推翻\n\n### ★ 票面订正：`plan_and_fill_mtm` / `plan_and_fill_mtm_dual` 不存在\n\n本票票面承自 [ADR 0018](https://github.com/xy7365527-lang/NewChanlun/blob/main-rewritten/docs/adr/0018-limit-order-fill-model.md) 的「生产三条回路」说法**是错的**（那两条随 `94e0837f0e` #499 已删）。**生产净额成交回路只有一条**：`pi_theta_fill_loop_overlay`（`fill.rs:4369`）。另有第二个 `Order` 生产者 `strategy::plan_orders`（`strategy/mod.rs:302`，NT 路径），它不做 fill 但**有显式冲突排序**。\n\n### 收窄一：排序不该新造，应复用 `ConflictKey`\n\n净额回路**一行排序代码都没有**（队列 `fill.rs:4429`／入队 `:5824`／出队 `:4624-4627` 按 `Vec` 顺序），它靠**每 bar 只产一个净额订单**回避同 bar 冲突。\n\n但 `strategy::plan_orders` **已有** `planned.sort_by_key(|(key,_)| *key)`（`strategy/mod.rs:372`），键 = `exec::ConflictKey`（`strategy/exec.rs:145-158`）六元组：\n\n```\nexit_first: u8   // 退出/止损=0，开仓=1   ← 即 ADR 0018 裁定三①\nlevel_desc: u32  // u32::MAX - level（高 level 先）\nbsp_class: u8    // 同 level 按 1/2/3 类\ntimestamp / source_index / depth        // 平局裁决，保证全序\n```\n\n⟹ **本票要裁的第 1 问（集合载体形态）多一个约束**：新接口的排序必须与 `ConflictKey` 一致或显式说明为何不一致。**并且 `ConflictKey` 带来两个 ADR 0018 没裁的维度**（高 level 先、1/2/3 类序），落地时须一并接受或显式排除——这本身可能要单独裁一问。\n\n### 收窄二：状态流不是从零造\n\n- **`p_star`（目标净持仓）已在生产**，每决策 bar 一份：`strategy/coverage/sizing.rs:524` `schedule_order(p_star, p_t, exec_index)` → `Order = f(目标 − 当前)`，`qty==0` 退化 `Hold`/`Wait`（`:529-534`）。\n- **`LevelOrderPlan` / `LevelOrderLedger` 骨架已在场**（`strategy/level_order.rs:328-334`／`:458`／`:550`／`:573`），是最接近「每 bar 重出一份应挂集合」的既有形态，但**无生产消费者**（7 处非定义命中全是注释，三处自陈未接线：`fill.rs:5172`、`sizing.rs:280`、`level_risk.rs:12`）。\n- **限价接入点已预留**：`nautilus/strategy.rs:317` `entry_tick_for(&self, _order: &Order)` **忽略入参恒返 `None`**，doc `:315-318` 自陈「限价腿 entry 价回填待 `plan_orders` 接口扩展」。\n\n⟹ 本票第 1 问真正要裁的，可能不是「造一个什么新接口」，而是「**把已在场的 `LevelOrderLedger` 接线，还是把 `p_star` 那条标量路径扩成集合**」。\n\n### 收窄三：`Order` 加字段不会静默漏\n\n`types.rs:357-365` 仅 3 字段，全部字面量构造（无 `..Default`、无 `#[non_exhaustive]`）⟹ **加字段必然编译失败**。生产构造点 4 处：`sizing.rs:558`、`strategy/mod.rs:440`／`:462`、`dual_ledger.rs:258`。\n\n既有的**「不加字段」规避先例**：`LegOrder`（`strategy/mod.rs:945`），doc `:934` 明写「**types.rs `Order` 不加字段**，冲突面零改」。⟹ 本票第 1 问的候选里应包含「包装型而非改 `Order`」这一档。\n\n### 印证：ADR 0018 裁定四否掉的那一档就是现状\n\n未成交订单**一律丢弃、零重试**——`qty<=0` 不入队（`fill.rs:5821`）／`untradable`·`px<=0` 留在 `pending[i]` 里烂掉（`:4624`）／现金不足与超仓余量进 `rejected_qty` 而**主循环从不读它**（`fill.rs:239-249`／`:271`）。\n\n完整读数见 [#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) resolution（含其诚实缺口：测试侧未穷举、`rust/tests/` 未纳入检索、「无重试」的穷举强度仅在 `pending` 这个名字上成立）。\n",
+          "author_association": "OWNER",
+          "pin": null,
+          "reactions": {
+            "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/comments/5210890300/reactions",
+            "total_count": 0,
+            "+1": 0,
+            "-1": 0,
+            "laugh": 0,
+            "hooray": 0,
+            "confused": 0,
+            "heart": 0,
+            "rocket": 0,
+            "eyes": 0
+          },
+          "performed_via_github_app": null,
+          "minimized": null
+        },
+        {
+          "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/comments/5211124225",
+          "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/927#issuecomment-5211124225",
+          "issue_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/927",
+          "id": 5211124225,
+          "node_id": "IC_kwDORJC4uM8AAAABNptyAQ",
+          "user": {
+            "login": "xy7365527-lang",
+            "id": 221749430,
+            "node_id": "U_kgDODTegtg",
+            "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/xy7365527-lang",
+            "html_url": "https://github.com/xy7365527-lang",
+            "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+            "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+            "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+            "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+            "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+            "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+            "type": "User",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "created_at": "2026-08-07T01:51:29Z",
+          "updated_at": "2026-08-07T01:51:29Z",
+          "body": "## Resolution：五条形态裁定，落 [ADR 0019](https://github.com/xy7365527-lang/NewChanlun/blob/main/docs/adr/0019-limit-order-state-flow-interface.md)\n\nHITL grilling，一次一问五轮，编排者逐条拍板。正本 = ADR 0019（199 行），另订正 ADR 0018 一处。\n\n---\n\n### ★ 本票的起点：ADR 0018 的五条裁定落不进同一条代码路径\n\n这是第一问当场查出来的，也是裁定一的全部内容。**发现它之前，「实现 ADR 0018」看起来是一件事；发现之后是两件，而其中一件本线不做。**\n\n| ADR 0018 裁定 | 只能落在 | 为什么 |\n|---|---|---|\n| 一（穿越才成交）、二（开盘取优）、四（GTC）、五（限价不扣滑点） | **回测臂** `pi_theta_fill_loop_overlay` | 成交判据在成交那一行；NT 臂撮合归 venue（`nautilus/strategy.rs:134`/`:137` 自陈），本仓不做撮合 |\n| 三（同 bar 多单排序） | **NT 臂** `strategy::plan_orders` | 回测臂**每 bar 只产一个净额订单**（`sizing.rs:524` 的 `schedule_order` 返回单数 `Order` 非 `Vec`）——**没有第二个单可排** |\n\n⟹ [#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) 回填进 ADR 0018 的「订正二」（裁定三应复用 `ConflictKey` 不新造键）**方向对，但漏了作用域**：`ConflictKey` 在 NT 臂，裁定一/二/四/五要改的是回测臂。已在 ADR 0018 加「订正二之补」。\n\n**这是同一份 ADR 上游援引的第三轮订正**，三轮错法各不相同（[#918](https://github.com/xy7365527-lang/NewChanlun/issues/918) 行号错 5 处 ／ [#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) 查出 ADR 0018 照抄了一份自己已标注为过期的回路清单 ／ 本轮结论对但作用域错），**共同点只有一条：没人独立打开过被引的那一行。**\n\n---\n\n### 裁定一：只改回测臂，不动 NT 臂\n\n理由三条：① 本线起点是「[ADR 0017](https://github.com/xy7365527-lang/NewChanlun/blob/main/docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md) 那批价位驱动短差规则验不出数」（`0018:127` 逐字），**能不能验只在回测臂上定**；② NT 臂现无下游（[#792](https://github.com/xy7365527-lang/NewChanlun/issues/792) 实测无任何一条路拿缠论信号实盘下单）；③ 回测臂改动自包含，`overlay=None ⟹ 逐字节不变` 的 wrapper 机制已有现成回归锁（`fill.rs:764-766`）。\n**代价**：不解决限价单在真实生产上怎么发，NT 那条另开线、不挂本图。\n\n### 裁定二：`types.rs` 的 `Order` 加字段 `limit_px: Option<Tick>`\n\n**硬约束（物理基础）**：成交那一行 `apply_order(o, px, fee_rate, …)`（`fill.rs:4630-4638`）的 `px`（`:4604`）与 `fee_rate`（`:4405-4406`，**主循环外算一次**）**都由调用点传入**。裁定二要成交价取 `min(开盘价, 挂单价)` ⟹ 调用点须知**挂单价**；裁定五要限价不扣 `slippage_bps` ⟹ 调用点须判得出**限价还是市价**。**两条信息只能随订单到达那一行。**\n\n⟹ **「fill 层自己从中枢推挂单价」当场排除**——`fill.rs:5828-5829` 的 W1 注释明写「决策单源…**禁第二裁决源**」，自推正面撞这条既有纪律。\n\n**选加字段而非包装型**（本仓 `LegOrder` 有过「`Order` 不加字段、冲突面零改」的规避先例，`strategy/mod.rs:934`）：① 裁定一已把范围缩到回测臂，净额回路只有 1 个生产构造点（`sizing.rs:558`）；② **波及是编译期可见的**（`Order` 纯字面量构造、无 `..Default`、无 `#[non_exhaustive]`）——**本仓少有的能被编译器兜住的改动**，此性质不可外推；③ `Option<Tick>` 不破坏 `Copy + Eq`；④ 包装型适合加**正交**维度（`LegOrder` 加腿标记），限价/市价是同一位置的二选一，用包装型会退化成手搓 `Option` 还丢类型安全。\n**代价**：测试侧构造点 [#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) **诚实标注未穷举** ⟹ 工作量现在数不清；`Order` 跨模块，回测臂之外三处生产构造点被迫填 `None`（行为零变化的无害溢出）。\n\n### 裁定三：快照里的「同一张单」按 `(CenterId, 方向)` 认，qty 冻结\n\n键同 ⟹ 续挂（qty 取首次值、判 **maker**）；键变或消失 ⟹ 撤旧挂新（taker）。\n\n**为什么必须能认**：① ADR 0018 的 maker/taker 判定原文（`0018:159`）就是按「这根 bar **之前**是否已挂在簿上」分的——认不出续挂，maker 这档永远拿不到，**裁定五的费率区分等于没写**；② **本仓已为同一个病修过一次**：`fill.rs:5830-5832` 逐字记着 sizing 冻结「治 runner `base_units=equity_nav/px` 每 bar 重算导致的**声部目标漂移**」。快照语义会把这病原样搬到限价单上。\n\n**选 `CenterId {start_index, zd, zg}`**（`center_lifecycle.rs:162-169`）：① 它是裁定四「寿命绑中枢存续」的**直译**；② **撤单彻底隐式**——中枢一失效键就不在了，不靠约定靠键的存在性；③ 本仓已有把它入键的先例（`HistoricalSeenKey`，`fill.rs:881-886`）。\n**被否候选「按挂单价认」**：两个不同中枢可有相同 ZD 而 `start_index` 不同 ⟹ 把新中枢的单认成旧单续挂、沿用旧 qty 还判 maker。**静默**是关键词：不报错，只出错数。\n**代价（单独记账）**：qty 冻结让挂单量与当下 `p_star` 脱钩，成交后仓位会超出当下水位。W1 当初接受同款权衡——但 **ADR 0017 那批规则验出来的数字会含这份偏差，不许当干净数读**。\n\n### 裁定四：市价路径一行不动，bit-exact 靠结构不靠测试\n\n`pending` 队列原样留给市价单，限价走新增独立槽，`limit_px == None` 不进任何新代码。\n理由：① 本仓两处先例（★M5 `fill.rs:764-765`、★LEE M1 `:766`）都是「新路径旁挂、旧路径零改」，不是「统一后靠测试锁」；② **靠结构比靠测试强一个量级**——本仓有 `cargo check` 重放缓存假绿的实证负控；③ 统一要先补一个与限价无关的历史语义差。\n\n**★ 那个语义差（必须留档）**：现状市价单不重复挂靠的是**时序巧合**——bar `i` 的单在 `i+1` 成交段成交、`p_t` 随即更新，等 `i+1` 走到决策点 `Δ` 已归零、`fill.rs:5821` 的 `if order.qty > 0` 挡住。但 `fill_bar_index`（`exec.rs:42-53`）在落点 `untradable` 时**顺延**，一旦顺延，中间几根 bar 的 `p_t` 仍是旧值 ⟹ 每根都产同一张单 ⟹ 全部 `push` 进同一个 `pending[ei]`（`fill.rs:5824` 是 **push 不是覆盖**）**叠加**；快照语义下只留 1 张。⟹ **把市价单一起改成快照是真行为变化，不是重构。**\n**⚠️ 差异面未穷举**：顺延路径上 `untradable` bar 到底还走不走决策段，**本票未查**。上面成立的是「一旦顺延则叠加」这条**机制**，不是「实测叠加发生了 N 次」。\n**代价**：两套并存 ⟹ 同 bar 市价+限价并存时次序未定义（`0018:169` 已登记同类缺口）。**本票不定这个次序**；判断为不可达但**没有举证** ⟹ 按「穷举断言必须附穷举方法」的纪律只写「**已查到的路径上不可达**」，**不写「不会发生」**。`pending` 队列长期留着成第二套机制 = **已知的、有名字的**技术债。\n\n### 裁定五：下游排法\n\n探针挂本图、本票即关、实装 spec 待探针且**出图**。\n**为什么探针不挡本票**：五条裁定没有一条等这个读数——它翻不动「用身份键」这个形态，只翻得动**键里放哪几个分量**。\n**纪律张力照实说**：本票关掉后，该探针严格说喂的是实装线而非一张开着的决策票，按 wayfinder 正本反例③有被判为不该留图的余地。判它**仍该留图**，因为「键分量选哪个」本身还是一个**未做的决策**——票面已按此写。**这个判断是主控做的，不在 Notes 预授权范围内**（N-1 管可达输入域，不管票的归属）。\n\n---\n\n## ★ 落文档时的独立复核：24 条援引，订正 4 处\n\n按「涉及照着哪一行/哪个函数的断言须由**落文档的人**独立逐条打开复核」的硬工序执行（主控下断言、落文档子代理复核）。**又一次命中——这是在案第 6 次。**\n\n| # | 主控原断言 | 实测 |\n|---|---|---|\n| 6 | `px` 计算在 `fill.rs:4603` | ❌ 实为 **`:4604`**（`:4603` 是 `let bar = &bars[i];`）。ADR 0018:49 引的 `:4604` 本来就是对的 |\n| 7 | `fee_rate` 在 `fill.rs:4402-4403` | ❌ 实为 **`:4405-4406`**（「主循环外」「含 `slippage_bps`」两点成立） |\n| 12 | W1 注释在 `fill.rs:5833` | ❌ `:5833` **只是**「平单先挂、开单后挂」那句；「决策单源…禁第二裁决源」在 **`:5828-5829`**，「sizing 冻结/治 `base_units` 每 bar 重算」在 **`:5830-5832`** |\n| 24 | 「验不了」那句在 ADR 0018 §背景 | ⚠️ 逐字内容 ✓ 在 `0018:127`，但该行在**裁定四**正文，**不在 §背景**（§背景 = `:7-55`） |\n\n其余 20 条逐条打开后与断言一致。**四处全是「结论正确、论据是假的」那一类**——结论一条没变。\n\n**清单外发现**：`recursive_tower.rs:265-266` doc 逐字「**ZD/ZG 核心冻结**（…延伸只扩外缘不改核心）」，实现段 `:748-750` 只写 `end_index`/`dd`/`gg`。**这是裁定五探针的强旁证，但不替代它**——单文件 grep 非穷举，且升级重切路径（`:273-275`）是另一条机制、本票完全未查。已写进 ADR 0019 §有效域。\n\n---\n\n## 移交\n\n- **[探针：CenterId 的 zd/zg 在中枢延伸与升级重切时会不会被改写 #929](https://github.com/xy7365527-lang/NewChanlun/issues/929)** —— 已开、已挂 map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787)（落点当场核实）\n- **实装 spec** → 待 [#929](https://github.com/xy7365527-lang/NewChanlun/issues/929) 回，**出图**（#787 纯决策图）。⟹ **#787 关图条件②「下游实施线已开、有票号、有主」在本条线上暂时不满足**，照实记账\n- **NT 臂限价下单** → 本 ADR 不覆盖，另开线，不挂 #787\n- **`pending` 第二套机制债** → ADR 0019 裁定四已命名，随实装线处置或另挂 `debt`\n\n---\n\n**关票声明**：resolution=`1a07ebeb73`，已并入 main；本评论各项在此刻均已为真；逐 commit 可编译性=单 commit 交付、**纯文档豁免**（无 `.rs` 改动）；工位=已删（worktree `agent-a91c9652d837abe64` 与分支 `worktree-agent-a91c9652d837abe64` 均已移除）；报告=`docs/adr/0019-limit-order-state-flow-interface.md`（本票产物即 ADR 正本，另订正 `docs/adr/0018-limit-order-fill-model.md`）；评审面==关票面（纯文档，评审完成后无新提交）。\n",
+          "author_association": "OWNER",
+          "pin": null,
+          "reactions": {
+            "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/comments/5211124225/reactions",
+            "total_count": 0,
+            "+1": 0,
+            "-1": 0,
+            "laugh": 0,
+            "hooray": 0,
+            "confused": 0,
+            "heart": 0,
+            "rocket": 0,
+            "eyes": 0
+          },
+          "performed_via_github_app": null,
+          "minimized": null
+        }
+      ],
+      "pagination_complete": true
+    },
+    {
+      "number": 938,
+      "issue": {
+        "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/938",
+        "repository_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun",
+        "labels_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/938/labels{/name}",
+        "comments_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/938/comments",
+        "events_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/938/events",
+        "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/938",
+        "id": 5094031716,
+        "node_id": "I_kwDORJC4uM8AAAABL6DBZA",
+        "number": 938,
+        "title": "[grilling] 键相同但挂单价漂了怎么办：ADR 0019 裁定三降到 start_index 之后的缺口（map #787，从 #929 毕业）",
+        "user": {
+          "login": "xy7365527-lang",
+          "id": 221749430,
+          "node_id": "U_kgDODTegtg",
+          "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/xy7365527-lang",
+          "html_url": "https://github.com/xy7365527-lang",
+          "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+          "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+          "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+          "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "labels": [
+          {
+            "id": 11582612646,
+            "node_id": "LA_kwDORJC4uM8AAAACsmCkpg",
+            "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/labels/wayfinder:grilling",
+            "name": "wayfinder:grilling",
+            "color": "D93F0B",
+            "default": false,
+            "description": ""
+          }
+        ],
+        "state": "closed",
+        "locked": false,
+        "assignees": [
+          {
+            "login": "xy7365527-lang",
+            "id": 221749430,
+            "node_id": "U_kgDODTegtg",
+            "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/xy7365527-lang",
+            "html_url": "https://github.com/xy7365527-lang",
+            "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+            "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+            "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+            "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+            "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+            "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+            "type": "User",
+            "user_view_type": "public",
+            "site_admin": false
+          }
+        ],
+        "milestone": null,
+        "comments": 1,
+        "created_at": "2026-08-07T21:17:54Z",
+        "updated_at": "2026-08-08T02:06:49Z",
+        "closed_at": "2026-08-08T02:06:49Z",
+        "assignee": {
+          "login": "xy7365527-lang",
+          "id": 221749430,
+          "node_id": "U_kgDODTegtg",
+          "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/xy7365527-lang",
+          "html_url": "https://github.com/xy7365527-lang",
+          "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+          "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+          "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+          "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "author_association": "OWNER",
+        "active_lock_reason": null,
+        "sub_issues_summary": {
+          "total": 0,
+          "completed": 0,
+          "percent_completed": 0
+        },
+        "parent_issue_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/787",
+        "issue_dependencies_summary": {
+          "blocked_by": 0,
+          "total_blocked_by": 0,
+          "blocking": 0,
+          "total_blocking": 0
+        },
+        "body": "Part of #787\n\n## 从哪来\n\n[CenterId 稳定性探针 #929](https://github.com/xy7365527-lang/NewChanlun/issues/929) 的结论把 [ADR 0019](https://github.com/xy7365527-lang/NewChanlun/blob/main/docs/adr/0019-limit-order-state-flow-interface.md) 裁定三的身份键**从三元组 `(start_index, zd, zg)` 降成了单分量 `start_index`**——因为实测**中枢还活着时 `zd`/`zg` 会漂移**。\n\n**降完之后浮出一个原裁定没有覆盖的缺口**，探针如实交回主控、未自行改裁。\n\n## 要裁的\n\n### 一、键相同不再蕴含价格不变\n\n原裁定三：**键相同 ⟹ 同一张单续挂，qty 冻结，判 maker**。\n\n但键降到 `start_index` 之后，**同一键下 `zd`/`zg` 可以漂**（[#929](https://github.com/xy7365527-lang/NewChanlun/issues/929) 实测 seq=3：`start_index=24614` 不变，`zd` 从 2580000000000 → 2571704000000，**约 −0.32%**）。\n\n**而限价单的挂单价正是从 ZD/ZG 读的。** ⟹ 那张还挂着的单，价格该怎么办：\n\n- **跟着改价**：等于撤单重挂，真实市场里丢排队位置；且 ADR 0018 裁定五的 maker/taker 分档会被打乱（续挂本该判 maker）\n- **冻结不改**：那张单挂在一个**已经不是当前 ZD** 的价上；中枢核心漂了 0.32%，挂单价与当下结构脱钩\n\n**仓内有同形先例可抄**：`center_oscillation_trade.rs:619-631`（#487）在开局腿**首次绑定时冻结完整四边框**，清算按旧框判。抄过来就是「**键管身份、冻结框管价格**」，两件事分开管。\n\n### 二、要不要改用更强的既有载体\n\n探针指出仓内已有两个生产在跑的身份归一机制：\n\n- `CenterOscillationBook::resolve()`（`center_oscillation_trade.rs:516-522`，doc 自称「挂起表的**唯一 key 归一入口**」）\n- `LineageBook`（`lineage_book.rs`，**生产默认开**，`fill.rs:1017-1022` 接线；其模块 doc `:5-8` 已把「中枢连续但身份漂移」写死为已知病症——**这条修补回路的存在本身就是三元组不稳的在产证明**）\n\n探针的建议（**未采纳，待裁**）：裁定三若以 `resolve()` 后的锚为键，能同时吃到「`zd` 漂移不误撤」与「seed 右移正确撤」，且不必自建第二套身份。\n\n**要裁的是**：用裸 `start_index`，还是用 `resolve()` 后的归一锚？后者更强但引入对既有簿的依赖。\n\n### 三、升级重切那条路径的约束（探针副产，须一并考虑）\n\n`recursive_tower.rs:782-789`：九段重切后 **`zd`/`zg` 继承母核心不变**，而 `start_index` 取 `units[s].start_index` ⟹ **重切出的 k 个子共享同一 `(zd,zg)`，只有 `start_index` 能区分它们**。\n\n⟹ **键里必须有 `start_index`** —— 这一条已定，不必重开。⚠️ 但它是**逐行读出、非实测**（wf8 八条探针无一触发九段重切）。\n\n## 已定、不必重开的\n\n- **身份键只能用 `start_index`**（[#929](https://github.com/xy7365527-lang/NewChanlun/issues/929) 已裁，两层独立实证：wf8 八条案例 7 条为「同 seed、`start_index` 不变、`zd`/`zg` 漂移」+ `rebase_txn.rs:1469-1487` 机检断言）\n- ADR 0019 其余四条裁定不受影响\n\n## 纪律\n\n`/grill-with-docs`，**一次一问**，agent 不得替人答。**落完文档才关票。** 涉及「照着哪一行／哪个函数」的断言，须由落文档的人独立逐条打开复核（本仓该工序在案 6/6 全中）。",
+        "closed_by": {
+          "login": "xy7365527-lang",
+          "id": 221749430,
+          "node_id": "U_kgDODTegtg",
+          "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/xy7365527-lang",
+          "html_url": "https://github.com/xy7365527-lang",
+          "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+          "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+          "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+          "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+          "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+          "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "reactions": {
+          "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/938/reactions",
+          "total_count": 0,
+          "+1": 0,
+          "-1": 0,
+          "laugh": 0,
+          "hooray": 0,
+          "confused": 0,
+          "heart": 0,
+          "rocket": 0,
+          "eyes": 0
+        },
+        "timeline_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/938/timeline",
+        "performed_via_github_app": null,
+        "state_reason": "completed",
+        "pinned_comment": null
+      },
+      "comments": [
+        {
+          "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/comments/5223998272",
+          "html_url": "https://github.com/xy7365527-lang/NewChanlun/issues/938#issuecomment-5223998272",
+          "issue_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/938",
+          "id": 5223998272,
+          "node_id": "IC_kwDORJC4uM8AAAABN1_jQA",
+          "user": {
+            "login": "xy7365527-lang",
+            "id": 221749430,
+            "node_id": "U_kgDODTegtg",
+            "avatar_url": "https://avatars.githubusercontent.com/u/221749430?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/xy7365527-lang",
+            "html_url": "https://github.com/xy7365527-lang",
+            "followers_url": "https://api.github.com/users/xy7365527-lang/followers",
+            "following_url": "https://api.github.com/users/xy7365527-lang/following{/other_user}",
+            "gists_url": "https://api.github.com/users/xy7365527-lang/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/xy7365527-lang/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/xy7365527-lang/subscriptions",
+            "organizations_url": "https://api.github.com/users/xy7365527-lang/orgs",
+            "repos_url": "https://api.github.com/users/xy7365527-lang/repos",
+            "events_url": "https://api.github.com/users/xy7365527-lang/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/xy7365527-lang/received_events",
+            "type": "User",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "created_at": "2026-08-08T02:06:48Z",
+          "updated_at": "2026-08-08T02:06:48Z",
+          "body": "## Resolution：**价跟随中枢 / 键保持裸 `start_index`**\n\nHITL grilling，两条裁定 + 两轮 AFK 探针。**走票中途主控被实测推翻两次**（见末节），最终两条裁定都由实测直接支撑。\n\n---\n\n## 裁定 A（补缺口一）：挂单价**跟随**中枢\n\n中枢核心被修订时挂单价**跟着重读**；中枢封口后自然固定。\n\n**四条理由，全部有实测垫底**：\n\n1. **必然遇上**——绑定的中枢 **100% 是开放的**。`alive_center()` **恒为链尾**，实测 **4,677,752 / 4,677,752 零反例**；而链尾正是每 bar 被 pop 重扫的那个，frontier 协议第 3 条只保护「**保留的前缀** centers」，链尾不在其中。**不存在「运气好挂到封口中枢上」这条路。**\n2. **飘 ＝ 认识变准，不是标的变了**——核心 `zd = max(三段低点)`（`center.rs:133-135`），而段在实时推进中逐步确认；第三段多走几根 K 线后低点才看全 ⟹ 新值不是「变了」，是「原值当时没看全」。\n3. **高级别最重**——`core_drift` 占身份变化比例**随级别单调上升**：L0 **1.32%** → L4 **71.43%**，而这条链跑在 **L1+**（`fill.rs:1223` `for lvl in 1..n_levels`）。\n4. **半绑半不绑说不通**——[ADR 0018](https://github.com/xy7365527-lang/NewChanlun/blob/main/docs/adr/0018-limit-order-fill-model.md) 裁定四已把**寿命**绑给结构（中枢失效即撤）。价再不绑，这张单就是「寿命看结构、价格看一个过时的数字」。\n\n**★ 暂不设「漂多少才改单」的阈值**：实测频次 `core_drift` **258 次 / 100 万 bar ＝ 0.026%**，防抖机制的成本大于收益。**翻盘条件**：频次显著上升、或按挂单存续期加权后占比变高 ⟹ 重议。\n\n**★ 边界：不推翻 [#487](https://github.com/xy7365527-lang/NewChanlun/issues/487)。** 它冻的是**清算用的框**——落文档时补到了承重（原为主控断言）：冻结框的**唯一消费者**是 `fill.rs:1072-1077` → `historical_bound_third_cert`，拿旧框**右边**配对紧邻三类点来判挂起该不该终结/回补（注释 `:1061-1062` 逐字）。清算须与开仓时判断一致 ⟹ **冻结是对的**。挂单价是**下单**，要挂在当前结构上。**两件事分开管：清算用旧框，挂价用新框。**\n\n---\n\n## 裁定 B（补缺口二）：身份键**保持裸 `CenterId.start_index`**\n\n**理由是实测本窗零分歧**，不是「差别未知所以选简单的」：\n\n| | 判「迁移」 | 判「重建」 |\n|---|---|---|\n| **真重基 18 次**（起点变） | **0** | **18（100%）** |\n| **核心漂移 258 次**（起点不变） | **258（100%）** | 0 |\n\n⟹ 「谱系判迁移」与「起点未变」在本窗**是同一个集合，逐帧重合、零例外**。裸键**误撤 0 / 2,423**，锚**漏撤 0 / 258**——**两侧都算过**。\n\n**结构性原因已查清（不是巧合）**：谱系判定只由**前三个构造种子的 `(level, ordinal)` 序列**决定（`rebase_txn.rs:245-251` `seed_key`，只收 `Continued1To1 ∧ 四布尔全真`，`:757-759`）——**`zd`/`zg` 怎么漂都不进这条判据。**\n\n**★ 而「用锚」可能在结构上是空的**：`anchor_of` **只在挂起表非空时才写**（门二，`center_oscillation_trade.rs:794-796`），而挂起簿服务的是中枢震荡短差的挂起。**限价单走不走这个簿，未查。** 若不走 ⟹ `anchor_of` 对限价单永不写入，而 `resolve()` 对未迁移身份**恒等返回**（`:520-522`）⟹ **用锚 ≡ 用裸键**。\n⟹ **实装前必查项**：限价单走不走挂起簿。不影响本裁定，但决定「用锚」是不是一个真实存在的选项。\n\n**★★ 翻盘条款（三条，任一被推翻则本裁定作废、改用锚）**：\n1. 只测了 **BTC 前 100 万 bar**（全史 461 万的 **21.7%**），其他标的未跑\n2. **没按挂单存续期加权** —— 「0 次」是 **bar 次**口径，不是订单口径\n3. **前缀守卫有已登记盲区**（`center_lifecycle.rs:529-535` 自陈）——未检出的深层重基可能混在那 2,405 次里\n\n---\n\n## ★★ 走票中途主控被实测推翻两次，照实记\n\n**第一次（价的成因）**：编排者问「**中枢下沿为什么会飘**」。主控此前一直在处理「会飘」这个事实而**没解释成因**，而成因直接决定该跟随还是该撤单。查实后成因是良性的（段在实时中逐步确认），**裁定 A 的天平因此从「跟随有代价」压向「跟随更对」**。\n\n**第二次（键的分母）**：主控推荐裸键时**只盯着 `core_drift` 的 258**，编排者问「(乙) 呢」，主控回查才发现 **`seed_moved` 是 2,423 次、是前者的 9.4 倍**，当场改推荐「先测构成」。\n探针回来后**又推翻了这个担心**：那 2,423 次里 **2,405 次（99.26%）根本不是重基**，是链正常往前长了一节（`ChainConsumed::Advanced`，旧链尾仍在链上、只是被 `Superseded`）；**真重基只有 18 次**。而链前进 ⟹ 旧中枢不再 `alive` ⟹ 震荡短差被 `CenterNotAlive` 挡掉（`center_oscillation_trade.rs:156`）⟹ **那时撤单本来就是对的**。\n\n**⟹ 两次的共同形态：拿一个未拆分的聚合数下判断。** 与本仓在案的「失败率必须拆成因」同源——`core_drift` 总体 9.62% 看着不多，按级别拆开 L4 占 71.43%；`seed_moved` 2,423 看着很多，按成因拆开 99.26% 无关。**两个方向都栽过。**\n\n**★ 主控另一处读反**：曾把 [#487](https://github.com/xy7365527-lang/NewChanlun/issues/487) 的「首次绑定冻结四边框」当成「核心不会漂」的先例。**方向正好反了**——它是**已经为这个病打过的补丁**。落文档时查到直接文内证据：`center_oscillation_trade.rs:481-483` doc 逐字「`CenterId` 刻意不含会随延伸改写的右边，**不能反过来承担四边框快照**」。\n\n---\n\n## ★ 落文档独立复核（第三轮，又中）\n\n| # | 主控原断言 | 实测 |\n|---|---|---|\n| 1 | `rebase_txn.rs:245-252` 是 `seed_key` | ❌ 实为 **`:245-251`**（`:252` 是空行）。内容成立 |\n\n另**补上两处主控原本只有断言、没有承重的**：#487 冻结框的唯一消费者链（见裁定 A 边界节）；`center_oscillation_trade.rs:481-483` 那条自陈（见上）。\n\n**在案数 6/6 → 7/7**：第 7 例是 `.chanlun/review-results/issue929-centerid-stability-20260807.md:134` 把 frontier pop 写成 `classifier/mod.rs:1937-2001`，**实为 `:1376-1415`**（`:1380` `pop_n`、`:1402-1403` `truncate`；`:1937-2001` 那里是 `extract_second_for_level`/`second_for_parent`，区间内无任何 pop）。已排除「写时对、后来漂」。**结论不受影响，属「结论对、论据假」那一类。**\n\n---\n\n## 未闭合（照实，不省）\n\n1. **限价单走不走挂起簿** —— 实装前必查（见裁定 B）\n2. **`last_window_emitted == 0` 的理论角落**：此刻 `confirmed_watermark == len`，链尾形式上落进「已封口」一侧；该角落是否可达**未测**。这是裁定 A 理由 1「100% 开放」的唯一形式缝隙\n3. **挂单存续期加权** —— 两轮探针都不重放触发、不模拟挂单，无法加权\n4. **跨品种未测**；**严格读法构成未跑**\n5. **两份探针的分母 4,677,752 与 4,677,747 不同，不可混用** —— 差 5 ＝ 5 个级别各自的首 bar 无「上一 bar」可差分（前者是 alive 级-bar 数，后者是帧差分数）\n\n**顺带查出、已另挂票**：证书 bar 坐标 `txn_bar`（`classifier/mod.rs:879-880`）与生产查簿 bar（`fill.rs:1017` 入参 `i`）在 **41.51%** 的 bar 上不相等 ⟹ [#948](https://github.com/xy7365527-lang/NewChanlun/issues/948)（debt，不进图）。本窗 276 次重基 bar 上恒等，故不影响本裁定。\n\n---\n\n**关票声明**：resolution=`86e33e6f3b`（开放性探针 + bin）＋ `8891642f9b`（构成探针 + bin）＋ `222850ca1f`（ADR 0019 补裁），均已并入 main；本评论各项在此刻均已为真；逐 commit 可编译性=三个 commit 中前两个各含一个**新增只读探针 bin**（`p938_bound_center_openness.rs` / `p938_seed_moved_composition.rs`，均已实跑产出读数 ⟹ 可编译），第三个为**纯文档豁免**；工位=已删（worktree `agent-aa107a325343ffb47`/`agent-a805f37c6f875a7c5`/`agent-a2c3c86743c97e76d` 与对应分支均已移除）；报告=`.chanlun/review-results/issue938-center-open-or-sealed-20260807.md` ＋ `issue938-seed-moved-composition-20260807.md`（均已入 git）；评审面==关票面。\n",
+          "author_association": "OWNER",
+          "pin": null,
+          "reactions": {
+            "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/issues/comments/5223998272/reactions",
+            "total_count": 0,
+            "+1": 0,
+            "-1": 0,
+            "laugh": 0,
+            "hooray": 0,
+            "confused": 0,
+            "heart": 0,
+            "rocket": 0,
+            "eyes": 0
+          },
+          "performed_via_github_app": null,
+          "minimized": null
+        }
+      ],
+      "pagination_complete": true
+    }
+  ],
+  "completed_at": "2026-09-09T05:24:57.298119+00:00",
+  "plan": {
+    "provisional_id": "RD-17",
+    "proposed_title": "[grilling] 完整历史模拟执行模型：多重并发、混合订单与同 slot 次序（#1323，C10.3）",
+    "parent_issue": 1323,
+    "ticket_type": "grilling",
+    "source_gap_ids": [
+      "C10.3"
+    ],
+    "dedupe_groups": [
+      "D-C10.3-MODEL"
+    ],
+    "disposition": "NEW_BOUNDED_FOLLOWUP_NO_EXISTING_OPEN_EXACT_MATCH",
+    "reusable_open_issue": null,
+    "open_requirement_container": {
+      "number": 1339,
+      "role": "已签需求和SPEC交棒容器；不作为最终每项残留的唯一承接"
+    },
+    "publication_state": "PROPOSED_NOT_CREATED",
+    "suggested_labels": [
+      "wayfinder:grilling"
+    ],
+    "activation": "AFTER_PUBLICATION",
+    "readiness_rule": "先备齐证据和具体方案；grilling 仅在该对象具备讨论条件时 ready-for-human；不加 sandcastle 自动拾取标签。",
+    "inherited_settled_constraints": [
+      "承接已批准 SPEC C10.3 的完整历史模型成功义务。C10.3 是现有合同条款定位符，不新建 G/FU 需求，不扩大 R2。",
+      "ADR 0018 已裁的 bar 限价严格穿越、开盘取优、GTC、限价费用口径及其适用范围继续有效；只在裁定射程内继承，不以同栏存在某个排序段就泛化到 R2。",
+      "ADR 0019 明写市价单与限价单同 bar 并存的成交次序未定义；旧路径同 bar 不可达仅是已查路径的有限结论，不能证明 R2 多重并发不需要模型。",
+      "同 bar 先平后开、价优与稳定次序的旧裁定及其订正须一并核对；既有 NT planner 的 ConflictKey 不是历史撮合器，也不是共同资金政策。不得按 OHLC 形状虚构未知的 bar 内真实路径。",
+      "历史、paper、live 共享完整核心与身份/责任；模拟 fill 只能作为明确 simulated profile 下的唯一事实源。R2 的 P4/P7、每轮固定 L、逐重账及净省禁复用均不重开。",
+      "未裁模型域显式 ModelOrderUnspecified；TestOnly 的人工顺序可供协议实验，不能据此销完整经营/历史验收。"
+    ],
+    "independent_fact_work": [
+      "逐项摘录 #918/#926/#927/#938 与 ADR 0018/0019 的已裁规则、订正和未定义适用域，形成可继承/须补裁/仅旧软件组织三分表。",
+      "按同 bar/同 slot 的多重同向或反向、平开同存、市价/限价混合、既存/新挂单、撤改与成交竞争列最小差异例；比较候选模型如何产生不同的模拟事实及责任，不以代码当前遍历顺序代裁。",
+      "明确在给定历史输入精度下可知的事件次序与模型假定次序；列出需要显式版本化的模拟能力和数值/时间字段，不从缺失 tick 或盘口推断真实成交路径。",
+      "梳理模型输出的不可变外部事实到 RD-12 分配政策的接口，以及 RD-11 共同资金准入政策的引用边界；模拟成交发生与成交后归属分别取证。"
+    ],
+    "future_user_question": {
+      "ask_now": false,
+      "question": "在保留 ADR 0018/0019 已裁适用域的前提下，R2 多重并发和市价/限价混合的同 bar 或同 slot 执行，正式历史验收采用哪一份具名模拟执行模型？",
+      "mode": "一次一问；不自动代答",
+      "condition": "AFTER_PUBLICATION_AND_MODEL_ALTERNATIVES_PREPARED"
+    },
+    "required_deliverables": [
+      "具名且有版本的 simulated execution profile/model：历史输入适用域、同时性与事件先后、订单可成交/撤改/存续、模拟成交与费用事实的生成规则及仍未支持的域，逐项区分继承规则和本次新裁定。",
+      "对多重并发、混合市价/限价、同 bar/同 slot 竞争给出确定且可审计的解释；同模型、输入与已固定调度轨迹产生同一组完整事实，不把独立重的方向合并为策略仲裁。",
+      "模型与 RD-11 资金准入、RD-12 分配/更正政策分别具名并组合绑定。RD-12 负责外效发生后到各重/订单的唯一归属；本票负责模拟外效如何发生，不替代或重裁 RD-12。",
+      "裁定落相应工程 ADR，附受影响 Rust/Lean/Python 代码清单及不受影响理由；点名把模型实现、独立预期凭证和适用域实例回填 TB-07，不能以本票文档关票声称实现已完成。",
+      "TB-07 的验收接线须从正式会话入口使用正式批准模型，固定输入/修订/模型/政策/时钟/种子/数值/故障/调度，双新进程比较逐重状态、毛账、责任、命令、回报、分配与 AsKnown；本票交付其模型期望与回填契约。"
+    ],
+    "blocked_success_obligations": [
+      {
+        "slice_id": "TB-07",
+        "sub_obligation": "R2 多重并发、混合订单和同 bar/同 slot 域的完整历史经营与全状态确定性双跑成功；TestOnly 或 ModelOrderUnspecified 仅证明相应实验/失败分支",
+        "acceptance_group_ids": [
+          "AT-14"
+        ],
+        "gate_semantics": "SUCCESS_COMPLETION_ONLY_NOT_WHOLE_SLICE_START_BLOCK"
+      },
+      {
+        "slice_id": "TB-08",
+        "sub_obligation": "仅共享核心/可替换 adapter 的跨模式验收中实际消费该历史模拟模型的对照成功；真实场所能力取证自身不被本票一刀切阻塞",
+        "acceptance_group_ids": [
+          "AT-15"
+        ],
+        "gate_semantics": "SUCCESS_COMPLETION_ONLY_NOT_WHOLE_SLICE_START_BLOCK"
+      }
+    ],
+    "independent_work_not_blocked": [
+      "TB-01/02 的正式结构、会话和观察；S 健康时继续产出，与经济模型缺项分开。",
+      "TB-07 的原始输入、恢复、seek、AsKnown、调度记录与全状态比较基础设施；已有具名适用模型域的受控检查，以及明确 TestOnly 的协议实验。",
+      "RD-11 资金政策备料、RD-12 分配规则备料、RD-13 场所/账户/权限只读研究与 TB-09 隔离设计；真实场所 profile 不作为本历史模型备料的整票前置。"
+    ],
+    "evidence_refs": [
+      "SPEC.md:334-342（C10.1-C10.7，尤其 C10.3/C10.4）",
+      "SPEC.md:366-375（TB-07 完整历史模型与局部成功门）",
+      "docs/adr/0018-limit-order-fill-model.md:69-178",
+      "docs/adr/0019-limit-order-state-flow-interface.md:39-49",
+      "docs/adr/0019-limit-order-state-flow-interface.md:249-253",
+      "docs/adr/0019-limit-order-state-flow-interface.md:468-475",
+      "https://github.com/xy7365527-lang/NewChanlun/issues/918#issuecomment-5210716261",
+      "https://github.com/xy7365527-lang/NewChanlun/issues/926#issuecomment-5210868134",
+      "https://github.com/xy7365527-lang/NewChanlun/issues/927#issuecomment-5211124225",
+      "https://github.com/xy7365527-lang/NewChanlun/issues/938#issuecomment-5223998272"
+    ],
+    "prerequisite_plan_ids": [],
+    "notes": [
+      "C10.3 的模拟模型未被 RD-12 或 RD-13 完整承接。它不是新增项目目标，也不是要求用户重裁已有 bar 限价规则。",
+      "原 FU-04 行主要登记真实场所/账户/权限；本票直接绑定已批准 C10.3 与 DST-04，不把 FU-04 改写成新增全域资金选择。",
+      "RD-11/12 是相关政策接口：备料可并行，联合经营成功依赖实际使用的正式政策；因此本票不新增整票 prerequisite 边。",
+      "旧 #1329 保持暂停；closed #918/#926/#927/#938 保持关闭且仅引用各自已裁/实测射程，不重开、不宣称承接新的完整 R2 域。",
+      "模型的模拟费用/流动性等若需选数，以备齐资料后按讨论节拍作独立选择；拟票本身不填写当前真实账户、费率或资金默认。"
+    ],
+    "does_not_authorize": [
+      "main 合入",
+      "真实下单/转账/充值/账户变更",
+      "未明确的资金参数或退出权限"
+    ],
+    "source_family_bindings": [
+      {
+        "id": "DST-04",
+        "source_json_pointer": "/destinations/3",
+        "user_story_ids": [
+          "US-DST-04",
+          "US-ENG-04",
+          "US-ENG-05"
+        ],
+        "spec_sections": [
+          "C10",
+          "C12"
+        ],
+        "acceptance_group_ids": [
+          "AT-14",
+          "AT-18"
+        ],
+        "acceptance_point_ids": [
+          "A-DST-04-01"
+        ]
+      },
+      {
+        "id": "DST-05",
+        "source_json_pointer": "/destinations/4",
+        "user_story_ids": [
+          "US-DST-05",
+          "US-ENG-05"
+        ],
+        "spec_sections": [
+          "C10",
+          "C12"
+        ],
+        "acceptance_group_ids": [
+          "AT-15",
+          "AT-18"
+        ],
+        "acceptance_point_ids": [
+          "A-DST-05-01"
+        ]
+      }
+    ],
+    "source_family_note": "直接义务来自 C10.3/C10.4，绑定既有 DST-04/05；字段 source_gap_ids 内的 C10.3 是已批准条款定位符，未新增 G/FU。全域来源仅用于追溯，实际门只看 blocked_success_obligations。",
+    "full_completion_gate": {
+      "slice_id": "TB-11",
+      "destination_ids": [
+        "DST-04",
+        "DST-05",
+        "DST-06"
+      ],
+      "meaning": "必需完整历史模型和实际跨模式成功子义务未验收时，整图不得声明全部完成，#1279 不得放行。"
+    },
+    "publication_body_template": "Part of #1323\n\n已批准基准：{{APPROVED_SPEC_PERMALINK}}；S2-R1 清单 SHA256 `38e3176b6dfff456b8e3704410401c3bedddf0671751464bb9ea5b829e460260`。\n\n本票承接现有 C10.3/C10.4 与 DST-04/05 的完整历史模型义务；不新增 G/FU 需求。#1339 为需求来源，旧 #1329 保持暂停；#918/#926/#927/#938 的关闭不代表新 R2 并发/混合域已裁。\n\n待完成：\n- 具名且有版本的 simulated execution profile/model：历史输入适用域、同时性与事件先后、订单可成交/撤改/存续、模拟成交与费用事实的生成规则及仍未支持的域，逐项区分继承规则和本次新裁定。\n- 对多重并发、混合市价/限价、同 bar/同 slot 竞争给出确定且可审计的解释；同模型、输入与已固定调度轨迹产生同一组完整事实，不把独立重的方向合并为策略仲裁。\n- 模型与 RD-11 资金准入、RD-12 分配/更正政策分别具名并组合绑定。RD-12 负责外效发生后到各重/订单的唯一归属；本票负责模拟外效如何发生，不替代或重裁 RD-12。\n- 裁定落相应工程 ADR，附受影响 Rust/Lean/Python 代码清单及不受影响理由；点名把模型实现、独立预期凭证和适用域实例回填 TB-07，不能以本票文档关票声称实现已完成。\n- TB-07 的验收接线须从正式会话入口使用正式批准模型，固定输入/修订/模型/政策/时钟/种子/数值/故障/调度，双新进程比较逐重状态、毛账、责任、命令、回报、分配与 AsKnown；本票交付其模型期望与回填契约。\n\n直接继承：\n- 承接已批准 SPEC C10.3 的完整历史模型成功义务。C10.3 是现有合同条款定位符，不新建 G/FU 需求，不扩大 R2。\n- ADR 0018 已裁的 bar 限价严格穿越、开盘取优、GTC、限价费用口径及其适用范围继续有效；只在裁定射程内继承，不以同栏存在某个排序段就泛化到 R2。\n- ADR 0019 明写市价单与限价单同 bar 并存的成交次序未定义；旧路径同 bar 不可达仅是已查路径的有限结论，不能证明 R2 多重并发不需要模型。\n- 同 bar 先平后开、价优与稳定次序的旧裁定及其订正须一并核对；既有 NT planner 的 ConflictKey 不是历史撮合器，也不是共同资金政策。不得按 OHLC 形状虚构未知的 bar 内真实路径。\n- 历史、paper、live 共享完整核心与身份/责任；模拟 fill 只能作为明确 simulated profile 下的唯一事实源。R2 的 P4/P7、每轮固定 L、逐重账及净省禁复用均不重开。\n- 未裁模型域显式 ModelOrderUnspecified；TestOnly 的人工顺序可供协议实验，不能据此销完整经营/历史验收。\n\n可独立备料：\n- 逐项摘录 #918/#926/#927/#938 与 ADR 0018/0019 的已裁规则、订正和未定义适用域，形成可继承/须补裁/仅旧软件组织三分表。\n- 按同 bar/同 slot 的多重同向或反向、平开同存、市价/限价混合、既存/新挂单、撤改与成交竞争列最小差异例；比较候选模型如何产生不同的模拟事实及责任，不以代码当前遍历顺序代裁。\n- 明确在给定历史输入精度下可知的事件次序与模型假定次序；列出需要显式版本化的模拟能力和数值/时间字段，不从缺失 tick 或盘口推断真实成交路径。\n- 梳理模型输出的不可变外部事实到 RD-12 分配政策的接口，以及 RD-11 共同资金准入政策的引用边界；模拟成交发生与成交后归属分别取证。\n\n仅阻以下成功子义务，不阻无关开工：\n- TB-07：R2 多重并发、混合订单和同 bar/同 slot 域的完整历史经营与全状态确定性双跑成功；TestOnly 或 ModelOrderUnspecified 仅证明相应实验/失败分支（AT-14）。\n- TB-08：仅共享核心/可替换 adapter 的跨模式验收中实际消费该历史模拟模型的对照成功；真实场所能力取证自身不被本票一刀切阻塞（AT-15）。\n\n仍可继续：\n- TB-01/02 的正式结构、会话和观察；S 健康时继续产出，与经济模型缺项分开。\n- TB-07 的原始输入、恢复、seek、AsKnown、调度记录与全状态比较基础设施；已有具名适用模型域的受控检查，以及明确 TestOnly 的协议实验。\n- RD-11 资金政策备料、RD-12 分配规则备料、RD-13 场所/账户/权限只读研究与 TB-09 隔离设计；真实场所 profile 不作为本历史模型备料的整票前置。\n\n后续讨论节拍：一次一问；不自动代答。本票发布不等于已向用户提问。\n首个备好材料后再问的问题：在保留 ADR 0018/0019 已裁适用域的前提下，R2 多重并发和市价/限价混合的同 bar 或同 slot 执行，正式历史验收采用哪一份具名模拟执行模型？\n激活条件：AFTER_PUBLICATION_AND_MODEL_ALTERNATIVES_PREPARED\n\n来源：\n- SPEC.md:334-342（C10.1-C10.7，尤其 C10.3/C10.4）\n- SPEC.md:366-375（TB-07 完整历史模型与局部成功门）\n- docs/adr/0018-limit-order-fill-model.md:69-178\n- docs/adr/0019-limit-order-state-flow-interface.md:39-49\n- docs/adr/0019-limit-order-state-flow-interface.md:249-253\n- docs/adr/0019-limit-order-state-flow-interface.md:468-475\n- https://github.com/xy7365527-lang/NewChanlun/issues/918#issuecomment-5210716261\n- https://github.com/xy7365527-lang/NewChanlun/issues/926#issuecomment-5210868134\n- https://github.com/xy7365527-lang/NewChanlun/issues/927#issuecomment-5211124225\n- https://github.com/xy7365527-lang/NewChanlun/issues/938#issuecomment-5223998272\n\n关票条件：完整模型明确且按适用范围落相应 ADR，受影响代码/独立期望凭证与 TB-07 实施验收承接有落点；本票不以模型文档关闭替代 TB-07 或整图实装完成。只写 ModelOrderUnspecified 或采用 TestOnly 次序不替代必需完整经营成功路径。\n\n本票不授权真实下单、转账、充值、账户变更或合入 main；不填写未经确认的资金、费率或退出默认。\n",
+    "publication_template_substitutions_required": [
+      "APPROVED_SPEC_PERMALINK",
+      "TB-xx 到新实施票号的对应链接（若已发布）",
+      "源包相对指针到批准归档固定链接的对应（不链接临时目录作为唯一发布证据）"
+    ]
+  },
+  "dedupe_conclusion": {
+    "no_exact_open_reusable_ticket_found": true,
+    "query_scope": "gh issue list --state all；analysis/ docs/ .chanlun/；逐字保存六组 GitHub 查询和两组仓内匹配，未读排除源方案。",
+    "existing_open": [
+      {
+        "number": 1329,
+        "disposition": "PAUSED_LEGACY_C3_NOT_REACTIVATED",
+        "reason": "旧环境无关周期设计容器，当前用户要求仍暂停；不是已裁新多重混合模型。"
+      },
+      {
+        "number": 1340,
+        "disposition": "APPROVED_SPEC_PARENT_CONTAINER",
+        "reason": "已批准条款 C10.3 正是本残留义务的来源。"
+      },
+      {
+        "number": 1323,
+        "disposition": "PARENT_MAP",
+        "reason": "整图容器，不替代可讨论的具体残留承接。"
+      }
+    ],
+    "existing_closed": [
+      {
+        "number": 918,
+        "disposition": "INHERIT_RULES_AND_DOMAIN_ONLY"
+      },
+      {
+        "number": 926,
+        "disposition": "HISTORICAL_CODE_FACTS_NOT_NEW_R2_DECISION"
+      },
+      {
+        "number": 927,
+        "disposition": "INHERIT_INTERFACE_RULING_AND_EXPLICIT_UNDEFINED_DOMAIN"
+      },
+      {
+        "number": 938,
+        "disposition": "INHERIT_WITHIN_SCOPE_NOT_MIXED_CONCURRENT_DECISION"
+      }
+    ],
+    "other_hits": "回测研究/旧运行勘察/旧 paper 场所票未裁 R2 多重并发、混合订单、同 slot 完整模拟模型；推论层实例不是所选答案。",
+    "limitation": "关键词查重降低漏检，不等于全史逻辑证明；列出的命中已按同一对象/当前授权核定。"
+  }
+}

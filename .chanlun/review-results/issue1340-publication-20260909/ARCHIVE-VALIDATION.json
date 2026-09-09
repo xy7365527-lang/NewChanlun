@@ -1,0 +1,7 @@
+{
+  "status": "PASS",
+  "payload_count": 42,
+  "all_payload_hashes_match": true,
+  "reading_links_resolve": true,
+  "runtime_acceptance": false
+}
