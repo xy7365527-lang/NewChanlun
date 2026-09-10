@@ -302,15 +302,97 @@ async function fetchJson(url) {
   }
   return body;
 }
-function validateState(state) {
-  const cat = state.catalog;
-  const snap = state.snapshot;
-  if (!cat || !snap) throw new Error("state 缺 catalog/snapshot");
-  if (cat.catalog_revision !== snap.catalog_revision ||
-      cat.structure_cut !== snap.structure_cut ||
-      cat.generation !== snap.generation) {
-    throw new Error("cut 版本不一致（catalog/snapshot 不属于同一已提交 cut），请刷新");
+const publicationKeys = ["session_id", "generation", "structure_cut", "catalog_revision", "index_frontier",
+                         "scope", "input_frontier", "seq_range", "catalog_run_status", "catalog_evidence"];
+function exactJson(a, b) {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== typeof b || typeof a !== "object") return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const ak = Object.keys(a).sort(), bk = Object.keys(b).sort();
+  return ak.length === bk.length && ak.every((k, i) => k === bk[i] && exactJson(a[k], b[k]));
+}
+function requireKeys(v, keys, name) {
+  if (!v || typeof v !== "object" || Array.isArray(v) || keys.some(k => !Object.hasOwn(v, k)))
+    throw new Error(`${name} 缺必需字段或形状错误`);
+}
+function requireArrays(v, keys, name) {
+  requireKeys(v, keys, name);
+  if (keys.some(k => !Array.isArray(v[k]) || v[k].some(x => !x || typeof x !== "object" || Array.isArray(x))))
+    throw new Error(`${name} 集合或成员无效`);
+}
+function decimal(v, frontier = false) {
+  if (typeof v !== "string" || !(frontier ? /^(?:-1|0|[1-9][0-9]*)$/ : /^(?:0|[1-9][0-9]*)$/).test(v) ||
+      BigInt(v) > 9223372036854775807n) throw new Error("精确整数不是规范 i64 文本");
+}
+function validateExactRecords(records) {
+  const integerKeys = new Set(["revision", "seq", "object_revision", "first_known_generation", "published_generation",
+    "withdrawn_generation", "supersedes_revision", "slot", "merged_source_index", "merged_index", "window_start", "window_mid", "window_end"]);
+  function walk(v) {
+    if (!v || typeof v !== "object") return;
+    for (const [k, x] of Object.entries(v)) {
+      if (integerKeys.has(k) && x !== null) decimal(x);
+      walk(x);
+    }
   }
+  walk(records);
+}
+function validateEvidence(evidence, gen) {
+  if (gen === "0") return;
+  requireKeys(evidence, ["classified_objects", "windows_total", "merged_bars", "effective_source_positions", "withdrawals",
+    "replaces", "insufficient_knowledge", "domain_not_satisfied", "scope", "batch_id", "structure_cut", "profile_id", "profile_hash", "rule_revision"], "目录证据");
+  for (const k of ["classified_objects", "windows_total", "merged_bars", "effective_source_positions", "withdrawals", "replaces", "insufficient_knowledge", "domain_not_satisfied"]) decimal(evidence[k]);
+}
+function bindingOf(snap) { return Object.fromEntries(publicationKeys.map(k => [k, deepClone(snap[k])])); }
+function validateState(state) {
+  requireKeys(state, ["catalog", "snapshot", "cut"], "State");
+  const cat = state.catalog, snap = state.snapshot;
+  requireKeys(cat, publicationKeys, "Catalog"); requireKeys(snap, publicationKeys, "Snapshot");
+  for (const k of publicationKeys) if (!exactJson(cat[k], snap[k])) throw new Error(`Catalog/Snapshot.${k} 不一致`);
+  for (const k of ["session_id", "generation", "structure_cut", "catalog_revision", "index_frontier"]) {
+    requireKeys(state.cut, [k], "State.cut");
+    if (!exactJson(state.cut[k], snap[k])) throw new Error(`State.cut.${k} 不一致`);
+  }
+  decimal(snap.generation); decimal(snap.input_frontier, true);
+  requireKeys(snap.seq_range, ["from", "to"], "seq_range");
+  decimal(snap.seq_range.from); decimal(snap.seq_range.to, true);
+  if (snap.structure_cut !== `cut-${snap.generation}` || snap.seq_range.to !== snap.input_frontier)
+    throw new Error("Snapshot cut/seq/input 前沿不一致");
+  if (!exactJson(snap.scope, {structure:"CompleteCut", economic:"not_started"})) throw new Error("scope 非本片声明");
+  requireArrays(snap, ["objects", "withdrawn_objects", "witnesses", "relations", "observations", "raw_history"], "Snapshot");
+  validateExactRecords([snap.objects, snap.withdrawn_objects, snap.witnesses, snap.observations, snap.raw_history]);
+  validateEvidence(snap.catalog_evidence, snap.generation);
+  requireArrays(cat, ["items"], "Catalog");
+  const cc = cat.items.filter(x => x.id === "CC-006");
+  if (cc.length !== 1 || !exactJson(cc[0].evidence, snap.catalog_evidence) || cc[0].run_status !== snap.catalog_run_status)
+    throw new Error("CC-006 目录证据/运行状态与 publication tuple 不一致");
+  if (snap.generation !== "0" && (snap.catalog_evidence.batch_id !== snap.index_frontier ||
+      snap.catalog_evidence.structure_cut !== snap.structure_cut || !exactJson(snap.catalog_evidence.scope, snap.scope)))
+    throw new Error("目录证据的 batch/cut/scope 不一致");
+}
+function validateDelta(d) {
+  const keys = ["session_id", "generation", "catalog_revision", "base_cut", "next_cut", "seq_range", "index_frontier", "input_frontier"];
+  requireKeys(d, [...keys, "delta"], "Delta行");
+  const dd = d.delta;
+  requireKeys(dd, [...keys, "catalog_run_status", "catalog_evidence"], "Delta载荷");
+  requireArrays(dd, ["upserts", "withdrawals", "replaces", "witnesses", "relations", "observations", "raw_history_added"], "Delta载荷");
+  for (const k of keys) if (!exactJson(d[k], dd[k])) throw new Error(`Delta 内外 ${k} 不一致`);
+  // Rust Watch 的外层不重复这两项；HTTP 外层有时必须等于内层，二者均以完整内层对拍 Snapshot。
+  for (const k of ["catalog_run_status", "catalog_evidence"])
+    if (Object.hasOwn(d, k) && !exactJson(d[k], dd[k])) throw new Error(`Delta 内外 ${k} 不一致`);
+  validateExactRecords([dd.upserts, dd.withdrawals, dd.witnesses, dd.observations, dd.raw_history_added]);
+  validateEvidence(dd.catalog_evidence, dd.generation);
+  decimal(d.generation); decimal(d.input_frontier, true);
+  requireKeys(d.seq_range, ["from", "to"], "Delta.seq_range");
+  decimal(d.seq_range.from); decimal(d.seq_range.to, true);
+  if (d.next_cut !== `cut-${d.generation}` || d.seq_range.to !== d.input_frontier) throw new Error("Delta cut/前沿不一致");
+}
+function comparePublication(delta, snap) {
+  const dd = delta.delta;
+  for (const [dk, sk] of [["session_id","session_id"], ["generation","generation"], ["catalog_revision","catalog_revision"],
+        ["next_cut","structure_cut"], ["index_frontier","index_frontier"], ["input_frontier","input_frontier"],
+        ["seq_range","seq_range"], ["catalog_run_status","catalog_run_status"], ["catalog_evidence","catalog_evidence"]])
+    if (!exactJson(dd[dk], snap[sk])) throw new Error(`Delta/Snapshot.${sk} 不一致`);
+  if (!exactJson(dd.catalog_evidence.scope, snap.scope)) throw new Error("Delta/Snapshot.scope 不一致");
 }
 function renderAllFromState(state) {
   const cat = state.catalog;
@@ -382,8 +464,7 @@ function rebuildCommittedFromState(state) {
   appliedObservations = new Map((snap.observations || []).map(o => [o.observation_id, o]));
   appliedRawHistory = new Map((snap.raw_history || []).map(r => [`${r.identity_key}@${r.revision}`, r]));
   lastAppliedGen = snap.generation;
-  sessionBinding = { session_id: snap.session_id, structure_cut: snap.structure_cut,
-                     generation: snap.generation, catalog_revision: snap.catalog_revision };
+  sessionBinding = bindingOf(snap);
 }
 async function applyStream() {
   const el = document.getElementById("stream-result");
@@ -394,9 +475,14 @@ async function applyStream() {
     const deltaResp = await fetchJson(`/api/delta?after_generation=${lastAppliedGen}`);
     if (epoch !== pageEpoch) return;
     if (deltaResp.gap) {
-      // Gap：按返回 rebuild_cut 真正读取当前快照并重建缓存/游标/绑定（清空不是重建）。
+      // Gap：按返回 rebuild_cut 读取指定快照并重建缓存/游标/绑定（清空不是重建）。
       let st;
-      try { st = await fetchJson("/api/state"); }
+      try {
+        const cut = deltaResp.gap.rebuild_cut;
+        if (typeof cut !== "string" || !/^cut-(0|[1-9][0-9]*)$/.test(cut)) throw new Error("Gap 缺合法 rebuild_cut");
+        st = await fetchJson(`/api/state?as_of=${cut.slice(4)}`);
+        if (st.snapshot.structure_cut !== cut) throw new Error("Gap 重建 cut 不一致");
+      }
       catch (e) {
         if (epoch !== pageEpoch) return;
         el.innerHTML = `<div class="warn-box">Gap（${esc(JSON.stringify(deltaResp.gap))}）且当前快照读取失败（${esc(e)}）：尚未重建，请重试</div>`;
@@ -407,9 +493,9 @@ async function applyStream() {
       catch (e) { el.innerHTML = `<div class="err-box">重建校验失败（${esc(e)}）：状态未提交</div>`; return; }
       rebuildCommittedFromState(st);
       renderAllFromState(st);
-      syncModeUI("current", st.snapshot);
+      syncModeUI("asof", st.snapshot);
       cursorEl.textContent = `已从 cut ${sessionBinding.structure_cut} 重建（session ${sessionBinding.session_id}）`;
-      el.innerHTML = `<div class="warn-box">Gap：${esc(JSON.stringify(deltaResp.gap))}。已按当前同 cut Snapshot 重建六集合缓存/游标/绑定。</div>`;
+      el.innerHTML = `<div class="warn-box">Gap：${esc(JSON.stringify(deltaResp.gap))}。已按指定同 cut Snapshot 重建六集合缓存/游标/完整发布绑定。</div>`;
       return;
     }
     if (sessionBinding && deltaResp.session_id !== sessionBinding.session_id) {
@@ -419,7 +505,8 @@ async function applyStream() {
       el.innerHTML = `<div class="warn-box">会话身份变化（${esc(oldSid)} → ${esc(deltaResp.session_id)}）：已重置缓存/游标，请重新对拍</div>`;
       return;
     }
-    const deltas = deltaResp.deltas || [];
+    requireArrays(deltaResp, ["deltas"], "Watch");
+    const deltas = deltaResp.deltas;
     // 暂存状态（成员在改写时深拷贝，不改已提交对象）。
     const tmpObjects = new Map(appliedObjects);
     const tmpWithdrawn = new Map(appliedWithdrawn);
@@ -430,7 +517,11 @@ async function applyStream() {
     let tmpGen = lastAppliedGen;
     const appliedLines = [];
     let expectedPrevCut = sessionBinding ? sessionBinding.structure_cut : "cut-0";
+    let finalDelta = null;
+    let previousInputFrontier = sessionBinding ? sessionBinding.input_frontier : "-1";
     for (const d of deltas) {
+      validateDelta(d);
+      if (d.session_id !== deltaResp.session_id) throw new Error("Delta 行/流的 session 不一致");
       const gen = d.generation;
       if (bigLe(gen, tmpGen)) { appliedLines.push(`gen ${gen}：重复投递，不重复生效`); continue; }
       const expect = bigAddOne(tmpGen);
@@ -443,8 +534,11 @@ async function applyStream() {
         el.innerHTML = `<div class="err-box">cut 链断裂：期望 base_cut=${esc(expectedPrevCut)}，收到 ${esc(d.base_cut)}（gen ${gen}）：游标/状态未提交</div>`;
         return;
       }
+      if (d.seq_range.from !== (BigInt(previousInputFrontier) + 1n).toString()) throw new Error("Delta seq 前沿断链");
+      previousInputFrontier = d.input_frontier;
+      finalDelta = d;
       expectedPrevCut = d.next_cut;
-      const dd = d.delta || {};
+      const dd = d.delta;
       for (const w of (dd.withdrawals || [])) {
         const prev = tmpObjects.get(w.object_id);
         if (prev) {
@@ -463,9 +557,9 @@ async function applyStream() {
       tmpGen = gen;
       appliedLines.push(`gen ${gen}：${d.base_cut} → ${d.next_cut}（upserts ${(dd.upserts || []).length} / 撤回 ${(dd.withdrawals || []).length} / 替代 ${(dd.replaces || []).length}）`);
     }
-    // 权威状态：无论有无新 Delta 都取当前 cut 并做完整身份 + 全字段对拍（空增量不吞差异）。
+    // 权威状态：按应用末代取指定 cut，对拍完整发布元组及六集合；不混后续写者的新cut。
     let state;
-    try { state = await fetchJson("/api/state"); }
+    try { state = await fetchJson(`/api/state?as_of=${tmpGen}`); }
     catch (e) {
       if (epoch !== pageEpoch) return;
       el.innerHTML = `<div class="err-box">快照读取失败（${esc(e)}）：游标/状态未提交，请重试</div>`;
@@ -475,6 +569,8 @@ async function applyStream() {
     try { validateState(state); }
     catch (e) { el.innerHTML = `<div class="err-box">整份 State 校验失败（${esc(e)}）：游标/状态未提交</div>`; return; }
     const snap = state.snapshot;
+    if (finalDelta) comparePublication(finalDelta, snap);
+    else if (sessionBinding && !exactJson(bindingOf(snap), sessionBinding)) throw new Error("空增量 publication tuple 与已提交缓存不一致");
     // 身份与 cut 链完整性（不只比较 generation 与六集合）。
     if (snap.session_id !== deltaResp.session_id) {
       el.innerHTML = `<div class="err-box">会话身份不一致（Delta ${esc(deltaResp.session_id)} vs 快照 ${esc(snap.session_id)}）：游标未提交</div>`;
@@ -519,9 +615,8 @@ async function applyStream() {
     appliedObjects = tmpObjects; appliedWithdrawn = tmpWithdrawn; appliedWitnesses = tmpWitnesses;
     appliedRelations = tmpRelations; appliedObservations = tmpObservations; appliedRawHistory = tmpRawHistory;
     lastAppliedGen = tmpGen;
-    sessionBinding = { session_id: snap.session_id, structure_cut: snap.structure_cut,
-                       generation: snap.generation, catalog_revision: snap.catalog_revision };
-    syncModeUI("current", snap);
+    sessionBinding = bindingOf(snap);
+    syncModeUI("asof", snap);
     renderAllFromState(state);
     cursorEl.textContent = `已提交并验证 generation ≤ ${lastAppliedGen}（session ${sessionBinding.session_id}，cut ${sessionBinding.structure_cut}）`;
     const summary = deltas.length
@@ -531,6 +626,7 @@ async function applyStream() {
     el.innerHTML = `<ul>${appliedLines.map(l => `<li>${l}</li>`).join("")}</ul>${summary}`;
   } catch (e) {
     if (epoch !== pageEpoch) return;
+    renderStatus("本次续接未验证，页面仅保留上次已提交切面，不代表当前成功。", "err-box");
     el.innerHTML = `<div class="err-box">Delta 处理失败：${esc(e)}</div>`;
   }
 }

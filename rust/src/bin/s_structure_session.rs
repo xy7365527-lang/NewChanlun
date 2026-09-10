@@ -484,7 +484,303 @@ fn verify_batch_coordinates(
     Ok(())
 }
 
+// #1371 R9：scope 是本片已初始化 S 的必需身份，不是缺省配置。
+fn validate_scope(scope: &Value) -> Result<(), String> {
+    if scope != &json!({"structure": "CompleteCut", "economic": "not_started"}) {
+        return Err("StorageUnavailable：scope 与本片结构/经济未启动声明不符".to_string());
+    }
+    Ok(())
+}
+
+fn required_array<'a>(value: &'a Value, key: &str) -> Result<&'a Vec<Value>, String> {
+    value
+        .get(key)
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("StorageUnavailable：必需集合 {key} 缺失或非数组"))
+}
+
+fn legacy_payload_projection(value: &Value) -> Value {
+    match value {
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| {
+                    let projected = if k == "detail" {
+                        project_wire_integers(v)
+                    } else if k == "raw_bars" {
+                        match v.as_array() {
+                            Some(bars) => Value::Array(
+                                bars.iter()
+                                    .map(|bar| {
+                                        let mut bar = bar.clone();
+                                        if let Some(sup) = bar.get_mut("supersedes_revision") {
+                                            *sup = project_wire_integers(sup);
+                                        }
+                                        bar
+                                    })
+                                    .collect(),
+                            ),
+                            None => v.clone(),
+                        }
+                    } else {
+                        legacy_payload_projection(v)
+                    };
+                    (k.clone(), projected)
+                })
+                .collect(),
+        ),
+        Value::Array(a) => Value::Array(a.iter().map(legacy_payload_projection).collect()),
+        _ => value.clone(),
+    }
+}
+
+fn same_records(actual: &Value, expected: &Value, field: &str) -> Result<(), String> {
+    let normalize = |v: &Value| -> Result<Vec<String>, String> {
+        let mut records = v
+            .as_array()
+            .ok_or("StorageUnavailable：集合非数组")?
+            .iter()
+            .map(|r| {
+                if !r.is_object() {
+                    return Err("StorageUnavailable：集合成员非对象".to_string());
+                }
+                Ok(canonical_json(&legacy_payload_projection(r)))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        records.sort();
+        if records.windows(2).any(|w| w[0] == w[1]) {
+            return Err(format!("StorageUnavailable：{field} 重复成员"));
+        }
+        Ok(records)
+    };
+    if normalize(actual)? != normalize(expected)? {
+        return Err(format!(
+            "StorageUnavailable：{field} 与封存批次/同 cut 持久快照不一致"
+        ));
+    }
+    Ok(())
+}
+
+// #1371 R9：七集合均为必需。以不可变 batch 的本次结果和独立历史索引对拍；
+// 只读投影，不重算分类，不修改旧 BLOB/hash/获知史。旧整数 wire 仅作无损语义投影。
+fn verify_delta_payload(
+    conn: &Connection,
+    delta: &Value,
+    gen: i64,
+    batch: &Value,
+) -> Result<(), String> {
+    for key in [
+        "upserts",
+        "withdrawals",
+        "replaces",
+        "witnesses",
+        "relations",
+        "observations",
+        "raw_history_added",
+    ] {
+        required_array(delta, key)?;
+    }
+    validate_scope(&batch["scope"])?;
+    validate_scope(&delta["catalog_evidence"]["scope"])?;
+    let evidence = &delta["catalog_evidence"];
+    for key in ["profile_id", "profile_hash", "rule_revision"] {
+        if evidence.get(key).is_none() || evidence[key] != batch[key] {
+            return Err(format!(
+                "StorageUnavailable：目录证据 {key} 与封存批次不一致"
+            ));
+        }
+    }
+    if evidence["batch_id"] != delta["index_frontier"]
+        || evidence["structure_cut"] != delta["next_cut"]
+    {
+        return Err("StorageUnavailable：目录证据 batch/cut 不一致".to_string());
+    }
+    let expected_run = if required_array(batch, "objects")?.is_empty() {
+        "not_run"
+    } else {
+        "run"
+    };
+    if delta["catalog_run_status"] != expected_run {
+        return Err("StorageUnavailable：目录运行状态与封存结果不一致".to_string());
+    }
+    for key in [
+        "classified_objects",
+        "windows_total",
+        "merged_bars",
+        "effective_source_positions",
+        "withdrawals",
+        "replaces",
+        "insufficient_knowledge",
+        "domain_not_satisfied",
+    ] {
+        let count = match evidence.get(key) {
+            Some(Value::String(s)) => parse_canonical_i64(s, key).ok(),
+            Some(Value::Number(n)) => n.as_i64(),
+            _ => None,
+        };
+        if !matches!(count,Some(n) if n>=0) {
+            return Err(format!("StorageUnavailable：目录计数 {key} 非非负精确整数"));
+        }
+    }
+    let previous = read_snapshot_in_tx(conn, Some(gen - 1))?;
+    let current = read_snapshot_in_tx(conn, Some(gen))?;
+    let mut upserts = Vec::new();
+    for record in required_array(batch, "objects")? {
+        let mut record = record.clone();
+        record["batch_id"] = delta["index_frontier"].clone();
+        let mut wire = project_object_wire(&record)?;
+        if let Some(old) = required_array(&previous, "objects")?
+            .iter()
+            .find(|o| o["object_id"] == wire["object_id"])
+        {
+            for key in [
+                "batch_id",
+                "first_known_generation",
+                "first_known_cut",
+                "published_generation",
+            ] {
+                wire[key] = old[key].clone();
+            }
+        }
+        upserts.push(wire);
+    }
+    same_records(&delta["upserts"], &json!(upserts), "upserts/batch")?;
+    same_records(&current["objects"], &json!(upserts), "objects/snapshot")?;
+    let mut withdrawals = Vec::new();
+    let mut replaces = Vec::new();
+    let generation_text = gen.to_string();
+    for o in required_array(&current, "withdrawn_objects")? {
+        if o["withdrawn_generation"].as_str() == Some(generation_text.as_str()) {
+            withdrawals.push(
+                json!({"object_id":o["object_id"], "window_start":o["window_start"],
+                "window_mid":o["window_mid"], "window_end":o["window_end"],
+                "reason":o["withdrawal_reason"], "superseded_by":o["superseded_by"]}),
+            );
+            if !o["superseded_by"].is_null() {
+                replaces.push(
+                    json!({"old_object_id":o["object_id"], "new_object_id":o["superseded_by"]}),
+                );
+            }
+        }
+    }
+    same_records(&delta["withdrawals"], &json!(withdrawals), "withdrawals")?;
+    same_records(&delta["replaces"], &json!(replaces), "replaces")?;
+    let witnesses = required_array(batch, "witnesses")?
+        .iter()
+        .map(project_witness_wire)
+        .collect::<Result<Vec<_>, _>>()?;
+    same_records(&delta["witnesses"], &json!(witnesses), "witnesses/batch")?;
+    let mut relations = required_array(batch, "relations")?.clone();
+    for r in &replaces {
+        relations.push(json!({"subject":r["new_object_id"], "relation_type":"replaces", "object":r["old_object_id"]}));
+    }
+    let batch_raw = required_array(batch, "raw_events")?
+        .iter()
+        .map(project_raw_event_wire)
+        .collect::<Result<Vec<_>, _>>()?;
+    same_records(
+        &current["raw_history"],
+        &json!(batch_raw),
+        "raw_history/batch",
+    )?;
+    let mut raw_added = Vec::new();
+    let from = delta["seq_range"]["from"]
+        .as_str()
+        .ok_or("StorageUnavailable：seq.from 缺失")?
+        .parse::<i64>()
+        .map_err(|e| e.to_string())?;
+    for e in required_array(&current, "raw_history")? {
+        if let Some(sup) = e["supersedes_revision"].as_str() {
+            relations.push(json!({"subject":format!("{}@{}",e["identity_key"].as_str().unwrap_or(""),e["revision"].as_str().unwrap_or("")),
+                "relation_type":"supersedes", "object":format!("{}@{sup}",e["identity_key"].as_str().unwrap_or(""))}));
+        }
+        let seq = e["seq"]
+            .as_str()
+            .ok_or("StorageUnavailable：raw.seq 缺失")?
+            .parse::<i64>()
+            .map_err(|e| e.to_string())?;
+        if seq >= from {
+            raw_added.push(e.clone());
+        }
+    }
+    same_records(&delta["relations"], &json!(relations), "relations/batch")?;
+    same_records(
+        &delta["raw_history_added"],
+        &json!(raw_added),
+        "raw_history_added",
+    )?;
+    let mut observations = Vec::new();
+    for ob in required_array(batch, "observations")? {
+        let id = observation_id(ob);
+        let stored = required_array(&current, "observations")?
+            .iter()
+            .find(|o| o["observation_id"] == id)
+            .ok_or("StorageUnavailable：观察的持久端点缺失")?;
+        let first_batch: String = stored["batch_id"]
+            .as_str()
+            .ok_or("StorageUnavailable：观察 batch 缺失")?
+            .to_string();
+        let bytes: Vec<u8> = conn.query_row(
+            "SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE b.batch_id=?1 AND d.generation<=?2",
+            params![first_batch,gen], |r| r.get(0)).map_err(|e| format!("StorageUnavailable：观察首批次不可达：{e}"))?;
+        let first: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+        let original = required_array(&first, "observations")?
+            .iter()
+            .find(|o| observation_id(o) == id)
+            .ok_or("StorageUnavailable：原批次没有该观察身份")?;
+        let mut original = original.clone();
+        original["observation_id"] = json!(id);
+        original["batch_id"] = json!(first_batch);
+        same_records(
+            &json!([stored]),
+            &json!([project_observation_wire(&original)?]),
+            "observation/原封存首版",
+        )?;
+        observations.push(stored.clone());
+    }
+    same_records(
+        &delta["observations"],
+        &json!(observations),
+        "observations/首版",
+    )?;
+    // 每代累积的不可变集合必须恰好等于该代 Snapshot，缺成员/幽灵端点不能被后续代掩盖。
+    for (dkey, skey) in [
+        ("witnesses", "witnesses"),
+        ("relations", "relations"),
+        ("observations", "observations"),
+        ("raw_history_added", "raw_history"),
+    ] {
+        let mut union = BTreeMap::new();
+        for record in required_array(&previous, skey)?
+            .iter()
+            .chain(required_array(delta, dkey)?.iter())
+        {
+            let projected = legacy_payload_projection(record);
+            union.insert(canonical_json(&projected), projected);
+        }
+        same_records(
+            &current[skey],
+            &json!(union.into_values().collect::<Vec<_>>()),
+            skey,
+        )?;
+    }
+    Ok(())
+}
+
+fn observation_id(ob: &Value) -> String {
+    format!(
+        "obs-{}",
+        &sha256_hex(&canonical_bytes_of_value(&json!({
+            "kind": ob["kind"], "window_start": ob["window_start"], "window_mid": ob["window_mid"],
+            "window_end": ob["window_end"], "reason": ob["reason"],
+        })))[..16]
+    )
+}
+
 fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
+    verify_reachable_root_in_tx(conn).map_err(|e| format!("StorageUnavailable：{e}"))
+}
+
+fn verify_reachable_root_in_tx(conn: &Connection) -> Result<(), String> {
     let generation = verify_required_meta(conn)?;
     let meta_session = meta_get_opt(conn, "session_id")?.unwrap_or_default();
     let meta_cat = meta_get_opt(conn, "catalog_revision")?.unwrap_or_default();
@@ -638,9 +934,30 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
                 "StorageUnavailable：delta[{g}] 内层 catalog_evidence 与外层 catalog_evidence_json 不一致"
             ));
         }
+        let bytes: Vec<u8> = conn
+            .query_row(
+                "SELECT canonical_bytes FROM batches WHERE batch_id=?1",
+                params![idx],
+                |r| r.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        let batch: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+        verify_delta_payload(conn, &dj, *g, &batch)?;
     }
     // meta 与最末已发布 Delta 的根元组对应关系。
     let last = rows.last().unwrap();
+    let (run, evidence): (String, String) = conn
+        .query_row(
+            "SELECT run_status,evidence_json FROM catalog WHERE catalog_id='CC-006'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .map_err(|e| format!("StorageUnavailable：读当前目录证据失败：{e}"))?;
+    if run != last.8
+        || json_shape(&evidence, JsonShape::Object)? != json_shape(&last.9, JsonShape::Object)?
+    {
+        return Err("StorageUnavailable：当前目录与末代 Delta 证据不一致".to_string());
+    }
     if meta_idx != last.6 {
         return Err(format!(
             "StorageUnavailable：meta.index_frontier=`{meta_idx}` 与 delta[{generation}].index_frontier=`{}` 不一致",
@@ -1961,19 +2278,23 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
             // 观察：补 identity/batch，供 delta 与同 cut Snapshot 逐字段对齐（INSERT OR IGNORE：首获知固定）。
             let mut obs_with_id: Vec<Value> = Vec::with_capacity(observations.len());
             for ob in &observations {
-                let oid = format!(
-                    "obs-{}",
-                    &sha256_hex(&canonical_bytes_of_value(&json!({
-                        "kind": ob["kind"],
-                        "window_start": ob["window_start"],
-                        "window_mid": ob["window_mid"],
-                        "window_end": ob["window_end"],
-                        "reason": ob["reason"],
-                    })))[..16]
-                );
-                let mut o = ob.clone();
-                o["observation_id"] = json!(oid);
-                o["batch_id"] = json!(batch_id);
+                let oid = observation_id(ob);
+                let stored: Option<Value> = tx.query_row(
+                    "SELECT observation_id,batch_id,kind,window_start,window_mid,window_end,reason,detail_json FROM observations WHERE observation_id=?1",
+                    params![oid], |r| Ok(json!({
+                        "observation_id":r.get::<_,String>(0)?, "batch_id":r.get::<_,String>(1)?,
+                        "kind":r.get::<_,String>(2)?, "window_start":r.get::<_,Option<i64>>(3)?,
+                        "window_mid":r.get::<_,Option<i64>>(4)?, "window_end":r.get::<_,Option<i64>>(5)?,
+                        "reason":r.get::<_,String>(6)?, "detail":json_column(r,7,JsonShape::Object)?,
+                    }))).optional().map_err(|e| format!("读观察首版失败：{e}"))?;
+                let o = if let Some(stored) = stored {
+                    stored
+                } else {
+                    let mut fresh = ob.clone();
+                    fresh["observation_id"] = json!(oid);
+                    fresh["batch_id"] = json!(batch_id);
+                    fresh
+                };
                 obs_with_id.push(o);
             }
             {
@@ -2441,10 +2762,28 @@ fn json_column(row: &rusqlite::Row<'_>, index: usize, shape: JsonShape) -> rusql
     json_shape(&row.get::<_, String>(index)?, shape).map_err(|e| json_column_error(index, e))
 }
 
+// #1371 R9：不同查询封装使用同一 publication tuple；gen0 合法且无已发布 batch。
+fn publication_fields(conn: &Connection, gen: i64) -> Result<Value, String> {
+    if gen == 0 {
+        return Ok(
+            json!({"input_frontier":"-1", "seq_range":{"from":"0","to":"-1"},
+            "catalog_run_status":"not_run", "catalog_evidence":{}}),
+        );
+    }
+    conn.query_row("SELECT input_frontier,seq_range_json,catalog_run_status,catalog_evidence_json FROM structure_deltas WHERE generation=?1", params![gen], |r| Ok(json!({
+        "input_frontier":r.get::<_,i64>(0)?.to_string(), "seq_range":json_column(r,1,JsonShape::Object)?,
+        "catalog_run_status":r.get::<_,String>(2)?, "catalog_evidence":json_column(r,3,JsonShape::Object)?,
+    }))).map_err(|e| format!("StorageUnavailable：读 publication tuple 失败：{e}"))
+}
+
 fn read_scope(conn: &Connection) -> Result<Value, String> {
     match meta_get_opt(conn, "scope")? {
-        Some(text) => json_shape(&text, JsonShape::Object),
-        None => Ok(json!({})),
+        Some(text) => {
+            let scope = json_shape(&text, JsonShape::Object)?;
+            validate_scope(&scope)?;
+            Ok(scope)
+        }
+        None => Err("StorageUnavailable：meta.scope 缺失".to_string()),
     }
 }
 
@@ -2525,7 +2864,7 @@ fn read_catalog_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, St
         .map_err(|e| format!("query catalog 失败：{e}"))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("collect catalog 失败：{e}"))?;
-    Ok(json!({
+    let mut result = json!({
         "session_id": meta.get("session_id").cloned().unwrap_or_default(),
         "generation": header_gen,
         "structure_cut": header_cut,
@@ -2538,7 +2877,25 @@ fn read_catalog_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, St
             "run": rows.iter().filter(|r| r["run_status"] == "run").count(),
             "not_run": rows.iter().filter(|r| r["run_status"] == "not_run").count(),
         }
-    }))
+    });
+    let gen = header_gen.parse::<i64>().map_err(|e| e.to_string())?;
+    let fields = publication_fields(conn, gen)?;
+    result
+        .as_object_mut()
+        .unwrap()
+        .extend(fields.as_object().unwrap().clone());
+    result["index_frontier"] = if gen == 0 {
+        json!("")
+    } else {
+        json!(conn
+            .query_row(
+                "SELECT index_frontier FROM structure_deltas WHERE generation=?1",
+                params![gen],
+                |r| r.get::<_, String>(0)
+            )
+            .map_err(|e| e.to_string())?)
+    };
+    Ok(result)
 }
 
 /// 读对象（active 或 as_of 视图）与撤回对象，按生命周期的 cut 过滤。
@@ -2888,7 +3245,7 @@ fn read_snapshot_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, S
             .map_err(|e| format!("collect observations 失败：{e}"))?,
     };
 
-    Ok(json!({
+    let mut result = json!({
         "session_id": meta.get("session_id").cloned().unwrap_or_default(),
         "generation": header_gen,
         "structure_cut": header_cut,
@@ -2905,7 +3262,14 @@ fn read_snapshot_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, S
         "relations": relations,
         "observations": observations,
         "raw_history": read_raw_history(conn, max_seq)?,
-    }))
+    });
+    let gen = header_gen.parse::<i64>().map_err(|e| e.to_string())?;
+    let fields = publication_fields(conn, gen)?;
+    result
+        .as_object_mut()
+        .unwrap()
+        .extend(fields.as_object().unwrap().clone());
+    Ok(result)
 }
 
 fn cmd_catalog(db: &Path, as_of: Option<i64>) -> Result<(), String> {
@@ -3437,6 +3801,86 @@ mod tests {
         let out = read_snapshot_in_tx(&tx, as_of).unwrap();
         drop(tx);
         out
+    }
+
+    #[test]
+    fn r9_prefix_observation_retains_sealed_first_version() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[ev("e0", "1", "0", "10000")]),
+            "one.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let before = snapshot_of(&files, Some(1));
+        accept(
+            &files,
+            &test_input(&[ev("e0", "1", "0", "10000"), ev("e1", "1", "1", "11000")]),
+            "two.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let delta: String = conn
+            .query_row(
+                "SELECT delta_json FROM structure_deltas WHERE generation=2",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let delta: Value = serde_json::from_str(&delta).unwrap();
+        assert_eq!(delta["observations"], before["observations"]);
+        assert_eq!(snapshot_of(&files, Some(1)), before);
+    }
+
+    #[test]
+    fn r9_all_required_delta_collections_and_scope_gate_writes() {
+        for key in [
+            "upserts",
+            "withdrawals",
+            "replaces",
+            "witnesses",
+            "relations",
+            "observations",
+            "raw_history_added",
+            "scope",
+        ] {
+            let files = TestFiles::new();
+            init_test_db(&files);
+            accept(
+                &files,
+                &test_input(&[
+                    ev("e0", "1", "0", "10000"),
+                    ev("e1", "1", "1", "11000"),
+                    ev("e2", "1", "2", "10500"),
+                ]),
+                "input.json",
+                DEFAULT_WRITER_EPOCH,
+            );
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            let conn = open_db(&files.db()).unwrap();
+            if key == "scope" {
+                conn.execute("DELETE FROM meta WHERE key='scope'", [])
+                    .unwrap();
+            } else {
+                conn.execute(
+                    "UPDATE structure_deltas SET delta_json=json_remove(delta_json,?1)",
+                    params![format!("$.{key}")],
+                )
+                .unwrap();
+            }
+            assert!(cmd_snapshot(&files.db(), None).is_err(), "{key}");
+            assert!(cmd_catalog(&files.db(), Some(0)).is_err(), "{key}");
+            assert!(cmd_watch(&files.db(), 0).is_err(), "{key}");
+            assert!(
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).is_err(),
+                "{key}"
+            );
+            assert!(cmd_recover(&files.db(), "2").is_err(), "{key}");
+        }
     }
 
     #[test]

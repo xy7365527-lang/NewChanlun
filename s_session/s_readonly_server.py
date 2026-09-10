@@ -41,10 +41,16 @@ def meta_dict(conn):
     return out
 
 
+def _validate_scope(scope):
+    if scope != {"structure": "CompleteCut", "economic": "not_started"}:
+        raise ValueError("scope 与本片结构/经济未启动声明不符")
+    return scope
+
+
 def _scope(meta):
     if "scope" not in meta:
-        return {}
-    return _json_field(meta["scope"], dict)
+        raise ValueError("meta.scope 缺失")
+    return _validate_scope(_json_field(meta["scope"], dict))
 
 
 def _num_to_str(v):
@@ -120,33 +126,185 @@ def _verify_batch_integrity(conn, batch_id):
         raise ValueError("batch 规范字节/长度与内容寻址不符")
 
 
+def _legacy_payload_projection(value):
+    if type(value) is list:
+        return [_legacy_payload_projection(v) for v in value]
+    if type(value) is dict:
+        result = {}
+        for k, v in value.items():
+            if k == "detail":
+                result[k] = _project_wire_integers(v)
+            elif k == "raw_bars" and type(v) is list:
+                result[k] = [dict(bar, supersedes_revision=_project_wire_integers(bar["supersedes_revision"]))
+                             if type(bar) is dict and "supersedes_revision" in bar else bar for bar in v]
+            else:
+                result[k] = _legacy_payload_projection(v)
+        return result
+    return value
+
+
+def _same_records(actual, expected, field):
+    def normalized(records):
+        if type(records) is not list or any(type(r) is not dict for r in records):
+            raise ValueError("%s 必需集合/成员形状损坏" % field)
+        values = sorted(json.dumps(_legacy_payload_projection(r), sort_keys=True, ensure_ascii=False,
+                                   separators=(",", ":"), allow_nan=False) for r in records)
+        if len(set(values)) != len(values):
+            raise ValueError("%s 重复成员" % field)
+        return values
+    if normalized(actual) != normalized(expected):
+        raise ValueError("%s 与封存批次/同cut持久快照不一致" % field)
+
+
+def _observation_id(ob):
+    import hashlib
+    content = {k: ob[k] for k in ("kind", "window_start", "window_mid", "window_end", "reason")}
+    b = json.dumps(content, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
+    return "obs-" + hashlib.sha256(b).hexdigest()[:16]
+
+
+def _verify_delta_payload(conn, delta, gen, batch):
+    _validate_delta_shape(delta)
+    _validate_scope(batch.get("scope"))
+    _validate_scope(delta["catalog_evidence"].get("scope"))
+    evidence = delta["catalog_evidence"]
+    for key in ("profile_id", "profile_hash", "rule_revision"):
+        if key not in evidence or evidence[key] != batch[key]:
+            raise ValueError("目录证据 %s 与封存批次不一致" % key)
+    if evidence.get("batch_id") != delta["index_frontier"] or evidence.get("structure_cut") != delta["next_cut"]:
+        raise ValueError("目录证据 batch/cut 不一致")
+    if delta["catalog_run_status"] != ("run" if batch["objects"] else "not_run"):
+        raise ValueError("目录运行状态与封存结果不一致")
+    for key in ("classified_objects", "windows_total", "merged_bars", "effective_source_positions",
+                "withdrawals", "replaces", "insufficient_knowledge", "domain_not_satisfied"):
+        count = evidence.get(key)
+        if type(count) is str:
+            count = _canonical_i64_str(count, key)
+        if type(count) is not int or not 0 <= count < 2**63:
+            raise ValueError("目录计数 %s 非非负精确整数" % key)
+    previous = _read_snapshot_in_tx(conn, gen - 1)
+    current = _read_snapshot_in_tx(conn, gen)
+    upserts = []
+    for o in batch["objects"]:
+        row = (o["object_id"], o["object_revision"], o["kind"], delta["index_frontier"],
+               o["branch"], o["dir_ab"], o["dir_bc"], o["window_start"], o["window_mid"], o["window_end"],
+               o["comparisons_json"], o["input_refs_json"], o["source_coords_json"], o["first_known_generation"],
+               o["first_known_cut"], o["published_generation"], None, None, None)
+        wire = _project_object_row(row)
+        old = next((p for p in previous["objects"] if p["object_id"] == wire["object_id"]), None)
+        if old is not None:
+            for k in ("batch_id", "first_known_generation", "first_known_cut", "published_generation"):
+                wire[k] = old[k]
+        upserts.append(wire)
+    _same_records(delta["upserts"], upserts, "upserts/batch")
+    _same_records(current["objects"], upserts, "objects/snapshot")
+    withdrawals = []
+    replaces = []
+    for o in current["withdrawn_objects"]:
+        if o["withdrawn_generation"] == str(gen):
+            withdrawals.append({"object_id": o["object_id"], "window_start": o["window_start"],
+                "window_mid": o["window_mid"], "window_end": o["window_end"],
+                "reason": o["withdrawal_reason"], "superseded_by": o["superseded_by"]})
+            if o["superseded_by"] is not None:
+                replaces.append({"old_object_id": o["object_id"], "new_object_id": o["superseded_by"]})
+    _same_records(delta["withdrawals"], withdrawals, "withdrawals")
+    _same_records(delta["replaces"], replaces, "replaces")
+    witnesses = []
+    for w in batch["witnesses"]:
+        w = dict(w)
+        w["slot"] = _num_to_str(w["slot"])
+        w["merged_source_index"] = _num_to_str(w["merged_source_index"])
+        w["raw_bars"] = _project_raw_bars(w["raw_bars"])
+        witnesses.append(w)
+    _same_records(delta["witnesses"], witnesses, "witnesses/batch")
+    relations = list(batch["relations"])
+    relations += [{"subject": r["new_object_id"], "relation_type": "replaces", "object": r["old_object_id"]} for r in replaces]
+    for e in current["raw_history"]:
+        if e["supersedes_revision"] is not None:
+            relations.append({"subject": e["identity_key"]+"@"+e["revision"], "relation_type": "supersedes",
+                              "object": e["identity_key"]+"@"+e["supersedes_revision"]})
+    _same_records(delta["relations"], relations, "relations/batch")
+    batch_raw = []
+    for e in batch["raw_events"]:
+        e = dict(e)
+        for k in ("revision", "seq"):
+            e[k] = _num_to_str(e[k])
+        e["supersedes_revision"] = _num_or_none_to_str(e["supersedes_revision"])
+        batch_raw.append(e)
+    _same_records(current["raw_history"], batch_raw, "raw_history/batch")
+    raw_added = [e for e in current["raw_history"] if int(e["seq"]) >= int(delta["seq_range"]["from"])]
+    _same_records(delta["raw_history_added"], raw_added, "raw_history_added")
+    observations = []
+    for ob in batch["observations"]:
+        oid = _observation_id(ob)
+        stored = next((o for o in current["observations"] if o["observation_id"] == oid), None)
+        if stored is None:
+            raise ValueError("观察的持久端点缺失")
+        row = conn.execute("SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d "
+                           "ON d.index_frontier=b.batch_id WHERE b.batch_id=? AND d.generation<=?",
+                           (stored["batch_id"], gen)).fetchone()
+        if row is None:
+            raise ValueError("观察首批次不可达")
+        first = json.loads(row[0])
+        original = next((o for o in first["observations"] if _observation_id(o) == oid), None)
+        if original is None:
+            raise ValueError("原批次没有该观察身份")
+        original = dict(original, observation_id=oid, batch_id=stored["batch_id"])
+        for k in ("window_start", "window_mid", "window_end"):
+            original[k] = _num_or_none_to_str(original[k])
+        _same_records([stored], [original], "observation/原封存首版")
+        observations.append(stored)
+    _same_records(delta["observations"], observations, "observations/首版")
+    for dkey, skey in (("witnesses", "witnesses"), ("relations", "relations"),
+                      ("observations", "observations"), ("raw_history_added", "raw_history")):
+        union = {json.dumps(_legacy_payload_projection(v), sort_keys=True): v
+                 for v in previous[skey] + delta[dkey]}
+        _same_records(current[skey], list(union.values()), skey)
+
+
 def _verify_reachable_root(conn):
-    """reader 与 writer 共享的可达根/元数据/代际链校验（坏根/坏链 → 503）。"""
+    """#1371 R9：与 Rust 同义的完整11列/可达代链/封存坐标/载荷验证，所有正式读入口共用。"""
     meta = meta_dict(conn)
     gen = _validate_required_meta(meta)
-    if gen == 0:
-        cnt = conn.execute("SELECT COUNT(*) FROM structure_deltas").fetchone()[0]
-        if cnt != 0:
-            raise ValueError("初态 generation=0 却存在持久 Delta")
-        return
-    idx = meta["index_frontier"]
-    _verify_batch_integrity(conn, idx)
     rows = conn.execute(
-        "SELECT generation, index_frontier, input_frontier FROM structure_deltas "
-        "WHERE generation <= ? ORDER BY generation ASC", (gen,)
-    ).fetchall()
+        "SELECT generation,session_id,catalog_revision,base_cut,next_cut,seq_range_json,"
+        "index_frontier,input_frontier,catalog_run_status,catalog_evidence_json,delta_json "
+        "FROM structure_deltas ORDER BY generation ASC").fetchall()
     if len(rows) != gen:
-        raise ValueError("已发布代链断裂（generation=%d，仅 %d 行 Delta）" % (gen, len(rows)))
-    pub_raw = meta["last_advance_frontier"]
-    pub = -1 if pub_raw == "-1" else _canonical_i64_str(pub_raw, "meta.last_advance_frontier")
-    for i, (g, didx, df) in enumerate(rows):
-        if g != i + 1:
-            raise ValueError("Delta 代际断链（第 %d 行 generation=%s）" % (i + 1, g))
-        if type(didx) is not str or didx == "":
-            raise ValueError("delta[%d].index_frontier 为空" % g)
-        _verify_batch_integrity(conn, didx)
-        if g == gen and _frontier_i64(df) != pub:
-            raise ValueError("meta.last_advance_frontier 与 delta[%d].input_frontier 不一致" % g)
+        raise ValueError("已发布代链断裂或存在未来 Delta")
+    prev_frontier = -1
+    for expected, row in enumerate(rows, 1):
+        g, sid, cat, base, nxt, sr_json, idx, frontier, run, evidence_json, dj = row
+        _frontier_i64(frontier)
+        if type(g) is not int or g != expected or sid != meta["session_id"] or cat != meta["catalog_revision"]:
+            raise ValueError("Delta代际/session/catalog 与当前根不一致")
+        if base != "cut-%d" % (g-1) or nxt != "cut-%d" % g:
+            raise ValueError("Delta cut链不一致")
+        sr = _validate_seq_range(sr_json)
+        if sr != {"from": str(prev_frontier+1), "to": str(frontier)}:
+            raise ValueError("Delta seq_range 与输入前沿链不一致")
+        prev_frontier = frontier
+        evidence = _json_field(evidence_json, dict)
+        delta = _json_field(dj, dict)
+        header = dict(generation=str(g), session_id=sid, catalog_revision=cat, base_cut=base,
+                      next_cut=nxt, seq_range=sr, index_frontier=idx, input_frontier=str(frontier),
+                      catalog_run_status=run, catalog_evidence=evidence)
+        for key, val in header.items():
+            # JSON结构深等，保留数字/布尔区别；不以输出投影掩盖头的持久矛盾。
+            if key not in delta or json.dumps(delta[key], sort_keys=True) != json.dumps(val, sort_keys=True):
+                raise ValueError("Delta内层 %s 与外层列不一致" % key)
+        _verify_batch_integrity(conn, idx)
+        batch = json.loads(conn.execute("SELECT canonical_bytes FROM batches WHERE batch_id=?", (idx,)).fetchone()[0])
+        for key,val in dict(generation=g, structure_cut=nxt, input_frontier=frontier, catalog_revision=cat).items():
+            if type(batch.get(key)) is not type(val) or batch[key] != val:
+                raise ValueError("batch 封存 %s 与 Delta不一致" % key)
+        _verify_delta_payload(conn, delta, g, batch)
+    if rows:
+        run, evidence = conn.execute("SELECT run_status,evidence_json FROM catalog WHERE catalog_id='CC-006'").fetchone()
+        if run != rows[-1][8] or json.dumps(_json_field(evidence,dict),sort_keys=True) != json.dumps(_json_field(rows[-1][9],dict),sort_keys=True):
+            raise ValueError("当前目录与末代 Delta 证据不一致")
+    if rows and (rows[-1][6] != meta["index_frontier"] or rows[-1][4] != meta["structure_cut"] or str(rows[-1][7]) != meta["last_advance_frontier"]):
+        raise ValueError("meta 与末代 Delta 根元组不一致")
 
 
 def _req_str(d, key, path):
@@ -186,6 +344,11 @@ def _validate_required_meta(meta):
         pub_n = _canonical_i64_str(pub_raw, "meta.last_advance_frontier")
     if pub_n < -1:
         raise ValueError("meta.last_advance_frontier 越域：只允许 -1 或非负")
+    if cut != "cut-%d" % gen:
+        raise ValueError("meta.structure_cut 与 generation 不一致")
+    if gen == 0 and (idx != "" or pub_n != -1):
+        raise ValueError("初态根/输入前沿不一致")
+    _scope(meta)
     return gen
 
 
@@ -257,6 +420,18 @@ def _frontier_at_generation(conn, gen):
     return _frontier_i64(row[0])
 
 
+def _publication_fields(conn, gen):
+    if gen == 0:
+        return dict(input_frontier="-1", seq_range={"from":"0", "to":"-1"},
+                    catalog_run_status="not_run", catalog_evidence={})
+    row = conn.execute("SELECT input_frontier,seq_range_json,catalog_run_status,catalog_evidence_json "
+                       "FROM structure_deltas WHERE generation=?", (gen,)).fetchone()
+    if row is None:
+        raise ValueError("publication tuple 缺失")
+    return dict(input_frontier=_num_to_str(row[0]), seq_range=_json_field(row[1], dict),
+                catalog_run_status=row[2], catalog_evidence=_json_field(row[3], dict))
+
+
 def read_catalog(conn, as_of=None):
     meta = meta_dict(conn)
     _verify_reachable_root(conn)
@@ -310,6 +485,8 @@ def read_catalog(conn, as_of=None):
             "evidence": evidence,
         })
     return {
+        **_publication_fields(conn, int(header_gen)),
+        "index_frontier": _header_at_generation(conn, int(header_gen))[0],
         "session_id": meta.get("session_id", ""),
         "generation": header_gen,
         "structure_cut": header_cut,
@@ -389,8 +566,13 @@ def _read_objects_view(conn, as_of):
 
 
 def read_snapshot(conn, as_of=None):
-    meta = meta_dict(conn)
     _verify_reachable_root(conn)
+    return _read_snapshot_in_tx(conn, as_of)
+
+
+def _read_snapshot_in_tx(conn, as_of=None):
+    """仅投影；调用者在同一短事务完成根验证。验证器使用它交叉核独立持久索引。"""
+    meta = meta_dict(conn)
     current_gen = _validate_required_meta(meta)
     objects, withdrawn = _read_objects_view(conn, as_of)
 
@@ -501,6 +683,7 @@ def read_snapshot(conn, as_of=None):
         })
 
     return {
+        **_publication_fields(conn, int(header_gen)),
         "session_id": meta.get("session_id", ""),
         "generation": header_gen,
         "structure_cut": header_cut,
@@ -548,7 +731,7 @@ def _validate_delta_shape(delta):
         raise ValueError("delta_json 顶层必须是对象")
     for key in ("upserts", "withdrawals", "replaces", "witnesses", "relations",
                 "observations", "raw_history_added"):
-        if key in delta and not isinstance(delta[key], list):
+        if key not in delta or not isinstance(delta[key], list):
             raise ValueError("delta.%s 必须是数组" % key)
     if not isinstance(delta.get("seq_range"), dict):
         raise ValueError("delta.seq_range 必须是对象")
@@ -887,7 +1070,7 @@ class Handler(BaseHTTPRequestHandler):
                 pass
             self._send_json({"ok": False, "error": "InvalidQuery", "detail": str(e)}, 400)
             return
-        except (sqlite3.Error, json.JSONDecodeError, ValueError, TypeError, UnicodeError) as e:
+        except (sqlite3.Error, json.JSONDecodeError, ValueError, TypeError, UnicodeError, KeyError, IndexError) as e:
             try:
                 conn.rollback()
             except sqlite3.Error:
