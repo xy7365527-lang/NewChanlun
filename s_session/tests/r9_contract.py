@@ -202,13 +202,20 @@ def exercise_r10(w):
                 bad=w/(name+".sqlite")
                 backup(w/("first-pending.sqlite" if phase=="first_pending" else "published.sqlite"),bad)
                 if phase=="pending": value(cli(bad,"accept","--input",fourth,"--profile",P,"--writer-epoch","1"))
+                paths = ["/api/state", "/api/snapshot", "/api/catalog", "/api/delta?after_generation=0",
+                         "/api/state?as_of=0", "/api/delta?after_generation=1" if phase=="first_pending" else "/api/state?as_of=1",
+                         "/api/snapshot?as_of=0", "/api/catalog?as_of=0"]
+                healthy_before=fingerprint(bad)
+                with Server(bad) as server:
+                    healthy_http={path:server.get(path) for path in paths}
+                assert all(r["status"]==200 for r in healthy_http.values()),healthy_http
+                assert healthy_before==fingerprint(bad)
                 sql=("UPDATE meta SET value='wrong-"+key+"' WHERE key='"+key+"'") if mutation=="wrong" else "DELETE FROM meta WHERE key='"+key+"'"
                 if mutation=="well_formed": sql="UPDATE meta SET value='"+"f"*64+"' WHERE key='profile_hash'"
                 with sqlite3.connect(bad) as c: c.execute(sql)
-                record={"sql":sql,"before":fingerprint(bad),"http":{},"cli":{}}
+                record={"sql":sql,"healthy_before":healthy_before,"healthy_http":healthy_http,"before":fingerprint(bad),"http":{},"cli":{}}
                 with Server(bad) as server:
-                    for path in ["/api/state", "/api/snapshot", "/api/catalog", "/api/delta?after_generation=0",
-                                 "/api/state?as_of=0", "/api/state?as_of=1", "/api/snapshot?as_of=0", "/api/catalog?as_of=0"]:
+                    for path in paths:
                         record["http"][path]=server.get(path)
                 for cmd,args in [("snapshot",[]),("watch",["--after-generation","0"]),("catalog",[]),
                     ("query",["--identity-key","testonly.tick.ohlc|1|TEST.TICK|e2"]),
