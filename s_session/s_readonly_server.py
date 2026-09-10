@@ -262,10 +262,68 @@ def _verify_delta_payload(conn, delta, gen, batch):
         _same_records(current[skey], list(union.values()), skey)
 
 
+def _verify_profile_binding(conn):
+    """#1371 R10：固定输入绑定。新接纳存定义；旧格式只使用可核封存/声明来源，不补写。"""
+    import hashlib
+    meta = meta_dict(conn)
+    pid, phash = meta.get("profile_id"), meta.get("profile_hash")
+    input_profile, definition = meta.get("input_profile"), meta.get("profile_definition")
+    raw_count = conn.execute("SELECT COUNT(*) FROM raw_events").fetchone()[0]
+    if pid is None and phash is None and input_profile is None and definition is None and raw_count == 0:
+        return "", ""
+    if type(pid) is not str or not pid or type(phash) is not str or len(phash)!=64 or any(c not in "0123456789abcdef" for c in phash):
+        raise ValueError("固定profile_id/hash缺失或不规范")
+    if input_profile != pid:
+        raise ValueError("input_profile与固定profile_id不一致")
+    def canonical_hash(v):
+        return hashlib.sha256(json.dumps(v, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+    if definition is not None:
+        profile = _json_field(definition,dict)
+        if profile.get("profile_id") != pid or canonical_hash(profile) != phash:
+            raise ValueError("profile定义与固定id/hash不一致")
+    else:
+        row = conn.execute("SELECT b.batch_id,b.canonical_bytes FROM batches b JOIN structure_deltas d "
+                           "ON d.index_frontier=b.batch_id WHERE json_extract(b.canonical_bytes,'$.profile_id')<>'' "
+                           "ORDER BY d.generation LIMIT 1").fetchone()
+        if row is not None:
+            _verify_batch_integrity(conn,row[0])
+            batch=json.loads(row[1])
+            if batch.get("profile_id")!=pid or batch.get("profile_hash")!=phash:
+                raise ValueError("旧profile绑定与可达封存批次不一致")
+        else:
+            profile = json.loads((Path(__file__).resolve().parent/"profiles/testonly_tick_1_1_ohlc.json").read_text())
+            if profile.get("profile_id")!=pid or canonical_hash(profile)!=phash:
+                raise ValueError("旧未发布profile缺可核独立来源")
+    return pid,phash
+
+
+def _verify_batch_profile(batch, binding):
+    if type(batch.get("profile_id")) is not str or type(batch.get("profile_hash")) is not str:
+        raise ValueError("batch.profile_id/hash缺失")
+    if batch["profile_id"]==batch["profile_hash"]=="" and batch.get("raw_events")==[]:
+        return
+    if (batch["profile_id"],batch["profile_hash"])!=binding:
+        raise ValueError("历史批次profile与固定输入绑定不一致")
+
+
+def _profile_at_cut(conn, generation):
+    if generation==0:
+        return "", ""
+    row=conn.execute("SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d "
+                     "ON d.index_frontier=b.batch_id WHERE d.generation=?",(generation,)).fetchone()
+    if row is None:
+        raise ValueError("cut来源不存在")
+    batch=json.loads(row[0])
+    if type(batch.get("profile_id")) is not str or type(batch.get("profile_hash")) is not str:
+        raise ValueError("cut.profile_id/hash缺失")
+    return batch["profile_id"],batch["profile_hash"]
+
+
 def _verify_reachable_root(conn):
     """#1371 R9：与 Rust 同义的完整11列/可达代链/封存坐标/载荷验证，所有正式读入口共用。"""
     meta = meta_dict(conn)
     gen = _validate_required_meta(meta)
+    profile_binding = _verify_profile_binding(conn)
     rows = conn.execute(
         "SELECT generation,session_id,catalog_revision,base_cut,next_cut,seq_range_json,"
         "index_frontier,input_frontier,catalog_run_status,catalog_evidence_json,delta_json "
@@ -298,6 +356,7 @@ def _verify_reachable_root(conn):
         for key,val in dict(generation=g, structure_cut=nxt, input_frontier=frontier, catalog_revision=cat).items():
             if type(batch.get(key)) is not type(val) or batch[key] != val:
                 raise ValueError("batch 封存 %s 与 Delta不一致" % key)
+        _verify_batch_profile(batch, profile_binding)
         _verify_delta_payload(conn, delta, g, batch)
     if rows:
         run, evidence = conn.execute("SELECT run_status,evidence_json FROM catalog WHERE catalog_id='CC-006'").fetchone()
@@ -473,6 +532,11 @@ def read_catalog(conn, as_of=None):
         if cid == "CC-006" and cc006_run is not None:
             run_status = cc006_run
             evidence = cc006_evidence
+        if as_of is not None:
+            impl = "implemented" if cid=="CC-006" and as_of>0 else "not_implemented"
+            proof = "not_proved"
+            if as_of==0:
+                run_status, evidence = "not_run", {}
         rows.append({
             "id": cid,
             "kind": kind,
@@ -599,6 +663,7 @@ def _read_snapshot_in_tx(conn, as_of=None):
         header_cut = "cut-%d" % as_of
         max_seq = _frontier_at_generation(conn, as_of)
 
+    profile_id, profile_hash = _profile_at_cut(conn, int(header_gen))
     # 见证/关系/观察按发布代际过滤（AsKnown）；current 全量。
     def _exec(sql, params=()):
         return conn.execute(sql, params)
@@ -690,8 +755,8 @@ def _read_snapshot_in_tx(conn, as_of=None):
         "catalog_revision": header_cat,
         "scope": _scope(meta),
         "index_frontier": header_idx,
-        "profile_id": meta.get("profile_id", ""),
-        "profile_hash": meta.get("profile_hash", ""),
+        "profile_id": profile_id,
+        "profile_hash": profile_hash,
         "history_mode": "AsKnown" if as_of is not None else "RecomputedWithRevision",
         "as_of_generation": None if as_of is None else _num_to_str(as_of),
         "objects": objects,
@@ -1070,7 +1135,7 @@ class Handler(BaseHTTPRequestHandler):
                 pass
             self._send_json({"ok": False, "error": "InvalidQuery", "detail": str(e)}, 400)
             return
-        except (sqlite3.Error, json.JSONDecodeError, ValueError, TypeError, UnicodeError, KeyError, IndexError) as e:
+        except (sqlite3.Error, json.JSONDecodeError, ValueError, TypeError, UnicodeError, KeyError, IndexError, OSError) as e:
             try:
                 conn.rollback()
             except sqlite3.Error:

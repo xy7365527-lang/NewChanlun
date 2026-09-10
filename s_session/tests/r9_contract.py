@@ -163,8 +163,79 @@ def exercise(w):
         result["corrupt"][name]=rec
     return result
 
+
+def exercise_r10(w):
+    result = {"history": [], "profile_cases": {}}
+    db = w / "profile-history.sqlite"
+    value(cli(db, "init", "--session", "s-session-testonly-001", "--catalog", C))
+    initial = input_file(w, "initial", [ev(0,10000), ev(1,11000), ev(2,10500)])
+    fourth = input_file(w, "fourth", [ev(3,10800)])
+    def history(server, stage):
+        before = fingerprint(db)
+        record = {"stage": stage, "before": before,
+            "http": {p:server.get(p) for p in ["/api/state?as_of=0", "/api/snapshot?as_of=0", "/api/catalog?as_of=0"]},
+            "cli": {cmd:cli(db, cmd, "--as-of", "0") for cmd in ["snapshot", "catalog"]}}
+        record["after"] = fingerprint(db)
+        assert before == record["after"]
+        result["history"].append(record)
+    with Server(db) as server:
+        history(server, "init")
+        for name, events in [("one",[ev(0,10000)]), ("two",[ev(1,11000)]),
+            ("three",[ev(2,10500)]), ("correction",[ev(2,11500,2)]), ("four",[ev(3,10800)]),
+            ("large1",[ev(2,11501,9007199254740993)]), ("large2",[ev(2,11502,9007199254740994)])]:
+            inp = input_file(w, name, events)
+            value(cli(db,"accept","--input",inp,"--profile",P,"--writer-epoch","1"))
+            history(server,name+"-accepted")
+            if name == "one": backup(db,w/"first-pending.sqlite")
+            value(cli(db,"advance","--writer-epoch","1"))
+            history(server,name+"-published")
+            if name == "correction": backup(db,w/"published.sqlite")
+        result["states"] = {str(g):server.get("/api/state?as_of="+str(g)) for g in range(8)}
+        result["watch"] = server.get("/api/delta?after_generation=0")
+        result["current"] = server.get("/api/state")
+        result["page"] = server.get("/")
+    # 同一真实库的静止/已接纳待处理副本；包括首次发布前，没有batch可借的绑定。
+    for phase in ["published", "pending", "first_pending"]:
+        for key in ["profile_hash", "profile_id", "input_profile"]:
+            for mutation in (["wrong", "well_formed", "missing"] if key=="profile_hash" else ["wrong", "missing"]):
+                name=phase+"_"+key+"_"+mutation
+                bad=w/(name+".sqlite")
+                backup(w/("first-pending.sqlite" if phase=="first_pending" else "published.sqlite"),bad)
+                if phase=="pending": value(cli(bad,"accept","--input",fourth,"--profile",P,"--writer-epoch","1"))
+                sql=("UPDATE meta SET value='wrong-"+key+"' WHERE key='"+key+"'") if mutation=="wrong" else "DELETE FROM meta WHERE key='"+key+"'"
+                if mutation=="well_formed": sql="UPDATE meta SET value='"+"f"*64+"' WHERE key='profile_hash'"
+                with sqlite3.connect(bad) as c: c.execute(sql)
+                record={"sql":sql,"before":fingerprint(bad),"http":{},"cli":{}}
+                with Server(bad) as server:
+                    for path in ["/api/state", "/api/snapshot", "/api/catalog", "/api/delta?after_generation=0",
+                                 "/api/state?as_of=0", "/api/state?as_of=1", "/api/snapshot?as_of=0", "/api/catalog?as_of=0"]:
+                        record["http"][path]=server.get(path)
+                for cmd,args in [("snapshot",[]),("watch",["--after-generation","0"]),("catalog",[]),
+                    ("query",["--identity-key","testonly.tick.ohlc|1|TEST.TICK|e2"]),
+                    ("accept",["--input",fourth,"--profile",P,"--writer-epoch","1"]),
+                    ("advance",["--writer-epoch","1"]),("recover",["--new-epoch","2"])]:
+                    before=fingerprint(bad); r=cli(bad,cmd,*args);after=fingerprint(bad)
+                    record["cli"][cmd]={**r,"before":before,"after":after}
+                record["after"]=fingerprint(bad)
+                record["rejected_zero_write"]=record["before"]==record["after"] and all(
+                    r["status"]==503 for r in record["http"].values()) and all(
+                    r["exit"]==1 and "StorageUnavailable" in r["stderr"] and r["before"]==r["after"] for r in record["cli"].values())
+                result["profile_cases"][name]=record
+    baseline=result["history"][0]
+    def same_history(r):
+        return all(x["status"]==200 and json.loads(x["body"])==json.loads(baseline["http"][p]["body"]) for p,x in r["http"].items()) and all(
+            x["exit"]==0 and json.loads(x["stdout"])==json.loads(baseline["cli"][p]["stdout"]) for p,x in r["cli"].items())
+    result["as_known_zero_stable"]=all(same_history(r) for r in result["history"])
+    (w/"r10-results.json").write_text(json.dumps({"results":result,"log":LOG},ensure_ascii=False,indent=2))
+    assert result["as_known_zero_stable"], "完整AsKnown0被未来字段回填"
+    assert all(r["rejected_zero_write"] for r in result["profile_cases"].values()), "profile绑定未统一拒绝/零写"
+    print("R10 profile/AsKnown0真实回归通过")
+
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument("out",type=Path);args=ap.parse_args();args.out.mkdir(exist_ok=True)
+    ap=argparse.ArgumentParser();ap.add_argument("out",type=Path);ap.add_argument("--r10",action="store_true");args=ap.parse_args();args.out.mkdir(exist_ok=True)
+    if args.r10:
+        exercise_r10(args.out)
+        return
     result={}
     try:
         result=exercise(args.out)

@@ -776,12 +776,109 @@ fn observation_id(ob: &Value) -> String {
     )
 }
 
+// #1371 R10：输入profile是固定身份。未发布的已接纳输入也必须有独立内容绑定。
+fn verify_profile_binding(conn: &Connection) -> Result<(String, String), String> {
+    let id = meta_get_opt(conn, "profile_id")?;
+    let hash = meta_get_opt(conn, "profile_hash")?;
+    let input = meta_get_opt(conn, "input_profile")?;
+    let definition = meta_get_opt(conn, "profile_definition")?;
+    let raw_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    if id.is_none() && hash.is_none() && input.is_none() && definition.is_none() && raw_count == 0 {
+        return Ok((String::new(), String::new()));
+    }
+    let id = id
+        .filter(|v| !v.is_empty())
+        .ok_or("StorageUnavailable：已绑定profile_id缺失")?;
+    let hash = hash
+        .filter(|v| {
+            v.len() == 64
+                && v.bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        })
+        .ok_or("StorageUnavailable：已绑定profile_hash缺失或不规范")?;
+    if input.as_deref() != Some(id.as_str()) {
+        return Err("StorageUnavailable：input_profile与固定profile_id不一致".to_string());
+    }
+    if let Some(definition) = definition {
+        let profile = json_shape(&definition, JsonShape::Object)?;
+        if profile["profile_id"].as_str() != Some(id.as_str())
+            || sha256_hex(&canonical_bytes_of_value(&profile)) != hash
+        {
+            return Err("StorageUnavailable：profile定义与固定id/hash不一致".to_string());
+        }
+    } else {
+        // 旧版本没有profile_definition：只接受独立已封存来源；没有批次的旧TestOnly接纳
+        // 以同一声明档案核规范hash。这是旧格式取证，不在失败后换宽松判据。
+        let sealed: Option<(String,Vec<u8>)> = conn.query_row(
+            "SELECT b.batch_id,b.canonical_bytes FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE json_extract(b.canonical_bytes,'$.profile_id')<>'' ORDER BY d.generation LIMIT 1",
+            [],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(|e|e.to_string())?;
+        if let Some((batch_id, bytes)) = sealed {
+            verify_stored_batch(conn, &batch_id)?;
+            let batch: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+            if batch["profile_id"].as_str() != Some(id.as_str())
+                || batch["profile_hash"].as_str() != Some(hash.as_str())
+            {
+                return Err("StorageUnavailable：旧profile绑定与可达封存批次不一致".to_string());
+            }
+        } else {
+            let declared: Value = serde_json::from_str(include_str!(
+                "../../../s_session/profiles/testonly_tick_1_1_ohlc.json"
+            ))
+            .map_err(|e| e.to_string())?;
+            if declared["profile_id"].as_str() != Some(id.as_str())
+                || sha256_hex(&canonical_bytes_of_value(&declared)) != hash
+            {
+                return Err("StorageUnavailable：旧未发布profile缺可核独立来源".to_string());
+            }
+        }
+    }
+    Ok((id, hash))
+}
+
+fn verify_batch_profile(batch: &Value, binding: &(String, String)) -> Result<(), String> {
+    let id = batch["profile_id"]
+        .as_str()
+        .ok_or("StorageUnavailable：batch.profile_id缺失")?;
+    let hash = batch["profile_hash"]
+        .as_str()
+        .ok_or("StorageUnavailable：batch.profile_hash缺失")?;
+    // 首次接纳以前的空发布可合法未绑定；不得回填其历史profile。
+    if id.is_empty() && hash.is_empty() && required_array(batch, "raw_events")?.is_empty() {
+        return Ok(());
+    }
+    if id != binding.0 || hash != binding.1 {
+        return Err("StorageUnavailable：历史批次profile与固定输入绑定不一致".to_string());
+    }
+    Ok(())
+}
+
+fn profile_at_cut(conn: &Connection, generation: i64) -> Result<(String, String), String> {
+    if generation == 0 {
+        return Ok((String::new(), String::new()));
+    }
+    let bytes: Vec<u8>=conn.query_row("SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE d.generation=?1",params![generation],|r|r.get(0)).map_err(|e|format!("StorageUnavailable：cut来源不存在：{e}"))?;
+    let batch: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    Ok((
+        batch["profile_id"]
+            .as_str()
+            .ok_or("StorageUnavailable：cut.profile_id缺失")?
+            .to_string(),
+        batch["profile_hash"]
+            .as_str()
+            .ok_or("StorageUnavailable：cut.profile_hash缺失")?
+            .to_string(),
+    ))
+}
+
 fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
     verify_reachable_root_in_tx(conn).map_err(|e| format!("StorageUnavailable：{e}"))
 }
 
 fn verify_reachable_root_in_tx(conn: &Connection) -> Result<(), String> {
     let generation = verify_required_meta(conn)?;
+    let profile_binding = verify_profile_binding(conn)?;
     let meta_session = meta_get_opt(conn, "session_id")?.unwrap_or_default();
     let meta_cat = meta_get_opt(conn, "catalog_revision")?.unwrap_or_default();
     let meta_idx = meta_get_opt(conn, "index_frontier")?.unwrap_or_default();
@@ -942,6 +1039,7 @@ fn verify_reachable_root_in_tx(conn: &Connection) -> Result<(), String> {
             )
             .map_err(|e| e.to_string())?;
         let batch: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+        verify_batch_profile(&batch, &profile_binding)?;
         verify_delta_payload(conn, &dj, *g, &batch)?;
     }
     // meta 与最末已发布 Delta 的根元组对应关系。
@@ -1243,6 +1341,7 @@ fn cmd_accept(
         if bound_profile_id.is_empty() {
             meta_set(&tx, "profile_id", &profile_id)?;
             meta_set(&tx, "profile_hash", &profile_hash)?;
+            meta_set(&tx, "profile_definition", &canonical_json(&profile))?;
         } else if bound_profile_id != profile_id {
             return Err(format!(
                 "IdentityConflict：session 已绑定 profile=`{bound_profile_id}`，本次 `{profile_id}` 不一致（不覆盖既有 cut 来源）"
@@ -1766,6 +1865,7 @@ fn verify_begin_owner(
     configured_epoch: &str,
 ) -> Result<(), String> {
     verify_writer_epoch(conn, configured_epoch)?;
+    verify_reachable_root(conn)?;
     let expected = format!("begun:{token}:{gen}:{frontier}");
     if meta_get_opt(conn, "advance_state")?.as_deref() != Some(expected.as_str())
         || meta_get_opt(conn, "begin_token")?.as_deref() != Some(token)
@@ -1824,17 +1924,15 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     let mut conn = open_db(db)?;
     ensure_initialized(&conn)?;
     record_connection_pragmas(&conn, "advance");
-    let profile_id = meta_get_opt(&conn, "profile_id")?.unwrap_or_default();
-    let profile_hash = meta_get_opt(&conn, "profile_hash")?.unwrap_or_default();
-    let catalog_revision = meta_get_opt(&conn, "catalog_revision")?.unwrap_or_default();
-
     // ── Begin：判定前先由短写事务核 writer_epoch、取得唯一推进权、持久 Begin/门/输入前沿 ──
-    let (token, gen, frontier, base_cut) = {
+    let (token, gen, frontier, base_cut, profile_id, profile_hash, catalog_revision) = {
         let tx = conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|e| format!("Begin 事务失败：{e}"))?;
         verify_writer_epoch(&tx, configured_epoch)?;
         verify_reachable_root(&tx)?;
+        let (profile_id, profile_hash) = verify_profile_binding(&tx)?;
+        let catalog_revision = meta_get_opt(&tx, "catalog_revision")?.unwrap_or_default();
         let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_else(|| "idle".to_string());
         if state != "idle" {
             return Err(format!(
@@ -1881,7 +1979,15 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
         meta_set(&tx, "begin_input_frontier", &frontier.to_string())?;
         meta_set(&tx, "begin_token", &token)?;
         tx.commit().map_err(|e| format!("Begin commit 失败：{e}"))?;
-        (token, gen, frontier, base_cut)
+        (
+            token,
+            gen,
+            frontier,
+            base_cut,
+            profile_id,
+            profile_hash,
+            catalog_revision,
+        )
     };
 
     // ★测试暂停点 1：Begin 已持久、解释尚未开始（供 SIGKILL）。
@@ -2849,14 +2955,31 @@ fn read_catalog_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, St
                         json_shape(ev, JsonShape::Object).map_err(|e| json_column_error(8, e))?;
                 }
             }
+            let (implementation_status, proof_status) = if let Some(n) = as_of {
+                if n == 0 {
+                    run_status = "not_run".to_string();
+                    evidence = json!({});
+                }
+                (
+                    if cid == "CC-006" && n > 0 {
+                        "implemented"
+                    } else {
+                        "not_implemented"
+                    }
+                    .to_string(),
+                    "not_proved".to_string(),
+                )
+            } else {
+                (r.get::<_, String>(5)?, r.get::<_, String>(6)?)
+            };
             Ok(json!({
                 "id": cid,
                 "kind": r.get::<_, String>(1)?,
                 "title": r.get::<_, String>(2)?,
                 "domain": r.get::<_, String>(3)?,
                 "branches": json_column(r, 4, JsonShape::CatalogBranches)?,
-                "implementation_status": r.get::<_, String>(5)?,
-                "proof_status": r.get::<_, String>(6)?,
+                "implementation_status": implementation_status,
+                "proof_status": proof_status,
                 "run_status": run_status,
                 "evidence": evidence,
             }))
@@ -3134,6 +3257,8 @@ fn read_snapshot_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, S
         }
     };
 
+    let (cut_profile_id, cut_profile_hash) =
+        profile_at_cut(conn, header_gen.parse::<i64>().map_err(|e| e.to_string())?)?;
     let wit_sql = match as_of {
         None => {
             "SELECT witness_id, object_id, slot, merged_source_index, merged_high, merged_low, merged_open, merged_close, raw_json FROM witnesses ORDER BY object_id, slot"
@@ -3252,8 +3377,8 @@ fn read_snapshot_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, S
         "catalog_revision": header_cat,
         "scope": read_scope(conn)?,
         "index_frontier": header_index,
-        "profile_id": meta.get("profile_id").cloned().unwrap_or_default(),
-        "profile_hash": meta.get("profile_hash").cloned().unwrap_or_default(),
+        "profile_id": cut_profile_id,
+        "profile_hash": cut_profile_hash,
         "history_mode": if as_of.is_some() { "AsKnown" } else { "RecomputedWithRevision" },
         "as_of_generation": as_of.map(|v| v.to_string()),
         "objects": objects,
@@ -3880,6 +4005,79 @@ mod tests {
                 "{key}"
             );
             assert!(cmd_recover(&files.db(), "2").is_err(), "{key}");
+        }
+    }
+
+    #[test]
+    fn r10_as_known_zero_is_stable_through_accept_publish_and_revision() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let zero = snapshot_of(&files, Some(0));
+        let conn = open_db(&files.db()).unwrap();
+        let catalog = read_catalog_in_tx(&conn, Some(0)).unwrap();
+        drop(conn);
+        for (i, events) in [
+            vec![ev("e0", "1", "0", "10000")],
+            vec![ev("e1", "1", "1", "11000")],
+            vec![ev("e2", "1", "2", "10500")],
+            vec![ev("e2", "2", "2", "11500")],
+            vec![ev("e3", "1", "3", "10800")],
+        ]
+        .iter()
+        .enumerate()
+        {
+            accept(
+                &files,
+                &test_input(events),
+                &format!("{i}.json"),
+                DEFAULT_WRITER_EPOCH,
+            );
+            assert_eq!(snapshot_of(&files, Some(0)), zero);
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            assert_eq!(snapshot_of(&files, Some(0)), zero);
+            let conn = open_db(&files.db()).unwrap();
+            assert_eq!(read_catalog_in_tx(&conn, Some(0)).unwrap(), catalog);
+        }
+    }
+
+    #[test]
+    fn r10_pending_profile_corruption_fails_before_any_write() {
+        for published in [false, true] {
+            for key in ["profile_id", "profile_hash", "input_profile"] {
+                let files = TestFiles::new();
+                init_test_db(&files);
+                accept(
+                    &files,
+                    &test_input(&[ev("e0", "1", "0", "10000")]),
+                    "one.json",
+                    DEFAULT_WRITER_EPOCH,
+                );
+                if published {
+                    cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                    accept(
+                        &files,
+                        &test_input(&[ev("e1", "1", "1", "11000")]),
+                        "two.json",
+                        DEFAULT_WRITER_EPOCH,
+                    );
+                }
+                let conn = open_db(&files.db()).unwrap();
+                meta_set(&conn, key, &"f".repeat(64)).unwrap();
+                let before = db_meta(&conn).unwrap();
+                assert!(cmd_snapshot(&files.db(), None)
+                    .unwrap_err()
+                    .contains("StorageUnavailable"));
+                assert!(cmd_catalog(&files.db(), Some(0))
+                    .unwrap_err()
+                    .contains("StorageUnavailable"));
+                assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+                    .unwrap_err()
+                    .contains("StorageUnavailable"));
+                assert!(cmd_recover(&files.db(), "2")
+                    .unwrap_err()
+                    .contains("StorageUnavailable"));
+                assert_eq!(db_meta(&conn).unwrap(), before);
+            }
         }
     }
 

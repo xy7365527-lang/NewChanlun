@@ -342,7 +342,22 @@ function validateEvidence(evidence, gen) {
     "replaces", "insufficient_knowledge", "domain_not_satisfied", "scope", "batch_id", "structure_cut", "profile_id", "profile_hash", "rule_revision"], "目录证据");
   for (const k of ["classified_objects", "windows_total", "merged_bars", "effective_source_positions", "withdrawals", "replaces", "insufficient_knowledge", "domain_not_satisfied"]) decimal(evidence[k]);
 }
-function bindingOf(snap) { return Object.fromEntries(publicationKeys.map(k => [k, deepClone(snap[k])])); }
+const sourceKeys = ["profile_id", "profile_hash"];
+function bindingOf(snap) { return Object.fromEntries([...publicationKeys, ...sourceKeys].map(k => [k, deepClone(snap[k])])); }
+function validateSource(snap) {
+  requireKeys(snap, [...sourceKeys, "history_mode", "as_of_generation"], "Snapshot来源");
+  if (sourceKeys.some(k => typeof snap[k] !== "string")) throw new Error("Snapshot profile非文本");
+  if (snap.generation === "0") {
+    if (snap.profile_id !== "" || snap.profile_hash !== "") throw new Error("cut0不得回填未来profile");
+  } else {
+    for (const k of sourceKeys) if (snap[k] !== snap.catalog_evidence[k]) throw new Error(`Snapshot/${k} 与同cut证据不一致`);
+  }
+  if (snap.history_mode === "AsKnown") {
+    if (snap.as_of_generation !== snap.generation) throw new Error("AsKnown代际绑定不一致");
+  } else if (snap.history_mode !== "RecomputedWithRevision" || snap.as_of_generation !== null) {
+    throw new Error("history_mode/as_of_generation不一致");
+  }
+}
 function validateState(state) {
   requireKeys(state, ["catalog", "snapshot", "cut"], "State");
   const cat = state.catalog, snap = state.snapshot;
@@ -361,6 +376,7 @@ function validateState(state) {
   requireArrays(snap, ["objects", "withdrawn_objects", "witnesses", "relations", "observations", "raw_history"], "Snapshot");
   validateExactRecords([snap.objects, snap.withdrawn_objects, snap.witnesses, snap.observations, snap.raw_history]);
   validateEvidence(snap.catalog_evidence, snap.generation);
+  validateSource(snap);
   requireArrays(cat, ["items"], "Catalog");
   const cc = cat.items.filter(x => x.id === "CC-006");
   if (cc.length !== 1 || !exactJson(cc[0].evidence, snap.catalog_evidence) || cc[0].run_status !== snap.catalog_run_status)
@@ -393,6 +409,7 @@ function comparePublication(delta, snap) {
         ["seq_range","seq_range"], ["catalog_run_status","catalog_run_status"], ["catalog_evidence","catalog_evidence"]])
     if (!exactJson(dd[dk], snap[sk])) throw new Error(`Delta/Snapshot.${sk} 不一致`);
   if (!exactJson(dd.catalog_evidence.scope, snap.scope)) throw new Error("Delta/Snapshot.scope 不一致");
+  for (const k of sourceKeys) if (dd.catalog_evidence[k] !== snap[k]) throw new Error(`Delta/Snapshot.${k} 不一致`);
 }
 function renderAllFromState(state) {
   const cat = state.catalog;
