@@ -411,6 +411,25 @@ function comparePublication(delta, snap) {
   if (!exactJson(dd.catalog_evidence.scope, snap.scope)) throw new Error("Delta/Snapshot.scope 不一致");
   for (const k of sourceKeys) if (dd.catalog_evidence[k] !== snap[k]) throw new Error(`Delta/Snapshot.${k} 不一致`);
 }
+// #1371 R11：响应内部合法不等于属于本次请求。四条读取边界共用同一请求描述。
+function stateRequest(mode, asOfGen) {
+  if (mode === "current") return {url: "/api/state", mode, generation: null};
+  if (mode !== "asof") throw new Error("未知状态查询模式");
+  decimal(asOfGen); // 先拒绝非规范/越域文本，再发请求；不经 Number 或宽松 BigInt 归一化。
+  return {url: `/api/state?as_of=${asOfGen}`, mode, generation: asOfGen};
+}
+function validateRequestedState(state, request) {
+  validateState(state); // 保留全部内部字段/profile/同源/集合验证，不能用请求校验替代。
+  const snap = state.snapshot;
+  if (request.mode === "current") {
+    if (snap.history_mode !== "RecomputedWithRevision" || snap.as_of_generation !== null)
+      throw new Error("请求current却收到非RecomputedWithRevision/null响应");
+    // current 没有预先指定generation；不额外引入新鲜度或默认截止点。
+  } else if (snap.history_mode !== "AsKnown" || snap.generation !== request.generation ||
+             snap.as_of_generation !== request.generation || snap.structure_cut !== `cut-${request.generation}`) {
+    throw new Error(`请求AsKnown cut-${request.generation}，响应模式/cut不匹配`);
+  }
+}
 function renderAllFromState(state) {
   const cat = state.catalog;
   const snap = state.snapshot;
@@ -427,16 +446,18 @@ async function load(mode = "current", asOfGen) {
   const epoch = beginRequest();
   renderStatus("", "");
   try {
-    const url = mode === "asof" ? `/api/state?as_of=${asOfGen}` : "/api/state";
-    const state = await fetchJson(url);
+    const request = stateRequest(mode, asOfGen);
+    const state = await fetchJson(request.url);
     if (epoch !== pageEpoch) return; // 晚到响应不覆盖新请求
-    validateState(state); // 先验证整份 state，再提交渲染
+    validateRequestedState(state, request); // 先核本次请求及整份 state，再提交渲染
     syncModeUI(mode, state.snapshot);
     renderAllFromState(state);
   } catch (e) {
     if (epoch !== pageEpoch) return;
     currentState = null;
     renderStatus("读取失败：" + e, "err-box");
+    document.getElementById("mode-indicator").textContent = "未显示（本次请求失败）";
+    document.getElementById("view-selection").textContent = "未显示（读取失败）";
     document.getElementById("meta-kv").innerHTML = `<dd class="muted">—</dd>`;
     document.getElementById("objects").innerHTML = `<div class="muted">未渲染（读取失败，不把失败当空实例）。</div>`;
     document.getElementById("withdrawn").innerHTML = "";
@@ -493,12 +514,12 @@ async function applyStream() {
     if (epoch !== pageEpoch) return;
     if (deltaResp.gap) {
       // Gap：按返回 rebuild_cut 读取指定快照并重建缓存/游标/绑定（清空不是重建）。
-      let st;
+      let st, request;
       try {
         const cut = deltaResp.gap.rebuild_cut;
         if (typeof cut !== "string" || !/^cut-(0|[1-9][0-9]*)$/.test(cut)) throw new Error("Gap 缺合法 rebuild_cut");
-        st = await fetchJson(`/api/state?as_of=${cut.slice(4)}`);
-        if (st.snapshot.structure_cut !== cut) throw new Error("Gap 重建 cut 不一致");
+        request = stateRequest("asof", cut.slice(4));
+        st = await fetchJson(request.url);
       }
       catch (e) {
         if (epoch !== pageEpoch) return;
@@ -506,7 +527,7 @@ async function applyStream() {
         return;
       }
       if (epoch !== pageEpoch) return;
-      try { validateState(st); }
+      try { validateRequestedState(st, request); }
       catch (e) { el.innerHTML = `<div class="err-box">重建校验失败（${esc(e)}）：状态未提交</div>`; return; }
       rebuildCommittedFromState(st);
       renderAllFromState(st);
@@ -517,9 +538,8 @@ async function applyStream() {
     }
     if (sessionBinding && deltaResp.session_id !== sessionBinding.session_id) {
       const oldSid = sessionBinding.session_id;
-      resetCommitted();
-      cursorEl.textContent = `会话已切换（原 ${oldSid}）→ 请重新对拍`;
-      el.innerHTML = `<div class="warn-box">会话身份变化（${esc(oldSid)} → ${esc(deltaResp.session_id)}）：已重置缓存/游标，请重新对拍</div>`;
+      cursorEl.textContent = `收到另一会话（原 ${oldSid}）：原切面未变`;
+      el.innerHTML = `<div class="warn-box">会话身份变化（${esc(oldSid)} → ${esc(deltaResp.session_id)}）：拒绝本次续接；保留原缓存/游标，请刷新页面或按 Gap 重建</div>`;
       return;
     }
     requireArrays(deltaResp, ["deltas"], "Watch");
@@ -575,15 +595,16 @@ async function applyStream() {
       appliedLines.push(`gen ${gen}：${d.base_cut} → ${d.next_cut}（upserts ${(dd.upserts || []).length} / 撤回 ${(dd.withdrawals || []).length} / 替代 ${(dd.replaces || []).length}）`);
     }
     // 权威状态：按应用末代取指定 cut，对拍完整发布元组及六集合；不混后续写者的新cut。
+    const request = stateRequest("asof", tmpGen);
     let state;
-    try { state = await fetchJson(`/api/state?as_of=${tmpGen}`); }
+    try { state = await fetchJson(request.url); }
     catch (e) {
       if (epoch !== pageEpoch) return;
       el.innerHTML = `<div class="err-box">快照读取失败（${esc(e)}）：游标/状态未提交，请重试</div>`;
       return;
     }
     if (epoch !== pageEpoch) return;
-    try { validateState(state); }
+    try { validateRequestedState(state, request); }
     catch (e) { el.innerHTML = `<div class="err-box">整份 State 校验失败（${esc(e)}）：游标/状态未提交</div>`; return; }
     const snap = state.snapshot;
     if (finalDelta) comparePublication(finalDelta, snap);
