@@ -1,0 +1,1499 @@
+{
+  "schema": 1,
+  "ticket": 1371,
+  "product_commit": "6189c7e0e5499fc757ddb8369ca557104b526c57",
+  "files": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/FINAL-DELIVERY.json",
+      "archive_path": "FINAL-DELIVERY.json",
+      "bytes": 8700,
+      "sha256": "689c5a5b01ae5c9b5ec4c138fac83f653f021bb74380dfeec848ab48c5b0987a",
+      "artifact_key": "689c5a5b01ae5c9b5ec4c138fac83f653f021bb74380dfeec848ab48c5b0987a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/PR1449-CI-WATCH.log",
+      "archive_path": "PR1449-CI-WATCH.log",
+      "bytes": 64553,
+      "sha256": "e748815d300473588cc530046ab8cd5ad88a5eceea711aff2b7919331551a6f8",
+      "artifact_key": "e748815d300473588cc530046ab8cd5ad88a5eceea711aff2b7919331551a6f8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/PR1449-DEVSKIM-FAILED.log",
+      "archive_path": "PR1449-DEVSKIM-FAILED.log",
+      "bytes": 1459864,
+      "sha256": "0bcaaac7d5bba1a8e66dd3ab96ef504b11fb61cc2cf7d0d69fd84a3d6e2a71aa",
+      "artifact_key": "0bcaaac7d5bba1a8e66dd3ab96ef504b11fb61cc2cf7d0d69fd84a3d6e2a71aa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/PR1449-INLINE-REVIEWS-LATEST.json",
+      "archive_path": "PR1449-INLINE-REVIEWS-LATEST.json",
+      "bytes": 51618,
+      "sha256": "d5df34370f81e4b5b3c0b0f17b9ba0b017151169c2d38d0ee07d805c18d88779",
+      "artifact_key": "d5df34370f81e4b5b3c0b0f17b9ba0b017151169c2d38d0ee07d805c18d88779"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/BUILD-RESULT.json",
+      "archive_path": "r13-build/BUILD-RESULT.json",
+      "bytes": 427,
+      "sha256": "3bc6d05d18d6ef87c2689c40de7011ff17e24ab56ffd6a390ba147cbcecbacc9",
+      "artifact_key": "3bc6d05d18d6ef87c2689c40de7011ff17e24ab56ffd6a390ba147cbcecbacc9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/BUILD.log",
+      "archive_path": "r13-build/BUILD.log",
+      "bytes": 18401,
+      "sha256": "f1578cf0ba61e36bee6ddc548ca7f100e2f7227a2b3b3937bdd83304f00a38e2",
+      "artifact_key": "f1578cf0ba61e36bee6ddc548ca7f100e2f7227a2b3b3937bdd83304f00a38e2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/CONSUMER.log",
+      "archive_path": "r13-build/CONSUMER.log",
+      "bytes": 1119,
+      "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704",
+      "artifact_key": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/EPOCH-GREEN.log",
+      "archive_path": "r13-build/EPOCH-GREEN.log",
+      "bytes": 19030,
+      "sha256": "b63f512fee993ada33ff8264d4eea88d35e250455695c49b449f8a457a36d849",
+      "artifact_key": "b63f512fee993ada33ff8264d4eea88d35e250455695c49b449f8a457a36d849"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/EPOCH-RED.log",
+      "archive_path": "r13-build/EPOCH-RED.log",
+      "bytes": 21087,
+      "sha256": "1b13c4dd619a5b99ef47e32d0811a10fb76f758493f1232f2cdcd3387a9d82f8",
+      "artifact_key": "1b13c4dd619a5b99ef47e32d0811a10fb76f758493f1232f2cdcd3387a9d82f8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/FINAL-PRODUCT-DIFF.patch",
+      "archive_path": "r13-build/FINAL-PRODUCT-DIFF.patch",
+      "bytes": 41202,
+      "sha256": "18d7a0ee9b85e491f604d8779195545532f656e760e70e8b2d1df7f0db30b93c",
+      "artifact_key": "18d7a0ee9b85e491f604d8779195545532f656e760e70e8b2d1df7f0db30b93c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/FMT-RUST.log",
+      "archive_path": "r13-build/FMT-RUST.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/FMT.log",
+      "archive_path": "r13-build/FMT.log",
+      "bytes": 920,
+      "sha256": "115f85c056727c9981b6da56af9942e0a42479a952cea7cf11b131606543ac33",
+      "artifact_key": "115f85c056727c9981b6da56af9942e0a42479a952cea7cf11b131606543ac33"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/FUTURE-GREEN.log",
+      "archive_path": "r13-build/FUTURE-GREEN.log",
+      "bytes": 18791,
+      "sha256": "4b6f43fd672b8940f2e451a05a89d15452cd0379298d6bf2c2bc795cca612ade",
+      "artifact_key": "4b6f43fd672b8940f2e451a05a89d15452cd0379298d6bf2c2bc795cca612ade"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/FUTURE-RED.log",
+      "archive_path": "r13-build/FUTURE-RED.log",
+      "bytes": 51382,
+      "sha256": "f79e2f81e332de3cfd85e79640a4aa115d220582aacdff5a6fd96434101826bb",
+      "artifact_key": "f79e2f81e332de3cfd85e79640a4aa115d220582aacdff5a6fd96434101826bb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/PRODUCT-DIFF.patch",
+      "archive_path": "r13-build/PRODUCT-DIFF.patch",
+      "bytes": 34216,
+      "sha256": "7e8b02a8c55bc45183b0c42541799be165c694ef64f2cbd7c5788259a5ddb762",
+      "artifact_key": "7e8b02a8c55bc45183b0c42541799be165c694ef64f2cbd7c5788259a5ddb762"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/PYTHON-GREEN.log",
+      "archive_path": "r13-build/PYTHON-GREEN.log",
+      "bytes": 91,
+      "sha256": "fbc8a4c59276daa0309e31bac6cae07d3db64c8db608d8c8ba6c949c1892aaae",
+      "artifact_key": "fbc8a4c59276daa0309e31bac6cae07d3db64c8db608d8c8ba6c949c1892aaae"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/PYTHON-RED.log",
+      "archive_path": "r13-build/PYTHON-RED.log",
+      "bytes": 433,
+      "sha256": "2aaeacbdd07f98a78232a37ef22170a891cda8295f9b7ebce28965977c8c5df5",
+      "artifact_key": "2aaeacbdd07f98a78232a37ef22170a891cda8295f9b7ebce28965977c8c5df5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/RUST-ALL.log",
+      "archive_path": "r13-build/RUST-ALL.log",
+      "bytes": 21968,
+      "sha256": "a4e80284ce418aab84899177e6cb6d8a014d5101a2c5b32e34351abc3d962244",
+      "artifact_key": "a4e80284ce418aab84899177e6cb6d8a014d5101a2c5b32e34351abc3d962244"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/SOURCE.json",
+      "archive_path": "r13-build/SOURCE.json",
+      "bytes": 980,
+      "sha256": "4c753c2c2095d6dd071f7fbe3b5fd1a47554b8ce1edc68fb701eb30575496955",
+      "artifact_key": "4c753c2c2095d6dd071f7fbe3b5fd1a47554b8ce1edc68fb701eb30575496955"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/BUILD-RESULT.json",
+      "archive_path": "r14-build/BUILD-RESULT.json",
+      "bytes": 394,
+      "sha256": "ceca392ecb24b1a3cd80d43177233fa8ea66f8aca36755a0ba02d26699eae614",
+      "artifact_key": "ceca392ecb24b1a3cd80d43177233fa8ea66f8aca36755a0ba02d26699eae614"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/BUILD.log",
+      "archive_path": "r14-build/BUILD.log",
+      "bytes": 18401,
+      "sha256": "ee33eeb4ebe270c1f9f009c85475a3961353c0acca52b60a8cdc6b27d98fff50",
+      "artifact_key": "ee33eeb4ebe270c1f9f009c85475a3961353c0acca52b60a8cdc6b27d98fff50"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/FINAL-PRODUCT-DIFF.patch",
+      "archive_path": "r14-build/FINAL-PRODUCT-DIFF.patch",
+      "bytes": 12779,
+      "sha256": "f4083032136d6d08011e1ec1e03436b6ed89e8f9da5a335a461465dd56160f59",
+      "artifact_key": "f4083032136d6d08011e1ec1e03436b6ed89e8f9da5a335a461465dd56160f59"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/FMT.log",
+      "archive_path": "r14-build/FMT.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/PENDING-RED.log",
+      "archive_path": "r14-build/PENDING-RED.log",
+      "bytes": 22575,
+      "sha256": "44ebb9c015a4a563f947f7dd9edd7399bf23a058d5d80e484af45bfe65c5e58d",
+      "artifact_key": "44ebb9c015a4a563f947f7dd9edd7399bf23a058d5d80e484af45bfe65c5e58d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/PRODUCT-DIFF.patch",
+      "archive_path": "r14-build/PRODUCT-DIFF.patch",
+      "bytes": 12770,
+      "sha256": "55470ebbf52a3d27f0e5d3a00115c0f0b724911d690fae2dc345141c104b6f4c",
+      "artifact_key": "55470ebbf52a3d27f0e5d3a00115c0f0b724911d690fae2dc345141c104b6f4c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/PYTHON-GREEN.log",
+      "archive_path": "r14-build/PYTHON-GREEN.log",
+      "bytes": 122,
+      "sha256": "b913e2b714974b1702377a3810424ce76df8b549e1f53be20f9bc65e9a6400f7",
+      "artifact_key": "b913e2b714974b1702377a3810424ce76df8b549e1f53be20f9bc65e9a6400f7"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/RUST-ALL.log",
+      "archive_path": "r14-build/RUST-ALL.log",
+      "bytes": 22046,
+      "sha256": "aa80b9fb1dc72b6a54de774f508c93d809f717aedb36cad234cb96c8744fb2e5",
+      "artifact_key": "aa80b9fb1dc72b6a54de774f508c93d809f717aedb36cad234cb96c8744fb2e5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/SOURCE.json",
+      "archive_path": "r14-build/SOURCE.json",
+      "bytes": 857,
+      "sha256": "42e63e3cb0b8aec5c74d385668f91d2b63681588a3f4b3090cf58083d0f8df4c",
+      "artifact_key": "42e63e3cb0b8aec5c74d385668f91d2b63681588a3f4b3090cf58083d0f8df4c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-TRIAGE.json",
+      "archive_path": "work/PR1449-DEVSKIM-TRIAGE.json",
+      "bytes": 37249446,
+      "sha256": "58788dcb2db95645416ee29ab1a0bbb11d5bea08b2fe2a86b6dcb3944117bce2",
+      "artifact_key": "58788dcb2db95645416ee29ab1a0bbb11d5bea08b2fe2a86b6dcb3944117bce2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-TRIAGE.md",
+      "archive_path": "work/PR1449-DEVSKIM-TRIAGE.md",
+      "bytes": 10208,
+      "sha256": "2798e1fcbde6fd976d713ce3f242f28b964a47976a0cf122dd63c193880f4a93",
+      "artifact_key": "2798e1fcbde6fd976d713ce3f242f28b964a47976a0cf122dd63c193880f4a93"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM/devskim-results.sarif",
+      "archive_path": "work/PR1449-DEVSKIM/devskim-results.sarif",
+      "bytes": 52355864,
+      "sha256": "ec12437325f9f198e23ed3b803a0e21580564445ff4c1ebf723984e811f96e2b",
+      "artifact_key": "ec12437325f9f198e23ed3b803a0e21580564445ff4c1ebf723984e811f96e2b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/RESULT.json",
+      "archive_path": "work/PR1449-EPOCH-GREEN/RESULT.json",
+      "bytes": 22082,
+      "sha256": "d20db318fd8a05c6dbacc9d8d08f7ca8b65b550a149598c64389315015d72fd9",
+      "artifact_key": "d20db318fd8a05c6dbacc9d8d08f7ca8b65b550a149598c64389315015d72fd9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case0/accept.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case0/accept.stderr",
+      "bytes": 155,
+      "sha256": "735222b0a36bea8e16845e483cf8420b4237363b341a4607f1321dd56a4b08ac",
+      "artifact_key": "735222b0a36bea8e16845e483cf8420b4237363b341a4607f1321dd56a4b08ac"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case0/accept.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case0/accept.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case0/advance.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case0/advance.stderr",
+      "bytes": 155,
+      "sha256": "735222b0a36bea8e16845e483cf8420b4237363b341a4607f1321dd56a4b08ac",
+      "artifact_key": "735222b0a36bea8e16845e483cf8420b4237363b341a4607f1321dd56a4b08ac"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case0/advance.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case0/advance.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case0/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case0/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case0/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case0/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case1/accept.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case1/accept.stderr",
+      "bytes": 154,
+      "sha256": "36caad8a6ff4f7ef158842e251575d8756fb13f9facba6f4ef7d37ce2104de9b",
+      "artifact_key": "36caad8a6ff4f7ef158842e251575d8756fb13f9facba6f4ef7d37ce2104de9b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case1/accept.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case1/accept.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case1/advance.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case1/advance.stderr",
+      "bytes": 154,
+      "sha256": "36caad8a6ff4f7ef158842e251575d8756fb13f9facba6f4ef7d37ce2104de9b",
+      "artifact_key": "36caad8a6ff4f7ef158842e251575d8756fb13f9facba6f4ef7d37ce2104de9b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case1/advance.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case1/advance.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case1/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case1/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case1/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case1/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case2/accept.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case2/accept.stderr",
+      "bytes": 84,
+      "sha256": "4719088286139dddd2453a47776adb74a7a328b8e136f698baf6cc0e1eab308d",
+      "artifact_key": "4719088286139dddd2453a47776adb74a7a328b8e136f698baf6cc0e1eab308d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case2/accept.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case2/accept.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case2/advance.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case2/advance.stderr",
+      "bytes": 84,
+      "sha256": "4719088286139dddd2453a47776adb74a7a328b8e136f698baf6cc0e1eab308d",
+      "artifact_key": "4719088286139dddd2453a47776adb74a7a328b8e136f698baf6cc0e1eab308d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case2/advance.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case2/advance.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case2/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case2/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case2/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case2/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case3/accept.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case3/accept.stderr",
+      "bytes": 152,
+      "sha256": "32a44e30b4b68c91c28743b0b044bb84fdc395af99bb3a940e7391982c653b13",
+      "artifact_key": "32a44e30b4b68c91c28743b0b044bb84fdc395af99bb3a940e7391982c653b13"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case3/accept.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case3/accept.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case3/advance.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case3/advance.stderr",
+      "bytes": 152,
+      "sha256": "32a44e30b4b68c91c28743b0b044bb84fdc395af99bb3a940e7391982c653b13",
+      "artifact_key": "32a44e30b4b68c91c28743b0b044bb84fdc395af99bb3a940e7391982c653b13"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case3/advance.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case3/advance.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case3/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case3/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case3/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case3/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case4/accept.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case4/accept.stderr",
+      "bytes": 152,
+      "sha256": "ecca2ade2dcac939cbae4a4f53c0911b5de62fcf50ab59f995bbc08b460c6dde",
+      "artifact_key": "ecca2ade2dcac939cbae4a4f53c0911b5de62fcf50ab59f995bbc08b460c6dde"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case4/accept.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case4/accept.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case4/advance.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case4/advance.stderr",
+      "bytes": 152,
+      "sha256": "ecca2ade2dcac939cbae4a4f53c0911b5de62fcf50ab59f995bbc08b460c6dde",
+      "artifact_key": "ecca2ade2dcac939cbae4a4f53c0911b5de62fcf50ab59f995bbc08b460c6dde"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case4/advance.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case4/advance.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case4/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case4/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case4/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case4/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case5/accept.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case5/accept.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case5/accept.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case5/accept.stdout",
+      "bytes": 1034,
+      "sha256": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972",
+      "artifact_key": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case5/advance.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case5/advance.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case5/advance.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case5/advance.stdout",
+      "bytes": 391,
+      "sha256": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2",
+      "artifact_key": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case5/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case5/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/case5/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/case5/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/initial.json",
+      "archive_path": "work/PR1449-EPOCH-GREEN/initial.json",
+      "bytes": 695,
+      "sha256": "ca0b646a291367e9631bfe0442f057bd1da51aae08600ca4277f344a681795f2",
+      "artifact_key": "ca0b646a291367e9631bfe0442f057bd1da51aae08600ca4277f344a681795f2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/probe.py",
+      "archive_path": "work/PR1449-EPOCH-GREEN/probe.py",
+      "bytes": 3099,
+      "sha256": "8630dd79d215451760649524291d0815cdf14dbe2fb04555fe27ba48040587a5",
+      "artifact_key": "8630dd79d215451760649524291d0815cdf14dbe2fb04555fe27ba48040587a5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/recover-negative/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/recover-negative/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/recover-negative/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/recover-negative/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/recover-negative/recover.stderr",
+      "archive_path": "work/PR1449-EPOCH-GREEN/recover-negative/recover.stderr",
+      "bytes": 73,
+      "sha256": "af535ade2c22488fd6019e6c529f49afe56815652e5a6fa72ff9448a8a7d264d",
+      "artifact_key": "af535ade2c22488fd6019e6c529f49afe56815652e5a6fa72ff9448a8a7d264d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-GREEN/recover-negative/recover.stdout",
+      "archive_path": "work/PR1449-EPOCH-GREEN/recover-negative/recover.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/RESULT.json",
+      "archive_path": "work/PR1449-EPOCH-PROBE/RESULT.json",
+      "bytes": 33538,
+      "sha256": "9a23f0894455db977317f64934ff45207ee13b28a0e99a41a70acb6485f10605",
+      "artifact_key": "9a23f0894455db977317f64934ff45207ee13b28a0e99a41a70acb6485f10605"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case0/accept.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case0/accept.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case0/accept.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case0/accept.stdout",
+      "bytes": 1034,
+      "sha256": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972",
+      "artifact_key": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case0/advance.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case0/advance.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case0/advance.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case0/advance.stdout",
+      "bytes": 391,
+      "sha256": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2",
+      "artifact_key": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case0/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case0/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case0/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case0/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case1/accept.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case1/accept.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case1/accept.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case1/accept.stdout",
+      "bytes": 1034,
+      "sha256": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972",
+      "artifact_key": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case1/advance.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case1/advance.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case1/advance.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case1/advance.stdout",
+      "bytes": 391,
+      "sha256": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2",
+      "artifact_key": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case1/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case1/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case1/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case1/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case2/accept.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case2/accept.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case2/accept.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case2/accept.stdout",
+      "bytes": 1034,
+      "sha256": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972",
+      "artifact_key": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case2/advance.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case2/advance.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case2/advance.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case2/advance.stdout",
+      "bytes": 391,
+      "sha256": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2",
+      "artifact_key": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case2/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case2/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case2/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case2/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case3/accept.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case3/accept.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case3/accept.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case3/accept.stdout",
+      "bytes": 1034,
+      "sha256": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972",
+      "artifact_key": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case3/advance.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case3/advance.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case3/advance.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case3/advance.stdout",
+      "bytes": 391,
+      "sha256": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2",
+      "artifact_key": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case3/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case3/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case3/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case3/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case4/accept.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case4/accept.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case4/accept.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case4/accept.stdout",
+      "bytes": 1034,
+      "sha256": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972",
+      "artifact_key": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case4/advance.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case4/advance.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case4/advance.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case4/advance.stdout",
+      "bytes": 391,
+      "sha256": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2",
+      "artifact_key": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case4/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case4/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case4/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case4/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case5/accept.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case5/accept.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case5/accept.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case5/accept.stdout",
+      "bytes": 1034,
+      "sha256": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972",
+      "artifact_key": "858e66ebdff3660e52d0410a8fcad94d49d21f15a6dc30a04be435a7810ea972"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case5/advance.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case5/advance.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case5/advance.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case5/advance.stdout",
+      "bytes": 391,
+      "sha256": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2",
+      "artifact_key": "0b737929a5754f7ac53a0dae509de01b8d1dc707ffcfbbc584165ffc7781c3b2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case5/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case5/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/case5/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/case5/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/initial.json",
+      "archive_path": "work/PR1449-EPOCH-PROBE/initial.json",
+      "bytes": 695,
+      "sha256": "ca0b646a291367e9631bfe0442f057bd1da51aae08600ca4277f344a681795f2",
+      "artifact_key": "ca0b646a291367e9631bfe0442f057bd1da51aae08600ca4277f344a681795f2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/probe.py",
+      "archive_path": "work/PR1449-EPOCH-PROBE/probe.py",
+      "bytes": 2646,
+      "sha256": "f00037a4f3b62bbc431985a6a11ef63ab8420b2329d389bbda685b45137ba3d9",
+      "artifact_key": "f00037a4f3b62bbc431985a6a11ef63ab8420b2329d389bbda685b45137ba3d9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/recover-negative/init.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/recover-negative/init.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/recover-negative/init.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/recover-negative/init.stdout",
+      "bytes": 171,
+      "sha256": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528",
+      "artifact_key": "335d91fed71473e084d033dab45bf27052490e44441a88f2240a87ed76724528"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/recover-negative/recover.stderr",
+      "archive_path": "work/PR1449-EPOCH-PROBE/recover-negative/recover.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-PROBE/recover-negative/recover.stdout",
+      "archive_path": "work/PR1449-EPOCH-PROBE/recover-negative/recover.stdout",
+      "bytes": 180,
+      "sha256": "1de4667a4a75f052076707de0159f45d59f897fa3524d287f4b90dedeb83e065",
+      "artifact_key": "1de4667a4a75f052076707de0159f45d59f897fa3524d287f4b90dedeb83e065"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-EPOCH-TRIAGE.md",
+      "archive_path": "work/PR1449-EPOCH-TRIAGE.md",
+      "bytes": 1345,
+      "sha256": "8435e97be02e79ccdecab87d8abbf01985911ce069e691790bc37efaa7043112",
+      "artifact_key": "8435e97be02e79ccdecab87d8abbf01985911ce069e691790bc37efaa7043112"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/ASSERTIONS.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/ASSERTIONS.json",
+      "bytes": 2968,
+      "sha256": "cb554ce4c36060bf076a89991c7da2d1ef39992e67e27ff0407589bba717bc1c",
+      "artifact_key": "cb554ce4c36060bf076a89991c7da2d1ef39992e67e27ff0407589bba717bc1c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/ATTEMPT1.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/ATTEMPT1.json",
+      "bytes": 284,
+      "sha256": "c33ad62abe1201d5e246906585298ac7f31f3264ef607733d85834b3f97b26c6",
+      "artifact_key": "c33ad62abe1201d5e246906585298ac7f31f3264ef607733d85834b3f97b26c6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/RESULT.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/RESULT.json",
+      "bytes": 2060808,
+      "sha256": "e9e7e76de62a7c0e5f4608065bc63507c0da2635b9ac4165484ce28387c09e28",
+      "artifact_key": "e9e7e76de62a7c0e5f4608065bc63507c0da2635b9ac4165484ce28387c09e28"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/control_existing_object_published_future/RESULT.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/control_existing_object_published_future/RESULT.json",
+      "bytes": 10459,
+      "sha256": "063966cd4ad09613414343bba61e14c619a084e463f43aef99ae3944b0f6028a",
+      "artifact_key": "063966cd4ad09613414343bba61e14c619a084e463f43aef99ae3944b0f6028a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/control_existing_withdrawal_future/RESULT.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/control_existing_withdrawal_future/RESULT.json",
+      "bytes": 10605,
+      "sha256": "e445074e3721e00aff8b79af3dde1ac60fa52bddce9963c25a5c0f831f7e5f2c",
+      "artifact_key": "e445074e3721e00aff8b79af3dde1ac60fa52bddce9963c25a5c0f831f7e5f2c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/control_future_delta/RESULT.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/control_future_delta/RESULT.json",
+      "bytes": 13035,
+      "sha256": "cd7c50772ce1633b87fbbfb168fbcfe7a5d0386f115d398fdccdc6b0206033cc",
+      "artifact_key": "cd7c50772ce1633b87fbbfb168fbcfe7a5d0386f115d398fdccdc6b0206033cc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/future_active_object/RESULT.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/future_active_object/RESULT.json",
+      "bytes": 316622,
+      "sha256": "1a706aa71edb42a9dcc540812b0e3586aa802b2aec9f078766be94555bb55cdf",
+      "artifact_key": "1a706aa71edb42a9dcc540812b0e3586aa802b2aec9f078766be94555bb55cdf"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/future_observation/RESULT.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/future_observation/RESULT.json",
+      "bytes": 308449,
+      "sha256": "227c979c99351eb72f67619f02fb71a3572de23e23b07360e098313ed15fd503",
+      "artifact_key": "227c979c99351eb72f67619f02fb71a3572de23e23b07360e098313ed15fd503"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/future_relation/RESULT.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/future_relation/RESULT.json",
+      "bytes": 307642,
+      "sha256": "9435122e5b3972a2b79cb5966918fb598f3680cf2dbab715c201998b234c75b0",
+      "artifact_key": "9435122e5b3972a2b79cb5966918fb598f3680cf2dbab715c201998b234c75b0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/future_withdrawn_object/RESULT.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/future_withdrawn_object/RESULT.json",
+      "bytes": 316910,
+      "sha256": "b95cdcd7f5146feb4b9d67e84214b17c424d680f1d818b67dcf68c0e92d805d9",
+      "artifact_key": "b95cdcd7f5146feb4b9d67e84214b17c424d680f1d818b67dcf68c0e92d805d9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/future_witness/RESULT.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/future_witness/RESULT.json",
+      "bytes": 310723,
+      "sha256": "fae5221237ba139ebb27af4e89da6b3d76c63fa818ec23c86aa2ac61daf0491c",
+      "artifact_key": "fae5221237ba139ebb27af4e89da6b3d76c63fa818ec23c86aa2ac61daf0491c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/healthy/RESULT.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/healthy/RESULT.json",
+      "bytes": 306885,
+      "sha256": "fda523d9117fba4c822c41d443e4692ec43fc041c284b8be42f6f655e4074ec1",
+      "artifact_key": "fda523d9117fba4c822c41d443e4692ec43fc041c284b8be42f6f655e4074ec1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/probe-attempt1.py",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/probe-attempt1.py",
+      "bytes": 6348,
+      "sha256": "7b49cd078df16978d4957d08dd322325bee89f736e529a823cde22d300269a34",
+      "artifact_key": "7b49cd078df16978d4957d08dd322325bee89f736e529a823cde22d300269a34"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/probe.py",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/probe.py",
+      "bytes": 6445,
+      "sha256": "4284698f862f07a08c983cf8f82d5332c6425b619e740030370f8ecb329ffc6f",
+      "artifact_key": "4284698f862f07a08c983cf8f82d5332c6425b619e740030370f8ecb329ffc6f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-PROBE/source-hashes.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-PROBE/source-hashes.json",
+      "bytes": 732,
+      "sha256": "76b31e37e4003c0757e32a49fa4ce290817257df99aae4650f2448502da8f8b3",
+      "artifact_key": "76b31e37e4003c0757e32a49fa4ce290817257df99aae4650f2448502da8f8b3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-TRIAGE.json",
+      "archive_path": "work/PR1449-FUTURE-ROWS-TRIAGE.json",
+      "bytes": 113134,
+      "sha256": "356fac42330c0c22467dcbdfe900007be0b470bf48b13832aaf4d5b93538f76a",
+      "artifact_key": "356fac42330c0c22467dcbdfe900007be0b470bf48b13832aaf4d5b93538f76a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-FUTURE-ROWS-TRIAGE.md",
+      "archive_path": "work/PR1449-FUTURE-ROWS-TRIAGE.md",
+      "bytes": 11707,
+      "sha256": "8feca331085fbf9c7532d5ba0d7b4090c680338419bfa4cf9d47bea8f3e4b2b1",
+      "artifact_key": "8feca331085fbf9c7532d5ba0d7b4090c680338419bfa4cf9d47bea8f3e4b2b1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-PERFORMANCE-TRIAGE.json",
+      "archive_path": "work/PR1449-PERFORMANCE-TRIAGE.json",
+      "bytes": 78840,
+      "sha256": "693ae821b82a0ee50a034887c9a957d3fd58f785ec94df4a06037d1fcb67dcfa",
+      "artifact_key": "693ae821b82a0ee50a034887c9a957d3fd58f785ec94df4a06037d1fcb67dcfa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-PERFORMANCE-TRIAGE.md",
+      "archive_path": "work/PR1449-PERFORMANCE-TRIAGE.md",
+      "bytes": 10025,
+      "sha256": "6beb19630fbb87365f12b56f215d6ac51e09b19d4335415d9a7900069ec3da58",
+      "artifact_key": "6beb19630fbb87365f12b56f215d6ac51e09b19d4335415d9a7900069ec3da58"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-PYTHON-R14-REVIEW.json",
+      "archive_path": "work/PR1449-PYTHON-R14-REVIEW.json",
+      "bytes": 8566,
+      "sha256": "e1e0c43f54fb9df11ee39722bd236400ea26973552aad848154894b3fcd5cb20",
+      "artifact_key": "e1e0c43f54fb9df11ee39722bd236400ea26973552aad848154894b3fcd5cb20"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-PYTHON-R14-REVIEW.md",
+      "archive_path": "work/PR1449-PYTHON-R14-REVIEW.md",
+      "bytes": 5446,
+      "sha256": "8afa7e8fbe8b7763987b17658c7171461f585e6fb5cab36b2281920e558d336f",
+      "artifact_key": "8afa7e8fbe8b7763987b17658c7171461f585e6fb5cab36b2281920e558d336f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-PYTHON-REVIEW.json",
+      "archive_path": "work/PR1449-PYTHON-REVIEW.json",
+      "bytes": 9466,
+      "sha256": "7c0003d74162dce8b8f662ccdbef5624b61b14a05ff1416d84514541b07a6085",
+      "artifact_key": "7c0003d74162dce8b8f662ccdbef5624b61b14a05ff1416d84514541b07a6085"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-PYTHON-REVIEW.md",
+      "archive_path": "work/PR1449-PYTHON-REVIEW.md",
+      "bytes": 6871,
+      "sha256": "23e1af4a6ae48eb5f21283161db921f5fd7217fb46b69f94e95151d361139517",
+      "artifact_key": "23e1af4a6ae48eb5f21283161db921f5fd7217fb46b69f94e95151d361139517"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-SOURCE-COORD-TRIAGE.json",
+      "archive_path": "work/PR1449-SOURCE-COORD-TRIAGE.json",
+      "bytes": 271574,
+      "sha256": "fd26e5b708a6b7d322eaacdf022280615c653271fb78e787cf539f7455f81fc6",
+      "artifact_key": "fd26e5b708a6b7d322eaacdf022280615c653271fb78e787cf539f7455f81fc6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-SOURCE-COORD-TRIAGE.md",
+      "archive_path": "work/PR1449-SOURCE-COORD-TRIAGE.md",
+      "bytes": 4569,
+      "sha256": "2ad5337a0bbd3cb0a044af645a5e0417d6d69d8424acf25f76164bdb31b3b0cf",
+      "artifact_key": "2ad5337a0bbd3cb0a044af645a5e0417d6d69d8424acf25f76164bdb31b3b0cf"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-GREEN/RESULT.json",
+      "archive_path": "work/R13-INTEGRITY-GREEN/RESULT.json",
+      "bytes": 31793,
+      "sha256": "6cb655f1aca57474adee23f058c84d63e549592955627b5e7ed09d608ec0a8e0",
+      "artifact_key": "6cb655f1aca57474adee23f058c84d63e549592955627b5e7ed09d608ec0a8e0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-GREEN/correction.json",
+      "archive_path": "work/R13-INTEGRITY-GREEN/correction.json",
+      "bytes": 354,
+      "sha256": "26218bd40b735bc9fbd28c7c4570a6e781d04654f2d1eb6f8ea32550280c5866",
+      "artifact_key": "26218bd40b735bc9fbd28c7c4570a6e781d04654f2d1eb6f8ea32550280c5866"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-GREEN/e0.json",
+      "archive_path": "work/R13-INTEGRITY-GREEN/e0.json",
+      "bytes": 354,
+      "sha256": "e685513ab79d968cca77e6ff8a6dce3e119d79b84834e7b03eac1dfe06569570",
+      "artifact_key": "e685513ab79d968cca77e6ff8a6dce3e119d79b84834e7b03eac1dfe06569570"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-GREEN/e1.json",
+      "archive_path": "work/R13-INTEGRITY-GREEN/e1.json",
+      "bytes": 354,
+      "sha256": "07e474de23ac9f37ba2ec37c21f36cfa2c6f5064696ce24e54a1b0a9f02b76bc",
+      "artifact_key": "07e474de23ac9f37ba2ec37c21f36cfa2c6f5064696ce24e54a1b0a9f02b76bc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-GREEN/e2.json",
+      "archive_path": "work/R13-INTEGRITY-GREEN/e2.json",
+      "bytes": 354,
+      "sha256": "4cd34f5e1b1bdb38346b3db3c138d0e6a2502e69b671ef3f53afa326768103fc",
+      "artifact_key": "4cd34f5e1b1bdb38346b3db3c138d0e6a2502e69b671ef3f53afa326768103fc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-GREEN/extra.json",
+      "archive_path": "work/R13-INTEGRITY-GREEN/extra.json",
+      "bytes": 354,
+      "sha256": "c620288909a47a6a3aa00e1f68ab00c2e06aaf67a8901824172d97d2d070c479",
+      "artifact_key": "c620288909a47a6a3aa00e1f68ab00c2e06aaf67a8901824172d97d2d070c479"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-RED/RESULT.json",
+      "archive_path": "work/R13-INTEGRITY-RED/RESULT.json",
+      "bytes": 10555,
+      "sha256": "7406c99b51ab25db7b8dc496b9e84db680db77483bf613646b6dfdf36440bfd1",
+      "artifact_key": "7406c99b51ab25db7b8dc496b9e84db680db77483bf613646b6dfdf36440bfd1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-RED/correction.json",
+      "archive_path": "work/R13-INTEGRITY-RED/correction.json",
+      "bytes": 354,
+      "sha256": "26218bd40b735bc9fbd28c7c4570a6e781d04654f2d1eb6f8ea32550280c5866",
+      "artifact_key": "26218bd40b735bc9fbd28c7c4570a6e781d04654f2d1eb6f8ea32550280c5866"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-RED/e0.json",
+      "archive_path": "work/R13-INTEGRITY-RED/e0.json",
+      "bytes": 354,
+      "sha256": "e685513ab79d968cca77e6ff8a6dce3e119d79b84834e7b03eac1dfe06569570",
+      "artifact_key": "e685513ab79d968cca77e6ff8a6dce3e119d79b84834e7b03eac1dfe06569570"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-RED/e1.json",
+      "archive_path": "work/R13-INTEGRITY-RED/e1.json",
+      "bytes": 354,
+      "sha256": "07e474de23ac9f37ba2ec37c21f36cfa2c6f5064696ce24e54a1b0a9f02b76bc",
+      "artifact_key": "07e474de23ac9f37ba2ec37c21f36cfa2c6f5064696ce24e54a1b0a9f02b76bc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-RED/e2.json",
+      "archive_path": "work/R13-INTEGRITY-RED/e2.json",
+      "bytes": 354,
+      "sha256": "4cd34f5e1b1bdb38346b3db3c138d0e6a2502e69b671ef3f53afa326768103fc",
+      "artifact_key": "4cd34f5e1b1bdb38346b3db3c138d0e6a2502e69b671ef3f53afa326768103fc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-RED/extra.json",
+      "archive_path": "work/R13-INTEGRITY-RED/extra.json",
+      "bytes": 354,
+      "sha256": "c620288909a47a6a3aa00e1f68ab00c2e06aaf67a8901824172d97d2d070c479",
+      "artifact_key": "c620288909a47a6a3aa00e1f68ab00c2e06aaf67a8901824172d97d2d070c479"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-ROOT-VALIDATION.json",
+      "archive_path": "work/R13-ROOT-VALIDATION.json",
+      "bytes": 4164,
+      "sha256": "d964d400f79608bab27afdd977d0489eb40081d459ff61f5b2fe87adc0165a5b",
+      "artifact_key": "d964d400f79608bab27afdd977d0489eb40081d459ff61f5b2fe87adc0165a5b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-INTEGRITY-GREEN/RESULT.json",
+      "archive_path": "work/R14-INTEGRITY-GREEN/RESULT.json",
+      "bytes": 60473,
+      "sha256": "587eb0b8219bdacdbb610323919af06b5ccba881dbf772982b316d6d03abadfc",
+      "artifact_key": "587eb0b8219bdacdbb610323919af06b5ccba881dbf772982b316d6d03abadfc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-INTEGRITY-GREEN/correction.json",
+      "archive_path": "work/R14-INTEGRITY-GREEN/correction.json",
+      "bytes": 354,
+      "sha256": "26218bd40b735bc9fbd28c7c4570a6e781d04654f2d1eb6f8ea32550280c5866",
+      "artifact_key": "26218bd40b735bc9fbd28c7c4570a6e781d04654f2d1eb6f8ea32550280c5866"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-INTEGRITY-GREEN/e0.json",
+      "archive_path": "work/R14-INTEGRITY-GREEN/e0.json",
+      "bytes": 354,
+      "sha256": "e685513ab79d968cca77e6ff8a6dce3e119d79b84834e7b03eac1dfe06569570",
+      "artifact_key": "e685513ab79d968cca77e6ff8a6dce3e119d79b84834e7b03eac1dfe06569570"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-INTEGRITY-GREEN/e1.json",
+      "archive_path": "work/R14-INTEGRITY-GREEN/e1.json",
+      "bytes": 354,
+      "sha256": "07e474de23ac9f37ba2ec37c21f36cfa2c6f5064696ce24e54a1b0a9f02b76bc",
+      "artifact_key": "07e474de23ac9f37ba2ec37c21f36cfa2c6f5064696ce24e54a1b0a9f02b76bc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-INTEGRITY-GREEN/e2.json",
+      "archive_path": "work/R14-INTEGRITY-GREEN/e2.json",
+      "bytes": 354,
+      "sha256": "4cd34f5e1b1bdb38346b3db3c138d0e6a2502e69b671ef3f53afa326768103fc",
+      "artifact_key": "4cd34f5e1b1bdb38346b3db3c138d0e6a2502e69b671ef3f53afa326768103fc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-INTEGRITY-GREEN/extra.json",
+      "archive_path": "work/R14-INTEGRITY-GREEN/extra.json",
+      "bytes": 354,
+      "sha256": "c620288909a47a6a3aa00e1f68ab00c2e06aaf67a8901824172d97d2d070c479",
+      "artifact_key": "c620288909a47a6a3aa00e1f68ab00c2e06aaf67a8901824172d97d2d070c479"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-INTEGRITY-GREEN/later.json",
+      "archive_path": "work/R14-INTEGRITY-GREEN/later.json",
+      "bytes": 354,
+      "sha256": "47be4616d3d1832670563c26bf4e0e46c4244169e03a3812a9973d815711868e",
+      "artifact_key": "47be4616d3d1832670563c26bf4e0e46c4244169e03a3812a9973d815711868e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-PUBLICATION-PREP/COMMIT-DECLARATIONS.json",
+      "archive_path": "work/R14-PUBLICATION-PREP/COMMIT-DECLARATIONS.json",
+      "bytes": 5596,
+      "sha256": "c897b7c6438899583bc95aa1d61db7463ca0d45f22d2a4f3e5d93c70c9d75255",
+      "artifact_key": "c897b7c6438899583bc95aa1d61db7463ca0d45f22d2a4f3e5d93c70c9d75255"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-PUBLICATION-PREP/ROOT-ACCEPTANCE.json",
+      "archive_path": "work/R14-PUBLICATION-PREP/ROOT-ACCEPTANCE.json",
+      "bytes": 4391,
+      "sha256": "5b7b441774cc3651b2f07df56216207b2edb48dded338b5300ae405eddb7008e",
+      "artifact_key": "5b7b441774cc3651b2f07df56216207b2edb48dded338b5300ae405eddb7008e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-PUBLICATION-PREP/ROOT-ACCEPTANCE.md",
+      "archive_path": "work/R14-PUBLICATION-PREP/ROOT-ACCEPTANCE.md",
+      "bytes": 1849,
+      "sha256": "3b5b3ec0b64595c8cf907cf2350403519a1798910d37d720f7a842ab354e726d",
+      "artifact_key": "3b5b3ec0b64595c8cf907cf2350403519a1798910d37d720f7a842ab354e726d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-PUBLICATION-PREP/ROOT-VALIDATION.json",
+      "archive_path": "work/R14-PUBLICATION-PREP/ROOT-VALIDATION.json",
+      "bytes": 2323,
+      "sha256": "b004a0a828467ebc1b037795ec32743ad69de64bd1bd75d6730b55699f9cfc6c",
+      "artifact_key": "b004a0a828467ebc1b037795ec32743ad69de64bd1bd75d6730b55699f9cfc6c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/BUILD-RESULT.json",
+      "archive_path": "work/r13-codex-incremental-review/BUILD-RESULT.json",
+      "bytes": 427,
+      "sha256": "3bc6d05d18d6ef87c2689c40de7011ff17e24ab56ffd6a390ba147cbcecbacc9",
+      "artifact_key": "3bc6d05d18d6ef87c2689c40de7011ff17e24ab56ffd6a390ba147cbcecbacc9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/COMMIT-BINDING.json",
+      "archive_path": "work/r13-codex-incremental-review/COMMIT-BINDING.json",
+      "bytes": 403,
+      "sha256": "5d1d94ad6368d13c948287b67767061746fdf33074f575535b656fe76cd50215",
+      "artifact_key": "5d1d94ad6368d13c948287b67767061746fdf33074f575535b656fe76cd50215"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/EXECUTION.json",
+      "archive_path": "work/r13-codex-incremental-review/EXECUTION.json",
+      "bytes": 26501,
+      "sha256": "ff92c915d3961a11c806d1226ceb7fd32c8e1b1701dea2cd09c307457454ee94",
+      "artifact_key": "ff92c915d3961a11c806d1226ceb7fd32c8e1b1701dea2cd09c307457454ee94"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/READING-LOG.json",
+      "archive_path": "work/r13-codex-incremental-review/READING-LOG.json",
+      "bytes": 10652,
+      "sha256": "c652f9e86a82340ed5b88b6af3de1c36181b1141e6f4e99847ce25cf13fd2062",
+      "artifact_key": "c652f9e86a82340ed5b88b6af3de1c36181b1141e6f4e99847ce25cf13fd2062"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/REVIEW.json",
+      "archive_path": "work/r13-codex-incremental-review/REVIEW.json",
+      "bytes": 209898,
+      "sha256": "fca234c5c825755ae17607798ec9557d1203977024622b0ea2aa9e0897b205f7",
+      "artifact_key": "fca234c5c825755ae17607798ec9557d1203977024622b0ea2aa9e0897b205f7"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/REVIEW.md",
+      "archive_path": "work/r13-codex-incremental-review/REVIEW.md",
+      "bytes": 19076,
+      "sha256": "3489d8e2d390abae3463ff6a8976f69af23968f861c2c24a6955819ecb7479e0",
+      "artifact_key": "3489d8e2d390abae3463ff6a8976f69af23968f861c2c24a6955819ecb7479e0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/SOURCE.json",
+      "archive_path": "work/r13-codex-incremental-review/SOURCE.json",
+      "bytes": 980,
+      "sha256": "4c753c2c2095d6dd071f7fbe3b5fd1a47554b8ce1edc68fb701eb30575496955",
+      "artifact_key": "4c753c2c2095d6dd071f7fbe3b5fd1a47554b8ce1edc68fb701eb30575496955"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/git-diff.patch",
+      "archive_path": "work/r13-codex-incremental-review/git-diff.patch",
+      "bytes": 34216,
+      "sha256": "7e8b02a8c55bc45183b0c42541799be165c694ef64f2cbd7c5788259a5ddb762",
+      "artifact_key": "7e8b02a8c55bc45183b0c42541799be165c694ef64f2cbd7c5788259a5ddb762"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/git-status.txt",
+      "archive_path": "work/r13-codex-incremental-review/git-status.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/RESULT.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/RESULT.json",
+      "bytes": 3845822,
+      "sha256": "dfcec13a70009298b09a2a9f4d37833648721a7a125974f72c44b34308cd3572",
+      "artifact_key": "dfcec13a70009298b09a2a9f4d37833648721a7a125974f72c44b34308cd3572"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/after_batch.marker",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/after_batch.marker",
+      "bytes": 313,
+      "sha256": "434b114ea1d1026ef7efc109ea3aea3b0d5903ea1657f93787aa84f3296164fa",
+      "artifact_key": "434b114ea1d1026ef7efc109ea3aea3b0d5903ea1657f93787aa84f3296164fa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/after_begin.marker",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/after_begin.marker",
+      "bytes": 313,
+      "sha256": "72b358275eab95b586b39bd65aa3180272aa17feedde52fb30b488f7940671e5",
+      "artifact_key": "72b358275eab95b586b39bd65aa3180272aa17feedde52fb30b488f7940671e5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/after_commit.marker",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/after_commit.marker",
+      "bytes": 315,
+      "sha256": "a2eadf840af0b11edeaa896580b1ffb24224d0c70c2d2bcca5c77e53aca700da",
+      "artifact_key": "a2eadf840af0b11edeaa896580b1ffb24224d0c70c2d2bcca5c77e53aca700da"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/correction.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/correction.json",
+      "bytes": 357,
+      "sha256": "78dc9d8cbb66217f29161bbf89968317f53badb714991009e307b6aa921fb98a",
+      "artifact_key": "78dc9d8cbb66217f29161bbf89968317f53badb714991009e307b6aa921fb98a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/different-identity.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/different-identity.json",
+      "bytes": 522,
+      "sha256": "8769462a5d5d8eb3da98ca268d916092dc110b573913df74e80d0924d77c8c5e",
+      "artifact_key": "8769462a5d5d8eb3da98ca268d916092dc110b573913df74e80d0924d77c8c5e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/extra.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/extra.json",
+      "bytes": 357,
+      "sha256": "6b11cd642852461689c29dfa7c17abe72d5f64c8c91319a3223963ad1be5d641",
+      "artifact_key": "6b11cd642852461689c29dfa7c17abe72d5f64c8c91319a3223963ad1be5d641"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/frontier-interleave.marker",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/frontier-interleave.marker",
+      "bytes": 315,
+      "sha256": "00b78aaa3cb0c2462b35c0946d4ad441a8b59c2ea8f13c3f5a055c31bb1ebf77",
+      "artifact_key": "00b78aaa3cb0c2462b35c0946d4ad441a8b59c2ea8f13c3f5a055c31bb1ebf77"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/initial.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/initial.json",
+      "bytes": 677,
+      "sha256": "5bd09890dd80c14452c5302989dc5a10132cae481bdb5d0ab1ab2c2660530692",
+      "artifact_key": "5bd09890dd80c14452c5302989dc5a10132cae481bdb5d0ab1ab2c2660530692"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/large-positions.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/large-positions.json",
+      "bytes": 725,
+      "sha256": "d15eb7555d9823e27f39a6216a2f13b98b319b17108811e24994193e6b5c5a1d",
+      "artifact_key": "d15eb7555d9823e27f39a6216a2f13b98b319b17108811e24994193e6b5c5a1d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/moved-revision.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/moved-revision.json",
+      "bytes": 357,
+      "sha256": "dded96b01bf4ef25a3ed04ade4ed0e1be974fc08b13039bafeeb3c9f040ba18c",
+      "artifact_key": "dded96b01bf4ef25a3ed04ade4ed0e1be974fc08b13039bafeeb3c9f040ba18c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/old-db-extra.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/old-db-extra.json",
+      "bytes": 376,
+      "sha256": "d5449146b5f87ca42b518dba95809b2001a3b3455f95d34c4d509e3f5bbb4282",
+      "artifact_key": "d5449146b5f87ca42b518dba95809b2001a3b3455f95d34c4d509e3f5bbb4282"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/same-coordinate.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/same-coordinate.json",
+      "bytes": 515,
+      "sha256": "b064f5524a6f0e837af50d9488e0b6974fa3b7880cba41b3d321dbefbffae06a",
+      "artifact_key": "b064f5524a6f0e837af50d9488e0b6974fa3b7880cba41b3d321dbefbffae06a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/source-25.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/source-25.json",
+      "bytes": 521,
+      "sha256": "5a870d7a5f455d76a937a94ad711565db1d913d352f856c97ec7619d4b0ae84a",
+      "artifact_key": "5a870d7a5f455d76a937a94ad711565db1d913d352f856c97ec7619d4b0ae84a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/source-26.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/source-26.json",
+      "bytes": 521,
+      "sha256": "976e785b7aea34d2a0ee48a851d4521058da0fc2b92f98f757612cca88764351",
+      "artifact_key": "976e785b7aea34d2a0ee48a851d4521058da0fc2b92f98f757612cca88764351"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/source-27.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/source-27.json",
+      "bytes": 522,
+      "sha256": "11edebdbb01c5a3b5bb7898ba1c3755dc2eb2bc3c59e69b138f74c7e8d6522ab",
+      "artifact_key": "11edebdbb01c5a3b5bb7898ba1c3755dc2eb2bc3c59e69b138f74c7e8d6522ab"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent-run/source-28.json",
+      "archive_path": "work/r13-codex-incremental-review/independent-run/source-28.json",
+      "bytes": 538,
+      "sha256": "cd680408725b95cb478322190c7a0aea377238e8e3f0d5d6aa2c580ed2293139",
+      "artifact_key": "cd680408725b95cb478322190c7a0aea377238e8e3f0d5d6aa2c580ed2293139"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/independent.py",
+      "archive_path": "work/r13-codex-incremental-review/independent.py",
+      "bytes": 15618,
+      "sha256": "410dde55455d42610a771171ae4ee3f26fcc3bf603b6b7600b441c4b5795da71",
+      "artifact_key": "410dde55455d42610a771171ae4ee3f26fcc3bf603b6b7600b441c4b5795da71"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/raw-integrity-gap.py",
+      "archive_path": "work/r13-codex-incremental-review/raw-integrity-gap.py",
+      "bytes": 6277,
+      "sha256": "72c7643f8e731f0f4e067d8f0ccbeb5f60c18f125c5ae169f88ec6280e5c5a48",
+      "artifact_key": "72c7643f8e731f0f4e067d8f0ccbeb5f60c18f125c5ae169f88ec6280e5c5a48"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/raw-integrity-gap/RESULT.json",
+      "archive_path": "work/r13-codex-incremental-review/raw-integrity-gap/RESULT.json",
+      "bytes": 982023,
+      "sha256": "7810454a507e2bd05666dbaa91335dc3188f2cb78700ee0ad5003d19616d6f8b",
+      "artifact_key": "7810454a507e2bd05666dbaa91335dc3188f2cb78700ee0ad5003d19616d6f8b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/raw-integrity-gap/extra-probe.json",
+      "archive_path": "work/r13-codex-incremental-review/raw-integrity-gap/extra-probe.json",
+      "bytes": 363,
+      "sha256": "aa63e38b3f4dd869084d4e6831de6d2bf3f74b8f1414d39697853933ec02457b",
+      "artifact_key": "aa63e38b3f4dd869084d4e6831de6d2bf3f74b8f1414d39697853933ec02457b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/raw-integrity-gap/g1-coord-2-pending.json",
+      "archive_path": "work/r13-codex-incremental-review/raw-integrity-gap/g1-coord-2-pending.json",
+      "bytes": 357,
+      "sha256": "6b11cd642852461689c29dfa7c17abe72d5f64c8c91319a3223963ad1be5d641",
+      "artifact_key": "6b11cd642852461689c29dfa7c17abe72d5f64c8c91319a3223963ad1be5d641"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/raw-integrity-gap/g1-coord-bad-pending.json",
+      "archive_path": "work/r13-codex-incremental-review/raw-integrity-gap/g1-coord-bad-pending.json",
+      "bytes": 357,
+      "sha256": "6b11cd642852461689c29dfa7c17abe72d5f64c8c91319a3223963ad1be5d641",
+      "artifact_key": "6b11cd642852461689c29dfa7c17abe72d5f64c8c91319a3223963ad1be5d641"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/BUILD-RESULT.json",
+      "archive_path": "work/r14-codex-incremental-review/BUILD-RESULT.json",
+      "bytes": 394,
+      "sha256": "ceca392ecb24b1a3cd80d43177233fa8ea66f8aca36755a0ba02d26699eae614",
+      "artifact_key": "ceca392ecb24b1a3cd80d43177233fa8ea66f8aca36755a0ba02d26699eae614"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/EXECUTION.json",
+      "archive_path": "work/r14-codex-incremental-review/EXECUTION.json",
+      "bytes": 10650,
+      "sha256": "441a988856aca9b4588bcb06276c21fe68efded935ec3d3ae700866f7384fbe6",
+      "artifact_key": "441a988856aca9b4588bcb06276c21fe68efded935ec3d3ae700866f7384fbe6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/READING-LOG.json",
+      "archive_path": "work/r14-codex-incremental-review/READING-LOG.json",
+      "bytes": 7605,
+      "sha256": "c27bb8802b2d46b4c2d035dff0875e531b077278af85b9c7be409ca7a1b618c6",
+      "artifact_key": "c27bb8802b2d46b4c2d035dff0875e531b077278af85b9c7be409ca7a1b618c6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/REUSE-BINDING.json",
+      "archive_path": "work/r14-codex-incremental-review/REUSE-BINDING.json",
+      "bytes": 679,
+      "sha256": "f6d707fe6ba58bc8558919527aa31e9126603dde66885f948fda44e7b771cc7f",
+      "artifact_key": "f6d707fe6ba58bc8558919527aa31e9126603dde66885f948fda44e7b771cc7f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/REVIEW.json",
+      "archive_path": "work/r14-codex-incremental-review/REVIEW.json",
+      "bytes": 66305,
+      "sha256": "af66b9d54512228fc6bb8a26b009bf7ef9511fbeb60d5c234c184b207a1a352e",
+      "artifact_key": "af66b9d54512228fc6bb8a26b009bf7ef9511fbeb60d5c234c184b207a1a352e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/REVIEW.md",
+      "archive_path": "work/r14-codex-incremental-review/REVIEW.md",
+      "bytes": 14899,
+      "sha256": "1f401a606bdf1be98caccbc321a32dabd7e5a0b3ca3896969c8067f5e2208269",
+      "artifact_key": "1f401a606bdf1be98caccbc321a32dabd7e5a0b3ca3896969c8067f5e2208269"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/SOURCE.json",
+      "archive_path": "work/r14-codex-incremental-review/SOURCE.json",
+      "bytes": 857,
+      "sha256": "42e63e3cb0b8aec5c74d385668f91d2b63681588a3f4b3090cf58083d0f8df4c",
+      "artifact_key": "42e63e3cb0b8aec5c74d385668f91d2b63681588a3f4b3090cf58083d0f8df4c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/git-diff.patch",
+      "archive_path": "work/r14-codex-incremental-review/git-diff.patch",
+      "bytes": 12779,
+      "sha256": "f4083032136d6d08011e1ec1e03436b6ed89e8f9da5a335a461465dd56160f59",
+      "artifact_key": "f4083032136d6d08011e1ec1e03436b6ed89e8f9da5a335a461465dd56160f59"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/independent-run/RESULT.json",
+      "archive_path": "work/r14-codex-incremental-review/independent-run/RESULT.json",
+      "bytes": 2074928,
+      "sha256": "60fdcc8987438dce626eee769901971941e768bb8f5006aac468a5e8d191c196",
+      "artifact_key": "60fdcc8987438dce626eee769901971941e768bb8f5006aac468a5e8d191c196"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/independent-run/addition.json",
+      "archive_path": "work/r14-codex-incremental-review/independent-run/addition.json",
+      "bytes": 357,
+      "sha256": "6b11cd642852461689c29dfa7c17abe72d5f64c8c91319a3223963ad1be5d641",
+      "artifact_key": "6b11cd642852461689c29dfa7c17abe72d5f64c8c91319a3223963ad1be5d641"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/independent-run/correction.json",
+      "archive_path": "work/r14-codex-incremental-review/independent-run/correction.json",
+      "bytes": 357,
+      "sha256": "78dc9d8cbb66217f29161bbf89968317f53badb714991009e307b6aa921fb98a",
+      "artifact_key": "78dc9d8cbb66217f29161bbf89968317f53badb714991009e307b6aa921fb98a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/independent-run/extra-probe.json",
+      "archive_path": "work/r14-codex-incremental-review/independent-run/extra-probe.json",
+      "bytes": 363,
+      "sha256": "aa63e38b3f4dd869084d4e6831de6d2bf3f74b8f1414d39697853933ec02457b",
+      "artifact_key": "aa63e38b3f4dd869084d4e6831de6d2bf3f74b8f1414d39697853933ec02457b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/independent-run/large-revision.json",
+      "archive_path": "work/r14-codex-incremental-review/independent-run/large-revision.json",
+      "bytes": 375,
+      "sha256": "24ec51c370e41e0f05a856fbe8d965f2e447ea56722d8d8d4bb2473c3e04f8d7",
+      "artifact_key": "24ec51c370e41e0f05a856fbe8d965f2e447ea56722d8d8d4bb2473c3e04f8d7"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/independent.py",
+      "archive_path": "work/r14-codex-incremental-review/independent.py",
+      "bytes": 11862,
+      "sha256": "04ac4fe62bb0564fcaef9f18cdc6a7b74dde5e1de0b34473d44c373dea99a984",
+      "artifact_key": "04ac4fe62bb0564fcaef9f18cdc6a7b74dde5e1de0b34473d44c373dea99a984"
+    }
+  ],
+  "note": "具名验证原件，保留 R13 FAIL 与 R14 完整独评 PASS；产品绑定 6189。数据库、二进制、备份、会话导出不入仓；来源文件可按归档路径或所载 Git 版本恢复。"
+}
