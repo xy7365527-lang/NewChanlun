@@ -33,6 +33,7 @@ def main():
                  "origin_utc":"2000-01-01T00:00:00Z", "unit":"ns", "events":{
                      f"op-{i}": {"accept_ns":str(i*10+1),"attempts":[{"begin_ns":str(i*10+2),"commit_ns":str(i*10+3)}]}
                      for i in range(6)}}
+        clock["events"]["recover-q-test"] = {"recover_ns":"60"}
         clock_path = base/"clock.json"
         clock_path.write_bytes(audit.canonical(clock))
         env = dict(os.environ, S_SESSION_PRAGMA_SIDECAR_PATH=str(base/"pragma.txt"), S_CONTROL_INSTANCE_ID="q-test-writer")
@@ -144,6 +145,14 @@ def main():
             process.terminate(); process.wait(timeout=5)
             after_stop = post({"op":"snapshot","snapshot_token":old_token},"after-S-stop")
             assert after_stop["cut_projection_digest"] == first_digest
+            recovery = subprocess.run([binary,"recover","--db",str(db),"--new-epoch","2",
+                "--clock-plan",str(clock_path),"--clock-event-id","recover-q-test"],
+                env=env,capture_output=True,text=True,timeout=15)
+            assert recovery.returncode == 0, recovery.stderr
+            recovered = qreader.capture_verified()
+            assert recovered["meta"]["writer_epoch"] == "2"
+            assert recovered["tables"]["writer_epoch_history"][0]["advance_state_at_transition"] == "idle"
+            assert post({"op":"snapshot","snapshot_token":old_token},"after-recover")["cut_projection_digest"] == first_digest
             corruption_cases = {
                 "begin_wrong_publication": "UPDATE s_clock_events SET generation=2 WHERE phase='begin' AND clock_event_id='op-0'",
                 "attempt_count_huge": "UPDATE s_input_messages SET attempt_count=9223372036854775807 WHERE clock_event_id='op-0'",
@@ -152,6 +161,7 @@ def main():
                 "missing_profile_definition": "DELETE FROM meta WHERE key='profile_definition'",
                 "wrong_phase_frontier": "UPDATE s_protocol_meta SET logical_phase_frontier='999'",
                 "v2_writer_epoch_zero": "UPDATE meta SET value='0' WHERE key='writer_epoch'",
+                "v2_epoch_history_state": "UPDATE writer_epoch_history SET advance_state_at_transition='unverified'",
             }
             for name, sql in corruption_cases.items():
                 broken = base/(name+".sqlite")
@@ -181,6 +191,7 @@ def main():
             print(json.dumps({"status":"PASS_BOUNDED_QUERY_V2", "s_requests":calls,"real_ingests":5,
                 "fixed_cut_rows":len(rows),"historical_token_after_commit_gc_s_stop":True,
                 "missing_delivery_ref_rejected":True,"fresh_control_corruptions_rejected":len(corruption_cases),
+                "actual_recover_preserves_historical_token":True,
                 "full_c_acceptance":"NOT_RUN"},ensure_ascii=False))
         finally:
             if process is not None and process.poll() is None:

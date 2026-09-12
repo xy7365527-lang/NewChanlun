@@ -122,6 +122,43 @@ class QueryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.reader.capture_verified()
 
+    def test_pending_numeric_domains_despite_consistent_hash_at_g0_and_g4(self):
+        """正式 writer 产生两份 pending 原行；只在私有库改变数值并重算摘要。"""
+        empty = self.base / (self.id().rsplit(".",1)[-1]+"-g0.sqlite")
+        self.call(empty,"init","--session","tb01c-query-unit","--catalog",ROOT/"s_session/catalog/signed-catalog.json")
+        for db, seq in ((empty,0), (self.db,4)):
+            self.call(db,"accept","--input",self.input(seq,11500),"--profile",ROOT/"s_session/profiles/testonly_tick_1_1_ohlc.json")
+            check = query.AuditReader(db,resources(),vars(reader))
+            try:
+                proof = check.capture_verified()
+                self.assertEqual(proof["generation"],seq)
+                with closing(sqlite3.connect(db)) as conn:
+                    columns = [r[1] for r in conn.execute("PRAGMA table_info(raw_events)")]
+                    original = dict(zip(columns,conn.execute("SELECT * FROM raw_events WHERE seq=?",(seq,)).fetchone()))
+                for field in ("price","ts","volume"):
+                    for value, valid in [(v,True) for v in ("0","-1","-9223372036854775808","9223372036854775807")] + [
+                            (v,False) for v in ("+1","01","-0","-01"," 1","1.0","１","9223372036854775808","-9223372036854775809")]:
+                        with self.subTest(generation=seq,field=field,value=value):
+                            changed = dict(original)
+                            changed[field] = value
+                            content = {k:changed[k] for k in ("event_id","price","raw_text","received_at","volume")}
+                            content.update(revision=changed["input_revision"],seq=changed["source_coord"],timestamp=changed["ts"])
+                            changed["payload_hash"] = hashlib.sha256(audit.canonical(content)).hexdigest()
+                            changed["receipt_id"] = "rcpt-"+hashlib.sha256((changed["identity_key"]+"|"+changed["payload_hash"]).encode()).hexdigest()[:16]
+                            with closing(sqlite3.connect(db)) as conn,conn:
+                                conn.execute("DELETE FROM raw_events WHERE seq=?",(seq,))
+                                conn.execute("INSERT INTO raw_events VALUES("+",".join("?" for _ in columns)+")",[changed[k] for k in columns])
+                            if valid:
+                                actual = check.capture_verified()
+                                self.assertEqual(actual["raw"][seq][field],value)
+                            else:
+                                with self.assertRaises(ValueError):
+                                    check.capture_verified()
+                                self.assertIsNone(check.cached)
+                                self.assertFalse(check.connection.in_transaction)
+            finally:
+                check.close()
+
     def test_hidden_future_indexes_reject_all_public_reads(self):
         for table, field in (("objects", "published_generation"), ("witnesses", "published_generation"),
                              ("relations", "published_generation"), ("observations", "published_generation")):

@@ -283,13 +283,25 @@ def _typed_rows(image, deadline=None):
     return result
 
 
-def _int_text(value, name, minimum=0):
-    if type(value) is not str or not value.isascii() or not value.isdigit() or (len(value)>1 and value[0]=='0'):
-        raise ValueError(name + " 必须是规范非负整数文本")
-    if len(value) > 19:
+def _signed_i64_text(value, name):
+    """与 Rust parse_canonical_i64 同域：唯一十进制表示，含合法负数。"""
+    if type(value) is not str or not value or not value.isascii():
+        raise ValueError(name + " 必须是规范有符号整数文本")
+    if len(value) > 20:
         raise ValueError(name + " 超出 i64")
+    negative = value.startswith("-")
+    digits = value[1:] if negative else value
+    if not digits.isdigit() or (digits.startswith("0") and (negative or len(digits)>1)):
+        raise ValueError(name + " 必须是规范有符号整数文本")
     number = int(value)
-    if not minimum <= number < 2**63:
+    if not -(2**63) <= number < 2**63:
+        raise ValueError(name + " 超出 i64")
+    return number
+
+
+def _int_text(value, name, minimum=0):
+    number = _signed_i64_text(value, name)
+    if number < minimum:
         raise ValueError(name + " 超出声明整数域")
     return number
 
@@ -310,6 +322,9 @@ def _verify_raw(rows, deadline=None):
     owners, positions, revisions = {}, {}, {}
     for seq, row in enumerate(rows):
         _deadline(deadline)
+        # 已接纳但未发布的行也必须先核数值域；自洽 hash/receipt 不能证明域合法。
+        for key in ("price", "ts", "volume"):
+            _signed_i64_text(row[key], "raw."+key)
         if row["seq"] != seq:
             raise ValueError("raw.seq 接纳全序断裂/重复")
         identity = "|".join(row[k] for k in ("source_namespace", "source_epoch", "instrument", "event_id"))
@@ -366,6 +381,8 @@ def _verify_control(tables, meta, raw, deltas, batches, deadline=None):
     _int_text(meta.get("writer_epoch"), "v2 meta.writer_epoch", 1)
     if any(not meta.get(key) for key in ("profile_id", "profile_hash", "profile_definition", "input_profile")):
         raise ValueError("v2 初始化缺完整持久 profile 绑定")
+    if any(row["advance_state_at_transition"] != "idle" for row in tables["writer_epoch_history"]):
+        raise ValueError("v2 换代历史必须记录 recover 后的 idle 状态")
     catalog_source = parse_json(meta.get("catalog_definition"))
     if hashlib.sha256(canonical(catalog_source)).hexdigest() != meta.get("catalog_hash") or catalog_source.get("catalog_revision") != meta["catalog_revision"]:
         raise ValueError("v2 catalog 定义/hash/目录版本不符")
