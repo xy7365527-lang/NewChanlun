@@ -595,12 +595,19 @@ fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
 }
 
 /// 所有当前控制行都新鲜检查，不能按generation过滤未来/同代损坏或信任自报摘要。
-pub fn verify_control(conn: &Connection) -> Result<(), String> {
+pub fn verify_control(conn: &Connection, batches: &BTreeMap<String, Value>) -> Result<(), String> {
     let enabled = active(conn)?;
     verify_schema(conn, enabled)?;
     if !enabled {
         return Ok(());
     }
+    // v1 持久 epoch 保留既有非负域；v2 的 S 公共回复 producer_epoch 是正数。
+    // 该协议没有 v1→v2 原库迁移，正式 v2 init 从 1 开始且 recover 只增大。
+    positive(
+        &meta_get_opt(conn, "writer_epoch")?.ok_or_else(|| err("缺writer_epoch"))?,
+        "v2 writer_epoch",
+    )
+    .map_err(err)?;
     let clock = stored_clock(conn)?;
     let (protocol,inc,next,frontier):(String,String,i64,String)=conn.query_row("SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(err)?;
     if protocol != "s-session/2" || next < 1 {
@@ -673,6 +680,20 @@ pub fn verify_control(conn: &Connection) -> Result<(), String> {
     {
         return Err(err("普通投递引用缺失/未来/越保留界"));
     }
+    let publication_frontiers: Vec<(i64, i64)> = {
+        let mut q = conn
+            .prepare("SELECT generation,input_frontier FROM structure_deltas ORDER BY generation")
+            .map_err(err)?;
+        let out = q
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(err)?;
+        out
+    };
+    if publication_frontiers.windows(2).any(|w| w[0].1 > w[1].1) {
+        return Err(err("发布前沿倒退"));
+    }
     let mut stmt=conn.prepare("SELECT source_namespace,source_epoch,message_id,payload_hash,canonical_envelope,receipt_id,accepted_seq,status,first_published_generation,clock_event_id,attempt_count FROM s_input_messages ORDER BY accepted_seq,message_id").map_err(err)?;
     let mut rows = stmt.query([]).map_err(err)?;
     let mut messages = BTreeMap::new();
@@ -743,13 +764,9 @@ pub fn verify_control(conn: &Connection) -> Result<(), String> {
         {
             return Err(err("消息/raw receipt内容或身份不一致"));
         }
-        let first_pub: Option<i64> = conn
-            .query_row(
-                "SELECT MIN(generation) FROM structure_deltas WHERE input_frontier>=?1",
-                params![seq],
-                |r| r.get(0),
-            )
-            .map_err(err)?;
+        let first_pub = publication_frontiers
+            .get(publication_frontiers.partition_point(|(_, frontier)| *frontier < seq))
+            .map(|(g, _)| *g);
         if published != first_pub
             || status
                 != if published.is_some() {
@@ -775,6 +792,7 @@ pub fn verify_control(conn: &Connection) -> Result<(), String> {
     let mut rows = stmt.query([]).map_err(err)?;
     let mut seen = BTreeMap::new();
     let mut ordinals = BTreeMap::new();
+    let mut commits_by_generation = BTreeMap::new();
     let mut max_ns = -1;
     while let Some(r) = rows.next().map_err(err)? {
         let (id, phase, index, ns, key, ord, g): (
@@ -829,6 +847,13 @@ pub fn verify_control(conn: &Connection) -> Result<(), String> {
                 return Err(err("commit phase与实际首次发布不一致"));
             }
         }
+        if phase == "commit"
+            && commits_by_generation
+                .insert(g, (id.clone(), index))
+                .is_some()
+        {
+            return Err(err("每代重复Commit phase"));
+        }
         if seen.insert((id, phase, index), (ord, g)).is_some() {
             return Err(err("重复phase"));
         }
@@ -863,20 +888,18 @@ pub fn verify_control(conn: &Connection) -> Result<(), String> {
             return Err(err("已发布消息缺最后Commit phase"));
         }
     }
-    let mut q=conn.prepare("SELECT d.generation,b.canonical_bytes FROM structure_deltas d JOIN batches b ON b.batch_id=d.index_frontier ORDER BY d.generation").map_err(err)?;
+    let mut q = conn
+        .prepare("SELECT generation,index_frontier FROM structure_deltas ORDER BY generation")
+        .map_err(err)?;
     let mut rows = q.query([]).map_err(err)?;
     while let Some(r) = rows.next().map_err(err)? {
         let g: i64 = r.get(0).map_err(err)?;
-        let bytes: Vec<u8> = r.get(1).map_err(err)?;
-        let batch = strict_json(&bytes).map_err(err)?;
-        let mut commits = seen
-            .iter()
-            .filter(|((_, phase, _), (_, cg))| phase == "commit" && *cg == g);
-        let ((id, _, index), _) = commits
-            .next()
+        let id: String = r.get(1).map_err(err)?;
+        let batch = batches.get(&id).ok_or_else(|| err("v2缺可达批次"))?;
+        let (id, index) = commits_by_generation
+            .get(&g)
             .ok_or_else(|| err("v2发布缺真实Commit phase"))?;
-        if commits.next().is_some()
-            || batch["protocol_revision"] != "s-session/2"
+        if batch["protocol_revision"] != "s-session/2"
             || batch["session_generation"] != inc
             || batch["clock_plan_hash"] != clock.hash
             || batch["semantic_commit_ns"] != clock.phase(id, "commit", *index).map_err(err)?
@@ -1300,6 +1323,7 @@ fn serve(
     clock_path: &Path,
     bounds: Bounds,
 ) -> Result<(), String> {
+    positive(epoch, "v2 writer_epoch")?;
     // 监督器nonce仅用于把Ready绑定真实启动进程；绝不进入业务payload/hash/持久事实。
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
     let _lock = process_lock(db)?;
@@ -1744,6 +1768,66 @@ mod tests {
             .unwrap_err()
             .contains("MissingDependency"));
         assert_eq!(before, f.dump());
+    }
+    #[test]
+    fn v2_fresh_audit_rejects_birth_drift_in_every_cumulative_family() {
+        // 所有行仍在 1..G；错误不能只靠未来行门发现，也不能由后代重复发布掩盖。
+        for table in ["witnesses", "relations", "observations"] {
+            let f = Fixture::new(8, 2);
+            for i in 0..4 {
+                f.ingest(i);
+            }
+            let conn = open_db(&f.db).unwrap();
+            let sql=format!("UPDATE {table} SET published_generation=CASE WHEN published_generation=1 THEN 2 ELSE 1 END");
+            assert!(conn.execute(&sql, []).unwrap() > 0);
+            let before = f.dump();
+            assert!(verify_reachable_root(&conn).is_err(), "{table}");
+            assert!(
+                handle(&f.db, &f.profile, "1", &f.clock, &f.message(4)).is_err(),
+                "{table}"
+            );
+            assert!(
+                recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).is_err(),
+                "{table}"
+            );
+            assert_eq!(before, f.dump(), "{table}");
+        }
+    }
+    #[test]
+    fn v2_same_generation_pending_damage_is_not_hidden_by_previous_healthy_audit() {
+        let f = Fixture::new(8, 2);
+        f.ingest(0);
+        let c = InputContext {
+            envelope: f.message(1),
+            clock: f.clock.clone(),
+        };
+        accept_core(
+            &f.db,
+            &canonical_json(&c.envelope["payload"]["raw_input"]),
+            &f.profile,
+            "1",
+            Some(&c),
+        )
+        .unwrap();
+        let conn = open_db(&f.db).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        conn.execute("UPDATE raw_events SET source_coord='-1' WHERE seq=1", [])
+            .unwrap();
+        let before = f.dump();
+        assert!(verify_reachable_root(&conn).is_err());
+        assert!(advance_core(&f.db, "1", Some(&c)).is_err());
+        assert_eq!(before, f.dump());
+    }
+    #[test]
+    fn v2_readonly_root_rejects_corrupt_persisted_epoch() {
+        let f = Fixture::new(8, 2);
+        let conn = open_db(&f.db).unwrap();
+        for invalid in ["0", "-1", "+1", "01", "x", "9223372036854775808"] {
+            meta_set(&conn, "writer_epoch", invalid).unwrap();
+            assert!(verify_reachable_root(&conn).is_err(), "{invalid}");
+        }
+        meta_set(&conn, "writer_epoch", "1").unwrap();
+        verify_reachable_root(&conn).unwrap();
     }
     #[test]
     fn v2_corrupt_control_or_pending_rows_block_all_writes() {

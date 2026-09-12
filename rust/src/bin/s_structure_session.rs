@@ -32,6 +32,9 @@
 mod v2;
 
 use std::collections::BTreeMap;
+
+#[path = "s_session_v2/audit.rs"]
+mod audit;
 use std::path::{Path, PathBuf};
 
 use newchan_rust::theta_v0::classifier::local_shape::{
@@ -403,6 +406,9 @@ fn verify_required_meta(conn: &Connection) -> Result<i64, String> {
     if session_id.is_empty() {
         return Err("StorageUnavailable：meta.session_id 为空".to_string());
     }
+    let epoch = meta_get_opt(conn, "writer_epoch")?.ok_or("StorageUnavailable：缺 writer_epoch")?;
+    parse_writer_epoch(&epoch, "持久 writer_epoch")
+        .map_err(|e| format!("StorageUnavailable：{e}"))?;
     let generation = meta_i64(conn, "generation")?;
     if generation < 0 {
         return Err("StorageUnavailable：meta.generation 为负".to_string());
@@ -475,22 +481,13 @@ fn verify_required_meta(conn: &Connection) -> Result<i64, String> {
 /// 核被引用 batch 内封存的坐标与该代 Delta 一致（batch 存 generation/structure_cut/input_frontier/
 /// catalog_revision；不要求 batch 内不存在字段如 session_id）。
 fn verify_batch_coordinates(
-    conn: &Connection,
+    v: &Value,
     batch_id: &str,
     gen: i64,
     cut: &str,
     frontier: i64,
     cat: &str,
 ) -> Result<(), String> {
-    let bytes: Vec<u8> = conn
-        .query_row(
-            "SELECT canonical_bytes FROM batches WHERE batch_id=?1",
-            params![batch_id],
-            |r| r.get(0),
-        )
-        .map_err(|e| format!("读 batch 封存坐标失败：{e}"))?;
-    let v: Value = serde_json::from_slice(&bytes)
-        .map_err(|e| format!("batch `{batch_id}` 封存 JSON 解析失败：{e}"))?;
     if v["generation"].as_i64() != Some(gen) {
         return Err(format!(
             "StorageUnavailable：batch `{batch_id}` 封存 generation 与该代 Delta 不一致"
@@ -592,12 +589,7 @@ fn same_records(actual: &Value, expected: &Value, field: &str) -> Result<(), Str
 
 // #1371 R9：七集合均为必需。以不可变 batch 的本次结果和独立历史索引对拍；
 // 只读投影，不重算分类，不修改旧 BLOB/hash/获知史。旧整数 wire 仅作无损语义投影。
-fn verify_delta_payload(
-    conn: &Connection,
-    delta: &Value,
-    gen: i64,
-    batch: &Value,
-) -> Result<(), String> {
+fn verify_delta_evidence(delta: &Value, batch: &Value) -> Result<(), String> {
     for key in [
         "upserts",
         "withdrawals",
@@ -650,148 +642,6 @@ fn verify_delta_payload(
         if !matches!(count,Some(n) if n>=0) {
             return Err(format!("StorageUnavailable：目录计数 {key} 非非负精确整数"));
         }
-    }
-    let previous = read_snapshot_in_tx(conn, Some(gen - 1))?;
-    let current = read_snapshot_in_tx(conn, Some(gen))?;
-    let mut upserts = Vec::new();
-    for record in required_array(batch, "objects")? {
-        let mut record = record.clone();
-        record["batch_id"] = delta["index_frontier"].clone();
-        let mut wire = project_object_wire(&record)?;
-        if let Some(old) = required_array(&previous, "objects")?
-            .iter()
-            .find(|o| o["object_id"] == wire["object_id"])
-        {
-            for key in [
-                "batch_id",
-                "first_known_generation",
-                "first_known_cut",
-                "published_generation",
-            ] {
-                wire[key] = old[key].clone();
-            }
-        }
-        upserts.push(wire);
-    }
-    same_records(&delta["upserts"], &json!(upserts), "upserts/batch")?;
-    same_records(&current["objects"], &json!(upserts), "objects/snapshot")?;
-    let mut withdrawals = Vec::new();
-    let mut replaces = Vec::new();
-    let generation_text = gen.to_string();
-    for o in required_array(&current, "withdrawn_objects")? {
-        if o["withdrawn_generation"].as_str() == Some(generation_text.as_str()) {
-            withdrawals.push(
-                json!({"object_id":o["object_id"], "window_start":o["window_start"],
-                "window_mid":o["window_mid"], "window_end":o["window_end"],
-                "reason":o["withdrawal_reason"], "superseded_by":o["superseded_by"]}),
-            );
-            if !o["superseded_by"].is_null() {
-                replaces.push(
-                    json!({"old_object_id":o["object_id"], "new_object_id":o["superseded_by"]}),
-                );
-            }
-        }
-    }
-    same_records(&delta["withdrawals"], &json!(withdrawals), "withdrawals")?;
-    same_records(&delta["replaces"], &json!(replaces), "replaces")?;
-    let witnesses = required_array(batch, "witnesses")?
-        .iter()
-        .map(project_witness_wire)
-        .collect::<Result<Vec<_>, _>>()?;
-    same_records(&delta["witnesses"], &json!(witnesses), "witnesses/batch")?;
-    let mut relations = required_array(batch, "relations")?.clone();
-    for r in &replaces {
-        relations.push(json!({"subject":r["new_object_id"], "relation_type":"replaces", "object":r["old_object_id"]}));
-    }
-    let batch_raw = required_array(batch, "raw_events")?
-        .iter()
-        .map(project_raw_event_wire)
-        .collect::<Result<Vec<_>, _>>()?;
-    same_records(
-        &current["raw_history"],
-        &json!(batch_raw),
-        "raw_history/batch",
-    )?;
-    let mut raw_added = Vec::new();
-    let from = delta["seq_range"]["from"]
-        .as_str()
-        .ok_or("StorageUnavailable：seq.from 缺失")?
-        .parse::<i64>()
-        .map_err(|e| e.to_string())?;
-    for e in required_array(&current, "raw_history")? {
-        if let Some(sup) = e["supersedes_revision"].as_str() {
-            relations.push(json!({"subject":format!("{}@{}",e["identity_key"].as_str().unwrap_or(""),e["revision"].as_str().unwrap_or("")),
-                "relation_type":"supersedes", "object":format!("{}@{sup}",e["identity_key"].as_str().unwrap_or(""))}));
-        }
-        let seq = e["seq"]
-            .as_str()
-            .ok_or("StorageUnavailable：raw.seq 缺失")?
-            .parse::<i64>()
-            .map_err(|e| e.to_string())?;
-        if seq >= from {
-            raw_added.push(e.clone());
-        }
-    }
-    same_records(&delta["relations"], &json!(relations), "relations/batch")?;
-    same_records(
-        &delta["raw_history_added"],
-        &json!(raw_added),
-        "raw_history_added",
-    )?;
-    let mut observations = Vec::new();
-    for ob in required_array(batch, "observations")? {
-        let id = observation_id(ob);
-        let stored = required_array(&current, "observations")?
-            .iter()
-            .find(|o| o["observation_id"] == id)
-            .ok_or("StorageUnavailable：观察的持久端点缺失")?;
-        let first_batch: String = stored["batch_id"]
-            .as_str()
-            .ok_or("StorageUnavailable：观察 batch 缺失")?
-            .to_string();
-        let bytes: Vec<u8> = conn.query_row(
-            "SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE b.batch_id=?1 AND d.generation<=?2",
-            params![first_batch,gen], |r| r.get(0)).map_err(|e| format!("StorageUnavailable：观察首批次不可达：{e}"))?;
-        let first: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-        let original = required_array(&first, "observations")?
-            .iter()
-            .find(|o| observation_id(o) == id)
-            .ok_or("StorageUnavailable：原批次没有该观察身份")?;
-        let mut original = original.clone();
-        original["observation_id"] = json!(id);
-        original["batch_id"] = json!(first_batch);
-        same_records(
-            &json!([stored]),
-            &json!([project_observation_wire(&original)?]),
-            "observation/原封存首版",
-        )?;
-        observations.push(stored.clone());
-    }
-    same_records(
-        &delta["observations"],
-        &json!(observations),
-        "observations/首版",
-    )?;
-    // 每代累积的不可变集合必须恰好等于该代 Snapshot，缺成员/幽灵端点不能被后续代掩盖。
-    for (dkey, skey) in [
-        ("witnesses", "witnesses"),
-        ("relations", "relations"),
-        ("observations", "observations"),
-        ("raw_history_added", "raw_history"),
-    ] {
-        let mut union = BTreeMap::new();
-        for record in required_array(&previous, skey)?
-            .iter()
-            .chain(required_array(delta, dkey)?.iter())
-        {
-            let projected = legacy_payload_projection(record);
-            union.insert(canonical_json(&projected), projected);
-        }
-        same_records(
-            &current[skey],
-            &json!(union.into_values().collect::<Vec<_>>()),
-            skey,
-        )?;
     }
     Ok(())
 }
@@ -902,13 +752,40 @@ fn profile_at_cut(conn: &Connection, generation: i64) -> Result<(String, String)
     ))
 }
 
+// 同一调用、同一事务的批次捕获；不保存跨事务健康状态。孤儿 batch 仍由发布事务单独验字节。
+fn capture_reachable_batches(conn: &Connection) -> Result<BTreeMap<String, Value>, String> {
+    let mut q=conn.prepare("SELECT d.index_frontier,b.canonical_bytes,b.byte_len FROM structure_deltas d LEFT JOIN batches b ON b.batch_id=d.index_frontier").map_err(|e|e.to_string())?;
+    let mut rows = q.query([]).map_err(|e| e.to_string())?;
+    let mut batches = BTreeMap::new();
+    while let Some(r) = rows.next().map_err(|e| e.to_string())? {
+        let id: String = r.get(0).map_err(|e| e.to_string())?;
+        let bytes: Vec<u8> = r
+            .get(1)
+            .map_err(|e| format!("StorageUnavailable：可达批次缺失/非BLOB：{e}"))?;
+        let len: i64 = r.get(2).map_err(|e| e.to_string())?;
+        if id != format!("batch-{}", sha256_hex(&bytes))
+            || usize::try_from(len).ok() != Some(bytes.len())
+        {
+            return Err("StorageUnavailable：可达 batch 内容寻址/长度不符".into());
+        }
+        let value =
+            v2::strict_json(&bytes).map_err(|e| format!("StorageUnavailable：batch JSON：{e}"))?;
+        if !value.is_object() {
+            return Err("StorageUnavailable：batch 非对象".into());
+        }
+        batches.insert(id, value);
+    }
+    Ok(batches)
+}
+
 fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
     verified_root_raw_events(conn).map(|_| ())
 }
 
 fn verified_root_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
-    v2::verify_control(conn)?;
-    verify_reachable_root_in_tx(conn).map_err(|e| format!("StorageUnavailable：{e}"))
+    let batches = capture_reachable_batches(conn)?;
+    v2::verify_control(conn, &batches)?;
+    verify_reachable_root_in_tx(conn, &batches).map_err(|e| format!("StorageUnavailable：{e}"))
 }
 
 fn verify_published_index_generations(conn: &Connection, generation: i64) -> Result<(), String> {
@@ -931,7 +808,10 @@ fn verify_published_index_generations(conn: &Connection, generation: i64) -> Res
     Ok(())
 }
 
-fn verify_reachable_root_in_tx(conn: &Connection) -> Result<Vec<Value>, String> {
+fn verify_reachable_root_in_tx(
+    conn: &Connection,
+    batches: &BTreeMap<String, Value>,
+) -> Result<Vec<Value>, String> {
     let generation = verify_required_meta(conn)?;
     verify_published_index_generations(conn, generation)?;
     // #1371 AC7：已接纳但未发布的原始事实也是持久前件；所有结构读写共用坐标完整性门。
@@ -985,6 +865,7 @@ fn verify_reachable_root_in_tx(conn: &Connection) -> Result<Vec<Value>, String> 
         ));
     }
 
+    let mut audit = audit::AuditWalk::capture(conn)?;
     let mut prev_frontier: i64 = -1;
     for (
         i,
@@ -1042,8 +923,8 @@ fn verify_reachable_root_in_tx(conn: &Connection) -> Result<Vec<Value>, String> 
                 "StorageUnavailable：delta[{g}].index_frontier 为空（已发布 cut 缺批次引用）"
             ));
         }
-        verify_stored_batch(conn, idx)?;
-        verify_batch_coordinates(conn, idx, *g, next, *frontier, cat)?;
+        let batch = batches.get(idx).ok_or("StorageUnavailable：缺可达批次")?;
+        verify_batch_coordinates(batch, idx, *g, next, *frontier, cat)?;
         // seq_range 连续：from = 上一已发布 frontier + 1，to = 本代 frontier。
         let sr: Value = json_shape(seq_range_json, JsonShape::Object)?;
         let sr_from = sr["from"]
@@ -1089,17 +970,10 @@ fn verify_reachable_root_in_tx(conn: &Connection) -> Result<Vec<Value>, String> 
                 "StorageUnavailable：delta[{g}] 内层 catalog_evidence 与外层 catalog_evidence_json 不一致"
             ));
         }
-        let bytes: Vec<u8> = conn
-            .query_row(
-                "SELECT canonical_bytes FROM batches WHERE batch_id=?1",
-                params![idx],
-                |r| r.get(0),
-            )
-            .map_err(|e| e.to_string())?;
-        let batch: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-        verify_batch_profile(&batch, &profile_binding)?;
-        verify_delta_payload(conn, &dj, *g, &batch)?;
+        verify_batch_profile(batch, &profile_binding)?;
+        audit.verify(&dj, *g, batch)?;
     }
+    audit.finish()?;
     // meta 与最末已发布 Delta 的根元组对应关系。
     let last = rows.last().unwrap();
     let (run, evidence): (String, String) = conn
