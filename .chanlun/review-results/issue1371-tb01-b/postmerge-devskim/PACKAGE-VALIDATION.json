@@ -1,0 +1,411 @@
+{
+  "schema": "postmerge-report-package-validation/v1",
+  "created_at": "2026-09-12T19:47:59.286224+00:00",
+  "verdict": "PASS_EXACT_ARCHIVE_BYTES_WITH_DECLARED_EXTERNAL_SARIF",
+  "scanned_head": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+  "suggested_repository_root": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim",
+  "source_count": 25,
+  "unique_attachments": 25,
+  "source_total_bytes": 68016586,
+  "unique_decoded_bytes": 68016586,
+  "loose_original_count": 23,
+  "attachment_only_count": 2,
+  "external_original_count": 1,
+  "external_original": {
+    "schema": "sarif-external-original-reference/v1",
+    "scanned_head": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+    "run_id": 34709866745,
+    "run_url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34709866745",
+    "artifact_id": 10302193750,
+    "artifact_name": "devskim-sarif",
+    "artifact_api_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/actions/artifacts/10302193750/zip",
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/devskim-results.sarif",
+    "bytes": 109483815,
+    "sha256": "f64c3023864096b80e71205adf172b332b8f22d43617bd560a1a39199fc51602",
+    "source_retained_in_ticket_directory": true,
+    "source_bytes_verified_during_packaging": true,
+    "source_omitted_from_git_payload": true,
+    "former_test_compression_xz_bytes": 13741752,
+    "rationale": "原SARIF含已经归档的大附件文本；避免再次把旧附件随SARIF递归入Git。完整报告JSON仍按原字节保留。",
+    "artifact_retention_days": 14,
+    "retrieval_note": "run/artifact/hash固定标识；Actions附件可过期，不承诺永久可下载。票属D中原SARIF和ZIP继续保存。",
+    "binding_files": [
+      "DOWNLOAD.json",
+      "ARTIFACTS.json",
+      "RUN-FINAL.json",
+      "JOBS.json",
+      "CHECKOUT-BINDING.json"
+    ],
+    "archive_sha256": "19e96646cfd2db4fdcd8a4941b96c1382da3c55216119a2a869c8270a986f9eb",
+    "archive_bytes": 71962203
+  },
+  "all_archived_attachments_fully_decoded_after_final_serialization": true,
+  "all_decoded_bytes_equal_source": true,
+  "all_source_freezes_match": true,
+  "official_source_digest_freeze_matches": true,
+  "probe_stdout_digest_matches": true,
+  "payload_file_count_excluding_validation": 27,
+  "payload_bytes_excluding_validation": 1871773,
+  "payload_files": [
+    {
+      "path": "EVIDENCE-ATTACHMENTS.json",
+      "bytes": 1472104,
+      "sha256": "3ea02c51a7cbda98640749beb8983be50c98866359275c112c683caf2648cd95"
+    },
+    {
+      "path": "EVIDENCE-INDEX.json",
+      "bytes": 23817,
+      "sha256": "53f0191abcf9210d492f62b3c5d78641a8d5f487b5720a10d2de837351c8dcf9"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4160,
+      "sha256": "1c2a724b9471c6a8e01eb0efa89c000c776b1b6af587db0f9e069b568e3ddc31"
+    },
+    {
+      "path": "evidence/devskim/ARTIFACTS.json",
+      "bytes": 917,
+      "sha256": "358f0f1b1ab0134bab8d0a9c8eba9aaca55f9572c3f3fbcc6286a7ba243dae4b"
+    },
+    {
+      "path": "evidence/devskim/CHECKOUT-BINDING.json",
+      "bytes": 1987,
+      "sha256": "cc5ca41c40cfa9324d3df7a56102dbbcbd356c901973bd3c6b715f64a11bc67d"
+    },
+    {
+      "path": "evidence/devskim/CONTAINER-SPANS.json",
+      "bytes": 1099,
+      "sha256": "3c47b13b7935adaa3b81e39c9867806ac279a7df9a557135eeb5eefc9f865c83"
+    },
+    {
+      "path": "evidence/devskim/DOWNLOAD.json",
+      "bytes": 424,
+      "sha256": "731ae4937bfea895b8303a10832e04ab0131d793e22864418f1b6c97999ae9df"
+    },
+    {
+      "path": "evidence/devskim/JOBS.json",
+      "bytes": 3234,
+      "sha256": "9c4f4a9bc2e96179ee4cf7b3033098b97ddf34be5984a5c69053ee8c0e2490c0"
+    },
+    {
+      "path": "evidence/devskim/PREPARED-EVIDENCE.json",
+      "bytes": 195704,
+      "sha256": "fb6693720adab9d65a3ec2591fdc7e40f78dca278d54b24cb6bed0d3ba688868"
+    },
+    {
+      "path": "evidence/devskim/REPORT-FREEZE.json",
+      "bytes": 819,
+      "sha256": "b76324a2d358375bae4fcf3da23d635034d3bcdf7f17724743f433459f2b4d91"
+    },
+    {
+      "path": "evidence/devskim/RUN-FINAL.json",
+      "bytes": 14848,
+      "sha256": "1bd7398694690934ba3a9735ae33bcef2315a8a84f2b4f01f8d0db9b0bc88e5a"
+    },
+    {
+      "path": "evidence/devskim/SARIF-REFERENCE.json",
+      "bytes": 1425,
+      "sha256": "116ff70160b296b28180be66ac81f2b6925d3862abbaff44f6a8e548671a1528"
+    },
+    {
+      "path": "evidence/repair-probe/RESULT.json",
+      "bytes": 1031,
+      "sha256": "19be861e3f44daddcd40c04eddfe9768d783b2487e44ff53f7d9c36ff5afd1ca"
+    },
+    {
+      "path": "evidence/repair-probe/REVIEWED-ONLY-GATE.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "evidence/repair-probe/REVIEWED-ONLY-GATE.stdout",
+      "bytes": 1001,
+      "sha256": "bca62dbb45c67e9aed5f8ec46a6a9750a42016fb11528516112dcc46f46f30ee"
+    },
+    {
+      "path": "evidence/rules/DS176209.md",
+      "bytes": 124,
+      "sha256": "4d707a0075bf5a29a68681d5b05a52e50835e2c78fa5d0977d7a538a0f54aded"
+    },
+    {
+      "path": "evidence/rules/DS197836.md",
+      "bytes": 925,
+      "sha256": "da90ea65c5736563a4a6bff2801a36843fe0071646fff301f3623c0befd5c83a"
+    },
+    {
+      "path": "evidence/rules/REPORT-FREEZE.json",
+      "bytes": 585,
+      "sha256": "fbdfb115e4c754d58f834e3c84d7703c64ecbacd999f24ba86031fa150323718"
+    },
+    {
+      "path": "evidence/rules/UPSTREAM-SOURCES.json",
+      "bytes": 2750,
+      "sha256": "ef071045fde7e6f7b0a7dc27af451fb2f4ac5a1d2576aa9e69084bc7f34b0a2f"
+    },
+    {
+      "path": "evidence/rules/UPSTREAM-TREE.json",
+      "bytes": 95973,
+      "sha256": "bec771a5ff1d980e7ddaf6a98656a0dea328a8923a680b72a20db1d2e7cc2b9c"
+    },
+    {
+      "path": "evidence/rules/hash_algorithm.json",
+      "bytes": 13388,
+      "sha256": "e19354140b81824a82c5646d1aeaf27490b009cfcacebd81a23dbb50b6fa81a0"
+    },
+    {
+      "path": "evidence/rules/random.json",
+      "bytes": 5408,
+      "sha256": "10a443c02f38d7d312bb415193c8350802e750bfd62c43c266fbc264c06354cc"
+    },
+    {
+      "path": "evidence/rules/secrets.json",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+    },
+    {
+      "path": "evidence/rules/todo.json",
+      "bytes": 758,
+      "sha256": "0ad4d46d25cb3474e46df7ce2fed72a2dbbca0583242adf8def2f232449e1fcc"
+    },
+    {
+      "path": "reports/DEVSKIM-REPAIR-FEASIBILITY.json",
+      "bytes": 11182,
+      "sha256": "c47e6e23d855fdd06efd703cc1140a6a1d8737a458c402f8badde34df32bf4ce"
+    },
+    {
+      "path": "reports/DEVSKIM-REPAIR-FEASIBILITY.md",
+      "bytes": 5853,
+      "sha256": "4ecf4612a3d0d975f4b7b955f60388edb8273a2936ab70212e75c56501fc834a"
+    },
+    {
+      "path": "reports/PR1449-DEVSKIM-R14-TRIAGE.md",
+      "bytes": 9369,
+      "sha256": "490907cd28637bb8125c98fc8a3f206fd1f1bbbb6bd267243acace5574b14b26"
+    }
+  ],
+  "source_verification": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14-TRIAGE.md",
+      "archive_path": "reports/PR1449-DEVSKIM-R14-TRIAGE.md",
+      "bytes": 9369,
+      "sha256": "490907cd28637bb8125c98fc8a3f206fd1f1bbbb6bd267243acace5574b14b26",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14-TRIAGE.json",
+      "archive_path": "reports/PR1449-DEVSKIM-R14-TRIAGE.json",
+      "bytes": 65909936,
+      "sha256": "78e2b5e6295530fb41ed0d6918785346221782d395f513eecb097fe5794194c3",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": null
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY.md",
+      "archive_path": "reports/DEVSKIM-REPAIR-FEASIBILITY.md",
+      "bytes": 5853,
+      "sha256": "4ecf4612a3d0d975f4b7b955f60388edb8273a2936ab70212e75c56501fc834a",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY.json",
+      "archive_path": "reports/DEVSKIM-REPAIR-FEASIBILITY.json",
+      "bytes": 11182,
+      "sha256": "c47e6e23d855fdd06efd703cc1140a6a1d8737a458c402f8badde34df32bf4ce",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/REPORT-FREEZE.json",
+      "archive_path": "evidence/devskim/REPORT-FREEZE.json",
+      "bytes": 819,
+      "sha256": "b76324a2d358375bae4fcf3da23d635034d3bcdf7f17724743f433459f2b4d91",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/DOWNLOAD.json",
+      "archive_path": "evidence/devskim/DOWNLOAD.json",
+      "bytes": 424,
+      "sha256": "731ae4937bfea895b8303a10832e04ab0131d793e22864418f1b6c97999ae9df",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/ARTIFACTS.json",
+      "archive_path": "evidence/devskim/ARTIFACTS.json",
+      "bytes": 917,
+      "sha256": "358f0f1b1ab0134bab8d0a9c8eba9aaca55f9572c3f3fbcc6286a7ba243dae4b",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/RUN-FINAL.json",
+      "archive_path": "evidence/devskim/RUN-FINAL.json",
+      "bytes": 14848,
+      "sha256": "1bd7398694690934ba3a9735ae33bcef2315a8a84f2b4f01f8d0db9b0bc88e5a",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/JOBS.json",
+      "archive_path": "evidence/devskim/JOBS.json",
+      "bytes": 3234,
+      "sha256": "9c4f4a9bc2e96179ee4cf7b3033098b97ddf34be5984a5c69053ee8c0e2490c0",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/CHECKOUT-BINDING.json",
+      "archive_path": "evidence/devskim/CHECKOUT-BINDING.json",
+      "bytes": 1987,
+      "sha256": "cc5ca41c40cfa9324d3df7a56102dbbcbd356c901973bd3c6b715f64a11bc67d",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/PREPARED-EVIDENCE.json",
+      "archive_path": "evidence/devskim/PREPARED-EVIDENCE.json",
+      "bytes": 195704,
+      "sha256": "fb6693720adab9d65a3ec2591fdc7e40f78dca278d54b24cb6bed0d3ba688868",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/CONTAINER-SPANS.json",
+      "archive_path": "evidence/devskim/CONTAINER-SPANS.json",
+      "bytes": 1099,
+      "sha256": "3c47b13b7935adaa3b81e39c9867806ac279a7df9a557135eeb5eefc9f865c83",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/PR1449-R14-DEVSKIM-FULL.log",
+      "archive_path": "evidence/devskim/PR1449-R14-DEVSKIM-FULL.log",
+      "bytes": 1736383,
+      "sha256": "77ee0bb75551c8da1efd7047f81016dd08f43c9568844e4b4246374a34112cf7",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": null
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/REPORT-FREEZE.json",
+      "archive_path": "evidence/rules/REPORT-FREEZE.json",
+      "bytes": 585,
+      "sha256": "fbdfb115e4c754d58f834e3c84d7703c64ecbacd999f24ba86031fa150323718",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/UPSTREAM-SOURCES.json",
+      "archive_path": "evidence/rules/UPSTREAM-SOURCES.json",
+      "bytes": 2750,
+      "sha256": "ef071045fde7e6f7b0a7dc27af451fb2f4ac5a1d2576aa9e69084bc7f34b0a2f",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/UPSTREAM-TREE.json",
+      "archive_path": "evidence/rules/UPSTREAM-TREE.json",
+      "bytes": 95973,
+      "sha256": "bec771a5ff1d980e7ddaf6a98656a0dea328a8923a680b72a20db1d2e7cc2b9c",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/secrets.json",
+      "archive_path": "evidence/rules/secrets.json",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/random.json",
+      "archive_path": "evidence/rules/random.json",
+      "bytes": 5408,
+      "sha256": "10a443c02f38d7d312bb415193c8350802e750bfd62c43c266fbc264c06354cc",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/todo.json",
+      "archive_path": "evidence/rules/todo.json",
+      "bytes": 758,
+      "sha256": "0ad4d46d25cb3474e46df7ce2fed72a2dbbca0583242adf8def2f232449e1fcc",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/hash_algorithm.json",
+      "archive_path": "evidence/rules/hash_algorithm.json",
+      "bytes": 13388,
+      "sha256": "e19354140b81824a82c5646d1aeaf27490b009cfcacebd81a23dbb50b6fa81a0",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/DS176209.md",
+      "archive_path": "evidence/rules/DS176209.md",
+      "bytes": 124,
+      "sha256": "4d707a0075bf5a29a68681d5b05a52e50835e2c78fa5d0977d7a538a0f54aded",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-FEASIBILITY/DS197836.md",
+      "archive_path": "evidence/rules/DS197836.md",
+      "bytes": 925,
+      "sha256": "da90ea65c5736563a4a6bff2801a36843fe0071646fff301f3623c0befd5c83a",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-PROBE/RESULT.json",
+      "archive_path": "evidence/repair-probe/RESULT.json",
+      "bytes": 1031,
+      "sha256": "19be861e3f44daddcd40c04eddfe9768d783b2487e44ff53f7d9c36ff5afd1ca",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-PROBE/REVIEWED-ONLY-GATE.stdout",
+      "archive_path": "evidence/repair-probe/REVIEWED-ONLY-GATE.stdout",
+      "bytes": 1001,
+      "sha256": "bca62dbb45c67e9aed5f8ec46a6a9750a42016fb11528516112dcc46f46f30ee",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/DEVSKIM-REPAIR-PROBE/REVIEWED-ONLY-GATE.stderr",
+      "archive_path": "evidence/repair-probe/REVIEWED-ONLY-GATE.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "decoded_bytes_equal_original": true,
+      "loose_copy_equal_original": true
+    }
+  ],
+  "recursive_self_inclusion": false,
+  "generated_files_excluded_from_attachment_index": [
+    "README.md",
+    "EVIDENCE-INDEX.json",
+    "EVIDENCE-ATTACHMENTS.json",
+    "PACKAGE-VALIDATION.json",
+    "evidence/devskim/SARIF-REFERENCE.json"
+  ],
+  "validation_file_not_hashed_inside_itself": true,
+  "main_ci_status": "root_to_supplement",
+  "cleanup_status": "root_to_supplement",
+  "later_document_revision_scanned": false,
+  "excluded": [
+    "old full reports",
+    "original SARIF payload; retained in D with reference",
+    "repeated original zip",
+    "counterfactual-reviewed-only-baseline.json",
+    "gate-relevant-projection.sarif",
+    "databases",
+    "tool programs",
+    "session exports",
+    "backups"
+  ]
+}

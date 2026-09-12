@@ -1,0 +1,270 @@
+{
+  "schema": 1,
+  "kind": "ISSUE1371_PRE_CLEANUP_EXACT_WIP_PRESERVATION",
+  "created_at": "2026-09-12T17:01:14.786273+00:00",
+  "ticket": 1371,
+  "authorized_scope": "仅8份旧native工位roster及旧B树未追踪review-r6.json；原字节、diff、HEAD/状态",
+  "entries": [
+    {
+      "label": "native-acceptance",
+      "source_worktree": "/Users/silencehan/Projects/NewChanlun-1371-native-acceptance",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1371-native-acceptance/.chanlun/agent-roster-2026-09-10.md",
+      "relative_path": ".chanlun/agent-roster-2026-09-10.md",
+      "head": "8c868f968c5f937870a4305dca05a0e0162b5131",
+      "source_mode_octal": "0o644",
+      "source_bytes": 1651,
+      "source_sha256": "010abbe3535811cd15af25f5c5abfe428cd4dd7680311dc7fe502e889d0f4bd7",
+      "preserved": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1651,
+        "sha256": "010abbe3535811cd15af25f5c5abfe428cd4dd7680311dc7fe502e889d0f4bd7"
+      },
+      "diff": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-acceptance/git.diff",
+        "bytes": 1501,
+        "sha256": "f7bf0b040f6a786b3b5cfd4ebb03d2dee0cb0952c203a8e71a4a8c68ce7a0297"
+      },
+      "status": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-acceptance/status.txt",
+        "bytes": 228,
+        "sha256": "c6dd35267c39d03d803156afd4362e96de9fb5e4fb30cd49674447eeaca48f5c"
+      },
+      "diff_kind": "git diff -- 该roster，仅已跟踪未提交差异",
+      "semantic_class": "#1371旧native工位登记新增行，无产品变更；r6/r7/r8中的#1323仅父图出处"
+    },
+    {
+      "label": "native-r2-acceptance",
+      "source_worktree": "/Users/silencehan/Projects/NewChanlun-1371-native-r2-acceptance",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1371-native-r2-acceptance/.chanlun/agent-roster-2026-09-10.md",
+      "relative_path": ".chanlun/agent-roster-2026-09-10.md",
+      "head": "0298cf429804c611d6ee5f691a1f36ee2a720fba",
+      "source_mode_octal": "0o644",
+      "source_bytes": 1727,
+      "source_sha256": "272af3ee0617dcb016a0306e360178e3694e474f8ba14f5916fc3069cb208eb7",
+      "preserved": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r2-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1727,
+        "sha256": "272af3ee0617dcb016a0306e360178e3694e474f8ba14f5916fc3069cb208eb7"
+      },
+      "diff": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r2-acceptance/git.diff",
+        "bytes": 806,
+        "sha256": "65af0e0adb2ee927eca7de2b9620bad71b5f4d23e7744097a48acedcb47bfc0c"
+      },
+      "status": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r2-acceptance/status.txt",
+        "bytes": 228,
+        "sha256": "14ae8e541584e6c1d4b58f3a70a32c1287df29e19dee9ee80844dc6a3e4f1cee"
+      },
+      "diff_kind": "git diff -- 该roster，仅已跟踪未提交差异",
+      "semantic_class": "#1371旧native工位登记新增行，无产品变更；r6/r7/r8中的#1323仅父图出处"
+    },
+    {
+      "label": "native-r3-acceptance",
+      "source_worktree": "/Users/silencehan/Projects/NewChanlun-1371-native-r3-acceptance",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1371-native-r3-acceptance/.chanlun/agent-roster-2026-09-10.md",
+      "relative_path": ".chanlun/agent-roster-2026-09-10.md",
+      "head": "a9acf50ac3a700450108040ca1b2c019675df3c9",
+      "source_mode_octal": "0o644",
+      "source_bytes": 1732,
+      "source_sha256": "b90b09d927b498d62cb6ea082ce0f250a7405dc6864188724a0ef68c5e497517",
+      "preserved": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r3-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1732,
+        "sha256": "b90b09d927b498d62cb6ea082ce0f250a7405dc6864188724a0ef68c5e497517"
+      },
+      "diff": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r3-acceptance/git.diff",
+        "bytes": 744,
+        "sha256": "cf0ea94d76fc4975491d82eb33510631a7ad5a685d3354e559e2508a25e6811d"
+      },
+      "status": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r3-acceptance/status.txt",
+        "bytes": 228,
+        "sha256": "43f955c6871ae6961d0bf768cee1992bc13a6ef39c268a3789c5c3ed1c9561f4"
+      },
+      "diff_kind": "git diff -- 该roster，仅已跟踪未提交差异",
+      "semantic_class": "#1371旧native工位登记新增行，无产品变更；r6/r7/r8中的#1323仅父图出处"
+    },
+    {
+      "label": "native-r4-acceptance",
+      "source_worktree": "/Users/silencehan/Projects/NewChanlun-1371-native-r4-acceptance",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1371-native-r4-acceptance/.chanlun/agent-roster-2026-09-10.md",
+      "relative_path": ".chanlun/agent-roster-2026-09-10.md",
+      "head": "58dab231e2210e1ba1e9634c936807d8492e218b",
+      "source_mode_octal": "0o644",
+      "source_bytes": 1753,
+      "source_sha256": "c93203422c44a897fd3fe665bc8560ea17665e3ab9519a051c5b5d7ac4949d1d",
+      "preserved": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r4-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1753,
+        "sha256": "c93203422c44a897fd3fe665bc8560ea17665e3ab9519a051c5b5d7ac4949d1d"
+      },
+      "diff": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r4-acceptance/git.diff",
+        "bytes": 744,
+        "sha256": "0573b08824a075254985f5f226e6582b3cc29d3ba9669d86a0474f0923eb9620"
+      },
+      "status": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r4-acceptance/status.txt",
+        "bytes": 228,
+        "sha256": "017e4d93db9024630add4f1c60559ae2bbd0053d41a385c88cf7ecd31a95fdcb"
+      },
+      "diff_kind": "git diff -- 该roster，仅已跟踪未提交差异",
+      "semantic_class": "#1371旧native工位登记新增行，无产品变更；r6/r7/r8中的#1323仅父图出处"
+    },
+    {
+      "label": "native-r5-acceptance",
+      "source_worktree": "/Users/silencehan/Projects/NewChanlun-1371-native-r5-acceptance",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1371-native-r5-acceptance/.chanlun/agent-roster-2026-09-10.md",
+      "relative_path": ".chanlun/agent-roster-2026-09-10.md",
+      "head": "8b726a57f98974c451ad0490066150afb9fe8e38",
+      "source_mode_octal": "0o644",
+      "source_bytes": 1768,
+      "source_sha256": "9763225ad9f56bf245df5b652b43c854cedb457418f1551e17e22217b4c2f53f",
+      "preserved": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r5-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1768,
+        "sha256": "9763225ad9f56bf245df5b652b43c854cedb457418f1551e17e22217b4c2f53f"
+      },
+      "diff": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r5-acceptance/git.diff",
+        "bytes": 744,
+        "sha256": "083dd5e441a849151ea1328c47fa78612fe39648ec6da4dde50657f65ed7e387"
+      },
+      "status": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r5-acceptance/status.txt",
+        "bytes": 228,
+        "sha256": "70faefdbc0746a07c9164963a879f6f481a4f40937f4d350e86374110bdab4c4"
+      },
+      "diff_kind": "git diff -- 该roster，仅已跟踪未提交差异",
+      "semantic_class": "#1371旧native工位登记新增行，无产品变更；r6/r7/r8中的#1323仅父图出处"
+    },
+    {
+      "label": "native-r6-acceptance",
+      "source_worktree": "/Users/silencehan/Projects/NewChanlun-1371-native-r6-acceptance",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1371-native-r6-acceptance/.chanlun/agent-roster-2026-09-10.md",
+      "relative_path": ".chanlun/agent-roster-2026-09-10.md",
+      "head": "6eeed76e3e12f1ffc3fdc62e23e60f2a3084c37b",
+      "source_mode_octal": "0o644",
+      "source_bytes": 1746,
+      "source_sha256": "a08aa678a4ed6c71a8d05e05a195bc83e4317431878431576084c81b236e5484",
+      "preserved": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r6-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1746,
+        "sha256": "a08aa678a4ed6c71a8d05e05a195bc83e4317431878431576084c81b236e5484"
+      },
+      "diff": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r6-acceptance/git.diff",
+        "bytes": 837,
+        "sha256": "f1d9a15c7a44a213f7b07171f10eebbe3767694616d2d9fd6df432f3633ed910"
+      },
+      "status": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r6-acceptance/status.txt",
+        "bytes": 228,
+        "sha256": "d8b9e64994293f1ba370742f6216922f5a3377895903f7b7bf5f01c08be23ae0"
+      },
+      "diff_kind": "git diff -- 该roster，仅已跟踪未提交差异",
+      "semantic_class": "#1371旧native工位登记新增行，无产品变更；r6/r7/r8中的#1323仅父图出处"
+    },
+    {
+      "label": "native-r7-acceptance",
+      "source_worktree": "/Users/silencehan/Projects/NewChanlun-1371-native-r7-acceptance",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1371-native-r7-acceptance/.chanlun/agent-roster-2026-09-10.md",
+      "relative_path": ".chanlun/agent-roster-2026-09-10.md",
+      "head": "4a3da3787bdd6e783f3c7eee63dec544b7dc3e68",
+      "source_mode_octal": "0o644",
+      "source_bytes": 1749,
+      "source_sha256": "a22505b58d872222f55a25f533576e80fee7c9a6744d1865ca149716a38e1879",
+      "preserved": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r7-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1749,
+        "sha256": "a22505b58d872222f55a25f533576e80fee7c9a6744d1865ca149716a38e1879"
+      },
+      "diff": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r7-acceptance/git.diff",
+        "bytes": 804,
+        "sha256": "e6ab9defb6ae783d97ef55ddae68a967f9aa692d8e9642f2853c9f61aefd0dc0"
+      },
+      "status": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r7-acceptance/status.txt",
+        "bytes": 228,
+        "sha256": "3395d20800e21c11d1bdf8c5d19a8777e745f3aeaadcb4afc78ab2087742460e"
+      },
+      "diff_kind": "git diff -- 该roster，仅已跟踪未提交差异",
+      "semantic_class": "#1371旧native工位登记新增行，无产品变更；r6/r7/r8中的#1323仅父图出处"
+    },
+    {
+      "label": "native-r8-acceptance",
+      "source_worktree": "/Users/silencehan/Projects/NewChanlun-1371-native-r8-acceptance",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1371-native-r8-acceptance/.chanlun/agent-roster-2026-09-10.md",
+      "relative_path": ".chanlun/agent-roster-2026-09-10.md",
+      "head": "65fb5e72bbee1de6656ba4b902dd506ae526195f",
+      "source_mode_octal": "0o644",
+      "source_bytes": 1746,
+      "source_sha256": "52fa7fc8e35732b999f84385fdce15159d02e219df2ec2b5679b47a3c26a0c74",
+      "preserved": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r8-acceptance/agent-roster-2026-09-10.md",
+        "bytes": 1746,
+        "sha256": "52fa7fc8e35732b999f84385fdce15159d02e219df2ec2b5679b47a3c26a0c74"
+      },
+      "diff": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r8-acceptance/git.diff",
+        "bytes": 804,
+        "sha256": "c61fdbb2d8c1d940ebc58a3b73077fb5057fa36778011e18dc71767287c4d6cf"
+      },
+      "status": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r8-acceptance/status.txt",
+        "bytes": 228,
+        "sha256": "51e3b39edca096f51930690b6c27f2667d1f83eba8a1edc6403577f66e1e1e35"
+      },
+      "diff_kind": "git diff -- 该roster，仅已跟踪未提交差异",
+      "semantic_class": "#1371旧native工位登记新增行，无产品变更；r6/r7/r8中的#1323仅父图出处"
+    },
+    {
+      "label": "original-b-review-r6",
+      "source_worktree": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.sandcastle/worktrees/codex-1323-tb01-b-1371",
+      "source_path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.sandcastle/worktrees/codex-1323-tb01-b-1371/.chanlun/review-results/issue1371-tb01-b/review-r6.json",
+      "relative_path": ".chanlun/review-results/issue1371-tb01-b/review-r6.json",
+      "head": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "source_mode_octal": "0o644",
+      "source_bytes": 261509,
+      "source_sha256": "e3e26cebd36c60ad68c6bc011e3c19fc2fad37a21abc3e00f313ed0e4d7218ff",
+      "preserved": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/original-b-review-r6/review-r6.json",
+        "bytes": 261509,
+        "sha256": "e3e26cebd36c60ad68c6bc011e3c19fc2fad37a21abc3e00f313ed0e4d7218ff"
+      },
+      "diff": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/original-b-review-r6/git.diff",
+        "bytes": 262282,
+        "sha256": "8a48ab38420d28f98cec78f95972babc337ef92ab2927508d4af8a1941167cdb"
+      },
+      "status": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/original-b-review-r6/status.txt",
+        "bytes": 149,
+        "sha256": "a0d86d999d17cb9d5f1a5efbe823f9f6c23c493230121bcd43c69583f5c97b89"
+      },
+      "diff_kind": "未追踪完整新增文件差异：git diff --no-index /dev/null 原路径，exit=1为存在差异",
+      "semantic_class": "旧R6未完成报告原件，保留INCOMPLETE名分，不替代新R7/R12独评"
+    }
+  ],
+  "old_r6_delivery_equivalence": [
+    {
+      "index_pointer": "/files/104",
+      "index_file": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-INDEX.json",
+      "attachment_file": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-ATTACHMENTS.json",
+      "artifact_pointer": "/artifacts/e3e26cebd36c60ad68c6bc011e3c19fc2fad37a21abc3e00f313ed0e4d7218ff",
+      "delivery_commit": "750f933bddffc8251a880555b9beae2cdce75690",
+      "bytes": 261509,
+      "sha256": "e3e26cebd36c60ad68c6bc011e3c19fc2fad37a21abc3e00f313ed0e4d7218ff",
+      "byte_equal": true
+    }
+  ],
+  "exclusions": [
+    "未备份源码、数据库、构建目录、其他票在制品或主仓未提交文件",
+    "未删除、修改、提交、推送任何工作树内容"
+  ],
+  "preserved_original_count": 9,
+  "source_mutation_performed": false
+}

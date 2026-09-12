@@ -1,0 +1,216 @@
+{
+  "ticket": 1371,
+  "kind": "existing_declarations_with_explicit_evidence_limits",
+  "product_chain_count": 25,
+  "matches_actual_git_ancestry": true,
+  "commits": [
+    {
+      "commit": "8c868f968c5f937870a4305dca05a0e0162b5131",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/0",
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译"
+    },
+    {
+      "commit": "6039b83f6a1730daeb0d557f3bb712d8c31c92bd",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/1",
+      "declaration": "纯文档豁免",
+      "basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "strength": "本轮只读Git逐文件分类"
+    },
+    {
+      "commit": "0298cf429804c611d6ee5f691a1f36ee2a720fba",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/2",
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译"
+    },
+    {
+      "commit": "6e1b355b1454c9a20afd50a372058da11df86a30",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/3",
+      "declaration": "纯文档豁免",
+      "basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "strength": "本轮只读Git逐文件分类"
+    },
+    {
+      "commit": "a9acf50ac3a700450108040ca1b2c019675df3c9",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/4",
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译"
+    },
+    {
+      "commit": "58dab231e2210e1ba1e9634c936807d8492e218b",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/5",
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译"
+    },
+    {
+      "commit": "8b726a57f98974c451ad0490066150afb9fe8e38",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/6",
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译"
+    },
+    {
+      "commit": "6eeed76e3e12f1ffc3fdc62e23e60f2a3084c37b",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/7",
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译"
+    },
+    {
+      "commit": "4a3da3787bdd6e783f3c7eee63dec544b7dc3e68",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/8",
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译"
+    },
+    {
+      "commit": "65fb5e72bbee1de6656ba4b902dd506ae526195f",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/9",
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译"
+    },
+    {
+      "commit": "257452c5fd02e0b28b385b7bca4c327b76ea6aa0",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/10",
+      "declaration": "纯文档豁免",
+      "basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "strength": "本轮只读Git逐文件分类"
+    },
+    {
+      "commit": "381f5e1c670cf97b6a1491a3ec3c03c30df406d0",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/11",
+      "declaration": "可编译（复用R9历史构建收据）",
+      "basis": "R9 /source_commit 精确绑定；/checks/build、/checks/check exit=0；commands /34、/36 已纯解码核验，/62保留该代码提交回执；6份源码登记SHA与Git一致。Python AST /52、launcher语法 /53、HTML消费者实际执行 /59均exit=0。",
+      "strength": "历史实际receipt + 本轮附件完整性及源码绑定核对"
+    },
+    {
+      "commit": "667ce698eacd8c8f50ec5846f24c779b492010a8",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/12",
+      "declaration": "纯文档豁免",
+      "basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "strength": "本轮只读Git逐文件分类"
+    },
+    {
+      "commit": "41ed7163e8bc15bc7cc5af1fb06af22d98a6589c",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/13",
+      "declaration": "纯文档豁免",
+      "basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "strength": "本轮只读Git逐文件分类"
+    },
+    {
+      "commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/14",
+      "declaration": "可编译（复用R10首个代码提交前检查收据）",
+      "basis": "R10 commands /9构建、/11检查、/14 Python回归、/15 HTML函数消费者、/20 Python AST、/21 launcher语法均exit=0，/27记录a0b6f17a3d提交。后续50f22只有Python测试更改；产品和Node测试同字节，R10最终/source_commit虽为50f22，不能误写成a0b。",
+      "strength": "历史原执行/提交回执对应 + 本轮产品源码等同性核对"
+    },
+    {
+      "commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/15",
+      "declaration": "可编译（仅测试代码，构建输入同字节复用；不是文档豁免）",
+      "basis": "R10 /source_commit直接绑定50f22；Rust完整子树、产品和Node测试与a0b相同，复用/9构建和/11检查。改动Python脚本另有/28实际回归、/29消费者、/30 AST exit=0，/32精确记录50f22提交。",
+      "strength": "历史实际receipt + 本轮源码绑定/同字节核对"
+    },
+    {
+      "commit": "3ddb5c2b7f9f250861640d40d779d1a6a5fd8955",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/16",
+      "declaration": "纯文档豁免",
+      "basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "strength": "本轮只读Git逐文件分类"
+    },
+    {
+      "commit": "a60fdd57e5ebb0e7d6a15b7e1f30994720269ed8",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/17",
+      "declaration": "纯文档豁免",
+      "basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "strength": "本轮只读Git逐文件分类"
+    },
+    {
+      "commit": "6a4e69e60ffd1baca490f870622c098a14fe7b41",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/18",
+      "declaration": "可编译（HTML/Node检查已执行，未变后端复用）",
+      "basis": "R11 /source_commit直接绑定；/checks/source-build对应commands /0 exit=0；Node测试语法/4及实际HTML提取script语法/5 exit=0，/6保留28项历史绿灯入口；6份源码hash匹配。",
+      "strength": "历史实际receipt + 本轮附件完整性及源码绑定核对"
+    },
+    {
+      "commit": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/19",
+      "declaration": "纯文档豁免",
+      "basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "strength": "本轮只读Git逐文件分类"
+    },
+    {
+      "commit": "e5b03629adde165610161b4df3e2d62d22163568",
+      "source": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "pointer": "/commits/20",
+      "declaration": "可编译（R12实际HTML/Node执行通过，后端构建同输入复用）",
+      "basis": "R12仅改HTML、新Node永久测试/JSON fixture和工位文档；GREEN.json十项全passed且failed=[]、EXECUTION.json green exit=0，源码/fixture与本提交Git字节绑定。既有R11 28项用原HTTP字节重放exit=0。R12完整Rust子树与a0b相同，Rust入口、Python服务、launcher、Cargo.toml/lock同字节，复用R10/R11已执行后端构建。",
+      "strength": "本轮根已执行的R12函数检查 + 本工位只读字节核验；后端使用历史构建复用，不声称新native/build"
+    },
+    {
+      "commit": "750f933bddffc8251a880555b9beae2cdce75690",
+      "source": "../native-codex-r13-r14/COMMIT-DECLARATIONS.json",
+      "pointer": "/additional_commits/0",
+      "declaration": "纯文档编译豁免",
+      "acceptance": "按对应版本原报告，不扩为全仓证明"
+    },
+    {
+      "commit": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "source": "../native-codex-r13-r14/COMMIT-DECLARATIONS.json",
+      "pointer": "/additional_commits/1",
+      "declaration": "可编译；复用具名构建与测试回执，未重跑",
+      "acceptance": "R13独评FAIL，编译/回归通过不代表B验收通过"
+    },
+    {
+      "commit": "6189c7e0e5499fc757ddb8369ca557104b526c57",
+      "source": "../native-codex-r13-r14/COMMIT-DECLARATIONS.json",
+      "pointer": "/additional_commits/2",
+      "declaration": "可编译；复用具名构建与测试回执，未重跑",
+      "acceptance": "按对应版本原报告，不扩为全仓证明"
+    },
+    {
+      "commit": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+      "source": "R14-FINAL-DELIVERY.json",
+      "declaration": "纯文档编译豁免；23份报告文件，产品与6189同字节"
+    }
+  ],
+  "merge_commit": {
+    "commit": "d2219e8e014a5d55c091f8eda62ffb9dd8154953",
+    "tree_identical_to_approved_head": true,
+    "declaration": "合并无额外产品差异；主线检查单列MAIN-CHECKS.json"
+  },
+  "this_tail": "纯文档编译与追加产品评审豁免；真实提交SHA在PR/最终resolution产生后填写，不自引虚构SHA",
+  "historical_limits": [
+    "前8产品提交依据各自历史作者cargo_check声明和源码哈希，未取得额外独立原始cargo回执；不提高该证据等级。",
+    "R9/R10/R11是归档历史命令实际记录；本次只解码，不新启动任何构建或测试。",
+    "R12十项/二十八项由根本轮执行；本工位未独立重跑。",
+    "本声明不替代GUI或独立产品审查，不改变main/push/GitHub发布授权，不声称合入、CI通过或关票。",
+    "引用D下原件为本地交付材料；未来入仓发布时须同步落可达报告实体/必要附件，不能只以此绝对路径满足关票入仓规则。"
+  ],
+  "new_builds_or_product_tests": false
+}
