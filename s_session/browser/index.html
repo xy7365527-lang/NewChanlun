@@ -396,6 +396,16 @@ function validateDelta(d) {
   for (const k of ["catalog_run_status", "catalog_evidence"])
     if (Object.hasOwn(d, k) && !exactJson(d[k], dd[k])) throw new Error(`Delta 内外 ${k} 不一致`);
   validateExactRecords([dd.upserts, dd.withdrawals, dd.witnesses, dd.observations, dd.raw_history_added]);
+  // #1371 R12：替代端点必须逐项对应本批撤回，不能仅以 relations 或计数代替。
+  const expectedReplaces = dd.withdrawals.flatMap(w => {
+    requireKeys(w, ["object_id", "superseded_by"], "撤回替代身份");
+    return w.superseded_by === null ? [] : [{old_object_id:w.object_id, new_object_id:w.superseded_by}];
+  });
+  const replacementKey = r => JSON.stringify([r.old_object_id, r.new_object_id]);
+  const orderReplaces = records => [...records].sort((a, b) =>
+    replacementKey(a) < replacementKey(b) ? -1 : replacementKey(a) > replacementKey(b) ? 1 : 0);
+  if (!exactJson(orderReplaces(dd.replaces), orderReplaces(expectedReplaces)))
+    throw new Error("Delta.replaces 与本批 withdrawals 的替代端点不一致");
   validateEvidence(dd.catalog_evidence, dd.generation);
   decimal(d.generation); decimal(d.input_frontier, true);
   requireKeys(d.seq_range, ["from", "to"], "Delta.seq_range");
@@ -527,7 +537,13 @@ async function applyStream() {
         return;
       }
       if (epoch !== pageEpoch) return;
-      try { validateRequestedState(st, request); }
+      try {
+        validateRequestedState(st, request);
+        // #1371 R12：允许显式 Gap 切换会话，但重建结果必须属于该 Gap 声明的会话。
+        if (typeof deltaResp.session_id !== "string" || deltaResp.session_id.length === 0 ||
+            st.snapshot.session_id !== deltaResp.session_id)
+          throw new Error("Gap/Snapshot.session_id 不一致");
+      }
       catch (e) { el.innerHTML = `<div class="err-box">重建校验失败（${esc(e)}）：状态未提交</div>`; return; }
       rebuildCommittedFromState(st);
       renderAllFromState(st);
