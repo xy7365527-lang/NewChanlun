@@ -1,0 +1,1041 @@
+{
+  "schema": 1,
+  "kind": "ISSUE1371_POSTMERGE_WORKSTATION_PREFLIGHT",
+  "observed_at": "2026-09-12T17:05:18.173112+00:00",
+  "ticket": {
+    "number": 1371,
+    "title": "[impl] TB-01-B 原始更正驱动原子撤回并在真实进程恢复后保留浏览器历史（SPEC #1340）",
+    "state": "OPEN",
+    "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1371",
+    "updated_at": "2026-09-09T16:04:36Z",
+    "body_sha256": "71672e11e78d9cd2739f9d45a4a10c8a8b3420e2c1ccd11032e30858e7e4e3b5",
+    "unchecked_ac": 8,
+    "checked_ac": 0,
+    "comments_count": 1,
+    "last_comment_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1371#issuecomment-5604910995",
+    "meaning": "票体历史勾选/评论状态与已入仓验收证据分开；本工位不勾选、不发布评论、不关票"
+  },
+  "fixed_delivery": "750f933bddffc8251a880555b9beae2cdce75690",
+  "code_reviewed": "e5b03629adde165610161b4df3e2d62d22163568",
+  "assigned_pr_url": "https://github.com/xy7365527-lang/NewChanlun/pull/1449",
+  "pr_ci_merge_owner": "根；本报告不重复轮询PR/CI，不声明已合入",
+  "authorization_context": "根转述2026-09-13用户已批准发布固定750f PR，检查通过且内容不变后合入；此子任务只做只读预检和指定九文件保全。",
+  "rules": {
+    "container_state_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/docs/agents/generation-constitution.md",
+    "container_lines": [
+      20,
+      24,
+      25
+    ],
+    "report_lifetime_line": 52,
+    "delivery_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/docs/agents/delivery-discipline.md",
+    "delivery_lines": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      74
+    ]
+  },
+  "worktrees": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication/.sandcastle/worktrees/codex-1323-tb01-b-1371",
+      "head": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "branch": "refs/heads/codex/1323-tb01-b-1371",
+      "detached": false,
+      "status_porcelain_v2": "# branch.oid 4922543038fbcfef1a4d711a306708ace3f62e88\n# branch.head codex/1323-tb01-b-1371\n? .chanlun/review-results/issue1371-tb01-b/review-r6.json\n",
+      "tracked_or_untracked_changes": [
+        "? .chanlun/review-results/issue1371-tb01-b/review-r6.json"
+      ],
+      "clean_except_ignored": false,
+      "ignored_paths": [
+        "rust/target/",
+        "s_session/tests/__pycache__/"
+      ],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [
+        {
+          "manifest_entry": 8,
+          "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/original-b-review-r6/review-r6.json",
+          "source_sha256": "e3e26cebd36c60ad68c6bc011e3c19fc2fad37a21abc3e00f313ed0e4d7218ff"
+        }
+      ],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：先确认九文件保全与明确处置这一个本票登记/旧报告副本，再按干净状态清理",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12",
+      "head": "750f933bddffc8251a880555b9beae2cdce75690",
+      "branch": "refs/heads/codex/1371-codex-r12",
+      "detached": false,
+      "status_porcelain_v2": "# branch.oid 750f933bddffc8251a880555b9beae2cdce75690\n# branch.head codex/1371-codex-r12\n",
+      "tracked_or_untracked_changes": [],
+      "clean_except_ignored": true,
+      "ignored_paths": [],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：当前干净、全部commit已在固定交付中",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-acceptance",
+      "head": "8c868f968c5f937870a4305dca05a0e0162b5131",
+      "branch": null,
+      "detached": true,
+      "status_porcelain_v2": "# branch.oid 8c868f968c5f937870a4305dca05a0e0162b5131\n# branch.head (detached)\n1 .M N... 100644 100644 100644 e7ed8ee8d373526d7a85ad6ea2abe3feafbedaf8 e7ed8ee8d373526d7a85ad6ea2abe3feafbedaf8 .chanlun/agent-roster-2026-09-10.md\n",
+      "tracked_or_untracked_changes": [
+        "1 .M N... 100644 100644 100644 e7ed8ee8d373526d7a85ad6ea2abe3feafbedaf8 e7ed8ee8d373526d7a85ad6ea2abe3feafbedaf8 .chanlun/agent-roster-2026-09-10.md"
+      ],
+      "clean_except_ignored": false,
+      "ignored_paths": [],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [
+        {
+          "manifest_entry": 0,
+          "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-acceptance/agent-roster-2026-09-10.md",
+          "source_sha256": "010abbe3535811cd15af25f5c5abfe428cd4dd7680311dc7fe502e889d0f4bd7"
+        }
+      ],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：先确认九文件保全与明确处置这一个本票登记/旧报告副本，再按干净状态清理",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r10-acceptance",
+      "head": "3ddb5c2b7f9f250861640d40d779d1a6a5fd8955",
+      "branch": null,
+      "detached": true,
+      "status_porcelain_v2": "# branch.oid 3ddb5c2b7f9f250861640d40d779d1a6a5fd8955\n# branch.head (detached)\n",
+      "tracked_or_untracked_changes": [],
+      "clean_except_ignored": true,
+      "ignored_paths": [],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：当前干净、全部commit已在固定交付中",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r11-acceptance",
+      "head": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "branch": null,
+      "detached": true,
+      "status_porcelain_v2": "# branch.oid 4922543038fbcfef1a4d711a306708ace3f62e88\n# branch.head (detached)\n",
+      "tracked_or_untracked_changes": [],
+      "clean_except_ignored": true,
+      "ignored_paths": [],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：当前干净、全部commit已在固定交付中",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r2-acceptance",
+      "head": "0298cf429804c611d6ee5f691a1f36ee2a720fba",
+      "branch": null,
+      "detached": true,
+      "status_porcelain_v2": "# branch.oid 0298cf429804c611d6ee5f691a1f36ee2a720fba\n# branch.head (detached)\n1 .M N... 100644 100644 100644 674fb0b35429f49cdc030b98c4ba1ccc197d3f70 674fb0b35429f49cdc030b98c4ba1ccc197d3f70 .chanlun/agent-roster-2026-09-10.md\n",
+      "tracked_or_untracked_changes": [
+        "1 .M N... 100644 100644 100644 674fb0b35429f49cdc030b98c4ba1ccc197d3f70 674fb0b35429f49cdc030b98c4ba1ccc197d3f70 .chanlun/agent-roster-2026-09-10.md"
+      ],
+      "clean_except_ignored": false,
+      "ignored_paths": [],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [
+        {
+          "manifest_entry": 1,
+          "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r2-acceptance/agent-roster-2026-09-10.md",
+          "source_sha256": "272af3ee0617dcb016a0306e360178e3694e474f8ba14f5916fc3069cb208eb7"
+        }
+      ],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：先确认九文件保全与明确处置这一个本票登记/旧报告副本，再按干净状态清理",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r3-acceptance",
+      "head": "a9acf50ac3a700450108040ca1b2c019675df3c9",
+      "branch": null,
+      "detached": true,
+      "status_porcelain_v2": "# branch.oid a9acf50ac3a700450108040ca1b2c019675df3c9\n# branch.head (detached)\n1 .M N... 100644 100644 100644 13606cb80c27630665b1c5a7a31af60d5f3bd356 13606cb80c27630665b1c5a7a31af60d5f3bd356 .chanlun/agent-roster-2026-09-10.md\n",
+      "tracked_or_untracked_changes": [
+        "1 .M N... 100644 100644 100644 13606cb80c27630665b1c5a7a31af60d5f3bd356 13606cb80c27630665b1c5a7a31af60d5f3bd356 .chanlun/agent-roster-2026-09-10.md"
+      ],
+      "clean_except_ignored": false,
+      "ignored_paths": [],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [
+        {
+          "manifest_entry": 2,
+          "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r3-acceptance/agent-roster-2026-09-10.md",
+          "source_sha256": "b90b09d927b498d62cb6ea082ce0f250a7405dc6864188724a0ef68c5e497517"
+        }
+      ],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：先确认九文件保全与明确处置这一个本票登记/旧报告副本，再按干净状态清理",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r4-acceptance",
+      "head": "58dab231e2210e1ba1e9634c936807d8492e218b",
+      "branch": null,
+      "detached": true,
+      "status_porcelain_v2": "# branch.oid 58dab231e2210e1ba1e9634c936807d8492e218b\n# branch.head (detached)\n1 .M N... 100644 100644 100644 23636640d70956b2b6b06e2892b3ca2b23803342 23636640d70956b2b6b06e2892b3ca2b23803342 .chanlun/agent-roster-2026-09-10.md\n",
+      "tracked_or_untracked_changes": [
+        "1 .M N... 100644 100644 100644 23636640d70956b2b6b06e2892b3ca2b23803342 23636640d70956b2b6b06e2892b3ca2b23803342 .chanlun/agent-roster-2026-09-10.md"
+      ],
+      "clean_except_ignored": false,
+      "ignored_paths": [],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [
+        {
+          "manifest_entry": 3,
+          "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r4-acceptance/agent-roster-2026-09-10.md",
+          "source_sha256": "c93203422c44a897fd3fe665bc8560ea17665e3ab9519a051c5b5d7ac4949d1d"
+        }
+      ],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：先确认九文件保全与明确处置这一个本票登记/旧报告副本，再按干净状态清理",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r5-acceptance",
+      "head": "8b726a57f98974c451ad0490066150afb9fe8e38",
+      "branch": null,
+      "detached": true,
+      "status_porcelain_v2": "# branch.oid 8b726a57f98974c451ad0490066150afb9fe8e38\n# branch.head (detached)\n1 .M N... 100644 100644 100644 1e1dee45e6fd076a6cb80dd1d10b709d522fd4e7 1e1dee45e6fd076a6cb80dd1d10b709d522fd4e7 .chanlun/agent-roster-2026-09-10.md\n",
+      "tracked_or_untracked_changes": [
+        "1 .M N... 100644 100644 100644 1e1dee45e6fd076a6cb80dd1d10b709d522fd4e7 1e1dee45e6fd076a6cb80dd1d10b709d522fd4e7 .chanlun/agent-roster-2026-09-10.md"
+      ],
+      "clean_except_ignored": false,
+      "ignored_paths": [],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [
+        {
+          "manifest_entry": 4,
+          "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r5-acceptance/agent-roster-2026-09-10.md",
+          "source_sha256": "9763225ad9f56bf245df5b652b43c854cedb457418f1551e17e22217b4c2f53f"
+        }
+      ],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：先确认九文件保全与明确处置这一个本票登记/旧报告副本，再按干净状态清理",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r6-acceptance",
+      "head": "6eeed76e3e12f1ffc3fdc62e23e60f2a3084c37b",
+      "branch": null,
+      "detached": true,
+      "status_porcelain_v2": "# branch.oid 6eeed76e3e12f1ffc3fdc62e23e60f2a3084c37b\n# branch.head (detached)\n1 .M N... 100644 100644 100644 e05cf8e8d79f9343b425220818d16e2b63a70359 e05cf8e8d79f9343b425220818d16e2b63a70359 .chanlun/agent-roster-2026-09-10.md\n",
+      "tracked_or_untracked_changes": [
+        "1 .M N... 100644 100644 100644 e05cf8e8d79f9343b425220818d16e2b63a70359 e05cf8e8d79f9343b425220818d16e2b63a70359 .chanlun/agent-roster-2026-09-10.md"
+      ],
+      "clean_except_ignored": false,
+      "ignored_paths": [],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [
+        {
+          "manifest_entry": 5,
+          "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r6-acceptance/agent-roster-2026-09-10.md",
+          "source_sha256": "a08aa678a4ed6c71a8d05e05a195bc83e4317431878431576084c81b236e5484"
+        }
+      ],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：先确认九文件保全与明确处置这一个本票登记/旧报告副本，再按干净状态清理",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r7-acceptance",
+      "head": "4a3da3787bdd6e783f3c7eee63dec544b7dc3e68",
+      "branch": null,
+      "detached": true,
+      "status_porcelain_v2": "# branch.oid 4a3da3787bdd6e783f3c7eee63dec544b7dc3e68\n# branch.head (detached)\n1 .M N... 100644 100644 100644 8c3eb6a54269b3c16f5c423ae7b84ef3d37cd668 8c3eb6a54269b3c16f5c423ae7b84ef3d37cd668 .chanlun/agent-roster-2026-09-10.md\n",
+      "tracked_or_untracked_changes": [
+        "1 .M N... 100644 100644 100644 8c3eb6a54269b3c16f5c423ae7b84ef3d37cd668 8c3eb6a54269b3c16f5c423ae7b84ef3d37cd668 .chanlun/agent-roster-2026-09-10.md"
+      ],
+      "clean_except_ignored": false,
+      "ignored_paths": [],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [
+        {
+          "manifest_entry": 6,
+          "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r7-acceptance/agent-roster-2026-09-10.md",
+          "source_sha256": "a22505b58d872222f55a25f533576e80fee7c9a6744d1865ca149716a38e1879"
+        }
+      ],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：先确认九文件保全与明确处置这一个本票登记/旧报告副本，再按干净状态清理",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r8-acceptance",
+      "head": "65fb5e72bbee1de6656ba4b902dd506ae526195f",
+      "branch": null,
+      "detached": true,
+      "status_porcelain_v2": "# branch.oid 65fb5e72bbee1de6656ba4b902dd506ae526195f\n# branch.head (detached)\n1 .M N... 100644 100644 100644 f10a9d334e3cece21726fc7c831e31620718bca1 f10a9d334e3cece21726fc7c831e31620718bca1 .chanlun/agent-roster-2026-09-10.md\n",
+      "tracked_or_untracked_changes": [
+        "1 .M N... 100644 100644 100644 f10a9d334e3cece21726fc7c831e31620718bca1 f10a9d334e3cece21726fc7c831e31620718bca1 .chanlun/agent-roster-2026-09-10.md"
+      ],
+      "clean_except_ignored": false,
+      "ignored_paths": [],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [
+        {
+          "manifest_entry": 7,
+          "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/native-r8-acceptance/agent-roster-2026-09-10.md",
+          "source_sha256": "52fa7fc8e35732b999f84385fdce15159d02e219df2ec2b5679b47a3c26a0c74"
+        }
+      ],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：先确认九文件保全与明确处置这一个本票登记/旧报告副本，再按干净状态清理",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-native-r9-acceptance",
+      "head": "667ce698eacd8c8f50ec5846f24c779b492010a8",
+      "branch": null,
+      "detached": true,
+      "status_porcelain_v2": "# branch.oid 667ce698eacd8c8f50ec5846f24c779b492010a8\n# branch.head (detached)\n",
+      "tracked_or_untracked_changes": [],
+      "clean_except_ignored": true,
+      "ignored_paths": [],
+      "head_is_ancestor_of_fixed_delivery": true,
+      "preservation": [],
+      "current_container_state": "在跑（票仍OPEN；如有本地登记/旧报告未提交也独立满足在制品条件）",
+      "cleanup_class": "关票收尾可清理候选：当前干净、全部commit已在固定交付中",
+      "no_product_wip_confirmed": true,
+      "cleanup_performed": false
+    }
+  ],
+  "related_local_branches": [
+    {
+      "ref": "refs/heads/codex/1323-tb01-b-1371",
+      "sha": "4922543038fbcfef1a4d711a306708ace3f62e88"
+    },
+    {
+      "ref": "refs/heads/codex/1371-codex-r12",
+      "sha": "750f933bddffc8251a880555b9beae2cdce75690"
+    }
+  ],
+  "cleanup_counts": {
+    "related_worktrees": 13,
+    "clean_now": 4,
+    "preserved_dirty_document_worktrees": 9,
+    "product_wip_found": 0
+  },
+  "preservation_manifest": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/POSTMERGE-WORKSTATION-PRESERVATION/MANIFEST.json",
+    "bytes": 16408,
+    "sha256": "3667deee6cf33c676737f595d736df3b1da716998c8af111a3e1452d388a31fd"
+  },
+  "preserved_original_count": 9,
+  "preserved_total_bytes": 275381,
+  "r6_exact_match": {
+    "index_pointer": "/files/104",
+    "index_file": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-INDEX.json",
+    "attachment_file": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-ATTACHMENTS.json",
+    "artifact_pointer": "/artifacts/e3e26cebd36c60ad68c6bc011e3c19fc2fad37a21abc3e00f313ed0e4d7218ff",
+    "delivery_commit": "750f933bddffc8251a880555b9beae2cdce75690",
+    "bytes": 261509,
+    "sha256": "e3e26cebd36c60ad68c6bc011e3c19fc2fad37a21abc3e00f313ed0e4d7218ff",
+    "byte_equal": true
+  },
+  "r6_recorded_status_fields": {
+    "status": "报告组装中，原始本轮证据已入允许的JSON草稿；最终结论待末次校验",
+    "verdict": "INCOMPLETE"
+  },
+  "process_snapshot": {
+    "ticket_scoped_processes": [],
+    "port18962_listener": {
+      "exit": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    "recorded_service_stop_receipt": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/SERVICE-STOP-RECEIPT.json",
+      "bytes": 802,
+      "sha256": "778abfd7e6277eaab09f354da0596537fb4281773a1366040e07c1c3cd8184d1"
+    },
+    "recorded_stopped": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/STOPPED.json",
+      "bytes": 136,
+      "sha256": "405416f6564edf6f62ef5130ae90eb42134b53c4a900b708339a2d1dfce0b242"
+    },
+    "limits": "瞬时本机PID/argv/cwd与端口快照，不能推出所有历史进程、其他宿主或跨进程蜂群永久停止；本次无应杀的已确认本票进程。"
+  },
+  "old_preparations": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/review-r7-prep",
+      "preparation": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/review-r7-prep/PREPARATION.json",
+        "bytes": 2159,
+        "sha256": "f366b0bcbd43dce25df371d81f1eb59dd90de70a315befdd3d365460ed135305"
+      },
+      "kind": "R7ApprovalPreparation",
+      "recorded_status": null,
+      "recorded_r7_executed": null,
+      "disposition": "旧Prime入口已被用户选择Codex原生方式取代，只保留历史准备；不运行、resume、重新冻结或清空"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/review-r7-prep/host-v2",
+      "preparation": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/review-r7-prep/host-v2/PREPARATION.json",
+        "bytes": 4797,
+        "sha256": "856771cb0a8b009870dbb4a9762899ac14ec83983bbd68676b417559da08be4f"
+      },
+      "kind": "R7HostReadOnlyEntryPreparation",
+      "recorded_status": "READY_FOR_APPROVED_RUN_NOT_EXECUTED",
+      "recorded_r7_executed": false,
+      "disposition": "旧Prime入口已被用户选择Codex原生方式取代，只保留历史准备；不运行、resume、重新冻结或清空"
+    }
+  ],
+  "report_and_declarations": {
+    "fixed_delivery": "750f933bddffc8251a880555b9beae2cdce75690",
+    "reviewed_code": "e5b03629adde165610161b4df3e2d62d22163568",
+    "total_commits": 22,
+    "first_21_statement_count": 21,
+    "first_21_statement_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+    "tail_statement_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/FINAL-DELIVERY.json",
+    "tail_statement_field": "/last_commit/declaration",
+    "tail_declaration": "纯报告文档提交，明确豁免编译；全部21文件属于#1371报告/必要证据载体，产品与测试输入完全等同e5受审版本。",
+    "tail_changed_files": 21,
+    "tail_all_report_files": true,
+    "tail_product_or_test_changes": [],
+    "compilation_statement_coverage": "完整22项：仓内21项声明 + 仓外FINAL-DELIVERY精确末尾SHA豁免；关票resolution需现场引用全22项，不能只说仓内文件已有22行。",
+    "root_acceptance_verdict": "PASS_B_BOUNDED_PREMERGE",
+    "r12_final_check_overall": "PASS",
+    "tracked_report_files": [
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/AUTHORIZATION.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/AUTHORIZATION.json",
+        "git_blob": "86bd33e96e9fcd32a17a4767a1ff8566e2253b77",
+        "bytes": 950,
+        "sha256": "d66f2bb3df29dde2ecf96c2e9f280f5069c0de881dc2d09946d2f26ab8bad6b1",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+        "git_blob": "8d503c019dac84827d312e9e6b3c11f9316d30c1",
+        "bytes": 126982,
+        "sha256": "d310dd2dc77dae7e484a87993001d4bc0be9a31bc0a208122222c5f48f9b49d6",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/COMMIT-DECLARATIONS.md",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/COMMIT-DECLARATIONS.md",
+        "git_blob": "48aa275317940ab8491ff596fd96006df594f6b4",
+        "bytes": 47631,
+        "sha256": "2df917efa28f65389f08e0e011c9058de200dde6b4380b24ffb73a9f449468d2",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-ATTACHMENTS.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-ATTACHMENTS.json",
+        "git_blob": "58065705323550c08884444bf68ce7bada645972",
+        "bytes": 7225466,
+        "sha256": "39a1fbd177458d5fb62c151a6e4bf6377af76c2ed4fab39c5174eff62b2a01be",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-INDEX.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-INDEX.json",
+        "git_blob": "ced43a7224072c30e7e09586e9442068ee497d92",
+        "bytes": 184460,
+        "sha256": "197d9308c0af5c6c2fc169fcbe17832e5008bf3e26effc6ff3b777eacb814274",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-MANIFEST.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-MANIFEST.json",
+        "git_blob": "3ab05245dc204cb9a399f69de19c5e57f361cdba",
+        "bytes": 61760,
+        "sha256": "82b9606d9630573c85cc75018126260aa64ffe3ffb57721c75e24fbbf011aa66",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-RESULT.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-RESULT.json",
+        "git_blob": "e743f80ed475cebfc89f4e46107fb3f5c791ce81",
+        "bytes": 133582,
+        "sha256": "604cca4fd3c4f4f8aa426dabc4be853157ef3b82c921405347b21e43be308b1e",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-RESULT.md",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-RESULT.md",
+        "git_blob": "9857554fd838cf2a42156dc8a8e9747f560a566b",
+        "bytes": 10382,
+        "sha256": "47fe565a73ece2313272b115bdb8f0da494ce899177ae8a6c69c38d2167eca23",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/IMPLEMENTATION.md",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/IMPLEMENTATION.md",
+        "git_blob": "0bb582ada601e0474db9ed582290a6d63e96df0a",
+        "bytes": 3384,
+        "sha256": "b281da428865ced15a8812d760a5f01adeec69ec24c4cbd59b277cc8bc9685fc",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/README.md",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/README.md",
+        "git_blob": "62bfb6008590e3e75980fc0099451151d2e5c7e9",
+        "bytes": 1919,
+        "sha256": "eec3ce9e3ae9185fe28391f30c04f3d0c1b2b77d4b9bb1b8afe9636981a0adea",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/ROOT-ACCEPTANCE.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/ROOT-ACCEPTANCE.json",
+        "git_blob": "33f877c9ea05613be9ba949448fd7fb1ad8d6d14",
+        "bytes": 7425,
+        "sha256": "100476103b3081eaec68260538e02adc79cb00f2a6fece0312c3894aa8c01a34",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/ROOT-ACCEPTANCE.md",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/ROOT-ACCEPTANCE.md",
+        "git_blob": "24e93fe9c4273481e279169bfbb774dfc1e740ee",
+        "bytes": 2470,
+        "sha256": "f97c20be8658f40aebb97d893b7dd137a94b68135cb8b010623a363f82c5c54b",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/EXECUTION.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/EXECUTION.json",
+        "git_blob": "0a5cbd45bd3e656b6ecc3465c434e130e9595e5c",
+        "bytes": 5881,
+        "sha256": "931642c7eceae325e5d70f36d22989199c0cde973d868bcf4f7750bbdf62c99a",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/FINAL-CHECK.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/FINAL-CHECK.json",
+        "git_blob": "d07f1c654155a46f6206897c00a7603d5e8d39a2",
+        "bytes": 946,
+        "sha256": "3c657f440a755d1c9d28b3e49b29329e3d65559e178c9f5c73bda552b304dbea",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/READING-LOG.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/READING-LOG.json",
+        "git_blob": "048f4bdc2676e8f3da527daccee6dfad615f83a3",
+        "bytes": 11605,
+        "sha256": "4cbe5d5bc5b2f76854ad66116325bdf7880a18b329b918e222624d6d6b9aa3c1",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/REVIEW.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/REVIEW.json",
+        "git_blob": "2cb1225436e355c3c475ec6865292b85fe0bc8c3",
+        "bytes": 231461,
+        "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/REVIEW.md",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/REVIEW.md",
+        "git_blob": "b891a617d4ac053a053d82f99dd3487efcec2eff",
+        "bytes": 42351,
+        "sha256": "4aaf77dadce536c1e807b9790ec045f42cb32f2a339afc55aaa572605c30ad43",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/FINAL-CHECK.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/FINAL-CHECK.json",
+        "git_blob": "3f51ef3d01c945d6fc65a24c736a325662720916",
+        "bytes": 1049,
+        "sha256": "2187dbc8d1a181c2d32409e490b569bbd2beba8e9ca8bc36a96a305d7ceb2b2e",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/READING-LOG.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/READING-LOG.json",
+        "git_blob": "5ac56446fb231cf2122a1b43a28666c7fa0ab890",
+        "bytes": 1340977,
+        "sha256": "c1af3861b40292daef3b8f289f67bf7af70ec7d9fdd06b48c1295e59a768afda",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/REVIEW.json",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/REVIEW.json",
+        "git_blob": "06213aa45cddaf53b34b4545caa2998cff39526e",
+        "bytes": 72360,
+        "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+        "tracked_at_delivery": true
+      },
+      {
+        "path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/REVIEW.md",
+        "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/REVIEW.md",
+        "git_blob": "21e6b0eafcfc42d8984eddb3346456de57d1da28",
+        "bytes": 46684,
+        "sha256": "4ab32397cb4c5b1a922760b4f2c338849d96165683dab0aba31f82f7fd5bd7ad",
+        "tracked_at_delivery": true
+      }
+    ],
+    "evidence_index_entries": 423,
+    "unique_attachments": 285,
+    "attachment_check_boundary": "本次只对旧R6完整解码并与原未跟踪文件逐字核；其余附件沿已完成根验收和R12 FINAL-CHECK复用，没有重跑全部已通过检查。",
+    "ingit_report_requirement": "报告实体及必要附件已在固定750f提交，不是只有D绝对路径；root须合入后再核实际main/CI和关票声明。"
+  },
+  "cleanup_conditions": [
+    "实际main已包含被批准的750f交付且PR/主线CI事实由根接回，交付内容无新增改变。",
+    "关票收尾时再次只读核工位HEAD/状态；若多出本快照以外文件/commit/进程立即从清理集合剔除，不能广泛force。",
+    "九份指定在制品已在PRESERVATION逐字保全并可核SHA；旧R6另已在750f附件中。先明确历史登记/重复报告副本的处置，再清理对应工位；不将历史登记夹带回本次已批准交付。",
+    "按世代宪法在跑/残骸和交付纪律关票清理一并收尾：当前OPEN时全部登记保留，本预检不把尚未关票清理预写为已清。"
+  ],
+  "must_keep": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun",
+      "reason": "用户主仓在制品；21处跟踪更改、333条未跟踪为本次快照，完整数量以main_protection字段为准；与本票隔离，不触碰"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication",
+      "reason": "#1323父图工位仍开，且内含原B子工位；只允许精确移除B子路径，禁止递归删父目录"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z",
+      "reason": "仓外完整原证据/冻结包/恢复资料/原R6及#1448未结迁移义务；不随B工位删除，保全目录永久与本次清理分开"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12",
+      "reason": "此报告实体随750f进入main；工作树可清但Git对象/main报告必须保留，报告月度归档依世代宪法另行处理"
+    }
+  ],
+  "main_protection": {
+    "path": "/Users/silencehan/Projects/NewChanlun",
+    "head": "6df8d1921c72c84da90987f8f6c02ebc11fe6aac",
+    "tracked_changes": 21,
+    "untracked_entries": 333,
+    "status_sha256": "a0345872ac54e8db60a49cad5ac468144441a9e633082eebc5a7cb8236b8e291",
+    "action": "禁止reset/checkout/clean/移动/删除；本工位未读取或备份这些未提交文件内容"
+  },
+  "other_worktrees_outside_scope": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun",
+      "head": "6df8d1921c72c84da90987f8f6c02ebc11fe6aac",
+      "branch": "refs/heads/main",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Downloads/NewChanlun-complete-classification-origin-20260626",
+      "head": "8b83454ba98da2bfba24ea7a568b3181a1bb687e",
+      "branch": "refs/heads/codex/complete-classification-origin-20260626",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Downloads/NewChanlun-strict-formal-20260626",
+      "head": "1b63379b0ffd1eae368e1793cb35b2e33740b188",
+      "branch": "refs/heads/codex/strict-formal-20260626",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/fengliang-blindtest",
+      "head": "0e6ae1d300e4826da413cb759af5e2e4fd1c02ec",
+      "branch": null,
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1138-acceptance",
+      "head": "bd0fdd58e364a6f68ad44feed5a158ff2fb93905",
+      "branch": "refs/heads/ticket-1138-host-acceptance",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1139-pilot",
+      "head": "5cb18a01b47847ca7e09c00c8e365dedb543f12e",
+      "branch": "refs/heads/ticket-1139-pilot",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1144-research",
+      "head": "10f11395027bd5010f67f889c7bbae40b3d1059d",
+      "branch": "refs/heads/research/llm-as-a-verifier-1144",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1145-decision",
+      "head": "334b629f842bb6ed0aa3c113520e083a26b23270",
+      "branch": "refs/heads/decision/lav-post-implement-seam-1145",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1148-decision",
+      "head": "032a8182a829a600b1cf0e4e1f9bf65f3deb226a",
+      "branch": "refs/heads/decision/lav-evidence-contract-1148",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1148-integration",
+      "head": "ccfc9941a5d0ae7e51c53e00d0e3eb87585303f2",
+      "branch": "refs/heads/integration/lav-1148",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1323-spec-publication",
+      "head": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+      "branch": "refs/heads/codex/1323-spec-publication-20260909",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-lav-integration",
+      "head": "2e4d4e998b54adaaf0853ace2b1568bff444c0ad",
+      "branch": "refs/heads/integration/lav-s2-s3",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-main-pstack",
+      "head": "d9a2ca104f0f977c427ccd2b2d9dc6e812ec8842",
+      "branch": "refs/heads/ticket-1202-xzd-program",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-sandcastle-infra",
+      "head": "b032f038b99373a9172f5dcc30bde9c7509793e5",
+      "branch": null,
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-wt-unn",
+      "head": "44c49d4d546b5b2de859a2eabfbee63e1463894a",
+      "branch": "refs/heads/feat/unn-necessity-corollaries",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a1857ac32ba591225",
+      "head": "de8c6e7915fb70fff1b2f84908cb2d4bc01d919e",
+      "branch": "refs/heads/worktree-agent-a1857ac32ba591225",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a1b46ac04253134e4",
+      "head": "19b40159272c0ed9797769ca3e6b63c12d98ef01",
+      "branch": "refs/heads/worktree-agent-a1b46ac04253134e4",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a246c3b83f9580658",
+      "head": "a8d43d6fabee973c49c168ba4d0742e54afc1aac",
+      "branch": "refs/heads/worktree-agent-a246c3b83f9580658",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a3eac13cd25744e5d",
+      "head": "eb5cc9b4a411b6646656319623809477cd6f0d89",
+      "branch": "refs/heads/exp-155-wf7-l1-gate",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a461b2d41c1aec811",
+      "head": "cc7d00b309deda47d388f3e594ac0a15b4c8ae9e",
+      "branch": "refs/heads/worktree-agent-a461b2d41c1aec811",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a4cdef9cbb67ec97d",
+      "head": "19b40159272c0ed9797769ca3e6b63c12d98ef01",
+      "branch": "refs/heads/worktree-agent-a4cdef9cbb67ec97d",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a4f7cf707afe12f32",
+      "head": "19b40159272c0ed9797769ca3e6b63c12d98ef01",
+      "branch": "refs/heads/worktree-agent-a4f7cf707afe12f32",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a5912f206aa79389f",
+      "head": "19b40159272c0ed9797769ca3e6b63c12d98ef01",
+      "branch": "refs/heads/worktree-agent-a5912f206aa79389f",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a66fc0d845e0365cc",
+      "head": "0be6d7fa2e4aef95a36f432610a53f83e191697e",
+      "branch": "refs/heads/worktree-agent-a66fc0d845e0365cc",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a6cdff06703f0de30",
+      "head": "30a6b55372bb3a03520e1057372c0cc4e1f66ab0",
+      "branch": "refs/heads/worktree-agent-a6cdff06703f0de30",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a7cbcf5d4f39d2ab3",
+      "head": "de8c6e7915fb70fff1b2f84908cb2d4bc01d919e",
+      "branch": "refs/heads/worktree-agent-a7cbcf5d4f39d2ab3",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a897776a76173d893",
+      "head": "19b40159272c0ed9797769ca3e6b63c12d98ef01",
+      "branch": "refs/heads/worktree-agent-a897776a76173d893",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-a9f43a8c08a3c1ccc",
+      "head": "6d1b0602dd8f1eac1bb2439c426498eca12fcb43",
+      "branch": "refs/heads/worktree-agent-a9f43a8c08a3c1ccc",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-aa324e3ed9e9fd19f",
+      "head": "2f918d7bf3fb2469dc15922c24771da3bc71e505",
+      "branch": "refs/heads/worktree-agent-aa324e3ed9e9fd19f",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-aa3821c25e4bcffb9",
+      "head": "5590f449ca6bb6001b1793dffab5b58d920a658a",
+      "branch": "refs/heads/worktree-agent-aa3821c25e4bcffb9",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-aa6e160ac8ac820de",
+      "head": "0be6d7fa2e4aef95a36f432610a53f83e191697e",
+      "branch": "refs/heads/worktree-agent-aa6e160ac8ac820de",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-ac95bfeffbc771eb7",
+      "head": "2f918d7bf3fb2469dc15922c24771da3bc71e505",
+      "branch": "refs/heads/worktree-agent-ac95bfeffbc771eb7",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-ad057b427d85301e5",
+      "head": "19b40159272c0ed9797769ca3e6b63c12d98ef01",
+      "branch": "refs/heads/worktree-agent-ad057b427d85301e5",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-ad0fb1a36b79a236c",
+      "head": "df40d2ef6f0c367e9ca99b0510eb745b2a55a56e",
+      "branch": null,
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-ad1d992cede5cd786",
+      "head": "646c92bd0e698bfe38b8510e8da0f883ea68fe6d",
+      "branch": "refs/heads/worktree-agent-ad1d992cede5cd786",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-ad2bad314c1ecf69b",
+      "head": "19b40159272c0ed9797769ca3e6b63c12d98ef01",
+      "branch": "refs/heads/worktree-agent-ad2bad314c1ecf69b",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-ad548b7df83c64dbe",
+      "head": "b46174cb367678ea1c2b4bbf56811e19f89a0255",
+      "branch": "refs/heads/worktree-agent-ad548b7df83c64dbe",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-ad847f8c49395bed0",
+      "head": "19b40159272c0ed9797769ca3e6b63c12d98ef01",
+      "branch": "refs/heads/worktree-agent-ad847f8c49395bed0",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-ad8dfce67e654b6f4",
+      "head": "19b40159272c0ed9797769ca3e6b63c12d98ef01",
+      "branch": "refs/heads/worktree-agent-ad8dfce67e654b6f4",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-adc7ffe1de7988faf",
+      "head": "f38cd25f4c785ce9722efb891615949af497b89e",
+      "branch": "refs/heads/worktree-agent-adc7ffe1de7988faf",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-adec4ad94f6353f90",
+      "head": "78ce6b7b0f0d2aae4de238d8bd18ce0ba49050cb",
+      "branch": "refs/heads/worktree-agent-adec4ad94f6353f90",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-ae127f2abfab73c0e",
+      "head": "6d1b0602dd8f1eac1bb2439c426498eca12fcb43",
+      "branch": "refs/heads/worktree-agent-ae127f2abfab73c0e",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-ae4bce901df451173",
+      "head": "ccd8af66ca3822e1a60d15837cb38c6a64cd2e08",
+      "branch": "refs/heads/worktree-agent-ae4bce901df451173",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-ae517ccfbf0a8080a",
+      "head": "3e5eaceb0ad98083dd3d6dfc639e9fc6bcd7597c",
+      "branch": "refs/heads/worktree-agent-ae517ccfbf0a8080a",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-aebd1e8f008f2ff3e",
+      "head": "6d1b0602dd8f1eac1bb2439c426498eca12fcb43",
+      "branch": "refs/heads/worktree-agent-aebd1e8f008f2ff3e",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-af3878feb35eb9a1a",
+      "head": "fcd18cb389796b5d89a1718b3bf36c9d8908d1af",
+      "branch": "refs/heads/t5-149-shortdiff",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/agent-afb7185df8fcf214a",
+      "head": "ab9e5bbca69d6af379f2fc8628c5308237b6dfe4",
+      "branch": "refs/heads/issue832-c",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/bold-tesla",
+      "head": "7c78d717c13d5df1392928b5137efd9f466ac1e5",
+      "branch": "refs/heads/claude/bold-tesla",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/dazzling-kowalevski-52a297",
+      "head": "d53be572ff4daac31357ed4f501ae02a757c3a2d",
+      "branch": "refs/heads/claude/dazzling-kowalevski-52a297",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/distracted-herschel-75e391",
+      "head": "a7aa3db5ca8101a5cbb4c03ccae28bbeefa8c7fe",
+      "branch": "refs/heads/claude/distracted-herschel-75e391",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/elastic-noyce-f82f92",
+      "head": "9c4bd58eaed970072edeed4786c266e97102b68b",
+      "branch": "refs/heads/claude/elastic-noyce-f82f92",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/facea-impl-113",
+      "head": "54279a503e0e98cd22044e67828e1902243862ff",
+      "branch": "refs/heads/facea-impl-113-20260623",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/fix-S1-noleg",
+      "head": "e86ece26bbb469b05ff06605517579715698ada0",
+      "branch": "refs/heads/swarm/fix-S1-noleg",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/infallible-rhodes-a27a56",
+      "head": "a7aa3db5ca8101a5cbb4c03ccae28bbeefa8c7fe",
+      "branch": "refs/heads/claude/infallible-rhodes-a27a56",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/keen-cori-3a5b2f",
+      "head": "830efce4127972368b434503ee8c249833d7d6fd",
+      "branch": "refs/heads/claude/keen-cori-3a5b2f",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/peaceful-cerf-ac6d83",
+      "head": "ed3822e7ede2d1eea333a179df50a97cf1fc78d8",
+      "branch": "refs/heads/claude/peaceful-cerf-ac6d83",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/priceless-boyd-b3b230",
+      "head": "6b2535fa18f554a56008866c7531b26d689eca1f",
+      "branch": "refs/heads/claude/priceless-boyd-b3b230",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/quirky-matsumoto-c22fc2",
+      "head": "051c8b253dde7d31e0425f612a186163322ba8b6",
+      "branch": "refs/heads/claude/quirky-matsumoto-c22fc2",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/relaxed-lovelace-03bad0",
+      "head": "a7aa3db5ca8101a5cbb4c03ccae28bbeefa8c7fe",
+      "branch": "refs/heads/claude/relaxed-lovelace-03bad0",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/route-bsp-complete",
+      "head": "b88d8201e6f28f09fe3861d884647ed87cc7974c",
+      "branch": "refs/heads/route-bsp-complete-20260623",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/top-all-bsp-short",
+      "head": "f45bd35b2322842362e94b8d3bca7ac592edfe07",
+      "branch": "refs/heads/anchor-top-gate-combo",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/wf_2f91805d-f6f-1",
+      "head": "3cc8c49b7a92e2414507c7cc8b22cd18c0684374",
+      "branch": "refs/heads/worktree-wf_2f91805d-f6f-1",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/wf_5d177a52-0fb-1",
+      "head": "5c5cebdbb5fc8552a52610d0cc6c3f0214dfcbe1",
+      "branch": "refs/heads/a-route-cseg-drill-fix",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.claude/worktrees/wf_844a04d3-ddb-1",
+      "head": "237394bba9860041849bb96701cdf7f918e9040f",
+      "branch": "refs/heads/worktree-wf_844a04d3-ddb-1",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.sandcastle/worktrees/sandcastle-issue-1044",
+      "head": "08a1749b277c87cf748f59147774f41681a5adbc",
+      "branch": "refs/heads/sandcastle/issue-1044",
+      "disposition": "不属于本票清理范围，必须保留"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun/.sandcastle/worktrees/sandcastle-issue-1110",
+      "head": "3959dddd9411da6497d1afa7f7af2a11d4a4b239",
+      "branch": "refs/heads/sandcastle/issue-1110",
+      "disposition": "不属于本票清理范围，必须保留"
+    }
+  ],
+  "actions_performed": [
+    "只读Git对象/状态、票体、报告元数据、ps/lsof",
+    "仅写本预检MD/JSON以及根指定九文件保全目录"
+  ],
+  "actions_not_performed": [
+    "删除、移动、还原任何工作树文件",
+    "git checkout/reset/clean/commit/push或ref变更",
+    "GitHub写入或关票",
+    "构建、服务、测试、浏览器或Prime启动",
+    "重新产品独评或重复已有通过验证"
+  ]
+}

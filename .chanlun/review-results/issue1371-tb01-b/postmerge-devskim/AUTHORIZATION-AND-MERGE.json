@@ -1,0 +1,33 @@
+{
+  "user_authorization": [
+    "能不能修复这个东西",
+    "如果不行就批准"
+  ],
+  "scope": "PR #1449 固定 head 的一次 DevSkim 例外合入；不豁免 #1385 或 #1323 后续验收",
+  "expected_head": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+  "premerge_base": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+  "condition_confirmed_by": [
+    "work/DEVSKIM-REPAIR-FEASIBILITY.md",
+    "work/DEVSKIM-REPAIR-FEASIBILITY.json",
+    "work/DEVSKIM-REPAIR-PROBE/RESULT.json"
+  ],
+  "devskim_status": "FAIL",
+  "gate_remaining_actual": 9233,
+  "counterfactual_reviewed_only_baseline_remaining": 1,
+  "baseline_changed": false,
+  "product_changed_in_repair_attempt": false,
+  "merge_tool_receipt": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Action completed."
+      }
+    ],
+    "structuredContent": {
+      "sha": "d2219e8e014a5d55c091f8eda62ffb9dd8154953",
+      "merged": true,
+      "message": "Pull Request successfully merged"
+    },
+    "isError": false
+  }
+}

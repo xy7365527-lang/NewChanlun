@@ -1,0 +1,20 @@
+{
+  "kind": "COUNTERFACTUAL_GATE_FEASIBILITY_NOT_SCANNER_RERUN_NOT_BASELINE_ADOPTION",
+  "source_head": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+  "source_sarif": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14/devskim-results.sarif",
+  "source_sha256": "f64c3023864096b80e71205adf172b332b8f22d43617bd560a1a39199fc51602",
+  "projection_preserves_all_gate_read_fields": true,
+  "raw_results": 17484,
+  "unique_keys": 17422,
+  "existing_baseline": 8201,
+  "counterfactual_known_non_actionable_added": 9232,
+  "pending_not_added": [
+    "DS176209|rust/src/theta_v0/nautilus/strategy.rs|314"
+  ],
+  "gate_exit": 1,
+  "gate_remaining": 1,
+  "repo_baseline_changed": false,
+  "report_bytes_changed": false,
+  "meaning": "即使反事实登记全部已核误报，仍有既有未销限价映射条目；这不是实际修复或生产基线变更。原gate按#1194执行预期FAIL。",
+  "stdout_sha256": "bca62dbb45c67e9aed5f8ec46a6a9750a42016fb11528516112dcc46f46f30ee"
+}

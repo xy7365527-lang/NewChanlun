@@ -1,0 +1,479 @@
+{
+  "ticket": 1371,
+  "recorded_at": "2026-09-12T19:51:48.852588+00:00",
+  "main_sha": "d2219e8e014a5d55c091f8eda62ffb9dd8154953",
+  "ci": {
+    "conclusion": "success",
+    "databaseId": 34714772462,
+    "event": "push",
+    "headSha": "d2219e8e014a5d55c091f8eda62ffb9dd8154953",
+    "jobs": [
+      {
+        "completedAt": "2026-09-12T19:51:13Z",
+        "conclusion": "success",
+        "databaseId": 103609946606,
+        "name": "rust-check",
+        "startedAt": "2026-09-12T19:39:27Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-09-12T19:39:29Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-09-12T19:39:28Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:48Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "startedAt": "2026-09-12T19:39:29Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:52Z",
+            "conclusion": "success",
+            "name": "Test cargo telemetry wrapper (#1141)",
+            "number": 3,
+            "startedAt": "2026-09-12T19:39:48Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:58Z",
+            "conclusion": "success",
+            "name": "Record runner, toolchain, linker, and initial resources (#1141)",
+            "number": 4,
+            "startedAt": "2026-09-12T19:39:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:40:01Z",
+            "conclusion": "success",
+            "name": "Cache cargo registry + git only (#1141)",
+            "number": 5,
+            "startedAt": "2026-09-12T19:39:58Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:40:01Z",
+            "conclusion": "success",
+            "name": "Record cache result and post-cache resources (#1141)",
+            "number": 6,
+            "startedAt": "2026-09-12T19:40:01Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:40:46Z",
+            "conclusion": "success",
+            "name": "cargo check — default targets（required-features 未启用的 bin 不在内）",
+            "number": 7,
+            "startedAt": "2026-09-12T19:40:01Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:42:29Z",
+            "conclusion": "success",
+            "name": "cargo check — backtest_bin feature（#438：闭合 required-features 盲区）",
+            "number": 8,
+            "startedAt": "2026-09-12T19:40:46Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:42:33Z",
+            "conclusion": "success",
+            "name": "cargo fmt --check（#611：归零后防回潮）",
+            "number": 9,
+            "startedAt": "2026-09-12T19:42:29Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:46:23Z",
+            "conclusion": "success",
+            "name": "cargo test — default targets",
+            "number": 10,
+            "startedAt": "2026-09-12T19:42:33Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:47:09Z",
+            "conclusion": "success",
+            "name": "cargo test — s_session 正式结构会话（#1370）",
+            "number": 11,
+            "startedAt": "2026-09-12T19:46:23Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:51:10Z",
+            "conclusion": "success",
+            "name": "cargo test — backtest_bin feature（econ_oddeven_diagnosis.rs 仅在此 feature 下编译）",
+            "number": 12,
+            "startedAt": "2026-09-12T19:47:09Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:51:10Z",
+            "conclusion": "success",
+            "name": "Post Cache cargo registry + git only (#1141)",
+            "number": 23,
+            "startedAt": "2026-09-12T19:51:10Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:51:10Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v4",
+            "number": 24,
+            "startedAt": "2026-09-12T19:51:10Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:51:10Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 25,
+            "startedAt": "2026-09-12T19:51:10Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34714772462/job/103609946606"
+      },
+      {
+        "completedAt": "2026-09-12T19:43:16Z",
+        "conclusion": "success",
+        "databaseId": 103609946698,
+        "name": "test",
+        "startedAt": "2026-09-12T19:38:51Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-09-12T19:38:53Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-09-12T19:38:51Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:12Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "startedAt": "2026-09-12T19:38:53Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:16Z",
+            "conclusion": "success",
+            "name": "Cache Git LFS objects",
+            "number": 3,
+            "startedAt": "2026-09-12T19:39:12Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:17Z",
+            "conclusion": "success",
+            "name": "Fetch LFS objects",
+            "number": 4,
+            "startedAt": "2026-09-12T19:39:16Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:17Z",
+            "conclusion": "success",
+            "name": "Grep gate — window-binding artifacts banned (G1)",
+            "number": 5,
+            "startedAt": "2026-09-12T19:39:17Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:25Z",
+            "conclusion": "success",
+            "name": "Set up Python 3.13",
+            "number": 6,
+            "startedAt": "2026-09-12T19:39:17Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:28Z",
+            "conclusion": "success",
+            "name": "Cache cargo (registry + newchan_rust target)",
+            "number": 7,
+            "startedAt": "2026-09-12T19:39:25Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:40:48Z",
+            "conclusion": "success",
+            "name": "Install dependencies",
+            "number": 8,
+            "startedAt": "2026-09-12T19:39:28Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:41:21Z",
+            "conclusion": "success",
+            "name": "Build and install newchan_rust extension",
+            "number": 9,
+            "startedAt": "2026-09-12T19:40:48Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:43:10Z",
+            "conclusion": "success",
+            "name": "Run tests with coverage",
+            "number": 10,
+            "startedAt": "2026-09-12T19:41:21Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:43:12Z",
+            "conclusion": "success",
+            "name": "Upload coverage report",
+            "number": 11,
+            "startedAt": "2026-09-12T19:43:10Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:43:13Z",
+            "conclusion": "success",
+            "name": "Post Cache cargo (registry + newchan_rust target)",
+            "number": 19,
+            "startedAt": "2026-09-12T19:43:12Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:43:13Z",
+            "conclusion": "success",
+            "name": "Post Set up Python 3.13",
+            "number": 20,
+            "startedAt": "2026-09-12T19:43:13Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:43:13Z",
+            "conclusion": "success",
+            "name": "Post Cache Git LFS objects",
+            "number": 21,
+            "startedAt": "2026-09-12T19:43:13Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:43:14Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v4",
+            "number": 22,
+            "startedAt": "2026-09-12T19:43:13Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:43:14Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 23,
+            "startedAt": "2026-09-12T19:43:14Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34714772462/job/103609946698"
+      },
+      {
+        "completedAt": "2026-09-12T19:41:22Z",
+        "conclusion": "success",
+        "databaseId": 103609946710,
+        "name": "fixture-drift",
+        "startedAt": "2026-09-12T19:38:50Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-09-12T19:38:52Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-09-12T19:38:51Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:14Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v4",
+            "number": 2,
+            "startedAt": "2026-09-12T19:38:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:49Z",
+            "conclusion": "success",
+            "name": "Cache elan toolchain",
+            "number": 3,
+            "startedAt": "2026-09-12T19:39:14Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:50Z",
+            "conclusion": "success",
+            "name": "Install elan",
+            "number": 4,
+            "startedAt": "2026-09-12T19:39:49Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:41:17Z",
+            "conclusion": "success",
+            "name": "Build formal (lake build)",
+            "number": 5,
+            "startedAt": "2026-09-12T19:39:50Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:41:19Z",
+            "conclusion": "success",
+            "name": "Fixture drift check (Lean → fixtures)",
+            "number": 6,
+            "startedAt": "2026-09-12T19:41:17Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:41:19Z",
+            "conclusion": "success",
+            "name": "Post Cache elan toolchain",
+            "number": 11,
+            "startedAt": "2026-09-12T19:41:19Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:41:19Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v4",
+            "number": 12,
+            "startedAt": "2026-09-12T19:41:19Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:41:19Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 13,
+            "startedAt": "2026-09-12T19:41:19Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34714772462/job/103609946710"
+      }
+    ],
+    "status": "completed",
+    "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34714772462"
+  },
+  "devskim": {
+    "conclusion": "failure",
+    "databaseId": 34714772442,
+    "event": "push",
+    "headSha": "d2219e8e014a5d55c091f8eda62ffb9dd8154953",
+    "jobs": [
+      {
+        "completedAt": "2026-09-12T19:49:07Z",
+        "conclusion": "failure",
+        "databaseId": 103609946615,
+        "name": "DevSkim",
+        "startedAt": "2026-09-12T19:38:50Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-09-12T19:38:52Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-09-12T19:38:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:12Z",
+            "conclusion": "success",
+            "name": "Checkout code",
+            "number": 2,
+            "startedAt": "2026-09-12T19:38:52Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:39:37Z",
+            "conclusion": "success",
+            "name": "Build reproducible DevSkim scanner image",
+            "number": 3,
+            "startedAt": "2026-09-12T19:39:12Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:44:24Z",
+            "conclusion": "success",
+            "name": "Run DevSkim scanner",
+            "number": 4,
+            "startedAt": "2026-09-12T19:39:37Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:44:28Z",
+            "conclusion": "success",
+            "name": "Upload DevSkim SARIF as an ordinary Actions artifact",
+            "number": 5,
+            "startedAt": "2026-09-12T19:44:24Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:49:05Z",
+            "conclusion": "failure",
+            "name": "Enforce zero-findings gate and write summary",
+            "number": 6,
+            "startedAt": "2026-09-12T19:44:28Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:49:06Z",
+            "conclusion": "success",
+            "name": "Post Checkout code",
+            "number": 12,
+            "startedAt": "2026-09-12T19:49:05Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-09-12T19:49:06Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 13,
+            "startedAt": "2026-09-12T19:49:06Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34714772442/job/103609946615"
+      }
+    ],
+    "status": "completed",
+    "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34714772442"
+  },
+  "gate_comparison": {
+    "scope": "actual CI gate logs, exact outside-baseline key sets; not a full SARIF byte comparison",
+    "pr_head": "256cd822e0d872f1fb65d433ca0b15b01fa621a2",
+    "main_head": "d2219e8e014a5d55c091f8eda62ffb9dd8154953",
+    "pr_run": 34709866745,
+    "main_run": 34714772442,
+    "outside_keys": 9233,
+    "equal": true,
+    "sorted_keyset_sha256": "472a4fb0fb4f33b63e65e3ac6a272df324d6636f80980dffd5ffe17734b5008f",
+    "files": [
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/PR1449-R14-DEVSKIM-FAILED.log",
+        "bytes": 1693107,
+        "sha256": "9a15e8ad877708391476abdaba9ab1cfb89ad5d90dcbd7ef528d406145fab185"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/PR1449-MAIN-DEVSKIM-FAILED.log",
+        "bytes": 1693107,
+        "sha256": "7a35cb9ee910a09acb4119d68db996c36cfca10544d8824b0366995df32d013e"
+      }
+    ],
+    "gate_conclusion": "FAIL",
+    "source_tree_equal": true
+  },
+  "scope": "实际d2219主线检查；不冒称本尾文档head检查",
+  "product_retests_local": false
+}
