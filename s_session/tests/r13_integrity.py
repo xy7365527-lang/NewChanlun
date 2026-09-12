@@ -66,6 +66,26 @@ def main():
         reads.append(dict(db=str(db), cut=as_of, ok=True))
         return state
 
+    def assert_unavailable(db, label, generation, extra):
+        before = dump(db)
+        for cut in [None, 0, generation]:
+            try:
+                read(db, cut)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(f"{label}: Python 未拒绝损坏存储，cut={cut}")
+            options = [] if cut is None else ["--as-of", cut]
+            result = cli(db, "snapshot", *options)
+            assert result.returncode != 0 and "StorageUnavailable" in result.stderr
+        for command, options in [
+            ("accept", ["--input", extra, "--profile", PROFILE]),
+            ("advance", []), ("recover", ["--new-epoch", "2"]),
+        ]:
+            result = cli(db, command, *options)
+            assert result.returncode != 0 and "StorageUnavailable" in result.stderr
+            assert dump(db) == before, f"{label}: {command} 失败后持久事实改变"
+
     failure = None
     try:
         seed = args.output / "seed.db"
@@ -104,25 +124,24 @@ def main():
                     # 标识符只来自固定测试表及正式 schema，值取真实已发布行。
                     inserted = conn.execute(f"INSERT INTO {table} SELECT {','.join(expressions)} FROM {table} LIMIT 1")
                     assert inserted.rowcount == 1
-            before = dump(db)
-            for cut in [None, 0, 4]:
-                try:
-                    read(db, cut)
-                except ValueError:
-                    pass
-                else:
-                    raise AssertionError(f"{table}: Python 未拒绝未来索引，cut={cut}")
-                options = [] if cut is None else ["--as-of", cut]
-                result = cli(db, "snapshot", *options)
-                assert result.returncode != 0 and "StorageUnavailable" in result.stderr
-            for command, options in [
-                ("accept", ["--input", extra, "--profile", PROFILE]),
-                ("advance", []), ("recover", ["--new-epoch", "2"]),
-            ]:
-                result = cli(db, command, *options)
-                assert result.returncode != 0 and "StorageUnavailable" in result.stderr
-                assert dump(db) == before, f"{table}: {command} 失败后持久事实改变"
+            assert_unavailable(db, table, 4, extra)
             cases.append(dict(table=table, withdrawn=withdrawn, passed=True))
+        later = input_file("later", "e4", 1, 4, 10700)
+        for published in [False, True]:
+            for kind, coordinate in [("invalid", "bad"), ("collision", "0")]:
+                db = args.output / f"pending-{published}-{kind}.db"
+                if published:
+                    with closing(sqlite3.connect(seed)) as source, closing(sqlite3.connect(db)) as conn:
+                        source.backup(conn)
+                else:
+                    ok(cli(db, "init", "--session", "r13-integrity", "--catalog", CATALOG))
+                    ok(cli(db, "accept", "--input", args.output / "e0.json", "--profile", PROFILE))
+                ok(cli(db, "accept", "--input", extra, "--profile", PROFILE))
+                read(db, None)  # 合法待发布原始事件仍可读。
+                with closing(sqlite3.connect(db)) as conn, conn:
+                    conn.execute("UPDATE raw_events SET source_coord=? WHERE event_id='e3'", (coordinate,))
+                assert_unavailable(db, f"pending-{published}-{kind}", 4 if published else 0, later)
+                cases.append(dict(kind="pending_raw", published=published, corruption=kind, passed=True))
     except Exception as exc:
         failure = dict(exception=type(exc).__name__, message=str(exc))
         raise
@@ -130,7 +149,7 @@ def main():
         report = dict(cases=cases, calls=calls, reads=reads, failure=failure,
                       reader=str(args.reader.resolve()), binary=str(args.binary.resolve()))
         (args.output / "RESULT.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"PASS: {len(cases)} 个未来索引分支；双端三种 cut；三类写入拒绝且全库事实不变")
+    print(f"PASS: {len(cases)} 个未来索引/未发布原始记录分支；双端当前/历史读取；三类写入拒绝且全库事实不变")
 
 
 if __name__ == "__main__":

@@ -337,11 +337,30 @@ def _verify_published_index_generations(conn, generation):
             raise ValueError(f"{table} 含不属于 1..={generation} 已发布代的索引行")
 
 
+def _verify_raw_source_coords(conn):
+    """#1371 AC7：与 Rust 同义地核全体已接纳源坐标，包含尚未进入发布 cut 的记录。"""
+    owners = {}
+    positions = {}
+    for identity, raw in conn.execute("SELECT identity_key,source_coord FROM raw_events"):
+        if type(identity) is not str:
+            raise ValueError("raw.identity_key 不是字符串")
+        coordinate = _canonical_i64_str(raw, "raw.source_coord")
+        if coordinate > sys.maxsize * 2 + 1:
+            raise ValueError("raw.source_coord 不能无损表示为本平台源位置")
+        if coordinate in owners and owners[coordinate] != identity:
+            raise ValueError("原始源坐标属于多个业务身份")
+        if identity in positions and positions[identity] != coordinate:
+            raise ValueError("同一业务身份的源坐标发生改变")
+        owners[coordinate] = identity
+        positions[identity] = coordinate
+
+
 def _verify_reachable_root(conn):
     """#1371 R9：与 Rust 同义的完整11列/可达代链/封存坐标/载荷验证，所有正式读入口共用。"""
     meta = meta_dict(conn)
     gen = _validate_required_meta(meta)
     _verify_published_index_generations(conn, gen)
+    _verify_raw_source_coords(conn)
     profile_binding = _verify_profile_binding(conn)
     rows = conn.execute(
         "SELECT generation,session_id,catalog_revision,base_cut,next_cut,seq_range_json,"

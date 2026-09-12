@@ -900,6 +900,10 @@ fn profile_at_cut(conn: &Connection, generation: i64) -> Result<(String, String)
 }
 
 fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
+    verified_root_raw_events(conn).map(|_| ())
+}
+
+fn verified_root_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
     verify_reachable_root_in_tx(conn).map_err(|e| format!("StorageUnavailable：{e}"))
 }
 
@@ -923,9 +927,11 @@ fn verify_published_index_generations(conn: &Connection, generation: i64) -> Res
     Ok(())
 }
 
-fn verify_reachable_root_in_tx(conn: &Connection) -> Result<(), String> {
+fn verify_reachable_root_in_tx(conn: &Connection) -> Result<Vec<Value>, String> {
     let generation = verify_required_meta(conn)?;
     verify_published_index_generations(conn, generation)?;
+    // #1371 AC7：已接纳但未发布的原始事实也是持久前件；所有结构读写共用坐标完整性门。
+    let raw_events = read_raw_events(conn)?;
     let profile_binding = verify_profile_binding(conn)?;
     let meta_session = meta_get_opt(conn, "session_id")?.unwrap_or_default();
     let meta_cat = meta_get_opt(conn, "catalog_revision")?.unwrap_or_default();
@@ -965,7 +971,7 @@ fn verify_reachable_root_in_tx(conn: &Connection) -> Result<(), String> {
                 "StorageUnavailable：初态 generation=0 却存在持久 Delta（不一致）".to_string(),
             );
         }
-        return Ok(());
+        return Ok(raw_events);
     }
 
     if rows.len() != generation as usize {
@@ -1116,7 +1122,7 @@ fn verify_reachable_root_in_tx(conn: &Connection) -> Result<(), String> {
             last.4
         ));
     }
-    Ok(())
+    Ok(raw_events)
 }
 
 fn ensure_initialized(conn: &Connection) -> Result<(), String> {
@@ -2000,7 +2006,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|e| format!("Begin 事务失败：{e}"))?;
         verify_writer_epoch(&tx, configured_epoch)?;
-        verify_reachable_root(&tx)?;
+        let all_events = verified_root_raw_events(&tx)?;
         let (profile_id, profile_hash) = verify_profile_binding(&tx)?;
         let catalog_revision = meta_get_opt(&tx, "catalog_revision")?.unwrap_or_default();
         let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_else(|| "idle".to_string());
@@ -2017,8 +2023,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
                 r.get(0)
             })
             .map_err(|e| format!("读输入前沿失败：{e}"))?;
-        // 在同一输入快照中先核源坐标，存量损坏不新增 Begin；结构解释仍在持久 Begin 后。
-        let all_events = read_raw_events(&tx)?;
+        // 复用同一事务根门已校验的原始向量；结构解释仍在持久 Begin 后。
         // 幂等重试：无新输入（frontier == 已提交前沿）且已有已发布代 → 不产新 cut，返回现有已提交结果。
         // （after_commit 丢回执后同 argv 重试不再新增 generation；DeliveryUnknown 按原身份查权威结果。）
         let last_frontier: i64 = meta_i64(&tx, "last_advance_frontier")?;
@@ -4588,6 +4593,73 @@ mod tests {
             snapshot_of(&files, None)["objects"][0]["source_coords"],
             json!(["7", "15", "99"])
         );
+    }
+
+    #[test]
+    fn source_coord_pending_corruption_blocks_all_root_operations() {
+        for published in [false, true] {
+            for bad in ["bad", "0"] {
+                let files = TestFiles::new();
+                init_test_db(&files);
+                accept(
+                    &files,
+                    &test_input(&[ev("e0", "1", "0", "10000"), ev("e1", "1", "1", "11000")]),
+                    "seed.json",
+                    DEFAULT_WRITER_EPOCH,
+                );
+                if published {
+                    cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                }
+                accept(
+                    &files,
+                    &test_input(&[ev("e2", "1", "2", "10500")]),
+                    "pending.json",
+                    DEFAULT_WRITER_EPOCH,
+                );
+                let conn = open_db(&files.db()).unwrap();
+                conn.execute(
+                    "UPDATE raw_events SET source_coord=?1 WHERE event_id='e2'",
+                    params![bad],
+                )
+                .unwrap();
+                let before = db_meta(&conn).unwrap();
+                let extra = write_input(
+                    &files,
+                    "extra.json",
+                    &test_input(&[ev("e3", "1", "3", "10800")]),
+                );
+                for result in [
+                    cmd_snapshot(&files.db(), None),
+                    cmd_snapshot(&files.db(), Some(0)),
+                    cmd_accept(
+                        &files.db(),
+                        &extra,
+                        &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+                        DEFAULT_WRITER_EPOCH,
+                    ),
+                    cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
+                    cmd_recover(&files.db(), "2"),
+                ] {
+                    assert!(
+                        result.unwrap_err().contains("StorageUnavailable"),
+                        "{published}/{bad}"
+                    );
+                    assert_eq!(db_meta(&conn).unwrap(), before);
+                    assert_eq!(
+                        conn.query_row("SELECT COUNT(*) FROM raw_events", [], |r| r
+                            .get::<_, i64>(0))
+                            .unwrap(),
+                        3
+                    );
+                    assert_eq!(
+                        conn.query_row("SELECT COUNT(*) FROM writer_epoch_history", [], |r| r
+                            .get::<_, i64>(0))
+                            .unwrap(),
+                        0
+                    );
+                }
+            }
+        }
     }
 
     #[test]
