@@ -1,0 +1,152 @@
+{
+  "schema": "issue1371.r12.codex-native-reading.v1",
+  "session_id": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "candidate": "e5b03629adde165610161b4df3e2d62d22163568",
+  "base": "4922543038fbcfef1a4d711a306708ace3f62e88",
+  "boundaries": [
+    "仅CC-006/local_shape TestOnly退化OHLC、相邻严格无包含、首方向已知、无tie的TB-01-B子域；8AC/17项PASS不销完整来源义务、#1323、全部62CC/44ST/10LC、其他TB或经济域。",
+    "原492254完整R7总评FAIL和两个MEDIUM原缺陷记录保持冻结；新e5通过不是重写旧结果。#1448旧R6同ID迁移仍未满足，R6继续INCOMPLETE。",
+    "本评审为同一个Codex原生子代理 /root/r7_codex_product_review，未使用Prime、未新增代理、未取得底层provider模型UUID；不捏造模型或平台签名身份。",
+    "只读/允许Node/仅产出目录是任务指令约束，不是操作系统沙盒。本轮执行固定候选永久10项与7项精确函数补充，没有执行native、launcher、服务、完整GUI、容器、交易、GitHub或合入；根既有GUI与28用例另列来源。",
+    "函数级使用真实HTML脚本，仅移除尾部自动load并提供模拟DOM/fetch，完整State/六Maps/绑定是函数断言与保存结果；不称真实浏览器内部读数。",
+    "真实GUI由根执行，重送历史HTTP原字节和明确TestOnly截取/字段变换，未重算native。浏览器实际保持A3、拒绝、重试及切换可见；没有独立读取浏览器六Maps。截图为当时视窗，AX提供同页完整元数据；两者与函数级全状态对拍共同支撑，不互相冒称。",
+    "GUI Gap原始请求为after99，按既定TestOnly输送到after3且body不改；不是新的过期保留压力/断网实验。正常g3→4和R7三杀seed三事件一次cut1的轨迹不混用。",
+    "wrong-old-seed3捕获仍A1，是无效种子操作，不计通过；随后wrong-old-seed3-confirmed为真实A3。28次请求均已sendall完成，但服务stop/lsof回执是根从实际工具返回结构转录，不是平台签名会话导出。",
+    "独立补充检查初次预期发布绑定漏列catalog_run_status/catalog_evidence，7项在最后绑定断言失败；诊断后只修测试期望并保留初始脚本/输出及诊断输出，最终7项通过。此失败不是产品缺陷，未因此扩大后端测试。",
+    "旧R5可解码正式launcher回执、仍缺失的/tmp大型独立矩阵、旧A oracle同字节有限复用、native硬杀不等硬件断电等限制，继续以原R7各行限制与READING-LOG为准。未重读全包或重跑原生所有测试。"
+  ],
+  "graph_metadata": "get_architecture(NewChanlun): project not indexed; available projects没有e5版本绑定。直接读固定git对象。",
+  "source_reads": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+      "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+      "location": "完整4文件差异，包括夹具全部字节解析"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/candidate/s_session/browser/index.html",
+      "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe",
+      "location": "新增两门+完整影响控制流L292–688；其他未改页面部分承接同会话R7全文审阅"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/candidate/s_session/tests/r12_consumer.cjs",
+      "sha256": "228a9cb06b385a124b1cc4bbccaefbb85f252868777381f99281224b29c99e39",
+      "location": "全文102行"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/candidate/s_session/tests/fixtures/r12_consumer.json",
+      "sha256": "1b0020a69a897da000056666907ef606a6d0b2ed35bac97ec65d625131e25745",
+      "location": "全部字节解析及6原始body深等；未将388KB文字逐行展示"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/candidate/.chanlun/agent-roster-2026-09-12.md",
+      "sha256": "83a8be0eca729e8a821f01d1130cdc348888e12fe3e0e3433aa76aacb3ac0378",
+      "location": "全文7行"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/browser_fault_server.r12.py",
+      "sha256": "24af6b7fbf3fee4593a169b2ef5ba2b42941ce96dd8391503418945ddcd7c170",
+      "location": "全文335行只读，未导入/执行"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/replay-r11.cjs",
+      "sha256": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f",
+      "location": "全文L1–26：未改r9_consumer，fetch只返回原HTTP字节，无新网络"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/RESULT.json",
+      "sha256": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0",
+      "location": "/source_sha256=e5 HTML；/http 55份完整body对原件；/cases全部28行；坏stream/Gap before=after；late winner=after"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+      "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32",
+      "location": "/source,/test_sha256,/html_sha256,/requests,/exit=0；由根执行，R12独评不再重跑"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+      "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587",
+      "location": "根实际RED exit1、GREEN exit0、R11回放exit0；结构转录不是平台签名"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+      "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+      "location": "全文独立新增检查代码"
+    }
+  ],
+  "same_byte_source_check": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+    "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+    "location": "8关键文件三方一致；全Git差异只有4文件"
+  },
+  "inherited_review": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/READING-LOG.json",
+    "sha256": "c1af3861b40292daef3b8f289f67bf7af70ec7d9fdd06b48c1295e59a768afda",
+    "location": "本同一代理R7实际阅读范围与未检查项，不宣称R12重新全读"
+  },
+  "archive_inventory": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/archive-read-inventory.json",
+    "sha256": "68777475cca64e9a23a2efe4e38a4ec85f31bc529dfede6580be0fcfb828f68c",
+    "location": "252文件实际字节读取/hash，28请求/55回放body/8来源/10AX全部纯解析；不是252份人工全文阅读"
+  },
+  "visual_images": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-rejected.jpg",
+      "sha256": "bb435eb96a8b153adc28eee6c490c4995333af9eb57632ff4352ec2100935905",
+      "location": "本代理view_image实际查看原截图"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-rejected.jpg",
+      "sha256": "bb435eb96a8b153adc28eee6c490c4995333af9eb57632ff4352ec2100935905",
+      "location": "本代理view_image实际查看原截图"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.jpg",
+      "sha256": "04acacccb744540c334e25947706796addbb6ea133f5de4e99343bfe55679e60",
+      "location": "本代理view_image实际查看原截图"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-retry4.jpg",
+      "sha256": "b8af8b8e33e4db52f54219dc0c8db27139d816acbdbce311d30b86a98dec1588",
+      "location": "本代理view_image实际查看原截图"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-retry4.jpg",
+      "sha256": "b8af8b8e33e4db52f54219dc0c8db27139d816acbdbce311d30b86a98dec1588",
+      "location": "本代理view_image实际查看原截图"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.jpg",
+      "sha256": "3555c1ac1240aa69c72b752bc29157295125f11cdbbfe744fd1ba957750cfc23",
+      "location": "本代理view_image实际查看原截图"
+    }
+  ],
+  "normative_reread": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/inputs/SPEC-COVERAGE-INPUT.json",
+    "sha256": "76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c",
+    "location": "/rf02_acceptance_obligations/9/acceptance_points/0；/observation_contracts/7,/14,/15/acceptance_points/0；其余13条规范+crosswalk继承R7同字节审阅"
+  },
+  "truncation_disclosure": [
+    "目录全列与VALIDATION/REPLAY-RECEIPT一次显示被截断，随后用完整JSON纯解析与精确字段抽取补核，未据截断输出作全读声明。"
+  ],
+  "not_checked": [
+    "未重跑native35测试、三杀、正式launcher或完整GUI矩阵；代码同字节仅复用原有效域。",
+    "四张种子截图只核SHA和AX，未逐张view_image。",
+    "未重新审整个主图、经济故事、A完整oracle包或未提供的旧/tmp原件。",
+    "W后续报告文档未纳入e5代码审查；只对固定commit。"
+  ],
+  "gui_author_summary_read": {
+    "manifest": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/GUI-MANIFEST.json",
+      "sha256": "82b9606d9630573c85cc75018126260aa64ffe3ffb57721c75e24fbbf011aa66",
+      "location": "清单结构/220文件逐哈希；非另跑GUI"
+    },
+    "result": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/GUI-RESULT.json",
+      "sha256": "604cca4fd3c4f4f8aa426dabc4be853157ef3b82c921405347b21e43be308b1e",
+      "location": "仅摘要、auditor/counts/integrity_anomalies/recorded_exceptions字段读取，不声称全文语义审阅"
+    },
+    "md": "只核SHA，未全文阅读"
+  },
+  "files_written_only_under": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review"
+}

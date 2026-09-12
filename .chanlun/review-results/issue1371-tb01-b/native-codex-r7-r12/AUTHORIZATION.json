@@ -1,0 +1,20 @@
+{
+  "kind": "R7_REPLACEMENT_APPROVED_CODEX_NATIVE_DELEGATED",
+  "recorded_at": "2026-09-12T11:54:55.665408+00:00",
+  "ticket": 1371,
+  "parent_goal": 1323,
+  "user_confirmation": "确认",
+  "user_runtime_instruction": "你不用primeagent 直接用codex 你自己的子代理就可以",
+  "candidate": "4922543038fbcfef1a4d711a306708ace3f62e88",
+  "base": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+  "manifest_sha256": "543cba068be3f3da7b215670b88712ce8e6065ff9222d452a3a7536ba0cafeae",
+  "proposal_sha256": "c72712b54d03f73a4e788786e07b82dbc3cdd432f4dc30266f8816bbab69f7dc",
+  "runtime": "codex_native_subagent",
+  "review_agent": "/root/r7_codex_product_review",
+  "prior_r6": "INCOMPLETE_original_session_not_found",
+  "prime_r7_started": false,
+  "old_prime_entry": "retained_unexecuted_superseded_by_explicit_runtime_instruction",
+  "issue1448_same_id": "not_proven_not_waived",
+  "main_merge_approval": false,
+  "result": "review_pending"
+}

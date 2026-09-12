@@ -1,0 +1,104 @@
+{
+  "schema": "issue1371.r12.codex-native-execution.v1",
+  "session_id": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "candidate": "e5b03629adde165610161b4df3e2d62d22163568",
+  "authorized": "父代理传达用户同范围授权：Node永久10项及精确补充；不得重跑native/完整GUI。",
+  "independent_runs": [
+    {
+      "type": "permanent",
+      "receipt": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/PERMANENT-EXECUTION.json",
+        "sha256": "133b8724c6113d36cf4f885cab3ef1d0766bb3303f9d5a3bd9da33dcfb282797",
+        "location": "全文"
+      },
+      "result": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/permanent.stdout.json",
+        "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704",
+        "location": "10项全部通过"
+      }
+    },
+    {
+      "type": "supplement_initial_oracle_error",
+      "receipt": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/initial-SUPPLEMENT-EXECUTION.json",
+        "sha256": "fe243c1020f05321625c6dc6bb9261a92b51be3671f739fb696735798b326457",
+        "location": "exit1；7项最后绑定断言失败"
+      },
+      "script": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/initial-supplement.cjs",
+        "sha256": "cdd09647ff654175dd772958c2cf1a1c5a7b9d97db5090ecf606d0552feabb01",
+        "location": "原错误期望缺两个字段"
+      },
+      "result": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/initial-supplement.stdout.json",
+        "sha256": "feb02e0c07fad5524316afa095271720318f36bb7385f382fb873d5acdaf2235",
+        "location": "7项失败原件"
+      }
+    },
+    {
+      "type": "supplement_diagnostic",
+      "tool_result": "exec_command chunk 9b7da6 外层exit0；Node失败信息打印并保存；未单独保存Node exit/时间回执",
+      "result": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/diagnostic.stdout.json",
+        "sha256": "2e04c97788a5956256a9ec00d2fde1fe67c2b7d7614356006ad93413dbe8fb6d",
+        "location": "7项详细actual/expected差异，额外catalog_evidence/catalog_run_status；非产品改动"
+      }
+    },
+    {
+      "type": "supplement_corrected",
+      "receipt": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+        "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+        "location": "exit0；7项全部通过"
+      },
+      "result": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+        "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+        "location": "/cases,/full_state_outputs"
+      }
+    }
+  ],
+  "final_independent_unique_cases": 17,
+  "root_archival_runs": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/replay-r11.cjs",
+      "sha256": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f",
+      "location": "全文L1–26：未改r9_consumer，fetch只返回原HTTP字节，无新网络"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/RESULT.json",
+      "sha256": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0",
+      "location": "/source_sha256=e5 HTML；/http 55份完整body对原件；/cases全部28行；坏stream/Gap before=after；late winner=after"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+      "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32",
+      "location": "/source,/test_sha256,/html_sha256,/requests,/exit=0；由根执行，R12独评不再重跑"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+      "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587",
+      "location": "根实际RED exit1、GREEN exit0、R11回放exit0；结构转录不是平台签名"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/RUN.json",
+      "sha256": "a7fa1dc0b84dd6f85d7dd78a02799753c59b7261dbb5143307ab7f587993a4f1",
+      "location": "根GUI启动及固定HTML/tool SHA"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/STOPPED.json",
+      "sha256": "405416f6564edf6f62ef5130ae90eb42134b53c4a900b708339a2d1dfce0b242",
+      "location": "/requests_started=28"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/SERVICE-STOP-RECEIPT.json",
+      "sha256": "778abfd7e6277eaab09f354da0596537fb4281773a1366040e07c1c3cd8184d1",
+      "location": "根工具结果结构转录exit0/lsof空"
+    }
+  ],
+  "product_modified": false,
+  "native_executed": false,
+  "service_or_gui_executed_by_this_subagent": false,
+  "network_requested_by_this_subagent": false
+}
