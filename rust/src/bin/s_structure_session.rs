@@ -28,6 +28,9 @@
 //!   不写第二份生产判定器；不调用 `ThetaPiStream` 资金推进冒充 S；不启动 E/B/X。
 //! - S 持久域是 S 自己的数据库文件（`--db`），不复用 `trading_system/persistence/database.py` 共库。
 
+#[path = "s_session_v2/mod.rs"]
+mod v2;
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -904,6 +907,7 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
 }
 
 fn verified_root_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
+    v2::verify_control(conn)?;
     verify_reachable_root_in_tx(conn).map_err(|e| format!("StorageUnavailable：{e}"))
 }
 
@@ -1221,6 +1225,11 @@ fn record_connection_pragmas(conn: &Connection, stage: &str) {
 }
 
 fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String> {
+    println!("{}", init_core(db, session, catalog_path)?);
+    Ok(())
+}
+
+fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, String> {
     // H4：init 只允许不存在的目标——拒绝覆盖既有库（既有持久事实可恢复）。
     if db.exists() {
         return Err(format!(
@@ -1324,20 +1333,16 @@ fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String>
     }
     tx.commit()
         .map_err(|e| format!("catalog commit 失败：{e}"))?;
-    println!(
-        "{}",
-        json!({
-            "ok": true,
-            "session_id": session,
-            "sqlite_version": sqlite_version,
-            "journal_mode": journal_mode,
-            "synchronous": synchronous,
-            "platform": std::env::consts::OS,
-            "writer_epoch": DEFAULT_WRITER_EPOCH,
-            "catalog_items": items.len()
-        })
-    );
-    Ok(())
+    Ok(json!({
+        "ok": true,
+        "session_id": session,
+        "sqlite_version": sqlite_version,
+        "journal_mode": journal_mode,
+        "synchronous": synchronous,
+        "platform": std::env::consts::OS,
+        "writer_epoch": DEFAULT_WRITER_EPOCH,
+        "catalog_items": items.len()
+    }))
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1352,6 +1357,20 @@ fn cmd_accept(
     configured_epoch: &str,
 ) -> Result<(), String> {
     let text = std::fs::read_to_string(input_path).map_err(|e| format!("读输入失败：{e}"))?;
+    println!(
+        "{}",
+        accept_core(db, &text, profile_path, configured_epoch, None)?
+    );
+    Ok(())
+}
+
+fn accept_core(
+    db: &Path,
+    text: &str,
+    profile_path: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+) -> Result<Value, String> {
     let input: RawInputFile =
         serde_json::from_str(&text).map_err(|e| format!("输入 JSON 解析失败：{e}"))?;
     if input.schema_revision != "1" {
@@ -1579,23 +1598,20 @@ fn cmd_accept(
             }));
         }
 
+        v2::record_accept(&tx, context, &results)?;
         meta_set(&tx, "input_profile", &input.profile)?;
         meta_set(&tx, "input_file_hash", &sha256_hex(text.as_bytes()))?;
     }
     tx.commit()
         .map_err(|e| format!("accept commit 失败：{e}"))?;
-    println!(
-        "{}",
-        json!({
-            "ok": true,
-            "session_id": input.session_id,
-            "profile": profile_id,
-            "profile_hash": profile_hash,
-            "volume_unit": volume_unit,
-            "results": results,
-        })
-    );
-    Ok(())
+    Ok(json!({
+        "ok": true,
+        "session_id": input.session_id,
+        "profile": profile_id,
+        "profile_hash": profile_hash,
+        "volume_unit": volume_unit,
+        "results": results,
+    }))
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1638,7 +1654,8 @@ fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
         .map_err(|e| format!("collect 失败：{e}"))?;
     let mut owners = BTreeMap::new();
     let mut positions = BTreeMap::new();
-    for event in &rows {
+    let mut prior_revisions = BTreeMap::new();
+    for (expected_seq, event) in rows.iter().enumerate() {
         let coord = stored_source_coord(event)?;
         let identity = event["identity_key"]
             .as_str()
@@ -1651,6 +1668,77 @@ fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
                 .is_some_and(|old| old != coord)
         {
             return Err("StorageUnavailable：原始源坐标与业务身份的唯一归属被破坏".to_string());
+        }
+        let raw = RawEvent {
+            event_id: event["event_id"]
+                .as_str()
+                .ok_or("StorageUnavailable：event_id非文本")?
+                .to_owned(),
+            revision: event["input_revision"]
+                .as_str()
+                .ok_or("StorageUnavailable：input_revision非文本")?
+                .to_owned(),
+            seq: event["source_coord"].as_str().unwrap().to_owned(),
+            received_at: event["received_at"]
+                .as_str()
+                .ok_or("StorageUnavailable：received_at非文本")?
+                .to_owned(),
+            raw_text: event["raw_text"]
+                .as_str()
+                .ok_or("StorageUnavailable：raw_text非文本")?
+                .to_owned(),
+            price: event["price"]
+                .as_str()
+                .ok_or("StorageUnavailable：price非文本")?
+                .to_owned(),
+            timestamp: event["ts"]
+                .as_str()
+                .ok_or("StorageUnavailable：ts非文本")?
+                .to_owned(),
+            volume: event["volume"]
+                .as_str()
+                .ok_or("StorageUnavailable：volume非文本")?
+                .to_owned(),
+        };
+        let revision = parse_canonical_i64(&raw.revision, "input_revision")
+            .map_err(|e| format!("StorageUnavailable：{e}"))?;
+        let previous = prior_revisions.insert(identity, revision);
+        let expected_identity = identity_key(
+            event["source_namespace"]
+                .as_str()
+                .ok_or("StorageUnavailable：namespace非文本")?,
+            event["source_epoch"]
+                .as_str()
+                .ok_or("StorageUnavailable：source_epoch非文本")?,
+            event["instrument"]
+                .as_str()
+                .ok_or("StorageUnavailable：instrument非文本")?,
+            &raw.event_id,
+        );
+        let payload_hash = sha256_hex(canonical_event_content(&raw).as_bytes());
+        let receipt = format!(
+            "rcpt-{}",
+            &sha256_hex(format!("{identity}|{payload_hash}").as_bytes())[..16]
+        );
+        if event["seq"].as_i64() != i64::try_from(expected_seq).ok()
+            || revision < 1
+            || event["revision"].as_i64() != Some(revision)
+            || previous.is_some_and(|p| p >= revision)
+            || event["supersedes_revision"] != json!(previous)
+            || identity != expected_identity
+            || event["payload_hash"] != payload_hash
+            || event["receipt_id"] != receipt
+        {
+            return Err(
+                "StorageUnavailable：原始身份/接纳序/修订链/内容hash/receipt矛盾".to_owned(),
+            );
+        }
+        for (name, value) in [
+            ("price", &raw.price),
+            ("timestamp", &raw.timestamp),
+            ("volume", &raw.volume),
+        ] {
+            parse_canonical_i64(value, name).map_err(|e| format!("StorageUnavailable：{e}"))?;
         }
     }
     Ok(rows)
@@ -1997,6 +2085,15 @@ fn persist_batch_before_publish(
 }
 
 fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
+    println!("{}", advance_core(db, configured_epoch, None)?);
+    Ok(())
+}
+
+fn advance_core(
+    db: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+) -> Result<Value, String> {
     let mut conn = open_db(db)?;
     ensure_initialized(&conn)?;
     record_connection_pragmas(&conn, "advance");
@@ -2031,22 +2128,18 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
             let structure_cut = meta_get_opt(&tx, "structure_cut")?.unwrap_or_default();
             let index_frontier = meta_get_opt(&tx, "index_frontier")?.unwrap_or_default();
             drop(tx);
-            println!(
-                "{}",
-                json!({
-                    "ok": true,
-                    "idempotent": true,
-                    "generation": cur_gen.to_string(),
-                    "structure_cut": structure_cut,
-                    "index_frontier": index_frontier,
-                    "note": "无新输入（frontier 已提交），不产新 cut；DeliveryUnknown 请按原业务身份查询权威结果",
-                })
-            );
-            return Ok(());
+            return Ok(json!({
+                "ok": true,
+                "idempotent": true,
+                "generation": cur_gen.to_string(),
+                "structure_cut": structure_cut,
+                "index_frontier": index_frontier,
+                "note": "无新输入（frontier 已提交），不产新 cut；DeliveryUnknown 请按原业务身份查询权威结果",
+            }));
         }
         let gen = cur_gen + 1;
         let base_cut = meta_get_opt(&tx, "structure_cut")?.unwrap_or_else(|| "cut-0".to_string());
-        let token = make_token();
+        let token = v2::record_begin(&tx, context, gen, frontier, &base_cut, configured_epoch)?;
         meta_set(
             &tx,
             "advance_state",
@@ -2263,7 +2356,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
 
     let structure_cut = format!("cut-{gen}");
     // ── 内容寻址批次：封存完整正式结果（全部修订 + 有效源位置 + 对象 + 见证 + 关系 + 观察 + 绑定）──
-    let batch_json = json!({
+    let mut batch_json = json!({
         "generation": gen,
         "structure_cut": structure_cut,
         "input_frontier": frontier,
@@ -2279,6 +2372,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
         "observations": observations,
         "scope": {"structure": "CompleteCut", "economic": "not_started"},
     });
+    v2::seal_batch(&conn, context, &mut batch_json)?;
     let batch_bytes = canonical_bytes_of_value(&batch_json);
     let batch_id = format!("batch-{}", sha256_hex(&batch_bytes));
     for o in &mut objects {
@@ -2614,6 +2708,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
             )
             .map_err(|e| format!("update 其余 catalog 失败：{e}"))?;
 
+            v2::record_commit(&tx, context, gen, frontier)?;
             meta_set(&tx, "advance_state", "idle")?;
         }
     }
@@ -2639,27 +2734,23 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     // ★测试暂停点 3：Commit 已持久、回执尚未送达（供 SIGKILL）。
     testonly_pause("after_commit");
 
-    println!(
-        "{}",
-        json!({
-            "ok": true,
-            "generation": gen.to_string(),
-            "structure_cut": structure_cut,
-            "batch_id": batch_id,
-            "merged_bars": merged.len(),
-            "raw_events": all_events.len(),
-            "effective_source_positions": effective.len(),
-            "windows_total": wins.len(),
-            "objects_published": objects.len(),
-            "observations": {
-                "insufficient_knowledge": observations.iter().filter(|o| o["kind"] == "insufficient_knowledge").count(),
-                "domain_not_satisfied": observations.iter().filter(|o| o["kind"] == "domain_not_satisfied").count(),
-            },
-            "batch_byte_len": batch_bytes.len(),
-            "scope": {"structure": "CompleteCut", "economic": "not_started"},
-        })
-    );
-    Ok(())
+    Ok(json!({
+        "ok": true,
+        "generation": gen.to_string(),
+        "structure_cut": structure_cut,
+        "batch_id": batch_id,
+        "merged_bars": merged.len(),
+        "raw_events": all_events.len(),
+        "effective_source_positions": effective.len(),
+        "windows_total": wins.len(),
+        "objects_published": objects.len(),
+        "observations": {
+            "insufficient_knowledge": observations.iter().filter(|o| o["kind"] == "insufficient_knowledge").count(),
+            "domain_not_satisfied": observations.iter().filter(|o| o["kind"] == "domain_not_satisfied").count(),
+        },
+        "batch_byte_len": batch_bytes.len(),
+        "scope": {"structure": "CompleteCut", "economic": "not_started"},
+    }))
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -3653,6 +3744,11 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
         .unchecked_transaction()
         .map_err(|e| format!("开读事务失败：{e}"))?;
     verify_reachable_root(&tx)?;
+    if let Some(value) = v2::retained_watch(&tx, after_generation)? {
+        drop(tx);
+        println!("{}", project_wire_integers(&value));
+        return Ok(());
+    }
     let meta = db_meta(&tx)?;
     let current_gen: i64 = meta_i64(&tx, "generation")?;
     let current_cut = meta.get("structure_cut").cloned().unwrap_or_default();
@@ -3717,6 +3813,15 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
 /// 命令合法恢复），并按 `--new-epoch` 提升 writer_epoch（与 generation 同序持久历史）。旧 epoch 进程
 /// 此后重放被 StaleWriter 拒绝。这不是「手改 SQL」——是正式入口，历史写入 writer_epoch_history。
 fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
+    println!("{}", recover_core(db, new_epoch, None)?);
+    Ok(())
+}
+
+fn recover_core(
+    db: &Path,
+    new_epoch: &str,
+    clock: Option<(&v2::ClockPlan, &str)>,
+) -> Result<Value, String> {
     let new_epoch_i =
         parse_writer_epoch(new_epoch, "--new-epoch").map_err(|e| format!("InvalidDomain：{e}"))?;
     let mut conn = open_db(db)?;
@@ -3760,31 +3865,28 @@ fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
         )?;
         state_after = "idle".to_string();
     }
+    let transitioned_at = v2::record_recover(&tx, clock, &generation)?;
     meta_set(&tx, "writer_epoch", new_epoch)?;
     tx.execute(
         "INSERT INTO writer_epoch_history(from_epoch, to_epoch, generation_at_transition, advance_state_at_transition, transitioned_at) VALUES(?1, ?2, ?3, ?4, ?5)",
-        params![cur_epoch_raw, new_epoch, generation, state_after, now_nanos()],
+        params![cur_epoch_raw, new_epoch, generation, state_after, transitioned_at],
     )
     .map_err(|e| format!("写 writer_epoch_history 失败：{e}"))?;
     tx.commit()
         .map_err(|e| format!("recover commit 失败：{e}"))?;
 
-    println!(
-        "{}",
-        json!({
-            "ok": true,
-            "previous_epoch": cur_epoch_raw,
-            "new_epoch": new_epoch,
-            "epoch_transitioned": true,
-            "recovered_begin": recovered_begin,
-            "reachable_root": {
-                "generation": generation,
-                "structure_cut": meta_get_opt(&conn, "structure_cut")?.unwrap_or_default(),
-                "index_frontier": meta_get_opt(&conn, "index_frontier")?.unwrap_or_default(),
-            },
-        })
-    );
-    Ok(())
+    Ok(json!({
+        "ok": true,
+        "previous_epoch": cur_epoch_raw,
+        "new_epoch": new_epoch,
+        "epoch_transitioned": true,
+        "recovered_begin": recovered_begin,
+        "reachable_root": {
+            "generation": generation,
+            "structure_cut": meta_get_opt(&conn, "structure_cut")?.unwrap_or_default(),
+            "index_frontier": meta_get_opt(&conn, "index_frontier")?.unwrap_or_default(),
+        },
+    }))
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -3824,6 +3926,10 @@ fn run() -> Result<(), String> {
     if args.len() < 2 {
         return Err(usage());
     }
+    if v2::dispatch(&args)? {
+        return Ok(());
+    }
+    let _writer_lock = v2::legacy_write_lock(&args)?;
     let cmd = args[1].as_str();
     let db = arg_value(&args, "--db").map(PathBuf::from);
     let session = arg_value(&args, "--session").unwrap_or_else(|| "s-session-default".to_string());
