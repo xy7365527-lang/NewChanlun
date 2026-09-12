@@ -319,10 +319,29 @@ def _profile_at_cut(conn, generation):
     return batch["profile_id"],batch["profile_hash"]
 
 
+def _verify_published_index_generations(conn, generation):
+    """#1371：全表核发布代，拒绝被逐 cut 过滤隐藏的未来行；cut-0 必须无发布索引。"""
+    checks = (
+        ("objects", "typeof(first_known_generation)<>'integer' OR first_known_generation<1 "
+         "OR first_known_generation>?1 OR typeof(published_generation)<>'integer' "
+         "OR published_generation<1 OR published_generation>?1 "
+         "OR (withdrawn_generation IS NOT NULL AND (typeof(withdrawn_generation)<>'integer' "
+         "OR withdrawn_generation<1 OR withdrawn_generation>?1))"),
+        ("witnesses", "typeof(published_generation)<>'integer' OR published_generation<1 OR published_generation>?1"),
+        ("relations", "typeof(published_generation)<>'integer' OR published_generation<1 OR published_generation>?1"),
+        ("observations", "typeof(published_generation)<>'integer' OR published_generation<1 OR published_generation>?1"),
+    )
+    for table, predicate in checks:
+        # 表名和表达式仅来自上方固定清单；发布代仍用绑定参数。
+        if conn.execute(f"SELECT EXISTS(SELECT 1 FROM {table} WHERE {predicate})", (generation,)).fetchone()[0]:
+            raise ValueError(f"{table} 含不属于 1..={generation} 已发布代的索引行")
+
+
 def _verify_reachable_root(conn):
     """#1371 R9：与 Rust 同义的完整11列/可达代链/封存坐标/载荷验证，所有正式读入口共用。"""
     meta = meta_dict(conn)
     gen = _validate_required_meta(meta)
+    _verify_published_index_generations(conn, gen)
     profile_binding = _verify_profile_binding(conn)
     rows = conn.execute(
         "SELECT generation,session_id,catalog_revision,base_cut,next_cut,seq_range_json,"

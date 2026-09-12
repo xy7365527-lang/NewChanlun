@@ -103,6 +103,21 @@ fn parse_canonical_i64(s: &str, what: &str) -> Result<i64, String> {
         .map_err(|e| format!("{what} `{s}` 超出 i64 精确整数域：{e}"))
 }
 
+/// #1371：源位置是规范非负精确整数；不要求从零起或连续，允许超过 JS 安全整数。
+fn parse_source_coord(s: &str) -> Result<i64, String> {
+    let coord = parse_canonical_i64(s, "source_coord")?;
+    usize::try_from(coord)
+        .map_err(|_| format!("source_coord `{s}` 不是本平台可无损表示的非负源位置"))?;
+    Ok(coord)
+}
+
+fn stored_source_coord(event: &Value) -> Result<i64, String> {
+    let raw = event["source_coord"]
+        .as_str()
+        .ok_or("StorageUnavailable：raw.source_coord 不是字符串")?;
+    parse_source_coord(raw).map_err(|e| format!("StorageUnavailable：{e}"))
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // 原始输入 schema（AC2）
 // ────────────────────────────────────────────────────────────────────────────
@@ -309,11 +324,23 @@ fn meta_set(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// 核持久 writer_epoch（DUR-H02）：所有 S 写入都必须先过此 fence；configured 是**本进程被授予**的
-/// epoch（来自 `--writer-epoch`），不读库内 epoch 自授权——库内已换代时旧进程（configured 旧值）零写入。
+/// writer epoch 的唯一整数域（#1371）：持久值、授予值和恢复目标共用，不接受负数或非规范表示。
+fn parse_writer_epoch(raw: &str, what: &str) -> Result<i64, String> {
+    let epoch = parse_canonical_i64(raw, what)?;
+    if epoch < 0 {
+        return Err(format!("{what} 必须为非负整数"));
+    }
+    Ok(epoch)
+}
+
+/// 核持久 writer_epoch（DUR-H02）：configured 是本进程被授予的 epoch，不能读库内值自授权。
 fn verify_writer_epoch(conn: &Connection, configured: &str) -> Result<(), String> {
     let epoch = meta_get_opt(conn, "writer_epoch")?.unwrap_or_default();
-    if epoch != configured {
+    let stored = parse_writer_epoch(&epoch, "meta.writer_epoch")
+        .map_err(|e| format!("StorageUnavailable：{e}"))?;
+    let granted = parse_writer_epoch(configured, "--writer-epoch")
+        .map_err(|e| format!("InvalidDomain：{e}"))?;
+    if stored != granted {
         return Err(format!(
             "StaleWriter：writer_epoch=`{epoch}`，非本进程被授予的 `{configured}`（换代后旧 writer 拒绝，零写入）"
         ));
@@ -876,8 +903,29 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
     verify_reachable_root_in_tx(conn).map_err(|e| format!("StorageUnavailable：{e}"))
 }
 
+fn verify_published_index_generations(conn: &Connection, generation: i64) -> Result<(), String> {
+    // #1371：索引行须来自一次实际发布；cut-0 没有发布行。逐 cut 重建会过滤未来行，故须另核全表。
+    // raw_events 可已接纳尚未发布，batches 可有未 Commit 的不可达批次，不纳入此索引门。
+    for (table, predicate) in [
+        ("objects", "typeof(first_known_generation)<>'integer' OR first_known_generation<1 OR first_known_generation>?1 OR typeof(published_generation)<>'integer' OR published_generation<1 OR published_generation>?1 OR (withdrawn_generation IS NOT NULL AND (typeof(withdrawn_generation)<>'integer' OR withdrawn_generation<1 OR withdrawn_generation>?1))"),
+        ("witnesses", "typeof(published_generation)<>'integer' OR published_generation<1 OR published_generation>?1"),
+        ("relations", "typeof(published_generation)<>'integer' OR published_generation<1 OR published_generation>?1"),
+        ("observations", "typeof(published_generation)<>'integer' OR published_generation<1 OR published_generation>?1"),
+    ] {
+        let invalid: bool = conn.query_row(
+            &format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE {predicate})"),
+            params![generation], |r| r.get(0),
+        ).map_err(|e| format!("检查 {table} 发布代失败：{e}"))?;
+        if invalid {
+            return Err(format!("{table} 含不属于 1..={generation} 已发布代的索引行"));
+        }
+    }
+    Ok(())
+}
+
 fn verify_reachable_root_in_tx(conn: &Connection) -> Result<(), String> {
     let generation = verify_required_meta(conn)?;
+    verify_published_index_generations(conn, generation)?;
     let profile_binding = verify_profile_binding(conn)?;
     let meta_session = meta_get_opt(conn, "session_id")?.unwrap_or_default();
     let meta_cat = meta_get_opt(conn, "catalog_revision")?.unwrap_or_default();
@@ -1377,6 +1425,7 @@ fn cmd_accept(
             .map_err(|e| format!("读 max seq 失败：{e}"))?;
 
         for e in &input.events {
+            parse_source_coord(&e.seq).map_err(|e| format!("InvalidDomain：{e}"))?;
             parse_canonical_i64(&e.price, "price")?;
             parse_canonical_i64(&e.timestamp, "timestamp")?;
             parse_canonical_i64(&e.volume, "volume")?;
@@ -1395,6 +1444,20 @@ fn cmd_accept(
                 &input.instrument,
                 &e.event_id,
             );
+            // 同一计算序的坐标只能归一个业务身份；该身份的历史 revision 可共享坐标。
+            let occupied: bool = tx
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM raw_events WHERE source_coord=?1 AND identity_key<>?2)",
+                    params![e.seq, ikey],
+                    |row| row.get(0),
+                )
+                .map_err(|e| format!("查询源坐标归属失败：{e}"))?;
+            if occupied {
+                return Err(format!(
+                    "IdentityConflict：source_coord `{}` 已属于另一业务身份（不覆盖原始事件或见证）",
+                    e.seq
+                ));
+            }
             let content = canonical_event_content(e);
             let payload_hash = sha256_hex(content.as_bytes());
 
@@ -1567,11 +1630,28 @@ fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
         .map_err(|e| format!("query 失败：{e}"))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("collect 失败：{e}"))?;
+    let mut owners = BTreeMap::new();
+    let mut positions = BTreeMap::new();
+    for event in &rows {
+        let coord = stored_source_coord(event)?;
+        let identity = event["identity_key"]
+            .as_str()
+            .ok_or("StorageUnavailable：raw.identity_key 不是字符串")?;
+        if owners
+            .insert(coord, identity)
+            .is_some_and(|old| old != identity)
+            || positions
+                .insert(identity, coord)
+                .is_some_and(|old| old != coord)
+        {
+            return Err("StorageUnavailable：原始源坐标与业务身份的唯一归属被破坏".to_string());
+        }
+    }
     Ok(rows)
 }
 
 /// 有效源位置：每个业务身份取最新 revision，按源坐标升序（晚到新版不当作追加 tick）。
-fn read_effective_events(all: &[Value]) -> Vec<Value> {
+fn read_effective_events(all: &[Value]) -> Result<Vec<Value>, String> {
     let mut latest: BTreeMap<String, Value> = BTreeMap::new();
     for ev in all {
         let ikey = ev["identity_key"].as_str().unwrap_or("").to_string();
@@ -1587,24 +1667,14 @@ fn read_effective_events(all: &[Value]) -> Vec<Value> {
             }
         }
     }
-    let mut effective: Vec<Value> = latest.into_values().collect();
-    effective.sort_by(|a, b| {
-        let ca = a["source_coord"]
-            .as_str()
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(0);
-        let cb = b["source_coord"]
-            .as_str()
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(0);
-        ca.cmp(&cb).then_with(|| {
-            a["identity_key"]
-                .as_str()
-                .unwrap_or("")
-                .cmp(b["identity_key"].as_str().unwrap_or(""))
-        })
-    });
-    effective
+    let mut ordered = BTreeMap::new();
+    for event in latest.into_values() {
+        let coord = stored_source_coord(&event)?;
+        if ordered.insert(coord, event).is_some() {
+            return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".to_string());
+        }
+    }
+    Ok(ordered.into_values().collect())
 }
 
 fn dir_str(d: Direction) -> &'static str {
@@ -1925,7 +1995,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     ensure_initialized(&conn)?;
     record_connection_pragmas(&conn, "advance");
     // ── Begin：判定前先由短写事务核 writer_epoch、取得唯一推进权、持久 Begin/门/输入前沿 ──
-    let (token, gen, frontier, base_cut, profile_id, profile_hash, catalog_revision) = {
+    let (token, gen, frontier, base_cut, profile_id, profile_hash, catalog_revision, all_events) = {
         let tx = conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|e| format!("Begin 事务失败：{e}"))?;
@@ -1947,6 +2017,8 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
                 r.get(0)
             })
             .map_err(|e| format!("读输入前沿失败：{e}"))?;
+        // 在同一输入快照中先核源坐标，存量损坏不新增 Begin；结构解释仍在持久 Begin 后。
+        let all_events = read_raw_events(&tx)?;
         // 幂等重试：无新输入（frontier == 已提交前沿）且已有已发布代 → 不产新 cut，返回现有已提交结果。
         // （after_commit 丢回执后同 argv 重试不再新增 generation；DeliveryUnknown 按原身份查权威结果。）
         let last_frontier: i64 = meta_i64(&tx, "last_advance_frontier")?;
@@ -1987,6 +2059,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
             profile_id,
             profile_hash,
             catalog_revision,
+            all_events,
         )
     };
 
@@ -1994,15 +2067,13 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     testonly_pause("after_begin");
 
     // ── 同次真实 Rust parser：按「有效源位置」在源坐标序上取每个身份的最新 revision ──
-    let all_events = read_raw_events(&conn)?;
-    let effective = read_effective_events(&all_events);
+    let effective = read_effective_events(&all_events)?;
     let mut raw_by_coord: BTreeMap<i64, Value> = BTreeMap::new();
     for ev in &effective {
-        let coord = ev["source_coord"]
-            .as_str()
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(-1);
-        raw_by_coord.insert(coord, ev.clone());
+        let coord = stored_source_coord(ev)?;
+        if raw_by_coord.insert(coord, ev.clone()).is_some() {
+            return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖见证".to_string());
+        }
     }
 
     let config = ThetaConfig::default();
@@ -2012,13 +2083,11 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     for ev in &effective {
         let px = parse_canonical_i64(ev["price"].as_str().unwrap_or(""), "price")?;
         let t = parse_canonical_i64(ev["ts"].as_str().unwrap_or(""), "timestamp")?;
-        let coord = ev["source_coord"]
-            .as_str()
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(0);
+        let coord = stored_source_coord(ev)?;
         // 源坐标即本根在该源流中的位置；1:1 退化 OHLC 逐点即标准 K。
         let bar = Bar {
-            source_index: coord as usize,
+            source_index: usize::try_from(coord)
+                .map_err(|_| "StorageUnavailable：源坐标不能无损转换为 source_index")?,
             timestamp: t,
             open: px,
             high: px,
@@ -2039,7 +2108,9 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     // source_coord → merged 组号（inclusion 同源映射；1:1 域各根一组）。
     let mut merged_raws: Vec<Vec<i64>> = vec![Vec::new(); merged.len()];
     for coord in raw_by_coord.keys().copied() {
-        if let Some(g) = parser::inclusion::merged_group_index(merged, coord as usize) {
+        let source_index = usize::try_from(coord)
+            .map_err(|_| "StorageUnavailable：源坐标不能无损转换为 source_index")?;
+        if let Some(g) = parser::inclusion::merged_group_index(merged, source_index) {
             merged_raws[g].push(coord);
         }
     }
@@ -3641,7 +3712,8 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
 /// 命令合法恢复），并按 `--new-epoch` 提升 writer_epoch（与 generation 同序持久历史）。旧 epoch 进程
 /// 此后重放被 StaleWriter 拒绝。这不是「手改 SQL」——是正式入口，历史写入 writer_epoch_history。
 fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
-    let new_epoch_i: i64 = parse_canonical_i64(new_epoch, "--new-epoch")?;
+    let new_epoch_i =
+        parse_writer_epoch(new_epoch, "--new-epoch").map_err(|e| format!("InvalidDomain：{e}"))?;
     let mut conn = open_db(db)?;
     ensure_initialized(&conn)?;
     record_connection_pragmas(&conn, "recover");
@@ -3649,7 +3721,8 @@ fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开 recover 事务失败：{e}"))?;
     let cur_epoch_raw = meta_get_opt(&tx, "writer_epoch")?.unwrap_or_default();
-    let cur_epoch: i64 = parse_canonical_i64(&cur_epoch_raw, "writer_epoch")?;
+    let cur_epoch = parse_writer_epoch(&cur_epoch_raw, "meta.writer_epoch")
+        .map_err(|e| format!("StorageUnavailable：{e}"))?;
     // writer 代际只准单调上升：new_epoch 必须严格大于当前；等于/回退（含重写旧 epoch）拒绝，
     // 避免旧 owner 借同/低 epoch 重新取得写权或清不属于该恢复的未决 Begin。
     if new_epoch_i <= cur_epoch {
@@ -4356,6 +4429,210 @@ mod tests {
 
     // ── #1371 TB-01-B 新测试 ──
 
+    #[test]
+    fn source_coord_invalid_input_rolls_back_whole_accept_batch() {
+        for bad in [
+            "",
+            " ",
+            "+1",
+            "01",
+            "-0",
+            "1.5",
+            "bad",
+            "-1",
+            "9223372036854775808",
+        ] {
+            let files = TestFiles::new();
+            init_test_db(&files);
+            let conn = open_db(&files.db()).unwrap();
+            let before = db_meta(&conn).unwrap();
+            let mut invalid = ev("bad", "1", bad, "11000");
+            invalid["timestamp"] = json!("1");
+            let input = write_input(
+                &files,
+                "bad-coordinate.json",
+                &test_input(&[ev("ok", "1", "0", "10000"), invalid]),
+            );
+            let error = cmd_accept(
+                &files.db(),
+                &input,
+                &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+                DEFAULT_WRITER_EPOCH,
+            )
+            .unwrap_err();
+            assert!(error.contains("InvalidDomain"), "{bad}: {error}");
+            assert!(read_raw_events(&conn).unwrap().is_empty());
+            assert_eq!(db_meta(&conn).unwrap(), before, "{bad}");
+        }
+    }
+
+    #[test]
+    fn source_coord_collision_rejects_same_batch_and_other_business_identities() {
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let conn = open_db(&files.db()).unwrap();
+        let before = db_meta(&conn).unwrap();
+        let input = write_input(
+            &files,
+            "same-batch.json",
+            &test_input(&[ev("e0", "1", "0", "10000"), ev("e1", "1", "0", "11000")]),
+        );
+        assert!(
+            cmd_accept(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH)
+                .unwrap_err()
+                .contains("IdentityConflict")
+        );
+        assert!(read_raw_events(&conn).unwrap().is_empty());
+        assert_eq!(db_meta(&conn).unwrap(), before);
+
+        accept(
+            &files,
+            &test_input(&[ev("e0", "1", "0", "10000")]),
+            "seed.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        let before_raw = read_raw_events(&conn).unwrap();
+        let before = db_meta(&conn).unwrap();
+        for changed in ["event_id", "source_namespace", "source_epoch", "instrument"] {
+            let mut input_value = test_input(&[
+                ev("new-free-position", "1", "2", "12000"),
+                ev("e0", "1", "0", "11000"),
+            ]);
+            if changed == "event_id" {
+                input_value["events"][1]["event_id"] = json!("another-event");
+            } else {
+                input_value[changed] = json!("other");
+            }
+            let input = write_input(&files, "collision.json", &input_value);
+            assert!(
+                cmd_accept(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH)
+                    .unwrap_err()
+                    .contains("IdentityConflict"),
+                "{changed}"
+            );
+            assert_eq!(read_raw_events(&conn).unwrap(), before_raw, "{changed}");
+            assert_eq!(db_meta(&conn).unwrap(), before, "{changed}");
+        }
+    }
+
+    #[test]
+    fn source_coord_revision_and_replay_keep_one_owner() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let original = test_input(&[
+            ev("e0", "1", "0", "10000"),
+            ev("e1", "1", "1", "11000"),
+            ev("e2", "1", "2", "10500"),
+        ]);
+        accept(&files, &original, "seed.json", DEFAULT_WRITER_EPOCH);
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let correction = test_input(&[ev("e2", "2", "2", "11500")]);
+        accept(&files, &correction, "correction.json", DEFAULT_WRITER_EPOCH);
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        let before = read_raw_events(&conn).unwrap();
+        assert_eq!(before.len(), 4);
+        accept(&files, &correction, "replay.json", DEFAULT_WRITER_EPOCH);
+        accept(&files, &original, "old-replay.json", DEFAULT_WRITER_EPOCH);
+        assert_eq!(read_raw_events(&conn).unwrap(), before);
+        let snapshot = snapshot_of(&files, None);
+        assert_eq!(snapshot["objects"][0]["branch"], json!("RISING"));
+        assert_eq!(
+            snapshot["objects"][0]["source_coords"],
+            json!(["0", "1", "2"])
+        );
+        for input_ref in snapshot["objects"][0]["input_refs"].as_array().unwrap() {
+            assert_eq!(input_ref["raw_refs"].as_array().unwrap().len(), 1);
+        }
+        let moved = write_input(
+            &files,
+            "moved.json",
+            &test_input(&[ev("e2", "3", "3", "11800")]),
+        );
+        assert!(cmd_accept(
+            &files.db(),
+            &moved,
+            &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+            DEFAULT_WRITER_EPOCH
+        )
+        .unwrap_err()
+        .contains("IdentityConflict"));
+        assert_eq!(read_raw_events(&conn).unwrap(), before);
+    }
+
+    #[test]
+    fn source_coord_exact_large_and_sparse_positions_remain_valid() {
+        for valid in ["0", "7", "9007199254740993", "9223372036854775807"] {
+            let expected = valid.parse::<i64>().unwrap();
+            if usize::try_from(expected).is_ok() {
+                assert_eq!(parse_source_coord(valid).unwrap(), expected);
+            } else {
+                assert!(parse_source_coord(valid).is_err());
+            }
+        }
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "7", "10000"),
+                ev("e1", "1", "15", "11000"),
+                ev("e2", "1", "99", "10500"),
+            ]),
+            "sparse.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        assert_eq!(
+            snapshot_of(&files, None)["objects"][0]["source_coords"],
+            json!(["7", "15", "99"])
+        );
+    }
+
+    #[test]
+    fn source_coord_stored_corruption_rejects_before_new_begin() {
+        for published in [false, true] {
+            for bad in ["bad", "-1", "01", "9223372036854775808", "1"] {
+                let files = TestFiles::new();
+                init_test_db(&files);
+                accept(
+                    &files,
+                    &test_input(&[
+                        ev("e0", "1", "0", "10000"),
+                        ev("e1", "1", "1", "11000"),
+                        ev("e2", "1", "2", "10500"),
+                    ]),
+                    "seed.json",
+                    DEFAULT_WRITER_EPOCH,
+                );
+                if published {
+                    cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                }
+                let conn = open_db(&files.db()).unwrap();
+                conn.execute(
+                    "UPDATE raw_events SET source_coord=?1 WHERE event_id='e0'",
+                    params![bad],
+                )
+                .unwrap();
+                let before = db_meta(&conn).unwrap();
+                let before_batches: i64 = conn
+                    .query_row("SELECT COUNT(*) FROM batches", [], |r| r.get(0))
+                    .unwrap();
+                let error = cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap_err();
+                assert!(
+                    error.contains("StorageUnavailable"),
+                    "{published}/{bad}: {error}"
+                );
+                assert_eq!(db_meta(&conn).unwrap(), before);
+                let after_batches: i64 = conn
+                    .query_row("SELECT COUNT(*) FROM batches", [], |r| r.get(0))
+                    .unwrap();
+                assert_eq!(before_batches, after_batches);
+            }
+        }
+    }
+
     /// 核心轨迹：e0/e1/e2=10000/11000/10500 先 TOP；e2 新 revision=11500 撤 TOP 成 RISING；追加 e3=10800
     /// 成新 TOP。旧 TOP 保留原身份/first_known/发生区间/撤回理由；as_of 回看 AsKnown 不提前出现。
     #[test]
@@ -4489,7 +4766,7 @@ mod tests {
         let conn = open_db(&files.db()).unwrap();
         let all = read_raw_events(&conn).unwrap();
         assert_eq!(all.len(), 2);
-        let effective = read_effective_events(&all);
+        let effective = read_effective_events(&all).unwrap();
         assert_eq!(effective.len(), 1);
         assert_eq!(effective[0]["price"], json!("11500"));
     }
@@ -4516,6 +4793,83 @@ mod tests {
         let all = read_raw_events(&conn).unwrap();
         assert_eq!(all.len(), 1);
         assert_eq!(all[0]["revision"], json!(2));
+    }
+
+    #[test]
+    fn writer_epoch_invalid_persistence_rejects_all_writes() {
+        for epoch in ["foo", "01", "-1", "", "9223372036854775808"] {
+            let files = TestFiles::new();
+            init_test_db(&files);
+            let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+            let input = write_input(
+                &files,
+                "epoch.json",
+                &test_input(&[ev("e0", "1", "0", "10000")]),
+            );
+            let conn = open_db(&files.db()).unwrap();
+            meta_set(&conn, "writer_epoch", epoch).unwrap();
+            let before = db_meta(&conn).unwrap();
+            for result in [
+                cmd_accept(&files.db(), &input, &profile, epoch),
+                cmd_advance(&files.db(), epoch),
+                cmd_recover(&files.db(), "2"),
+            ] {
+                assert!(
+                    result.unwrap_err().contains("StorageUnavailable"),
+                    "epoch={epoch:?}"
+                );
+                assert_eq!(db_meta(&conn).unwrap(), before);
+                assert!(read_raw_events(&conn).unwrap().is_empty());
+                let history: i64 = conn
+                    .query_row("SELECT COUNT(*) FROM writer_epoch_history", [], |r| {
+                        r.get(0)
+                    })
+                    .unwrap();
+                assert_eq!(history, 0);
+            }
+        }
+    }
+
+    #[test]
+    fn writer_epoch_invalid_configuration_does_not_change_state() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        let input = write_input(
+            &files,
+            "epoch.json",
+            &test_input(&[ev("e0", "1", "0", "10000")]),
+        );
+        let conn = open_db(&files.db()).unwrap();
+        let before = db_meta(&conn).unwrap();
+        for epoch in ["foo", "01", "-1", "", "9223372036854775808"] {
+            for result in [
+                cmd_accept(&files.db(), &input, &profile, epoch),
+                cmd_advance(&files.db(), epoch),
+                cmd_recover(&files.db(), epoch),
+            ] {
+                assert!(result.unwrap_err().contains("InvalidDomain"));
+                assert_eq!(db_meta(&conn).unwrap(), before);
+                assert!(read_raw_events(&conn).unwrap().is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn writer_epoch_zero_and_i64_max_are_exact_valid_epochs() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let conn = open_db(&files.db()).unwrap();
+        meta_set(&conn, "writer_epoch", "0").unwrap();
+        verify_writer_epoch(&conn, "0").unwrap();
+        cmd_recover(&files.db(), "9223372036854775807").unwrap();
+        verify_writer_epoch(&conn, "9223372036854775807").unwrap();
+        assert!(verify_writer_epoch(&conn, "0")
+            .unwrap_err()
+            .contains("StaleWriter"));
+        assert!(cmd_recover(&files.db(), "9223372036854775807")
+            .unwrap_err()
+            .contains("StaleWriter"));
     }
 
     #[test]
@@ -5101,6 +5455,122 @@ mod tests {
         assert!(cmd_snapshot(&files.db(), Some(0))
             .unwrap_err()
             .contains("StorageUnavailable"));
+    }
+
+    #[test]
+    fn future_index_rows_block_current_history_and_writes() {
+        for (table, id_column, withdrawn) in [
+            ("objects", "object_id", false),
+            ("objects", "object_id", true),
+            ("witnesses", "witness_id", false),
+            ("relations", "relation_id", false),
+            ("observations", "observation_id", false),
+        ] {
+            let files = TestFiles::new();
+            init_test_db(&files);
+            for (n, price) in ["10000", "11000", "10500"].iter().enumerate() {
+                let input = test_input(&[ev(&format!("e{n}"), "1", &n.to_string(), price)]);
+                accept(&files, &input, &format!("e{n}.json"), DEFAULT_WRITER_EPOCH);
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            }
+            accept(
+                &files,
+                &test_input(&[ev("e2", "2", "2", "11500")]),
+                "correction.json",
+                DEFAULT_WRITER_EPOCH,
+            );
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            let conn = open_db(&files.db()).unwrap();
+            // 克隆一条真实发布行，隐藏到所有已发布 cut 之外；不能只篡改已有行而由旧对拍顺带抓到。
+            let columns: Vec<String> = conn
+                .prepare(&format!("PRAGMA table_info({table})"))
+                .unwrap()
+                .query_map([], |r| r.get(1))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap();
+            let expressions: Vec<String> = columns
+                .iter()
+                .map(|column| {
+                    if column == id_column {
+                        format!("'future-' || {column}")
+                    } else if column == "published_generation" || column == "first_known_generation"
+                    {
+                        "5".to_string()
+                    } else if column == "withdrawn_generation" {
+                        if withdrawn { "6" } else { "NULL" }.to_string()
+                    } else {
+                        column.clone()
+                    }
+                })
+                .collect();
+            assert_eq!(
+                conn.execute(
+                    &format!(
+                        "INSERT INTO {table} SELECT {} FROM {table} LIMIT 1",
+                        expressions.join(",")
+                    ),
+                    []
+                )
+                .unwrap(),
+                1
+            );
+            let before = db_meta(&conn).unwrap();
+            let before_raw = read_raw_events(&conn).unwrap();
+            let extra = write_input(
+                &files,
+                "extra.json",
+                &test_input(&[ev("e3", "1", "3", "10800")]),
+            );
+            for result in [
+                cmd_snapshot(&files.db(), None),
+                cmd_snapshot(&files.db(), Some(4)),
+                cmd_accept(
+                    &files.db(),
+                    &extra,
+                    &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+                    DEFAULT_WRITER_EPOCH,
+                ),
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
+                cmd_recover(&files.db(), "2"),
+            ] {
+                assert!(
+                    result.unwrap_err().contains("StorageUnavailable"),
+                    "{table}, withdrawn={withdrawn}"
+                );
+                assert_eq!(db_meta(&conn).unwrap(), before);
+                assert_eq!(read_raw_events(&conn).unwrap(), before_raw);
+            }
+        }
+    }
+
+    #[test]
+    fn zero_generation_rejects_published_index_but_allows_pending_input() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        let input = write_input(
+            &files,
+            "pending.json",
+            &test_input(&[ev("e0", "1", "0", "10000")]),
+        );
+        cmd_accept(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        // 接纳与发布是两步：合法待发布原始事实不被发布索引门排除。
+        cmd_snapshot(&files.db(), None).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        conn.execute("INSERT INTO observations VALUES('zero-index','unpublished','InsufficientKnowledge',NULL,NULL,NULL,'bogus','{}',0)", []).unwrap();
+        let before = db_meta(&conn).unwrap();
+        for result in [
+            cmd_snapshot(&files.db(), None),
+            cmd_snapshot(&files.db(), Some(0)),
+            cmd_accept(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH),
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
+            cmd_recover(&files.db(), "2"),
+        ] {
+            assert!(result.unwrap_err().contains("StorageUnavailable"));
+            assert_eq!(db_meta(&conn).unwrap(), before);
+            assert_eq!(read_raw_events(&conn).unwrap().len(), 1);
+        }
     }
 
     #[test]
