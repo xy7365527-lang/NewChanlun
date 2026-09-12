@@ -591,15 +591,117 @@ fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
     if seen.len() != expected.len() {
         return Err(err("缺必需表/约束"));
     }
+    // SQLite 的模式声明不证明存量行满足声明：CHECK 可被另一连接关闭，TEXT PK 可为 NULL。
+    // 对当前所有表逐列核实际类型；表名来自上方固定 DDL 的精确白名单。
+    for table in expected.keys() {
+        let mut columns = conn
+            .prepare("SELECT type,\"notnull\",pk FROM pragma_table_info(?1) ORDER BY cid")
+            .map_err(err)?;
+        let declarations = columns
+            .query_map(params![table], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, i64>(2)?,
+                ))
+            })
+            .map_err(err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(err)?;
+        let mut query = conn
+            .prepare(&format!("SELECT * FROM {table}"))
+            .map_err(err)?;
+        let mut values = query.query([]).map_err(err)?;
+        while let Some(row) = values.next().map_err(err)? {
+            for (i, (kind, notnull, pk)) in declarations.iter().enumerate() {
+                use rusqlite::types::ValueRef;
+                let value = row.get_ref(i).map_err(err)?;
+                let valid = match value {
+                    ValueRef::Null => *notnull == 0 && *pk == 0,
+                    ValueRef::Integer(_) => kind == "INTEGER",
+                    ValueRef::Text(bytes) => kind == "TEXT" && std::str::from_utf8(bytes).is_ok(),
+                    ValueRef::Blob(_) => kind == "BLOB",
+                    ValueRef::Real(_) => false,
+                };
+                if !valid {
+                    return Err(err(format!("{table} 第{i}列实际类型/非空约束损坏")));
+                }
+            }
+        }
+    }
     Ok(())
+}
+
+fn verify_epoch_history(conn: &Connection, v2: bool) -> Result<Vec<(String, i64)>, String> {
+    let generation = meta_i64(conn, "generation")?;
+    let current = parse_writer_epoch(
+        &meta_get_opt(conn, "writer_epoch")?.ok_or_else(|| err("缺writer_epoch"))?,
+        "meta.writer_epoch",
+    )
+    .map_err(err)?;
+    let mut query=conn.prepare("SELECT ordinal,from_epoch,to_epoch,generation_at_transition,advance_state_at_transition,transitioned_at FROM writer_epoch_history ORDER BY ordinal").map_err(err)?;
+    let mut rows = query.query([]).map_err(err)?;
+    let (mut previous_epoch, mut previous_generation, mut ordinal) = (None, 0, 0i64);
+    let mut facts = Vec::new();
+    while let Some(r) = rows.next().map_err(err)? {
+        ordinal += 1;
+        let actual: i64 = r.get(0).map_err(err)?;
+        let from =
+            parse_writer_epoch(&r.get::<_, String>(1).map_err(err)?, "epoch.from").map_err(err)?;
+        let to =
+            parse_writer_epoch(&r.get::<_, String>(2).map_err(err)?, "epoch.to").map_err(err)?;
+        let at =
+            nonnegative(&r.get::<_, String>(3).map_err(err)?, "epoch.generation").map_err(err)?;
+        let state: String = r.get(4).map_err(err)?;
+        let ns: String = r.get(5).map_err(err)?;
+        nonnegative(&ns, "epoch.transitioned_at").map_err(err)?;
+        if actual != ordinal
+            || previous_epoch.is_some_and(|p| p != from)
+            || to <= from
+            || at < previous_generation
+            || at > generation
+            || (v2 && state != "idle")
+        {
+            return Err(err("writer换代历史序号/接续/代际/状态不一致"));
+        }
+        previous_epoch = Some(to);
+        previous_generation = at;
+        facts.push((ns, at));
+    }
+    if previous_epoch.is_some_and(|last| last != current) {
+        return Err(err("writer_epoch与最后换代结果不一致"));
+    }
+    Ok(facts)
 }
 
 /// 所有当前控制行都新鲜检查，不能按generation过滤未来/同代损坏或信任自报摘要。
 pub fn verify_control(conn: &Connection, batches: &BTreeMap<String, Value>) -> Result<(), String> {
     let enabled = active(conn)?;
     verify_schema(conn, enabled)?;
+    let mut epoch_facts = verify_epoch_history(conn, enabled)?;
     if !enabled {
         return Ok(());
+    }
+    for table in ["s_protocol_meta", "s_delivery_policy"] {
+        let count: i64 = conn
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
+            .map_err(err)?;
+        let singleton: i64 = conn
+            .query_row(&format!("SELECT singleton FROM {table}"), [], |r| r.get(0))
+            .map_err(err)?;
+        if count != 1 || singleton != 1 {
+            return Err(err(format!("{table}必须全表唯一且singleton=1")));
+        }
+    }
+    for key in [
+        "profile_id",
+        "profile_hash",
+        "profile_definition",
+        "input_profile",
+    ] {
+        if meta_get_opt(conn, key)?.is_none_or(|s| s.is_empty()) {
+            return Err(err(format!("v2初始化缺完整{key}绑定")));
+        }
     }
     // v1 持久 epoch 保留既有非负域；v2 的 S 公共回复 producer_epoch 是正数。
     // 该协议没有 v1→v2 原库迁移，正式 v2 init 从 1 开始且 recover 只增大。
@@ -697,6 +799,7 @@ pub fn verify_control(conn: &Connection, batches: &BTreeMap<String, Value>) -> R
     let mut stmt=conn.prepare("SELECT source_namespace,source_epoch,message_id,payload_hash,canonical_envelope,receipt_id,accepted_seq,status,first_published_generation,clock_event_id,attempt_count FROM s_input_messages ORDER BY accepted_seq,message_id").map_err(err)?;
     let mut rows = stmt.query([]).map_err(err)?;
     let mut messages = BTreeMap::new();
+    let mut message_sequences = std::collections::BTreeSet::new();
     while let Some(r) = rows.next().map_err(err)? {
         let (ns, se, id, hash, raw, receipt, seq, status, published, event, count): (
             String,
@@ -778,6 +881,7 @@ pub fn verify_control(conn: &Connection, batches: &BTreeMap<String, Value>) -> R
             return Err(err("消息持久结果与最早已发布前沿不符"));
         }
         clock.phase(&event, "accept", -1).map_err(err)?;
+        message_sequences.insert(seq);
         if messages
             .insert(
                 event,
@@ -788,11 +892,24 @@ pub fn verify_control(conn: &Connection, batches: &BTreeMap<String, Value>) -> R
             return Err(err("重复clock消息身份"));
         }
     }
+    let raw_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
+        .map_err(err)?;
+    if message_sequences.len() as i128 != raw_count as i128
+        || message_sequences
+            .iter()
+            .enumerate()
+            .any(|(i, seq)| *seq as i128 != i as i128)
+    {
+        return Err(err("v2原始接纳序缺持久消息承接"));
+    }
     let mut stmt=conn.prepare("SELECT clock_event_id,phase,attempt_index,semantic_ns,message_key,attempt_ordinal,generation FROM s_clock_events ORDER BY semantic_ns,clock_event_id,phase,attempt_index").map_err(err)?;
     let mut rows = stmt.query([]).map_err(err)?;
     let mut seen = BTreeMap::new();
     let mut ordinals = BTreeMap::new();
     let mut commits_by_generation = BTreeMap::new();
+    let mut begins_by_message: BTreeMap<String, std::collections::BTreeSet<i64>> = BTreeMap::new();
+    let mut recover_facts = Vec::new();
     let mut max_ns = -1;
     while let Some(r) = rows.next().map_err(err)? {
         let (id, phase, index, ns, key, ord, g): (
@@ -820,6 +937,7 @@ pub fn verify_control(conn: &Connection, batches: &BTreeMap<String, Value>) -> R
             if index != -1 || ord.is_some() || !key.is_empty() || g > root_g {
                 return Err(err("recover phase归属错误"));
             }
+            recover_facts.push((ns.clone(), g));
         } else {
             let (expected_key, count, published) =
                 messages.get(&id).ok_or_else(|| err("phase没有原消息"))?;
@@ -839,6 +957,12 @@ pub fn verify_control(conn: &Connection, batches: &BTreeMap<String, Value>) -> R
             }
             if phase == "begin" && ordinals.insert(ord.unwrap(), (id.clone(), index)).is_some() {
                 return Err(err("重复全局attempt"));
+            }
+            if phase == "begin" {
+                begins_by_message
+                    .entry(id.clone())
+                    .or_default()
+                    .insert(index);
             }
             if phase == "begin" && g != published.unwrap_or(next_g) {
                 return Err(err("Begin代际与消息推进目标不同"));
@@ -871,7 +995,17 @@ pub fn verify_control(conn: &Connection, batches: &BTreeMap<String, Value>) -> R
         if !seen.contains_key(&(id.clone(), "accept".into(), -1)) {
             return Err(err("消息缺接纳phase"));
         }
-        for i in 0..*count {
+        let indexes = begins_by_message.get(id);
+        if indexes.map_or(0, |v| v.len()) as i128 != *count as i128
+            || indexes.is_some_and(|v| {
+                v.iter()
+                    .enumerate()
+                    .any(|(i, actual)| i as i128 != *actual as i128)
+            })
+        {
+            return Err(err("消息attempt_count与实际Begin集合不闭合"));
+        }
+        for &i in indexes.into_iter().flatten() {
             let begin = seen
                 .get(&(id.clone(), "begin".into(), i))
                 .ok_or_else(|| err("attempt缺Begin"))?;
@@ -887,6 +1021,11 @@ pub fn verify_control(conn: &Connection, batches: &BTreeMap<String, Value>) -> R
         {
             return Err(err("已发布消息缺最后Commit phase"));
         }
+    }
+    epoch_facts.sort();
+    recover_facts.sort();
+    if epoch_facts != recover_facts {
+        return Err(err("recover phase与writer换代时间/代际不闭合"));
     }
     let mut q = conn
         .prepare("SELECT generation,index_frontier FROM structure_deltas ORDER BY generation")
@@ -1827,6 +1966,58 @@ mod tests {
             assert!(verify_reachable_root(&conn).is_err(), "{invalid}");
         }
         meta_set(&conn, "writer_epoch", "1").unwrap();
+        verify_reachable_root(&conn).unwrap();
+    }
+    #[test]
+    fn v2_all_control_rows_and_pending_message_coverage_gate_every_write() {
+        let mut failures = Vec::new();
+        for (name,sql,pending) in [
+            ("extra_protocol_singleton", "PRAGMA ignore_check_constraints=ON; INSERT INTO s_protocol_meta SELECT 2,protocol_revision,'broken','bad','not-json',0,'garbage' FROM s_protocol_meta WHERE singleton=1;",false),
+            ("extra_delivery_singleton", "PRAGMA ignore_check_constraints=ON; INSERT INTO s_delivery_policy SELECT 2,'foreign','bad','bad',-1,-1,-1 FROM s_delivery_policy WHERE singleton=1;",false),
+            ("malformed_epoch_history", "INSERT INTO writer_epoch_history VALUES(1,'bad','not-an-epoch','future','bad-state','not-ns');",false),
+            ("missing_profile_definition", "DELETE FROM meta WHERE key='profile_definition';",false),
+            ("pending_without_message", "DELETE FROM s_input_messages; DELETE FROM s_clock_events; UPDATE s_protocol_meta SET logical_phase_frontier='-1';",true),
+        ] {
+            let f=Fixture::new(8,2);
+            let c=InputContext{envelope:f.message(0),clock:f.clock.clone()};
+            if pending { accept_core(&f.db,&canonical_json(&c.envelope["payload"]["raw_input"]),&f.profile,"1",Some(&c)).unwrap(); }
+            let conn=open_db(&f.db).unwrap();conn.execute_batch(sql).unwrap();
+            let before=f.dump();
+            let refused=[verify_reachable_root(&conn).is_err(),
+                accept_core(&f.db,&canonical_json(&c.envelope["payload"]["raw_input"]),&f.profile,"1",Some(&c)).is_err(),
+                advance_core(&f.db,"1",Some(&c)).is_err(),
+                recover_core(&f.db,"2",Some((&f.clock,"recover-1"))).is_err()];
+            if refused!=[true;4] || before!=f.dump() { failures.push((name,refused)); }
+        }
+        assert!(failures.is_empty(), "{failures:?}");
+    }
+    #[test]
+    fn v2_epoch_history_and_recover_phase_are_one_complete_chain() {
+        let f = Fixture::new(8, 2);
+        let c = f.begin_only();
+        recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).unwrap();
+        advance_core(&f.db, "2", Some(&c)).unwrap();
+        let mut conn = open_db(&f.db).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        for sql in [
+            "UPDATE writer_epoch_history SET ordinal=2",
+            "UPDATE writer_epoch_history SET from_epoch='+1'",
+            "UPDATE writer_epoch_history SET to_epoch='1'",
+            "UPDATE meta SET value='3' WHERE key='writer_epoch'",
+            "UPDATE writer_epoch_history SET generation_at_transition='2'",
+            "UPDATE writer_epoch_history SET transitioned_at='1031'",
+            "UPDATE writer_epoch_history SET advance_state_at_transition='garbage'",
+            "DELETE FROM writer_epoch_history",
+            "DELETE FROM s_clock_events WHERE phase='recover'",
+            "UPDATE s_clock_events SET generation=1 WHERE phase='recover'",
+            "UPDATE s_input_messages SET attempt_count=9223372036854775807",
+            "INSERT INTO meta VALUES(NULL,'hidden bad primary key')",
+        ] {
+            let tx = conn.transaction().unwrap();
+            tx.execute_batch(sql).unwrap();
+            assert!(verify_reachable_root(&tx).is_err(), "{sql}");
+            tx.rollback().unwrap();
+        }
         verify_reachable_root(&conn).unwrap();
     }
     #[test]
