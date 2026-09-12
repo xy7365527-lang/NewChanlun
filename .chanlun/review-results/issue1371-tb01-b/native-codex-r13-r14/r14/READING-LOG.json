@@ -1,0 +1,132 @@
+{
+  "candidate": "6189c7e0e5499fc757ddb8369ca557104b526c57",
+  "session_id": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "evidence": [
+    {
+      "id": "E01",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/SOURCE.json",
+      "sha256": "42e63e3cb0b8aec5c74d385668f91d2b63681588a3f4b3090cf58083d0f8df4c",
+      "bytes": 857,
+      "locator": "/files，4个源码/HTML Git对象与6189逐字节核对"
+    },
+    {
+      "id": "E02",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/BUILD-RESULT.json",
+      "sha256": "ceca392ecb24b1a3cd80d43177233fa8ea66f8aca36755a0ba02d26699eae614",
+      "bytes": 394,
+      "locator": "新binary SHA6f2e43d8…，source manifest绑定；root构建退出0"
+    },
+    {
+      "id": "E03",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/source/rust/src/bin/s_structure_session.rs",
+      "sha256": "9cab566138b96f131711d1f45540dc17bf8c02cdca5757debafa340499c175a3",
+      "bytes": 249272,
+      "locator": "L902–942共享root返回raw；L969–974 g0返回；L1125结束返回；L1605–1686原始读取及双向归属；L1999–2035 Begin复用vector；L4600新测试"
+    },
+    {
+      "id": "E04",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/source/s_session/s_readonly_server.py",
+      "sha256": "3739cd7f306eda44994e3939c0388174de65f265923ce19a661f0d7794893ce0",
+      "bytes": 58800,
+      "locator": "L340–364全raw坐标/identity前件与共享root调用；原Handler公共异常映射保持"
+    },
+    {
+      "id": "E05",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/source/s_session/tests/r13_integrity.py",
+      "sha256": "8991739d14a876bbf7d20430ab227e935b8dd968322d30297ba01757bea10e21",
+      "bytes": 7891,
+      "locator": "完整155行；新增assert_unavailable和4 pending raw案例，保留原5未来索引"
+    },
+    {
+      "id": "E06",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/git-diff.patch",
+      "sha256": "f4083032136d6d08011e1ec1e03436b6ed89e8f9da5a335a461465dd56160f59",
+      "bytes": 12779,
+      "locator": "b9→6189完整三文件增量"
+    },
+    {
+      "id": "E07",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/REUSE-BINDING.json",
+      "sha256": "f6d707fe6ba58bc8558919527aa31e9126603dde66885f948fda44e7b771cc7f",
+      "bytes": 679,
+      "locator": "四组生产源码逐字节恒等；记录首个过宽epoch比较切片导致的测试工具假差异"
+    },
+    {
+      "id": "E08",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/independent.py",
+      "sha256": "04ac4fe62bb0564fcaef9f18cdc6a7b74dde5e1de0b34473d44c373dea99a984",
+      "bytes": 11862,
+      "locator": "本代理实际执行；复用R13工具函数，report.candidate固定6189；仅owned DB"
+    },
+    {
+      "id": "E09",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r14-codex-incremental-review/independent-run/RESULT.json",
+      "sha256": "60fdcc8987438dce626eee769901971941e768bb8f5006aac468a5e8d191c196",
+      "bytes": 2074928,
+      "locator": "/cases 13 /calls 84 /handler_calls 29；failure=null，source_hashes_unchanged=true"
+    },
+    {
+      "id": "E10",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/REVIEW.json",
+      "sha256": "fca234c5c825755ae17607798ec9557d1203977024622b0ea2aa9e0897b205f7",
+      "bytes": 209898,
+      "locator": "原R13全8AC/17义务与FAIL保持冻结；/findings/0=R13-M1"
+    },
+    {
+      "id": "E11",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/EXECUTION.json",
+      "sha256": "ff92c915d3961a11c806d1226ceb7fd32c8e1b1701dea2cd09c307457454ee94",
+      "bytes": 26501,
+      "locator": "b9三SIGKILL及49回归+4反例的真实版本、原件SHA和未变部分复用边界"
+    },
+    {
+      "id": "E12",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r13-codex-incremental-review/raw-integrity-gap/RESULT.json",
+      "sha256": "7810454a507e2bd05666dbaa91335dc3188f2cb78700ee0ad5003d19616d6f8b",
+      "bytes": 982023,
+      "locator": "/cases/0–3四原反例；R14各取原坏db再复制，源SHA前后未改"
+    },
+    {
+      "id": "E13",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-INTEGRITY-GREEN/RESULT.json",
+      "sha256": "587eb0b8219bdacdbb610323919af06b5ccba881dbf772982b316d6d03abadfc",
+      "bytes": 60473,
+      "locator": "root新9臂：71native、37read_state（27拒绝/10健康），failure=null"
+    },
+    {
+      "id": "E14",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/RUST-ALL.log",
+      "sha256": "aa80b9fb1dc72b6a54de774f508c93d809f717aedb36cad234cb96c8744fb2e5",
+      "bytes": 22046,
+      "locator": "L538–583 46条ok；L585 test result 46 passed/0 failed；未由本代理重跑"
+    },
+    {
+      "id": "E15",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-PERFORMANCE-TRIAGE.json",
+      "sha256": "693ae821b82a0ee50a034887c9a957d3fd58f785ec94df4a06037d1fcb67dcfa",
+      "bytes": 78840,
+      "locator": "原#1371 AC7/已签来源原文及#1372 C性能义务，继续开放"
+    },
+    {
+      "id": "E16",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/REVIEW.json",
+      "sha256": "2ea4c4f30949b9323f20ff688dafe21fb9ccf1f4b1fc1bd351f8c58d9597fea0",
+      "bytes": 231461,
+      "locator": "未变HTML/消费者/GUI/launcher旧证据与原25项语义审阅链，不作为新Rust运行"
+    }
+  ],
+  "actual_reading": [
+    "完整b9→6189三文件diff、新增raw共享函数及全部相关测试修改；冻结源与Git对象逐个核SHA。",
+    "读取原R13四反例变异/回执/数据库后复制回测；新输出完整解析并在健康/故障control间全字段比较。",
+    "对read_raw/effective、Begin后生产体、pause helper、epoch门做字节恒等比较。原epoch切片首次取到过远separator包含改动root导致假差异，改为下一helper边界后恒等；未改产品，此工具错误记于E07。",
+    "root46条test结果、9臂71CLI/37read_state报告；旧R13全8AC/17行理由/证据与既有R12协议边界。"
+  ],
+  "not_repeated": [
+    "不重新审整冻结包/全仓/全部GUI原件。",
+    "不重跑cargo或全部旧三杀；R14只新增Begin后一杀与release交错。b9后两杀仍是b9原运行。",
+    "未跑新launcher、网络HTTP、GUI、长历史性能或经济域。",
+    "未验证所有可能的存储损坏形态或平台；本次实际平台为macOS且i64源坐标可由usize无损表示。"
+  ],
+  "tool_boundary": "约束来自指令遵守，不冒称OS沙盒。"
+}

@@ -1,0 +1,157 @@
+{
+  "schema": 1,
+  "ticket": 1371,
+  "parent_goal": 1323,
+  "product_commit": "6189c7e0e5499fc757ddb8369ca557104b526c57",
+  "verdict": "PASS_BOUNDED_TB01_B_PREMERGE",
+  "scope": "#1371 TB-01-B明示结构子域；完整8AC/17子义务逐项继承并重新定受影响项，R13-M1共享raw前件补漏。",
+  "ac": [
+    {
+      "id": "AC-1",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/ac/0"
+    },
+    {
+      "id": "AC-2",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/ac/1"
+    },
+    {
+      "id": "AC-3",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/ac/2"
+    },
+    {
+      "id": "AC-4",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/ac/3"
+    },
+    {
+      "id": "AC-5",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/ac/4"
+    },
+    {
+      "id": "AC-6",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/ac/5"
+    },
+    {
+      "id": "AC-7",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/ac/6"
+    },
+    {
+      "id": "AC-8",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/ac/7"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "A-CC-006-03",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/0"
+    },
+    {
+      "id": "A-CC-006-04",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/1"
+    },
+    {
+      "id": "A-ST-044-02",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/2"
+    },
+    {
+      "id": "A-ST-044-03",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/3"
+    },
+    {
+      "id": "A-ES-15-01",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/4"
+    },
+    {
+      "id": "A-ES-15-02",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/5"
+    },
+    {
+      "id": "A-RA-04-01",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/6"
+    },
+    {
+      "id": "A-RA-10-01",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/7"
+    },
+    {
+      "id": "A-I-02-01",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/8"
+    },
+    {
+      "id": "A-OB-004-01",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/9"
+    },
+    {
+      "id": "A-OB-008-01",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/10"
+    },
+    {
+      "id": "A-OB-009-01",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/11"
+    },
+    {
+      "id": "A-OB-014-01",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/12"
+    },
+    {
+      "id": "A-OB-015-01",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/13"
+    },
+    {
+      "id": "A-OB-016-01",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/14"
+    },
+    {
+      "id": "A-OB-017-01",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/15"
+    },
+    {
+      "id": "A-OB-020-01",
+      "verdict": "PASS",
+      "report_pointer": "r14/REVIEW.json#/obligations/16"
+    }
+  ],
+  "review_report_sha256": "af66b9d54512228fc6bb8a26b009bf7ef9511fbeb60d5c234c184b207a1a352e",
+  "r13_failed_report_preserved": true,
+  "limitations": [
+    "PASS只属于6189当前受测结构子域，原b9/R13仍FAIL，原R7/750f FAIL记录也不重写。",
+    "新Rust/Python运行由84个原生进程记录和29次真实Handler补核；旧三杀/GUI不改标成新binary。",
+    "R14未新跑batch后与Commit后SIGKILL；R13这两臂按生产段/原helper字节不变及新共享门、Begin杀、前沿交错证明有界复用。",
+    "full-history性能P2维持#1372 C open，未新增规模目标或性能证明。",
+    "完整#1323、全部CC/ST/LC/经济义务、#1448旧R6同ID迁移仍未销项；R6仍INCOMPLETE。",
+    "没有自动合入、关票或生产启用授权。"
+  ],
+  "main_merge": "not_performed",
+  "new_head_ci": "pending_publication",
+  "old_head_devskim": "750f failed; baseline unchanged; exact triage retained",
+  "closure": {
+    "issue1371_closed": false,
+    "issue1372_started": false,
+    "issue1448_satisfied": false,
+    "parent1323_complete": false
+  },
+  "prime_started": false
+}

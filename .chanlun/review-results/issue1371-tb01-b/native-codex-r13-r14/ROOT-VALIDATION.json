@@ -1,0 +1,75 @@
+{
+  "ticket": 1371,
+  "parent_goal": 1323,
+  "product_commit": "6189c7e0e5499fc757ddb8369ca557104b526c57",
+  "source_manifest": {
+    "base": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+    "kind": "R14_SHARED_RAW_COORDINATE_GATE",
+    "worktree": "/Users/silencehan/Projects/NewChanlun-1371-codex-r13",
+    "files": [
+      {
+        "path": "rust/src/bin/s_structure_session.rs",
+        "bytes": 249272,
+        "sha256": "9cab566138b96f131711d1f45540dc17bf8c02cdca5757debafa340499c175a3"
+      },
+      {
+        "path": "s_session/s_readonly_server.py",
+        "bytes": 58800,
+        "sha256": "3739cd7f306eda44994e3939c0388174de65f265923ce19a661f0d7794893ce0"
+      },
+      {
+        "path": "s_session/tests/r13_integrity.py",
+        "bytes": 7891,
+        "sha256": "8991739d14a876bbf7d20430ab227e935b8dd968322d30297ba01757bea10e21"
+      },
+      {
+        "path": "s_session/browser/index.html",
+        "bytes": 42793,
+        "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe"
+      }
+    ]
+  },
+  "binary": {
+    "binary": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/bin/s_structure_session",
+    "sha256": "6f2e43d8d02499913855fa7ae9e3f2c79b2cd4b4baf9732ee3156b0d08f4e296",
+    "bytes": 6301848,
+    "source_manifest_sha256": "42e63e3cb0b8aec5c74d385668f91d2b63681588a3f4b3090cf58083d0f8df4c",
+    "rust_tests": 46,
+    "build_exit": 0,
+    "rust_fmt_exit": 0
+  },
+  "root_checks": {
+    "rust_test_s_session": {
+      "exit": 0,
+      "passed": 46,
+      "failed": 0
+    },
+    "cargo_fmt": {
+      "exit": 0
+    },
+    "native_python_integrity": {
+      "exit": 0,
+      "branches": 9,
+      "native_calls": 71,
+      "python_reads": 37,
+      "python_rejections": 27,
+      "healthy_python_reads": 10,
+      "full_dump_unchanged_after_rejected_writes": 27
+    }
+  },
+  "independent_review": {
+    "verdict": "PASS_BOUNDED_TB01_B",
+    "path": "r14/REVIEW.json",
+    "sha256": "af66b9d54512228fc6bb8a26b009bf7ef9511fbeb60d5c234c184b207a1a352e",
+    "ac_pass": 8,
+    "obligations_pass": 17,
+    "cases": 13,
+    "native_process_records": 84,
+    "python_handler_outputs": 29,
+    "new_sigkill_cases": 1,
+    "r13_sigkill_cases_reused": 2,
+    "new_gui": false
+  },
+  "main_merge": "not_performed",
+  "prime_started": false
+}

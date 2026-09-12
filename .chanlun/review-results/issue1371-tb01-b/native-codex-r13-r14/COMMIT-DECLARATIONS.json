@@ -1,0 +1,103 @@
+{
+  "schema": 1,
+  "ticket": 1371,
+  "base": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+  "product_head": "6189c7e0e5499fc757ddb8369ca557104b526c57",
+  "earlier_21_commits": "../native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+  "additional_commits": [
+    {
+      "commit": "750f933bddffc8251a880555b9beae2cdce75690",
+      "parent": "e5b03629adde165610161b4df3e2d62d22163568",
+      "kind": "documentation_exempt",
+      "changed_paths": [
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/AUTHORIZATION.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/COMMIT-DECLARATIONS.md",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-ATTACHMENTS.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-INDEX.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-MANIFEST.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-RESULT.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-RESULT.md",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/IMPLEMENTATION.md",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/README.md",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/ROOT-ACCEPTANCE.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/ROOT-ACCEPTANCE.md",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/EXECUTION.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/FINAL-CHECK.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/READING-LOG.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/REVIEW.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/REVIEW.md",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/FINAL-CHECK.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/READING-LOG.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/REVIEW.json",
+        ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/REVIEW.md"
+      ],
+      "checks": [
+        {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/FINAL-DELIVERY.json",
+          "sha256": "689c5a5b01ae5c9b5ec4c138fac83f653f021bb74380dfeec848ab48c5b0987a"
+        }
+      ],
+      "reason": "仅新增21份具名报告/证据文件；产品与e5b03629同字节"
+    },
+    {
+      "commit": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "parent": "750f933bddffc8251a880555b9beae2cdce75690",
+      "kind": "product_and_regression_tests",
+      "changed_paths": [
+        "rust/src/bin/s_structure_session.rs",
+        "s_session/s_readonly_server.py",
+        "s_session/tests/r13_integrity.py"
+      ],
+      "checks": [
+        {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/RUST-ALL.log",
+          "sha256": "a4e80284ce418aab84899177e6cb6d8a014d5101a2c5b32e34351abc3d962244"
+        },
+        {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/BUILD.log",
+          "sha256": "f1578cf0ba61e36bee6ddc548ca7f100e2f7227a2b3b3937bdd83304f00a38e2"
+        },
+        {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r13-build/FMT-RUST.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R13-INTEGRITY-GREEN/RESULT.json",
+          "sha256": "6cb655f1aca57474adee23f058c84d63e549592955627b5e7ed09d608ec0a8e0"
+        }
+      ],
+      "acceptance": "R13独评FAIL，编译/回归通过不代表B验收通过"
+    },
+    {
+      "commit": "6189c7e0e5499fc757ddb8369ca557104b526c57",
+      "parent": "b9bfe78f2382c169d032915f78bf0cdca27f3f25",
+      "kind": "product_and_regression_tests",
+      "changed_paths": [
+        "rust/src/bin/s_structure_session.rs",
+        "s_session/s_readonly_server.py",
+        "s_session/tests/r13_integrity.py"
+      ],
+      "checks": [
+        {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/RUST-ALL.log",
+          "sha256": "aa80b9fb1dc72b6a54de774f508c93d809f717aedb36cad234cb96c8744fb2e5"
+        },
+        {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/BUILD.log",
+          "sha256": "ee33eeb4ebe270c1f9f009c85475a3961353c0acca52b60a8cdc6b27d98fff50"
+        },
+        {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/r14-build/FMT.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R14-INTEGRITY-GREEN/RESULT.json",
+          "sha256": "587eb0b8219bdacdbb610323919af06b5ccba881dbf772982b316d6d03abadfc"
+        }
+      ]
+    }
+  ],
+  "total_through_product": 24,
+  "final_document_commit": "尚未生成；提交后由票属FINAL-DELIVERY追加其文档豁免，不自引用虚构SHA"
+}

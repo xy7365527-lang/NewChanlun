@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>S 正式结构会话 · 只读观察（#1370 TB-01-A）</title>
+<title>S 正式结构会话 · 只读观察（#1371 TB-01-B）</title>
 <style>
   :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --line:#30363d; --accent:#58a6ff; --ok:#3fb950; --warn:#d29922; --err:#f85149; }
   * { box-sizing: border-box; }
@@ -10,10 +10,10 @@
   header { padding:16px 20px; border-bottom:1px solid var(--line); }
   h1 { font-size:18px; margin:0 0 4px; }
   .muted { color:var(--muted); }
-  main { padding:20px; max-width:1180px; margin:0 auto; }
+  main { padding:20px; max-width:1280px; margin:0 auto; }
   section { margin-bottom:28px; }
   h2 { font-size:15px; border-bottom:1px solid var(--line); padding-bottom:6px; }
-  .kv { display:grid; grid-template-columns:200px 1fr; gap:4px 12px; }
+  .kv { display:grid; grid-template-columns:220px 1fr; gap:4px 12px; }
   .kv dt { color:var(--muted); }
   .kv dd { margin:0; word-break:break-all; }
   table { border-collapse:collapse; width:100%; }
@@ -25,6 +25,7 @@
   .run { color:var(--accent); border-color:var(--accent); }
   .err-box { border:1px solid var(--err); color:var(--err); padding:12px 16px; border-radius:6px; }
   .warn-box { border:1px solid var(--warn); color:var(--warn); padding:12px 16px; border-radius:6px; }
+  .ok-box { border:1px solid var(--ok); color:var(--ok); padding:12px 16px; border-radius:6px; }
   details { margin:6px 0; border:1px solid var(--line); border-radius:6px; padding:6px 10px; }
   summary { cursor:pointer; }
   .branch { font-weight:bold; }
@@ -35,8 +36,11 @@
   .cmp-held { color:var(--ok); }
   .cmp-fail { color:var(--err); }
   .price { color:#a5d6ff; }
-  .controls { margin:8px 0; }
+  .withdrawn { color:var(--warn); text-decoration:line-through; }
+  .controls { margin:8px 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
   button { background:#21262d; color:var(--fg); border:1px solid var(--line); padding:4px 10px; border-radius:6px; cursor:pointer; }
+  button.active { border-color:var(--accent); color:var(--accent); }
+  input, select { background:#21262d; color:var(--fg); border:1px solid var(--line); padding:4px 8px; border-radius:6px; }
   .hidden { display:none; }
   a { color:var(--accent); }
   #instance-section { scroll-margin-top:16px; }
@@ -53,10 +57,21 @@
 <body>
 <header>
   <h1>S 正式结构会话 · 只读观察</h1>
-  <div class="muted">#1370 TB-01-A · CC-006 local_shape · 同源 API（只读已提交 cut，不补判结构、不推算经济资格）</div>
+  <div class="muted">#1371 TB-01-B · CC-006 local_shape · 同源 API（只读已提交 cut，不补判结构、不推算经济资格）</div>
 </header>
 <main>
   <section id="status-section"></section>
+
+  <section>
+    <h2>历史模式（AsKnown 当时可知 / RecomputedWithRevision 最新修订重算）</h2>
+    <div class="controls">
+      <button id="btn-current" class="active" type="button">RecomputedWithRevision（当前）</button>
+      <label class="muted">AsKnown 回看 generation：</label>
+      <input id="asof-input" type="text" size="8" value="0" inputmode="numeric">
+      <button id="btn-asof" type="button">查看 AsKnown</button>
+      <span class="muted" id="mode-indicator"></span>
+    </div>
+  </section>
 
   <section id="meta-section">
     <h2>会话 / 快照元数据（按服务返回值呈现）</h2>
@@ -65,8 +80,27 @@
 
   <section id="instance-section" tabindex="-1">
     <p id="view-selection" class="muted">浏览范围：结构（S） · CC-006</p>
-    <h2>CC-006 local_shape 对象（四分支 + 两次方向 + 四个严格比较 + 三根 raw/merged 见证）</h2>
+    <h2>CC-006 local_shape 活动对象（四分支 + 两次方向 + 四个严格比较 + 三根 raw/merged 见证）</h2>
     <div id="objects"></div>
+  </section>
+
+  <section id="withdrawn-section">
+    <h2>撤回对象（当前视图移除，历史不删：原身份 / first_known / 发生区间 / 撤回理由 / 替代）</h2>
+    <div id="withdrawn"></div>
+  </section>
+
+  <section id="revision-section">
+    <h2>源事件修订链（supersedes / replaces / 原输入与比较见证）</h2>
+    <div id="raw-history"></div>
+  </section>
+
+  <section id="stream-section">
+    <h2>同源 Watch（持久 StructureDelta 续接 + 与同 cut Snapshot 逐字段对拍）</h2>
+    <div class="controls">
+      <button id="btn-stream" type="button">读取新 Delta（同源 /api/delta）</button>
+      <span class="muted" id="stream-cursor"></span>
+    </div>
+    <div id="stream-result"></div>
   </section>
 
   <section id="observations-section">
@@ -91,12 +125,42 @@
 "use strict";
 let currentState = null;
 let selectedCatalogId = "CC-006";
-// 精确整数纪律：所有价格/时间戳以字符串呈现（textContent），本页面不使用 Number()/parseFloat 处理价格。
+let historyMode = "current";
+// 已提交（已验证）状态；精确整数一律字符串 + BigInt 比较，不经 Number()。
+let appliedObjects = new Map();
+let appliedWithdrawn = new Map();
+let appliedWitnesses = new Map();
+let appliedRelations = new Map();
+let appliedObservations = new Map();
+let appliedRawHistory = new Map();
+let lastAppliedGen = "0";
+let sessionBinding = null; // {session_id, structure_cut, generation, catalog_revision}
+let pageEpoch = 0;          // 请求代际：晚到响应不覆盖新提交
+
 function esc(s) { const d = document.createElement("div"); d.textContent = String(s); return d.innerHTML; }
 function escAttr(s) { return esc(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
+function bigAddOne(s) { try { return (BigInt(s) + 1n).toString(); } catch (e) { return null; } }
+function bigLe(a, b) { try { return BigInt(a) <= BigInt(b); } catch (e) { return false; } }
+function bigEq(a, b) { try { return BigInt(a) === BigInt(b); } catch (e) { return false; } }
+function deepClone(o) { return (typeof structuredClone === "function") ? structuredClone(o) : JSON.parse(JSON.stringify(o)); }
+function beginRequest() { return ++pageEpoch; }
+function resetCommitted() {
+  appliedObjects = new Map(); appliedWithdrawn = new Map(); appliedWitnesses = new Map();
+  appliedRelations = new Map(); appliedObservations = new Map(); appliedRawHistory = new Map();
+  lastAppliedGen = "0"; sessionBinding = null;
+}
 function renderStatus(text, cls) {
   const el = document.getElementById("status-section");
   el.innerHTML = text ? `<div class="${cls}">${esc(text)}</div>` : "";
+}
+function syncModeUI(mode, snap) {
+  historyMode = mode;
+  document.getElementById("mode-indicator").textContent =
+    mode === "asof" && snap
+      ? `${snap.history_mode} @ generation ${snap.as_of_generation}`
+      : "RecomputedWithRevision（当前）";
+  document.getElementById("btn-current").classList.toggle("active", mode === "current");
+  document.getElementById("btn-asof").classList.toggle("active", mode === "asof");
 }
 function renderMeta(snap, cat) {
   const kv = [
@@ -104,70 +168,92 @@ function renderMeta(snap, cat) {
     ["generation", snap.generation],
     ["structure_cut", snap.structure_cut],
     ["catalog_revision", snap.catalog_revision],
+    ["history_mode", snap.history_mode],
+    ["as_of_generation", snap.as_of_generation == null ? "—" : snap.as_of_generation],
     ["scope", JSON.stringify(snap.scope)],
     ["index_frontier", snap.index_frontier],
     ["profile_id", snap.profile_id],
     ["profile_hash", snap.profile_hash],
-    ["objects", (snap.objects || []).length],
+    ["活动对象", (snap.objects || []).length],
+    ["撤回对象", (snap.withdrawn_objects || []).length],
     ["witnesses", (snap.witnesses || []).length],
     ["relations", (snap.relations || []).length],
+    ["raw_history", (snap.raw_history || []).length],
     ["catalog_items", (cat.items || []).length],
   ];
   document.getElementById("meta-kv").innerHTML = kv.map(([k, v]) =>
     `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
 }
+function renderObjectCard(o, snap, cls) {
+  const witnesses = snap.witnesses || [];
+  const byObj = {};
+  for (const w of witnesses) { (byObj[w.object_id] = byObj[w.object_id] || []).push(w); }
+  const ws = (byObj[o.object_id] || []).sort((a, b) => (BigInt(a.slot) < BigInt(b.slot) ? -1 : 1));
+  const cmpRows = (o.comparisons || []).map(c =>
+    `<tr><td>${esc(c.pair)}</td><td>${esc(c.axis)}</td><td class="price">${esc(c.prev)}</td>` +
+    `<td class="price">${esc(c.cur)}</td><td>${c.strict_up ? "cur &gt; prev" : "cur &lt; prev"}</td>` +
+    `<td class="${c.held ? "cmp-held" : "cmp-fail"}">${c.held}</td></tr>`).join("");
+  const refRows = (o.input_refs || []).map(g => {
+    const inner = (g.raw_refs || []).map(r =>
+      `<li>identity=${esc(r.identity_key)} event_id=${esc(r.event_id)} 接纳序 seq=${esc(r.seq)} ` +
+      `源坐标 source_coord=${esc(r.source_coord)} 输入修订 input_revision=${esc(r.input_revision)} ` +
+      `原始事件修订 revision=${esc(r.revision)} 收据 receipt_id=${esc(r.receipt_id)}</li>`).join("");
+    return `<li>merged_index=${esc(g.merged_index)}<ul>${inner}</ul></li>`;
+  }).join("");
+  const wit = ws.map(w => {
+    const raws = (w.raw_bars || []).map(r =>
+      `<li>接纳序 seq=${esc(r.seq)} 源坐标 source_coord=${esc(r.source_coord)} identity=${esc(r.identity_key)} ` +
+      `event_id=${esc(r.event_id)} 原始事件修订 revision=${esc(r.revision)} 输入修订 input_revision=${esc(r.input_revision)} ` +
+      `receipt_id=${esc(r.receipt_id)} raw_text=${esc(r.raw_text)} price=<span class="price">${esc(r.price)}</span></li>`).join("");
+    return `<details id="${escAttr(w.witness_id)}"><summary>slot ${esc(w.slot)} · witness_id=${esc(w.witness_id)} · merged source_index=${esc(w.merged_source_index)} ` +
+      `O=${esc(w.merged_open)} H=<span class="price">${esc(w.merged_high)}</span> L=<span class="price">${esc(w.merged_low)}</span> C=${esc(w.merged_close)}</summary>` +
+      `<ul>${raws || "<li class='muted'>（无原始成员）</li>"}</ul></details>`;
+  }).join("");
+  const relationRows = (snap.relations || [])
+    .filter(r => r.subject === o.object_id || r.object === o.object_id)
+    .map(r => `<li>${esc(r.subject)} — ${esc(r.relation_type)} → ${esc(r.object)}</li>`).join("");
+  const withdrawLine = o.lifecycle === "withdrawn"
+    ? ` · <span class="withdrawn">已撤回</span> reason=${esc(o.withdrawal_reason)} withdrawn_generation=${esc(o.withdrawn_generation)} superseded_by=${esc(o.superseded_by)}`
+    : "";
+  return `<details open id="${escAttr(o.object_id)}"><summary class="${cls || ""}"><span class="branch ${esc(o.branch)}">${esc(o.branch)}</span> · ` +
+    `窗口源坐标 [${esc(o.window_start)},${esc(o.window_mid)},${esc(o.window_end)}] · ` +
+    `dir(a,b)=${esc(o.dir_ab)} dir(b,c)=${esc(o.dir_bc)} · object_id=${esc(o.object_id)} · ` +
+    `object_revision=${esc(o.object_revision)} · first_known_generation=${esc(o.first_known_generation)} · published=${esc(o.published_generation)} · batch=${esc(o.batch_id)}${withdrawLine}</summary>` +
+    `<table><thead><tr><th>pair</th><th>axis</th><th>prev</th><th>cur</th><th>关系</th><th>held</th></tr></thead><tbody>${cmpRows}</tbody></table>` +
+    `<details><summary>input_refs（对象绑定输入身份/修订/收据）</summary><ul>${refRows || "<li class='muted'>（无）</li>"}</ul></details>` +
+    `<details><summary>关系（服务返回的对象与见证引用）</summary><ul>${relationRows || "<li class=\"muted\">（无关系）</li>"}</ul></details>` +
+    `${wit}</details>`;
+}
 function renderObjects(snap, catalogId = selectedCatalogId) {
   const objects = (snap.objects || []).filter(o =>
     catalogId === "CC-006" && o.kind === "CC-006.local_shape");
   document.getElementById("view-selection").textContent =
-    `浏览范围：结构（S） · ${catalogId} · ${snap.structure_cut} · 实例 ${objects.length}`;
-  const witnesses = snap.witnesses || [];
-  const byObj = {};
-  for (const w of witnesses) { (byObj[w.object_id] = byObj[w.object_id] || []).push(w); }
-  const el = document.getElementById("objects");
-  el.innerHTML = objects.map(o => {
-    const ws = (byObj[o.object_id] || []).sort((a, b) => a.slot - b.slot);
-    const cmpRows = (o.comparisons || []).map(c =>
-      `<tr><td>${esc(c.pair)}</td><td>${esc(c.axis)}</td><td class="price">${esc(c.prev)}</td>` +
-      `<td class="price">${esc(c.cur)}</td><td>${c.strict_up ? "cur &gt; prev" : "cur &lt; prev"}</td>` +
-      `<td class="${c.held ? "cmp-held" : "cmp-fail"}">${c.held}</td></tr>`).join("");
-    const refRows = (o.input_refs || []).map(g => {
-      const inner = (g.raw_refs || []).map(r =>
-        `<li>identity=${esc(r.identity_key)} event_id=${esc(r.event_id)} ` +
-        `接纳序 seq=${esc(r.seq)} 源坐标 source_coord=${esc(r.source_coord)} ` +
-        `输入修订 input_revision=${esc(r.input_revision)} 原始事件修订 revision=${esc(r.revision)} ` +
-        `收据 receipt_id=${esc(r.receipt_id)} payload_hash=${esc(r.payload_hash)}</li>`).join("");
-      return `<li>merged_index=${esc(g.merged_index)}<ul>${inner}</ul></li>`;
-    }).join("");
-    const wit = ws.map(w => {
-      const raws = (w.raw_bars || []).map(r =>
-        `<li>接纳序 seq=${esc(r.seq)} 源坐标 source_coord=${esc(r.source_coord)} ` +
-        `identity=${esc(r.identity_key)} event_id=${esc(r.event_id)} ` +
-        `原始事件修订 revision=${esc(r.revision)} 输入修订 input_revision=${esc(r.input_revision)} received_at=${esc(r.received_at)} ` +
-        `receipt_id=${esc(r.receipt_id)} raw_text=${esc(r.raw_text)} ` +
-        `price=<span class="price">${esc(r.price)}</span> ts=${esc(r.ts)} volume=${esc(r.volume)}</li>`).join("");
-      return `<details id="${escAttr(w.witness_id)}"><summary>slot ${esc(w.slot)} · witness_id=${esc(w.witness_id)} · merged source_index=${esc(w.merged_source_index)} ` +
-        `O=${esc(w.merged_open)} H=<span class="price">${esc(w.merged_high)}</span> L=<span class="price">${esc(w.merged_low)}</span> C=${esc(w.merged_close)}</summary>` +
-        `<ul>${raws || "<li class='muted'>（无原始成员）</li>"}</ul></details>`;
-    }).join("");
-    const targets = new Set([o.object_id, ...ws.map(w => w.witness_id)]);
-    const relationRows = (snap.relations || [])
-      .filter(r => r.subject === o.object_id || r.object === o.object_id)
-      .map(r => {
-        const target = targets.has(r.object)
-          ? `<a href="#${encodeURIComponent(r.object)}">${esc(r.object)}</a>`
-          : esc(r.object);
-        return `<li>${esc(r.subject)} — ${esc(r.relation_type)} → ${target}</li>`;
-      }).join("");
-    return `<details open id="${escAttr(o.object_id)}"><summary><span class="branch ${esc(o.branch)}">${esc(o.branch)}</span> · ` +
-      `窗口 merged[${esc(o.window_start)},${esc(o.window_mid)},${esc(o.window_end)}] · ` +
-      `dir(a,b)=${esc(o.dir_ab)} dir(b,c)=${esc(o.dir_bc)} · object_id=${esc(o.object_id)} · 结构对象修订 object_revision=${esc(o.object_revision)} · batch=${esc(o.batch_id)}</summary>` +
-      `<table><thead><tr><th>pair</th><th>axis</th><th>prev</th><th>cur</th><th>关系</th><th>held</th></tr></thead>` +
-      `<tbody>${cmpRows}</tbody></table>` +
-      `<details><summary>input_refs（对象绑定输入身份/修订/收据）</summary><ul>${refRows || "<li class='muted'>（无）</li>"}</ul></details>` +
-      `<details><summary>关系（服务返回的对象与见证引用）</summary><ul>${relationRows || "<li class=\"muted\">（无关系）</li>"}</ul></details>` +
-      `${wit}</details>`;
-  }).join("");
+    `浏览范围：结构（S） · ${catalogId} · ${snap.structure_cut} · ${snap.history_mode}` +
+    (snap.as_of_generation != null ? `@${snap.as_of_generation}` : "") +
+    ` · 活动实例 ${objects.length} / 撤回 ${(snap.withdrawn_objects || []).length}`;
+  document.getElementById("objects").innerHTML = objects.map(o => renderObjectCard(o, snap, "")).join("") ||
+    `<div class="muted">当前无活动 CC-006 实例。</div>`;
+}
+function renderWithdrawn(snap) {
+  const withdrawn = (snap.withdrawn_objects || []).filter(o => o.kind === "CC-006.local_shape");
+  document.getElementById("withdrawn").innerHTML = withdrawn.map(o => renderObjectCard(o, snap, "withdrawn")).join("") ||
+    `<div class="muted">无撤回对象。</div>`;
+}
+function renderRawHistory(snap) {
+  const rh = snap.raw_history || [];
+  const rels = snap.relations || [];
+  const replaces = rels.filter(r => r.relation_type === "replaces");
+  const supersedes = rels.filter(r => r.relation_type === "supersedes");
+  const rows = rh.map(r =>
+    `<tr><td>${esc(r.event_id)}</td><td>${esc(r.revision)}</td><td class="price">${esc(r.price)}</td>` +
+    `<td>${esc(r.seq)}</td><td>${esc(r.source_coord)}</td><td>${esc(r.receipt_id)}</td>` +
+    `<td>${esc(r.input_revision)}</td><td>${esc(r.supersedes_revision == null ? "—" : r.supersedes_revision)}</td></tr>`).join("");
+  document.getElementById("raw-history").innerHTML =
+    `<table><thead><tr><th>event_id</th><th>revision</th><th>price</th><th>接纳序</th><th>源坐标</th><th>receipt</th><th>input_revision</th><th>supersedes_revision</th></tr></thead><tbody>${rows || ""}</tbody></table>` +
+    `<details><summary>关系（supersedes / replaces）</summary><ul>` +
+    supersedes.map(r => `<li>${esc(r.subject)} — supersedes → ${esc(r.object)}</li>`).join("") +
+    replaces.map(r => `<li>${esc(r.subject)} — replaces → ${esc(r.object)}</li>`).join("") +
+    `</ul></details>`;
 }
 function renderObservations(snap) {
   const obs = snap.observations || [];
@@ -176,18 +262,10 @@ function renderObservations(snap) {
   const rows = [];
   const insuff = obs.filter(o => o.kind === "insufficient_knowledge");
   const domain = obs.filter(o => o.kind === "domain_not_satisfied");
-  if (objects.length > 0) {
-    rows.push(`<div class="muted">已发布 ${objects.length} 个 CC-006 分类对象（非空实例）。</div>`);
-  }
-  if (insuff.length > 0) {
-    rows.push(`<div class="warn-box">知识不足：${insuff.map(o => `${esc(o.reason)}（raw_events=${esc(o.detail && o.detail.raw_events)}）`).join("；")}</div>`);
-  }
-  if (domain.length > 0) {
-    rows.push(`<div class="warn-box">域不满足：${domain.map(o => `窗口[${esc(o.window_start)},${esc(o.window_mid)},${esc(o.window_end)}] ${esc(o.reason)}`).join("；")}（不造第五 Other 分型）</div>`);
-  }
-  if (objects.length === 0 && insuff.length === 0 && domain.length === 0) {
-    rows.push(`<div class="muted">当前无 CC-006 实例（实例集合为空，不是 PASS）。</div>`);
-  }
+  if (objects.length > 0) rows.push(`<div class="muted">已发布 ${objects.length} 个 CC-006 分类对象（非空实例）。</div>`);
+  if (insuff.length > 0) rows.push(`<div class="warn-box">知识不足：${insuff.map(o => esc(o.reason)).join("；")}</div>`);
+  if (domain.length > 0) rows.push(`<div class="warn-box">域不满足：${domain.map(o => `窗口[${esc(o.window_start)},${esc(o.window_mid)},${esc(o.window_end)}] ${esc(o.reason)}`).join("；")}（不造第五 Other 分型）</div>`);
+  if (objects.length === 0 && insuff.length === 0 && domain.length === 0) rows.push(`<div class="muted">当前无 CC-006 实例（实例集合为空，不是 PASS）。</div>`);
   el.innerHTML = rows.join("");
 }
 function renderCatalog(cat) {
@@ -207,53 +285,415 @@ function renderCatalog(cat) {
       `<td class="muted">${esc(r.domain)}</td><td>${impl}</td><td>${esc(r.proof_status)}</td><td>${run}</td></tr>`;
   }).join("");
 }
+function renderAsOfOptions(snap) {
+  const input = document.getElementById("asof-input");
+  input.placeholder = `0..${snap.generation}（默认 0）`;
+  if (input.value === "") input.value = "0";
+}
 async function fetchJson(url) {
   let res;
-  try {
-    res = await fetch(url);
-  } catch (e) {
-    throw new Error("网络错误：" + e);
-  }
+  try { res = await fetch(url); }
+  catch (e) { throw new Error("网络错误：" + e); }
   let body;
-  try {
-    body = await res.json();
-  } catch (e) {
-    throw new Error("响应非 JSON（HTTP " + res.status + "）");
-  }
+  try { body = await res.json(); }
+  catch (e) { throw new Error("响应非 JSON（HTTP " + res.status + "）"); }
   if (!res.ok || body.ok === false) {
     throw new Error((body && body.error) || ("HTTP " + res.status));
   }
   return body;
 }
-async function load() {
+const publicationKeys = ["session_id", "generation", "structure_cut", "catalog_revision", "index_frontier",
+                         "scope", "input_frontier", "seq_range", "catalog_run_status", "catalog_evidence"];
+function exactJson(a, b) {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== typeof b || typeof a !== "object") return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const ak = Object.keys(a).sort(), bk = Object.keys(b).sort();
+  return ak.length === bk.length && ak.every((k, i) => k === bk[i] && exactJson(a[k], b[k]));
+}
+function requireKeys(v, keys, name) {
+  if (!v || typeof v !== "object" || Array.isArray(v) || keys.some(k => !Object.hasOwn(v, k)))
+    throw new Error(`${name} 缺必需字段或形状错误`);
+}
+function requireArrays(v, keys, name) {
+  requireKeys(v, keys, name);
+  if (keys.some(k => !Array.isArray(v[k]) || v[k].some(x => !x || typeof x !== "object" || Array.isArray(x))))
+    throw new Error(`${name} 集合或成员无效`);
+}
+function decimal(v, frontier = false) {
+  if (typeof v !== "string" || !(frontier ? /^(?:-1|0|[1-9][0-9]*)$/ : /^(?:0|[1-9][0-9]*)$/).test(v) ||
+      BigInt(v) > 9223372036854775807n) throw new Error("精确整数不是规范 i64 文本");
+}
+function validateExactRecords(records) {
+  const integerKeys = new Set(["revision", "seq", "object_revision", "first_known_generation", "published_generation",
+    "withdrawn_generation", "supersedes_revision", "slot", "merged_source_index", "merged_index", "window_start", "window_mid", "window_end"]);
+  function walk(v) {
+    if (!v || typeof v !== "object") return;
+    for (const [k, x] of Object.entries(v)) {
+      if (integerKeys.has(k) && x !== null) decimal(x);
+      walk(x);
+    }
+  }
+  walk(records);
+}
+function validateEvidence(evidence, gen) {
+  if (gen === "0") return;
+  requireKeys(evidence, ["classified_objects", "windows_total", "merged_bars", "effective_source_positions", "withdrawals",
+    "replaces", "insufficient_knowledge", "domain_not_satisfied", "scope", "batch_id", "structure_cut", "profile_id", "profile_hash", "rule_revision"], "目录证据");
+  for (const k of ["classified_objects", "windows_total", "merged_bars", "effective_source_positions", "withdrawals", "replaces", "insufficient_knowledge", "domain_not_satisfied"]) decimal(evidence[k]);
+}
+const sourceKeys = ["profile_id", "profile_hash"];
+function bindingOf(snap) { return Object.fromEntries([...publicationKeys, ...sourceKeys].map(k => [k, deepClone(snap[k])])); }
+function validateSource(snap) {
+  requireKeys(snap, [...sourceKeys, "history_mode", "as_of_generation"], "Snapshot来源");
+  if (sourceKeys.some(k => typeof snap[k] !== "string")) throw new Error("Snapshot profile非文本");
+  if (snap.generation === "0") {
+    if (snap.profile_id !== "" || snap.profile_hash !== "") throw new Error("cut0不得回填未来profile");
+  } else {
+    for (const k of sourceKeys) if (snap[k] !== snap.catalog_evidence[k]) throw new Error(`Snapshot/${k} 与同cut证据不一致`);
+  }
+  if (snap.history_mode === "AsKnown") {
+    if (snap.as_of_generation !== snap.generation) throw new Error("AsKnown代际绑定不一致");
+  } else if (snap.history_mode !== "RecomputedWithRevision" || snap.as_of_generation !== null) {
+    throw new Error("history_mode/as_of_generation不一致");
+  }
+}
+function validateState(state) {
+  requireKeys(state, ["catalog", "snapshot", "cut"], "State");
+  const cat = state.catalog, snap = state.snapshot;
+  requireKeys(cat, publicationKeys, "Catalog"); requireKeys(snap, publicationKeys, "Snapshot");
+  for (const k of publicationKeys) if (!exactJson(cat[k], snap[k])) throw new Error(`Catalog/Snapshot.${k} 不一致`);
+  for (const k of ["session_id", "generation", "structure_cut", "catalog_revision", "index_frontier"]) {
+    requireKeys(state.cut, [k], "State.cut");
+    if (!exactJson(state.cut[k], snap[k])) throw new Error(`State.cut.${k} 不一致`);
+  }
+  decimal(snap.generation); decimal(snap.input_frontier, true);
+  requireKeys(snap.seq_range, ["from", "to"], "seq_range");
+  decimal(snap.seq_range.from); decimal(snap.seq_range.to, true);
+  if (snap.structure_cut !== `cut-${snap.generation}` || snap.seq_range.to !== snap.input_frontier)
+    throw new Error("Snapshot cut/seq/input 前沿不一致");
+  if (!exactJson(snap.scope, {structure:"CompleteCut", economic:"not_started"})) throw new Error("scope 非本片声明");
+  requireArrays(snap, ["objects", "withdrawn_objects", "witnesses", "relations", "observations", "raw_history"], "Snapshot");
+  validateExactRecords([snap.objects, snap.withdrawn_objects, snap.witnesses, snap.observations, snap.raw_history]);
+  validateEvidence(snap.catalog_evidence, snap.generation);
+  validateSource(snap);
+  requireArrays(cat, ["items"], "Catalog");
+  const cc = cat.items.filter(x => x.id === "CC-006");
+  if (cc.length !== 1 || !exactJson(cc[0].evidence, snap.catalog_evidence) || cc[0].run_status !== snap.catalog_run_status)
+    throw new Error("CC-006 目录证据/运行状态与 publication tuple 不一致");
+  if (snap.generation !== "0" && (snap.catalog_evidence.batch_id !== snap.index_frontier ||
+      snap.catalog_evidence.structure_cut !== snap.structure_cut || !exactJson(snap.catalog_evidence.scope, snap.scope)))
+    throw new Error("目录证据的 batch/cut/scope 不一致");
+}
+function validateDelta(d) {
+  const keys = ["session_id", "generation", "catalog_revision", "base_cut", "next_cut", "seq_range", "index_frontier", "input_frontier"];
+  requireKeys(d, [...keys, "delta"], "Delta行");
+  const dd = d.delta;
+  requireKeys(dd, [...keys, "catalog_run_status", "catalog_evidence"], "Delta载荷");
+  requireArrays(dd, ["upserts", "withdrawals", "replaces", "witnesses", "relations", "observations", "raw_history_added"], "Delta载荷");
+  for (const k of keys) if (!exactJson(d[k], dd[k])) throw new Error(`Delta 内外 ${k} 不一致`);
+  // Rust Watch 的外层不重复这两项；HTTP 外层有时必须等于内层，二者均以完整内层对拍 Snapshot。
+  for (const k of ["catalog_run_status", "catalog_evidence"])
+    if (Object.hasOwn(d, k) && !exactJson(d[k], dd[k])) throw new Error(`Delta 内外 ${k} 不一致`);
+  validateExactRecords([dd.upserts, dd.withdrawals, dd.witnesses, dd.observations, dd.raw_history_added]);
+  // #1371 R12：替代端点必须逐项对应本批撤回，不能仅以 relations 或计数代替。
+  const expectedReplaces = dd.withdrawals.flatMap(w => {
+    requireKeys(w, ["object_id", "superseded_by"], "撤回替代身份");
+    return w.superseded_by === null ? [] : [{old_object_id:w.object_id, new_object_id:w.superseded_by}];
+  });
+  const replacementKey = r => JSON.stringify([r.old_object_id, r.new_object_id]);
+  const orderReplaces = records => [...records].sort((a, b) =>
+    replacementKey(a) < replacementKey(b) ? -1 : replacementKey(a) > replacementKey(b) ? 1 : 0);
+  if (!exactJson(orderReplaces(dd.replaces), orderReplaces(expectedReplaces)))
+    throw new Error("Delta.replaces 与本批 withdrawals 的替代端点不一致");
+  validateEvidence(dd.catalog_evidence, dd.generation);
+  decimal(d.generation); decimal(d.input_frontier, true);
+  requireKeys(d.seq_range, ["from", "to"], "Delta.seq_range");
+  decimal(d.seq_range.from); decimal(d.seq_range.to, true);
+  if (d.next_cut !== `cut-${d.generation}` || d.seq_range.to !== d.input_frontier) throw new Error("Delta cut/前沿不一致");
+}
+function comparePublication(delta, snap) {
+  const dd = delta.delta;
+  for (const [dk, sk] of [["session_id","session_id"], ["generation","generation"], ["catalog_revision","catalog_revision"],
+        ["next_cut","structure_cut"], ["index_frontier","index_frontier"], ["input_frontier","input_frontier"],
+        ["seq_range","seq_range"], ["catalog_run_status","catalog_run_status"], ["catalog_evidence","catalog_evidence"]])
+    if (!exactJson(dd[dk], snap[sk])) throw new Error(`Delta/Snapshot.${sk} 不一致`);
+  if (!exactJson(dd.catalog_evidence.scope, snap.scope)) throw new Error("Delta/Snapshot.scope 不一致");
+  for (const k of sourceKeys) if (dd.catalog_evidence[k] !== snap[k]) throw new Error(`Delta/Snapshot.${k} 不一致`);
+}
+// #1371 R11：响应内部合法不等于属于本次请求。四条读取边界共用同一请求描述。
+function stateRequest(mode, asOfGen) {
+  if (mode === "current") return {url: "/api/state", mode, generation: null};
+  if (mode !== "asof") throw new Error("未知状态查询模式");
+  decimal(asOfGen); // 先拒绝非规范/越域文本，再发请求；不经 Number 或宽松 BigInt 归一化。
+  return {url: `/api/state?as_of=${asOfGen}`, mode, generation: asOfGen};
+}
+function validateRequestedState(state, request) {
+  validateState(state); // 保留全部内部字段/profile/同源/集合验证，不能用请求校验替代。
+  const snap = state.snapshot;
+  if (request.mode === "current") {
+    if (snap.history_mode !== "RecomputedWithRevision" || snap.as_of_generation !== null)
+      throw new Error("请求current却收到非RecomputedWithRevision/null响应");
+    // current 没有预先指定generation；不额外引入新鲜度或默认截止点。
+  } else if (snap.history_mode !== "AsKnown" || snap.generation !== request.generation ||
+             snap.as_of_generation !== request.generation || snap.structure_cut !== `cut-${request.generation}`) {
+    throw new Error(`请求AsKnown cut-${request.generation}，响应模式/cut不匹配`);
+  }
+}
+function renderAllFromState(state) {
+  const cat = state.catalog;
+  const snap = state.snapshot;
+  currentState = state;
+  renderMeta(snap, cat);
+  renderObjects(snap);
+  renderWithdrawn(snap);
+  renderRawHistory(snap);
+  renderObservations(snap);
+  renderCatalog(cat);
+  if (historyMode === "current") renderAsOfOptions(snap);
+}
+async function load(mode = "current", asOfGen) {
+  const epoch = beginRequest();
   renderStatus("", "");
   try {
-    const state = await fetchJson("/api/state");
-    const cat = state.catalog;
-    const snap = state.snapshot;
-    // 核同一 cut 版本（不跨请求拼接状态）。
-    if (cat.catalog_revision !== snap.catalog_revision ||
-        cat.structure_cut !== snap.structure_cut ||
-        cat.generation !== snap.generation) {
-      throw new Error("cut 版本不一致（catalog/snapshot 不属于同一已提交 cut），请刷新");
-    }
-    currentState = state;
-    renderMeta(snap, cat);
-    renderObjects(snap);
-    renderObservations(snap);
-    renderCatalog(cat);
+    const request = stateRequest(mode, asOfGen);
+    const state = await fetchJson(request.url);
+    if (epoch !== pageEpoch) return; // 晚到响应不覆盖新请求
+    validateRequestedState(state, request); // 先核本次请求及整份 state，再提交渲染
+    syncModeUI(mode, state.snapshot);
+    renderAllFromState(state);
   } catch (e) {
-    // 错误不保留已失去 cut 元数据的旧目录，也不伪造成成功空集。
+    if (epoch !== pageEpoch) return;
     currentState = null;
     renderStatus("读取失败：" + e, "err-box");
+    document.getElementById("mode-indicator").textContent = "未显示（本次请求失败）";
+    document.getElementById("view-selection").textContent = "未显示（读取失败）";
     document.getElementById("meta-kv").innerHTML = `<dd class="muted">—</dd>`;
     document.getElementById("objects").innerHTML = `<div class="muted">未渲染（读取失败，不把失败当空实例）。</div>`;
+    document.getElementById("withdrawn").innerHTML = "";
+    document.getElementById("raw-history").innerHTML = "";
     document.getElementById("observations").innerHTML = "";
     document.querySelector("#catalog-table tbody").innerHTML = "";
     document.getElementById("catalog-counts").textContent = "目录读取失败";
-    document.getElementById("view-selection").textContent = "浏览范围：读取失败";
   }
 }
+function canonicalFieldCompare(a, b, path) {
+  const diffs = [];
+  if (typeof a !== typeof b) { diffs.push(path + ": 类型 " + typeof a + " != " + typeof b); return diffs; }
+  if (a === null || b === null) { if (a !== b) diffs.push(path + ": " + JSON.stringify(a) + " != " + JSON.stringify(b)); return diffs; }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) { diffs.push(path + ": 长度 " + a.length + " != " + b.length); return diffs; }
+    for (let i = 0; i < a.length; i++) diffs.push(...canonicalFieldCompare(a[i], b[i], path + "[" + i + "]"));
+    return diffs;
+  }
+  if (typeof a === "object" && typeof b === "object") {
+    const ka = Object.keys(a).sort(), kb = Object.keys(b).sort();
+    if (JSON.stringify(ka) !== JSON.stringify(kb)) diffs.push(path + ": 键集不同");
+    for (const k of ka) if (k in b) diffs.push(...canonicalFieldCompare(a[k], b[k], path + "." + k));
+    return diffs;
+  }
+  if (a !== b) diffs.push(path + ": " + JSON.stringify(a) + " != " + JSON.stringify(b));
+  return diffs;
+}
+function cmpMaps(appliedMap, snapArr, label, keyFn, diffs) {
+  const snapMap = new Map(snapArr.map(o => [keyFn(o), o]));
+  for (const [id, o] of appliedMap) {
+    if (!snapMap.has(id)) { diffs.push(`${label} ${id} 缺失于快照`); continue; }
+    diffs.push(...canonicalFieldCompare(o, snapMap.get(id), label + " " + id));
+  }
+  for (const id of snapMap.keys()) if (!appliedMap.has(id)) diffs.push(`${label} ${id} 未在应用状态`);
+}
+function rebuildCommittedFromState(state) {
+  const snap = state.snapshot;
+  appliedObjects = new Map((snap.objects || []).map(o => [o.object_id, o]));
+  appliedWithdrawn = new Map((snap.withdrawn_objects || []).map(o => [o.object_id, o]));
+  appliedWitnesses = new Map((snap.witnesses || []).map(w => [w.witness_id, w]));
+  appliedRelations = new Map((snap.relations || []).map(r => [JSON.stringify([r.subject, r.relation_type, r.object]), r]));
+  appliedObservations = new Map((snap.observations || []).map(o => [o.observation_id, o]));
+  appliedRawHistory = new Map((snap.raw_history || []).map(r => [`${r.identity_key}@${r.revision}`, r]));
+  lastAppliedGen = snap.generation;
+  sessionBinding = bindingOf(snap);
+}
+async function applyStream() {
+  const el = document.getElementById("stream-result");
+  const cursorEl = document.getElementById("stream-cursor");
+  const epoch = beginRequest();
+  renderStatus("", "");
+  try {
+    const deltaResp = await fetchJson(`/api/delta?after_generation=${lastAppliedGen}`);
+    if (epoch !== pageEpoch) return;
+    if (deltaResp.gap) {
+      // Gap：按返回 rebuild_cut 读取指定快照并重建缓存/游标/绑定（清空不是重建）。
+      let st, request;
+      try {
+        const cut = deltaResp.gap.rebuild_cut;
+        if (typeof cut !== "string" || !/^cut-(0|[1-9][0-9]*)$/.test(cut)) throw new Error("Gap 缺合法 rebuild_cut");
+        request = stateRequest("asof", cut.slice(4));
+        st = await fetchJson(request.url);
+      }
+      catch (e) {
+        if (epoch !== pageEpoch) return;
+        el.innerHTML = `<div class="warn-box">Gap（${esc(JSON.stringify(deltaResp.gap))}）且当前快照读取失败（${esc(e)}）：尚未重建，请重试</div>`;
+        return;
+      }
+      if (epoch !== pageEpoch) return;
+      try {
+        validateRequestedState(st, request);
+        // #1371 R12：允许显式 Gap 切换会话，但重建结果必须属于该 Gap 声明的会话。
+        if (typeof deltaResp.session_id !== "string" || deltaResp.session_id.length === 0 ||
+            st.snapshot.session_id !== deltaResp.session_id)
+          throw new Error("Gap/Snapshot.session_id 不一致");
+      }
+      catch (e) { el.innerHTML = `<div class="err-box">重建校验失败（${esc(e)}）：状态未提交</div>`; return; }
+      rebuildCommittedFromState(st);
+      renderAllFromState(st);
+      syncModeUI("asof", st.snapshot);
+      cursorEl.textContent = `已从 cut ${sessionBinding.structure_cut} 重建（session ${sessionBinding.session_id}）`;
+      el.innerHTML = `<div class="warn-box">Gap：${esc(JSON.stringify(deltaResp.gap))}。已按指定同 cut Snapshot 重建六集合缓存/游标/完整发布绑定。</div>`;
+      return;
+    }
+    if (sessionBinding && deltaResp.session_id !== sessionBinding.session_id) {
+      const oldSid = sessionBinding.session_id;
+      cursorEl.textContent = `收到另一会话（原 ${oldSid}）：原切面未变`;
+      el.innerHTML = `<div class="warn-box">会话身份变化（${esc(oldSid)} → ${esc(deltaResp.session_id)}）：拒绝本次续接；保留原缓存/游标，请刷新页面或按 Gap 重建</div>`;
+      return;
+    }
+    requireArrays(deltaResp, ["deltas"], "Watch");
+    const deltas = deltaResp.deltas;
+    // 暂存状态（成员在改写时深拷贝，不改已提交对象）。
+    const tmpObjects = new Map(appliedObjects);
+    const tmpWithdrawn = new Map(appliedWithdrawn);
+    const tmpWitnesses = new Map(appliedWitnesses);
+    const tmpRelations = new Map(appliedRelations);
+    const tmpObservations = new Map(appliedObservations);
+    const tmpRawHistory = new Map(appliedRawHistory);
+    let tmpGen = lastAppliedGen;
+    const appliedLines = [];
+    let expectedPrevCut = sessionBinding ? sessionBinding.structure_cut : "cut-0";
+    let finalDelta = null;
+    let previousInputFrontier = sessionBinding ? sessionBinding.input_frontier : "-1";
+    for (const d of deltas) {
+      validateDelta(d);
+      if (d.session_id !== deltaResp.session_id) throw new Error("Delta 行/流的 session 不一致");
+      const gen = d.generation;
+      if (bigLe(gen, tmpGen)) { appliedLines.push(`gen ${gen}：重复投递，不重复生效`); continue; }
+      const expect = bigAddOne(tmpGen);
+      if (expect === null || gen !== expect) {
+        el.innerHTML = `<div class="warn-box">乱序/断档：期望 gen ${expect}，收到 gen ${gen}（显式 Gap，不拼接错切面，游标未提交）</div>`;
+        return;
+      }
+      // cut 链：base_cut 必须续接已提交 cut，next_cut 逐条衔接。
+      if (d.base_cut !== expectedPrevCut) {
+        el.innerHTML = `<div class="err-box">cut 链断裂：期望 base_cut=${esc(expectedPrevCut)}，收到 ${esc(d.base_cut)}（gen ${gen}）：游标/状态未提交</div>`;
+        return;
+      }
+      if (d.seq_range.from !== (BigInt(previousInputFrontier) + 1n).toString()) throw new Error("Delta seq 前沿断链");
+      previousInputFrontier = d.input_frontier;
+      finalDelta = d;
+      expectedPrevCut = d.next_cut;
+      const dd = d.delta;
+      for (const w of (dd.withdrawals || [])) {
+        const prev = tmpObjects.get(w.object_id);
+        if (prev) {
+          const o = deepClone(prev);
+          o.lifecycle = "withdrawn"; o.withdrawal_reason = w.reason; o.superseded_by = w.superseded_by;
+          o.withdrawn_generation = gen;
+          tmpWithdrawn.set(w.object_id, o);
+          tmpObjects.delete(w.object_id);
+        }
+      }
+      for (const u of (dd.upserts || [])) { const o = deepClone(u); o.lifecycle = "active"; tmpObjects.set(o.object_id, o); tmpWithdrawn.delete(o.object_id); }
+      for (const w of (dd.witnesses || [])) tmpWitnesses.set(w.witness_id, w);
+      for (const r of (dd.relations || [])) tmpRelations.set(JSON.stringify([r.subject, r.relation_type, r.object]), r);
+      for (const o of (dd.observations || [])) tmpObservations.set(o.observation_id, o);
+      for (const rh of (dd.raw_history_added || [])) tmpRawHistory.set(`${rh.identity_key}@${rh.revision}`, rh);
+      tmpGen = gen;
+      appliedLines.push(`gen ${gen}：${d.base_cut} → ${d.next_cut}（upserts ${(dd.upserts || []).length} / 撤回 ${(dd.withdrawals || []).length} / 替代 ${(dd.replaces || []).length}）`);
+    }
+    // 权威状态：按应用末代取指定 cut，对拍完整发布元组及六集合；不混后续写者的新cut。
+    const request = stateRequest("asof", tmpGen);
+    let state;
+    try { state = await fetchJson(request.url); }
+    catch (e) {
+      if (epoch !== pageEpoch) return;
+      el.innerHTML = `<div class="err-box">快照读取失败（${esc(e)}）：游标/状态未提交，请重试</div>`;
+      return;
+    }
+    if (epoch !== pageEpoch) return;
+    try { validateRequestedState(state, request); }
+    catch (e) { el.innerHTML = `<div class="err-box">整份 State 校验失败（${esc(e)}）：游标/状态未提交</div>`; return; }
+    const snap = state.snapshot;
+    if (finalDelta) comparePublication(finalDelta, snap);
+    else if (sessionBinding && !exactJson(bindingOf(snap), sessionBinding)) throw new Error("空增量 publication tuple 与已提交缓存不一致");
+    // 身份与 cut 链完整性（不只比较 generation 与六集合）。
+    if (snap.session_id !== deltaResp.session_id) {
+      el.innerHTML = `<div class="err-box">会话身份不一致（Delta ${esc(deltaResp.session_id)} vs 快照 ${esc(snap.session_id)}）：游标未提交</div>`;
+      return;
+    }
+    if (!bigEq(snap.generation, tmpGen)) {
+      el.innerHTML = `<div class="err-box">应用代际与快照代际不一致（应用 ${esc(tmpGen)}，快照 ${esc(snap.generation)}）：游标未提交</div>`;
+      return;
+    }
+    if (deltas.length === 0 && sessionBinding) {
+      // 空增量也必须核对已绑定身份的完整一致（session/cut/generation/catalog），不静默重绑。
+      if (snap.session_id !== sessionBinding.session_id ||
+          snap.structure_cut !== sessionBinding.structure_cut ||
+          snap.catalog_revision !== sessionBinding.catalog_revision ||
+          !bigEq(snap.generation, sessionBinding.generation)) {
+        el.innerHTML = `<div class="err-box">空增量下已绑定身份与快照不一致（session/cut/catalog/generation 变化）：拒绝静默重绑，请走重建</div>`;
+        return;
+      }
+    }
+    if (snap.structure_cut !== expectedPrevCut) {
+      el.innerHTML = `<div class="err-box">cut 链末端不一致（期望 ${esc(expectedPrevCut)}，快照 ${esc(snap.structure_cut)}）：游标未提交</div>`;
+      return;
+    }
+    for (const d of deltas) {
+      if (d.catalog_revision !== snap.catalog_revision) {
+        el.innerHTML = `<div class="err-box">catalog_revision 不一致（Delta ${esc(d.catalog_revision)} vs 快照 ${esc(snap.catalog_revision)}）：游标未提交</div>`;
+        return;
+      }
+    }
+    const diffs = [];
+    cmpMaps(tmpObjects, snap.objects || [], "对象", o => o.object_id, diffs);
+    cmpMaps(tmpWithdrawn, snap.withdrawn_objects || [], "撤回", o => o.object_id, diffs);
+    cmpMaps(tmpWitnesses, snap.witnesses || [], "见证", o => o.witness_id, diffs);
+    cmpMaps(tmpRelations, snap.relations || [], "关系", o => JSON.stringify([o.subject, o.relation_type, o.object]), diffs);
+    cmpMaps(tmpObservations, snap.observations || [], "观察", o => o.observation_id, diffs);
+    cmpMaps(tmpRawHistory, snap.raw_history || [], "源历史", o => `${o.identity_key}@${o.revision}`, diffs);
+    if (diffs.length > 0) {
+      el.innerHTML = `<div class="err-box">对拍差异 ${diffs.length} 项（游标/状态未提交，强制重验）：${diffs.slice(0, 20).map(esc).join("；")}</div>`;
+      return;
+    }
+    // 原子提交：验证全部通过后一次更新缓存/游标/绑定/模式/页面。
+    appliedObjects = tmpObjects; appliedWithdrawn = tmpWithdrawn; appliedWitnesses = tmpWitnesses;
+    appliedRelations = tmpRelations; appliedObservations = tmpObservations; appliedRawHistory = tmpRawHistory;
+    lastAppliedGen = tmpGen;
+    sessionBinding = bindingOf(snap);
+    syncModeUI("asof", snap);
+    renderAllFromState(state);
+    cursorEl.textContent = `已提交并验证 generation ≤ ${lastAppliedGen}（session ${sessionBinding.session_id}，cut ${sessionBinding.structure_cut}）`;
+    const summary = deltas.length
+      ? `同源读取 ${deltas.length} 个 Delta；应用后与同 cut Snapshot（generation ${snap.generation}）全字段 + 会话/cut/catalog 身份对拍：` +
+        `<span class="ok-box">${tmpObjects.size} 活动 + ${tmpWithdrawn.size} 撤回 + ${tmpWitnesses.size} 见证 + ${tmpRelations.size} 关系 + ${tmpObservations.size} 观察 + ${tmpRawHistory.size} 源事件，逐字段一致（已驱动正式渲染）</span>`
+      : `无新 Delta；已与同 cut Snapshot（generation ${snap.generation}）全字段 + 会话/cut/catalog 身份复核一致。`;
+    el.innerHTML = `<ul>${appliedLines.map(l => `<li>${l}</li>`).join("")}</ul>${summary}`;
+  } catch (e) {
+    if (epoch !== pageEpoch) return;
+    renderStatus("本次续接未验证，页面仅保留上次已提交切面，不代表当前成功。", "err-box");
+    el.innerHTML = `<div class="err-box">Delta 处理失败：${esc(e)}</div>`;
+  }
+}
+document.getElementById("btn-current").addEventListener("click", () => load("current"));
+document.getElementById("btn-asof").addEventListener("click", () => {
+  const g = document.getElementById("asof-input").value.trim();
+  if (g === "" || !/^\d+$/.test(g)) {
+    renderStatus("AsKnown 输入必须是规范十进制整数且 >= 0", "err-box");
+    return;
+  }
+  load("asof", g).then(() => {}).catch(() => {});
+});
+document.getElementById("btn-stream").addEventListener("click", () => applyStream());
 document.getElementById("catalog-table").addEventListener("click", event => {
   const button = event.target.closest("button[data-catalog-id]");
   if (!button || !currentState) return;
@@ -261,16 +701,16 @@ document.getElementById("catalog-table").addEventListener("click", event => {
   const item = currentState.catalog.items.find(r => r.id === catalogId);
   if (!item || item.implementation_status !== "implemented" || catalogId !== "CC-006") return;
   selectedCatalogId = catalogId;
-  // 仅按服务提供的目录/对象 kind 关联，不补算结构，不改变服务 scope。
   renderObjects(currentState.snapshot, selectedCatalogId);
   const section = document.getElementById("instance-section");
   section.focus();
   section.scrollIntoView({block: "start"});
 });
 document.getElementById("show-unimpl").addEventListener("change", () => {
-  load().then(() => {}).catch(() => {});
+  const mode = historyMode === "asof" ? "asof" : "current";
+  load(mode, mode === "asof" ? document.getElementById("asof-input").value.trim() : undefined).then(() => {}).catch(() => {});
 });
-load();
+load("current");
 </script>
 </body>
 </html>

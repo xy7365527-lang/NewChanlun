@@ -1,0 +1,3071 @@
+{
+  "schema": "issue1371.evidence-path-map.v1",
+  "original_package_manifest_sha256": "543cba068be3f3da7b215670b88712ce8e6065ff9222d452a3a7536ba0cafeae",
+  "scope": "报告引用中的旧绝对路径和 inputs/... 在本表映射到原字节附件或指定Git对象。READING-LOG 中全量阅读清单超出具名报告引用的原件仍在仓外冻结包；不称本附件为完整冻结包。",
+  "files": [
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207245791632000-18158-crash-prepare/1789207246227605000-killed-stdout.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207245791632000-18158-crash-prepare/1789207246227794000-killed-stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207389299485000-18769-crash-prepare/1789207389764551000-killed-stdout.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207389299485000-18769-crash-prepare/1789207389764697000-killed-stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207481717891000-19112-crash-prepare/1789207482174699000-killed-stdout.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207481717891000-19112-crash-prepare/1789207482174977000-killed-stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/1789207504567685000-stdout.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/1789207504567892000-stderr.bin",
+      "sha256": "a23d364db1a94bed618c3f1c749485f791e3f0f06ee7cf5f4c7109e96ae8df18",
+      "bytes": 129,
+      "storage": "attachment",
+      "artifact_key": "a23d364db1a94bed618c3f1c749485f791e3f0f06ee7cf5f4c7109e96ae8df18"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/1789207504587663000-stdout.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/1789207504587910000-stderr.bin",
+      "sha256": "a23d364db1a94bed618c3f1c749485f791e3f0f06ee7cf5f4c7109e96ae8df18",
+      "bytes": 129,
+      "storage": "attachment",
+      "artifact_key": "a23d364db1a94bed618c3f1c749485f791e3f0f06ee7cf5f4c7109e96ae8df18"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/1789207504617595000-stdout.bin",
+      "sha256": "060e359de50d8521e1c43d58e9d8be8db312ef839c17224610d1f0cb4520b03d",
+      "bytes": 281,
+      "storage": "attachment",
+      "artifact_key": "060e359de50d8521e1c43d58e9d8be8db312ef839c17224610d1f0cb4520b03d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/1789207504617893000-stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/1789207504646845000-stdout.bin",
+      "sha256": "38f7f24dd09b22f1b807bc833e204f4bad6c6ff915f1d698553366f8cd77cc09",
+      "bytes": 447,
+      "storage": "attachment",
+      "artifact_key": "38f7f24dd09b22f1b807bc833e204f4bad6c6ff915f1d698553366f8cd77cc09"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/1789207504647147000-stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/IMPLEMENTATION-CROSSWALK.json",
+      "sha256": "0d31d68e75a6d672c948e8708bfb261549029c7310f7ad4dbb326c087157ce5d",
+      "bytes": 1278721,
+      "storage": "git",
+      "git_commit": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "git_path": ".chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/IMPLEMENTATION-CROSSWALK.json",
+      "review_reference": "inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/IMPLEMENTATION-CROSSWALK.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/INTERFACE-CONTRACTS.md",
+      "sha256": "f1a2993c6fa4c6c29c6b9a4de7c1d0334c697aaa03e282f621171c37fc01d0e7",
+      "bytes": 10889,
+      "storage": "git",
+      "git_commit": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "git_path": ".chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/INTERFACE-CONTRACTS.md",
+      "review_reference": "inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/INTERFACE-CONTRACTS.md"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/inputs/SPEC-COVERAGE-INPUT.json",
+      "sha256": "76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c",
+      "bytes": 1298462,
+      "storage": "git",
+      "git_commit": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "git_path": ".chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/inputs/SPEC-COVERAGE-INPUT.json",
+      "review_reference": "inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/inputs/SPEC-COVERAGE-INPUT.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/rust/src/bin/s_structure_session.rs",
+      "sha256": "9450f2a9642be70dc5a18f7044fa07312d81d126e25d512e50921105a1f25901",
+      "bytes": 226098,
+      "storage": "git",
+      "git_commit": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "git_path": "rust/src/bin/s_structure_session.rs",
+      "review_reference": "inputs/candidate/rust/src/bin/s_structure_session.rs"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/rust/src/theta_v0/classifier/local_shape.rs",
+      "sha256": "57537f3a90c5efc30c8f8449bba6727d0fb69e810fd2bc4ad3ad6f9834f3ae97",
+      "bytes": 12772,
+      "storage": "git",
+      "git_commit": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "git_path": "rust/src/theta_v0/classifier/local_shape.rs",
+      "review_reference": "inputs/candidate/rust/src/theta_v0/classifier/local_shape.rs"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/s_session/browser/index.html",
+      "sha256": "a04ddb1c67e26207cbc9ec4bd72f7cb36fcac30accf4c3f1a49e5ee10e5de94b",
+      "bytes": 41699,
+      "storage": "git",
+      "git_commit": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "git_path": "s_session/browser/index.html",
+      "review_reference": "inputs/candidate/s_session/browser/index.html"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/s_session/launch_s.sh",
+      "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+      "bytes": 9123,
+      "storage": "git",
+      "git_commit": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "git_path": "s_session/launch_s.sh",
+      "review_reference": "inputs/candidate/s_session/launch_s.sh"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/s_session/s_readonly_server.py",
+      "sha256": "9dad379ff1aaa1ff6f9315a877249f4b9003aa39c7d48fdba8016e534c27c65c",
+      "bytes": 56474,
+      "storage": "git",
+      "git_commit": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "git_path": "s_session/s_readonly_server.py",
+      "review_reference": "inputs/candidate/s_session/s_readonly_server.py"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/gap-cut-rejected.ax.txt",
+      "sha256": "f122794c02eb68eea3cacf1669559ca3f6d9673fd0780e53a89194c6fcdc0af3",
+      "bytes": 57344,
+      "storage": "attachment",
+      "artifact_key": "f122794c02eb68eea3cacf1669559ca3f6d9673fd0780e53a89194c6fcdc0af3",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/gap-cut-rejected.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/gap-cut-rejected.jpg",
+      "sha256": "8bf89527e196aa9c57e124f1b37ccdbc134d8694b2d0f767d25848bd4d448efb",
+      "bytes": 93202,
+      "storage": "attachment",
+      "artifact_key": "8bf89527e196aa9c57e124f1b37ccdbc134d8694b2d0f767d25848bd4d448efb",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/gap-cut-rejected.jpg"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/gap-cut-rejected.json",
+      "sha256": "629963f0aa45fe39f8407c54023794656a2328e81c9b0c7a920884b5b46a3ab7",
+      "bytes": 1407,
+      "storage": "attachment",
+      "artifact_key": "629963f0aa45fe39f8407c54023794656a2328e81c9b0c7a920884b5b46a3ab7",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/gap-cut-rejected.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/gap-cut-retry.ax.txt",
+      "sha256": "053daf4b13ed5abb4d81d725196912df6585109de6726aa299893e1a5f9e1a69",
+      "bytes": 65193,
+      "storage": "attachment",
+      "artifact_key": "053daf4b13ed5abb4d81d725196912df6585109de6726aa299893e1a5f9e1a69",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/gap-cut-retry.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/gap-cut-retry.jpg",
+      "sha256": "b107f5a93f64070964bc8a9156b540d19c3c3547d964dc2297216bf35db7756f",
+      "bytes": 96313,
+      "storage": "attachment",
+      "artifact_key": "b107f5a93f64070964bc8a9156b540d19c3c3547d964dc2297216bf35db7756f",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/gap-cut-retry.jpg"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/gap-cut-retry.json",
+      "sha256": "158976c2e890fd70598d2944e732eedff26893295dd64ccc62ae36a42322aba8",
+      "bytes": 1391,
+      "storage": "attachment",
+      "artifact_key": "158976c2e890fd70598d2944e732eedff26893295dd64ccc62ae36a42322aba8",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/gap-cut-retry.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/late-success-rerun-after-old200.ax.txt",
+      "sha256": "1697eae82e7b73af0fcc43f91e9d94c9d132fc33f8ac997498bd7e0a00f9c0d3",
+      "bytes": 65664,
+      "storage": "attachment",
+      "artifact_key": "1697eae82e7b73af0fcc43f91e9d94c9d132fc33f8ac997498bd7e0a00f9c0d3",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/late-success-rerun-after-old200.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/late-success-rerun-after-old200.jpg",
+      "sha256": "9b4a722683717f676b37f2909ced9f16eb51867e55a56627b8dfe3c2b4915075",
+      "bytes": 70292,
+      "storage": "attachment",
+      "artifact_key": "9b4a722683717f676b37f2909ced9f16eb51867e55a56627b8dfe3c2b4915075",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/late-success-rerun-after-old200.jpg"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/late-success-rerun-after-old200.json",
+      "sha256": "0816a71c2953082c3fa8cf061acb1099024ac27953022521f8c2f5b25a87ec53",
+      "bytes": 1478,
+      "storage": "attachment",
+      "artifact_key": "0816a71c2953082c3fa8cf061acb1099024ac27953022521f8c2f5b25a87ec53",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/late-success-rerun-after-old200.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/late503-after-old-failure.ax.txt",
+      "sha256": "1697eae82e7b73af0fcc43f91e9d94c9d132fc33f8ac997498bd7e0a00f9c0d3",
+      "bytes": 65664,
+      "storage": "attachment",
+      "artifact_key": "1697eae82e7b73af0fcc43f91e9d94c9d132fc33f8ac997498bd7e0a00f9c0d3",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/late503-after-old-failure.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/late503-after-old-failure.jpg",
+      "sha256": "9b4a722683717f676b37f2909ced9f16eb51867e55a56627b8dfe3c2b4915075",
+      "bytes": 70292,
+      "storage": "attachment",
+      "artifact_key": "9b4a722683717f676b37f2909ced9f16eb51867e55a56627b8dfe3c2b4915075",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/late503-after-old-failure.jpg"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/late503-after-old-failure.json",
+      "sha256": "640fc91e3d172ef5c78375863bcd6c2f041251beba645b54a0ba01da54bd7116",
+      "bytes": 1454,
+      "storage": "attachment",
+      "artifact_key": "640fc91e3d172ef5c78375863bcd6c2f041251beba645b54a0ba01da54bd7116",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/late503-after-old-failure.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/stream-http503-retry.ax.txt",
+      "sha256": "ff6652535b4040cb834bc1a3e687fe27e71f376814807cc0ea206963c87bb096",
+      "bytes": 61404,
+      "storage": "attachment",
+      "artifact_key": "ff6652535b4040cb834bc1a3e687fe27e71f376814807cc0ea206963c87bb096",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/stream-http503-retry.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/stream-http503-retry.jpg",
+      "sha256": "21597ba6980144665c710149d1a740f02ad811e777f4abf8cc42024e2dc4c6fb",
+      "bytes": 91191,
+      "storage": "attachment",
+      "artifact_key": "21597ba6980144665c710149d1a740f02ad811e777f4abf8cc42024e2dc4c6fb",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/stream-http503-retry.jpg"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/gui/stream-http503-retry.json",
+      "sha256": "e2a714faebb5a4dbcbdc0a4a8b4037f8763c75ecbc2097aeec73285b4c0d5821",
+      "bytes": 1412,
+      "storage": "attachment",
+      "artifact_key": "e2a714faebb5a4dbcbdc0a4a8b4037f8763c75ecbc2097aeec73285b4c0d5821",
+      "review_reference": "inputs/evidence/gui-fault-run3/gui/stream-http503-retry.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000090/completed.json",
+      "sha256": "ebd5921e28f938ba23f31ddf855a64a8492e294850273897f5740a66a010fd1d",
+      "bytes": 1799,
+      "storage": "attachment",
+      "artifact_key": "ebd5921e28f938ba23f31ddf855a64a8492e294850273897f5740a66a010fd1d",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000090/completed.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000090/received.json",
+      "sha256": "accdb392950ecf7e40c01ccc632f18265240a7d7cf3bb6d04b01b6962e75a14b",
+      "bytes": 1377,
+      "storage": "attachment",
+      "artifact_key": "accdb392950ecf7e40c01ccc632f18265240a7d7cf3bb6d04b01b6962e75a14b",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000090/received.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000090/request.raw",
+      "sha256": "919c8bacce27ff8a2a38c0afa1fce5c90d2c419bca1a19667c15150429eaf9de",
+      "bytes": 566,
+      "storage": "attachment",
+      "artifact_key": "919c8bacce27ff8a2a38c0afa1fce5c90d2c419bca1a19667c15150429eaf9de",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000090/request.raw"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000090/response.body",
+      "sha256": "494dd93e95d2c988e1c7e30edf0c7e4d7e5d4d3fa211cd54101a70f418ba7f0d",
+      "bytes": 154,
+      "storage": "attachment",
+      "artifact_key": "494dd93e95d2c988e1c7e30edf0c7e4d7e5d4d3fa211cd54101a70f418ba7f0d",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000090/response.body"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000090/response.raw",
+      "sha256": "0e0b0d37d94a697280889e007e891fc2e21b8388a53c1771d87cfd955be49fe2",
+      "bytes": 379,
+      "storage": "attachment",
+      "artifact_key": "0e0b0d37d94a697280889e007e891fc2e21b8388a53c1771d87cfd955be49fe2",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000090/response.raw"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000093/completed.json",
+      "sha256": "3d40eb51c8bd4a0c58e8b50a537d90243160598c5d21acf5540957d14eaf16fd",
+      "bytes": 1896,
+      "storage": "attachment",
+      "artifact_key": "3d40eb51c8bd4a0c58e8b50a537d90243160598c5d21acf5540957d14eaf16fd",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000093/completed.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000093/received.json",
+      "sha256": "718e7d6d5f320aa80b30c865592cbb9c5850144df5d132471d3db739a58c5f9c",
+      "bytes": 1387,
+      "storage": "attachment",
+      "artifact_key": "718e7d6d5f320aa80b30c865592cbb9c5850144df5d132471d3db739a58c5f9c",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000093/received.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000093/release.json",
+      "sha256": "2bb07fb5ac67361d536f562d113acc63ecd2e057b42f179c183fdb362bf525d7",
+      "bytes": 120,
+      "storage": "attachment",
+      "artifact_key": "2bb07fb5ac67361d536f562d113acc63ecd2e057b42f179c183fdb362bf525d7",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000093/release.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000093/request.raw",
+      "sha256": "919c8bacce27ff8a2a38c0afa1fce5c90d2c419bca1a19667c15150429eaf9de",
+      "bytes": 566,
+      "storage": "attachment",
+      "artifact_key": "919c8bacce27ff8a2a38c0afa1fce5c90d2c419bca1a19667c15150429eaf9de",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000093/request.raw"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000093/response.body",
+      "sha256": "f079c193d3aa40b60f65508b3b0bb3609f5b4161de1a9ca08727a65ddacd58f3",
+      "bytes": 75792,
+      "storage": "attachment",
+      "artifact_key": "f079c193d3aa40b60f65508b3b0bb3609f5b4161de1a9ca08727a65ddacd58f3",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000093/response.body"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000093/response.raw",
+      "sha256": "ac466c23b1fcb8a8560befe8444217dae37016a3febbec1120373e38ecdab90f",
+      "bytes": 76006,
+      "storage": "attachment",
+      "artifact_key": "ac466c23b1fcb8a8560befe8444217dae37016a3febbec1120373e38ecdab90f",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000093/response.raw"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000096/completed.json",
+      "sha256": "ac3e03cb5fa1fb651f297f21b2359044b9aa257b7486c76be615ae6918eaf750",
+      "bytes": 1904,
+      "storage": "attachment",
+      "artifact_key": "ac3e03cb5fa1fb651f297f21b2359044b9aa257b7486c76be615ae6918eaf750",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000096/completed.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000096/received.json",
+      "sha256": "02cae678fc154489007981e9ed95da16605fa226a8ab589bc55cad5147965fcf",
+      "bytes": 1399,
+      "storage": "attachment",
+      "artifact_key": "02cae678fc154489007981e9ed95da16605fa226a8ab589bc55cad5147965fcf",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000096/received.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000096/release.json",
+      "sha256": "1c5242985a6cb4def539977e54b0d59f28c711c39265be4b0a774397f1574bfc",
+      "bytes": 120,
+      "storage": "attachment",
+      "artifact_key": "1c5242985a6cb4def539977e54b0d59f28c711c39265be4b0a774397f1574bfc",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000096/release.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000096/request.raw",
+      "sha256": "919c8bacce27ff8a2a38c0afa1fce5c90d2c419bca1a19667c15150429eaf9de",
+      "bytes": 566,
+      "storage": "attachment",
+      "artifact_key": "919c8bacce27ff8a2a38c0afa1fce5c90d2c419bca1a19667c15150429eaf9de",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000096/request.raw"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000096/response.body",
+      "sha256": "1726853fd22da818ef10fa122c6d43453d03667f064a9ae3be2e69b2b9e5723c",
+      "bytes": 128,
+      "storage": "attachment",
+      "artifact_key": "1726853fd22da818ef10fa122c6d43453d03667f064a9ae3be2e69b2b9e5723c",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000096/response.body"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/gui-fault-run3/requests/000096/response.raw",
+      "sha256": "52e163013b807899a95f730b124760e4fc344c8d55937af8fc44be4fa96f8e74",
+      "bytes": 357,
+      "storage": "attachment",
+      "artifact_key": "52e163013b807899a95f730b124760e4fc344c8d55937af8fc44be4fa96f8e74",
+      "review_reference": "inputs/evidence/gui-fault-run3/requests/000096/response.raw"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/SOURCE.json",
+      "sha256": "1b13ddba833fda6b01019ff8a11f38182c7c2ee2f8e2c6c6be4d740a08befa79",
+      "bytes": 111190,
+      "storage": "attachment",
+      "artifact_key": "1b13ddba833fda6b01019ff8a11f38182c7c2ee2f8e2c6c6be4d740a08befa79",
+      "review_reference": "inputs/evidence/native-acceptance-run2/SOURCE.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-crash/after-batch-killed-stream.ax.txt",
+      "sha256": "f9db2b4fb490c65b738eaf847cb45796f77d350af1f2578a018b2093a339a639",
+      "bytes": 57063,
+      "storage": "attachment",
+      "artifact_key": "f9db2b4fb490c65b738eaf847cb45796f77d350af1f2578a018b2093a339a639",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-crash/after-batch-killed-stream.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-crash/after-batch-killed-stream.json",
+      "sha256": "31772b50337ab7622608b211c9ed3df12be145add75bedbd81b8fb78a1079246",
+      "bytes": 744,
+      "storage": "attachment",
+      "artifact_key": "31772b50337ab7622608b211c9ed3df12be145add75bedbd81b8fb78a1079246",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-crash/after-batch-killed-stream.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-crash/after-batch-killed-stream.png",
+      "sha256": "aa248840ff42857983c7f0dbee3f4621a84370d83ade37d856da8a284f0f1bf3",
+      "bytes": 88639,
+      "storage": "attachment",
+      "artifact_key": "aa248840ff42857983c7f0dbee3f4621a84370d83ade37d856da8a284f0f1bf3",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-crash/after-batch-killed-stream.png"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-crash/after-commit-killed-stream.ax.txt",
+      "sha256": "3896ea454f6cc1fb102fa1625be7c13b2ab842587e9ea3f1a4aaa8dd3f016326",
+      "bytes": 61294,
+      "storage": "attachment",
+      "artifact_key": "3896ea454f6cc1fb102fa1625be7c13b2ab842587e9ea3f1a4aaa8dd3f016326",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-crash/after-commit-killed-stream.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-crash/after-commit-killed-stream.json",
+      "sha256": "8e0351a195011fda3ae307efcdf9a65dae03f664dbbb674dd84c79b40ae41aec",
+      "bytes": 748,
+      "storage": "attachment",
+      "artifact_key": "8e0351a195011fda3ae307efcdf9a65dae03f664dbbb674dd84c79b40ae41aec",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-crash/after-commit-killed-stream.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-crash/after-commit-killed-stream.png",
+      "sha256": "5fea4a4052212f6e06c40d70129dfc3747bf16af31454d75a197963620f33584",
+      "bytes": 112450,
+      "storage": "attachment",
+      "artifact_key": "5fea4a4052212f6e06c40d70129dfc3747bf16af31454d75a197963620f33584",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-crash/after-commit-killed-stream.png"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g3-witnesses-expanded.ax.txt",
+      "sha256": "93ab1153d9ddb77a2da1a8041e3fe6f2a8b87dade8899cb7abe900c6255e9b4e",
+      "bytes": 59636,
+      "storage": "attachment",
+      "artifact_key": "93ab1153d9ddb77a2da1a8041e3fe6f2a8b87dade8899cb7abe900c6255e9b4e",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g3-witnesses-expanded.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g3-witnesses-expanded.json",
+      "sha256": "a55ec1509d70388bc16ae18b4c659030d26e9bd0884f1e893c3b7c81def54789",
+      "bytes": 735,
+      "storage": "attachment",
+      "artifact_key": "a55ec1509d70388bc16ae18b4c659030d26e9bd0884f1e893c3b7c81def54789",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g3-witnesses-expanded.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g3-witnesses-expanded.png",
+      "sha256": "832868e72e5371bd81c09c6cc3a5e6094775f37a9c9999a1601d245928f9e540",
+      "bytes": 133627,
+      "storage": "attachment",
+      "artifact_key": "832868e72e5371bd81c09c6cc3a5e6094775f37a9c9999a1601d245928f9e540",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g3-witnesses-expanded.png"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g5-asof0.ax.txt",
+      "sha256": "a1fd42af1ca85bbd233f3e4ece2790cb878bf1899c12f26da2fb99b6113f7335",
+      "bytes": 53365,
+      "storage": "attachment",
+      "artifact_key": "a1fd42af1ca85bbd233f3e4ece2790cb878bf1899c12f26da2fb99b6113f7335",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g5-asof0.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g5-asof0.json",
+      "sha256": "f6f4f46cdd6531387a9da6b06db34025f5d070df5a879850bbd44b0cda1a23b3",
+      "bytes": 695,
+      "storage": "attachment",
+      "artifact_key": "f6f4f46cdd6531387a9da6b06db34025f5d070df5a879850bbd44b0cda1a23b3",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g5-asof0.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g5-asof0.png",
+      "sha256": "6b2347595f64710949b8a1d7893c841dfafbb28d7605be3e19b1858187b3d304",
+      "bytes": 64591,
+      "storage": "attachment",
+      "artifact_key": "6b2347595f64710949b8a1d7893c841dfafbb28d7605be3e19b1858187b3d304",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g5-asof0.png"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g5-asof3-old-top.ax.txt",
+      "sha256": "54a3baa1e09e041b85c1ae4f0cd084a7be48ff7fb21550a35d016ebc7b763aeb",
+      "bytes": 57915,
+      "storage": "attachment",
+      "artifact_key": "54a3baa1e09e041b85c1ae4f0cd084a7be48ff7fb21550a35d016ebc7b763aeb",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g5-asof3-old-top.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g5-asof3-old-top.json",
+      "sha256": "21a0b00c2fe4b8b5f374e9425646d1c94ece27141c50535797a64bca10dfddf9",
+      "bytes": 719,
+      "storage": "attachment",
+      "artifact_key": "21a0b00c2fe4b8b5f374e9425646d1c94ece27141c50535797a64bca10dfddf9",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g5-asof3-old-top.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g5-asof3-old-top.png",
+      "sha256": "5989253c15b1438a2c28bd4fba41fdd23b4fa544809d291fa0e0077daf1ac304",
+      "bytes": 75955,
+      "storage": "attachment",
+      "artifact_key": "5989253c15b1438a2c28bd4fba41fdd23b4fa544809d291fa0e0077daf1ac304",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g5-asof3-old-top.png"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g5-current.ax.txt",
+      "sha256": "34c97de23148cb2e7c5daf76edc5e5744b3fcc5ccab274d0deec608f0694f074",
+      "bytes": 65807,
+      "storage": "attachment",
+      "artifact_key": "34c97de23148cb2e7c5daf76edc5e5744b3fcc5ccab274d0deec608f0694f074",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g5-current.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g5-current.json",
+      "sha256": "9c407c601df4647f91a49648b03abd5b229032fd3df528b1e24189aedb0a3c57",
+      "bytes": 701,
+      "storage": "attachment",
+      "artifact_key": "9c407c601df4647f91a49648b03abd5b229032fd3df528b1e24189aedb0a3c57",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g5-current.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g5-current.png",
+      "sha256": "97ae0c97372d17442ea76d15c70c834b802a49346de7aacfa7d0633e8fa7e710",
+      "bytes": 77952,
+      "storage": "attachment",
+      "artifact_key": "97ae0c97372d17442ea76d15c70c834b802a49346de7aacfa7d0633e8fa7e710",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g5-current.png"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g5-empty-stream.ax.txt",
+      "sha256": "5ffb21ba432bdcf874297d0a72545b698d635cc5e1290d7a1d43738ce0ede110",
+      "bytes": 65675,
+      "storage": "attachment",
+      "artifact_key": "5ffb21ba432bdcf874297d0a72545b698d635cc5e1290d7a1d43738ce0ede110",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g5-empty-stream.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g5-empty-stream.json",
+      "sha256": "dcf3b74e3f30caf8ef1a00d7499d5cf8bfbbf7724ac2547a918c445848facc8a",
+      "bytes": 716,
+      "storage": "attachment",
+      "artifact_key": "dcf3b74e3f30caf8ef1a00d7499d5cf8bfbbf7724ac2547a918c445848facc8a",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g5-empty-stream.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/g5-empty-stream.png",
+      "sha256": "a98a3af3e5df4da09aa8541768960d9960d92fa87b4acc2175f0ad43cebf3bb4",
+      "bytes": 99857,
+      "storage": "attachment",
+      "artifact_key": "a98a3af3e5df4da09aa8541768960d9960d92fa87b4acc2175f0ad43cebf3bb4",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/g5-empty-stream.png"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/publish-corr-stream-g4.ax.txt",
+      "sha256": "4b3f190dba175336be14fc0b3f5563966291faabfb16c1d9c2bbf1bdd687e14d",
+      "bytes": 61465,
+      "storage": "attachment",
+      "artifact_key": "4b3f190dba175336be14fc0b3f5563966291faabfb16c1d9c2bbf1bdd687e14d",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/publish-corr-stream-g4.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/publish-corr-stream-g4.json",
+      "sha256": "95eeab7183be06dd7f9ef1f1ee78601b9fd84bee323e17f029558d0c7aee69fb",
+      "bytes": 738,
+      "storage": "attachment",
+      "artifact_key": "95eeab7183be06dd7f9ef1f1ee78601b9fd84bee323e17f029558d0c7aee69fb",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/publish-corr-stream-g4.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/publish-corr-stream-g4.png",
+      "sha256": "306b9eaa10bda7ab6bb7502df29206c679054c9a1bd0e76df45aa7ff40cde382",
+      "bytes": 117141,
+      "storage": "attachment",
+      "artifact_key": "306b9eaa10bda7ab6bb7502df29206c679054c9a1bd0e76df45aa7ff40cde382",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/publish-corr-stream-g4.png"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/publish-e1-stream-g2.ax.txt",
+      "sha256": "137877429574b1aa6420ab21115219d9c17e6d2d7fb69370be1bf95ad8dae072",
+      "bytes": 53574,
+      "storage": "attachment",
+      "artifact_key": "137877429574b1aa6420ab21115219d9c17e6d2d7fb69370be1bf95ad8dae072",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/publish-e1-stream-g2.ax.txt"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/publish-e1-stream-g2.json",
+      "sha256": "e39fc7b4b7956a9f1ce8685fae0f0274b261e853e09cc2452e4683bae1c6b364",
+      "bytes": 731,
+      "storage": "attachment",
+      "artifact_key": "e39fc7b4b7956a9f1ce8685fae0f0274b261e853e09cc2452e4683bae1c6b364",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/publish-e1-stream-g2.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/gui-normal/publish-e1-stream-g2.png",
+      "sha256": "871abdd1c519630b95099bf202c5ea0b09f7425b68b18114a30605625fbaa73e",
+      "bytes": 92911,
+      "storage": "attachment",
+      "artifact_key": "871abdd1c519630b95099bf202c5ea0b09f7425b68b18114a30605625fbaa73e",
+      "review_reference": "inputs/evidence/native-acceptance-run2/gui-normal/publish-e1-stream-g2.png"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789206940204500000-16549-accept-step/0047.json",
+      "sha256": "5ab98a56e38dadfe8320a61b58e3909c218bcee956966a270ae60f974b66db96",
+      "bytes": 424149,
+      "storage": "attachment",
+      "artifact_key": "5ab98a56e38dadfe8320a61b58e3909c218bcee956966a270ae60f974b66db96",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789206940204500000-16549-accept-step/0047.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789206963023336000-16894-advance-step/0055.json",
+      "sha256": "f3ec861d9251486751b0bcd03d3b9b7b8ab7d805c5678be46283c3fa447dabe1",
+      "bytes": 561626,
+      "storage": "attachment",
+      "artifact_key": "f3ec861d9251486751b0bcd03d3b9b7b8ab7d805c5678be46283c3fa447dabe1",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789206963023336000-16894-advance-step/0055.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207005290683000-17103-accept-step/0054.json",
+      "sha256": "2ac65569e948b3ab63525e2b824dbc4147335aa7a0991c433a18d8b69c6019ad",
+      "bytes": 561971,
+      "storage": "attachment",
+      "artifact_key": "2ac65569e948b3ab63525e2b824dbc4147335aa7a0991c433a18d8b69c6019ad",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207005290683000-17103-accept-step/0054.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207027049758000-17178-advance-step/0062.json",
+      "sha256": "e4d7872ddccf1debc8a33b0adc9c830c221055cfb5511b9374b95779a242eda8",
+      "bytes": 710929,
+      "storage": "attachment",
+      "artifact_key": "e4d7872ddccf1debc8a33b0adc9c830c221055cfb5511b9374b95779a242eda8",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207027049758000-17178-advance-step/0062.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207065924937000-17317-advance-step/0069.json",
+      "sha256": "af25dfbbe53ed70ae26677735d62a1be8886d4b169fa346c895c40c70f0c7237",
+      "bytes": 876647,
+      "storage": "attachment",
+      "artifact_key": "af25dfbbe53ed70ae26677735d62a1be8886d4b169fa346c895c40c70f0c7237",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207065924937000-17317-advance-step/0069.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207245791632000-18158-crash-prepare/0041.json",
+      "sha256": "a9741274727dbd944d5e26919fe75ff3b6d48ea552dd3a3e77d498218c5e0f6b",
+      "bytes": 1142,
+      "storage": "attachment",
+      "artifact_key": "a9741274727dbd944d5e26919fe75ff3b6d48ea552dd3a3e77d498218c5e0f6b",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207245791632000-18158-crash-prepare/0041.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207266735576000-18304-crash-recover/0127.json",
+      "sha256": "37284b01a20768e036bdfb6676da8e6e1b6e8b390956ca486f73e80e91f376c2",
+      "bytes": 978621,
+      "storage": "attachment",
+      "artifact_key": "37284b01a20768e036bdfb6676da8e6e1b6e8b390956ca486f73e80e91f376c2",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207266735576000-18304-crash-recover/0127.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207389299485000-18769-crash-prepare/0041.json",
+      "sha256": "552b67c442b35208e29986297d2ad7fd2bd2f399c5760f7ad141aa5f6c6c3f4c",
+      "bytes": 1142,
+      "storage": "attachment",
+      "artifact_key": "552b67c442b35208e29986297d2ad7fd2bd2f399c5760f7ad141aa5f6c6c3f4c",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207389299485000-18769-crash-prepare/0041.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207406926805000-18840-crash-recover/0111.json",
+      "sha256": "1e2eac24ce6a2621a005ae00fc2117178775b734a61e61df2c35fa879ae0a7ba",
+      "bytes": 978621,
+      "storage": "attachment",
+      "artifact_key": "1e2eac24ce6a2621a005ae00fc2117178775b734a61e61df2c35fa879ae0a7ba",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207406926805000-18840-crash-recover/0111.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207481717891000-19112-crash-prepare/0041.json",
+      "sha256": "9ac4b6735e2371538dc1a71d35054129139bdf83f193dbb759b661801355a48d",
+      "bytes": 1143,
+      "storage": "attachment",
+      "artifact_key": "9ac4b6735e2371538dc1a71d35054129139bdf83f193dbb759b661801355a48d",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207481717891000-19112-crash-prepare/0041.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/0045.json",
+      "sha256": "5dd4d7592142410e11deeca989974a3431195336f3407a71ee8fb942f66859ef",
+      "bytes": 1452,
+      "storage": "attachment",
+      "artifact_key": "5dd4d7592142410e11deeca989974a3431195336f3407a71ee8fb942f66859ef",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/0045.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/0049.json",
+      "sha256": "95f69ffa511fcf6e096880561d613adf88806dd92cc8853bcfbc42874523da5a",
+      "bytes": 1784,
+      "storage": "attachment",
+      "artifact_key": "95f69ffa511fcf6e096880561d613adf88806dd92cc8853bcfbc42874523da5a",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/0049.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/0053.json",
+      "sha256": "df648e5e2e9071ec136ac382a018f9d85bd887db44fcebd01564e01865ca3459",
+      "bytes": 1618,
+      "storage": "attachment",
+      "artifact_key": "df648e5e2e9071ec136ac382a018f9d85bd887db44fcebd01564e01865ca3459",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/0053.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/0057.json",
+      "sha256": "430c583d5c08caab948d694894476208b11fb36590e3ec88a3feb2cf60ca618f",
+      "bytes": 2148,
+      "storage": "attachment",
+      "artifact_key": "430c583d5c08caab948d694894476208b11fb36590e3ec88a3feb2cf60ca618f",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/0057.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/0102.json",
+      "sha256": "5e7d6fd8b0220882d8d32893b4e168f576717e4b234d9de933de2d3d69aea19c",
+      "bytes": 489155,
+      "storage": "attachment",
+      "artifact_key": "5e7d6fd8b0220882d8d32893b4e168f576717e4b234d9de933de2d3d69aea19c",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/0102.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/0114.json",
+      "sha256": "38580fd8f8cb19591dbc914fd85641b58c676368b021089bd88fa4351820cbba",
+      "bytes": 978492,
+      "storage": "attachment",
+      "artifact_key": "38580fd8f8cb19591dbc914fd85641b58c676368b021089bd88fa4351820cbba",
+      "review_reference": "inputs/evidence/native-acceptance-run2/records/1789207503956583000-19224-crash-recover/0114.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/native-tests/test.log",
+      "sha256": "566145f92fcf244bc25a903efe561d10411bcf84cf4bc7140d6680ab8fb91163",
+      "bytes": 118294,
+      "storage": "attachment",
+      "artifact_key": "566145f92fcf244bc25a903efe561d10411bcf84cf4bc7140d6680ab8fb91163",
+      "review_reference": "inputs/evidence/native-tests/test.log"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/recovered/implementation-r10/r10-results.json",
+      "sha256": "81d5001b8fca24982b94b764f1b32016374b4ace86846583fc035d02f5b5282f",
+      "bytes": 39137752,
+      "storage": "attachment",
+      "artifact_key": "81d5001b8fca24982b94b764f1b32016374b4ace86846583fc035d02f5b5282f",
+      "review_reference": "inputs/evidence/recovered/implementation-r10/r10-results.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/recovered/implementation-r11/api-cuts.json",
+      "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b",
+      "bytes": 1274190,
+      "storage": "attachment",
+      "artifact_key": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b",
+      "review_reference": "inputs/evidence/recovered/implementation-r11/api-cuts.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/recovered/review-r6/additional-results.json",
+      "sha256": "3ae54c6a7d0df578f6aaa0d37776d1ed1be259e46e0487562fb7b7077d69c7e6",
+      "bytes": 1236679,
+      "storage": "attachment",
+      "artifact_key": "3ae54c6a7d0df578f6aaa0d37776d1ed1be259e46e0487562fb7b7077d69c7e6",
+      "review_reference": "inputs/evidence/recovered/review-r6/additional-results.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/reports/review-r3.md",
+      "sha256": "006cb682f7f885c9d966a4cd7ce7d05870e127f1e5f26efdffb28bff3174f326",
+      "bytes": 28756,
+      "storage": "attachment",
+      "artifact_key": "006cb682f7f885c9d966a4cd7ce7d05870e127f1e5f26efdffb28bff3174f326",
+      "review_reference": "inputs/evidence/reports/review-r3.md"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/reports/review-r5.json",
+      "sha256": "58d99aece9208a525f3eb1963db6775d71fb67e119e5fcc1235d13547d893f7b",
+      "bytes": 162477,
+      "storage": "attachment",
+      "artifact_key": "58d99aece9208a525f3eb1963db6775d71fb67e119e5fcc1235d13547d893f7b",
+      "review_reference": "inputs/evidence/reports/review-r5.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/evidence/reports/review-r6.json",
+      "sha256": "e3e26cebd36c60ad68c6bc011e3c19fc2fad37a21abc3e00f313ed0e4d7218ff",
+      "bytes": 261509,
+      "storage": "attachment",
+      "artifact_key": "e3e26cebd36c60ad68c6bc011e3c19fc2fad37a21abc3e00f313ed0e4d7218ff",
+      "review_reference": "inputs/evidence/reports/review-r6.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/full-diff.patch",
+      "sha256": "55a132043777f529063685471fc20633555cb50dba2b21eed9bd2852b535257b",
+      "bytes": 3969178,
+      "storage": "attachment",
+      "artifact_key": "55a132043777f529063685471fc20633555cb50dba2b21eed9bd2852b535257b",
+      "review_reference": "inputs/full-diff.patch"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/issues/1371.json",
+      "sha256": "9167fa345fcc4284bce16680410f73f8475a1b1734a35356b706460e68bc600e",
+      "bytes": 10039,
+      "storage": "attachment",
+      "artifact_key": "9167fa345fcc4284bce16680410f73f8475a1b1734a35356b706460e68bc600e",
+      "review_reference": "inputs/issues/1371.json"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-COMMIT-DECLARATIONS.json",
+      "sha256": "d310dd2dc77dae7e484a87993001d4bc0be9a31bc0a208122222c5f48f9b49d6",
+      "bytes": 126982,
+      "storage": "attachment",
+      "artifact_key": "d310dd2dc77dae7e484a87993001d4bc0be9a31bc0a208122222c5f48f9b49d6"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-COMMIT-DECLARATIONS.md",
+      "sha256": "2df917efa28f65389f08e0e011c9058de200dde6b4380b24ffb73a9f449468d2",
+      "bytes": 47631,
+      "storage": "attachment",
+      "artifact_key": "2df917efa28f65389f08e0e011c9058de200dde6b4380b24ffb73a9f449468d2"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/CHECK.json",
+      "sha256": "294fbd1e1de4e29fba1bf219bb06c2f393513cb106a1e1bcb43565d7feab53dc",
+      "bytes": 1434,
+      "storage": "attachment",
+      "artifact_key": "294fbd1e1de4e29fba1bf219bb06c2f393513cb106a1e1bcb43565d7feab53dc"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/DELIVERIES.json",
+      "sha256": "13b93a6f0ed3da59c27d9e6bbd6245387deba7c7e33adf7d3d0b456d918761b9",
+      "bytes": 15875,
+      "storage": "attachment",
+      "artifact_key": "13b93a6f0ed3da59c27d9e6bbd6245387deba7c7e33adf7d3d0b456d918761b9"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/GUI-MANIFEST.json",
+      "sha256": "82b9606d9630573c85cc75018126260aa64ffe3ffb57721c75e24fbbf011aa66",
+      "bytes": 61760,
+      "storage": "attachment",
+      "artifact_key": "82b9606d9630573c85cc75018126260aa64ffe3ffb57721c75e24fbbf011aa66"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/GUI-RESULT.json",
+      "sha256": "604cca4fd3c4f4f8aa426dabc4be853157ef3b82c921405347b21e43be308b1e",
+      "bytes": 133582,
+      "storage": "attachment",
+      "artifact_key": "604cca4fd3c4f4f8aa426dabc4be853157ef3b82c921405347b21e43be308b1e"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/GUI-RESULT.md",
+      "sha256": "47fe565a73ece2313272b115bdb8f0da494ce899177ae8a6c69c38d2167eca23",
+      "bytes": 10382,
+      "storage": "attachment",
+      "artifact_key": "47fe565a73ece2313272b115bdb8f0da494ce899177ae8a6c69c38d2167eca23"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/INDEPENDENT-REVIEW.json",
+      "sha256": "f94e96c3f6c7a689eceefb26a7c147296ea493ac185af54e29db9e47f2cb4b63",
+      "bytes": 1656,
+      "storage": "attachment",
+      "artifact_key": "f94e96c3f6c7a689eceefb26a7c147296ea493ac185af54e29db9e47f2cb4b63"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/PREPARATION.json",
+      "sha256": "b3b9b5edf15980be032ce5eab1e3f1ae540e143cec017d2c974d25bfc5854801",
+      "bytes": 12570,
+      "storage": "attachment",
+      "artifact_key": "b3b9b5edf15980be032ce5eab1e3f1ae540e143cec017d2c974d25bfc5854801"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/README.md",
+      "sha256": "bf4e2413f4f20252057194044468b28e63b195da20f01ea9edaf923570218895",
+      "bytes": 10484,
+      "storage": "attachment",
+      "artifact_key": "bf4e2413f4f20252057194044468b28e63b195da20f01ea9edaf923570218895"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/SERVICE-STOP-RECEIPT.json",
+      "sha256": "778abfd7e6277eaab09f354da0596537fb4281773a1366040e07c1c3cd8184d1",
+      "bytes": 802,
+      "storage": "attachment",
+      "artifact_key": "778abfd7e6277eaab09f354da0596537fb4281773a1366040e07c1c3cd8184d1"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/SOURCES.json",
+      "sha256": "cb60cb84b7506d1788e7c850b24d3ab9917ce7ccdda5f6399e29c73fbfcba4b4",
+      "bytes": 9927,
+      "storage": "attachment",
+      "artifact_key": "cb60cb84b7506d1788e7c850b24d3ab9917ce7ccdda5f6399e29c73fbfcba4b4"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/a1.body",
+      "sha256": "75e74c5797b70fc0899daa55b98927fd5cf0a3bec67f795569be7881c60df38d",
+      "bytes": 69983,
+      "storage": "attachment",
+      "artifact_key": "75e74c5797b70fc0899daa55b98927fd5cf0a3bec67f795569be7881c60df38d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/a3.body",
+      "sha256": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c",
+      "bytes": 75776,
+      "storage": "attachment",
+      "artifact_key": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/a4.body",
+      "sha256": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20",
+      "bytes": 81502,
+      "storage": "attachment",
+      "artifact_key": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/b1.body",
+      "sha256": "d3085398c8c521becb87a8c202820d03536a3c51705734ae1ed51d5afb1090a8",
+      "bytes": 75450,
+      "storage": "attachment",
+      "artifact_key": "d3085398c8c521becb87a8c202820d03536a3c51705734ae1ed51d5afb1090a8"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/current_a1.body",
+      "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf",
+      "bytes": 69999,
+      "storage": "attachment",
+      "artifact_key": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/gap_b.body",
+      "sha256": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318",
+      "bytes": 203,
+      "storage": "attachment",
+      "artifact_key": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/watch0.body",
+      "sha256": "f4976d2f445228b8a8ccd028badc7cdb1a4ceea93e01b1dfab52d6cf56bb53fd",
+      "bytes": 64089,
+      "storage": "attachment",
+      "artifact_key": "f4976d2f445228b8a8ccd028badc7cdb1a4ceea93e01b1dfab52d6cf56bb53fd"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/bodies/watch3.body",
+      "sha256": "a14d4904a0813660c2091ac4baef53bc26756c20974c0e8b47e79e739da00fb4",
+      "bytes": 49986,
+      "storage": "attachment",
+      "artifact_key": "a14d4904a0813660c2091ac4baef53bc26756c20974c0e8b47e79e739da00fb4"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/browser_fault_server.r12.py",
+      "sha256": "24af6b7fbf3fee4593a169b2ef5ba2b42941ce96dd8391503418945ddcd7c170",
+      "bytes": 22815,
+      "storage": "attachment",
+      "artifact_key": "24af6b7fbf3fee4593a169b2ef5ba2b42941ce96dd8391503418945ddcd7c170"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/check.stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/check.stdout.bin",
+      "sha256": "e933555122384b5426679e4b24a365e7adcea7e94c3e61adb2b93e862343c31b",
+      "bytes": 639,
+      "storage": "attachment",
+      "artifact_key": "e933555122384b5426679e4b24a365e7adcea7e94c3e61adb2b93e862343c31b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/expected-deliveries/01-seed3.body",
+      "sha256": "ca5966dd28a4e18805bbf705ab886c60e925fa6380a375f2fe325cb2c3516453",
+      "bytes": 20459,
+      "storage": "attachment",
+      "artifact_key": "ca5966dd28a4e18805bbf705ab886c60e925fa6380a375f2fe325cb2c3516453"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/expected-deliveries/02-seed3.body",
+      "sha256": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c",
+      "bytes": 75776,
+      "storage": "attachment",
+      "artifact_key": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/expected-deliveries/03-delta_replaces_empty.body",
+      "sha256": "c6baa0a622de1c730a1527efaf7025192652db047eaa75dc04096abd01b37a6b",
+      "bytes": 12841,
+      "storage": "attachment",
+      "artifact_key": "c6baa0a622de1c730a1527efaf7025192652db047eaa75dc04096abd01b37a6b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/expected-deliveries/04-delta_wrong_old.body",
+      "sha256": "6a1b9af7fa7413707924d1684139b5987261faa2bbacf4213109491f28bb616e",
+      "bytes": 13030,
+      "storage": "attachment",
+      "artifact_key": "6a1b9af7fa7413707924d1684139b5987261faa2bbacf4213109491f28bb616e"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/expected-deliveries/05-delta_healthy.body",
+      "sha256": "05def59f39ec381d61852e55de6e5af21c0cc57e577df025b8fdd5609b7be28b",
+      "bytes": 13075,
+      "storage": "attachment",
+      "artifact_key": "05def59f39ec381d61852e55de6e5af21c0cc57e577df025b8fdd5609b7be28b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/expected-deliveries/06-delta_healthy.body",
+      "sha256": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20",
+      "bytes": 81502,
+      "storage": "attachment",
+      "artifact_key": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/expected-deliveries/07-gap_wrong_session.body",
+      "sha256": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318",
+      "bytes": 203,
+      "storage": "attachment",
+      "artifact_key": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/expected-deliveries/08-gap_wrong_session.body",
+      "sha256": "75e74c5797b70fc0899daa55b98927fd5cf0a3bec67f795569be7881c60df38d",
+      "bytes": 69983,
+      "storage": "attachment",
+      "artifact_key": "75e74c5797b70fc0899daa55b98927fd5cf0a3bec67f795569be7881c60df38d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/expected-deliveries/09-gap_healthy.body",
+      "sha256": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318",
+      "bytes": 203,
+      "storage": "attachment",
+      "artifact_key": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/expected-deliveries/10-gap_healthy.body",
+      "sha256": "d3085398c8c521becb87a8c202820d03536a3c51705734ae1ed51d5afb1090a8",
+      "bytes": 75450,
+      "storage": "attachment",
+      "artifact_key": "d3085398c8c521becb87a8c202820d03536a3c51705734ae1ed51d5afb1090a8"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/a1.json",
+      "sha256": "118f7d342e8d8402100e85421e0f96bfadc141117c9cabfe9193c6846a65febf",
+      "bytes": 76212,
+      "storage": "attachment",
+      "artifact_key": "118f7d342e8d8402100e85421e0f96bfadc141117c9cabfe9193c6846a65febf"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/a3.json",
+      "sha256": "6c5ebb91ea136f49808327b31ba78c5fdb325de6512acfb4be31a44ffa207b64",
+      "bytes": 82753,
+      "storage": "attachment",
+      "artifact_key": "6c5ebb91ea136f49808327b31ba78c5fdb325de6512acfb4be31a44ffa207b64"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/a4.json",
+      "sha256": "af5748b024f67cfb94a2cd4074a0238da7fe180fa8b2e68bc291730770d0bf39",
+      "bytes": 89195,
+      "storage": "attachment",
+      "artifact_key": "af5748b024f67cfb94a2cd4074a0238da7fe180fa8b2e68bc291730770d0bf39"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/b1.json",
+      "sha256": "ba85bb4751a07ec2655b056c28651631eb347e0ff46241bf52ae1452e70c26d0",
+      "bytes": 82399,
+      "storage": "attachment",
+      "artifact_key": "ba85bb4751a07ec2655b056c28651631eb347e0ff46241bf52ae1452e70c26d0"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/current_a1.json",
+      "sha256": "01f9c2b394267ffe594779f2b37be9defcaa046d96bbed0abbf67afbe68617cc",
+      "bytes": 76218,
+      "storage": "attachment",
+      "artifact_key": "01f9c2b394267ffe594779f2b37be9defcaa046d96bbed0abbf67afbe68617cc"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/gap_b.json",
+      "sha256": "b4c73911b543f3f3d1e552dd50a254433253f6618e12d83f46d02101e1e952b2",
+      "bytes": 412,
+      "storage": "attachment",
+      "artifact_key": "b4c73911b543f3f3d1e552dd50a254433253f6618e12d83f46d02101e1e952b2"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/watch0.json",
+      "sha256": "5800fe7aa1f2e35476e119a87ba7fdbe8d0ce7482a13ddf8fd4e36e4eac01d6a",
+      "bytes": 71711,
+      "storage": "attachment",
+      "artifact_key": "5800fe7aa1f2e35476e119a87ba7fdbe8d0ce7482a13ddf8fd4e36e4eac01d6a"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/receipts/watch3.json",
+      "sha256": "c5730bb28981ef7b6da8444cb9541a2a74eafca33f8596fa998661841ac285bc",
+      "bytes": 56030,
+      "storage": "attachment",
+      "artifact_key": "c5730bb28981ef7b6da8444cb9541a2a74eafca33f8596fa998661841ac285bc"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/RUN.json",
+      "sha256": "a7fa1dc0b84dd6f85d7dd78a02799753c59b7261dbb5143307ab7f587993a4f1",
+      "bytes": 757,
+      "storage": "attachment",
+      "artifact_key": "a7fa1dc0b84dd6f85d7dd78a02799753c59b7261dbb5143307ab7f587993a4f1"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/STOPPED.json",
+      "sha256": "405416f6564edf6f62ef5130ae90eb42134b53c4a900b708339a2d1dfce0b242",
+      "bytes": 136,
+      "storage": "attachment",
+      "artifact_key": "405416f6564edf6f62ef5130ae90eb42134b53c4a900b708339a2d1dfce0b242"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000000.json",
+      "sha256": "00d5779433d9a1bf7a469217d10f76024090c734253ec7c829329d3515f22102",
+      "bytes": 105,
+      "storage": "attachment",
+      "artifact_key": "00d5779433d9a1bf7a469217d10f76024090c734253ec7c829329d3515f22102"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000001.json",
+      "sha256": "dc06fe6c22d84e10c1dbda63227f8603fa093a557e4c47d47c9115bb7182650a",
+      "bytes": 94,
+      "storage": "attachment",
+      "artifact_key": "dc06fe6c22d84e10c1dbda63227f8603fa093a557e4c47d47c9115bb7182650a"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000002.json",
+      "sha256": "8fb05fe90484bace56c75e90c354b0b25d4445100bddc3a86bdb179f787688cf",
+      "bytes": 86,
+      "storage": "attachment",
+      "artifact_key": "8fb05fe90484bace56c75e90c354b0b25d4445100bddc3a86bdb179f787688cf"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000003.json",
+      "sha256": "afbc87df4b66a685abc0c7e3d90414ac79c66ecd536b69f927567aafbe53458c",
+      "bytes": 72,
+      "storage": "attachment",
+      "artifact_key": "afbc87df4b66a685abc0c7e3d90414ac79c66ecd536b69f927567aafbe53458c"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000004.json",
+      "sha256": "30b50de0f671f4a03f32be48271ddbf0f2a6e69337ca74d6a99f0f3b0c82bc2f",
+      "bytes": 84,
+      "storage": "attachment",
+      "artifact_key": "30b50de0f671f4a03f32be48271ddbf0f2a6e69337ca74d6a99f0f3b0c82bc2f"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000005.json",
+      "sha256": "047621c35083bc66e55766ef1896f8940be751f40bad436f1c51e4f50134d006",
+      "bytes": 81,
+      "storage": "attachment",
+      "artifact_key": "047621c35083bc66e55766ef1896f8940be751f40bad436f1c51e4f50134d006"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000006.json",
+      "sha256": "333218a9f2c349e2e070374f191aeec72af627d1c02ccf515f419800b98ce20a",
+      "bytes": 66,
+      "storage": "attachment",
+      "artifact_key": "333218a9f2c349e2e070374f191aeec72af627d1c02ccf515f419800b98ce20a"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000007.json",
+      "sha256": "26d0d4385dec59fddb409fc292cea984b1a0bcb9dea39d550c5c563efa2cb5ac",
+      "bytes": 88,
+      "storage": "attachment",
+      "artifact_key": "26d0d4385dec59fddb409fc292cea984b1a0bcb9dea39d550c5c563efa2cb5ac"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control-000008.json",
+      "sha256": "5465bbbacedab73c869c69e28c5f71c54d019b94d151e34774953955cca15805",
+      "bytes": 89,
+      "storage": "attachment",
+      "artifact_key": "5465bbbacedab73c869c69e28c5f71c54d019b94d151e34774953955cca15805"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/control.json",
+      "sha256": "5465bbbacedab73c869c69e28c5f71c54d019b94d151e34774953955cca15805",
+      "bytes": 89,
+      "storage": "attachment",
+      "artifact_key": "5465bbbacedab73c869c69e28c5f71c54d019b94d151e34774953955cca15805"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-rejected.ax.txt",
+      "sha256": "c0437ce5879487505917390f6bea46ccabec067334c539ddad050a77828dca11",
+      "bytes": 10348,
+      "storage": "attachment",
+      "artifact_key": "c0437ce5879487505917390f6bea46ccabec067334c539ddad050a77828dca11"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-rejected.jpg",
+      "sha256": "bb435eb96a8b153adc28eee6c490c4995333af9eb57632ff4352ec2100935905",
+      "bytes": 90591,
+      "storage": "attachment",
+      "artifact_key": "bb435eb96a8b153adc28eee6c490c4995333af9eb57632ff4352ec2100935905"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-rejected.json",
+      "sha256": "a16df5276197ce282c59359e370db04425be5ca5cbfa23cee6438b04ec869bd6",
+      "bytes": 807,
+      "storage": "attachment",
+      "artifact_key": "a16df5276197ce282c59359e370db04425be5ca5cbfa23cee6438b04ec869bd6"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-retry4.ax.txt",
+      "sha256": "fe312a41719145cda7849f888460fc2a893e1e1e37721a21839007807cb09f61",
+      "bytes": 14416,
+      "storage": "attachment",
+      "artifact_key": "fe312a41719145cda7849f888460fc2a893e1e1e37721a21839007807cb09f61"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-retry4.jpg",
+      "sha256": "b8af8b8e33e4db52f54219dc0c8db27139d816acbdbce311d30b86a98dec1588",
+      "bytes": 116674,
+      "storage": "attachment",
+      "artifact_key": "b8af8b8e33e4db52f54219dc0c8db27139d816acbdbce311d30b86a98dec1588"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-retry4.json",
+      "sha256": "4d203348de5c87c681b8f81d68802f2e18e3a6c9a9e7686688a403c0f556701e",
+      "bytes": 802,
+      "storage": "attachment",
+      "artifact_key": "4d203348de5c87c681b8f81d68802f2e18e3a6c9a9e7686688a403c0f556701e"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-seed3.ax.txt",
+      "sha256": "656572f618362a00536ea745fdfef989b0d3fb08cf6270cb6c3c8a982a1d1cdc",
+      "bytes": 10813,
+      "storage": "attachment",
+      "artifact_key": "656572f618362a00536ea745fdfef989b0d3fb08cf6270cb6c3c8a982a1d1cdc"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-seed3.jpg",
+      "sha256": "144fd3ccd0c0fa7adfee3e34acd6409e2a183dce5cd1ff8d8de35b169eb10314",
+      "bytes": 108304,
+      "storage": "attachment",
+      "artifact_key": "144fd3ccd0c0fa7adfee3e34acd6409e2a183dce5cd1ff8d8de35b169eb10314"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/empty-seed3.json",
+      "sha256": "86bb5203428acf1b60cf97916834685bbf9709deae5418e7d21d39b3be50c4c7",
+      "bytes": 799,
+      "storage": "attachment",
+      "artifact_key": "86bb5203428acf1b60cf97916834685bbf9709deae5418e7d21d39b3be50c4c7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.ax.txt",
+      "sha256": "e5dc3569ec9e5c630f10fde0fdf55a0449e9942fbb71051842cb95cd06b0de35",
+      "bytes": 10186,
+      "storage": "attachment",
+      "artifact_key": "e5dc3569ec9e5c630f10fde0fdf55a0449e9942fbb71051842cb95cd06b0de35"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.jpg",
+      "sha256": "3555c1ac1240aa69c72b752bc29157295125f11cdbbfe744fd1ba957750cfc23",
+      "bytes": 90919,
+      "storage": "attachment",
+      "artifact_key": "3555c1ac1240aa69c72b752bc29157295125f11cdbbfe744fd1ba957750cfc23"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-retry-new-session-b1.json",
+      "sha256": "a46fbf32ee45567fc2d9d99003c7e491d6939e53f2691dc2b881dbaeae38ed52",
+      "bytes": 837,
+      "storage": "attachment",
+      "artifact_key": "a46fbf32ee45567fc2d9d99003c7e491d6939e53f2691dc2b881dbaeae38ed52"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.ax.txt",
+      "sha256": "3de8ae855c814aa50b5d09cbafdfff955139fc0f6b04bf63c1949f9ebc852e5b",
+      "bytes": 10814,
+      "storage": "attachment",
+      "artifact_key": "3de8ae855c814aa50b5d09cbafdfff955139fc0f6b04bf63c1949f9ebc852e5b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.jpg",
+      "sha256": "144fd3ccd0c0fa7adfee3e34acd6409e2a183dce5cd1ff8d8de35b169eb10314",
+      "bytes": 108304,
+      "storage": "attachment",
+      "artifact_key": "144fd3ccd0c0fa7adfee3e34acd6409e2a183dce5cd1ff8d8de35b169eb10314"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-seed3.json",
+      "sha256": "9b8d9510e53de0ef96344c32f9f9f9cea9e1b65aafa3c55486adbbf82c8e663d",
+      "bytes": 793,
+      "storage": "attachment",
+      "artifact_key": "9b8d9510e53de0ef96344c32f9f9f9cea9e1b65aafa3c55486adbbf82c8e663d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.ax.txt",
+      "sha256": "fa942e63070cb09ffca3a3e767e09ece521811e1cf59e21bbcd1fa0d5cc17c1f",
+      "bytes": 10243,
+      "storage": "attachment",
+      "artifact_key": "fa942e63070cb09ffca3a3e767e09ece521811e1cf59e21bbcd1fa0d5cc17c1f"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.jpg",
+      "sha256": "04acacccb744540c334e25947706796addbb6ea133f5de4e99343bfe55679e60",
+      "bytes": 90161,
+      "storage": "attachment",
+      "artifact_key": "04acacccb744540c334e25947706796addbb6ea133f5de4e99343bfe55679e60"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/gap-wrong-session-rejected.json",
+      "sha256": "0d213be8367d70d5dce85388d2fd0aec63309e4601194264afb899230d7beb3f",
+      "bytes": 843,
+      "storage": "attachment",
+      "artifact_key": "0d213be8367d70d5dce85388d2fd0aec63309e4601194264afb899230d7beb3f"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-rejected.ax.txt",
+      "sha256": "13b2a1054cec90002a5ad2c2f6cf8d622abbe4e567dcca51c717761cd2b26b6f",
+      "bytes": 10295,
+      "storage": "attachment",
+      "artifact_key": "13b2a1054cec90002a5ad2c2f6cf8d622abbe4e567dcca51c717761cd2b26b6f"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-rejected.jpg",
+      "sha256": "bb435eb96a8b153adc28eee6c490c4995333af9eb57632ff4352ec2100935905",
+      "bytes": 90591,
+      "storage": "attachment",
+      "artifact_key": "bb435eb96a8b153adc28eee6c490c4995333af9eb57632ff4352ec2100935905"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-rejected.json",
+      "sha256": "67c4185513eb4a5b77b06a1160d40ce4f75cf882ab9f4500a5b5af66513b1b33",
+      "bytes": 819,
+      "storage": "attachment",
+      "artifact_key": "67c4185513eb4a5b77b06a1160d40ce4f75cf882ab9f4500a5b5af66513b1b33"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-retry4.ax.txt",
+      "sha256": "a49fbb955852e8e0a34805d5ae705946e710a8808587f7bd12b52df451248b7b",
+      "bytes": 14389,
+      "storage": "attachment",
+      "artifact_key": "a49fbb955852e8e0a34805d5ae705946e710a8808587f7bd12b52df451248b7b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-retry4.jpg",
+      "sha256": "b8af8b8e33e4db52f54219dc0c8db27139d816acbdbce311d30b86a98dec1588",
+      "bytes": 116674,
+      "storage": "attachment",
+      "artifact_key": "b8af8b8e33e4db52f54219dc0c8db27139d816acbdbce311d30b86a98dec1588"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-retry4.json",
+      "sha256": "0e9f8edc278a7221a90da69c5980727fc51b8ed792f4f378240e3c00c4d50f7b",
+      "bytes": 814,
+      "storage": "attachment",
+      "artifact_key": "0e9f8edc278a7221a90da69c5980727fc51b8ed792f4f378240e3c00c4d50f7b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3-confirmed.ax.txt",
+      "sha256": "088f4d1d97ba3fa987c5c56b81c76f08f55320cee3e6f27f4588d017bc1f9ae1",
+      "bytes": 10760,
+      "storage": "attachment",
+      "artifact_key": "088f4d1d97ba3fa987c5c56b81c76f08f55320cee3e6f27f4588d017bc1f9ae1"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3-confirmed.jpg",
+      "sha256": "144fd3ccd0c0fa7adfee3e34acd6409e2a183dce5cd1ff8d8de35b169eb10314",
+      "bytes": 108304,
+      "storage": "attachment",
+      "artifact_key": "144fd3ccd0c0fa7adfee3e34acd6409e2a183dce5cd1ff8d8de35b169eb10314"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3-confirmed.json",
+      "sha256": "e48ba639edd994cd5593088526da3844525c2268bf83ffe61d125559bd503e08",
+      "bytes": 841,
+      "storage": "attachment",
+      "artifact_key": "e48ba639edd994cd5593088526da3844525c2268bf83ffe61d125559bd503e08"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3.ax.txt",
+      "sha256": "e375c6471f471441f973b3a8a8c3186df73806ddef89026723fd2c1910212fa0",
+      "bytes": 6175,
+      "storage": "attachment",
+      "artifact_key": "e375c6471f471441f973b3a8a8c3186df73806ddef89026723fd2c1910212fa0"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3.jpg",
+      "sha256": "0b59c2d9f0b541a392d1c37cf68bb8945fe1041fac86371720aea4940e2494db",
+      "bytes": 81344,
+      "storage": "attachment",
+      "artifact_key": "0b59c2d9f0b541a392d1c37cf68bb8945fe1041fac86371720aea4940e2494db"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/gui/wrong-old-seed3.json",
+      "sha256": "0a4e61aff76d1c2dd2efcc51bc1c0e0505f893fbc349652fdf433891a5ac27a1",
+      "bytes": 809,
+      "storage": "attachment",
+      "artifact_key": "0a4e61aff76d1c2dd2efcc51bc1c0e0505f893fbc349652fdf433891a5ac27a1"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/index.html",
+      "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe",
+      "bytes": 42793,
+      "storage": "attachment",
+      "artifact_key": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000001/completed.json",
+      "sha256": "18b55e8c722a4d49a94639f5ff6a3660f1369b6d2b86a676e696c842f368ac30",
+      "bytes": 1158,
+      "storage": "attachment",
+      "artifact_key": "18b55e8c722a4d49a94639f5ff6a3660f1369b6d2b86a676e696c842f368ac30"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000001/received.json",
+      "sha256": "dfa95541efee8c6f7cc3223d27dc78fbb626a6bbe02264743935ad0f81ae5b99",
+      "bytes": 609,
+      "storage": "attachment",
+      "artifact_key": "dfa95541efee8c6f7cc3223d27dc78fbb626a6bbe02264743935ad0f81ae5b99"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000001/request.raw",
+      "sha256": "c9a0325e721751b7c982c912e5ae4eab4f512a6cab07b087ef192d9c70d9cca3",
+      "bytes": 711,
+      "storage": "attachment",
+      "artifact_key": "c9a0325e721751b7c982c912e5ae4eab4f512a6cab07b087ef192d9c70d9cca3"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000001/response.body",
+      "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe",
+      "bytes": 42793,
+      "storage": "attachment",
+      "artifact_key": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000001/response.header",
+      "sha256": "160bd7199ae07dbeee9af920617e9885cf10db0165b920004d9a77e903e8bb83",
+      "bytes": 209,
+      "storage": "attachment",
+      "artifact_key": "160bd7199ae07dbeee9af920617e9885cf10db0165b920004d9a77e903e8bb83"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000001/response.raw",
+      "sha256": "427d0a759aabb50eecfb70ca0a555aab9fdbcbb362579faa5b88b020830024db",
+      "bytes": 43002,
+      "storage": "attachment",
+      "artifact_key": "427d0a759aabb50eecfb70ca0a555aab9fdbcbb362579faa5b88b020830024db"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000002/completed.json",
+      "sha256": "6942ad69edb93f466feecd515a7672c453094f103e0e164c82597781056dfec5",
+      "bytes": 2289,
+      "storage": "attachment",
+      "artifact_key": "6942ad69edb93f466feecd515a7672c453094f103e0e164c82597781056dfec5"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000002/received.json",
+      "sha256": "929fc8ffc792f0e56d5a11afee0f1354218b4a6b9ba0f8a26aa779e92070870f",
+      "bytes": 1740,
+      "storage": "attachment",
+      "artifact_key": "929fc8ffc792f0e56d5a11afee0f1354218b4a6b9ba0f8a26aa779e92070870f"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000002/request.raw",
+      "sha256": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1",
+      "bytes": 566,
+      "storage": "attachment",
+      "artifact_key": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000002/response.body",
+      "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf",
+      "bytes": 69999,
+      "storage": "attachment",
+      "artifact_key": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000002/response.header",
+      "sha256": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000002/response.raw",
+      "sha256": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430",
+      "bytes": 70215,
+      "storage": "attachment",
+      "artifact_key": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000003/completed.json",
+      "sha256": "f68b616579bcf012ca7a65680c5e3583882078eb7b6ba5c9060289d55d7e52b3",
+      "bytes": 1155,
+      "storage": "attachment",
+      "artifact_key": "f68b616579bcf012ca7a65680c5e3583882078eb7b6ba5c9060289d55d7e52b3"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000003/received.json",
+      "sha256": "3c9e4e26c5efe6f07e94146797088512fb6dde73f711ba627aba2b81dd148696",
+      "bytes": 612,
+      "storage": "attachment",
+      "artifact_key": "3c9e4e26c5efe6f07e94146797088512fb6dde73f711ba627aba2b81dd148696"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000003/request.raw",
+      "sha256": "6e2cf70895db88d767fea5be699ab6600287f818577b3b3e9c5e6eb4769973ec",
+      "bytes": 632,
+      "storage": "attachment",
+      "artifact_key": "6e2cf70895db88d767fea5be699ab6600287f818577b3b3e9c5e6eb4769973ec"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000003/response.body",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000003/response.header",
+      "sha256": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d",
+      "bytes": 201,
+      "storage": "attachment",
+      "artifact_key": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000003/response.raw",
+      "sha256": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d",
+      "bytes": 201,
+      "storage": "attachment",
+      "artifact_key": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000004/completed.json",
+      "sha256": "5874fb3c20c8c1883a2437fcc7772879dada15b6def4838ce4be735631a8aaa7",
+      "bytes": 2289,
+      "storage": "attachment",
+      "artifact_key": "5874fb3c20c8c1883a2437fcc7772879dada15b6def4838ce4be735631a8aaa7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000004/received.json",
+      "sha256": "a665a8d29be1a7d6aec61555b834ece97183842e9b1ca80b809ea0a3b98c8d0e",
+      "bytes": 1740,
+      "storage": "attachment",
+      "artifact_key": "a665a8d29be1a7d6aec61555b834ece97183842e9b1ca80b809ea0a3b98c8d0e"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000004/request.raw",
+      "sha256": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1",
+      "bytes": 566,
+      "storage": "attachment",
+      "artifact_key": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000004/response.body",
+      "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf",
+      "bytes": 69999,
+      "storage": "attachment",
+      "artifact_key": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000004/response.header",
+      "sha256": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000004/response.raw",
+      "sha256": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430",
+      "bytes": 70215,
+      "storage": "attachment",
+      "artifact_key": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000005/completed.json",
+      "sha256": "227db6ba966ce6e169640e8bc42ce886eed60d0d34cf5d721029fb4a2396c8fd",
+      "bytes": 2397,
+      "storage": "attachment",
+      "artifact_key": "227db6ba966ce6e169640e8bc42ce886eed60d0d34cf5d721029fb4a2396c8fd"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000005/received.json",
+      "sha256": "2e1f617e0b28d9b6feb30ae41481da75d80e3735cb7685dde1a4adb42a221a36",
+      "bytes": 1848,
+      "storage": "attachment",
+      "artifact_key": "2e1f617e0b28d9b6feb30ae41481da75d80e3735cb7685dde1a4adb42a221a36"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000005/request.raw",
+      "sha256": "88412044998b6771d723d14351d0bdda00e9e21ae4f90544dc1a97a7492afbfd",
+      "bytes": 585,
+      "storage": "attachment",
+      "artifact_key": "88412044998b6771d723d14351d0bdda00e9e21ae4f90544dc1a97a7492afbfd"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000005/response.body",
+      "sha256": "ca5966dd28a4e18805bbf705ab886c60e925fa6380a375f2fe325cb2c3516453",
+      "bytes": 20459,
+      "storage": "attachment",
+      "artifact_key": "ca5966dd28a4e18805bbf705ab886c60e925fa6380a375f2fe325cb2c3516453"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000005/response.header",
+      "sha256": "9a70af656b0f36cb3ecca858de82730f412b29b71b1cadfbf1232f77c76ba6fe",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "9a70af656b0f36cb3ecca858de82730f412b29b71b1cadfbf1232f77c76ba6fe"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000005/response.raw",
+      "sha256": "b3b4847d6491a3b6eddb5316cbd7d6c9d12950791ea49b42ff67c8958d619591",
+      "bytes": 20675,
+      "storage": "attachment",
+      "artifact_key": "b3b4847d6491a3b6eddb5316cbd7d6c9d12950791ea49b42ff67c8958d619591"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000006/completed.json",
+      "sha256": "6787a3a213c1fcb4475607eda6bfdd00ef41fa19a1d87325fc9cf3faa30d0d06",
+      "bytes": 2282,
+      "storage": "attachment",
+      "artifact_key": "6787a3a213c1fcb4475607eda6bfdd00ef41fa19a1d87325fc9cf3faa30d0d06"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000006/received.json",
+      "sha256": "2f34eabc82f41fd260253866246a682589548330a9fa9ec894ead163a2a9e296",
+      "bytes": 1733,
+      "storage": "attachment",
+      "artifact_key": "2f34eabc82f41fd260253866246a682589548330a9fa9ec894ead163a2a9e296"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000006/request.raw",
+      "sha256": "a9df6524cb52dc1fdd1681767ee17a7cb22989cfdf335664c819f1f27d282726",
+      "bytes": 574,
+      "storage": "attachment",
+      "artifact_key": "a9df6524cb52dc1fdd1681767ee17a7cb22989cfdf335664c819f1f27d282726"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000006/response.body",
+      "sha256": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c",
+      "bytes": 75776,
+      "storage": "attachment",
+      "artifact_key": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000006/response.header",
+      "sha256": "0ccd2d3863fef42d3cb267a66f655600382145a9dbce813b097779d6af2e71b7",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "0ccd2d3863fef42d3cb267a66f655600382145a9dbce813b097779d6af2e71b7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000006/response.raw",
+      "sha256": "1ef441e85c37d65e8f8ee5224b09d4cfeb552ca826e0ec2a5d5801c89c852f7f",
+      "bytes": 75992,
+      "storage": "attachment",
+      "artifact_key": "1ef441e85c37d65e8f8ee5224b09d4cfeb552ca826e0ec2a5d5801c89c852f7f"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/completed.json",
+      "sha256": "daaed9df3fc538bea6d4be460f3b29d10acecc65376d7b2d6be6504a09f2d2fa",
+      "bytes": 2392,
+      "storage": "attachment",
+      "artifact_key": "daaed9df3fc538bea6d4be460f3b29d10acecc65376d7b2d6be6504a09f2d2fa"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/received.json",
+      "sha256": "7d0b94261e904b96987e4ec9efee32769e1fc43830da6f27ca4817fda43b7516",
+      "bytes": 1843,
+      "storage": "attachment",
+      "artifact_key": "7d0b94261e904b96987e4ec9efee32769e1fc43830da6f27ca4817fda43b7516"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/request.raw",
+      "sha256": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b",
+      "bytes": 585,
+      "storage": "attachment",
+      "artifact_key": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/response.body",
+      "sha256": "c6baa0a622de1c730a1527efaf7025192652db047eaa75dc04096abd01b37a6b",
+      "bytes": 12841,
+      "storage": "attachment",
+      "artifact_key": "c6baa0a622de1c730a1527efaf7025192652db047eaa75dc04096abd01b37a6b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/response.header",
+      "sha256": "1c0167583a7b249f74d547b927f0ee05658b82b00e4ad5292d10227ce42a456f",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "1c0167583a7b249f74d547b927f0ee05658b82b00e4ad5292d10227ce42a456f"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000007/response.raw",
+      "sha256": "ddc75c5e42bef1f514bc49d5e28a4dc6152a9c37a1592c8b7ee4440cc8d0111e",
+      "bytes": 13057,
+      "storage": "attachment",
+      "artifact_key": "ddc75c5e42bef1f514bc49d5e28a4dc6152a9c37a1592c8b7ee4440cc8d0111e"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/completed.json",
+      "sha256": "dcfe7bc61f60af2ba68742e6cb840978287af1b665e9d587b3b7556594be3837",
+      "bytes": 2377,
+      "storage": "attachment",
+      "artifact_key": "dcfe7bc61f60af2ba68742e6cb840978287af1b665e9d587b3b7556594be3837"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/received.json",
+      "sha256": "38f46035ca0059468c36b896a7dfddc3ed03fdccf6d72940d048c6c0f471b468",
+      "bytes": 1828,
+      "storage": "attachment",
+      "artifact_key": "38f46035ca0059468c36b896a7dfddc3ed03fdccf6d72940d048c6c0f471b468"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/request.raw",
+      "sha256": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b",
+      "bytes": 585,
+      "storage": "attachment",
+      "artifact_key": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/response.body",
+      "sha256": "05def59f39ec381d61852e55de6e5af21c0cc57e577df025b8fdd5609b7be28b",
+      "bytes": 13075,
+      "storage": "attachment",
+      "artifact_key": "05def59f39ec381d61852e55de6e5af21c0cc57e577df025b8fdd5609b7be28b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/response.header",
+      "sha256": "bbc205e68b9248eaf4c4feb3fe26502b695d69bc5d6c6aae6fccab9752c827c9",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "bbc205e68b9248eaf4c4feb3fe26502b695d69bc5d6c6aae6fccab9752c827c9"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000008/response.raw",
+      "sha256": "5cd0b9fa69d382ca699bf1561cb71e5e813f749163506a4a9c09b8a77138aafc",
+      "bytes": 13291,
+      "storage": "attachment",
+      "artifact_key": "5cd0b9fa69d382ca699bf1561cb71e5e813f749163506a4a9c09b8a77138aafc"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/completed.json",
+      "sha256": "f5c8066f7c2e975a816b9358014e91dac015bd122d21eaeea6df219638449bf3",
+      "bytes": 2263,
+      "storage": "attachment",
+      "artifact_key": "f5c8066f7c2e975a816b9358014e91dac015bd122d21eaeea6df219638449bf3"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/received.json",
+      "sha256": "4ae4e42c363e8ffc0f71dd1bd1832e8bebd51952f42847521695af8f04d38f22",
+      "bytes": 1714,
+      "storage": "attachment",
+      "artifact_key": "4ae4e42c363e8ffc0f71dd1bd1832e8bebd51952f42847521695af8f04d38f22"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/request.raw",
+      "sha256": "e0b074462784e37b2772139987998600c580a5edfd3a3c28ca9293b2c2159a0f",
+      "bytes": 574,
+      "storage": "attachment",
+      "artifact_key": "e0b074462784e37b2772139987998600c580a5edfd3a3c28ca9293b2c2159a0f"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/response.body",
+      "sha256": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20",
+      "bytes": 81502,
+      "storage": "attachment",
+      "artifact_key": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/response.header",
+      "sha256": "4839d36b8d96482660a4b836388624f2ce6dd428269d3a89bc6b55bd61035e86",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "4839d36b8d96482660a4b836388624f2ce6dd428269d3a89bc6b55bd61035e86"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000009/response.raw",
+      "sha256": "dcd076282b8d533689858a9cac7caf6401d774f25c7287dc8981b2453cbdcac6",
+      "bytes": 81718,
+      "storage": "attachment",
+      "artifact_key": "dcd076282b8d533689858a9cac7caf6401d774f25c7287dc8981b2453cbdcac6"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000010/completed.json",
+      "sha256": "8de610977280d6de9e593846936fbc0662b51ac6356fd0de16534f87ad4918e3",
+      "bytes": 1126,
+      "storage": "attachment",
+      "artifact_key": "8de610977280d6de9e593846936fbc0662b51ac6356fd0de16534f87ad4918e3"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000010/received.json",
+      "sha256": "33873112446eba1af92bdb4d8817b3384cb50a8d914a043912252c4653ec53c7",
+      "bytes": 577,
+      "storage": "attachment",
+      "artifact_key": "33873112446eba1af92bdb4d8817b3384cb50a8d914a043912252c4653ec53c7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000010/request.raw",
+      "sha256": "ff4ab64977b0c777d9027d43ad7d89bf6ff939b8e141c1972eb73d7f4c37cbd7",
+      "bytes": 737,
+      "storage": "attachment",
+      "artifact_key": "ff4ab64977b0c777d9027d43ad7d89bf6ff939b8e141c1972eb73d7f4c37cbd7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000010/response.body",
+      "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe",
+      "bytes": 42793,
+      "storage": "attachment",
+      "artifact_key": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000010/response.header",
+      "sha256": "160bd7199ae07dbeee9af920617e9885cf10db0165b920004d9a77e903e8bb83",
+      "bytes": 209,
+      "storage": "attachment",
+      "artifact_key": "160bd7199ae07dbeee9af920617e9885cf10db0165b920004d9a77e903e8bb83"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000010/response.raw",
+      "sha256": "427d0a759aabb50eecfb70ca0a555aab9fdbcbb362579faa5b88b020830024db",
+      "bytes": 43002,
+      "storage": "attachment",
+      "artifact_key": "427d0a759aabb50eecfb70ca0a555aab9fdbcbb362579faa5b88b020830024db"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000011/completed.json",
+      "sha256": "c4110b9854e73df4f9080dcca1059ce34993ca58886297930a73526f28526ddd",
+      "bytes": 2257,
+      "storage": "attachment",
+      "artifact_key": "c4110b9854e73df4f9080dcca1059ce34993ca58886297930a73526f28526ddd"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000011/received.json",
+      "sha256": "4fed8fd7cb57701152f0a15c2777d034cc8796e7ad7447838fb0667f4d9fff47",
+      "bytes": 1708,
+      "storage": "attachment",
+      "artifact_key": "4fed8fd7cb57701152f0a15c2777d034cc8796e7ad7447838fb0667f4d9fff47"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000011/request.raw",
+      "sha256": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1",
+      "bytes": 566,
+      "storage": "attachment",
+      "artifact_key": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000011/response.body",
+      "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf",
+      "bytes": 69999,
+      "storage": "attachment",
+      "artifact_key": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000011/response.header",
+      "sha256": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000011/response.raw",
+      "sha256": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430",
+      "bytes": 70215,
+      "storage": "attachment",
+      "artifact_key": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000012/completed.json",
+      "sha256": "c59fa89b453d58122c006e21d227f222595d4ae79a407bda344e6354c898ba5b",
+      "bytes": 1123,
+      "storage": "attachment",
+      "artifact_key": "c59fa89b453d58122c006e21d227f222595d4ae79a407bda344e6354c898ba5b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000012/received.json",
+      "sha256": "d3497fde935dad235e7f978466cd71d4ea8975e4f5efc812f6082c0ef3e2db9b",
+      "bytes": 580,
+      "storage": "attachment",
+      "artifact_key": "d3497fde935dad235e7f978466cd71d4ea8975e4f5efc812f6082c0ef3e2db9b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000012/request.raw",
+      "sha256": "6e2cf70895db88d767fea5be699ab6600287f818577b3b3e9c5e6eb4769973ec",
+      "bytes": 632,
+      "storage": "attachment",
+      "artifact_key": "6e2cf70895db88d767fea5be699ab6600287f818577b3b3e9c5e6eb4769973ec"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000012/response.body",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000012/response.header",
+      "sha256": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d",
+      "bytes": 201,
+      "storage": "attachment",
+      "artifact_key": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000012/response.raw",
+      "sha256": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d",
+      "bytes": 201,
+      "storage": "attachment",
+      "artifact_key": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/completed.json",
+      "sha256": "ad4dab1b6a2473925486d4edd49c023ca6642fcedb686105994e9a7ed57415ad",
+      "bytes": 2257,
+      "storage": "attachment",
+      "artifact_key": "ad4dab1b6a2473925486d4edd49c023ca6642fcedb686105994e9a7ed57415ad"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/received.json",
+      "sha256": "69322ff73431b51500e0d3a0847f790e74771be8a969c14d5552e47b58d55a17",
+      "bytes": 1708,
+      "storage": "attachment",
+      "artifact_key": "69322ff73431b51500e0d3a0847f790e74771be8a969c14d5552e47b58d55a17"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/request.raw",
+      "sha256": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1",
+      "bytes": 566,
+      "storage": "attachment",
+      "artifact_key": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/response.body",
+      "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf",
+      "bytes": 69999,
+      "storage": "attachment",
+      "artifact_key": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/response.header",
+      "sha256": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000013/response.raw",
+      "sha256": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430",
+      "bytes": 70215,
+      "storage": "attachment",
+      "artifact_key": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000014/completed.json",
+      "sha256": "a7073c84cd66f56a476f3cdc4b277db23bcb2852a44d9855e1852368f6ee3eb7",
+      "bytes": 2365,
+      "storage": "attachment",
+      "artifact_key": "a7073c84cd66f56a476f3cdc4b277db23bcb2852a44d9855e1852368f6ee3eb7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000014/received.json",
+      "sha256": "7dc720696764e5f581a9269408f8f2ec0895a557e643ffd72f7b12bc918fac55",
+      "bytes": 1816,
+      "storage": "attachment",
+      "artifact_key": "7dc720696764e5f581a9269408f8f2ec0895a557e643ffd72f7b12bc918fac55"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000014/request.raw",
+      "sha256": "88412044998b6771d723d14351d0bdda00e9e21ae4f90544dc1a97a7492afbfd",
+      "bytes": 585,
+      "storage": "attachment",
+      "artifact_key": "88412044998b6771d723d14351d0bdda00e9e21ae4f90544dc1a97a7492afbfd"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000014/response.body",
+      "sha256": "ca5966dd28a4e18805bbf705ab886c60e925fa6380a375f2fe325cb2c3516453",
+      "bytes": 20459,
+      "storage": "attachment",
+      "artifact_key": "ca5966dd28a4e18805bbf705ab886c60e925fa6380a375f2fe325cb2c3516453"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000014/response.header",
+      "sha256": "9a70af656b0f36cb3ecca858de82730f412b29b71b1cadfbf1232f77c76ba6fe",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "9a70af656b0f36cb3ecca858de82730f412b29b71b1cadfbf1232f77c76ba6fe"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000014/response.raw",
+      "sha256": "b3b4847d6491a3b6eddb5316cbd7d6c9d12950791ea49b42ff67c8958d619591",
+      "bytes": 20675,
+      "storage": "attachment",
+      "artifact_key": "b3b4847d6491a3b6eddb5316cbd7d6c9d12950791ea49b42ff67c8958d619591"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000015/completed.json",
+      "sha256": "1911eb772546207d00eb441d98193289c51de72f62ae7a7223acabf79e8b8fd0",
+      "bytes": 2250,
+      "storage": "attachment",
+      "artifact_key": "1911eb772546207d00eb441d98193289c51de72f62ae7a7223acabf79e8b8fd0"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000015/received.json",
+      "sha256": "210951cd7914f6559106af0cd7aad3ca8b2d608b45ad5007f7ebafc3225f5176",
+      "bytes": 1701,
+      "storage": "attachment",
+      "artifact_key": "210951cd7914f6559106af0cd7aad3ca8b2d608b45ad5007f7ebafc3225f5176"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000015/request.raw",
+      "sha256": "a9df6524cb52dc1fdd1681767ee17a7cb22989cfdf335664c819f1f27d282726",
+      "bytes": 574,
+      "storage": "attachment",
+      "artifact_key": "a9df6524cb52dc1fdd1681767ee17a7cb22989cfdf335664c819f1f27d282726"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000015/response.body",
+      "sha256": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c",
+      "bytes": 75776,
+      "storage": "attachment",
+      "artifact_key": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000015/response.header",
+      "sha256": "0ccd2d3863fef42d3cb267a66f655600382145a9dbce813b097779d6af2e71b7",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "0ccd2d3863fef42d3cb267a66f655600382145a9dbce813b097779d6af2e71b7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000015/response.raw",
+      "sha256": "1ef441e85c37d65e8f8ee5224b09d4cfeb552ca826e0ec2a5d5801c89c852f7f",
+      "bytes": 75992,
+      "storage": "attachment",
+      "artifact_key": "1ef441e85c37d65e8f8ee5224b09d4cfeb552ca826e0ec2a5d5801c89c852f7f"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/completed.json",
+      "sha256": "ae9cbf17700b9f337b5a1d4cc0349bb2dc20eae08e47ae2bada48d894fae6afb",
+      "bytes": 2378,
+      "storage": "attachment",
+      "artifact_key": "ae9cbf17700b9f337b5a1d4cc0349bb2dc20eae08e47ae2bada48d894fae6afb"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/received.json",
+      "sha256": "dc115c5086fec4aba79d7ef52e1cfdb3810b1851a9ca9bcc11965e3f728b7ba8",
+      "bytes": 1829,
+      "storage": "attachment",
+      "artifact_key": "dc115c5086fec4aba79d7ef52e1cfdb3810b1851a9ca9bcc11965e3f728b7ba8"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/request.raw",
+      "sha256": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b",
+      "bytes": 585,
+      "storage": "attachment",
+      "artifact_key": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/response.body",
+      "sha256": "6a1b9af7fa7413707924d1684139b5987261faa2bbacf4213109491f28bb616e",
+      "bytes": 13030,
+      "storage": "attachment",
+      "artifact_key": "6a1b9af7fa7413707924d1684139b5987261faa2bbacf4213109491f28bb616e"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/response.header",
+      "sha256": "4f8841c3c7eb2a7b88d033c8b4cb66f055f4576a852f8cb5a4a341930481901d",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "4f8841c3c7eb2a7b88d033c8b4cb66f055f4576a852f8cb5a4a341930481901d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000016/response.raw",
+      "sha256": "21809baab3584283a4591e669d2b4d9c93d8b8b420afb4045d96407034a7cc67",
+      "bytes": 13246,
+      "storage": "attachment",
+      "artifact_key": "21809baab3584283a4591e669d2b4d9c93d8b8b420afb4045d96407034a7cc67"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/completed.json",
+      "sha256": "b6395ec5ef2a3b97e44948d187c9ea9c08f8fe0761e982fbdc5160295793f5da",
+      "bytes": 2373,
+      "storage": "attachment",
+      "artifact_key": "b6395ec5ef2a3b97e44948d187c9ea9c08f8fe0761e982fbdc5160295793f5da"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/received.json",
+      "sha256": "887f5d0d80958f17df8571aa6691c678e4fb3dde16cb39ac8a0c600aea38e891",
+      "bytes": 1824,
+      "storage": "attachment",
+      "artifact_key": "887f5d0d80958f17df8571aa6691c678e4fb3dde16cb39ac8a0c600aea38e891"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/request.raw",
+      "sha256": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b",
+      "bytes": 585,
+      "storage": "attachment",
+      "artifact_key": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/response.body",
+      "sha256": "05def59f39ec381d61852e55de6e5af21c0cc57e577df025b8fdd5609b7be28b",
+      "bytes": 13075,
+      "storage": "attachment",
+      "artifact_key": "05def59f39ec381d61852e55de6e5af21c0cc57e577df025b8fdd5609b7be28b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/response.header",
+      "sha256": "bbc205e68b9248eaf4c4feb3fe26502b695d69bc5d6c6aae6fccab9752c827c9",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "bbc205e68b9248eaf4c4feb3fe26502b695d69bc5d6c6aae6fccab9752c827c9"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000017/response.raw",
+      "sha256": "5cd0b9fa69d382ca699bf1561cb71e5e813f749163506a4a9c09b8a77138aafc",
+      "bytes": 13291,
+      "storage": "attachment",
+      "artifact_key": "5cd0b9fa69d382ca699bf1561cb71e5e813f749163506a4a9c09b8a77138aafc"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/completed.json",
+      "sha256": "0d5001069da76237be96c270ca32f6b4a31e55d93583c6a196bee3af59d8f8e7",
+      "bytes": 2259,
+      "storage": "attachment",
+      "artifact_key": "0d5001069da76237be96c270ca32f6b4a31e55d93583c6a196bee3af59d8f8e7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/received.json",
+      "sha256": "73bf5c901cf95ac3db685786c2cd8ba1161caa2f6405945f747fff29d3efb037",
+      "bytes": 1710,
+      "storage": "attachment",
+      "artifact_key": "73bf5c901cf95ac3db685786c2cd8ba1161caa2f6405945f747fff29d3efb037"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/request.raw",
+      "sha256": "e0b074462784e37b2772139987998600c580a5edfd3a3c28ca9293b2c2159a0f",
+      "bytes": 574,
+      "storage": "attachment",
+      "artifact_key": "e0b074462784e37b2772139987998600c580a5edfd3a3c28ca9293b2c2159a0f"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/response.body",
+      "sha256": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20",
+      "bytes": 81502,
+      "storage": "attachment",
+      "artifact_key": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/response.header",
+      "sha256": "4839d36b8d96482660a4b836388624f2ce6dd428269d3a89bc6b55bd61035e86",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "4839d36b8d96482660a4b836388624f2ce6dd428269d3a89bc6b55bd61035e86"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000018/response.raw",
+      "sha256": "dcd076282b8d533689858a9cac7caf6401d774f25c7287dc8981b2453cbdcac6",
+      "bytes": 81718,
+      "storage": "attachment",
+      "artifact_key": "dcd076282b8d533689858a9cac7caf6401d774f25c7287dc8981b2453cbdcac6"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000019/completed.json",
+      "sha256": "a55717bb7f27aa3719e9b40b1e7ca6dcbd5faaca465bb236ee38c5e233e1a866",
+      "bytes": 1120,
+      "storage": "attachment",
+      "artifact_key": "a55717bb7f27aa3719e9b40b1e7ca6dcbd5faaca465bb236ee38c5e233e1a866"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000019/received.json",
+      "sha256": "16e428c8bf58c54a2eab9aca6b54f9ea06ad07ce9b1475d025b9d5ac34ea934d",
+      "bytes": 571,
+      "storage": "attachment",
+      "artifact_key": "16e428c8bf58c54a2eab9aca6b54f9ea06ad07ce9b1475d025b9d5ac34ea934d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000019/request.raw",
+      "sha256": "ff4ab64977b0c777d9027d43ad7d89bf6ff939b8e141c1972eb73d7f4c37cbd7",
+      "bytes": 737,
+      "storage": "attachment",
+      "artifact_key": "ff4ab64977b0c777d9027d43ad7d89bf6ff939b8e141c1972eb73d7f4c37cbd7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000019/response.body",
+      "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe",
+      "bytes": 42793,
+      "storage": "attachment",
+      "artifact_key": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000019/response.header",
+      "sha256": "160bd7199ae07dbeee9af920617e9885cf10db0165b920004d9a77e903e8bb83",
+      "bytes": 209,
+      "storage": "attachment",
+      "artifact_key": "160bd7199ae07dbeee9af920617e9885cf10db0165b920004d9a77e903e8bb83"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000019/response.raw",
+      "sha256": "427d0a759aabb50eecfb70ca0a555aab9fdbcbb362579faa5b88b020830024db",
+      "bytes": 43002,
+      "storage": "attachment",
+      "artifact_key": "427d0a759aabb50eecfb70ca0a555aab9fdbcbb362579faa5b88b020830024db"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000020/completed.json",
+      "sha256": "479e315b059870c9d070cce112459e4aa70bf10529cb2a2e2a6fec2dec21abaa",
+      "bytes": 2251,
+      "storage": "attachment",
+      "artifact_key": "479e315b059870c9d070cce112459e4aa70bf10529cb2a2e2a6fec2dec21abaa"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000020/received.json",
+      "sha256": "235cff1b1e79d144173fab6c7be5fd0e8c85761be86064b8a8c9c08d6265bafe",
+      "bytes": 1702,
+      "storage": "attachment",
+      "artifact_key": "235cff1b1e79d144173fab6c7be5fd0e8c85761be86064b8a8c9c08d6265bafe"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000020/request.raw",
+      "sha256": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1",
+      "bytes": 566,
+      "storage": "attachment",
+      "artifact_key": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000020/response.body",
+      "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf",
+      "bytes": 69999,
+      "storage": "attachment",
+      "artifact_key": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000020/response.header",
+      "sha256": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000020/response.raw",
+      "sha256": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430",
+      "bytes": 70215,
+      "storage": "attachment",
+      "artifact_key": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000021/completed.json",
+      "sha256": "60e11623942b6049d0ccf105ed4c4bc81f0030b949d0992781c87471ab9a3c25",
+      "bytes": 1117,
+      "storage": "attachment",
+      "artifact_key": "60e11623942b6049d0ccf105ed4c4bc81f0030b949d0992781c87471ab9a3c25"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000021/received.json",
+      "sha256": "c67331e7216e47c7506a11d34b40e85d8aa013b5e375b095b15ace28a7875298",
+      "bytes": 574,
+      "storage": "attachment",
+      "artifact_key": "c67331e7216e47c7506a11d34b40e85d8aa013b5e375b095b15ace28a7875298"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000021/request.raw",
+      "sha256": "6e2cf70895db88d767fea5be699ab6600287f818577b3b3e9c5e6eb4769973ec",
+      "bytes": 632,
+      "storage": "attachment",
+      "artifact_key": "6e2cf70895db88d767fea5be699ab6600287f818577b3b3e9c5e6eb4769973ec"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000021/response.body",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000021/response.header",
+      "sha256": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d",
+      "bytes": 201,
+      "storage": "attachment",
+      "artifact_key": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000021/response.raw",
+      "sha256": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d",
+      "bytes": 201,
+      "storage": "attachment",
+      "artifact_key": "cd36528def67eaaf448dce17b382b62f6d54caf32727adda73c1b0b47cec341d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000022/completed.json",
+      "sha256": "966ff5f0bbd5cd71d26f3057d1d77d4565c80cf58a52f1fbc8db4a64e502ebf1",
+      "bytes": 2251,
+      "storage": "attachment",
+      "artifact_key": "966ff5f0bbd5cd71d26f3057d1d77d4565c80cf58a52f1fbc8db4a64e502ebf1"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000022/received.json",
+      "sha256": "1c7ce92a6dd6fb07aef88649ad4b75b5f1a08c0db05b084c36d84e224edb832c",
+      "bytes": 1702,
+      "storage": "attachment",
+      "artifact_key": "1c7ce92a6dd6fb07aef88649ad4b75b5f1a08c0db05b084c36d84e224edb832c"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000022/request.raw",
+      "sha256": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1",
+      "bytes": 566,
+      "storage": "attachment",
+      "artifact_key": "49619c7aa615c767a512e4e7c2ede74550916a9df62b75773d2b8d0f33bf1dc1"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000022/response.body",
+      "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf",
+      "bytes": 69999,
+      "storage": "attachment",
+      "artifact_key": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000022/response.header",
+      "sha256": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "286c4d9651bbc8d66f225d619d17585f729dba9b5f7724a550f49e7adfecfd93"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000022/response.raw",
+      "sha256": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430",
+      "bytes": 70215,
+      "storage": "attachment",
+      "artifact_key": "0c4c70f7ae5c80ffc1ea804adffb38bb1dadae06e2c9d90039afe23b37836430"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000023/completed.json",
+      "sha256": "6156586c1c9cdc8448444b44047f901a777ef8ffac3ea420daa66b1631d2aea9",
+      "bytes": 2359,
+      "storage": "attachment",
+      "artifact_key": "6156586c1c9cdc8448444b44047f901a777ef8ffac3ea420daa66b1631d2aea9"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000023/received.json",
+      "sha256": "277793d6e2cb5f7ee5fa6a826789e970596c2ba7d1f2d58b05e5a43244d18e0b",
+      "bytes": 1810,
+      "storage": "attachment",
+      "artifact_key": "277793d6e2cb5f7ee5fa6a826789e970596c2ba7d1f2d58b05e5a43244d18e0b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000023/request.raw",
+      "sha256": "88412044998b6771d723d14351d0bdda00e9e21ae4f90544dc1a97a7492afbfd",
+      "bytes": 585,
+      "storage": "attachment",
+      "artifact_key": "88412044998b6771d723d14351d0bdda00e9e21ae4f90544dc1a97a7492afbfd"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000023/response.body",
+      "sha256": "ca5966dd28a4e18805bbf705ab886c60e925fa6380a375f2fe325cb2c3516453",
+      "bytes": 20459,
+      "storage": "attachment",
+      "artifact_key": "ca5966dd28a4e18805bbf705ab886c60e925fa6380a375f2fe325cb2c3516453"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000023/response.header",
+      "sha256": "9a70af656b0f36cb3ecca858de82730f412b29b71b1cadfbf1232f77c76ba6fe",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "9a70af656b0f36cb3ecca858de82730f412b29b71b1cadfbf1232f77c76ba6fe"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000023/response.raw",
+      "sha256": "b3b4847d6491a3b6eddb5316cbd7d6c9d12950791ea49b42ff67c8958d619591",
+      "bytes": 20675,
+      "storage": "attachment",
+      "artifact_key": "b3b4847d6491a3b6eddb5316cbd7d6c9d12950791ea49b42ff67c8958d619591"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000024/completed.json",
+      "sha256": "ddf7fba2a90dc96293395c1b42151a23ec47755206c43a1075caef5c8042ec48",
+      "bytes": 2244,
+      "storage": "attachment",
+      "artifact_key": "ddf7fba2a90dc96293395c1b42151a23ec47755206c43a1075caef5c8042ec48"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000024/received.json",
+      "sha256": "6e575e825ba372d972f06b2219394a3231581e249e668c78978dd42dd31a2518",
+      "bytes": 1695,
+      "storage": "attachment",
+      "artifact_key": "6e575e825ba372d972f06b2219394a3231581e249e668c78978dd42dd31a2518"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000024/request.raw",
+      "sha256": "a9df6524cb52dc1fdd1681767ee17a7cb22989cfdf335664c819f1f27d282726",
+      "bytes": 574,
+      "storage": "attachment",
+      "artifact_key": "a9df6524cb52dc1fdd1681767ee17a7cb22989cfdf335664c819f1f27d282726"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000024/response.body",
+      "sha256": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c",
+      "bytes": 75776,
+      "storage": "attachment",
+      "artifact_key": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000024/response.header",
+      "sha256": "0ccd2d3863fef42d3cb267a66f655600382145a9dbce813b097779d6af2e71b7",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "0ccd2d3863fef42d3cb267a66f655600382145a9dbce813b097779d6af2e71b7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000024/response.raw",
+      "sha256": "1ef441e85c37d65e8f8ee5224b09d4cfeb552ca826e0ec2a5d5801c89c852f7f",
+      "bytes": 75992,
+      "storage": "attachment",
+      "artifact_key": "1ef441e85c37d65e8f8ee5224b09d4cfeb552ca826e0ec2a5d5801c89c852f7f"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/completed.json",
+      "sha256": "96c1a24e85e1b613fa0b9a189ee5b1561492dcea2fec8a4d19a8fde02345f5da",
+      "bytes": 2343,
+      "storage": "attachment",
+      "artifact_key": "96c1a24e85e1b613fa0b9a189ee5b1561492dcea2fec8a4d19a8fde02345f5da"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/received.json",
+      "sha256": "4934017d255337f7869c3deb152f597e1b4ccf99acd833b2516de5a153b5b6b3",
+      "bytes": 1798,
+      "storage": "attachment",
+      "artifact_key": "4934017d255337f7869c3deb152f597e1b4ccf99acd833b2516de5a153b5b6b3"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/request.raw",
+      "sha256": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b",
+      "bytes": 585,
+      "storage": "attachment",
+      "artifact_key": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/response.body",
+      "sha256": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318",
+      "bytes": 203,
+      "storage": "attachment",
+      "artifact_key": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/response.header",
+      "sha256": "f23a7d64ef739d70422b40c93bf0b18c195ea0850c32243b02660eb33bcd66cc",
+      "bytes": 214,
+      "storage": "attachment",
+      "artifact_key": "f23a7d64ef739d70422b40c93bf0b18c195ea0850c32243b02660eb33bcd66cc"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000025/response.raw",
+      "sha256": "08da7b8a640eefd52f85d104752a29e83b1462aea2af6f1e6f9166c431386425",
+      "bytes": 417,
+      "storage": "attachment",
+      "artifact_key": "08da7b8a640eefd52f85d104752a29e83b1462aea2af6f1e6f9166c431386425"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/completed.json",
+      "sha256": "cd3607a1276679ff68bf04ae8a7fe9663568d4a9a2a3ce3ab71599ab2ac760e0",
+      "bytes": 2274,
+      "storage": "attachment",
+      "artifact_key": "cd3607a1276679ff68bf04ae8a7fe9663568d4a9a2a3ce3ab71599ab2ac760e0"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/received.json",
+      "sha256": "7ba109b74d31b61123563ee1d06d2c0d00f583352fffcbceabc2f455cbff7443",
+      "bytes": 1725,
+      "storage": "attachment",
+      "artifact_key": "7ba109b74d31b61123563ee1d06d2c0d00f583352fffcbceabc2f455cbff7443"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/request.raw",
+      "sha256": "26285033db9f86bca4983371ba8a7fa051b872f6b47f3af14d59037fd30f84f7",
+      "bytes": 574,
+      "storage": "attachment",
+      "artifact_key": "26285033db9f86bca4983371ba8a7fa051b872f6b47f3af14d59037fd30f84f7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/response.body",
+      "sha256": "75e74c5797b70fc0899daa55b98927fd5cf0a3bec67f795569be7881c60df38d",
+      "bytes": 69983,
+      "storage": "attachment",
+      "artifact_key": "75e74c5797b70fc0899daa55b98927fd5cf0a3bec67f795569be7881c60df38d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/response.header",
+      "sha256": "d976545997113af87fb01017725d4a296852c28da25c10ea3648489afb97c18c",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "d976545997113af87fb01017725d4a296852c28da25c10ea3648489afb97c18c"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000026/response.raw",
+      "sha256": "b7f23905eed7d33c94267743d4b8efa9fc8c679b2a5abff749af442789f8b96d",
+      "bytes": 70199,
+      "storage": "attachment",
+      "artifact_key": "b7f23905eed7d33c94267743d4b8efa9fc8c679b2a5abff749af442789f8b96d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/completed.json",
+      "sha256": "ca25a49116ead1fe60249bbb13d047b784813961b2c89f45072ea340ac939d5c",
+      "bytes": 2344,
+      "storage": "attachment",
+      "artifact_key": "ca25a49116ead1fe60249bbb13d047b784813961b2c89f45072ea340ac939d5c"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/received.json",
+      "sha256": "2e17b7311e6ca0771909a22266cadc10a866bd85fda47f39a6eded5ae0b13cdc",
+      "bytes": 1799,
+      "storage": "attachment",
+      "artifact_key": "2e17b7311e6ca0771909a22266cadc10a866bd85fda47f39a6eded5ae0b13cdc"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/request.raw",
+      "sha256": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b",
+      "bytes": 585,
+      "storage": "attachment",
+      "artifact_key": "b82d82762088f3f9437a6d6611d6e7be4b84eeaa048d9ee07900405b79369c2b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/response.body",
+      "sha256": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318",
+      "bytes": 203,
+      "storage": "attachment",
+      "artifact_key": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/response.header",
+      "sha256": "f23a7d64ef739d70422b40c93bf0b18c195ea0850c32243b02660eb33bcd66cc",
+      "bytes": 214,
+      "storage": "attachment",
+      "artifact_key": "f23a7d64ef739d70422b40c93bf0b18c195ea0850c32243b02660eb33bcd66cc"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000027/response.raw",
+      "sha256": "08da7b8a640eefd52f85d104752a29e83b1462aea2af6f1e6f9166c431386425",
+      "bytes": 417,
+      "storage": "attachment",
+      "artifact_key": "08da7b8a640eefd52f85d104752a29e83b1462aea2af6f1e6f9166c431386425"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/completed.json",
+      "sha256": "e182444b5a4389b8412fada9a8a5e5d1f4782f944c770f23fb92cb2e992e5a44",
+      "bytes": 2283,
+      "storage": "attachment",
+      "artifact_key": "e182444b5a4389b8412fada9a8a5e5d1f4782f944c770f23fb92cb2e992e5a44"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/received.json",
+      "sha256": "b3dbcfc63e7125218e25bc8753c7690ee43adf6be19de76428901b4c5badd44e",
+      "bytes": 1734,
+      "storage": "attachment",
+      "artifact_key": "b3dbcfc63e7125218e25bc8753c7690ee43adf6be19de76428901b4c5badd44e"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/request.raw",
+      "sha256": "26285033db9f86bca4983371ba8a7fa051b872f6b47f3af14d59037fd30f84f7",
+      "bytes": 574,
+      "storage": "attachment",
+      "artifact_key": "26285033db9f86bca4983371ba8a7fa051b872f6b47f3af14d59037fd30f84f7"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/response.body",
+      "sha256": "d3085398c8c521becb87a8c202820d03536a3c51705734ae1ed51d5afb1090a8",
+      "bytes": 75450,
+      "storage": "attachment",
+      "artifact_key": "d3085398c8c521becb87a8c202820d03536a3c51705734ae1ed51d5afb1090a8"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/response.header",
+      "sha256": "ab764267d647b5345584de73a5a9a45aa3bf1f55dd19505b8494dbfde31088d0",
+      "bytes": 216,
+      "storage": "attachment",
+      "artifact_key": "ab764267d647b5345584de73a5a9a45aa3bf1f55dd19505b8494dbfde31088d0"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/requests/000028/response.raw",
+      "sha256": "344652c9ff12f7e21aa945fdcc0329f30a144056cdb50e8c67998c714f77d3f3",
+      "bytes": 75666,
+      "storage": "attachment",
+      "artifact_key": "344652c9ff12f7e21aa945fdcc0329f30a144056cdb50e8c67998c714f77d3f3"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/source-bodies/a1.body",
+      "sha256": "75e74c5797b70fc0899daa55b98927fd5cf0a3bec67f795569be7881c60df38d",
+      "bytes": 69983,
+      "storage": "attachment",
+      "artifact_key": "75e74c5797b70fc0899daa55b98927fd5cf0a3bec67f795569be7881c60df38d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/source-bodies/a3.body",
+      "sha256": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c",
+      "bytes": 75776,
+      "storage": "attachment",
+      "artifact_key": "4f100b5041c75cbb1f9c85d139782696abfa2a507d6aa1b622f2077ee94b551c"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/source-bodies/a4.body",
+      "sha256": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20",
+      "bytes": 81502,
+      "storage": "attachment",
+      "artifact_key": "f7a537f3d9ac834317c0748970fa8defa904ad2fcdcc6530e4b5cff27c243a20"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/source-bodies/b1.body",
+      "sha256": "d3085398c8c521becb87a8c202820d03536a3c51705734ae1ed51d5afb1090a8",
+      "bytes": 75450,
+      "storage": "attachment",
+      "artifact_key": "d3085398c8c521becb87a8c202820d03536a3c51705734ae1ed51d5afb1090a8"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/source-bodies/current_a1.body",
+      "sha256": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf",
+      "bytes": 69999,
+      "storage": "attachment",
+      "artifact_key": "63711e29cacf2e06dd066ce3b056cb277b4bb159c6e516c632774978e806e1bf"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/source-bodies/gap_b.body",
+      "sha256": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318",
+      "bytes": 203,
+      "storage": "attachment",
+      "artifact_key": "4d6c27a762105d02770e73a40278791969488b81c225323e4bc3d86391026318"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/source-bodies/watch0.body",
+      "sha256": "f4976d2f445228b8a8ccd028badc7cdb1a4ceea93e01b1dfab52d6cf56bb53fd",
+      "bytes": 64089,
+      "storage": "attachment",
+      "artifact_key": "f4976d2f445228b8a8ccd028badc7cdb1a4ceea93e01b1dfab52d6cf56bb53fd"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/source-bodies/watch3.body",
+      "sha256": "a14d4904a0813660c2091ac4baef53bc26756c20974c0e8b47e79e739da00fb4",
+      "bytes": 49986,
+      "storage": "attachment",
+      "artifact_key": "a14d4904a0813660c2091ac4baef53bc26756c20974c0e8b47e79e739da00fb4"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/runs/gui-1/source-config.json",
+      "sha256": "cb60cb84b7506d1788e7c850b24d3ab9917ce7ccdda5f6399e29c73fbfcba4b4",
+      "bytes": 9927,
+      "storage": "attachment",
+      "artifact_key": "cb60cb84b7506d1788e7c850b24d3ab9917ce7ccdda5f6399e29c73fbfcba4b4"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/additional-results.json",
+      "sha256": "3ae54c6a7d0df578f6aaa0d37776d1ed1be259e46e0487562fb7b7077d69c7e6",
+      "bytes": 1236679,
+      "storage": "attachment",
+      "artifact_key": "3ae54c6a7d0df578f6aaa0d37776d1ed1be259e46e0487562fb7b7077d69c7e6"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/api-cuts.json",
+      "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b",
+      "bytes": 1274190,
+      "storage": "attachment",
+      "artifact_key": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/browser_fault_server.run3.py",
+      "sha256": "10ae413026721da48d0972fe3e8baf4d755ee822a4c0cb8a1b1217d5a33b169a",
+      "bytes": 35094,
+      "storage": "attachment",
+      "artifact_key": "10ae413026721da48d0972fe3e8baf4d755ee822a4c0cb8a1b1217d5a33b169a"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/index.html",
+      "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe",
+      "bytes": 42793,
+      "storage": "attachment",
+      "artifact_key": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/probe-RESULT.json",
+      "sha256": "d929f49ab8ff033c23ea388880bdd76c8348d8e09659f8f359f79865a1d1219e",
+      "bytes": 1421750,
+      "storage": "attachment",
+      "artifact_key": "d929f49ab8ff033c23ea388880bdd76c8348d8e09659f8f359f79865a1d1219e"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/probe-inputs.json",
+      "sha256": "a81b331497650e6a9130cddc45c9f9dd274fc0ffa9702423cb2845a198102424",
+      "bytes": 508765,
+      "storage": "attachment",
+      "artifact_key": "a81b331497650e6a9130cddc45c9f9dd274fc0ffa9702423cb2845a198102424"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/probe.cjs",
+      "sha256": "a540258346829b659da90c03d74082e748cc21bc35430ac7b688a97e7ebcbe02",
+      "bytes": 6983,
+      "storage": "attachment",
+      "artifact_key": "a540258346829b659da90c03d74082e748cc21bc35430ac7b688a97e7ebcbe02"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R12-GUI-PREP/sources/r12_consumer.json",
+      "sha256": "1b0020a69a897da000056666907ef606a6d0b2ed35bac97ec65d625131e25745",
+      "bytes": 388525,
+      "storage": "attachment",
+      "artifact_key": "1b0020a69a897da000056666907ef606a6d0b2ed35bac97ec65d625131e25745"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+      "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587",
+      "bytes": 1040,
+      "storage": "attachment",
+      "artifact_key": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/GREEN.json",
+      "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704",
+      "bytes": 1119,
+      "storage": "attachment",
+      "artifact_key": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/GREEN.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/PROBE.md",
+      "sha256": "51fb1481829397e0ef7bf0043b88a0d9e1cde49a52d1e1a281850a21bc255b90",
+      "bytes": 2500,
+      "storage": "attachment",
+      "artifact_key": "51fb1481829397e0ef7bf0043b88a0d9e1cde49a52d1e1a281850a21bc255b90"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/RED.json",
+      "sha256": "80bb7dc51096d7d6a6030ecb7613fa75a4b2eb907ed12deabb2314b1cf6bbb0b",
+      "bytes": 2111,
+      "storage": "attachment",
+      "artifact_key": "80bb7dc51096d7d6a6030ecb7613fa75a4b2eb907ed12deabb2314b1cf6bbb0b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/RED.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/RESULT.json",
+      "sha256": "d929f49ab8ff033c23ea388880bdd76c8348d8e09659f8f359f79865a1d1219e",
+      "bytes": 1421750,
+      "storage": "attachment",
+      "artifact_key": "d929f49ab8ff033c23ea388880bdd76c8348d8e09659f8f359f79865a1d1219e"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/VALIDATION.json",
+      "sha256": "52060f0365fdd5f4fe19f9d18ad140119d9d12bdc71d97c6c98caf902726e943",
+      "bytes": 3612,
+      "storage": "attachment",
+      "artifact_key": "52060f0365fdd5f4fe19f9d18ad140119d9d12bdc71d97c6c98caf902726e943"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/inputs.json",
+      "sha256": "a81b331497650e6a9130cddc45c9f9dd274fc0ffa9702423cb2845a198102424",
+      "bytes": 508765,
+      "storage": "attachment",
+      "artifact_key": "a81b331497650e6a9130cddc45c9f9dd274fc0ffa9702423cb2845a198102424"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/probe.cjs",
+      "sha256": "a540258346829b659da90c03d74082e748cc21bc35430ac7b688a97e7ebcbe02",
+      "bytes": 6983,
+      "storage": "attachment",
+      "artifact_key": "a540258346829b659da90c03d74082e748cc21bc35430ac7b688a97e7ebcbe02"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+      "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32",
+      "bytes": 14193,
+      "storage": "attachment",
+      "artifact_key": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/RESULT.json",
+      "sha256": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0",
+      "bytes": 22697126,
+      "storage": "attachment",
+      "artifact_key": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/api-cuts.json",
+      "sha256": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b",
+      "bytes": 1274190,
+      "storage": "attachment",
+      "artifact_key": "342e755120668da7fbb1bc238cec81f91a31deab985689a2289af6bd536d3e3b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/replay-r11.cjs",
+      "sha256": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f",
+      "bytes": 2397,
+      "storage": "attachment",
+      "artifact_key": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-ROOT-ACCEPTANCE.json",
+      "sha256": "7106bb977ce1622e79f2d5b153afd72324f5e483b8112809d3491d7636488f31",
+      "bytes": 12925,
+      "storage": "attachment",
+      "artifact_key": "7106bb977ce1622e79f2d5b153afd72324f5e483b8112809d3491d7636488f31"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/BINDING.json",
+      "sha256": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca",
+      "bytes": 1512,
+      "storage": "attachment",
+      "artifact_key": "3b7eab8e0086425dcc2ab7670ae388804c2d2b12135e48d68a71ed0d46acb5ca"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/EVIDENCE-CHECK.json",
+      "sha256": "1efdc07efc170c04e2106c9e8f4405afac3f35274fa8cf009e71c9f6cde33b11",
+      "bytes": 44749,
+      "storage": "attachment",
+      "artifact_key": "1efdc07efc170c04e2106c9e8f4405afac3f35274fa8cf009e71c9f6cde33b11"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/EXECUTION.json",
+      "sha256": "931642c7eceae325e5d70f36d22989199c0cde973d868bcf4f7750bbdf62c99a",
+      "bytes": 5881,
+      "storage": "attachment",
+      "artifact_key": "931642c7eceae325e5d70f36d22989199c0cde973d868bcf4f7750bbdf62c99a"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/FINAL-CHECK.json",
+      "sha256": "3c657f440a755d1c9d28b3e49b29329e3d65559e178c9f5c73bda552b304dbea",
+      "bytes": 946,
+      "storage": "attachment",
+      "artifact_key": "3c657f440a755d1c9d28b3e49b29329e3d65559e178c9f5c73bda552b304dbea"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/FIXTURE-CHECK.json",
+      "sha256": "5c4309f982e7312af5ddccc8ac47fd6ac0f76e126f9bb21063bdf96a166dba56",
+      "bytes": 2841,
+      "storage": "attachment",
+      "artifact_key": "5c4309f982e7312af5ddccc8ac47fd6ac0f76e126f9bb21063bdf96a166dba56"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/PERMANENT-EXECUTION.json",
+      "sha256": "133b8724c6113d36cf4f885cab3ef1d0766bb3303f9d5a3bd9da33dcfb282797",
+      "bytes": 1344,
+      "storage": "attachment",
+      "artifact_key": "133b8724c6113d36cf4f885cab3ef1d0766bb3303f9d5a3bd9da33dcfb282797"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/READING-LOG.json",
+      "sha256": "4cbe5d5bc5b2f76854ad66116325bdf7880a18b329b918e222624d6d6b9aa3c1",
+      "bytes": 11605,
+      "storage": "attachment",
+      "artifact_key": "4cbe5d5bc5b2f76854ad66116325bdf7880a18b329b918e222624d6d6b9aa3c1"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/SUPPLEMENT-EXECUTION.json",
+      "sha256": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa",
+      "bytes": 913,
+      "storage": "attachment",
+      "artifact_key": "a412920f283444add62828f1431deac619478f89c640edd9bdaccbc5651592fa"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/UNCHANGED-SOURCE-CHECK.json",
+      "sha256": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b",
+      "bytes": 2090,
+      "storage": "attachment",
+      "artifact_key": "e3fec365d1e3992ef0e8779de5ffe7ae6624d6ca667ecff021ef6b9afcc54a3b"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/archive-read-inventory.json",
+      "sha256": "68777475cca64e9a23a2efe4e38a4ec85f31bc529dfede6580be0fcfb828f68c",
+      "bytes": 66790,
+      "storage": "attachment",
+      "artifact_key": "68777475cca64e9a23a2efe4e38a4ec85f31bc529dfede6580be0fcfb828f68c"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/candidate/s_session/browser/index.html",
+      "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe",
+      "bytes": 42793,
+      "storage": "git",
+      "git_commit": "e5b03629adde165610161b4df3e2d62d22163568",
+      "git_path": "s_session/browser/index.html"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/candidate/s_session/tests/r12_consumer.cjs",
+      "sha256": "228a9cb06b385a124b1cc4bbccaefbb85f252868777381f99281224b29c99e39",
+      "bytes": 6111,
+      "storage": "git",
+      "git_commit": "e5b03629adde165610161b4df3e2d62d22163568",
+      "git_path": "s_session/tests/r12_consumer.cjs"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/diagnostic.stdout.json",
+      "sha256": "2e04c97788a5956256a9ec00d2fde1fe67c2b7d7614356006ad93413dbe8fb6d",
+      "bytes": 25589,
+      "storage": "attachment",
+      "artifact_key": "2e04c97788a5956256a9ec00d2fde1fe67c2b7d7614356006ad93413dbe8fb6d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/incremental.patch",
+      "sha256": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de",
+      "bytes": 398229,
+      "storage": "attachment",
+      "artifact_key": "e9f3ad50c2c6b95e2b3876cf1b08c988f52c1590705746fa2e2e4e197dcd32de"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/initial-SUPPLEMENT-EXECUTION.json",
+      "sha256": "fe243c1020f05321625c6dc6bb9261a92b51be3671f739fb696735798b326457",
+      "bytes": 669,
+      "storage": "attachment",
+      "artifact_key": "fe243c1020f05321625c6dc6bb9261a92b51be3671f739fb696735798b326457"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/initial-supplement.cjs",
+      "sha256": "cdd09647ff654175dd772958c2cf1a1c5a7b9d97db5090ecf606d0552feabb01",
+      "bytes": 6949,
+      "storage": "attachment",
+      "artifact_key": "cdd09647ff654175dd772958c2cf1a1c5a7b9d97db5090ecf606d0552feabb01"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/initial-supplement.stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/initial-supplement.stdout.json",
+      "sha256": "feb02e0c07fad5524316afa095271720318f36bb7385f382fb873d5acdaf2235",
+      "bytes": 2564,
+      "storage": "attachment",
+      "artifact_key": "feb02e0c07fad5524316afa095271720318f36bb7385f382fb873d5acdaf2235"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/permanent.stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/permanent.stdout.json",
+      "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704",
+      "bytes": 1119,
+      "storage": "attachment",
+      "artifact_key": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.cjs",
+      "sha256": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5",
+      "bytes": 7270,
+      "storage": "attachment",
+      "artifact_key": "badf3a34c618fa55602a9c99b3ea410bc4af63d0e008a26b338c61e22a1fdfc5"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stderr.bin",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "storage": "attachment",
+      "artifact_key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/supplement.stdout.json",
+      "sha256": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578",
+      "bytes": 1680,
+      "storage": "attachment",
+      "artifact_key": "2021eb581c0f4a45fb4b56527d3d22fba15b6b17f400d1fc1501851daf549578"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/verified-a7-state.json",
+      "sha256": "88c9af52bc1a3e33cf9cadea1643ff5da96ae7928f2325d8683cc9b25867415c",
+      "bytes": 224562,
+      "storage": "attachment",
+      "artifact_key": "88c9af52bc1a3e33cf9cadea1643ff5da96ae7928f2325d8683cc9b25867415c"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r12-codex-incremental-review/verified-b1-state.json",
+      "sha256": "69ef8209324a5a6da64683d611de6d2a229cf248dcc9260720f18c69467f1a3e",
+      "bytes": 118113,
+      "storage": "attachment",
+      "artifact_key": "69ef8209324a5a6da64683d611de6d2a229cf248dcc9260720f18c69467f1a3e"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/ARCHIVAL-CHECK.json",
+      "sha256": "b3a93ce2ce25de08d86f83e29b319520d98456924a55f559e54679a471958ad4",
+      "bytes": 153456,
+      "storage": "attachment",
+      "artifact_key": "b3a93ce2ce25de08d86f83e29b319520d98456924a55f559e54679a471958ad4"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/FULL-DIFF-CHECK.json",
+      "sha256": "c32a19977e3ba55f05753d71ef1bd1fc8ea0a4a424488cdafd632bf467a5bb6a",
+      "bytes": 6971,
+      "storage": "attachment",
+      "artifact_key": "c32a19977e3ba55f05753d71ef1bd1fc8ea0a4a424488cdafd632bf467a5bb6a"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/NORMATIVE-CHECK.json",
+      "sha256": "8b69328505c3198debff4c89abb64cbb0b6a9cd57d835da8d147ee4a94da3e37",
+      "bytes": 36885,
+      "storage": "attachment",
+      "artifact_key": "8b69328505c3198debff4c89abb64cbb0b6a9cd57d835da8d147ee4a94da3e37"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/R5-capture-commands.json",
+      "sha256": "daa022a387401f5b68504c288421a2ec14f260600f900a396224139e36087002",
+      "bytes": 13513,
+      "storage": "attachment",
+      "artifact_key": "daa022a387401f5b68504c288421a2ec14f260600f900a396224139e36087002"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/R5-capture.py",
+      "sha256": "58a147bcb40ee0eee8f66f476aec604fc07a2054a89115952a2589a9b1ae638d",
+      "bytes": 2145,
+      "storage": "attachment",
+      "artifact_key": "58a147bcb40ee0eee8f66f476aec604fc07a2054a89115952a2589a9b1ae638d"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/REVIEW.json",
+      "sha256": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602",
+      "bytes": 72360,
+      "storage": "attachment",
+      "artifact_key": "6eaf1423f9b51b3ac878efcd7732dac147a6093de1c50d87f12eba1eacf0a602"
+    },
+    {
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/r7-codex-product-review/SUPPLEMENTAL-CHECK.json",
+      "sha256": "bb43c4f5f30aeec5bd3b66cd14b524f99fe64a2fd2221eb568ff5c5039a37526",
+      "bytes": 281711,
+      "storage": "attachment",
+      "artifact_key": "bb43c4f5f30aeec5bd3b66cd14b524f99fe64a2fd2221eb568ff5c5039a37526"
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "ticket": 1371,
+  "slice": "TB-01-B",
+  "branch": "codex/1323-tb01-b-1371",
+  "baseline": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+  "repaired_from": "4a3da3787bdd6e783f3c7eee63dec544b7dc3e68",
+  "number_declaration": "本提交中的 #1371 仅指 GitHub Issue。",
+  "status": "REPAIRED_PER_ROOT_R7_REVIEW_REQUEST_CHANGES_READY_FOR_RE_REVIEW",
+  "platform": "linux-aarch64-container",
+  "rustc": "1.97.1",
+  "sqlite": "3.53.2 (bundled libsqlite3-sys 0.38.2)",
+  "scope_note": "工作草稿，非独立评审；COMPLETE 只是返回，不表示根验/整图通过。",
+  "files_changed": [
+    "rust/src/bin/s_structure_session.rs",
+    "s_session/s_readonly_server.py",
+    "s_session/browser/index.html",
+    "s_session/launch_s.sh"
+  ],
+  "file_sha256": {
+    "rust/src/bin/s_structure_session.rs": "0718729cf3535b128ff995d1f6aad75b5385c9042140f5a053db970a75f3dfb2",
+    "s_session/s_readonly_server.py": "ee29bf801dfec475f603ab9c2aa98b616fdbceb33f3d3a573d18e9d05146e4b6",
+    "s_session/browser/index.html": "13402a4011034e624de34b4137696a3dd8d3de2e1b35ec854e3a2331ca1591ac",
+    "s_session/launch_s.sh": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d"
+  },
+  "catalog_sha256": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",
+  "profile_sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc",
+  "checks": {
+    "cargo_fmt_check": 0,
+    "cargo_check": 0,
+    "cargo_clippy_own_hits": 0,
+    "bin_tests": "31 passed / 0 failed",
+    "lib_local_shape_oracle": "4 passed"
+  },
+  "ac_numbering_note": "AC1..AC8 按原票顺序：AC1 launcher+输入链、AC2 revision分立+幂等、AC3 Delta+浏览器原子应用、AC4 三点真杀恢复、AC5 DeliveryUnknown+旧epoch、AC6 AsKnown/Recomputed、AC7 E/B/X未启动+StorageUnavailable、AC8 证据保留。",
+  "repair_summary": {
+    "ROOT-B-R1-01": "历史 cut 元数据/目录证据不可变 + 对象 batch/published 首发布稳定",
+    "ROOT-B-R1-02": "Delta 验证通过后驱动正式渲染",
+    "ROOT-B-R1-03": "快照失败/差异不提交游标；空增量全字段复核",
+    "ROOT-B-R1-04": "load('current') 默认 + 有界 AsKnown 输入",
+    "ROOT-B-R1-05": "reader 严格校验坏持久值；参数 400 / 存储 503",
+    "ROOT-B-R1-06": "accept/advance/recover 核可达根",
+    "native_crash_delivery": "query --identity-key + 幂等 advance（不产新 cut）",
+    "native_crash_snapshot_cut": "current 以已发布前沿为界；未发布 as_of 显式 Unavailable",
+    "python_H01_H07": "generation/frontier 严格校验；完整连续性+末端+sesssion 绑定+Delta 形状"
+  },
+  "trajectory": {
+    "top": "10000/11000/10500 -> TOP@[0,1,2]",
+    "correction": "e2 rev2=11500 supersedes rev1 -> RISING@[0,1,2] + withdraw TOP@[0,1,2]",
+    "append": "e3=10800 -> TOP@[1,2,3]",
+    "late_arm": "e0..e3 first then correction -> RISING/TOP, 4 effective source positions",
+    "missing_right_neighbor": "2 points -> no TOP, insufficient_knowledge"
+  },
+  "sigkill_three_points": "from published TOP: accept e0/e1/e2 + advance (gen1 TOP), accept correction e2 rev2, advance killed at after_begin/after_batch/after_commit (SIGKILL wait_exit=-9); recover + new epoch advance converges to RISING active + TOP withdrawn; after_commit retry idempotent",
+  "delta_snapshot_parity": "objects/withdrawn/witnesses/relations/observations/raw_history field-by-field equal (PASS)",
+  "bigint_wire": "source coords 9007199254741000-1003, revisions 9007199254740993/994 round-trip as decimal strings",
+  "storage_unavailable": "corrupt db header + dangling reachable root -> accept/advance/meta exit 1; python 503",
+  "not_run": [
+    "real GUI browser DOM rendering",
+    "macOS native build / fullfsync",
+    "bigint wire through actual browser DOM",
+    "full cargo test / full history replay",
+    "pagination/retention/expiry pressure matrix (TB-01-C)",
+    "economic responsibility assignment (later TB)"
+  ],
+  "r2_repair_summary": {
+    "ROOT-B-R2-01": "verify_reachable_root 强化（bytes/hash/len、历史引用、缺根 meta、gen 感知）三入口统一",
+    "ROOT-B-R2-02": "reader 统一必需 meta/域/cut 链/深层形状/精确整数校验；参数 400 存储 503",
+    "ROOT-B-R2-03": "浏览器提交前校验 session/catalog/cut 链/末端 cut，断链不提交",
+    "ROOT-B-R2-04": "current 提交原子同步 historyMode/标签/按钮",
+    "PY-H02/H03": "deepClone 撤回成员；pageEpoch 请求代际防晚响应回滚",
+    "PY-H01/H05": "Delta envelope 与快照 session/catalog/cut 身份核对",
+    "PY-M01/M03": "Gap 真重建六集合缓存；会话重绑保存旧 id",
+    "pause_release": "S_SESSION_PAUSE_RELEASE 显式解除（活旧 writer 跨 epoch 受控试验）"
+  },
+  "r3_repair_summary": {
+    "A9-ROOT-META-AND-READ": "verify_required_meta 统一必需meta存在/规范i64/域/同cut一致，读入口+三写共用",
+    "A9-ROOT-DELTA-CHAIN": "完整代链1..generation连续核（中/尾）；watch 完整连续性+末端+超前Gap",
+    "A9-ROOT-LIFECYCLE": "wg<=fkg 持久损坏拒绝；as_of withdrawn 加 first_known<=N",
+    "A9-ROOT-PYTHON-STORAGE": "Python reader _verify_reachable_root 核 batch sha256/len/代链/frontier",
+    "A9-H03/H04/M01": "Delta 内外身份核对+未来行拒绝；深层精确整数/生命周期枚举；ASCII+i64界统一",
+    "A9-H01/H02/M02/M03": "validateState 前置提交；空增量绑定核对；标签用新快照；失败分支epoch保护",
+    "fullfsync": "新增 pragma 诊断命令（writer 同连接回读 journal_mode/synchronous/fullfsync）"
+  },
+  "r4_repair_summary": {
+    "58DA-ROOT-PUBLISHED-TUPLE": "verify_reachable_root 完整同代元组：idx/cut/session/catalog/base-next链/seq前沿链/内层头==外层/batch封存坐标/未来行",
+    "58DA-VALID-EMPTY-ADVANCE": "Python reader 允许合法 frontier=-1（空输入）；empty_advance 测试+四API 200",
+    "58DA-PYTHON-DELTA-FIELD-RELATIONS": "外层seq_range规范+内层input_frontier必需+lifecycle与撤回字段一致",
+    "58DA-ACTUAL-WRITER-CONNECTION-PRAGMA": "record_connection_pragmas sidecar 从真实写连接回读三项PRAGMA"
+  },
+  "r5_repair_summary": {
+    "inner_outer_11col": "Rust verify_reachable_root + Python read_delta 补齐 11 列同一字段对应：seq_range 深等、catalog_run_status 相等、catalog_evidence 深等（键序无关）"
+  },
+  "r6_repair_summary": {
+    "R6-H1": "read_delta 内层 input_frontier 与外层比较；外层 wire 规范十进制字符串",
+    "R6-H2": "raw_bars.supersedes_revision 与 CatalogEvidence 八计数 → 规范十进制字符串（Rust+Python）",
+    "R6-REGRESSION": "large_predecessor_supersedes_and_evidence_wire_are_strings 测试"
+  },
+  "r7_repair_summary": {
+    "R7-H1": "最终 wire 边界安全递归整数→十进制文本（Rust project_wire_integers + Python _project_wire_integers），覆盖历史 Delta/Catalog/目录整数；bool/null/float 不误改",
+    "R7-REGRESSION": "wire_integer_projection_preserves_bool_null_float 测试；旧记录 supersedes/evidence 整数读取输出投影为字符串"
+  }
+}

@@ -1,0 +1,2733 @@
+{
+  "schema": 1,
+  "kind": "R12_LOCAL_COMMIT_COMPILABILITY_DECLARATIONS",
+  "ticket": 1371,
+  "generated_at": "2026-09-12T12:34:58.622212+00:00",
+  "base_commit": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+  "declared_code_head": "e5b03629adde165610161b4df3e2d62d22163568",
+  "prior_R11_candidate": "4922543038fbcfef1a4d711a306708ace3f62e88",
+  "repository_worktree": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12",
+  "git_mutations_performed": false,
+  "builds_or_tests_executed_by_this_agent": false,
+  "external_publication_performed": false,
+  "counts": {
+    "total": 21,
+    "product_commits": 12,
+    "test_only_commits": 1,
+    "pure_document_exemptions": 8
+  },
+  "rule": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/docs/agents/delivery-discipline.md",
+    "line": 14,
+    "text": "一张票由多个 commit 交付时，逐个声明每个 commit 都可编译；纯文档 commit 不要求编译，但要明确标成纯文档豁免。"
+  },
+  "prior_material": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CODEX-POST-REVIEW-GATES.md",
+    "bytes": 20087,
+    "sha256": "25d376a5192fa87c1f2235334b275242d72629977a2f220563c4e9d7ab5f68a7"
+  },
+  "statement_scope": "本地交付可编译性声明：覆盖上述base到代码head的21个提交；13个非文档项按具名证据声明，8个纯报告项明确豁免。靶向Rust s_session/s_structure_session及改动脚本/HTML，不声明全仓所有target或生产全域验证。可编译与功能正确/独评通过/main已合入/CI通过/可关票是不同事实。",
+  "inspection_performed": [
+    "从Git对象逐提交读取实际文件清单和完整SHA",
+    "复核前8产品提交报告32项源文件SHA256",
+    "R9/R10/R11三份commands嵌入附件纯解码、bytes/SHA与指定exit核对",
+    "R9/R10/R11共18项/source_sha256与所指Git提交核对",
+    "R10两次提交原回执及构建/脚本检查分组映射",
+    "R12验证清单各原件bytes/SHA及源码对应Git字节核对",
+    "核R12完整Rust子树与R10代码提交同对象"
+  ],
+  "source_reports": {
+    "R9": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/implementation-r9.json",
+      "repository_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r9.json",
+      "report_at_commit": "e5b03629adde165610161b4df3e2d62d22163568",
+      "report_blob": "e9e5d468dc0748d11401256e0c83eda977a2253e",
+      "report_bytes": 532678,
+      "report_sha256": "94f3a8e9024b1683a7a909f0e811d9fb51088b5f0b389734a985b77721e934ef",
+      "source_commit": "381f5e1c670cf97b6a1491a3ec3c03c30df406d0",
+      "source_commit_field": "/source_commit",
+      "declared_checks": {
+        "fmt": {
+          "argv": [
+            "cargo",
+            "fmt",
+            "--",
+            "--check"
+          ],
+          "exit": 0,
+          "full_output": "r9-commands.json#/33",
+          "cwd": "/home/agent/workspace/rust"
+        },
+        "build": {
+          "argv": [
+            "cargo",
+            "build",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "exit": 0,
+          "full_output": "r9-commands.json#/34",
+          "cwd": "/home/agent/workspace/rust"
+        },
+        "test": {
+          "argv": [
+            "cargo",
+            "test",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "exit": 0,
+          "full_output": "r9-commands.json#/35",
+          "cwd": "/home/agent/workspace/rust"
+        },
+        "check": {
+          "argv": [
+            "cargo",
+            "check",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "exit": 0,
+          "full_output": "r9-commands.json#/36",
+          "cwd": "/home/agent/workspace/rust"
+        },
+        "clippy": {
+          "argv": [
+            "cargo",
+            "clippy",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "exit": 0,
+          "full_output": "r9-commands.json#/37",
+          "cwd": "/home/agent/workspace/rust"
+        },
+        "local-shape": {
+          "argv": [
+            "cargo",
+            "test",
+            "--locked",
+            "--lib",
+            "local_shape",
+            "--jobs",
+            "1"
+          ],
+          "exit": 0,
+          "full_output": "r9-commands.json#/38",
+          "cwd": "/home/agent/workspace/rust"
+        }
+      },
+      "source_hash_checks": [
+        {
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "source_commit": "381f5e1c670cf97b6a1491a3ec3c03c30df406d0",
+          "report_field": "/binding/source_sha256/rust~1src~1bin~1s_structure_session.rs",
+          "sha256": "e26d69cb72832204168feb2c19b226f8c7c323e65c81012a57aff75d587a2f85",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "source_commit": "381f5e1c670cf97b6a1491a3ec3c03c30df406d0",
+          "report_field": "/binding/source_sha256/s_session~1s_readonly_server.py",
+          "sha256": "b705c0a7bcde38613f9e6acd7dc04cede440b56fa5aa40b892906d8baf6a59c7",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/browser/index.html",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/browser/index.html",
+          "source_commit": "381f5e1c670cf97b6a1491a3ec3c03c30df406d0",
+          "report_field": "/binding/source_sha256/s_session~1browser~1index.html",
+          "sha256": "b4577c16a21ea6ce11f7e0a03d93eecb3042a400cced483662d6ecf73e9919a4",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/launch_s.sh",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/launch_s.sh",
+          "source_commit": "381f5e1c670cf97b6a1491a3ec3c03c30df406d0",
+          "report_field": "/binding/source_sha256/s_session~1launch_s.sh",
+          "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/tests/r9_contract.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r9_contract.py",
+          "source_commit": "381f5e1c670cf97b6a1491a3ec3c03c30df406d0",
+          "report_field": "/binding/source_sha256/s_session~1tests~1r9_contract.py",
+          "sha256": "39f0e9cee3d581a1981f882ed057f08f6c057d213dd4d2b6e393bc048f8faf11",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/tests/r9_consumer.cjs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r9_consumer.cjs",
+          "source_commit": "381f5e1c670cf97b6a1491a3ec3c03c30df406d0",
+          "report_field": "/binding/source_sha256/s_session~1tests~1r9_consumer.cjs",
+          "sha256": "c73c252360ad417e724fbc1ca9c9b42febf26f6418deb61836c63f38d6b93c78",
+          "matches": true
+        }
+      ],
+      "artifact_field": "/evidence_artifacts/r9-commands.json",
+      "decoded_artifact_name": "r9-commands.json",
+      "decoded_bytes": 900867,
+      "decoded_sha256": "58df8155c49a8936fa3451aacfbbfdca925dadf037d083d7c37eb9bcd29d0972",
+      "decoded_integrity_verified": true,
+      "receipts": [
+        {
+          "decoded_pointer": "/34",
+          "argv": [
+            "cargo",
+            "build",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_bytes": 18370,
+          "stderr_sha256": "65fcb6ef46eac6168fd4c8f41254fccde0fbb966c120930b2aabca8c82b4b506",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/35",
+          "argv": [
+            "cargo",
+            "test",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "stdout_bytes": 2443,
+          "stdout_sha256": "248873661b91a743230f91768dfe1d5063c0fb75c5731400f2afcd5a1be0a88b",
+          "stderr_bytes": 18482,
+          "stderr_sha256": "bdc051cc67053c7f34facab4d2e5dc2352a7bc9293f4ba020cc3029463ac7e59",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/36",
+          "argv": [
+            "cargo",
+            "check",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_bytes": 18370,
+          "stderr_sha256": "5657e3ecc54d249f549cd64e280fcbec6ad6112964314db8b8906474ccfb5ecd",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/52",
+          "argv": [
+            "/home/agent/.local/share/uv/python/cpython-3.11.16-linux-aarch64-gnu/bin/python3.11",
+            "-c",
+            "import ast,pathlib,sys; [ast.parse(pathlib.Path(p).read_text()) for p in sys.argv[1:]]",
+            "/home/agent/workspace/s_session/s_readonly_server.py",
+            "/home/agent/workspace/s_session/tests/r9_contract.py"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/53",
+          "argv": [
+            "bash",
+            "-n",
+            "/home/agent/workspace/s_session/launch_s.sh"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/59",
+          "argv": [
+            "node",
+            "/home/agent/workspace/s_session/tests/r9_consumer.cjs",
+            "/tmp/issue1371-r9-082xvfgs/delivery",
+            "/tmp/1371-r9-r3-ir8sef7t",
+            "/home/agent/workspace"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 41,
+          "stdout_sha256": "8c68b5c45e40cd680f44c82b427673e15fee86c6f093c97ac0d2536c3093d514",
+          "stderr_bytes": 163,
+          "stderr_sha256": "3a21406363bbaf18cde2163f75c3910346120cb1de9821c38a1fcf6187e336f1",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/62",
+          "argv": [
+            "git",
+            "commit",
+            "-m",
+            "fix(structure): #1371——统一发布根和完整载荷校验并保留观察首版",
+            "-m",
+            "R9：修复R3-H1/M2/M3/M4；正常前缀、44副本读写拒绝、真实恢复与旧writer发布库已靶向复验。真实GUI及独立复评待根接回。\n\n编号声明：本提交中的 #1371 仅指 GitHub Issue。"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 278,
+          "stdout_sha256": "b688fa3c902171a76f3f49d70f22fd7313e9ee1686dd8e180cc68b7832e620f2",
+          "stderr_bytes": 162,
+          "stderr_sha256": "0b13bd99c79640f9abf29571c88a4e1071f14004b78468479d43775f6938a34f",
+          "commit_stdout": "[codex/1323-tb01-b-1371 381f5e1c67] fix(structure): #1371——统一发布根和完整载荷校验并保留观察首版\n 5 files changed, 1044 insertions(+), 66 deletions(-)\n create mode 100644 s_session/tests/r9_consumer.cjs\n create mode 100644 s_session/tests/r9_contract.py\n"
+        }
+      ],
+      "inspection_mode": "本工位仅纯解析已归档收据并核字节；这些命令均为历史执行，本工位未执行"
+    },
+    "R10": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/implementation-r10.json",
+      "repository_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r10.json",
+      "report_at_commit": "e5b03629adde165610161b4df3e2d62d22163568",
+      "report_blob": "2abb646f79217af745b670e55f3105a321f6a40c",
+      "report_bytes": 521728,
+      "report_sha256": "1ff78159548dff927dec21fcbb7a07ee5fa59d992caefac8a69d01e9eb85378f",
+      "source_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+      "source_commit_field": "/source_commit",
+      "declared_checks": {
+        "fmt": {
+          "argv": [
+            "cargo",
+            "fmt",
+            "--",
+            "--check"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "full_output": "commands.json#/8"
+        },
+        "build": {
+          "argv": [
+            "cargo",
+            "build",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "full_output": "commands.json#/9"
+        },
+        "test": {
+          "argv": [
+            "cargo",
+            "test",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "full_output": "commands.json#/10"
+        },
+        "check": {
+          "argv": [
+            "cargo",
+            "check",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "full_output": "commands.json#/11"
+        },
+        "clippy": {
+          "argv": [
+            "cargo",
+            "clippy",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "full_output": "commands.json#/12"
+        },
+        "local-shape": {
+          "argv": [
+            "cargo",
+            "test",
+            "--locked",
+            "--lib",
+            "local_shape",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "full_output": "commands.json#/13"
+        }
+      },
+      "source_hash_checks": [
+        {
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "source_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+          "report_field": "/binding/source_sha256/rust~1src~1bin~1s_structure_session.rs",
+          "sha256": "9450f2a9642be70dc5a18f7044fa07312d81d126e25d512e50921105a1f25901",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "source_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+          "report_field": "/binding/source_sha256/s_session~1s_readonly_server.py",
+          "sha256": "9dad379ff1aaa1ff6f9315a877249f4b9003aa39c7d48fdba8016e534c27c65c",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/browser/index.html",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/browser/index.html",
+          "source_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+          "report_field": "/binding/source_sha256/s_session~1browser~1index.html",
+          "sha256": "9c3d2c3703b9e765f3d65e2cd76759ff5716e83781fd49c6ec5457aad8565498",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/launch_s.sh",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/launch_s.sh",
+          "source_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+          "report_field": "/binding/source_sha256/s_session~1launch_s.sh",
+          "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/tests/r9_contract.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r9_contract.py",
+          "source_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+          "report_field": "/binding/source_sha256/s_session~1tests~1r9_contract.py",
+          "sha256": "89eeaff7430a098c4abaf239b71f0d684da6dd1f53038dba9d2f84667cdadc2f",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/tests/r9_consumer.cjs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r9_consumer.cjs",
+          "source_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+          "report_field": "/binding/source_sha256/s_session~1tests~1r9_consumer.cjs",
+          "sha256": "8d8a467640e6a98b2c42bacc3f1c70f2ac778bf68ea307329ab00299e727557d",
+          "matches": true
+        }
+      ],
+      "artifact_field": "/evidence_artifacts/commands.json",
+      "decoded_artifact_name": "commands.json",
+      "decoded_bytes": 338120,
+      "decoded_sha256": "657849c5136cec4342a1439b4ac8c2a042cb8b51781b2cfffe92e2020c71eb67",
+      "decoded_integrity_verified": true,
+      "receipts": [
+        {
+          "decoded_pointer": "/9",
+          "argv": [
+            "cargo",
+            "build",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_bytes": 18370,
+          "stderr_sha256": "3e2f317d3b9280e7ecd568301532535741f94562e324bfde6f5ce6fddb1ac59f",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/10",
+          "argv": [
+            "cargo",
+            "test",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "stdout_bytes": 2599,
+          "stdout_sha256": "bc349cf183efbc977629c6611886f5e1595d88ab6f5d45363230266d5b9b0edd",
+          "stderr_bytes": 18420,
+          "stderr_sha256": "9fd88cabd908dd318c39884e7785cf3478f5db49ef5db58f2071ea89f156cfa7",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/11",
+          "argv": [
+            "cargo",
+            "check",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_bytes": 19378,
+          "stderr_sha256": "1edf3b511ca2a9602cca1efe0f9c236166e42adc3f65bb8a26a2660d0912c5cb",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/14",
+          "argv": [
+            "/home/agent/.local/share/uv/python/cpython-3.11.16-linux-aarch64-gnu/bin/python3.11",
+            "/home/agent/workspace/s_session/tests/r9_contract.py",
+            "/tmp/issue1371-r10-wwkstffx/final",
+            "--r10"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 39,
+          "stdout_sha256": "cc5b1396697a451519f2e108ac74a6b3dd43df2bd7396cb83254ba1961e3810e",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/15",
+          "argv": [
+            "/home/agent/.local/share/uv/python/cpython-3.11.16-linux-aarch64-gnu/bin/python3.11",
+            "/tmp/issue1371-r10-wwkstffx/node-driver.py",
+            "/home/agent/workspace/s_session/tests/r9_contract.py",
+            "/tmp/issue1371-r10-wwkstffx/final"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 218,
+          "stdout_sha256": "8fb2b4ecda1f8e2e391c2efdc4703f1507553acc93176507ae2513898a62888a",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/20",
+          "argv": [
+            "/home/agent/.local/share/uv/python/cpython-3.11.16-linux-aarch64-gnu/bin/python3.11",
+            "-c",
+            "import ast,pathlib,sys;[ast.parse(pathlib.Path(p).read_text()) for p in sys.argv[1:]]",
+            "/home/agent/workspace/s_session/s_readonly_server.py",
+            "/home/agent/workspace/s_session/tests/r9_contract.py"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/21",
+          "argv": [
+            "bash",
+            "-n",
+            "/home/agent/workspace/s_session/launch_s.sh"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/27",
+          "argv": [
+            "git",
+            "commit",
+            "-m",
+            "fix(structure): #1371——封闭profile绑定并稳定cut0历史投影",
+            "-m",
+            "R10：首次接纳封存profile定义、旧格式独立来源核验；统一已接纳/已发布读写前件，Snapshot来源按cut读取。初始目录历史保持初始化状态，消费者核profile与同cut证据。35项会话测试、21副本拒绝矩阵、完整AsKnown0/实际HTTP消费者/三杀及旧writer兼容已靶向验证。\n\n编号声明：本提交中的 #1371 仅指 GitHub Issue。"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 161,
+          "stdout_sha256": "d1b2a421ab5a644361570bf49dc9781d071ddc7f14d5d4a284522b6927d699a7",
+          "stderr_bytes": 162,
+          "stderr_sha256": "0b13bd99c79640f9abf29571c88a4e1071f14004b78468479d43775f6938a34f",
+          "commit_stdout": "[codex/1323-tb01-b-1371 a0b6f17a3d] fix(structure): #1371——封闭profile绑定并稳定cut0历史投影\n 5 files changed, 411 insertions(+), 15 deletions(-)\n"
+        },
+        {
+          "decoded_pointer": "/28",
+          "argv": [
+            "/home/agent/.local/share/uv/python/cpython-3.11.16-linux-aarch64-gnu/bin/python3.11",
+            "/home/agent/workspace/s_session/tests/r9_contract.py",
+            "/tmp/issue1371-r10-wwkstffx/final-v2",
+            "--r10"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 39,
+          "stdout_sha256": "cc5b1396697a451519f2e108ac74a6b3dd43df2bd7396cb83254ba1961e3810e",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/29",
+          "argv": [
+            "/home/agent/.local/share/uv/python/cpython-3.11.16-linux-aarch64-gnu/bin/python3.11",
+            "/tmp/issue1371-r10-wwkstffx/node-driver.py",
+            "/home/agent/workspace/s_session/tests/r9_contract.py",
+            "/tmp/issue1371-r10-wwkstffx/final-v2"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 218,
+          "stdout_sha256": "3644940397931c96414ade5775247b4489d9f812ca8659385914d49f0c1170e0",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/30",
+          "argv": [
+            "/home/agent/.local/share/uv/python/cpython-3.11.16-linux-aarch64-gnu/bin/python3.11",
+            "-c",
+            "import ast,pathlib,sys;ast.parse(pathlib.Path(sys.argv[1]).read_text())",
+            "/home/agent/workspace/s_session/tests/r9_contract.py"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/32",
+          "argv": [
+            "git",
+            "commit",
+            "-m",
+            "test(structure): #1371——为profile故障逐副本补健康HTTP对照",
+            "-m",
+            "首次pending尚无cut1，将该对照路由换为合法超前游标Gap读，避免用未发布cut失败冒充profile特异拒绝。21副本健康8HTTP全200，再单项注入后8HTTP/7CLI统一拒绝，完整前后证据已跑。只改现有Python验证脚本；AST及真实脚本/Node驱动exit0，Rust/产品源码仍同hash，复用既有35测试与编译检查。\n\n编号声明：本提交中的 #1371 仅指 GitHub Issue。"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 159,
+          "stdout_sha256": "3637afbb5fa83a437d4b7c3bab9501b19f101e5538926d46319a9d28079f672e",
+          "stderr_bytes": 162,
+          "stderr_sha256": "0b13bd99c79640f9abf29571c88a4e1071f14004b78468479d43775f6938a34f",
+          "commit_stdout": "[codex/1323-tb01-b-1371 50f22cac47] test(structure): #1371——为profile故障逐副本补健康HTTP对照\n 1 file changed, 10 insertions(+), 3 deletions(-)\n"
+        }
+      ],
+      "inspection_mode": "本工位仅纯解析已归档收据并核字节；这些命令均为历史执行，本工位未执行"
+    },
+    "R11": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/implementation-r11.json",
+      "repository_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r11.json",
+      "report_at_commit": "e5b03629adde165610161b4df3e2d62d22163568",
+      "report_blob": "debcdeb7d7887bc9a3976bfa07b927962d702cfe",
+      "report_bytes": 352086,
+      "report_sha256": "63de32660497813d0830eda838775d563428e0b121d0b86d26b0ac110a2fd991",
+      "source_commit": "6a4e69e60ffd1baca490f870622c098a14fe7b41",
+      "source_commit_field": "/source_commit",
+      "declared_checks": {
+        "source-build": {
+          "argv": [
+            "cargo",
+            "build",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "evidence": "commands.json#/0",
+          "scope": "仅为本轮HTTP源重建未变后端binary，不重跑Rust测试矩阵"
+        },
+        "consumer-syntax": {
+          "argv": [
+            "node",
+            "--check",
+            "/home/agent/workspace/s_session/tests/r9_consumer.cjs"
+          ],
+          "exit": 0,
+          "evidence": "commands.json#/4"
+        },
+        "html-syntax": {
+          "argv": [
+            "node",
+            "--check",
+            "/tmp/issue1371-r11-nbsi3u4h/page-script.js"
+          ],
+          "exit": 0,
+          "evidence": "commands.json#/5"
+        },
+        "red": {
+          "argv": [
+            "/home/agent/.local/share/uv/python/cpython-3.11.16-linux-aarch64-gnu/bin/python3.11",
+            "/tmp/issue1371-r11-nbsi3u4h/driver.py",
+            "/tmp/issue1371-r11-nbsi3u4h/source",
+            "red"
+          ],
+          "exit": 1,
+          "evidence": "commands.json#/2",
+          "meaning": "规范断言失败为预期红灯；三个原反例在固定R10 HTML真正误接受，非脚本完成即PASS"
+        },
+        "green": {
+          "argv": [
+            "/home/agent/.local/share/uv/python/cpython-3.11.16-linux-aarch64-gnu/bin/python3.11",
+            "/tmp/issue1371-r11-nbsi3u4h/driver.py",
+            "/tmp/issue1371-r11-nbsi3u4h/source",
+            "green-final"
+          ],
+          "exit": 0,
+          "cases": 28,
+          "evidence": "commands.json#/6"
+        },
+        "r9-existing": {
+          "argv": [
+            "node",
+            "/home/agent/workspace/s_session/tests/r9_consumer.cjs",
+            "/tmp/issue1371-r11-nbsi3u4h/source",
+            "/tmp/issue1371-r11-nbsi3u4h/r3",
+            "/home/agent/workspace"
+          ],
+          "exit": 0,
+          "evidence": "commands.json#/7"
+        },
+        "r10-existing": {
+          "argv": [
+            "/home/agent/.local/share/uv/python/cpython-3.11.16-linux-aarch64-gnu/bin/python3.11",
+            "/tmp/issue1371-r11-nbsi3u4h/r10-driver.py",
+            "/tmp/issue1371-r11-nbsi3u4h/source",
+            "r10"
+          ],
+          "exit": 0,
+          "evidence": "commands.json#/8"
+        }
+      },
+      "source_hash_checks": [
+        {
+          "repository_path": "s_session/browser/index.html",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/browser/index.html",
+          "source_commit": "6a4e69e60ffd1baca490f870622c098a14fe7b41",
+          "report_field": "/binding/source_sha256/s_session~1browser~1index.html",
+          "sha256": "a04ddb1c67e26207cbc9ec4bd72f7cb36fcac30accf4c3f1a49e5ee10e5de94b",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/tests/r9_consumer.cjs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r9_consumer.cjs",
+          "source_commit": "6a4e69e60ffd1baca490f870622c098a14fe7b41",
+          "report_field": "/binding/source_sha256/s_session~1tests~1r9_consumer.cjs",
+          "sha256": "c375406cf09a092d451c7b09050fa3eda378b3087ee96d8c033edcc1842d119d",
+          "matches": true
+        },
+        {
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "source_commit": "6a4e69e60ffd1baca490f870622c098a14fe7b41",
+          "report_field": "/binding/source_sha256/rust~1src~1bin~1s_structure_session.rs",
+          "sha256": "9450f2a9642be70dc5a18f7044fa07312d81d126e25d512e50921105a1f25901",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "source_commit": "6a4e69e60ffd1baca490f870622c098a14fe7b41",
+          "report_field": "/binding/source_sha256/s_session~1s_readonly_server.py",
+          "sha256": "9dad379ff1aaa1ff6f9315a877249f4b9003aa39c7d48fdba8016e534c27c65c",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/launch_s.sh",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/launch_s.sh",
+          "source_commit": "6a4e69e60ffd1baca490f870622c098a14fe7b41",
+          "report_field": "/binding/source_sha256/s_session~1launch_s.sh",
+          "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+          "matches": true
+        },
+        {
+          "repository_path": "s_session/tests/r9_contract.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r9_contract.py",
+          "source_commit": "6a4e69e60ffd1baca490f870622c098a14fe7b41",
+          "report_field": "/binding/source_sha256/s_session~1tests~1r9_contract.py",
+          "sha256": "89eeaff7430a098c4abaf239b71f0d684da6dd1f53038dba9d2f84667cdadc2f",
+          "matches": true
+        }
+      ],
+      "artifact_field": "/evidence_artifacts/commands.json",
+      "decoded_artifact_name": "commands.json",
+      "decoded_bytes": 28268,
+      "decoded_sha256": "e40c9546961d41560d622e03be5d1862648e75006f5bdfc436914bd35c4cac4c",
+      "decoded_integrity_verified": true,
+      "receipts": [
+        {
+          "decoded_pointer": "/0",
+          "argv": [
+            "cargo",
+            "build",
+            "--locked",
+            "--features",
+            "s_session",
+            "--bin",
+            "s_structure_session",
+            "--jobs",
+            "1"
+          ],
+          "cwd": "/home/agent/workspace/rust",
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_bytes": 21423,
+          "stderr_sha256": "5588a395379f3942f0be88acf74e731c170409a4f9a790984bf5c7ab2f6a843d",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/4",
+          "argv": [
+            "node",
+            "--check",
+            "/home/agent/workspace/s_session/tests/r9_consumer.cjs"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/5",
+          "argv": [
+            "node",
+            "--check",
+            "/tmp/issue1371-r11-nbsi3u4h/page-script.js"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 0,
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/6",
+          "argv": [
+            "/home/agent/.local/share/uv/python/cpython-3.11.16-linux-aarch64-gnu/bin/python3.11",
+            "/tmp/issue1371-r11-nbsi3u4h/driver.py",
+            "/tmp/issue1371-r11-nbsi3u4h/source",
+            "green-final"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 212,
+          "stdout_sha256": "f179766396c3b769e55b60326601f39ee17d2df9b958fee6f4d57ba8c5b4fdc8",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/7",
+          "argv": [
+            "node",
+            "/home/agent/workspace/s_session/tests/r9_consumer.cjs",
+            "/tmp/issue1371-r11-nbsi3u4h/source",
+            "/tmp/issue1371-r11-nbsi3u4h/r3",
+            "/home/agent/workspace"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 41,
+          "stdout_sha256": "8c68b5c45e40cd680f44c82b427673e15fee86c6f093c97ac0d2536c3093d514",
+          "stderr_bytes": 163,
+          "stderr_sha256": "4b4ccaec736c9b0495e35240647ea0c58bb997219373df157ce29483564a33da",
+          "commit_stdout": null
+        },
+        {
+          "decoded_pointer": "/8",
+          "argv": [
+            "/home/agent/.local/share/uv/python/cpython-3.11.16-linux-aarch64-gnu/bin/python3.11",
+            "/tmp/issue1371-r11-nbsi3u4h/r10-driver.py",
+            "/tmp/issue1371-r11-nbsi3u4h/source",
+            "r10"
+          ],
+          "cwd": "/home/agent/workspace",
+          "exit": 0,
+          "stdout_bytes": 218,
+          "stdout_sha256": "208bede1c278606a1e921fb5883ed0792d6ec30deb7f7dde3f3cc95584adbc35",
+          "stderr_bytes": 0,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "commit_stdout": null
+        }
+      ],
+      "inspection_mode": "本工位仅纯解析已归档收据并核字节；这些命令均为历史执行，本工位未执行"
+    }
+  },
+  "r12_root_execution": {
+    "validation": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/VALIDATION.json",
+      "bytes": 3612,
+      "sha256": "52060f0365fdd5f4fe19f9d18ad140119d9d12bdc71d97c6c98caf902726e943"
+    },
+    "execution": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+      "bytes": 1040,
+      "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587"
+    },
+    "green": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/GREEN.json",
+      "bytes": 1119,
+      "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704"
+    },
+    "replay_receipt": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+      "bytes": 14193,
+      "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32"
+    },
+    "manifest_byte_checks": [
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/probe.cjs",
+        "bytes": 6983,
+        "sha256": "a540258346829b659da90c03d74082e748cc21bc35430ac7b688a97e7ebcbe02",
+        "matches_validation_manifest": true
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/RESULT.json",
+        "bytes": 1421750,
+        "sha256": "d929f49ab8ff033c23ea388880bdd76c8348d8e09659f8f359f79865a1d1219e",
+        "matches_validation_manifest": true
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/RED.json",
+        "bytes": 2111,
+        "sha256": "80bb7dc51096d7d6a6030ecb7613fa75a4b2eb907ed12deabb2314b1cf6bbb0b",
+        "matches_validation_manifest": true
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/RED.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches_validation_manifest": true
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/GREEN.json",
+        "bytes": 1119,
+        "sha256": "97438ab806a11d26aa70cbde0ea245e6bcb87c7f1b0a7adac2d7c44adf5e3704",
+        "matches_validation_manifest": true
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/GREEN.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches_validation_manifest": true
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/EXECUTION.json",
+        "bytes": 1040,
+        "sha256": "db6abe7a0b3faae3056af61f47037fbc8c9239395a0818f924dedeb859ef2587",
+        "matches_validation_manifest": true
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/replay-r11.cjs",
+        "bytes": 2397,
+        "sha256": "bf64deeaa93c0b0e3a321201a7a276fb51311d4c099bcc5a85969b175743fd1f",
+        "matches_validation_manifest": true
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/RESULT.json",
+        "bytes": 22697126,
+        "sha256": "05acc937fd6926a8f50c2d3879a99c8c721cb5ddc478eec7872302e7bf4f9ed0",
+        "matches_validation_manifest": true
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/R7-CONSUMER-PROBES/r11-replay/REPLAY-RECEIPT.json",
+        "bytes": 14193,
+        "sha256": "4280b3a2a429396630b0e00930ebc2c5c5352fc513518ec3932bafecfdfc4e32",
+        "matches_validation_manifest": true
+      },
+      {
+        "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/browser/index.html",
+        "bytes": 42793,
+        "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe",
+        "matches_validation_manifest": true,
+        "repository_path": "s_session/browser/index.html",
+        "matches_head_git_blob": true
+      },
+      {
+        "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r12_consumer.cjs",
+        "bytes": 6111,
+        "sha256": "228a9cb06b385a124b1cc4bbccaefbb85f252868777381f99281224b29c99e39",
+        "matches_validation_manifest": true,
+        "repository_path": "s_session/tests/r12_consumer.cjs",
+        "matches_head_git_blob": true
+      },
+      {
+        "path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/fixtures/r12_consumer.json",
+        "bytes": 388525,
+        "sha256": "1b0020a69a897da000056666907ef606a6d0b2ed35bac97ec65d625131e25745",
+        "matches_validation_manifest": true,
+        "repository_path": "s_session/tests/fixtures/r12_consumer.json",
+        "matches_head_git_blob": true
+      }
+    ],
+    "references": {
+      "candidate": "VALIDATION.json#/candidate",
+      "ten_cases": "GREEN.json#/cases",
+      "green_exit": "EXECUTION.json#/green/exit_code",
+      "twenty_eight_exit": "EXECUTION.json#/r11_captured_response_replay/exit_code",
+      "twenty_eight_count": "VALIDATION.json#/legacy_cases_pass",
+      "html_sha256": "GREEN.json#/html_sha256",
+      "fixture_sha256": "GREEN.json#/fixture_sha256"
+    },
+    "root_execution_result": {
+      "permanent_cases": 10,
+      "permanent_passed": 10,
+      "captured_response_replay_cases": 28,
+      "captured_response_replay_exit": 0
+    },
+    "scope": "根在R12已执行；本工位只核归档字节和字段。28项是旧HTTP字节重放，不是本轮新的实际HTTP或native构建；VALIDATION的GUI PENDING为当时状态，本声明不裁GUI结论。"
+  },
+  "commits": [
+    {
+      "ordinal": 1,
+      "commit": "8c868f968c5f937870a4305dca05a0e0162b5131",
+      "parent": "2212eba31e0b7419907e622e79f02f7c2cc37706",
+      "subject": "feat(structure): #1371——修订撤回与持久历史恢复",
+      "nature": "含产品代码",
+      "files": [
+        {
+          "change": "A",
+          "repository_path": ".chanlun/agent-roster-2026-09-10.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/agent-roster-2026-09-10.md",
+          "nature": "报告或工位文档",
+          "git_blob": "e7ed8ee8d373526d7a85ad6ea2abe3feafbedaf8",
+          "bytes": 1416,
+          "sha256": "78f54decd70c901b629e5d8c53eab577bd197914ea0caa93b798ca15ea750ebe"
+        },
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "nature": "报告或工位文档",
+          "git_blob": "4e9aa59fefef1ba55ef510f46c76421e09a5a4d5",
+          "bytes": 3969,
+          "sha256": "e9d8e68622b5de95fa3a4d9b96d33577a0ff9a864a500e1fc40907488534eb2b"
+        },
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "nature": "报告或工位文档",
+          "git_blob": "4264cf35f4e46c346746e18e18e07a9036eb7f2f",
+          "bytes": 17282,
+          "sha256": "e23aa5fe406badb4a56ce546549877f08a7482dffbda580cbeb753d759010a4c"
+        },
+        {
+          "change": "M",
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "nature": "产品代码",
+          "git_blob": "c616fc71165437435f88b163464c2e6c0b6e7494",
+          "bytes": 147127,
+          "sha256": "0c110dbea358cbbfaafcc3759cd2b5d9931ae6b2e045b88d070ef18812b638b7"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/browser/index.html",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/browser/index.html",
+          "nature": "产品代码",
+          "git_blob": "5032a0b5e250b018c69f021dfcd8dee3fcdfa6a6",
+          "bytes": 25153,
+          "sha256": "5c311db8a9f3577379a7719289b68d34cddc72aa365014fe5573afa3a9bf42f0"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/launch_s.sh",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/launch_s.sh",
+          "nature": "产品代码",
+          "git_blob": "dd2db34284f820ce22a50b59ebe7d5b9c76c2f78",
+          "bytes": 9123,
+          "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "nature": "产品代码",
+          "git_blob": "661dd4005c8f970dd96ad2f451b3af9a2c878a0d",
+          "bytes": 21461,
+          "sha256": "db8998936c5719539e672a453ac2c1b942e84a46baa87bf7d889edf675b147f5"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "declaration_basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "evidence_strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译",
+      "evidence": [
+        {
+          "kind": "historical_report_declaration",
+          "report_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "report_at_commit": "8c868f968c5f937870a4305dca05a0e0162b5131",
+          "report_blob": "4e9aa59fefef1ba55ef510f46c76421e09a5a4d5",
+          "report_sha256": "e9d8e68622b5de95fa3a4d9b96d33577a0ff9a864a500e1fc40907488534eb2b",
+          "value_fields": {
+            "/checks/cargo_check": 0,
+            "/checks/bin_tests": "18 passed / 0 failed"
+          },
+          "source_hash_checks": [
+            {
+              "repository_path": "rust/src/bin/s_structure_session.rs",
+              "report_field": "/file_sha256/rust~1src~1bin~1s_structure_session.rs",
+              "sha256": "0c110dbea358cbbfaafcc3759cd2b5d9931ae6b2e045b88d070ef18812b638b7",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/s_readonly_server.py",
+              "report_field": "/file_sha256/s_session~1s_readonly_server.py",
+              "sha256": "db8998936c5719539e672a453ac2c1b942e84a46baa87bf7d889edf675b147f5",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/browser/index.html",
+              "report_field": "/file_sha256/s_session~1browser~1index.html",
+              "sha256": "5c311db8a9f3577379a7719289b68d34cddc72aa365014fe5573afa3a9bf42f0",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/launch_s.sh",
+              "report_field": "/file_sha256/s_session~1launch_s.sh",
+              "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+              "matches": true
+            }
+          ]
+        }
+      ],
+      "historical_bin_test_declaration": "18 passed / 0 failed"
+    },
+    {
+      "ordinal": 2,
+      "commit": "6039b83f6a1730daeb0d557f3bb712d8c31c92bd",
+      "parent": "8c868f968c5f937870a4305dca05a0e0162b5131",
+      "subject": "docs: #1371 TB-01-B 独立评审报告（review.md + review.json）",
+      "nature": "纯报告文档",
+      "files": [
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/review.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/review.json",
+          "nature": "报告或工位文档",
+          "git_blob": "71538b340237f34c1dc4a694e01ac9baf2ef5915",
+          "bytes": 12689,
+          "sha256": "78237dcb496c4a718e6bcab2b6713029b33b4ef7b8e5d330a0268d542dfd5d49"
+        },
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/review.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/review.md",
+          "nature": "报告或工位文档",
+          "git_blob": "447cb7fd27255f97efdf031cd5c7fd0e6e8e928a",
+          "bytes": 18664,
+          "sha256": "2a4726c9ace53d01b35e598df75d20c5510c490a441890e2e4ddce48ced04958"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "纯文档豁免",
+      "declaration_basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "evidence_strength": "本轮只读Git逐文件分类",
+      "evidence": [
+        {
+          "kind": "git_name_status",
+          "command": [
+            "git",
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            "6039b83f6a1730daeb0d557f3bb712d8c31c92bd"
+          ],
+          "pure_document_files": true
+        }
+      ]
+    },
+    {
+      "ordinal": 3,
+      "commit": "0298cf429804c611d6ee5f691a1f36ee2a720fba",
+      "parent": "6039b83f6a1730daeb0d557f3bb712d8c31c92bd",
+      "subject": "fix(structure): #1371——历史cut不可变/可达根写前件/幂等advance与原身份Query",
+      "nature": "含产品代码",
+      "files": [
+        {
+          "change": "M",
+          "repository_path": ".chanlun/agent-roster-2026-09-10.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/agent-roster-2026-09-10.md",
+          "nature": "报告或工位文档",
+          "git_blob": "674fb0b35429f49cdc030b98c4ba1ccc197d3f70",
+          "bytes": 1481,
+          "sha256": "21aa19c7718e6aad6230c7693b447ad79fa3795f4227a2c7b42777cbc42eec68"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "nature": "报告或工位文档",
+          "git_blob": "2a760331f71145ba8f39fc9087454d2efd4fb271",
+          "bytes": 3934,
+          "sha256": "c86f348647f05e5508c4e0e1d2e6a8b9d18108ab23963e7ba793846d9fb60114"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "nature": "报告或工位文档",
+          "git_blob": "e980be1a7a4bf8e1c69f6952b83c582f13bca798",
+          "bytes": 14008,
+          "sha256": "536b493ef5a683440c0d3c73f23fdaa7bf0f95e81996e32d84f35d1d85b2faf1"
+        },
+        {
+          "change": "M",
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "nature": "产品代码",
+          "git_blob": "da285c225ad46a978ac02453957bf8a15adb6f8d",
+          "bytes": 162015,
+          "sha256": "2e06b83eb220934aba6f88f3be31ea876fe21b63984ce0a78dc162549dfdeb9e"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/browser/index.html",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/browser/index.html",
+          "nature": "产品代码",
+          "git_blob": "3fd2a169a2a3fb7bef57435ed2a45a29b7193f6d",
+          "bytes": 27895,
+          "sha256": "bbc86d0158bfebc5a9f5e73070f99a19f89532c4a35f28f477d076c7ca0c5084"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "nature": "产品代码",
+          "git_blob": "e08ce13ce00c9568b2c51b0d2589d26fe52da9ea",
+          "bytes": 27388,
+          "sha256": "8024b01ca38215a23357afd8354c76b392565c895bac472269617fb531addef1"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "declaration_basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "evidence_strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译",
+      "evidence": [
+        {
+          "kind": "historical_report_declaration",
+          "report_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "report_at_commit": "0298cf429804c611d6ee5f691a1f36ee2a720fba",
+          "report_blob": "2a760331f71145ba8f39fc9087454d2efd4fb271",
+          "report_sha256": "c86f348647f05e5508c4e0e1d2e6a8b9d18108ab23963e7ba793846d9fb60114",
+          "value_fields": {
+            "/checks/cargo_check": 0,
+            "/checks/bin_tests": "22 passed / 0 failed"
+          },
+          "source_hash_checks": [
+            {
+              "repository_path": "rust/src/bin/s_structure_session.rs",
+              "report_field": "/file_sha256/rust~1src~1bin~1s_structure_session.rs",
+              "sha256": "2e06b83eb220934aba6f88f3be31ea876fe21b63984ce0a78dc162549dfdeb9e",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/s_readonly_server.py",
+              "report_field": "/file_sha256/s_session~1s_readonly_server.py",
+              "sha256": "8024b01ca38215a23357afd8354c76b392565c895bac472269617fb531addef1",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/browser/index.html",
+              "report_field": "/file_sha256/s_session~1browser~1index.html",
+              "sha256": "bbc86d0158bfebc5a9f5e73070f99a19f89532c4a35f28f477d076c7ca0c5084",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/launch_s.sh",
+              "report_field": "/file_sha256/s_session~1launch_s.sh",
+              "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+              "matches": true
+            }
+          ]
+        }
+      ],
+      "historical_bin_test_declaration": "22 passed / 0 failed"
+    },
+    {
+      "ordinal": 4,
+      "commit": "6e1b355b1454c9a20afd50a372058da11df86a30",
+      "parent": "0298cf429804c611d6ee5f691a1f36ee2a720fba",
+      "subject": "docs: #1371 TB-01-B 独立评审·增量复审（review-incremental.md + review-incremental.json）",
+      "nature": "纯报告文档",
+      "files": [
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/review-incremental.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/review-incremental.json",
+          "nature": "报告或工位文档",
+          "git_blob": "78b879c1331b9e5e87f2aeb717db28e4e5ca3068",
+          "bytes": 9995,
+          "sha256": "68dc5813917c5449dc65cdae9974f12578ea27d0d0c1b9485be282511b56a72a"
+        },
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/review-incremental.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/review-incremental.md",
+          "nature": "报告或工位文档",
+          "git_blob": "877127b19d990ecf75a10794defec24d62cd48db",
+          "bytes": 13540,
+          "sha256": "e0091f663f13bf3f45c56dcad7ed9d15cc13ca8c91b32804a4abb863ae1a4567"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "纯文档豁免",
+      "declaration_basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "evidence_strength": "本轮只读Git逐文件分类",
+      "evidence": [
+        {
+          "kind": "git_name_status",
+          "command": [
+            "git",
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            "6e1b355b1454c9a20afd50a372058da11df86a30"
+          ],
+          "pure_document_files": true
+        }
+      ]
+    },
+    {
+      "ordinal": 5,
+      "commit": "a9acf50ac3a700450108040ca1b2c019675df3c9",
+      "parent": "6e1b355b1454c9a20afd50a372058da11df86a30",
+      "subject": "fix(structure): #1371——可达根完整性与reader/浏览器同cut身份原子提交",
+      "nature": "含产品代码",
+      "files": [
+        {
+          "change": "M",
+          "repository_path": ".chanlun/agent-roster-2026-09-10.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/agent-roster-2026-09-10.md",
+          "nature": "报告或工位文档",
+          "git_blob": "13606cb80c27630665b1c5a7a31af60d5f3bd356",
+          "bytes": 1548,
+          "sha256": "9799d3dcdd750f3c5aaf4b8e9dc4f7820fc18b8ee87a329e242f3b00653570d8"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "nature": "报告或工位文档",
+          "git_blob": "fc1a9752bb3fa4a563fe3ea405ed9bd86dce9879",
+          "bytes": 4739,
+          "sha256": "0da435dff6321ab1f7443fc2b8a54ca3d7a5a9984fec746bc9c8c6f792a91dac"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "nature": "报告或工位文档",
+          "git_blob": "954d9c748f72c6b5924daeb20c6785524269897f",
+          "bytes": 16461,
+          "sha256": "6661c4ed98b05bafe6f747d03c1d6389f9730e4c77c311fff07368442b077d8d"
+        },
+        {
+          "change": "M",
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "nature": "产品代码",
+          "git_blob": "08eea51fcdbf9a18a1103ba5d2718dd6df4e2979",
+          "bytes": 169440,
+          "sha256": "1d19627dfed365b0782cc62651773ece7a9afd2a2df9905c8428dbc3786516da"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/browser/index.html",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/browser/index.html",
+          "nature": "产品代码",
+          "git_blob": "3af2c0be1a70848d67a264da40575d26f95af2a6",
+          "bytes": 31092,
+          "sha256": "ce4732b38a04c034cea336ba13e78db1f184220f333d2470674a937d2fb97d77"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "nature": "产品代码",
+          "git_blob": "de4644c755bc9a0a057e701fa63e3ecb82848203",
+          "bytes": 33998,
+          "sha256": "f01988cf118b874b9f4b2c8221b4a00f2dd53a5df6f0f80c1675f39522405578"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "declaration_basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "evidence_strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译",
+      "evidence": [
+        {
+          "kind": "historical_report_declaration",
+          "report_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "report_at_commit": "a9acf50ac3a700450108040ca1b2c019675df3c9",
+          "report_blob": "fc1a9752bb3fa4a563fe3ea405ed9bd86dce9879",
+          "report_sha256": "0da435dff6321ab1f7443fc2b8a54ca3d7a5a9984fec746bc9c8c6f792a91dac",
+          "value_fields": {
+            "/checks/cargo_check": 0,
+            "/checks/bin_tests": "23 passed / 0 failed"
+          },
+          "source_hash_checks": [
+            {
+              "repository_path": "rust/src/bin/s_structure_session.rs",
+              "report_field": "/file_sha256/rust~1src~1bin~1s_structure_session.rs",
+              "sha256": "1d19627dfed365b0782cc62651773ece7a9afd2a2df9905c8428dbc3786516da",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/s_readonly_server.py",
+              "report_field": "/file_sha256/s_session~1s_readonly_server.py",
+              "sha256": "f01988cf118b874b9f4b2c8221b4a00f2dd53a5df6f0f80c1675f39522405578",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/browser/index.html",
+              "report_field": "/file_sha256/s_session~1browser~1index.html",
+              "sha256": "ce4732b38a04c034cea336ba13e78db1f184220f333d2470674a937d2fb97d77",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/launch_s.sh",
+              "report_field": "/file_sha256/s_session~1launch_s.sh",
+              "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+              "matches": true
+            }
+          ]
+        }
+      ],
+      "historical_bin_test_declaration": "23 passed / 0 failed"
+    },
+    {
+      "ordinal": 6,
+      "commit": "58dab231e2210e1ba1e9634c936807d8492e218b",
+      "parent": "a9acf50ac3a700450108040ca1b2c019675df3c9",
+      "subject": "fix(structure): #1371——必需meta完整代链生命周期域与读写统一校验",
+      "nature": "含产品代码",
+      "files": [
+        {
+          "change": "M",
+          "repository_path": ".chanlun/agent-roster-2026-09-10.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/agent-roster-2026-09-10.md",
+          "nature": "报告或工位文档",
+          "git_blob": "23636640d70956b2b6b06e2892b3ca2b23803342",
+          "bytes": 1569,
+          "sha256": "337650a245f38e96c254a25b072575c8035f698709252cd43af8fe9b1b8e2598"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "nature": "报告或工位文档",
+          "git_blob": "03ae456f6fe540aeb0b5dd7de16e5928043b5bac",
+          "bytes": 5578,
+          "sha256": "bb20cc87b7316e0e8ef101c93e7e757f04a71c2b045762be1964b2b926dcd607"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "nature": "报告或工位文档",
+          "git_blob": "756694d348b859a0ecc3a4dfd44db029bf0c41e4",
+          "bytes": 18686,
+          "sha256": "f3e131203c9e15f75ba9055df4002bca19dd29dd661409cf5c693c05b042e16e"
+        },
+        {
+          "change": "M",
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "nature": "产品代码",
+          "git_blob": "590efd7e114ca9e73c39d9edc4980c7317b143c2",
+          "bytes": 178932,
+          "sha256": "07a0b061a6d7b884af368929005d21e50fdc02a34897e3e18f78ef56c40b096f"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/browser/index.html",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/browser/index.html",
+          "nature": "产品代码",
+          "git_blob": "8cec2937e218492e111efed1de651b21316f16de",
+          "bytes": 32350,
+          "sha256": "13402a4011034e624de34b4137696a3dd8d3de2e1b35ec854e3a2331ca1591ac"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "nature": "产品代码",
+          "git_blob": "03cf6d9bfa6267e63ed8cf5dcf8964c248706f42",
+          "bytes": 39066,
+          "sha256": "9a3f648cc49ea5622f3ab821bd66b0027f17adb447f4ede9835fffd236ba50d6"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "declaration_basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "evidence_strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译",
+      "evidence": [
+        {
+          "kind": "historical_report_declaration",
+          "report_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "report_at_commit": "58dab231e2210e1ba1e9634c936807d8492e218b",
+          "report_blob": "03ae456f6fe540aeb0b5dd7de16e5928043b5bac",
+          "report_sha256": "bb20cc87b7316e0e8ef101c93e7e757f04a71c2b045762be1964b2b926dcd607",
+          "value_fields": {
+            "/checks/cargo_check": 0,
+            "/checks/bin_tests": "26 passed / 0 failed"
+          },
+          "source_hash_checks": [
+            {
+              "repository_path": "rust/src/bin/s_structure_session.rs",
+              "report_field": "/file_sha256/rust~1src~1bin~1s_structure_session.rs",
+              "sha256": "07a0b061a6d7b884af368929005d21e50fdc02a34897e3e18f78ef56c40b096f",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/s_readonly_server.py",
+              "report_field": "/file_sha256/s_session~1s_readonly_server.py",
+              "sha256": "9a3f648cc49ea5622f3ab821bd66b0027f17adb447f4ede9835fffd236ba50d6",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/browser/index.html",
+              "report_field": "/file_sha256/s_session~1browser~1index.html",
+              "sha256": "13402a4011034e624de34b4137696a3dd8d3de2e1b35ec854e3a2331ca1591ac",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/launch_s.sh",
+              "report_field": "/file_sha256/s_session~1launch_s.sh",
+              "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+              "matches": true
+            }
+          ]
+        }
+      ],
+      "historical_bin_test_declaration": "26 passed / 0 failed"
+    },
+    {
+      "ordinal": 7,
+      "commit": "8b726a57f98974c451ad0490066150afb9fe8e38",
+      "parent": "58dab231e2210e1ba1e9634c936807d8492e218b",
+      "subject": "fix(structure): #1371——同代根元组完整一致与空输入frontier合法",
+      "nature": "含产品代码",
+      "files": [
+        {
+          "change": "M",
+          "repository_path": ".chanlun/agent-roster-2026-09-10.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/agent-roster-2026-09-10.md",
+          "nature": "报告或工位文档",
+          "git_blob": "1e1dee45e6fd076a6cb80dd1d10b709d522fd4e7",
+          "bytes": 1584,
+          "sha256": "0d83ffc1d3ce13b354301ed3840e4eba0fe2aa952183649bd1481061df781c50"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "nature": "报告或工位文档",
+          "git_blob": "26884ced98ecee9fa7aa3aad8afef825d09c4d57",
+          "bytes": 6147,
+          "sha256": "a922bc2b330400125a093ca91e9d28803a28271fbe54932489df2b962247a237"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "nature": "报告或工位文档",
+          "git_blob": "31a2e36dd5fc31e98a14d17b88484d5186b75a67",
+          "bytes": 20509,
+          "sha256": "6e5151c2dcd3359241e7ae3c0c82e2379e68732d362a54f5639ee4c96747f199"
+        },
+        {
+          "change": "M",
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "nature": "产品代码",
+          "git_blob": "12ba7afc3d5b43fd99ddc2005a5c928ab429534b",
+          "bytes": 190242,
+          "sha256": "423e847812f7de2f75e7706a1a3eefcaa155bd16c7f44b7e1c9989fe3dfebc7a"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "nature": "产品代码",
+          "git_blob": "50db688ef1e1fa24ac3c7dab97925df37fbae94d",
+          "bytes": 40611,
+          "sha256": "03718ffd3b6e2aaa26e56fd9185328e79ee7fa4f7c7a4092fe2b99fee09bd4ac"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "declaration_basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "evidence_strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译",
+      "evidence": [
+        {
+          "kind": "historical_report_declaration",
+          "report_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "report_at_commit": "8b726a57f98974c451ad0490066150afb9fe8e38",
+          "report_blob": "26884ced98ecee9fa7aa3aad8afef825d09c4d57",
+          "report_sha256": "a922bc2b330400125a093ca91e9d28803a28271fbe54932489df2b962247a237",
+          "value_fields": {
+            "/checks/cargo_check": 0,
+            "/checks/bin_tests": "28 passed / 0 failed"
+          },
+          "source_hash_checks": [
+            {
+              "repository_path": "rust/src/bin/s_structure_session.rs",
+              "report_field": "/file_sha256/rust~1src~1bin~1s_structure_session.rs",
+              "sha256": "423e847812f7de2f75e7706a1a3eefcaa155bd16c7f44b7e1c9989fe3dfebc7a",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/s_readonly_server.py",
+              "report_field": "/file_sha256/s_session~1s_readonly_server.py",
+              "sha256": "03718ffd3b6e2aaa26e56fd9185328e79ee7fa4f7c7a4092fe2b99fee09bd4ac",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/browser/index.html",
+              "report_field": "/file_sha256/s_session~1browser~1index.html",
+              "sha256": "13402a4011034e624de34b4137696a3dd8d3de2e1b35ec854e3a2331ca1591ac",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/launch_s.sh",
+              "report_field": "/file_sha256/s_session~1launch_s.sh",
+              "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+              "matches": true
+            }
+          ]
+        }
+      ],
+      "historical_bin_test_declaration": "28 passed / 0 failed"
+    },
+    {
+      "ordinal": 8,
+      "commit": "6eeed76e3e12f1ffc3fdc62e23e60f2a3084c37b",
+      "parent": "8b726a57f98974c451ad0490066150afb9fe8e38",
+      "subject": "fix(structure): #1371——Delta内层payload与外层11列同字段深等对应",
+      "nature": "含产品代码",
+      "files": [
+        {
+          "change": "M",
+          "repository_path": ".chanlun/agent-roster-2026-09-10.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/agent-roster-2026-09-10.md",
+          "nature": "报告或工位文档",
+          "git_blob": "e05cf8e8d79f9343b425220818d16e2b63a70359",
+          "bytes": 1469,
+          "sha256": "f356aff6ac7a50ac7557d4740b68d6f511248730431c3a81aeed14b8dc15ddde"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "nature": "报告或工位文档",
+          "git_blob": "1508961848c9141d71bc1bf5d5eb286fe2025234",
+          "bytes": 6374,
+          "sha256": "1494c1f0d9b792b688f56c951df4350bfb3d7bf1716b7b8d3888169ae3ee894a"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "nature": "报告或工位文档",
+          "git_blob": "e1415e93ff1d8a665a2680548233c8abc632d2fb",
+          "bytes": 21371,
+          "sha256": "32945b648013af1a71cc3ec57b728fced964f999ff2acbb6f47ef84578ed547a"
+        },
+        {
+          "change": "M",
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "nature": "产品代码",
+          "git_blob": "e9779941f28b70fea0b061d8aecb9625880a8747",
+          "bytes": 194395,
+          "sha256": "addb492ac2c1888904f2ab2d9789ae9a7ebbfc8e0037e4d822f73b67be333be8"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "nature": "产品代码",
+          "git_blob": "2de2ec140b8a55fcc97b83856d04b7518ee0362a",
+          "bytes": 41437,
+          "sha256": "526b9672dd00d51e3cf2b5ac4263243b53d139c7228f91c82b53a726a457c8cd"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "declaration_basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "evidence_strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译",
+      "evidence": [
+        {
+          "kind": "historical_report_declaration",
+          "report_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "report_at_commit": "6eeed76e3e12f1ffc3fdc62e23e60f2a3084c37b",
+          "report_blob": "1508961848c9141d71bc1bf5d5eb286fe2025234",
+          "report_sha256": "1494c1f0d9b792b688f56c951df4350bfb3d7bf1716b7b8d3888169ae3ee894a",
+          "value_fields": {
+            "/checks/cargo_check": 0,
+            "/checks/bin_tests": "29 passed / 0 failed"
+          },
+          "source_hash_checks": [
+            {
+              "repository_path": "rust/src/bin/s_structure_session.rs",
+              "report_field": "/file_sha256/rust~1src~1bin~1s_structure_session.rs",
+              "sha256": "addb492ac2c1888904f2ab2d9789ae9a7ebbfc8e0037e4d822f73b67be333be8",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/s_readonly_server.py",
+              "report_field": "/file_sha256/s_session~1s_readonly_server.py",
+              "sha256": "526b9672dd00d51e3cf2b5ac4263243b53d139c7228f91c82b53a726a457c8cd",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/browser/index.html",
+              "report_field": "/file_sha256/s_session~1browser~1index.html",
+              "sha256": "13402a4011034e624de34b4137696a3dd8d3de2e1b35ec854e3a2331ca1591ac",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/launch_s.sh",
+              "report_field": "/file_sha256/s_session~1launch_s.sh",
+              "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+              "matches": true
+            }
+          ]
+        }
+      ],
+      "historical_bin_test_declaration": "29 passed / 0 failed"
+    },
+    {
+      "ordinal": 9,
+      "commit": "4a3da3787bdd6e783f3c7eee63dec544b7dc3e68",
+      "parent": "6eeed76e3e12f1ffc3fdc62e23e60f2a3084c37b",
+      "subject": "fix(structure): #1371——input_frontier与supersedes/证据计数的精确整数wire",
+      "nature": "含产品代码",
+      "files": [
+        {
+          "change": "M",
+          "repository_path": ".chanlun/agent-roster-2026-09-10.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/agent-roster-2026-09-10.md",
+          "nature": "报告或工位文档",
+          "git_blob": "8c3eb6a54269b3c16f5c423ae7b84ef3d37cd668",
+          "bytes": 1505,
+          "sha256": "265b6a2ea64eeaf76293864859ddc0958dff3c008afdaddf71ce882910c62d91"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "nature": "报告或工位文档",
+          "git_blob": "4b43bfc15fb9240e2563a42575efa53342e9cc7c",
+          "bytes": 6718,
+          "sha256": "d02c06f8676fd7d88bccfa30b9da17880a12434433b8c5102d5d159d4ed9da7f"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "nature": "报告或工位文档",
+          "git_blob": "556d0aff12806f4ad2e267c9a350c68e3806bc76",
+          "bytes": 22463,
+          "sha256": "5dffb1057dd7459f90bd1eaaf7163e36479cfc60afe597b990d3b4bd8e1f0a49"
+        },
+        {
+          "change": "M",
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "nature": "产品代码",
+          "git_blob": "acb463f94c3e9c78d9ac2042967c8fede98e3dc5",
+          "bytes": 197771,
+          "sha256": "c7813827bc3e43a253bf5d66fbf3ae0456baee1abbbc6868f51f2c77506da861"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "nature": "产品代码",
+          "git_blob": "444634a4e22100b96188c09d5fbbc36d7ffe94a1",
+          "bytes": 41762,
+          "sha256": "a9475590c77c3a48e65de6b54b386c6f29085c830060de104f265e89abc892f1"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "declaration_basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "evidence_strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译",
+      "evidence": [
+        {
+          "kind": "historical_report_declaration",
+          "report_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "report_at_commit": "4a3da3787bdd6e783f3c7eee63dec544b7dc3e68",
+          "report_blob": "4b43bfc15fb9240e2563a42575efa53342e9cc7c",
+          "report_sha256": "d02c06f8676fd7d88bccfa30b9da17880a12434433b8c5102d5d159d4ed9da7f",
+          "value_fields": {
+            "/checks/cargo_check": 0,
+            "/checks/bin_tests": "30 passed / 0 failed"
+          },
+          "source_hash_checks": [
+            {
+              "repository_path": "rust/src/bin/s_structure_session.rs",
+              "report_field": "/file_sha256/rust~1src~1bin~1s_structure_session.rs",
+              "sha256": "c7813827bc3e43a253bf5d66fbf3ae0456baee1abbbc6868f51f2c77506da861",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/s_readonly_server.py",
+              "report_field": "/file_sha256/s_session~1s_readonly_server.py",
+              "sha256": "a9475590c77c3a48e65de6b54b386c6f29085c830060de104f265e89abc892f1",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/browser/index.html",
+              "report_field": "/file_sha256/s_session~1browser~1index.html",
+              "sha256": "13402a4011034e624de34b4137696a3dd8d3de2e1b35ec854e3a2331ca1591ac",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/launch_s.sh",
+              "report_field": "/file_sha256/s_session~1launch_s.sh",
+              "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+              "matches": true
+            }
+          ]
+        }
+      ],
+      "historical_bin_test_declaration": "30 passed / 0 failed"
+    },
+    {
+      "ordinal": 10,
+      "commit": "65fb5e72bbee1de6656ba4b902dd506ae526195f",
+      "parent": "4a3da3787bdd6e783f3c7eee63dec544b7dc3e68",
+      "subject": "fix(structure): #1371——最终wire边界安全递归整数转十进制文本投影",
+      "nature": "含产品代码",
+      "files": [
+        {
+          "change": "M",
+          "repository_path": ".chanlun/agent-roster-2026-09-10.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/agent-roster-2026-09-10.md",
+          "nature": "报告或工位文档",
+          "git_blob": "f10a9d334e3cece21726fc7c831e31620718bca1",
+          "bytes": 1502,
+          "sha256": "5a97ba281fff60b0576502c013a8d44043cbc10b8a32c6bdd65bc4c605b56117"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "nature": "报告或工位文档",
+          "git_blob": "05b8bdc3b438430e37fd3808ae3cb7463f3cdd04",
+          "bytes": 7102,
+          "sha256": "43153824e4eca056d5840b884a05f1735393c95c5714223622f1d097498aaea7"
+        },
+        {
+          "change": "M",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.md",
+          "nature": "报告或工位文档",
+          "git_blob": "b871149c7cdfa5478fb1a4df4689c58489a26190",
+          "bytes": 23574,
+          "sha256": "6d210bf5205f973b365abda980e313ec23ac9d1c92b7bd7f2310b653d88ae25d"
+        },
+        {
+          "change": "M",
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "nature": "产品代码",
+          "git_blob": "94da1b7cc9c563018b05b03e4b471d4c1913aac3",
+          "bytes": 199759,
+          "sha256": "0718729cf3535b128ff995d1f6aad75b5385c9042140f5a053db970a75f3dfb2"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "nature": "产品代码",
+          "git_blob": "55616b4290e11733dafb151dfb6c8843d001f089",
+          "bytes": 42231,
+          "sha256": "ee29bf801dfec475f603ab9c2aa98b616fdbceb33f3d3a573d18e9d05146e4b6"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（复用该提交历史检查声明）",
+      "declaration_basis": "该提交自身版本的 IMPLEMENTATION-REPORT.json#/checks/cargo_check=0；登记产品文件SHA256与该提交Git字节全部一致。声明限报告的 s_session/s_structure_session 靶向构建面，不推为全仓全部target构建。",
+      "evidence_strength": "历史作者检查声明 + 本輪Git源码字节绑定；未从此早期报告取得独立原始cargo receipt，不冒称本轮新编译",
+      "evidence": [
+        {
+          "kind": "historical_report_declaration",
+          "report_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+          "report_at_commit": "65fb5e72bbee1de6656ba4b902dd506ae526195f",
+          "report_blob": "05b8bdc3b438430e37fd3808ae3cb7463f3cdd04",
+          "report_sha256": "43153824e4eca056d5840b884a05f1735393c95c5714223622f1d097498aaea7",
+          "value_fields": {
+            "/checks/cargo_check": 0,
+            "/checks/bin_tests": "31 passed / 0 failed"
+          },
+          "source_hash_checks": [
+            {
+              "repository_path": "rust/src/bin/s_structure_session.rs",
+              "report_field": "/file_sha256/rust~1src~1bin~1s_structure_session.rs",
+              "sha256": "0718729cf3535b128ff995d1f6aad75b5385c9042140f5a053db970a75f3dfb2",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/s_readonly_server.py",
+              "report_field": "/file_sha256/s_session~1s_readonly_server.py",
+              "sha256": "ee29bf801dfec475f603ab9c2aa98b616fdbceb33f3d3a573d18e9d05146e4b6",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/browser/index.html",
+              "report_field": "/file_sha256/s_session~1browser~1index.html",
+              "sha256": "13402a4011034e624de34b4137696a3dd8d3de2e1b35ec854e3a2331ca1591ac",
+              "matches": true
+            },
+            {
+              "repository_path": "s_session/launch_s.sh",
+              "report_field": "/file_sha256/s_session~1launch_s.sh",
+              "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+              "matches": true
+            }
+          ]
+        }
+      ],
+      "historical_bin_test_declaration": "31 passed / 0 failed"
+    },
+    {
+      "ordinal": 11,
+      "commit": "257452c5fd02e0b28b385b7bca4c327b76ea6aa0",
+      "parent": "65fb5e72bbee1de6656ba4b902dd506ae526195f",
+      "subject": "docs(review): #1371——R3独立复审与可复核反例（FAIL）",
+      "nature": "纯报告文档",
+      "files": [
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/review-r3.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/review-r3.json",
+          "nature": "报告或工位文档",
+          "git_blob": "24f133d1b93d8917ccc9a72e0e5c266ce490d5bd",
+          "bytes": 1208508,
+          "sha256": "51da189de900b8527739487de0a54d6c048e5399ec9dff568cd08b98f883e5fe"
+        },
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/review-r3.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/review-r3.md",
+          "nature": "报告或工位文档",
+          "git_blob": "66ff94a81e1d3263123b6256c0ad4ae05b2cc57e",
+          "bytes": 28756,
+          "sha256": "006cb682f7f885c9d966a4cd7ce7d05870e127f1e5f26efdffb28bff3174f326"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "纯文档豁免",
+      "declaration_basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "evidence_strength": "本轮只读Git逐文件分类",
+      "evidence": [
+        {
+          "kind": "git_name_status",
+          "command": [
+            "git",
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            "257452c5fd02e0b28b385b7bca4c327b76ea6aa0"
+          ],
+          "pure_document_files": true
+        }
+      ]
+    },
+    {
+      "ordinal": 12,
+      "commit": "381f5e1c670cf97b6a1491a3ec3c03c30df406d0",
+      "parent": "257452c5fd02e0b28b385b7bca4c327b76ea6aa0",
+      "subject": "fix(structure): #1371——统一发布根和完整载荷校验并保留观察首版",
+      "nature": "含产品代码",
+      "files": [
+        {
+          "change": "M",
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "nature": "产品代码",
+          "git_blob": "90f99a3baa871bc6416a5cfe3c56d9be7d6c3cd0",
+          "bytes": 217503,
+          "sha256": "e26d69cb72832204168feb2c19b226f8c7c323e65c81012a57aff75d587a2f85"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/browser/index.html",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/browser/index.html",
+          "nature": "产品代码",
+          "git_blob": "6fc7796425637bf6e148ba627f2ebd83cc67b4ee",
+          "bytes": 39145,
+          "sha256": "b4577c16a21ea6ce11f7e0a03d93eecb3042a400cced483662d6ecf73e9919a4"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "nature": "产品代码",
+          "git_blob": "ac7f1406b85b62b1b6a842246c25533884a6c08c",
+          "bytes": 52923,
+          "sha256": "b705c0a7bcde38613f9e6acd7dc04cede440b56fa5aa40b892906d8baf6a59c7"
+        },
+        {
+          "change": "A",
+          "repository_path": "s_session/tests/r9_consumer.cjs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r9_consumer.cjs",
+          "nature": "测试代码",
+          "git_blob": "9de3a8bb2f41b52325939212a72a780fd449616b",
+          "bytes": 6387,
+          "sha256": "c73c252360ad417e724fbc1ca9c9b42febf26f6418deb61836c63f38d6b93c78"
+        },
+        {
+          "change": "A",
+          "repository_path": "s_session/tests/r9_contract.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r9_contract.py",
+          "nature": "测试代码",
+          "git_blob": "c4bfecf1a35417af5e2c470dc5ffda6f0d9a2a2b",
+          "bytes": 10338,
+          "sha256": "39f0e9cee3d581a1981f882ed057f08f6c057d213dd4d2b6e393bc048f8faf11"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（复用R9历史构建收据）",
+      "declaration_basis": "R9 /source_commit 精确绑定；/checks/build、/checks/check exit=0；commands /34、/36 已纯解码核验，/62保留该代码提交回执；6份源码登记SHA与Git一致。Python AST /52、launcher语法 /53、HTML消费者实际执行 /59均exit=0。",
+      "evidence_strength": "历史实际receipt + 本轮附件完整性及源码绑定核对",
+      "evidence": [
+        {
+          "report_key": "R9",
+          "fields": [
+            "/source_commit",
+            "/checks/build",
+            "/checks/check"
+          ],
+          "decoded_receipt_pointers": [
+            "/34",
+            "/35",
+            "/36",
+            "/52",
+            "/53",
+            "/59",
+            "/62"
+          ]
+        }
+      ]
+    },
+    {
+      "ordinal": 13,
+      "commit": "667ce698eacd8c8f50ec5846f24c779b492010a8",
+      "parent": "381f5e1c670cf97b6a1491a3ec3c03c30df406d0",
+      "subject": "docs(structure): #1371——归档R9修复证据与原作者交棒报告",
+      "nature": "纯报告文档",
+      "files": [
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r9.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/implementation-r9.json",
+          "nature": "报告或工位文档",
+          "git_blob": "e9e5d468dc0748d11401256e0c83eda977a2253e",
+          "bytes": 532678,
+          "sha256": "94f3a8e9024b1683a7a909f0e811d9fb51088b5f0b389734a985b77721e934ef"
+        },
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r9.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/implementation-r9.md",
+          "nature": "报告或工位文档",
+          "git_blob": "dbe0d36da33af21d4f57733532e5344bb2ea7186",
+          "bytes": 25044,
+          "sha256": "87ff8cc1961573fa1bb3b109553966ac753dc4d353f86341746f5616c68038fe"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "纯文档豁免",
+      "declaration_basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "evidence_strength": "本轮只读Git逐文件分类",
+      "evidence": [
+        {
+          "kind": "git_name_status",
+          "command": [
+            "git",
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            "667ce698eacd8c8f50ec5846f24c779b492010a8"
+          ],
+          "pure_document_files": true
+        }
+      ]
+    },
+    {
+      "ordinal": 14,
+      "commit": "41ed7163e8bc15bc7cc5af1fb06af22d98a6589c",
+      "parent": "667ce698eacd8c8f50ec5846f24c779b492010a8",
+      "subject": "docs(review): #1371——R4复审与profile和初始历史反例（FAIL）",
+      "nature": "纯报告文档",
+      "files": [
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/review-r4.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/review-r4.json",
+          "nature": "报告或工位文档",
+          "git_blob": "09bc86e4f9a221178a045d4ca17d77db5c8628b5",
+          "bytes": 555307,
+          "sha256": "c8d16ecd415c8e74d90273e99eb86f9e66b2aac38d6183fdcfa3db2b50983fbc"
+        },
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/review-r4.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/review-r4.md",
+          "nature": "报告或工位文档",
+          "git_blob": "70782150dcea7f99143c62bbf946fee2cec3ae74",
+          "bytes": 32714,
+          "sha256": "85b5158a56051ab59468917b0fc0c64a6603906f79fa6ebb0a4fa2a4c45468e7"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "纯文档豁免",
+      "declaration_basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "evidence_strength": "本轮只读Git逐文件分类",
+      "evidence": [
+        {
+          "kind": "git_name_status",
+          "command": [
+            "git",
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            "41ed7163e8bc15bc7cc5af1fb06af22d98a6589c"
+          ],
+          "pure_document_files": true
+        }
+      ]
+    },
+    {
+      "ordinal": 15,
+      "commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+      "parent": "41ed7163e8bc15bc7cc5af1fb06af22d98a6589c",
+      "subject": "fix(structure): #1371——封闭profile绑定并稳定cut0历史投影",
+      "nature": "含产品代码",
+      "files": [
+        {
+          "change": "M",
+          "repository_path": "rust/src/bin/s_structure_session.rs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/rust/src/bin/s_structure_session.rs",
+          "nature": "产品代码",
+          "git_blob": "f28a0a4eb54624c780bc3539b1e0e4a59f3a3128",
+          "bytes": 226098,
+          "sha256": "9450f2a9642be70dc5a18f7044fa07312d81d126e25d512e50921105a1f25901"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/browser/index.html",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/browser/index.html",
+          "nature": "产品代码",
+          "git_blob": "db297185177d63697d8d9f487bdaf106e8427945",
+          "bytes": 40185,
+          "sha256": "9c3d2c3703b9e765f3d65e2cd76759ff5716e83781fd49c6ec5457aad8565498"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/s_readonly_server.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/s_readonly_server.py",
+          "nature": "产品代码",
+          "git_blob": "4961032d955400abc3a962b4ee899a58fcdb06d1",
+          "bytes": 56474,
+          "sha256": "9dad379ff1aaa1ff6f9315a877249f4b9003aa39c7d48fdba8016e534c27c65c"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/tests/r9_consumer.cjs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r9_consumer.cjs",
+          "nature": "测试代码",
+          "git_blob": "efdf67b8354f82447541abc42794001ad42aa861",
+          "bytes": 9956,
+          "sha256": "8d8a467640e6a98b2c42bacc3f1c70f2ac778bf68ea307329ab00299e727557d"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/tests/r9_contract.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r9_contract.py",
+          "nature": "测试代码",
+          "git_blob": "9fa063e66b3e7b758b8fc01f1b3d70497d7e37a1",
+          "bytes": 15335,
+          "sha256": "1480198f9c9e248bf45b9c4dca54ab2430d889dda26f251a5fcabf6adee51a82"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（复用R10首个代码提交前检查收据）",
+      "declaration_basis": "R10 commands /9构建、/11检查、/14 Python回归、/15 HTML函数消费者、/20 Python AST、/21 launcher语法均exit=0，/27记录a0b6f17a3d提交。后续50f22只有Python测试更改；产品和Node测试同字节，R10最终/source_commit虽为50f22，不能误写成a0b。",
+      "evidence_strength": "历史原执行/提交回执对应 + 本轮产品源码等同性核对",
+      "evidence": [
+        {
+          "report_key": "R10",
+          "fields": [
+            "/checks/build",
+            "/checks/check"
+          ],
+          "decoded_receipt_pointers": [
+            "/9",
+            "/10",
+            "/11",
+            "/14",
+            "/15",
+            "/20",
+            "/21",
+            "/27"
+          ],
+          "final_report_source_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+          "product_equal_to_final_report_source": [
+            {
+              "repository_path": "rust/src/bin/s_structure_session.rs",
+              "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+              "right_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+              "git_blob": "f28a0a4eb54624c780bc3539b1e0e4a59f3a3128",
+              "sha256": "9450f2a9642be70dc5a18f7044fa07312d81d126e25d512e50921105a1f25901",
+              "equal": true
+            },
+            {
+              "repository_path": "s_session/browser/index.html",
+              "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+              "right_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+              "git_blob": "db297185177d63697d8d9f487bdaf106e8427945",
+              "sha256": "9c3d2c3703b9e765f3d65e2cd76759ff5716e83781fd49c6ec5457aad8565498",
+              "equal": true
+            },
+            {
+              "repository_path": "s_session/s_readonly_server.py",
+              "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+              "right_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+              "git_blob": "4961032d955400abc3a962b4ee899a58fcdb06d1",
+              "sha256": "9dad379ff1aaa1ff6f9315a877249f4b9003aa39c7d48fdba8016e534c27c65c",
+              "equal": true
+            },
+            {
+              "repository_path": "s_session/launch_s.sh",
+              "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+              "right_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+              "git_blob": "dd2db34284f820ce22a50b59ebe7d5b9c76c2f78",
+              "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+              "equal": true
+            },
+            {
+              "repository_path": "s_session/tests/r9_consumer.cjs",
+              "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+              "right_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+              "git_blob": "efdf67b8354f82447541abc42794001ad42aa861",
+              "sha256": "8d8a467640e6a98b2c42bacc3f1c70f2ac778bf68ea307329ab00299e727557d",
+              "equal": true
+            }
+          ]
+        }
+      ],
+      "reuse_limits": "a0b的Python测试字节与50f22不同，不引用最终脚本hash证明a0b脚本；a0b对应的是/14、/20等前置执行及/27提交回执。"
+    },
+    {
+      "ordinal": 16,
+      "commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+      "parent": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+      "subject": "test(structure): #1371——为profile故障逐副本补健康HTTP对照",
+      "nature": "仅测试代码",
+      "files": [
+        {
+          "change": "M",
+          "repository_path": "s_session/tests/r9_contract.py",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r9_contract.py",
+          "nature": "测试代码",
+          "git_blob": "23e5a517c0cd64548a0c4094779260f869489df2",
+          "bytes": 15817,
+          "sha256": "89eeaff7430a098c4abaf239b71f0d684da6dd1f53038dba9d2f84667cdadc2f"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（仅测试代码，构建输入同字节复用；不是文档豁免）",
+      "declaration_basis": "R10 /source_commit直接绑定50f22；Rust完整子树、产品和Node测试与a0b相同，复用/9构建和/11检查。改动Python脚本另有/28实际回归、/29消费者、/30 AST exit=0，/32精确记录50f22提交。",
+      "evidence_strength": "历史实际receipt + 本轮源码绑定/同字节核对",
+      "evidence": [
+        {
+          "report_key": "R10",
+          "fields": [
+            "/source_commit",
+            "/binding/source_sha256"
+          ],
+          "decoded_receipt_pointers": [
+            "/9",
+            "/11",
+            "/28",
+            "/29",
+            "/30",
+            "/32"
+          ],
+          "product_equal_to_parent": [
+            {
+              "repository_path": "rust/src/bin/s_structure_session.rs",
+              "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+              "right_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+              "git_blob": "f28a0a4eb54624c780bc3539b1e0e4a59f3a3128",
+              "sha256": "9450f2a9642be70dc5a18f7044fa07312d81d126e25d512e50921105a1f25901",
+              "equal": true
+            },
+            {
+              "repository_path": "s_session/browser/index.html",
+              "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+              "right_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+              "git_blob": "db297185177d63697d8d9f487bdaf106e8427945",
+              "sha256": "9c3d2c3703b9e765f3d65e2cd76759ff5716e83781fd49c6ec5457aad8565498",
+              "equal": true
+            },
+            {
+              "repository_path": "s_session/s_readonly_server.py",
+              "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+              "right_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+              "git_blob": "4961032d955400abc3a962b4ee899a58fcdb06d1",
+              "sha256": "9dad379ff1aaa1ff6f9315a877249f4b9003aa39c7d48fdba8016e534c27c65c",
+              "equal": true
+            },
+            {
+              "repository_path": "s_session/launch_s.sh",
+              "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+              "right_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+              "git_blob": "dd2db34284f820ce22a50b59ebe7d5b9c76c2f78",
+              "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+              "equal": true
+            },
+            {
+              "repository_path": "s_session/tests/r9_consumer.cjs",
+              "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+              "right_commit": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+              "git_blob": "efdf67b8354f82447541abc42794001ad42aa861",
+              "sha256": "8d8a467640e6a98b2c42bacc3f1c70f2ac778bf68ea307329ab00299e727557d",
+              "equal": true
+            }
+          ]
+        }
+      ],
+      "pure_document_exemption": false
+    },
+    {
+      "ordinal": 17,
+      "commit": "3ddb5c2b7f9f250861640d40d779d1a6a5fd8955",
+      "parent": "50f22cac47b25685a8a24088cd3b64b3a82e2d4f",
+      "subject": "docs(structure): #1371——归档R10绑定与初始历史修复证据",
+      "nature": "纯报告文档",
+      "files": [
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r10.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/implementation-r10.json",
+          "nature": "报告或工位文档",
+          "git_blob": "2abb646f79217af745b670e55f3105a321f6a40c",
+          "bytes": 521728,
+          "sha256": "1ff78159548dff927dec21fcbb7a07ee5fa59d992caefac8a69d01e9eb85378f"
+        },
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r10.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/implementation-r10.md",
+          "nature": "报告或工位文档",
+          "git_blob": "b1748f79694673873c2e0a99914951b704e401d5",
+          "bytes": 24761,
+          "sha256": "438ac54a1e884a22f45a6fa26f51706a6b8b4d306fab5a8dedc3180c81fc107d"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "纯文档豁免",
+      "declaration_basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "evidence_strength": "本轮只读Git逐文件分类",
+      "evidence": [
+        {
+          "kind": "git_name_status",
+          "command": [
+            "git",
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            "3ddb5c2b7f9f250861640d40d779d1a6a5fd8955"
+          ],
+          "pure_document_files": true
+        }
+      ]
+    },
+    {
+      "ordinal": 18,
+      "commit": "a60fdd57e5ebb0e7d6a15b7e1f30994720269ed8",
+      "parent": "3ddb5c2b7f9f250861640d40d779d1a6a5fd8955",
+      "subject": "docs(review): #1371——R5续审与请求切面模式绑定反例（FAIL）",
+      "nature": "纯报告文档",
+      "files": [
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/review-r5.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/review-r5.json",
+          "nature": "报告或工位文档",
+          "git_blob": "74a138b6b14216c136a6305e2edcf0e45f1721d0",
+          "bytes": 162477,
+          "sha256": "58d99aece9208a525f3eb1963db6775d71fb67e119e5fcc1235d13547d893f7b"
+        },
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/review-r5.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/review-r5.md",
+          "nature": "报告或工位文档",
+          "git_blob": "97993570b7a01b11f951bc2e0f977e7668eae3d2",
+          "bytes": 27223,
+          "sha256": "96834d61582bfaf3d1ef1366383c8e3a68c9c714f5fedcf0fb00f6285e6e2dce"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "纯文档豁免",
+      "declaration_basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "evidence_strength": "本轮只读Git逐文件分类",
+      "evidence": [
+        {
+          "kind": "git_name_status",
+          "command": [
+            "git",
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            "a60fdd57e5ebb0e7d6a15b7e1f30994720269ed8"
+          ],
+          "pure_document_files": true
+        }
+      ]
+    },
+    {
+      "ordinal": 19,
+      "commit": "6a4e69e60ffd1baca490f870622c098a14fe7b41",
+      "parent": "a60fdd57e5ebb0e7d6a15b7e1f30994720269ed8",
+      "subject": "fix(observation): #1371——校验本次请求的模式与指定cut后再提交",
+      "nature": "含产品代码",
+      "files": [
+        {
+          "change": "M",
+          "repository_path": "s_session/browser/index.html",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/browser/index.html",
+          "nature": "产品代码",
+          "git_blob": "ce49ff9e643e34ec5fed449f7cee1e505ebffd5e",
+          "bytes": 41699,
+          "sha256": "a04ddb1c67e26207cbc9ec4bd72f7cb36fcac30accf4c3f1a49e5ee10e5de94b"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/tests/r9_consumer.cjs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r9_consumer.cjs",
+          "nature": "测试代码",
+          "git_blob": "ab8cf55cb08fce6c78cbaf51c9673ac9785e796f",
+          "bytes": 21793,
+          "sha256": "c375406cf09a092d451c7b09050fa3eda378b3087ee96d8c033edcc1842d119d"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（HTML/Node检查已执行，未变后端复用）",
+      "declaration_basis": "R11 /source_commit直接绑定；/checks/source-build对应commands /0 exit=0；Node测试语法/4及实际HTML提取script语法/5 exit=0，/6保留28项历史绿灯入口；6份源码hash匹配。",
+      "evidence_strength": "历史实际receipt + 本轮附件完整性及源码绑定核对",
+      "evidence": [
+        {
+          "report_key": "R11",
+          "fields": [
+            "/source_commit",
+            "/checks/source-build",
+            "/checks/consumer-syntax",
+            "/checks/html-syntax"
+          ],
+          "decoded_receipt_pointers": [
+            "/0",
+            "/4",
+            "/5",
+            "/6"
+          ]
+        }
+      ]
+    },
+    {
+      "ordinal": 20,
+      "commit": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "parent": "6a4e69e60ffd1baca490f870622c098a14fe7b41",
+      "subject": "docs(observation): #1371——归档R11请求绑定验证与原作者交棒",
+      "nature": "纯报告文档",
+      "files": [
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r11.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/implementation-r11.json",
+          "nature": "报告或工位文档",
+          "git_blob": "debcdeb7d7887bc9a3976bfa07b927962d702cfe",
+          "bytes": 352086,
+          "sha256": "63de32660497813d0830eda838775d563428e0b121d0b86d26b0ac110a2fd991"
+        },
+        {
+          "change": "A",
+          "repository_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r11.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/review-results/issue1371-tb01-b/implementation-r11.md",
+          "nature": "报告或工位文档",
+          "git_blob": "eb7f96d787f3b4eacd3235757fad66983f5832cb",
+          "bytes": 21199,
+          "sha256": "49e9202a4ed48fdd70d01aed58865d284647d6477bf580542d6d55c45456a4cb"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "纯文档豁免",
+      "declaration_basis": "本提交全部变更仅为该票报告Markdown/JSON，无产品、测试代码、构建输入；按交付纪律第14行明确豁免编译。",
+      "evidence_strength": "本轮只读Git逐文件分类",
+      "evidence": [
+        {
+          "kind": "git_name_status",
+          "command": [
+            "git",
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            "4922543038fbcfef1a4d711a306708ace3f62e88"
+          ],
+          "pure_document_files": true
+        }
+      ]
+    },
+    {
+      "ordinal": 21,
+      "commit": "e5b03629adde165610161b4df3e2d62d22163568",
+      "parent": "4922543038fbcfef1a4d711a306708ace3f62e88",
+      "subject": "fix(observation): #1371 校验替代端点并绑定 Gap 重建会话",
+      "nature": "含产品代码",
+      "files": [
+        {
+          "change": "A",
+          "repository_path": ".chanlun/agent-roster-2026-09-12.md",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/.chanlun/agent-roster-2026-09-12.md",
+          "nature": "报告或工位文档",
+          "git_blob": "0fc3e09742ec7d2eeb3c314eacdf853cd5ace944",
+          "bytes": 633,
+          "sha256": "83a8be0eca729e8a821f01d1130cdc348888e12fe3e0e3433aa76aacb3ac0378"
+        },
+        {
+          "change": "M",
+          "repository_path": "s_session/browser/index.html",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/browser/index.html",
+          "nature": "产品代码",
+          "git_blob": "7449c53a646683fe135127926d575b2691cd4695",
+          "bytes": 42793,
+          "sha256": "dbd5465fb74bd45f5df71b9c7b824124f91130606392d89c2a8a752e42e20afe"
+        },
+        {
+          "change": "A",
+          "repository_path": "s_session/tests/fixtures/r12_consumer.json",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/fixtures/r12_consumer.json",
+          "nature": "测试数据",
+          "git_blob": "3cdf3099c4ac8f9725f8704a8bf3f3e32f9d7241",
+          "bytes": 388525,
+          "sha256": "1b0020a69a897da000056666907ef606a6d0b2ed35bac97ec65d625131e25745"
+        },
+        {
+          "change": "A",
+          "repository_path": "s_session/tests/r12_consumer.cjs",
+          "absolute_path": "/Users/silencehan/Projects/NewChanlun-1371-codex-r12/s_session/tests/r12_consumer.cjs",
+          "nature": "测试代码",
+          "git_blob": "0c424ef56bcefedff6d739313c10f3d45fc141b7",
+          "bytes": 6111,
+          "sha256": "228a9cb06b385a124b1cc4bbccaefbb85f252868777381f99281224b29c99e39"
+        }
+      ],
+      "new_build_executed_by_this_agent": false,
+      "declaration": "可编译（R12实际HTML/Node执行通过，后端构建同输入复用）",
+      "declaration_basis": "R12仅改HTML、新Node永久测试/JSON fixture和工位文档；GREEN.json十项全passed且failed=[]、EXECUTION.json green exit=0，源码/fixture与本提交Git字节绑定。既有R11 28项用原HTTP字节重放exit=0。R12完整Rust子树与a0b相同，Rust入口、Python服务、launcher、Cargo.toml/lock同字节，复用R10/R11已执行后端构建。",
+      "evidence_strength": "本轮根已执行的R12函数检查 + 本工位只读字节核验；后端使用历史构建复用，不声称新native/build",
+      "evidence": [
+        {
+          "key": "R12_ROOT_EXECUTION",
+          "fields": [
+            "/green/exit_code",
+            "/r11_captured_response_replay/exit_code",
+            "/cases",
+            "/html_sha256",
+            "/fixture_sha256"
+          ]
+        },
+        {
+          "report_key": "R11",
+          "fields": [
+            "/checks/source-build"
+          ],
+          "decoded_receipt_pointers": [
+            "/0"
+          ]
+        },
+        {
+          "report_key": "R10",
+          "fields": [
+            "/checks/build"
+          ],
+          "decoded_receipt_pointers": [
+            "/9"
+          ]
+        }
+      ],
+      "backend_build_input_equivalence": {
+        "rust_tree_oid": "e53add416786d0a99e2eff943b87671a48b639ec",
+        "equal_to_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+        "files": [
+          {
+            "repository_path": "rust/src/bin/s_structure_session.rs",
+            "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+            "right_commit": "e5b03629adde165610161b4df3e2d62d22163568",
+            "git_blob": "f28a0a4eb54624c780bc3539b1e0e4a59f3a3128",
+            "sha256": "9450f2a9642be70dc5a18f7044fa07312d81d126e25d512e50921105a1f25901",
+            "equal": true
+          },
+          {
+            "repository_path": "s_session/s_readonly_server.py",
+            "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+            "right_commit": "e5b03629adde165610161b4df3e2d62d22163568",
+            "git_blob": "4961032d955400abc3a962b4ee899a58fcdb06d1",
+            "sha256": "9dad379ff1aaa1ff6f9315a877249f4b9003aa39c7d48fdba8016e534c27c65c",
+            "equal": true
+          },
+          {
+            "repository_path": "s_session/launch_s.sh",
+            "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+            "right_commit": "e5b03629adde165610161b4df3e2d62d22163568",
+            "git_blob": "dd2db34284f820ce22a50b59ebe7d5b9c76c2f78",
+            "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+            "equal": true
+          },
+          {
+            "repository_path": "rust/Cargo.toml",
+            "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+            "right_commit": "e5b03629adde165610161b4df3e2d62d22163568",
+            "git_blob": "1da07f5729a11ba30ad853f16f4cf7be2c18f0c9",
+            "sha256": "60781537ff49f30d0a4c596f1e7bb16d0e490ec8dad4561f34b1a817d59652fc",
+            "equal": true
+          },
+          {
+            "repository_path": "rust/Cargo.lock",
+            "left_commit": "a0b6f17a3def8f27f2ff936980c97e34c9da1c0e",
+            "right_commit": "e5b03629adde165610161b4df3e2d62d22163568",
+            "git_blob": "4d2e294fa5f9cc818691bde50696153938ed88b0",
+            "sha256": "bc979533d9192ede438ac490f3f90ec5cd1ce26e6afd91fc5ec28ae185ee80bb",
+            "equal": true
+          }
+        ]
+      },
+      "pure_document_exemption": false
+    }
+  ],
+  "append_rule": "根后续每增加一个纯报告提交：记录全SHA、父SHA、实际变更文件清单并逐文件确认仅报告/文档；追加“纯文档豁免”，用Git确认产品、测试代码/fixture和构建输入仍与e5b03629adde165610161b4df3e2d62d22163568一致，更新最终head与总数，不回写本21项为新构建。若含任何产品/测试/构建输入变化，不适用此规则，应追加对应可编译依据并按最终代码评审范围处理。",
+  "limits": [
+    "前8产品提交依据各自历史作者cargo_check声明和源码哈希，未取得额外独立原始cargo回执；不提高该证据等级。",
+    "R9/R10/R11是归档历史命令实际记录；本次只解码，不新启动任何构建或测试。",
+    "R12十项/二十八项由根本轮执行；本工位未独立重跑。",
+    "本声明不替代GUI或独立产品审查，不改变main/push/GitHub发布授权，不声称合入、CI通过或关票。",
+    "引用D下原件为本地交付材料；未来入仓发布时须同步落可达报告实体/必要附件，不能只以此绝对路径满足关票入仓规则。"
+  ]
+}
