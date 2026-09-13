@@ -1,0 +1,81 @@
+{
+  "main": "21b7898a19baa4d17c5885d122ea57ed882e4f73",
+  "approved_head": "041c8e2ef7916a465d8b352ff9dc1469707f8ac1",
+  "old_counts": {
+    "raw": 33952,
+    "unique_keys": 33878,
+    "baseline_present": 8187,
+    "baseline_absent": 14,
+    "outside_baseline_keys": 25691,
+    "outside_baseline_raw": 25734
+  },
+  "main_counts": {
+    "raw": 33952,
+    "unique_keys": 33878,
+    "baseline_present": 8187,
+    "baseline_absent": 14,
+    "outside_baseline_keys": 25691,
+    "outside_baseline_raw": 25734
+  },
+  "baseline_key_count": 8201,
+  "main_tools": [
+    {
+      "name": "devskim",
+      "version": "1.0.90+fb2d676ce4"
+    }
+  ],
+  "tools_equal": true,
+  "added_keys": [],
+  "removed_keys": [],
+  "raw_key_multisets_equal": true,
+  "common_key_count": 33878,
+  "common_snippet_multiset_changed": [],
+  "full_canonical_result_multisets_equal": true,
+  "full_canonical_result_hashes_added": [],
+  "full_canonical_result_hashes_removed": [],
+  "logged_gate_key_count": 25691,
+  "logged_gate_keys_equal_sorted_sarif_baseline_difference": true,
+  "originals": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/devskim-sarif.zip",
+      "bytes": 78668965,
+      "sha256": "29c419f91740f6220610cc31095bf9de9168eb45a73d2d40beba1b1f4d54ca2c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/devskim-results.sarif",
+      "bytes": 130106700,
+      "sha256": "899b48a581e0d9b6221161c54dd6fb8ce04e86684ddc2126f65e03587778f9f2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/devskim-results.sarif",
+      "bytes": 130106700,
+      "sha256": "ff8c5d0f355e19556995cac256a5db187c923fc67550be3fc1f833395aed7d79"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DevSkim.log",
+      "bytes": 3886428,
+      "sha256": "f4fdf26f538299b4caa3b271848e5d53a3e2de851daa07fe7d4f5a1ef667ae22"
+    }
+  ],
+  "artifact": {
+    "id": 10317822259,
+    "node_id": "MDg6QXJ0aWZhY3QxMDMxNzgyMjI1OQ==",
+    "name": "devskim-sarif",
+    "size_in_bytes": 78668965,
+    "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/actions/artifacts/10317822259",
+    "archive_download_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/actions/artifacts/10317822259/zip",
+    "expired": false,
+    "digest": "sha256:29c419f91740f6220610cc31095bf9de9168eb45a73d2d40beba1b1f4d54ca2c",
+    "created_at": "2026-09-13T12:34:11Z",
+    "updated_at": "2026-09-13T12:34:11Z",
+    "expires_at": "2026-09-27T12:34:07Z",
+    "workflow_run": {
+      "id": 34757202251,
+      "repository_id": 1150335160,
+      "head_repository_id": 1150335160,
+      "head_branch": "main",
+      "head_sha": "21b7898a19baa4d17c5885d122ea57ed882e4f73"
+    }
+  },
+  "scope": "主线扫描原件对批准候选全量结果比较；相同结果并不构成全仓安全复审。"
+}

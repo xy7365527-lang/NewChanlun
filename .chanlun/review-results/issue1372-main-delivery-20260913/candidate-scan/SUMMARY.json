@@ -1,0 +1,342 @@
+{
+  "scope": "#1451固定041 head远端扫描，相对固定acd原件的全量增量分诊；不自评Q，不替代合入批准。",
+  "head": "041c8e2ef7916a465d8b352ff9dc1469707f8ac1",
+  "base": "e46cf3bca6a67da821f9ab046507563b8133f6d9",
+  "previous_head": "acd30cb61e59762114061b2d0b394aa270ed35ec",
+  "run_id": 34755511520,
+  "job_id": 103719090354,
+  "gate": {
+    "status": "FAIL",
+    "actual_failure_reason": "SARIF contains 25691 finding(s) not in the baseline (total 33952)",
+    "scanner": "success",
+    "artifact": "success",
+    "exit_code": 1,
+    "log_key_set_and_order_exact": true
+  },
+  "counts": {
+    "old": {
+      "raw": 33811,
+      "unique_keys": 33737,
+      "baseline_present": 8187,
+      "baseline_absent": 14,
+      "outside_baseline_keys": 25550,
+      "outside_baseline_raw": 25593,
+      "outside_rules": {
+        "DS173237": 23487,
+        "DS162092": 1260,
+        "DS117838": 778,
+        "DS176209": 9,
+        "DS197836": 8,
+        "DS148264": 5,
+        "DS172411": 1,
+        "DS187371": 1,
+        "DS149435": 1
+      }
+    },
+    "new": {
+      "raw": 33952,
+      "unique_keys": 33878,
+      "baseline_present": 8187,
+      "baseline_absent": 14,
+      "outside_baseline_keys": 25691,
+      "outside_baseline_raw": 25734,
+      "outside_rules": {
+        "DS173237": 23628,
+        "DS162092": 1260,
+        "DS117838": 778,
+        "DS176209": 9,
+        "DS197836": 8,
+        "DS148264": 5,
+        "DS172411": 1,
+        "DS187371": 1,
+        "DS149435": 1
+      }
+    },
+    "added_keys": 141,
+    "removed_keys": 0,
+    "line_moves": 0,
+    "common_keys": 33737,
+    "common_matched_text_multiset_changes": 0,
+    "new_by_rule": {
+      "DS173237": 141
+    },
+    "new_by_path": {
+      ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json": 101,
+      ".chanlun/review-results/issue1372-devskim-summary-20260913/EVIDENCE-SOURCES.json": 18,
+      ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/REVIEW.json": 3,
+      ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/REAL-SARIF-REPLAY.json": 4,
+      ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/python-review/REVIEW.json": 5,
+      ".chanlun/review-results/issue1372-devskim-summary-20260913/MANIFEST.json": 9,
+      ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/OLD-RUN-SNAPSHOT.json": 1
+    }
+  },
+  "classification": {
+    "fully_enumerated": 141,
+    "categories": {
+      "named_file_sha256": 32,
+      "git_commit_identity": 2,
+      "bound_gate_replay_sha256": 8,
+      "comparison_case_output_sha256": 99
+    },
+    "new_confirmed_product_security_defects": 0,
+    "new_needs_review": 0,
+    "actual_total_security_defects": null,
+    "verification_methods": {
+      "rehash_original_bytes": 11,
+      "rehash_original_bytes_and_compare_git_copy": 7,
+      "rehash_git_blob": 14,
+      "local_git_commit_object": 2,
+      "rehash_fixed_baseline": 1,
+      "frozen_previous_artifact_digest_and_size": 1,
+      "rehash_fixed_head_gate": 3,
+      "rehash_original_stdout": 1,
+      "named_use_and_frozen_report_bytes": 99,
+      "rehash_fixed_old_gate": 2
+    },
+    "limits": [
+      "141新增键已逐条绑定固定Git原字节与唯一JSON Pointer，无抽样或未分类项。",
+      "99个具名对拍输出摘要只核用途与已冻报告原字节，不重跑用例、不重新规范化stderr。",
+      "1个旧SARIF摘要复用已冻结artifact摘要及当前长度；其余39个文件/源码/输出摘要重算，2个Git commit身份直接解析。",
+      "未重新评审本人Q实现；旧25,550基线外键保持既有分诊与strategy.rs:314 needs_review，实际全仓风险总数未知。"
+    ]
+  },
+  "inherited_scope": {
+    "old_e46_outside_keys": 10888,
+    "old_baseline_line_moves": 2,
+    "c_product_stage_true_additions": 345,
+    "acd_report_additions": 14315,
+    "this_report_additions": 141,
+    "current_outside_keys": 25691,
+    "old_unresolved_key": "DS176209|rust/src/theta_v0/nautilus/strategy.rs|314",
+    "old_issue_pointer": "https://github.com/xy7365527-lang/NewChanlun/issues/1385#issuecomment-5648592872",
+    "old_unresolved_status": "needs_review; actual vulnerability unknown"
+  },
+  "remote_timing": {
+    "old_run_id": 34753373828,
+    "new_run_id": 34755511520,
+    "old_gate": {
+      "name": "Enforce zero-findings gate and write summary",
+      "status": "completed",
+      "conclusion": "failure",
+      "number": 6,
+      "started_at": "2026-09-13T11:07:18Z",
+      "completed_at": "2026-09-13T11:46:20Z"
+    },
+    "new_gate": {
+      "name": "Enforce zero-findings gate and write summary",
+      "status": "completed",
+      "conclusion": "failure",
+      "number": 6,
+      "started_at": "2026-09-13T11:54:49Z",
+      "completed_at": "2026-09-13T11:54:55Z"
+    },
+    "old_seconds": 2342.0,
+    "new_seconds": 6.0,
+    "ratio_of_observed_wall_times": 390.3333333333333,
+    "reduction_percent": 99.74380871050384,
+    "old_raw_findings": 33811,
+    "new_raw_findings": 33952,
+    "old_outside_baseline": 25550,
+    "new_outside_baseline": 25691,
+    "interpretation": "两次真实远端步骤观察，输入有所增加、runner硬件未锁；不把它声称为相同输入同主机严格benchmark。失败判据与全量日志保留。"
+  },
+  "binding": {
+    "head": "041c8e2ef7916a465d8b352ff9dc1469707f8ac1",
+    "base": "e46cf3bca6a67da821f9ab046507563b8133f6d9",
+    "checkout": "1098c0cacf74e4a79e3966d4e1a280d6a9a37081",
+    "tree": "4ebe9ffe886229634640a0e7c5da57f9d8ecacb8",
+    "checkout_tree_equals_head": true,
+    "parents": [
+      "e46cf3bca6a67da821f9ab046507563b8133f6d9",
+      "041c8e2ef7916a465d8b352ff9dc1469707f8ac1"
+    ],
+    "configurations": [
+      {
+        "path": "scripts/devskim_sarif_gate.sh",
+        "old_sha256": "bb5a293ab036624244eb5b29bc2358c352929fc65ea61845e50b53c7f4e2bd51",
+        "new_sha256": "c3154bd748c796ba950d1b4926308cd37a1cf54b0a802f644b6a8877132ce5fc",
+        "changed": true,
+        "old_equals_e46": true
+      },
+      {
+        "path": ".github/devskim-baseline.json",
+        "old_sha256": "df25ff2ec9a0898de03a4450fc3506444f08100ca0657a32665086991e202595",
+        "new_sha256": "df25ff2ec9a0898de03a4450fc3506444f08100ca0657a32665086991e202595",
+        "changed": false,
+        "old_equals_e46": true
+      },
+      {
+        "path": ".github/workflows/devskim.yml",
+        "old_sha256": "f3a11c5e2f4c782e07b7bb494bb994de5df3548d5290eaab9b221bae6e45772e",
+        "new_sha256": "f3a11c5e2f4c782e07b7bb494bb994de5df3548d5290eaab9b221bae6e45772e",
+        "changed": false,
+        "old_equals_e46": true
+      },
+      {
+        "path": ".github/devskim/Dockerfile",
+        "old_sha256": "f0b71abb79139549eced074f0af4df14f7cbe55b8be4de6dd5f77d138fe6f375",
+        "new_sha256": "f0b71abb79139549eced074f0af4df14f7cbe55b8be4de6dd5f77d138fe6f375",
+        "changed": false,
+        "old_equals_e46": true
+      },
+      {
+        "path": ".github/devskim/entrypoint.sh",
+        "old_sha256": "f22f05ca60a85b5eef9aee879d0c34a6743758d2d499281ed0d56d5a16d50135",
+        "new_sha256": "f22f05ca60a85b5eef9aee879d0c34a6743758d2d499281ed0d56d5a16d50135",
+        "changed": false,
+        "old_equals_e46": true
+      }
+    ],
+    "same_product_and_report_trees": {
+      "rust": {
+        "old": "8133a4e6dbe74474d334e324179e8d962f85c39b",
+        "new": "8133a4e6dbe74474d334e324179e8d962f85c39b"
+      },
+      "s_session": {
+        "old": "1637ae710ae8b858e28bb1611669679f95969481",
+        "new": "1637ae710ae8b858e28bb1611669679f95969481"
+      },
+      ".github": {
+        "old": "bd8b7b34298e5fe2d7e8d6383deb03a23343a45a",
+        "new": "bd8b7b34298e5fe2d7e8d6383deb03a23343a45a"
+      },
+      ".chanlun/review-results/issue1372-tb01c-20260913": {
+        "old": "06fbf98b55fd811f0b7a2799b88dc372a670ea66",
+        "new": "06fbf98b55fd811f0b7a2799b88dc372a670ea66"
+      }
+    }
+  },
+  "changed_files": [
+    {
+      "status": "A",
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/EVIDENCE-SOURCES.json",
+      "bytes": 6982,
+      "sha256": "564f98c72d1d2b60a61d0cd97f73b381d840fdc3642cff2fde7c1e80135f36b3"
+    },
+    {
+      "status": "A",
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/MANIFEST.json",
+      "bytes": 1556,
+      "sha256": "eca6c9a1ea22330ac5a3ca80e5ac01a814b5c2ec48007f7868666116b54892af"
+    },
+    {
+      "status": "A",
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/README.md",
+      "bytes": 3340,
+      "sha256": "556eb68b1e7d38e9e293643b73a8c62dacc1a94adbf09c26a7bbef9758df74c0"
+    },
+    {
+      "status": "A",
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/OLD-RUN-SNAPSHOT.json",
+      "bytes": 2817,
+      "sha256": "e46d3a0df751cb23301f3a83f396ec870d37918638568500cf3b9ea46880ce39"
+    },
+    {
+      "status": "A",
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/REAL-SARIF-REPLAY.json",
+      "bytes": 1568,
+      "sha256": "c1686a0bc707b5b3b92207171cab9e878b19f76f363df01187855fda2f7aeea3"
+    },
+    {
+      "status": "A",
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/python-review/REVIEW.json",
+      "bytes": 1629,
+      "sha256": "23ada8d1f463e4758b51759d4e5667182e5427a5f102bfacc9247699597bfa34"
+    },
+    {
+      "status": "A",
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/python-review/REVIEW.md",
+      "bytes": 5724,
+      "sha256": "e8a61cf147e6387f551d69fcc7b38da23e2200c27f46a57410d6b0872cc7c7a4"
+    },
+    {
+      "status": "A",
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json",
+      "bytes": 15761,
+      "sha256": "3ea61e59c9cbdf2ad0e947602d24efef960b4923d9cb3b405a0f082d5123fdb5"
+    },
+    {
+      "status": "A",
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/REVIEW.json",
+      "bytes": 1762,
+      "sha256": "48c954ca3ed1094ab5a8be0dd36af7a26bb37b67086b792f038903ba0ccfca15"
+    },
+    {
+      "status": "A",
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/REVIEW.md",
+      "bytes": 2788,
+      "sha256": "1827929fb1a70535364c4c71524b7ae6ec43a6ae832bc0fbf38ffdfc642cf425"
+    },
+    {
+      "status": "M",
+      "path": "scripts/devskim_sarif_gate.sh",
+      "bytes": 9706,
+      "sha256": "c3154bd748c796ba950d1b4926308cd37a1cf54b0a802f644b6a8877132ce5fc"
+    },
+    {
+      "status": "A",
+      "path": "tests/test_devskim_sarif_gate.py",
+      "bytes": 5365,
+      "sha256": "6ca76cb11f3ac7cb40ac767adf0440fe3e95a6f9e95ac9233755044205aeb33c"
+    }
+  ],
+  "artifact": {
+    "run_id": 34755511520,
+    "job_id": 103719090354,
+    "head": "041c8e2ef7916a465d8b352ff9dc1469707f8ac1",
+    "artifact": {
+      "id": 10317950656,
+      "node_id": "MDg6QXJ0aWZhY3QxMDMxNzk1MDY1Ng==",
+      "name": "devskim-sarif",
+      "size_in_bytes": 78668712,
+      "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/actions/artifacts/10317950656",
+      "archive_download_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/actions/artifacts/10317950656/zip",
+      "expired": false,
+      "digest": "sha256:96a2a47db16b179465030cf64ad8e992ca337f516d806cfbc450d46fff6a6763",
+      "created_at": "2026-09-13T11:54:49Z",
+      "updated_at": "2026-09-13T11:54:49Z",
+      "expires_at": "2026-09-27T11:54:45Z",
+      "workflow_run": {
+        "id": 34755511520,
+        "repository_id": 1150335160,
+        "head_repository_id": 1150335160,
+        "head_branch": "codex/1372-codex",
+        "head_sha": "041c8e2ef7916a465d8b352ff9dc1469707f8ac1"
+      }
+    },
+    "zip": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/devskim-sarif.zip",
+      "bytes": 78668712,
+      "sha256": "96a2a47db16b179465030cf64ad8e992ca337f516d806cfbc450d46fff6a6763"
+    },
+    "sarif": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/devskim-results.sarif",
+      "bytes": 130106700,
+      "sha256": "ff8c5d0f355e19556995cac256a5db187c923fc67550be3fc1f833395aed7d79"
+    },
+    "compared_sarif": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-acd30cb61e/devskim-results.sarif",
+      "bytes": 129998426,
+      "sha256": "add36139ea92e79b2a9786cc5266c8e5d98010e4cc8c3b1da8842c24ba56615b"
+    }
+  },
+  "rule_source": {
+    "rule": "DS173237",
+    "upstream_commit": "fb2d676ce475a47c0338966bebd97a47ae566572",
+    "upstream_url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/privacy/secrets.json",
+    "source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-acd30cb61e/official-secrets.json",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+    },
+    "local_copy": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/official-secrets.json",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+    }
+  },
+  "summary_upload_errors": [
+    "2026-09-13T11:54:55.5893661Z ##[error]$GITHUB_STEP_SUMMARY upload aborted, supports content up to a size of 1024k, got 3037k. For more information see: https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#adding-a-markdown-summary"
+  ],
+  "disposition": "实际修复了本次远端gate诊断生成耗时，红灯判据及完整证据保持；141新增为报告摘要，没有新增实证产品安全缺陷可修。baseline/ignore/scanner/workflow未改变；不自动套用旧B例外。"
+}

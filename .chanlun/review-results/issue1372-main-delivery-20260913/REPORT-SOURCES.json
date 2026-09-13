@@ -1,0 +1,126 @@
+{
+  "scope": "#1372末尾已生成的报告实体原字节；原始API/SARIF/工具不作报告重复入仓",
+  "reports": [
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/SUMMARY.md",
+      "stored": "candidate-scan/SUMMARY.md",
+      "bytes": 4038,
+      "sha256": "8522eaa0d140ef7d5d7b623642d33e02f6aa9b3d6da5d15fad08a7b2d36f770a"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/SUMMARY.json",
+      "stored": "candidate-scan/SUMMARY.json",
+      "bytes": 14259,
+      "sha256": "7b486000feb2ac869b2cd712acb680d74eb5d9f3b27bd1d047183a62959cd3a8"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/CLASSIFICATION.json",
+      "stored": "candidate-scan/CLASSIFICATION.json",
+      "bytes": 31859,
+      "sha256": "e64afbd9a9ab26b7e46d031360b55d18c162569efda759e2e0e540b3f171c75c"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/COMPARISON.json",
+      "stored": "candidate-scan/COMPARISON.json",
+      "bytes": 92117,
+      "sha256": "91c71b91ddc95750077f0419bb3a1a0485daf5195354c0deeac5245b5098f58f"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/FIELD-MAPPING.json",
+      "stored": "candidate-scan/FIELD-MAPPING.json",
+      "bytes": 106366,
+      "sha256": "462e2fcc811922eafa00b52b39db5667b73d2c2af0890f7da08dc0709d6b5489"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/FIELD-SUMMARY.json",
+      "stored": "candidate-scan/FIELD-SUMMARY.json",
+      "bytes": 3844,
+      "sha256": "8d437f930287146cbf61e96fcb7811b32e2a68f6d03973b8533e30657c607478"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/ORIGINALS-INDEX.json",
+      "stored": "candidate-scan/ORIGINALS-INDEX.json",
+      "bytes": 11196,
+      "sha256": "04351f6efd72b80f1daed4d585d0f3570b7b3e44466742ca7283949bb8acb187"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/REPORT.md",
+      "stored": "candidate-ci/REPORT.md",
+      "bytes": 5237,
+      "sha256": "600f231e6c25a88f7526af65ba06c6d26d29021b2b0f8b5f8feeb3d84673d9b1"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/FACTS.json",
+      "stored": "candidate-ci/FACTS.json",
+      "bytes": 16662,
+      "sha256": "b49cc5396c7c8f67e8156fa494648346ea8ae20bc8062a3e60866807dd4be3a5"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/COMPARISON.json",
+      "stored": "candidate-ci/COMPARISON.json",
+      "bytes": 9097,
+      "sha256": "e2ff59745b7e531d77f5f310a735a5fe8e6f11f599922da7f6c87685b43e84fe"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/MANIFEST.json",
+      "stored": "candidate-ci/MANIFEST.json",
+      "bytes": 5842,
+      "sha256": "408975756103719771cde25eb3f82c9f8702bd5a4235b62adda5434b05f07f90"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/REPORT.md",
+      "stored": "main-ci/REPORT.md",
+      "bytes": 5638,
+      "sha256": "d20a33e2110e0d9a147903ba35b7c284482a5270d788e136f8e39318e25f6112"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/FACTS.json",
+      "stored": "main-ci/FACTS.json",
+      "bytes": 17226,
+      "sha256": "a051a57dd52fc42a252a361ec3a35cdf5d252ad63b4a7004dfcf065b8d0a3276"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/SARIF-COMPARISON.json",
+      "stored": "main-ci/SARIF-COMPARISON.json",
+      "bytes": 3287,
+      "sha256": "277275bc80a0ba7d7e7719c82cd36e78323cec61f6b513be6b5b9831d0dddb1a"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/SARIF-FILE-DIFFERENCE.json",
+      "stored": "main-ci/SARIF-FILE-DIFFERENCE.json",
+      "bytes": 167,
+      "sha256": "050642c65a5a372871cbda01ac25cb25020cb442e8dc6aa81c0428a1c1058266"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/TEST-COMPARISON.json",
+      "stored": "main-ci/TEST-COMPARISON.json",
+      "bytes": 15917,
+      "sha256": "ea8fb73958ecc64e66544cd207cb8580bc313e001991a76f6764ec5ee36b1242"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/ORIGINALS-INDEX.json",
+      "stored": "main-ci/ORIGINALS-INDEX.json",
+      "bytes": 36063,
+      "sha256": "679955673b7148a5ead2c3126fb837521ec71f28e8784408bbc699dbdc7d79c6"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/REPORT-FREEZE.json",
+      "stored": "main-ci/REPORT-FREEZE.json",
+      "bytes": 2614,
+      "sha256": "e9432ec2eaaebb67d36c8687e614607a4849f16e03fccaa65723511045775dc5"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/tail-review/REVIEW.md",
+      "stored": "independent-review/REVIEW.md",
+      "bytes": 3907,
+      "sha256": "a2b59a8b02935352437c5b2d63b0af0ffcf9b5dabdf7d5c401b5508d27512f11"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/tail-review/REVIEW.json",
+      "stored": "independent-review/REVIEW.json",
+      "bytes": 46054,
+      "sha256": "90bef2faf510b30973d6fdfc9eed044ebd54f082c8635334540a4e2203bf3f17"
+    }
+  ],
+  "review_import_note": "独评针对原18份报告/README/roster；本次仅追加独评自身原字节及其索引，不改变受评内容，不递归评审自我副本。"
+}

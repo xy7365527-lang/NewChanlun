@@ -1,0 +1,46 @@
+{
+  "verdict": "MAIN_CI_PASS_DEVSKIM_SAME_APPROVED_FAILURE",
+  "created_at": "2026-09-13T12:41:37.305871+00:00",
+  "source_directory": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci",
+  "suggested_small_report_files": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/REPORT.md",
+      "relative_path": "REPORT.md",
+      "bytes": 5638,
+      "sha256": "d20a33e2110e0d9a147903ba35b7c284482a5270d788e136f8e39318e25f6112"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/FACTS.json",
+      "relative_path": "FACTS.json",
+      "bytes": 17226,
+      "sha256": "a051a57dd52fc42a252a361ec3a35cdf5d252ad63b4a7004dfcf065b8d0a3276"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/SARIF-COMPARISON.json",
+      "relative_path": "SARIF-COMPARISON.json",
+      "bytes": 3287,
+      "sha256": "277275bc80a0ba7d7e7719c82cd36e78323cec61f6b513be6b5b9831d0dddb1a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/SARIF-FILE-DIFFERENCE.json",
+      "relative_path": "SARIF-FILE-DIFFERENCE.json",
+      "bytes": 167,
+      "sha256": "050642c65a5a372871cbda01ac25cb25020cb442e8dc6aa81c0428a1c1058266"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/TEST-COMPARISON.json",
+      "relative_path": "TEST-COMPARISON.json",
+      "bytes": 15917,
+      "sha256": "ea8fb73958ecc64e66544cd207cb8580bc313e001991a76f6764ec5ee36b1242"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/ORIGINALS-INDEX.json",
+      "relative_path": "ORIGINALS-INDEX.json",
+      "bytes": 36063,
+      "sha256": "679955673b7148a5ead2c3126fb837521ec71f28e8784408bbc699dbdc7d79c6"
+    }
+  ],
+  "raw_originals_stay_external": true,
+  "repository_or_remote_mutations": false,
+  "reran_tests_or_scans": false
+}
