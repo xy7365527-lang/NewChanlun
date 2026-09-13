@@ -1,0 +1,26 @@
+{
+  "F1": {
+    "generations": 4,
+    "target_ids": [
+      "obj-ed678476a868abbee90a8672286d5711a3ba2ca876cac5b598c99ced459985f2",
+      "obj-f2e93709edac77ffcfe6d85d2a3b68fe089e6dd02fbc2e079edff4b2850ae7bd",
+      "obj-31d3e6ece97abc787365144be9d7fa278e8d86309329477ce85d907d239a1f26"
+    ],
+    "all_historical_cuts_equal": true,
+    "final_root_readable": true
+  },
+  "F2": {
+    "generations": 3,
+    "target_ids": [
+      "obj-63411fa005e9e824d140d92b6667138e2abe4addf8915b3f85a22a487b271f3d",
+      "obj-5b333ff96cf58cc85eef2cb3d57264920fcf5d5ec329427d16e7f7da4f76f37f",
+      "obj-77648bf668d60849ffc1bc3c334af6e9b80099652ef3b19c48aee14d8240761e"
+    ],
+    "all_historical_cuts_equal": true,
+    "final_root_readable": true
+  },
+  "binary_sha256": "762af6ffdc47171298e3b0b5a7340c4711587198769a991bb2963aca57026fa2",
+  "checks": 2647,
+  "evidence_dir": "/var/folders/ft/1lyklpls4n16xj54q4l148qm0000gn/T/tb02a-independent-final-10vrrdm5",
+  "status": "PASS"
+}

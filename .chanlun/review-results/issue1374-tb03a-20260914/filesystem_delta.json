@@ -1,0 +1,78 @@
+{
+  "schema_revision": "independent-filesystem-delta-review/1",
+  "verdict": "APPROVE",
+  "findings": [],
+  "reviewed_at_utc": "2026-09-13T18:14:11.215691+00:00",
+  "files": [
+    {
+      "path": "rust/src/economic_session/store.rs",
+      "sha256": "56830533eccc8a8f0fafc4f596af93b059f80c42b23a4a6abac25cae69702b17",
+      "bytes": 40537
+    },
+    {
+      "path": "rust/Cargo.toml",
+      "sha256": "db8af9ea30e1840b87759aedd67a556fa506d152be1b01d3e068d8be610c1bdf",
+      "bytes": 12154
+    },
+    {
+      "path": "rust/Cargo.lock",
+      "sha256": "c591858344c1ff7c62335e10c0e2f1f5cf9e7447a8caf81cd92e556bac248b62",
+      "bytes": 55961
+    }
+  ],
+  "checks": {
+    "count": 10,
+    "all_pass": true,
+    "new_owner_views": 3,
+    "business_events": 0,
+    "formal_pid_touched": false,
+    "rustfmt": "PASS"
+  },
+  "evidence": [
+    {
+      "path": "REVIEW.md",
+      "sha256": "ecaf29f1172e7c3a33753c0e892f2d3e86835d916bbf903ed14b14aa0867dfde",
+      "bytes": 2255
+    },
+    {
+      "path": "check_delta.py",
+      "sha256": "5619bbeec1e752f6a676ef2cfbc07bd0bfe3086a4e01fdda5d1b79083b55e0a5",
+      "bytes": 5857
+    },
+    {
+      "path": "filesystem-exact.rs",
+      "sha256": "8323d6f0966bdca4ee7912f2515c872ef2551313f1c33ca505633a05bbaff336",
+      "bytes": 2280
+    },
+    {
+      "path": "kernel_statfs.c",
+      "sha256": "5d7ebf4bb54c42443ee19fda7999bb2e7fdbb170fe77a3a4c2d93fb705ee1340",
+      "bytes": 704
+    },
+    {
+      "path": "KERNEL-STATFS.jsonl",
+      "sha256": "6d7ff3a3cf6a3a26c7986b06baf612ccfb4bb7bfe24b9cce6414e071f4649d28",
+      "bytes": 420
+    },
+    {
+      "path": "DELTA-CHECKS.json",
+      "sha256": "73d0445f596948011401b94666e8fe98807ecf25707cc6b2e3bd75183fb149ab",
+      "bytes": 9467
+    },
+    {
+      "path": "BINARY-FREEZE-CHECK.json",
+      "sha256": "226fef8ce70cc4d49673de6192869b528912feb2fae3bb881238d8b142a2a038",
+      "bytes": 1548
+    },
+    {
+      "path": "isolated-build.log",
+      "sha256": "21f5b4bb96bf715e9e8ac034af283871fd132e7e15e2d7ea1c1689f9f4b37bd8",
+      "bytes": 301
+    },
+    {
+      "path": "HARNESS-NAMESPACE-COMPILE-FAILURE.log",
+      "sha256": "3e18355e99372831f14b81fdc5dbfca873373b8a3163fbb5cd9c9dc9137b1da5",
+      "bytes": 1197
+    }
+  ]
+}

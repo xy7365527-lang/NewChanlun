@@ -1,0 +1,154 @@
+{
+  "verdict": "APPROVE_BOUNDED_EXECUTION_EVIDENCE",
+  "findings": [],
+  "checks": 2437,
+  "reviewed_scope": "正常六事件双跑/实际HTTP/真实浏览器AX/正式停止归档证据；不作transport独评，不重跑服务、不操纵浏览器、不触SQLite原件",
+  "paired_byte_artifacts": 152,
+  "actual_owner_checks_per_run": 1022,
+  "actual_http_checks_per_run": 376,
+  "actual_browser_checks": 19,
+  "http_vectors": [
+    {
+      "run": 1,
+      "as_known_cut": {
+        "B:chong-7f31": {
+          "commit_seq": "1",
+          "domain_id": "B:chong-7f31",
+          "root_hash": "eb379f4cd7045b1ed81ec3664acf187bfc9b4361c5ecd5afc625dd37a4b59394"
+        },
+        "B:chong-c284": {
+          "commit_seq": "1",
+          "domain_id": "B:chong-c284",
+          "root_hash": "f57abbdd6fbf0eb4f2fb22380c3804a56a43ec65a13c3338985c8b9664461218"
+        },
+        "E": {
+          "commit_seq": "2",
+          "domain_id": "E",
+          "root_hash": "8a17aaea96265ac32adc936e2f780aac464dbdeaa36118a75bb5c21334098ef6"
+        }
+      },
+      "watch_next": {
+        "B:chong-7f31": {
+          "commit_seq": "3",
+          "domain_id": "B:chong-7f31",
+          "root_hash": "69bcab96d0aedf38f3d283da254784a5b4f6dc4bcc8f1745fbc38f35e6659482"
+        },
+        "B:chong-c284": {
+          "commit_seq": "3",
+          "domain_id": "B:chong-c284",
+          "root_hash": "55dec92fd9ce4251faeefa423663ab69f3719812d00b6cb32245522bf1f87f83"
+        },
+        "E": {
+          "commit_seq": "6",
+          "domain_id": "E",
+          "root_hash": "61761c9a309fc56df74cbcfa7dff2354d02d2d9529fcbc53cd3842121e1a069f"
+        }
+      }
+    },
+    {
+      "run": 2,
+      "as_known_cut": {
+        "B:chong-7f31": {
+          "commit_seq": "1",
+          "domain_id": "B:chong-7f31",
+          "root_hash": "eb379f4cd7045b1ed81ec3664acf187bfc9b4361c5ecd5afc625dd37a4b59394"
+        },
+        "B:chong-c284": {
+          "commit_seq": "1",
+          "domain_id": "B:chong-c284",
+          "root_hash": "f57abbdd6fbf0eb4f2fb22380c3804a56a43ec65a13c3338985c8b9664461218"
+        },
+        "E": {
+          "commit_seq": "2",
+          "domain_id": "E",
+          "root_hash": "8a17aaea96265ac32adc936e2f780aac464dbdeaa36118a75bb5c21334098ef6"
+        }
+      },
+      "watch_next": {
+        "B:chong-7f31": {
+          "commit_seq": "3",
+          "domain_id": "B:chong-7f31",
+          "root_hash": "69bcab96d0aedf38f3d283da254784a5b4f6dc4bcc8f1745fbc38f35e6659482"
+        },
+        "B:chong-c284": {
+          "commit_seq": "3",
+          "domain_id": "B:chong-c284",
+          "root_hash": "55dec92fd9ce4251faeefa423663ab69f3719812d00b6cb32245522bf1f87f83"
+        },
+        "E": {
+          "commit_seq": "6",
+          "domain_id": "E",
+          "root_hash": "61761c9a309fc56df74cbcfa7dff2354d02d2d9529fcbc53cd3842121e1a069f"
+        }
+      }
+    }
+  ],
+  "browser_entire_image_proof": [
+    {
+      "ax": "history-evidence-ax.json",
+      "domain": "B:chong-7f31",
+      "node": "105",
+      "json_characters": 323476,
+      "image_sha256": "87b1d858d75f2abecd461e984c973bfee9d76875a9b0acca037105b9717f79cd"
+    },
+    {
+      "ax": "beta-history-evidence-ax.json",
+      "domain": "B:chong-c284",
+      "node": "105",
+      "json_characters": 400773,
+      "image_sha256": "cb6c4747c4b893557c25cbb45ba3c1529287ce1f4b3fc4c3c779f61967af3cf6"
+    }
+  ],
+  "actual_distinct_service_ids": {
+    "1": {
+      "E:owner": {
+        "pid": 38528,
+        "control_instance_id": "86f0d490-d0a0-40e7-9468-e7204aab0f40"
+      },
+      "alpha:owner": {
+        "pid": 38544,
+        "control_instance_id": "adc433a9-b027-424c-a8f3-370b0e633034"
+      },
+      "beta:owner": {
+        "pid": 38559,
+        "control_instance_id": "4f8df10d-e7e0-486b-a1a9-5766289b4562"
+      },
+      "SQ:s": {
+        "pid": 38576,
+        "control_instance_id": "0cfdf729-f91d-4d3d-88aa-0c87ca8bccc7"
+      },
+      "SQ:q": {
+        "pid": 38583,
+        "control_instance_id": "4125ab6d-d09f-4013-b117-3fb90486ddd1"
+      }
+    },
+    "2": {
+      "E:owner": {
+        "pid": 43910,
+        "control_instance_id": "ea8f8f37-04cd-4855-b856-a4e406d9840d"
+      },
+      "alpha:owner": {
+        "pid": 43923,
+        "control_instance_id": "437634b5-4b4f-41d2-9b9c-917541181d22"
+      },
+      "beta:owner": {
+        "pid": 43936,
+        "control_instance_id": "3f44e38b-128b-4f7a-871e-f37b314dc18e"
+      },
+      "SQ:s": {
+        "pid": 43951,
+        "control_instance_id": "58958db1-8daa-4b94-aaea-69c7d3bf88df"
+      },
+      "SQ:q": {
+        "pid": 43958,
+        "control_instance_id": "c52b14ba-2926-44a2-b5d8-c2d7aee51ac7"
+      }
+    }
+  },
+  "boundaries": [
+    "无严格gamma/Voice正例",
+    "浏览器为单次run-2原始AX证明，未宣称两轮UI字节相同",
+    "全六域归档SQL沿已保存副本读取结果及已审脚本查证；未再次开启SQLite原件",
+    "证据审查不证明断电/损坏介质、外部交易或整票关闭"
+  ]
+}

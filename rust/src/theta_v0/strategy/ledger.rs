@@ -731,23 +731,23 @@ pub enum LedgerEvent {
 ///
 /// 不可变模式（coding-style）：返回新 [`LedgerComp`]，不就地修改。
 pub fn ledger_step(l: &LedgerComp, e: LedgerEvent) -> LedgerComp {
+    let (pi, a, w, r) = ledger_step_components((l.pi, l.a, l.w, l.r), e);
+    LedgerComp { pi, a, w, r, ..*l }
+}
+
+/// #1374：同一账本算子的四分量入口，不要求与恒等正交的本金基线 I₀。
+///
+/// 已知本金的 `ledger_step` 与未知本金的持久事实账调用同一算子；调用方须先验证
+/// R=Π-A-W 和算术范围。这里不创建本金、阶段或非空账的默认初值。
+pub fn ledger_step_components(
+    (pi, a, w, r): (i64, i64, i64, i64),
+    e: LedgerEvent,
+) -> (i64, i64, i64, i64) {
     match e {
-        LedgerEvent::Realize(d_pi) => LedgerComp {
-            pi: l.pi + d_pi,
-            r: l.r + d_pi,
-            ..*l
-        },
-        LedgerEvent::Allocate(d_a) => LedgerComp {
-            a: l.a + d_a,
-            r: l.r - d_a,
-            ..*l
-        },
-        LedgerEvent::Withdraw(d_w) => LedgerComp {
-            w: l.w + d_w,
-            r: l.r - d_w,
-            ..*l
-        },
-        LedgerEvent::Noop => *l,
+        LedgerEvent::Realize(d_pi) => (pi + d_pi, a, w, r + d_pi),
+        LedgerEvent::Allocate(d_a) => (pi, a + d_a, w, r - d_a),
+        LedgerEvent::Withdraw(d_w) => (pi, a, w + d_w, r - d_w),
+        LedgerEvent::Noop => (pi, a, w, r),
     }
 }
 

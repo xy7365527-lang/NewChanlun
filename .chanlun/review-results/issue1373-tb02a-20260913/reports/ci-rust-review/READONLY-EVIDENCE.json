@@ -1,0 +1,51 @@
+{
+  "checked_at": "2026-09-13T15:22:20.461936+00:00",
+  "baseline": "4408b0c233f45e33f53cf152112bbcdc3604344f",
+  "working_head": "4408b0c233f45e33f53cf152112bbcdc3604344f",
+  "changed_paths": [
+    "rust/src/theta_v0/classifier/bsp.rs"
+  ],
+  "untracked_paths": [],
+  "bsp_before_sha256": "dd17a9dca0d312a77196ef2bb13e8e2d5ce7a77e11bb874f68e0808d7afea21e",
+  "bsp_after_sha256": "c54c104b18661d0ea6b07907e63c8aa79b7e12873a91ac27f9a061295db2a671",
+  "production_prefix_before_cfg_test_identical": true,
+  "other_tracked_source_files_identical_to_baseline": true,
+  "tb02a_facts_sha256": "2cd5d8b1db2c330eeaf0107cb89642c29b281f105f6013902ad50ccb6f6df7ac",
+  "tb02a_facts_identical_to_baseline": true,
+  "guard_scan_body_identical": true,
+  "added_exact_whitelist_entries": [
+    "bin/s_session_v2/tb02a_facts.rs:231",
+    "bin/s_session_v2/tb02a_facts.rs:241",
+    "bin/s_session_v2/tb02a_facts.rs:267"
+  ],
+  "removed_whitelist_entries": [],
+  "actual_hits_count": 25,
+  "actual_whitelist_count": 25,
+  "actual_stray": [],
+  "actual_stale": [],
+  "original_whitelist_strays_on_current_source": [
+    "bin/s_session_v2/tb02a_facts.rs:231",
+    "bin/s_session_v2/tb02a_facts.rs:241",
+    "bin/s_session_v2/tb02a_facts.rs:267"
+  ],
+  "read_only_set_counterexamples": {
+    "remove_each_new_allowlist_entry": {
+      "bin/s_session_v2/tb02a_facts.rs:231": [
+        "bin/s_session_v2/tb02a_facts.rs:231"
+      ],
+      "bin/s_session_v2/tb02a_facts.rs:241": [
+        "bin/s_session_v2/tb02a_facts.rs:241"
+      ],
+      "bin/s_session_v2/tb02a_facts.rs:267": [
+        "bin/s_session_v2/tb02a_facts.rs:267"
+      ]
+    },
+    "additional_unlisted_location_rejected": "bin/s_session_v2/tb02a_facts.rs:268",
+    "deleted_or_moved_registered_locations_detected_as_stale": [
+      "bin/s_session_v2/tb02a_facts.rs:231",
+      "bin/s_session_v2/tb02a_facts.rs:241",
+      "bin/s_session_v2/tb02a_facts.rs:267"
+    ]
+  },
+  "scope": "仅读取实际代码、执行未改 regex、对实际集合构造反例；非另一次 cargo test，不修改源码。"
+}

@@ -1,0 +1,17 @@
+{
+  "source_sha256": {
+    "rust/Cargo.toml": "60781537ff49f30d0a4c596f1e7bb16d0e490ec8dad4561f34b1a817d59652fc",
+    "rust/Cargo.lock": "bc979533d9192ede438ac490f3f90ec5cd1ce26e6afd91fc5ec28ae185ee80bb",
+    "rust/src/bin/s_structure_session.rs": "125a0080d529bc3c5ef05d4c91016304c7c3319febd1628837c0c3cbb391f2b8",
+    "rust/src/theta_v0/parser/inclusion.rs": "cc48d963132d8d7e1bdc0043925831d941f873d8c7c71765962379649d28a3eb",
+    "rust/src/theta_v0/parser/mod.rs": "25ba82f776f7aefcac414cd6963e3b239d2534241995f1f4c1992e1b7e46cbcb",
+    "s_session/profiles/ohlc_integer_tb02a_v1.json": "482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6",
+    "rust/src/bin/s_session_v2/audit.rs": "61dfb078c39f386a5730a78c30f8fd26ddd096b79098d7595a143bad973bb59a",
+    "rust/src/bin/s_session_v2/cache.rs": "ac75fd1ff4dda4e453b1b2a3e2c3e9001fea672cc99a03548d79b1b639c60b9e",
+    "rust/src/bin/s_session_v2/mod.rs": "4fefaf79931ab5046c8c1aa6771aea76e094d052a634f01771f9942a70fdce05",
+    "rust/src/bin/s_session_v2/tb02a.rs": "bd43770c045b311bbc757569196000556ac5a2c485e0d6d04f959cea85e23618",
+    "rust/src/bin/s_session_v2/tb02a_facts.rs": "2cd5d8b1db2c330eeaf0107cb89642c29b281f105f6013902ad50ccb6f6df7ac"
+  },
+  "recorded_at": "2026-09-13T14:25:23.705540+00:00",
+  "note": "测试完成时固定；测试开始后Rust源未写入"
+}

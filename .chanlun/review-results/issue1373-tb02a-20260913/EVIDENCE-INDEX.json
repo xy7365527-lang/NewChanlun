@@ -951,5 +951,212 @@
       "root-harness-independent-review"
     ],
     "note": "两份新增收据晚于FINAL-PRESERVATION冻结，未包含在其12160文件清单中；由本索引单列真实位置、字节数与SHA追加保全，不改写旧manifest。九项收据是原会话event/result无损提取，不是重新构造或重跑；较早六项收据保持历史名分。"
+  },
+  "delivery_entity_update": {
+    "recorded_at_utc": "2026-09-13T22:44:04.216Z",
+    "purpose": "只补齐既有报告实体和仓内路径；原113项索引的内容及历史报告保持，不重写原评审结论。",
+    "reviewed_candidate_head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+    "integration_target_main": "abf5c0f8491fc066a0f2bc47ab4defdb120035c1",
+    "integration_evidence_status": "PENDING_NEW_MERGED_SOURCE_VALIDATION_AND_INDEPENDENT_REVIEW",
+    "boundary_note_repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/REPORT-ENTITIES.md",
+    "copied_entity_count": 20,
+    "copied_bytes": 259149,
+    "sources_and_repository_copies_sha256_equal": true,
+    "entities": [
+      {
+        "id": "final-devskim-triage",
+        "role": "required_entity",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/TRIAGE-SUMMARY.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/TRIAGE-SUMMARY.json",
+        "bytes": 4393,
+        "sha256": "fbb0205869ac33ec44746db16a33a8e32d4f3c76d2d85b882dd4b62080d6e748"
+      },
+      {
+        "id": "reused-triage-binding",
+        "role": "required_entity",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/REUSED-TRIAGE-BINDING.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/REUSED-TRIAGE-BINDING.json",
+        "bytes": 3418,
+        "sha256": "75488f8cd81c3efb13bdf229aec20a4598e2d789397dcbc6b79b287693f95d75"
+      },
+      {
+        "id": "triage-rows",
+        "role": "required_entity",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim/TRIAGE-ROWS.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/TRIAGE-ROWS.json",
+        "bytes": 151158,
+        "sha256": "2be0ab2340cf47b317af9cbc1f58a00ed26e086f3e63f901147e6387bc2595e1"
+      },
+      {
+        "id": "rust-independent-result",
+        "role": "required_entity",
+        "original_index_ids": [
+          "rust-independent-result"
+        ],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/independent-review-final-rust/RESULT.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-review-final-rust/RESULT.json",
+        "bytes": 966,
+        "sha256": "301a5959c1ebe139e9510be633ec33b7e5f49e4700a7c6908c6326e29751d078"
+      },
+      {
+        "id": "q-independent-review",
+        "role": "required_entity",
+        "original_index_ids": [
+          "q-final-independent-review"
+        ],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/independent-q-review-post-fix/REVIEW.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-post-fix/REVIEW.json",
+        "bytes": 1857,
+        "sha256": "a828463f1a965f4835dc34d9b865551336999668294fc0bafbef5a89dd9645df"
+      },
+      {
+        "id": "harness-independent-review",
+        "role": "required_entity",
+        "original_index_ids": [
+          "root-harness-independent-review"
+        ],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ROOT-HARNESS-INDEPENDENT-REVIEW.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ROOT-HARNESS-INDEPENDENT-REVIEW.json",
+        "bytes": 9595,
+        "sha256": "5a554cd1ca4aab919cdf29644c0a29fde628418e2ef574ce3ed2376327397f93"
+      },
+      {
+        "id": "ci-rust-independent-review",
+        "role": "required_entity",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-rust-review/REVIEW.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-review/REVIEW.json",
+        "bytes": 8726,
+        "sha256": "4f03562921791001b3043f394c3cdcc78d19cfef57d5db530f70e485eec2195f"
+      },
+      {
+        "id": "final-ci-record",
+        "role": "required_entity",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-monitor-final/CI-FINAL.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-monitor-final/CI-FINAL.json",
+        "bytes": 10061,
+        "sha256": "ab6c0ace91125eabf0b5c684d88b0a5624a1aa19894373239b52b951673d5da3"
+      },
+      {
+        "id": "final-devskim-triage-text",
+        "role": "optional_human_readable_companion",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/TRIAGE-SUMMARY.md",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/TRIAGE-SUMMARY.md",
+        "bytes": 4485,
+        "sha256": "9e9a8c83418f4862a30dfdc947b08131dba6cda594128366ae96d896c5d8e2be"
+      },
+      {
+        "id": "final-source",
+        "role": "supporting_binding",
+        "original_index_ids": [
+          "final-source"
+        ],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/FINAL-SOURCE.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/FINAL-SOURCE.json",
+        "bytes": 5883,
+        "sha256": "8707ab88dfe64aa30058f97d8e955665693859b6f72435a79a415bc09a554781"
+      },
+      {
+        "id": "rust-test-source",
+        "role": "supporting_binding",
+        "original_index_ids": [
+          "rust-final-source"
+        ],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/rust-checks/f1/TEST-SOURCE.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/rust-checks/f1/TEST-SOURCE.json",
+        "bytes": 1338,
+        "sha256": "35fff3038c7293436d7035b80ed50f7994e7a95b4f60808190863a3725654fd8"
+      },
+      {
+        "id": "rust-independent-preservation",
+        "role": "supporting_binding",
+        "original_index_ids": [
+          "rust-independent-preservation"
+        ],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/independent-review-final-rust/PRESERVATION-MANIFEST.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-review-final-rust/PRESERVATION-MANIFEST.json",
+        "bytes": 16379,
+        "sha256": "f7bca3504421da829414d4ba0f6d8ddbaca0b8d7541b76e7c10426e33a1ff618"
+      },
+      {
+        "id": "q-independent-manifest",
+        "role": "supporting_binding",
+        "original_index_ids": [
+          "q-final-independent-manifest"
+        ],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/independent-q-review-post-fix/MANIFEST.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-post-fix/MANIFEST.json",
+        "bytes": 6787,
+        "sha256": "f120d88b88b69211bb26e3a92605c6cc238f417273027b4dc3e1433f5bc13724"
+      },
+      {
+        "id": "ci-rust-readonly-evidence",
+        "role": "supporting_binding",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-rust-review/READONLY-EVIDENCE.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-review/READONLY-EVIDENCE.json",
+        "bytes": 2048,
+        "sha256": "c3d17a651142a7b52a1a8e1fb1262348a3969d5a55dc4ff5141c4fca7290f6c3"
+      },
+      {
+        "id": "final-scan-checkout",
+        "role": "supporting_binding",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/CHECKOUT-BINDING.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CHECKOUT-BINDING.json",
+        "bytes": 453,
+        "sha256": "b1085d43aa55065a1b7717c62dffd783bc5b6be0ac12702fc7f7052ec19d13d1"
+      },
+      {
+        "id": "final-scan-diff",
+        "role": "supporting_binding",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/DIFF-VS4408.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/DIFF-VS4408.json",
+        "bytes": 2222,
+        "sha256": "4aebe8d43d1bcf47130e43bb3d69840466471a498565aae733448dc9c4e4721b"
+      },
+      {
+        "id": "final-scan-gate",
+        "role": "supporting_binding",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/GATE-VERIFICATION.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/GATE-VERIFICATION.json",
+        "bytes": 446,
+        "sha256": "d965a6a167f10fee7c9a98f118ecf04842a2c4005ad452327ee8870bd89f09cb"
+      },
+      {
+        "id": "final-scan-index",
+        "role": "supporting_binding",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/EVIDENCE-INDEX.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/EVIDENCE-INDEX.json",
+        "bytes": 25461,
+        "sha256": "8b7fede3ea0eab6557342c872b49b7962397cf04abe09211391e8b04698cef53"
+      },
+      {
+        "id": "final-scan-freeze",
+        "role": "supporting_binding",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/REPORT-FREEZE.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/REPORT-FREEZE.json",
+        "bytes": 2820,
+        "sha256": "95550a6d878deb1194ddb8e0d09fdacfaddb8ac0936c0028a8935dba6370f1a7"
+      },
+      {
+        "id": "final-scan-verified",
+        "role": "supporting_binding",
+        "original_index_ids": [],
+        "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/FINAL-SCAN-RECEIPT-VERIFIED.json",
+        "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/FINAL-SCAN-RECEIPT-VERIFIED.json",
+        "bytes": 653,
+        "sha256": "69be05359b27fc8b8432352e94996ae3e6b3503d58e0140994eff9bd68b8daff"
+      }
+    ]
   }
 }

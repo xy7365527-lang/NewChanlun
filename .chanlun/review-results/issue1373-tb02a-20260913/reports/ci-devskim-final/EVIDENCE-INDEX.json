@@ -1,0 +1,432 @@
+{
+  "frozen_at_utc": "2026-09-13T15:34:58.494051+00:00",
+  "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+  "local_files": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/ARTIFACTS-FINAL.json",
+      "bytes": 737,
+      "sha256": "457f1e3c48a611aff1f5b85a68a53058d4a8584eb5b870651d227e6972ad4f65",
+      "relative_path": "ARTIFACTS-FINAL.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/ARTIFACTS-FINAL.json.receipt.json",
+      "bytes": 333,
+      "sha256": "be3c54e79424ea0f0b1507965de3b6663a0fc9093dea17c1c2c42d10878ec642",
+      "relative_path": "ARTIFACTS-FINAL.json.receipt.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/ARTIFACTS-FINAL.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "relative_path": "ARTIFACTS-FINAL.json.stderr"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CHANGED-FILES-VS4408.txt",
+      "bytes": 104,
+      "sha256": "37db7aec828d5da0a8cc59988654558ff2c1fde26b976b2cccd6b4f2038ce775",
+      "relative_path": "CHANGED-FILES-VS4408.txt"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CHANGED-FILES-VS652.txt",
+      "bytes": 1227,
+      "sha256": "46581b40a724d05fbaee7548aaf24b922e081c8b36c00adf7c058524d576946e",
+      "relative_path": "CHANGED-FILES-VS652.txt"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CHECK-RUN.json",
+      "bytes": 3551,
+      "sha256": "d7861bd9d2175c4892164090f17eccd4fdc688d5b920a4f1cb469da89e82896c",
+      "relative_path": "CHECK-RUN.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CHECK-RUN.json.receipt.json",
+      "bytes": 333,
+      "sha256": "f8f5e396470e6996be875122f5d2cb4f1c9a4e119d420b79b8cfc0258480261f",
+      "relative_path": "CHECK-RUN.json.receipt.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CHECK-RUN.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "relative_path": "CHECK-RUN.json.stderr"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CHECKOUT-BINDING.json",
+      "bytes": 453,
+      "sha256": "b1085d43aa55065a1b7717c62dffd783bc5b6be0ac12702fc7f7052ec19d13d1",
+      "relative_path": "CHECKOUT-BINDING.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CHECKOUT-COMMIT.json",
+      "bytes": 2654,
+      "sha256": "d9c49293c667c39d177df97f5a52cbbc6e25666f631b20d97c576385cd43e303",
+      "relative_path": "CHECKOUT-COMMIT.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CHECKOUT-COMMIT.json.receipt.json",
+      "bytes": 287,
+      "sha256": "044866045f811a52d3e29751a816f316fe5080afa2848ff7739386541f73f429",
+      "relative_path": "CHECKOUT-COMMIT.json.receipt.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CHECKOUT-COMMIT.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "relative_path": "CHECKOUT-COMMIT.json.stderr"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CONFIG-BINDING.json",
+      "bytes": 1830,
+      "sha256": "a908594296b1c4b45ca75048de82db163338612d44e377a89519d6ba90714517",
+      "relative_path": "CONFIG-BINDING.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CURRENT-GATE-KEYS.txt",
+      "bytes": 4044226,
+      "sha256": "317c7159dde4fcb0ad0f4dad664e0ae2ce4163a17ff9ed28132c1fa5ef214754",
+      "relative_path": "CURRENT-GATE-KEYS.txt"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CURRENT-OUTSIDE-BASELINE-KEYS.txt",
+      "bytes": 2984621,
+      "sha256": "fd5b3a390d945dc6894ed1905347ecb1ec752a51a1d9223c1ae3c1ce2d1e092d",
+      "relative_path": "CURRENT-OUTSIDE-BASELINE-KEYS.txt"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/DIFF-VS4408.json",
+      "bytes": 2222,
+      "sha256": "4aebe8d43d1bcf47130e43bb3d69840466471a498565aae733448dc9c4e4721b",
+      "relative_path": "DIFF-VS4408.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/DIFF-VS4408.patch",
+      "bytes": 5665,
+      "sha256": "848004c6defe63041f3ff3d7d4132edeef207bb0372d2fa2c623e916570a1125",
+      "relative_path": "DIFF-VS4408.patch"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/DIFF-VS652.json",
+      "bytes": 14175,
+      "sha256": "f03c158ee0102dca013b1c94b4bc1218ad33a904b9e49e12a468aa5c5bbb1d6f",
+      "relative_path": "DIFF-VS652.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/DevSkim.log",
+      "bytes": 5421482,
+      "sha256": "2915cfa80baf443631854e47c537a207a9035acd3b497c7c211632a15b214f30",
+      "relative_path": "DevSkim.log"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/DevSkim.log.receipt.json",
+      "bytes": 374,
+      "sha256": "aa1ef9e0a55060700c4e1c626eb45a83410d3213446c161bb0b9ec3e014746ea",
+      "relative_path": "DevSkim.log.receipt.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/DevSkim.log.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "relative_path": "DevSkim.log.stderr"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/FULL-ADDED-VS4408.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "relative_path": "FULL-ADDED-VS4408.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/FULL-ADDED-VS652.json",
+      "bytes": 72039,
+      "sha256": "1a15b998baa5f3bb33d381cf9aec07519d99635189050bd40d710a3126680131",
+      "relative_path": "FULL-ADDED-VS652.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/FULL-REMOVED-VS4408.json",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "relative_path": "FULL-REMOVED-VS4408.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/FULL-REMOVED-VS652.json",
+      "bytes": 1057,
+      "sha256": "4bbe0c5ff2d7955fd6c5224212fcc8fdc26c06a21f5dc616dcf2f8099206dd74",
+      "relative_path": "FULL-REMOVED-VS652.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/GATE-VERIFICATION.json",
+      "bytes": 446,
+      "sha256": "d965a6a167f10fee7c9a98f118ecf04842a2c4005ad452327ee8870bd89f09cb",
+      "relative_path": "GATE-VERIFICATION.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/JOB-FINAL.json",
+      "bytes": 2253,
+      "sha256": "df1c1bd0c17cbb2495e9a7e8c2725b2be295b107f0c21452f1dcfde6c12df792",
+      "relative_path": "JOB-FINAL.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/JOB-FINAL.json.receipt.json",
+      "bytes": 312,
+      "sha256": "8c01e4c3daf698bc33b525835696a81f21d030d851d23b5d9a7d6147a955c259",
+      "relative_path": "JOB-FINAL.json.receipt.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/JOB-FINAL.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "relative_path": "JOB-FINAL.json.stderr"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/JOBS-INITIAL.json",
+      "bytes": 1955,
+      "sha256": "9f9edfb499526c457b59e349ea305b75d781ac2d1671f3e4b9517dfee75fa1a0",
+      "relative_path": "JOBS-INITIAL.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/JOBS-INITIAL.receipt.json",
+      "bytes": 277,
+      "sha256": "ad41c31c9b5397d6d70b56eb50804f7b8bff48cac04c6bf7ee3b401f096b0eb7",
+      "relative_path": "JOBS-INITIAL.receipt.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/JOBS-INITIAL.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "relative_path": "JOBS-INITIAL.stderr"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/LOCAL-TREES.json",
+      "bytes": 399,
+      "sha256": "21d19a217252e4df59a046aff27d3bc2c8d026f7bc760b7c143dc5fc26d5bbae",
+      "relative_path": "LOCAL-TREES.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/REUSED-TRIAGE-BINDING.json",
+      "bytes": 3418,
+      "sha256": "75488f8cd81c3efb13bdf229aec20a4598e2d789397dcbc6b79b287693f95d75",
+      "relative_path": "REUSED-TRIAGE-BINDING.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/RUN-DISCOVERY.json",
+      "bytes": 576,
+      "sha256": "dbdc39779950fdf6abcd7c871793678e80c6f56976226c6ae88b2aa60c1d142a",
+      "relative_path": "RUN-DISCOVERY.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/RUN-DISCOVERY.receipt.json",
+      "bytes": 437,
+      "sha256": "c3f6d70ac77f2e595644f7bd4b01082cb70ce50551958c0c269098b6ef572ae8",
+      "relative_path": "RUN-DISCOVERY.receipt.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/RUN-DISCOVERY.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "relative_path": "RUN-DISCOVERY.stderr"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/RUN-FINAL.json",
+      "bytes": 13322,
+      "sha256": "b995b5f49a36bef441d175fc186ff4a272331754c22e8ad87ea2aa3550e828eb",
+      "relative_path": "RUN-FINAL.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/RUN-FINAL.json.receipt.json",
+      "bytes": 312,
+      "sha256": "9e9b87453142c12a67b324a20b133876ee7f1544e7e27b7df3b684e66ce2b6d9",
+      "relative_path": "RUN-FINAL.json.receipt.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/RUN-FINAL.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "relative_path": "RUN-FINAL.json.stderr"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/SARIF-EXTRACTION.json",
+      "bytes": 661,
+      "sha256": "4bfe7e889a02c9b36f56072e232a4e45c04d57c29d028da07755ec61b1b630fb",
+      "relative_path": "SARIF-EXTRACTION.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/SOURCE-BINDING.json",
+      "bytes": 1357,
+      "sha256": "5419875050808cfba3b7a69bfe8b315294eab3ebc6c967d7f4f3a795f2328f99",
+      "relative_path": "SOURCE-BINDING.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/TRIAGE-SUMMARY.json",
+      "bytes": 4393,
+      "sha256": "fbb0205869ac33ec44746db16a33a8e32d4f3c76d2d85b882dd4b62080d6e748",
+      "relative_path": "TRIAGE-SUMMARY.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/TRIAGE-SUMMARY.md",
+      "bytes": 4485,
+      "sha256": "9e9a8c83418f4862a30dfdc947b08131dba6cda594128366ae96d896c5d8e2be",
+      "relative_path": "TRIAGE-SUMMARY.md"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/WATCH-RECEIPT.json",
+      "bytes": 347,
+      "sha256": "2072281eab1972d1a88135b3116414952c914475a767a395f9e6b2f27fcf8d06",
+      "relative_path": "WATCH-RECEIPT.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/WATCH.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "relative_path": "WATCH.stderr"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/WATCH.stdout",
+      "bytes": 2863,
+      "sha256": "b11d3ed8d0223f46cfcd8bbfbe7d2e3a55270490231fa0814602cb04792854bd",
+      "relative_path": "WATCH.stdout"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/compare_full.py",
+      "bytes": 4629,
+      "sha256": "11fa254e6e64b0b671942be37bf7b819636a143f5b620d23a7508e7656d3e808",
+      "relative_path": "compare_full.py"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/config/.github/devskim/Dockerfile",
+      "bytes": 1417,
+      "sha256": "f0b71abb79139549eced074f0af4df14f7cbe55b8be4de6dd5f77d138fe6f375",
+      "relative_path": "config/.github/devskim/Dockerfile"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/config/.github/devskim/entrypoint.sh",
+      "bytes": 771,
+      "sha256": "f22f05ca60a85b5eef9aee879d0c34a6743758d2d499281ed0d56d5a16d50135",
+      "relative_path": "config/.github/devskim/entrypoint.sh"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/config/.github/devskim-baseline.json",
+      "bytes": 1119384,
+      "sha256": "df25ff2ec9a0898de03a4450fc3506444f08100ca0657a32665086991e202595",
+      "relative_path": "config/.github/devskim-baseline.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/config/.github/workflows/devskim.yml",
+      "bytes": 3429,
+      "sha256": "f3a11c5e2f4c782e07b7bb494bb994de5df3548d5290eaab9b221bae6e45772e",
+      "relative_path": "config/.github/workflows/devskim.yml"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/config/scripts/devskim_sarif_gate.sh",
+      "bytes": 9706,
+      "sha256": "c3154bd748c796ba950d1b4926308cd37a1cf54b0a802f644b6a8877132ce5fc",
+      "relative_path": "config/scripts/devskim_sarif_gate.sh"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/devskim-results.sarif",
+      "bytes": 130736419,
+      "sha256": "a5dc0bcb6fe487a017e8dcb2ad0276db29fa464b1377e0f99efdb08fdf7d2007",
+      "relative_path": "devskim-results.sarif"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/devskim-sarif.zip",
+      "bytes": 78718910,
+      "sha256": "518e7af3cb4e0f109e34fb34b2f27de2a49cefd10acdeceb8030e12768ee869d",
+      "relative_path": "devskim-sarif.zip"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/devskim-sarif.zip.receipt.json",
+      "bytes": 347,
+      "sha256": "e324a3440e1c48da2c3302b7b79552082e536b098ac48e6d54bfd397461dae6f",
+      "relative_path": "devskim-sarif.zip.receipt.json"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/devskim-sarif.zip.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "relative_path": "devskim-sarif.zip.stderr"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/fetch_final.py",
+      "bytes": 2629,
+      "sha256": "65bc0e9ce595fc6c700eb58364b7952084a1013f4609f35822dd36e628f81191",
+      "relative_path": "fetch_final.py"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/finalize_final.py",
+      "bytes": 11127,
+      "sha256": "b822741d4dc9ab156ae82546942c6a746c2410edddc0197c4406e3c5c889a1bf",
+      "relative_path": "finalize_final.py"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/source/head/.chanlun/review-results/issue1373-tb02a-20260913/CI-ADDENDUM.md",
+      "bytes": 4140,
+      "sha256": "24a39086e7c46ed0b33443f2611e4f0c5074d7d827ab4a2a22bb3070b9f606f9",
+      "relative_path": "source/head/.chanlun/review-results/issue1373-tb02a-20260913/CI-ADDENDUM.md"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/source/head/rust/src/theta_v0/classifier/bsp.rs",
+      "bytes": 47779,
+      "sha256": "c54c104b18661d0ea6b07907e63c8aa79b7e12873a91ac27f9a061295db2a671",
+      "relative_path": "source/head/rust/src/theta_v0/classifier/bsp.rs"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/source/old4408/rust/src/theta_v0/classifier/bsp.rs",
+      "bytes": 47293,
+      "sha256": "dd17a9dca0d312a77196ef2bb13e8e2d5ce7a77e11bb874f68e0808d7afea21e",
+      "relative_path": "source/old4408/rust/src/theta_v0/classifier/bsp.rs"
+    }
+  ],
+  "external_previous_evidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/TRIAGE-SUMMARY.md",
+      "bytes": 6605,
+      "sha256": "f7461fb3232c522d91c02acc450589c6f5f71ad9e1b517700b683901842250f5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/TRIAGE-SUMMARY.json",
+      "bytes": 7009,
+      "sha256": "04ad46f37c33775af6af2b0c89529cd86faeaebacdebef78e4a62044ccc39a26"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/TRIAGE-ROWS.json",
+      "bytes": 151158,
+      "sha256": "2be0ab2340cf47b317af9cbc1f58a00ed26e086f3e63f901147e6387bc2595e1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/REPORT-FREEZE.json",
+      "bytes": 2176,
+      "sha256": "1a094de2ec24b50155ceab13d64f4977c8ed3ee59c265ddbf28138a052a9a2c8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/INDEX-DIGEST-VERIFICATION.json",
+      "bytes": 59929,
+      "sha256": "6907a9e3791359a39de91188f611ae6349011cf3c17da74cfe828c557ae343e5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/FIXTURE-SOURCE-VERIFICATION.json",
+      "bytes": 394,
+      "sha256": "2b948e89393091a2649cbe70918a8850e3a587a43f973a3fac0bf3b317d339c3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/CATALOG-DIGEST-VERIFICATION.json",
+      "bytes": 647,
+      "sha256": "8991727ac234ece150d3e0c739e4e23a558c1bcea32a37f1984a7819c45bba87"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/OFFICIAL-RULE-SOURCES.json",
+      "bytes": 2187,
+      "sha256": "d3437dbdb2fc591cb55fd60ee34592f3bb7638326a96a77e06960d94943d6c88"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/devskim-results.sarif",
+      "bytes": 130736419,
+      "sha256": "dd3f48d873d6c6cd7d74862e9271fc3fc0f1d840f9038319ca0b3c5251b17d40"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/tail-main-ci/devskim-results.sarif",
+      "bytes": 130647088,
+      "sha256": "8cb07ed21430c93dd6447d59f97597a80fdfc8e1d01c28fe04d1f96c9bdab807"
+    }
+  ],
+  "scope": "只读新run原件与差分；旧报告仅引用不改写；不递归自包含",
+  "large_raw_policy": "SARIF/ZIP留仓外；索引不是要求将大型原件入Git"
+}

@@ -1134,6 +1134,7 @@ name = "newchan_rust"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "libc",
  "nautilus-backtest",
  "nautilus-common",
  "nautilus-core",

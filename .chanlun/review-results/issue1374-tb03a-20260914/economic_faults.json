@@ -1,0 +1,66 @@
+{
+  "schema_revision": "independent-formal-faults-review/1",
+  "issue": 1374,
+  "verdict": "APPROVE",
+  "findings": [],
+  "reviewed_at_utc": "2026-09-13T18:30:19.354438+00:00",
+  "scope": "four transaction boundaries, two runs each, opening-events slice only",
+  "driver_sha256": "b15d6b79eea3a2b361b2a4feb7b59867363f9f029045f0745f6f032dec34bb76",
+  "source_freeze_sha256": "b8fdae7b7a758c91ba557a5c74de5800b764ecdd345968456d7fc27d0e39ac33",
+  "counts": {
+    "runs": 8,
+    "sql": 216,
+    "requests": 148,
+    "views": 96,
+    "assertions": 2429,
+    "negative_control_cases": 5,
+    "archived_database_copies_reopened": 24,
+    "absent_owned_pids": 32,
+    "eof_traces": 180,
+    "indexed_artifacts": 2796
+  },
+  "formal_pids_modified_by_reviewer": false,
+  "production_modified": false,
+  "evidence": [
+    {
+      "path": "REVIEW.md",
+      "sha256": "3085e99dd284ab6f4db59b7168acd31f000ccf7cc27da46eb9828dfffbd96b0c",
+      "bytes": 3656
+    },
+    {
+      "path": "independent_audit.py",
+      "sha256": "dbcd7aae6c408bf366e9aa65ef07b6dddfa779f75060b676c12b62eef0871e11",
+      "bytes": 16220
+    },
+    {
+      "path": "negative_controls.py",
+      "sha256": "cc6508024e6cca35620caf2a9aec37d361d975f7225f3f1c5d13fb90b0d94687",
+      "bytes": 2271
+    },
+    {
+      "path": "ACTUAL-EVIDENCE-AUDIT.json",
+      "sha256": "1e3a07bc4824b756978420bb6dd549b21a189a2251b5922351c5a9f472a185f5",
+      "bytes": 3454
+    },
+    {
+      "path": "NEGATIVE-CONTROLS.json",
+      "sha256": "189424b72e979a68960462fe8846ca0d66b739c945a9cf89da228ef4ba3b9636",
+      "bytes": 830
+    },
+    {
+      "path": "PROCESS-OBSERVATION.json",
+      "sha256": "588616a6427b63c07546856678ab04b2d5c94895afa5415a845a3e589bdb5b34",
+      "bytes": 466
+    },
+    {
+      "path": "TRACE-AUDIT.json",
+      "sha256": "36776b0f6cf34fdcbdf810980b1087fef54db03f5e0185d38d9587a4399bf2ab",
+      "bytes": 62171
+    },
+    {
+      "path": "REVIEWED-ARTIFACT-INDEX.json",
+      "sha256": "f038bd9fce26ee6c71028007c5f658f84c4bf69306915492c12980fba48b6f48",
+      "bytes": 537409
+    }
+  ]
+}

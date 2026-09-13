@@ -1,0 +1,79 @@
+{
+  "status": "APPROVE_BOUNDED_VOICE_CORE_ADAPTER",
+  "scope": "#1374 B Voice immutable binding and pinned TestOnly evidence adapter; excludes actual authority semantic certification",
+  "reviewer": "Codex native independent subagent /root/tb03a_query_review",
+  "core_freeze": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-binding-implementation/CORE-FREEZE-2.json",
+  "core_freeze_sha256": "2cd1376ae793cbc17f44cc5f222c67c0113f38e23dcd11c02b1f1e6af314dcc0",
+  "files": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/book.rs",
+      "sha256": "e6dbd45a64c4c93f6de59c1f4362a89c2a4b134106ea2a57bc470fb020e7a09e",
+      "matches_freeze": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/evidence.rs",
+      "sha256": "77cac6ff99a793d142c3f3701f29d4a24c722cbdcc4b2926bd54181661f0b0ad",
+      "matches_freeze": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/mod.rs",
+      "sha256": "de1a4948affcf62074adffed513ecd65643c51e01c164419ecafa321a9bd0196",
+      "matches_freeze": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/service.rs",
+      "sha256": "b34fdc8f6f72d8e1bb1797b53351a00b496ede843c917166f335295598de89a1",
+      "matches_freeze": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/store.rs",
+      "sha256": "6916304230861685682535388923168034419940c5f92d1ed8fa800c3c32048c",
+      "matches_freeze": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/voice.rs",
+      "sha256": "a70364ef809d120a56a2b18801e7f0984ed34bd15df9706114eedd49acc504d2",
+      "matches_freeze": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/voice_tests.rs",
+      "sha256": "47509489a874f37d51afef33af67ba1ce68ad652426a9b135db57bc21d1640d7",
+      "matches_freeze": true
+    }
+  ],
+  "findings": [],
+  "resolved_before_final_review": [
+    {
+      "issue": "live/replay artifact metadata asymmetry",
+      "discovered_by": "implementation author self-audit",
+      "final": "freeze2 shares absolute path, positive exact length, per-file 64MiB and total 128MiB checks through verify_witness"
+    }
+  ],
+  "validation": {
+    "source_matches": 7,
+    "original_economic_tests_passed": 16,
+    "new_independent_tests_passed": 6,
+    "filtered_command_total_tests_passed": 7,
+    "extra_filtered_test": "existing session_protocol::tests::reply_bytes_match_independent_python_wire_vector",
+    "independent_cases": {
+      "invalid_payloads_atomic": 4,
+      "changed_original_envelope_atomic": 1,
+      "alias_original_receipt": 1,
+      "fully_rehashed_forged_record": 4,
+      "forced_before_commit_rollback_all_tables": 10,
+      "stale_epoch_or_before_recover_time": 2,
+      "as_known_exact_cut_reads": 4,
+      "external_files_removed_before_recovery": 7,
+      "repinned_invalid_authority_cases_live_and_replay": 8
+    },
+    "cargo": "offline isolated small crate with exact production core/protocol/transport/ledger source copies; no official process operation",
+    "first_attempt": "review harness called private root function; failed compilation saved; replaced with independently reproduced documented root preimage; production untouched"
+  },
+  "limits": [
+    "Synthetic configured authority fixtures validate adapter protocol, never count as actual γ/carrier/opening evidence.",
+    "No APPROVE_CONTROLLED_VOICE_BINDING receipt issued here.",
+    "No official Voice launcher/browser or new SIGKILL run is claimed.",
+    "Immutable historical binding does not establish Active, funds admission, business exit, responsibility retirement, native Closed/Strict or whole ticket completion."
+  ],
+  "completed_at": "2026-09-13T19:20:12.407366+00:00"
+}

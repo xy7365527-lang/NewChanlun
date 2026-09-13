@@ -1,0 +1,35 @@
+{
+  "baseline": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+  "checks": [
+    "同一真实fixture与原三反例：正式Client基准提交、三负例拒绝",
+    "raw_ref八键逐值对历史原件；活动对象核最新有效修订",
+    "撤回shape以first_known_generation和group生命周期选择历史组，并与组原始修订逐值相等",
+    "实际历史成员[1,2,3]与当前成员[1]分别成立，旧raw2 revision1与当前revision2均保留",
+    "合成所有对象代际平移100且raw.seq不动仍通过；错误first_known cut被拒绝",
+    "完整116项目录ID/版本与全部kind/title/domain/branches字段摘要对拍",
+    "目录漂移锁为browser tests无参数也运行的测试，CI现有Browser protocol tests调用此入口",
+    "CC006内容ID字段与S现有canonical身份一致；仅内部恢复merged_index/seq/revision精确整数，不重算包含/方向/分型"
+  ],
+  "evidence": {
+    "catalog_and_history": "STATIC-HISTORY-RESULT.json",
+    "collector": "replay-1/RESULT.json"
+  },
+  "findings": [],
+  "scope": "#1373 H1/H2修复的最终JS/HTML及browser tests独立审查；不替代runtime-v3/HTTP/GUI/整体叶验收",
+  "sources": {
+    "/Users/silencehan/Projects/NewChanlun-1373-codex/s_session/browser/index.html": {
+      "bytes": 52354,
+      "sha256": "fef9c421aaee89f891bbad2ca78d73d6cd9dc14b644c5722552537288d49038e"
+    },
+    "/Users/silencehan/Projects/NewChanlun-1373-codex/s_session/browser/tb01c-client.js": {
+      "bytes": 52202,
+      "sha256": "e0907290a2f89570454a06f309ea1c917e24ca2d308b41070c1615c70ed81793"
+    },
+    "/Users/silencehan/Projects/NewChanlun-1373-codex/s_session/tests/test_tb01c_browser.cjs": {
+      "bytes": 29552,
+      "sha256": "18be8d6709748926393de55613c4c34acb62c1fedfe64cb69a55a8369de5ea01"
+    }
+  },
+  "sources_unchanged": true,
+  "verdict": "Approve"
+}

@@ -1,0 +1,20 @@
+{
+  "verdict": "APPROVE_BOUNDED_TRANSPORT_DELTA",
+  "source_equivalence": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/session_transport.rs",
+      "sha256": "0b968ef87bfe5f4bcfc7dbd136ba2401066a892a24ce598a9874fcffe9f1132c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/transport-exact-root/src/session_transport.rs",
+      "sha256": "0b968ef87bfe5f4bcfc7dbd136ba2401066a892a24ce598a9874fcffe9f1132c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/shared-wire-timeout/session_transport-final.rs",
+      "sha256": "0b968ef87bfe5f4bcfc7dbd136ba2401066a892a24ce598a9874fcffe9f1132c"
+    }
+  ],
+  "result_sha256": "8ffad2be311e36355b20422c7b0c565ccf24ca0ea6280460c6633ef57bc63a8f",
+  "checks": 206,
+  "scope": "真实EOF、noEOF截止、重复帧/尾字节/缺LF拒绝、完整与分片帧成功；无业务重试；不把旧browser超时直接归因本故障"
+}

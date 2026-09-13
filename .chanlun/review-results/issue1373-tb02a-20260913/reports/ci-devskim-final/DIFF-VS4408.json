@@ -1,0 +1,83 @@
+{
+  "base": "4408",
+  "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+  "old_source": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/devskim-results.sarif",
+    "bytes": 130736419,
+    "sha256": "dd3f48d873d6c6cd7d74862e9271fc3fc0f1d840f9038319ca0b3c5251b17d40"
+  },
+  "new_source": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/devskim-results.sarif",
+    "bytes": 130736419,
+    "sha256": "a5dc0bcb6fe487a017e8dcb2ad0276db29fa464b1377e0f99efdb08fdf7d2007"
+  },
+  "old_tool": [
+    {
+      "name": "devskim",
+      "version": "1.0.90+fb2d676ce4",
+      "semanticVersion": null
+    }
+  ],
+  "new_tool": [
+    {
+      "name": "devskim",
+      "version": "1.0.90+fb2d676ce4",
+      "semanticVersion": null
+    }
+  ],
+  "old_raw": 34783,
+  "new_raw": 34783,
+  "old_keys": 34708,
+  "new_keys": 34708,
+  "added_keys": [],
+  "removed_keys": [],
+  "common_keys": 34708,
+  "old_baseline_outside": 26521,
+  "new_baseline_outside": 26521,
+  "baseline_absent": 14,
+  "baseline_keys": 8201,
+  "full_result_multiset": {
+    "equal": true,
+    "common": 34783,
+    "added": 0,
+    "removed": 0,
+    "normalization": "仅规范化全result的locations[].physicalLocation.artifactLocation.uri开头file://，全部其余字段保留"
+  },
+  "changed_paths": [
+    ".chanlun/review-results/issue1373-tb02a-20260913/CI-ADDENDUM.md",
+    "rust/src/theta_v0/classifier/bsp.rs"
+  ],
+  "outside_changed_paths": {
+    "equal": true,
+    "old_raw": 34783,
+    "new_raw": 34783,
+    "added": 0,
+    "removed": 0
+  },
+  "old_rule_counts": {
+    "DS173237": 32400,
+    "DS162092": 1399,
+    "DS117838": 804,
+    "DS197836": 10,
+    "DS148264": 36,
+    "DS176209": 68,
+    "DS149435": 1,
+    "DS172411": 7,
+    "DS126858": 45,
+    "DS137138": 12,
+    "DS187371": 1
+  },
+  "new_rule_counts": {
+    "DS173237": 32400,
+    "DS162092": 1399,
+    "DS117838": 804,
+    "DS197836": 10,
+    "DS148264": 36,
+    "DS176209": 68,
+    "DS126858": 45,
+    "DS137138": 12,
+    "DS149435": 1,
+    "DS172411": 7,
+    "DS187371": 1
+  }
+}

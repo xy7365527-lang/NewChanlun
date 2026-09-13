@@ -1,0 +1,139 @@
+{
+  "findings": [],
+  "independent_checker": {
+    "execution_receipt_sha256": "18be8edb9525790365091498408da58fa4b7787e757fab7fe438995e7f9443bf",
+    "imports_author_audit_or_driver": false,
+    "optimized_python": true,
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-fault-execution-independent/verify.py",
+    "reused_own_normal_pure_checker": {
+      "normal_review_sha256": "2dd03bdf2af739d5af5664a7031494097b2ee4f8d5b393303ada5df8700be269",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-normal-execution-independent/verify.py",
+      "sha256": "b7609c11af5cabf62e5d0e26fb3605c8eb16ebd5f5dd7772a20b7d2362b5cb48"
+    },
+    "sha256": "941f042c54655d1c5e3e56972a86da55e44a96c78f70fe8d0d3ba6fa15c2d15a"
+  },
+  "independent_helper_review": {
+    "not_substituted_for_actual_execution_review": true,
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-fault-script-independent/v4/REVIEW.json",
+    "sha256": "2ff7beaff887b28df9822e9dd4544f6ada2be2039bdd4ad43c1a4bec94affa35",
+    "verdict": "APPROVE_BOUNDED_FAULT_DRIVER"
+  },
+  "input_freeze": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-fault-execution-independent/INPUT-FREEZE.json",
+    "regular_files": 2098,
+    "sha256": "2a0e45baa31ab441e14fe747ed4f46180c7611e99637dc4dcd37629b3bb0e3a0"
+  },
+  "issue": 1374,
+  "limitations": [
+    "复用既有gamma/K/开局语义证明及normal纯值构造，不重跑来源推导或新建更大验证门",
+    "TestOnly单root Voice持久边界，不证明父子经营、业务退出或尾责清退、交易策略准入或真实成交",
+    "不宣称#1374关票、#1323总图闭合或main合入授权"
+  ],
+  "prior_failed_attempt": {
+    "classification": "FAILED_PRESERVED；存在FAILURE时不将较早RESULT自报PASS计入验收",
+    "counted_in_successful_runs": false,
+    "failure_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/faults/before_commit/run-1/FAILURE.json",
+    "failure_sha256": "501c4b0701bd089207b66ab0362c8752a593c9c7a12dfa30e824a3aeb9b5f5fc",
+    "reason": "旧audit误拒已正式停净owner留下的Unix socket目录项；原失败及原socket归档保留；本次仅验faults-attempt-2四轮",
+    "result_file_also_exists": true
+  },
+  "results": {
+    "actual_commands": 200,
+    "actual_runs": 4,
+    "complete_sql_snapshots": 120,
+    "complete_views": 60,
+    "copied_databases": 12,
+    "independent_checks": 12468,
+    "negative_controls": 6,
+    "request_files": 100,
+    "scope": "真实BindVoice提交前/后故障各双跑、恢复和原重送边界；不增称整叶或父图完成",
+    "status": "PASS_BOUNDED_ACTUAL_VOICE_FAULT_DOUBLE_RUNS"
+  },
+  "reviewer_modified_production_or_original_artifacts": false,
+  "reviewer_started_or_stopped_services": false,
+  "run_summary": [
+    {
+      "commit_ns": "1402",
+      "final_cut": {
+        "commit_seq": "2",
+        "domain_id": "B:chong-gamma-v1",
+        "root_hash": "612bc75f692c036666dd3c9c6db93642f2cdbd47610292bdc96c25d408eb1a1b"
+      },
+      "first_known_ns": "1401",
+      "phase": "before_commit",
+      "receipt_sha256": "3bb28ff1ca67952ae46c73ec04761b7ab9fe3948475342fff21d39c1a100a663",
+      "run": 1,
+      "voice_id": "76567829821f0bce6155e3b27df4cd8fc566244fb878bc0dd7b92293973b3c23"
+    },
+    {
+      "commit_ns": "1402",
+      "final_cut": {
+        "commit_seq": "2",
+        "domain_id": "B:chong-gamma-v1",
+        "root_hash": "612bc75f692c036666dd3c9c6db93642f2cdbd47610292bdc96c25d408eb1a1b"
+      },
+      "first_known_ns": "1401",
+      "phase": "before_commit",
+      "receipt_sha256": "3bb28ff1ca67952ae46c73ec04761b7ab9fe3948475342fff21d39c1a100a663",
+      "run": 2,
+      "voice_id": "76567829821f0bce6155e3b27df4cd8fc566244fb878bc0dd7b92293973b3c23"
+    },
+    {
+      "commit_ns": "1102",
+      "final_cut": {
+        "commit_seq": "2",
+        "domain_id": "B:chong-gamma-v1",
+        "root_hash": "7cfb02c109a673257a611c17cb0054334def6adf1be1582f0b628a0b595675df"
+      },
+      "first_known_ns": "1101",
+      "phase": "after_commit",
+      "receipt_sha256": "acea52b6af1ebb153a85024cb088a58438eb9723419fdb60a2677957451172b6",
+      "run": 1,
+      "voice_id": "0900e0c09779557987fcf319f9bc5afe4c18abec64e2e0247bb201cf12bad129"
+    },
+    {
+      "commit_ns": "1102",
+      "final_cut": {
+        "commit_seq": "2",
+        "domain_id": "B:chong-gamma-v1",
+        "root_hash": "7cfb02c109a673257a611c17cb0054334def6adf1be1582f0b628a0b595675df"
+      },
+      "first_known_ns": "1101",
+      "phase": "after_commit",
+      "receipt_sha256": "acea52b6af1ebb153a85024cb088a58438eb9723419fdb60a2677957451172b6",
+      "run": 2,
+      "voice_id": "0900e0c09779557987fcf319f9bc5afe4c18abec64e2e0247bb201cf12bad129"
+    }
+  ],
+  "schema": "voice-fault-execution-independent-review/1",
+  "scope": "BindVoice before_commit / after_commit 两phase各真实新进程双跑，实际KILL、恢复、原请求重送与历史边界；不包含叶票或父图完成",
+  "source_freezes": [
+    {
+      "files": 482,
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/faults-attempt-2/before_commit/SOURCE-FREEZE.json",
+      "phase": "before_commit",
+      "sha256": "3b493894a812dde76f5ca0c968daa4c5b0478314c8764283b0a52482f8de8f0c"
+    },
+    {
+      "files": 482,
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/faults-attempt-2/after_commit/SOURCE-FREEZE.json",
+      "phase": "after_commit",
+      "sha256": "ec711729144a9a7f909c2b55ae8b1687a2b1d845b889f36de1b45fa83cb804af"
+    }
+  ],
+  "validated": [
+    "四轮每轮25原请求/15完整视图/30完整SQL/50原回复/4就绪原件与精确命令和raw集合齐全；运行前后来源hash一致",
+    "真实marker及runtime/pause.json绑定目标Bγ、bind-root、phase和原PID；相同单调时钟证明marker观测后KILL进入时sender尚未结束，实际原回执为DeliveryUnknown，原PID的SIGKILL停止得到正式确认",
+    "实际目标owner从epoch1恢复1300到epoch2，新PID和nonce；E与healthy B原身份不变；所有view/ready对实际提交表完整图像、cut、PIDnonce与writer epoch",
+    "提交前paused/killed完整30表等before-fault无Voice；recover只追加epoch/recover记录；原请求恢复后1401获知1402提交，完整提交组由已审独立纯值构造对齐",
+    "提交后paused/killed完整30表保留1101/1102原Bind提交、永久回执与原消息；recover不改业务，重送仍回完整原永久回执且所有表不变",
+    "两条路径原请求两次重送字节相同；QueryVoice完整record/原回执相同，第二次重送和查询、停止不改任何SQL",
+    "AsKnown1100两条路径均无Voice；1300在before_commit仍无Voice，在after_commit保留1101/1102原Voice，不回填未来状态",
+    "healthy B在故障前、暂停、被杀、恢复owner尚未启动、重启后重送前、重送后六阶段完整view/cut/PIDnonce相同；E和healthy B所有SQL自before-fault至stopped相同",
+    "三域4轮共12份DB/WAL/SHM逐字复制后只读integrity_check与完整schema/10表核对；原SQLite未直接打开；全目录inventory及trace inventory一致",
+    "每轮保留3个socket原件，路径、inode和device严格匹配正式STOPPED最终owner，不通过删除socket制造通过；旧目标与最终owner共16个被核PID当前均不存在",
+    "同phase两轮全部30SQL/25原请求、预期和永久回执逐字一致；全部公开业务图像仅PIDnonce不同；两轮PIDnonce确实独立",
+    "6个实际证据副本篡改负控全拒；全部被审普通原件验收前后字节不变"
+  ],
+  "verdict": "APPROVE_BOUNDED_ACTUAL_VOICE_FAULT_DOUBLE_RUNS"
+}

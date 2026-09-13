@@ -1,0 +1,928 @@
+{
+  "schema": "final-delivery-source-scope-independent/1",
+  "issue": 1374,
+  "verdict": "APPROVE_BOUNDED_FINAL_DELIVERY_SOURCE_SCOPE",
+  "reviewed_at_utc": "2026-09-13T20:29:26.984969+00:00",
+  "scope": "最终 git 产品变更集合、当前源码字节、连续评审链和既有构建/运行冻结身份；非重新业务审查",
+  "reviewer": "Codex 原生子代理 /root/tb03a_delivery_report",
+  "base_commit": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+  "findings": [],
+  "git_before": {
+    "head": "c0ed0497a1bcd3cfca7e5b73a8af1cae229e0863",
+    "tracked": [
+      ".chanlun/agent-roster-2026-09-13.md",
+      "rust/Cargo.lock",
+      "rust/Cargo.toml",
+      "rust/src/bin/b_chong_session.rs",
+      "rust/src/bin/e_economic_session.rs",
+      "rust/src/bin/s_session_v2/mod.rs",
+      "rust/src/bin/s_structure_session.rs",
+      "rust/src/economic_session/book.rs",
+      "rust/src/economic_session/evidence.rs",
+      "rust/src/economic_session/mod.rs",
+      "rust/src/economic_session/service.rs",
+      "rust/src/economic_session/store.rs",
+      "rust/src/economic_session/voice.rs",
+      "rust/src/economic_session/voice_tests.rs",
+      "rust/src/lib.rs",
+      "rust/src/session_protocol.rs",
+      "rust/src/session_transport.rs",
+      "rust/src/theta_v0/strategy/ledger.rs",
+      "s_session/browser/economic.html",
+      "s_session/browser/index.html",
+      "s_session/browser/tb03a-client.js",
+      "s_session/economic_http.py",
+      "s_session/economic_query.py",
+      "s_session/economic_service_control.py",
+      "s_session/launch_s.sh",
+      "s_session/s_readonly_server.py",
+      "s_session/s_service_control.py",
+      "s_session/s_socket_client.py",
+      "s_session/tests/test_tb03a_query.py",
+      "s_session/tests/test_tb03a_socket_identity.py",
+      "s_session/tests/test_tb03a_voice_client.cjs"
+    ],
+    "untracked": [
+      ".chanlun/review-results/issue1374-tb03a-20260914/EVIDENCE.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/REPORT.md",
+      ".chanlun/review-results/issue1374-tb03a-20260914/controller.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/controller_send_delta.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_export_delta.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_faults.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_normal.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_script.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/filesystem_delta.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/gamma_definition.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/owner_initial.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/owner_v2.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/query_final.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/shared_wire.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/transport_final.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_authority.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_authority_receipt.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_core.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_fault_driver.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_faults.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_gui.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_gui_helper.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_normal.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_normal_driver.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_ui.json"
+    ],
+    "product": [
+      "rust/Cargo.lock",
+      "rust/Cargo.toml",
+      "rust/src/bin/b_chong_session.rs",
+      "rust/src/bin/e_economic_session.rs",
+      "rust/src/bin/s_session_v2/mod.rs",
+      "rust/src/bin/s_structure_session.rs",
+      "rust/src/economic_session/book.rs",
+      "rust/src/economic_session/evidence.rs",
+      "rust/src/economic_session/mod.rs",
+      "rust/src/economic_session/service.rs",
+      "rust/src/economic_session/store.rs",
+      "rust/src/economic_session/voice.rs",
+      "rust/src/economic_session/voice_tests.rs",
+      "rust/src/lib.rs",
+      "rust/src/session_protocol.rs",
+      "rust/src/session_transport.rs",
+      "rust/src/theta_v0/strategy/ledger.rs",
+      "s_session/browser/economic.html",
+      "s_session/browser/index.html",
+      "s_session/browser/tb03a-client.js",
+      "s_session/economic_http.py",
+      "s_session/economic_query.py",
+      "s_session/economic_service_control.py",
+      "s_session/launch_s.sh",
+      "s_session/s_readonly_server.py",
+      "s_session/s_service_control.py",
+      "s_session/s_socket_client.py",
+      "s_session/tests/test_tb03a_query.py",
+      "s_session/tests/test_tb03a_socket_identity.py",
+      "s_session/tests/test_tb03a_voice_client.cjs"
+    ],
+    "documentation": [
+      ".chanlun/agent-roster-2026-09-13.md",
+      ".chanlun/review-results/issue1374-tb03a-20260914/EVIDENCE.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/REPORT.md",
+      ".chanlun/review-results/issue1374-tb03a-20260914/controller.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/controller_send_delta.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_export_delta.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_faults.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_normal.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_script.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/filesystem_delta.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/gamma_definition.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/owner_initial.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/owner_v2.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/query_final.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/shared_wire.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/transport_final.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_authority.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_authority_receipt.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_core.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_fault_driver.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_faults.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_gui.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_gui_helper.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_normal.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_normal_driver.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_ui.json"
+    ],
+    "unexpected": []
+  },
+  "git_after": {
+    "head": "c0ed0497a1bcd3cfca7e5b73a8af1cae229e0863",
+    "tracked": [
+      ".chanlun/agent-roster-2026-09-13.md",
+      "rust/Cargo.lock",
+      "rust/Cargo.toml",
+      "rust/src/bin/b_chong_session.rs",
+      "rust/src/bin/e_economic_session.rs",
+      "rust/src/bin/s_session_v2/mod.rs",
+      "rust/src/bin/s_structure_session.rs",
+      "rust/src/economic_session/book.rs",
+      "rust/src/economic_session/evidence.rs",
+      "rust/src/economic_session/mod.rs",
+      "rust/src/economic_session/service.rs",
+      "rust/src/economic_session/store.rs",
+      "rust/src/economic_session/voice.rs",
+      "rust/src/economic_session/voice_tests.rs",
+      "rust/src/lib.rs",
+      "rust/src/session_protocol.rs",
+      "rust/src/session_transport.rs",
+      "rust/src/theta_v0/strategy/ledger.rs",
+      "s_session/browser/economic.html",
+      "s_session/browser/index.html",
+      "s_session/browser/tb03a-client.js",
+      "s_session/economic_http.py",
+      "s_session/economic_query.py",
+      "s_session/economic_service_control.py",
+      "s_session/launch_s.sh",
+      "s_session/s_readonly_server.py",
+      "s_session/s_service_control.py",
+      "s_session/s_socket_client.py",
+      "s_session/tests/test_tb03a_query.py",
+      "s_session/tests/test_tb03a_socket_identity.py",
+      "s_session/tests/test_tb03a_voice_client.cjs"
+    ],
+    "untracked": [
+      ".chanlun/review-results/issue1374-tb03a-20260914/EVIDENCE.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/REPORT.md",
+      ".chanlun/review-results/issue1374-tb03a-20260914/controller.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/controller_send_delta.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_export_delta.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_faults.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_normal.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_script.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/filesystem_delta.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/gamma_definition.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/owner_initial.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/owner_v2.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/query_final.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/shared_wire.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/transport_final.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_authority.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_authority_receipt.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_core.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_fault_driver.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_faults.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_gui.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_gui_helper.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_normal.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_normal_driver.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_ui.json"
+    ],
+    "product": [
+      "rust/Cargo.lock",
+      "rust/Cargo.toml",
+      "rust/src/bin/b_chong_session.rs",
+      "rust/src/bin/e_economic_session.rs",
+      "rust/src/bin/s_session_v2/mod.rs",
+      "rust/src/bin/s_structure_session.rs",
+      "rust/src/economic_session/book.rs",
+      "rust/src/economic_session/evidence.rs",
+      "rust/src/economic_session/mod.rs",
+      "rust/src/economic_session/service.rs",
+      "rust/src/economic_session/store.rs",
+      "rust/src/economic_session/voice.rs",
+      "rust/src/economic_session/voice_tests.rs",
+      "rust/src/lib.rs",
+      "rust/src/session_protocol.rs",
+      "rust/src/session_transport.rs",
+      "rust/src/theta_v0/strategy/ledger.rs",
+      "s_session/browser/economic.html",
+      "s_session/browser/index.html",
+      "s_session/browser/tb03a-client.js",
+      "s_session/economic_http.py",
+      "s_session/economic_query.py",
+      "s_session/economic_service_control.py",
+      "s_session/launch_s.sh",
+      "s_session/s_readonly_server.py",
+      "s_session/s_service_control.py",
+      "s_session/s_socket_client.py",
+      "s_session/tests/test_tb03a_query.py",
+      "s_session/tests/test_tb03a_socket_identity.py",
+      "s_session/tests/test_tb03a_voice_client.cjs"
+    ],
+    "documentation": [
+      ".chanlun/agent-roster-2026-09-13.md",
+      ".chanlun/review-results/issue1374-tb03a-20260914/EVIDENCE.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/REPORT.md",
+      ".chanlun/review-results/issue1374-tb03a-20260914/controller.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/controller_send_delta.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_export_delta.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_faults.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_normal.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/economic_script.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/filesystem_delta.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/gamma_definition.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/owner_initial.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/owner_v2.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/query_final.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/shared_wire.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/transport_final.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_authority.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_authority_receipt.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_core.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_fault_driver.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_faults.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_gui.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_gui_helper.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_normal.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_normal_driver.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/voice_ui.json"
+    ],
+    "unexpected": []
+  },
+  "input_index_start": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/.chanlun/review-results/issue1374-tb03a-20260914/EVIDENCE.json",
+    "sha256": "4c6c97e5333c3bdb77ef410d21aa629b2f279b08f9e64609ccf0f54964115d0e",
+    "bytes": 61129
+  },
+  "input_index_end": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/.chanlun/review-results/issue1374-tb03a-20260914/EVIDENCE.json",
+    "sha256": "4c6c97e5333c3bdb77ef410d21aa629b2f279b08f9e64609ccf0f54964115d0e",
+    "bytes": 61129
+  },
+  "documentation_edited_during_check": false,
+  "index_document_pending_root_finalization": true,
+  "product_source_count": 30,
+  "source_coverage": [
+    {
+      "path": "rust/Cargo.lock",
+      "bytes": 55961,
+      "sha256": "c591858344c1ff7c62335e10c0e2f1f5cf9e7447a8caf81cd92e556bac248b62",
+      "continuous_review_chain": [
+        "filesystem_delta"
+      ],
+      "current_hash_matches_original_reviews": [
+        "filesystem_delta"
+      ],
+      "scope_qualification": "Cargo 原 owner 入口初审与后续 statfs 依赖增量连续覆盖；当前字节与 filesystem_delta 相符。"
+    },
+    {
+      "path": "rust/Cargo.toml",
+      "bytes": 12154,
+      "sha256": "db8af9ea30e1840b87759aedd67a556fa506d152be1b01d3e068d8be610c1bdf",
+      "continuous_review_chain": [
+        "owner_initial",
+        "filesystem_delta",
+        "economic_export_delta"
+      ],
+      "current_hash_matches_original_reviews": [
+        "filesystem_delta",
+        "economic_export_delta"
+      ],
+      "scope_qualification": "Cargo 原 owner 入口初审与后续 statfs 依赖增量连续覆盖；当前字节与 filesystem_delta 相符。"
+    },
+    {
+      "path": "rust/src/bin/b_chong_session.rs",
+      "bytes": 211,
+      "sha256": "34adfbb8456b5e81ea35c81b6cb11ebc83fe85f4aa571ea669115adf3ff56af1",
+      "continuous_review_chain": [
+        "owner_initial",
+        "owner_v2"
+      ],
+      "current_hash_matches_original_reviews": [
+        "owner_initial",
+        "owner_v2"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/bin/e_economic_session.rs",
+      "bytes": 208,
+      "sha256": "866dbe66d598648b5c324ad77eaa825c2a856caa37a19b41d4145f7f251e7005",
+      "continuous_review_chain": [
+        "owner_initial",
+        "owner_v2"
+      ],
+      "current_hash_matches_original_reviews": [
+        "owner_initial",
+        "owner_v2"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/mod.rs",
+      "bytes": 83491,
+      "sha256": "e235ed35402c1fb63f504d8252857e33a48d6eddbddbd33fc7039b4b4494b624",
+      "continuous_review_chain": [
+        "shared_wire"
+      ],
+      "current_hash_matches_original_reviews": [
+        "shared_wire"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/bin/s_structure_session.rs",
+      "bytes": 247453,
+      "sha256": "66e7af17326d8ee04dd3062a3e4f62b6541b6389089762d7889ad2bd4d22cca5",
+      "continuous_review_chain": [
+        "shared_wire"
+      ],
+      "current_hash_matches_original_reviews": [
+        "shared_wire"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/economic_session/book.rs",
+      "bytes": 27027,
+      "sha256": "e6dbd45a64c4c93f6de59c1f4362a89c2a4b134106ea2a57bc470fb020e7a09e",
+      "continuous_review_chain": [
+        "owner_initial",
+        "owner_v2",
+        "voice_core"
+      ],
+      "current_hash_matches_original_reviews": [
+        "voice_core"
+      ],
+      "scope_qualification": "原 owner 缺陷关闭后追加 Voice 核心审查；当前字节与 voice_core 相符，不能把早期 hash 当当前 hash。"
+    },
+    {
+      "path": "rust/src/economic_session/evidence.rs",
+      "bytes": 13614,
+      "sha256": "77cac6ff99a793d142c3f3701f29d4a24c722cbdcc4b2926bd54181661f0b0ad",
+      "continuous_review_chain": [
+        "voice_core"
+      ],
+      "current_hash_matches_original_reviews": [
+        "voice_core"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/economic_session/mod.rs",
+      "bytes": 296,
+      "sha256": "de1a4948affcf62074adffed513ecd65643c51e01c164419ecafa321a9bd0196",
+      "continuous_review_chain": [
+        "owner_initial",
+        "owner_v2",
+        "voice_core"
+      ],
+      "current_hash_matches_original_reviews": [
+        "voice_core"
+      ],
+      "scope_qualification": "原 owner 缺陷关闭后追加 Voice 核心审查；当前字节与 voice_core 相符，不能把早期 hash 当当前 hash。"
+    },
+    {
+      "path": "rust/src/economic_session/service.rs",
+      "bytes": 26370,
+      "sha256": "b34fdc8f6f72d8e1bb1797b53351a00b496ede843c917166f335295598de89a1",
+      "continuous_review_chain": [
+        "owner_initial",
+        "owner_v2",
+        "voice_core"
+      ],
+      "current_hash_matches_original_reviews": [
+        "voice_core"
+      ],
+      "scope_qualification": "原 owner 缺陷关闭后追加 Voice 核心审查；当前字节与 voice_core 相符，不能把早期 hash 当当前 hash。"
+    },
+    {
+      "path": "rust/src/economic_session/store.rs",
+      "bytes": 44132,
+      "sha256": "6916304230861685682535388923168034419940c5f92d1ed8fa800c3c32048c",
+      "continuous_review_chain": [
+        "owner_initial",
+        "owner_v2",
+        "filesystem_delta",
+        "voice_core"
+      ],
+      "current_hash_matches_original_reviews": [
+        "voice_core"
+      ],
+      "scope_qualification": "原 owner 缺陷关闭后追加 Voice 核心审查；当前字节与 voice_core 相符，不能把早期 hash 当当前 hash。"
+    },
+    {
+      "path": "rust/src/economic_session/voice.rs",
+      "bytes": 15429,
+      "sha256": "a70364ef809d120a56a2b18801e7f0984ed34bd15df9706114eedd49acc504d2",
+      "continuous_review_chain": [
+        "voice_core"
+      ],
+      "current_hash_matches_original_reviews": [
+        "voice_core"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/economic_session/voice_tests.rs",
+      "bytes": 21494,
+      "sha256": "47509489a874f37d51afef33af67ba1ce68ad652426a9b135db57bc21d1640d7",
+      "continuous_review_chain": [
+        "voice_core"
+      ],
+      "current_hash_matches_original_reviews": [
+        "voice_core"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/lib.rs",
+      "bytes": 111248,
+      "sha256": "388e9588e1deea05c4c35797dd56403b4d547d513605d6c5adf743b75fd72e89",
+      "continuous_review_chain": [
+        "shared_wire",
+        "economic_export_delta"
+      ],
+      "current_hash_matches_original_reviews": [
+        "shared_wire",
+        "economic_export_delta"
+      ],
+      "scope_qualification": "shared_wire 仅共享导出块；economic_export_delta 仅末尾四行经济导出及 Cargo feature/target 条件，9项检查，不宣称全lib.rs重审。"
+    },
+    {
+      "path": "rust/src/session_protocol.rs",
+      "bytes": 13416,
+      "sha256": "87456952f5e74e7d932760b73647fbb1dad382b41098e441686a4b7ee87ffa00",
+      "continuous_review_chain": [
+        "owner_initial",
+        "shared_wire"
+      ],
+      "current_hash_matches_original_reviews": [
+        "owner_initial",
+        "shared_wire"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/session_transport.rs",
+      "bytes": 18546,
+      "sha256": "0b968ef87bfe5f4bcfc7dbd136ba2401066a892a24ce598a9874fcffe9f1132c",
+      "continuous_review_chain": [
+        "shared_wire",
+        "transport_final"
+      ],
+      "current_hash_matches_original_reviews": [
+        "transport_final"
+      ],
+      "scope_qualification": "共享抽取审查加最终 macOS EOF/截止修复 206 项审查，当前字节与最终源副本相符。"
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/ledger.rs",
+      "bytes": 94302,
+      "sha256": "7c218a26af9a7ad0fd2cbe5cfc51511cc3dc98a402541281ab3590280c911f24",
+      "continuous_review_chain": [
+        "owner_initial",
+        "owner_v2"
+      ],
+      "current_hash_matches_original_reviews": [
+        "owner_initial"
+      ],
+      "scope_qualification": "owner_initial 审查 ledger_step_components 抽取但总判 REQUEST_CHANGES；四项具名缺陷均在 book/store/service，owner_v2 已关闭。本处未新增代码。"
+    },
+    {
+      "path": "s_session/browser/economic.html",
+      "bytes": 8075,
+      "sha256": "623dc71dca16828b0b089b9d43400e40e470a18fb1f123a5c9943b5e8a7b43b0",
+      "continuous_review_chain": [
+        "query_final",
+        "voice_ui"
+      ],
+      "current_hash_matches_original_reviews": [
+        "voice_ui"
+      ],
+      "scope_qualification": "查询全链原审加后续 Voice UI 契约独评；实际浏览器由 voice_gui 另行独验。"
+    },
+    {
+      "path": "s_session/browser/index.html",
+      "bytes": 47130,
+      "sha256": "ac42bf0c2ff530d8b6f53f4e086bf7d84fd2babcf6e7ba59d97f20f9eebf177b",
+      "continuous_review_chain": [
+        "query_final"
+      ],
+      "current_hash_matches_original_reviews": [
+        "query_final"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/browser/tb03a-client.js",
+      "bytes": 18776,
+      "sha256": "097fcabb8b678fed19cd85a0f365c989e3c3b2d72c05ee990d09902e1f9305b2",
+      "continuous_review_chain": [
+        "query_final",
+        "voice_ui"
+      ],
+      "current_hash_matches_original_reviews": [
+        "voice_ui"
+      ],
+      "scope_qualification": "查询全链原审加后续 Voice UI 契约独评；实际浏览器由 voice_gui 另行独验。"
+    },
+    {
+      "path": "s_session/economic_http.py",
+      "bytes": 5686,
+      "sha256": "c9aee04f19694d5ff79b6367e057f424aba8aa18a708098dc38e13aef468b0dd",
+      "continuous_review_chain": [
+        "query_final"
+      ],
+      "current_hash_matches_original_reviews": [
+        "query_final"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/economic_query.py",
+      "bytes": 15394,
+      "sha256": "4a4491efcb8ae58a634d3a0969e5b624fde05f06f91d897ad59c16339c4be349",
+      "continuous_review_chain": [
+        "query_final"
+      ],
+      "current_hash_matches_original_reviews": [
+        "query_final"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/economic_service_control.py",
+      "bytes": 9886,
+      "sha256": "a4d2d25665b3163cc6ef183e4dba29ac8cef8ac8f0f716384251e68d143f94e4",
+      "continuous_review_chain": [
+        "controller",
+        "controller_send_delta"
+      ],
+      "current_hash_matches_original_reviews": [
+        "controller_send_delta"
+      ],
+      "scope_qualification": "控制器初审加 send 生命周期锁增量审查，当前字节与增量报告相符。"
+    },
+    {
+      "path": "s_session/launch_s.sh",
+      "bytes": 10740,
+      "sha256": "5bd94dbd39efc5a14be7d2fa23b3ed6b9c7c4570bc38338876c6451eec67522a",
+      "continuous_review_chain": [
+        "controller"
+      ],
+      "current_hash_matches_original_reviews": [
+        "controller"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/s_readonly_server.py",
+      "bytes": 52779,
+      "sha256": "c8c3be8c09177cc8fd9f0fb7b3a4c1dcfb6d0eee9e222628fc63cc24fdb20916",
+      "continuous_review_chain": [
+        "query_final"
+      ],
+      "current_hash_matches_original_reviews": [
+        "query_final"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/s_service_control.py",
+      "bytes": 30744,
+      "sha256": "adf11ed673902705fc1a5776c3fcd68417cbc69690e5ba19157b515a691fd039",
+      "continuous_review_chain": [
+        "controller",
+        "controller_send_delta"
+      ],
+      "current_hash_matches_original_reviews": [
+        "controller",
+        "controller_send_delta"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/s_socket_client.py",
+      "bytes": 8845,
+      "sha256": "fdd8a40a501e1de9a740304667c9ba491a8ca3e1ac251ec62bf4832e7e425a27",
+      "continuous_review_chain": [
+        "query_final",
+        "controller",
+        "controller_send_delta"
+      ],
+      "current_hash_matches_original_reviews": [
+        "query_final",
+        "controller",
+        "controller_send_delta"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/tests/test_tb03a_query.py",
+      "bytes": 6614,
+      "sha256": "bc635f54cf8b354697cf0ecacf6e9a5f52fabcf90599615187223a5e1ad81440",
+      "continuous_review_chain": [
+        "query_final"
+      ],
+      "current_hash_matches_original_reviews": [
+        "query_final"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/tests/test_tb03a_socket_identity.py",
+      "bytes": 3240,
+      "sha256": "d4c5eb73de580a7b4b4e8dd1d1f9c5b67c2ad4263c332cf64a4deb1d6a66b6ea",
+      "continuous_review_chain": [
+        "query_final"
+      ],
+      "current_hash_matches_original_reviews": [
+        "query_final"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/tests/test_tb03a_voice_client.cjs",
+      "bytes": 6447,
+      "sha256": "13ba54bd723f4700833372804100c1f87886a7955ddeb6ce911a862423d1634a",
+      "continuous_review_chain": [
+        "voice_ui"
+      ],
+      "current_hash_matches_original_reviews": [
+        "voice_ui"
+      ],
+      "scope_qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    }
+  ],
+  "original_review_bindings": [
+    {
+      "id": "controller",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/controller-review/REVIEW.json",
+        "sha256": "cf6a5c484908341ef53433dbfa7007a8de41eafff6c99792da46b7d9f1328289",
+        "bytes": 1832
+      },
+      "repository_copy": "controller.json",
+      "verdict": "APPROVE"
+    },
+    {
+      "id": "controller_send_delta",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/controller-send-delta-review/REVIEW.json",
+        "sha256": "8e48b8cce5806867a9f041b56d4561a9c3b351ff33e36a15b49cd5d822200d08",
+        "bytes": 1745
+      },
+      "repository_copy": "controller_send_delta.json",
+      "verdict": "APPROVE"
+    },
+    {
+      "id": "economic_export_delta",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-gui-execution-independent/EXPORT-DELTA-REVIEW.json",
+        "sha256": "6d9ed21d97fd721fc2050a31e3f65dff78ddfe3561e3e1d9787303b7b43909b5",
+        "bytes": 1964
+      },
+      "repository_copy": "economic_export_delta.json",
+      "verdict": "APPROVE_BOUNDED_ECONOMIC_MODULE_EXPORT_DELTA"
+    },
+    {
+      "id": "filesystem_delta",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/filesystem-delta-review/REVIEW.json",
+        "sha256": "740e76c420deb4a7af36f227740160866b1d50a5eedf17e3fc24a240bf2f3c39",
+        "bytes": 2222
+      },
+      "repository_copy": "filesystem_delta.json",
+      "verdict": "APPROVE"
+    },
+    {
+      "id": "owner_initial",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review/REVIEW.json",
+        "sha256": "70a937064dd9d0815563c35c601f57f4da7459cec86cccb5e66919f03c453245",
+        "bytes": 13101
+      },
+      "repository_copy": "owner_initial.json",
+      "verdict": "REQUEST_CHANGES"
+    },
+    {
+      "id": "owner_v2",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review-v2/REVIEW.json",
+        "sha256": "daddc4c10dd519577842ea807302a939efa4e2052cdea4c63a7ee79c2c849d10",
+        "bytes": 6186
+      },
+      "repository_copy": "owner_v2.json",
+      "verdict": "APPROVE"
+    },
+    {
+      "id": "query_final",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/query-review-recheck/REVIEW.json",
+        "sha256": "930b1ca1a8f10b5f03ad1c0583057d829eae4992efaab3c6f8fdb4d077bf6727",
+        "bytes": 3360
+      },
+      "repository_copy": "query_final.json",
+      "verdict": "APPROVE"
+    },
+    {
+      "id": "shared_wire",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/shared-wire-review/REVIEW.json",
+        "sha256": "28e93b8805f59b5bb7b01cd8c43556cfe31cc88d9d52146b7c101f43255a5791",
+        "bytes": 4380
+      },
+      "repository_copy": "shared_wire.json",
+      "verdict": "APPROVE"
+    },
+    {
+      "id": "transport_final",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-v2/transport-independent-v3/ROOT-REVIEW.json",
+        "sha256": "16a454e2e0a079f3688c2e72f014823f6153589199569a75ba743cb8f072cdeb",
+        "bytes": 1137
+      },
+      "repository_copy": "transport_final.json",
+      "verdict": "APPROVE_BOUNDED_TRANSPORT_DELTA"
+    },
+    {
+      "id": "voice_core",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-binding-independent/REVIEW.json",
+        "sha256": "5919422f64cdf1677a9172ddb98642069cb28b43052d0c2161b8b4f20bd62130",
+        "bytes": 4051
+      },
+      "repository_copy": "voice_core.json",
+      "verdict": "APPROVE_BOUNDED_VOICE_CORE_ADAPTER"
+    },
+    {
+      "id": "voice_ui",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-ui-independent-v2/REVIEW.json",
+        "sha256": "d403193d482474d31071d8648eebed929db6b2ddf2593d8fbb1f79dfa0b0a057",
+        "bytes": 852
+      },
+      "repository_copy": "voice_ui.json",
+      "verdict": "APPROVE_BOUNDED_VOICE_UI_DELTA"
+    }
+  ],
+  "runtime_freezes": [
+    {
+      "phase": "normal",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/normal/SOURCE-FREEZE-v2.json",
+        "sha256": "de6ce23b62c740cd7add99286cb8f8c26b5148b65ddce7a2141d7abe394609f1",
+        "bytes": 92629
+      },
+      "total_entries": 469,
+      "current_W4_entries_compared": 426,
+      "current_W4_mismatches": 0,
+      "changed_files_matched": 21,
+      "changed_files_not_in_this_runtime_freeze": [
+        "s_session/browser/economic.html",
+        "s_session/browser/index.html",
+        "s_session/browser/tb03a-client.js",
+        "s_session/economic_http.py",
+        "s_session/economic_query.py",
+        "s_session/s_readonly_server.py",
+        "s_session/tests/test_tb03a_query.py",
+        "s_session/tests/test_tb03a_socket_identity.py",
+        "s_session/tests/test_tb03a_voice_client.cjs"
+      ]
+    },
+    {
+      "phase": "gui",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/gui-v2/SOURCE-FREEZE.json",
+        "sha256": "563ebdefdc70f8796211af830f5c59cf9b556479675c6066c68581882c564563",
+        "bytes": 96031
+      },
+      "total_entries": 483,
+      "current_W4_entries_compared": 435,
+      "current_W4_mismatches": 0,
+      "changed_files_matched": 27,
+      "changed_files_not_in_this_runtime_freeze": [
+        "s_session/tests/test_tb03a_query.py",
+        "s_session/tests/test_tb03a_socket_identity.py",
+        "s_session/tests/test_tb03a_voice_client.cjs"
+      ]
+    },
+    {
+      "phase": "before_commit",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/faults-attempt-2/before_commit/SOURCE-FREEZE.json",
+        "sha256": "3b493894a812dde76f5ca0c968daa4c5b0478314c8764283b0a52482f8de8f0c",
+        "bytes": 95914
+      },
+      "total_entries": 482,
+      "current_W4_entries_compared": 434,
+      "current_W4_mismatches": 0,
+      "changed_files_matched": 26,
+      "changed_files_not_in_this_runtime_freeze": [
+        "s_session/browser/index.html",
+        "s_session/tests/test_tb03a_query.py",
+        "s_session/tests/test_tb03a_socket_identity.py",
+        "s_session/tests/test_tb03a_voice_client.cjs"
+      ]
+    },
+    {
+      "phase": "after_commit",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/faults-attempt-2/after_commit/SOURCE-FREEZE.json",
+        "sha256": "ec711729144a9a7f909c2b55ae8b1687a2b1d845b889f36de1b45fa83cb804af",
+        "bytes": 95909
+      },
+      "total_entries": 482,
+      "current_W4_entries_compared": 434,
+      "current_W4_mismatches": 0,
+      "changed_files_matched": 26,
+      "changed_files_not_in_this_runtime_freeze": [
+        "s_session/browser/index.html",
+        "s_session/tests/test_tb03a_query.py",
+        "s_session/tests/test_tb03a_socket_identity.py",
+        "s_session/tests/test_tb03a_voice_client.cjs"
+      ]
+    }
+  ],
+  "test_files_outside_runtime_freeze_union": [
+    "s_session/tests/test_tb03a_query.py",
+    "s_session/tests/test_tb03a_socket_identity.py",
+    "s_session/tests/test_tb03a_voice_client.cjs"
+  ],
+  "build_binding": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/binaries-v1/BUILD-BINDING.json",
+    "sha256": "9f9977a2e8b20688c07533d9da92cc0d5e4b9870fba29557d9979fec696bfde6",
+    "bytes": 2052
+  },
+  "frozen_binaries": [
+    {
+      "name": "s_structure_session",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/binaries-v1/s_structure_session",
+      "bytes": 8653928,
+      "sha256": "543356ab4b9378ba21c9ed365a665b0b62f01c2a113b6f284ae2b86a71bb869a"
+    },
+    {
+      "name": "e_economic_session",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/binaries-v1/e_economic_session",
+      "bytes": 5641440,
+      "sha256": "9286b23705712939af3bc77b55c7455ddaef068eb85e65357d81f210ef31dfac"
+    },
+    {
+      "name": "b_chong_session",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/binaries-v1/b_chong_session",
+      "bytes": 5641376,
+      "sha256": "90426704b011fa6cbc9ce432e46eb12dc56e2e8665848c100c20f498b468825d"
+    }
+  ],
+  "latest_fault_review": {
+    "source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-fault-execution-independent/REVIEW.json",
+      "sha256": "b2cab3de57e7d867889932c059fbbc631d1c2938ea95a49768bebb157f7c60bb",
+      "bytes": 8306
+    },
+    "verdict": "APPROVE_BOUNDED_ACTUAL_VOICE_FAULT_DOUBLE_RUNS",
+    "actual_runs": 4,
+    "independent_checks": 12468,
+    "negative_controls": 6,
+    "scope": "身份计数核对；不重做实际故障独验"
+  },
+  "verification": {
+    "mechanical_identity_checks": 1914,
+    "all_pass": true,
+    "tests_or_build_rerun": false,
+    "services_started_or_stopped": false,
+    "sqlite_opened": false,
+    "W4_modified": false,
+    "source_drift": false,
+    "unexplained_changed_files": []
+  },
+  "pending": [
+    "root以纯报告提交绑定本已核产品commit，并完成适用检查记录与PR",
+    "随后如再改产品代码，只对新增尾部变化重新核对；本报告不批准未见改动",
+    "main/主线CI/关票仍依各自既有授权与真实结果，不预写"
+  ],
+  "report_md_sha256": "6e87bd026034e51f97410eabf4281de6a7cb3ff7e9b98c01c37e52e011ba8e10",
+  "limitations": [
+    "集合与身份复核依赖已有具名独评，不重新宣称其未覆盖的语义",
+    "工作草稿可能由root并行修改，文档身份记录不作为源码缺陷",
+    "本次不构成整叶关票、父图闭合、真实外效或main合入批准"
+  ],
+  "delivery_product_commit": "c0ed0497a1bcd3cfca7e5b73a8af1cae229e0863",
+  "committed_product_verification": {
+    "base": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+    "commit": "c0ed0497a1bcd3cfca7e5b73a8af1cae229e0863",
+    "committed_files": 31,
+    "committed_product_sources": 30,
+    "additional_file": ".chanlun/agent-roster-2026-09-13.md",
+    "all_30_committed_blob_hashes_equal_reviewed_current_sources": true,
+    "tracked_product_tail": [],
+    "verified_at_utc": "2026-09-13T20:30:00.385573+00:00"
+  }
+}

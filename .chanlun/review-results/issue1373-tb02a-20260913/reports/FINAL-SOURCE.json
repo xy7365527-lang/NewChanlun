@@ -1,0 +1,168 @@
+{
+  "schema": "tb02a-final-source/1",
+  "at": "2026-09-13T15:00:46.271987+00:00",
+  "base": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+  "worktree": "/Users/silencehan/Projects/NewChanlun-1373-codex",
+  "branch": "codex/1373-codex",
+  "changed_source_files": [
+    {
+      "path": ".chanlun/agent-roster-2026-09-13.md",
+      "bytes": 3695,
+      "sha256": "a8883324dad4aebe4704650f230cffc2a9e2db8108b4d265ead0f321582dcd10"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 15509,
+      "sha256": "f8b4a3795968c73b492e9e3b8a2cf9daac8c14ce057ab8da7f86415c1c025a71"
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/audit.rs",
+      "bytes": 16805,
+      "sha256": "61dfb078c39f386a5730a78c30f8fd26ddd096b79098d7595a143bad973bb59a"
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/mod.rs",
+      "bytes": 92900,
+      "sha256": "4fefaf79931ab5046c8c1aa6771aea76e094d052a634f01771f9942a70fdce05"
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02a.rs",
+      "bytes": 13538,
+      "sha256": "bd43770c045b311bbc757569196000556ac5a2c485e0d6d04f959cea85e23618"
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02a_facts.rs",
+      "bytes": 18734,
+      "sha256": "2cd5d8b1db2c330eeaf0107cb89642c29b281f105f6013902ad50ccb6f6df7ac"
+    },
+    {
+      "path": "rust/src/bin/s_structure_session.rs",
+      "bytes": 276065,
+      "sha256": "125a0080d529bc3c5ef05d4c91016304c7c3319febd1628837c0c3cbb391f2b8"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/inclusion.rs",
+      "bytes": 55031,
+      "sha256": "cc48d963132d8d7e1bdc0043925831d941f873d8c7c71765962379649d28a3eb"
+    },
+    {
+      "path": "rust/src/theta_v0/parser/mod.rs",
+      "bytes": 23548,
+      "sha256": "25ba82f776f7aefcac414cd6963e3b239d2534241995f1f4c1992e1b7e46cbcb"
+    },
+    {
+      "path": "s_session/README.md",
+      "bytes": 21768,
+      "sha256": "c3f9d42a8428a856ebf7f86bede4c75346b432b403601cc1d46acaf97f4dffcb"
+    },
+    {
+      "path": "s_session/browser/index.html",
+      "bytes": 52354,
+      "sha256": "fef9c421aaee89f891bbad2ca78d73d6cd9dc14b644c5722552537288d49038e"
+    },
+    {
+      "path": "s_session/browser/tb01c-client.js",
+      "bytes": 52202,
+      "sha256": "e0907290a2f89570454a06f309ea1c917e24ca2d308b41070c1615c70ed81793"
+    },
+    {
+      "path": "s_session/profiles/ohlc_integer_tb02a_v1.json",
+      "bytes": 468,
+      "sha256": "482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6"
+    },
+    {
+      "path": "s_session/s_query.py",
+      "bytes": 25216,
+      "sha256": "048478fdab43716a413fdafc68e0b7316451d3db9b3499cbddb6da463a66e322"
+    },
+    {
+      "path": "s_session/s_query_integrity.py",
+      "bytes": 67256,
+      "sha256": "5e701d23c27e0053a8ca22b59d796e210331a45d2bed633d10db22207d840f9b"
+    },
+    {
+      "path": "s_session/s_readonly_server.py",
+      "bytes": 53990,
+      "sha256": "fcb033680a1ce1b351a6b2ca250bb56ccc69af6acd7ce52ce77265def4341165"
+    },
+    {
+      "path": "s_session/s_service_control.py",
+      "bytes": 29976,
+      "sha256": "1b2201ad01157037ee61de17a60d8d065282317a9465e25adc20c56093046e51"
+    },
+    {
+      "path": "s_session/s_tb02_contract.py",
+      "bytes": 23367,
+      "sha256": "1a10d53b4750dc9760738c14c80e195efbc9e5413575683ead066b8e5549a2d8"
+    },
+    {
+      "path": "s_session/tests/fixtures/tb02a/ORACLE.md",
+      "bytes": 6113,
+      "sha256": "6f42224e070db2de5ad42ef4bb8c81ca82dcf3867ee38edbe57c563524f7fa20"
+    },
+    {
+      "path": "s_session/tests/fixtures/tb02a/hand-oracle.json",
+      "bytes": 40386,
+      "sha256": "6a9489be8220d794950fec676d316f6f55e4910f157c174954d57c2cea1304ec"
+    },
+    {
+      "path": "s_session/tests/fixtures/tb02a/raw-ledger.json",
+      "bytes": 7278,
+      "sha256": "b321c037723cc00d597b441cd5eca6736249240d812dde2ede03e28e44fca7bf"
+    },
+    {
+      "path": "s_session/tests/tb02a_oracle_check.py",
+      "bytes": 49274,
+      "sha256": "6bcd5c973495055bf95deef5112d118fa94a75a4af51cfafa4d207203dadd280"
+    },
+    {
+      "path": "s_session/tests/tb02a_prepare.py",
+      "bytes": 8914,
+      "sha256": "c8c90fb8986fc8ae2a4b661179ad86980c071461b47f38b443e0795d7334e45a"
+    },
+    {
+      "path": "s_session/tests/tb02a_query_tests.py",
+      "bytes": 19152,
+      "sha256": "d4ddf1623317640426f13505ab384a5ede93bb81506f2653fd4cc707786834be"
+    },
+    {
+      "path": "s_session/tests/tb02a_runtime.py",
+      "bytes": 16396,
+      "sha256": "76cc9996531071eb28edb23471a712d2f0a4b169cc4472489563244e10fb1932"
+    },
+    {
+      "path": "s_session/tests/test_tb01c_browser.cjs",
+      "bytes": 29552,
+      "sha256": "18be8d6709748926393de55613c4c34acb62c1fedfe64cb69a55a8369de5ea01"
+    },
+    {
+      "path": "s_session/tests/test_tb02a_runtime.py",
+      "bytes": 6521,
+      "sha256": "1b6e7a9dec2d404d9296a8f8242b5add4d71a4b411ca14f0ac367f3857058bcf"
+    }
+  ],
+  "binary": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/build/debug/s_structure_session",
+    "bytes": 9102040,
+    "sha256": "762af6ffdc47171298e3b0b5a7340c4711587198769a991bb2963aca57026fa2"
+  },
+  "not_in_source_manifest": [
+    "issue1373 report and evidence index (documentation only, no self-hash)"
+  ],
+  "local_checks": {
+    "cargo_fmt_all_check": {
+      "exit_code": 0,
+      "evidence": "root actual command tool receipt session77984"
+    },
+    "git_diff_check": {
+      "exit_code": 0,
+      "evidence": "root actual command tool receipt after GUI"
+    },
+    "final_parser_tests": "rust-checks/f1/INCLUSION-TESTS.json",
+    "final_s_tests": "rust-checks/f1/SESSION-TESTS.json",
+    "runtime_v3_oracle": "runtime-v3/ORACLE-RESULT.json",
+    "gui": "gui-final/RESULT.json",
+    "rust_independent": "independent-review-final-rust/RESULT.json",
+    "python_browser_independent": "independent-q-review-post-fix/REVIEW.json"
+  }
+}

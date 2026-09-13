@@ -83,6 +83,12 @@ mod zhongshu;
 #[cfg(any(test, feature = "lav_seal"))]
 pub mod lav_seal;
 
+/// #1374：S/E/B 实例共用的规范消息机械件；业务 owner 各自保持独立。
+#[cfg(feature = "s_session")]
+pub mod session_protocol;
+#[cfg(all(feature = "s_session", unix))]
+pub mod session_transport;
+
 use std::collections::HashSet;
 
 use pyo3::prelude::*;
@@ -2840,3 +2846,7 @@ fn newchan_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(b_segment_crosses_zero, m)?)?;
     Ok(())
 }
+
+/// #1374：正式 E/B 持久经济事实服务。
+#[cfg(feature = "s_session")]
+pub mod economic_session;

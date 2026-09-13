@@ -43,6 +43,9 @@ mod tb02a;
 mod tb02a_facts;
 use std::path::{Path, PathBuf};
 
+#[cfg(test)]
+use newchan_rust::session_protocol::is_canonical_integer;
+use newchan_rust::session_protocol::{canonical_json, parse_canonical_i64, sha256_hex};
 use newchan_rust::theta_v0::classifier::local_shape::{
     classify_local_shape_sliding, window_domain_violation, Cc006DomainViolation, Cc006LocalShape,
 };
@@ -51,7 +54,6 @@ use newchan_rust::theta_v0::parser::{self, ParseLayerIncr};
 use newchan_rust::theta_v0::types::{Bar, Direction};
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
 
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
 const RULE_REVISION: &str = "s2-axis-quantifiers";
@@ -61,13 +63,6 @@ const DEFAULT_WRITER_EPOCH: &str = "1";
 
 fn jstr(s: &str) -> String {
     Value::String(s.to_string()).to_string()
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    let mut h = Sha256::new();
-    h.update(bytes);
-    let d = h.finalize();
-    d.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// Begin 唯一推进 token（单写者 CAS 提交条件用）。
@@ -83,37 +78,6 @@ fn make_token() -> String {
 // ────────────────────────────────────────────────────────────────────────────
 // 规范十进制整数（AC5：唯一表示，不静默截断/不接浮点）
 // ────────────────────────────────────────────────────────────────────────────
-
-/// 规范十进制整数：`0` 或 `-?[1-9][0-9]*`（无 `+`、无空白、无前导零、`-0` 非规范）。
-fn is_canonical_integer(s: &str) -> bool {
-    let b = s.as_bytes();
-    if b.is_empty() {
-        return false;
-    }
-    let (neg, rest) = if b[0] == b'-' {
-        (true, &b[1..])
-    } else {
-        (false, b)
-    };
-    if rest.is_empty() {
-        return false;
-    }
-    if rest[0] == b'0' {
-        return rest.len() == 1 && !neg;
-    }
-    rest.iter().all(|c| c.is_ascii_digit())
-}
-
-/// 把规范十进制字符串解析为精确 i64（非规范或超范围报错，不静默截断）。
-fn parse_canonical_i64(s: &str, what: &str) -> Result<i64, String> {
-    if !is_canonical_integer(s) {
-        return Err(format!(
-            "{what} `{s}` 不是规范十进制整数（要求唯一表示：无 +、无空白、无前导零）"
-        ));
-    }
-    s.parse::<i64>()
-        .map_err(|e| format!("{what} `{s}` 超出 i64 精确整数域：{e}"))
-}
 
 /// #1371：源位置是规范非负精确整数；不要求从零起或连续，允许超过 JS 安全整数。
 fn parse_source_coord(s: &str) -> Result<i64, String> {
@@ -2836,34 +2800,6 @@ fn advance_core(
 // ────────────────────────────────────────────────────────────────────────────
 // 规范字节：对 serde_json::Value 递归排序对象键，输出紧凑 JSON（无空白）。
 // ────────────────────────────────────────────────────────────────────────────
-
-fn canonical_json(v: &Value) -> String {
-    match v {
-        Value::Object(map) => {
-            let mut keys: Vec<&String> = map.keys().collect();
-            keys.sort();
-            let parts: Vec<String> = keys
-                .iter()
-                .map(|k| {
-                    format!(
-                        "{}:{}",
-                        serde_json::to_string(k).unwrap(),
-                        canonical_json(&map[*k])
-                    )
-                })
-                .collect();
-            format!("{{{}}}", parts.join(","))
-        }
-        Value::Array(arr) => {
-            let parts: Vec<String> = arr.iter().map(canonical_json).collect();
-            format!("[{}]", parts.join(","))
-        }
-        Value::String(s) => serde_json::to_string(s).unwrap(),
-        Value::Number(n) => n.to_string(),
-        Value::Bool(b) => b.to_string(),
-        Value::Null => "null".to_string(),
-    }
-}
 
 fn canonical_bytes_of_value(v: &Value) -> Vec<u8> {
     canonical_json(v).into_bytes()

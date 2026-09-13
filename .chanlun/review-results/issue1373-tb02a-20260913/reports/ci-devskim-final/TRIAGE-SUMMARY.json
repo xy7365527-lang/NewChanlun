@@ -1,0 +1,114 @@
+{
+  "status": "COMPLETE_BOUNDED_TRIAGE_GATE_FAIL",
+  "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+  "previous_head": "4408b0c233f45e33f53cf152112bbcdc3604344f",
+  "base": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+  "run_id": 34765582923,
+  "job_id": 103745837887,
+  "run_url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34765582923",
+  "checkout": {
+    "checkout": "22f7e0101503c4a1ce4e958400ac53271c84ca92",
+    "checkout_tree": "c906d23276d6263a67363b146b8f70958a77b81b",
+    "parents": [
+      "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+      "e7fe54e8cd041e18ea8e473a41a5621cbe90b693"
+    ],
+    "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+    "head_tree": "c906d23276d6263a67363b146b8f70958a77b81b",
+    "tree_equals_head": true,
+    "parents_exact": true,
+    "log_lines": [
+      204,
+      206,
+      207
+    ]
+  },
+  "sarif": {
+    "zip_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/devskim-sarif.zip",
+    "member": "devskim-results.sarif",
+    "bytes": 130736419,
+    "sha256": "a5dc0bcb6fe487a017e8dcb2ad0276db29fa464b1377e0f99efdb08fdf7d2007",
+    "artifact_id": 10320392046,
+    "artifact_api": "https://api.github.com/repos/xy7365527-lang/NewChanlun/actions/artifacts/10320392046",
+    "artifact_archive_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/actions/artifacts/10320392046/zip",
+    "run_id": 34765582923,
+    "head_sha": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693"
+  },
+  "gate": {
+    "log_keys": 26521,
+    "expected_keys": 26521,
+    "exact_ordered_list_equal": true,
+    "raw_count": 34783,
+    "fixed_since_baseline": 14,
+    "scanner": "success",
+    "artifact": "success",
+    "gate": "failure",
+    "started_at": "2026-09-13T15:30:46Z",
+    "completed_at": "2026-09-13T15:30:53Z",
+    "gate_seconds": 7.0,
+    "summary_upload_limit_error": "1024k limit, actual 3122k; occurs after gate exit1; fixing display alone does not make gate green"
+  },
+  "comparison_vs_previous": {
+    "raw": 34783,
+    "keys": 34708,
+    "full_result_multiset_equal": true,
+    "added_keys": 0,
+    "removed_keys": 0,
+    "added_results": 0,
+    "removed_results": 0,
+    "changed_paths": [
+      ".chanlun/review-results/issue1373-tb02a-20260913/CI-ADDENDUM.md",
+      "rust/src/theta_v0/classifier/bsp.rs"
+    ],
+    "findings_in_two_changed_paths": 0
+  },
+  "comparison_vs_main_base": {
+    "base_raw": 34663,
+    "head_raw": 34783,
+    "base_keys": 34589,
+    "head_keys": 34708,
+    "added_keys": 121,
+    "removed_keys": 2,
+    "added_results": 122,
+    "removed_results": 2,
+    "net_added_keys": 119,
+    "net_added_results": 120,
+    "base_baseline_outside": 26402,
+    "head_baseline_outside": 26521,
+    "changed_paths": 31,
+    "outside_changed_files": {
+      "equal": true,
+      "old_raw": 34659,
+      "new_raw": 34659,
+      "added": 0,
+      "removed": 0
+    }
+  },
+  "classification_vs_main_base": {
+    "sha_or_git_checksum_keys": 118,
+    "sha_or_git_checksum_raw_findings": 119,
+    "intentional_testonly_localhost_keys": 1,
+    "inherited_line_move_keys": 2,
+    "needs_review_in_added": 0
+  },
+  "checksum_evidence_limits": {
+    "sha256_fields": 117,
+    "git_commit_fields": 2,
+    "direct_file_sha_recomputed": 115,
+    "static_projection_sha_recomputed": 1,
+    "source_sha_bound_to_signed_catalog_metadata_only": 1
+  },
+  "inherited": {
+    "exact_same_old_baseline_outside_keys": 26400,
+    "moved_old_baseline_outside_keys": 2,
+    "previous_needs_review_not_resolved": true
+  },
+  "added_actual_security_defects_found": 0,
+  "added_credential_findings_found": 0,
+  "overall_repository_actual_risk": "UNKNOWN; inherited needs_review preserved; bounded diff is not whole-repository security approval",
+  "in_scope_product_security_fix_identified": false,
+  "automatic_exception": false,
+  "scope": "新完整SARIF/真实gate/checkout取证；全部result与4408及652对拍；同一新增集合复用精确源字节绑定的122条用途证据；不重审Q产品，不重跑scanner/tests，不修改仓库或任何旧报告。",
+  "normalization": "仅规范化全result的locations[].physicalLocation.artifactLocation.uri开头file://，全部其余字段保留",
+  "sarif_raw_bytes_note": "SARIF原件SHA随本次运行不同；全result多重集相同不表示SARIF容器原字节相同。"
+}

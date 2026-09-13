@@ -1,0 +1,66 @@
+{
+  "author_artifacts_unchanged": true,
+  "findings": [],
+  "independent_checker": {
+    "execution_receipt_sha256": "5ab58ca7e668a81f8af18bbcd9184b686ffcda46c41b27585b09c895f9e18ce3",
+    "imports_author_driver_or_production_code": false,
+    "optimized_python_run": true,
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-normal-execution-independent/verify.py",
+    "sha256": "b7609c11af5cabf62e5d0e26fb3605c8eb16ebd5f5dd7772a20b7d2362b5cb48"
+  },
+  "input_freeze": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-normal-execution-independent/INPUT-FREEZE.json",
+    "regular_files": 1097,
+    "sha256": "7a7dac4fc8aab528495957226506208357e149991f7a224a916d4aba66f0d250"
+  },
+  "issue": 1374,
+  "limitations": [
+    "实际启动的是 E 与两个 B；仅核对 S binary 冻结绑定，本正常轮未启动 S 或 Q",
+    "没有真实浏览器验收、没有故障轮验收主张",
+    "受控 TestOnly 单 root Voice；不证明父子经营、生命周期退出、尾责清退、交易准入或真实成交",
+    "该结论不构成 #1374 全部验收、#1323 总图完成、main 合入或任何实盘授权"
+  ],
+  "prior_driver_review": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-driver-review/REVIEW-normal-final.json",
+    "sha256": "3374223a343d63702494458def18cc62670f0cc74fa3bd87b63641e5b6417092"
+  },
+  "production_modified": false,
+  "result_sha256": "65037712242a1ef90a053c285bd974711aab4e9d92cf3d98a2beecfa9b143401",
+  "results": {
+    "checks": 5558,
+    "commands": 70,
+    "databases_copied_and_checked": 6,
+    "negative_controls": 8,
+    "public_views": 20,
+    "request_files": 48,
+    "runs": 2,
+    "scope": "受控定义 root Voice 的实际 E/B 正常入口双跑、原回执、幂等/冲突/历史及归档；没有 GUI 或故障轮验收主张",
+    "sql_snapshots": 66,
+    "status": "PASS_BOUNDED_FORMAL_VOICE_NORMAL_INDEPENDENT"
+  },
+  "reused_semantic_receipt": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-binding-independent/actual-binding/VERIFICATION.json",
+    "scope": "复用已完成的真实 gamma/K/开局来源证明，未重跑 Lean 或来源推导",
+    "sha256": "85d9adea47705768fd71de0a39a72e85313b77b4814082746bb9a5963de48d8f"
+  },
+  "schema": "voice-normal-execution-independent-review/1",
+  "scope": "实际受控 root Voice 的正常入口双跑及完整来源、SQL、原回复、历史、独立重和归档一致性",
+  "services_started_by_reviewer": false,
+  "source_freeze": {
+    "files": 469,
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/normal/SOURCE-FREEZE-v2.json",
+    "sha256": "de6ce23b62c740cd7add99286cb8f8c26b5148b65ddce7a2141d7abe394609f1"
+  },
+  "validated": [
+    "冻结三个 binary 和全部 469 份源文件；正式 launch_s.sh economic 实际命令、E/B owner argv、runtime PID/nonce 与持久控制记录相互匹配",
+    "两个 E/B 新进程组的 70 条控制或业务实际命令、48 份请求、20 份公开视图；完整原始回复/解析内容/摘要/因果来源一致",
+    "66 份 SQL 快照的完整 schema、10 表、全列全行；逐提交重算六族图像哈希和 root 链",
+    "6 份真实归档 DB/WAL/SHM 逐字复制后，副本 integrity_check 和所有 SQL 等最后及停止快照；不直接打开原 SQLite",
+    "从已独立认证 bundle、实际原 E 回执和事前时钟独立构造 Voice 四元身份、record、完整 Bind 图像、history witness 与永久回执；精确 30 表提交差异",
+    "相同消息两次重送与新消息别名返回完整原回执；异内容冲突不写任何表；别名只新增一个完整 messages 行",
+    "AsKnown(1100) 完整历史无回填；healthy B 全部业务/提交/表保持不变；两轮业务视图仅 PID/nonce 不同，33 份 SQL/24 份请求逐字相同",
+    "正式停止原回复对应 6 个原 owner；本次 ps 均确认 PID 已不存在，原 runtime 路径不存在，整个被审证据目录在验收前后所有普通文件哈希不变",
+    "8 个独立语义/物理副本篡改负控均拒绝；不依赖作者 exit=0 或自报计数"
+  ],
+  "verdict": "APPROVE_BOUNDED_FORMAL_VOICE_NORMAL_DOUBLE_RUN"
+}

@@ -34,7 +34,7 @@ _QUERY_MODULES = {}
 
 def _query_module(name):
     """兼容正式脚本入口和既有按绝对路径 importlib 加载的 R13/R14 验证器。"""
-    if name not in ("s_query_integrity", "s_query"):
+    if name not in ("s_query_integrity", "s_query", "economic_http", "economic_query"):
         raise ValueError("未知本地查询模块")
     if name not in _QUERY_MODULES:
         path = Path(__file__).resolve().with_name(name + ".py")
@@ -961,6 +961,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": "StorageUnavailable", "detail": str(exc)}, 503)
 
     def do_POST(self):
+        if self.path.startswith("/api/economic/"):
+            if _query_module("economic_http").post(self):
+                return
         if not hasattr(self.server, "query_reader"):
             self._send_json({"ok": False, "error": "QueryNotConfigured"}, 503)
             return
@@ -1040,6 +1043,9 @@ class Handler(BaseHTTPRequestHandler):
             error_reply({"ok": False, "error": "StorageUnavailable", "detail": str(exc)}, 503)
 
     def do_GET(self):
+        if self.path in ("/economic.html", "/tb03a-client.js", "/api/economic/ready"):
+            if _query_module("economic_http").get(self):
+                return
         path = self.path.split("?", 1)[0]
         try:
             pairs = self._parse_query()
@@ -1187,6 +1193,7 @@ def main():
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--resource-config", required=True)
     ap.add_argument("--producer-epoch", required=True)
+    ap.add_argument("--economic-config")
     args = ap.parse_args()
     query = _query_module("s_query")
     epoch = query._integer(args.producer_epoch, "producer_epoch", ValueError, True)
@@ -1194,6 +1201,8 @@ def main():
     Handler.db_path = os.path.abspath(args.db)
     Handler.browser_path = os.path.abspath(args.browser)
     server = QueryHTTPServer((args.host, args.port), Handler, Handler.db_path, resources, epoch)
+    if args.economic_config:
+        server.economic_query = _query_module("economic_query").EconomicQuery(args.economic_config)
     sys.stderr.write(
         "[readonly] serving S 只读查询 {host}:{port} (db={db})\n".format(
             host=args.host, port=args.port, db=Handler.db_path
