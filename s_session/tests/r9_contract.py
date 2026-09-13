@@ -17,6 +17,9 @@ R = Path(__file__).resolve().parents[2]
 B = R / "rust/target/debug/s_structure_session"
 P = R / "s_session/profiles/testonly_tick_1_1_ohlc.json"
 C = R / "s_session/catalog/signed-catalog.json"
+# 旧 A/B 回归显式采用具名 TestOnly 查询预算，不能成为生产隐式默认。
+Q_RESOURCES = R / "s_session/tests/fixtures/tb01c/query-resources.json"
+Q_EPOCH = "1"
 LOG = []
 
 def digest(b):
@@ -69,14 +72,21 @@ class Server:
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0)); self.port = s.getsockname()[1]
         argv = [sys.executable, R/"s_session/s_readonly_server.py", "--db", self.db, "--port", self.port,
-                "--browser", R/"s_session/browser/index.html"]
+                "--browser", R/"s_session/browser/index.html", "--resource-config", Q_RESOURCES,
+                "--producer-epoch", Q_EPOCH]
         self.p = subprocess.Popen(list(map(str,argv)), cwd=R, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.owner = {"argv":list(map(str,argv)), "pid":self.p.pid, "db":str(self.db)}
-        for _ in range(100):
-            try:
-                with socket.create_connection(("127.0.0.1",self.port),.1): return self
-            except OSError: time.sleep(.02)
-        raise RuntimeError("HTTP未就绪")
+        try:
+            for _ in range(100):
+                if self.p.poll() is not None:
+                    raise RuntimeError("Q 启动后退出；原始 stderr 见测试 log")
+                try:
+                    with socket.create_connection(("127.0.0.1",self.port),.1): return self
+                except OSError: time.sleep(.02)
+            raise RuntimeError("HTTP未就绪")
+        except BaseException:
+            self.close()
+            raise
     def get(self, path):
         url="http://127.0.0.1:%d%s" % (self.port,path)
         try: q=urllib.request.urlopen(url,timeout=30)
@@ -85,11 +95,21 @@ class Server:
         rec={"url":url,"status":status,"body":body.decode(),"sha256":digest(body)}
         LOG.append(rec)
         return rec
+    def close(self):
+        # 仅操作本 Popen 子进程；不依赖 Linux /proc，也不按端口寻找/接管进程。
+        sent = []
+        if self.p.poll() is None:
+            self.p.terminate()
+            sent.append("SIGTERM")
+        try:
+            out,err = self.p.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            self.p.kill()
+            sent.append("SIGKILL")
+            out,err = self.p.communicate(timeout=10)
+        LOG.append({**self.owner,"signals":sent,"wait_exit":self.p.returncode,"stdout":out,"stderr":err})
     def __exit__(self,*args):
-        cmdline=Path("/proc/%d/cmdline" % self.p.pid).read_bytes().replace(b"\0",b" ").decode()
-        assert str(self.db) in cmdline and "s_readonly_server.py" in cmdline
-        self.p.terminate(); out,err=self.p.communicate(timeout=10)
-        LOG.append({**self.owner,"cmdline":cmdline,"signal":"SIGTERM","wait_exit":self.p.returncode,"stdout":out,"stderr":err})
+        self.close()
 
 def exercise(w):
     result={"normal":[], "corrupt":{}}
@@ -239,9 +259,15 @@ def exercise_r10(w):
     print("R10 profile/AsKnown0真实回归通过")
 
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument("out",type=Path);ap.add_argument("--r10",action="store_true");args=ap.parse_args();args.out.mkdir(exist_ok=True)
+    global B
+    ap=argparse.ArgumentParser();ap.add_argument("out",type=Path);ap.add_argument("--r10",action="store_true")
+    ap.add_argument("--binary",type=Path,default=B,help="明确指定本次受测 writer，默认保留旧 debug 路径")
+    args=ap.parse_args();B=args.binary.resolve();args.out.mkdir(exist_ok=True)
     if args.r10:
-        exercise_r10(args.out)
+        try:
+            exercise_r10(args.out)
+        finally:
+            (args.out/"r10-run-log.json").write_text(json.dumps({"log":LOG},ensure_ascii=False,indent=2))
         return
     result={}
     try:
