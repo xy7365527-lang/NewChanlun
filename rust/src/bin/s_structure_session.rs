@@ -35,6 +35,8 @@ use std::collections::BTreeMap;
 
 #[path = "s_session_v2/audit.rs"]
 mod audit;
+#[path = "s_session_v2/cache.rs"]
+mod cache;
 use std::path::{Path, PathBuf};
 
 use newchan_rust::theta_v0::classifier::local_shape::{
@@ -752,29 +754,46 @@ fn profile_at_cut(conn: &Connection, generation: i64) -> Result<(String, String)
     ))
 }
 
-// 同一调用、同一事务的批次捕获；不保存跨事务健康状态。孤儿 batch 仍由发布事务单独验字节。
-fn capture_reachable_batches(conn: &Connection) -> Result<BTreeMap<String, Value>, String> {
+// 每次读取同一事务的全部可达原字节；只复用逐字节相同原件的严格解码。
+fn capture_reachable_batches(
+    conn: &Connection,
+) -> Result<BTreeMap<String, std::sync::Arc<Value>>, String> {
     let mut q=conn.prepare("SELECT d.index_frontier,b.canonical_bytes,b.byte_len FROM structure_deltas d LEFT JOIN batches b ON b.batch_id=d.index_frontier").map_err(|e|e.to_string())?;
     let mut rows = q.query([]).map_err(|e| e.to_string())?;
     let mut batches = BTreeMap::new();
+    let mut captured = BTreeMap::new();
     while let Some(r) = rows.next().map_err(|e| e.to_string())? {
         let id: String = r.get(0).map_err(|e| e.to_string())?;
-        let bytes: Vec<u8> = r
-            .get(1)
+        let bytes = r
+            .get_ref(1)
+            .map_err(|e| e.to_string())?
+            .as_blob()
             .map_err(|e| format!("StorageUnavailable：可达批次缺失/非BLOB：{e}"))?;
         let len: i64 = r.get(2).map_err(|e| e.to_string())?;
-        if id != format!("batch-{}", sha256_hex(&bytes))
-            || usize::try_from(len).ok() != Some(bytes.len())
-        {
-            return Err("StorageUnavailable：可达 batch 内容寻址/长度不符".into());
+        if usize::try_from(len).ok() != Some(bytes.len()) {
+            return Err("StorageUnavailable：可达 batch 长度不符".into());
         }
-        let value =
-            v2::strict_json(&bytes).map_err(|e| format!("StorageUnavailable：batch JSON：{e}"))?;
-        if !value.is_object() {
-            return Err("StorageUnavailable：batch 非对象".into());
-        }
+        let (original, value) = match cache::decoded(&id, bytes) {
+            Some(value) => value,
+            None => {
+                if id != format!("batch-{}", sha256_hex(&bytes)) {
+                    return Err("StorageUnavailable：可达 batch 内容寻址不符".into());
+                }
+                let value = v2::strict_json(&bytes)
+                    .map_err(|e| format!("StorageUnavailable：batch JSON：{e}"))?;
+                if !value.is_object() {
+                    return Err("StorageUnavailable：batch 非对象".into());
+                }
+                (
+                    std::sync::Arc::<[u8]>::from(bytes),
+                    std::sync::Arc::new(value),
+                )
+            }
+        };
+        captured.insert(id.clone(), (original, value.clone()));
         batches.insert(id, value);
     }
+    cache::store_batches(captured);
     Ok(batches)
 }
 
@@ -810,7 +829,7 @@ fn verify_published_index_generations(conn: &Connection, generation: i64) -> Res
 
 fn verify_reachable_root_in_tx(
     conn: &Connection,
-    batches: &BTreeMap<String, Value>,
+    batches: &BTreeMap<String, std::sync::Arc<Value>>,
 ) -> Result<Vec<Value>, String> {
     let generation = verify_required_meta(conn)?;
     verify_published_index_generations(conn, generation)?;
@@ -866,7 +885,13 @@ fn verify_reachable_root_in_tx(
     }
 
     let mut audit = audit::AuditWalk::capture(conn)?;
-    let mut prev_frontier: i64 = -1;
+    let identity = (
+        meta_session.clone(),
+        meta_cat.clone(),
+        profile_binding.clone(),
+    );
+    let resume = cache::resume(&rows, &identity, &mut audit);
+    let mut prev_frontier: i64 = if resume == 0 { -1 } else { rows[resume - 1].7 };
     for (
         i,
         (
@@ -882,7 +907,7 @@ fn verify_reachable_root_in_tx(
             evidence_json,
             delta_json,
         ),
-    ) in rows.iter().enumerate()
+    ) in rows.iter().enumerate().skip(resume)
     {
         let expect = (i + 1) as i64;
         if *g != expect {
@@ -1000,6 +1025,7 @@ fn verify_reachable_root_in_tx(
             last.4
         ));
     }
+    cache::store_root(rows, identity, audit);
     Ok(raw_events)
 }
 

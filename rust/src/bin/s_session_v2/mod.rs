@@ -675,7 +675,10 @@ fn verify_epoch_history(conn: &Connection, v2: bool) -> Result<Vec<(String, i64)
 }
 
 /// 所有当前控制行都新鲜检查，不能按generation过滤未来/同代损坏或信任自报摘要。
-pub fn verify_control(conn: &Connection, batches: &BTreeMap<String, Value>) -> Result<(), String> {
+pub fn verify_control(
+    conn: &Connection,
+    batches: &BTreeMap<String, std::sync::Arc<Value>>,
+) -> Result<(), String> {
     let enabled = active(conn)?;
     verify_schema(conn, enabled)?;
     let mut epoch_facts = verify_epoch_history(conn, enabled)?;
@@ -1357,6 +1360,8 @@ struct Bounds {
     frame: usize,
     read: Duration,
     write: Duration,
+    response: Duration,
+    cache_bytes: usize,
     queue: usize,
     connections: usize,
 }
@@ -1409,6 +1414,7 @@ fn io_connection(
     let output = match read_frame(&mut stream, bounds.frame, deadline) {
         Err(error) => json!({"ok":false,"error":error}),
         Ok(e) => {
+            let response_deadline = Instant::now() + bounds.response;
             let (reply_tx, reply_rx) = mpsc::sync_channel(1);
             let mut job = Job {
                 envelope: e,
@@ -1419,7 +1425,7 @@ fn io_connection(
                     Ok(()) => break,
                     Err(mpsc::TrySendError::Full(j)) => {
                         job = j;
-                        if Instant::now() >= deadline {
+                        if Instant::now() >= response_deadline {
                             return;
                         }
                         std::thread::sleep(Duration::from_millis(1));
@@ -1428,7 +1434,8 @@ fn io_connection(
                 }
             }
             // 已入actor后，回包超期只结束此连接；不能撤销/重复权威工作。
-            match reply_rx.recv_timeout(bounds.read) {
+            match reply_rx.recv_timeout(response_deadline.saturating_duration_since(Instant::now()))
+            {
                 Ok(v) => v,
                 Err(_) => return,
             }
@@ -1463,6 +1470,7 @@ fn serve(
     bounds: Bounds,
 ) -> Result<(), String> {
     positive(epoch, "v2 writer_epoch")?;
+    cache::configure(bounds.cache_bytes);
     // 监督器nonce仅用于把Ready绑定真实启动进程；绝不进入业务payload/hash/持久事实。
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
     let _lock = process_lock(db)?;
@@ -1577,6 +1585,18 @@ pub fn dispatch(args: &[String]) -> Result<bool, String> {
             frame: usize::try_from(positive_arg(args, "--max-frame-bytes")?).map_err(err)?,
             read: Duration::from_millis(positive_arg(args, "--read-timeout-ms")? as u64),
             write: Duration::from_millis(positive_arg(args, "--write-timeout-ms")? as u64),
+            response: Duration::from_millis(positive(
+                &arg_value(args, "--response-timeout-ms")
+                    .unwrap_or_else(|| arg_value(args, "--read-timeout-ms").unwrap_or_default()),
+                "response-timeout-ms",
+            )? as u64),
+            cache_bytes: arg_value(args, "--audit-cache-source-bytes")
+                .map(|s| {
+                    parse_canonical_i64(&s, "audit-cache-source-bytes")
+                        .and_then(|v| usize::try_from(v).map_err(err))
+                })
+                .transpose()?
+                .unwrap_or(0),
             queue: usize::try_from(positive_arg(args, "--queue-capacity")?).map_err(err)?,
             connections: usize::try_from(positive_arg(args, "--max-connections")?).map_err(err)?,
         };
@@ -1802,6 +1822,105 @@ mod tests {
         }
     }
 
+    #[test]
+    fn v2_bounded_cache_reuses_only_fresh_equal_dependencies() {
+        cache::configure(268435456);
+        let f = Fixture::new(8, 2);
+        for i in 0..4 {
+            f.ingest(i);
+        }
+        let conn = open_db(&f.db).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 4);
+        f.ingest(4);
+        assert_eq!(cache::last_resumed(), 4); // 本次只核新增第五代
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 5);
+        // 新消息对旧业务原件合法重放：消息覆盖为集合，不能强制一一对应。
+        let old = f.message(0);
+        let mut payload = old["payload"].clone();
+        payload["clock_event_id"] = json!("op-5");
+        let replay = f.wrap(payload, "business-replay");
+        assert_eq!(
+            handle(&f.db, &f.profile, "1", &f.clock, &replay).unwrap()["kind"],
+            "Committed"
+        );
+        verify_reachable_root(&conn).unwrap();
+        // 缓存极小须回完整门，既不拒合法库也不留下前缀健康标签。
+        cache::configure(1);
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 0);
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 0);
+        cache::configure(0);
+    }
+    #[test]
+    fn v2_warm_cache_cross_connection_damage_stops_all_writes() {
+        for sql in [
+            "UPDATE raw_events SET price='+1' WHERE seq=0",
+            "UPDATE raw_events SET source_coord='-1' WHERE seq=0",
+            "UPDATE raw_events SET identity_key='foreign' WHERE seq=0",
+            "UPDATE objects SET first_known_generation=5",
+            "UPDATE objects SET first_known_generation=1",
+            "UPDATE objects SET published_generation=5",
+            "UPDATE objects SET withdrawn_generation=4,withdrawal_reason='unbacked'",
+            "UPDATE witnesses SET published_generation=1",
+            "UPDATE relations SET published_generation=1",
+            "UPDATE observations SET published_generation=4",
+            "UPDATE observations SET detail_json='{}'",
+            "DELETE FROM witnesses",
+            "DELETE FROM relations",
+            "DELETE FROM observations",
+            "UPDATE structure_deltas SET session_id='foreign' WHERE generation=1",
+            "UPDATE structure_deltas SET delta_json='{}' WHERE generation=1",
+            "UPDATE structure_deltas SET catalog_evidence_json='{}' WHERE generation=1",
+            "UPDATE batches SET canonical_bytes=x'7b7d',byte_len=2",
+            "DELETE FROM meta WHERE key='profile_definition'",
+            "UPDATE meta SET value='foreign' WHERE key='catalog_hash'",
+            "UPDATE meta SET value='-1' WHERE key='writer_epoch'",
+            "UPDATE s_input_messages SET canonical_envelope='{}'",
+            "DELETE FROM s_clock_events WHERE phase='accept'",
+            "UPDATE s_protocol_meta SET logical_phase_frontier='0'",
+            "DELETE FROM s_delivery_refs",
+            "UPDATE s_delivery_policy SET first_available_generation=3",
+            "CREATE TABLE foreign_schema(value TEXT)",
+            "INSERT INTO writer_epoch_history VALUES(1,'bad','2',4,'idle','bad')",
+        ] {
+            cache::configure(268435456);
+            let f = Fixture::new(8, 2);
+            for i in 0..4 {
+                f.ingest(i);
+            }
+            let healthy = open_db(&f.db).unwrap();
+            verify_reachable_root(&healthy).unwrap();
+            assert_eq!(cache::last_resumed(), 4);
+            let other = open_db(&f.db).unwrap();
+            other.execute_batch(sql).unwrap();
+            drop(other);
+            let before = f.dump();
+            assert!(verify_reachable_root(&healthy).is_err(), "{sql}");
+            let c = InputContext {
+                envelope: f.message(4),
+                clock: f.clock.clone(),
+            };
+            for refused in [
+                accept_core(
+                    &f.db,
+                    &canonical_json(&c.envelope["payload"]["raw_input"]),
+                    &f.profile,
+                    "1",
+                    Some(&c),
+                )
+                .is_err(),
+                advance_core(&f.db, "1", Some(&c)).is_err(),
+                recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).is_err(),
+            ] {
+                assert!(refused, "{sql}");
+            }
+            assert_eq!(before, f.dump(), "{sql}");
+        }
+        cache::configure(0);
+    }
     #[test]
     fn v2_two_fresh_directories_have_identical_authoritative_rows() {
         let a = Fixture::new(8, 2);
@@ -2076,6 +2195,47 @@ mod tests {
         assert!(strict_json(br#"{"payload":{"a":1,"a":2}}"#).is_err());
     }
     #[test]
+    fn v2_response_wait_has_its_own_bounded_deadline() {
+        let f = Fixture::new(8, 2);
+        for (response_ms, expected) in [(2000, true), (20, false)] {
+            let (server, mut client) = UnixStream::pair().unwrap();
+            client
+                .set_read_timeout(Some(Duration::from_secs(3)))
+                .unwrap();
+            let (tx, rx) = mpsc::sync_channel::<Job>(1);
+            let count = Arc::new(AtomicUsize::new(1));
+            let remaining = count.clone();
+            let io = std::thread::spawn(move || {
+                io_connection(
+                    server,
+                    tx,
+                    Bounds {
+                        frame: 1048576,
+                        read: Duration::from_millis(200),
+                        write: Duration::from_millis(100),
+                        response: Duration::from_millis(response_ms),
+                        cache_bytes: 0,
+                        queue: 1,
+                        connections: 1,
+                    },
+                    remaining,
+                )
+            });
+            client
+                .write_all(format!("{}\n", canonical_json(&f.message(0))).as_bytes())
+                .unwrap();
+            client.shutdown(std::net::Shutdown::Write).unwrap();
+            let job = rx.recv_timeout(Duration::from_secs(1)).unwrap();
+            std::thread::sleep(Duration::from_millis(300));
+            let _ = job.result.try_send(json!({"ok":true}));
+            let mut body = String::new();
+            client.read_to_string(&mut body).unwrap();
+            assert_eq!(!body.is_empty(), expected);
+            io.join().unwrap();
+            assert_eq!(count.load(Ordering::SeqCst), 0);
+        }
+    }
+    #[test]
     fn v2_frame_requires_eof_and_rejects_delayed_second_frame() {
         let f = Fixture::new(8, 2);
         let body = format!("{}\n", canonical_json(&f.message(0)));
@@ -2127,5 +2287,28 @@ mod tests {
         )
         .get("control_instance_id")
         .is_none());
+    }
+}
+
+#[cfg(test)]
+#[test]
+#[ignore = "explicit isolated database diagnostic"]
+fn testonly_audit_cost_breakdown() {
+    let path = std::env::var("S_AUDIT_COST_DB").expect("isolated copy path required");
+    let conn = open_db(Path::new(&path)).unwrap();
+    let tx = conn.unchecked_transaction().unwrap();
+    cache::configure(268435456);
+    for iteration in 0..3 {
+        let t = Instant::now();
+        let batches = capture_reachable_batches(&tx).unwrap();
+        let b = t.elapsed();
+        verify_control(&tx, &batches).unwrap();
+        let c = t.elapsed();
+        verify_reachable_root_in_tx(&tx, &batches).unwrap();
+        let r = t.elapsed();
+        eprintln!(
+            "AUDIT_COST {}",
+            json!({"iteration":iteration,"generation":meta_i64(&tx,"generation").unwrap(),"batches_ms":b.as_secs_f64()*1000.0,"control_ms":(c-b).as_secs_f64()*1000.0,"structure_ms":(r-c).as_secs_f64()*1000.0,"total_ms":r.as_secs_f64()*1000.0})
+        );
     }
 }

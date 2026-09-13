@@ -1,4 +1,4 @@
-//! #1372：一次新鲜独立索引捕获，按代核出生/撤回与封存原件；不缓存旧健康结论。
+//! #1372：一次新鲜独立索引捕获，按代核出生/撤回与封存原件；旧前缀须精确重核依赖才复用。
 //! 每批原件仍完整读取。累计 batch 自身的历史字节不会凭此变成 O(page)。
 use super::*;
 use std::collections::BTreeSet;
@@ -144,6 +144,7 @@ pub(super) struct AuditWalk {
     observations: Family,
     original_observations: BTreeMap<String, Value>,
     raw: Vec<Value>,
+    objects: BTreeMap<String, Value>,
 }
 impl AuditWalk {
     pub(super) fn capture(conn: &Connection) -> Result<Self, String> {
@@ -157,6 +158,7 @@ impl AuditWalk {
             observations: Family::capture(conn, &snapshot, "observations")?,
             original_observations: BTreeMap::new(),
             raw: required_array(&snapshot, "raw_history")?.clone(),
+            objects: BTreeMap::new(),
         };
         let mut object_ids = BTreeSet::new();
         for o in required_array(&snapshot, "objects")?
@@ -166,6 +168,7 @@ impl AuditWalk {
             if !object_ids.insert(identity(o, "objects")?) {
                 return Err("StorageUnavailable：对象重复身份".into());
             }
+            result.objects.insert(identity(o, "objects")?, o.clone());
             result
                 .births
                 .entry(number(o, "first_known_generation")?)
@@ -180,6 +183,94 @@ impl AuditWalk {
             }
         }
         Ok(result)
+    }
+    /// 以当前独立索引重建旧前缀的全部输入；只允许新增代的出生/撤回。
+    /// 旧 raw（包括前次 pending）、三类独立内容与出生代、全部对象原字段都须相同。
+    pub(super) fn resume_from(&mut self, old: &Self, generation: i64) -> bool {
+        if self.raw.len() < old.raw.len() || self.raw[..old.raw.len()] != old.raw {
+            return false;
+        }
+        for (current, previous) in [
+            (&self.witnesses, &old.witnesses),
+            (&self.relations, &old.relations),
+            (&self.observations, &old.observations),
+        ] {
+            if previous
+                .records
+                .iter()
+                .any(|(id, r)| current.records.get(id) != Some(r))
+                || current
+                    .records
+                    .iter()
+                    .any(|(id, (_, _, g))| *g <= generation && !previous.records.contains_key(id))
+            {
+                return false;
+            }
+        }
+        let mut matched = 0;
+        for (id, record) in &self.objects {
+            let Ok(born) = number(record, "first_known_generation") else {
+                return false;
+            };
+            if born > generation {
+                continue;
+            }
+            let mut at_previous = record.clone();
+            if !record["withdrawn_generation"].is_null() {
+                let Ok(withdrawn) = number(record, "withdrawn_generation") else {
+                    return false;
+                };
+                if withdrawn > generation {
+                    for key in ["withdrawn_generation", "withdrawal_reason", "superseded_by"] {
+                        at_previous[key] = Value::Null;
+                    }
+                    at_previous["lifecycle"] = json!("active");
+                }
+            }
+            if old.objects.get(id) != Some(&at_previous) {
+                return false;
+            }
+            matched += 1;
+        }
+        if matched != old.objects.len() {
+            return false;
+        }
+        // 上述证明全部成功之后才移动游标；失败时 self 仍是可从代1完整核验的新鲜捕获。
+        self.births.retain(|g, _| *g > generation);
+        self.deaths.retain(|g, _| *g > generation);
+        self.active = old.active.clone();
+        self.witnesses.seen = old.witnesses.seen.clone();
+        self.relations.seen = old.relations.seen.clone();
+        self.observations.seen = old.observations.seen.clone();
+        self.original_observations = old.original_observations.clone();
+        true
+    }
+    pub(super) fn source_bytes(&self) -> usize {
+        // 对每个持久缓存投影按规范源字节记账（含重复持有的投影）；不是 RSS 估算。
+        let mut n = 0usize;
+        for v in self
+            .active
+            .values()
+            .chain(self.objects.values())
+            .chain(self.original_observations.values())
+            .chain(self.raw.iter())
+            .chain(self.births.values().flatten())
+            .chain(self.deaths.values().flatten())
+        {
+            n = n.saturating_add(canonical_json(v).len());
+        }
+        for f in [&self.witnesses, &self.relations, &self.observations] {
+            for (id, (v, c, _)) in &f.records {
+                n = n.saturating_add(id.len() + canonical_json(v).len() + c.len() + 8);
+            }
+            for id in &f.seen {
+                n = n.saturating_add(id.len());
+            }
+            for id in f.born.values().flatten() {
+                n = n.saturating_add(id.len() + 8);
+            }
+        }
+        n
     }
     pub(super) fn verify(&mut self, delta: &Value, g: i64, batch: &Value) -> Result<(), String> {
         verify_delta_evidence(delta, batch)?;
