@@ -1,0 +1,38 @@
+{
+  "schema": "independent-python-driver-review/1",
+  "status": "APPROVE_BOUNDED_NORMAL_DRIVER_REPAIR",
+  "sources": [
+    {
+      "file": "run_normal.py",
+      "bytes": 20946,
+      "sha256": "f3e353037171c13acbe27624541015b0e9aab36e66588b3e670f6642342f2a01"
+    },
+    {
+      "file": "compare_normal.py",
+      "bytes": 20188,
+      "sha256": "d0da2e15230a629fae5dda2e70aff7ed589fe47e2738e2f816c721334781eea8"
+    },
+    {
+      "file": "prepare_normal.py",
+      "bytes": 7832,
+      "sha256": "59ce4d966a5815ba9a8ecd64da24181d19c810eb9b1c5e37857560c6da9b6008"
+    }
+  ],
+  "closed_findings": [
+    "PY-01",
+    "PY-02",
+    "PY-03",
+    "PY-04"
+  ],
+  "remaining_critical_high": [],
+  "checks": {
+    "aggregate_checks": 41,
+    "reviewed_artifact_byte_checks": 25
+  },
+  "actual_execution_reviewed": false,
+  "production_files_changed": false,
+  "real_services_started": false,
+  "old_archived_databases_opened": false,
+  "report": "REVIEW-normal-final.md",
+  "preparation_note": "旧 SOURCE-FREEZE 仅 compare 脚本 hash 漂移；root需按已声明方案另写最终freeze后启动。"
+}

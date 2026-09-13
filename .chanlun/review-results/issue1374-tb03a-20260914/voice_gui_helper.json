@@ -1,0 +1,39 @@
+{
+  "verdict": "APPROVE_BOUNDED_GUI_AUXILIARY_SCRIPTS",
+  "reviewer": "voice_driver_review",
+  "scope": "只读审查 GUI 辅助脚本和离线负控；真实服务与浏览器验收另计",
+  "v1_findings": [
+    {
+      "severity": "HIGH",
+      "file": "common.py",
+      "line": 185,
+      "related_lines": [
+        192
+      ],
+      "callers": [
+        "stages.py:116",
+        "stages.py:147"
+      ],
+      "description": "同阶段 status/ReadView 命令日志重名",
+      "v2_status": "FIXED_AND_INDEPENDENTLY_VERIFIED"
+    }
+  ],
+  "v2_remaining_critical_or_high": [],
+  "v2_common_sha256": "0bebf14c8b48efdd7d2c076d4d758865ba038148248058a0c890147eb180a76e",
+  "tests": {
+    "author_unittest_normal": 8,
+    "author_unittest_optimized": 8,
+    "independent_v2_each_mode": {
+      "lifecycle_readonly_method_chains": 2,
+      "positive_public_shape": 1,
+      "negative_controls_rejected": 6
+    },
+    "source_files_per_version": 483,
+    "source_mismatches": 0
+  },
+  "services_started_by_reviewer": false,
+  "browser_used_by_reviewer": false,
+  "archived_database_opened_by_reviewer": false,
+  "harness_erratum": "INITIAL-HARNESS-ERRATUM.md",
+  "detail": "REVIEW-gui-v2.md"
+}

@@ -1,0 +1,62 @@
+{
+  "schema_revision": "independent-controller-review/1",
+  "issue": 1374,
+  "reviewed_at_utc": "2026-09-13T16:47:50.194860+00:00",
+  "verdict": "APPROVE",
+  "findings": [],
+  "base": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+  "files": [
+    {
+      "path": "s_session/economic_service_control.py",
+      "sha256": "c99a0a831e93784d5dac5cfd7f8e89c233d8d8ea4a2f565705ecc67c7613b98f",
+      "bytes": 9659
+    },
+    {
+      "path": "s_session/s_service_control.py",
+      "sha256": "adf11ed673902705fc1a5776c3fcd68417cbc69690e5ba19157b515a691fd039",
+      "bytes": 30744
+    },
+    {
+      "path": "s_session/launch_s.sh",
+      "sha256": "5bd94dbd39efc5a14be7d2fa23b3ed6b9c7c4570bc38338876c6451eec67522a",
+      "bytes": 10740
+    },
+    {
+      "path": "s_session/s_socket_client.py",
+      "sha256": "fdd8a40a501e1de9a740304667c9ba491a8ca3e1ac251ec62bf4832e7e425a27",
+      "bytes": 8845
+    }
+  ],
+  "evidence": [
+    {
+      "path": "CONTROLLER-CHECKS.json",
+      "sha256": "69a25ca716223952f78470139fc784ecc85109eba7643c770965ba61a990e073",
+      "bytes": 2646
+    },
+    {
+      "path": "REVIEW.md",
+      "sha256": "c99d2f4d3bdd830b17c36b45ac0774e8d94a191e3f7b532ed38887f6ef4a87db",
+      "bytes": 2207
+    },
+    {
+      "path": "RUNTIME-LIBRARY-CHECK.json",
+      "sha256": "fb784fa77c1fd78cbea24a352a347752a94053df75a8c7ea55b7422157be1993",
+      "bytes": 197
+    },
+    {
+      "path": "controller_negative.py",
+      "sha256": "2e321bf8ea55daeb7de02ba4c08a77541c1aa2c253ea2961f23da4b2d0c77775",
+      "bytes": 8402
+    }
+  ],
+  "checks": {
+    "independent_records": 22,
+    "runtime_library_probe": "PASS",
+    "python_ast": "PASS",
+    "bash_syntax": "PASS",
+    "git_diff_check": "PASS",
+    "formal_pid_touched": false,
+    "production_file_modified": false,
+    "real_crash_recovery_acceptance": "NOT_RUN"
+  }
+}

@@ -43,6 +43,8 @@ sha2 = { version = "0.10", optional = true }
 #   3.53.2（≥ C09 要求的 3.51.3 WAL-reset 修复），不依赖宿主 libsqlite3；optional + 仅
 #   `s_session` feature 启用 ⟹ 默认 cdylib（Python 扩展）构建零膨胀（沿 backtest_bin/lav_seal 先例）。
 rusqlite = { version = "0.40", features = ["bundled"], optional = true }
+# #1374：向内核查询真实持久卷，macOS firmlink 不能用挂载路径前缀判断。
+libc = { version = "0.2", optional = true }
 
 [features]
 default = []
@@ -60,7 +62,7 @@ issue1087_parity = []
 lav_seal = ["dep:sha2"]
 # #1370 TB-01-A：正式结构会话 S 二进制（s_structure_session）——sha2（payload_hash 规范字节）
 #   + rusqlite（S 自有 SQLite/WAL 单写者）。
-s_session = ["dep:sha2", "dep:rusqlite"]
+s_session = ["dep:sha2", "dep:rusqlite", "dep:libc"]
 
 # ── CLI 生产入口（goal acceptance[5]：CLI 能驱动 S_Θ 产回测结果）。 ──
 # required-features：默认 cargo build 不编译它（cdylib 构建不受影响）。
@@ -236,3 +238,14 @@ sha2 = "0.10"
 opt-level = 3
 lto = false
 codegen-units = 16
+
+# #1374：E 与每个 B 各自独立进程、SQLite 与恢复边界（SPEC #1340 C09）。
+[[bin]]
+name = "e_economic_session"
+path = "src/bin/e_economic_session.rs"
+required-features = ["s_session"]
+
+[[bin]]
+name = "b_chong_session"
+path = "src/bin/b_chong_session.rs"
+required-features = ["s_session"]

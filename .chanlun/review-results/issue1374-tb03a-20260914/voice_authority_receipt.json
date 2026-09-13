@@ -1,0 +1,193 @@
+{
+  "schema": "voice-binding-independent-verification/1",
+  "verdict": "APPROVE_CONTROLLED_VOICE_BINDING",
+  "authority_id": "testonly-gamma-source-authority-v1",
+  "bundle_sha256": "5f20cf8b3359a1e7d89cfa369a19e1576fa51dfcda7eef8e10a51407cd836ee2",
+  "artifacts": [
+    {
+      "name": "input",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/gamma-work-example-v2/input.json",
+      "sha256": "795d5000f7c9965ad0f3d9bcea3fdc50ef26ef9b69f7ccce3266015473b56f09",
+      "bytes": "5612749"
+    },
+    {
+      "name": "controlled_gammas",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/gamma-work-example-v2/CONTROLLED-DEFINITION-GAMMAS.json",
+      "sha256": "cc127244a46b5f5994c29a498a78b6259efd618c6319a82c2e6aadb12e48e77b",
+      "bytes": "8284"
+    },
+    {
+      "name": "carrier_objects",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/binding-v1/CARRIER-OBJECTS.json",
+      "sha256": "98c7021240ae630b556396a4ec08a073e137442f1eaab9ebbd185d0fc2dd821e",
+      "bytes": "10019"
+    },
+    {
+      "name": "instrument_declaration",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/binding-v1/INSTRUMENT-DECLARATION.json",
+      "sha256": "d7ccf61b1c22f30046b07864b7db41334aef96700cf8435702f537a3f4cbbcc2",
+      "bytes": "1096"
+    },
+    {
+      "name": "opening_raw",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/binding-v1/OPENING-RAW.json",
+      "sha256": "96c94b399dcbc847a4b1cc087de079abf58a0e970672703bca357a9fbaeb53ed",
+      "bytes": "8709"
+    },
+    {
+      "name": "source_profile",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/binding-v1/SOURCE-PROFILE.json",
+      "sha256": "2a5bda0b825fe44c7085d3e481a6dcd89643486c496679f2823afaa50a040964",
+      "bytes": "939"
+    },
+    {
+      "name": "gamma_terminal_host_bridge",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/binding-v1/GAMMA-TERMINAL-HOST-BRIDGE.json",
+      "sha256": "e113ccf9572d354bfa147b9a918cf29f61626a8d61d3c8d6db093a59852012b5",
+      "bytes": "5525"
+    },
+    {
+      "name": "independent_expected_openings",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/binding-v1/INDEPENDENT-EXPECTED-OPENINGS.json",
+      "sha256": "98ad4c4726d7b2ea93f37323c6aaa0b3f7cd80e06636b0bee1fa086444312751",
+      "bytes": "8708"
+    },
+    {
+      "name": "carrier_forest_full_domain",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/endpoint-probe-v1/run-2/CARRIER-FOREST.json",
+      "sha256": "c65af94388820e0ab02ae53e4301b6751f9cd828ac98d7acbc36f5f78fd27c53",
+      "bytes": "211744"
+    },
+    {
+      "name": "carrier_source_objects",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/endpoint-probe-v1/run-2/CARRIER-SOURCE-OBJECTS.json",
+      "sha256": "1c183c20fee072642879a302c84449633584b2a16e0cd2957b469bbefef98c28",
+      "bytes": "622068"
+    },
+    {
+      "name": "actual_bsp_full_domain",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/endpoint-probe-v1/run-2/ALL-BSP.json",
+      "sha256": "b044d51b018eb764f5375cd3c682eb0e068b46f9a3f0d067760b123a321fe2aa",
+      "bytes": "9998"
+    },
+    {
+      "name": "operation_sequences",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/endpoint-probe-v1/run-2/OPERATION-SEQUENCES.json",
+      "sha256": "a5c9ffdd3a21db0e8e1b05eacd10ceaa481e6f52ff9e50fe64979ed71fc3ac5a",
+      "bytes": "33277"
+    },
+    {
+      "name": "operation_input_units",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/endpoint-probe-v1/run-2/OPERATION-INPUT-UNITS.json",
+      "sha256": "b190621e383eaeeba8078752cccd38d7973dffd6a0a9e0773cbefb74ed1adb5b",
+      "bytes": "174143"
+    },
+    {
+      "name": "actual_config",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/endpoint-probe-v1/run-2/CONFIG.txt",
+      "sha256": "a518335f9c1db87642b81a8d6009fab95bf88e00afee0f1e5b01a64afd351d96",
+      "bytes": "1461"
+    },
+    {
+      "name": "endpoint_probe_freeze",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/endpoint-probe-v1/FREEZE.json",
+      "sha256": "6dd968278838682b053f68c6141557ff8e22bf8a1f0ff6c782f690a38cc79384",
+      "bytes": "4019"
+    },
+    {
+      "name": "endpoint_count_correction",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/endpoint-probe-v1/COUNT-CORRECTION.json",
+      "sha256": "eb2ef081106d77cd9bf95a6f7eabc68568f87d08f046b756b6abb708c0de235b",
+      "bytes": "342"
+    },
+    {
+      "name": "endpoint_source_parity",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/endpoint-probe-v1/SOURCE-PARITY.json",
+      "sha256": "5996b0549d264f249229f29b794ba14246ba29f31a744b806eace6098f772252",
+      "bytes": "3288"
+    },
+    {
+      "name": "endpoint_execution_receipt",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/endpoint-probe-v1/RUN2-RECEIPT.json",
+      "sha256": "d7ec40aa55385e5d24f6f622f199d8a8da6703f2398493df2ebcfdb17508bb07",
+      "bytes": "493"
+    },
+    {
+      "name": "gamma_freeze",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/gamma-work-example-v2/FREEZE.json",
+      "sha256": "0d55292b570adbf11e4428148f1520e65a6b0830c132e24e465ccce12924a294",
+      "bytes": "89469"
+    },
+    {
+      "name": "gamma_correction",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/gamma-work-example-v2/CORRECTION.json",
+      "sha256": "152b14fa9ac93ce5c4907e770d0620d4c571330afaa3547d60f512309dce7544",
+      "bytes": "1555"
+    },
+    {
+      "name": "gamma_proof",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/gamma-work-example-v2/formal/GammaWorkExampleV2.lean",
+      "sha256": "2caea0cf105905f89428eb75ffaa920a0eb679569d07d0349633e9f70384c644",
+      "bytes": "402216"
+    },
+    {
+      "name": "gamma_proof_execution",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/gamma-work-example-v2/LEAN-EXECUTION-RECEIPT.json",
+      "sha256": "1b69ef6d89c0494bcdcbb82c2b125e27c360fd191374674781f61bcdc7a6f99c",
+      "bytes": "898"
+    },
+    {
+      "name": "gamma_independent_review",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/gamma-v2-definition-review/REVIEW.json",
+      "sha256": "9b77ef5397476ffd10a0dd8d2a7a7be4cbc0d87021d256536c09326f57f39b7a",
+      "bytes": "1725"
+    },
+    {
+      "name": "carrier_type_bridge_review",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/gamma-v2-definition-review/carrier/TYPE-BRIDGE-DELTA.md",
+      "sha256": "1231b9eac03ddd1351c48623fad820016ad3308a585f13ea396daf9882db29f6",
+      "bytes": "1511"
+    },
+    {
+      "name": "source_generator",
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/voice-fixture-v1/binding-v1/prepare.py",
+      "sha256": "52140c7ad39127da4c7f0b71ac127030d4aa2e690203e63cb16623c67b8a258b",
+      "bytes": "18786"
+    }
+  ],
+  "verified_evidence_ids": [
+    "controlled-gamma-root-binding-v1"
+  ],
+  "reviewer": "Codex native independent subagent /root/tb03a_query_review",
+  "independent_verification": {
+    "values_report": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-binding-independent/actual-binding/VALUES-RESULT.json",
+    "values_report_sha256": "77d177056e20d322226b2e745acfcc9fefc5a34119d32891d6b77047b20e39cd",
+    "independent_endpoint_execution": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/voice-binding-independent/actual-binding/ENDPOINT-EXECUTION.json",
+    "independent_endpoint_execution_sha256": "37a4920933e0d0e5075d1fca9e962d9a5463f3c101a4618ef1ddb596fa956fc8",
+    "independent_endpoint_comparison_sha256": "c9ed5cf18e5678c891946e089343cc7b0de4c59d4712eec02c46a202e2bc3eba",
+    "prior_gamma_review_sha256": "9b77ef5397476ffd10a0dd8d2a7a7be4cbc0d87021d256536c09326f57f39b7a",
+    "prior_voice_core_review_sha256": "5919422f64cdf1677a9172ddb98642069cb28b43052d0c2161b8b4f20bd62130",
+    "checks": 2756,
+    "actual_root_bindings": 1,
+    "relation_controls": 2,
+    "host_domain_size": 328,
+    "independent_reconstruction": "全部点OHLC连续同价合并组及严格三点分型重建；全K canonical端点逐核；两gamma完整terminal对象与实BSP及唯一同级K源对象逐核",
+    "opening_arithmetic": {
+      "quantity": "4",
+      "Pi": "120",
+      "A": "20",
+      "W": "10",
+      "R": "90",
+      "listed_cost_total": "4004"
+    },
+    "profile_bridge": "新f0c1def0观察契约与原gamma/旧a75fdcd4不是同一摘要；输入/实际Theta/source代码同源桥已核，旧件不改。"
+  },
+  "scope": "批准一个 TestOnly root Voice 的固定完整来源绑定：原定义gamma→实际terminal BSP→原K source carrier，同源TEST.GAMMA.V1与明确受控开局事实。第二gamma只做真实关系对照。",
+  "limits": [
+    "此receipt没有运行或证明正式E/B BindVoice提交、launcher、浏览器或新进程故障。",
+    "source ordinal50069→1000、开局50070→1001为具名TestOnly映射；E/B获知/提交仍须实际独立运行时间与原回执，e_cut不能预造。",
+    "不证明native Closed/Strict/N7、全π/资金准入、当前Active、真实broker成交、父子经营、业务出场或责任尾结束。",
+    "源bundle中的independent_approval_pending为作者准备阶段原文字段；本独立receipt批准其固定字节，不反写源件。"
+  ],
+  "verified_at_utc": "2026-09-13T19:32:31.606450+00:00"
+}

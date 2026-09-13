@@ -1,0 +1,181 @@
+{
+  "schema_revision": "independent-owner-review/2",
+  "issue": 1374,
+  "reviewed_at_utc": "2026-09-13T16:54:09.004778+00:00",
+  "verdict": "APPROVE",
+  "findings": [],
+  "closed_findings": [
+    "OWNER-01",
+    "OWNER-02",
+    "OWNER-03",
+    "OWNER-04"
+  ],
+  "freeze_sha256": "46502df594841279611dd17feb7d1e0c6f2962ebba070cece40e0236065bfdc7",
+  "files": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/book.rs",
+      "sha256": "a6c9b768cfd51a931a3affc8b2ed137cce873b29e4f4b0628199a81969592957",
+      "bytes": 26984
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/mod.rs",
+      "sha256": "0ced9a53a31f2ea3f5ae50ed53ede6a526d07ceaac1840ffcfb819fe6dcf5bf9",
+      "bytes": 240
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/service.rs",
+      "sha256": "0c557fe239060a0ca78d418e10374ea825edfec65a4383d37565ef003f0238d4",
+      "bytes": 22351
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/store.rs",
+      "sha256": "e9a3559a61aa364700cf09bf902a91358f8a188bda26c277f844e76d3dbd538c",
+      "bytes": 40126
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/bin/e_economic_session.rs",
+      "sha256": "866dbe66d598648b5c324ad77eaa825c2a856caa37a19b41d4145f7f251e7005",
+      "bytes": 208
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/bin/b_chong_session.rs",
+      "sha256": "34adfbb8456b5e81ea35c81b6cb11ebc83fe85f4aa571ea669115adf3ff56af1",
+      "bytes": 211
+    }
+  ],
+  "binaries": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/build/debug/e_economic_session",
+      "expected_sha256": "53e1459c9e0a7ba8455d7a41ea6c74e415118cc365f145524a19511ff65aa59b",
+      "actual_sha256": "53e1459c9e0a7ba8455d7a41ea6c74e415118cc365f145524a19511ff65aa59b",
+      "matches": true,
+      "bytes": 5419008
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/build/debug/b_chong_session",
+      "expected_sha256": "14ae66a7d2256a751275d3e39fdcc58b538ac65be6f92b56115f9498eaa5cae5",
+      "actual_sha256": "14ae66a7d2256a751275d3e39fdcc58b538ac65be6f92b56115f9498eaa5cae5",
+      "matches": true,
+      "bytes": 5418992
+    }
+  ],
+  "evidence": [
+    {
+      "path": "CASE-EVIDENCE-INDEX.json",
+      "sha256": "205bf7d8090a7f02e5e9e2a440d361119c33a51d1f28b5ae9aae0140738492a8",
+      "bytes": 20522
+    },
+    {
+      "path": "ENTRY-FREEZE-CHECK.json",
+      "sha256": "e3b2fdcd3e7f760cc0edef9ea8eb1be193dfaf1eca54378020bcce1af0120871",
+      "bytes": 3008
+    },
+    {
+      "path": "INDEPENDENT-CONTROLS-REPLAY.json",
+      "sha256": "2d1c75bb9a55ed9ef587bd7aabee68f46c18e6d7067f4f14036bfddad6c8930a",
+      "bytes": 3494
+    },
+    {
+      "path": "INPUT-ORACLE-CHECK.json",
+      "sha256": "e40fdf60371e4d15ec9285d130b037efea0b26630f9d0edfaa419e7e1659bd1c",
+      "bytes": 313
+    },
+    {
+      "path": "REVIEW.md",
+      "sha256": "0f464b3ae1e0ffeb1a1341177c0516bb112169c3c32af3539dcedb7c9798a01f",
+      "bytes": 3673
+    },
+    {
+      "path": "SIBLING-BINDING-CONTROLS.json",
+      "sha256": "e7effc6c178e654621d6512eab83fc76aca165c637f61be0483f5827644d37d6",
+      "bytes": 916
+    },
+    {
+      "path": "SOURCE-END.json",
+      "sha256": "3e99468a6f0447aa5fe6687d2cd12704ac7cca35714a188e597b5fe2f966cdf0",
+      "bytes": 1324
+    },
+    {
+      "path": "bin/b_chong_session",
+      "sha256": "14ae66a7d2256a751275d3e39fdcc58b538ac65be6f92b56115f9498eaa5cae5",
+      "bytes": 5418992
+    },
+    {
+      "path": "bin/e_economic_session",
+      "sha256": "53e1459c9e0a7ba8455d7a41ea6c74e415118cc365f145524a19511ff65aa59b",
+      "bytes": 5419008
+    },
+    {
+      "path": "independent-rerun.log",
+      "sha256": "0b13a0cdc419ed4efc8c4fd8ccb5a531ce94d24b9163ab5cf6461793e740bb1d",
+      "bytes": 201
+    },
+    {
+      "path": "independent_rerun.py",
+      "sha256": "3abd464316d01f34b30b1e5a1cd12625f903ceb2bd259480e20772e358e6ffec",
+      "bytes": 3833
+    },
+    {
+      "path": "original_negative_controls.py",
+      "sha256": "70a00b67c0dd88232267c146f5b6935ba32abc6ec8a6d94ce15bd9e33be9b742",
+      "bytes": 10683
+    },
+    {
+      "path": "original_sibling_binding_controls.py",
+      "sha256": "cd4c938b480c200b18b26ac1238a2cb28cdaea4b60059bf52dcd00acf0abc618",
+      "bytes": 2986
+    },
+    {
+      "path": "source/b_chong_session.rs",
+      "sha256": "34adfbb8456b5e81ea35c81b6cb11ebc83fe85f4aa571ea669115adf3ff56af1",
+      "bytes": 211
+    },
+    {
+      "path": "source/book.rs",
+      "sha256": "a6c9b768cfd51a931a3affc8b2ed137cce873b29e4f4b0628199a81969592957",
+      "bytes": 26984
+    },
+    {
+      "path": "source/e_economic_session.rs",
+      "sha256": "866dbe66d598648b5c324ad77eaa825c2a856caa37a19b41d4145f7f251e7005",
+      "bytes": 208
+    },
+    {
+      "path": "source/mod.rs",
+      "sha256": "0ced9a53a31f2ea3f5ae50ed53ede6a526d07ceaac1840ffcfb819fe6dcf5bf9",
+      "bytes": 240
+    },
+    {
+      "path": "source/service.rs",
+      "sha256": "0c557fe239060a0ca78d418e10374ea825edfec65a4383d37565ef003f0238d4",
+      "bytes": 22351
+    },
+    {
+      "path": "source/store.rs",
+      "sha256": "e9a3559a61aa364700cf09bf902a91358f8a188bda26c277f844e76d3dbd538c",
+      "bytes": 40126
+    }
+  ],
+  "checks": {
+    "actual_runtime_scenarios": 8,
+    "original_attacks": 4,
+    "clean_defenses": 6,
+    "B_sibling_attacks": 3,
+    "request_count": 28,
+    "unwrapped_transport_errors": 0,
+    "rustfmt": "PASS",
+    "owner_sources_stable": true,
+    "oracle_unchanged": true,
+    "test_processes_stopped": true,
+    "formal_pids_touched": false,
+    "production_files_modified": false
+  },
+  "excluded": [
+    "shared transport trace candidate",
+    "formal old mapped binaries",
+    "gamma or Voice positive eligibility",
+    "new full runtime or GUI acceptance",
+    "arbitrary whole-database rewrite defense",
+    "main merge or issue closure"
+  ]
+}

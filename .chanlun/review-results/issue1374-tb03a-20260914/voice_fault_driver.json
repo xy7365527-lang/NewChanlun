@@ -1,0 +1,29 @@
+{
+  "verdict": "APPROVE_BOUNDED_FAULT_DRIVER",
+  "source_hashes": {
+    "run_faults.py": "2b1c6bf96c94d8b041b3e3db7cd90b2d7202db5eb797a53e5c3b8ee2ac427cb5",
+    "fault_audit.py": "4b5297ec3d2885c98094a302f6dfd4b0e97ba5c6ccbe5d6be6c3ab3ecebf139e",
+    "faults_offline_checks.py": "4ec695465e9e987d17df079f754e6d4bbfdddc2da0a4f6596cc0bfb0dc4753b1",
+    "prepare_faults.py": "8990d86ea79ceb37f14efc13bf2765765b7664f52e88667a1fdf26ff6b526bfe"
+  },
+  "remaining_critical_high": [],
+  "fixed_previous_findings": [
+    "完整空 SQL/无数据库包放行",
+    "假命令/缺原 envelope/不完整生命周期身份链放行",
+    "-O 删除离线时钟/来源正控",
+    "v3 误拒已停 owner 的归档遗留 socket"
+  ],
+  "independent_each_mode": {
+    "total": 24,
+    "positive_pass": 4,
+    "negative_rejected": 20
+  },
+  "author_offline_each_mode": 31,
+  "mandatory_source_files": 482,
+  "actual_positive_used": "formal-voice-v1/faults-attempt-2/before_commit/run-1",
+  "formal_double_run_acceptance_claimed": false,
+  "reviewer_started_services": false,
+  "reviewer_used_browser": false,
+  "reviewer_modified_reviewed_sources": false,
+  "detail": "REVIEW.md"
+}

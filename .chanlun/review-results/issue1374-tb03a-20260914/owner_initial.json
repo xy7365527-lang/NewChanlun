@@ -1,0 +1,214 @@
+{
+  "status": "REQUEST_CHANGES",
+  "reviewed_at_utc": "2026-09-13T16:36:59.368816+00:00",
+  "ticket": 1374,
+  "scope": "E/B Rust economic owners, standalone bins, Cargo feature entrypoints, shared no-I0 ledger component extraction; gamma positive path and Q/frontend work in progress excluded",
+  "reviewed_sources": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/mod.rs",
+      "sha256": "0ced9a53a31f2ea3f5ae50ed53ede6a526d07ceaac1840ffcfb819fe6dcf5bf9",
+      "bytes": 240
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/book.rs",
+      "sha256": "3b81b353595aec0fadb333c673891c2a6e4dda22d74f7c48e1177bfc9627b939",
+      "bytes": 20784
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/store.rs",
+      "sha256": "4ec364566bea46cb2668002b17a00dfd3b03e8195084cc46d92d6065a2d7fb96",
+      "bytes": 34157
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/economic_session/service.rs",
+      "sha256": "1dce183034f59cc9fe8a82b55eecbbeaa85224c1ee4f0e9c69f313ac510ca6af",
+      "bytes": 21483
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/bin/e_economic_session.rs",
+      "sha256": "866dbe66d598648b5c324ad77eaa825c2a856caa37a19b41d4145f7f251e7005",
+      "bytes": 208
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/bin/b_chong_session.rs",
+      "sha256": "34adfbb8456b5e81ea35c81b6cb11ebc83fe85f4aa571ea669115adf3ff56af1",
+      "bytes": 211
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/Cargo.toml",
+      "sha256": "bccf41deac2a55ec71da0ec33ab0080754fe08772a33ec733e0159eae3c1481d",
+      "bytes": 12003
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/theta_v0/strategy/ledger.rs",
+      "sha256": "7c218a26af9a7ad0fd2cbe5cfc51511cc3dc98a402541281ab3590280c911f24",
+      "bytes": 94302
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/session_protocol.rs",
+      "sha256": "87456952f5e74e7d932760b73647fbb1dad382b41098e441686a4b7ee87ffa00",
+      "bytes": 13416
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/session_transport.rs",
+      "sha256": "d65cd465d6d32e3274530e80c20ebb9d4cef7766f7cb772ebeae4155a3a04a87",
+      "bytes": 7560
+    }
+  ],
+  "source_stable_during_negative_tests": true,
+  "runtime_binaries": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/build/debug/e_economic_session",
+      "sha256": "e2e6cfd26c82823c01ce5de2a9b90a67d2bed47ae201b81666f87db8d12931f6",
+      "bytes": 5322176
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/build/debug/b_chong_session",
+      "sha256": "1a051868a481651a0d26fce8680cf7d610dc6fe56a36d339e14d6f18a0a34719",
+      "bytes": 5322160
+    }
+  ],
+  "findings": [
+    {
+      "id": "OWNER-01",
+      "severity": "HIGH",
+      "title": "永久回执可指向不包含原事实的历史 cut",
+      "path": "rust/src/economic_session/store.rs",
+      "line_start": 673,
+      "line_end": 689,
+      "related": [
+        "rust/src/economic_session/service.rs:200-204"
+      ],
+      "case": "receipt-cut",
+      "cause": "audit 以回执自己给出的 commit_seq 查 root 后构造 expected，没有将 seq/commit_ns 与原事实实际追加那一提交绑定，也没有要求该提交新增的事实就是 receipt.fact_key。",
+      "reproduction": "真实 E 依次记录 alpha、beta；停止 E，仅将 beta receipts.json.cut 从实际 seq=2 改成 alpha 的 seq=1/root，不改事实、messages、提交链；E 重新启动审计和 QueryFact 成功。ReadView(cut1) 无 beta，但 B 仍 Applied，opening_fact_ref.e_cut 记录 cut1。",
+      "impact": "已审计的公开回执和 B 开局依据可宣称事实存在于实际尚未知的 cut，破坏同源追溯与 AsKnown 边界。B 回执审计使用同一自报 seq 方式。",
+      "requested_fix": "从逐提交重放生成每个 fact/application 的唯一真实 cut、commit_ns 与完整期望 receipt；对每份 receipt 逐项比较，不接受其自报 seq 作为真值。补 E/B 错位 cut 的负控，并核 B 所取 E cut 确认包含这一事实。"
+    },
+    {
+      "id": "OWNER-02",
+      "severity": "HIGH",
+      "title": "消息审计未锁住原事实的首次 origin_message",
+      "path": "rust/src/economic_session/store.rs",
+      "line_start": 744,
+      "line_end": 780,
+      "related": [
+        "rust/src/economic_session/service.rs:23-45",
+        "rust/src/economic_session/service.rs:118"
+      ],
+      "case": "message-rename",
+      "cause": "审计只要求每个回执至少被某个合法 messages 行覆盖，未验证 fact.origin_message 对应的原消息行必须存在且内容/receipt_key/producer 与首次记录一致。",
+      "reproduction": "原 capture-alpha 复送 beta payload 时基线正确报 IdentityConflict。停止 E，将该 messages 行的 message_id 改为 tampered-alias，同时更新其主键 k，保持 payload、hash、receipt_key 不变；fact.origin_message 仍 capture-alpha。服务启动审计通过，再用 capture-alpha 发送 beta payload 得到 Recorded，永久原消息身份失效。",
+      "impact": "损坏的消息身份映射不被审计发现，原来必须拒绝的同身份异内容被接受；原件与公开消息史已经相互矛盾。",
+      "requested_fix": "审计每个原事实固定的 origin_message 到实际 messages 行、payload_hash、来源/producer 与对应原回执的双向绑定。附加重放别名可以存在，但不得替代首次原消息。B 也应持久并核对自身首次 Apply 消息，避免只靠可改名的侧表。"
+    },
+    {
+      "id": "OWNER-03",
+      "severity": "MEDIUM",
+      "title": "来源引用只验证可解析，未验证解析到的值与字段相符",
+      "path": "rust/src/economic_session/book.rs",
+      "line_start": 97,
+      "line_end": 107,
+      "related": [
+        "rust/src/economic_session/book.rs:135-137",
+        "rust/src/economic_session/book.rs:148"
+      ],
+      "case": "wrong-source-ref",
+      "cause": "check_ref 仅验证 fragment 列表和 JSON pointer 存在，对来源所属事件、字段/分量类型、实际值均不比较。",
+      "reproduction": "独立原件的副本中，仅把 a-position-history 指针改到 beta.observed_existing_book.units=15；alpha 声明 units=8 保持不变。正式 CaptureExternal 返回 Recorded，ApplyAllocation 返回 Applied。",
+      "impact": "查询展示的具名依据可以实际指向另一重的不同数量，却被当成可验证的开局依据。",
+      "requested_fix": "按已冻结 profile 校验每个具名分量引用到的实际内容与目标事件、字段/量纲和值一致。对可引用多片段的来源逐项校验合法角色；不可仅检查 JSON pointer 存在。"
+    },
+    {
+      "id": "OWNER-04",
+      "severity": "HIGH",
+      "title": "零资本化/提取 delta 跳过现存已完成依据的冲突检查",
+      "path": "rust/src/economic_session/book.rs",
+      "line_start": 172,
+      "line_end": 179,
+      "related": [
+        "rust/src/economic_session/book.rs:283-286"
+      ],
+      "case": "zero-component",
+      "cause": "amount != 0 才比较 completed_profit_capitalization/withdrawal 的 witness value，导致原件已有明确非零已完成依据但 delta 填 0 时静默忽略。",
+      "reproduction": "原 beta reduction 副本把 deltas.A 从50改0，completed_profit_capitalization.value=50及其引用不变；正式 E/B 均成功。B 输出 A=300、R=1350，而原已完成50被吞掉。",
+      "impact": "受控原件中已知的真实资本化/提取发生量可以被合法入口的零值覆盖，违反原件一致性与已知量不默认归零的合同。",
+      "requested_fix": "存在相应已完成 witness 时，无论 delta 是否0都应精确比对；无 witness 的0也须有该分量完整无变化依据。对 A/W 及所有声明完备字段补对称冲突负控。"
+    }
+  ],
+  "verification": {
+    "independent_cases": 5,
+    "normal_defenses_passed": 6,
+    "business_findings_reproduced": 4,
+    "author_tests_inspected": {
+      "rust_negative_tests": 4,
+      "runtime_smoke_checks": 76,
+      "actual_transaction_boundary_checks": 72
+    },
+    "sqlite_runtime": "3.53.2 (3053002), WAL, synchronous=2, macOS fullfsync=1; separate temporary E/B databases and processes",
+    "tests_have_transport_retries": "Only unbound os35 transport failures were retried at most3 times using exactly the same envelope; all failures retained. Passing business controls do not claim transport reliability.",
+    "transport": "Initial independent failure, plus two logged 5002.97/5003.06ms failures. Later precision samples20 and100 did not reproduce; those have real peerPID/socket inode/monotonic phase timestamps. Cause unresolved; no timeout widening, no production changes."
+  },
+  "limitations": [
+    "Do not claim full #1374 acceptance: gamma binding positive path not reviewed; implementation explicitly MissingDependency",
+    "No claim of arbitrary hostile full-database rewrite detection; findings use specified local relational inconsistencies and legal protocol inputs",
+    "No independent full implementation-wide double-run/browser acceptance; existing author boundary evidence not relabeled as independent"
+  ],
+  "artifacts": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review/INITIAL-TRANSPORT-FAILURE.log",
+      "sha256": "a883ce00cb7852b0a75398eb80e93ff00f0b80dce0b88f91894069459f7e4563",
+      "bytes": 1382
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review/NEGATIVE-CONTROLS.json",
+      "sha256": "54b93fa878a7fd2a9e51dd18010d70c6946c0aefc89e71d03493267e4ed069d4",
+      "bytes": 9620
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review/TRANSPORT-TIMING-20.json",
+      "sha256": "6d486ae50ca50760779af30b5479c53ef395a692e0d70bfaa875b1deba71f266",
+      "bytes": 55850
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review/TRANSPORT-TIMING.json",
+      "sha256": "0f8deee3413c9031fe788be8c162b1ea370af3af302e7bee261a2b2ae485fd88",
+      "bytes": 267719
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review/negative-controls-retry.log",
+      "sha256": "12268341f2da951bf0424e9061b16f9974bb3c6de21fdf62674a07cc113c9c41",
+      "bytes": 299
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review/negative-controls.log",
+      "sha256": "a883ce00cb7852b0a75398eb80e93ff00f0b80dce0b88f91894069459f7e4563",
+      "bytes": 1382
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review/negative_controls.py",
+      "sha256": "70a00b67c0dd88232267c146f5b6935ba32abc6ec8a6d94ce15bd9e33be9b742",
+      "bytes": 10683
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review/transport-probe-100.log",
+      "sha256": "805d156c0b2e2dc3b0b4c83c38bff9889565ec43d2c3acba5b31626a4dcf9188",
+      "bytes": 3203
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review/transport-probe.log",
+      "sha256": "5e930e83dc4382436d159c302c6aa5f01f842a4730286d8bf29a38b9fb2ad299",
+      "bytes": 774
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review/transport_probe.py",
+      "sha256": "6720d9f2a0e38f9707a1a60e5756c2231c5c7e2b8e8f655c493d2e21f0e24657",
+      "bytes": 3158
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/owner-review/write_review.py",
+      "sha256": "4776f38c1b3ca74e2f4f65ae95b6de8899bd0334fcbf7b06c8d674e16e05cf13",
+      "bytes": 9825
+    }
+  ]
+}
