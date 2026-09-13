@@ -1397,6 +1397,26 @@ fn read_frame(stream: &mut UnixStream, max: usize, deadline: Instant) -> Result<
     }
     Ok(value)
 }
+fn enqueue_before_deadline(tx: &mpsc::SyncSender<Job>, mut job: Job, deadline: Instant) -> bool {
+    loop {
+        // #1372：等待队列后先重核同一期限，不能在过期后的下一轮入队。
+        if Instant::now() >= deadline {
+            return false;
+        }
+        match tx.try_send(job) {
+            Ok(()) => return true,
+            Err(mpsc::TrySendError::Full(returned)) => {
+                job = returned;
+                std::thread::sleep(
+                    Duration::from_millis(1)
+                        .min(deadline.saturating_duration_since(Instant::now())),
+                );
+            }
+            Err(_) => return false,
+        }
+    }
+}
+
 fn io_connection(
     mut stream: UnixStream,
     tx: mpsc::SyncSender<Job>,
@@ -1416,22 +1436,12 @@ fn io_connection(
         Ok(e) => {
             let response_deadline = Instant::now() + bounds.response;
             let (reply_tx, reply_rx) = mpsc::sync_channel(1);
-            let mut job = Job {
+            let job = Job {
                 envelope: e,
                 result: reply_tx,
             };
-            loop {
-                match tx.try_send(job) {
-                    Ok(()) => break,
-                    Err(mpsc::TrySendError::Full(j)) => {
-                        job = j;
-                        if Instant::now() >= response_deadline {
-                            return;
-                        }
-                        std::thread::sleep(Duration::from_millis(1));
-                    }
-                    Err(_) => return,
-                }
+            if !enqueue_before_deadline(&tx, job, response_deadline) {
+                return;
             }
             // 已入actor后，回包超期只结束此连接；不能撤销/重复权威工作。
             match reply_rx.recv_timeout(response_deadline.saturating_duration_since(Instant::now()))
@@ -2193,6 +2203,41 @@ mod tests {
     #[test]
     fn v2_strict_json_rejects_nested_duplicate_keys() {
         assert!(strict_json(br#"{"payload":{"a":1,"a":2}}"#).is_err());
+    }
+    #[test]
+    fn v2_expired_response_deadline_cannot_admit_a_job() {
+        let make_job = |name| {
+            let (result, _) = mpsc::sync_channel(1);
+            Job {
+                envelope: json!({"name": name}),
+                result,
+            }
+        };
+        let (tx, rx) = mpsc::sync_channel(1);
+        assert!(!enqueue_before_deadline(
+            &tx,
+            make_job("expired"),
+            Instant::now()
+        ));
+        assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)));
+        assert!(enqueue_before_deadline(
+            &tx,
+            make_job("first"),
+            Instant::now() + Duration::from_secs(1)
+        ));
+        assert!(!enqueue_before_deadline(
+            &tx,
+            make_job("full"),
+            Instant::now() + Duration::from_millis(2)
+        ));
+        assert_eq!(rx.try_recv().unwrap().envelope, json!({"name":"first"}));
+        assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)));
+        drop(rx);
+        assert!(!enqueue_before_deadline(
+            &tx,
+            make_job("disconnected"),
+            Instant::now() + Duration::from_secs(1)
+        ));
     }
     #[test]
     fn v2_response_wait_has_its_own_bounded_deadline() {
