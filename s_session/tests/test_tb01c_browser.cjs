@@ -161,6 +161,33 @@ async function run() {
     assert.equal(client.limits.pollMs, 500); assert(server.requests.every(r => r.request.payload.page_size === '31'));
     assert.deepEqual(copy(client.committed.projection), projection(f.a3, 'RecomputedWithRevision'));
   });
+  await test('默认fetch以全局接收者完成分页与Watch校验提交', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch'), server = fakeServer(f);
+    Object.defineProperty(globalThis, 'fetch', {configurable: true, writable: true, value: async function (url, options) {
+      assert.equal(this, globalThis, '默认fetch必须保留浏览器要求的全局接收者');
+      return server.fetch(url, options);
+    }});
+    try {
+      const client = new API.Client({hooks: makeHooks(), limits: {pageSize: TEST_PAGE_SIZE}});
+      await client.load(discovery); assert(client.committed.pages > 1);
+      await client.watch();
+      assert.deepEqual(copy(client.committed.projection), projection(f.a4, 'RecomputedWithRevision'));
+      assert(server.requests.some(r => r.url === '/api/v2/watch'));
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, 'fetch', descriptor); else delete globalThis.fetch;
+    }
+  });
+  await test('显式注入fetch保持原函数与调用接口', async () => {
+    const server = fakeServer(f);
+    async function injected(url, options) {
+      assert.equal(this, client);
+      return server.fetch(url, options);
+    }
+    const client = new API.Client({fetch: injected, hooks: makeHooks()});
+    assert.equal(client.fetch, injected);
+    await client.load(discovery); await client.watch();
+    assert.deepEqual(copy(client.committed.projection), projection(f.a4, 'RecomputedWithRevision'));
+  });
   const pageMutations = {
     '跨页记录缺项': p => p.rows.pop(),
     '跨页重复记录': p => { if (p.rows.length > 1) p.rows[1] = copy(p.rows[0]); },

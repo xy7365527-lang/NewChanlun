@@ -161,10 +161,13 @@
   class Client {
     #committed = null;
     get committed() { return this.#committed; }
-    constructor({fetch: fetcher = globalThis.fetch, hooks, onCommit = () => {}, limits = {}}) {
+    constructor({fetch: fetcher, hooks, onCommit = () => {}, limits = {}}) {
+      const useDefaultFetch = fetcher === undefined;
+      if (useDefaultFetch) fetcher = globalThis.fetch;
       need(typeof fetcher === "function", "浏览器缺少网络读取能力");
       for (const name of ["validateState", "validateDelta", "comparePublication"]) need(typeof hooks?.[name] === "function", "缺少严格校验 " + name);
-      this.fetch = fetcher; this.hooks = hooks; this.onCommit = onCommit; this.limits = {...DEFAULTS, ...limits};
+      this.fetch = useDefaultFetch ? fetcher.bind(globalThis) : fetcher;
+      this.hooks = hooks; this.onCommit = onCommit; this.limits = {...DEFAULTS, ...limits};
       for (const value of Object.values(this.limits)) need(Number.isSafeInteger(value) && value > 0, "浏览器资源界限无效");
       this.instance = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() :
         (typeof require === "function" ? require("node:crypto").randomUUID() : null);
