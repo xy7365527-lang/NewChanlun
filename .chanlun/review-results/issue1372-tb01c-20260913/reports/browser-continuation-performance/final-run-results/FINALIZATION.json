@@ -1,0 +1,48 @@
+{
+  "status": "THREE_ARMS_CAPTURED_STOPPED_AND_SEALED_REQUIRES_INDEPENDENT_ACCEPTANCE_REVIEW",
+  "utc": "2026-09-13T10:37:33.811339+00:00",
+  "head": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+  "runtime_manifests": {
+    "trajectory-revision-final-ac3": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/SEALED-MANIFEST.json",
+      "bytes": 390369,
+      "sha256": "5d2cfe5c9b1c493d4f06a7418f984c1dcec407ff63b0a46773d3031aacea648b"
+    },
+    "trajectory-r5-a": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/SEALED-MANIFEST.json",
+      "bytes": 227934,
+      "sha256": "d44f3fba6dc86f7d5db74d53695d4abf3f9297885dd1f984ec9b994ccd5955cd"
+    },
+    "trajectory-r5-b": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/SEALED-MANIFEST.json",
+      "bytes": 421548,
+      "sha256": "5c4f4b5b63f6cbaa281f2d122ff388673d3f9e5131b05861c83d54ffa27716c0"
+    }
+  },
+  "r5_b_final_seal_check": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/R5-B-FINAL-SEAL-CHECK.json",
+    "bytes": 1667,
+    "sha256": "fac78b9ccdc33d0d75492e1cea3fd5e90219e3138f6f197490499f02038fcc48"
+  },
+  "r5_full_core_comparison": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/R5-CORE-COMPARISON.json",
+    "bytes": 1223,
+    "sha256": "57ce28350def23a24ff203ef5f249014002e2def883027ef1417cb9101ded838"
+  },
+  "source_comparison": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/THREE-ARM-SOURCE-COMPARISON.json",
+    "bytes": 153896,
+    "sha256": "0ff0d4db30de2c70d308c873de8618fff1933c75e669b7c43b12327a72b98c65"
+  },
+  "raw_crosschecks": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/RAW-CROSS-RESPONSE-CHECKS.json",
+    "bytes": 2680,
+    "sha256": "39d7d8f55c532550db5d5945d1cd0d0f57ba864bcfdae5aee69b302ca2f13b53"
+  },
+  "offline_audit_script": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-plans/audit_completed_arm.py",
+    "bytes": 6680,
+    "sha256": "e41ef04aed2037fc8c911c4ce73bd71218cdf8efc3d7e9a4bc9d61893dc4a1b4"
+  },
+  "scope": "运行工位已完成；各臂都已停止并封存。原REPORT里的等待GUI段为当时状态，由本记录续接。根GUI证据只作字节核验，独立验收由其它工位完成；失败、乱码及补采边界保留。"
+}

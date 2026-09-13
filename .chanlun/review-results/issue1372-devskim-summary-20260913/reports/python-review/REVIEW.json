@@ -1,0 +1,56 @@
+{
+  "issue": 1372,
+  "verdict": "APPROVE_PYTHON_TESTS_ONLY",
+  "open_findings": [],
+  "resolved_findings": [
+    {
+      "severity": "MEDIUM",
+      "file": "tests/test_devskim_sarif_gate.py",
+      "initial_line": 94,
+      "fix_line": 113,
+      "title": "摘要写入失败须独立覆盖原本PASS的退出状态",
+      "resolution": "第五项回归用例已新增并独立通过"
+    }
+  ],
+  "sources": {
+    "tests/test_devskim_sarif_gate.py": {
+      "bytes": 5365,
+      "sha256": "6ca76cb11f3ac7cb40ac767adf0440fe3e95a6f9e95ac9233755044205aeb33c"
+    },
+    "scripts/devskim_sarif_gate.sh": {
+      "bytes": 9706,
+      "sha256": "c3154bd748c796ba950d1b4926308cd37a1cf54b0a802f644b6a8877132ce5fc"
+    },
+    "pyproject.toml": {
+      "bytes": 1141,
+      "sha256": "00037b0d319906b8096c9ef4861440483093e740e1425fd768abe8ab2e6311af"
+    },
+    ".github/workflows/ci.yml": {
+      "bytes": 15365,
+      "sha256": "e74bdcb4d40dab700c2f5615d88395359714423070b1b8c075aec6b0777b9261"
+    },
+    "tests/conftest.py": {
+      "bytes": 1638,
+      "sha256": "cb4da357a3972e4f08b82749edf17e64aa7fe5264a419f289cbffba649058c1d"
+    }
+  },
+  "checks_file": "FINAL-CHECKS.json",
+  "pytest_selected": 5,
+  "pytest_passed": 5,
+  "pytest_skipped": 0,
+  "python311_unittest_passed": 5,
+  "static_tools_available": false,
+  "ci_default_collection_compatible": true,
+  "ci_actual_execution_requires": [
+    "Bash",
+    "jq"
+  ],
+  "remote_ci_verified": false,
+  "source_modified_by_reviewer": false,
+  "scope_exclusions": [
+    "Bash实现独立评审",
+    "33例原新脚本对拍",
+    "最终远端CI",
+    "C合入main批准"
+  ]
+}

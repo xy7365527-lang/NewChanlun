@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""#1371 TB-01-B：S 正式结构会话的只读查询外壳（前端查询外壳，独立只读进程）。
+"""#1371/#1372：S 正式结构会话的独立只读查询进程。
 
 在 #1370 TB-01-A 只读外壳之上补齐 B 片：修订历史（raw_history / withdrawn_objects / supersedes /
 replaces）、AsKnown（`?as_of=`）与 RecomputedWithRevision（默认）、同源 Watch（`/api/delta?after_generation=`）。
@@ -8,6 +8,7 @@ replaces）、AsKnown（`?as_of=`）与 RecomputedWithRevision（默认）、同
 
 读取边界（延续 A）：参数错误 → 400 InvalidQuery；持久值损坏/缺失 → 503 StorageUnavailable；
 不把坏 generation/frontier/Delta/query 静默回退成 0/-1/空并 200。
+v2 增加同源全域审计、固定 cut 分页和有界 Watch；所有生产读路由共用严格根。
 """
 
 import argparse
@@ -15,6 +16,10 @@ import json
 import os
 import sqlite3
 import sys
+import importlib.util
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
@@ -24,10 +29,30 @@ class InvalidQuery(ValueError):
     """请求参数错误（非持久损坏），映射 HTTP 400。"""
 
 
-def open_readonly(db_path):
+_QUERY_MODULES = {}
+
+
+def _query_module(name):
+    """兼容正式脚本入口和既有按绝对路径 importlib 加载的 R13/R14 验证器。"""
+    if name not in ("s_query_integrity", "s_query"):
+        raise ValueError("未知本地查询模块")
+    if name not in _QUERY_MODULES:
+        path = Path(__file__).resolve().with_name(name + ".py")
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _QUERY_MODULES[name] = module
+    return _QUERY_MODULES[name]
+
+
+def _query_integrity():
+    return _query_module("s_query_integrity")
+
+
+def open_readonly(db_path, *, check_same_thread=True):
     """PY-H01：URI 编码 + query_only。"""
     uri = Path(db_path).resolve().as_uri() + "?mode=ro"
-    conn = sqlite3.connect(uri, uri=True)
+    conn = sqlite3.connect(uri, uri=True, check_same_thread=check_same_thread)
     conn.execute("PRAGMA query_only=ON")
     return conn
 
@@ -68,10 +93,7 @@ def _num_or_none_to_str(v):
 def _json_field(text, expected):
     if not isinstance(text, str):
         raise ValueError("持久 JSON 必须是文本")
-    value = json.loads(text)
-    if not isinstance(value, expected):
-        raise ValueError("持久 JSON 形状不符")
-    return value
+    return _query_integrity().parse_json(text, expected)
 
 
 def _is_canonical_dec(s):
@@ -88,6 +110,8 @@ def _is_canonical_dec(s):
 def _canonical_i64_str(s, what):
     if not _is_canonical_dec(s):
         raise ValueError("%s 不是规范十进制整数（要求 ASCII、无前导零）" % what)
+    if len(s) > 19:
+        raise ValueError("%s 超出 i64 精确整数域" % what)
     n = int(s)
     if not -(2**63) <= n < 2**63:
         raise ValueError("%s 超出 i64 精确整数域" % what)
@@ -110,22 +134,6 @@ def _frontier_i64(v):
     return v
 
 
-def _verify_batch_integrity(conn, batch_id):
-    import hashlib
-    if type(batch_id) is not str or not batch_id.startswith("batch-") or len(batch_id) != 6 + 64:
-        raise ValueError("batch_id 非规范内容寻址形态")
-    row = conn.execute(
-        "SELECT canonical_bytes, byte_len FROM batches WHERE batch_id = ?", (batch_id,)
-    ).fetchone()
-    if row is None:
-        raise ValueError("可达 batch %s 不存在（引用不完整）" % batch_id)
-    b, l = row
-    if not isinstance(b, (bytes, bytearray)) or type(l) is not int:
-        raise ValueError("batch 内容/长度类型损坏")
-    if hashlib.sha256(bytes(b)).hexdigest() != batch_id[6:] or l != len(b):
-        raise ValueError("batch 规范字节/长度与内容寻址不符")
-
-
 def _legacy_payload_projection(value):
     if type(value) is list:
         return [_legacy_payload_projection(v) for v in value]
@@ -143,158 +151,11 @@ def _legacy_payload_projection(value):
     return value
 
 
-def _same_records(actual, expected, field):
-    def normalized(records):
-        if type(records) is not list or any(type(r) is not dict for r in records):
-            raise ValueError("%s 必需集合/成员形状损坏" % field)
-        values = sorted(json.dumps(_legacy_payload_projection(r), sort_keys=True, ensure_ascii=False,
-                                   separators=(",", ":"), allow_nan=False) for r in records)
-        if len(set(values)) != len(values):
-            raise ValueError("%s 重复成员" % field)
-        return values
-    if normalized(actual) != normalized(expected):
-        raise ValueError("%s 与封存批次/同cut持久快照不一致" % field)
-
-
 def _observation_id(ob):
     import hashlib
     content = {k: ob[k] for k in ("kind", "window_start", "window_mid", "window_end", "reason")}
     b = json.dumps(content, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
     return "obs-" + hashlib.sha256(b).hexdigest()[:16]
-
-
-def _verify_delta_payload(conn, delta, gen, batch):
-    _validate_delta_shape(delta)
-    _validate_scope(batch.get("scope"))
-    _validate_scope(delta["catalog_evidence"].get("scope"))
-    evidence = delta["catalog_evidence"]
-    for key in ("profile_id", "profile_hash", "rule_revision"):
-        if key not in evidence or evidence[key] != batch[key]:
-            raise ValueError("目录证据 %s 与封存批次不一致" % key)
-    if evidence.get("batch_id") != delta["index_frontier"] or evidence.get("structure_cut") != delta["next_cut"]:
-        raise ValueError("目录证据 batch/cut 不一致")
-    if delta["catalog_run_status"] != ("run" if batch["objects"] else "not_run"):
-        raise ValueError("目录运行状态与封存结果不一致")
-    for key in ("classified_objects", "windows_total", "merged_bars", "effective_source_positions",
-                "withdrawals", "replaces", "insufficient_knowledge", "domain_not_satisfied"):
-        count = evidence.get(key)
-        if type(count) is str:
-            count = _canonical_i64_str(count, key)
-        if type(count) is not int or not 0 <= count < 2**63:
-            raise ValueError("目录计数 %s 非非负精确整数" % key)
-    previous = _read_snapshot_in_tx(conn, gen - 1)
-    current = _read_snapshot_in_tx(conn, gen)
-    upserts = []
-    for o in batch["objects"]:
-        row = (o["object_id"], o["object_revision"], o["kind"], delta["index_frontier"],
-               o["branch"], o["dir_ab"], o["dir_bc"], o["window_start"], o["window_mid"], o["window_end"],
-               o["comparisons_json"], o["input_refs_json"], o["source_coords_json"], o["first_known_generation"],
-               o["first_known_cut"], o["published_generation"], None, None, None)
-        wire = _project_object_row(row)
-        old = next((p for p in previous["objects"] if p["object_id"] == wire["object_id"]), None)
-        if old is not None:
-            for k in ("batch_id", "first_known_generation", "first_known_cut", "published_generation"):
-                wire[k] = old[k]
-        upserts.append(wire)
-    _same_records(delta["upserts"], upserts, "upserts/batch")
-    _same_records(current["objects"], upserts, "objects/snapshot")
-    withdrawals = []
-    replaces = []
-    for o in current["withdrawn_objects"]:
-        if o["withdrawn_generation"] == str(gen):
-            withdrawals.append({"object_id": o["object_id"], "window_start": o["window_start"],
-                "window_mid": o["window_mid"], "window_end": o["window_end"],
-                "reason": o["withdrawal_reason"], "superseded_by": o["superseded_by"]})
-            if o["superseded_by"] is not None:
-                replaces.append({"old_object_id": o["object_id"], "new_object_id": o["superseded_by"]})
-    _same_records(delta["withdrawals"], withdrawals, "withdrawals")
-    _same_records(delta["replaces"], replaces, "replaces")
-    witnesses = []
-    for w in batch["witnesses"]:
-        w = dict(w)
-        w["slot"] = _num_to_str(w["slot"])
-        w["merged_source_index"] = _num_to_str(w["merged_source_index"])
-        w["raw_bars"] = _project_raw_bars(w["raw_bars"])
-        witnesses.append(w)
-    _same_records(delta["witnesses"], witnesses, "witnesses/batch")
-    relations = list(batch["relations"])
-    relations += [{"subject": r["new_object_id"], "relation_type": "replaces", "object": r["old_object_id"]} for r in replaces]
-    for e in current["raw_history"]:
-        if e["supersedes_revision"] is not None:
-            relations.append({"subject": e["identity_key"]+"@"+e["revision"], "relation_type": "supersedes",
-                              "object": e["identity_key"]+"@"+e["supersedes_revision"]})
-    _same_records(delta["relations"], relations, "relations/batch")
-    batch_raw = []
-    for e in batch["raw_events"]:
-        e = dict(e)
-        for k in ("revision", "seq"):
-            e[k] = _num_to_str(e[k])
-        e["supersedes_revision"] = _num_or_none_to_str(e["supersedes_revision"])
-        batch_raw.append(e)
-    _same_records(current["raw_history"], batch_raw, "raw_history/batch")
-    raw_added = [e for e in current["raw_history"] if int(e["seq"]) >= int(delta["seq_range"]["from"])]
-    _same_records(delta["raw_history_added"], raw_added, "raw_history_added")
-    observations = []
-    for ob in batch["observations"]:
-        oid = _observation_id(ob)
-        stored = next((o for o in current["observations"] if o["observation_id"] == oid), None)
-        if stored is None:
-            raise ValueError("观察的持久端点缺失")
-        row = conn.execute("SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d "
-                           "ON d.index_frontier=b.batch_id WHERE b.batch_id=? AND d.generation<=?",
-                           (stored["batch_id"], gen)).fetchone()
-        if row is None:
-            raise ValueError("观察首批次不可达")
-        first = json.loads(row[0])
-        original = next((o for o in first["observations"] if _observation_id(o) == oid), None)
-        if original is None:
-            raise ValueError("原批次没有该观察身份")
-        original = dict(original, observation_id=oid, batch_id=stored["batch_id"])
-        for k in ("window_start", "window_mid", "window_end"):
-            original[k] = _num_or_none_to_str(original[k])
-        _same_records([stored], [original], "observation/原封存首版")
-        observations.append(stored)
-    _same_records(delta["observations"], observations, "observations/首版")
-    for dkey, skey in (("witnesses", "witnesses"), ("relations", "relations"),
-                      ("observations", "observations"), ("raw_history_added", "raw_history")):
-        union = {json.dumps(_legacy_payload_projection(v), sort_keys=True): v
-                 for v in previous[skey] + delta[dkey]}
-        _same_records(current[skey], list(union.values()), skey)
-
-
-def _verify_profile_binding(conn):
-    """#1371 R10：固定输入绑定。新接纳存定义；旧格式只使用可核封存/声明来源，不补写。"""
-    import hashlib
-    meta = meta_dict(conn)
-    pid, phash = meta.get("profile_id"), meta.get("profile_hash")
-    input_profile, definition = meta.get("input_profile"), meta.get("profile_definition")
-    raw_count = conn.execute("SELECT COUNT(*) FROM raw_events").fetchone()[0]
-    if pid is None and phash is None and input_profile is None and definition is None and raw_count == 0:
-        return "", ""
-    if type(pid) is not str or not pid or type(phash) is not str or len(phash)!=64 or any(c not in "0123456789abcdef" for c in phash):
-        raise ValueError("固定profile_id/hash缺失或不规范")
-    if input_profile != pid:
-        raise ValueError("input_profile与固定profile_id不一致")
-    def canonical_hash(v):
-        return hashlib.sha256(json.dumps(v, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
-    if definition is not None:
-        profile = _json_field(definition,dict)
-        if profile.get("profile_id") != pid or canonical_hash(profile) != phash:
-            raise ValueError("profile定义与固定id/hash不一致")
-    else:
-        row = conn.execute("SELECT b.batch_id,b.canonical_bytes FROM batches b JOIN structure_deltas d "
-                           "ON d.index_frontier=b.batch_id WHERE json_extract(b.canonical_bytes,'$.profile_id')<>'' "
-                           "ORDER BY d.generation LIMIT 1").fetchone()
-        if row is not None:
-            _verify_batch_integrity(conn,row[0])
-            batch=json.loads(row[1])
-            if batch.get("profile_id")!=pid or batch.get("profile_hash")!=phash:
-                raise ValueError("旧profile绑定与可达封存批次不一致")
-        else:
-            profile = json.loads((Path(__file__).resolve().parent/"profiles/testonly_tick_1_1_ohlc.json").read_text())
-            if profile.get("profile_id")!=pid or canonical_hash(profile)!=phash:
-                raise ValueError("旧未发布profile缺可核独立来源")
-    return pid,phash
 
 
 def _verify_batch_profile(batch, binding):
@@ -319,89 +180,10 @@ def _profile_at_cut(conn, generation):
     return batch["profile_id"],batch["profile_hash"]
 
 
-def _verify_published_index_generations(conn, generation):
-    """#1371：全表核发布代，拒绝被逐 cut 过滤隐藏的未来行；cut-0 必须无发布索引。"""
-    checks = (
-        ("objects", "typeof(first_known_generation)<>'integer' OR first_known_generation<1 "
-         "OR first_known_generation>?1 OR typeof(published_generation)<>'integer' "
-         "OR published_generation<1 OR published_generation>?1 "
-         "OR (withdrawn_generation IS NOT NULL AND (typeof(withdrawn_generation)<>'integer' "
-         "OR withdrawn_generation<1 OR withdrawn_generation>?1))"),
-        ("witnesses", "typeof(published_generation)<>'integer' OR published_generation<1 OR published_generation>?1"),
-        ("relations", "typeof(published_generation)<>'integer' OR published_generation<1 OR published_generation>?1"),
-        ("observations", "typeof(published_generation)<>'integer' OR published_generation<1 OR published_generation>?1"),
-    )
-    for table, predicate in checks:
-        # 表名和表达式仅来自上方固定清单；发布代仍用绑定参数。
-        if conn.execute(f"SELECT EXISTS(SELECT 1 FROM {table} WHERE {predicate})", (generation,)).fetchone()[0]:
-            raise ValueError(f"{table} 含不属于 1..={generation} 已发布代的索引行")
-
-
-def _verify_raw_source_coords(conn):
-    """#1371 AC7：与 Rust 同义地核全体已接纳源坐标，包含尚未进入发布 cut 的记录。"""
-    owners = {}
-    positions = {}
-    for identity, raw in conn.execute("SELECT identity_key,source_coord FROM raw_events"):
-        if type(identity) is not str:
-            raise ValueError("raw.identity_key 不是字符串")
-        coordinate = _canonical_i64_str(raw, "raw.source_coord")
-        if coordinate > sys.maxsize * 2 + 1:
-            raise ValueError("raw.source_coord 不能无损表示为本平台源位置")
-        if coordinate in owners and owners[coordinate] != identity:
-            raise ValueError("原始源坐标属于多个业务身份")
-        if identity in positions and positions[identity] != coordinate:
-            raise ValueError("同一业务身份的源坐标发生改变")
-        owners[coordinate] = identity
-        positions[identity] = coordinate
-
-
 def _verify_reachable_root(conn):
-    """#1371 R9：与 Rust 同义的完整11列/可达代链/封存坐标/载荷验证，所有正式读入口共用。"""
-    meta = meta_dict(conn)
-    gen = _validate_required_meta(meta)
-    _verify_published_index_generations(conn, gen)
-    _verify_raw_source_coords(conn)
-    profile_binding = _verify_profile_binding(conn)
-    rows = conn.execute(
-        "SELECT generation,session_id,catalog_revision,base_cut,next_cut,seq_range_json,"
-        "index_frontier,input_frontier,catalog_run_status,catalog_evidence_json,delta_json "
-        "FROM structure_deltas ORDER BY generation ASC").fetchall()
-    if len(rows) != gen:
-        raise ValueError("已发布代链断裂或存在未来 Delta")
-    prev_frontier = -1
-    for expected, row in enumerate(rows, 1):
-        g, sid, cat, base, nxt, sr_json, idx, frontier, run, evidence_json, dj = row
-        _frontier_i64(frontier)
-        if type(g) is not int or g != expected or sid != meta["session_id"] or cat != meta["catalog_revision"]:
-            raise ValueError("Delta代际/session/catalog 与当前根不一致")
-        if base != "cut-%d" % (g-1) or nxt != "cut-%d" % g:
-            raise ValueError("Delta cut链不一致")
-        sr = _validate_seq_range(sr_json)
-        if sr != {"from": str(prev_frontier+1), "to": str(frontier)}:
-            raise ValueError("Delta seq_range 与输入前沿链不一致")
-        prev_frontier = frontier
-        evidence = _json_field(evidence_json, dict)
-        delta = _json_field(dj, dict)
-        header = dict(generation=str(g), session_id=sid, catalog_revision=cat, base_cut=base,
-                      next_cut=nxt, seq_range=sr, index_frontier=idx, input_frontier=str(frontier),
-                      catalog_run_status=run, catalog_evidence=evidence)
-        for key, val in header.items():
-            # JSON结构深等，保留数字/布尔区别；不以输出投影掩盖头的持久矛盾。
-            if key not in delta or json.dumps(delta[key], sort_keys=True) != json.dumps(val, sort_keys=True):
-                raise ValueError("Delta内层 %s 与外层列不一致" % key)
-        _verify_batch_integrity(conn, idx)
-        batch = json.loads(conn.execute("SELECT canonical_bytes FROM batches WHERE batch_id=?", (idx,)).fetchone()[0])
-        for key,val in dict(generation=g, structure_cut=nxt, input_frontier=frontier, catalog_revision=cat).items():
-            if type(batch.get(key)) is not type(val) or batch[key] != val:
-                raise ValueError("batch 封存 %s 与 Delta不一致" % key)
-        _verify_batch_profile(batch, profile_binding)
-        _verify_delta_payload(conn, delta, g, batch)
-    if rows:
-        run, evidence = conn.execute("SELECT run_status,evidence_json FROM catalog WHERE catalog_id='CC-006'").fetchone()
-        if run != rows[-1][8] or json.dumps(_json_field(evidence,dict),sort_keys=True) != json.dumps(_json_field(rows[-1][9],dict),sort_keys=True):
-            raise ValueError("当前目录与末代 Delta 证据不一致")
-    if rows and (rows[-1][6] != meta["index_frontier"] or rows[-1][4] != meta["structure_cut"] or str(rows[-1][7]) != meta["last_advance_frontier"]):
-        raise ValueError("meta 与末代 Delta 根元组不一致")
+    """#1372：全 typed 图像与线性关联门；旧正式读接口和 Q 共用同一个判据。"""
+    integrity = _query_integrity()
+    return integrity.verify(integrity.capture(conn), globals())
 
 
 def _req_str(d, key, path):
@@ -530,78 +312,8 @@ def _publication_fields(conn, gen):
 
 
 def read_catalog(conn, as_of=None):
-    meta = meta_dict(conn)
-    _verify_reachable_root(conn)
-    current_gen = _validate_required_meta(meta)
-    if as_of is None:
-        header_gen = meta.get("generation", "")
-        header_cut = meta.get("structure_cut", "")
-        header_cat = meta.get("catalog_revision", "")
-        cc006_run = None
-        cc006_evidence = None
-    else:
-        if as_of < 0:
-            raise InvalidQuery("as_of 必须 >= 0")
-        if as_of > current_gen:
-            raise ValueError("Unavailable：请求的 cut generation=%d 尚未发布" % as_of)
-        idx, cat = _header_at_generation(conn, as_of)
-        header_gen = str(as_of)
-        header_cut = "cut-%d" % as_of
-        header_cat = cat
-        if as_of == 0:
-            cc006_run, cc006_evidence = "not_run", {}
-        else:
-            row = conn.execute(
-                "SELECT catalog_run_status, catalog_evidence_json FROM structure_deltas WHERE generation = ?",
-                (as_of,),
-            ).fetchone()
-            if row is None:
-                raise ValueError("Unavailable：请求的 cut generation=%d 尚未发布" % as_of)
-            cc006_run = row[0]
-            cc006_evidence = _json_field(row[1], dict)
-
-    rows = []
-    for (cid, kind, title, domain, branches_json, impl, proof, run, evidence_json) in conn.execute(
-        "SELECT catalog_id, kind, title, domain, branches_json, impl_status, proof_status, "
-        "run_status, evidence_json FROM catalog ORDER BY catalog_id"
-    ):
-        run_status = run
-        evidence = _json_field(evidence_json, dict)
-        if cid == "CC-006" and cc006_run is not None:
-            run_status = cc006_run
-            evidence = cc006_evidence
-        if as_of is not None:
-            impl = "implemented" if cid=="CC-006" and as_of>0 else "not_implemented"
-            proof = "not_proved"
-            if as_of==0:
-                run_status, evidence = "not_run", {}
-        rows.append({
-            "id": cid,
-            "kind": kind,
-            "title": title,
-            "domain": domain,
-            "branches": _json_field(branches_json, (list, dict)),
-            "implementation_status": impl,
-            "proof_status": proof,
-            "run_status": run_status,
-            "evidence": evidence,
-        })
-    return {
-        **_publication_fields(conn, int(header_gen)),
-        "index_frontier": _header_at_generation(conn, int(header_gen))[0],
-        "session_id": meta.get("session_id", ""),
-        "generation": header_gen,
-        "structure_cut": header_cut,
-        "catalog_revision": header_cat,
-        "scope": _scope(meta),
-        "items": rows,
-        "counts": {
-            "implemented": sum(1 for r in rows if r["implementation_status"] == "implemented"),
-            "not_implemented": sum(1 for r in rows if r["implementation_status"] == "not_implemented"),
-            "run": sum(1 for r in rows if r["run_status"] == "run"),
-            "not_run": sum(1 for r in rows if r["run_status"] == "not_run"),
-        },
-    }
+    proof = _verify_reachable_root(conn)
+    return _query_integrity().project_state(proof, as_of, globals())["catalog"]
 
 
 _OBJECT_COLS = (
@@ -668,8 +380,8 @@ def _read_objects_view(conn, as_of):
 
 
 def read_snapshot(conn, as_of=None):
-    _verify_reachable_root(conn)
-    return _read_snapshot_in_tx(conn, as_of)
+    proof = _verify_reachable_root(conn)
+    return _query_integrity().project_state(proof, as_of, globals())["snapshot"]
 
 
 def _read_snapshot_in_tx(conn, as_of=None):
@@ -807,19 +519,8 @@ def _read_snapshot_in_tx(conn, as_of=None):
 
 
 def read_state(conn, as_of=None):
-    catalog = read_catalog(conn, as_of)
-    snapshot = read_snapshot(conn, as_of)
-    return {
-        "cut": {
-            "session_id": snapshot["session_id"],
-            "generation": snapshot["generation"],
-            "structure_cut": snapshot["structure_cut"],
-            "catalog_revision": snapshot["catalog_revision"],
-            "index_frontier": snapshot["index_frontier"],
-        },
-        "catalog": catalog,
-        "snapshot": snapshot,
-    }
+    proof = _verify_reachable_root(conn)
+    return _query_integrity().project_state(proof, as_of, globals())
 
 
 def _canonical_int_field(d, key, path):
@@ -985,130 +686,126 @@ def _validate_seq_range(seq_range_json):
     return sr
 
 
+def _delta_from_proof(proof, after_generation):
+    if type(after_generation) is not int or after_generation < 0:
+        raise InvalidQuery("after_generation 必须是非负整数")
+    generation = proof["generation"]
+    gap = ({"reason": "cursor_ahead_or_session_rebuilt", "rebuild_cut": f"cut-{generation}"}
+           if after_generation > generation else None)
+    return _project_wire_integers({"session_id": proof["meta"]["session_id"],
+            "generation": str(generation), "structure_cut": f"cut-{generation}",
+            "after_generation": str(after_generation), "gap": gap,
+            "deltas": [] if gap else [_query_integrity().project_delta(proof, index)
+                                      for index in range(after_generation, generation)]})
+
+
 def read_delta(conn, after_generation):
-    meta = meta_dict(conn)
-    _verify_reachable_root(conn)
-    current_gen = _validate_required_meta(meta)
-    current_cut = meta["structure_cut"]
-    session_id = meta["session_id"]
+    return _delta_from_proof(_verify_reachable_root(conn), after_generation)
 
-    if after_generation > current_gen:
-        # 游标超前（旧页面游标用于新会话/被重建的会话）→ 显式重建，不静默“无更新”。
-        return {
-            "session_id": session_id,
-            "generation": _num_to_str(current_gen),
-            "structure_cut": current_cut,
-            "after_generation": _num_to_str(after_generation),
-            "gap": {"reason": "cursor_ahead_or_session_rebuilt", "rebuild_cut": current_cut},
-            "deltas": [],
-        }
 
-    rows = []
-    for (gen, sid, crev, base_cut, next_cut, seq_range_json, idx_frontier, input_frontier,
-         run_status, evidence_json, delta_json) in conn.execute(
-        "SELECT generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, "
-        "index_frontier, input_frontier, catalog_run_status, catalog_evidence_json, delta_json "
-        "FROM structure_deltas WHERE generation > ? ORDER BY generation ASC",
-        (after_generation,),
-    ):
-        if gen > current_gen:
-            raise ValueError("structure_deltas 存在超出当前 generation 的未来行（generation=%d）" % gen)
-        if sid != session_id:
-            raise ValueError("structure_deltas 行的 session_id 与 meta.session_id 不一致")
-        delta = _json_field(delta_json, dict)
-        _validate_delta_shape(delta)
-        sr = _validate_seq_range(seq_range_json)
-        if type(run_status) is not str or run_status == "":
-            raise ValueError("structure_deltas.catalog_run_status 缺失或非文本")
-        evidence = _json_field(evidence_json, dict)
-        # 内层头与外层行/当前 meta 同一身份（冲突 → 503，不作为正常增量发布）。
-        if delta.get("session_id") != sid:
-            raise ValueError("delta 内层 session_id 与外层行不一致")
-        if delta.get("generation") != str(gen):
-            raise ValueError("delta 内层 generation 与外层行不一致")
-        if delta.get("base_cut") != base_cut:
-            raise ValueError("delta 内层 base_cut 与外层行不一致")
-        if delta.get("next_cut") != next_cut:
-            raise ValueError("delta 内层 next_cut 与外层行不一致")
-        if delta.get("catalog_revision") != crev:
-            raise ValueError("delta 内层 catalog_revision 与外层行不一致")
-        if delta.get("index_frontier") != idx_frontier:
-            raise ValueError("delta 内层 index_frontier 与外层行不一致")
-        if delta.get("input_frontier") != str(input_frontier):
-            raise ValueError("delta 内层 input_frontier 与外层行不一致")
-        if delta.get("seq_range") != sr:
-            raise ValueError("delta 内层 seq_range 与外层 seq_range_json 不一致")
-        if delta.get("catalog_run_status") != run_status:
-            raise ValueError("delta 内层 catalog_run_status 与外层列不一致")
-        if delta.get("catalog_evidence") != evidence:
-            raise ValueError("delta 内层 catalog_evidence 与外层 catalog_evidence_json 不一致")
-        rows.append({
-            "generation": _num_to_str(gen),
-            "session_id": sid,
-            "catalog_revision": crev,
-            "base_cut": base_cut,
-            "next_cut": next_cut,
-            "seq_range": sr,
-            "index_frontier": idx_frontier,
-            "input_frontier": str(_frontier_i64(input_frontier)),
-            "catalog_run_status": run_status,
-            "catalog_evidence": evidence,
-            "delta": delta,
-        })
+class _DeadlineInput:
+    """覆盖请求行、所有头与 body 的总时间/字节界限，不能靠慢滴送重置超时。"""
 
-    gap = None
-    if after_generation < current_gen:
-        # 完整连续性 + 末端抵达 current_gen：首条 gen == after+1，逐条 +1，末条 == current_gen。
-        gens = [int(r["generation"]) for r in rows]
-        expected = list(range(after_generation + 1, current_gen + 1))
-        if gens != expected:
-            gap = {"reason": "cursor_stale_or_retained_delta_missing", "rebuild_cut": current_cut}
-        else:
-            # cut 链完整性：首条 base_cut == cut-{after}，逐条 next == 下一 base，末条 next == 当前 cut。
-            # 断裂是持久损坏 → 503（不是 Gap）。
-            prev_cut = "cut-%d" % after_generation
-            for r in rows:
-                if r["base_cut"] != prev_cut:
-                    raise ValueError(
-                        "structure_deltas cut 链断裂：期望 base_cut=%s，实际 %s（generation=%s）"
-                        % (prev_cut, r["base_cut"], r["generation"]))
-                prev_cut = r["next_cut"]
-            if prev_cut != current_cut:
-                raise ValueError(
-                    "structure_deltas cut 链末端不一致：末 next_cut=%s，当前 structure_cut=%s"
-                    % (prev_cut, current_cut))
-    return {
-        "session_id": session_id,
-        "generation": _num_to_str(current_gen),
-        "structure_cut": current_cut,
-        "after_generation": _num_to_str(after_generation),
-        "gap": gap,
-        "deltas": rows,
-    }
+    def __init__(self, source, connection, seconds, maximum):
+        self.source, self.connection = source, connection
+        self.deadline, self.maximum = time.monotonic() + seconds, maximum
+        self.pending = bytearray()
+        self.total = 0
+
+    @property
+    def closed(self):
+        return self.source.closed
+
+    def close(self):
+        self.source.close()
+
+    def _read(self, size):
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise _query_integrity().QueryBudgetExceeded("HTTP 请求读取超过总时限")
+        self.connection.settimeout(remaining)
+        try:
+            data = self.source.read1(size)
+        except TimeoutError as exc:
+            raise _query_integrity().QueryBudgetExceeded("HTTP 请求读取超过总时限") from exc
+        self.total += len(data)
+        if self.total > self.maximum:
+            raise _query_integrity().QueryBudgetExceeded("HTTP 请求行/头/body 超过帧上限")
+        return data
+
+    def read1(self, size):
+        if time.monotonic() > self.deadline:
+            raise _query_integrity().QueryBudgetExceeded("HTTP 请求读取超过总时限")
+        if self.pending:
+            result = bytes(self.pending[:size])
+            del self.pending[:size]
+            return result
+        return self._read(size)
+
+    def readline(self, limit=-1):
+        if time.monotonic() > self.deadline:
+            raise _query_integrity().QueryBudgetExceeded("HTTP 请求读取超过总时限")
+        limit = self.maximum + 1 if limit < 0 else limit
+        result = bytearray()
+        while len(result) < limit:
+            if not self.pending:
+                data = self._read(min(4096, limit-len(result)))
+                if not data:
+                    break
+                self.pending.extend(data)
+            newline = self.pending.find(b"\n")
+            take = len(self.pending) if newline < 0 else newline+1
+            take = min(take, limit-len(result))
+            result.extend(self.pending[:take])
+            del self.pending[:take]
+            if result.endswith(b"\n"):
+                break
+        return bytes(result)
 
 
 class Handler(BaseHTTPRequestHandler):
     db_path = None
     browser_path = None
 
+    def setup(self):
+        if hasattr(self.server, "resources"):
+            self.request.settimeout(self.server.resources["socket_read_timeout_ms"] / 1000)
+        super().setup()
+        if hasattr(self.server, "resources"):
+            self.rfile = _DeadlineInput(self.rfile, self.connection,
+                self.server.resources["socket_read_timeout_ms"] / 1000, self.server.resources["max_frame_bytes"])
+
+    def handle_one_request(self):
+        try:
+            super().handle_one_request()
+        except _query_integrity().QueryBudgetExceeded as exc:
+            self.close_connection = True
+            if not hasattr(self, "request_version"):
+                self.request_version = "HTTP/1.0"
+                self.requestline = ""
+                self.command = ""
+            self._send_json({"ok": False, "status": "Incomplete", "error": "QueryBudgetExceeded", "detail": str(exc)}, 503)
+
     def log_message(self, fmt, *args):
         sys.stderr.write("[readonly] %s - %s\n" % (self.address_string(), fmt % args))
 
-    def _send_bytes(self, body_bytes, status=200):
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body_bytes)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body_bytes)
+    def _send_bytes(self, body_bytes, status=200, content_type="application/json; charset=utf-8"):
+        if hasattr(self.server, "resources"):
+            self.connection.settimeout(self.server.resources["socket_write_timeout_ms"] / 1000)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body_bytes)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body_bytes)
+            return True
+        except OSError:
+            self.close_connection = True
+            return False
 
     def _send_html(self, body_bytes, status=200):
-        self.send_response(status)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body_bytes)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body_bytes)
+        return self._send_bytes(body_bytes, status, "text/html; charset=utf-8")
 
     def _send_json(self, obj, status=200):
         body = serialize_payload(obj)
@@ -1135,7 +832,7 @@ class Handler(BaseHTTPRequestHandler):
         if raw is None:
             return default
         # ASCII 规范十进制：拒绝空、非 ASCII 数字（如 ²）、前导零、负号。
-        if raw == "" or not raw.isascii() or not raw.isdigit() or (len(raw) > 1 and raw[0] == "0"):
+        if raw == "" or len(raw) > 19 or not raw.isascii() or not raw.isdigit() or (len(raw) > 1 and raw[0] == "0"):
             raise InvalidQuery("%s 必须是规范十进制整数且 >= 0" % key)
         v = int(raw)
         if not -(2**63) <= v < 2**63:
@@ -1144,6 +841,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def _read_only(self, kind, query=None, as_of=None, after_generation=None):
         query = query or {}
+        if hasattr(self.server, "query_reader"):
+            self._verified_read(kind, as_of, after_generation)
+            return
         payload = None
         try:
             conn = open_readonly(self.db_path)
@@ -1161,7 +861,7 @@ class Handler(BaseHTTPRequestHandler):
             elif kind == "delta":
                 payload = read_delta(conn, after_generation)
             elif kind == "meta":
-                payload = {"meta": meta_dict(conn)}
+                payload = {"meta": _verify_reachable_root(conn)["meta"]}
             else:
                 self._send_json({"ok": False, "error": "not found"}, 404)
                 return
@@ -1194,6 +894,117 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send_bytes(body)
 
+    def _verified_read(self, kind, as_of, after_generation):
+        audit = _query_integrity()
+        try:
+            proof = self.server.query_reader().capture_verified()
+            if kind in ("ready", "state", "catalog", "snapshot"):
+                state = audit.project_state(proof, as_of, globals())
+                if proof["protocol"] is not None:
+                    state["cut"]["session_generation"] = proof["protocol"]["session_generation"]
+                payload = {"cut": state["cut"]} if kind == "ready" else state if kind == "state" else state[kind]
+            elif kind == "delta":
+                payload = _delta_from_proof(proof, after_generation)
+            elif kind == "meta":
+                payload = {"meta": proof["meta"]}
+            else:
+                raise InvalidQuery("未知只读操作")
+            response = dict(payload, ok=True, producer_epoch=str(self.server.producer_epoch))
+            if kind in ("ready", "state"):
+                # 控制器启动诊断；不进入 v2 公共业务头、投影摘要或语义重放。
+                response["control_instance_id"] = self.server.control_instance_id
+            body = serialize_payload(response)
+            if body is None:
+                raise ValueError("已核响应无法序列化")
+            if len(body) > self.server.resources["max_reply_bytes"]:
+                raise audit.QueryBudgetExceeded("完整 legacy 响应超过回复上限")
+            self._send_bytes(body)
+        except InvalidQuery as exc:
+            self._send_json({"ok": False, "error": "InvalidQuery", "detail": str(exc)}, 400)
+        except audit.QueryBudgetExceeded as exc:
+            self._send_json({"ok": False, "status": "Incomplete", "error": "QueryBudgetExceeded", "detail": str(exc)}, 503)
+        except (sqlite3.Error, ValueError, TypeError, UnicodeError, KeyError, IndexError, OSError, RecursionError) as exc:
+            self._send_json({"ok": False, "error": "StorageUnavailable", "detail": str(exc)}, 503)
+
+    def do_POST(self):
+        if not hasattr(self.server, "query_reader"):
+            self._send_json({"ok": False, "error": "QueryNotConfigured"}, 503)
+            return
+        audit, query = _query_integrity(), _query_module("s_query")
+        envelope, proof, header_verified = None, None, False
+
+        def error_reply(payload, status):
+            if header_verified:
+                bound = proof if proof is not None and proof.get("protocol") is not None else None
+                payload = dict(payload, identity_binding="verified_current_capture" if bound else "request_echo_unverified")
+                response = query.response_envelope(envelope, payload, bound, self.server.producer_epoch, audit)
+                body = audit.canonical(response)
+                if len(body) <= self.server.resources["max_reply_bytes"]:
+                    self._send_bytes(body, status)
+                else:
+                    self.close_connection = True
+            else:
+                self._send_json(payload, status)
+        try:
+            if self.path not in ("/api/v2/snapshot", "/api/v2/watch"):
+                self._send_json({"ok": False, "error": "not found"}, 404)
+                return
+            lengths = self.headers.get_all("Content-Length", [])
+            if len(lengths) != 1 or self.headers.get("Transfer-Encoding") is not None:
+                raise InvalidQuery("需要唯一 Content-Length；不接受传输编码歧义")
+            length = query._integer(lengths[0], "Content-Length", InvalidQuery, True)
+            if length > self.server.resources["max_frame_bytes"]:
+                raise audit.QueryBudgetExceeded("请求帧超过事前字节上限")
+            deadline = time.monotonic() + self.server.resources["socket_read_timeout_ms"] / 1000
+            chunks, remaining = [], length
+            while remaining:
+                seconds = deadline - time.monotonic()
+                if seconds <= 0:
+                    raise audit.QueryBudgetExceeded("读取请求帧达到总时限")
+                self.connection.settimeout(seconds)
+                chunk = self.rfile.read1(min(remaining, 65536))
+                if not chunk:
+                    raise InvalidQuery("请求帧截断")
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            try:
+                envelope = audit.parse_json(b"".join(chunks))
+            except (ValueError, UnicodeError, RecursionError) as exc:
+                raise InvalidQuery("请求不是无重复键的完整 UTF-8 JSON") from exc
+            payload = query.validate_envelope(envelope, audit, InvalidQuery)
+            header_verified = True
+            operation = "snapshot" if self.path.endswith("snapshot") else "watch"
+            if payload.get("op") != operation:
+                raise InvalidQuery("路径与 op 不一致")
+            proof = self.server.query_reader().capture_verified()
+            if proof["protocol"] is None:
+                raise ValueError("v2 查询需要完整协议存储")
+            if operation == "snapshot":
+                if (envelope["session_id"], envelope["session_generation"]) != (proof["meta"]["session_id"], proof["protocol"]["session_generation"]):
+                    raise InvalidQuery("公共头 session/化身与查询目标不符")
+                result = query.snapshot_page(proof, payload, self.server.resources, globals())
+            else:
+                cursor = payload.get("cursor")
+                if type(cursor) is not dict:
+                    raise InvalidQuery("Watch cursor 必须是对象")
+                if (envelope["session_id"], envelope["session_generation"]) != (cursor.get("session_id"), cursor.get("session_generation")):
+                    raise InvalidQuery("公共头与 Watch cursor 身份不一致")
+                result = query.watch_page(proof, payload, self.server.resources, globals(), self.server.leases)
+            result = dict(result, ok=True)
+            response = query.response_envelope(envelope, result, proof, self.server.producer_epoch, audit)
+            body = audit.canonical(response)
+            if len(body) > self.server.resources["max_reply_bytes"]:
+                raise audit.QueryBudgetExceeded("完整公共头响应超过回复上限")
+            sent = self._send_bytes(body)
+            if sent and operation == "watch" and result["gap"] is None:
+                self.server.leases.delivered(payload["client_id"], result["next_cursor"])
+        except InvalidQuery as exc:
+            error_reply({"ok": False, "error": "InvalidQuery", "detail": str(exc)}, 400)
+        except _query_integrity().QueryBudgetExceeded as exc:
+            error_reply({"ok": False, "status": "Incomplete", "error": "QueryBudgetExceeded", "detail": str(exc)}, 503)
+        except (sqlite3.Error, ValueError, TypeError, UnicodeError, KeyError, IndexError, OSError, RecursionError) as exc:
+            error_reply({"ok": False, "error": "StorageUnavailable", "detail": str(exc)}, 503)
+
     def do_GET(self):
         path = self.path.split("?", 1)[0]
         try:
@@ -1205,15 +1016,31 @@ class Handler(BaseHTTPRequestHandler):
         except InvalidQuery as e:
             self._send_json({"ok": False, "error": "InvalidQuery", "detail": str(e)}, 400)
             return
-        if path in ("/", "/index.html"):
+        if path in ("/", "/index.html", "/tb01c-client.js"):
             try:
-                with open(self.browser_path, "rb") as f:
-                    body = f.read()
-                self._send_html(body)
+                # 固定静态文件集合；URL 不参与磁盘路径拼接。
+                target = Path(self.browser_path)
+                javascript = path == "/tb01c-client.js"
+                if javascript:
+                    target = target.with_name("tb01c-client.js")
+                maximum = self.server.resources["max_reply_bytes"] if hasattr(self.server, "resources") else 8*1024*1024
+                with target.open("rb") as f:
+                    body = f.read(maximum+1)
+                if len(body) > maximum:
+                    raise _query_integrity().QueryBudgetExceeded("静态响应超过回复字节上限")
+                self._send_bytes(body, content_type="application/javascript; charset=utf-8" if javascript else "text/html; charset=utf-8")
+            except _query_integrity().QueryBudgetExceeded as e:
+                self._send_json({"ok": False, "status": "Incomplete", "error": "QueryBudgetExceeded", "detail": str(e)}, 503)
             except FileNotFoundError:
                 self._send_json({"ok": False, "error": "browser file not found"}, 404)
             except OSError as e:
                 self._send_json({"ok": False, "error": "browser unreadable", "detail": str(e)}, 503)
+            return
+        if path == "/api/ready":
+            if query:
+                self._send_json({"ok": False, "error": "InvalidQuery", "detail": "就绪控制读口只核当前会话，不接受查询参数"}, 400)
+                return
+            self._read_only("ready")
             return
         if path == "/api/state":
             self._read_only("state", query, as_of=as_of)
@@ -1253,16 +1080,86 @@ def serialize_payload(obj):
         return None
 
 
+class QueryHTTPServer(ThreadingHTTPServer):
+    """固定 worker 数和有界待处理请求；每 worker 独占自己的 Q 连接。"""
+
+    def __init__(self, address, handler, db_path, resources, producer_epoch):
+        self.resources = resources
+        self.producer_epoch = producer_epoch
+        self.control_instance_id = os.environ.get("S_CONTROL_INSTANCE_ID")
+        self.db_path = db_path
+        self.request_queue_size = resources["max_pending_connections"]
+        capacity = min(resources["max_pending_connections"], resources["max_query_workers"] + resources["max_query_queue"])
+        self.slots = threading.BoundedSemaphore(capacity)
+        self.local = threading.local()
+        self.readers = []
+        self.readers_lock = threading.Lock()
+        self.leases = _query_module("s_query").ClientLeases(resources)
+        self.executor = ThreadPoolExecutor(max_workers=resources["max_query_workers"], thread_name_prefix="s-query")
+        try:
+            super().__init__(address, handler)
+        except Exception:
+            self.executor.shutdown(wait=True)
+            raise
+
+    def query_reader(self):
+        if not hasattr(self.local, "reader"):
+            self.local.reader = _query_module("s_query").AuditReader(self.db_path, self.resources, globals())
+            with self.readers_lock:
+                self.readers.append(self.local.reader)
+        return self.local.reader
+
+    def process_request(self, request, client_address):
+        if not self.slots.acquire(blocking=False):
+            try:
+                request.settimeout(self.resources["socket_write_timeout_ms"] / 1000)
+                body = b'{"ok":false,"status":"Incomplete","error":"QueryBudgetExceeded"}'
+                request.sendall(b"HTTP/1.0 503 Service Unavailable\r\nContent-Type: application/json\r\nContent-Length: " +
+                                str(len(body)).encode() + b"\r\nConnection: close\r\n\r\n" + body)
+            except OSError:
+                pass
+            finally:
+                self.shutdown_request(request)
+            return
+        queued_at = time.monotonic()
+
+        def serve():
+            try:
+                if (time.monotonic()-queued_at)*1000 > self.resources["socket_read_timeout_ms"]:
+                    self.shutdown_request(request)
+                    return
+                self.process_request_thread(request, client_address)
+            finally:
+                self.slots.release()
+        try:
+            self.executor.submit(serve)
+        except Exception:
+            self.slots.release()
+            self.shutdown_request(request)
+            raise
+
+    def server_close(self):
+        super().server_close()
+        self.executor.shutdown(wait=True)
+        for reader in self.readers:
+            reader.close()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", required=True)
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--browser", required=True)
     ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--resource-config", required=True)
+    ap.add_argument("--producer-epoch", required=True)
     args = ap.parse_args()
+    query = _query_module("s_query")
+    epoch = query._integer(args.producer_epoch, "producer_epoch", ValueError, True)
+    resources = query.load_resources(args.resource_config, _query_integrity())
     Handler.db_path = os.path.abspath(args.db)
     Handler.browser_path = os.path.abspath(args.browser)
-    server = ThreadingHTTPServer((args.host, args.port), Handler)
+    server = QueryHTTPServer((args.host, args.port), Handler, Handler.db_path, resources, epoch)
     sys.stderr.write(
         "[readonly] serving S 只读查询 {host}:{port} (db={db})\n".format(
             host=args.host, port=args.port, db=Handler.db_path
@@ -1272,6 +1169,8 @@ def main():
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        server.server_close()
 
 
 if __name__ == "__main__":

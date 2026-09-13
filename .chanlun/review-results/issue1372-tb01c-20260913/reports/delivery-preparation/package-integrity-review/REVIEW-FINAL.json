@@ -1,0 +1,162 @@
+{
+  "status": "CURRENT_76_COPY_INTEGRITY_AND_SIX_LOCAL_LINKS_CONFIRMED",
+  "scope": "#1372仓外交付暂存包当前76报告；只核副本字节/对象文件类型/本工位已核README事实的增量及六个本地审阅入口，不重审产品、八AC或安全分诊结论。",
+  "utc": "2026-09-13T11:00:22.317307+00:00",
+  "stage": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/package-stage",
+  "baseline": "increment-71-readme-clock/RESULT.json",
+  "verified_report_count": 76,
+  "verified_report_bytes": 4172494,
+  "package_total_files": 78,
+  "content_types": {
+    "UTF8_MARKDOWN_REPORT": 27,
+    "JSON_REPORT_OR_INDEX": 48,
+    "PNG_IMAGE_CRC_VERIFIED": 1
+  },
+  "report_sources_digest": {
+    "bytes": 32055,
+    "sha256": "0817bc03c324e6f8c466c04dd33647146e1c37765d4f257615d378b91ae5ba00"
+  },
+  "readme_digest": {
+    "bytes": 9489,
+    "sha256": "ab8c0b25c80edf8abe3f9a887a565f1cd52344f90b8d634288bc2e2e7d52c82e"
+  },
+  "old_71_unchanged": true,
+  "added_five": [
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/EXECUTION.json",
+      "package_path": "reports/runtime/r5-pair/independent-review/EXECUTION.json",
+      "bytes": 7213,
+      "sha256": "11fe2c2686d81700e508b9660f685ea1a94ed41ef755d5dc23ede2255b11f529",
+      "source_digest": {
+        "bytes": 7213,
+        "sha256": "11fe2c2686d81700e508b9660f685ea1a94ed41ef755d5dc23ede2255b11f529"
+      },
+      "recorded_matches_source_and_package": true,
+      "content_type": "JSON_REPORT_OR_INDEX"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/MANIFEST.json",
+      "package_path": "reports/runtime/r5-pair/independent-review/MANIFEST.json",
+      "bytes": 8526,
+      "sha256": "62b4b9270929730665c9001091d7c6747102ebb49ee1b15fc49a61e7ee078cbf",
+      "source_digest": {
+        "bytes": 8526,
+        "sha256": "62b4b9270929730665c9001091d7c6747102ebb49ee1b15fc49a61e7ee078cbf"
+      },
+      "recorded_matches_source_and_package": true,
+      "content_type": "JSON_REPORT_OR_INDEX"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/READING.json",
+      "package_path": "reports/runtime/r5-pair/independent-review/READING.json",
+      "bytes": 3332,
+      "sha256": "16bd26dcfa34eed138afdd3c59a59a60846539bfde1c1582230244cb378198d0",
+      "source_digest": {
+        "bytes": 3332,
+        "sha256": "16bd26dcfa34eed138afdd3c59a59a60846539bfde1c1582230244cb378198d0"
+      },
+      "recorded_matches_source_and_package": true,
+      "content_type": "JSON_REPORT_OR_INDEX"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/REVIEW.json",
+      "package_path": "reports/runtime/r5-pair/independent-review/REVIEW.json",
+      "bytes": 72072,
+      "sha256": "a8ec2c1b4515e0db7066cd1d9e0364e1f90336f82174f1d7d6a4280c55310e2a",
+      "source_digest": {
+        "bytes": 72072,
+        "sha256": "a8ec2c1b4515e0db7066cd1d9e0364e1f90336f82174f1d7d6a4280c55310e2a"
+      },
+      "recorded_matches_source_and_package": true,
+      "content_type": "JSON_REPORT_OR_INDEX"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/REVIEW.md",
+      "package_path": "reports/runtime/r5-pair/independent-review/REVIEW.md",
+      "bytes": 9655,
+      "sha256": "a99505fd74640cd942a0f4bbe3dea12db09aabf685b1eafa5d9c187a4183a245",
+      "source_digest": {
+        "bytes": 9655,
+        "sha256": "a99505fd74640cd942a0f4bbe3dea12db09aabf685b1eafa5d9c187a4183a245"
+      },
+      "recorded_matches_source_and_package": true,
+      "content_type": "UTF8_MARKDOWN_REPORT"
+    }
+  ],
+  "r7_three_freeze_hashes_match": {
+    "REVIEW.md": "a99505fd74640cd942a0f4bbe3dea12db09aabf685b1eafa5d9c187a4183a245",
+    "REVIEW.json": "a8ec2c1b4515e0db7066cd1d9e0364e1f90336f82174f1d7d6a4280c55310e2a",
+    "MANIFEST.json": "62b4b9270929730665c9001091d7c6747102ebb49ee1b15fc49a61e7ee078cbf"
+  },
+  "readme_delta": "仅首段后新增六个审阅入口及空行；时钟范围修订维持；除此与71-clock快照一致。",
+  "clock_scope_corrected_line": 36,
+  "six_local_links": [
+    {
+      "label": "八项条件与最终独评",
+      "target": "reports/runtime/r5-pair/independent-review/REVIEW.md",
+      "readme_line": 5,
+      "exists": true,
+      "in_verified_76": true,
+      "bytes": 9655,
+      "sha256": "a99505fd74640cd942a0f4bbe3dea12db09aabf685b1eafa5d9c187a4183a245"
+    },
+    {
+      "label": "跨修订正控独评",
+      "target": "reports/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.md",
+      "readme_line": 5,
+      "exists": true,
+      "in_verified_76": true,
+      "bytes": 3170,
+      "sha256": "68444440876616cca63d37c176f3ab770219f5872181e2db043819bf92e061b1"
+    },
+    {
+      "label": "逐提交检查清单",
+      "target": "reports/delivery-preparation/commit-check-inventory/INVENTORY.md",
+      "readme_line": 5,
+      "exists": true,
+      "in_verified_76": true,
+      "bytes": 6712,
+      "sha256": "526e43e6af6bb6a49797d77e25338ed518741a6acd99e31146c372b4fa5e29e6"
+    },
+    {
+      "label": "当前浏览器采集",
+      "target": "reports/runtime/trajectory-r5-b/gui-final/REPORT.md",
+      "readme_line": 5,
+      "exists": true,
+      "in_verified_76": true,
+      "bytes": 2265,
+      "sha256": "3bcf3017c0e63c0e24c5ad61647613758547f383a1b1e4ba2bb9cc255ec433f5"
+    },
+    {
+      "label": "扫描逐项分诊",
+      "target": "reports/delivery-preparation/devskim-pr1451/review-package/SUMMARY.md",
+      "readme_line": 5,
+      "exists": true,
+      "in_verified_76": true,
+      "bytes": 5956,
+      "sha256": "3bd1d977c76e2d5d0d0dcb9be490d1be7d17c530379267cdd14cc21bcd631d27"
+    },
+    {
+      "label": "产品候选远端检查",
+      "target": "reports/delivery-preparation/CI-PRODUCT-3FF8C47E.json",
+      "readme_line": 5,
+      "exists": true,
+      "in_verified_76": true,
+      "bytes": 2447,
+      "sha256": "9f65e7309d3eb3de4faa0e93f973a35376a125e31a690b2eb0eb7d92fc0f3108"
+    }
+  ],
+  "differences": [],
+  "stage_stable_during_review": true,
+  "detailed_result": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/package-integrity-review/increment-final-76/RESULT.json",
+    "bytes": 49500,
+    "sha256": "d9f3404876485f835771e240d7c32490ad9803d7b8cf9af722a6ba73adf4475a"
+  },
+  "excluded_future_objects": [
+    "本REVIEW-FINAL.md及REVIEW-FINAL.json本身",
+    "根随后生成的PACKAGE-MANIFEST",
+    "此核验后新增/改变的报告、REPORT-SOURCES或README导航链接"
+  ],
+  "future_boundary": "自己的两份回执不属于先前76件已验证集合。其后索引/导航/包清单的新增不得追溯为本次已核；根可按这些回执SHA原字节收录。"
+}

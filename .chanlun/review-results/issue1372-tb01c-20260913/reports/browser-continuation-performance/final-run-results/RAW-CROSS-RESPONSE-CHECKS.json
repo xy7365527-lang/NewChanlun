@@ -1,0 +1,55 @@
+{
+  "scope": "既有实际 HTTP 字节的定点跨响应关系；不执行产品、不替代完整Client或独评",
+  "arms": [
+    {
+      "arm": "trajectory-r5-a",
+      "checks": {
+        "old_token_exact_reused": true,
+        "old_token_response_producer_epoch_2": true,
+        "old_token_fixed_cut16": true,
+        "old_token_projection_unchanged": true,
+        "gap_token_exact_reused": true,
+        "gap_page_fixed_cut_exact_rebuild": true,
+        "gap_page_offset0": true,
+        "raw_no_state_install": true,
+        "failed_revision_keeps_cut96": true
+      },
+      "all_checks_true": true,
+      "old_token_response": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/http-consumers/slow-pages/commands/old-token-after-q-restart/http/00001-response.body",
+        "bytes": 90369,
+        "sha256": "a3647e03863afcf994604043e84e34a5dc64edca84c0bddcb934658d9621f9fc"
+      },
+      "gap_page_response": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/http-consumers/reconnect/commands/gap-rebuild-first-page/http/00001-response.body",
+        "bytes": 128988,
+        "sha256": "e09da34e89bc88b969d84593b9128518fbb065992750385e5febbd7b648c9aaf"
+      }
+    },
+    {
+      "arm": "trajectory-r5-b",
+      "checks": {
+        "old_token_exact_reused": true,
+        "old_token_response_producer_epoch_2": true,
+        "old_token_fixed_cut16": true,
+        "old_token_projection_unchanged": true,
+        "gap_token_exact_reused": true,
+        "gap_page_fixed_cut_exact_rebuild": true,
+        "gap_page_offset0": true,
+        "raw_no_state_install": true,
+        "failed_revision_keeps_cut96": true
+      },
+      "all_checks_true": true,
+      "old_token_response": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/http-consumers/slow-pages/commands/old-token-after-q-restart/http/00001-response.body",
+        "bytes": 90369,
+        "sha256": "9abe6d89f2a5b726c650ad9472376ae1d832d9e4d1051db1262246e9794b0191"
+      },
+      "gap_page_response": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/http-consumers/reconnect/commands/gap-rebuild-first-page/http/00001-response.body",
+        "bytes": 128988,
+        "sha256": "a39cda2b88fb23c9d70a7bfbc2cf78f2f4f1ce8e208dc05c64fb31f9cd7261fb"
+      }
+    }
+  ]
+}

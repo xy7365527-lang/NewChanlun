@@ -1,0 +1,415 @@
+{
+  "schema": "tb01c.devskim_pr1451_triage.v1",
+  "recorded_utc": "2026-09-13T10:49:45.825746+00:00",
+  "status": "SCAN_GATE_FAILURE_NEW_C_FINDINGS_CLASSIFIED",
+  "scope": "只绑定PR1451固定3ff8c47；其后文档head须另核新扫描，不继承B例外。",
+  "head": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+  "base": "e46cf3bca6a67da821f9ab046507563b8133f6d9",
+  "run_id": 34751431403,
+  "job_id": 103708534271,
+  "run_url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34751431403",
+  "scanner": [
+    {
+      "name": "devskim",
+      "version": "1.0.90+fb2d676ce4"
+    }
+  ],
+  "gate_status": "FAIL",
+  "scanner_step": "success",
+  "artifact_step": "success",
+  "failure_reasons": [
+    {
+      "kind": "baseline_key_difference",
+      "count": 11235,
+      "raw_total": 19496,
+      "job_log_line": 351,
+      "exit": 1,
+      "exit_log_line": 11587
+    },
+    {
+      "kind": "summary_display_limit",
+      "actual_k": 1122,
+      "maximum_k": 1024,
+      "job_log_line": 11588,
+      "meaning": "gate已经exit1之后的摘要上传错误，不解释/抵销基线外失败。"
+    }
+  ],
+  "key_semantics": "ruleId|第一个physicalLocation.uri仅去前导file://|startLine；缺省?/0，unique后与8201项既有baseline作差；不含列、严重性或人工分类。",
+  "baseline_count": 8201,
+  "counts": {
+    "base_e46": {
+      "raw": 19151,
+      "unique_keys": 19077,
+      "baseline_keys_present": 8189,
+      "baseline_keys_absent": 12,
+      "outside_baseline_keys": 10888,
+      "outside_baseline_raw": 10931,
+      "rules_raw": {
+        "DS173237": 17987,
+        "DS162092": 182,
+        "DS117838": 804,
+        "DS197836": 9,
+        "DS176209": 68,
+        "DS126858": 45,
+        "DS149435": 1,
+        "DS148264": 36,
+        "DS137138": 12,
+        "DS172411": 6,
+        "DS187371": 1
+      },
+      "rules_outside_baseline": {
+        "DS173237": 10045,
+        "DS117838": 778,
+        "DS162092": 42,
+        "DS176209": 9,
+        "DS197836": 7,
+        "DS187371": 1,
+        "DS148264": 5,
+        "DS149435": 1
+      }
+    },
+    "pr1451": {
+      "raw": 19496,
+      "unique_keys": 19422,
+      "baseline_keys_present": 8187,
+      "baseline_keys_absent": 14,
+      "outside_baseline_keys": 11235,
+      "outside_baseline_raw": 11278,
+      "rules_raw": {
+        "DS173237": 18326,
+        "DS162092": 187,
+        "DS117838": 804,
+        "DS197836": 9,
+        "DS148264": 36,
+        "DS176209": 68,
+        "DS149435": 1,
+        "DS126858": 45,
+        "DS172411": 7,
+        "DS137138": 12,
+        "DS187371": 1
+      },
+      "rules_outside_baseline": {
+        "DS173237": 10384,
+        "DS117838": 778,
+        "DS162092": 49,
+        "DS176209": 9,
+        "DS197836": 7,
+        "DS187371": 1,
+        "DS148264": 5,
+        "DS172411": 1,
+        "DS149435": 1
+      }
+    },
+    "added_location_keys": 353,
+    "removed_location_keys": 8,
+    "common_location_keys": 19069,
+    "common_match_sha256_multisets_equal": true,
+    "true_new_C_findings": 345,
+    "moved_inherited_locations": 8,
+    "previous_baseline_locations_moved_out": 2,
+    "net_outside_baseline_increase": 347
+  },
+  "outside_equation": "11235 = 10888(e46继承债务，10882同键+6行移) + 2(旧baseline键行移) + 345(C实际新增词法声明)",
+  "new_rule_counts": {
+    "DS173237": 339,
+    "DS162092": 13,
+    "DS172411": 1
+  },
+  "new_path_counts": {
+    "s_session/tests/fixtures/tb01c/operation-schedule.json": 320,
+    "s_session/tests/fixtures/tb01c/RUNTIME-MANIFEST.json": 7,
+    "s_session/tests/fixtures/tb01c/MANIFEST.json": 12,
+    "s_session/tests/r9_contract.py": 3,
+    "s_session/s_service_control.py": 2,
+    "s_session/launch_s.sh": 4,
+    "s_session/tests/tb01c_query_tests.py": 1,
+    "s_session/tests/test_tb01c_service_control.py": 1,
+    "s_session/tests/tb01c_query_v2.py": 1,
+    "s_session/browser/tb01c-client.js": 1,
+    "s_session/s_readonly_server.py": 1
+  },
+  "categories": [
+    {
+      "name": "具名校验摘要/提交对象",
+      "rule": "DS173237",
+      "count": 339,
+      "classification": "not_actionable",
+      "proof": {
+        "raw_jsonl_request_lines_rehashed": 160,
+        "canonical_original_events_rehashed": 160,
+        "named_file_blobs_rehashed": 18,
+        "git_commit_objects_verified": 1,
+        "all_equal": true,
+        "algorithm": "SHA256原字节；事件为UTF8 sort_keys=True,separators=(comma,colon),ensure_ascii=False；JSONL请求原行不含LF。"
+      }
+    },
+    {
+      "name": "继承回环地址行移",
+      "rule": "DS162092",
+      "count": 8,
+      "classification": "not_actionable",
+      "proof": {
+        "whole_line_bytes_equal": 7,
+        "remaining_indent_only_changed": 1,
+        "all_literals": "127.0.0.1"
+      }
+    },
+    {
+      "name": "本机控制传输",
+      "rule": "DS162092",
+      "count": 2,
+      "classification": "intentional_loopback_not_defect",
+      "locations": [
+        "s_session/s_service_control.py:75",
+        "s_session/s_service_control.py:77"
+      ],
+      "proof": "read_health只向127.0.0.1声明端口请求/api/ready，Host固定同址。"
+    },
+    {
+      "name": "隔离测试本机传输",
+      "rule": "DS162092",
+      "count": 3,
+      "classification": "intentional_loopback_not_defect",
+      "locations": [
+        "s_session/tests/tb01c_query_v2.py:125",
+        "s_session/tests/tb01c_query_tests.py:361",
+        "s_session/tests/test_tb01c_service_control.py:373"
+      ],
+      "proof": "实际源码三处均bind(127.0.0.1,0)，内核分配隔离端口。"
+    },
+    {
+      "name": "函数回调超时取消",
+      "rule": "DS172411",
+      "count": 1,
+      "classification": "not_actionable",
+      "location": "s_session/browser/tb01c-client.js:188",
+      "proof": "固定箭头函数()=>abort.abort()，不把网络文本交字符串执行；同方法AbortController，资源正safe integer、deadline由begin产生。"
+    }
+  ],
+  "new_confirmed_product_security_defects": 0,
+  "new_needs_review": 0,
+  "actual_security_defect_total": null,
+  "inherited": {
+    "e46_outside_baseline_keys": 10888,
+    "e46_same_key_outside_survivors": 10882,
+    "e46_outside_moved": 6,
+    "previous_baseline_moved_outside": 2,
+    "b_pr1449_outside_keys": 9233,
+    "b_same_key_retained": 9227,
+    "b_moved_keys": [
+      {
+        "old": "DS162092|s_session/launch_s.sh|238",
+        "new": "DS162092|s_session/launch_s.sh|266"
+      },
+      {
+        "old": "DS162092|s_session/launch_s.sh|239",
+        "new": "DS162092|s_session/launch_s.sh|267"
+      },
+      {
+        "old": "DS162092|s_session/s_readonly_server.py|1261",
+        "new": "DS162092|s_session/s_readonly_server.py|1153"
+      },
+      {
+        "old": "DS162092|s_session/tests/r9_contract.py|70",
+        "new": "DS162092|s_session/tests/r9_contract.py|73"
+      },
+      {
+        "old": "DS162092|s_session/tests/r9_contract.py|77",
+        "new": "DS162092|s_session/tests/r9_contract.py|84"
+      },
+      {
+        "old": "DS162092|s_session/tests/r9_contract.py|81",
+        "new": "DS162092|s_session/tests/r9_contract.py|91"
+      }
+    ],
+    "e46_postmerge_document_additions_over_b": 1655,
+    "common_key_count": 19069,
+    "common_matched_text_multisets_equal": true,
+    "common_paths_with_changed_git_blob": [],
+    "strategy": {
+      "key": "DS176209|rust/src/theta_v0/nautilus/strategy.rs|314",
+      "status": "needs_review",
+      "git_blob_sha256": "31425429a9c823b7b958a803a8a0520e306693383e95d13b8cab5e045b3506d8",
+      "unchanged_from_e46": true,
+      "handoff_url": "https://github.com/xy7365527-lang/NewChanlun/issues/1385#issuecomment-5648592872",
+      "scope": "OE09旧策略入口/订单归属；不确认漏洞、不以C改变交易语义、不自动豁免门禁"
+    }
+  },
+  "recommended_disposition": {
+    "C_product": "本次345个C新增词法声明没有证明需要修复的产品安全缺陷；不改fixture摘要、固定函数取消器或loopback边界来规避词法规则。",
+    "new_business_ticket": "无需为已排除的这些新增词法声明建立业务缺陷票。",
+    "old_strategy": "strategy.rs:314的DS176209继续由已明确#1385 OE09承接；影响未关闭，不能以本C私自更改订单语义或宣称漏洞数0。",
+    "scanner_policy": "若要更改误报规则/基线治理，那是独立扫描治理范围；本次不裁、不修改，也不以大量baseline/ignore代替缺陷修复。",
+    "gate_and_authorization": "当前FAIL是事实；是否对该固定扫描作处置由根/用户明确决定，本报告不批准，不沿用B单次例外。"
+  },
+  "coverage": {
+    "fully_enumerated": "19496 raw/19422键与e46全键差分、353新增定位/规则/用途、339摘要来源、8行移、5本机地址、1函数回调",
+    "inherited_without_new_security_audit": "19069共通键匹配文本及所在Git blob全部相同；旧10888分诊按正式B收尾原件继承，非重新逐行审计。",
+    "baseline_not_reaudited": 8187,
+    "scan_uncovered_areas": "不承诺依赖/业务安全全审；实际安全风险不能全排除。",
+    "column_observation": "本DevSkim产物的列按0起始截取时353处snippet与Git原件逐字相同；保留原SARIF列。gate不使用列。",
+    "not_run": "未重跑scanner/gate/产品/测试，不操作活API/数据库，不改产品/配置/基线。"
+  },
+  "bindings": {
+    "checkout": {
+      "checkout": "14071107dae23f041dababc3b6ea78b8e51355ba",
+      "head": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+      "base": "e46cf3bca6a67da821f9ab046507563b8133f6d9",
+      "tree": "f77ef71a70c64b05b477d660799f360efe16e5d2",
+      "same_tree": true,
+      "parents": [
+        "e46cf3bca6a67da821f9ab046507563b8133f6d9",
+        "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f"
+      ],
+      "configuration_bindings": [
+        {
+          "git_path": "scripts/devskim_sarif_gate.sh",
+          "sha256": "bb5a293ab036624244eb5b29bc2358c352929fc65ea61845e50b53c7f4e2bd51",
+          "head_equals_base": true
+        },
+        {
+          "git_path": ".github/devskim-baseline.json",
+          "sha256": "df25ff2ec9a0898de03a4450fc3506444f08100ca0657a32665086991e202595",
+          "head_equals_base": true
+        },
+        {
+          "git_path": ".github/workflows/devskim.yml",
+          "sha256": "f3a11c5e2f4c782e07b7bb494bb994de5df3548d5290eaab9b221bae6e45772e",
+          "head_equals_base": true
+        },
+        {
+          "git_path": ".github/devskim/Dockerfile",
+          "sha256": "f0b71abb79139549eced074f0af4df14f7cbe55b8be4de6dd5f77d138fe6f375",
+          "head_equals_base": true
+        },
+        {
+          "git_path": ".github/devskim/entrypoint.sh",
+          "sha256": "f22f05ca60a85b5eef9aee879d0c34a6743758d2d499281ed0d56d5a16d50135",
+          "head_equals_base": true
+        }
+      ]
+    },
+    "artifact": {
+      "id": 10315776783,
+      "name": "devskim-sarif",
+      "digest": "sha256:9d64963f56e1bd99cfc0dbd3201b0d0637586bbb1f479b7dc77ee6f8ed033a4d",
+      "expires_at": "2026-09-27T10:21:51Z",
+      "zip": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/devskim-sarif.zip",
+        "bytes": 77971192,
+        "sha256": "9d64963f56e1bd99cfc0dbd3201b0d0637586bbb1f479b7dc77ee6f8ed033a4d"
+      },
+      "sarif": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/devskim-results.sarif",
+        "bytes": 118828922,
+        "sha256": "9158f6911fb93ee3b43dac3b6778a05bbfc778d1e4d022d2e603fc76faa4c8ef"
+      }
+    },
+    "old_e46_download_source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1450-MAIN-DEVSKIM/DOWNLOAD-SOURCE.json",
+      "bytes": 949,
+      "sha256": "bf9683e5c799bd4cbdfb196d58ecd808e6ed41d8dc411d69604d2d423e715fe9"
+    },
+    "old_B_classification_statement": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/ISSUE1371-FINAL-RESOLUTION.md",
+      "bytes": 7423,
+      "sha256": "2edc0c84fd0c20fd5d66507dedb088f07d9187d15a5977e61f6e9ec7c7b2defa"
+    },
+    "old_B_full_R14_summary": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/PR1449-DEVSKIM-R14-TRIAGE.md",
+      "bytes": 9369,
+      "sha256": "490907cd28637bb8125c98fc8a3f206fd1f1bbbb6bd267243acace5574b14b26"
+    },
+    "strategy_handoff": {
+      "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1385#issuecomment-5648592872",
+      "download": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/ISSUE1385-COMMENT.json",
+        "bytes": 2575,
+        "sha256": "6533c40e5aa7cf778a8e4c04e3f33c8c7227fd2ccb6761d6c6c57bbce6a0cf26"
+      }
+    }
+  },
+  "official_rules": [
+    {
+      "rule_id": "DS173237",
+      "pattern": [
+        {
+          "pattern": "[\"'][a-f0-9]{30,}[\"']",
+          "type": "regex",
+          "scopes": [
+            "code"
+          ]
+        }
+      ],
+      "severity": "important",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/official-secrets.json",
+        "bytes": 2888,
+        "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+      },
+      "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/privacy/secrets.json"
+    },
+    {
+      "rule_id": "DS172411",
+      "pattern": [
+        {
+          "pattern": "\\bsetTimeout\\(([^,]+)\\)",
+          "type": "regex",
+          "scopes": [
+            "code"
+          ]
+        }
+      ],
+      "severity": "ManualReview",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/official-dynamiccode.json",
+        "bytes": 3408,
+        "sha256": "33a7040762c65428e9379367be4352cd07d040aabf4efea647fec4d976383899"
+      },
+      "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/manualreview/dynamiccode.json"
+    },
+    {
+      "rule_id": "DS162092",
+      "pattern": [
+        {
+          "pattern": "localhost",
+          "type": "string",
+          "scopes": [
+            "code"
+          ]
+        },
+        {
+          "pattern": "127.0.0.1",
+          "type": "string",
+          "scopes": [
+            "code"
+          ]
+        }
+      ],
+      "severity": "ManualReview",
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/official-localhost.json",
+        "bytes": 1049,
+        "sha256": "4c6c0fe817921ac8e57a804d0753356ed51f883a501d343f200ef541b6623321"
+      },
+      "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/hygiene/localhost.json"
+    }
+  ],
+  "local_scanner": {
+    "commands": {
+      "devskim": null,
+      "dotnet": null,
+      "docker": "/opt/homebrew/bin/docker"
+    },
+    "dotnet_user_tool_path": "/Users/silencehan/.dotnet/tools/devskim",
+    "dotnet_user_tool_exists": false,
+    "installed_or_started": false,
+    "scanner_executed": false,
+    "local_docker_image": {
+      "exit": 1,
+      "stdout": "\n",
+      "stderr": "failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory\n"
+    }
+  },
+  "next_head": "任何后续报告提交生成新head，当前分诊不得被表述为该新head已经扫描。"
+}

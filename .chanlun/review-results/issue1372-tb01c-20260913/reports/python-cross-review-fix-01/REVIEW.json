@@ -1,0 +1,76 @@
+{
+  "session_id": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "scope": "Q/root三项修复独立增量，不含Rust自评、完整C验收或当前运行库",
+  "result": "PASS_BOUNDED_FIX_REVIEW",
+  "source_manifest": "SOURCE.json",
+  "late_source_change": [
+    {
+      "original": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_service_control.py",
+      "copy": "source/final-s_service_control.py",
+      "sha256": "9f4008c90c96d139afdc3373f8c096805539427dfae4de9d204f1640b47aba04",
+      "difference": "stop: 信号后身份暂变只记诊断并继续在原deadline内观察；不换PID/重发信号/冒称退出。静态核对，未重执行。"
+    }
+  ],
+  "checks": [
+    {
+      "id": "PY-XR-01",
+      "status": "CLOSED_BOUNDED",
+      "location": "source/tb01c_runtime.py:256-299",
+      "evidence": "RESULT.json#/collector",
+      "reason": "按唯一 Delta.index_frontier 找批次；完整 BLOB 保留类型、base64、bytes、SHA；全 Delta 160 行与全 batch ID 集 160 闭合。实际采集代码离线模型：健康 174 个 DB 记录，孤儿批次和额外 Delta 拒绝。495 = 160 输入 + 160 原身份收据 + 174 DB记录 + 1 生命周期；未执行完整轨迹。"
+    },
+    {
+      "id": "PY-XR-02",
+      "status": "CLOSED_BOUNDED",
+      "location": "source/s_service_control.py:193-266;317-388",
+      "evidence": "RESULT.json#/socket_cleanup",
+      "reason": "Ready 完整头/nonce/活PID与启动身份复核后登记 inode；清理要求停止记录、同inode、本人socket、ECONNREFUSED、删除前重核。四臂：旧自有失活路径允许，未知登记/替换inode/活监听拒绝。Ready/PID绑定为代码核对与旧真实收据，不冒充本轮新启动。"
+    },
+    {
+      "id": "PY-XR-03",
+      "status": "CLOSED_BOUNDED",
+      "location": "source/s_query_integrity.py:286-306;321-327",
+      "evidence": "RESULT.json#/numeric",
+      "reason": "所有 raw 含 pending 的 price/ts/volume 在hash/receipt前核规范signed-i64。原三条自洽坏值拒绝，三字段各-1/MIN/MAX九个合法控制通过实际capture→verify；未收窄为非负。"
+    }
+  ],
+  "independent_execution": {
+    "entry": "probe.py",
+    "exit_code": 0,
+    "numeric": 12,
+    "socket_cleanup": 4,
+    "collector": 3,
+    "total": 19,
+    "product_services_started": 0,
+    "root_runtime_database_accessed": false
+  },
+  "reused_receipts": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/smoke-p2-01/owned-socket-restart.json",
+      "sha256": "59b3e181d7e18c1ac2704d9c0913e23f91d92d438bf7070953f1729c6b907a10",
+      "checked_pointers": [
+        "/before_q",
+        "/q_during_s_stop",
+        "/after_q",
+        "/before_s",
+        "/stopped_s",
+        "/restarted_s",
+        "/after_s"
+      ],
+      "boundary": "旧P2真实重启，仅佐证控制器停S不停Q与旧inode清理，不是新P3/R1运行"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/query-numeric-fix-01/RESULT.json",
+      "sha256": "a2347ac8a7456d458a2136a59e94e6aaccc0a0e8b9cedbb1dcb2ab923bbe9820",
+      "boundary": "Q owner的78数值组合/24检查记录，非本审阅者重跑"
+    }
+  ],
+  "new_findings": [],
+  "limitations": [
+    "socket模型替代status，不执行PID/nonce故障注入；未穷尽本地并发路径替换。",
+    "174条采集为合成SQLite模型，不是160条真实产品结果，不证明双跑或负载。",
+    "本轮不重审Q缓存/分页/Watch全域，不自评Rust。",
+    "根已通知正式R1-A seed阶段FAIL；完整C仍NOT_VERIFIED/存在R1-A失败。"
+  ]
+}

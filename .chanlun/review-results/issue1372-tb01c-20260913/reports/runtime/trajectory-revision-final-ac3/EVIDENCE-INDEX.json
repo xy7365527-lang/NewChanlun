@@ -1,0 +1,47 @@
+[
+  {
+    "file": "http-consumers/events.jsonl",
+    "line": 1,
+    "kind": "generation_trigger"
+  },
+  {
+    "file": "http-consumers/events.jsonl",
+    "line": 4,
+    "kind": "generation_trigger"
+  },
+  {
+    "file": "http-consumers/events.jsonl",
+    "line": 8,
+    "kind": "generation_trigger"
+  },
+  {
+    "file": "http-consumers/events.jsonl",
+    "line": 12,
+    "kind": "revision_disconnect_begin"
+  },
+  {
+    "file": "http-consumers/events.jsonl",
+    "line": 13,
+    "kind": "generation_trigger"
+  },
+  {
+    "file": "http-consumers/events.jsonl",
+    "line": 16,
+    "kind": "revision_continuation_captured"
+  },
+  {
+    "file": "evidence/events.jsonl",
+    "line": 553,
+    "kind": "phase_end"
+  },
+  {
+    "file": "evidence/events.jsonl",
+    "line": 560,
+    "kind": "s_restart_identity"
+  },
+  {
+    "file": "evidence/events.jsonl",
+    "line": 952,
+    "kind": "phase_end"
+  }
+]

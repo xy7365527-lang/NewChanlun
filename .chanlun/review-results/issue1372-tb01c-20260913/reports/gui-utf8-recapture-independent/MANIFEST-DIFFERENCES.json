@@ -1,0 +1,26 @@
+[
+  {
+    "path": "control/q.log",
+    "expected": {
+      "path": "control/q.log",
+      "bytes": 33976,
+      "sha256": "11dda10998d5f71cbe77c6cbe77b68a7899adc014846c69ef2c3a1e92198e6a5"
+    },
+    "actual": {
+      "sha256": "120e36110dc8e32244d1353993a773104fecdabe6cda4644e80d3fa2ba156632",
+      "bytes": 34368
+    }
+  },
+  {
+    "path": "control/q.process.json",
+    "expected": {
+      "path": "control/q.process.json",
+      "bytes": 1615,
+      "sha256": "39cd9a88c64cb62de293b704359f3a010a88efebff54045a533ab4960e00e12d"
+    },
+    "actual": {
+      "sha256": "e6a89d16b815efd68b732afe1763c1c2c6041a592229da47c2e6a2ff026b5b29",
+      "bytes": 1615
+    }
+  }
+]

@@ -1,0 +1,34 @@
+{
+  "schema_revision": "tb01c-runtime-input-binding/1",
+  "status": "NOT_RUN",
+  "files": {
+    "MANIFEST.json": {
+      "bytes": 8308,
+      "sha256": "6e41985da0791592163187a454d24651493843369689862320b4f507aa069b29"
+    },
+    "profile.json": {
+      "bytes": 409,
+      "sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc"
+    },
+    "raw-input.jsonl": {
+      "bytes": 57184,
+      "sha256": "bc94f1e7fddde4c726fac9b60a12178420cd55fb37a4e9a1c598ef20bd18eb1d"
+    },
+    "messages.jsonl": {
+      "bytes": 136704,
+      "sha256": "29a202bf4a94e69ed503db54e1e30c52d052616447bbd1c4f37488169cc8ac58"
+    },
+    "clock-plan.json": {
+      "bytes": 32493,
+      "sha256": "3d7d0470f9e6e358e645b3e757b85ed212d45bb0024f9a90b6919bebc4001709"
+    },
+    "query-resources.json": {
+      "bytes": 571,
+      "sha256": "36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64"
+    },
+    "runtime-plan.json": {
+      "bytes": 4104,
+      "sha256": "18e9b3cd6cb5f17ba715b09405995b68b627bcd696ba457de790dfa9a51125c3"
+    }
+  }
+}

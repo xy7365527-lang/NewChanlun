@@ -28,7 +28,15 @@
 //!   不写第二份生产判定器；不调用 `ThetaPiStream` 资金推进冒充 S；不启动 E/B/X。
 //! - S 持久域是 S 自己的数据库文件（`--db`），不复用 `trading_system/persistence/database.py` 共库。
 
+#[path = "s_session_v2/mod.rs"]
+mod v2;
+
 use std::collections::BTreeMap;
+
+#[path = "s_session_v2/audit.rs"]
+mod audit;
+#[path = "s_session_v2/cache.rs"]
+mod cache;
 use std::path::{Path, PathBuf};
 
 use newchan_rust::theta_v0::classifier::local_shape::{
@@ -400,6 +408,9 @@ fn verify_required_meta(conn: &Connection) -> Result<i64, String> {
     if session_id.is_empty() {
         return Err("StorageUnavailable：meta.session_id 为空".to_string());
     }
+    let epoch = meta_get_opt(conn, "writer_epoch")?.ok_or("StorageUnavailable：缺 writer_epoch")?;
+    parse_writer_epoch(&epoch, "持久 writer_epoch")
+        .map_err(|e| format!("StorageUnavailable：{e}"))?;
     let generation = meta_i64(conn, "generation")?;
     if generation < 0 {
         return Err("StorageUnavailable：meta.generation 为负".to_string());
@@ -472,22 +483,13 @@ fn verify_required_meta(conn: &Connection) -> Result<i64, String> {
 /// 核被引用 batch 内封存的坐标与该代 Delta 一致（batch 存 generation/structure_cut/input_frontier/
 /// catalog_revision；不要求 batch 内不存在字段如 session_id）。
 fn verify_batch_coordinates(
-    conn: &Connection,
+    v: &Value,
     batch_id: &str,
     gen: i64,
     cut: &str,
     frontier: i64,
     cat: &str,
 ) -> Result<(), String> {
-    let bytes: Vec<u8> = conn
-        .query_row(
-            "SELECT canonical_bytes FROM batches WHERE batch_id=?1",
-            params![batch_id],
-            |r| r.get(0),
-        )
-        .map_err(|e| format!("读 batch 封存坐标失败：{e}"))?;
-    let v: Value = serde_json::from_slice(&bytes)
-        .map_err(|e| format!("batch `{batch_id}` 封存 JSON 解析失败：{e}"))?;
     if v["generation"].as_i64() != Some(gen) {
         return Err(format!(
             "StorageUnavailable：batch `{batch_id}` 封存 generation 与该代 Delta 不一致"
@@ -589,12 +591,7 @@ fn same_records(actual: &Value, expected: &Value, field: &str) -> Result<(), Str
 
 // #1371 R9：七集合均为必需。以不可变 batch 的本次结果和独立历史索引对拍；
 // 只读投影，不重算分类，不修改旧 BLOB/hash/获知史。旧整数 wire 仅作无损语义投影。
-fn verify_delta_payload(
-    conn: &Connection,
-    delta: &Value,
-    gen: i64,
-    batch: &Value,
-) -> Result<(), String> {
+fn verify_delta_evidence(delta: &Value, batch: &Value) -> Result<(), String> {
     for key in [
         "upserts",
         "withdrawals",
@@ -647,148 +644,6 @@ fn verify_delta_payload(
         if !matches!(count,Some(n) if n>=0) {
             return Err(format!("StorageUnavailable：目录计数 {key} 非非负精确整数"));
         }
-    }
-    let previous = read_snapshot_in_tx(conn, Some(gen - 1))?;
-    let current = read_snapshot_in_tx(conn, Some(gen))?;
-    let mut upserts = Vec::new();
-    for record in required_array(batch, "objects")? {
-        let mut record = record.clone();
-        record["batch_id"] = delta["index_frontier"].clone();
-        let mut wire = project_object_wire(&record)?;
-        if let Some(old) = required_array(&previous, "objects")?
-            .iter()
-            .find(|o| o["object_id"] == wire["object_id"])
-        {
-            for key in [
-                "batch_id",
-                "first_known_generation",
-                "first_known_cut",
-                "published_generation",
-            ] {
-                wire[key] = old[key].clone();
-            }
-        }
-        upserts.push(wire);
-    }
-    same_records(&delta["upserts"], &json!(upserts), "upserts/batch")?;
-    same_records(&current["objects"], &json!(upserts), "objects/snapshot")?;
-    let mut withdrawals = Vec::new();
-    let mut replaces = Vec::new();
-    let generation_text = gen.to_string();
-    for o in required_array(&current, "withdrawn_objects")? {
-        if o["withdrawn_generation"].as_str() == Some(generation_text.as_str()) {
-            withdrawals.push(
-                json!({"object_id":o["object_id"], "window_start":o["window_start"],
-                "window_mid":o["window_mid"], "window_end":o["window_end"],
-                "reason":o["withdrawal_reason"], "superseded_by":o["superseded_by"]}),
-            );
-            if !o["superseded_by"].is_null() {
-                replaces.push(
-                    json!({"old_object_id":o["object_id"], "new_object_id":o["superseded_by"]}),
-                );
-            }
-        }
-    }
-    same_records(&delta["withdrawals"], &json!(withdrawals), "withdrawals")?;
-    same_records(&delta["replaces"], &json!(replaces), "replaces")?;
-    let witnesses = required_array(batch, "witnesses")?
-        .iter()
-        .map(project_witness_wire)
-        .collect::<Result<Vec<_>, _>>()?;
-    same_records(&delta["witnesses"], &json!(witnesses), "witnesses/batch")?;
-    let mut relations = required_array(batch, "relations")?.clone();
-    for r in &replaces {
-        relations.push(json!({"subject":r["new_object_id"], "relation_type":"replaces", "object":r["old_object_id"]}));
-    }
-    let batch_raw = required_array(batch, "raw_events")?
-        .iter()
-        .map(project_raw_event_wire)
-        .collect::<Result<Vec<_>, _>>()?;
-    same_records(
-        &current["raw_history"],
-        &json!(batch_raw),
-        "raw_history/batch",
-    )?;
-    let mut raw_added = Vec::new();
-    let from = delta["seq_range"]["from"]
-        .as_str()
-        .ok_or("StorageUnavailable：seq.from 缺失")?
-        .parse::<i64>()
-        .map_err(|e| e.to_string())?;
-    for e in required_array(&current, "raw_history")? {
-        if let Some(sup) = e["supersedes_revision"].as_str() {
-            relations.push(json!({"subject":format!("{}@{}",e["identity_key"].as_str().unwrap_or(""),e["revision"].as_str().unwrap_or("")),
-                "relation_type":"supersedes", "object":format!("{}@{sup}",e["identity_key"].as_str().unwrap_or(""))}));
-        }
-        let seq = e["seq"]
-            .as_str()
-            .ok_or("StorageUnavailable：raw.seq 缺失")?
-            .parse::<i64>()
-            .map_err(|e| e.to_string())?;
-        if seq >= from {
-            raw_added.push(e.clone());
-        }
-    }
-    same_records(&delta["relations"], &json!(relations), "relations/batch")?;
-    same_records(
-        &delta["raw_history_added"],
-        &json!(raw_added),
-        "raw_history_added",
-    )?;
-    let mut observations = Vec::new();
-    for ob in required_array(batch, "observations")? {
-        let id = observation_id(ob);
-        let stored = required_array(&current, "observations")?
-            .iter()
-            .find(|o| o["observation_id"] == id)
-            .ok_or("StorageUnavailable：观察的持久端点缺失")?;
-        let first_batch: String = stored["batch_id"]
-            .as_str()
-            .ok_or("StorageUnavailable：观察 batch 缺失")?
-            .to_string();
-        let bytes: Vec<u8> = conn.query_row(
-            "SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE b.batch_id=?1 AND d.generation<=?2",
-            params![first_batch,gen], |r| r.get(0)).map_err(|e| format!("StorageUnavailable：观察首批次不可达：{e}"))?;
-        let first: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-        let original = required_array(&first, "observations")?
-            .iter()
-            .find(|o| observation_id(o) == id)
-            .ok_or("StorageUnavailable：原批次没有该观察身份")?;
-        let mut original = original.clone();
-        original["observation_id"] = json!(id);
-        original["batch_id"] = json!(first_batch);
-        same_records(
-            &json!([stored]),
-            &json!([project_observation_wire(&original)?]),
-            "observation/原封存首版",
-        )?;
-        observations.push(stored.clone());
-    }
-    same_records(
-        &delta["observations"],
-        &json!(observations),
-        "observations/首版",
-    )?;
-    // 每代累积的不可变集合必须恰好等于该代 Snapshot，缺成员/幽灵端点不能被后续代掩盖。
-    for (dkey, skey) in [
-        ("witnesses", "witnesses"),
-        ("relations", "relations"),
-        ("observations", "observations"),
-        ("raw_history_added", "raw_history"),
-    ] {
-        let mut union = BTreeMap::new();
-        for record in required_array(&previous, skey)?
-            .iter()
-            .chain(required_array(delta, dkey)?.iter())
-        {
-            let projected = legacy_payload_projection(record);
-            union.insert(canonical_json(&projected), projected);
-        }
-        same_records(
-            &current[skey],
-            &json!(union.into_values().collect::<Vec<_>>()),
-            skey,
-        )?;
     }
     Ok(())
 }
@@ -899,12 +754,57 @@ fn profile_at_cut(conn: &Connection, generation: i64) -> Result<(String, String)
     ))
 }
 
+// 每次读取同一事务的全部可达原字节；只复用逐字节相同原件的严格解码。
+fn capture_reachable_batches(
+    conn: &Connection,
+) -> Result<BTreeMap<String, std::sync::Arc<Value>>, String> {
+    let mut q=conn.prepare("SELECT d.index_frontier,b.canonical_bytes,b.byte_len FROM structure_deltas d LEFT JOIN batches b ON b.batch_id=d.index_frontier").map_err(|e|e.to_string())?;
+    let mut rows = q.query([]).map_err(|e| e.to_string())?;
+    let mut batches = BTreeMap::new();
+    let mut captured = BTreeMap::new();
+    while let Some(r) = rows.next().map_err(|e| e.to_string())? {
+        let id: String = r.get(0).map_err(|e| e.to_string())?;
+        let bytes = r
+            .get_ref(1)
+            .map_err(|e| e.to_string())?
+            .as_blob()
+            .map_err(|e| format!("StorageUnavailable：可达批次缺失/非BLOB：{e}"))?;
+        let len: i64 = r.get(2).map_err(|e| e.to_string())?;
+        if usize::try_from(len).ok() != Some(bytes.len()) {
+            return Err("StorageUnavailable：可达 batch 长度不符".into());
+        }
+        let (original, value) = match cache::decoded(&id, bytes) {
+            Some(value) => value,
+            None => {
+                if id != format!("batch-{}", sha256_hex(&bytes)) {
+                    return Err("StorageUnavailable：可达 batch 内容寻址不符".into());
+                }
+                let value = v2::strict_json(&bytes)
+                    .map_err(|e| format!("StorageUnavailable：batch JSON：{e}"))?;
+                if !value.is_object() {
+                    return Err("StorageUnavailable：batch 非对象".into());
+                }
+                (
+                    std::sync::Arc::<[u8]>::from(bytes),
+                    std::sync::Arc::new(value),
+                )
+            }
+        };
+        captured.insert(id.clone(), (original, value.clone()));
+        batches.insert(id, value);
+    }
+    cache::store_batches(captured);
+    Ok(batches)
+}
+
 fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
     verified_root_raw_events(conn).map(|_| ())
 }
 
 fn verified_root_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
-    verify_reachable_root_in_tx(conn).map_err(|e| format!("StorageUnavailable：{e}"))
+    let batches = capture_reachable_batches(conn)?;
+    v2::verify_control(conn, &batches)?;
+    verify_reachable_root_in_tx(conn, &batches).map_err(|e| format!("StorageUnavailable：{e}"))
 }
 
 fn verify_published_index_generations(conn: &Connection, generation: i64) -> Result<(), String> {
@@ -927,7 +827,10 @@ fn verify_published_index_generations(conn: &Connection, generation: i64) -> Res
     Ok(())
 }
 
-fn verify_reachable_root_in_tx(conn: &Connection) -> Result<Vec<Value>, String> {
+fn verify_reachable_root_in_tx(
+    conn: &Connection,
+    batches: &BTreeMap<String, std::sync::Arc<Value>>,
+) -> Result<Vec<Value>, String> {
     let generation = verify_required_meta(conn)?;
     verify_published_index_generations(conn, generation)?;
     // #1371 AC7：已接纳但未发布的原始事实也是持久前件；所有结构读写共用坐标完整性门。
@@ -981,7 +884,14 @@ fn verify_reachable_root_in_tx(conn: &Connection) -> Result<Vec<Value>, String> 
         ));
     }
 
-    let mut prev_frontier: i64 = -1;
+    let mut audit = audit::AuditWalk::capture(conn)?;
+    let identity = (
+        meta_session.clone(),
+        meta_cat.clone(),
+        profile_binding.clone(),
+    );
+    let resume = cache::resume(&rows, &identity, &mut audit);
+    let mut prev_frontier: i64 = if resume == 0 { -1 } else { rows[resume - 1].7 };
     for (
         i,
         (
@@ -997,7 +907,7 @@ fn verify_reachable_root_in_tx(conn: &Connection) -> Result<Vec<Value>, String> 
             evidence_json,
             delta_json,
         ),
-    ) in rows.iter().enumerate()
+    ) in rows.iter().enumerate().skip(resume)
     {
         let expect = (i + 1) as i64;
         if *g != expect {
@@ -1038,8 +948,8 @@ fn verify_reachable_root_in_tx(conn: &Connection) -> Result<Vec<Value>, String> 
                 "StorageUnavailable：delta[{g}].index_frontier 为空（已发布 cut 缺批次引用）"
             ));
         }
-        verify_stored_batch(conn, idx)?;
-        verify_batch_coordinates(conn, idx, *g, next, *frontier, cat)?;
+        let batch = batches.get(idx).ok_or("StorageUnavailable：缺可达批次")?;
+        verify_batch_coordinates(batch, idx, *g, next, *frontier, cat)?;
         // seq_range 连续：from = 上一已发布 frontier + 1，to = 本代 frontier。
         let sr: Value = json_shape(seq_range_json, JsonShape::Object)?;
         let sr_from = sr["from"]
@@ -1085,17 +995,10 @@ fn verify_reachable_root_in_tx(conn: &Connection) -> Result<Vec<Value>, String> 
                 "StorageUnavailable：delta[{g}] 内层 catalog_evidence 与外层 catalog_evidence_json 不一致"
             ));
         }
-        let bytes: Vec<u8> = conn
-            .query_row(
-                "SELECT canonical_bytes FROM batches WHERE batch_id=?1",
-                params![idx],
-                |r| r.get(0),
-            )
-            .map_err(|e| e.to_string())?;
-        let batch: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-        verify_batch_profile(&batch, &profile_binding)?;
-        verify_delta_payload(conn, &dj, *g, &batch)?;
+        verify_batch_profile(batch, &profile_binding)?;
+        audit.verify(&dj, *g, batch)?;
     }
+    audit.finish()?;
     // meta 与最末已发布 Delta 的根元组对应关系。
     let last = rows.last().unwrap();
     let (run, evidence): (String, String) = conn
@@ -1122,6 +1025,7 @@ fn verify_reachable_root_in_tx(conn: &Connection) -> Result<Vec<Value>, String> 
             last.4
         ));
     }
+    cache::store_root(rows, identity, audit);
     Ok(raw_events)
 }
 
@@ -1221,6 +1125,11 @@ fn record_connection_pragmas(conn: &Connection, stage: &str) {
 }
 
 fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String> {
+    println!("{}", init_core(db, session, catalog_path)?);
+    Ok(())
+}
+
+fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, String> {
     // H4：init 只允许不存在的目标——拒绝覆盖既有库（既有持久事实可恢复）。
     if db.exists() {
         return Err(format!(
@@ -1324,20 +1233,16 @@ fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String>
     }
     tx.commit()
         .map_err(|e| format!("catalog commit 失败：{e}"))?;
-    println!(
-        "{}",
-        json!({
-            "ok": true,
-            "session_id": session,
-            "sqlite_version": sqlite_version,
-            "journal_mode": journal_mode,
-            "synchronous": synchronous,
-            "platform": std::env::consts::OS,
-            "writer_epoch": DEFAULT_WRITER_EPOCH,
-            "catalog_items": items.len()
-        })
-    );
-    Ok(())
+    Ok(json!({
+        "ok": true,
+        "session_id": session,
+        "sqlite_version": sqlite_version,
+        "journal_mode": journal_mode,
+        "synchronous": synchronous,
+        "platform": std::env::consts::OS,
+        "writer_epoch": DEFAULT_WRITER_EPOCH,
+        "catalog_items": items.len()
+    }))
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1352,6 +1257,20 @@ fn cmd_accept(
     configured_epoch: &str,
 ) -> Result<(), String> {
     let text = std::fs::read_to_string(input_path).map_err(|e| format!("读输入失败：{e}"))?;
+    println!(
+        "{}",
+        accept_core(db, &text, profile_path, configured_epoch, None)?
+    );
+    Ok(())
+}
+
+fn accept_core(
+    db: &Path,
+    text: &str,
+    profile_path: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+) -> Result<Value, String> {
     let input: RawInputFile =
         serde_json::from_str(&text).map_err(|e| format!("输入 JSON 解析失败：{e}"))?;
     if input.schema_revision != "1" {
@@ -1579,23 +1498,20 @@ fn cmd_accept(
             }));
         }
 
+        v2::record_accept(&tx, context, &results)?;
         meta_set(&tx, "input_profile", &input.profile)?;
         meta_set(&tx, "input_file_hash", &sha256_hex(text.as_bytes()))?;
     }
     tx.commit()
         .map_err(|e| format!("accept commit 失败：{e}"))?;
-    println!(
-        "{}",
-        json!({
-            "ok": true,
-            "session_id": input.session_id,
-            "profile": profile_id,
-            "profile_hash": profile_hash,
-            "volume_unit": volume_unit,
-            "results": results,
-        })
-    );
-    Ok(())
+    Ok(json!({
+        "ok": true,
+        "session_id": input.session_id,
+        "profile": profile_id,
+        "profile_hash": profile_hash,
+        "volume_unit": volume_unit,
+        "results": results,
+    }))
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1638,7 +1554,8 @@ fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
         .map_err(|e| format!("collect 失败：{e}"))?;
     let mut owners = BTreeMap::new();
     let mut positions = BTreeMap::new();
-    for event in &rows {
+    let mut prior_revisions = BTreeMap::new();
+    for (expected_seq, event) in rows.iter().enumerate() {
         let coord = stored_source_coord(event)?;
         let identity = event["identity_key"]
             .as_str()
@@ -1651,6 +1568,77 @@ fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
                 .is_some_and(|old| old != coord)
         {
             return Err("StorageUnavailable：原始源坐标与业务身份的唯一归属被破坏".to_string());
+        }
+        let raw = RawEvent {
+            event_id: event["event_id"]
+                .as_str()
+                .ok_or("StorageUnavailable：event_id非文本")?
+                .to_owned(),
+            revision: event["input_revision"]
+                .as_str()
+                .ok_or("StorageUnavailable：input_revision非文本")?
+                .to_owned(),
+            seq: event["source_coord"].as_str().unwrap().to_owned(),
+            received_at: event["received_at"]
+                .as_str()
+                .ok_or("StorageUnavailable：received_at非文本")?
+                .to_owned(),
+            raw_text: event["raw_text"]
+                .as_str()
+                .ok_or("StorageUnavailable：raw_text非文本")?
+                .to_owned(),
+            price: event["price"]
+                .as_str()
+                .ok_or("StorageUnavailable：price非文本")?
+                .to_owned(),
+            timestamp: event["ts"]
+                .as_str()
+                .ok_or("StorageUnavailable：ts非文本")?
+                .to_owned(),
+            volume: event["volume"]
+                .as_str()
+                .ok_or("StorageUnavailable：volume非文本")?
+                .to_owned(),
+        };
+        let revision = parse_canonical_i64(&raw.revision, "input_revision")
+            .map_err(|e| format!("StorageUnavailable：{e}"))?;
+        let previous = prior_revisions.insert(identity, revision);
+        let expected_identity = identity_key(
+            event["source_namespace"]
+                .as_str()
+                .ok_or("StorageUnavailable：namespace非文本")?,
+            event["source_epoch"]
+                .as_str()
+                .ok_or("StorageUnavailable：source_epoch非文本")?,
+            event["instrument"]
+                .as_str()
+                .ok_or("StorageUnavailable：instrument非文本")?,
+            &raw.event_id,
+        );
+        let payload_hash = sha256_hex(canonical_event_content(&raw).as_bytes());
+        let receipt = format!(
+            "rcpt-{}",
+            &sha256_hex(format!("{identity}|{payload_hash}").as_bytes())[..16]
+        );
+        if event["seq"].as_i64() != i64::try_from(expected_seq).ok()
+            || revision < 1
+            || event["revision"].as_i64() != Some(revision)
+            || previous.is_some_and(|p| p >= revision)
+            || event["supersedes_revision"] != json!(previous)
+            || identity != expected_identity
+            || event["payload_hash"] != payload_hash
+            || event["receipt_id"] != receipt
+        {
+            return Err(
+                "StorageUnavailable：原始身份/接纳序/修订链/内容hash/receipt矛盾".to_owned(),
+            );
+        }
+        for (name, value) in [
+            ("price", &raw.price),
+            ("timestamp", &raw.timestamp),
+            ("volume", &raw.volume),
+        ] {
+            parse_canonical_i64(value, name).map_err(|e| format!("StorageUnavailable：{e}"))?;
         }
     }
     Ok(rows)
@@ -1997,6 +1985,15 @@ fn persist_batch_before_publish(
 }
 
 fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
+    println!("{}", advance_core(db, configured_epoch, None)?);
+    Ok(())
+}
+
+fn advance_core(
+    db: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+) -> Result<Value, String> {
     let mut conn = open_db(db)?;
     ensure_initialized(&conn)?;
     record_connection_pragmas(&conn, "advance");
@@ -2031,22 +2028,18 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
             let structure_cut = meta_get_opt(&tx, "structure_cut")?.unwrap_or_default();
             let index_frontier = meta_get_opt(&tx, "index_frontier")?.unwrap_or_default();
             drop(tx);
-            println!(
-                "{}",
-                json!({
-                    "ok": true,
-                    "idempotent": true,
-                    "generation": cur_gen.to_string(),
-                    "structure_cut": structure_cut,
-                    "index_frontier": index_frontier,
-                    "note": "无新输入（frontier 已提交），不产新 cut；DeliveryUnknown 请按原业务身份查询权威结果",
-                })
-            );
-            return Ok(());
+            return Ok(json!({
+                "ok": true,
+                "idempotent": true,
+                "generation": cur_gen.to_string(),
+                "structure_cut": structure_cut,
+                "index_frontier": index_frontier,
+                "note": "无新输入（frontier 已提交），不产新 cut；DeliveryUnknown 请按原业务身份查询权威结果",
+            }));
         }
         let gen = cur_gen + 1;
         let base_cut = meta_get_opt(&tx, "structure_cut")?.unwrap_or_else(|| "cut-0".to_string());
-        let token = make_token();
+        let token = v2::record_begin(&tx, context, gen, frontier, &base_cut, configured_epoch)?;
         meta_set(
             &tx,
             "advance_state",
@@ -2263,7 +2256,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
 
     let structure_cut = format!("cut-{gen}");
     // ── 内容寻址批次：封存完整正式结果（全部修订 + 有效源位置 + 对象 + 见证 + 关系 + 观察 + 绑定）──
-    let batch_json = json!({
+    let mut batch_json = json!({
         "generation": gen,
         "structure_cut": structure_cut,
         "input_frontier": frontier,
@@ -2279,6 +2272,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
         "observations": observations,
         "scope": {"structure": "CompleteCut", "economic": "not_started"},
     });
+    v2::seal_batch(&conn, context, &mut batch_json)?;
     let batch_bytes = canonical_bytes_of_value(&batch_json);
     let batch_id = format!("batch-{}", sha256_hex(&batch_bytes));
     for o in &mut objects {
@@ -2614,6 +2608,7 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
             )
             .map_err(|e| format!("update 其余 catalog 失败：{e}"))?;
 
+            v2::record_commit(&tx, context, gen, frontier)?;
             meta_set(&tx, "advance_state", "idle")?;
         }
     }
@@ -2639,27 +2634,23 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     // ★测试暂停点 3：Commit 已持久、回执尚未送达（供 SIGKILL）。
     testonly_pause("after_commit");
 
-    println!(
-        "{}",
-        json!({
-            "ok": true,
-            "generation": gen.to_string(),
-            "structure_cut": structure_cut,
-            "batch_id": batch_id,
-            "merged_bars": merged.len(),
-            "raw_events": all_events.len(),
-            "effective_source_positions": effective.len(),
-            "windows_total": wins.len(),
-            "objects_published": objects.len(),
-            "observations": {
-                "insufficient_knowledge": observations.iter().filter(|o| o["kind"] == "insufficient_knowledge").count(),
-                "domain_not_satisfied": observations.iter().filter(|o| o["kind"] == "domain_not_satisfied").count(),
-            },
-            "batch_byte_len": batch_bytes.len(),
-            "scope": {"structure": "CompleteCut", "economic": "not_started"},
-        })
-    );
-    Ok(())
+    Ok(json!({
+        "ok": true,
+        "generation": gen.to_string(),
+        "structure_cut": structure_cut,
+        "batch_id": batch_id,
+        "merged_bars": merged.len(),
+        "raw_events": all_events.len(),
+        "effective_source_positions": effective.len(),
+        "windows_total": wins.len(),
+        "objects_published": objects.len(),
+        "observations": {
+            "insufficient_knowledge": observations.iter().filter(|o| o["kind"] == "insufficient_knowledge").count(),
+            "domain_not_satisfied": observations.iter().filter(|o| o["kind"] == "domain_not_satisfied").count(),
+        },
+        "batch_byte_len": batch_bytes.len(),
+        "scope": {"structure": "CompleteCut", "economic": "not_started"},
+    }))
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -3653,6 +3644,11 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
         .unchecked_transaction()
         .map_err(|e| format!("开读事务失败：{e}"))?;
     verify_reachable_root(&tx)?;
+    if let Some(value) = v2::retained_watch(&tx, after_generation)? {
+        drop(tx);
+        println!("{}", project_wire_integers(&value));
+        return Ok(());
+    }
     let meta = db_meta(&tx)?;
     let current_gen: i64 = meta_i64(&tx, "generation")?;
     let current_cut = meta.get("structure_cut").cloned().unwrap_or_default();
@@ -3717,6 +3713,15 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
 /// 命令合法恢复），并按 `--new-epoch` 提升 writer_epoch（与 generation 同序持久历史）。旧 epoch 进程
 /// 此后重放被 StaleWriter 拒绝。这不是「手改 SQL」——是正式入口，历史写入 writer_epoch_history。
 fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
+    println!("{}", recover_core(db, new_epoch, None)?);
+    Ok(())
+}
+
+fn recover_core(
+    db: &Path,
+    new_epoch: &str,
+    clock: Option<(&v2::ClockPlan, &str)>,
+) -> Result<Value, String> {
     let new_epoch_i =
         parse_writer_epoch(new_epoch, "--new-epoch").map_err(|e| format!("InvalidDomain：{e}"))?;
     let mut conn = open_db(db)?;
@@ -3760,31 +3765,28 @@ fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
         )?;
         state_after = "idle".to_string();
     }
+    let transitioned_at = v2::record_recover(&tx, clock, &generation)?;
     meta_set(&tx, "writer_epoch", new_epoch)?;
     tx.execute(
         "INSERT INTO writer_epoch_history(from_epoch, to_epoch, generation_at_transition, advance_state_at_transition, transitioned_at) VALUES(?1, ?2, ?3, ?4, ?5)",
-        params![cur_epoch_raw, new_epoch, generation, state_after, now_nanos()],
+        params![cur_epoch_raw, new_epoch, generation, state_after, transitioned_at],
     )
     .map_err(|e| format!("写 writer_epoch_history 失败：{e}"))?;
     tx.commit()
         .map_err(|e| format!("recover commit 失败：{e}"))?;
 
-    println!(
-        "{}",
-        json!({
-            "ok": true,
-            "previous_epoch": cur_epoch_raw,
-            "new_epoch": new_epoch,
-            "epoch_transitioned": true,
-            "recovered_begin": recovered_begin,
-            "reachable_root": {
-                "generation": generation,
-                "structure_cut": meta_get_opt(&conn, "structure_cut")?.unwrap_or_default(),
-                "index_frontier": meta_get_opt(&conn, "index_frontier")?.unwrap_or_default(),
-            },
-        })
-    );
-    Ok(())
+    Ok(json!({
+        "ok": true,
+        "previous_epoch": cur_epoch_raw,
+        "new_epoch": new_epoch,
+        "epoch_transitioned": true,
+        "recovered_begin": recovered_begin,
+        "reachable_root": {
+            "generation": generation,
+            "structure_cut": meta_get_opt(&conn, "structure_cut")?.unwrap_or_default(),
+            "index_frontier": meta_get_opt(&conn, "index_frontier")?.unwrap_or_default(),
+        },
+    }))
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -3824,6 +3826,10 @@ fn run() -> Result<(), String> {
     if args.len() < 2 {
         return Err(usage());
     }
+    if v2::dispatch(&args)? {
+        return Ok(());
+    }
+    let _writer_lock = v2::legacy_write_lock(&args)?;
     let cmd = args[1].as_str();
     let db = arg_value(&args, "--db").map(PathBuf::from);
     let session = arg_value(&args, "--session").unwrap_or_else(|| "s-session-default".to_string());

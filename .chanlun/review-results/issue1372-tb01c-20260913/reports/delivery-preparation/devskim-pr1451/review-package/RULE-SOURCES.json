@@ -1,0 +1,66 @@
+[
+  {
+    "rule_id": "DS173237",
+    "pattern": [
+      {
+        "pattern": "[\"'][a-f0-9]{30,}[\"']",
+        "type": "regex",
+        "scopes": [
+          "code"
+        ]
+      }
+    ],
+    "severity": "important",
+    "source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/official-secrets.json",
+      "bytes": 2888,
+      "sha256": "efbb24386803bd7a8af3ddcabfd31bfd02097863592fe2696367bd7b4a3ef85e"
+    },
+    "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/privacy/secrets.json"
+  },
+  {
+    "rule_id": "DS172411",
+    "pattern": [
+      {
+        "pattern": "\\bsetTimeout\\(([^,]+)\\)",
+        "type": "regex",
+        "scopes": [
+          "code"
+        ]
+      }
+    ],
+    "severity": "ManualReview",
+    "source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/official-dynamiccode.json",
+      "bytes": 3408,
+      "sha256": "33a7040762c65428e9379367be4352cd07d040aabf4efea647fec4d976383899"
+    },
+    "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/manualreview/dynamiccode.json"
+  },
+  {
+    "rule_id": "DS162092",
+    "pattern": [
+      {
+        "pattern": "localhost",
+        "type": "string",
+        "scopes": [
+          "code"
+        ]
+      },
+      {
+        "pattern": "127.0.0.1",
+        "type": "string",
+        "scopes": [
+          "code"
+        ]
+      }
+    ],
+    "severity": "ManualReview",
+    "source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/official-localhost.json",
+      "bytes": 1049,
+      "sha256": "4c6c0fe817921ac8e57a804d0753356ed51f883a501d343f200ef541b6623321"
+    },
+    "url": "https://github.com/microsoft/DevSkim/blob/fb2d676ce475a47c0338966bebd97a47ae566572/rules/default/security/hygiene/localhost.json"
+  }
+]

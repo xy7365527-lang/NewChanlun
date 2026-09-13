@@ -1,0 +1,293 @@
+{
+  "schema": "tb01c.q_encoded_memo_independent_review.v1",
+  "session_id": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "independence": "本代理未实现 Q/新 CI；本轮不自评 Rust。",
+  "candidate_commit": "18ee720a02e4c4bb4fd8447ab99e6ef518957e14",
+  "ci_head": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+  "status": "PASS_BOUNDED_INCREMENT",
+  "whole_issue_1372": "NOT_VERIFIED",
+  "findings": [],
+  "source": {
+    "s_query_integrity.py": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/source/s_query_integrity.py",
+      "bytes": 59092,
+      "sha256": "d69fda491cbb52ead1a714bf942d5c8229ddd9d9f83dd4a17910515d101780bc"
+    },
+    "tb01c_query_tests.py": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/source/tb01c_query_tests.py",
+      "bytes": 31014,
+      "sha256": "74d4e9b8d5d8516b8dd2903e291dfb7f769c397f7e6300855ff0e077bc4a82e4"
+    },
+    "s_readonly_server.py": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/source/s_readonly_server.py",
+      "bytes": 52275,
+      "sha256": "5118f3f53f199413000918f3d5c36bae391c8b13ade7afc2b174773da8a790dd"
+    },
+    "query-resources.json": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/source/query-resources.json",
+      "bytes": 571,
+      "sha256": "36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64"
+    },
+    "s_query.py": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/source/s_query.py",
+      "bytes": 24902,
+      "sha256": "ce51b7a72de1bf1ab869da9e1498bc8ef95e3458981b847aaab033453268ad65"
+    },
+    "ci.yml": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/source/ci.yml",
+      "bytes": 15365,
+      "sha256": "e74bdcb4d40dab700c2f5615d88395359714423070b1b8c075aec6b0777b9261"
+    },
+    "previous-s_query_integrity.py": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/source/previous-s_query_integrity.py",
+      "bytes": 57869,
+      "sha256": "eeef35dd6c65a158237b1380e987e8c0eed184efcada64f65ffffd1fb169cfbf"
+    }
+  },
+  "references": {
+    "Q.diff": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/Q.diff",
+      "bytes": 7194,
+      "sha256": "a70ac4b39a964bdfffc9cb45363f6698d29d1df56a41c2c67c38c2c84e2483e2"
+    },
+    "CI.diff": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/CI.diff",
+      "bytes": 1247,
+      "sha256": "4fc7ad962e482e4d4c2bf667232d13e0ce7b45889e545e8469328e358e236f14"
+    },
+    "RESULT.json": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/RESULT.json",
+      "bytes": 53450,
+      "sha256": "b1ae8f61604bef5126678362347f88585c9db2c739f4b2da9fd935a486264e0f"
+    },
+    "FOLLOWUP-RESULT.json": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/FOLLOWUP-RESULT.json",
+      "bytes": 2077,
+      "sha256": "8d8408cd227b389351caa25eba00634d6d4329654261b987bc27eacd575c9623"
+    },
+    "BUDGET-ORACLE-DIAGNOSIS.json": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/BUDGET-ORACLE-DIAGNOSIS.json",
+      "bytes": 471,
+      "sha256": "77b00bbc476989b0d4758068fce08aae907c646813d2cee4ae65d1b070d7e5cd"
+    },
+    "STATIC-AUDIT.json": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/STATIC-AUDIT.json",
+      "bytes": 2669,
+      "sha256": "8bae4d87aeb3a1e0179543e863a478dcdb6b42f26cd36669f16fba0bed612fa4"
+    },
+    "INPUTS.json": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/INPUTS.json",
+      "bytes": 7505,
+      "sha256": "4d8e15ef16006dec1f1eb7f18dca3015b1e5ba4935c77180613dc8bea0be07bf"
+    }
+  },
+  "checks": [
+    {
+      "id": "MEMO-1",
+      "status": "PASS",
+      "claim": "全摘要原算法逐字等价；所有15表/模式/类型/原BLOB仍参与，新缓存保存canonical(SQL delta_json字符串)的完整编码。",
+      "code": "s_query_integrity.py:243-270,836-841,901-902",
+      "evidence": "RESULT.json#/checks/0,/checks/1；独立重算全摘要与160编码逐字恢复。"
+    },
+    {
+      "id": "MEMO-2",
+      "status": "PASS",
+      "claim": "本次fresh源与旧证书全typed列/Delta原UTF8/batch原bytes一致才复用；第一差异后全后缀重建；current raw/schema/independent indices/control/epoch仍鲜核。",
+      "code": "s_query_integrity.py:689-718,738-841,843-902；s_query.py:71-154",
+      "evidence": "RESULT.json#/checks/3,/checks/4；同代Commit改变摘要但160hits；159改变得到158hits+2misses。"
+    },
+    {
+      "id": "MEMO-3",
+      "status": "PASS",
+      "claim": "len(deltas)==G且每行按1..G连续核后才以generation-1索引编码；缺代同计数亦拒绝。",
+      "code": "s_query_integrity.py:715-717,800-803,258-260",
+      "evidence": "FOLLOWUP-RESULT.json#/checks/1"
+    },
+    {
+      "id": "MEMO-4",
+      "status": "PASS",
+      "claim": "新增ordinary bytes挂在proof._audit_memo，object_bytes联合对象身份去重计量；预算不足丢memo，保留完整160Delta及同cut全字段公开状态。",
+      "code": "s_query_integrity.py:97-116,836-841,917-923；s_query.py:139-153",
+      "evidence": "FOLLOWUP-RESULT.json#/checks/0；40,771,243B full与13,231,048B bare，27,001,145B隔离阈值后memo删除且结果相同。"
+    },
+    {
+      "id": "MEMO-5",
+      "status": "PASS",
+      "claim": "旧159Delta坏重复键在真实SQLite外连接提交后拒绝，cached/memo清空并释放读事务。",
+      "code": "s_query_integrity.py:68-89,819-826；s_query.py:118-134",
+      "evidence": "FOLLOWUP-RESULT.json#/checks/2"
+    },
+    {
+      "id": "MEMO-6",
+      "status": "PASS",
+      "claim": "20个选定完整公开值有/无memo一致；全160公开Delta对原SQL JSON一致；作者816逐字段比较标签、调用路径和记录完整核。",
+      "code": "s_query_integrity.py:project_delta/project_state AST未改；s_query.py全文同字节",
+      "evidence": "RESULT.json#/checks/1,/checks/2；STATIC-AUDIT.json；外部PARITY-AND-CHANGES.json#/checks(816)。"
+    }
+  ],
+  "first_probe_failure": {
+    "preserved": true,
+    "file": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/RESULT.json",
+      "bytes": 53450,
+      "sha256": "b1ae8f61604bef5126678362347f88585c9db2c739f4b2da9fd935a486264e0f"
+    },
+    "classification": "TEST_ORACLE_THRESHOLD_ERROR_CONFIRMED",
+    "reason": "暖proof与独立冷proof对象图大小不同。首次以暖值减1预期冷memo消失；冷图实际更小并合法留存，摘要相同。未修改首次FAIL或产品。",
+    "measurements": {
+      "warm_object_bytes": 40792287,
+      "cold_object_bytes": 40791664,
+      "per_worker_threshold": 40792286,
+      "memo_is_retained": true,
+      "cold_has_memo": true,
+      "digest_equal": true,
+      "cold_digest": "a8ecc1d02302f194e62f1ca8c4a0e43aca89199c81d5c54a791ef378c4a530dd",
+      "original_failed_conjunct": "expected memo removed, but independent cold object graph fits threshold",
+      "warm_hits": 158,
+      "cold_hits": 0,
+      "classification": "TEST_ORACLE_THRESHOLD_ERROR_CONFIRMED"
+    }
+  },
+  "author_evidence_reuse": {
+    "public_816_report_sha256": "002e42d7190a88c37e8eb0b208ba7f8e5fde4769db69824e24dce700934bd941",
+    "all_816_names_and_true_flags_verified": true,
+    "author_script_read": true,
+    "independent_816_reexecution": false,
+    "q_tests_read": "31 unit + v2真实binary作者收据exit0；本轮未重复运行。",
+    "same_generation_note": "作者data_version2→3为meta附注的真实SQLite提交，G160不变，非S新结构Commit。"
+  },
+  "ci": {
+    "status": "PASS_BOUNDED_SOURCE_WIRING",
+    "commit": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+    "source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/source/ci.yml",
+      "bytes": 15365,
+      "sha256": "e74bdcb4d40dab700c2f5615d88395359714423070b1b8c075aec6b0777b9261"
+    },
+    "lines": "263-278",
+    "old_jobs_byte_unchanged": true,
+    "python_tests": 51,
+    "node_tests": 32,
+    "author_local_same_commands_exit": [
+      0,
+      0
+    ],
+    "independent_ci_run": false,
+    "remote_ci_result": "NOT_VERIFIED",
+    "uncovered_by_new_job": [
+      "31 Q 二进制单元回归",
+      "tb01c_query_v2.py 原生 S/真实 HTTP 集成",
+      "完整160轨迹/故障双跑/实际Chrome"
+    ],
+    "reason": "现有 pytest testpaths=[tests]，不会收 s_session/tests；新独立 job 以 Python3.11/Node22 执行 stdlib 测试及模拟DOM，无需改既有 pytest/Rust/fixture 环境。"
+  },
+  "limits": [
+    "本轮读取源码与封存文本，在3份新隔离副本执行有界读/SQL变异；未触碰活库/启动服务/API/GUI。",
+    "源捕获库原SHA前后相同。隔离库处于WAL模式，最终数据库状态必须连同*-wal和*-shm保留，不能用main文件SHA代替完整状态。",
+    "旧Q memo与compactReady既有独评仅对未变源复用；未重审全Q、Rust或全8AC/17细项，不产生全票PASS。",
+    "模型/副本摘要性能与113页用时不能代替持续真实Commit下AC3；新正式AC3/R5由根另外封存后审。",
+    "max_capture/cache为对象源与保留图预算，不是RSS硬限；临时解压/JSON分配仍存在，资源参数未更改。",
+    "约束为任务指令边界，不宣称OS沙盒。"
+  ],
+  "r9_test_entry_increment": {
+    "schema": "tb01c.r9_r10_compatibility_increment_review.v1",
+    "session_id": "/root/r7_codex_product_review",
+    "commit": "932de089e989ca9ce482a93d6db825c4d4fda028",
+    "status": "PASS_BOUNDED_TEST_ENTRY_FIX",
+    "scope": "只审测试入口参数/资源/binary/自有进程回收接线；不重复完整语义业务测试，不产生C通过。",
+    "source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/source/r9_contract.py",
+      "bytes": 16843,
+      "sha256": "9a307a82fcb0fc2d9121a5b56ce4d9812a1e048cb5238c4a70f14eb0fee8fc99"
+    },
+    "lines": [
+      "20-24",
+      "69-112",
+      "261-275"
+    ],
+    "business_ast_unchanged": [
+      "exercise",
+      "exercise_r10"
+    ],
+    "findings": [],
+    "changes": [
+      "Q资源与producer_epoch1显式具名TestOnly，没削弱Q required",
+      "--binary只选择受测S，原debug缺省保持",
+      "仅Popen自有子进程TERM/10s/KILL/10s，启动失败同样close；异常继续抛出，不伪通过",
+      "R10 finally保留LOG，业务断言无改动"
+    ],
+    "evidence": [
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/fixed-r9/results.json",
+        "bytes": 29181065,
+        "sha256": "ae6d478de1b792b9e85615b1e091df5ad0431d81bda5991cd42b829a99d2ff10"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/fixed-r10/r10-results.json",
+        "bytes": 39274793,
+        "sha256": "34c6bdfa87da628831fcf620187a38e435a2df1cb11ad7087c97dafd71903d5d"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/REPORT.json",
+        "bytes": 15698,
+        "sha256": "d2d1d3a7a2113bbad163c69dfccf74739cbb4146f8082cdb87ffecd574f9ff38"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/r9.stdout",
+        "bytes": 30,
+        "sha256": "370602645fa09c2ece85e29a86abc4ba0cf36ddad07e26b10e72265efb4acb0a"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/r9.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/r10.stdout",
+        "bytes": 39,
+        "sha256": "cc5b1396697a451519f2e108ac74a6b3dd43df2bd7396cb83254ba1961e3810e"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/r10.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/fixed-r10/r10-run-log.json",
+        "bytes": 12481328,
+        "sha256": "33f5e1830ea390315c08278012c4d566ea946d33f13e56cbd7db648605b75c39"
+      }
+    ],
+    "independent_log_checks": [
+      {
+        "result": "fixed-r9/results.json",
+        "owned_children": 45,
+        "all_children_argv_bound_and_reaped": true,
+        "http_responses": 324,
+        "all_http_body_hashes_recomputed": true,
+        "http_status_counts": {
+          "200": 16,
+          "503": 308
+        }
+      },
+      {
+        "result": "fixed-r10/r10-results.json",
+        "owned_children": 43,
+        "all_children_argv_bound_and_reaped": true,
+        "http_responses": 392,
+        "all_http_body_hashes_recomputed": true,
+        "http_status_counts": {
+          "200": 224,
+          "503": 168
+        }
+      }
+    ],
+    "limits": [
+      "未重跑R9/R10或启动服务",
+      "没有通读190件数据库/所有业务载荷作第二次全域审查",
+      "日志执行时Q源为原报告所绑定版本a025f706…，不冒称后来compactReady/18ee编码memo已重跑同一R9/R10",
+      "根31Q/v2与本轮编码memo审阅另绑定18ee；legacy launcher2317369已有旧独评，不重做"
+    ]
+  }
+}

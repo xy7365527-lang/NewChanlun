@@ -1,0 +1,97 @@
+{
+  "reviewer": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "status": "PASS_BOUNDED_REAL_CLI_STOP_ENVELOPE",
+  "sources": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_runtime.py",
+      "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/driver-stop-envelope-independent/source/s_session/tests/tb01c_runtime.py",
+      "bytes": 25183,
+      "sha256": "0a7ad225773c05c0f16dcd883ac3be134ab4f72354ca6d1b824d31301017480a"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_service_control.py",
+      "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/driver-stop-envelope-independent/source/s_session/s_service_control.py",
+      "bytes": 29333,
+      "sha256": "7811bd5562b9df0a5d9d306f14d86d6a2ad2b7e681d02804645369e0ef2ffcef"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_socket_client.py",
+      "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/driver-stop-envelope-independent/source/s_session/s_socket_client.py",
+      "bytes": 7434,
+      "sha256": "7f14b63c3c84cdf9c1b1368e3e135da560e52dc1945cdaf4e6e5f7d9f5933cae"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/launch_s.sh",
+      "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/driver-stop-envelope-independent/source/s_session/launch_s.sh",
+      "bytes": 9636,
+      "sha256": "e8c75555c885684addc2c384dd65656a742cdf5567557f7c176c3cc218e0e487"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/test_tb01c_runtime_evidence.py",
+      "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/driver-stop-envelope-independent/source/s_session/tests/test_tb01c_runtime_evidence.py",
+      "bytes": 6023,
+      "sha256": "f1671416662c773442da14c592d0bc891e882d9034e15b3edecef28a481a5029"
+    }
+  ],
+  "finding_status": "CLI单服务stop列表到Run.control dict适配已闭合",
+  "code_chain": [
+    {
+      "source": "s_session/launch_s.sh",
+      "lines": [
+        49,
+        52
+      ],
+      "purpose": "service转入真实controller CLI"
+    },
+    {
+      "source": "s_session/s_service_control.py",
+      "lines": [
+        456,
+        481,
+        525,
+        533
+      ],
+      "purpose": "真实stop复核自有PID并发信号；main对单服务也包成list"
+    },
+    {
+      "source": "s_session/tests/tb01c_runtime.py",
+      "lines": [
+        148,
+        173,
+        39,
+        43,
+        215,
+        299
+      ],
+      "purpose": "先记录CLI stdout全文，再仅stop-s/q严格单元素dict列表解包；两处真实故障再要求目标service/pid/SIGKILL完整"
+    }
+  ],
+  "execution": {
+    "command": "python3 /Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/driver-stop-envelope-independent/probe.py",
+    "exit_code": 0,
+    "checks": 9,
+    "real_owned_processes": 2,
+    "process_kind": "/bin/sleep 30，具名S/Q替身，未实现产品服务",
+    "actual_chain": "固定原字节Run.control→复制原字节launch_s.sh→实际Controller.main/stop→原stdout list→解包→require_kill_receipt",
+    "negative_models": [
+      "empty list",
+      "multiple list",
+      "dict instead of list",
+      "non-dict element",
+      "wrong service after unwrap",
+      "missing SIGKILL after unwrap"
+    ],
+    "other_action": "status双服务list保持原形",
+    "original_cli_stdout_preserved": true,
+    "owned_processes_remaining": [],
+    "result_sha256": "2fc51b132bccb28535656b57d55ca328a3461cb0807283f9706241106799d33d"
+  },
+  "prior_review_limit": "旧故障离线模型在Run.control层直接stub为dict，没有覆盖launcher/CLI的result list形状。旧报告只证明其声明的模型面，本轮新增真实复制CLI链补齐；不把旧模型称为此前已有完整CLI接线证明。",
+  "limitations": [
+    "仅实际停止自有sleep替身，不是产品S/Q或完整故障恢复语义验收。",
+    "没有访问root r3-a目录/运行库/服务；本轮所有状态元数据在新独立目录。",
+    "根正式r3-a尚待独立原件接回，不提前判C通过。"
+  ],
+  "sources_unchanged": true
+}

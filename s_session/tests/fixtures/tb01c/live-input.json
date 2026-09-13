@@ -1,0 +1,650 @@
+{
+  "schema_revision": "1",
+  "session_id": "tb01c-draft01",
+  "source_namespace": "testonly.tick.ohlc.tb01c.draft01",
+  "source_epoch": "1",
+  "instrument": "TEST.TICK",
+  "profile": "testonly_tick_1_1_ohlc",
+  "events": [
+    {
+      "event_id": "evt-0096",
+      "revision": "1",
+      "seq": "96",
+      "received_at": "2000-01-01T00:01:36.000Z",
+      "raw_text": "1000096",
+      "price": "1000096",
+      "timestamp": "96",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0097",
+      "revision": "1",
+      "seq": "97",
+      "received_at": "2000-01-01T00:01:37.000Z",
+      "raw_text": "1030097",
+      "price": "1030097",
+      "timestamp": "97",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0002",
+      "revision": "2",
+      "seq": "2",
+      "received_at": "2000-01-01T00:01:38.000Z",
+      "raw_text": "1030502",
+      "price": "1030502",
+      "timestamp": "2",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0098",
+      "revision": "1",
+      "seq": "98",
+      "received_at": "2000-01-01T00:01:39.000Z",
+      "raw_text": "1070098",
+      "price": "1070098",
+      "timestamp": "98",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0099",
+      "revision": "1",
+      "seq": "99",
+      "received_at": "2000-01-01T00:01:40.000Z",
+      "raw_text": "1020099",
+      "price": "1020099",
+      "timestamp": "99",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0100",
+      "revision": "1",
+      "seq": "100",
+      "received_at": "2000-01-01T00:01:41.000Z",
+      "raw_text": "1050100",
+      "price": "1050100",
+      "timestamp": "100",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0007",
+      "revision": "2",
+      "seq": "7",
+      "received_at": "2000-01-01T00:01:42.000Z",
+      "raw_text": "1000507",
+      "price": "1000507",
+      "timestamp": "7",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0101",
+      "revision": "1",
+      "seq": "101",
+      "received_at": "2000-01-01T00:01:43.000Z",
+      "raw_text": "1010101",
+      "price": "1010101",
+      "timestamp": "101",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0102",
+      "revision": "1",
+      "seq": "102",
+      "received_at": "2000-01-01T00:01:44.000Z",
+      "raw_text": "1060102",
+      "price": "1060102",
+      "timestamp": "102",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0103",
+      "revision": "1",
+      "seq": "103",
+      "received_at": "2000-01-01T00:01:45.000Z",
+      "raw_text": "1040103",
+      "price": "1040103",
+      "timestamp": "103",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0012",
+      "revision": "2",
+      "seq": "12",
+      "received_at": "2000-01-01T00:01:46.000Z",
+      "raw_text": "1010512",
+      "price": "1010512",
+      "timestamp": "12",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0104",
+      "revision": "1",
+      "seq": "104",
+      "received_at": "2000-01-01T00:01:47.000Z",
+      "raw_text": "1000104",
+      "price": "1000104",
+      "timestamp": "104",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0105",
+      "revision": "1",
+      "seq": "105",
+      "received_at": "2000-01-01T00:01:48.000Z",
+      "raw_text": "1030105",
+      "price": "1030105",
+      "timestamp": "105",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0106",
+      "revision": "1",
+      "seq": "106",
+      "received_at": "2000-01-01T00:01:49.000Z",
+      "raw_text": "1070106",
+      "price": "1070106",
+      "timestamp": "106",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0017",
+      "revision": "2",
+      "seq": "17",
+      "received_at": "2000-01-01T00:01:50.000Z",
+      "raw_text": "1070517",
+      "price": "1070517",
+      "timestamp": "17",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0107",
+      "revision": "1",
+      "seq": "107",
+      "received_at": "2000-01-01T00:01:51.000Z",
+      "raw_text": "1020107",
+      "price": "1020107",
+      "timestamp": "107",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0108",
+      "revision": "1",
+      "seq": "108",
+      "received_at": "2000-01-01T00:01:52.000Z",
+      "raw_text": "1050108",
+      "price": "1050108",
+      "timestamp": "108",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0109",
+      "revision": "1",
+      "seq": "109",
+      "received_at": "2000-01-01T00:01:53.000Z",
+      "raw_text": "1010109",
+      "price": "1010109",
+      "timestamp": "109",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0022",
+      "revision": "2",
+      "seq": "22",
+      "received_at": "2000-01-01T00:01:54.000Z",
+      "raw_text": "1020522",
+      "price": "1020522",
+      "timestamp": "22",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0110",
+      "revision": "1",
+      "seq": "110",
+      "received_at": "2000-01-01T00:01:55.000Z",
+      "raw_text": "1060110",
+      "price": "1060110",
+      "timestamp": "110",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0111",
+      "revision": "1",
+      "seq": "111",
+      "received_at": "2000-01-01T00:01:56.000Z",
+      "raw_text": "1040111",
+      "price": "1040111",
+      "timestamp": "111",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0112",
+      "revision": "1",
+      "seq": "112",
+      "received_at": "2000-01-01T00:01:57.000Z",
+      "raw_text": "1000112",
+      "price": "1000112",
+      "timestamp": "112",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0027",
+      "revision": "2",
+      "seq": "27",
+      "received_at": "2000-01-01T00:01:58.000Z",
+      "raw_text": "1060527",
+      "price": "1060527",
+      "timestamp": "27",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0113",
+      "revision": "1",
+      "seq": "113",
+      "received_at": "2000-01-01T00:01:59.000Z",
+      "raw_text": "1030113",
+      "price": "1030113",
+      "timestamp": "113",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0114",
+      "revision": "1",
+      "seq": "114",
+      "received_at": "2000-01-01T00:02:00.000Z",
+      "raw_text": "1070114",
+      "price": "1070114",
+      "timestamp": "114",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0115",
+      "revision": "1",
+      "seq": "115",
+      "received_at": "2000-01-01T00:02:01.000Z",
+      "raw_text": "1020115",
+      "price": "1020115",
+      "timestamp": "115",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0032",
+      "revision": "2",
+      "seq": "32",
+      "received_at": "2000-01-01T00:02:02.000Z",
+      "raw_text": "1040532",
+      "price": "1040532",
+      "timestamp": "32",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0116",
+      "revision": "1",
+      "seq": "116",
+      "received_at": "2000-01-01T00:02:03.000Z",
+      "raw_text": "1050116",
+      "price": "1050116",
+      "timestamp": "116",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0117",
+      "revision": "1",
+      "seq": "117",
+      "received_at": "2000-01-01T00:02:04.000Z",
+      "raw_text": "1010117",
+      "price": "1010117",
+      "timestamp": "117",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0118",
+      "revision": "1",
+      "seq": "118",
+      "received_at": "2000-01-01T00:02:05.000Z",
+      "raw_text": "1060118",
+      "price": "1060118",
+      "timestamp": "118",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0037",
+      "revision": "2",
+      "seq": "37",
+      "received_at": "2000-01-01T00:02:06.000Z",
+      "raw_text": "1050537",
+      "price": "1050537",
+      "timestamp": "37",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0119",
+      "revision": "1",
+      "seq": "119",
+      "received_at": "2000-01-01T00:02:07.000Z",
+      "raw_text": "1040119",
+      "price": "1040119",
+      "timestamp": "119",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0120",
+      "revision": "1",
+      "seq": "120",
+      "received_at": "2000-01-01T00:02:08.000Z",
+      "raw_text": "1000120",
+      "price": "1000120",
+      "timestamp": "120",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0121",
+      "revision": "1",
+      "seq": "121",
+      "received_at": "2000-01-01T00:02:09.000Z",
+      "raw_text": "1030121",
+      "price": "1030121",
+      "timestamp": "121",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0042",
+      "revision": "2",
+      "seq": "42",
+      "received_at": "2000-01-01T00:02:10.000Z",
+      "raw_text": "1030542",
+      "price": "1030542",
+      "timestamp": "42",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0122",
+      "revision": "1",
+      "seq": "122",
+      "received_at": "2000-01-01T00:02:11.000Z",
+      "raw_text": "1070122",
+      "price": "1070122",
+      "timestamp": "122",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0123",
+      "revision": "1",
+      "seq": "123",
+      "received_at": "2000-01-01T00:02:12.000Z",
+      "raw_text": "1020123",
+      "price": "1020123",
+      "timestamp": "123",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0124",
+      "revision": "1",
+      "seq": "124",
+      "received_at": "2000-01-01T00:02:13.000Z",
+      "raw_text": "1050124",
+      "price": "1050124",
+      "timestamp": "124",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0047",
+      "revision": "2",
+      "seq": "47",
+      "received_at": "2000-01-01T00:02:14.000Z",
+      "raw_text": "1000547",
+      "price": "1000547",
+      "timestamp": "47",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0125",
+      "revision": "1",
+      "seq": "125",
+      "received_at": "2000-01-01T00:02:15.000Z",
+      "raw_text": "1010125",
+      "price": "1010125",
+      "timestamp": "125",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0126",
+      "revision": "1",
+      "seq": "126",
+      "received_at": "2000-01-01T00:02:16.000Z",
+      "raw_text": "1060126",
+      "price": "1060126",
+      "timestamp": "126",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0127",
+      "revision": "1",
+      "seq": "127",
+      "received_at": "2000-01-01T00:02:17.000Z",
+      "raw_text": "1040127",
+      "price": "1040127",
+      "timestamp": "127",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0052",
+      "revision": "2",
+      "seq": "52",
+      "received_at": "2000-01-01T00:02:18.000Z",
+      "raw_text": "1010552",
+      "price": "1010552",
+      "timestamp": "52",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0128",
+      "revision": "1",
+      "seq": "128",
+      "received_at": "2000-01-01T00:02:19.000Z",
+      "raw_text": "1000128",
+      "price": "1000128",
+      "timestamp": "128",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0129",
+      "revision": "1",
+      "seq": "129",
+      "received_at": "2000-01-01T00:02:20.000Z",
+      "raw_text": "1030129",
+      "price": "1030129",
+      "timestamp": "129",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0130",
+      "revision": "1",
+      "seq": "130",
+      "received_at": "2000-01-01T00:02:21.000Z",
+      "raw_text": "1070130",
+      "price": "1070130",
+      "timestamp": "130",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0057",
+      "revision": "2",
+      "seq": "57",
+      "received_at": "2000-01-01T00:02:22.000Z",
+      "raw_text": "1070557",
+      "price": "1070557",
+      "timestamp": "57",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0131",
+      "revision": "1",
+      "seq": "131",
+      "received_at": "2000-01-01T00:02:23.000Z",
+      "raw_text": "1020131",
+      "price": "1020131",
+      "timestamp": "131",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0132",
+      "revision": "1",
+      "seq": "132",
+      "received_at": "2000-01-01T00:02:24.000Z",
+      "raw_text": "1050132",
+      "price": "1050132",
+      "timestamp": "132",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0133",
+      "revision": "1",
+      "seq": "133",
+      "received_at": "2000-01-01T00:02:25.000Z",
+      "raw_text": "1010133",
+      "price": "1010133",
+      "timestamp": "133",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0062",
+      "revision": "2",
+      "seq": "62",
+      "received_at": "2000-01-01T00:02:26.000Z",
+      "raw_text": "1020562",
+      "price": "1020562",
+      "timestamp": "62",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0134",
+      "revision": "1",
+      "seq": "134",
+      "received_at": "2000-01-01T00:02:27.000Z",
+      "raw_text": "1060134",
+      "price": "1060134",
+      "timestamp": "134",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0135",
+      "revision": "1",
+      "seq": "135",
+      "received_at": "2000-01-01T00:02:28.000Z",
+      "raw_text": "1040135",
+      "price": "1040135",
+      "timestamp": "135",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0136",
+      "revision": "1",
+      "seq": "136",
+      "received_at": "2000-01-01T00:02:29.000Z",
+      "raw_text": "1000136",
+      "price": "1000136",
+      "timestamp": "136",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0067",
+      "revision": "2",
+      "seq": "67",
+      "received_at": "2000-01-01T00:02:30.000Z",
+      "raw_text": "1060567",
+      "price": "1060567",
+      "timestamp": "67",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0137",
+      "revision": "1",
+      "seq": "137",
+      "received_at": "2000-01-01T00:02:31.000Z",
+      "raw_text": "1030137",
+      "price": "1030137",
+      "timestamp": "137",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0138",
+      "revision": "1",
+      "seq": "138",
+      "received_at": "2000-01-01T00:02:32.000Z",
+      "raw_text": "1070138",
+      "price": "1070138",
+      "timestamp": "138",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0139",
+      "revision": "1",
+      "seq": "139",
+      "received_at": "2000-01-01T00:02:33.000Z",
+      "raw_text": "1020139",
+      "price": "1020139",
+      "timestamp": "139",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0072",
+      "revision": "2",
+      "seq": "72",
+      "received_at": "2000-01-01T00:02:34.000Z",
+      "raw_text": "1040572",
+      "price": "1040572",
+      "timestamp": "72",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0140",
+      "revision": "1",
+      "seq": "140",
+      "received_at": "2000-01-01T00:02:35.000Z",
+      "raw_text": "1050140",
+      "price": "1050140",
+      "timestamp": "140",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0141",
+      "revision": "1",
+      "seq": "141",
+      "received_at": "2000-01-01T00:02:36.000Z",
+      "raw_text": "1010141",
+      "price": "1010141",
+      "timestamp": "141",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0142",
+      "revision": "1",
+      "seq": "142",
+      "received_at": "2000-01-01T00:02:37.000Z",
+      "raw_text": "1060142",
+      "price": "1060142",
+      "timestamp": "142",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0077",
+      "revision": "2",
+      "seq": "77",
+      "received_at": "2000-01-01T00:02:38.000Z",
+      "raw_text": "1050577",
+      "price": "1050577",
+      "timestamp": "77",
+      "volume": "1"
+    },
+    {
+      "event_id": "evt-0143",
+      "revision": "1",
+      "seq": "143",
+      "received_at": "2000-01-01T00:02:39.000Z",
+      "raw_text": "1040143",
+      "price": "1040143",
+      "timestamp": "143",
+      "volume": "1"
+    }
+  ]
+}

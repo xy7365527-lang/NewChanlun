@@ -1,0 +1,454 @@
+{
+  "schema": "tb01c.final_ac3_independent_review.v1",
+  "session_id": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "status": "PASS_BOUNDED_AC3_REVISION_CONTINUATION",
+  "candidate": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+  "full_issue_1372": "NOT_VERIFIED",
+  "scope": "真实进程输入+无Qkill的实际公开Client跨非空修订续接；不是全票、完整Q故障双跑、Chrome或生产容量裁定。",
+  "findings": [],
+  "seal": {
+    "file_count": 1917,
+    "bytes": 386111941,
+    "all_hashes_equal": true,
+    "manifest": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/SEALED-MANIFEST.json",
+      "bytes": 390369,
+      "sha256": "5d2cfe5c9b1c493d4f06a7418f984c1dcec407ff63b0a46773d3031aacea648b"
+    },
+    "source_snapshots": 458,
+    "direct_git_bound": 22,
+    "external_frozen_build_and_run_materials": 436
+  },
+  "core": {
+    "records": 495,
+    "all_fields_first494_equal_to_r4a": true,
+    "last_record_scope": "只有S重启；无Q重启，与R4/R5全495不等价",
+    "source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/evidence/semantic-core.jsonl",
+      "bytes": 161080248,
+      "sha256": "d74567906e5db9bb84ff9a06bf14e1c8157a5720fa1dc9c073d5c808064c14cb"
+    },
+    "counts": {
+      "actual_ingest_result": 160,
+      "final_receipt": 160,
+      "authoritative_cut": 160,
+      "authoritative_table": 13,
+      "authoritative_schema": 1,
+      "lifecycle_semantics": 1
+    },
+    "authoritative_table_families": 15,
+    "input_count": 160,
+    "frozen_revisions": 16,
+    "s_fault": {
+      "ingest_line": 556,
+      "s_restart_line": 560,
+      "s_restart": {
+        "kind": "s_restart_identity",
+        "observed_monotonic_ns": "172496595415666",
+        "old_s": {
+          "service": "s",
+          "pid": 95015,
+          "db": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/session.sqlite",
+          "process_identity": "501 Sun Sep 13 18:16:55 2026     /Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session serve --db /Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/session.sqlite --socket /private/tmp/tb01c-trajectory-revision-final-ac3.sock --writer-epoch 1 --profile /Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/profile.json --clock-plan /Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/clock-plan.json --max-frame-bytes 1048576 --read-timeout-ms 2000 --write-timeout-ms 1000 --queue-capacity 32 --max-connections 48 --response-timeout-ms 10000 --audit-cache-source-bytes 268435456",
+          "command": [
+            "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session",
+            "serve",
+            "--db",
+            "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/session.sqlite",
+            "--socket",
+            "/private/tmp/tb01c-trajectory-revision-final-ac3.sock",
+            "--writer-epoch",
+            "1",
+            "--profile",
+            "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/profile.json",
+            "--clock-plan",
+            "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/clock-plan.json",
+            "--max-frame-bytes",
+            "1048576",
+            "--read-timeout-ms",
+            "2000",
+            "--write-timeout-ms",
+            "1000",
+            "--queue-capacity",
+            "32",
+            "--max-connections",
+            "48",
+            "--response-timeout-ms",
+            "10000",
+            "--audit-cache-source-bytes",
+            "268435456"
+          ],
+          "control_instance_id": "b814d5af-1d8d-4757-88ee-8d3458219f82",
+          "socket_identity": {
+            "path": "/private/tmp/tb01c-trajectory-revision-final-ac3.sock",
+            "device": 16777232,
+            "inode": 307340168,
+            "uid": 501
+          }
+        },
+        "new_s": {
+          "service": "s",
+          "pid": 95076,
+          "db": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/session.sqlite",
+          "process_identity": "501 Sun Sep 13 18:16:58 2026     /Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session serve --db /Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/session.sqlite --socket /private/tmp/tb01c-trajectory-revision-final-ac3.sock --writer-epoch 2 --profile /Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/profile.json --clock-plan /Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/clock-plan.json --max-frame-bytes 1048576 --read-timeout-ms 2000 --write-timeout-ms 1000 --queue-capacity 32 --max-connections 48 --response-timeout-ms 10000 --audit-cache-source-bytes 268435456",
+          "command": [
+            "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session",
+            "serve",
+            "--db",
+            "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/session.sqlite",
+            "--socket",
+            "/private/tmp/tb01c-trajectory-revision-final-ac3.sock",
+            "--writer-epoch",
+            "2",
+            "--profile",
+            "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/profile.json",
+            "--clock-plan",
+            "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/clock-plan.json",
+            "--max-frame-bytes",
+            "1048576",
+            "--read-timeout-ms",
+            "2000",
+            "--write-timeout-ms",
+            "1000",
+            "--queue-capacity",
+            "32",
+            "--max-connections",
+            "48",
+            "--response-timeout-ms",
+            "10000",
+            "--audit-cache-source-bytes",
+            "268435456"
+          ],
+          "control_instance_id": "3d6a07df-69d1-4e62-b264-d572fa129d36",
+          "socket_identity": {
+            "path": "/private/tmp/tb01c-trajectory-revision-final-ac3.sock",
+            "device": 16777232,
+            "inode": 307341120,
+            "uid": 501
+          }
+        },
+        "q": {
+          "service": "q",
+          "pid": 94694,
+          "db": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/session.sqlite",
+          "process_identity": "501 Sun Sep 13 18:16:08 2026 /Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11 /Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_readonly_server.py --db /Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/session.sqlite --port 18880 --browser /Users/silencehan/Projects/NewChanlun-1372-codex/s_session/browser/index.html --resource-config /Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/query-resources.json --producer-epoch 1",
+          "command": [
+            "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+            "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_readonly_server.py",
+            "--db",
+            "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/session.sqlite",
+            "--port",
+            "18880",
+            "--browser",
+            "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/browser/index.html",
+            "--resource-config",
+            "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/query-resources.json",
+            "--producer-epoch",
+            "1"
+          ],
+          "control_instance_id": "e3cf323a-7e77-4add-b1d0-96109391b568"
+        },
+        "stop_receipt": {
+          "service": "s",
+          "state": "stopped",
+          "pid": 95015,
+          "signal": "SIGKILL",
+          "exit_observation_warnings": [
+            "PID 已复用或进程命令改变，拒绝采用旧记录"
+          ]
+        }
+      },
+      "phases": [
+        {
+          "clock_event_id": "op-0095",
+          "phase": "accept",
+          "attempt_index": -1,
+          "semantic_ns": "946685750000000000",
+          "message_key": "[\"testonly.tick.ohlc.tb01c.draft01\",\"1\",\"tb01c-op-0095\"]",
+          "attempt_ordinal": null,
+          "generation": 95
+        },
+        {
+          "clock_event_id": "op-0095",
+          "phase": "begin",
+          "attempt_index": 0,
+          "semantic_ns": "946685750100000000",
+          "message_key": "[\"testonly.tick.ohlc.tb01c.draft01\",\"1\",\"tb01c-op-0095\"]",
+          "attempt_ordinal": 96,
+          "generation": 96
+        },
+        {
+          "clock_event_id": "op-0095",
+          "phase": "begin",
+          "attempt_index": 1,
+          "semantic_ns": "946685751100000000",
+          "message_key": "[\"testonly.tick.ohlc.tb01c.draft01\",\"1\",\"tb01c-op-0095\"]",
+          "attempt_ordinal": 97,
+          "generation": 96
+        },
+        {
+          "clock_event_id": "op-0095",
+          "phase": "commit",
+          "attempt_index": 1,
+          "semantic_ns": "946685751200000000",
+          "message_key": "[\"testonly.tick.ohlc.tb01c.draft01\",\"1\",\"tb01c-op-0095\"]",
+          "attempt_ordinal": 97,
+          "generation": 96
+        },
+        {
+          "clock_event_id": "recover-001",
+          "phase": "recover",
+          "attempt_index": -1,
+          "semantic_ns": "946685751000000000",
+          "message_key": "",
+          "attempt_ordinal": null,
+          "generation": 95
+        }
+      ],
+      "recovered_begin": {
+        "advance_state": "begun:begin-86ff7cae913f027fb12fc16607333ccf0b5e62ea7ae5cc55b48c37a2bc895a51:96:95",
+        "generation_at_recovery": "95",
+        "resolved_to": "idle"
+      }
+    },
+    "new_native_execution": "本臂root执行；本代理纯解析原件，未执行S"
+  },
+  "http": {
+    "all_responses": 278,
+    "all_complete": 278,
+    "all_full_field_pages": 274,
+    "row_occurrences": 8375,
+    "installed_candidates": 4,
+    "full_delta_records": 9,
+    "independent_projection": "复用R4独立索引/历史投影器；未导入Q/JS产品投影",
+    "target": {
+      "before": "95",
+      "after": "99",
+      "generations": [
+        96,
+        97,
+        98,
+        99
+      ],
+      "snapshot_pages": 113,
+      "requests": 114,
+      "elapsed_ms": 23254.249667000004,
+      "outer_observation_elapsed_ms": 23256.39625,
+      "wire_bytes": 12090709,
+      "nonempty_revision": {
+        "generation": 99,
+        "withdrawals": 3,
+        "replaces": 3
+      },
+      "gap": null,
+      "result": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/http-consumers/revisions/commands/revision-three-commit-reconnect/RESULT.json",
+        "bytes": 32177,
+        "sha256": "c8479b8c1af63bb8137f487263c3871b56c72f4b7a5fd3df3721cf1b2e439183"
+      },
+      "candidate": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/http-consumers/revisions/commands/revision-three-commit-reconnect/committed-candidate.json",
+        "bytes": 2067623,
+        "sha256": "4e96d9d80fb3882b770b0827eeeebf21e4ec04e7d0efa156fce2cf7d86716f8e"
+      },
+      "public_common_headers_causality_checksums": true,
+      "pagination_exact_counts_order_token_offsets": true,
+      "atomic_install_boundary": "before/after完整candidate、唯一公开Client提交回执与已审Client原子安装机制共同支持；没有额外声称Chrome每页取样"
+    }
+  },
+  "actual_load": {
+    "plan_interval_ms": 500,
+    "drain_ms": 30000,
+    "input_offers_independent_of_consumer_ack": true,
+    "offers_during_target": [
+      99,
+      100,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      130,
+      131,
+      132,
+      133,
+      134,
+      135,
+      136,
+      137,
+      138,
+      139,
+      140,
+      141,
+      142,
+      143,
+      144,
+      145
+    ],
+    "frontier_samples_during_target": 222,
+    "committed_during_target": [
+      99,
+      144
+    ],
+    "live_windows": [
+      {
+        "window_ms": [
+          0,
+          10000
+        ],
+        "lines": [
+          562,
+          676
+        ],
+        "actual_span_ms": [
+          0.88525,
+          9923.083334
+        ],
+        "accepted_progress": 20,
+        "committed_progress": 20
+      },
+      {
+        "window_ms": [
+          10000,
+          20000
+        ],
+        "lines": [
+          678,
+          792
+        ],
+        "actual_span_ms": [
+          10028.971834,
+          19954.974667
+        ],
+        "accepted_progress": 20,
+        "committed_progress": 19
+      },
+      {
+        "window_ms": [
+          20000,
+          30000
+        ],
+        "lines": [
+          793,
+          905
+        ],
+        "actual_span_ms": [
+          20060.907459,
+          29926.358292
+        ],
+        "accepted_progress": 17,
+        "committed_progress": 17
+      }
+    ],
+    "phases": [
+      {
+        "phase_first": 0,
+        "offers": 95,
+        "outstanding_transport_peak": 1,
+        "observed_accepted_pending_peak": 1,
+        "max_dispatch_delay_ms": 5.321709,
+        "max_reply_ms": 342.917,
+        "last_offer_to_last_reply_ms": 342.917,
+        "last_offer_to_phase_end_ms": 343.715,
+        "duration_ms": 47348.854334,
+        "frontier_samples": 454
+      },
+      {
+        "phase_first": 96,
+        "offers": 64,
+        "outstanding_transport_peak": 5,
+        "observed_accepted_pending_peak": 1,
+        "max_dispatch_delay_ms": 5.17175,
+        "max_reply_ms": 2570.237042,
+        "last_offer_to_last_reply_ms": 2570.237042,
+        "last_offer_to_phase_end_ms": 2571.072292,
+        "duration_ms": 34076.034542,
+        "frontier_samples": 326
+      }
+    ]
+  },
+  "stop": {
+    "all_owned_pid_receipts_match": true,
+    "signals": "SIGTERM",
+    "warnings_preserved": {
+      "q": [
+        "进程命令暂不可读，不能确认完整参数"
+      ],
+      "s": [
+        "PID 已复用或进程命令改变，拒绝采用旧记录"
+      ]
+    },
+    "source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/POST-RUN-STOP.json",
+      "bytes": 5787,
+      "sha256": "e345ffcd393e41b43711f891fb9a73f073ec42fd9af69e4974481c22a0c0d13b"
+    }
+  },
+  "execution": {
+    "runtime_parser_first_exit": 1,
+    "first_failure": "旧审阅器假定存在旧R4 load-report.json；本专臂没有该汇总件。源记录未失败。RUNTIME.stderr原样保留。",
+    "runtime_parser_adjusted_exit": 0,
+    "adjustment": "继续从原events直接计算同三窗口，不依赖不存在的汇总，不扩窗或改源。",
+    "http_parser_exit": 0,
+    "seal_parser_exit": 0,
+    "sql_connections": 0,
+    "service_requests": 0,
+    "product_imports": 0
+  },
+  "limits": [
+    "完整Q109故障双跑待R5另核；本臂在PLAN事前明确不杀Q。",
+    "只对前494完整记录复用对拍，未排除其中任何字段/身份/BLOB/schema；第495生命周期明确不同，不声称全495等价。",
+    "每次中间SQLite捕获摘要无法由末态完整重造；核其实际响应格式/绑定及完整samecut语义，不能以哈希替代源审计。",
+    "机读object/array与Unicode原值保留，canonical仅归一对象键顺序；数组顺序/重复/全部成员未排除。",
+    "该30s是本臂事前工程观察上限，非生产SLA。",
+    "未访问活SQL/API/GUI；停止库只读取封存文件字节用于manifest SHA。",
+    "旧R1/R2/R3/R4失败与当前R5故障保留，当前成功不追认先前失败。"
+  ],
+  "artifacts": {
+    "HTTP-EXAMINATION.json": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/independent-review/HTTP-EXAMINATION.json",
+      "bytes": 369831,
+      "sha256": "3ced0c4f81273f3edfaae6538634194fe0c4ba9e3621f4c8d4eb33a507675adc"
+    },
+    "SEAL-WINDOW-EXAMINATION.json": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/independent-review/SEAL-WINDOW-EXAMINATION.json",
+      "bytes": 246821,
+      "sha256": "76647a83248fd4f8f7fd095e050e0346db17eeb468a4d3d1085908e2895bee80"
+    },
+    "runtime-v2/EXAMINATION.json": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/independent-review/runtime-v2/EXAMINATION.json",
+      "bytes": 72221,
+      "sha256": "4f171312bb4795be55da172d4b62973201c5f7dcdb7d890a7402890d492231e1"
+    },
+    "INPUTS.json": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/independent-review/INPUTS.json",
+      "bytes": 518225,
+      "sha256": "d1d462efe169815a723cf731cca3bf32cd0427f7319c6ed66d3204fa4c345ec0"
+    }
+  }
+}

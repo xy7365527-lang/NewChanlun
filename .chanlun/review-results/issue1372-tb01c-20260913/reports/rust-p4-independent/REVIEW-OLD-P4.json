@@ -1,0 +1,37 @@
+{
+  "source_commit": "f23d6016c29584d6f6d6e8281b362cc8b5f769ce",
+  "binary_sha256": "bc1ad32b6343b3f325e8080a80bfcad768f6c15110fd67db97e36b59b262afba",
+  "source_files_verified": 425,
+  "reviewed_sources": {
+    "/Users/silencehan/Projects/NewChanlun-1372-rust/rust/src/bin/s_session_v2/audit.rs": "7dfd60f7b589091c37b37154e8b8525fe80c62736f0ce0afa83048f86e8e1bfa",
+    "/Users/silencehan/Projects/NewChanlun-1372-rust/rust/src/bin/s_session_v2/cache.rs": "ac75fd1ff4dda4e453b1b2a3e2c3e9001fea672cc99a03548d79b1b639c60b9e",
+    "/Users/silencehan/Projects/NewChanlun-1372-rust/rust/src/bin/s_session_v2/mod.rs": "fca526fe8a79e7fbff53b4b482775defa5022b8cd05fded1e25fad0d165c959f",
+    "/Users/silencehan/Projects/NewChanlun-1372-rust/rust/src/bin/s_structure_session.rs": "031e8e01dc483fe3346e9cee24a926ce70bde8b199e49ac3f7499e2188e0fed2"
+  },
+  "status": "ONE_CONFIRMED_RESPONSE_QUEUE_DEADLINE_FINDING",
+  "findings": [
+    {
+      "priority": "P2",
+      "path": "rust/src/bin/s_session_v2/mod.rs",
+      "lines": [
+        1423,
+        1435
+      ],
+      "issue": "下一轮先try_send再查期限，可在Full等待跨期且槽位释放后入队",
+      "minimal_fix": "每次try_send之前重核同一response_deadline；已入actor语义不变",
+      "evidence": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/QUEUE-COUNTEREXAMPLE.json",
+      "evidence_scope": "原循环摘录及确定性下轮入口状态；非冻结binary真实调度测量"
+    }
+  ],
+  "bounded_probe": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/run-20260913T085339.743854Z/RESULT.json",
+  "bounded_cases": 11,
+  "owned_processes_started": 11,
+  "all_owned_processes_stopped": true,
+  "complete_C_acceptance": false,
+  "scope_limits": [
+    "未运行完整64项实施者测试，不把原收据当独立新执行",
+    "仅6代/6输入自建S，不含Q/GUI/160负载/双跑495",
+    "坏库小域没有发现memo/Arc绕过，不证明任意坏库全覆盖",
+    "旧P4结论独立固定；根的修复另出复验"
+  ]
+}

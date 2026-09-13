@@ -13,9 +13,11 @@
 #     不自动构建、不用无关 stamp 证明平台。
 #
 # 用法：
-#   ./s_session/launch_s.sh --input <输入.json> --profile <profile.json> [--db <sqlite路径>] [--port <端口>] [--build]
-#   ./s_session/launch_s.sh --testonly [--db <sqlite路径>] [--port <端口>] [--build]   # 显式选择 TestOnly 档案
+#   ./s_session/launch_s.sh --input <输入.json> --profile <profile.json> --resource-config <查询资源.json> --producer-epoch <Q化身> [--db <sqlite路径>] [--port <端口>] [--build]
+#   ./s_session/launch_s.sh --testonly --resource-config <查询资源.json> --producer-epoch <Q化身> [--db <sqlite路径>] [--port <端口>] [--build]
 #   ./s_session/launch_s.sh stop [--port <端口>]
+#   ./s_session/launch_s.sh service <start|start-s|start-q|status|stop|stop-s|stop-q|recover> \
+#       --config <s-launcher-v2.json> --state-dir <专属控制目录> [恢复/信号参数]
 #   覆盖：--bin <s_structure_session 路径> --python <python3 路径>
 set -euo pipefail
 
@@ -32,11 +34,20 @@ INPUT=""
 PROFILE=""
 PORT="${PORT:-8787}"
 WRITER_EPOCH="${WRITER_EPOCH:-1}"
+QUERY_RESOURCES=""
+QUERY_EPOCH=""
 DO_BUILD=0
 DO_RESET=0
 CATALOG="$HERE/catalog/signed-catalog.json"
 BROWSER="$HERE/browser/index.html"
 SESSION_ID="${SESSION_ID:-s-session-testonly-001}"
+
+# #1372：同一正式 launcher 的常驻入口；运行配置显式指定已构建 binary/Python/profile/clock。
+# S/Q 各自启动、验证和停止，查询进程失败不触发终止 S 的清理 trap。
+if [[ "${1:-}" == "service" ]]; then
+  shift
+  exec "${PYO3_PYTHON:-python3}" "$HERE/s_service_control.py" "$@"
+fi
 
 # 从候选 Python 的 sysconfig 取实际 LIBDIR 与 LDLIBRARY 并核真实文件——兼容 .so / .dylib
 # （macOS LDLIBRARY=libpython3.11.dylib，Linux=libpython3.11.so），不写死任一平台路径。
@@ -165,6 +176,8 @@ while [[ $# -gt 0 ]]; do
     --reset) DO_RESET=1; shift ;;
     --bin) BIN="$2"; BIN_EXPLICIT=1; shift 2 ;;
     --writer-epoch) WRITER_EPOCH="$2"; shift 2 ;;
+    --resource-config) QUERY_RESOURCES="$2"; shift 2 ;;
+    --producer-epoch) QUERY_EPOCH="$2"; shift 2 ;;
     --python) PYO3_PYTHON="$2"; shift 2 ;;
     --testonly)
       INPUT="$HERE/inputs/cc006_four_branch.json"
@@ -179,10 +192,24 @@ if [[ -z "$INPUT" || -z "$PROFILE" ]]; then
   echo "[launcher] 错误：必须显式指定 --input 与 --profile（或 --testonly 显式选择 TestOnly 档案）" >&2
   exit 2
 fi
+if [[ -z "$QUERY_RESOURCES" || -z "$QUERY_EPOCH" ]]; then
+  echo "[launcher] 错误：必须显式指定 --resource-config 与 --producer-epoch（Q 的资源界限和化身）" >&2
+  exit 2
+fi
 [[ -z "$DB" ]] && DB="/tmp/s_session_testonly.sqlite"
 PIDFILE="/tmp/s_session_readonly_${PORT}.pid"
 
 configure_runtime
+
+# #1372：旧入口同样先核Q启动条件，再构建/写S库；无隐式资源或writer epoch替代。
+"$PY" - "$HERE" "$QUERY_RESOURCES" "$QUERY_EPOCH" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import s_query
+import s_query_integrity
+s_query._integer(sys.argv[3], "producer_epoch", ValueError, True)
+s_query.load_resources(sys.argv[2], s_query_integrity)
+PY
 
 if [[ "$BIN_EXPLICIT" -eq 1 ]]; then
   # 显式 --bin：核其为本平台原生产物；不自动构建、不用无关 stamp 证明平台。
@@ -222,6 +249,7 @@ echo "[launcher] 3/5 S.Advance（Begin→同次 Rust parser→Commit）"
 
 echo "[launcher] 4/5 启动只读查询外壳（独立只读进程，端口 ${PORT}）"
 nohup "$PY" "$HERE/s_readonly_server.py" --db "$DB" --port "$PORT" --browser "$BROWSER" \
+  --resource-config "$QUERY_RESOURCES" --producer-epoch "$QUERY_EPOCH" \
   > /tmp/s_session_readonly_${PORT}.log 2>&1 &
 SRV_PID=$!
 echo "$SRV_PID" > "$PIDFILE"

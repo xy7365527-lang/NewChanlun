@@ -1,0 +1,551 @@
+{
+  "scope": "绑定 #1372 的审阅报告正文与索引原字节副本；原始数据库、二进制、网络body继续保存在独立取证目录。各历史报告状态保留，其后验收变化由README与新独评说明。",
+  "reports": [
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/REVIEW-OLD-P4.md",
+      "package_path": "reports/rust-p4-independent/REVIEW-OLD-P4.md",
+      "bytes": 4517,
+      "sha256": "66d067a53c50f4c02dd8a9e9fce3042b6fb252b418a9220f61c01a107f3f3bb5",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/REVIEW-OLD-P4.json",
+      "package_path": "reports/rust-p4-independent/REVIEW-OLD-P4.json",
+      "bytes": 2191,
+      "sha256": "269f50af5fd7697653ff04f0b629f1bc1dc7aa77af4513a446a6eeaeafc59267",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/queue-fix-recheck/REVIEW-QUEUE-FIX.md",
+      "package_path": "reports/rust-p4-independent/queue-fix-recheck/REVIEW-QUEUE-FIX.md",
+      "bytes": 5802,
+      "sha256": "81eeb5414f2efe842154a256d6fac4db4a9fa6a075c3877f63306996fda4189b",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/queue-fix-recheck/RESULT.json",
+      "package_path": "reports/rust-p4-independent/queue-fix-recheck/RESULT.json",
+      "bytes": 252005,
+      "sha256": "f5910159749e533f732317e77fa6c67bb23b68fe23b4fca7c96497403bf029f2",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/python-cross-review-fix-01/REVIEW.md",
+      "package_path": "reports/python-cross-review-fix-01/REVIEW.md",
+      "bytes": 2830,
+      "sha256": "ac6ba94069a4400c27f7ef237fc61a8195f1de3d16b3583e714fd31777173bd2",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/python-cross-review-fix-01/REVIEW.json",
+      "package_path": "reports/python-cross-review-fix-01/REVIEW.json",
+      "bytes": 3774,
+      "sha256": "42cfbb97d3119bed15b8c653a777c93ed6ffbb8769dcb121521d119b664bea73",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime-driver-boundary-independent/REVIEW.md",
+      "package_path": "reports/runtime-driver-boundary-independent/REVIEW.md",
+      "bytes": 1257,
+      "sha256": "ab3b510a2901b77ad577d23103513016b11bc0b08026d3d3dfba816ae04195ff",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime-driver-boundary-independent/REVIEW.json",
+      "package_path": "reports/runtime-driver-boundary-independent/REVIEW.json",
+      "bytes": 3302,
+      "sha256": "0bc9176c715bd204e8ccde0d4b6e61f43a637aa56694afb7159fd74294468863",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/driver-stop-envelope-independent/REVIEW.md",
+      "package_path": "reports/driver-stop-envelope-independent/REVIEW.md",
+      "bytes": 1571,
+      "sha256": "c483ccd4da9b74c133784121b715352edb67b07a0045c9f9e003bc914368797e",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/driver-stop-envelope-independent/REVIEW.json",
+      "package_path": "reports/driver-stop-envelope-independent/REVIEW.json",
+      "bytes": 4610,
+      "sha256": "fed22cba5ae9026add363c6528bdf609dfb4a51026dca4ccd39995fc5c48794a",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/http-capture-fix-independent/REVIEW.md",
+      "package_path": "reports/http-capture-fix-independent/REVIEW.md",
+      "bytes": 1341,
+      "sha256": "59725b7bd455c0609b409e0846b212137dffb10790fc77845c2c8f9ad7607b5c",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/http-capture-fix-independent/REVIEW.json",
+      "package_path": "reports/http-capture-fix-independent/REVIEW.json",
+      "bytes": 2621,
+      "sha256": "80302a00dd5bd04ad3449b2f5e53347b146447a36e404ea3a957ed64aba57d9c",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/REVIEW.md",
+      "package_path": "reports/q-memo-independent/REVIEW.md",
+      "bytes": 2412,
+      "sha256": "0e9afd2c31fe642a5d9db04851ad75cc4ee4bff5f14b33e652bd98edd62aace9",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/REVIEW.json",
+      "package_path": "reports/q-memo-independent/REVIEW.json",
+      "bytes": 9738,
+      "sha256": "24f8d4f4a8059b939e80fc9686b1f48321158f511d298b2eba69fcc684df8611",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r4-pair/independent-review/REVIEW.md",
+      "package_path": "reports/runtime/r4-pair/independent-review/REVIEW.md",
+      "bytes": 8439,
+      "sha256": "a77a54763abc04a41f57745126352d2704527ce818ed1b6127353c28b963a47f",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r4-pair/independent-review/REVIEW.json",
+      "package_path": "reports/runtime/r4-pair/independent-review/REVIEW.json",
+      "bytes": 199833,
+      "sha256": "783ecb15331cb901f60acb0f6ea9ea3f8225a0e22e8270b5c5f73ad2f95155c2",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r4-pair/independent-review/LEGACY-REVIEW.md",
+      "package_path": "reports/runtime/r4-pair/independent-review/LEGACY-REVIEW.md",
+      "bytes": 1033,
+      "sha256": "c6a4cb81dfcd9d77d6adc9786778e317c328435c1a16b4453c74f6b43402fc01",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r4-pair/independent-review/LEGACY-REVIEW.json",
+      "package_path": "reports/runtime/r4-pair/independent-review/LEGACY-REVIEW.json",
+      "bytes": 9941,
+      "sha256": "48a613a67be96f9717621159b0597d9de098f47584b28821f36c087b2e9d4328",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/REVIEW.md",
+      "package_path": "reports/gui-utf8-recapture-independent/REVIEW.md",
+      "bytes": 4742,
+      "sha256": "463a94aabf7be0c5b787a581554708f5deaee14a2ddb05ae5122c7183e31c513",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/REVIEW.json",
+      "package_path": "reports/gui-utf8-recapture-independent/REVIEW.json",
+      "bytes": 30369,
+      "sha256": "da540f22dad155dcac98bb30974351cc0574bd22c60058d35665b58d8a756f06",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/READY-REVIEW.json",
+      "package_path": "reports/gui-utf8-recapture-independent/READY-REVIEW.json",
+      "bytes": 7628,
+      "sha256": "9ec8190ac4d0d4510238457512d6e8b21b002be1eac4ea39d48b5ba9ec68e10c",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/MANIFEST-DIFFERENCES.json",
+      "package_path": "reports/gui-utf8-recapture-independent/MANIFEST-DIFFERENCES.json",
+      "bytes": 671,
+      "sha256": "40848cbe14df3ba512e19a369be3dd0cc761953554f66a670e7d99f72ec47f21",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-continuation-performance/DELIVERY.md",
+      "package_path": "reports/q-continuation-performance/DELIVERY.md",
+      "bytes": 3908,
+      "sha256": "f94ad0bcf250c6d10446f23cfd355b91cf4d1d994bebe338211d0711924f5967",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-continuation-performance/DELIVERY.json",
+      "package_path": "reports/q-continuation-performance/DELIVERY.json",
+      "bytes": 11623,
+      "sha256": "1d351e7039bad1c1ad9c194547e037e50010f6cd75ecdca848d8134d3104570c",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/REPORT.md",
+      "package_path": "reports/browser-continuation-performance/REPORT.md",
+      "bytes": 7123,
+      "sha256": "dfa8b7828c0ad3d151c682252ad3741bc89e62e891a1629e0d7054785438a956",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/REPORT.md",
+      "package_path": "reports/runtime/trajectory-revision-final-ac3/REPORT.md",
+      "bytes": 2916,
+      "sha256": "1b48c7e0266162b32dfd8fc65c89bcdf1d298a2f2e741fae33ebce08f3857be9",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/FACTS.json",
+      "package_path": "reports/runtime/trajectory-revision-final-ac3/FACTS.json",
+      "bytes": 11735,
+      "sha256": "83321ffa7c2860a373ca4b492dda87711b15f3ff6abb70786bf1d7c8b28fa762",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/EVIDENCE-INDEX.json",
+      "package_path": "reports/runtime/trajectory-revision-final-ac3/EVIDENCE-INDEX.json",
+      "bytes": 895,
+      "sha256": "7fcefddc40be515915b0f51336fa78db7d9ee68c883bcbff3876cc4eb7ae85e4",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-r1/REPORT.md",
+      "package_path": "reports/runtime/trajectory-revision-r1/REPORT.md",
+      "bytes": 4973,
+      "sha256": "61911d90294cb212cecbe99802599514ca1e072cc972888054220dee37e1ff6e",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-r2-ac3/REPORT.md",
+      "package_path": "reports/runtime/trajectory-revision-r2-ac3/REPORT.md",
+      "bytes": 2238,
+      "sha256": "dc6b807ec258f766bee7bfa33ac8d8334b303aa015947a9bf42357bf8c6cee01",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-r3-ac3/REPORT.md",
+      "package_path": "reports/runtime/trajectory-revision-r3-ac3/REPORT.md",
+      "bytes": 5375,
+      "sha256": "8519b701068d012f804ce985848476fd7e666e909e6628d94ad4fd5dc9544762",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/REPORT.md",
+      "package_path": "reports/legacy-query-callers-audit/REPORT.md",
+      "bytes": 2254,
+      "sha256": "db3dc6ed9b25f9672fa293f240bde575642eca582ae5ae026c0faef6d3750c5d",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/REPORT.json",
+      "package_path": "reports/legacy-query-callers-audit/REPORT.json",
+      "bytes": 15698,
+      "sha256": "d2d1d3a7a2113bbad163c69dfccf74739cbb4146f8082cdb87ffecd574f9ff38",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/REVIEW.md",
+      "package_path": "reports/q-encoding-memo-independent/REVIEW.md",
+      "bytes": 5515,
+      "sha256": "e98f03df1fb8bf95dc8f5e4961db94725b7867b6589ec40c8d9ad82fa8bc7621",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/REVIEW.json",
+      "package_path": "reports/q-encoding-memo-independent/REVIEW.json",
+      "bytes": 15506,
+      "sha256": "334984d95258c71860c0e9f77ce5eaba7bd30088421f89f899270cbd7f2c4dcc",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/R9-REVIEW.json",
+      "package_path": "reports/q-encoding-memo-independent/R9-REVIEW.json",
+      "bytes": 4475,
+      "sha256": "2befb22588c6177d71fa2868bf7b21992925a2ea4b8b5f71ecd3ca87e3afa9f9",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/CI-REVIEW.json",
+      "package_path": "reports/q-encoding-memo-independent/CI-REVIEW.json",
+      "bytes": 983,
+      "sha256": "17ebf97d183b6d153ddbf759608a998c044c1863bbfdc3f783f770cef3b5f679",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/INVENTORY.md",
+      "package_path": "reports/delivery-preparation/commit-check-inventory/INVENTORY.md",
+      "bytes": 6712,
+      "sha256": "526e43e6af6bb6a49797d77e25338ed518741a6acd99e31146c372b4fa5e29e6",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/INVENTORY.json",
+      "package_path": "reports/delivery-preparation/commit-check-inventory/INVENTORY.json",
+      "bytes": 99980,
+      "sha256": "bb981807b1fe482cdba4c048e99e41a8625eb5b2794f14a999b13f1824077894",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/RUST-BUILD-BINDINGS.json",
+      "package_path": "reports/delivery-preparation/commit-check-inventory/RUST-BUILD-BINDINGS.json",
+      "bytes": 925087,
+      "sha256": "3382f5a6bdfceae358835bad1d8085b9ca8b602acc27cb7c92deefd5f64e558e",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/SYNTAX-CHECKS.json",
+      "package_path": "reports/delivery-preparation/commit-check-inventory/SYNTAX-CHECKS.json",
+      "bytes": 20118,
+      "sha256": "5f08c0a5becc52ab4156b16820791f75cd2c6712c7d21d8441fd0a3b09804545",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.md",
+      "package_path": "reports/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.md",
+      "bytes": 3170,
+      "sha256": "68444440876616cca63d37c176f3ab770219f5872181e2db043819bf92e061b1",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.json",
+      "package_path": "reports/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.json",
+      "bytes": 18974,
+      "sha256": "25e1947c95e81537a8b494e5c69da808749e743b2187c7e5b3776e242b46e575",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/independent-review/MANIFEST.json",
+      "package_path": "reports/runtime/trajectory-revision-final-ac3/independent-review/MANIFEST.json",
+      "bytes": 7136,
+      "sha256": "20539d2626bb489681583b3bde633b13b1c4b355a107c5ad32f6c3488965ae98",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/REPORT.md",
+      "package_path": "reports/browser-continuation-performance/final-run-results/REPORT.md",
+      "bytes": 3058,
+      "sha256": "370fc2b0336fcb64fbf0888899eef1347881d8c7adc5c9e099cff63cf915ce45",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/FINALIZATION.md",
+      "package_path": "reports/browser-continuation-performance/final-run-results/FINALIZATION.md",
+      "bytes": 802,
+      "sha256": "90aa05f049da86d6fafda00ac69d493a7e0f823dac3a0a05584d23e3e20dc071",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/FINALIZATION.json",
+      "package_path": "reports/browser-continuation-performance/final-run-results/FINALIZATION.json",
+      "bytes": 3167,
+      "sha256": "d92c0788ca7b6a380a507337444d720a7b3d8c1858cb086f1e3c7c60aa9172d5",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/THREE-ARM-SOURCE-COMPARISON.json",
+      "package_path": "reports/browser-continuation-performance/final-run-results/THREE-ARM-SOURCE-COMPARISON.json",
+      "bytes": 153896,
+      "sha256": "0ff0d4db30de2c70d308c873de8618fff1933c75e669b7c43b12327a72b98c65",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/RAW-CROSS-RESPONSE-CHECKS.json",
+      "package_path": "reports/browser-continuation-performance/final-run-results/RAW-CROSS-RESPONSE-CHECKS.json",
+      "bytes": 2680,
+      "sha256": "39d7d8f55c532550db5d5945d1cd0d0f57ba864bcfdae5aee69b302ca2f13b53",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/R5-CORE-COMPARISON.json",
+      "package_path": "reports/browser-continuation-performance/final-run-results/R5-CORE-COMPARISON.json",
+      "bytes": 1223,
+      "sha256": "57ce28350def23a24ff203ef5f249014002e2def883027ef1417cb9101ded838",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/MANIFEST.json",
+      "package_path": "reports/browser-continuation-performance/final-run-results/MANIFEST.json",
+      "bytes": 2484,
+      "sha256": "bdd1c1a7f7396cb415a7002376a3a793df1e1df91201518e4c5a021f0b7d0c9e",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/REPORT.md",
+      "package_path": "reports/runtime/trajectory-r5-a/REPORT.md",
+      "bytes": 2370,
+      "sha256": "3116985f3f1e8e8dc473d081a42f3e4e2c3fa4e11295f2bd56196ef76afc44e6",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/FACTS.json",
+      "package_path": "reports/runtime/trajectory-r5-a/FACTS.json",
+      "bytes": 298859,
+      "sha256": "422c93822ec51805e72cc8340232910902516b64616d6d8675f07acd3fe49f9c",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/EVIDENCE-INDEX.json",
+      "package_path": "reports/runtime/trajectory-r5-a/EVIDENCE-INDEX.json",
+      "bytes": 373398,
+      "sha256": "63461aa2fde15699092109d32f0fe2d73b31af2476c1ecee97ff760a63d547b0",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/REPORT.md",
+      "package_path": "reports/runtime/trajectory-r5-b/REPORT.md",
+      "bytes": 2370,
+      "sha256": "1387365d6588a72f7a1a51855f5188c0bd322bf6a3c0c4b65277f687feb6f99b",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/FACTS.json",
+      "package_path": "reports/runtime/trajectory-r5-b/FACTS.json",
+      "bytes": 298853,
+      "sha256": "476f82feb808b04d6456ebd83ac0a703d8dc9e5e9049bca59934337c8c926394",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/EVIDENCE-INDEX.json",
+      "package_path": "reports/runtime/trajectory-r5-b/EVIDENCE-INDEX.json",
+      "bytes": 358038,
+      "sha256": "542d75f8110912e4c81d61a8f3aaa6a363eb2bf18f3e519222196350900fd3de",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/POST-RUN-STOP.json",
+      "package_path": "reports/runtime/trajectory-r5-b/POST-RUN-STOP.json",
+      "bytes": 1831,
+      "sha256": "9f43f0abcb42ff7480603efd3100d9c2d5752cb85a19109cb7bad49683c669db",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/gui-final/REPORT.md",
+      "package_path": "reports/runtime/trajectory-r5-b/gui-final/REPORT.md",
+      "bytes": 2265,
+      "sha256": "3bcf3017c0e63c0e24c5ad61647613758547f383a1b1e4ba2bb9cc255ec433f5",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/gui-final/FACTS.json",
+      "package_path": "reports/runtime/trajectory-r5-b/gui-final/FACTS.json",
+      "bytes": 7391,
+      "sha256": "24c8f7e8f5327b79bed81bd0f7269c4038508bfacd42a4be602305a5d5407d33",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/gui-final/MANIFEST.json",
+      "package_path": "reports/runtime/trajectory-r5-b/gui-final/MANIFEST.json",
+      "bytes": 191656,
+      "sha256": "6dd0d67c9eb8178692c62138efa87d3b3b1fb34ec50109c20e070a60b18b476f",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/gui-final/revised-instance.png",
+      "package_path": "reports/runtime/trajectory-r5-b/gui-final/revised-instance.png",
+      "bytes": 185923,
+      "sha256": "10d20a82cd7ad132243cb795d07d64e7e26183bec1ef3f077e178694212a9d48",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/OBSERVER-CHECKS.json",
+      "package_path": "reports/delivery-preparation/OBSERVER-CHECKS.json",
+      "bytes": 1265,
+      "sha256": "a92eb93fe955d42acbd6cc6e9ae111f856b10317c0d059ffcff7d665aa4d02e4",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/INCREMENTAL-FINDINGS.json",
+      "package_path": "reports/delivery-preparation/devskim-pr1451/review-package/INCREMENTAL-FINDINGS.json",
+      "bytes": 399629,
+      "sha256": "0752074e0d91028f4a9166192d8cec045daf2638322f9f7d263b2c8cd74ee285",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/LINE-MOVES.json",
+      "package_path": "reports/delivery-preparation/devskim-pr1451/review-package/LINE-MOVES.json",
+      "bytes": 3654,
+      "sha256": "7259ba29367bf600e6a33c97b22506862045d3d03e3eb6f375ca64a1b576c05d",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/MANIFEST.json",
+      "package_path": "reports/delivery-preparation/devskim-pr1451/review-package/MANIFEST.json",
+      "bytes": 2135,
+      "sha256": "b8c1aeebfcaf1ccf6e510cf6787db2e71e49d0d12f38bacd621273ef95141bc0",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/ORIGINALS-INDEX.json",
+      "package_path": "reports/delivery-preparation/devskim-pr1451/review-package/ORIGINALS-INDEX.json",
+      "bytes": 11052,
+      "sha256": "0f9b01616aa39b1032942c97fb76b9e05cc3a84fbadb3a4e45ab00b185420866",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/RULE-SOURCES.json",
+      "package_path": "reports/delivery-preparation/devskim-pr1451/review-package/RULE-SOURCES.json",
+      "bytes": 2187,
+      "sha256": "d3437dbdb2fc591cb55fd60ee34592f3bb7638326a96a77e06960d94943d6c88",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/SUMMARY.json",
+      "package_path": "reports/delivery-preparation/devskim-pr1451/review-package/SUMMARY.json",
+      "bytes": 16086,
+      "sha256": "caec0cf010a844b79fab07abb390f55997c17682dc997b57ff8412abcb894ee5",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/SUMMARY.md",
+      "package_path": "reports/delivery-preparation/devskim-pr1451/review-package/SUMMARY.md",
+      "bytes": 5956,
+      "sha256": "3bd1d977c76e2d5d0d0dcb9be490d1be7d17c530379267cdd14cc21bcd631d27",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/CI-PRODUCT-3FF8C47E.json",
+      "package_path": "reports/delivery-preparation/CI-PRODUCT-3FF8C47E.json",
+      "bytes": 2447,
+      "sha256": "9f65e7309d3eb3de4faa0e93f973a35376a125e31a690b2eb0eb7d92fc0f3108",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/REVIEW.md",
+      "package_path": "reports/runtime/r5-pair/independent-review/REVIEW.md",
+      "bytes": 9655,
+      "sha256": "a99505fd74640cd942a0f4bbe3dea12db09aabf685b1eafa5d9c187a4183a245",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/REVIEW.json",
+      "package_path": "reports/runtime/r5-pair/independent-review/REVIEW.json",
+      "bytes": 72072,
+      "sha256": "a8ec2c1b4515e0db7066cd1d9e0364e1f90336f82174f1d7d6a4280c55310e2a",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/MANIFEST.json",
+      "package_path": "reports/runtime/r5-pair/independent-review/MANIFEST.json",
+      "bytes": 8526,
+      "sha256": "62b4b9270929730665c9001091d7c6747102ebb49ee1b15fc49a61e7ee078cbf",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/READING.json",
+      "package_path": "reports/runtime/r5-pair/independent-review/READING.json",
+      "bytes": 3332,
+      "sha256": "16bd26dcfa34eed138afdd3c59a59a60846539bfde1c1582230244cb378198d0",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/EXECUTION.json",
+      "package_path": "reports/runtime/r5-pair/independent-review/EXECUTION.json",
+      "bytes": 7213,
+      "sha256": "11fe2c2686d81700e508b9660f685ea1a94ed41ef755d5dc23ede2255b11f529",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/package-integrity-review/REVIEW-FINAL.md",
+      "package_path": "reports/delivery-preparation/package-integrity-review/REVIEW-FINAL.md",
+      "bytes": 1210,
+      "sha256": "aaf6ed968b099d0c4b0f0d5e3a7be6572945c8eaa400dd7075d537b84aa0d4d6",
+      "status": "EXACT_COPY"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/package-integrity-review/REVIEW-FINAL.json",
+      "package_path": "reports/delivery-preparation/package-integrity-review/REVIEW-FINAL.json",
+      "bytes": 7370,
+      "sha256": "563f12035bff19df1ac7d23b149dee867be802ad097344798b9c9ecceeb870f1",
+      "status": "EXACT_COPY"
+    }
+  ]
+}

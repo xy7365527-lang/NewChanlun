@@ -1,0 +1,50 @@
+{
+  "scope": "#1372摘要耗时修复报告；本清单自身不在哈希集合内",
+  "files": [
+    {
+      "path": "EVIDENCE-SOURCES.json",
+      "bytes": 6982,
+      "sha256": "564f98c72d1d2b60a61d0cd97f73b381d840fdc3642cff2fde7c1e80135f36b3"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3340,
+      "sha256": "556eb68b1e7d38e9e293643b73a8c62dacc1a94adbf09c26a7bbef9758df74c0"
+    },
+    {
+      "path": "reports/OLD-RUN-SNAPSHOT.json",
+      "bytes": 2817,
+      "sha256": "e46d3a0df751cb23301f3a83f396ec870d37918638568500cf3b9ea46880ce39"
+    },
+    {
+      "path": "reports/REAL-SARIF-REPLAY.json",
+      "bytes": 1568,
+      "sha256": "c1686a0bc707b5b3b92207171cab9e878b19f76f363df01187855fda2f7aeea3"
+    },
+    {
+      "path": "reports/python-review/REVIEW.json",
+      "bytes": 1629,
+      "sha256": "23ada8d1f463e4758b51759d4e5667182e5427a5f102bfacc9247699597bfa34"
+    },
+    {
+      "path": "reports/python-review/REVIEW.md",
+      "bytes": 5724,
+      "sha256": "e8a61cf147e6387f551d69fcc7b38da23e2200c27f46a57410d6b0872cc7c7a4"
+    },
+    {
+      "path": "reports/review/MATRIX-RESULTS.json",
+      "bytes": 15761,
+      "sha256": "3ea61e59c9cbdf2ad0e947602d24efef960b4923d9cb3b405a0f082d5123fdb5"
+    },
+    {
+      "path": "reports/review/REVIEW.json",
+      "bytes": 1762,
+      "sha256": "48c954ca3ed1094ab5a8be0dd36af7a26bb37b67086b792f038903ba0ccfca15"
+    },
+    {
+      "path": "reports/review/REVIEW.md",
+      "bytes": 2788,
+      "sha256": "1827929fb1a70535364c4c71524b7ae6ec43a6ae832bc0fbf38ffdfc642cf425"
+    }
+  ]
+}

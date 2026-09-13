@@ -1,0 +1,25 @@
+{
+  "status": "PASS_BOUNDED_SOURCE_WIRING",
+  "commit": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+  "source": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/source/ci.yml",
+    "bytes": 15365,
+    "sha256": "e74bdcb4d40dab700c2f5615d88395359714423070b1b8c075aec6b0777b9261"
+  },
+  "lines": "263-278",
+  "old_jobs_byte_unchanged": true,
+  "python_tests": 51,
+  "node_tests": 32,
+  "author_local_same_commands_exit": [
+    0,
+    0
+  ],
+  "independent_ci_run": false,
+  "remote_ci_result": "NOT_VERIFIED",
+  "uncovered_by_new_job": [
+    "31 Q 二进制单元回归",
+    "tb01c_query_v2.py 原生 S/真实 HTTP 集成",
+    "完整160轨迹/故障双跑/实际Chrome"
+  ],
+  "reason": "现有 pytest testpaths=[tests]，不会收 s_session/tests；新独立 job 以 Python3.11/Node22 执行 stdlib 测试及模拟DOM，无需改既有 pytest/Rust/fixture 环境。"
+}

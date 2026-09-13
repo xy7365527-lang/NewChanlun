@@ -1,0 +1,195 @@
+{
+  "status": "PASS_BOUNDED_LEGACY_Q_STARTUP_FIX",
+  "reviewer": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "commit": "2317369c3de2e3d9e8d90a545dd32d0e759d2b8b",
+  "source_sha256": "28e052bb0ec7f77bddfac932c602f89c2e0eb4d902df2e451c35da09b03cad0f",
+  "diff_sha256": "6c9dc39f903b743e48d55800470f8ed724fbfde055ca8bf1098a17b092ea8365",
+  "line_refs": {
+    "new_arguments": "launch_s.sh:179-180",
+    "required": "194-197",
+    "validation_before_writes": "204-212",
+    "nohup_pass_through": "251-252",
+    "unchanged_service_exec": "46-49"
+  },
+  "facts": [
+    "仅launcher21+2-；两参数显式非默认，Q规范整数与资源解析在build/reset/init/accept之前",
+    "service早期exec分支未变，stop分支未变；R4实际运行的是原launcher",
+    "三负控exit2/1/1与当前无目标DB；真实旧入口state/catalog/snapshot按明确回复包装后内容逐字段相等，cut1/epoch1",
+    "浏览器index.html:519仅存在session_generation时转v2，此v1 state继续legacy分支"
+  ],
+  "checks": [
+    {
+      "name": "missing-q-options",
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/launch_s.sh",
+        "--testonly",
+        "--db",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/missing-q-options.sqlite",
+        "--bin",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session",
+        "--python",
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11"
+      ],
+      "exit": 2,
+      "no_db_created": true
+    },
+    {
+      "name": "invalid-q-epoch",
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/launch_s.sh",
+        "--testonly",
+        "--db",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/invalid-q-epoch.sqlite",
+        "--bin",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session",
+        "--python",
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "--resource-config",
+        "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/query-resources.json",
+        "--producer-epoch",
+        "01"
+      ],
+      "exit": 1,
+      "no_db_created": true
+    },
+    {
+      "name": "missing-q-resource",
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/launch_s.sh",
+        "--testonly",
+        "--db",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/missing-q-resource.sqlite",
+        "--bin",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session",
+        "--python",
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "--resource-config",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/absent.json",
+        "--producer-epoch",
+        "1"
+      ],
+      "exit": 1,
+      "no_db_created": true
+    },
+    {
+      "name": "legacy-real-start",
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/launch_s.sh",
+        "--testonly",
+        "--db",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/legacy-real.sqlite",
+        "--port",
+        "18878",
+        "--bin",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session",
+        "--python",
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "--resource-config",
+        "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/query-resources.json",
+        "--producer-epoch",
+        "1"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "legacy-real-stop",
+      "argv": [
+        "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/launch_s.sh",
+        "stop",
+        "--port",
+        "18878"
+      ],
+      "exit": 0
+    },
+    {
+      "source_sha256": "28e052bb0ec7f77bddfac932c602f89c2e0eb4d902df2e451c35da09b03cad0f"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/legacy-real-start-stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/state.json",
+      "bytes": 97267,
+      "sha256": "db1b924a17dfbcd4041ed058e29d133980f1bf03bdcd1ceb182558faa7df7902"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/invalid-q-epoch-stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/missing-q-options-stderr.txt",
+      "bytes": 110,
+      "sha256": "903bff296204a8af306e7ad548f0f25b44a5c8b20447e20051fc7ca62e702307"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/missing-q-resource-stderr.txt",
+      "bytes": 730,
+      "sha256": "d6059910953769f7223fcb18960462d050bb005641d8d3963269f631b621f198"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/snapshot.json",
+      "bytes": 29533,
+      "sha256": "7dc05fc25de6286bb63bcb90bfbc4fda3ba00d3b8c5f5899efdfacc32b8986d1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/legacy-real-stop-stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/CHECKS.json",
+      "bytes": 3668,
+      "sha256": "255bf329f76be7dc98e42f612730f7058bd5109eabea5ce6154bbf391289f5ed"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/legacy-real-start-stdout.txt",
+      "bytes": 3601,
+      "sha256": "cb7424c961a8dc3139a5cd61b62efc2a426e2247520591b9916eabb1f6678ccb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/launch_s-before.sh",
+      "bytes": 9636,
+      "sha256": "e8c75555c885684addc2c384dd65656a742cdf5567557f7c176c3cc218e0e487"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/invalid-q-epoch-stderr.txt",
+      "bytes": 287,
+      "sha256": "486bd22e4eab2d4f7ea918d55b68f76f1270a77453e5bc0ff6b4825447f6fb73"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/catalog.json",
+      "bytes": 67385,
+      "sha256": "541f03f52080863157b14f0691ba77f68f864706ecbe206bc824e6d016ede2e0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/legacy-real-stop-stdout.txt",
+      "bytes": 120,
+      "sha256": "1baac9b2a38ae82420779e9b7539bdf13797511e4c100d0b55b5e057567a7abd"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/missing-q-resource-stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/missing-q-options-stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "executions_by_reviewer": [
+    "Git只读diff/blob读取",
+    "封存JSON解析和明确接口包装逐字段比对"
+  ],
+  "oracle_note": "初次临时检查把catalog/snapshot端点的ok/producer_epoch包装当作嵌入state字段的一部分，出现AssertionError；核实际三端shape后分别验证包装，再比较业务值。不是产品拒绝/失败，也未改原件。",
+  "limits": [
+    "未重启服务、未重做160或新GUI；HTTP200为根采集事实，body文件无HTTP原头",
+    "不自评Rust，不将1a57实际轨迹改称2317369实跑；只支持该launcher兼容增量"
+  ]
+}

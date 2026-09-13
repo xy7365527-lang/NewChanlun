@@ -1,0 +1,41 @@
+{
+  "utc": "2026-09-13T10:37:33.812816+00:00",
+  "scope": "本次三臂运行汇总/纯解析核对材料；本清单自身不计；原运行目录清单在FINALIZATION逐SHA引用。",
+  "files": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/FINALIZATION.json",
+      "bytes": 3167,
+      "sha256": "d92c0788ca7b6a380a507337444d720a7b3d8c1858cb086f1e3c7c60aa9172d5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/FINALIZATION.md",
+      "bytes": 802,
+      "sha256": "90aa05f049da86d6fafda00ac69d493a7e0f823dac3a0a05584d23e3e20dc071"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/R5-B-FINAL-SEAL-CHECK.json",
+      "bytes": 1667,
+      "sha256": "fac78b9ccdc33d0d75492e1cea3fd5e90219e3138f6f197490499f02038fcc48"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/R5-CORE-COMPARISON.json",
+      "bytes": 1223,
+      "sha256": "57ce28350def23a24ff203ef5f249014002e2def883027ef1417cb9101ded838"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/RAW-CROSS-RESPONSE-CHECKS.json",
+      "bytes": 2680,
+      "sha256": "39d7d8f55c532550db5d5945d1cd0d0f57ba864bcfdae5aee69b302ca2f13b53"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/REPORT.md",
+      "bytes": 3058,
+      "sha256": "370fc2b0336fcb64fbf0888899eef1347881d8c7adc5c9e099cff63cf915ce45"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-results/THREE-ARM-SOURCE-COMPARISON.json",
+      "bytes": 153896,
+      "sha256": "0ff0d4db30de2c70d308c873de8618fff1933c75e669b7c43b12327a72b98c65"
+    }
+  ]
+}

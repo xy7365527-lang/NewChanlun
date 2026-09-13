@@ -1,0 +1,151 @@
+{
+  "reviewer": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "candidate_commit": "80156849ad6ef610df5bdf9e3e815136839c3d0c",
+  "status": "PASS_BOUNDED_Q_MEMO_INDEPENDENT_REVIEW",
+  "scope": "只审别人实现的Q memo增量；非Rust自评，非全C产品通过",
+  "findings": [],
+  "checks": [
+    {
+      "area": "无变化整图缓存/TOCTOU",
+      "status": "PASS_BOUNDED",
+      "code": "s_query.py:69-129,149-154",
+      "reason": "同一worker连接，核只读/WAL/无attach/inode，BEGIN首读与v0/v1/v2夹持无变化候选；v3只登记同版本健康proof。捕获后的旧一致图像仍以其capture_digest返回，不冒称后续版本。已有夹持时序逻辑未被memo改写。",
+      "test": "真实AuditReader无变化返回同proof，新meta提交则captures路径并变更capture_digest；未重复此前全部竞态测试。"
+    },
+    {
+      "area": "全模式/全部typed当前行/raw含pending",
+      "status": "PASS_BOUNDED",
+      "code": "s_query_integrity.py:192-288,328-362,682-704",
+      "reason": "每次变化均全表capture，固定DDL/类型/主身份校验先于memo；完整raw逐行核signed-i64、seq、双向坐标、revision链、hash/receipt。pending同属全raw入口，没有按发布frontier过滤。",
+      "test": "schema、raw非规范数值与坐标坏行被拒；pending域此轮静态核，不重复旧R14/P3运行。"
+    },
+    {
+      "area": "四类独立索引/历史首次出现",
+      "status": "PASS_BOUNDED",
+      "code": "s_query_integrity.py:744-787,836-873",
+      "reason": "每次重建birth/death、独立full记录集合和首次发布桶；各代objects/withdrawals/replaces/raw集合重新对拍，witness/relation/observation首次seen必须pg==g、born[g]必须实际发布、最终集合闭合。",
+      "test": "firstknown0/futurewitness/缺relation/observation内容四臂拒绝。"
+    },
+    {
+      "area": "meta/profile/catalog/clock/control/epoch",
+      "status": "PASS_BOUNDED",
+      "code": "s_query_integrity.py:458-679,686-728,875-891",
+      "reason": "memo context绑定schema、profile绑定、session/catalog/rule/scope/profile原件；其它当前控制依赖不靠context豁免，仍逐次完整_verify_control和epoch链检查，包括catalog静态正本、双单例、消息/raw全覆盖、phase/Begin/Commit/recover、投递frontier/ref。",
+      "test": "clockfrontier、epoch、catalog静态、消息缺失等拒绝；没有新native运行。"
+    },
+    {
+      "area": "同字节前缀证书",
+      "status": "PASS_BOUNDED",
+      "code": "s_query_integrity.py:378-455,730-743,797-835",
+      "reason": "仅重用Delta所有typed列逐值、delta原UTF8、batch原bytes同时相等的连续前缀；schema/profile等context不匹配则全重算。首次源变更以后全部certificate重建，不跳过当前独立索引/控制。",
+      "test": "源159代仅空白变化触发hits158/misses2且公开值不变；旧代Delta列与batch bytes破坏都拒。"
+    },
+    {
+      "area": "缓存联合预算/耗尽",
+      "status": "PASS_BOUNDED",
+      "code": "s_query.py:136-154; s_query_integrity.py:102-119,892-903",
+      "reason": "proof内嵌全部memo dict/list/tuple/frozenset/bytes，object_bytes按对象身份去重计量；每worker allowance=max_cache_bytes/max_query_workers，超出则pop memo并复核完整proof，装不下cache则不登记。计量不是RSS。",
+      "test": "proof与reader.memo同图联合计量等于proof加外层tuple；max_cache_bytes=1时memo/cache都不保存，G160完整输出仍与无memo一致。"
+    },
+    {
+      "area": "compressed Delta全部公开消费口",
+      "status": "PASS_BOUNDED",
+      "code": "s_query_integrity.py:450-455,906-964; s_query.py:225,272-315,418; s_readonly_server.py:690-705,902,985-992",
+      "reason": "普通bytes保留全部原UTF8，project_delta显式无损恢复全部字段与原数组顺序。legacy read_delta与v2Watch均通过该入口；state/fixed-cut/分页仍由完整索引/raw/header/profile构造，无历史删减。",
+      "test": "160份原Delta UTF8逐字解压一致，160份解析Delta完整对拍，另完整160Delta响应、历史0/95/96/160/current、G95两页、Watch gap/4batch/empty对拍。"
+    },
+    {
+      "area": "正式160输入/实时S-Q-HTTP与全C验收",
+      "status": "NOT_VERIFIED_OUT_OF_SCOPE",
+      "code": null,
+      "reason": "本轮仅停止库副本、Python调用和自有SQL变异；正式r3-a由root接回，不借本报告判整个C通过。"
+    }
+  ],
+  "execution": {
+    "command": "python3 /Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/probe.py",
+    "exit_code": 0,
+    "public_matches": 173,
+    "fresh_mutation_arms": 13,
+    "source_inputs_unchanged": true,
+    "result": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/RESULT.json",
+      "sha256": "3241dc2a80af6e509895cd877d3b84c418c1bccf4eb0ec271547b54b65f9f300"
+    },
+    "retained_bytes": 31722460,
+    "timings": [
+      {
+        "name": "cold_reader",
+        "elapsed_ms": 3839.237750013126
+      },
+      {
+        "name": "fresh_changed_reader_memo",
+        "elapsed_ms": 529.046167008346
+      },
+      {
+        "name": "fresh_disabled_reader",
+        "elapsed_ms": 3639.0567919879686
+      },
+      {
+        "name": "cache_capacity1_falls_back_without_history_loss",
+        "elapsed_ms": 3889.8021669883747
+      },
+      {
+        "name": "changed_source_recomputes_suffix",
+        "elapsed_ms": 604.2820420116186
+      }
+    ]
+  },
+  "evidence_method": "停止的G160主DB无WAL，先按字节复制后才打开自有DB；13臂在自有副本提交SQL→新只读事务capture→原健康memo verify→SQL backup恢复；未改任何原库。13臂为audit.capture/verify层，不冒充真实Handler。AuditReader另有真实同连接无变化/变化捕获、无memo和预算fallback。",
+  "reading_log": {
+    "s_query_integrity.py": "完整memo diff，capture/schema/raw、verify全体、control全体及projection消费",
+    "s_query.py": "AuditReader全体及project_fixed_cut/snapshot_page/watch_page入口与Delta消费行",
+    "s_readonly_server.py": "完整Delta增量及已定位公共消费口",
+    "owner_evidence": "读final_benchmark.py及具名冻源/已停库；不把作者553/651或30单测计为本次独立执行"
+  },
+  "sources": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/source/s_query.py",
+      "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/source/s_query.py",
+      "bytes": 24902,
+      "sha256": "ce51b7a72de1bf1ab869da9e1498bc8ef95e3458981b847aaab033453268ad65"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/source/s_query_integrity.py",
+      "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/source/s_query_integrity.py",
+      "bytes": 57869,
+      "sha256": "eeef35dd6c65a158237b1380e987e8c0eed184efcada64f65ffffd1fb169cfbf"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/source/s_readonly_server.py",
+      "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/source/s_readonly_server.py",
+      "bytes": 51924,
+      "sha256": "a025f706271a1ae73697b0e330871bd2988f3c3ce1a3b6271d15e257c3ca0ca8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/source/query-resources.json",
+      "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/source/query-resources.json",
+      "bytes": 571,
+      "sha256": "36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/source/profiles/testonly_tick_1_1_ohlc.json",
+      "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/source/profiles/testonly_tick_1_1_ohlc.json",
+      "bytes": 409,
+      "sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/changing-run-01/session.sqlite",
+      "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/own.sqlite",
+      "bytes": 130269184,
+      "sha256": "1eea8c11d90d5159a6314e19154ee104b263f8341158c993349cc980e4a846aa",
+      "wal_exists": false
+    }
+  ],
+  "limitations": [
+    "资源计量为Python保留对象图，不是RSS/整个进程峰值。",
+    "13臂是具体反例集，不穷举所有损坏组合。",
+    "本轮未重跑native/GUI/全部HTTP/原160输入；无生产容量承诺。",
+    "边界来自任务约束，不冒称OS沙盒。"
+  ]
+}

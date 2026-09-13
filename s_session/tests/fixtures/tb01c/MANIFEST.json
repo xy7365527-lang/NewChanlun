@@ -1,0 +1,148 @@
+{
+  "schema": "newchanlun.tb01c.raw-input-fixture.v1",
+  "fixture_id": "TB01C-DRAFT-01-INPUT-v1",
+  "created_at_utc": "2026-09-12T20:29:45.648767+00:00",
+  "status": "NOT_RUN_STATIC_DATA_ONLY",
+  "ticket": 1372,
+  "author_session": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "worktree_source": "/Users/silencehan/Projects/NewChanlun-1372-codex",
+  "source_head": "e46cf3bca6a67da821f9ab046507563b8133f6d9",
+  "parent_context": "B正式收尾仍由根处理；生成数据不等于C开工或依赖解除",
+  "sources": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/inputs/cc006_four_branch.json",
+      "git_relative_path": "s_session/inputs/cc006_four_branch.json",
+      "bytes": 1819,
+      "sha256": "7bb94ef11a40dd32bf4f05c1daa6173ce448afafe560f69298c0e83b6533b60a",
+      "locator": "合法正式输入样本，events字段"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/profiles/testonly_tick_1_1_ohlc.json",
+      "git_relative_path": "s_session/profiles/testonly_tick_1_1_ohlc.json",
+      "bytes": 409,
+      "sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc",
+      "locator": "原字节复用；clock/单位/退化OHLC"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/rust/src/bin/s_structure_session.rs",
+      "git_relative_path": "rust/src/bin/s_structure_session.rs",
+      "bytes": 249272,
+      "sha256": "9cab566138b96f131711d1f45540dc17bf8c02cdca5757debafa340499c175a3",
+      "locator": "125–168 RawEvent/RawInputFile/identity；1348–1585 accept；2074–2105 raw→Bar；2522有效域"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/launch_s.sh",
+      "git_relative_path": "s_session/launch_s.sh",
+      "bytes": 9123,
+      "sha256": "65cb1552594dea36f1368d952c0bbc839418d06cab107b0ca8ce594e3a5b7d1d",
+      "locator": "15–18;210–224 正式--input/--profile与接纳推进入口"
+    }
+  ],
+  "discovery": "图list_projects无当前C工作树；现役Rust图对s_structure_session内load_profile/advance等精确查询0项；随后仅读取实际C树已知文件，不以图旧版本替代。",
+  "files": [
+    {
+      "path": "live-input.json",
+      "bytes": 15289,
+      "sha256": "c6d5b7bbdad2b4e3be0980159b2810fee0a1cc460b9395deb23ece79d876345f"
+    },
+    {
+      "path": "operation-schedule.json",
+      "bytes": 252835,
+      "sha256": "34904c1c774ab5088ea43870b204a999b48234b6cc629de301af705d6d8e6f87"
+    },
+    {
+      "path": "operation-schedule.jsonl",
+      "bytes": 199028,
+      "sha256": "daffb9ecf2c63d757bca49dbc34dc65bf926c4f4394078ff578bc3f0602f5b88"
+    },
+    {
+      "path": "profile.json",
+      "bytes": 409,
+      "sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc"
+    },
+    {
+      "path": "raw-input.json",
+      "bytes": 37733,
+      "sha256": "b83542e6ad6af3a4da27768601c7f9a2e019a6cae77e4c8785e5f0e9edf6772a"
+    },
+    {
+      "path": "raw-input.jsonl",
+      "bytes": 57184,
+      "sha256": "bc94f1e7fddde4c726fac9b60a12178420cd55fb37a4e9a1c598ef20bd18eb1d"
+    },
+    {
+      "path": "seed-input.json",
+      "bytes": 22673,
+      "sha256": "423dc00069462ba23fdc32c07310d1553f29e3e226893814df5185efff31b23f"
+    }
+  ],
+  "counts": {
+    "seed_records": 96,
+    "live_operations": 64,
+    "live_new_source_events": 48,
+    "live_revisions_of_seed_identities": 16,
+    "unique_source_identities": 144,
+    "distinct_identity_revision_pairs": 160,
+    "raw_input_jsonl_lines": 160,
+    "operation_schedule_jsonl_lines": 160
+  },
+  "formal_input_usage": {
+    "raw-input.json": "完整160事件及修订的正式RawInputFile档案；一次整体accept不能证明逐步持续推进，不能拿bulk重放当2Hz/160个Commit",
+    "raw-input.jsonl": "160行，每行是完整单事件RawInputFile；既有CLI只读一个JSON文档，不直接接受整个JSONL。未来driver按行原字节具名落.json或采用已实现同义输入协议，本次未写driver。",
+    "seed-input.json": "96个原事件的正式输入文件，供明确具名的聚合seed装载；若用bulk模式代替逐条seed计划，必须版本化实际装载/Advance/故障轨迹并双跑一致，不默认为96个cut",
+    "live-input.json": "64个live操作聚合档案，不作为定时发送器",
+    "profile.json": "与当前具名TestOnly profile原字节相同，显式--profile选用，不新增或覆盖产品默认",
+    "session": "所有请求显式tb01c-draft01；实际初始化会话必须相同。launcher如需要环境SESSION_ID应由后续驱动显式配置，不依赖其s-session-testonly-001默认"
+  },
+  "engineering_choices": {
+    "not_spec_values_or_production_defaults": true,
+    "price_generator": "base=1000000；height周期[0,3,7,2,5,1,6,4]；revision1 price=base+10000*height[seq%8]+seq；revision2 height=(old_height+4)%8，price=base+10000*height+seq+500；raw_text逐字等于price",
+    "new_coords": "seed0..95，live新增96..143；身份evt-0000..evt-0143",
+    "revision_targets": "第g个live组(g=0..15)修订seed coord=2+5*g，原revision1→2；0/1从不改",
+    "live_interleave": "每4操作：新增96+3g、新增97+3g、修订2+5g、新增98+3g",
+    "clock": "received=2000-01-01T00:00:00.000Z+全操作序号秒；timestamp保持现有profile/sample的source seq相对tick。源发生逻辑ISO映射为origin+timestamp秒，revision保持timestamp/seq。此解释为本TestOnly夹具声明，非未声明Unix时钟/生产语义。",
+    "wall_send": "seed和live各以独立相位锚每500ms发送；live共64，末次31500ms；实际送达/接纳/Commit另记，慢客户不改计划",
+    "received_provenance": "received_at为受控合成feed声明的接收时间，不是已测主机收包时间，也不是S实际first_known。实际持久获知/提交时刻必须后续记录，不能用本字段代替。"
+  },
+  "static_validation": {
+    "result": "PASS_STATIC_ONLY",
+    "performed": "Python标准库纯JSON读取、精确整数/身份/坐标/字段/时钟/域不等式校验；未导入或执行产品",
+    "schema_exact_keys_and_string_fields": true,
+    "canonical_i64_and_nonnegative_source_coords": true,
+    "one_coordinate_one_business_identity": true,
+    "revision_keeps_identity_seq_timestamp": true,
+    "revision_chain_strict_1_to_2_and_changes_payload": true,
+    "unit_volume_and_raw_price_exact_text": true,
+    "all_effective_prices_distinct_at_every_operation_prefix": true,
+    "degenerate_ohlc_neighbor_strict_no_inclusion": "在O=H=L=C定义下相邻价格不等即两方向均不包含；只核此数值条件，不跑parser",
+    "fixed_initial_direction": "所有>=2有效事件的前缀，首两点严格向上且从未修订",
+    "prefixes_checked": 160,
+    "prefixes_with_at_least_three_effective_events": 158,
+    "first_two_prefixes": "1条时方向/三元组未具备，2条时三元组未具备；不预填结构状态",
+    "json_jsonl_and_schedule_consistent": true,
+    "profile_identical_to_named_source": true,
+    "precomputed_structure_results_in_raw_input": false
+  },
+  "not_verified": [
+    "正式launcher/accept/advance是否实际成功",
+    "任何结构对象/分类/关系/见证/撤回/替代结果",
+    "多页是否非空或分页/token/续接/Gap通过",
+    "实际2Hz送达、S接纳/Commit速率/短读/资源界限",
+    "真正semanticclock/identitymap跨两新进程一致",
+    "任何故障、服务、HTTP、GUI或B/C验收结论"
+  ],
+  "remaining_engineering_bindings": [
+    "C持续driver/正式入口同义接线尚未执行；当前JSONL本身不是CLI支持的输入文档",
+    "实际seed装载模式采用逐条还是经正式launcher一次bulk需在运行轨迹固定；本schedule主计划为逐条，bulk不能静默替代",
+    "原始payload clock不能解决内部Begin token/transitioned_at的复现，字段分类/clock入口仍须实现与硬比较",
+    "故障/断连相位按真实cut绑定，尚未生成或执行；实际时间/结果字段保留null"
+  ],
+  "actions_not_performed": [
+    "product/service/test/fault/GUI execution",
+    "C product or SPEC change",
+    "Git commit/push or GitHub action",
+    "Prime or new session",
+    "writing outside this input-fixture directory"
+  ]
+}

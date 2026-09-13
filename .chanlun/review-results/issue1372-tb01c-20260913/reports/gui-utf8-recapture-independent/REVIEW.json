@@ -1,0 +1,703 @@
+{
+  "schema": "tb01c.gui_lossless_and_compact_ready_independent/1",
+  "reviewer": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "status": "PASS_BOUNDED_WITH_POSTSEAL_DISCLOSURE",
+  "whole_C_status": "NOT_VERIFIED",
+  "resolved_bounded_items": [
+    "新完整GUI导出五候选无损全字段相等",
+    "新healthy Watch原4批/原cursor/撤回替代完整匹配",
+    "新late-held原页无损全字段匹配及较新读取提交后旧读取拒绝",
+    "14c15bd完整审计后的紧凑控制Ready有界修复"
+  ],
+  "not_reclassified": [
+    "原R4-R4E1的旧24处字符损坏",
+    "原两lane G96截断",
+    "gui-utf8-recapture首次Q Ready失败",
+    "原MANIFEST两个控制文件封存后改变"
+  ],
+  "gui": {
+    "schema": "tb01c.gui_lossless_export_independent/1",
+    "reviewer": "/root/r7_codex_product_review",
+    "runtime": "codex_native_subagent",
+    "status": "PASS_BOUNDED_LOSSLESS_RECAPTURE",
+    "whole_C_status": "NOT_VERIFIED",
+    "source_head": "68198a6cdabbdbfeee916a00321442999c3de673",
+    "source_bindings": [
+      {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/browser/tb01c-client.js",
+        "sha256": "1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c",
+        "git_commit": "68198a6cdabbdbfeee916a00321442999c3de673",
+        "bytes": 29406
+      },
+      {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/browser/index.html",
+        "sha256": "25e9469a7913d3a181d26bd6bfc3e8f6698fc3d71bfdd92511c1c0168aad6639",
+        "git_commit": "68198a6cdabbdbfeee916a00321442999c3de673",
+        "bytes": 47080
+      },
+      {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_query.py",
+        "sha256": "ce51b7a72de1bf1ab869da9e1498bc8ef95e3458981b847aaab033453268ad65",
+        "git_commit": "68198a6cdabbdbfeee916a00321442999c3de673",
+        "bytes": 24902
+      },
+      {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_query_integrity.py",
+        "sha256": "eeef35dd6c65a158237b1380e987e8c0eed184efcada64f65ffffd1fb169cfbf",
+        "git_commit": "68198a6cdabbdbfeee916a00321442999c3de673",
+        "bytes": 57869
+      },
+      {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_readonly_server.py",
+        "sha256": "a025f706271a1ae73697b0e330871bd2988f3c3ce1a3b6271d15e257c3ca0ca8",
+        "git_commit": "68198a6cdabbdbfeee916a00321442999c3de673",
+        "bytes": 51924
+      },
+      {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_service_control.py",
+        "sha256": "7811bd5562b9df0a5d9d306f14d86d6a2ad2b7e681d02804645369e0ef2ffcef",
+        "git_commit": "68198a6cdabbdbfeee916a00321442999c3de673",
+        "bytes": 29333
+      }
+    ],
+    "manifest_files": 40,
+    "manifest_original_matches": 38,
+    "manifest_postseal_changes": [
+      {
+        "expected": {
+          "path": "control/q.log",
+          "bytes": 33976,
+          "sha256": "11dda10998d5f71cbe77c6cbe77b68a7899adc014846c69ef2c3a1e92198e6a5"
+        },
+        "actual": {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture/control/q.log",
+          "bytes": 34368,
+          "sha256": "120e36110dc8e32244d1353993a773104fecdabe6cda4644e80d3fa2ba156632"
+        }
+      },
+      {
+        "expected": {
+          "path": "control/q.process.json",
+          "bytes": 1615,
+          "sha256": "39cd9a88c64cb62de293b704359f3a010a88efebff54045a533ab4960e00e12d"
+        },
+        "actual": {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture/control/q.process.json",
+          "bytes": 1615,
+          "sha256": "e6a89d16b815efd68b732afe1763c1c2c6041a592229da47c2e6a2ff026b5b29"
+        }
+      }
+    ],
+    "postseal_disclosure": {
+      "scope": "root在compact-readiness-fix复用同DB绑定的控制目录，导致两个控制文件改变；原MANIFEST不再宣称全40文件静止，全部GUI语义/ASCII/脚本原件仍逐字未变；原日志前缀可恢复且SHA与旧值相同",
+      "changes": [
+        {
+          "path": "control/q.log",
+          "sealed_sha256": "11dda10998d5f71cbe77c6cbe77b68a7899adc014846c69ef2c3a1e92198e6a5",
+          "current_sha256": "120e36110dc8e32244d1353993a773104fecdabe6cda4644e80d3fa2ba156632",
+          "sealed_bytes": 33976,
+          "current_bytes": 34368
+        },
+        {
+          "path": "control/q.process.json",
+          "sealed_sha256": "39cd9a88c64cb62de293b704359f3a010a88efebff54045a533ab4960e00e12d",
+          "current_sha256": "e6a89d16b815efd68b732afe1763c1c2c6041a592229da47c2e6a2ff026b5b29",
+          "sealed_bytes": 1615,
+          "current_bytes": 1615
+        }
+      ],
+      "unchanged_content": [
+        {
+          "path": "BROWSER-OPEN-stderr.txt",
+          "bytes": 64,
+          "sha256": "9e707438b041371c93627d1a0a1f17ca3364aa8e6517701d9e3ffc35ba176434"
+        },
+        {
+          "path": "BROWSER-OPEN.json",
+          "bytes": 445,
+          "sha256": "9e50ac175a91edf21c3dca64b02dc5cd3f38349e02a0b207a5587b8480aab780"
+        },
+        {
+          "path": "BROWSER-STOP-stderr.txt",
+          "bytes": 64,
+          "sha256": "9e707438b041371c93627d1a0a1f17ca3364aa8e6517701d9e3ffc35ba176434"
+        },
+        {
+          "path": "BROWSER-STOP.json",
+          "bytes": 58,
+          "sha256": "42ae79bbd034b6191371e5dc9ed81392ba030d49fc4b3da374b644fb7ad46e05"
+        },
+        {
+          "path": "HEALTH-FAILURE-DIAGNOSIS.json",
+          "bytes": 242,
+          "sha256": "82e98161eb6bd6102efdcb9f9f8439c1f616e5c9bb159d955315cdedf0542c3d"
+        },
+        {
+          "path": "PLAN.json",
+          "bytes": 520,
+          "sha256": "f07854a5e0c84e9cd29a6e17163e9e1bc4e5ce84a199712718594cfd554e5b10"
+        },
+        {
+          "path": "SOURCE.json",
+          "bytes": 1404,
+          "sha256": "47987969cbe5a75dd72a8ee786c4aa43c32d0d9920153d973af5e4fc296abd7a"
+        },
+        {
+          "path": "START-Q-stderr.txt",
+          "bytes": 251,
+          "sha256": "74c479bf4cd5ebbdc86cb26e9cf6dfc2b794513d1a5b43c2975999bf2972b61b"
+        },
+        {
+          "path": "START-Q.json",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "STOP-Q-stderr.txt",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "STOP-Q.json",
+          "bytes": 301,
+          "sha256": "8ff6f7b3565f1be50a96b342844a177bd03ef29d74c84dd20737a2db404a4138"
+        },
+        {
+          "path": "as-known96-ascii-envelope.json",
+          "bytes": 1443116,
+          "sha256": "e9e0a8f16909d73139c342492f3a0c72652a3ef75ac31e27fa892d650ca048db"
+        },
+        {
+          "path": "as-known96-script.js",
+          "bytes": 1243,
+          "sha256": "e9c71a4f1253fd5d4fe05e125191334861c9665656d4cfa27647764751c56a92"
+        },
+        {
+          "path": "as-known96-stderr.txt",
+          "bytes": 64,
+          "sha256": "9e707438b041371c93627d1a0a1f17ca3364aa8e6517701d9e3ffc35ba176434"
+        },
+        {
+          "path": "as-known96.json",
+          "bytes": 2084351,
+          "sha256": "7980e968cba995668193a56a88bb3788746aed7b5a8d68523046bc6198608203"
+        },
+        {
+          "path": "control/.control.lock",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "final160-ascii-envelope.json",
+          "bytes": 2706129,
+          "sha256": "8e63eb14f6286b4ccda16ab07ca09d0089df4d243c207e2ae60a473cb3823da6"
+        },
+        {
+          "path": "final160-script.js",
+          "bytes": 1164,
+          "sha256": "5d4e1ed3fd4e99e406b9059d2590ec7d0f86747e0c7c3a5767b780d3a79b78a1"
+        },
+        {
+          "path": "final160-stderr.txt",
+          "bytes": 64,
+          "sha256": "9e707438b041371c93627d1a0a1f17ca3364aa8e6517701d9e3ffc35ba176434"
+        },
+        {
+          "path": "final160.json",
+          "bytes": 4007969,
+          "sha256": "75473ee22fa7cac036248fbee2c5f127c3ff132e6f0a029cc3e7f4f2cc97265b"
+        },
+        {
+          "path": "healthy-watch156-160-ascii-envelope.json",
+          "bytes": 6487822,
+          "sha256": "653a8d18ab5ad641b42ea185af74610f0df142fba434f90fb46da9fc3b2458a8"
+        },
+        {
+          "path": "healthy-watch156-160-script.js",
+          "bytes": 1025,
+          "sha256": "192460e23e4a064a871eb9cc7fef7d9f9bc8848a864c05ceb3b4b70d92f2c656"
+        },
+        {
+          "path": "healthy-watch156-160-stderr.txt",
+          "bytes": 64,
+          "sha256": "9e707438b041371c93627d1a0a1f17ca3364aa8e6517701d9e3ffc35ba176434"
+        },
+        {
+          "path": "healthy-watch156-160.json",
+          "bytes": 7088118,
+          "sha256": "d8a07f85b0230ae3f1a9d440a3d081f133dbc354116ac5271be55279f9c79ecd"
+        },
+        {
+          "path": "late-old-read-ascii-envelope.json",
+          "bytes": 209880,
+          "sha256": "d9d828b226a2a865f027adb192f10ae624ed91d69689f45ffac404d3047c8fe0"
+        },
+        {
+          "path": "late-old-read-script.js",
+          "bytes": 1296,
+          "sha256": "5eeb67b4733c570b2ad5fe4664c64480f14abc6547223f667d37ec30e969316a"
+        },
+        {
+          "path": "late-old-read-stderr.txt",
+          "bytes": 64,
+          "sha256": "9e707438b041371c93627d1a0a1f17ca3364aa8e6517701d9e3ffc35ba176434"
+        },
+        {
+          "path": "late-old-read.json",
+          "bytes": 145392,
+          "sha256": "27e7e59773210038e0b5b9f1461ea25c667cf079d186ca44a07e7f01502b6164"
+        },
+        {
+          "path": "launcher.json",
+          "bytes": 1716,
+          "sha256": "a3f4c332bd2bba152e3d37adb2f0335bc1079e94ba43fb0e2e4a514a0b27b065"
+        },
+        {
+          "path": "q-state-full-body.json",
+          "bytes": 1144017,
+          "sha256": "af40af86bcf0ca9cb5ef05b603e4abaa49db860bc65cc2c7058bf0de97cba254"
+        },
+        {
+          "path": "recomputed135-ascii-envelope.json",
+          "bytes": 2219147,
+          "sha256": "945e575569c7a939124d5c07e0c36a53089e2ae5d271a288cffcb90cbbc12602"
+        },
+        {
+          "path": "recomputed135-script.js",
+          "bytes": 1259,
+          "sha256": "a30eb21ad2a4d7d4163b27e63db90e1c1aa9089878346f4319cc913ac84ec72f"
+        },
+        {
+          "path": "recomputed135-stderr.txt",
+          "bytes": 64,
+          "sha256": "9e707438b041371c93627d1a0a1f17ca3364aa8e6517701d9e3ffc35ba176434"
+        },
+        {
+          "path": "recomputed135.json",
+          "bytes": 3266339,
+          "sha256": "eb29c55469b4d1f1a105dc156dbfd970575a1daaac32835cbe3368e6ec29a5c4"
+        },
+        {
+          "path": "recomputed156-ascii-envelope.json",
+          "bytes": 2627178,
+          "sha256": "8d123e95d57306ecfedd598f0a9a914c39adb186b69a9c844cebeaaa5459855c"
+        },
+        {
+          "path": "recomputed156-script.js",
+          "bytes": 1259,
+          "sha256": "3f35f8b61f00dcddaab1929ce2833dd74cd5e2ebab537833b35ca9cb014b14e6"
+        },
+        {
+          "path": "recomputed156-stderr.txt",
+          "bytes": 64,
+          "sha256": "9e707438b041371c93627d1a0a1f17ca3364aa8e6517701d9e3ffc35ba176434"
+        },
+        {
+          "path": "recomputed156.json",
+          "bytes": 3887730,
+          "sha256": "4e8281850e26b6ee29c2a24645afa64ff16f45a5f9775788636c7b9d210df997"
+        }
+      ]
+    },
+    "manifest_bytes": 37365474,
+    "original_R4_and_GUI_not_modified": true,
+    "exports": [
+      {
+        "name": "recomputed135",
+        "outer_sha256": "945e575569c7a939124d5c07e0c36a53089e2ae5d271a288cffcb90cbbc12602",
+        "inner_ascii_bytes": 1964983,
+        "canonical_decoded_sha256": "26a73d56ab3bc5db707cb98e10e39dd187f40ac49a63333b3d72e8c7a74c4ea7",
+        "replacement_characters": 0
+      },
+      {
+        "name": "as-known96",
+        "outer_sha256": "e9e0a8f16909d73139c342492f3a0c72652a3ef75ac31e27fa892d650ca048db",
+        "inner_ascii_bytes": 1274960,
+        "canonical_decoded_sha256": "26dfc00f47f12f61c25f121c7ab884e5609841ba11a6a25f96f6c1386e782188",
+        "replacement_characters": 0
+      },
+      {
+        "name": "recomputed156",
+        "outer_sha256": "8d123e95d57306ecfedd598f0a9a914c39adb186b69a9c844cebeaaa5459855c",
+        "inner_ascii_bytes": 2327802,
+        "canonical_decoded_sha256": "1a7e701b55801b6c945973e04c74755682bfa9a2ccb847872a4e9123572af0e2",
+        "replacement_characters": 0
+      },
+      {
+        "name": "healthy-watch156-160",
+        "outer_sha256": "653a8d18ab5ad641b42ea185af74610f0df142fba434f90fb46da9fc3b2458a8",
+        "inner_ascii_bytes": 5478891,
+        "canonical_decoded_sha256": "390902036ae97d64ccd2afeeb79f9ddd1240045fe9b1a8786d1a8391b4faa268",
+        "replacement_characters": 0
+      },
+      {
+        "name": "late-old-read",
+        "outer_sha256": "d9d828b226a2a865f027adb192f10ae624ed91d69689f45ffac404d3047c8fe0",
+        "inner_ascii_bytes": 171412,
+        "canonical_decoded_sha256": "00e298714ea5bd665dd21eb909e3fcd2d4d47d7eb6e99575efcd8453fdc76859",
+        "replacement_characters": 0
+      },
+      {
+        "name": "final160",
+        "outer_sha256": "8e63eb14f6286b4ccda16ab07ca09d0089df4d243c207e2ae60a473cb3823da6",
+        "inner_ascii_bytes": 2398005,
+        "canonical_decoded_sha256": "bba55d3f25508a848b5b28a4f85a35e0350172226024e125e1d559fc196917e2",
+        "replacement_characters": 0
+      }
+    ],
+    "full_candidates": [
+      {
+        "name": "recomputed135",
+        "status": "PASS",
+        "generation": 135,
+        "mode": "RecomputedWithRevision",
+        "rows": 1400,
+        "pages": 46,
+        "counts": {
+          "objects": "123",
+          "withdrawn_objects": "30",
+          "witnesses": "459",
+          "relations": "652",
+          "observations": "1",
+          "raw_history": "135",
+          "total": "1400"
+        },
+        "projection_sha256": "c241d24f3a424637dd9c5519eafbed8fdb6045876ceab7109f7654dc93c948e4"
+      },
+      {
+        "name": "as-known96",
+        "status": "PASS",
+        "generation": 96,
+        "mode": "AsKnown",
+        "rows": 849,
+        "pages": 28,
+        "counts": {
+          "objects": "94",
+          "withdrawn_objects": "0",
+          "witnesses": "282",
+          "relations": "376",
+          "observations": "1",
+          "raw_history": "96",
+          "total": "849"
+        },
+        "projection_sha256": "02c392f8e108c8240130a7302b56af2002ba12cd59da94829770a935263ee2cb"
+      },
+      {
+        "name": "recomputed156",
+        "status": "PASS",
+        "generation": 156,
+        "mode": "RecomputedWithRevision",
+        "rows": 1689,
+        "pages": 55,
+        "counts": {
+          "objects": "139",
+          "withdrawn_objects": "45",
+          "witnesses": "552",
+          "relations": "796",
+          "observations": "1",
+          "raw_history": "156",
+          "total": "1689"
+        },
+        "projection_sha256": "e2b54eff66725fd3d3e1e92f0d9065fd2e45f0b2cf543c8b09df4a0510a6d1fc"
+      },
+      {
+        "name": "healthy-watch156-160",
+        "status": "PASS",
+        "generation": 160,
+        "mode": "RecomputedWithRevision",
+        "rows": 1745,
+        "pages": 57,
+        "counts": {
+          "objects": "142",
+          "withdrawn_objects": "48",
+          "witnesses": "570",
+          "relations": "824",
+          "observations": "1",
+          "raw_history": "160",
+          "total": "1745"
+        },
+        "projection_sha256": "68f4b4eb2657fdd6d15d53e17c9781b4ecc7c65cb777b86e8755726a281cb18c"
+      },
+      {
+        "name": "final160",
+        "status": "PASS",
+        "generation": 160,
+        "mode": "RecomputedWithRevision",
+        "rows": 1745,
+        "pages": 57,
+        "counts": {
+          "objects": "142",
+          "withdrawn_objects": "48",
+          "witnesses": "570",
+          "relations": "824",
+          "observations": "1",
+          "raw_history": "160",
+          "total": "1745"
+        },
+        "projection_sha256": "68f4b4eb2657fdd6d15d53e17c9781b4ecc7c65cb777b86e8755726a281cb18c"
+      }
+    ],
+    "watch": {
+      "generation_from": 157,
+      "generation_to": 160,
+      "batches": 4,
+      "withdrawals": 3,
+      "replaces": 3,
+      "raw_response_bytes": 2728573,
+      "raw_response_sha256": "0a8654b88045cf1d7c1d7207d9b8dbd14853c740faa70c7ac74bc9dbce187866"
+    },
+    "late_old_read": {
+      "status": "PASS_BOUNDED",
+      "held_mode": "AsKnown",
+      "held_generation": 96,
+      "held_offset": 0,
+      "held_rows": 31,
+      "held_response_bytes": 128960,
+      "held_response_sha256": "26abf3f518bb427c8b3ff6afdc320157079ba1003ff178f8b213ba04990b7aca",
+      "old_error": "Error: 已被较新读取取代，旧响应不提交",
+      "new_error": null,
+      "current_generation": 160,
+      "baseline_equals_final": true,
+      "scope": "浏览器传输层持有真实Q页，等待新160完成后释放；本工位核脚本、完整held原帧和页内结果，没有重新执行"
+    },
+    "health_failure": {
+      "full_body_bytes": 1144017,
+      "controller_limit": 1048576,
+      "direct_error": "ValueError: 健康回执超过 1 MiB 控制器上限",
+      "scope": "新封存库读取补验发现控制健康读口大小不适配，原超时不追认Ready"
+    },
+    "first_start_ready": "FAIL_PRESERVED_NOT_RECLASSIFIED",
+    "backup_sha256_verified": "a30aaa8d62b4658f9891ce89b082ca6d9030928be631a5c9fa6f013c321de74a",
+    "database_access": "仅读取封存备份文件字节核SHA；未打开SQLite连接",
+    "limits": [
+      "新补验仅Q读取静态R4-A备份，无S输入进程、不是重新跑160持续负载",
+      "recomputed135是显式完整load，无新自动Gap交互；旧实际Gap原wire的独评保持独立",
+      "五份新完整状态与六份新导出解决新采集的编码完整性，不将旧24处损坏文件改判相等",
+      "旧R4 revisions lane G96两次截断仍NOT_VERIFIED；本新AsKnown96完整状态是具名另项证据",
+      "六语义负控未在此重跑；旧有限结论仍按原包，不声称session2真实迁移",
+      "首次Ready因完整state超过1MiB失败，GUI后续成功不能追认Ready；新增ready方案和持续读AC3性能未在此审/验收",
+      "page内currentState/候选全串相等是冻结真实浏览器脚本结果，本工位逐字段核导出candidate，不虚构外部导出两份rendered原件"
+    ]
+  },
+  "compact_ready": {
+    "reviewer": "/root/r7_codex_product_review",
+    "runtime": "codex_native_subagent",
+    "status": "PASS_BOUNDED_COMPACT_READINESS_FIX",
+    "commit": "14c15bd44eeff6c0ecc75f3768a7fb734f398230",
+    "source": [
+      {
+        "git_path": "s_session/README.md",
+        "commit": "14c15bd44eeff6c0ecc75f3768a7fb734f398230",
+        "sha256": "9b9e80c58d5cc71b165ea2becb5c9cbe2c599cfbd21424a0fa14f01be5ab1b4b",
+        "bytes": 18110,
+        "review_copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/ready-source/README.md"
+      },
+      {
+        "git_path": "s_session/s_readonly_server.py",
+        "commit": "14c15bd44eeff6c0ecc75f3768a7fb734f398230",
+        "sha256": "5118f3f53f199413000918f3d5c36bae391c8b13ade7afc2b174773da8a790dd",
+        "bytes": 52275,
+        "review_copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/ready-source/s_readonly_server.py"
+      },
+      {
+        "git_path": "s_session/s_service_control.py",
+        "commit": "14c15bd44eeff6c0ecc75f3768a7fb734f398230",
+        "sha256": "bab9162f5054d1fadc72d55783f0289981a8b41b89fce0e48348d66682603bad",
+        "bytes": 29333,
+        "review_copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/ready-source/s_service_control.py"
+      },
+      {
+        "git_path": "s_session/tests/tb01c_query_tests.py",
+        "commit": "14c15bd44eeff6c0ecc75f3768a7fb734f398230",
+        "sha256": "393982272b727472c7167b67c1cf4615bdc5f5cb6ff31eda8892913401083822",
+        "bytes": 29156,
+        "review_copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/ready-source/tb01c_query_tests.py"
+      }
+    ],
+    "evidence": [
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/CHECKS.json",
+        "bytes": 726,
+        "sha256": "02912bb5556f0d9be2ed1b7da20cdd490295e0a809ce1704a75499026cd11fda"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/ready-body.json",
+        "bytes": 448,
+        "sha256": "800d5c3b8d5c9cbb069988f6949f1b8c39d228a1dafae84432c3093725a761e6"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/state-body.json",
+        "bytes": 1144017,
+        "sha256": "3fa87997e2cbfacd753140350540b451abf295087dfedf5452bf305e8a76e821"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/START-Q.json",
+        "bytes": 626,
+        "sha256": "3ea3d84112e037c4557712eaa26bc25f041a0350236e3d875e056a1b9b390d83"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/START-Q-stderr.txt",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/STOP-Q.json",
+        "bytes": 301,
+        "sha256": "d9ec066c476d0ad9bdb183bce0260dd149997e8e9e5cb5ba8a17910845d4e976"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/launcher.json",
+        "bytes": 1716,
+        "sha256": "82af88749bae1b611d10958b4aa029b66742605bf210e2c4a85331360e1ce174"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/controller-stdout.txt",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/controller-stderr.txt",
+        "bytes": 4067,
+        "sha256": "7a770e9e3e51ee7e634f79ceb0a091cbe1ddcafa2a3fe67c8683704336e734ff"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/query-stdout.txt",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/query-stderr.txt",
+        "bytes": 129,
+        "sha256": "39e6c09af1d9d0360b8f03f880a354db16ed641048729f668d7c12b1b3fc5f58"
+      }
+    ],
+    "facts": {
+      "root_reported_test_counts": {
+        "controller": 24,
+        "query": 30
+      },
+      "ready_body_bytes": 448,
+      "state_body_bytes": 1144017,
+      "ready_state_exact_projection": true,
+      "startup_result": {
+        "ok": true,
+        "result": {
+          "service": "q",
+          "state": "ready",
+          "reply": {
+            "cut": {
+              "session_id": "tb01c-draft01",
+              "generation": "160",
+              "structure_cut": "cut-160",
+              "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+              "index_frontier": "batch-ccfc5f38117b087af0d80cc57100b1bd5afb359fbe5da1cf9ef9ac6d6a1ed15a",
+              "session_generation": "1"
+            },
+            "ok": true,
+            "producer_epoch": "4",
+            "control_instance_id": "4a906a17-b69c-4dbb-907c-3bc0a590d45b"
+          }
+        }
+      },
+      "declared_deadline_ms": "10000",
+      "controller_body_limit": 1048576
+    },
+    "line_references": {
+      "query_route": "s_readonly_server.py:1039-1044",
+      "same_complete_audit_and_projection": "s_readonly_server.py:897-920",
+      "shared_reader": "s_readonly_server.py:840-845",
+      "controller_target_and_limits": "s_service_control.py:72-105",
+      "bad_raw_and_query_controls": "tb01c_query_tests.py:366-383"
+    },
+    "review_basis": [
+      "ready经同一query_reader.capture_verified，再做同一project_state，最后只把cut/ok/epoch/nonce序列化；不是另立宽松健康判断或generation缓存",
+      "无query参数才读当前根；解析/坏库/资源超限仍走同400/503",
+      "controller仅替换路径，保留头16KiB/body1MiB、绝对剩余deadline、EOF/HTTP200/重复头/长度等门；Ready身份/nonce/PID后续门未变",
+      "真实G160原body1144017>1MiB，新ready448，cut/epoch/nonce与完整state相等，START-Q真正返回ready；旧GUI START-Q失败仍保留",
+      "源测试同一个真实HTTP坏raw前后state和ready均503，非参数query两类400；本工位只读该测试及根通过原日志，未重跑"
+    ],
+    "limits": [
+      "这是完整性后控制回复大小修复，不是持续查询性能优化；不承诺/api/ready成本O(1)",
+      "根给出的startup3742.95ms未在本包机器回执保存可独立重算起止，因此本结论依真正Ready回执与代码10s限，不把该毫秒数列作独测",
+      "未启动服务/新API/DB；不审其他932de089调用者修改，另有责任工位"
+    ]
+  },
+  "original_review_immutable": {
+    "manifest": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r4-pair/independent-review/MANIFEST.json",
+      "bytes": 10020,
+      "sha256": "19e1d3fdc72ef0f6e0c5109cb83597801473ced87d4942882cee869df2aa121f"
+    },
+    "files_checked": 32
+  },
+  "unchanged_input_manifest_paths": [
+    "BROWSER-OPEN-stderr.txt",
+    "BROWSER-OPEN.json",
+    "BROWSER-STOP-stderr.txt",
+    "BROWSER-STOP.json",
+    "HEALTH-FAILURE-DIAGNOSIS.json",
+    "PLAN.json",
+    "SOURCE.json",
+    "START-Q-stderr.txt",
+    "START-Q.json",
+    "STOP-Q-stderr.txt",
+    "STOP-Q.json",
+    "as-known96-ascii-envelope.json",
+    "as-known96-script.js",
+    "as-known96-stderr.txt",
+    "as-known96.json",
+    "control/.control.lock",
+    "final160-ascii-envelope.json",
+    "final160-script.js",
+    "final160-stderr.txt",
+    "final160.json",
+    "healthy-watch156-160-ascii-envelope.json",
+    "healthy-watch156-160-script.js",
+    "healthy-watch156-160-stderr.txt",
+    "healthy-watch156-160.json",
+    "late-old-read-ascii-envelope.json",
+    "late-old-read-script.js",
+    "late-old-read-stderr.txt",
+    "late-old-read.json",
+    "launcher.json",
+    "q-state-full-body.json",
+    "recomputed135-ascii-envelope.json",
+    "recomputed135-script.js",
+    "recomputed135-stderr.txt",
+    "recomputed135.json",
+    "recomputed156-ascii-envelope.json",
+    "recomputed156-script.js",
+    "recomputed156-stderr.txt",
+    "recomputed156.json"
+  ],
+  "evidence_indices": {
+    "gui": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/EXAMINATION.json",
+      "bytes": 16991,
+      "sha256": "4b75ddd302cb63ad678e2c5dc22312bafd625989ee6010bace9e5e045c423b5d"
+    },
+    "ready": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/READY-REVIEW.json",
+      "bytes": 7628,
+      "sha256": "9ec8190ac4d0d4510238457512d6e8b21b002be1eac4ea39d48b5ba9ec68e10c"
+    },
+    "original_manifest_diff": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/MANIFEST-DIFFERENCES.json",
+      "bytes": 671,
+      "sha256": "40848cbe14df3ba512e19a369be3dd0cc761953554f66a670e7d99f72ec47f21"
+    }
+  },
+  "limits": [
+    "新补验仅Q读取静态R4-A备份，无S输入进程、不是重新跑160持续负载",
+    "recomputed135是显式完整load，无新自动Gap交互；旧实际Gap原wire的独评保持独立",
+    "五份新完整状态与六份新导出解决新采集的编码完整性，不将旧24处损坏文件改判相等",
+    "旧R4 revisions lane G96两次截断仍NOT_VERIFIED；本新AsKnown96完整状态是具名另项证据",
+    "六语义负控未在此重跑；旧有限结论仍按原包，不声称session2真实迁移",
+    "首次Ready因完整state超过1MiB失败，GUI后续成功不能追认Ready；新增ready方案和持续读AC3性能未在此审/验收",
+    "page内currentState/候选全串相等是冻结真实浏览器脚本结果，本工位逐字段核导出candidate，不虚构外部导出两份rendered原件",
+    "这是完整性后控制回复大小修复，不是持续查询性能优化；不承诺/api/ready成本O(1)",
+    "根给出的startup3742.95ms未在本包机器回执保存可独立重算起止，因此本结论依真正Ready回执与代码10s限，不把该毫秒数列作独测",
+    "未启动服务/新API/DB；不审其他932de089调用者修改，另有责任工位"
+  ]
+}

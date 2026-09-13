@@ -1,0 +1,113 @@
+{
+  "schema_revision": "tb01c-runtime-plan/3",
+  "status": "FROZEN_INPUT_BEFORE_EXECUTION_NOT_ACCEPTANCE",
+  "session_id": "tb01c-draft01",
+  "session_generation": "1",
+  "identitymap": {},
+  "input_count": 160,
+  "seed_operations": [
+    0,
+    95
+  ],
+  "live_operations": [
+    96,
+    159
+  ],
+  "send_interval_ms": 500,
+  "seed_main_schedule": [
+    0,
+    94
+  ],
+  "fault_operation": 95,
+  "fault": {
+    "stage": "after_begin",
+    "signal": "SIGKILL",
+    "recover_clock_event_id": "recover-001",
+    "new_writer_epoch": "2",
+    "original_message_unchanged": true,
+    "other_service_must_remain_alive": "Q",
+    "restart_pending_before_ready": true
+  },
+  "q_restart": {
+    "after_committed_operation": 108,
+    "signal": "SIGKILL",
+    "new_query_epoch": "2",
+    "other_service_must_remain_alive": "S",
+    "input_sender_continues": true
+  },
+  "healthy_live_windows_ms": [
+    [
+      0,
+      10000
+    ],
+    [
+      10000,
+      20000
+    ],
+    [
+      20000,
+      30000
+    ]
+  ],
+  "post_last_offer_drain_ms": 30000,
+  "startup_timeout_ms": 10000,
+  "input_reply_timeout_ms": 10000,
+  "s_resources": {
+    "max_frame_bytes": "1048576",
+    "read_timeout_ms": "2000",
+    "write_timeout_ms": "1000",
+    "queue_capacity": "32",
+    "max_connections": "48",
+    "response_timeout_ms": "10000",
+    "audit_cache_source_bytes": "268435456"
+  },
+  "delivery_retain_generations": "8",
+  "page_size": "31",
+  "max_watch_batches": "4",
+  "slow_page_delay_ms": 1000,
+  "valid_disconnect_commits": 3,
+  "expired_disconnect_commits": 9,
+  "client_backlog_atomic_batches": 4,
+  "overflow_unconsumed_commits": 5,
+  "semantic_clock": "clock-plan.json",
+  "query_resources": "query-resources.json",
+  "input_envelopes": "messages.jsonl",
+  "physical_diagnostics": [
+    "absolute run directory",
+    "PID and process start time",
+    "S_CONTROL_INSTANCE_ID and health top-level control_instance_id",
+    "wall monotonic send/receive/transaction measurement",
+    "Q restart actual polling observation generation (trigger is declared minimum generation, not an exact commit barrier)",
+    "DeliveryUnknown/TransportUnavailable detail from operating-system transport; transport classification and original message_id remain semantic"
+  ],
+  "semantic_fields_not_excluded": [
+    "business/session/source/message/producer identity",
+    "all stored times and phase attempts",
+    "all six record families and order",
+    "all payload hashes, cuts and frontiers",
+    "all authoritative SQLite table contents"
+  ],
+  "not_claimed": [
+    "production capacity",
+    "full #1323 completion",
+    "any successful runtime before actual execution"
+  ],
+  "comparison_contract": {
+    "semantic_core_records": 495,
+    "received_result": "Complete transport and response, including all business fields, hashes and causal identities",
+    "nonreceived_result": [
+      "transport",
+      "message_id"
+    ],
+    "q_restart_trigger": "First monitor observation at or above generation 109; input scheduler continues independently",
+    "fault_injection_proof": "Require same service, same verified PID, stopped state and actual SIGKILL in controller receipt; otherwise NOT_VERIFIED",
+    "source_preservation": "Copy bound code, build, configuration and input originals before starting either service",
+    "load_window_evidence": "Only first and last distinct actual frontier samples wholly inside each declared window; report actual span and uncovered edges; missing samples is NOT_VERIFIED, no outside-window substitution",
+    "fault_marker_publication": "Wait for all four LF-terminated fields within the unchanged input-reply deadline; complete mismatched identity rejects before signal"
+  },
+  "resource_notes": {
+    "read_timeout_ms": "Only bounded request-frame reading and EOF validation",
+    "response_timeout_ms": "Independent bounded waiting for an enqueued actor result; client still uses its original 10000ms total delivery deadline",
+    "audit_cache_source_bytes": "268435456 retained source bytes maximum; this is not an RSS bound; fresh integrity dependencies must still be checked"
+  }
+}

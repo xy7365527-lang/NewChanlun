@@ -2,6 +2,13 @@
 
 | 工位 | 票 | 分支与起点 | 登记时状态 | 职责 |
 |---|---|---|---|---|
-| `/Users/silencehan/Projects/NewChanlun-1371-delivery-tail` | #1371 | `codex/1371-delivery-tail`，起点 `d2219e8e014a5d55c091f8eda62ffb9dd8154953` | 在跑 | Codex 主控整理 PR #1449 合入后的扫描分诊、修复可行性和主线验证收尾文档；无产品修改。 |
+| `/Users/silencehan/Projects/NewChanlun-1371-delivery-tail` | #1371 | `codex/1371-delivery-tail`，起点 `d2219e8e014a5d55c091f8eda62ffb9dd8154953` | 已交付并清理 | Codex 主控整理 PR #1449 合入后的扫描分诊、修复可行性和主线验证收尾文档；无产品修改。 |
+| `/Users/silencehan/Projects/NewChanlun-1372-codex` | #1372 | `codex/1372-codex`，起点 `e46cf3bca6a67da821f9ab046507563b8133f6d9` | 在跑（交付待批准） | 原生 Codex 已实施固定 cut 分页、Watch/Gap、持续 S 与只读 Q、有限资源和独立重启。产品候选 `3ff8c47e` 完成最终三臂及实际浏览器采集，R5 两轮495条完整轨迹相同；源与报告见 `.chanlun/review-results/issue1372-tb01c-20260913/`，PR #1451。DevSkim 红灯与 C 的 main 批准门另列，不清理未合入提交。 |
+
+| `/Users/silencehan/Projects/NewChanlun-1372-rust` | #1372 | `codex/1372-rust`，起点 `e46cf3bca6a67da821f9ab046507563b8133f6d9` | 在跑（实施已接回） | Rust 持续写者、确定性时钟、普通投递保留与权威分页协议已由根整合；队列时限修复及独立评审见 C 报告包，正式二进制绑定根提交 `b924a71f`。该工位旧提交不是最终二进制版本，待票面与未合入提交核清后再清理。 |
+
+| `/Users/silencehan/Projects/NewChanlun-1372-query` | #1372 | `codex/1372-query`，起点 `e46cf3bca6a67da821f9ab046507563b8133f6d9` | 在跑（实施已接回） | Q 完整性审计、固定 cut 分页、Watch/Gap 已由根整合；最终无损编码缓存提交 `18ee720a` 在根工作树，并已独立复核。该工位旧候选不得冒充最终源码，待票面与未合入提交核清后再清理。 |
 
 本工位承接 #1371 同范围交付。PR #1449 已按用户“如果不行就批准”的条件授权，以固定 head `256cd822e0d872f1fb65d433ca0b15b01fa621a2` 例外合入；DevSkim 失败与 #1385 旧待办保持真实记录。仅用 Codex 原生子代理，未启动 PrimeAgent。尾文档不回写冻结报告，不将旧检查说成新提交检查。新文档版本的 main 合入按现有明确批准门处理。
+
+2026-09-13 续接：#1371 产品及纯报告均已获用户批准合入 main `e46cf3bca6a67da821f9ab046507563b8133f6d9`，常规 CI 通过，DevSkim 如实保留红灯与 #1385 待核指针；15 个 B 工作树、4 个分支已清理且在制品保全。C 从该主线独立实施；不得用 B 的单次扫描例外代替 C 后续合入批准。

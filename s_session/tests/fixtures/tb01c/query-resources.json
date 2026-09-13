@@ -1,0 +1,21 @@
+{
+  "max_frame_bytes": 1048576,
+  "max_pending_connections": 16,
+  "socket_read_timeout_ms": 2000,
+  "socket_write_timeout_ms": 1000,
+  "max_capture_bytes": 268435456,
+  "capture_deadline_ms": 2000,
+  "verify_deadline_ms": 5000,
+  "max_query_workers": 2,
+  "max_query_queue": 8,
+  "max_reply_bytes": 8388608,
+  "max_atomic_batch_bytes": 4194304,
+  "max_cached_images": 2,
+  "max_cache_bytes": 268435456,
+  "poll_interval_ms": 500,
+  "max_client_leases": 16,
+  "client_lease_ms": 10000,
+  "max_client_pending_batches": 4,
+  "max_page_size": 31,
+  "max_watch_batches": 4
+}

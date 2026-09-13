@@ -1,0 +1,29 @@
+{
+  "status": "ALL_495_CORE_RECORDS_EQUAL",
+  "scope": "每条核心 JSON 全字段精确相等；不删除字段，不把外部 HTTP 时序或 OS 诊断混入业务等价；core 生产时的规范化边界由原 driver 定义。",
+  "head": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+  "utc": "2026-09-13T10:27:02.757088+00:00",
+  "files": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/evidence/semantic-core.jsonl",
+      "bytes": 161080375,
+      "sha256": "02fdd97ed3f2efbc2493a44506d1bc33cc3619fe57f0d25a781c39a50edd0442",
+      "rows": 495
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/evidence/semantic-core.jsonl",
+      "bytes": 161080375,
+      "sha256": "02fdd97ed3f2efbc2493a44506d1bc33cc3619fe57f0d25a781c39a50edd0442",
+      "rows": 495
+    }
+  ],
+  "diffs": [],
+  "row_kinds": {
+    "actual_ingest_result": 160,
+    "final_receipt": 160,
+    "authoritative_cut": 160,
+    "authoritative_table": 13,
+    "authoritative_schema": 1,
+    "lifecycle_semantics": 1
+  }
+}
