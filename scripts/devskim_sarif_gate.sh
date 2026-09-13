@@ -96,11 +96,12 @@ if [[ -z "$sarif_path" || -z "$scanner_outcome" || -z "$artifact_name" || \
 fi
 
 errors=''
+error_lines=()
+has_errors=0
 add_error() {
-  if [[ -n "$errors" ]]; then
-    errors="$errors"$'\n'
-  fi
-  errors="$errors- $1"
+  # #1372：收集后一次拼接，避免大差集反复复制已有全文；保留顺序及原字节。
+  error_lines+=("- $1")
+  has_errors=1
 }
 
 if [[ "$scanner_outcome" != 'success' ]]; then
@@ -216,6 +217,13 @@ else
     fi
   fi
 fi
+
+if [[ "$has_errors" == 1 ]]; then
+  # 非空才展开数组，兼容 set -u 下的 Bash 3.2；只去掉 printf 新增的末尾 LF。
+  printf -v errors '%s\n' "${error_lines[@]}"
+  errors="${errors%$'\n'}"
+fi
+unset error_lines
 
 if [[ -z "$errors" ]]; then
   if [[ -n "$baseline_path" ]]; then

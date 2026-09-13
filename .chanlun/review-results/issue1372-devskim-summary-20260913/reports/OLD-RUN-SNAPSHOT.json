@@ -1,0 +1,88 @@
+{
+  "observed_at": "2026-09-13T11:45:18.260222+00:00",
+  "scope": "旧acd候选的实时状态，不是其终态",
+  "job": {
+    "id": 103713549749,
+    "run_id": 34753373828,
+    "workflow_name": "DevSkim",
+    "head_branch": "codex/1372-codex",
+    "run_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/actions/runs/34753373828",
+    "run_attempt": 1,
+    "node_id": "CR_kwDORJC4uM8AAAAYJc8ttQ",
+    "head_sha": "acd30cb61e59762114061b2d0b394aa270ed35ec",
+    "url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/actions/jobs/103713549749",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34753373828/job/103713549749",
+    "status": "in_progress",
+    "conclusion": null,
+    "created_at": "2026-09-13T11:01:59Z",
+    "started_at": "2026-09-13T11:02:01Z",
+    "completed_at": null,
+    "name": "DevSkim",
+    "steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 1,
+        "started_at": "2026-09-13T11:02:02Z",
+        "completed_at": "2026-09-13T11:02:03Z"
+      },
+      {
+        "name": "Checkout code",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 2,
+        "started_at": "2026-09-13T11:02:03Z",
+        "completed_at": "2026-09-13T11:02:23Z"
+      },
+      {
+        "name": "Build reproducible DevSkim scanner image",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 3,
+        "started_at": "2026-09-13T11:02:23Z",
+        "completed_at": "2026-09-13T11:02:41Z"
+      },
+      {
+        "name": "Run DevSkim scanner",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 4,
+        "started_at": "2026-09-13T11:02:41Z",
+        "completed_at": "2026-09-13T11:07:14Z"
+      },
+      {
+        "name": "Upload DevSkim SARIF as an ordinary Actions artifact",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 5,
+        "started_at": "2026-09-13T11:07:14Z",
+        "completed_at": "2026-09-13T11:07:18Z"
+      },
+      {
+        "name": "Enforce zero-findings gate and write summary",
+        "status": "in_progress",
+        "conclusion": null,
+        "number": 6,
+        "started_at": "2026-09-13T11:07:18Z",
+        "completed_at": null
+      },
+      {
+        "name": "Post Checkout code",
+        "status": "pending",
+        "conclusion": null,
+        "number": 12,
+        "started_at": null,
+        "completed_at": null
+      }
+    ],
+    "check_run_url": "https://api.github.com/repos/xy7365527-lang/NewChanlun/check-runs/103713549749",
+    "labels": [
+      "ubuntu-latest"
+    ],
+    "runner_id": 1000003740,
+    "runner_name": "GitHub Actions 1000003740",
+    "runner_group_id": 0,
+    "runner_group_name": "GitHub Actions"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "status": "PASS_BOUNDED_SUMMARY_OPTIMIZATION",
+  "scope": "#1372 scripts/devskim_sarif_gate.sh diagnostic accumulation only",
+  "base_head": "acd30cb61e59762114061b2d0b394aa270ed35ec",
+  "old_sha256": "bb5a293ab036624244eb5b29bc2358c352929fc65ea61845e50b53c7f4e2bd51",
+  "candidate_sha256": "c3154bd748c796ba950d1b4926308cd37a1cf54b0a802f644b6a8877132ce5fc",
+  "concept_layer": "PASS",
+  "engineering_findings": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 0
+  },
+  "unmodified_after_removing_two_targeted_blocks": true,
+  "independent_matrix": {
+    "bash": "GNU bash 3.2.57(1)-release (arm64-apple-darwin25)",
+    "cases": 33,
+    "script_invocations": 66,
+    "passed": 33,
+    "stdout_comparison": "exact bytes",
+    "summary_comparison": "exact bytes including preexisting prefix and appended stdout",
+    "stderr_comparison": "exact bytes after replacing only shell script path and line label; original bytes preserved",
+    "exit_code_comparison": "exact 0/1/2"
+  },
+  "static_checks": [
+    {
+      "name": "bash-n",
+      "command": [
+        "/bin/bash",
+        "-n",
+        "/Users/silencehan/Projects/NewChanlun-1372-codex/scripts/devskim_sarif_gate.sh"
+      ],
+      "exit_code": 0,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    },
+    {
+      "name": "shellcheck",
+      "command": [
+        "/opt/homebrew/bin/shellcheck",
+        "/Users/silencehan/Projects/NewChanlun-1372-codex/scripts/devskim_sarif_gate.sh"
+      ],
+      "exit_code": 0,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    }
+  ],
+  "not_claimed": [
+    "actual full SARIF performance rerun",
+    "remote Actions execution of candidate",
+    "all Bash versions tested",
+    "baseline or scan findings waived",
+    "main merge approval"
+  ]
+}
