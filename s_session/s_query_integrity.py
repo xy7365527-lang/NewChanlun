@@ -810,8 +810,15 @@ def verify(image, h, deadline=None):
     protocol = _verify_control(tables, meta, raw, verified_deltas, decoded_batches, deadline)
     digest = capture_digest(image)
     _deadline(deadline)
-    return {"image": image, "meta": meta, "generation": generation, "raw": raw, "wires": wires,
-            "tables": tables, "deltas": verified_deltas, "batches": decoded_batches,
+    # 完整新鲜审计结束后才缩减保留量；上方所有当前typed行、batch原字节和关联门仍必跑。
+    # 投影依赖完整清单：meta/generation身份与根、raw公开历史、wires四类索引、
+    # catalog全列、完整逐代Delta、每代profile绑定、protocol投递策略及本次capture_digest。
+    # 原image、其余typed表及已解码batch的重复历史仅属验证材料，不是后续查询依赖。
+    # 下一次data_version变化仍从当前全库重新capture/verify，不能拿此精简值替代审计输入。
+    profiles = {gen: {key: batch[key] for key in ("profile_id", "profile_hash")}
+                for gen, batch in decoded_batches.items()}
+    return {"meta": meta, "generation": generation, "raw": raw, "wires": wires,
+            "tables": {"catalog": catalog}, "deltas": verified_deltas, "batches": profiles,
             "capture_digest": digest, "protocol": protocol}
 
 

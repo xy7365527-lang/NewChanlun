@@ -125,6 +125,8 @@ class AuditReader:
             conn.set_progress_handler(None, 0)
         verify_deadline = time.monotonic() + self.resources["verify_deadline_ms"] / 1000
         proof = self.audit.verify(image, self.h, verify_deadline)
+        # 只保留审计后的完整查询依赖；原捕获材料不再被proof引用，及时释放其BLOB副本。
+        del image
         # 捕获值与解码后保留图像各受 max_capture_bytes 限制；该数不是进程 RSS。
         # JSON 解码、规范化与投影有临时对象，worker/帧/捕获上限共同限定输入域。
         retained_bytes = self.audit.object_bytes(proof, self.resources["max_capture_bytes"], verify_deadline)

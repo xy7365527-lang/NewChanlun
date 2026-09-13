@@ -221,7 +221,10 @@ class QueryTests(unittest.TestCase):
     def test_actual_retained_object_measurement_and_cache_limit(self):
         proof = self.reader.capture_verified()
         amount = audit.object_bytes(proof)
-        self.assertGreater(amount, proof["image"]["captured_bytes"])
+        self.assertNotIn("image", proof)
+        self.assertEqual(set(proof["tables"]), {"catalog"})
+        self.assertTrue(all(set(batch) == {"profile_id", "profile_hash"}
+                            for batch in proof["batches"].values()))
         self.assertEqual(audit.object_bytes([proof, proof]), amount+sys.getsizeof([proof, proof]))
         self.reader.close()
         self.reader.resources["max_cache_bytes"] = 1
@@ -229,6 +232,17 @@ class QueryTests(unittest.TestCase):
         self.assertIsNone(self.reader.cached)
         with self.assertRaises(audit.QueryBudgetExceeded):
             audit.object_bytes(proof, amount-1)
+
+    def test_unretained_batch_bytes_are_freshly_rechecked_after_external_change(self):
+        proof = self.reader.capture_verified()
+        self.assertIs(self.reader.cached, proof)
+        self.mutate("UPDATE batches SET canonical_bytes=? WHERE batch_id=(SELECT batch_id FROM batches LIMIT 1)",
+                    (b"{}",))
+        with self.assertRaisesRegex(ValueError, "batch"):
+            self.reader.capture_verified()
+        self.assertIsNone(self.reader.cached)
+        self.assertFalse(self.reader.connection.in_transaction)
+        self.assertEqual(self.reader.stats["captures"], 2)
 
     def test_header_byte_and_total_time_limits_are_not_per_read_timeouts(self):
         left, right = socket.socketpair()
