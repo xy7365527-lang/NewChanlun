@@ -260,6 +260,22 @@ jobs:
         # econ_oddeven_diagnosis）全在 lib 内；tests/ 与 bins 已由 default 步覆盖——零覆盖损失。
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --lib --features backtest_bin --jobs 1
 
+  s-observer:
+    # #1372：执行只读观察、生命周期和取证边界回归；完整160输入/浏览器验收另存具名证据。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Python observer and lifecycle tests
+        run: python -B -m unittest discover -s s_session/tests -p 'test_tb01c_*.py' -v
+      - name: Browser protocol tests
+        run: node s_session/tests/test_tb01c_browser.cjs
+
   fixture-drift:
     # #265（#245 裁定）：Lean 源 → parity fixture 双向闭环的 CI 腿。
     # 锁的漂移窗口：Lean 源改了值、fixture 未重落盘时 parity 测试静默全绿。
