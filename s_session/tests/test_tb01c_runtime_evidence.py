@@ -5,13 +5,32 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
+from types import SimpleNamespace
 from pathlib import Path
 
 from tb01c_load_report import report
-from tb01c_runtime import wait_for_marker
+from tb01c_runtime import Run, NotVerified, require_kill_receipt, wait_for_marker
 
 
 class RuntimeEvidenceTests(unittest.TestCase):
+    def test_real_cli_single_service_stop_result_is_unwrapped(self):
+        run = Run.__new__(Run)
+        run.config = {'startup_timeout_ms': '10000'}
+        run.config_path, run.state_dir = Path('/tmp/config'), Path('/tmp/state')
+        run.emit = mock.Mock()
+        stopped = {'service': 's', 'state': 'stopped', 'pid': 123, 'signal': 'SIGKILL'}
+        for value in ([stopped], [], [stopped, stopped], stopped):
+            completed = SimpleNamespace(returncode=0, stdout=json.dumps({'ok': True, 'result': value}).encode(), stderr=b'')
+            with mock.patch('tb01c_runtime.subprocess.run', return_value=completed):
+                if value == [stopped]:
+                    receipt = run.control('stop-s', '--signal', 'KILL')
+                    self.assertEqual(receipt, stopped)
+                    require_kill_receipt(receipt, 's', {'pid': 123})
+                else:
+                    with self.assertRaises(NotVerified):
+                        run.control('stop-s', '--signal', 'KILL')
+
     def load_report(self, offsets, *, stalled=False):
         events = [{"kind": "phase_begin", "first_operation": 96, "phase_anchor_ns": "100000000000"}]
         for index in range(160):

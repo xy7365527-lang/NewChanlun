@@ -162,7 +162,13 @@ class Run:
                   stderr=result.stderr.decode("utf-8", errors="replace"), duration_ns=str(time.monotonic_ns()-start))
         if result.returncode:
             raise ValueError("正式launcher动作失败：" + action)
-        return decode_frame(result.stdout)["result"]
+        payload = decode_frame(result.stdout)["result"]
+        if action in ("stop-s", "stop-q"):
+            # 正式CLI的停止结果是列表；本驱动每次只停止一个具名服务。
+            if type(payload) is not list or len(payload) != 1 or type(payload[0]) is not dict:
+                raise NotVerified("单服务停止回执必须为唯一结果列表")
+            return payload[0]
+        return payload
 
     def identity(self, service):
         record = decode_frame((self.state_dir / (service + ".process.json")).read_bytes())
