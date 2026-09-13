@@ -1,0 +1,166 @@
+TAP version 13
+# Subtest: 完整交付只得到可请示状态，预检不写 Git/工作树也不产生合入授权
+ok 1 - 完整交付只得到可请示状态，预检不写 Git/工作树也不产生合入授权
+  ---
+  duration_ms: 713.165333
+  type: 'test'
+  ...
+# Subtest: 漏列必需实体报告，与声明了但未入仓的文件，分别报出缺口
+ok 2 - 漏列必需实体报告，与声明了但未入仓的文件，分别报出缺口
+  ---
+  duration_ms: 681.929708
+  type: 'test'
+  ...
+# Subtest: 绝对路径、父目录路径和已跟踪符号链接不算报告入仓
+ok 3 - 绝对路径、父目录路径和已跟踪符号链接不算报告入仓
+  ---
+  duration_ms: 836.254084
+  type: 'test'
+  ...
+# Subtest: 已跟踪报告的错误 SHA-256 不能通过
+ok 4 - 已跟踪报告的错误 SHA-256 不能通过
+  ---
+  duration_ms: 637.7955
+  type: 'test'
+  ...
+# Subtest: 尚未提交的代码改动和 manifest 指向旧 HEAD 均被阻断
+ok 5 - 尚未提交的代码改动和 manifest 指向旧 HEAD 均被阻断
+  ---
+  duration_ms: 1175.812375
+  type: 'test'
+  ...
+# Subtest: 审查后的代码尾部提交同时使审查和已跑检查过期
+ok 6 - 审查后的代码尾部提交同时使审查和已跑检查过期
+  ---
+  duration_ms: 769.743208
+  type: 'test'
+  ...
+# Subtest: Git assume-unchanged 不得隐藏产品工作树内容漂移
+ok 7 - Git assume-unchanged 不得隐藏产品工作树内容漂移
+  ---
+  duration_ms: 668.500458
+  type: 'test'
+  ...
+# Subtest: 不在交付 diff 内的隐藏文件也不能凭干净 status 放行
+ok 8 - 不在交付 diff 内的隐藏文件也不能凭干净 status 放行
+  ---
+  duration_ms: 689.765375
+  type: 'test'
+  ...
+# Subtest: core.filemode=false 不能隐藏 diff 外文件的可执行位漂移
+ok 9 - core.filemode=false 不能隐藏 diff 外文件的可执行位漂移
+  ---
+  duration_ms: 680.389167
+  type: 'test'
+  ...
+# Subtest: diff.ignoreSubmodules=all 不能把 gitlink 变更藏出交付差异
+ok 10 - diff.ignoreSubmodules=all 不能把 gitlink 变更藏出交付差异
+  ---
+  duration_ms: 808.449917
+  type: 'test'
+  ...
+# Subtest: 本地 replace refs 不能替换最终 commit 的实际树来隐藏源码
+ok 11 - 本地 replace refs 不能替换最终 commit 的实际树来隐藏源码
+  ---
+  duration_ms: 771.910792
+  type: 'test'
+  ...
+# Subtest: 新增构建配置即使未写入产品清单也须纳入审查
+ok 12 - 新增构建配置即使未写入产品清单也须纳入审查
+  ---
+  duration_ms: 797.941625
+  type: 'test'
+  ...
+# Subtest: 已入仓但未列出的报告也会被发现
+ok 13 - 已入仓但未列出的报告也会被发现
+  ---
+  duration_ms: 806.566291
+  type: 'test'
+  ...
+# Subtest: 存在报告不等于审查已覆盖最终代码
+ok 14 - 存在报告不等于审查已覆盖最终代码
+  ---
+  duration_ms: 639.840667
+  type: 'test'
+  ...
+# Subtest: 原审查与尾部审查可按连续字节连接，断裂链不能覆盖最终代码
+ok 15 - 原审查与尾部审查可按连续字节连接，断裂链不能覆盖最终代码
+  ---
+  duration_ms: 1345.498084
+  type: 'test'
+  ...
+# Subtest: 必需检查的漏项、未跑、失败、伪通过均给出独立诊断
+ok 16 - 必需检查的漏项、未跑、失败、伪通过均给出独立诊断
+  ---
+  duration_ms: 643.264125
+  type: 'test'
+  ...
+# Subtest: 产品变更不能删除编译必检项来获得就绪状态
+ok 17 - 产品变更不能删除编译必检项来获得就绪状态
+  ---
+  duration_ms: 640.351209
+  type: 'test'
+  ...
+# Subtest: 编译豁免由实际差异判断，产品差异不能伪称纯文档
+ok 18 - 编译豁免由实际差异判断，产品差异不能伪称纯文档
+  ---
+  duration_ms: 1388.5905
+  type: 'test'
+  ...
+# Subtest: 可执行位变化不能借文档后缀绕过代码差异检查
+ok 19 - 可执行位变化不能借文档后缀绕过代码差异检查
+  ---
+  duration_ms: 756.694333
+  type: 'test'
+  ...
+# Subtest: 构建 txt 与可执行 MDX 不能凭后缀获得文档编译豁免
+ok 20 - 构建 txt 与可执行 MDX 不能凭后缀获得文档编译豁免
+  ---
+  duration_ms: 1033.670959
+  type: 'test'
+  ...
+# Subtest: 红扫描只有实体分诊和显式披露齐全才得到待批准例外
+ok 21 - 红扫描只有实体分诊和显式披露齐全才得到待批准例外
+  ---
+  duration_ms: 1149.94775
+  type: 'test'
+  ...
+# Subtest: 未执行扫描或已确认产品问题不能借扫描误报披露放行
+ok 22 - 未执行扫描或已确认产品问题不能借扫描误报披露放行
+  ---
+  duration_ms: 1139.900959
+  type: 'test'
+  ...
+# Subtest: 纯报告尾部保留代码检查，但准确披露最终 head 尚未扫描
+ok 23 - 纯报告尾部保留代码检查，但准确披露最终 head 尚未扫描
+  ---
+  duration_ms: 2115.743458
+  type: 'test'
+  ...
+# Subtest: 合入机械收据无需新生报告，新发现必须转回修复
+ok 24 - 合入机械收据无需新生报告，新发现必须转回修复
+  ---
+  duration_ms: 1143.665458
+  type: 'test'
+  ...
+# Subtest: 删除的产品文件也按前像被审查，不能以最终文件不存在跳过
+ok 25 - 删除的产品文件也按前像被审查，不能以最终文件不存在跳过
+  ---
+  duration_ms: 739.893916
+  type: 'test'
+  ...
+# Subtest: manifest 多出的自动批准字段被拒绝，不执行任何附带操作
+ok 26 - manifest 多出的自动批准字段被拒绝，不执行任何附带操作
+  ---
+  duration_ms: 174.122958
+  type: 'test'
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 23056.730958

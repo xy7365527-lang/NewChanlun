@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "run_id": "b8553861-839f-4694-a734-1e6d41082780",
+  "ticket": 1456,
+  "parent_thread_id": "01a07fb3-9da9-7ca0-9be2-e15de6eac7b3",
+  "manager_agent_id": "/root/tb03b_contract_preparation",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "status": "completed",
+  "mode": "review",
+  "model": "gpt-6-astra",
+  "effort": "xhigh",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "read-only",
+  "approval_policy": "never",
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "checkout_preserved": true,
+  "expected_head": "c64e72501b4210c0851f08e020a683b5180ab731",
+  "checkout_before": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1455-sandcastle-review",
+    "branch": "codex/1456-sandcastle-review",
+    "head": "c64e72501b4210c0851f08e020a683b5180ab731",
+    "status": ""
+  },
+  "checkout_after": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1455-sandcastle-review",
+    "branch": "codex/1456-sandcastle-review",
+    "head": "c64e72501b4210c0851f08e020a683b5180ab731",
+    "status": ""
+  },
+  "started_at": "2026-09-13T21:40:58.167Z",
+  "ended_at": "2026-09-13T21:45:17.541Z",
+  "process_pid": 74884,
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "external_session_id": "01a09cb7-6cdc-7a22-9cf9-2ca4f68911e3",
+  "external_session_log": "/Users/silencehan/.codex/sessions/2026/09/14/rollout-2026-09-14T05-41-01-01a09cb7-6cdc-7a22-9cf9-2ca4f68911e3.jsonl",
+  "output_dir": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker",
+  "stdout_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/codex.stdout.jsonl",
+  "stderr_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/codex.stderr.log",
+  "events_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/events.jsonl",
+  "prompt_sha256": "717a9a152f0c132526c68417c2788e964c2e314fd8643d889d38256da007abcf",
+  "result": {
+    "status": "completed",
+    "summary": "只读审查完成。发现两项具体缺陷：一项阻断性的监督与交付故障，一项取消状态误报。结论来自源码路径推导，未运行测试、构建或真实取消实验；本报告不构成 #1456 整票验收。",
+    "findings": [
+      "[P1／阻断] 状态通知或日志写入异常可能击穿监督器，留下脱管工蜂。位置：/Users/silencehan/Projects/NewChanlun-1456-sandcastle/.sandcastle/codex-child.ts:317、:321、:333、:420、:447。复现输入：让工蜂读取 prompt 后保持静默运行，并让 control.onState 在 process_pid 首次非空时抛错。实际路径是 child 的 spawn 事件 → observation.onSpawn → publish → control.onState；该事件回调没有异常保护，抛错不会转成 handle.exec 的 Promise 拒绝，因此外层 try/finally 无法执行收尾。工蜂以 detached:true 启动（:290），不会因监督器退出而自动被终止，可能继续运行；state.json 留在 running，锁残留，result.json 不交付。同样，stdout/stderr data 回调中的 appendFileSync 遇到 ENOSPC 等错误也会绕过 stop。CLI 的 /Users/silencehan/Projects/NewChanlun-1456-sandcastle/.sandcastle/codex-child.mts:44 使用 process.stdout.write，却没有处理 stdout 的 error 事件，管理者关闭输出管道也是相关故障入口。应将这些输出或回调异常统一接入停止进程组、等待退出、失败交付的路径。以上为静态可复现路径，未实际触发。",
+      "[P2] 会话日志查找期间收到取消，仍可能交付 completed 并以 0 退出。位置：/Users/silencehan/Projects/NewChanlun-1456-sandcastle/.sandcastle/codex-child.ts:460、:467、:471。触发时序：工蜂已经正常退出并给出有效结果，入口通过 :460 的取消检查，随后在 await findByIdOnHost 期间收到 SIGINT/SIGTERM 或 signal.abort()。实际安装 SDK 在 /Users/silencehan/Projects/NewChanlun/node_modules/@ai-hero/sandcastle/dist/index.js:2664 使用异步 readdir 递归查找，确实存在等待窗口。此时进程监督的 abort 监听已在 codex-child.ts:336 移除；查找返回后没有再次检查 signal，直接设置 completed，最终 codex-child.mts:51 返回退出码 0。这会把尚未交付终态时收到的管理者取消记成成功。可用保持 pending 的会话查找桩，在等待期间 abort 后释放查找来定向复现；未执行该实验。应在最终完成判定前复查取消状态，必要时让会话查找支持取消。"
+    ],
+    "validation": [
+      "输入完整性通过：codex-child.ts 为 25115 字节，SHA256 a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1；codex-child.mts 为 2731 字节，SHA256 865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25；codex-child.test.ts 为 18006 字节，SHA256 fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3。三者均与授权输入一致。",
+      "隔离工位核对通过：HEAD 为 c64e72501b4210c0851f08e020a683b5180ab731，分支为 codex/1456-sandcastle-review。该 checkout 未被当作 #1456 目标源码。",
+      "审查范围：完整读取三个指定文件；SDK 仅核对 index.js、index.d.ts 中相关 provider、事件解析、会话查找，以及 sandboxes/no-sandbox.js 直接引用的 chunk-62WN33RK.js 生命周期实现。未审查 PR1455 文档、其他正在制作的文件或被禁止的旧方案。",
+      "权限与输入路径：实际命令固定使用 gpt-6-astra、xhigh、approval never；review 使用 read-only，execute 使用 workspace-write。SDK 默认 bypass 参数经精确替换，prompt 经 stdin 传递，schema 路径经过 shell 引号处理。源码还检查独立 checkout、codex/* 分支、固定 HEAD、干净状态、结果目录不覆盖，以及 prompt 为不超过 4 MiB 的普通文件。未执行 Codex 以验证这些参数在实际运行时的全部效果。",
+      "身份映射：父任务 ID 和管理者 ID 来自调用参数；外部 session ID 来自 SDK 解析的 thread.started.thread_id，并拒绝同次运行出现不同 ID。记录明确使用 sandcastle_external_codex 和 native_subagent:false。会话文件查找只遍历目录及匹配文件名，不读取会话内容；它不独立认证传入管理者是否属于所声明父任务。",
+      "终态与测试边界：源码要求进程成功退出、进程组清理确认、有效 session ID、turn.completed、符合契约的最终 JSON，以及 checkout 后置检查。业务 blocked 保留在 result.status，运行状态转为 failed，这是显式实现。测试文件包含假 Codex 子进程的超时、取消、非零退出、结果异常及 CLI 信号夹具，但未覆盖上述两个发现；本次没有执行任何夹具，不能据其存在宣布边界已验证。",
+      "非阻断限制与未验证点：prompt 的凭据文件排除依赖文件名规则，不能视为通用凭据识别；任务范围限制仍包含提示词约束。未实测真实 Codex 取消、管道断开、磁盘写入失败或脱离原进程组的后代进程。未读取凭据、未发起网络或 GitHub 请求、未写文件或 checkout、未启动其他工蜂。"
+    ]
+  },
+  "failure_reason": null
+}

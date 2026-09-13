@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "ticket": 1456,
+  "recordedAt": "2026-09-13T21:57:46.118611+00:00",
+  "sources": {
+    ".sandcastle/codex-child.ts": "69a552ecc95749ec776657ec42245e1adf81ec4a7398bc95117290ad510a8e70",
+    ".sandcastle/codex-child.mts": "03f261b77cf325f882213450a98754c9958cc431579b3d16edc79730bcead5b8",
+    ".sandcastle/codex-child.test.ts": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+    ".sandcastle/delivery-bundle.ts": "cc4d43e45a8e32eaacfed939263f6133acc9e305dacf57b64600888167a02d20",
+    ".sandcastle/delivery-bundle.mts": "ef3dfa70769cc6e8479a1ab77a8494404029d10a8d80acc677b1e6ba34c74b5c",
+    ".sandcastle/delivery-bundle.test.ts": "571bfdbed8c91c3585cf16c85292d979c56c78b024138dd3179cf3e9f67c47bb"
+  },
+  "checks": [
+    {
+      "id": "targeted-typecheck",
+      "kind": "compile",
+      "command": "tsc --strict --module nodenext --moduleResolution nodenext --target es2022 --skipLibCheck --allowImportingTsExtensions --noEmit --types node .sandcastle/{codex-child,delivery-bundle}.{ts,mts,test.ts}（实际以六个展开路径调用）",
+      "executedAt": "2026-09-13T21:57:46.118611+00:00",
+      "exitCode": 0,
+      "log": {
+        "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/typecheck.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "id": "targeted-tests",
+      "kind": "test",
+      "command": "两个实际调用的汇总：node --import tsx --test .sandcastle/codex-child.test.ts；node --import tsx --test .sandcastle/delivery-bundle.test.ts",
+      "executedAt": "2026-09-13T21:57:46.118611+00:00",
+      "exitCode": 0,
+      "passed": 65,
+      "failed": 0,
+      "runs": [
+        {
+          "cwd": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/entry-repair-candidate",
+          "passed": 39,
+          "exitCode": 0,
+          "log": {
+            "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-tests.log",
+            "sha256": "eb04805cbdf3621bb734296353dead42b47aa8d645cef96844d4c65e701cd93c"
+          },
+          "sourceBinding": "候选三文件 SHA 与本次产品三文件完全一致；复用作者实际执行结果"
+        },
+        {
+          "cwd": "/Users/silencehan/Projects/NewChanlun-1456-sandcastle",
+          "passed": 26,
+          "exitCode": 0,
+          "log": {
+            "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/delivery-tests.log",
+            "sha256": "aa59467fd75578b093f208baac2cb8a77b980af88292f3f0087e17bfb10f9d70"
+          }
+        }
+      ]
+    }
+  ],
+  "fullProjectTypecheck": {
+    "exitCode": 1,
+    "unchangedBaselineErrors": true,
+    "base": "abf5c0f8491fc066a0f2bc47ab4defdb120035c1",
+    "actualCommand": "tsc -p tsconfig.sandcastle.json",
+    "method": "对固定 base 导出的 .sandcastle、package.json、tsconfig 使用同一依赖再次检查；按源码相对路径归一化后错误逐字相同。",
+    "errors": ".sandcastle/agent-workflows/shared/run-with-extraction.ts(51,24): error TS2322: Type 'unknown' is not assignable to type 'T'.\n  'T' could be instantiated with an arbitrary type which could be unrelated to 'unknown'.\n.sandcastle/main.mts(10,10): error TS2300: Duplicate identifier 'execSync'.\n.sandcastle/main.mts(11,10): error TS2300: Duplicate identifier 'readFileSync'.\n.sandcastle/main.mts(24,10): error TS2300: Duplicate identifier 'execSync'.\n.sandcastle/main.mts(25,10): error TS2300: Duplicate identifier 'readFileSync'.",
+    "boundary": "旧 main.mts 重复 import 与旧 run-with-extraction.ts 泛型错误不在本票新增六文件；不声明全仓 typecheck 通过。"
+  },
+  "runtime": {
+    "node": "v22.23.1",
+    "codex": "0.153.4",
+    "sandcastle": "0.12.0",
+    "typescript": "7.0.2"
+  },
+  "boundary": "此记录只绑定实际已执行的检查；最终独审、真实工蜂和远端扫描分别见独立报告。"
+}

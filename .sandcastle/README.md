@@ -1,5 +1,7 @@
 # .sandcastle —— 两段式工蜂管线（sandcastle × prime-agent）
 
+当前 Codex 任务需要由原生子代理管理单次 Codex 工蜂时，使用 [Codex 工蜂入口与交付封包](CODEX-CHILD.md)（#1456）。该入口直接调用 Sandcastle 的 Codex provider，登记父任务、管理者和外部会话，等待实际退出后回传；下文的旧队列入口继续保持原有用途。
+
 ## 这是什么
 
 本目录是 NewChanlun 的自动化领票干活管线：**sandcastle**（`@ai-hero/sandcastle`）负责沙盒编排（每票一个 Docker 沙盒、一条确定性分支），**prime-agent** 负责在沙盒里实际干活的 agent。
