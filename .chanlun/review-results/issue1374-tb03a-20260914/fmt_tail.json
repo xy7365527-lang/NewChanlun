@@ -1,0 +1,558 @@
+{
+  "schema": "bounded-rustfmt-module-order-tail-review/1",
+  "issue": 1374,
+  "pull_request": 1454,
+  "verdict": "APPROVE_BOUNDED_RUSTFMT_MODULE_ORDER_TAIL",
+  "findings": [],
+  "reviewer": "Codex 原生子代理 /root/tb03a_delivery_report",
+  "reviewed_at_utc": "2026-09-13T20:37:12.107001+00:00",
+  "scope": "只核PR head b5b1ab14至当前工作树的唯一模块声明排序尾部；不重审经济语义或重跑既有验收",
+  "base_commit": "b5b1ab14ea5947c77fe0b9e8d6f734d5a777d260",
+  "prior_product_commit": "c0ed0497a1bcd3cfca7e5b73a8af1cae229e0863",
+  "changed_file": {
+    "path": "rust/src/economic_session/mod.rs",
+    "before_sha256": "de1a4948affcf62074adffed513ecd65643c51e01c164419ecafa321a9bd0196",
+    "after_sha256": "1d64bfc38dee56a0049aaff9486bf77a0a3c56334748bfcdb02f2866b1a65c8c",
+    "before_bytes": 296,
+    "after_bytes": 296,
+    "change": "mod voice; 从 mod service; 前移到 mod store; 后；无其他字节变化"
+  },
+  "ordinary_private_modules": [
+    "book",
+    "evidence",
+    "service",
+    "store",
+    "voice"
+  ],
+  "semantic_analysis": [
+    "五个声明均为无属性普通外部私有mod，名称、可见性、对应文件与cfg未变。",
+    "兄弟模块通过普通Rust路径导入和引用解析；该项解析不依赖这些普通mod在父模块中的文本先后。",
+    "父模块与五个子模块未包含macro_use、macro_export、macro_rules或include展开；没有需由本次声明位置控制的跨模块宏文本作用域。",
+    "公共pub use service::cli及cfg(test) voice_tests部分保持原字节；未新增初始化、执行顺序或业务语句。"
+  ],
+  "reviewed_module_sources": [
+    {
+      "path": "rust/src/economic_session/book.rs",
+      "sha256": "e6dbd45a64c4c93f6de59c1f4362a89c2a4b134106ea2a57bc470fb020e7a09e",
+      "bytes": 27027
+    },
+    {
+      "path": "rust/src/economic_session/evidence.rs",
+      "sha256": "77cac6ff99a793d142c3f3701f29d4a24c722cbdcc4b2926bd54181661f0b0ad",
+      "bytes": 13614
+    },
+    {
+      "path": "rust/src/economic_session/service.rs",
+      "sha256": "b34fdc8f6f72d8e1bb1797b53351a00b496ede843c917166f335295598de89a1",
+      "bytes": 26370
+    },
+    {
+      "path": "rust/src/economic_session/store.rs",
+      "sha256": "6916304230861685682535388923168034419940c5f92d1ed8fa800c3c32048c",
+      "bytes": 44132
+    },
+    {
+      "path": "rust/src/economic_session/voice.rs",
+      "sha256": "a70364ef809d120a56a2b18801e7f0984ed34bd15df9706114eedd49acc504d2",
+      "bytes": 15429
+    }
+  ],
+  "other_29_product_files": [
+    {
+      "path": "rust/Cargo.lock",
+      "sha256": "c591858344c1ff7c62335e10c0e2f1f5cf9e7447a8caf81cd92e556bac248b62",
+      "bytes": 55961
+    },
+    {
+      "path": "rust/Cargo.toml",
+      "sha256": "db8af9ea30e1840b87759aedd67a556fa506d152be1b01d3e068d8be610c1bdf",
+      "bytes": 12154
+    },
+    {
+      "path": "rust/src/bin/b_chong_session.rs",
+      "sha256": "34adfbb8456b5e81ea35c81b6cb11ebc83fe85f4aa571ea669115adf3ff56af1",
+      "bytes": 211
+    },
+    {
+      "path": "rust/src/bin/e_economic_session.rs",
+      "sha256": "866dbe66d598648b5c324ad77eaa825c2a856caa37a19b41d4145f7f251e7005",
+      "bytes": 208
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/mod.rs",
+      "sha256": "e235ed35402c1fb63f504d8252857e33a48d6eddbddbd33fc7039b4b4494b624",
+      "bytes": 83491
+    },
+    {
+      "path": "rust/src/bin/s_structure_session.rs",
+      "sha256": "66e7af17326d8ee04dd3062a3e4f62b6541b6389089762d7889ad2bd4d22cca5",
+      "bytes": 247453
+    },
+    {
+      "path": "rust/src/economic_session/book.rs",
+      "sha256": "e6dbd45a64c4c93f6de59c1f4362a89c2a4b134106ea2a57bc470fb020e7a09e",
+      "bytes": 27027
+    },
+    {
+      "path": "rust/src/economic_session/evidence.rs",
+      "sha256": "77cac6ff99a793d142c3f3701f29d4a24c722cbdcc4b2926bd54181661f0b0ad",
+      "bytes": 13614
+    },
+    {
+      "path": "rust/src/economic_session/service.rs",
+      "sha256": "b34fdc8f6f72d8e1bb1797b53351a00b496ede843c917166f335295598de89a1",
+      "bytes": 26370
+    },
+    {
+      "path": "rust/src/economic_session/store.rs",
+      "sha256": "6916304230861685682535388923168034419940c5f92d1ed8fa800c3c32048c",
+      "bytes": 44132
+    },
+    {
+      "path": "rust/src/economic_session/voice.rs",
+      "sha256": "a70364ef809d120a56a2b18801e7f0984ed34bd15df9706114eedd49acc504d2",
+      "bytes": 15429
+    },
+    {
+      "path": "rust/src/economic_session/voice_tests.rs",
+      "sha256": "47509489a874f37d51afef33af67ba1ce68ad652426a9b135db57bc21d1640d7",
+      "bytes": 21494
+    },
+    {
+      "path": "rust/src/lib.rs",
+      "sha256": "388e9588e1deea05c4c35797dd56403b4d547d513605d6c5adf743b75fd72e89",
+      "bytes": 111248
+    },
+    {
+      "path": "rust/src/session_protocol.rs",
+      "sha256": "87456952f5e74e7d932760b73647fbb1dad382b41098e441686a4b7ee87ffa00",
+      "bytes": 13416
+    },
+    {
+      "path": "rust/src/session_transport.rs",
+      "sha256": "0b968ef87bfe5f4bcfc7dbd136ba2401066a892a24ce598a9874fcffe9f1132c",
+      "bytes": 18546
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/ledger.rs",
+      "sha256": "7c218a26af9a7ad0fd2cbe5cfc51511cc3dc98a402541281ab3590280c911f24",
+      "bytes": 94302
+    },
+    {
+      "path": "s_session/browser/economic.html",
+      "sha256": "623dc71dca16828b0b089b9d43400e40e470a18fb1f123a5c9943b5e8a7b43b0",
+      "bytes": 8075
+    },
+    {
+      "path": "s_session/browser/index.html",
+      "sha256": "ac42bf0c2ff530d8b6f53f4e086bf7d84fd2babcf6e7ba59d97f20f9eebf177b",
+      "bytes": 47130
+    },
+    {
+      "path": "s_session/browser/tb03a-client.js",
+      "sha256": "097fcabb8b678fed19cd85a0f365c989e3c3b2d72c05ee990d09902e1f9305b2",
+      "bytes": 18776
+    },
+    {
+      "path": "s_session/economic_http.py",
+      "sha256": "c9aee04f19694d5ff79b6367e057f424aba8aa18a708098dc38e13aef468b0dd",
+      "bytes": 5686
+    },
+    {
+      "path": "s_session/economic_query.py",
+      "sha256": "4a4491efcb8ae58a634d3a0969e5b624fde05f06f91d897ad59c16339c4be349",
+      "bytes": 15394
+    },
+    {
+      "path": "s_session/economic_service_control.py",
+      "sha256": "a4d2d25665b3163cc6ef183e4dba29ac8cef8ac8f0f716384251e68d143f94e4",
+      "bytes": 9886
+    },
+    {
+      "path": "s_session/launch_s.sh",
+      "sha256": "5bd94dbd39efc5a14be7d2fa23b3ed6b9c7c4570bc38338876c6451eec67522a",
+      "bytes": 10740
+    },
+    {
+      "path": "s_session/s_readonly_server.py",
+      "sha256": "c8c3be8c09177cc8fd9f0fb7b3a4c1dcfb6d0eee9e222628fc63cc24fdb20916",
+      "bytes": 52779
+    },
+    {
+      "path": "s_session/s_service_control.py",
+      "sha256": "adf11ed673902705fc1a5776c3fcd68417cbc69690e5ba19157b515a691fd039",
+      "bytes": 30744
+    },
+    {
+      "path": "s_session/s_socket_client.py",
+      "sha256": "fdd8a40a501e1de9a740304667c9ba491a8ca3e1ac251ec62bf4832e7e425a27",
+      "bytes": 8845
+    },
+    {
+      "path": "s_session/tests/test_tb03a_query.py",
+      "sha256": "bc635f54cf8b354697cf0ecacf6e9a5f52fabcf90599615187223a5e1ad81440",
+      "bytes": 6614
+    },
+    {
+      "path": "s_session/tests/test_tb03a_socket_identity.py",
+      "sha256": "d4c5eb73de580a7b4b4e8dd1d1f9c5b67c2ad4263c332cf64a4deb1d6a66b6ea",
+      "bytes": 3240
+    },
+    {
+      "path": "s_session/tests/test_tb03a_voice_client.cjs",
+      "sha256": "13ba54bd723f4700833372804100c1f87886a7955ddeb6ce911a862423d1634a",
+      "bytes": 6447
+    }
+  ],
+  "prior_coverage_report": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/final-delivery-scope-independent/REVIEW.json",
+    "sha256": "9ee05269d5067c8ff5b87dbacb1b5e7e8d49074f83b01d1fde6f31d4ddd3de1e"
+  },
+  "git_scope": {
+    "tracked_changed_files": [
+      "rust/src/economic_session/mod.rs"
+    ],
+    "product_changed_files": [
+      "rust/src/economic_session/mod.rs"
+    ],
+    "untracked_product_files": []
+  },
+  "checks": [
+    {
+      "check": "原文件恰有一个普通mod voice声明",
+      "pass": true
+    },
+    {
+      "check": "新文件精确等于仅把voice声明移到store之后，其他字节不变",
+      "pass": true
+    },
+    {
+      "check": "五个生产私有模块均为普通外部mod且仅按名称排序",
+      "pass": true
+    },
+    {
+      "check": "公共cli导出不变",
+      "pass": true
+    },
+    {
+      "check": "test cfg及voice_tests声明不变",
+      "pass": true
+    },
+    {
+      "check": "无文本顺序宏跨域或include展开 book",
+      "pass": true
+    },
+    {
+      "check": "无文本顺序宏跨域或include展开 evidence",
+      "pass": true
+    },
+    {
+      "check": "无文本顺序宏跨域或include展开 service",
+      "pass": true
+    },
+    {
+      "check": "无文本顺序宏跨域或include展开 store",
+      "pass": true
+    },
+    {
+      "check": "无文本顺序宏跨域或include展开 voice",
+      "pass": true
+    },
+    {
+      "check": "父模块无文本顺序宏或include展开",
+      "pass": true
+    },
+    {
+      "check": "相对PR head唯一产品差异为mod.rs",
+      "pass": true
+    },
+    {
+      "check": "无新增未跟踪产品文件",
+      "pass": true
+    },
+    {
+      "check": "原30文件独立覆盖报告身份",
+      "pass": true
+    },
+    {
+      "check": "原覆盖清单恰30文件",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/Cargo.lock",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/Cargo.lock",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/Cargo.toml",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/Cargo.toml",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/bin/b_chong_session.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/bin/b_chong_session.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/bin/e_economic_session.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/bin/e_economic_session.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/bin/s_session_v2/mod.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/bin/s_session_v2/mod.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/bin/s_structure_session.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/bin/s_structure_session.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/economic_session/book.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/economic_session/book.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/economic_session/evidence.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/economic_session/evidence.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/economic_session/mod.rs",
+      "pass": true
+    },
+    {
+      "check": "被移动文件旧字节等于已审身份",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/economic_session/service.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/economic_session/service.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/economic_session/store.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/economic_session/store.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/economic_session/voice.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/economic_session/voice.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/economic_session/voice_tests.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/economic_session/voice_tests.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/lib.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/lib.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/session_protocol.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/session_protocol.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/session_transport.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/session_transport.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 rust/src/theta_v0/strategy/ledger.rs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 rust/src/theta_v0/strategy/ledger.rs",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/browser/economic.html",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/browser/economic.html",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/browser/index.html",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/browser/index.html",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/browser/tb03a-client.js",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/browser/tb03a-client.js",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/economic_http.py",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/economic_http.py",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/economic_query.py",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/economic_query.py",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/economic_service_control.py",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/economic_service_control.py",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/launch_s.sh",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/launch_s.sh",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/s_readonly_server.py",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/s_readonly_server.py",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/s_service_control.py",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/s_service_control.py",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/s_socket_client.py",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/s_socket_client.py",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/tests/test_tb03a_query.py",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/tests/test_tb03a_query.py",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/tests/test_tb03a_socket_identity.py",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/tests/test_tb03a_socket_identity.py",
+      "pass": true
+    },
+    {
+      "check": "PR head blob等于已审30清单 s_session/tests/test_tb03a_voice_client.cjs",
+      "pass": true
+    },
+    {
+      "check": "其余产品字节未变 s_session/tests/test_tb03a_voice_client.cjs",
+      "pass": true
+    },
+    {
+      "check": "其余29文件逐字一致",
+      "pass": true
+    },
+    {
+      "check": "核对过程中模组排序尾部保持稳定",
+      "pass": true
+    }
+  ],
+  "verification": {
+    "all_pass": true,
+    "mechanical_checks": 77,
+    "prior_product_source_count": 30,
+    "unchanged_files": 29,
+    "normal_fault_gui_rerun": false,
+    "W4_modified_by_reviewer": false,
+    "services_started_or_stopped": false,
+    "old_reports_modified": false
+  },
+  "pending_evidence": [
+    "root追加本次尾部源码/新构建身份与实际提交；旧实际运行原件保持不变，不把新build当新执行。"
+  ],
+  "limits": [
+    "本结论只批准普通模块声明的排序尾部并证明其余已验源码无漂移。",
+    "不以源码排序等价冒充新二进制字节相同；新构建摘要必须另记。",
+    "不重跑正常/故障/浏览器，不产生main合入、关票、父图完成或真实外效授权。"
+  ],
+  "reused_new_build_evidence": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/PR1454-FMT-TAIL-BUILD.json",
+    "sha256": "b98a1e52a95a837666d9ab26d24f64e5978395aee4bf7cbe11caa046b41d371d",
+    "format_exit_code": 0,
+    "build_exit_code": 0,
+    "source_change_matches": true,
+    "build_log_hash_matches": true,
+    "new_binary_files_verified": 3,
+    "actual_runtime_replay_claimed": false
+  }
+}

@@ -1,7 +1,7 @@
 {
   "schema": "issue1374-bounded-delivery-evidence/1",
   "issue": 1374,
-  "document_status": "具名成功范围验收完成；产品与报告交付，未合入 main",
+  "document_status": "实际业务验收完成；CI 格式尾部已修复、独评和构建；未合入 main",
   "generated_at_utc": "2026-09-13T20:13:29.474927+00:00",
   "author": "Codex 原生子代理 tb03a_delivery_report",
   "generation_rules": "docs/agents/generation-constitution.md §5；docs/agents/delivery-discipline.md 关票实体报告与评审面条款",
@@ -9,15 +9,15 @@
   "archive_path_rule": "review_entries 和 artifacts 的 source_path 均相对 archive_root；repository_copy 为本目录内原文逐字副本。仓外原始执行数据未复制入仓。",
   "workspace": "/Users/silencehan/Projects/NewChanlun-1374-codex",
   "base_commit": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
-  "current_head": "c0ed0497a1bcd3cfca7e5b73a8af1cae229e0863",
+  "current_head": "28694b5f364307da9e630acc64314ea3221e6831",
   "branch": "codex/1374-codex",
   "delivery_commit": "c0ed0497a1bcd3cfca7e5b73a8af1cae229e0863",
   "merged_main_commit": null,
   "main_ci_run": null,
   "report": {
     "path": "REPORT.md",
-    "sha256": "f4fbc2736f377e8cbf8703c13926d2bb237722fe0c08ea436accb0ec86280163",
-    "bytes": 11054
+    "sha256": "59aa70e49980f9cf3860b23b0bfcec5f0a7d0bbaa08068ef7cbc653bcc14ffde",
+    "bytes": 12307
   },
   "counting_rule": "每项统计沿各自原报告保留；作者断言、独立断言、负控、测试函数、制品数不相加为独立测试总量。旧报告中的未验边界仅指该次范围，后续证据以新增索引连接，不改原文。",
   "review_entries": [
@@ -582,6 +582,28 @@
         }
       },
       "status": "已核实际产品 commit；30 个产品文件+1 工位登记，无源码尾部漂移"
+    },
+    {
+      "id": "fmt_tail",
+      "source_path": "evidence/fmt-tail-independent/REVIEW.json",
+      "repository_copy": "fmt_tail.json",
+      "sha256": "261750c631e1bfc8be7a1872fad5987fb5343e879b41ac8bb645a92b58a50542",
+      "bytes": 17440,
+      "verdict": "APPROVE_BOUNDED_RUSTFMT_MODULE_ORDER_TAIL",
+      "scope": "只核PR head b5b1ab14至当前工作树的唯一模块声明排序尾部；不重审经济语义或重跑既有验收",
+      "metrics_from_original_report": {
+        "verification": {
+          "all_pass": true,
+          "mechanical_checks": 77,
+          "prior_product_source_count": 30,
+          "unchanged_files": 29,
+          "normal_fault_gui_rerun": false,
+          "W4_modified_by_reviewer": false,
+          "services_started_or_stopped": false,
+          "old_reports_modified": false
+        }
+      },
+      "status": "一行普通私有 mod 声明排序尾部独评通过；其他 29 个产品文件未变"
     }
   ],
   "artifacts": [
@@ -744,6 +766,14 @@
       "bytes": 27366,
       "copied_into_repository": false,
       "role": "实际 Voice 故障独验包冻结，81 份验收包文件与 2098 份输入文件的校验入口"
+    },
+    {
+      "id": "fmt_tail_build",
+      "source_path": "PR1454-FMT-TAIL-BUILD.json",
+      "sha256": "b98a1e52a95a837666d9ab26d24f64e5978395aee4bf7cbe11caa046b41d371d",
+      "bytes": 1747,
+      "copied_into_repository": false,
+      "role": "格式尾部的新构建和独立冻结二进制，不冒充此前实际运行"
     }
   ],
   "frozen_binaries_verified_now": [
@@ -941,7 +971,7 @@
     },
     {
       "path": "rust/src/economic_session/mod.rs",
-      "sha256": "de1a4948affcf62074adffed513ecd65643c51e01c164419ecafa321a9bd0196",
+      "sha256": "1d64bfc38dee56a0049aaff9486bf77a0a3c56334748bfcdb02f2866b1a65c8c",
       "bytes": 296,
       "review_snapshots": [
         {
@@ -957,16 +987,22 @@
         {
           "review_id": "voice_core",
           "reviewed_sha256": "de1a4948affcf62074adffed513ecd65643c51e01c164419ecafa321a9bd0196",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "fmt_tail",
+          "reviewed_sha256": "1d64bfc38dee56a0049aaff9486bf77a0a3c56334748bfcdb02f2866b1a65c8c",
           "matches_current_bytes": true
         }
       ],
       "review_chain": [
         "owner_initial",
         "owner_v2",
-        "voice_core"
+        "voice_core",
+        "fmt_tail"
       ],
       "status": "当前字节有对应评审快照；结论限于报告明示范围",
-      "qualification": "原 owner 缺陷关闭后追加 Voice 核心审查；当前字节与 voice_core 相符，不能把早期 hash 当当前 hash。"
+      "qualification": "原 owner/Voice 连续审查后，仅普通私有模块排序改变；fmt_tail 确认无声明顺序语义依赖，构建与格式检查通过。旧运行冻结对应排序前字节，未覆盖或冒称新运行。"
     },
     {
       "path": "rust/src/economic_session/service.rs",
@@ -1510,7 +1546,7 @@
     "#1323 六 Destination、#1361 及其他父域不因本叶证据关闭；已完成前置 #1359 保持原验收范围；#1453 独立 draft 的合入授权未由本报告产生。",
     "只读证据整理未新启服务、未读原 SQLite、未重新跑已通过测试，未 commit/push/merge/comment/close。"
   ],
-  "updated_at_utc": "2026-09-13T20:31:00.149736+00:00",
+  "updated_at_utc": "2026-09-13T20:39:35.190174+00:00",
   "delivery_identity": {
     "product_commit": "c0ed0497a1bcd3cfca7e5b73a8af1cae229e0863",
     "parent_commit": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
@@ -1519,13 +1555,22 @@
     "committed_bytes_match_reviewed_sources": true,
     "build_binding_artifact_id": "voice_build",
     "binary_artifact_id": "voice_binaries",
-    "build_reuse_basis": "已成功构建及实际运行的源码字节未改变；当前产品 commit 的全部 30 份代码/构建文件与索引所审哈希逐项相同。无需重复相同构建。",
-    "report_commit_rule": "本报告与索引由紧随产品提交的纯文档 commit 承载，其准确 hash 从包含本文件的 Git 历史读取，避免自引用 hash。",
-    "report_only_compile_exemption": "后续报告 commit 仅 .chanlun/review-results/ 文档，不改变产品源码；提交后以实际 diff 确认。",
-    "final_scope_review_id": "final_delivery_scope"
+    "build_reuse_basis": "首产品 c0ed0497 与实际运行构建字节相同；后续 28694b5f 仅 mod 声明排序，已单独独评与重新构建三程序，不把新 binary 冒充旧运行 binary。",
+    "report_commit_rule": "首纯报告为 b5b1ab14ea5947c77fe0b9e8d6f734d5a777d260；尾部纯报告提交包含本索引更新与 fmt_tail 原件，其 hash 从本目录 Git 历史读取。",
+    "report_only_compile_exemption": "两次报告提交均仅 .chanlun/review-results 文档；实际 diff 核验，无产品变更。",
+    "final_scope_review_id": "final_delivery_scope",
+    "format_tail": {
+      "commit": "28694b5f364307da9e630acc64314ea3221e6831",
+      "after_report_commit": "b5b1ab14ea5947c77fe0b9e8d6f734d5a777d260",
+      "changed_product_files": 1,
+      "review_id": "fmt_tail",
+      "new_build_artifact_id": "fmt_tail_build",
+      "remaining_29_sources_unchanged": true
+    }
   },
   "subsequent_delivery_gates": [
     "main 合入仍需对实际 PR 的批准",
     "主线 CI、关票与工位清理只在实际发生后记录；本报告不预写"
-  ]
+  ],
+  "latest_product_commit": "28694b5f364307da9e630acc64314ea3221e6831"
 }
