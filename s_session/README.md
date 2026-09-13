@@ -1,12 +1,12 @@
-# 正式结构会话 S（TB-01-A/B/C）
+# 正式结构会话 S（TB-01-A/B/C、TB-02-A）
 
-正式 launcher 管理独立 Rust S（SQLite/WAL 单写者）和独立只读查询进程 Q；浏览器通过 Q 观察结构事实。受测域仅为具名 TestOnly 原始逐笔事件一对一精确退化 OHLC（O=H=L=C）的 `CC-006/local_shape` 四分支。不启动 E/B/X、不建其库、不加载经济政策；结构 scope 为 `CompleteCut`，经济 scope 为 `not_started`。
+正式 launcher 管理独立 Rust S（SQLite/WAL 单写者）和独立只读查询进程 Q；浏览器通过 Q 观察结构事实。TB-01 的具名 TestOnly 逐笔域保留一对一精确退化 OHLC（O=H=L=C）的 `CC-006/local_shape` 四分支；TB-02-A 增加已给定完整 OHLC、已建立方向且无同价极值身份竞争的包含与局部分型域。不启动 E/B/X、不建其库、不加载经济政策；结构 scope 为 `CompleteCut`，经济 scope 为 `not_started`。
 
 v1 保留 `init/accept/advance/catalog/snapshot/meta` CLI 与旧 GET 读口；v2 增加常驻 S、持久消息收据、语义时钟、恢复、固定 cut 分页和 Watch/Gap。v2 当前从新库初始化，不提供 v1 库自动迁移。以下命令从仓库根目录执行，工作原件保存在自选的仓外目录；这份说明不授予 C 最终验收。
 
 ## v2：构建与显式配置
 
-需要 Rust/Cargo、可链接 `libpython3.11` 的 Python 3.11；HTTP 采集和浏览器测试另需支持本仓脚本所用 Node API 的 Node.js。Python 与动态库必须来自同一运行时。以下使用独立构建目录，不覆盖已有二进制；也可直接把 `S_BINARY` 指向已构建并保留 SHA-256 的同源二进制。
+需要 Rust/Cargo、可链接对应 libpython 的 Python 3.11 或 3.12；HTTP 采集和浏览器测试另需支持本仓脚本所用 Node API 的 Node.js。Python 与动态库必须来自同一运行时。以下使用 Python 3.11 和独立构建目录，不覆盖已有二进制；也可显式选择 Python 3.12，或把 `S_BINARY` 指向已构建并保留 SHA-256 的同源二进制。
 
 ```bash
 export S_REPO="$PWD"
@@ -156,6 +156,38 @@ PY
 | load `OBSERVED_BOUNDED_PROGRESS_REQUIRES_TRAJECTORY_AND_CONSUMER_REVIEW` | 仅在实际采样窗口内记录负载进展，不是生产容量或 C PASS |
 
 运行 driver 不覆盖 GUI、v2 多页/Watch/断连/积压、Q 完整性扰动，也不会因为输出目录存在或进程退出 0 就补齐这些验收。
+
+## TB-02-A：完整 OHLC 的包含与局部分型
+
+`profiles/ohlc_integer_tb02a_v1.json` 显式选择 `s-ohlc/1` 输入：每根原始 K 线须提供规范整数文本的 open/high/low/close、volume，以及既有身份、修订、源坐标和时间字段。该档案声明整数价格单位、已给定 OHLC、无重采样，`not_product_default=true`。它不定义逐笔聚合、初始方向或同价根选择。旧 `testonly_tick_1_1_ohlc` 的字段和排序版本保持原合同。
+
+包含步和组来自同一 parser 折叠；S 封存真实成员、组首、全部端点来源、当时建立方向和确认组边界的见证，以及局部四分支。组首与极值根分别显示；三 K 的 `raw_refs` 只列实际组成员，`dependency_refs` 单列方向与当前组边界的其他原始依据。全部依据参与身份，数值恢复不会重新激活已撤回的旧记录。已成立 TOP/BOTTOM 的描述将后续已见价格关系与尚无已裁数值规则的强弱词分轴；RISING/FALLING 不被标作顶底。初始包含未定方向、同角色极值存在多个来源时保留等待及依据，不能以本片通过宣称一般域完成。
+
+OHLC 库增加 `raw_ohlc` 与 `structure_facts`，与原输入、封存批次及 Delta 交叉核验。公开查询仍为六族，objects 包含真实三 K 与按 kind 区分的包含/描述/知识事实；从 G0 起绑定 `s-record-order/2`。修订产生新事实和撤回记录，原 AsKnown cut 保持完整。Q 和浏览器消费 S 的已封存事实，不另算包含或分型。
+
+`tests/fixtures/tb02a/` 是独立手算原始账簿与预期：九组原始输入，加一组同身份修订与 after_batch 恢复，每组 a/b 两次。价格来自原件；时间坐标、volume、instrument 是 `RUN-PLAN.json` 明示的测试包装。使用上文构建的同源 `S_BINARY` 和 `S_PYTHON`，再显式选择空闲端口范围与新的短 socket 目录：
+
+```bash
+export TB02_OUTPUT="$S_RUN_ROOT/tb02a"
+export TB02_SOCKETS="$(mktemp -u /tmp/tb02a-sockets.XXXXXX)"
+export TB02_NODE="$(command -v node)"
+"$S_PYTHON" s_session/tests/tb02a_prepare.py \
+  --output "$TB02_OUTPUT" --sockets "$TB02_SOCKETS" \
+  --binary "$S_BINARY" --python "$S_PYTHON" --node "$TB02_NODE" --port-base 18930
+"$S_PYTHON" - <<'PY'
+import json, os, subprocess
+from pathlib import Path
+plan = json.loads((Path(os.environ['TB02_OUTPUT']) / 'RUN-PLAN.json').read_text())
+for run in plan['runs']:
+    subprocess.run(run['command'], check=True)
+PY
+"$S_PYTHON" s_session/tests/tb02a_oracle_check.py \
+  --run-plan "$TB02_OUTPUT/RUN-PLAN.json" --output "$TB02_OUTPUT/ORACLE-RESULT.json"
+```
+
+目录已存在即拒绝，不覆盖失败证据。每条输入经正式常驻入口，随后通过真实 HTTP 和生产浏览器 Client 读取完整分页/Watch；每个 AsKnown cut 在全部输入后再次读取。恢复案例核对原 S 身份后注入 SIGKILL，Q 持续存在，以原持久消息和具名语义时钟恢复，最终收据核对原消息身份。驱动分别尝试停止自己的 Q/S，清理失败也返回非零。
+
+`CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER` 只表示完整采集：所有公开候选、SQLite 全表/完整 BLOB、schema 和输入收据均保留。独立 checker 比较两轮完整原字节，再与手算各步、组、来源和分型核对。真实浏览器渲染仍须单独查看，HTTP helper 的模拟显示钩子不算 GUI 验收。此处是可运行入口说明，运行结果以对应票的实际证据为准。
 
 ## HTTP 原件采集入口
 

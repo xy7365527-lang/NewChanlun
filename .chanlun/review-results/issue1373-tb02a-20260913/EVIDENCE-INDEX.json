@@ -1,0 +1,955 @@
+{
+  "schema": "issue1373-tb02a-evidence-index/1",
+  "ticket": 1373,
+  "status": "本叶具名域本地验证与独立评审完成；候选交付待main批准",
+  "generated_at_utc": "2026-09-13T15:05:31.484005+00:00",
+  "repository_base": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+  "preservation_root": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913",
+  "scope": "索引此刻已存在的报告、manifest 和执行收据，记录真实文件 SHA-256 与字节数；大核心、请求响应、截图与数据库不复制入仓，由限定范围总保全manifest逐项绑定。commit、PR和CI尚未执行，不预记结果。",
+  "entries": [
+    {
+      "id": "contract",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/INTEGRATION-CONTRACT.md",
+      "bytes": 17279,
+      "sha256": "8584c55b0ec982f40b4f56851d6fa925a307eea761c99bf7659f5e3ed2669ccb"
+    },
+    {
+      "id": "handoff-snapshot",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/CURRENT-HANDOFF.json",
+      "bytes": 1431,
+      "sha256": "a4cd7777bf8a27bad2d6c253eb32fd595e3535bb85eee572d05554db41439c95"
+    },
+    {
+      "id": "rust-final-build",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/rust-checks/f1/BUILD.json",
+      "bytes": 2135,
+      "sha256": "6702d8bba789a3bde18d693eaef7b4b65e8572771c56961610b85f688638b9cd"
+    },
+    {
+      "id": "rust-final-tests",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/rust-checks/f1/SESSION-TESTS.json",
+      "bytes": 2080,
+      "sha256": "e2702d71d01fe83197b21b0ada3bda925c9534a782115d419468b5ce356e1715"
+    },
+    {
+      "id": "rust-final-source",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/rust-checks/f1/TEST-SOURCE.json",
+      "bytes": 1338,
+      "sha256": "35fff3038c7293436d7035b80ed50f7994e7a95b4f60808190863a3725654fd8"
+    },
+    {
+      "id": "rust-final-test-log",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/rust-checks/f1/session-tests-final.log",
+      "bytes": 24124,
+      "sha256": "8664ba5d8e34af5844362ae0e2b6fd14e2a592c5feff82bca0fc1e89f316224a"
+    },
+    {
+      "id": "rust-final-inclusion",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/rust-checks/f1/INCLUSION-TESTS.json",
+      "bytes": 568,
+      "sha256": "0c55575a62612e5f0bcf71c787a6b4608cfff21f9eb668cd74f83f373fb60872"
+    },
+    {
+      "id": "rust-final-inclusion-stdout",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/rust-checks/f1/INCLUSION-TESTS.stdout",
+      "bytes": 2179,
+      "sha256": "ed86996a5312bde213d6a4184fddb9ca6523be3a2e96f0973d7cceff39b6f7bf"
+    },
+    {
+      "id": "rust-final-inclusion-stderr",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/rust-checks/f1/INCLUSION-TESTS.stderr",
+      "bytes": 20405,
+      "sha256": "39d193e867565dabab3804b17ed528a306b5ceac7af0131a693aa41fb7408bc8"
+    },
+    {
+      "id": "rust-earlier-inclusion",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/rust-checks/inclusion-tests.json",
+      "bytes": 931,
+      "sha256": "758422c534e11d583027d5577dddcefa59cf34946f4bd5779736a079965876d2"
+    },
+    {
+      "id": "rust-independent-result",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-review-final-rust/RESULT.json",
+      "bytes": 966,
+      "sha256": "301a5959c1ebe139e9510be633ec33b7e5f49e4700a7c6908c6326e29751d078"
+    },
+    {
+      "id": "rust-independent-preservation",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-review-final-rust/PRESERVATION-MANIFEST.json",
+      "bytes": 16379,
+      "sha256": "f7bca3504421da829414d4ba0f6d8ddbaca0b8d7541b76e7c10426e33a1ff618"
+    },
+    {
+      "id": "q-ordinal-delivery",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/DELIVERY.json",
+      "bytes": 10510,
+      "sha256": "c8cc3d28d76730f00d0c6efa15736b369c0076401ccad3fc24ddfee6b01212d3"
+    },
+    {
+      "id": "q-ordinal-delivery-text",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/DELIVERY.md",
+      "bytes": 3212,
+      "sha256": "8e14f0240785f08ed7d9aab9e7d615c253c108c60c2a23d54b9d8e9ec8b2c64d"
+    },
+    {
+      "id": "q-ordinal-manifest",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/MANIFEST.json",
+      "bytes": 35513,
+      "sha256": "654736bcba1faf46cea89aa188a4f4a2aea6e6c3a40ecb42692215e98e86b6d0"
+    },
+    {
+      "id": "q-ordinal-before",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/SOURCE-BEFORE.json",
+      "bytes": 6726,
+      "sha256": "0d238ec1315950bad183264ccfaf8003788273bd2bd1eb20f7e80ab357aa9d01"
+    },
+    {
+      "id": "q-ordinal-after",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/SOURCE-AFTER.json",
+      "bytes": 6001,
+      "sha256": "5000247f98344d91c88b91360fb084e21d24bc356c6a15be502dd140e3d795d5"
+    },
+    {
+      "id": "q-ordinal-q23-result",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/Q23/RESULT.json",
+      "bytes": 174,
+      "sha256": "d69553eb8381ce74f686762f6a29a5438741569e22b6edeaef099965ac8deb3b"
+    },
+    {
+      "id": "q-ordinal-q23-command",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/Q23-COMMAND.json",
+      "bytes": 662,
+      "sha256": "146a2039224a64422482b57b1e586a5419352e9bd1ef41ba1a8a1c748f27873d"
+    },
+    {
+      "id": "q-ordinal-q23-run",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/Q23-RUN.json",
+      "bytes": 48,
+      "sha256": "dbab3e513d53a06ead420c2ac3c7ae569dbbe98ddf016915292c64e52b2b416e"
+    },
+    {
+      "id": "q-ordinal-q23-stderr",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/Q23.stderr",
+      "bytes": 2544,
+      "sha256": "d8d00b375543b41bb750cb5c9c904e4ed32c09e461454edff7304fc20ba0c9fa"
+    },
+    {
+      "id": "q-ordinal-legacy-command",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/LEGACY-Q31-COMMAND.json",
+      "bytes": 473,
+      "sha256": "980095bb1fd8585285bdf6a3826335d3ddb54b1523d63dd15e1b15d99fc33aa3"
+    },
+    {
+      "id": "q-ordinal-legacy-run",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/LEGACY-Q31-RUN.json",
+      "bytes": 48,
+      "sha256": "4fe9a5ecbd9590981ea59986f3ad2ff4a15d81663fb76655c9ef06d73e149186"
+    },
+    {
+      "id": "q-ordinal-legacy-stderr",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/LEGACY-Q31.stderr",
+      "bytes": 4592,
+      "sha256": "ef2402639851c5f1dfdd37679ea59dce8b03f20e9721fda0cd34a3b9265e56f4"
+    },
+    {
+      "id": "q-ordinal-browser",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/BROWSER.json",
+      "bytes": 4653,
+      "sha256": "68eb89eb245a3dd1416eb4925ec415c74211cce9dbd22382d7f0a7c1fb709a21"
+    },
+    {
+      "id": "q-ordinal-browser-command",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/BROWSER-COMMAND.json",
+      "bytes": 314,
+      "sha256": "9d6bf078a28544576e6530c3d577660629d08e7138d88739d48a8b644c02ec78"
+    },
+    {
+      "id": "q-ordinal-http",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/HTTP-RESULT.json",
+      "bytes": 298,
+      "sha256": "5deb7959cd12122811e882196637a53c7dbeb88ad5a70708f1aaa7c948f1bccc"
+    },
+    {
+      "id": "q-ordinal-http-command",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/HTTP-COMMAND.json",
+      "bytes": 510,
+      "sha256": "f7716629d4c314d760b4f2e29998f3a5595948adad7d3fc015f41af0b0b77746"
+    },
+    {
+      "id": "q-ordinal-original-recheck",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix/ORIGINAL-RUNTIME-RECHECK/RESULT.json",
+      "bytes": 1889,
+      "sha256": "0627b55f8f2f1e23461258c03e11b166d2d3cbfcfcf14a98717b1aee80a15600"
+    },
+    {
+      "id": "v1-failure",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v1/up_member_equal_and_touch-a/evidence/RESULT.json",
+      "bytes": 1353,
+      "sha256": "a9952885bc35d03a84a129177b470521bc9aef316d1a1aa2923e21364fc414df"
+    },
+    {
+      "id": "v2-run-plan",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/RUN-PLAN.json",
+      "bytes": 27168,
+      "sha256": "2d6674b78018c98c636875d7b50d90fb05e4a577176e7d866ae14ff511c66430"
+    },
+    {
+      "id": "v2-execution",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/EXECUTION.jsonl",
+      "bytes": 2049,
+      "sha256": "70547915fe31e896e09a1fb3578bcd3b1b0d5158a0bc0a7f8001625ca50fde09"
+    },
+    {
+      "id": "v2-oracle-result",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/ORACLE-RESULT.json",
+      "bytes": 205758,
+      "sha256": "a1dd618d181b081eb53fc39e203ed71f8e6dd07a00643b8f21785064c43bd6e2"
+    },
+    {
+      "id": "v2-oracle-execution",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/ORACLE-EXECUTION.json",
+      "bytes": 1284,
+      "sha256": "8f6f3b4493bc476ab8e7849c0db8b584554fb7ad355d93063432feb9f188397c"
+    },
+    {
+      "id": "v2-oracle-stdout",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/ORACLE.stdout",
+      "bytes": 115,
+      "sha256": "b2feaa669736af085894437507f791f83b5716e222f7284a1370d4fe6bb17420"
+    },
+    {
+      "id": "v2-oracle-stderr",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/ORACLE.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "q-pre-fix-manifest",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-pre-fix/MANIFEST-v2.json",
+      "bytes": 10727,
+      "sha256": "d62fafdec94e7fec342e583d3716b33af901b518e04fca47c69f6ec4524b6d11"
+    },
+    {
+      "id": "q-pre-fix-explanation",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-pre-fix/README.md",
+      "bytes": 1447,
+      "sha256": "246105f68060d2d7507090434498c6cf4952becd089b6bed5f4b02a5efe15e19"
+    },
+    {
+      "id": "q-pre-fix-run-notes",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-pre-fix/RUN-NOTES.md",
+      "bytes": 811,
+      "sha256": "893221d24a3f1fe31436329bc7a554fa685b6a8e1442b0a4e3d908e26082370a"
+    },
+    {
+      "id": "q-pre-fix-command",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-pre-fix/RUN-ARGV-v2.json",
+      "bytes": 358,
+      "sha256": "0d9ff8b463ed3e05291b4405a978ece6611e35b6f865aa5445b46557a7f3008f"
+    },
+    {
+      "id": "q-pre-fix-reproducer",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-pre-fix/reproduce-v2.cjs",
+      "bytes": 6168,
+      "sha256": "6658883c636d3951a4ac7fa8905d56e44b9b895ef5f47aacbf363af02a50f453"
+    },
+    {
+      "id": "q-pre-fix-result",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-pre-fix/replay-2/RESULT.json",
+      "bytes": 5776,
+      "sha256": "dc00a9f3e67e8ab7f7d94735fa6ff74281d8612c9a985c496b11a268d4a833f4"
+    },
+    {
+      "id": "q-pre-fix-stdout",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-pre-fix/stdout-v2.txt",
+      "bytes": 181,
+      "sha256": "9cad926dab9756bd0fae4d8264d61cef37bd8a89000b130f3a4f5ff1ff3585e7"
+    },
+    {
+      "id": "q-pre-fix-stderr",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-pre-fix/stderr-v2.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "v2-run-down_member_equal_and_touch-a",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/down_member_equal_and_touch-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "9b8c4245231bb390cb5578e27a476f2529b205b06d90fca1f6cb317979fe618e"
+    },
+    {
+      "id": "v2-run-down_member_equal_and_touch-b",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/down_member_equal_and_touch-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "3d3a053b65782d3b969f99845b3955270769196bee127445b300f418acc1a0c4"
+    },
+    {
+      "id": "v2-run-four_local_leaves-a",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/four_local_leaves-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "1831b9018fc3b6b35b231aecbf014442b6d69ca9527b353f1364cd5ccf5a42c9"
+    },
+    {
+      "id": "v2-run-four_local_leaves-b",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/four_local_leaves-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "a40751a1346b2c0dec49c86145225747a7e49e2ea148a650ba022b1825a4bdfc"
+    },
+    {
+      "id": "v2-run-high_only_after_revision-a",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/high_only_after_revision-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "f3ea40ecbbf41b6a819d3d7ddda7ab7bc98866b0df1a5ba6ab1727bc25374c04"
+    },
+    {
+      "id": "v2-run-high_only_after_revision-b",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/high_only_after_revision-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "e92aac29688eca8ea3a9c7ff06e2001996081e36960159d691dd71684bbe4ffa"
+    },
+    {
+      "id": "v2-run-high_only_before_revision-a",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/high_only_before_revision-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "62204b8746e1d01d05cbe97dd7541b34a5cad569c4b441f5ac2b16b6ecac2ac9"
+    },
+    {
+      "id": "v2-run-high_only_before_revision-b",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/high_only_before_revision-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "0d1a4ed827c266f7010ce9608566007493931f8110b8efa4f34304b54e2b6fdc"
+    },
+    {
+      "id": "v2-run-revision_recovery-a",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/revision_recovery-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "bcb6eb18bf1309b95b5f50c0dd6550378712f4c17642c565fe63fdfe9c9720fc"
+    },
+    {
+      "id": "v2-run-revision_recovery-b",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/revision_recovery-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "9402423be5d8a47d2b4d3627dded0951dcb3df5f237a7721bd22199cc30c2dd4"
+    },
+    {
+      "id": "v2-run-up_member_equal_and_touch-a",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/up_member_equal_and_touch-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "94c0077b26a8138becc0e0639fe26d5b95937991168f94c3933b437610b5939b"
+    },
+    {
+      "id": "v2-run-up_member_equal_and_touch-b",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/up_member_equal_and_touch-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "687fc8bdf3eb8008fde4ce667dcf0edc06f6ad9ec6114f9d4e4d371a6482876a"
+    },
+    {
+      "id": "v2-run-wait_equal_both-a",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/wait_equal_both-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "7bc01f1a8c6f3fa1fe1264ae71be6d5012d617001431b7c43f06d69ad80e4d79"
+    },
+    {
+      "id": "v2-run-wait_equal_both-b",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/wait_equal_both-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "a94098265db2c676cb5ee6359f94ceff01216ed13d5ddd041d3dbb5b7efbda40"
+    },
+    {
+      "id": "v2-run-wait_equal_high-a",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/wait_equal_high-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "8c9deb4ef6d084361f9f480b400517eb9cad54f08c1a7ba94eb7d8f67aba61fd"
+    },
+    {
+      "id": "v2-run-wait_equal_high-b",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/wait_equal_high-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "f9f30665be0cbe15255b2e053902937d7ace726f340d78721cc732db871040ec"
+    },
+    {
+      "id": "v2-run-wait_equal_low-a",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/wait_equal_low-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "373999c13134fa0464651ce6c6da0e984e42675fcfd6945f20c6e1e7fda7a0f7"
+    },
+    {
+      "id": "v2-run-wait_equal_low-b",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/wait_equal_low-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "c5cd1e37111b430a4f6c883974ef7df79f3389fe8aa3fa717c2b222e68ca3a7b"
+    },
+    {
+      "id": "v2-run-wait_initial_direction-a",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/wait_initial_direction-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "e5e75b9aa97bb9361f074f2b298161929194193146ba658907f5f4285294e6e3"
+    },
+    {
+      "id": "v2-run-wait_initial_direction-b",
+      "storage": "仓外保全小报告或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2/wait_initial_direction-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "006226b9e5e70a2cdebe69dacdf56e24af4957139066983cbcc3d0013811ee02"
+    },
+    {
+      "id": "delivery-report-draft",
+      "storage": "仓内工作草稿",
+      "repository_path": ".chanlun/review-results/issue1373-tb02a-20260913/REPORT.md",
+      "bytes": 20418,
+      "sha256": "1878c09a59b2a8659e277797d9af44e629220ae3405951fb796502083650f99f"
+    },
+    {
+      "id": "q-final-delivery",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/browser-full-cut-fix/DELIVERY.json",
+      "bytes": 7491,
+      "sha256": "b22756b749fa04ac85931c9f3668d7ff2e457af6bf73ca0c2d4baf496c36122f"
+    },
+    {
+      "id": "q-final-delivery-text",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/browser-full-cut-fix/DELIVERY.md",
+      "bytes": 2609,
+      "sha256": "785bbe8be429c2a3f856f0efa8efd789e17edf8dacefeeb02feeed4fe72bd267"
+    },
+    {
+      "id": "q-final-candidate-source",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/browser-full-cut-fix/SOURCE-CANDIDATE.json",
+      "bytes": 6741,
+      "sha256": "5ccfcc1a80911a3af786dddf5576e1b20ce882e36489c32eaeee103617edd49e"
+    },
+    {
+      "id": "q-final-after",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/browser-full-cut-fix/SOURCE-AFTER.json",
+      "bytes": 6070,
+      "sha256": "82b0bf3ae36d345eb06215bffb9067155aadd636ea44637712bdb88c9f1dabdb"
+    },
+    {
+      "id": "q-final-red-valid",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/browser-full-cut-fix/RED-VALID-IDENTITY.json",
+      "bytes": 8343,
+      "sha256": "19d61417a0e19463dc2d23c7a7a16695b3c87a0c76fbf3833bdd775d51dd140e"
+    },
+    {
+      "id": "q-final-green",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/browser-full-cut-fix/GREEN-FINAL.json",
+      "bytes": 5711,
+      "sha256": "b75dddc3fb05db47e7a5548f0bfdc522399a1d1ae16cb58fa61ab5681e9b09a4"
+    },
+    {
+      "id": "q-final-commands",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/browser-full-cut-fix/COMMANDS.json",
+      "bytes": 997,
+      "sha256": "b764645e3af049c9c159eb0e396f7092633b34eca73330d994d9d1fc6ac9712a"
+    },
+    {
+      "id": "q-final-author-replay",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/browser-full-cut-fix/reviewer-recheck/result/RESULT.json",
+      "bytes": 5889,
+      "sha256": "2e7636af4e8959d2237b879bad678de61719f4dcb0548e6d0edc5990c4174bf1"
+    },
+    {
+      "id": "q-final-http",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/browser-full-cut-fix/HTTP-FINAL-RESULT.json",
+      "bytes": 238,
+      "sha256": "8c4f7a478d0d854bc89a3790ce70e733d71a812a8109fce1a36d3f224b32975a"
+    },
+    {
+      "id": "q-final-http-command",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/browser-full-cut-fix/HTTP-FINAL-COMMAND.json",
+      "bytes": 508,
+      "sha256": "f58e708ca1dce46e091db8865fdd1fd273722753886ab8443574e9ba8c76800a"
+    },
+    {
+      "id": "q-final-http-stdout",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/browser-full-cut-fix/HTTP-FINAL.stdout",
+      "bytes": 795,
+      "sha256": "34bfdc9c82d520a17c14f43410ccb13525b3e0bfe1ca0a13063ca781e33ad617"
+    },
+    {
+      "id": "q-final-independent-review",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-post-fix/REVIEW.json",
+      "bytes": 1857,
+      "sha256": "a828463f1a965f4835dc34d9b865551336999668294fc0bafbef5a89dd9645df"
+    },
+    {
+      "id": "q-final-independent-manifest",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-post-fix/MANIFEST.json",
+      "bytes": 6787,
+      "sha256": "f120d88b88b69211bb26e3a92605c6cc238f417273027b4dc3e1433f5bc13724"
+    },
+    {
+      "id": "q-final-independent-replay",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-post-fix/replay-1/RESULT.json",
+      "bytes": 5888,
+      "sha256": "eb11e57c47457657dcca84ba2df7bdf043c792a468918a4a14436bd06a95e60b"
+    },
+    {
+      "id": "q-final-independent-history",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-post-fix/STATIC-HISTORY-RESULT.json",
+      "bytes": 547,
+      "sha256": "fae2640734b89ad12ac56416961d0cec327ec3a526084714819791bdb3bb64b5"
+    },
+    {
+      "id": "q-final-independent-command",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-post-fix/RUN-ARGV.json",
+      "bytes": 357,
+      "sha256": "ecba91d5e65621062cb8e07bb450da5da0cccfb9ccf834c9f16431c64c408506"
+    },
+    {
+      "id": "v3-run-plan",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/RUN-PLAN.json",
+      "bytes": 27168,
+      "sha256": "e51c9dbbc680099957dbd31516a335a50d3b3fdbfec23577d459dfdb2a838986"
+    },
+    {
+      "id": "v3-execution",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/EXECUTION.jsonl",
+      "bytes": 2051,
+      "sha256": "99f4a753d4a6d68608b5259f053631ec70bb16cb6814c83e49ca7ed0c663e106"
+    },
+    {
+      "id": "v3-oracle-result",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/ORACLE-RESULT.json",
+      "bytes": 205758,
+      "sha256": "4c331b81e4e123649b8a8b6dcfb946b234d6aaee29821e260ec383891ea3d980"
+    },
+    {
+      "id": "v3-oracle-execution",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/ORACLE-EXECUTION.json",
+      "bytes": 1393,
+      "sha256": "a477398c2d9bbe71efd24f9aa3b58817e3b66b472b70d5242187c59597b95f60"
+    },
+    {
+      "id": "v3-oracle-stdout",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/ORACLE.stdout",
+      "bytes": 115,
+      "sha256": "b2feaa669736af085894437507f791f83b5716e222f7284a1370d4fe6bb17420"
+    },
+    {
+      "id": "v3-oracle-stderr",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/ORACLE.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "gui-final-result",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/gui-final/RESULT.json",
+      "bytes": 1847,
+      "sha256": "95f3054efb40ab00a29321598eb67e864c8defde5639fd91c702147809084538"
+    },
+    {
+      "id": "gui-final-manifest",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/gui-final/MANIFEST.json",
+      "bytes": 14059,
+      "sha256": "0bcfeac7281b02db3e4c9cd5f47ff16ebab7d4c88a9fc17584b5c287e7c668b5"
+    },
+    {
+      "id": "final-source",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/FINAL-SOURCE.json",
+      "bytes": 5883,
+      "sha256": "8707ab88dfe64aa30058f97d8e955665693859b6f72435a79a415bc09a554781"
+    },
+    {
+      "id": "final-preservation",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/FINAL-PRESERVATION.json",
+      "bytes": 2643293,
+      "sha256": "c8b3af91fc5c7647bfe5714cc25267b0d34a0fa9be1b76712862a1e0ea1d7b51"
+    },
+    {
+      "id": "v3-run-down_member_equal_and_touch-a",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/down_member_equal_and_touch-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "f0bdad1589746f7c24b2389d1476b7a90d3cf4fa7f97801db6b3a41fd98218af"
+    },
+    {
+      "id": "v3-run-down_member_equal_and_touch-b",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/down_member_equal_and_touch-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "78b4d441d7a7c7eaee4b742afff4b0291a331c38e0a67e12586e42f69fb4aebf"
+    },
+    {
+      "id": "v3-run-four_local_leaves-a",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/four_local_leaves-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "e6fca8de727979b71dc77bfd6f615b0272643327c5a77b5d8bbd829b5abc66da"
+    },
+    {
+      "id": "v3-run-four_local_leaves-b",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/four_local_leaves-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "01e98fd9208ef879db2c4655b9f2f3c90f4a87970971a3b4b58fbd4f153cd4c6"
+    },
+    {
+      "id": "v3-run-high_only_after_revision-a",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/high_only_after_revision-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "6367aec84c3b9c2a1846b1305d935a7d39c9987e975b258cb7ba97eb44c8521d"
+    },
+    {
+      "id": "v3-run-high_only_after_revision-b",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/high_only_after_revision-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "5febe3eb55a19654b224be2a4ba1e6ba1f182e27ba04454368666e3fe6796db4"
+    },
+    {
+      "id": "v3-run-high_only_before_revision-a",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/high_only_before_revision-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "abc2e2f5d2c79d7594a24ecfe5df06d19e200d703ebba9be26d47671d1ccbd97"
+    },
+    {
+      "id": "v3-run-high_only_before_revision-b",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/high_only_before_revision-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "3ad45b5bfd1d3a8427626742e709f26b5b501df2fdf8fe605b3eb287af2c6355"
+    },
+    {
+      "id": "v3-run-revision_recovery-a",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/revision_recovery-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "c1576ac647dabd6aa12ea195f36211a85c423b879a27d9da8b9266cb37adb41e"
+    },
+    {
+      "id": "v3-run-revision_recovery-b",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/revision_recovery-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "4f9642e313c7b0d26cec4ca10731973c48f86c812455dd3571c5707371ddffa2"
+    },
+    {
+      "id": "v3-run-up_member_equal_and_touch-a",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/up_member_equal_and_touch-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "9ba66e2d13d76cf1d139a00c22f1d9d319d4a2abd42fc9b40ae000038173fa15"
+    },
+    {
+      "id": "v3-run-up_member_equal_and_touch-b",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/up_member_equal_and_touch-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "43b68f3299085f5cd6e9f685a2748a96ec0810d70a4905ee5e0c7557ac9cc1f8"
+    },
+    {
+      "id": "v3-run-wait_equal_both-a",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/wait_equal_both-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "5b185ae930083ada44a16cb97493b96909968fb22153c95d3df4899ab8144500"
+    },
+    {
+      "id": "v3-run-wait_equal_both-b",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/wait_equal_both-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "f793123e9ed14607d8ce2260fea1dca7e793e0ecdd24081de9da9841c4c49643"
+    },
+    {
+      "id": "v3-run-wait_equal_high-a",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/wait_equal_high-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "84e9d9a2514a65ec2a0cd10af04a9720a6ae7a6c5fe27c36b2436113782bb29c"
+    },
+    {
+      "id": "v3-run-wait_equal_high-b",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/wait_equal_high-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "e45ae9891e33a2c4b332f1b953cbeceb790aabb8eb9896ea6e4f5ad60d3aca6a"
+    },
+    {
+      "id": "v3-run-wait_equal_low-a",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/wait_equal_low-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "5d075a483de0cd9cc5b16258fb4bb5ea7918cb1a76a2f7ffd2a21273349faad8"
+    },
+    {
+      "id": "v3-run-wait_equal_low-b",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/wait_equal_low-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "a2865a9e4306cd56b069976d1c352f2991e948f7c2252c5ad85f5ac79c0c952a"
+    },
+    {
+      "id": "v3-run-wait_initial_direction-a",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/wait_initial_direction-a/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "88745abb7828ce146c8c3475a142efbe7d2ec5f67e005c10f9867edd1aa95f60"
+    },
+    {
+      "id": "v3-run-wait_initial_direction-b",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/wait_initial_direction-b/evidence/RESULT.json",
+      "bytes": 1085,
+      "sha256": "a1015114e3bbcbdabc1f213325c60c7bbe4aaa6f06b0e416603c026d2ea9406f"
+    },
+    {
+      "id": "root-harness-independent-review",
+      "storage": "仓外保全报告、manifest 或执行收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ROOT-HARNESS-INDEPENDENT-REVIEW.json",
+      "bytes": 9595,
+      "sha256": "5a554cd1ca4aab919cdf29644c0a29fde628418e2ef574ce3ed2376327397f93"
+    },
+    {
+      "id": "harness-nine-original-receipt",
+      "storage": "仓外追加保全的原始工具日志提取收据",
+      "preserved_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/HARNESS-NINE-ORIGINAL-TOOL-RECEIPT.json",
+      "bytes": 5234,
+      "sha256": "e52a25aad1be42a403522689a219ba7b4fe14584f58f9abfd28adafb78ea39b1"
+    }
+  ],
+  "large_evidence_locations": [
+    {
+      "name": "独立 Rust F1/F2 原件",
+      "preserved_directory": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-review-final-rust",
+      "manifest_entry_id": "rust-independent-preservation",
+      "note": "manifest 含相对文件名、大小、SHA；实际保全根为此目录，RESULT 内旧临时路径仅为原始来源。"
+    },
+    {
+      "name": "修复前浏览器反例原件",
+      "preserved_directory": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-pre-fix",
+      "manifest_entry_id": "q-pre-fix-manifest",
+      "note": "67 文件 manifest；有效完整补采结果为 replay-2，replay-1 的本地写入失败不得当作生产拒绝。"
+    },
+    {
+      "name": "Q 组序号修复定点原件",
+      "preserved_directory": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/q-validation/final-s-762af6ff-ordinal-fix",
+      "manifest_entry_id": "q-ordinal-manifest",
+      "note": "原始状态、请求响应和数据库保留仓外；只按该阶段的真实测试缝解释。"
+    },
+    {
+      "name": "runtime-v2 完整核心与运行原件",
+      "preserved_directory": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v2",
+      "manifest_entry_id": "v2-oracle-result",
+      "note": "oracle 每个 run 以 case_id/arm 定位核心并记 core_bytes/core_sha256；v2历史原件另外由final-preservation限定范围清单绑定，不冒充最终版本。"
+    },
+    {
+      "name": "最终浏览器独评原件",
+      "preserved_directory": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/independent-q-review-post-fix",
+      "manifest_entry_id": "q-final-independent-manifest",
+      "note": "H1/H2最终独评Approve，保留独立正控和三项具名拒绝原件。"
+    },
+    {
+      "name": "最终runtime-v3完整核心与运行原件",
+      "preserved_directory": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3",
+      "manifest_entry_id": "v3-oracle-result",
+      "full_preservation_entry_id": "final-preservation",
+      "note": "20份完整核心共810条、82,274,030字节；对应已完成的正式轨迹及有界oracle。"
+    },
+    {
+      "name": "最终真实GUI原件",
+      "preserved_directory": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/gui-final",
+      "manifest_entry_id": "gui-final-manifest",
+      "full_preservation_entry_id": "final-preservation",
+      "note": "78个文件，含截图、AX、可见DOM、六Q启动停止记录；RESULT明确排除加载中/无变化原件。"
+    },
+    {
+      "name": "限定范围总保全清单",
+      "preserved_directory": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913",
+      "manifest_entry_id": "final-preservation",
+      "included_directories": [
+        "runtime-v1",
+        "runtime-v2",
+        "runtime-v3",
+        "gui-final",
+        "rust-checks",
+        "q-validation",
+        "independent-review-f1",
+        "independent-review-final-rust",
+        "independent-q-review-pre-fix",
+        "independent-q-review-post-fix",
+        "reappearance-probe-v1",
+        "reappearance-probe-v2-boundary"
+      ],
+      "exclusions": [
+        "build cache and intermediate compiler products (final binary bound by FINAL-SOURCE and runtime source copies)",
+        "mutable CURRENT-HANDOFF, future commit/PR/CI receipts, this manifest itself",
+        "earlier driver-smoke-v1/v2 prototypes preserved separately; not acceptance evidence"
+      ],
+      "note": "仅对明确纳入目录的12160文件逐项封存，不宣称整个P目录或未来交付收据已封存。"
+    }
+  ],
+  "pending_finalization": [
+    {
+      "id": "FINAL_DELIVERY",
+      "status": "候选待提交；main待明确批准",
+      "commit": null,
+      "pull_request": null,
+      "ci": null,
+      "main_merge": null
+    }
+  ],
+  "boundaries": [
+    "本叶具名域的最终本地证据为runtime-v3、gui-final与修复后独评，v1/v2和旧BLOCK保留历史意义",
+    "oracle未独立手算的四项按结果原文保留，完整字节双跑不提升为一般语义证明",
+    "初始方向一般域#1342与同价极值身份一般域#1343未解决",
+    "#1360父票与#1323整图不由本片提前关闭",
+    "GUI限已提交示例库，未验持续实时输入、实盘交易或账户资金动作",
+    "候选commit、PR、CI、main合入尚未执行",
+    "索引自身不自哈希；REPORT变更后需更新其索引项"
+  ],
+  "completed_finalization": [
+    {
+      "id": "FINAL_Q_REVIEW",
+      "status": "已完成",
+      "result_entry_id": "q-final-independent-review",
+      "source_entry_id": "q-final-candidate-source",
+      "decision": "Approve",
+      "findings": []
+    },
+    {
+      "id": "FINAL_RUNTIME_V3",
+      "status": "已完成",
+      "result_entry_id": "v3-oracle-result",
+      "execution_entry_id": "v3-oracle-execution",
+      "checked_runs": 20,
+      "checked_pairs": 10,
+      "core_records": 810,
+      "core_bytes": 82274030,
+      "checks_executed": 2178747
+    },
+    {
+      "id": "FINAL_GUI",
+      "status": "PASS_BOUNDED_GUI",
+      "result_entry_id": "gui-final-result",
+      "manifest_entry_id": "gui-final-manifest",
+      "cases": 6,
+      "checks": 11
+    },
+    {
+      "id": "FINAL_SOURCE_AND_PRESERVATION",
+      "status": "已完成",
+      "source_entry_id": "final-source",
+      "manifest_entry_id": "final-preservation",
+      "file_count": 12160,
+      "total_bytes": 1257533627,
+      "included_directories": [
+        "runtime-v1",
+        "runtime-v2",
+        "runtime-v3",
+        "gui-final",
+        "rust-checks",
+        "q-validation",
+        "independent-review-f1",
+        "independent-review-final-rust",
+        "independent-q-review-pre-fix",
+        "independent-q-review-post-fix",
+        "reappearance-probe-v1",
+        "reappearance-probe-v2-boundary"
+      ],
+      "exclusions": [
+        "build cache and intermediate compiler products (final binary bound by FINAL-SOURCE and runtime source copies)",
+        "mutable CURRENT-HANDOFF, future commit/PR/CI receipts, this manifest itself",
+        "earlier driver-smoke-v1/v2 prototypes preserved separately; not acceptance evidence"
+      ]
+    }
+  ],
+  "supplemental_preservation": {
+    "entry_ids": [
+      "harness-nine-original-receipt",
+      "root-harness-independent-review"
+    ],
+    "note": "两份新增收据晚于FINAL-PRESERVATION冻结，未包含在其12160文件清单中；由本索引单列真实位置、字节数与SHA追加保全，不改写旧manifest。九项收据是原会话event/result无损提取，不是重新构造或重跑；较早六项收据保持历史名分。"
+  }
+}

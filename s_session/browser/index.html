@@ -57,7 +57,7 @@
 <body>
 <header>
   <h1>S 正式结构会话 · 只读观察</h1>
-  <div class="muted">#1371 TB-01-B · CC-006 local_shape · 同源 API（只读已提交 cut，不补判结构、不推算经济资格）</div>
+  <div class="muted">#1373 TB-02-A · OHLC 包含事实与四局部分型 · 同源 API（只读已提交 cut，不补判结构、不推算经济资格）</div>
 </header>
 <main>
   <section id="status-section"></section>
@@ -80,7 +80,7 @@
 
   <section id="instance-section" tabindex="-1">
     <p id="view-selection" class="muted">浏览范围：结构（S） · CC-006</p>
-    <h2>CC-006 local_shape 活动对象（四分支 + 两次方向 + 四个严格比较 + 三根 raw/merged 见证）</h2>
+    <h2>同 cut 结构事实（完整映射、组首/极值来源、包含步骤和四局部分型）</h2>
     <div id="objects"></div>
   </section>
 
@@ -161,7 +161,7 @@ function ensureV2(discovery) {
     rebuildCommittedFromState(state);
     syncModeUI(state.snapshot.history_mode === "AsKnown" ? "asof" : "current", state.snapshot);
     renderAllFromState(state);
-    v2Discovery = {cut: {session_id: candidate.cursor.session_id, session_generation: candidate.cursor.session_generation}};
+    v2Discovery = {cut: {session_id: candidate.cursor.session_id, session_generation: candidate.cursor.session_generation}, snapshot: {profile_id: candidate.projection.fixed_cut.profile_id}};
     renderStatus("", "");
     document.getElementById("stream-cursor").textContent =
       `v2 已验证 ${candidate.cursor.base_cut} · session ${candidate.cursor.session_id} · 化身 ${candidate.cursor.session_generation}`;
@@ -236,7 +236,27 @@ function renderMeta(snap, cat) {
   document.getElementById("meta-kv").innerHTML = kv.map(([k, v]) =>
     `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
 }
+const typedKinds = ["CC-004.inclusion_step", "CC-005.inclusion_group", "CC-007.fractal_description", "CC-054.knowledge_state"];
+function rawPriceText(row) {
+  return row.schema_revision === "s-ohlc/1" ? ["open", "high", "low", "close"].map(k => `${k}=${esc(row[k])}`).join(" · ") : `price=${esc(row.price)}`;
+}
+function renderFactValue(value) {
+  if (value === null) return '<span class="muted">未给定</span>';
+  if (Array.isArray(value)) return `<ol>${value.map(item => `<li>${renderFactValue(item)}</li>`).join("")}</ol>`;
+  if (typeof value === "object") return `<dl class="kv">${Object.entries(value).map(([key, item]) => `<dt>${esc(key)}</dt><dd>${renderFactValue(item)}</dd>`).join("")}</dl>`;
+  return esc(String(value));
+}
+function renderTypedCard(object, snapshot, cls) {
+  const relations = snapshot.relations.filter(row => row.subject === object.object_id || row.object === object.object_id);
+  const labels = {"CC-004.inclusion_step":"包含步骤与逐价关系", "CC-005.inclusion_group":"完整组成员、组首与极值来源", "CC-007.fractal_description":"已发生的顶/底关系与后续事实", "CC-054.knowledge_state":"逐请求四轴与等待边界"};
+  return `<details open id="${escAttr(object.object_id)}"><summary class="${escAttr(cls || "")}">${esc(labels[object.kind])} · ${esc(object.object_id)} · first_known=${esc(object.first_known_generation)} · published=${esc(object.published_generation)} · ${esc(object.lifecycle)}</summary>` +
+    `<p>固定语义槽 ${esc(object.fact_key)} · 首次 cut ${esc(object.first_known_cut)} · 批次 ${esc(object.batch_id)}</p>` +
+    (object.lifecycle === "withdrawn" ? `<p>撤回代 ${esc(object.withdrawn_generation)} · ${esc(object.withdrawal_reason)} · 替代 ${esc(object.superseded_by)}</p>` : "") +
+    renderFactValue(object.payload) + `<details><summary>完整来源引用与原始坐标（只读 S 已封存值）</summary>${renderFactValue({source_coords:object.source_coords,input_refs:object.input_refs})}</details>` +
+    `<details><summary>同 cut 关系</summary>${renderFactValue(relations)}</details></details>`;
+}
 function renderObjectCard(o, snap, cls) {
+  if (typedKinds.includes(o.kind)) return renderTypedCard(o, snap, cls);
   const witnesses = snap.witnesses || [];
   const byObj = {};
   for (const w of witnesses) { (byObj[w.object_id] = byObj[w.object_id] || []).push(w); }
@@ -250,13 +270,14 @@ function renderObjectCard(o, snap, cls) {
       `<li>identity=${esc(r.identity_key)} event_id=${esc(r.event_id)} 接纳序 seq=${esc(r.seq)} ` +
       `源坐标 source_coord=${esc(r.source_coord)} 输入修订 input_revision=${esc(r.input_revision)} ` +
       `原始事件修订 revision=${esc(r.revision)} 收据 receipt_id=${esc(r.receipt_id)}</li>`).join("");
-    return `<li>merged_index=${esc(g.merged_index)}<ul>${inner}</ul></li>`;
+    const dependencies = g.dependency_refs === undefined ? "" : `<details><summary>构造与分组边界依据（非本组成员）</summary>${renderFactValue(g.dependency_refs)}</details>`;
+    return `<li>merged_index=${esc(g.merged_index)} · 真实成员<ul>${inner}</ul>${dependencies}</li>`;
   }).join("");
   const wit = ws.map(w => {
     const raws = (w.raw_bars || []).map(r =>
       `<li>接纳序 seq=${esc(r.seq)} 源坐标 source_coord=${esc(r.source_coord)} identity=${esc(r.identity_key)} ` +
       `event_id=${esc(r.event_id)} 原始事件修订 revision=${esc(r.revision)} 输入修订 input_revision=${esc(r.input_revision)} ` +
-      `receipt_id=${esc(r.receipt_id)} raw_text=${esc(r.raw_text)} price=<span class="price">${esc(r.price)}</span></li>`).join("");
+      `receipt_id=${esc(r.receipt_id)} raw_text=${esc(r.raw_text)} ${rawPriceText(r)}</li>`).join("");
     return `<details id="${escAttr(w.witness_id)}"><summary>slot ${esc(w.slot)} · witness_id=${esc(w.witness_id)} · merged source_index=${esc(w.merged_source_index)} ` +
       `O=${esc(w.merged_open)} H=<span class="price">${esc(w.merged_high)}</span> L=<span class="price">${esc(w.merged_low)}</span> C=${esc(w.merged_close)}</summary>` +
       `<ul>${raws || "<li class='muted'>（无原始成员）</li>"}</ul></details>`;
@@ -277,17 +298,18 @@ function renderObjectCard(o, snap, cls) {
     `${wit}</details>`;
 }
 function renderObjects(snap, catalogId = selectedCatalogId) {
-  const objects = (snap.objects || []).filter(o =>
-    catalogId === "CC-006" && o.kind === "CC-006.local_shape");
+  const ids = currentState?.catalog?.items?.find(item => item.id === catalogId)?.evidence?.object_ids;
+  const objects = snap.objects.filter(o => Array.isArray(ids) ? ids.includes(o.object_id) : catalogId === "CC-006" && o.kind === "CC-006.local_shape");
   document.getElementById("view-selection").textContent =
     `浏览范围：结构（S） · ${catalogId} · ${snap.structure_cut} · ${snap.history_mode}` +
     (snap.as_of_generation != null ? `@${snap.as_of_generation}` : "") +
     ` · 活动实例 ${objects.length} / 撤回 ${(snap.withdrawn_objects || []).length}`;
-  document.getElementById("objects").innerHTML = objects.map(o => renderObjectCard(o, snap, "")).join("") ||
-    `<div class="muted">当前无活动 CC-006 实例。</div>`;
+  const evidence = currentState?.catalog?.items?.find(item => item.id === catalogId)?.evidence;
+  const cards = objects.map(o => renderObjectCard(o, snap, "")).join("") || `<div class="muted">该目录项在当前 cut 无活动实例；请查看目录证据与等待原因。</div>`;
+  document.getElementById("objects").innerHTML = cards + (evidence?.scope === "TB-02-A" ? `<details><summary>${esc(catalogId)} 本 cut 完整证据与等待原因</summary>${renderFactValue(evidence)}</details>` : "");
 }
 function renderWithdrawn(snap) {
-  const withdrawn = (snap.withdrawn_objects || []).filter(o => o.kind === "CC-006.local_shape");
+  const withdrawn = snap.withdrawn_objects;
   document.getElementById("withdrawn").innerHTML = withdrawn.map(o => renderObjectCard(o, snap, "withdrawn")).join("") ||
     `<div class="muted">无撤回对象。</div>`;
 }
@@ -297,11 +319,11 @@ function renderRawHistory(snap) {
   const replaces = rels.filter(r => r.relation_type === "replaces");
   const supersedes = rels.filter(r => r.relation_type === "supersedes");
   const rows = rh.map(r =>
-    `<tr><td>${esc(r.event_id)}</td><td>${esc(r.revision)}</td><td class="price">${esc(r.price)}</td>` +
+    `<tr><td>${esc(r.event_id)}</td><td>${esc(r.revision)}</td><td class="price">${rawPriceText(r)}</td>` +
     `<td>${esc(r.seq)}</td><td>${esc(r.source_coord)}</td><td>${esc(r.receipt_id)}</td>` +
     `<td>${esc(r.input_revision)}</td><td>${esc(r.supersedes_revision == null ? "—" : r.supersedes_revision)}</td></tr>`).join("");
   document.getElementById("raw-history").innerHTML =
-    `<table><thead><tr><th>event_id</th><th>revision</th><th>price</th><th>接纳序</th><th>源坐标</th><th>receipt</th><th>input_revision</th><th>supersedes_revision</th></tr></thead><tbody>${rows || ""}</tbody></table>` +
+    `<table><thead><tr><th>event_id</th><th>revision</th><th>已接纳原始价格</th><th>接纳序</th><th>源坐标</th><th>receipt</th><th>input_revision</th><th>supersedes_revision</th></tr></thead><tbody>${rows || ""}</tbody></table>` +
     `<details><summary>关系（supersedes / replaces）</summary><ul>` +
     supersedes.map(r => `<li>${esc(r.subject)} — supersedes → ${esc(r.object)}</li>`).join("") +
     replaces.map(r => `<li>${esc(r.subject)} — replaces → ${esc(r.object)}</li>`).join("") +
@@ -314,10 +336,12 @@ function renderObservations(snap) {
   const rows = [];
   const insuff = obs.filter(o => o.kind === "insufficient_knowledge");
   const domain = obs.filter(o => o.kind === "domain_not_satisfied");
-  if (objects.length > 0) rows.push(`<div class="muted">已发布 ${objects.length} 个 CC-006 分类对象（非空实例）。</div>`);
+  const awaiting = obs.filter(o => o.kind === "awaiting_scope");
+  for (const item of awaiting) rows.push(`<details class="warn-box"><summary>${esc(item.reason)} · ${esc(item.observation_id)}</summary>${renderFactValue(item.detail)}</details>`);
+  if (objects.length > 0) rows.push(`<div class="muted">已发布 ${objects.length} 个结构事实对象（非空实例）。</div>`);
   if (insuff.length > 0) rows.push(`<div class="warn-box">知识不足：${insuff.map(o => esc(o.reason)).join("；")}</div>`);
   if (domain.length > 0) rows.push(`<div class="warn-box">域不满足：${domain.map(o => `窗口[${esc(o.window_start)},${esc(o.window_mid)},${esc(o.window_end)}] ${esc(o.reason)}`).join("；")}（不造第五 Other 分型）</div>`);
-  if (objects.length === 0 && insuff.length === 0 && domain.length === 0) rows.push(`<div class="muted">当前无 CC-006 实例（实例集合为空，不是 PASS）。</div>`);
+  if (objects.length === 0 && insuff.length === 0 && domain.length === 0 && awaiting.length === 0) rows.push(`<div class="muted">当前无结构实例（实例集合为空，不是 PASS）。</div>`);
   el.innerHTML = rows.join("");
 }
 function renderCatalog(cat) {
@@ -330,7 +354,7 @@ function renderCatalog(cat) {
     const impl = r.implementation_status === "implemented"
       ? `<span class="pill impl">implemented</span>` : `<span class="pill notimpl">not_implemented</span>`;
     const run = r.run_status === "run" ? `<span class="pill run">run</span>` : `<span class="pill notimpl">${esc(r.run_status)}</span>`;
-    const entry = r.id === "CC-006" && r.implementation_status === "implemented"
+    const entry = (r.id === "CC-006" || (r.evidence?.scope === "TB-02-A" && Array.isArray(r.evidence.object_ids)))
       ? `<button type="button" data-catalog-id="${escAttr(r.id)}">查看 ${esc(r.id)} 实例（结构）</button>`
       : esc(r.id);
     return `<tr><td>${entry}</td><td>${esc(r.kind)}</td><td>${esc(r.title)}</td>` +
@@ -412,6 +436,23 @@ function validateSource(snap, protocol = "s-session/1") {
     throw new Error("history_mode/as_of_generation不一致");
   }
 }
+function validateTB02Snapshot(snap, cat) {
+  TB01C.validateTB02Catalog(cat);
+  TB01C.validateTB02CutSources(snap);
+  for (const record of [...snap.objects, ...snap.withdrawn_objects]) {
+    if (typedKinds.includes(record.kind)) TB01C.validateTyped(record);
+    else TB01C.validateTB02ShapeRefs(record);
+  }
+  snap.raw_history.forEach(TB01C.validateTB02Raw);
+  const axes = snap.catalog_evidence.axes;
+  if (snap.generation !== "0") TB01C.validateTB02Axes(axes, snap.objects);
+  for (const item of cat.items) {
+    const axis = snap.generation === "0" ? null : axes[item.id];
+    if (axis) {
+      if (item.implementation_status !== axis.impl_status || item.proof_status !== axis.proof_status || item.run_status !== axis.run_status || !exactJson(item.evidence, axis.evidence)) throw new Error("目录轴未绑定所请求 cut");
+    } else if (item.implementation_status !== "not_implemented" || item.proof_status !== "not_proved" || item.run_status !== "not_run" || !exactJson(item.evidence, {})) throw new Error("无封存轴回填了当前/未来目录事实");
+  }
+}
 function validateState(state, protocol = "s-session/1") {
   if (!["s-session/1", "s-session/2"].includes(protocol)) throw new Error("未知State校验协议");
   requireKeys(state, ["catalog", "snapshot", "cut"], "State");
@@ -433,9 +474,14 @@ function validateState(state, protocol = "s-session/1") {
   validateEvidence(snap.catalog_evidence, snap.generation);
   validateSource(snap, protocol);
   requireArrays(cat, ["items"], "Catalog");
-  const cc = cat.items.filter(x => x.id === "CC-006");
-  if (cc.length !== 1 || !exactJson(cc[0].evidence, snap.catalog_evidence) || cc[0].run_status !== snap.catalog_run_status)
-    throw new Error("CC-006 目录证据/运行状态与 publication tuple 不一致");
+  if (snap.profile_id === "ohlc_integer_tb02a_v1") {
+    validateTB02Snapshot(snap, cat);
+  } else {
+    if ([...snap.objects, ...snap.withdrawn_objects].some(o => typedKinds.includes(o.kind)) || snap.raw_history.some(r => Object.hasOwn(r, "schema_revision"))) throw new Error("旧 profile 混入 OHLC 事实");
+    const cc = cat.items.filter(x => x.id === "CC-006");
+    if (cc.length !== 1 || !exactJson(cc[0].evidence, snap.catalog_evidence) || cc[0].run_status !== snap.catalog_run_status)
+      throw new Error("CC-006 目录证据/运行状态与 publication tuple 不一致");
+  }
   if (snap.generation !== "0" && (snap.catalog_evidence.batch_id !== snap.index_frontier ||
       snap.catalog_evidence.structure_cut !== snap.structure_cut || !exactJson(snap.catalog_evidence.scope, snap.scope)))
     throw new Error("目录证据的 batch/cut/scope 不一致");
@@ -451,6 +497,14 @@ function validateDelta(d) {
   for (const k of ["catalog_run_status", "catalog_evidence"])
     if (Object.hasOwn(d, k) && !exactJson(d[k], dd[k])) throw new Error(`Delta 内外 ${k} 不一致`);
   validateExactRecords([dd.upserts, dd.withdrawals, dd.witnesses, dd.observations, dd.raw_history_added]);
+  if (dd.catalog_evidence.profile_id === "ohlc_integer_tb02a_v1") {
+    TB01C.validateTB02Axes(dd.catalog_evidence.axes, dd.upserts);
+    dd.upserts.forEach(o => typedKinds.includes(o.kind) ? TB01C.validateTyped(o) : TB01C.validateTB02ShapeRefs(o));
+    dd.raw_history_added.forEach(TB01C.validateTB02Raw);
+    for (const withdrawal of dd.withdrawals) if (Object.hasOwn(withdrawal, "fact_key")) {
+      if (!exactJson(Object.keys(withdrawal).sort(), ["object_id", "fact_key", "reason", "superseded_by"].sort()) || !["fact_removed", "superseded_by_revision"].includes(withdrawal.reason) || typeof withdrawal.fact_key !== "string") throw new Error("typed withdrawal 完整形状不符");
+    }
+  }
   // #1371 R12：替代端点必须逐项对应本批撤回，不能仅以 relations 或计数代替。
   const expectedReplaces = dd.withdrawals.flatMap(w => {
     requireKeys(w, ["object_id", "superseded_by"], "撤回替代身份");
@@ -772,7 +826,7 @@ document.getElementById("catalog-table").addEventListener("click", event => {
   if (!button || !currentState) return;
   const catalogId = button.dataset.catalogId;
   const item = currentState.catalog.items.find(r => r.id === catalogId);
-  if (!item || item.implementation_status !== "implemented" || catalogId !== "CC-006") return;
+  if (!item || (catalogId !== "CC-006" && !Array.isArray(item.evidence?.object_ids))) return;
   selectedCatalogId = catalogId;
   renderObjects(currentState.snapshot, selectedCatalogId);
   const section = document.getElementById("instance-section");

@@ -147,6 +147,16 @@ pub fn parse_layer(bars: &[Bar], config: &ThetaConfig) -> ParseLayer {
     parse_layer_from_merged(&incl.merged, config)
 }
 
+/// #1373：完整原始 OHLC 经同一包含 fold_step，返回同次来源事实；下游仍用既有解析核。
+pub fn parse_layer_with_inclusion_facts(
+    bars: &[Bar],
+    config: &ThetaConfig,
+) -> (ParseLayer, inclusion::InclusionFacts) {
+    let facts = inclusion::process_inclusion_with_facts(bars);
+    let layer = parse_layer_from_merged(&facts.merged, config);
+    (layer, facts)
+}
+
 // ============================================================================
 // 增量 parse_layer API（#93 per-bar substrate O(n²) 根因解——parser 侧入口）。
 //

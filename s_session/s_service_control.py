@@ -331,16 +331,25 @@ class Controller:
 
     def runtime_environment(self, deadline):
         python = self.config["python"]
-        result = subprocess.run([python, "-c", "import json,sysconfig; print(json.dumps([sysconfig.get_config_var('LIBDIR'),sysconfig.get_config_var('LDLIBRARY')]))"],
+        result = subprocess.run([python, "-c", "import json,sysconfig; print(json.dumps([sysconfig.get_config_var(k) for k in ('LIBDIR','LDLIBRARY','PYTHONFRAMEWORK','PYTHONFRAMEWORKPREFIX')]))"],
                                 capture_output=True, check=True, timeout=remaining(deadline))
-        library_dir, library_name = json.loads(result.stdout)
-        if (type(library_dir) is not str or type(library_name) is not str
-                or not (Path(library_dir) / library_name).is_file()):
+        library_dir, library_name, framework, framework_prefix = json.loads(result.stdout)
+        # #1373：同一显式 Python 声明的两种安装布局，各自核真实文件。
+        # Framework 的 LDLIBRARY 相对于 PYTHONFRAMEWORKPREFIX，而不是 LIBDIR。
+        root = framework_prefix if framework else library_dir
+        if (type(root) is not str or not Path(root).is_absolute()
+                or type(library_name) is not str or not library_name
+                or Path(library_name).is_absolute()
+                or not (Path(root) / library_name).is_file()):
             raise ValueError("显式 Python 不具备可验证的共享运行库")
+        library_dir = str((Path(root) / library_name).resolve().parent)
         environment = dict(os.environ)
         environment["PYO3_PYTHON"] = python
         for key in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
             environment[key] = library_dir + (os.pathsep + environment[key] if environment.get(key) else "")
+        if framework:
+            key = "DYLD_FRAMEWORK_PATH"
+            environment[key] = root + (os.pathsep + environment[key] if environment.get(key) else "")
         return environment
 
     def ready_request(self, writer_epoch):
