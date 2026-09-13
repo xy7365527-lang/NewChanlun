@@ -1,0 +1,246 @@
+{
+  "schema": "tb01c.query_encoding_memo_delivery.v1",
+  "status": "READY_FOR_INDEPENDENT_REVIEW",
+  "full_c_acceptance": "NOT_EVALUATED",
+  "owned_modified_sources": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_query_integrity.py",
+      "bytes": 59092,
+      "sha256": "d69fda491cbb52ead1a714bf942d5c8229ddd9d9f83dd4a17910515d101780bc"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_query_tests.py",
+      "bytes": 31014,
+      "sha256": "74d4e9b8d5d8516b8dd2903e291dfb7f769c397f7e6300855ff0e077bc4a82e4"
+    }
+  ],
+  "unchanged_owned_optional_source": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_query.py",
+    "bytes": 24902,
+    "sha256": "ce51b7a72de1bf1ab869da9e1498bc8ef95e3458981b847aaab033453268ad65"
+  },
+  "source_manifests": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-continuation-performance/SOURCE.json",
+      "bytes": 2033,
+      "sha256": "aa2b23e2492d7f3cacea934cd52ebdd8334b399ff4eed5584fc96d0b28b8b7b2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-continuation-performance/candidate/SOURCE.json",
+      "bytes": 2297,
+      "sha256": "a217c60617105b8ba45ddd51e3df53af0766b8c1ff57e82990940ca98c0797f9"
+    }
+  ],
+  "change": "当前 typed 全捕获与全部门照常执行；仅将已逐字源绑定的 canonical(delta_json SQL字符串) 原编码压缩缓存于逐代证书，最终 capture_digest 字节算法/次序/类型标签不变。",
+  "strict_dependency_contract": [
+    "memo 原上下文、每代全 typed Delta 列、当前 Delta UTF8 原文和 batch 当前全字节匹配仍逐次执行；任一源差异按旧策略重建后缀。",
+    "只对已由本次 verify 全核/逐字匹配的源提供编码；在全部 raw/schema/独立索引/控制/epoch 和根交叉核后调用 capture_digest。",
+    "生成编码保留外层字符串的全部引号、反斜线、Unicode、空白；不缓存替代当前值的哈希，不更换输出摘要算法。",
+    "新的 delta_digest_json 为普通 bytes，实际处于 proof._audit_memo.entries，现有对象身份去重 object_bytes 连同所有旧 proof/memo 统一计量；超额按现有逻辑清 memo，保留完整公开历史与全核。"
+  ],
+  "budget": {
+    "original_retained_bytes": 32090730,
+    "candidate_retained_bytes": 40771243,
+    "additional_retained_bytes": 8680513,
+    "per_worker_allowance_bytes": 134217728,
+    "max_cache_bytes": 268435456,
+    "max_capture_bytes": 268435456,
+    "actual_capture_object_bytes": 188952195,
+    "before_offline_max_rss_bytes_macos": 358219776,
+    "after_offline_max_rss_bytes_macos": 433340416,
+    "rss_scope": "同一离线脚本含 cProfile 与113页；RSS是实测进程峰值，不是retained/cache限额，也不声明线上峰值或容量。"
+  },
+  "timings": [
+    {
+      "label": "cold_original_limits",
+      "before_seconds": 3.6367668749880977,
+      "after_seconds": 3.664347624988295,
+      "capture_digest": "cbf2c0a4c25b237fb899ceebf26623d97af0581f26be5686d9b96d9aac5484d5",
+      "before_parts": {
+        "capture": 0.061030666023725644,
+        "verify": 3.539129790995503,
+        "object_bytes": 0.03579154098406434
+      },
+      "after_parts": {
+        "capture": 0.05883345799520612,
+        "verify": 3.5688821249932516,
+        "object_bytes": 0.03554029201040976
+      }
+    },
+    {
+      "label": "warm_cached",
+      "before_seconds": 5.504098953679204e-05,
+      "after_seconds": 4.670899943448603e-05,
+      "capture_digest": "cbf2c0a4c25b237fb899ceebf26623d97af0581f26be5686d9b96d9aac5484d5",
+      "before_parts": {},
+      "after_parts": {}
+    },
+    {
+      "label": "forced_fresh_same_image_0",
+      "before_seconds": 0.4411133340036031,
+      "after_seconds": 0.3291473749850411,
+      "capture_digest": "cbf2c0a4c25b237fb899ceebf26623d97af0581f26be5686d9b96d9aac5484d5",
+      "before_parts": {
+        "capture": 0.05295258402475156,
+        "verify": 0.3521975420007948,
+        "object_bytes": 0.03562775001046248
+      },
+      "after_parts": {
+        "capture": 0.054424332978669554,
+        "verify": 0.2391953329788521,
+        "object_bytes": 0.035123375011608005
+      }
+    },
+    {
+      "label": "forced_fresh_same_image_1",
+      "before_seconds": 0.4399420830013696,
+      "after_seconds": 0.3261761660105549,
+      "capture_digest": "cbf2c0a4c25b237fb899ceebf26623d97af0581f26be5686d9b96d9aac5484d5",
+      "before_parts": {
+        "capture": 0.05267908298992552,
+        "verify": 0.3515235829981975,
+        "object_bytes": 0.03533808299107477
+      },
+      "after_parts": {
+        "capture": 0.05138641598750837,
+        "verify": 0.23931033301050775,
+        "object_bytes": 0.03499174999888055
+      }
+    },
+    {
+      "label": "forced_fresh_same_image_2",
+      "before_seconds": 0.4381742079858668,
+      "after_seconds": 0.3262431669863872,
+      "capture_digest": "cbf2c0a4c25b237fb899ceebf26623d97af0581f26be5686d9b96d9aac5484d5",
+      "before_parts": {
+        "capture": 0.05187241599196568,
+        "verify": 0.3501512500224635,
+        "object_bytes": 0.03570266699534841
+      },
+      "after_parts": {
+        "capture": 0.05282558299950324,
+        "verify": 0.2384396249835845,
+        "object_bytes": 0.03451883399975486
+      }
+    }
+  ],
+  "warm_pages": {
+    "complete_pages": 113,
+    "before_seconds": 0.9726995830133092,
+    "after_seconds": 0.9436703749815933,
+    "scope": "无新提交/无HTTP/无JS，四cut每页仍完整构造；不能代替真实30s对拍。"
+  },
+  "parity": {
+    "records": 816,
+    "result": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-continuation-performance/PARITY-AND-CHANGES.json",
+      "bytes": 147292,
+      "sha256": "002e42d7190a88c37e8eb0b208ba7f8e5fde4769db69824e24dce700934bd941"
+    },
+    "scope": [
+      "G0..160全部legacy state和cursor",
+      "G0..160两个history mode的完整六族投影/摘要",
+      "160份完整Delta",
+      "4个legacy Delta区间",
+      "7个Watch/Gap尾部"
+    ],
+    "actual_sqlite_changed_version": {
+      "before": 2,
+      "after": 3,
+      "generation_before_after": [
+        160,
+        160
+      ],
+      "seconds": 0.32353020799928345,
+      "memo_hits": 160,
+      "capture_digest_matches_uncached_reference": true,
+      "before_capture_digest": "cbf2c0a4c25b237fb899ceebf26623d97af0581f26be5686d9b96d9aac5484d5",
+      "after_capture_digest": "8ce9f0735575d3d3489c1deeabf5ad81679ddf16cce286ef47a95e5f7f4acf6d",
+      "retained_bytes": 40771362,
+      "interpretation": "实际独立SQLite Commit修改meta附注；不是实际S事件提交或新结构代。"
+    },
+    "old_delta_corruption": {
+      "generation": 159,
+      "rejected": true,
+      "exception": "持久 JSON 含重复键",
+      "memo_cleared": true,
+      "cache_cleared": true,
+      "read_transaction_released": true
+    }
+  },
+  "tests": {
+    "query_unit_count": 31,
+    "execution": {
+      "binary": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session",
+      "binary_sha256": "5bb7f1dfd57e1d8e6cfc1097360246ae27333776504767df4aba1b9fba9ce71b",
+      "checks": [
+        {
+          "name": "unit",
+          "argv": [
+            "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+            "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_query_tests.py",
+            "--binary",
+            "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session"
+          ],
+          "exit": 0,
+          "seconds": 3.1053803749964572,
+          "test_source_sha256": "74d4e9b8d5d8516b8dd2903e291dfb7f769c397f7e6300855ff0e077bc4a82e4"
+        },
+        {
+          "name": "v2",
+          "argv": [
+            "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+            "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_query_v2.py",
+            "--binary",
+            "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session"
+          ],
+          "exit": 0,
+          "seconds": 1.1424515419930685,
+          "test_source_sha256": "a3e8546c0acd09d792ce4dc8a8c7c3840ca782d008a2fa7268541c67e1bb7b22"
+        }
+      ]
+    },
+    "v2_stdout": "{\"status\": \"PASS_BOUNDED_QUERY_V2\", \"s_requests\": 6, \"real_ingests\": 5, \"fixed_cut_rows\": 21, \"historical_token_after_commit_gc_s_stop\": true, \"missing_delivery_ref_rejected\": true, \"fresh_control_corruptions_rejected\": 8, \"actual_recover_preserves_historical_token\": true, \"full_c_acceptance\": \"NOT_RUN\"}\n",
+    "scope": "真实隔离v2仅5次ingest+21行token和8坏控制，原Ready回归保留；不是正式160轨迹。"
+  },
+  "unchanged_ast_functions": [
+    "QueryBudgetExceeded",
+    "canonical",
+    "_pairs_unique",
+    "_nonfinite",
+    "parse_json",
+    "_deadline",
+    "object_bytes",
+    "_schema",
+    "_expected_schema",
+    "_expected_sql",
+    "_validate_schema",
+    "capture",
+    "_typed_rows",
+    "_signed_i64_text",
+    "_int_text",
+    "_raw_wire",
+    "_verify_raw",
+    "_record_set",
+    "_same",
+    "_intern_set",
+    "_same_keys",
+    "_sealed_generation",
+    "project_delta",
+    "_verify_control",
+    "project_state"
+  ],
+  "original_database_unchanged": {
+    "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r4-a/post-run-authoritative.sqlite",
+    "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-continuation-performance/snapshot.sqlite",
+    "bytes": 130269184,
+    "sha256": "a30aaa8d62b4658f9891ce89b082ca6d9030928be631a5c9fa6f013c321de74a"
+  },
+  "limitations": [
+    "forced_fresh_same_image 仅清cached且保留memo，仍是同一图像；不能称实际新Commit。",
+    "另行SQLite提交仅meta附注变化，data_version实际2→3且G仍160；真正小域S提交由v2整合覆盖。",
+    "真实AC3重连及最终同候选160/HTTP取证尚待根与独立工位；本作者不批准自己的Q实现。",
+    "未改readonly_server/controller/browser/fixture；未提交。"
+  ],
+  "generation_index_precondition": "缓存索引的前置条件已由现有 verify 门证明：capture 在已核固定 schema 下按主键取 structure_deltas（L232–240）；_typed_rows 验证字段精确类型，随后 len(deltas)==G（L715–717），遍历又要求每行 generation 等于从1开始的枚举值（L800–804）。因此完整已核链恰为1..G。每代证书只在当前全 typed 非文本列、Delta 原 UTF8 字节、可达 batch 当前全字节相同时复用（L813–821）；任一差异使本代及后缀重新核验。next_entries 按同一枚举每代追加一次（L836–841），完整独立索引及控制门均通过后才计算摘要（L901–902）。故摘要中的 entries[generation-1] 指向本次已核的同一代，不依赖未经核验的外部 generation 或旧摘要；G0 为零行/零证书。"
+}

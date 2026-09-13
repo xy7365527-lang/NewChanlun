@@ -1,0 +1,143 @@
+{
+  "reviewer": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "status": "PASS_BOUNDED_COMPACT_READINESS_FIX",
+  "commit": "14c15bd44eeff6c0ecc75f3768a7fb734f398230",
+  "source": [
+    {
+      "git_path": "s_session/README.md",
+      "commit": "14c15bd44eeff6c0ecc75f3768a7fb734f398230",
+      "sha256": "9b9e80c58d5cc71b165ea2becb5c9cbe2c599cfbd21424a0fa14f01be5ab1b4b",
+      "bytes": 18110,
+      "review_copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/ready-source/README.md"
+    },
+    {
+      "git_path": "s_session/s_readonly_server.py",
+      "commit": "14c15bd44eeff6c0ecc75f3768a7fb734f398230",
+      "sha256": "5118f3f53f199413000918f3d5c36bae391c8b13ade7afc2b174773da8a790dd",
+      "bytes": 52275,
+      "review_copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/ready-source/s_readonly_server.py"
+    },
+    {
+      "git_path": "s_session/s_service_control.py",
+      "commit": "14c15bd44eeff6c0ecc75f3768a7fb734f398230",
+      "sha256": "bab9162f5054d1fadc72d55783f0289981a8b41b89fce0e48348d66682603bad",
+      "bytes": 29333,
+      "review_copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/ready-source/s_service_control.py"
+    },
+    {
+      "git_path": "s_session/tests/tb01c_query_tests.py",
+      "commit": "14c15bd44eeff6c0ecc75f3768a7fb734f398230",
+      "sha256": "393982272b727472c7167b67c1cf4615bdc5f5cb6ff31eda8892913401083822",
+      "bytes": 29156,
+      "review_copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/ready-source/tb01c_query_tests.py"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/CHECKS.json",
+      "bytes": 726,
+      "sha256": "02912bb5556f0d9be2ed1b7da20cdd490295e0a809ce1704a75499026cd11fda"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/ready-body.json",
+      "bytes": 448,
+      "sha256": "800d5c3b8d5c9cbb069988f6949f1b8c39d228a1dafae84432c3093725a761e6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/state-body.json",
+      "bytes": 1144017,
+      "sha256": "3fa87997e2cbfacd753140350540b451abf295087dfedf5452bf305e8a76e821"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/START-Q.json",
+      "bytes": 626,
+      "sha256": "3ea3d84112e037c4557712eaa26bc25f041a0350236e3d875e056a1b9b390d83"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/START-Q-stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/STOP-Q.json",
+      "bytes": 301,
+      "sha256": "d9ec066c476d0ad9bdb183bce0260dd149997e8e9e5cb5ba8a17910845d4e976"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/launcher.json",
+      "bytes": 1716,
+      "sha256": "82af88749bae1b611d10958b4aa029b66742605bf210e2c4a85331360e1ce174"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/controller-stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/controller-stderr.txt",
+      "bytes": 4067,
+      "sha256": "7a770e9e3e51ee7e634f79ceb0a091cbe1ddcafa2a3fe67c8683704336e734ff"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/query-stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/query-stderr.txt",
+      "bytes": 129,
+      "sha256": "39e6c09af1d9d0360b8f03f880a354db16ed641048729f668d7c12b1b3fc5f58"
+    }
+  ],
+  "facts": {
+    "root_reported_test_counts": {
+      "controller": 24,
+      "query": 30
+    },
+    "ready_body_bytes": 448,
+    "state_body_bytes": 1144017,
+    "ready_state_exact_projection": true,
+    "startup_result": {
+      "ok": true,
+      "result": {
+        "service": "q",
+        "state": "ready",
+        "reply": {
+          "cut": {
+            "session_id": "tb01c-draft01",
+            "generation": "160",
+            "structure_cut": "cut-160",
+            "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+            "index_frontier": "batch-ccfc5f38117b087af0d80cc57100b1bd5afb359fbe5da1cf9ef9ac6d6a1ed15a",
+            "session_generation": "1"
+          },
+          "ok": true,
+          "producer_epoch": "4",
+          "control_instance_id": "4a906a17-b69c-4dbb-907c-3bc0a590d45b"
+        }
+      }
+    },
+    "declared_deadline_ms": "10000",
+    "controller_body_limit": 1048576
+  },
+  "line_references": {
+    "query_route": "s_readonly_server.py:1039-1044",
+    "same_complete_audit_and_projection": "s_readonly_server.py:897-920",
+    "shared_reader": "s_readonly_server.py:840-845",
+    "controller_target_and_limits": "s_service_control.py:72-105",
+    "bad_raw_and_query_controls": "tb01c_query_tests.py:366-383"
+  },
+  "review_basis": [
+    "ready经同一query_reader.capture_verified，再做同一project_state，最后只把cut/ok/epoch/nonce序列化；不是另立宽松健康判断或generation缓存",
+    "无query参数才读当前根；解析/坏库/资源超限仍走同400/503",
+    "controller仅替换路径，保留头16KiB/body1MiB、绝对剩余deadline、EOF/HTTP200/重复头/长度等门；Ready身份/nonce/PID后续门未变",
+    "真实G160原body1144017>1MiB，新ready448，cut/epoch/nonce与完整state相等，START-Q真正返回ready；旧GUI START-Q失败仍保留",
+    "源测试同一个真实HTTP坏raw前后state和ready均503，非参数query两类400；本工位只读该测试及根通过原日志，未重跑"
+  ],
+  "limits": [
+    "这是完整性后控制回复大小修复，不是持续查询性能优化；不承诺/api/ready成本O(1)",
+    "根给出的startup3742.95ms未在本包机器回执保存可独立重算起止，因此本结论依真正Ready回执与代码10s限，不把该毫秒数列作独测",
+    "未启动服务/新API/DB；不审其他932de089调用者修改，另有责任工位"
+  ]
+}

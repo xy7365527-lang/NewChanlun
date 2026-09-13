@@ -1,0 +1,41 @@
+{
+  "files": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/INCREMENTAL-FINDINGS.json",
+      "bytes": 399629,
+      "sha256": "0752074e0d91028f4a9166192d8cec045daf2638322f9f7d263b2c8cd74ee285"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/LINE-MOVES.json",
+      "bytes": 3654,
+      "sha256": "7259ba29367bf600e6a33c97b22506862045d3d03e3eb6f375ca64a1b576c05d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/ORIGINALS-INDEX.json",
+      "bytes": 11052,
+      "sha256": "0f9b01616aa39b1032942c97fb76b9e05cc3a84fbadb3a4e45ab00b185420866"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/RULE-SOURCES.json",
+      "bytes": 2187,
+      "sha256": "d3437dbdb2fc591cb55fd60ee34592f3bb7638326a96a77e06960d94943d6c88"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/SUMMARY.json",
+      "bytes": 16086,
+      "sha256": "caec0cf010a844b79fab07abb390f55997c17682dc997b57ff8412abcb894ee5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-pr1451/review-package/SUMMARY.md",
+      "bytes": 5956,
+      "sha256": "3bd1d977c76e2d5d0d0dcb9be490d1be7d17c530379267cdd14cc21bcd631d27"
+    }
+  ],
+  "count": 6,
+  "bytes": 438564,
+  "excludes": [
+    "MANIFEST.json自身"
+  ],
+  "binding_head": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+  "not_a_scan_of_later_document_heads": true
+}

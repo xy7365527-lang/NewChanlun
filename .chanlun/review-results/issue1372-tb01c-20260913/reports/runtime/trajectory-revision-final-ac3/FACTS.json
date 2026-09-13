@@ -1,0 +1,296 @@
+{
+  "status": "AC3_RUNTIME_FACTS_CAPTURED_PENDING_INDEPENDENT_REVIEW",
+  "head": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+  "runtime": {
+    "status": "PROCESS_TRAJECTORY_CAPTURED_REQUIRES_COMPARISON_AND_REVIEW",
+    "expected_core_records": 495,
+    "not_covered_by_this_driver": [
+      "浏览器",
+      "v2多页/Watch/断连/积压",
+      "Q完整性扰动",
+      "负载窗口独立分析"
+    ],
+    "actual_core_records": 495
+  },
+  "source_tail": {
+    "processes": {
+      "runtime": 0,
+      "consumers": 0
+    },
+    "source_changes": [],
+    "all_bound_sources_unchanged": true
+  },
+  "source_count": 458,
+  "consumer": {
+    "status": "FACTS_CAPTURED_REQUIRES_INDEPENDENT_REVIEW",
+    "lanes": {
+      "revisions": {
+        "status": "HTTP_SCENARIO_CAPTURED_REQUIRES_SEMANTIC_REVIEW"
+      }
+    },
+    "facts": {
+      "before_cursor": {
+        "session_id": "tb01c-draft01",
+        "session_generation": "1",
+        "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+        "scope": {
+          "economic": "not_started",
+          "structure": "CompleteCut"
+        },
+        "after_generation": "95",
+        "base_cut": "cut-95",
+        "index_frontier": "batch-01499cca6530dbcc6e7fe2f43cdbb3b6afeaa4ad9945353b1f9427976ea0261c",
+        "last_seq": "94",
+        "order_version": "s-record-order/1"
+      },
+      "after_cursor": {
+        "session_id": "tb01c-draft01",
+        "session_generation": "1",
+        "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+        "scope": {
+          "economic": "not_started",
+          "structure": "CompleteCut"
+        },
+        "after_generation": "99",
+        "base_cut": "cut-99",
+        "index_frontier": "batch-8697c2c60cd7d584405a8d92b96916be03741c52b9ad0aaae3834aeb1328e267",
+        "last_seq": "98",
+        "order_version": "s-record-order/1"
+      },
+      "generations": [
+        96,
+        97,
+        98,
+        99
+      ],
+      "first_revision_operation": 98,
+      "withdrawals": 3,
+      "replaces": 3,
+      "watch_metadata": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/http-consumers/revisions/commands/revision-three-commit-reconnect/http/00001-metadata.json",
+      "candidate": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/http-consumers/revisions/commands/revision-three-commit-reconnect/committed-candidate.json",
+        "bytes": 2067623,
+        "sha256": "4e96d9d80fb3882b770b0827eeeebf21e4ec04e7d0efa156fce2cf7d86716f8e"
+      },
+      "gap": null,
+      "command_result": "captured_validated_commit"
+    },
+    "not_claimed": [
+      "独立最终裁判",
+      "真实GUI",
+      "完整C",
+      "失败自动重试或重建"
+    ]
+  },
+  "commands": [
+    {
+      "id": "initial-cut90",
+      "started_at": "2026-09-13T10:16:53.111Z",
+      "elapsed_ms": 2984.567667,
+      "requests": 27,
+      "result": "captured_validated_commit",
+      "full_state_installed": true,
+      "cursor": {
+        "session_id": "tb01c-draft01",
+        "session_generation": "1",
+        "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+        "scope": {
+          "economic": "not_started",
+          "structure": "CompleteCut"
+        },
+        "after_generation": "90",
+        "base_cut": "cut-90",
+        "index_frontier": "batch-fe035c0a174935cac40d080309b9dce4725b9f6743cccabca8e8f3e0ce0afe68",
+        "last_seq": "89",
+        "order_version": "s-record-order/1"
+      },
+      "commit_event": {
+        "kind": "snapshot"
+      },
+      "candidate": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/http-consumers/revisions/commands/initial-cut90/committed-candidate.json",
+        "bytes": 1859771,
+        "sha256": "947f37f885880a5333f86cabf3ff0add420ef162065bc51ee8bcec5971779173"
+      },
+      "snapshot_pages": {
+        "90": 26
+      },
+      "artifact": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/http-consumers/revisions/commands/initial-cut90/RESULT.json",
+        "bytes": 8474,
+        "sha256": "365fe55fe4f25ebc9a0774f100d3f39a90dc94858e28821117e1cf8a43dd776a"
+      }
+    },
+    {
+      "id": "prepare-watch-0",
+      "started_at": "2026-09-13T10:16:56.099Z",
+      "elapsed_ms": 2817.7705,
+      "requests": 108,
+      "result": "captured_validated_commit",
+      "full_state_installed": true,
+      "cursor": {
+        "session_id": "tb01c-draft01",
+        "session_generation": "1",
+        "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+        "scope": {
+          "economic": "not_started",
+          "structure": "CompleteCut"
+        },
+        "after_generation": "94",
+        "base_cut": "cut-94",
+        "index_frontier": "batch-d63443229330466c7e6dcac75a3842c9d5a8421d05d8fac4f9bbbbee6d35acc4",
+        "last_seq": "93",
+        "order_version": "s-record-order/1"
+      },
+      "commit_event": {
+        "kind": "watch",
+        "batches": 4,
+        "hasMore": true
+      },
+      "candidate": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/http-consumers/revisions/commands/prepare-watch-0/committed-candidate.json",
+        "bytes": 1935315,
+        "sha256": "c6963d02a95805083433811f758de13de18154d0448b11ddcbaf171859624a1b"
+      },
+      "snapshot_pages": {
+        "91": 26,
+        "92": 27,
+        "93": 27,
+        "94": 27
+      },
+      "artifact": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/http-consumers/revisions/commands/prepare-watch-0/RESULT.json",
+        "bytes": 28882,
+        "sha256": "d241d0d47025084cb065d2af2542f795d764257c8866ee92388896b2e55ea5d0"
+      }
+    },
+    {
+      "id": "prepare-watch-1",
+      "started_at": "2026-09-13T10:16:58.937Z",
+      "elapsed_ms": 664.4722080000001,
+      "requests": 29,
+      "result": "captured_validated_commit",
+      "full_state_installed": true,
+      "cursor": {
+        "session_id": "tb01c-draft01",
+        "session_generation": "1",
+        "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+        "scope": {
+          "economic": "not_started",
+          "structure": "CompleteCut"
+        },
+        "after_generation": "95",
+        "base_cut": "cut-95",
+        "index_frontier": "batch-01499cca6530dbcc6e7fe2f43cdbb3b6afeaa4ad9945353b1f9427976ea0261c",
+        "last_seq": "94",
+        "order_version": "s-record-order/1"
+      },
+      "commit_event": {
+        "kind": "watch",
+        "batches": 1,
+        "hasMore": false
+      },
+      "candidate": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/http-consumers/revisions/commands/prepare-watch-1/committed-candidate.json",
+        "bytes": 1954206,
+        "sha256": "77f60868443ca03ef6c07688db5b8f58b0dafee2c6c5cdb8edd128ec67c8e58b"
+      },
+      "snapshot_pages": {
+        "95": 28
+      },
+      "artifact": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/http-consumers/revisions/commands/prepare-watch-1/RESULT.json",
+        "bytes": 10088,
+        "sha256": "04cad3161d089d8693ca806323a8b17f9b634909cdfb13258059151d8e952d3f"
+      }
+    },
+    {
+      "id": "revision-three-commit-reconnect",
+      "started_at": "2026-09-13T10:17:01.457Z",
+      "elapsed_ms": 23254.249667000004,
+      "requests": 114,
+      "result": "captured_validated_commit",
+      "full_state_installed": true,
+      "cursor": {
+        "session_id": "tb01c-draft01",
+        "session_generation": "1",
+        "catalog_revision": "s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)",
+        "scope": {
+          "economic": "not_started",
+          "structure": "CompleteCut"
+        },
+        "after_generation": "99",
+        "base_cut": "cut-99",
+        "index_frontier": "batch-8697c2c60cd7d584405a8d92b96916be03741c52b9ad0aaae3834aeb1328e267",
+        "last_seq": "98",
+        "order_version": "s-record-order/1"
+      },
+      "commit_event": {
+        "kind": "watch",
+        "batches": 4,
+        "hasMore": false
+      },
+      "candidate": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/http-consumers/revisions/commands/revision-three-commit-reconnect/committed-candidate.json",
+        "bytes": 2067623,
+        "sha256": "4e96d9d80fb3882b770b0827eeeebf21e4ec04e7d0efa156fce2cf7d86716f8e"
+      },
+      "snapshot_pages": {
+        "96": 28,
+        "97": 28,
+        "98": 28,
+        "99": 29
+      },
+      "artifact": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/http-consumers/revisions/commands/revision-three-commit-reconnect/RESULT.json",
+        "bytes": 32177,
+        "sha256": "c8479b8c1af63bb8137f487263c3871b56c72f4b7a5fd3df3721cf1b2e439183"
+      }
+    }
+  ],
+  "http": {
+    "exchanges": 278,
+    "complete": 278,
+    "wire_bytes": 29435644,
+    "artifact_hash_errors": []
+  },
+  "semantic_comparison": {
+    "scope": "仅前494条输入/收据/切面/全表/schema子域，不称全495等价",
+    "reference": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r4-a/evidence/semantic-core.jsonl",
+    "records": 495,
+    "first494_equal": true,
+    "differing_first494_lines": [],
+    "lifecycle": {
+      "kind": "lifecycle_semantics",
+      "value": {
+        "s_restart": {
+          "before": {
+            "generation": "95",
+            "accepted": "96",
+            "committed": "95"
+          },
+          "after": {
+            "generation": "96",
+            "accepted": "96",
+            "committed": "96"
+          },
+          "signal": "SIGKILL",
+          "writer_epoch": "2",
+          "q_survived": true
+        }
+      }
+    }
+  },
+  "post_run_stop": {
+    "artifact": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/POST-RUN-STOP.json",
+      "bytes": 5787,
+      "sha256": "e345ffcd393e41b43711f891fb9a73f073ec42fd9af69e4974481c22a0c0d13b"
+    },
+    "exact_owned_stop_confirmed": true
+  },
+  "scope_limits": [
+    "本臂明确无Q故障；不能替代R5原109代Q故障双跑。",
+    "这是实际采集与本工位原件核对，最终独评另汇合；没有真实GUI结论。"
+  ]
+}

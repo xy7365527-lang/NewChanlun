@@ -1,0 +1,253 @@
+{
+  "status": "CAPTURED_CURRENT_CANDIDATE_REQUIRES_INDEPENDENT_REVIEW",
+  "head": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+  "query_epoch": "2",
+  "browser_sessions": [
+    "tb01c-final-3ff8c47e",
+    "tb01c-filter-3ff8c47e"
+  ],
+  "browser_mode": "managed-local",
+  "current_input_state": "S输入轨迹已经完成至160；本GUI补验不是持续输入重跑。",
+  "source_sha256": {
+    "s_session/browser/index.html": "25e9469a7913d3a181d26bd6bfc3e8f6698fc3d71bfdd92511c1c0168aad6639",
+    "s_session/browser/tb01c-client.js": "1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c",
+    "s_session/s_readonly_server.py": "5118f3f53f199413000918f3d5c36bae391c8b13ade7afc2b174773da8a790dd",
+    "s_session/s_query.py": "ce51b7a72de1bf1ab869da9e1498bc8ef95e3458981b847aaab033453268ad65",
+    "s_session/s_query_integrity.py": "d69fda491cbb52ead1a714bf942d5c8229ddd9d9f83dd4a17910515d101780bc",
+    "s_session/s_service_control.py": "bab9162f5054d1fadc72d55783f0289981a8b41b89fce0e48348d66682603bad"
+  },
+  "candidates": [
+    {
+      "name": "initial-current160",
+      "generation": "160",
+      "history_mode": "RecomputedWithRevision",
+      "pages": 57,
+      "counts": {
+        "objects": 142,
+        "withdrawn_objects": 48,
+        "witnesses": 570,
+        "relations": 824,
+        "observations": 1,
+        "raw_history": 160
+      },
+      "rendered_matches_candidate": true
+    },
+    {
+      "name": "as-known96",
+      "generation": "96",
+      "history_mode": "AsKnown",
+      "pages": 28,
+      "counts": {
+        "objects": 94,
+        "withdrawn_objects": 0,
+        "witnesses": 282,
+        "relations": 376,
+        "observations": 1,
+        "raw_history": 96
+      },
+      "rendered_matches_candidate": true
+    },
+    {
+      "name": "recomputed156",
+      "generation": "156",
+      "history_mode": "RecomputedWithRevision",
+      "pages": 55,
+      "counts": {
+        "objects": 139,
+        "withdrawn_objects": 45,
+        "witnesses": 552,
+        "relations": 796,
+        "observations": 1,
+        "raw_history": 156
+      },
+      "rendered_matches_candidate": true
+    },
+    {
+      "name": "healthy-watch156-160",
+      "generation": "160",
+      "history_mode": "RecomputedWithRevision",
+      "pages": 57,
+      "counts": {
+        "objects": 142,
+        "withdrawn_objects": 48,
+        "witnesses": 570,
+        "relations": 824,
+        "observations": 1,
+        "raw_history": 160
+      },
+      "rendered_matches_candidate": true
+    }
+  ],
+  "actual_watch": {
+    "before": "156",
+    "after": "160",
+    "gap": null,
+    "deltas": [
+      {
+        "generation": "157",
+        "withdrawals": 0,
+        "replaces": 0
+      },
+      {
+        "generation": "158",
+        "withdrawals": 0,
+        "replaces": 0
+      },
+      {
+        "generation": "159",
+        "withdrawals": 3,
+        "replaces": 3
+      },
+      {
+        "generation": "160",
+        "withdrawals": 0,
+        "replaces": 0
+      }
+    ]
+  },
+  "filters": {
+    "before": {
+      "cut": "160",
+      "checked": true,
+      "rows": 116,
+      "backend_rows": 116,
+      "complete_candidate_unchanged": true,
+      "projection_sha256": "68f4b4eb2657fdd6d15d53e17c9781b4ecc7c65cb777b86e8755726a281cb18c"
+    },
+    "off": {
+      "cut": "160",
+      "checked": false,
+      "rows": 1,
+      "backend_rows": 116,
+      "complete_candidate_unchanged": true,
+      "projection_sha256": "68f4b4eb2657fdd6d15d53e17c9781b4ecc7c65cb777b86e8755726a281cb18c"
+    },
+    "restored": {
+      "cut": "160",
+      "checked": true,
+      "rows": 116,
+      "backend_rows": 116,
+      "complete_candidate_unchanged": true,
+      "projection_sha256": "68f4b4eb2657fdd6d15d53e17c9781b4ecc7c65cb777b86e8755726a281cb18c"
+    }
+  },
+  "ascii_semantic_exports": [
+    {
+      "path": "as-known96-ascii-envelope.json",
+      "bytes": 1443116,
+      "sha256": "5a1c43319f237601566683d52f5fb2dcb3f4e624808cea76ccd1ad7584f34de2"
+    },
+    {
+      "path": "filter-before-ascii-envelope.json",
+      "bytes": 54,
+      "sha256": "74b6b70fa7b561be50264077b70fe36e9374508bc87057163936b859afb8d8ee"
+    },
+    {
+      "path": "filter-completion-recapture/before-ascii-envelope.json",
+      "bytes": 216,
+      "sha256": "fc15012d94474d9370b0c6a1f85833665e2c9b3212195701920fe02c92ab375b"
+    },
+    {
+      "path": "filter-completion-recapture/off-ascii-envelope.json",
+      "bytes": 215,
+      "sha256": "8f56a963bb335a8ac076b73137d1a2abedfbc55ba08a26ee4d4cc10a9308ba32"
+    },
+    {
+      "path": "filter-completion-recapture/restored-ascii-envelope.json",
+      "bytes": 216,
+      "sha256": "fc15012d94474d9370b0c6a1f85833665e2c9b3212195701920fe02c92ab375b"
+    },
+    {
+      "path": "filter-off-ascii-envelope.json",
+      "bytes": 187,
+      "sha256": "540ba2d53441233b94cc7ccc4fc75ba43e3eb37344410ebafd899a6b86109e4b"
+    },
+    {
+      "path": "filter-restored-ascii-envelope.json",
+      "bytes": 185,
+      "sha256": "37f7c89e338507f3eb0df0d8bb16ee69d3568d6eef09e00f880f98b4de9459f7"
+    },
+    {
+      "path": "healthy-watch156-160-ascii-envelope.json",
+      "bytes": 6487822,
+      "sha256": "870f3f8c2db1bc4be512baf54116573e54808402187f9e9ddf8766360bf589ba"
+    },
+    {
+      "path": "initial-current160-ascii-envelope.json",
+      "bytes": 2706129,
+      "sha256": "8ef6ae1d14c569742ea127b904278c5cce95e1bcd7c3f6071835b71dc5ae4597"
+    },
+    {
+      "path": "recomputed156-ascii-envelope.json",
+      "bytes": 2627178,
+      "sha256": "e5f4aa1353acaf6b7d1837ce3b98761b12504960746f180b780b771bba14a5d0"
+    },
+    {
+      "path": "revised-detail-ascii-envelope.json",
+      "bytes": 4154,
+      "sha256": "57b9dd079bc6b4facc2459bd7b98ae45f9545fcae2bcb585bc6d888506fa6d54"
+    }
+  ],
+  "snapshot_encoding_diagnostics": [
+    {
+      "path": "before-as-known-snapshot.stdout",
+      "replacement_character_count": 19
+    },
+    {
+      "path": "before-filter-snapshot.stdout",
+      "replacement_character_count": 13
+    },
+    {
+      "path": "catalog-entry-before-snapshot.json",
+      "replacement_character_count": 6
+    },
+    {
+      "path": "filter-completion-recapture/off-snapshot.stdout",
+      "replacement_character_count": 2
+    },
+    {
+      "path": "filter-completion-recapture/restored-snapshot.stdout",
+      "replacement_character_count": 19
+    },
+    {
+      "path": "filter-off-snapshot.stdout",
+      "replacement_character_count": 18
+    },
+    {
+      "path": "filter-restored-snapshot.stdout",
+      "replacement_character_count": 8
+    },
+    {
+      "path": "initial-snapshot.stdout",
+      "replacement_character_count": 10
+    },
+    {
+      "path": "input-refs-before-snapshot.json",
+      "replacement_character_count": 10
+    },
+    {
+      "path": "relations-before-snapshot.json",
+      "replacement_character_count": 7
+    },
+    {
+      "path": "revision-witness-before-snapshot.json",
+      "replacement_character_count": 19
+    }
+  ],
+  "initial_filter_observation": {
+    "paths": [
+      "filter-before.json",
+      "filter-off.json",
+      "filter-restored.json"
+    ],
+    "rows": [
+      116,
+      116,
+      1
+    ],
+    "status": "NOT_VERIFIED_IMMEDIATE_READ_DID_NOT_OBSERVE_COMPLETED_TOGGLE",
+    "followup": "filter-completion-recapture等待目标checked与rows后另取；旧件保持原样。"
+  },
+  "services_stopped_receipt": "../POST-RUN-STOP.json",
+  "captured_utc": "2026-09-13T10:35:25.646016+00:00"
+}

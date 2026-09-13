@@ -1,0 +1,371 @@
+{
+  "schema": "tb01c.legacy_query_callers_audit.v1",
+  "status": "PASS_BOUNDED_LEGACY_R9_R10_COMPATIBILITY",
+  "full_c_acceptance": "NOT_EVALUATED",
+  "graph_discovery": "search_graph 返回 project not found or not indexed；候选树无图，按实际可执行源码后缀定点全文检索。",
+  "search_scope": {
+    "tree": "/Users/silencehan/Projects/NewChanlun-1372-codex",
+    "patterns": [
+      "s_readonly_server",
+      "HTTPServer(",
+      "ThreadingHTTPServer(",
+      "QueryHTTPServer(",
+      "r9_contract",
+      "r13_integrity",
+      "launch_s.sh"
+    ],
+    "extensions": [
+      "py",
+      "sh",
+      "js",
+      "cjs",
+      "ts",
+      "mjs",
+      "yml",
+      "yaml"
+    ],
+    "excluded_generated_directories": [
+      ".git",
+      "target",
+      "node_modules",
+      ".venv"
+    ],
+    "boundary": "所有匹配现役 Q 启动/构造已逐项归类；未把无关代理/拓扑 HTTPServer 或冻结文档引用算为 Q 调用。未对动态字符串拼装作全仓程序证明。"
+  },
+  "callers": [
+    {
+      "path": "s_session/launch_s.sh",
+      "line": 251,
+      "kind": "CLI",
+      "status": "已由根修复并另有真实旧 launcher 正控/三参数负控；本任务未修改",
+      "parameters": "显式 --resource-config/--producer-epoch"
+    },
+    {
+      "path": "s_session/s_service_control.py",
+      "line": 449,
+      "kind": "CLI",
+      "status": "已给齐",
+      "parameters": "配置 query_resource_config 与独立 query_epoch"
+    },
+    {
+      "path": "s_session/tests/r9_contract.py",
+      "line": 74,
+      "before_line": 71,
+      "kind": "CLI",
+      "status": "本次修复并真实补跑默认 R9 与 --r10",
+      "parameters": "具名 TestOnly fixture 与 Q epoch1；独立 --binary"
+    },
+    {
+      "path": "s_session/s_readonly_server.py",
+      "line": 1156,
+      "kind": "QueryHTTPServer",
+      "status": "main 经 required 参数与正式校验后给齐5参数"
+    },
+    {
+      "path": "s_session/tests/tb01c_query_tests.py",
+      "line": 334,
+      "kind": "QueryHTTPServer",
+      "status": "直接构造5参数，资源与epoch7齐全；不覆盖 argparse"
+    },
+    {
+      "path": "s_session/tests/tb01c_query_v2.py",
+      "line": 125,
+      "kind": "QueryHTTPServer",
+      "status": "直接构造5参数，资源与epoch3齐全；不覆盖 argparse"
+    },
+    {
+      "path": "s_session/tests/r13_integrity.py",
+      "line": 59,
+      "kind": "direct_read",
+      "status": "直接 open_readonly/read_state；不启动 HTTP，不覆盖 argparse"
+    },
+    {
+      "path": "s_session/tests/r9_consumer.cjs",
+      "line": 12,
+      "kind": "HTTP_client",
+      "status": "--r10/--r11 使用外部 base URL；不构造 Q argv，不能单独证明启动兼容"
+    },
+    {
+      "path": "s_session/tests/r12_consumer.cjs",
+      "line": 5,
+      "kind": "VM_consumer",
+      "status": "HTML/fixture 回归，没有实际 Q 启动"
+    },
+    {
+      "path": "s_session/tests/tb01c_runtime.py",
+      "line": 149,
+      "kind": "launcher_service_caller",
+      "status": "通过 service 分支；源码保全清单中的 Q 文件名不是另一条启动路径"
+    }
+  ],
+  "confirmed_regression": {
+    "location_before": "s_session/tests/r9_contract.py:71-72",
+    "actual_red": {
+      "status": "EXPECTED_RED",
+      "writer_override": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session",
+      "source_mode": "现有原版 main，不改 argv 缺参行为",
+      "error": "RuntimeError: HTTP未就绪",
+      "children": [
+        {
+          "pid": 86209,
+          "exit": 2,
+          "stdout": "",
+          "stderr": "usage: s_readonly_server.py [-h] --db DB [--port PORT] --browser BROWSER\n                            [--host HOST] --resource-config RESOURCE_CONFIG\n                            --producer-epoch PRODUCER_EPOCH\ns_readonly_server.py: error: the following arguments are required: --resource-config, --producer-epoch\n"
+        }
+      ]
+    },
+    "affected_entrypoints": [
+      "默认 R9",
+      "--r10"
+    ],
+    "cause": "Q required 参数引入后，旧测试 argv 缺少两项，子进程 argparse exit2，任何HTTP断言之前失败。"
+  },
+  "changes": [
+    "仅修改 s_session/tests/r9_contract.py；显式 TestOnly query-resources.json + producer_epoch1，保持 Q required 门。",
+    "增加可选 --binary，保留旧 debug 默认，隔离回归明确绑定冻结 writer。",
+    "原 /proc 退出逻辑不适用于 macOS；改为仅本 Popen 的有界 TERM/communicate，必要时 KILL，启动失败也收回并记录原stderr。",
+    "--r10 失败时 finally 保全完整操作LOG；不改任何结构断言或错误期待。"
+  ],
+  "business_functions_ast_equal": [
+    "exercise",
+    "exercise_r10"
+  ],
+  "current_test_source": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/r9_contract.py",
+    "bytes": 16843,
+    "sha256": "9a307a82fcb0fc2d9121a5b56ce4d9812a1e048cb5238c4a70f14eb0fee8fc99"
+  },
+  "protected_sources_unchanged": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_readonly_server.py",
+      "bytes": 51924,
+      "sha256": "a025f706271a1ae73697b0e330871bd2988f3c3ce1a3b6271d15e257c3ca0ca8"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_service_control.py",
+      "bytes": 29333,
+      "sha256": "7811bd5562b9df0a5d9d306f14d86d6a2ad2b7e681d02804645369e0ef2ffcef"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/launch_s.sh",
+      "bytes": 10512,
+      "sha256": "28e052bb0ec7f77bddfac932c602f89c2e0eb4d902df2e451c35da09b03cad0f"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/r13_integrity.py",
+      "bytes": 7891,
+      "sha256": "8991739d14a876bbf7d20430ab227e935b8dd968322d30297ba01757bea10e21"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_query_tests.py",
+      "bytes": 28609,
+      "sha256": "c4bc43d9d928707f7fa69643fee945c510654f5a55547fa8bb87408d85f8019c"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_query_v2.py",
+      "bytes": 12235,
+      "sha256": "a3e8546c0acd09d792ce4dc8a8c7c3840ca782d008a2fa7268541c67e1bb7b22"
+    }
+  ],
+  "checks": {
+    "source": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/r9_contract.py",
+      "bytes": 16843,
+      "sha256": "9a307a82fcb0fc2d9121a5b56ce4d9812a1e048cb5238c4a70f14eb0fee8fc99"
+    },
+    "binary": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session",
+      "bytes": 3712672,
+      "sha256": "5bb7f1dfd57e1d8e6cfc1097360246ae27333776504767df4aba1b9fba9ce71b"
+    },
+    "checks": [
+      {
+        "name": "r9",
+        "argv": [
+          "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+          "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/r9_contract.py",
+          "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/fixed-r9",
+          "--binary",
+          "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 9.74720983300358,
+        "output": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/fixed-r9",
+        "stdout": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/r9.stdout",
+        "stderr": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/r9.stderr"
+      },
+      {
+        "name": "r10",
+        "argv": [
+          "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+          "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/r9_contract.py",
+          "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/fixed-r10",
+          "--binary",
+          "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session",
+          "--r10"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 7.526213292003376,
+        "output": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/fixed-r10",
+        "stdout": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/r10.stdout",
+        "stderr": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/r10.stderr"
+      }
+    ],
+    "source_unchanged": true
+  },
+  "case_summary": [
+    {
+      "name": "r9",
+      "source_result": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/fixed-r9/results.json",
+        "bytes": 29181065,
+        "sha256": "ae6d478de1b792b9e85615b1e091df5ad0431d81bda5991cd42b829a99d2ff10"
+      },
+      "normal_stages": 7,
+      "history_stages": 0,
+      "corrupt_cases": 44,
+      "corrupt_labels": [
+        "wrong_current_root",
+        "wrong_cut",
+        "inner_frontier",
+        "inner_seq",
+        "inner_evidence",
+        "bad_scope",
+        "empty_scope",
+        "wrong_scope",
+        "missing_upserts",
+        "member_upserts",
+        "missing_withdrawals",
+        "member_withdrawals",
+        "missing_replaces",
+        "member_replaces",
+        "missing_witnesses",
+        "member_witnesses",
+        "missing_relations",
+        "member_relations",
+        "missing_observations",
+        "member_observations",
+        "missing_raw_history_added",
+        "member_raw_history_added",
+        "missing_witness_member",
+        "dangling_relation",
+        "outer_generation",
+        "outer_session_id",
+        "outer_catalog_revision",
+        "outer_base_cut",
+        "outer_next_cut",
+        "outer_seq_range_json",
+        "outer_index_frontier",
+        "outer_input_frontier",
+        "outer_catalog_run_status",
+        "outer_catalog_evidence_json",
+        "inner_session_id",
+        "inner_generation",
+        "inner_catalog_revision",
+        "inner_base_cut",
+        "inner_next_cut",
+        "inner_index_frontier",
+        "inner_catalog_run_status",
+        "scope_wrong_type",
+        "scope_null",
+        "catalog_evidence"
+      ],
+      "all_corrupt_rejected_zero_write": true,
+      "http_count": 324,
+      "http_status_counts": {
+        "200": 16,
+        "503": 308
+      },
+      "native_cli_count": 331,
+      "cli_exit_counts": {
+        "0": 23,
+        "1": 308
+      },
+      "query_child_count": 45,
+      "all_owned_query_children_reaped": true,
+      "query_wait_exit_counts": {
+        "-15": 45
+      },
+      "as_known_zero_stable": null,
+      "all_normal_observation_equal": true
+    },
+    {
+      "name": "r10",
+      "source_result": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/fixed-r10/r10-results.json",
+        "bytes": 39274793,
+        "sha256": "34c6bdfa87da628831fcf620187a38e435a2df1cb11ad7087c97dafd71903d5d"
+      },
+      "normal_stages": 0,
+      "history_stages": 15,
+      "corrupt_cases": 21,
+      "corrupt_labels": [
+        "published_profile_hash_wrong",
+        "published_profile_hash_well_formed",
+        "published_profile_hash_missing",
+        "published_profile_id_wrong",
+        "published_profile_id_missing",
+        "published_input_profile_wrong",
+        "published_input_profile_missing",
+        "pending_profile_hash_wrong",
+        "pending_profile_hash_well_formed",
+        "pending_profile_hash_missing",
+        "pending_profile_id_wrong",
+        "pending_profile_id_missing",
+        "pending_input_profile_wrong",
+        "pending_input_profile_missing",
+        "first_pending_profile_hash_wrong",
+        "first_pending_profile_hash_well_formed",
+        "first_pending_profile_hash_missing",
+        "first_pending_profile_id_wrong",
+        "first_pending_profile_id_missing",
+        "first_pending_input_profile_wrong",
+        "first_pending_input_profile_missing"
+      ],
+      "all_corrupt_rejected_zero_write": true,
+      "http_count": 392,
+      "http_status_counts": {
+        "200": 224,
+        "503": 168
+      },
+      "native_cli_count": 199,
+      "cli_exit_counts": {
+        "0": 52,
+        "1": 147
+      },
+      "query_child_count": 43,
+      "all_owned_query_children_reaped": true,
+      "query_wait_exit_counts": {
+        "-15": 43
+      },
+      "as_known_zero_stable": true,
+      "all_normal_observation_equal": null
+    }
+  ],
+  "previous_final_candidate_coverage": {
+    "source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/root-final-qmemo-v2-integration.json",
+      "bytes": 865,
+      "sha256": "7704dd31cb3fa5d49474213e60ca12ce2199b99e70a3b340d7215bfd04f66134"
+    },
+    "actual": {
+      "command": [
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_query_v2.py",
+        "--binary",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/frozen/s_structure_session"
+      ],
+      "exit_code": 0,
+      "stdout": "{\"status\": \"PASS_BOUNDED_QUERY_V2\", \"s_requests\": 6, \"real_ingests\": 5, \"fixed_cut_rows\": 21, \"historical_token_after_commit_gc_s_stop\": true, \"missing_delivery_ref_rejected\": true, \"fresh_control_corruptions_rejected\": 8, \"actual_recover_preserves_historical_token\": true, \"full_c_acceptance\": \"NOT_RUN\"}\n",
+      "stderr": "",
+      "test_sha256": "a3e8546c0acd09d792ce4dc8a8c7c3840ca782d008a2fa7268541c67e1bb7b22"
+    },
+    "coverage_limit": "5次真实ingest、固定21行旧token与控制坏行等；脚本直接构造 QueryHTTPServer，不覆盖旧CLI参数。根确认此前没有最终候选 R9/R10 CLI 通过收据，现由本次补齐。"
+  },
+  "ci_boundary": "pyproject.toml testpaths=[tests]；现有 CI 的 pytest 与 Rust s_session cargo test 不调用这两个 s_session/tests/r9_contract.py 手动入口。",
+  "resource_and_mutation_scope": "测试自建目录 fixed-r9/fixed-r10 内 init/accept/advance/备份/故意损坏；端口临时分配；没有打开其他运行库或访问其他服务；全部88自建Q子进程已回收。",
+  "residual_limits": [
+    "只证明旧 R9/R10 的既定域；不代替 C HTTP 跨更正、GUI、完整最终独评。",
+    "README与其他源不属于本轮改动；未提交或推送。"
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "schema": "tb01c.r9_r10_compatibility_increment_review.v1",
+  "session_id": "/root/r7_codex_product_review",
+  "commit": "932de089e989ca9ce482a93d6db825c4d4fda028",
+  "status": "PASS_BOUNDED_TEST_ENTRY_FIX",
+  "scope": "只审测试入口参数/资源/binary/自有进程回收接线；不重复完整语义业务测试，不产生C通过。",
+  "source": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/source/r9_contract.py",
+    "bytes": 16843,
+    "sha256": "9a307a82fcb0fc2d9121a5b56ce4d9812a1e048cb5238c4a70f14eb0fee8fc99"
+  },
+  "lines": [
+    "20-24",
+    "69-112",
+    "261-275"
+  ],
+  "business_ast_unchanged": [
+    "exercise",
+    "exercise_r10"
+  ],
+  "findings": [],
+  "changes": [
+    "Q资源与producer_epoch1显式具名TestOnly，没削弱Q required",
+    "--binary只选择受测S，原debug缺省保持",
+    "仅Popen自有子进程TERM/10s/KILL/10s，启动失败同样close；异常继续抛出，不伪通过",
+    "R10 finally保留LOG，业务断言无改动"
+  ],
+  "evidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/fixed-r9/results.json",
+      "bytes": 29181065,
+      "sha256": "ae6d478de1b792b9e85615b1e091df5ad0431d81bda5991cd42b829a99d2ff10"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/fixed-r10/r10-results.json",
+      "bytes": 39274793,
+      "sha256": "34c6bdfa87da628831fcf620187a38e435a2df1cb11ad7087c97dafd71903d5d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/REPORT.json",
+      "bytes": 15698,
+      "sha256": "d2d1d3a7a2113bbad163c69dfccf74739cbb4146f8082cdb87ffecd574f9ff38"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/r9.stdout",
+      "bytes": 30,
+      "sha256": "370602645fa09c2ece85e29a86abc4ba0cf36ddad07e26b10e72265efb4acb0a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/r9.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/r10.stdout",
+      "bytes": 39,
+      "sha256": "cc5b1396697a451519f2e108ac74a6b3dd43df2bd7396cb83254ba1961e3810e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/r10.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/fixed-r10/r10-run-log.json",
+      "bytes": 12481328,
+      "sha256": "33f5e1830ea390315c08278012c4d566ea946d33f13e56cbd7db648605b75c39"
+    }
+  ],
+  "independent_log_checks": [
+    {
+      "result": "fixed-r9/results.json",
+      "owned_children": 45,
+      "all_children_argv_bound_and_reaped": true,
+      "http_responses": 324,
+      "all_http_body_hashes_recomputed": true,
+      "http_status_counts": {
+        "200": 16,
+        "503": 308
+      }
+    },
+    {
+      "result": "fixed-r10/r10-results.json",
+      "owned_children": 43,
+      "all_children_argv_bound_and_reaped": true,
+      "http_responses": 392,
+      "all_http_body_hashes_recomputed": true,
+      "http_status_counts": {
+        "200": 224,
+        "503": 168
+      }
+    }
+  ],
+  "limits": [
+    "未重跑R9/R10或启动服务",
+    "没有通读190件数据库/所有业务载荷作第二次全域审查",
+    "日志执行时Q源为原报告所绑定版本a025f706…，不冒称后来compactReady/18ee编码memo已重跑同一R9/R10",
+    "根31Q/v2与本轮编码memo审阅另绑定18ee；legacy launcher2317369已有旧独评，不重做"
+  ]
+}

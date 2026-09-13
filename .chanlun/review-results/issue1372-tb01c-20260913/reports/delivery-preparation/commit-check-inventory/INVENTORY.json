@@ -1,0 +1,2218 @@
+{
+  "schema": "tb01c.commit_check_inventory.v1",
+  "recorded_utc": "2026-09-13T10:21:30.681070+00:00",
+  "base": "e46cf3bca6a67da821f9ab046507563b8133f6d9",
+  "head": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+  "commit_count": 18,
+  "range_exact": true,
+  "read_only_scope": "仅读Git对象、既有收据/日志/冻结源码/二进制字节；新文件仅在本目录。未启动产品、SQL、cargo、测试或远端操作。",
+  "role": "实施历史事实索引；作者曾实施Q，不构成对自身Q的独立批准。",
+  "discipline": {
+    "path": "docs/agents/delivery-discipline.md",
+    "line": 14,
+    "text": "一张票由多个commit交付时，逐个声明每个commit都可编译；纯文档commit不要求编译，但要明确标成纯文档豁免。"
+  },
+  "counts": {
+    "pure_document": 1,
+    "rust_modified_commits": 5,
+    "syntax_unique_inputs": 71,
+    "syntax_failures": 0,
+    "syntax_not_proven": 0,
+    "syntax_actually_checked_unique_inputs": 58
+  },
+  "limits": [
+    "编译成功与正确性分开：历史P2/P4/driver/browser回归失败原件不改写。",
+    "Rust同树只继承具名s_structure_session构建，不等于全仓所有features/targets编译。",
+    "Python compile/Node --check/bash -n只是语法，不能代替import依赖、真实CLI或功能运行。",
+    "记录后续同文件收据时只继承精确源绑定范围，不推整棵历史工作树通过。",
+    "全部commit尚无本候选远端CI成功声明；3ff8c47工作流仍须在真实GitHub runner执行。",
+    "本索引不裁C/AC3/R5或合入，也不裁自己的Q实现。"
+  ],
+  "commits": [
+    {
+      "commit": "387a4cbc66ef7c9be7724ff430a75a35e7a322eb",
+      "parents": [
+        "e46cf3bca6a67da821f9ab046507563b8133f6d9"
+      ],
+      "subject": "#1372 add persistent single-writer session service and delivery retention",
+      "change_type": "Rust 服务/控制协议/持久投递",
+      "changed_files": [
+        {
+          "status": "A",
+          "path": "rust/src/bin/s_session_v2/mod.rs",
+          "blob_oid": "1ee0778cf86eef8d82941826e0f57bab4dca7b80",
+          "sha256": "e89e62bf0d4570b21b00c2bc555df9f19062482cb5cd231530a9ef7ceb1903df",
+          "bytes": 71635,
+          "syntax": {
+            "path": "rust/src/bin/s_session_v2/mod.rs",
+            "bytes": 71635,
+            "sha256": "e89e62bf0d4570b21b00c2bc555df9f19062482cb5cd231530a9ef7ceb1903df",
+            "status": "NOT_APPLICABLE"
+          }
+        },
+        {
+          "status": "M",
+          "path": "rust/src/bin/s_structure_session.rs",
+          "blob_oid": "e688760e87202930a1ef8434a802886a47ffc17e",
+          "sha256": "35233d1967650bf5fb0c7f09038f86716f286516bf87ba4711673cf96ecb085f",
+          "bytes": 253395,
+          "syntax": {
+            "path": "rust/src/bin/s_structure_session.rs",
+            "bytes": 253395,
+            "sha256": "35233d1967650bf5fb0c7f09038f86716f286516bf87ba4711673cf96ecb085f",
+            "status": "NOT_APPLICABLE"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "3354c7d560319b4d6b55a8249e25ea36d0923f14",
+      "reused_rust_build_stage": "p1",
+      "all_session_python_syntax": {
+        "file_count": 3,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "P1 最终 native build exit0；最终目标10测通过。55全套发生在 nonce 最后增补之前，不称最终56全套已运行。",
+      "compilability_statement": "Rust构建已证；既有P2独评覆盖其累积服务面并发现后续修复项。",
+      "evidence": [
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/query-owner-rust-cross-review-01/REVIEW.md",
+          "exact_changed_blob_matches": []
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "32c907a637721af46bf6096c01fc381e5ca6d2b3",
+      "parents": [
+        "387a4cbc66ef7c9be7724ff430a75a35e7a322eb"
+      ],
+      "subject": "#1372 audit fresh history with generation buckets and one batch decode",
+      "change_type": "Rust 新鲜线性历史核",
+      "changed_files": [
+        {
+          "status": "A",
+          "path": "rust/src/bin/s_session_v2/audit.rs",
+          "blob_oid": "a50d5efeaf5605b2249382a25a6fd2e7ef1effbd",
+          "sha256": "1f872e576817d2dc99b8631c57265a0288ecabd5240ea67de295e532a3cce7d2",
+          "bytes": 12961,
+          "syntax": {
+            "path": "rust/src/bin/s_session_v2/audit.rs",
+            "bytes": 12961,
+            "sha256": "1f872e576817d2dc99b8631c57265a0288ecabd5240ea67de295e532a3cce7d2",
+            "status": "NOT_APPLICABLE"
+          }
+        },
+        {
+          "status": "M",
+          "path": "rust/src/bin/s_session_v2/mod.rs",
+          "blob_oid": "d03807b65365fca51b780c649205ea1246c226da",
+          "sha256": "e3fffbafb8788c5ddf1a1c1f296ba6182c978e5d06d0a5826bd1a7714df5f739",
+          "bytes": 74983,
+          "syntax": {
+            "path": "rust/src/bin/s_session_v2/mod.rs",
+            "bytes": 74983,
+            "sha256": "e3fffbafb8788c5ddf1a1c1f296ba6182c978e5d06d0a5826bd1a7714df5f739",
+            "status": "NOT_APPLICABLE"
+          }
+        },
+        {
+          "status": "M",
+          "path": "rust/src/bin/s_structure_session.rs",
+          "blob_oid": "5363983a7cefee11898d256909b3b35d23c190de",
+          "sha256": "36e2db45d557cc3258edc5123d14f47f468a550bf01893511cbad4a8690551ae",
+          "bytes": 248431,
+          "syntax": {
+            "path": "rust/src/bin/s_structure_session.rs",
+            "bytes": 248431,
+            "sha256": "36e2db45d557cc3258edc5123d14f47f468a550bf01893511cbad4a8690551ae",
+            "status": "NOT_APPLICABLE"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "63de15d4e0b3c1a47b0bcbdfdd60643356b6e33e",
+      "reused_rust_build_stage": "p2",
+      "all_session_python_syntax": {
+        "file_count": 3,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "P2 release build exit0、59全套及13目标通过；16消息全表对拍仅小域。",
+      "compilability_statement": "Rust构建已证；P2存在4项/5原例完整性缺陷，由73ef75b修复。",
+      "evidence": [
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/query-owner-rust-cross-review-01/REVIEW.md",
+          "exact_changed_blob_matches": []
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "0e83b681dad5e1196d26f34639e28051cf462360",
+      "parents": [
+        "32c907a637721af46bf6096c01fc381e5ca6d2b3"
+      ],
+      "subject": "feat(#1372): add bounded read-only query audit pagination and watch",
+      "change_type": "Python Q 审计/HTTP/分页/Watch/测试",
+      "changed_files": [
+        {
+          "status": "A",
+          "path": "s_session/s_query.py",
+          "blob_oid": "8c88f6da448f3d572f48d051955ca0c831b2721b",
+          "sha256": "09a5619da9dcf5fda6967a5725a4c6dd2aea14db777506e44719b47142b3163a",
+          "bytes": 23831,
+          "syntax": {
+            "path": "s_session/s_query.py",
+            "bytes": 23831,
+            "sha256": "09a5619da9dcf5fda6967a5725a4c6dd2aea14db777506e44719b47142b3163a",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/s_query_integrity.py",
+          "blob_oid": "b530fcfb44ab4ed5306efb1578cb45d871be3646",
+          "sha256": "92a0ac309cb036e510f2dbf0e9bb7cd850779c3bf620c336efc05cda79f74b20",
+          "bytes": 51406,
+          "syntax": {
+            "path": "s_session/s_query_integrity.py",
+            "bytes": 51406,
+            "sha256": "92a0ac309cb036e510f2dbf0e9bb7cd850779c3bf620c336efc05cda79f74b20",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/s_readonly_server.py",
+          "blob_oid": "e16ee85bfba38b237a4abfbdeef8ea90600e3109",
+          "sha256": "a1ac9b93802cfc732d413675ffe13afacc91c62bda0d16407fd8700bf2b93466",
+          "bytes": 51823,
+          "syntax": {
+            "path": "s_session/s_readonly_server.py",
+            "bytes": 51823,
+            "sha256": "a1ac9b93802cfc732d413675ffe13afacc91c62bda0d16407fd8700bf2b93466",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/tb01c_query_tests.py",
+          "blob_oid": "c4b207a95aec04c9377ec296fc0b76132f4b27c2",
+          "sha256": "874996f9d0a4ffa2e15921ae458d36659f782ef95a029244502d1219d57fa640",
+          "bytes": 21082,
+          "syntax": {
+            "path": "s_session/tests/tb01c_query_tests.py",
+            "bytes": 21082,
+            "sha256": "874996f9d0a4ffa2e15921ae458d36659f782ef95a029244502d1219d57fa640",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/tb01c_query_v2.py",
+          "blob_oid": "ab047ca54fdd9d9cb4fcc6ac2926c3c916940a5a",
+          "sha256": "7d70325d9d03794b020b8bf250ced94665e80d415ce85eb053e8063180f79ce6",
+          "bytes": 11152,
+          "syntax": {
+            "path": "s_session/tests/tb01c_query_v2.py",
+            "bytes": 11152,
+            "sha256": "7d70325d9d03794b020b8bf250ced94665e80d415ce85eb053e8063180f79ce6",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "63de15d4e0b3c1a47b0bcbdfdd60643356b6e33e",
+      "reused_rust_build_stage": "p2",
+      "all_session_python_syntax": {
+        "file_count": 7,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "23 Q测试、v2小域通过（v1 R14与P1二进制）；不能称该root整树对P2已整合验证。",
+      "compilability_statement": "Python语法可编译；Q原数值缺口后由609716c修复，旧launcher与R9必填参数兼容性后来补齐。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/query-stage/RESULT.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/s_readonly_server.py",
+              "source_record": {
+                "path": "s_session/s_readonly_server.py",
+                "sha256": "a1ac9b93802cfc732d413675ffe13afacc91c62bda0d16407fd8700bf2b93466",
+                "pointer": "/sources/0"
+              }
+            },
+            {
+              "changed_path": "s_session/s_query.py",
+              "source_record": {
+                "path": "s_session/s_query.py",
+                "sha256": "09a5619da9dcf5fda6967a5725a4c6dd2aea14db777506e44719b47142b3163a",
+                "pointer": "/sources/1"
+              }
+            },
+            {
+              "changed_path": "s_session/s_query_integrity.py",
+              "source_record": {
+                "path": "s_session/s_query_integrity.py",
+                "sha256": "92a0ac309cb036e510f2dbf0e9bb7cd850779c3bf620c336efc05cda79f74b20",
+                "pointer": "/sources/2"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/tb01c_query_tests.py",
+              "source_record": {
+                "path": "s_session/tests/tb01c_query_tests.py",
+                "sha256": "874996f9d0a4ffa2e15921ae458d36659f782ef95a029244502d1219d57fa640",
+                "pointer": "/sources/3"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/tb01c_query_v2.py",
+              "source_record": {
+                "path": "s_session/tests/tb01c_query_v2.py",
+                "sha256": "7d70325d9d03794b020b8bf250ced94665e80d415ce85eb053e8063180f79ce6",
+                "pointer": "/sources/4"
+              }
+            }
+          ]
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/python-cross-review-01/REVIEW.md",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/python-cross-review-01/SOURCE.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/s_query.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_query.py",
+                "sha256": "09a5619da9dcf5fda6967a5725a4c6dd2aea14db777506e44719b47142b3163a",
+                "pointer": "/0"
+              }
+            },
+            {
+              "changed_path": "s_session/s_query_integrity.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_query_integrity.py",
+                "sha256": "92a0ac309cb036e510f2dbf0e9bb7cd850779c3bf620c336efc05cda79f74b20",
+                "pointer": "/1"
+              }
+            },
+            {
+              "changed_path": "s_session/s_readonly_server.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_readonly_server.py",
+                "sha256": "a1ac9b93802cfc732d413675ffe13afacc91c62bda0d16407fd8700bf2b93466",
+                "pointer": "/2"
+              }
+            }
+          ]
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "73ef75bcef0a9cc01aa25155492763fb3402959e",
+      "parents": [
+        "0e83b681dad5e1196d26f34639e28051cf462360"
+      ],
+      "subject": "#1372 reject uncovered control rows and incomplete epoch history",
+      "change_type": "Rust 全控制行/epoch/raw消息覆盖修复",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "rust/src/bin/s_session_v2/mod.rs",
+          "blob_oid": "88f671c167c09ca41bda8bbfddeb6af79808fdd5",
+          "sha256": "491392d21580bd9a3ec1a91bc497768222d9750dc5aa977f31436fbe4c3042cf",
+          "bytes": 84264,
+          "syntax": {
+            "path": "rust/src/bin/s_session_v2/mod.rs",
+            "bytes": 84264,
+            "sha256": "491392d21580bd9a3ec1a91bc497768222d9750dc5aa977f31436fbe4c3042cf",
+            "status": "NOT_APPLICABLE"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "2d2f07ffb61e96465c924d520b3dd9126b7e958b",
+      "reused_rust_build_stage": "p3",
+      "all_session_python_syntax": {
+        "file_count": 7,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "P3 release build exit0；60全套之后仅新增1条测试，最终1测/60过滤通过。",
+      "compilability_statement": "Rust构建已证；独立34 CLI产品断言通过，原目录sidecar增量导致保全检查FAIL须保留。",
+      "evidence": [
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/independent-rust-p3-recheck/REVIEW.md",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/independent-rust-p3-recheck/SOURCE.json",
+          "exact_changed_blob_matches": []
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "609716c07badac301eeae7108f654a0b0cde97f3",
+      "parents": [
+        "73ef75bcef0a9cc01aa25155492763fb3402959e"
+      ],
+      "subject": "fix(#1372): validate signed raw integers and v2 recovery state",
+      "change_type": "Python raw规范signed-i64与v2恢复门",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "s_session/s_query_integrity.py",
+          "blob_oid": "c915aa9c24b94c50f43c040da5138bf129bf1993",
+          "sha256": "406ae4f8082b49eaf0e0b5c4d47691593f6b48f283c0057cff309aff0471a749",
+          "bytes": 52259,
+          "syntax": {
+            "path": "s_session/s_query_integrity.py",
+            "bytes": 52259,
+            "sha256": "406ae4f8082b49eaf0e0b5c4d47691593f6b48f283c0057cff309aff0471a749",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/tests/tb01c_query_tests.py",
+          "blob_oid": "4e00ef0645189b9e4b75ff9e6aff03cc32bccfc4",
+          "sha256": "add3d3798ae738021d29579fbfa00a129ae5c836895e556901c0141db216e0a5",
+          "bytes": 23966,
+          "syntax": {
+            "path": "s_session/tests/tb01c_query_tests.py",
+            "bytes": 23966,
+            "sha256": "add3d3798ae738021d29579fbfa00a129ae5c836895e556901c0141db216e0a5",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/tests/tb01c_query_v2.py",
+          "blob_oid": "7d85b7627a1a05d5765963f8a67739414dceddf0",
+          "sha256": "3c14298fd19843fad7ee52c52659b673cdcf6b5896fa91d37676d191684a0c58",
+          "bytes": 12047,
+          "syntax": {
+            "path": "s_session/tests/tb01c_query_v2.py",
+            "bytes": 12047,
+            "sha256": "3c14298fd19843fad7ee52c52659b673cdcf6b5896fa91d37676d191684a0c58",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "2d2f07ffb61e96465c924d520b3dd9126b7e958b",
+      "reused_rust_build_stage": "p3",
+      "all_session_python_syntax": {
+        "file_count": 7,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "24 Q测试、78数值组合(24健康54拒绝)、P2 v2小域通过。",
+      "compilability_statement": "Python语法可编译；独评原三坏值和九合法值复验通过；非整C。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/query-numeric-fix-01/RESULT.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/s_query_integrity.py",
+              "source_record": {
+                "path": "s_session/s_query_integrity.py",
+                "sha256": "406ae4f8082b49eaf0e0b5c4d47691593f6b48f283c0057cff309aff0471a749",
+                "pointer": "/sources/0"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/tb01c_query_tests.py",
+              "source_record": {
+                "path": "s_session/tests/tb01c_query_tests.py",
+                "sha256": "add3d3798ae738021d29579fbfa00a129ae5c836895e556901c0141db216e0a5",
+                "pointer": "/sources/1"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/tb01c_query_v2.py",
+              "source_record": {
+                "path": "s_session/tests/tb01c_query_v2.py",
+                "sha256": "3c14298fd19843fad7ee52c52659b673cdcf6b5896fa91d37676d191684a0c58",
+                "pointer": "/sources/2"
+              }
+            }
+          ]
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/python-cross-review-fix-01/REVIEW.md",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/python-cross-review-fix-01/SOURCE.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/s_query_integrity.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_query_integrity.py",
+                "sha256": "406ae4f8082b49eaf0e0b5c4d47691593f6b48f283c0057cff309aff0471a749",
+                "pointer": "/1"
+              }
+            }
+          ]
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "0b219fd47c07f363a9b318960e8f5c4c98779edc",
+      "parents": [
+        "609716c07badac301eeae7108f654a0b0cde97f3"
+      ],
+      "subject": "fix(query): 缩减完整审计后的缓存保留对象",
+      "change_type": "Python 已核proof紧凑保留",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "s_session/s_query.py",
+          "blob_oid": "202f9d25d74ccc3a32e868aacfa7d71aafb6fdec",
+          "sha256": "11e217b8c7c5d42a74ac919cf7f1e78a18b4c5d4b2e9afc60a82dd1efffb9731",
+          "bytes": 23968,
+          "syntax": {
+            "path": "s_session/s_query.py",
+            "bytes": 23968,
+            "sha256": "11e217b8c7c5d42a74ac919cf7f1e78a18b4c5d4b2e9afc60a82dd1efffb9731",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/s_query_integrity.py",
+          "blob_oid": "ccf3e0509a82a3fda1ae4b1a1f500fd480ee818c",
+          "sha256": "0abd7e1556c5d05d732d93f5b0e77dff1ad495f94f619011074a4f34b0f1a73d",
+          "bytes": 52954,
+          "syntax": {
+            "path": "s_session/s_query_integrity.py",
+            "bytes": 52954,
+            "sha256": "0abd7e1556c5d05d732d93f5b0e77dff1ad495f94f619011074a4f34b0f1a73d",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/tests/tb01c_query_tests.py",
+          "blob_oid": "2f95c1d0df429b65398367c1ad4f47103b47fb67",
+          "sha256": "5d8ac267b11e6369ebc0ba51144dccfb2c1d882dede2d3b11efab9409a961a02",
+          "bytes": 24738,
+          "syntax": {
+            "path": "s_session/tests/tb01c_query_tests.py",
+            "bytes": 24738,
+            "sha256": "5d8ac267b11e6369ebc0ba51144dccfb2c1d882dede2d3b11efab9409a961a02",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "2d2f07ffb61e96465c924d520b3dd9126b7e958b",
+      "reused_rust_build_stage": "p3",
+      "all_session_python_syntax": {
+        "file_count": 7,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "25测试、472完整公开值、6外部坏库；原配置G88可注册缓存。",
+      "compilability_statement": "Python语法可编译；无此提交独立完整评审收据，后续memo独评含继承依赖。旧v2测试tables访问要到423提交才整合修正。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-proof-retention-fix-01/DELIVERY.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/s_query.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-query/s_session/s_query.py",
+                "sha256": "11e217b8c7c5d42a74ac919cf7f1e78a18b4c5d4b2e9afc60a82dd1efffb9731",
+                "pointer": "/source/q_sources/1"
+              }
+            },
+            {
+              "changed_path": "s_session/s_query_integrity.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-query/s_session/s_query_integrity.py",
+                "sha256": "0abd7e1556c5d05d732d93f5b0e77dff1ad495f94f619011074a4f34b0f1a73d",
+                "pointer": "/source/q_sources/2"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/tb01c_query_tests.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-query/s_session/tests/tb01c_query_tests.py",
+                "sha256": "5d8ac267b11e6369ebc0ba51144dccfb2c1d882dede2d3b11efab9409a961a02",
+                "pointer": "/source/q_sources/3"
+              }
+            }
+          ]
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/REVIEW.md",
+          "exact_changed_blob_matches": []
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "8bbaaffd42da6c2c17537e1375b19ebe59c6ce6c",
+      "parents": [
+        "0b219fd47c07f363a9b318960e8f5c4c98779edc"
+      ],
+      "subject": "#1372 reuse verified history prefixes after fresh dependency checks",
+      "change_type": "Rust 同源历史memo/资源与响应期限",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "rust/src/bin/s_session_v2/audit.rs",
+          "blob_oid": "1af63924a7cd2b859a755ed76fa2a4781223376b",
+          "sha256": "7dfd60f7b589091c37b37154e8b8525fe80c62736f0ce0afa83048f86e8e1bfa",
+          "bytes": 16737,
+          "syntax": {
+            "path": "rust/src/bin/s_session_v2/audit.rs",
+            "bytes": 16737,
+            "sha256": "7dfd60f7b589091c37b37154e8b8525fe80c62736f0ce0afa83048f86e8e1bfa",
+            "status": "NOT_APPLICABLE"
+          }
+        },
+        {
+          "status": "A",
+          "path": "rust/src/bin/s_session_v2/cache.rs",
+          "blob_oid": "899a41ee53d44cff925dcb92150b394d6aa115fe",
+          "sha256": "ac75fd1ff4dda4e453b1b2a3e2c3e9001fea672cc99a03548d79b1b639c60b9e",
+          "bytes": 4348,
+          "syntax": {
+            "path": "rust/src/bin/s_session_v2/cache.rs",
+            "bytes": 4348,
+            "sha256": "ac75fd1ff4dda4e453b1b2a3e2c3e9001fea672cc99a03548d79b1b639c60b9e",
+            "status": "NOT_APPLICABLE"
+          }
+        },
+        {
+          "status": "M",
+          "path": "rust/src/bin/s_session_v2/mod.rs",
+          "blob_oid": "ee56ed10ce1d67b6d9ef24ecc393b72d3cad31d9",
+          "sha256": "fca526fe8a79e7fbff53b4b482775defa5022b8cd05fded1e25fad0d165c959f",
+          "bytes": 92340,
+          "syntax": {
+            "path": "rust/src/bin/s_session_v2/mod.rs",
+            "bytes": 92340,
+            "sha256": "fca526fe8a79e7fbff53b4b482775defa5022b8cd05fded1e25fad0d165c959f",
+            "status": "NOT_APPLICABLE"
+          }
+        },
+        {
+          "status": "M",
+          "path": "rust/src/bin/s_structure_session.rs",
+          "blob_oid": "aaec438d545d00f21f4f772b2edb8fda84fe77de",
+          "sha256": "031e8e01dc483fe3346e9cee24a926ce70bde8b199e49ac3f7499e2188e0fed2",
+          "bytes": 249399,
+          "syntax": {
+            "path": "rust/src/bin/s_structure_session.rs",
+            "bytes": 249399,
+            "sha256": "031e8e01dc483fe3346e9cee24a926ce70bde8b199e49ac3f7499e2188e0fed2",
+            "status": "NOT_APPLICABLE"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "0fbe152b7e8a38e0dbad5e01a05b183f292817ad",
+      "reused_rust_build_stage": "p4",
+      "all_session_python_syntax": {
+        "file_count": 7,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "P4 release源收据；64通过0失败1忽略；两版S-only160/500ms及15表2860行对拍。",
+      "compilability_statement": "Rust构建已证；P4独评发现跨期入队缺陷，b924a71修复。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-performance-v2/BUILD-RECEIPT.json",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/REVIEW-OLD-P4.md",
+          "exact_changed_blob_matches": []
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "b924a71fb11d36977819499d078ddc603ce3a466",
+      "parents": [
+        "8bbaaffd42da6c2c17537e1375b19ebe59c6ce6c"
+      ],
+      "subject": "fix: 核对响应期限后再向 S 入队 (#1372)",
+      "change_type": "Rust 每轮入队前核绝对期限",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "rust/src/bin/s_session_v2/mod.rs",
+          "blob_oid": "52bbfbf4d18f624921ba77c1fb217cd1a9c0411a",
+          "sha256": "64f8d0a8307e5c3f4173be94491b1e3cd4104276dce246d0cc544700e0746a6a",
+          "bytes": 93827,
+          "syntax": {
+            "path": "rust/src/bin/s_session_v2/mod.rs",
+            "bytes": 93827,
+            "sha256": "64f8d0a8307e5c3f4173be94491b1e3cd4104276dce246d0cc544700e0746a6a",
+            "status": "NOT_APPLICABLE"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "8133a4e6dbe74474d334e324179e8d962f85c39b",
+      "reused_rust_build_stage": "queue",
+      "all_session_python_syntax": {
+        "file_count": 7,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "65通过0失败1忽略；release build exit0。",
+      "compilability_statement": "Rust构建已证；独立原函数5臂通过，未冒称全服务调度。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-queue-deadline-fix/CHECKS.json",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/queue-fix-recheck/REVIEW-QUEUE-FIX.md",
+          "exact_changed_blob_matches": []
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "bf28062adb8a0e9569e43e10d9db2dc9699cd621",
+      "parents": [
+        "b924a71fb11d36977819499d078ddc603ce3a466"
+      ],
+      "subject": "perf(query): memoize sealed sources with fresh integrity checks",
+      "change_type": "Python 全鲜索引下复用sealed源/压缩完整Delta",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "s_session/s_query.py",
+          "blob_oid": "9992331851bec5c17d75f4d5b5548512be514504",
+          "sha256": "ce51b7a72de1bf1ab869da9e1498bc8ef95e3458981b847aaab033453268ad65",
+          "bytes": 24902,
+          "syntax": {
+            "path": "s_session/s_query.py",
+            "bytes": 24902,
+            "sha256": "ce51b7a72de1bf1ab869da9e1498bc8ef95e3458981b847aaab033453268ad65",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/s_query_integrity.py",
+          "blob_oid": "fc906a6de43ddd7872c02c89469b6017162e289f",
+          "sha256": "eeef35dd6c65a158237b1380e987e8c0eed184efcada64f65ffffd1fb169cfbf",
+          "bytes": 57869,
+          "syntax": {
+            "path": "s_session/s_query_integrity.py",
+            "bytes": 57869,
+            "sha256": "eeef35dd6c65a158237b1380e987e8c0eed184efcada64f65ffffd1fb169cfbf",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/s_readonly_server.py",
+          "blob_oid": "e0c81c672343418fa3b3146960b67349de1732ad",
+          "sha256": "a025f706271a1ae73697b0e330871bd2988f3c3ce1a3b6271d15e257c3ca0ca8",
+          "bytes": 51924,
+          "syntax": {
+            "path": "s_session/s_readonly_server.py",
+            "bytes": 51924,
+            "sha256": "a025f706271a1ae73697b0e330871bd2988f3c3ce1a3b6271d15e257c3ca0ca8",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/tests/tb01c_query_tests.py",
+          "blob_oid": "31fc59d844cfb43aff0dc67cd6f80d28db0fd247",
+          "sha256": "c4bc43d9d928707f7fa69643fee945c510654f5a55547fa8bb87408d85f8019c",
+          "bytes": 28609,
+          "syntax": {
+            "path": "s_session/tests/tb01c_query_tests.py",
+            "bytes": 28609,
+            "sha256": "c4bc43d9d928707f7fa69643fee945c510654f5a55547fa8bb87408d85f8019c",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "8133a4e6dbe74474d334e324179e8d962f85c39b",
+      "reused_rust_build_stage": "queue",
+      "all_session_python_syntax": {
+        "file_count": 7,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "30测试；G88 651/G160 553公开值、160原Delta原文恢复；G96..160每代捕获测时。",
+      "compilability_statement": "Python语法可编译；独立173值/13坏库通过。实施测时不是HTTP全页或C验收。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/DELIVERY.json",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/SOURCE.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/s_query.py",
+              "source_record": {
+                "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/source/s_query.py",
+                "sha256": "ce51b7a72de1bf1ab869da9e1498bc8ef95e3458981b847aaab033453268ad65",
+                "pointer": "/files/2"
+              }
+            },
+            {
+              "changed_path": "s_session/s_query_integrity.py",
+              "source_record": {
+                "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/source/s_query_integrity.py",
+                "sha256": "eeef35dd6c65a158237b1380e987e8c0eed184efcada64f65ffffd1fb169cfbf",
+                "pointer": "/files/3"
+              }
+            },
+            {
+              "changed_path": "s_session/s_readonly_server.py",
+              "source_record": {
+                "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/source/s_readonly_server.py",
+                "sha256": "a025f706271a1ae73697b0e330871bd2988f3c3ce1a3b6271d15e257c3ca0ca8",
+                "pointer": "/files/4"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/tb01c_query_tests.py",
+              "source_record": {
+                "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/source/tests/tb01c_query_tests.py",
+                "sha256": "c4bc43d9d928707f7fa69643fee945c510654f5a55547fa8bb87408d85f8019c",
+                "pointer": "/files/5"
+              }
+            }
+          ]
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/REVIEW.md",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/SOURCE.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/s_query.py",
+              "source_record": {
+                "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/source/s_query.py",
+                "sha256": "ce51b7a72de1bf1ab869da9e1498bc8ef95e3458981b847aaab033453268ad65",
+                "pointer": "/0"
+              }
+            },
+            {
+              "changed_path": "s_session/s_query_integrity.py",
+              "source_record": {
+                "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/source/s_query_integrity.py",
+                "sha256": "eeef35dd6c65a158237b1380e987e8c0eed184efcada64f65ffffd1fb169cfbf",
+                "pointer": "/1"
+              }
+            },
+            {
+              "changed_path": "s_session/s_readonly_server.py",
+              "source_record": {
+                "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-source-memo-02/source/s_readonly_server.py",
+                "sha256": "a025f706271a1ae73697b0e330871bd2988f3c3ce1a3b6271d15e257c3ca0ca8",
+                "pointer": "/2"
+              }
+            }
+          ]
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "42389dd2a879fb89f95dbbbc0f585991a450ef11",
+      "parents": [
+        "bf28062adb8a0e9569e43e10d9db2dc9699cd621"
+      ],
+      "subject": "feat: 接入固定 cut 消费和独立服务验收流程 (#1372)",
+      "change_type": "Python控制/driver/比较器；浏览器；shell；冻结fixture",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "s_session/browser/index.html",
+          "blob_oid": "0c1deae67880b4492bd0be58912193edf5b6f8c2",
+          "sha256": "25e9469a7913d3a181d26bd6bfc3e8f6698fc3d71bfdd92511c1c0168aad6639",
+          "bytes": 47080,
+          "syntax": {
+            "path": "s_session/browser/index.html",
+            "bytes": 47080,
+            "sha256": "25e9469a7913d3a181d26bd6bfc3e8f6698fc3d71bfdd92511c1c0168aad6639",
+            "status": "PASS",
+            "method": "HTMLParser摘取全部内嵌可执行script + node --check，非DOM运行",
+            "scripts": [
+              {
+                "index": 0,
+                "sha256": "e2fa17c754b51bf080722114ecc28ecdde691ef4d90cff57a695e05c5ab324b7",
+                "exit_code": 0,
+                "stderr": ""
+              }
+            ]
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/browser/tb01c-client.js",
+          "blob_oid": "a4bf809bdcfc36c621e9f02a77882f4f1114e841",
+          "sha256": "f0a86251506633f73958b56c1978a9c8774d670d13486165bbcfe8b59033b060",
+          "bytes": 29266,
+          "syntax": {
+            "path": "s_session/browser/tb01c-client.js",
+            "bytes": 29266,
+            "sha256": "f0a86251506633f73958b56c1978a9c8774d670d13486165bbcfe8b59033b060",
+            "status": "PASS",
+            "method": "node --check",
+            "argv": [
+              "node",
+              "--check",
+              "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/f0a86251506633f73958b56c1978a9c8774d670d13486165bbcfe8b59033b060.js"
+            ],
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": ""
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/launch_s.sh",
+          "blob_oid": "664c762b8d3c6352a3aaf745b8d110f3aaae72ab",
+          "sha256": "e8c75555c885684addc2c384dd65656a742cdf5567557f7c176c3cc218e0e487",
+          "bytes": 9636,
+          "syntax": {
+            "path": "s_session/launch_s.sh",
+            "bytes": 9636,
+            "sha256": "e8c75555c885684addc2c384dd65656a742cdf5567557f7c176c3cc218e0e487",
+            "status": "PASS",
+            "method": "bash -n",
+            "argv": [
+              "bash",
+              "-n",
+              "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/e8c75555c885684addc2c384dd65656a742cdf5567557f7c176c3cc218e0e487.sh"
+            ],
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": ""
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/s_service_control.py",
+          "blob_oid": "46a35a5ad5b1abcf9155cd8bdd66c079f3835797",
+          "sha256": "7811bd5562b9df0a5d9d306f14d86d6a2ad2b7e681d02804645369e0ef2ffcef",
+          "bytes": 29333,
+          "syntax": {
+            "path": "s_session/s_service_control.py",
+            "bytes": 29333,
+            "sha256": "7811bd5562b9df0a5d9d306f14d86d6a2ad2b7e681d02804645369e0ef2ffcef",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/s_socket_client.py",
+          "blob_oid": "e131d4cd3138f10f42fbbebb5d4f8f1d5335c727",
+          "sha256": "7f14b63c3c84cdf9c1b1368e3e135da560e52dc1945cdaf4e6e5f7d9f5933cae",
+          "bytes": 7434,
+          "syntax": {
+            "path": "s_session/s_socket_client.py",
+            "bytes": 7434,
+            "sha256": "7f14b63c3c84cdf9c1b1368e3e135da560e52dc1945cdaf4e6e5f7d9f5933cae",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/MANIFEST.json",
+          "blob_oid": "81add2257e5e3139026eda1157a1c1e740ff048a",
+          "sha256": "6e41985da0791592163187a454d24651493843369689862320b4f507aa069b29",
+          "bytes": 8308,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/MANIFEST.json",
+            "bytes": 8308,
+            "sha256": "6e41985da0791592163187a454d24651493843369689862320b4f507aa069b29",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/RUNTIME-MANIFEST.json",
+          "blob_oid": "8f55bfe214591bd1ec154fa46868e5e411c7fd0a",
+          "sha256": "ce8b7dc5cdbf8436b69bdcdcf6de4b268503b21f4f279536d33d57af0fae2991",
+          "bytes": 1052,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/RUNTIME-MANIFEST.json",
+            "bytes": 1052,
+            "sha256": "ce8b7dc5cdbf8436b69bdcdcf6de4b268503b21f4f279536d33d57af0fae2991",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/clock-plan.json",
+          "blob_oid": "a6b2af57782d0dd2358829d4f1235e0cecc36e05",
+          "sha256": "3d7d0470f9e6e358e645b3e757b85ed212d45bb0024f9a90b6919bebc4001709",
+          "bytes": 32493,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/clock-plan.json",
+            "bytes": 32493,
+            "sha256": "3d7d0470f9e6e358e645b3e757b85ed212d45bb0024f9a90b6919bebc4001709",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/live-input.json",
+          "blob_oid": "5410420bc4b1ca1dca5369f179af3f602d68b856",
+          "sha256": "c6d5b7bbdad2b4e3be0980159b2810fee0a1cc460b9395deb23ece79d876345f",
+          "bytes": 15289,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/live-input.json",
+            "bytes": 15289,
+            "sha256": "c6d5b7bbdad2b4e3be0980159b2810fee0a1cc460b9395deb23ece79d876345f",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/messages.jsonl",
+          "blob_oid": "05402a7a7f11a4b6830142f2c38df41efe241db5",
+          "sha256": "29a202bf4a94e69ed503db54e1e30c52d052616447bbd1c4f37488169cc8ac58",
+          "bytes": 136704,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/messages.jsonl",
+            "bytes": 136704,
+            "sha256": "29a202bf4a94e69ed503db54e1e30c52d052616447bbd1c4f37488169cc8ac58",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/operation-schedule.json",
+          "blob_oid": "b7b65b239506bdd50d011d7396fffde858fe055d",
+          "sha256": "34904c1c774ab5088ea43870b204a999b48234b6cc629de301af705d6d8e6f87",
+          "bytes": 252835,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/operation-schedule.json",
+            "bytes": 252835,
+            "sha256": "34904c1c774ab5088ea43870b204a999b48234b6cc629de301af705d6d8e6f87",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/operation-schedule.jsonl",
+          "blob_oid": "5889b1cb5092cdc15c89e06dbe0ba570b156fad0",
+          "sha256": "daffb9ecf2c63d757bca49dbc34dc65bf926c4f4394078ff578bc3f0602f5b88",
+          "bytes": 199028,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/operation-schedule.jsonl",
+            "bytes": 199028,
+            "sha256": "daffb9ecf2c63d757bca49dbc34dc65bf926c4f4394078ff578bc3f0602f5b88",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/profile.json",
+          "blob_oid": "1313d459346e555e6ee69fdee2f0ed108e160603",
+          "sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc",
+          "bytes": 409,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/profile.json",
+            "bytes": 409,
+            "sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/query-resources.json",
+          "blob_oid": "baa5f0171eb44f36ac8d43e8c9734a0135cba865",
+          "sha256": "36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64",
+          "bytes": 571,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/query-resources.json",
+            "bytes": 571,
+            "sha256": "36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/raw-input.json",
+          "blob_oid": "066b0fb9642ed535e1657c91015747925c0b4fdb",
+          "sha256": "b83542e6ad6af3a4da27768601c7f9a2e019a6cae77e4c8785e5f0e9edf6772a",
+          "bytes": 37733,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/raw-input.json",
+            "bytes": 37733,
+            "sha256": "b83542e6ad6af3a4da27768601c7f9a2e019a6cae77e4c8785e5f0e9edf6772a",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/raw-input.jsonl",
+          "blob_oid": "d96bb834c88c16cf2b6ff61dae7b8e3b400e6258",
+          "sha256": "bc94f1e7fddde4c726fac9b60a12178420cd55fb37a4e9a1c598ef20bd18eb1d",
+          "bytes": 57184,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/raw-input.jsonl",
+            "bytes": 57184,
+            "sha256": "bc94f1e7fddde4c726fac9b60a12178420cd55fb37a4e9a1c598ef20bd18eb1d",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/runtime-plan.json",
+          "blob_oid": "0d3b0f9aca338fe080bd7db66a7692d0f045a1e8",
+          "sha256": "18e9b3cd6cb5f17ba715b09405995b68b627bcd696ba457de790dfa9a51125c3",
+          "bytes": 4104,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/runtime-plan.json",
+            "bytes": 4104,
+            "sha256": "18e9b3cd6cb5f17ba715b09405995b68b627bcd696ba457de790dfa9a51125c3",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/fixtures/tb01c/seed-input.json",
+          "blob_oid": "c9263f1868b346c9bc25ee86e415d16712d6d05e",
+          "sha256": "423dc00069462ba23fdc32c07310d1553f29e3e226893814df5185efff31b23f",
+          "bytes": 22673,
+          "syntax": {
+            "path": "s_session/tests/fixtures/tb01c/seed-input.json",
+            "bytes": 22673,
+            "sha256": "423dc00069462ba23fdc32c07310d1553f29e3e226893814df5185efff31b23f",
+            "status": "PASS",
+            "method": "JSON语法解码；不等于fixture语义验证"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/tb01c_compare.py",
+          "blob_oid": "4d4f119ca7251f6ada99dc46f0a984d16da44a03",
+          "sha256": "73d46806b792b17519aa3ad3bcc0128d0e6af26b09a4fec4a9d66e3ceffcf347",
+          "bytes": 6126,
+          "syntax": {
+            "path": "s_session/tests/tb01c_compare.py",
+            "bytes": 6126,
+            "sha256": "73d46806b792b17519aa3ad3bcc0128d0e6af26b09a4fec4a9d66e3ceffcf347",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/tb01c_http_capture.cjs",
+          "blob_oid": "d62785a061d0de12c66e4c1fa1fac75d61dae3c3",
+          "sha256": "cc0e3dc134deda93fcc64b6d6e2807a1e403ea509f81afbab882b8ff239c7397",
+          "bytes": 24509,
+          "syntax": {
+            "path": "s_session/tests/tb01c_http_capture.cjs",
+            "bytes": 24509,
+            "sha256": "cc0e3dc134deda93fcc64b6d6e2807a1e403ea509f81afbab882b8ff239c7397",
+            "status": "PASS",
+            "method": "node --check",
+            "argv": [
+              "node",
+              "--check",
+              "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/cc0e3dc134deda93fcc64b6d6e2807a1e403ea509f81afbab882b8ff239c7397.cjs"
+            ],
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": ""
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/tb01c_load_report.py",
+          "blob_oid": "7aaafa0687bcb9c057cde760218331d28160dc38",
+          "sha256": "d3a6edf39b6315c40dd44bbf095690b1d1225b36aa97dd01f3f02ae84f6332ce",
+          "bytes": 6016,
+          "syntax": {
+            "path": "s_session/tests/tb01c_load_report.py",
+            "bytes": 6016,
+            "sha256": "d3a6edf39b6315c40dd44bbf095690b1d1225b36aa97dd01f3f02ae84f6332ce",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/tests/tb01c_query_v2.py",
+          "blob_oid": "d82f61edfe4c6b17f1d3b66f7d3d56ae3d9bbe5c",
+          "sha256": "a3e8546c0acd09d792ce4dc8a8c7c3840ca782d008a2fa7268541c67e1bb7b22",
+          "bytes": 12235,
+          "syntax": {
+            "path": "s_session/tests/tb01c_query_v2.py",
+            "bytes": 12235,
+            "sha256": "a3e8546c0acd09d792ce4dc8a8c7c3840ca782d008a2fa7268541c67e1bb7b22",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/tb01c_runtime.py",
+          "blob_oid": "33b40d31af271290689eb57fca5048b0c89de247",
+          "sha256": "d2689b9b6e61ddb5430e7df075787977e65c119d08bc34da21773ccb8a1a96ca",
+          "bytes": 24807,
+          "syntax": {
+            "path": "s_session/tests/tb01c_runtime.py",
+            "bytes": 24807,
+            "sha256": "d2689b9b6e61ddb5430e7df075787977e65c119d08bc34da21773ccb8a1a96ca",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/test_tb01c_browser.cjs",
+          "blob_oid": "ce89103c4ee1cfe24127feaf32772c40d3060005",
+          "sha256": "6a35f6fe4d8361467593deb741ff649b04ca57493d7a6be94941f7663b512a92",
+          "bytes": 19789,
+          "syntax": {
+            "path": "s_session/tests/test_tb01c_browser.cjs",
+            "bytes": 19789,
+            "sha256": "6a35f6fe4d8361467593deb741ff649b04ca57493d7a6be94941f7663b512a92",
+            "status": "PASS",
+            "method": "node --check",
+            "argv": [
+              "node",
+              "--check",
+              "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/6a35f6fe4d8361467593deb741ff649b04ca57493d7a6be94941f7663b512a92.cjs"
+            ],
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": ""
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/test_tb01c_compare.py",
+          "blob_oid": "98fb5c78d044b487ba2e6a9f1a5c316d63c73aef",
+          "sha256": "f0123fcf17cde919d619d131fed44ecfa25d3b7506dc8ba791ad5af1b35a53ef",
+          "bytes": 4537,
+          "syntax": {
+            "path": "s_session/tests/test_tb01c_compare.py",
+            "bytes": 4537,
+            "sha256": "f0123fcf17cde919d619d131fed44ecfa25d3b7506dc8ba791ad5af1b35a53ef",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/test_tb01c_runtime_evidence.py",
+          "blob_oid": "4f66e656f7931ad7d07dfdb0589145feb5076192",
+          "sha256": "3323efff944d42a61253d64de7b156c3658229bba4d14d9a47e725389478b7e8",
+          "bytes": 4912,
+          "syntax": {
+            "path": "s_session/tests/test_tb01c_runtime_evidence.py",
+            "bytes": 4912,
+            "sha256": "3323efff944d42a61253d64de7b156c3658229bba4d14d9a47e725389478b7e8",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/test_tb01c_service_control.py",
+          "blob_oid": "3ce67f43b425acff8411732c2911b999d44e214a",
+          "sha256": "23bd87c495e8dcdf8d532453532b415e5caea5ea7aaed30a69c57f9b25575ced",
+          "bytes": 28133,
+          "syntax": {
+            "path": "s_session/tests/test_tb01c_service_control.py",
+            "bytes": 28133,
+            "sha256": "23bd87c495e8dcdf8d532453532b415e5caea5ea7aaed30a69c57f9b25575ced",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "A",
+          "path": "s_session/tests/test_tb01c_socket_client.py",
+          "blob_oid": "6652db34f2b30f198a5fb756edd76df33be241ff",
+          "sha256": "893171b5cd6d8fffc66f632f9207be4d6fc10f49703beb08d8f7c51d25fc40a6",
+          "bytes": 6706,
+          "syntax": {
+            "path": "s_session/tests/test_tb01c_socket_client.py",
+            "bytes": 6706,
+            "sha256": "893171b5cd6d8fffc66f632f9207be4d6fc10f49703beb08d8f7c51d25fc40a6",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "8133a4e6dbe74474d334e324179e8d962f85c39b",
+      "reused_rust_build_stage": "queue",
+      "all_session_python_syntax": {
+        "file_count": 16,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "分组件已有37 Python检查日志、UI30+R12十项；root最终v2小域5ingest/21行/8坏控制。严格源绑定见JSON，不能把零件测试总和当此整树通过。",
+      "compilability_statement": "Python/JS/shell语法检查；该历史版本真实stop回执与原生fetch随后被打回，分别由a2fc4a9和1a57fb6修复。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/root-driver-boundary-fix/run-20260913T084953Z/RESULT.json",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/root-driver-boundary-fix/run-20260913T084953Z/SOURCE.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/tests/tb01c_load_report.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_load_report.py",
+                "sha256": "d3a6edf39b6315c40dd44bbf095690b1d1225b36aa97dd01f3f02ae84f6332ce",
+                "pointer": "/1"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/test_tb01c_runtime_evidence.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/test_tb01c_runtime_evidence.py",
+                "sha256": "3323efff944d42a61253d64de7b156c3658229bba4d14d9a47e725389478b7e8",
+                "pointer": "/2"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/fixtures/tb01c/runtime-plan.json",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/runtime-plan.json",
+                "sha256": "18e9b3cd6cb5f17ba715b09405995b68b627bcd696ba457de790dfa9a51125c3",
+                "pointer": "/3"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/fixtures/tb01c/RUNTIME-MANIFEST.json",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/fixtures/tb01c/RUNTIME-MANIFEST.json",
+                "sha256": "ce8b7dc5cdbf8436b69bdcdcf6de4b268503b21f4f279536d33d57af0fae2991",
+                "pointer": "/4"
+              }
+            }
+          ]
+        },
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/ui-stage/run-20260912T222557.343370Z/RECEIPT.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/browser/index.html",
+              "source_record": {
+                "path": "s_session/browser/index.html",
+                "sha256": "25e9469a7913d3a181d26bd6bfc3e8f6698fc3d71bfdd92511c1c0168aad6639",
+                "pointer": "/source_before/s_session/browser/index.html"
+              }
+            },
+            {
+              "changed_path": "s_session/browser/tb01c-client.js",
+              "source_record": {
+                "path": "s_session/browser/tb01c-client.js",
+                "sha256": "f0a86251506633f73958b56c1978a9c8774d670d13486165bbcfe8b59033b060",
+                "pointer": "/source_before/s_session/browser/tb01c-client.js"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/test_tb01c_browser.cjs",
+              "source_record": {
+                "path": "s_session/tests/test_tb01c_browser.cjs",
+                "sha256": "6a35f6fe4d8361467593deb741ff649b04ca57493d7a6be94941f7663b512a92",
+                "pointer": "/source_before/s_session/tests/test_tb01c_browser.cjs"
+              }
+            },
+            {
+              "changed_path": "s_session/browser/index.html",
+              "source_record": {
+                "path": "s_session/browser/index.html",
+                "sha256": "25e9469a7913d3a181d26bd6bfc3e8f6698fc3d71bfdd92511c1c0168aad6639",
+                "pointer": "/source_after/s_session/browser/index.html"
+              }
+            },
+            {
+              "changed_path": "s_session/browser/tb01c-client.js",
+              "source_record": {
+                "path": "s_session/browser/tb01c-client.js",
+                "sha256": "f0a86251506633f73958b56c1978a9c8774d670d13486165bbcfe8b59033b060",
+                "pointer": "/source_after/s_session/browser/tb01c-client.js"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/test_tb01c_browser.cjs",
+              "source_record": {
+                "path": "s_session/tests/test_tb01c_browser.cjs",
+                "sha256": "6a35f6fe4d8361467593deb741ff649b04ca57493d7a6be94941f7663b512a92",
+                "pointer": "/source_after/s_session/tests/test_tb01c_browser.cjs"
+              }
+            }
+          ]
+        },
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/root-final-qmemo-v2-integration.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/tests/tb01c_query_v2.py",
+              "source_record": {
+                "path": "s_session/tests/tb01c_query_v2.py",
+                "sha256": "a3e8546c0acd09d792ce4dc8a8c7c3840ca782d008a2fa7268541c67e1bb7b22",
+                "pointer": "/test_sha256"
+              }
+            }
+          ]
+        },
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/root-unit-37-declared-python.log",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime-driver-boundary-independent/REVIEW.md",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime-driver-boundary-independent/SOURCE.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/tests/tb01c_load_report.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_load_report.py",
+                "sha256": "d3a6edf39b6315c40dd44bbf095690b1d1225b36aa97dd01f3f02ae84f6332ce",
+                "pointer": "/1"
+              }
+            },
+            {
+              "changed_path": "s_session/s_service_control.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_service_control.py",
+                "sha256": "7811bd5562b9df0a5d9d306f14d86d6a2ad2b7e681d02804645369e0ef2ffcef",
+                "pointer": "/2"
+              }
+            },
+            {
+              "changed_path": "s_session/s_socket_client.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_socket_client.py",
+                "sha256": "7f14b63c3c84cdf9c1b1368e3e135da560e52dc1945cdaf4e6e5f7d9f5933cae",
+                "pointer": "/3"
+              }
+            }
+          ]
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/http-capture-fix-independent/REVIEW.md",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/http-capture-fix-independent/SOURCE.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/tests/tb01c_http_capture.cjs",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_http_capture.cjs",
+                "sha256": "cc0e3dc134deda93fcc64b6d6e2807a1e403ea509f81afbab882b8ff239c7397",
+                "pointer": "/0"
+              }
+            },
+            {
+              "changed_path": "s_session/browser/tb01c-client.js",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/browser/tb01c-client.js",
+                "sha256": "f0a86251506633f73958b56c1978a9c8774d670d13486165bbcfe8b59033b060",
+                "pointer": "/1"
+              }
+            },
+            {
+              "changed_path": "s_session/browser/index.html",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/browser/index.html",
+                "sha256": "25e9469a7913d3a181d26bd6bfc3e8f6698fc3d71bfdd92511c1c0168aad6639",
+                "pointer": "/2"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/test_tb01c_browser.cjs",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/test_tb01c_browser.cjs",
+                "sha256": "6a35f6fe4d8361467593deb741ff649b04ca57493d7a6be94941f7663b512a92",
+                "pointer": "/3"
+              }
+            }
+          ]
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/python-cross-review-fix-01/REVIEW.md",
+          "exact_changed_blob_matches": []
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "a2fc4a957ae7e567f0fc9c10bc683851e45b60f5",
+      "parents": [
+        "42389dd2a879fb89f95dbbbc0f585991a450ef11"
+      ],
+      "subject": "fix: 对齐单服务停止的正式控制回执 (#1372)",
+      "change_type": "Python driver单服务stop列表解包/测试",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "s_session/tests/tb01c_runtime.py",
+          "blob_oid": "1cf1110b92bbde4b3d28f495aad9a93c90002459",
+          "sha256": "0a7ad225773c05c0f16dcd883ac3be134ab4f72354ca6d1b824d31301017480a",
+          "bytes": 25183,
+          "syntax": {
+            "path": "s_session/tests/tb01c_runtime.py",
+            "bytes": 25183,
+            "sha256": "0a7ad225773c05c0f16dcd883ac3be134ab4f72354ca6d1b824d31301017480a",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/tests/test_tb01c_runtime_evidence.py",
+          "blob_oid": "1030c3310f182289520dbca25c36117d045f9559",
+          "sha256": "f1671416662c773442da14c592d0bc891e882d9034e15b3edecef28a481a5029",
+          "bytes": 6023,
+          "syntax": {
+            "path": "s_session/tests/test_tb01c_runtime_evidence.py",
+            "bytes": 6023,
+            "sha256": "f1671416662c773442da14c592d0bc891e882d9034e15b3edecef28a481a5029",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "8133a4e6dbe74474d334e324179e8d962f85c39b",
+      "reused_rust_build_stage": "queue",
+      "all_session_python_syntax": {
+        "file_count": 16,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "后续同字节observer集测试；独立真实CLI对自有sleep替身SIGKILL及六反例，共9项通过。",
+      "compilability_statement": "Python语法可编译；真实产品故障轨迹仍单独验收。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/OBSERVER-CHECKS.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/tests/test_tb01c_runtime_evidence.py",
+              "source_record": {
+                "path": "s_session/tests/test_tb01c_runtime_evidence.py",
+                "sha256": "f1671416662c773442da14c592d0bc891e882d9034e15b3edecef28a481a5029",
+                "pointer": "/source_sha256/s_session/tests/test_tb01c_runtime_evidence.py"
+              }
+            }
+          ]
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/driver-stop-envelope-independent/REVIEW.md",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/driver-stop-envelope-independent/SOURCE.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/tests/tb01c_runtime.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_runtime.py",
+                "sha256": "0a7ad225773c05c0f16dcd883ac3be134ab4f72354ca6d1b824d31301017480a",
+                "pointer": "/0"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/test_tb01c_runtime_evidence.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/test_tb01c_runtime_evidence.py",
+                "sha256": "f1671416662c773442da14c592d0bc891e882d9034e15b3edecef28a481a5029",
+                "pointer": "/4"
+              }
+            }
+          ]
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "1a57fb684e5a6aa18e4f962b68ba3d9f9a908c66",
+      "parents": [
+        "a2fc4a957ae7e567f0fc9c10bc683851e45b60f5"
+      ],
+      "subject": "fix(browser): 保持原生 fetch 的窗口绑定 (#1372)",
+      "change_type": "浏览器fetch接收者绑定/回归",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "s_session/browser/tb01c-client.js",
+          "blob_oid": "41813350d70ea166299a689122939d78b0ec6d3d",
+          "sha256": "1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c",
+          "bytes": 29406,
+          "syntax": {
+            "path": "s_session/browser/tb01c-client.js",
+            "bytes": 29406,
+            "sha256": "1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c",
+            "status": "PASS",
+            "method": "node --check",
+            "argv": [
+              "node",
+              "--check",
+              "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c.js"
+            ],
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": ""
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/tests/test_tb01c_browser.cjs",
+          "blob_oid": "235484effa6774f564c70356ecf8cae03482cdf2",
+          "sha256": "960b3a0ca2d862df1fd013442bb51a0abc457754a9b5bc1790b6c6ec9e250601",
+          "bytes": 21281,
+          "syntax": {
+            "path": "s_session/tests/test_tb01c_browser.cjs",
+            "bytes": 21281,
+            "sha256": "960b3a0ca2d862df1fd013442bb51a0abc457754a9b5bc1790b6c6ec9e250601",
+            "status": "PASS",
+            "method": "node --check",
+            "argv": [
+              "node",
+              "--check",
+              "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/960b3a0ca2d862df1fd013442bb51a0abc457754a9b5bc1790b6c6ec9e250601.cjs"
+            ],
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": ""
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "8133a4e6dbe74474d334e324179e8d962f85c39b",
+      "reused_rust_build_stage": "queue",
+      "all_session_python_syntax": {
+        "file_count": 16,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "32 Node测试通过，源两文件SHA均在RESULT；原生Chrome证据另归根。",
+      "compilability_statement": "JS语法已核；实施者报告不是本工位独立批准。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/ui-native-fetch-fix/RESULT.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/browser/tb01c-client.js",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/browser/tb01c-client.js",
+                "sha256": "1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c",
+                "pointer": "/sources/0"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/test_tb01c_browser.cjs",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/test_tb01c_browser.cjs",
+                "sha256": "960b3a0ca2d862df1fd013442bb51a0abc457754a9b5bc1790b6c6ec9e250601",
+                "pointer": "/sources/1"
+              }
+            }
+          ]
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/ui-native-fetch-fix/REPORT.md",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/REVIEW.md",
+          "exact_changed_blob_matches": []
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "2317369c3de2e3d9e8d90a545dd32d0e759d2b8b",
+      "parents": [
+        "1a57fb684e5a6aa18e4f962b68ba3d9f9a908c66"
+      ],
+      "subject": "fix: 为旧启动入口显式接入 Q 资源和化身 (#1372)",
+      "change_type": "shell旧launcher显式Q资源/epoch参数",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "s_session/launch_s.sh",
+          "blob_oid": "8f033f68989a347008bacca9785db16f3b4d234b",
+          "sha256": "28e052bb0ec7f77bddfac932c602f89c2e0eb4d902df2e451c35da09b03cad0f",
+          "bytes": 10512,
+          "syntax": {
+            "path": "s_session/launch_s.sh",
+            "bytes": 10512,
+            "sha256": "28e052bb0ec7f77bddfac932c602f89c2e0eb4d902df2e451c35da09b03cad0f",
+            "status": "PASS",
+            "method": "bash -n",
+            "argv": [
+              "bash",
+              "-n",
+              "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/28e052bb0ec7f77bddfac932c602f89c2e0eb4d902df2e451c35da09b03cad0f.sh"
+            ],
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": ""
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "8133a4e6dbe74474d334e324179e8d962f85c39b",
+      "reused_rust_build_stage": "queue",
+      "all_session_python_syntax": {
+        "file_count": 16,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "三负控拒绝且不创建库；真实legacy启动/三个HTTP端点/停止成功；launcher源SHA具名。",
+      "compilability_statement": "bash语法已核；独立LEGACY-REVIEW绑定2317369及launcher SHA，有界通过；不扩大为R4后新整树已验。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-launcher-fix/CHECKS.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/launch_s.sh",
+              "source_record": {
+                "path": "s_session/launch_s.sh",
+                "sha256": "28e052bb0ec7f77bddfac932c602f89c2e0eb4d902df2e451c35da09b03cad0f",
+                "pointer": "/5/source_sha256"
+              }
+            }
+          ]
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r4-pair/independent-review/LEGACY-REVIEW.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/launch_s.sh",
+              "source_record": {
+                "path": "s_session/launch_s.sh",
+                "sha256": "28e052bb0ec7f77bddfac932c602f89c2e0eb4d902df2e451c35da09b03cad0f",
+                "pointer": "/source_sha256"
+              }
+            }
+          ],
+          "explicit_report_commit_matches": true
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r4-pair/independent-review/LEGACY-REVIEW.md",
+          "exact_changed_blob_matches": []
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "68198a6cdabbdbfeee916a00321442999c3de673",
+      "parents": [
+        "2317369c3de2e3d9e8d90a545dd32d0e759d2b8b"
+      ],
+      "subject": "docs: 补齐 S/Q 独立运行与固定轨迹复现说明 (#1372)",
+      "change_type": "纯文档README",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "s_session/README.md",
+          "blob_oid": "1c8d88f361171b3f3b2a47cb42714c74a44470ae",
+          "sha256": "b15a4f107e7fa879b20dd0878730deed333f0a1e8f830dcec1a0cd8320d892c1",
+          "bytes": 17925,
+          "syntax": {
+            "path": "s_session/README.md",
+            "bytes": 17925,
+            "sha256": "b15a4f107e7fa879b20dd0878730deed333f0a1e8f830dcec1a0cd8320d892c1",
+            "status": "NOT_APPLICABLE"
+          }
+        }
+      ],
+      "pure_document_exemption": true,
+      "rust_tree": "8133a4e6dbe74474d334e324179e8d962f85c39b",
+      "reused_rust_build_stage": "queue",
+      "all_session_python_syntax": {
+        "file_count": 16,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "仅s_session/README.md，Git差异逐条枚举；不含代码/配置。",
+      "compilability_statement": "纯文档可编译性豁免。",
+      "evidence": [],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "14c15bd44eeff6c0ecc75f3768a7fb734f398230",
+      "parents": [
+        "68198a6cdabbdbfeee916a00321442999c3de673"
+      ],
+      "subject": "fix: 完整审计后返回有界 Q 就绪回执 (#1372)",
+      "change_type": "Python完整核验后紧凑Ready与控制器；README/测试",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "s_session/README.md",
+          "blob_oid": "015e5f8378e35ac553134f800512644103938fd8",
+          "sha256": "9b9e80c58d5cc71b165ea2becb5c9cbe2c599cfbd21424a0fa14f01be5ab1b4b",
+          "bytes": 18110,
+          "syntax": {
+            "path": "s_session/README.md",
+            "bytes": 18110,
+            "sha256": "9b9e80c58d5cc71b165ea2becb5c9cbe2c599cfbd21424a0fa14f01be5ab1b4b",
+            "status": "NOT_APPLICABLE"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/s_readonly_server.py",
+          "blob_oid": "8d2b4a1791a632cca4f9b9fadb6b27ac9ea46743",
+          "sha256": "5118f3f53f199413000918f3d5c36bae391c8b13ade7afc2b174773da8a790dd",
+          "bytes": 52275,
+          "syntax": {
+            "path": "s_session/s_readonly_server.py",
+            "bytes": 52275,
+            "sha256": "5118f3f53f199413000918f3d5c36bae391c8b13ade7afc2b174773da8a790dd",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/s_service_control.py",
+          "blob_oid": "66e170727df8f4ebe76e600efa52717c0d35fd75",
+          "sha256": "bab9162f5054d1fadc72d55783f0289981a8b41b89fce0e48348d66682603bad",
+          "bytes": 29333,
+          "syntax": {
+            "path": "s_session/s_service_control.py",
+            "bytes": 29333,
+            "sha256": "bab9162f5054d1fadc72d55783f0289981a8b41b89fce0e48348d66682603bad",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/tests/tb01c_query_tests.py",
+          "blob_oid": "2fb674ee3e6322c2c82e668eb0aa5c6d6b49ab39",
+          "sha256": "393982272b727472c7167b67c1cf4615bdc5f5cb6ff31eda8892913401083822",
+          "bytes": 29156,
+          "syntax": {
+            "path": "s_session/tests/tb01c_query_tests.py",
+            "bytes": 29156,
+            "sha256": "393982272b727472c7167b67c1cf4615bdc5f5cb6ff31eda8892913401083822",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "8133a4e6dbe74474d334e324179e8d962f85c39b",
+      "reused_rust_build_stage": "queue",
+      "all_session_python_syntax": {
+        "file_count": 16,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "24 controller、30 Q测试通过；G160 ready448B、state1144017B，真实start/stop成功。",
+      "compilability_statement": "Python语法可编译；独立Ready增量报告绑定该commit。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/CHECKS.json",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/compact-readiness-fix/START-Q.json",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/OBSERVER-CHECKS.json",
+          "exact_changed_blob_matches": []
+        },
+        {
+          "category": "review",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/READY-REVIEW.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/README.md",
+              "source_record": {
+                "path": "s_session/README.md",
+                "sha256": "9b9e80c58d5cc71b165ea2becb5c9cbe2c599cfbd21424a0fa14f01be5ab1b4b",
+                "pointer": "/source/0"
+              }
+            },
+            {
+              "changed_path": "s_session/s_readonly_server.py",
+              "source_record": {
+                "path": "s_session/s_readonly_server.py",
+                "sha256": "5118f3f53f199413000918f3d5c36bae391c8b13ade7afc2b174773da8a790dd",
+                "pointer": "/source/1"
+              }
+            },
+            {
+              "changed_path": "s_session/s_service_control.py",
+              "source_record": {
+                "path": "s_session/s_service_control.py",
+                "sha256": "bab9162f5054d1fadc72d55783f0289981a8b41b89fce0e48348d66682603bad",
+                "pointer": "/source/2"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/tb01c_query_tests.py",
+              "source_record": {
+                "path": "s_session/tests/tb01c_query_tests.py",
+                "sha256": "393982272b727472c7167b67c1cf4615bdc5f5cb6ff31eda8892913401083822",
+                "pointer": "/source/3"
+              }
+            }
+          ],
+          "explicit_report_commit_matches": true
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "932de089e989ca9ce482a93d6db825c4d4fda028",
+      "parents": [
+        "14c15bd44eeff6c0ecc75f3768a7fb734f398230"
+      ],
+      "subject": "test: 恢复现役 R9 与 R10 查询入口回归 (#1372)",
+      "change_type": "Python R9/R10测试入口显式资源/epoch与进程清理",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "s_session/tests/r9_contract.py",
+          "blob_oid": "6a27fd7040c6a200b8b9b7075ce319c7cbe733dd",
+          "sha256": "9a307a82fcb0fc2d9121a5b56ce4d9812a1e048cb5238c4a70f14eb0fee8fc99",
+          "bytes": 16843,
+          "syntax": {
+            "path": "s_session/tests/r9_contract.py",
+            "bytes": 16843,
+            "sha256": "9a307a82fcb0fc2d9121a5b56ce4d9812a1e048cb5238c4a70f14eb0fee8fc99",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "8133a4e6dbe74474d334e324179e8d962f85c39b",
+      "reused_rust_build_stage": "queue",
+      "all_session_python_syntax": {
+        "file_count": 16,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "真实R9:331 CLI+324 HTTP；R10:199 CLI+392 HTTP；65坏库零写入，88自有Q均回收，两个入口exit0。",
+      "compilability_statement": "Python语法可编译；这是测试修复作者事实收据，单独独评此尾增量未定位。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/REPORT.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/tests/r9_contract.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/r9_contract.py",
+                "sha256": "9a307a82fcb0fc2d9121a5b56ce4d9812a1e048cb5238c4a70f14eb0fee8fc99",
+                "pointer": "/current_test_source"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/r9_contract.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/r9_contract.py",
+                "sha256": "9a307a82fcb0fc2d9121a5b56ce4d9812a1e048cb5238c4a70f14eb0fee8fc99",
+                "pointer": "/checks/source"
+              }
+            }
+          ]
+        },
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/legacy-query-callers-audit/FIXED-CHECKS.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/tests/r9_contract.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/r9_contract.py",
+                "sha256": "9a307a82fcb0fc2d9121a5b56ce4d9812a1e048cb5238c4a70f14eb0fee8fc99",
+                "pointer": "/source"
+              }
+            }
+          ]
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "18ee720a02e4c4bb4fd8447ab99e6ef518957e14",
+      "parents": [
+        "932de089e989ca9ce482a93d6db825c4d4fda028"
+      ],
+      "subject": "perf(query): 复用已核源的无损 JSON 编码 (#1372)",
+      "change_type": "Python无损Delta字符串编码memo/测试",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": "s_session/s_query_integrity.py",
+          "blob_oid": "157776cdb9affd2cd445693fd3519943689d57ad",
+          "sha256": "d69fda491cbb52ead1a714bf942d5c8229ddd9d9f83dd4a17910515d101780bc",
+          "bytes": 59092,
+          "syntax": {
+            "path": "s_session/s_query_integrity.py",
+            "bytes": 59092,
+            "sha256": "d69fda491cbb52ead1a714bf942d5c8229ddd9d9f83dd4a17910515d101780bc",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        },
+        {
+          "status": "M",
+          "path": "s_session/tests/tb01c_query_tests.py",
+          "blob_oid": "c4e3fa59012ab806ead455c8d857b1d077627913",
+          "sha256": "74d4e9b8d5d8516b8dd2903e291dfb7f769c397f7e6300855ff0e077bc4a82e4",
+          "bytes": 31014,
+          "syntax": {
+            "path": "s_session/tests/tb01c_query_tests.py",
+            "bytes": 31014,
+            "sha256": "74d4e9b8d5d8516b8dd2903e291dfb7f769c397f7e6300855ff0e077bc4a82e4",
+            "status": "PASS",
+            "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "8133a4e6dbe74474d334e324179e8d962f85c39b",
+      "reused_rust_build_stage": "queue",
+      "all_session_python_syntax": {
+        "file_count": 16,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "31 Q测试、v2小域5/21/8；816完整公开值、真实SQLite changedVersion及旧159代坏文拒收。",
+      "compilability_statement": "Python语法可编译；编码memo独评正在其他工位执行，索引时尚无最终报告。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-continuation-performance/DELIVERY.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/s_query_integrity.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_query_integrity.py",
+                "sha256": "d69fda491cbb52ead1a714bf942d5c8229ddd9d9f83dd4a17910515d101780bc",
+                "pointer": "/owned_modified_sources/0"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/tb01c_query_tests.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_query_tests.py",
+                "sha256": "74d4e9b8d5d8516b8dd2903e291dfb7f769c397f7e6300855ff0e077bc4a82e4",
+                "pointer": "/owned_modified_sources/1"
+              }
+            }
+          ]
+        },
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-continuation-performance/candidate/SOURCE.json",
+          "exact_changed_blob_matches": [
+            {
+              "changed_path": "s_session/s_query_integrity.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/s_query_integrity.py",
+                "sha256": "d69fda491cbb52ead1a714bf942d5c8229ddd9d9f83dd4a17910515d101780bc",
+                "pointer": "/2"
+              }
+            },
+            {
+              "changed_path": "s_session/tests/tb01c_query_tests.py",
+              "source_record": {
+                "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_query_tests.py",
+                "sha256": "74d4e9b8d5d8516b8dd2903e291dfb7f769c397f7e6300855ff0e077bc4a82e4",
+                "pointer": "/3"
+              }
+            }
+          ]
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    },
+    {
+      "commit": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+      "parents": [
+        "18ee720a02e4c4bb4fd8447ab99e6ef518957e14"
+      ],
+      "subject": "ci: 执行结构观察与浏览器协议回归 (#1372)",
+      "change_type": "GitHub Actions CI接入观察器Python/Node测试",
+      "changed_files": [
+        {
+          "status": "M",
+          "path": ".github/workflows/ci.yml",
+          "blob_oid": "e508ebedb1b4ea54493a8dac1f206b5c08bc4d39",
+          "sha256": "e74bdcb4d40dab700c2f5615d88395359714423070b1b8c075aec6b0777b9261",
+          "bytes": 15365,
+          "syntax": {
+            "path": ".github/workflows/ci.yml",
+            "bytes": 15365,
+            "sha256": "e74bdcb4d40dab700c2f5615d88395359714423070b1b8c075aec6b0777b9261",
+            "status": "PASS",
+            "method": "PyYAML语法解析；不模拟GitHub Actions表达式/runner"
+          }
+        }
+      ],
+      "pure_document_exemption": false,
+      "rust_tree": "8133a4e6dbe74474d334e324179e8d962f85c39b",
+      "reused_rust_build_stage": "queue",
+      "all_session_python_syntax": {
+        "file_count": 16,
+        "failures": [],
+        "scope": "所有当时s_session *.py Git原件；只编译、不执行",
+        "python311_status": "PASS"
+      },
+      "applicable_existing_tests": "18ee已有observer命令本地执行exit0；该提交只改CI配置，未发生新的远端CI。",
+      "compilability_statement": "非纯文档。YAML结构/命令语法只作低成本证据，GitHub执行环境与远端CI未证明。",
+      "evidence": [
+        {
+          "category": "tests",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/OBSERVER-CHECKS.json",
+          "exact_changed_blob_matches": []
+        }
+      ],
+      "remote_ci": "NOT_RUN_FOR_THIS_CANDIDATE"
+    }
+  ],
+  "low_cost_checks": {
+    "initial_python": "3.14.6 (main, Jun 10 2026, 10:03:53) [Clang 21.0.0 (clang-2100.0.123.102)]",
+    "target_python311": "3.11.15 (main, Jun 23 2026, 15:46:51) [Clang 22.1.3 ]",
+    "target_python311_unique_files": 36,
+    "python311_exit_code": 0,
+    "node_version": "v22.23.1",
+    "bash_version": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)",
+    "yaml_version": "6.0.3",
+    "ci_new_run_shell_syntax": [
+      {
+        "name": "Python observer and lifecycle tests",
+        "command": "python -B -m unittest discover -s s_session/tests -p 'test_tb01c_*.py' -v",
+        "bash_n_exit": 0,
+        "stderr": ""
+      },
+      {
+        "name": "Browser protocol tests",
+        "command": "node s_session/tests/test_tb01c_browser.cjs",
+        "bash_n_exit": 0,
+        "stderr": ""
+      }
+    ]
+  }
+}

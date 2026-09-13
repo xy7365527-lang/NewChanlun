@@ -1,0 +1,1401 @@
+{
+  "schema": "tb01c.final_bounded_independent_review.v1",
+  "session_id": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "reviewed_at_utc": "2026-09-13T10:53:30.045210+00:00",
+  "candidate": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+  "base": "e46cf3bca6a67da821f9ab046507563b8133f6d9",
+  "overall_status": "NOT_VERIFIED_DELIVERY_GATE",
+  "product_behavior_status": "PASS_BOUNDED_TESTONLY_C",
+  "scope": "最终AC3 + R5成对495/HTTP + 当前GUI，按已签#1372八AC汇合；非全图关闭",
+  "new_product_findings": [],
+  "acceptance_conditions": [
+    {
+      "ac": 1,
+      "status": "PASS",
+      "product_behavior_status": "PASS_BOUNDED",
+      "title": "正式非空固定 cut 多页",
+      "verbatim": "通过A/B相同正式launcher运行足够非空CC-006输入和修订使结果跨多页；首个Snapshot token固定session/generation、scope、structure_cut、catalog_revision和index_frontier，翻页期间S继续提交新cut，而全部旧token页面仍来自原cut不可变引用。",
+      "contract": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/TB01C-ENTRY-READINESS.json",
+        "bytes": 10508,
+        "sha256": "073e65c5da0d693d85d492671ca853b1e4b50443450a707443ac79adf004902c",
+        "json_pointer": "/acceptance_conditions_verbatim/0"
+      },
+      "evidence": [
+        {
+          "id": "page_progress",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/PAGE-PROGRESS.json",
+          "bytes": 4485,
+          "sha256": "dcf1e8ee3843a16a78ce77e5ba57c0de4aa038802af411dba46651fbd2600610"
+        },
+        {
+          "id": "http_a",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-A-HTTP-EXAMINATION.json",
+          "bytes": 215009,
+          "sha256": "6da9d7a1db6b5da032dd02ff64a43816fbe15d9269a5873c5602d1c0a5b25da1",
+          "json_pointer": "/runs/0"
+        },
+        {
+          "id": "http_b",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B-HTTP-EXAMINATION.json",
+          "bytes": 206884,
+          "sha256": "92f3b136f3895060c10a3675b6980c2bac9cf5eafc22cc39ff4059bb99e7230e",
+          "json_pointer": "/runs/0"
+        },
+        {
+          "id": "seals",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/SEAL-EXAMINATION.json",
+          "bytes": 8617,
+          "sha256": "df6a563fc00fb5ab4269055fc49b05f07517162821b03eb97f21ec681f74fa84"
+        },
+        {
+          "id": "legacy",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r4-pair/independent-review/LEGACY-REVIEW.json",
+          "bytes": 9941,
+          "sha256": "48a613a67be96f9717621159b0597d9de098f47584b28821f36c087b2e9d4328"
+        }
+      ],
+      "claims": [
+        "两臂 slow-fixed-cut 都在 S generation16→24 期间完成固定16的5页129条全字段投影；首 token 的 session/session_generation/scope/cut/catalog/index/profile/order/digest 完整绑定，页31、offset与最终done完整闭合。",
+        "Q 真实重启 epoch2 后仍以原16 token 读取 offset31 原页；这是一页旧token复验，未冒称又完整读了5页。正式同一launcher source已绑定3ff，旧A/B兼容修复有独立限域记录。"
+      ]
+    },
+    {
+      "ac": 2,
+      "status": "PASS",
+      "product_behavior_status": "PASS_BOUNDED",
+      "title": "共享身份、连续批次与抗污染",
+      "verbatim": "实际浏览器/HTTP/流共享同会话及代际：重复批次不重生效，乱序/缺口不跳过，旧session/generation及错误base_cut不能污染当前视图。有效cursor续接与指定同cut完整Snapshot逐字段一致，比较对象/关系/见证/索引/生命周期和获知史而不只marker数量。",
+      "contract": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/TB01C-ENTRY-READINESS.json",
+        "bytes": 10508,
+        "sha256": "073e65c5da0d693d85d492671ca853b1e4b50443450a707443ac79adf004902c",
+        "json_pointer": "/acceptance_conditions_verbatim/1"
+      },
+      "evidence": [
+        {
+          "id": "http_a",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-A-HTTP-EXAMINATION.json",
+          "bytes": 215009,
+          "sha256": "6da9d7a1db6b5da032dd02ff64a43816fbe15d9269a5873c5602d1c0a5b25da1",
+          "json_pointer": "/runs/0"
+        },
+        {
+          "id": "http_b",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B-HTTP-EXAMINATION.json",
+          "bytes": 206884,
+          "sha256": "92f3b136f3895060c10a3675b6980c2bac9cf5eafc22cc39ff4059bb99e7230e",
+          "json_pointer": "/runs/0"
+        },
+        {
+          "id": "gui",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/GUI-EXAMINATION.json",
+          "bytes": 8067,
+          "sha256": "fe9cf0088cb370198e634cd88553e3d416c77b81252a1d3164340db243314299"
+        },
+        {
+          "id": "r4",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r4-pair/independent-review/REVIEW.json",
+          "bytes": 199833,
+          "sha256": "783ecb15331cb901f60acb0f6ea9ea3f8225a0e22e8270b5c5f73ad2f95155c2"
+        },
+        {
+          "id": "ascii",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/REVIEW.json",
+          "bytes": 30369,
+          "sha256": "da540f22dad155dcac98bb30974351cc0574bd22c60058d35665b58d8a756f06"
+        },
+        {
+          "id": "current_client_source",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/evidence/source-before-run/04-tb01c-client.js",
+          "bytes": 29406,
+          "sha256": "1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c"
+        },
+        {
+          "id": "old_client_source",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r4-a/evidence/source-before-run/04-tb01c-client.js",
+          "bytes": 29406,
+          "sha256": "1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c"
+        }
+      ],
+      "claims": [
+        "公共请求/回复的 payload_hash、causal_refs、reply身份、session_generation及旧token来源完整核；正常G32→35和GUI156→160逐批次/全状态同cut对拍。",
+        "重复/乱序/错base/异session_generation、旧实际帧与迟到历史页拒收，限定复用完全同字节Client/HTML原R4及无损ASCII证据；旧失败原导出不改。异化身1→2是负控，不声称实际新会话2迁移。"
+      ]
+    },
+    {
+      "ac": 3,
+      "status": "PASS",
+      "product_behavior_status": "PASS_BOUNDED",
+      "title": "真实修订续接、Gap与历史保留分离",
+      "verbatim": "暂停/断开真实客户端跨越新增、撤回和替代后重连；有效游标可续接，超保留期明确Gap、缺口范围及可用重建cut，重建后与该cut一致。回收普通结构游标不删除原始修订历史或任何未来已交付命令不可复活依据。",
+      "contract": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/TB01C-ENTRY-READINESS.json",
+        "bytes": 10508,
+        "sha256": "073e65c5da0d693d85d492671ca853b1e4b50443450a707443ac79adf004902c",
+        "json_pointer": "/acceptance_conditions_verbatim/2"
+      },
+      "evidence": [
+        {
+          "id": "ac3",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.json",
+          "bytes": 18974,
+          "sha256": "25e1947c95e81537a8b494e5c69da808749e743b2187c7e5b3776e242b46e575"
+        },
+        {
+          "id": "http_a",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-A-HTTP-EXAMINATION.json",
+          "bytes": 215009,
+          "sha256": "6da9d7a1db6b5da032dd02ff64a43816fbe15d9269a5873c5602d1c0a5b25da1",
+          "json_pointer": "/runs/0"
+        },
+        {
+          "id": "http_b",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B-HTTP-EXAMINATION.json",
+          "bytes": 206884,
+          "sha256": "92f3b136f3895060c10a3675b6980c2bac9cf5eafc22cc39ff4059bb99e7230e",
+          "json_pointer": "/runs/0"
+        },
+        {
+          "id": "gui",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/GUI-EXAMINATION.json",
+          "bytes": 8067,
+          "sha256": "fe9cf0088cb370198e634cd88553e3d416c77b81252a1d3164340db243314299"
+        },
+        {
+          "id": "pair",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B-HTTP-EXAMINATION.json",
+          "bytes": 206884,
+          "sha256": "92f3b136f3895060c10a3675b6980c2bac9cf5eafc22cc39ff4059bb99e7230e",
+          "json_pointer": "/core"
+        }
+      ],
+      "claims": [
+        "单独最终AC3在原cursor95/head95准备后真实断连，续至99含三撤回三替代；114请求/113页于23254.249667ms内安装，当时S已到144，独评以原投影器全字段核。该臂无Qkill，不伪称与两故障臂相同。",
+        "两故障臂真实backlog Gap37..41和retention Gap33..33均声明重建41并完整安装；普通delivery_refs最终仅153..160，160条raw/Delta/完整batch、修订链和持久身份均保留。",
+        "两轮revisions在96完整安装后被Q109kill截断，随后AsKnown连接拒绝，均保留NOT_VERIFIED；它们不承担正控。未实施经济命令，不将经济未来不可复活义务伪称已执行，只核普通游标GC不删除其结构/身份依据。"
+      ]
+    },
+    {
+      "ac": 4,
+      "status": "PASS",
+      "product_behavior_status": "PASS_BOUNDED",
+      "title": "有限资源与声明窗口内持续推进",
+      "verbatim": "慢查询和多页浏览使用有限短读，不持有跨页数据库长事务，不等待全部消费者ack/经济反向索引/总览全局序号；在声明实际负载下验证S接纳与Commit序号仍前进，积压达到界限只撤客户租约或发Gap。不能靠停输入、无限内存保留或全员轮得到通过。",
+      "contract": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/TB01C-ENTRY-READINESS.json",
+        "bytes": 10508,
+        "sha256": "073e65c5da0d693d85d492671ca853b1e4b50443450a707443ac79adf004902c",
+        "json_pointer": "/acceptance_conditions_verbatim/3"
+      },
+      "evidence": [
+        {
+          "id": "runtime_a",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/r5-a/EXAMINATION.json",
+          "bytes": 78709,
+          "sha256": "643031375c0b59ac2872cf5b73cf3a053d28f5982d9416105a35ae8ef9c7888c"
+        },
+        {
+          "id": "runtime_b",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/r5-b/EXAMINATION.json",
+          "bytes": 78714,
+          "sha256": "768e7bb3a48089be6b554972abc9e7ef945901c8049aa73ba4abab735568bc57"
+        },
+        {
+          "id": "page_progress",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/PAGE-PROGRESS.json",
+          "bytes": 4485,
+          "sha256": "dcf1e8ee3843a16a78ce77e5ba57c0de4aa038802af411dba46651fbd2600610"
+        },
+        {
+          "id": "ac3",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.json",
+          "bytes": 18974,
+          "sha256": "25e1947c95e81537a8b494e5c69da808749e743b2187c7e5b3776e242b46e575"
+        },
+        {
+          "id": "q_memo",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/REVIEW.json",
+          "bytes": 9738,
+          "sha256": "24f8d4f4a8059b939e80fc9686b1f48321158f511d298b2eba69fcc684df8611"
+        },
+        {
+          "id": "q_increment",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/REVIEW.json",
+          "bytes": 15506,
+          "sha256": "334984d95258c71860c0e9f77ce5eaba7bd30088421f89f899270cbd7f2c4dcc"
+        },
+        {
+          "id": "rust_p4",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/REVIEW-OLD-P4.md",
+          "bytes": 4517,
+          "sha256": "66d067a53c50f4c02dd8a9e9fce3042b6fb252b418a9220f61c01a107f3f3bb5"
+        },
+        {
+          "id": "rust_queue",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/queue-fix-recheck/REVIEW-QUEUE-FIX.md",
+          "bytes": 5802,
+          "sha256": "81eeb5414f2efe842154a256d6fac4db4a9fa6a075c3877f63306996fda4189b"
+        }
+      ],
+      "claims": [
+        "96seed+64live（48新增/16revision），实际offer按500ms事前计划发送且独立消费者ack；每个live10s闭区间仅取区间内首末实测点，A Commit进度20/20/18，B20/19/18，均非借迟到采样。",
+        "A/B live outstanding transport峰值均4，观察到accepted pending峰值均1；末offer→phase结束2245.4325/2147.639333ms，小于事前30s drain。S末段存在积压，未宣称生产SLA或永久稳定2Hz。",
+        "Q同连接data_version/短事务捕获、每次fresh schema/raw/pending/control/epoch/独立索引，旧同字节证明与编码memo联合预算由既有独评约束；客户端超限Gap/拒绝。Rust有限source bytes memo与期限门援引他人独评，不把source bytes计量称RSS上限。"
+      ]
+    },
+    {
+      "ac": 5,
+      "status": "PASS",
+      "product_behavior_status": "PASS_BOUNDED",
+      "title": "独立S/Q故障恢复与结构范围",
+      "verbatim": "分别真实终止/重启S和只读查询进程，并让另一进程保持运行；无E/B/X/经济库时仍可正式恢复和继续。结构来源/父子/修订索引独立可读，经济范围缺失/不可用分栏，不把结构CompleteCut降为全局部分也不伪称经济已当前完整。",
+      "contract": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/TB01C-ENTRY-READINESS.json",
+        "bytes": 10508,
+        "sha256": "073e65c5da0d693d85d492671ca853b1e4b50443450a707443ac79adf004902c",
+        "json_pointer": "/acceptance_conditions_verbatim/4"
+      },
+      "evidence": [
+        {
+          "id": "runtime_a",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/r5-a/EXAMINATION.json",
+          "bytes": 78709,
+          "sha256": "643031375c0b59ac2872cf5b73cf3a053d28f5982d9416105a35ae8ef9c7888c"
+        },
+        {
+          "id": "runtime_b",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/r5-b/EXAMINATION.json",
+          "bytes": 78714,
+          "sha256": "768e7bb3a48089be6b554972abc9e7ef945901c8049aa73ba4abab735568bc57"
+        },
+        {
+          "id": "pair",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B-HTTP-EXAMINATION.json",
+          "bytes": 206884,
+          "sha256": "92f3b136f3895060c10a3675b6980c2bac9cf5eafc22cc39ff4059bb99e7230e",
+          "json_pointer": "/core"
+        },
+        {
+          "id": "http_a",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-A-HTTP-EXAMINATION.json",
+          "bytes": 215009,
+          "sha256": "6da9d7a1db6b5da032dd02ff64a43816fbe15d9269a5873c5602d1c0a5b25da1",
+          "json_pointer": "/runs/0"
+        },
+        {
+          "id": "http_b",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B-HTTP-EXAMINATION.json",
+          "bytes": 206884,
+          "sha256": "92f3b136f3895060c10a3675b6980c2bac9cf5eafc22cc39ff4059bb99e7230e",
+          "json_pointer": "/runs/0"
+        },
+        {
+          "id": "rust_p3",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/independent-rust-p3-recheck/REVIEW.md",
+          "bytes": 5377,
+          "sha256": "9d20298290314d2dd6a9bc377269bc11179b2b7dead2e613f1075486283b5eac"
+        },
+        {
+          "id": "rust_p4",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/REVIEW-OLD-P4.md",
+          "bytes": 4517,
+          "sha256": "66d067a53c50f4c02dd8a9e9fce3042b6fb252b418a9220f61c01a107f3f3bb5"
+        },
+        {
+          "id": "rust_queue",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/queue-fix-recheck/REVIEW-QUEUE-FIX.md",
+          "bytes": 5802,
+          "sha256": "81eeb5414f2efe842154a256d6fac4db4a9fa6a075c3877f63306996fda4189b"
+        }
+      ],
+      "claims": [
+        "每臂S op95在AcceptedPending/Begin后真实SIGKILL，Q PID保持；recover到epoch2，同原message/hash自动续办，最终160条原身份receipt Committed，Begin重试/Commit/recover语义clock完整持久。",
+        "每臂Q观察到109后真实SIGKILL并以epoch2重启，S PID保持且继续输入；公共旧token仍读结构页。schema/全部15族及结构CompleteCut、economic:not_started一致。没有E/B/X或经济库启动，不把经济缺席写成经济CompleteCut。"
+      ]
+    },
+    {
+      "ac": 6,
+      "status": "PASS",
+      "product_behavior_status": "PASS_BOUNDED",
+      "title": "双新进程目录全字段确定性",
+      "verbatim": "从两个独立新进程和独立数据目录运行相同原始输入/修订、schema、规则、目录、TestOnly profile、时钟、数值与故障调度轨迹；结构值/集合/关系/顺序/见证/first_known/提交切面均硬比较。仅预先声明的非语义run身份允许一一重命名；不同语义时间、未决差异、inconclusive或只最终状态相同不能报PASS。",
+      "contract": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/TB01C-ENTRY-READINESS.json",
+        "bytes": 10508,
+        "sha256": "073e65c5da0d693d85d492671ca853b1e4b50443450a707443ac79adf004902c",
+        "json_pointer": "/acceptance_conditions_verbatim/5"
+      },
+      "evidence": [
+        {
+          "id": "pair",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B-HTTP-EXAMINATION.json",
+          "bytes": 206884,
+          "sha256": "92f3b136f3895060c10a3675b6980c2bac9cf5eafc22cc39ff4059bb99e7230e",
+          "json_pointer": "/core"
+        },
+        {
+          "id": "runtime_a",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/r5-a/EXAMINATION.json",
+          "bytes": 78709,
+          "sha256": "643031375c0b59ac2872cf5b73cf3a053d28f5982d9416105a35ae8ef9c7888c"
+        },
+        {
+          "id": "runtime_b",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/r5-b/EXAMINATION.json",
+          "bytes": 78714,
+          "sha256": "768e7bb3a48089be6b554972abc9e7ef945901c8049aa73ba4abab735568bc57"
+        },
+        {
+          "id": "seals",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/SEAL-EXAMINATION.json",
+          "bytes": 8617,
+          "sha256": "df6a563fc00fb5ab4269055fc49b05f07517162821b03eb97f21ec681f74fa84"
+        },
+        {
+          "id": "clock_counts",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/CLOCK-COUNTS.json",
+          "bytes": 1296,
+          "sha256": "43649fd57bbc130b3c0d557023ec56b0800c371d2b1a166eb5d70ab48fee96e2"
+        }
+      ],
+      "claims": [
+        "R5A/B独立目录/PID同160原始消息与revision、clock计划、schema/rule/catalog/profile/numeric/fault计划；495完整记录逐字段及整体原字节相同，SHA02fdd97ed3f2efbc2493a44506d1bc33cc3619fe57f0d25a781c39a50edd0442。",
+        "160actual结果+160原身份receipt+160真实Delta.index_frontier所指batch+13其余表+schema+lifecycle=495；完整BLOB base64/byte_len/SHA及原JSON逐一解码核验；不排除字段、不重命名业务身份、不抹顺序/语义时间/first_known。仅操作诊断由采集边界事前分离，三份运行路径/端口配置实际不同并保留。"
+      ]
+    },
+    {
+      "ac": 7,
+      "status": "PASS",
+      "product_behavior_status": "PASS_BOUNDED",
+      "title": "获知史与完整视图/过滤",
+      "verbatim": "AsKnown按真实S已知前沿回看，RecomputedWithRevision单列；后续更正、分页或重连不偷用未来证据。目录过滤/显示上限明确scope与省略项，可回到原始完整证据，不能用降采样改变后台判据或暗删对象。",
+      "contract": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/TB01C-ENTRY-READINESS.json",
+        "bytes": 10508,
+        "sha256": "073e65c5da0d693d85d492671ca853b1e4b50443450a707443ac79adf004902c",
+        "json_pointer": "/acceptance_conditions_verbatim/6"
+      },
+      "evidence": [
+        {
+          "id": "gui",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/GUI-EXAMINATION.json",
+          "bytes": 8067,
+          "sha256": "fe9cf0088cb370198e634cd88553e3d416c77b81252a1d3164340db243314299"
+        },
+        {
+          "id": "http_a",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-A-HTTP-EXAMINATION.json",
+          "bytes": 215009,
+          "sha256": "6da9d7a1db6b5da032dd02ff64a43816fbe15d9269a5873c5602d1c0a5b25da1",
+          "json_pointer": "/runs/0"
+        },
+        {
+          "id": "http_b",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B-HTTP-EXAMINATION.json",
+          "bytes": 206884,
+          "sha256": "92f3b136f3895060c10a3675b6980c2bac9cf5eafc22cc39ff4059bb99e7230e",
+          "json_pointer": "/runs/0"
+        },
+        {
+          "id": "ac3",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.json",
+          "bytes": 18974,
+          "sha256": "25e1947c95e81537a8b494e5c69da808749e743b2187c7e5b3776e242b46e575"
+        },
+        {
+          "id": "r4",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r4-pair/independent-review/REVIEW.json",
+          "bytes": 199833,
+          "sha256": "783ecb15331cb901f60acb0f6ea9ea3f8225a0e22e8270b5c5f73ad2f95155c2"
+        },
+        {
+          "id": "ascii",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/REVIEW.json",
+          "bytes": 30369,
+          "sha256": "da540f22dad155dcac98bb30974351cc0574bd22c60058d35665b58d8a756f06"
+        }
+      ],
+      "claims": [
+        "当前实际GUI AsKnown96完整849条，对照96原S获知前沿；Recomputed156为1689条，160为1745条，保留所有六族与获知史/完整顺序；当前修订对象evt-0002 revision2 price1030502、seq98及replaces可见。",
+        "初次即时filter读数116→116→1未完成；补验先等checked/rows完成后116→1→116，后台始终116且完整候选相同。完整分页导出可取，未以过滤删除后端记录。"
+      ]
+    },
+    {
+      "ac": 8,
+      "status": "NOT_VERIFIED",
+      "product_behavior_status": "PASS_BOUNDED",
+      "title": "GUI链与交付检查分列",
+      "verbatim": "从完整目录到实例详情、变化时间线、证据及恢复结果完成实际浏览器验收；记录实际负载、版本/hash、首差异、Gap/故障路径和独立评审。A/B/C全部行为与项目适用检查完成后才可申请关闭TB-01并解除原DAG中TB-02/TB-03的前置，不能以本片测试通过自动关闭父票。",
+      "contract": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/TB01C-ENTRY-READINESS.json",
+        "bytes": 10508,
+        "sha256": "073e65c5da0d693d85d492671ca853b1e4b50443450a707443ac79adf004902c",
+        "json_pointer": "/acceptance_conditions_verbatim/7"
+      },
+      "evidence": [
+        {
+          "id": "gui",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/GUI-EXAMINATION.json",
+          "bytes": 8067,
+          "sha256": "fe9cf0088cb370198e634cd88553e3d416c77b81252a1d3164340db243314299"
+        },
+        {
+          "id": "ac3",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.json",
+          "bytes": 18974,
+          "sha256": "25e1947c95e81537a8b494e5c69da808749e743b2187c7e5b3776e242b46e575"
+        },
+        {
+          "id": "q_increment",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/REVIEW.json",
+          "bytes": 15506,
+          "sha256": "334984d95258c71860c0e9f77ce5eaba7bd30088421f89f899270cbd7f2c4dcc"
+        },
+        {
+          "id": "inventory",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/INVENTORY.json",
+          "bytes": 99980,
+          "sha256": "bb981807b1fe482cdba4c048e99e41a8625eb5b2794f14a999b13f1824077894"
+        },
+        {
+          "id": "devskim_run",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/DEVSKIM-RUN.json",
+          "bytes": 13310,
+          "sha256": "f3ac1cce4f8ad918418a098c4394eb8e2e64b4919f7cf837a863ef1eec33ee18"
+        },
+        {
+          "id": "devskim_job",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/DEVSKIM-JOB.json",
+          "bytes": 2253,
+          "sha256": "5e0808d0403b16a5e18e045e6f56929131ea6a5f0f8bead94d02e1c2b733a55e",
+          "json_pointer": "/steps/5"
+        },
+        {
+          "id": "devskim_checkout",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/DEVSKIM-CHECKOUT-BINDING.json",
+          "bytes": 1285,
+          "sha256": "62dfe21bb1eafc5eef1118bbce68b3a73e1a4330f4842cfb1c722ea4e1d9f470"
+        },
+        {
+          "id": "root_package",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/ROOT-README-AT-REVIEW.md",
+          "bytes": 8935,
+          "sha256": "74aa9ae7099b10a95e47b021c372fe786f7e8b601c84a4f406ab0f06353be779"
+        },
+        {
+          "id": "devskim_triage",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/DEVSKIM-TRIAGE-SUMMARY.json",
+          "bytes": 16086,
+          "sha256": "caec0cf010a844b79fab07abb390f55997c17682dc997b57ff8412abcb894ee5"
+        }
+      ],
+      "claims": [
+        "产品/证据子项PASS：实际Chrome目录→修订实例→input_refs/relations/见证、历史与恢复视图已取证；11ASCII无损语义导出/四完整候选/真实Watch、原网络及独评都具名。大snapshot替换字符只作控件定位，不作为语义正控。",
+        "适用交付检查未满足：冻结3ff对应PR合并测试树14071107的DevSkim scanner/upload成功，但zero-findings gate failure（run34751431403）。四CI job success由根接回，本轮没有独立重新查询远端四job；本报告不以该状态覆盖DevSkim失败。",
+        "可提交本包供最终审阅，不能据本报告关闭#1372/TB01、释放依赖或合入main；main批准是另项动作门。B的旧例外不自动覆盖C；没有新豁免。",
+        "已读作者最终扫描分诊：345真正C新增为339具名摘要/5loopback/1固定函数回调，无已确认新产品安全缺陷；继承风险未穷尽、#1385仍待审、实际baseline差集gate继续FAIL。这不是本工位独立全仓安全评审。"
+      ]
+    }
+  ],
+  "evidence": {
+    "runtime_a": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/r5-a/EXAMINATION.json",
+      "bytes": 78709,
+      "sha256": "643031375c0b59ac2872cf5b73cf3a053d28f5982d9416105a35ae8ef9c7888c"
+    },
+    "runtime_b": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/r5-b/EXAMINATION.json",
+      "bytes": 78714,
+      "sha256": "768e7bb3a48089be6b554972abc9e7ef945901c8049aa73ba4abab735568bc57"
+    },
+    "http_a": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-A-HTTP-EXAMINATION.json",
+      "bytes": 215009,
+      "sha256": "6da9d7a1db6b5da032dd02ff64a43816fbe15d9269a5873c5602d1c0a5b25da1",
+      "json_pointer": "/runs/0"
+    },
+    "http_b": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B-HTTP-EXAMINATION.json",
+      "bytes": 206884,
+      "sha256": "92f3b136f3895060c10a3675b6980c2bac9cf5eafc22cc39ff4059bb99e7230e",
+      "json_pointer": "/runs/0"
+    },
+    "pair": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B-HTTP-EXAMINATION.json",
+      "bytes": 206884,
+      "sha256": "92f3b136f3895060c10a3675b6980c2bac9cf5eafc22cc39ff4059bb99e7230e",
+      "json_pointer": "/core"
+    },
+    "gui": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/GUI-EXAMINATION.json",
+      "bytes": 8067,
+      "sha256": "fe9cf0088cb370198e634cd88553e3d416c77b81252a1d3164340db243314299"
+    },
+    "seals": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/SEAL-EXAMINATION.json",
+      "bytes": 8617,
+      "sha256": "df6a563fc00fb5ab4269055fc49b05f07517162821b03eb97f21ec681f74fa84"
+    },
+    "page_progress": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/PAGE-PROGRESS.json",
+      "bytes": 4485,
+      "sha256": "dcf1e8ee3843a16a78ce77e5ba57c0de4aa038802af411dba46651fbd2600610"
+    },
+    "ac3": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.json",
+      "bytes": 18974,
+      "sha256": "25e1947c95e81537a8b494e5c69da808749e743b2187c7e5b3776e242b46e575"
+    },
+    "q_increment": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-encoding-memo-independent/REVIEW.json",
+      "bytes": 15506,
+      "sha256": "334984d95258c71860c0e9f77ce5eaba7bd30088421f89f899270cbd7f2c4dcc"
+    },
+    "q_memo": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/q-memo-independent/REVIEW.json",
+      "bytes": 9738,
+      "sha256": "24f8d4f4a8059b939e80fc9686b1f48321158f511d298b2eba69fcc684df8611"
+    },
+    "r4": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r4-pair/independent-review/REVIEW.json",
+      "bytes": 199833,
+      "sha256": "783ecb15331cb901f60acb0f6ea9ea3f8225a0e22e8270b5c5f73ad2f95155c2"
+    },
+    "ascii": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/REVIEW.json",
+      "bytes": 30369,
+      "sha256": "da540f22dad155dcac98bb30974351cc0574bd22c60058d35665b58d8a756f06"
+    },
+    "ready": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/gui-utf8-recapture-independent/READY-REVIEW.json",
+      "bytes": 7628,
+      "sha256": "9ec8190ac4d0d4510238457512d6e8b21b002be1eac4ea39d48b5ba9ec68e10c"
+    },
+    "legacy": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r4-pair/independent-review/LEGACY-REVIEW.json",
+      "bytes": 9941,
+      "sha256": "48a613a67be96f9717621159b0597d9de098f47584b28821f36c087b2e9d4328"
+    },
+    "rust_p3": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/independent-rust-p3-recheck/REVIEW.md",
+      "bytes": 5377,
+      "sha256": "9d20298290314d2dd6a9bc377269bc11179b2b7dead2e613f1075486283b5eac"
+    },
+    "rust_p4": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/REVIEW-OLD-P4.md",
+      "bytes": 4517,
+      "sha256": "66d067a53c50f4c02dd8a9e9fce3042b6fb252b418a9220f61c01a107f3f3bb5"
+    },
+    "rust_queue": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/rust-p4-independent/queue-fix-recheck/REVIEW-QUEUE-FIX.md",
+      "bytes": 5802,
+      "sha256": "81eeb5414f2efe842154a256d6fac4db4a9fa6a075c3877f63306996fda4189b"
+    },
+    "inventory": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/INVENTORY.json",
+      "bytes": 99980,
+      "sha256": "bb981807b1fe482cdba4c048e99e41a8625eb5b2794f14a999b13f1824077894"
+    },
+    "root_package": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/ROOT-README-AT-REVIEW.md",
+      "bytes": 8935,
+      "sha256": "74aa9ae7099b10a95e47b021c372fe786f7e8b601c84a4f406ab0f06353be779"
+    },
+    "devskim_run": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/DEVSKIM-RUN.json",
+      "bytes": 13310,
+      "sha256": "f3ac1cce4f8ad918418a098c4394eb8e2e64b4919f7cf837a863ef1eec33ee18"
+    },
+    "devskim_job": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/DEVSKIM-JOB.json",
+      "bytes": 2253,
+      "sha256": "5e0808d0403b16a5e18e045e6f56929131ea6a5f0f8bead94d02e1c2b733a55e",
+      "json_pointer": "/steps/5"
+    },
+    "devskim_checkout": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/DEVSKIM-CHECKOUT-BINDING.json",
+      "bytes": 1285,
+      "sha256": "62dfe21bb1eafc5eef1118bbce68b3a73e1a4330f4842cfb1c722ea4e1d9f470"
+    },
+    "devskim_log_facts": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/DEVSKIM-LOG-FACTS.json",
+      "bytes": 1541,
+      "sha256": "176962891f38b9c6889c180c94114adfa6bb666611e7fb8de5dd62c76ddc7d6f"
+    },
+    "spec": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/SPEC.md",
+      "bytes": 68412,
+      "sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11",
+      "lines": [
+        310,
+        341
+      ]
+    },
+    "ticket": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/TB01C-ENTRY-READINESS.json",
+      "bytes": 10508,
+      "sha256": "073e65c5da0d693d85d492671ca853b1e4b50443450a707443ac79adf004902c",
+      "json_pointer": "/acceptance_conditions_verbatim"
+    },
+    "old_client_source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r4-a/evidence/source-before-run/04-tb01c-client.js",
+      "bytes": 29406,
+      "sha256": "1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c"
+    },
+    "current_client_source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/evidence/source-before-run/04-tb01c-client.js",
+      "bytes": 29406,
+      "sha256": "1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c"
+    },
+    "old_html_source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r4-a/evidence/source-before-run/03-index.html",
+      "bytes": 47080,
+      "sha256": "25e9469a7913d3a181d26bd6bfc3e8f6698fc3d71bfdd92511c1c0168aad6639"
+    },
+    "current_html_source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/evidence/source-before-run/03-index.html",
+      "bytes": 47080,
+      "sha256": "25e9469a7913d3a181d26bd6bfc3e8f6698fc3d71bfdd92511c1c0168aad6639"
+    },
+    "devskim_triage": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/DEVSKIM-TRIAGE-SUMMARY.json",
+      "bytes": 16086,
+      "sha256": "caec0cf010a844b79fab07abb390f55997c17682dc997b57ff8412abcb894ee5"
+    },
+    "clock_counts": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/CLOCK-COUNTS.json",
+      "bytes": 1296,
+      "sha256": "43649fd57bbc130b3c0d557023ec56b0800c371d2b1a166eb5d70ab48fee96e2"
+    }
+  },
+  "runtime_metrics": {
+    "a": {
+      "phases": [
+        {
+          "phase_first": 0,
+          "offers": 95,
+          "outstanding_transport_peak": 1,
+          "observed_accepted_pending_peak": 1,
+          "max_dispatch_delay_ms": 5.277583,
+          "max_reply_ms": 335.301291,
+          "last_offer_to_last_reply_ms": 313.870625,
+          "last_offer_to_phase_end_ms": 314.596833,
+          "duration_ms": 47319.755208,
+          "frontier_samples": 453
+        },
+        {
+          "phase_first": 96,
+          "offers": 64,
+          "outstanding_transport_peak": 4,
+          "observed_accepted_pending_peak": 1,
+          "max_dispatch_delay_ms": 5.264334,
+          "max_reply_ms": 2244.684959,
+          "last_offer_to_last_reply_ms": 2244.684959,
+          "last_offer_to_phase_end_ms": 2245.4325,
+          "duration_ms": 33749.864125,
+          "frontier_samples": 323
+        }
+      ],
+      "windows": [
+        {
+          "window_ms": [
+            0,
+            10000
+          ],
+          "lines": [
+            561,
+            679
+          ],
+          "actual_span_ms": [
+            0.617959,
+            9944.964417
+          ],
+          "accepted_progress": 20,
+          "committed_progress": 20
+        },
+        {
+          "window_ms": [
+            10000,
+            20000
+          ],
+          "lines": [
+            680,
+            794
+          ],
+          "actual_span_ms": [
+            10048.013917,
+            19995.8445
+          ],
+          "accepted_progress": 20,
+          "committed_progress": 20
+        },
+        {
+          "window_ms": [
+            20000,
+            30000
+          ],
+          "lines": [
+            796,
+            907
+          ],
+          "actual_span_ms": [
+            20101.586334,
+            29913.353709
+          ],
+          "accepted_progress": 18,
+          "committed_progress": 18
+        }
+      ],
+      "fault_event_lines": {
+        "ingest_line": 555,
+        "s_restart_line": 559,
+        "q_restart_line": 660
+      }
+    },
+    "b": {
+      "phases": [
+        {
+          "phase_first": 0,
+          "offers": 95,
+          "outstanding_transport_peak": 1,
+          "observed_accepted_pending_peak": 1,
+          "max_dispatch_delay_ms": 10.290167,
+          "max_reply_ms": 331.085917,
+          "last_offer_to_last_reply_ms": 316.993041,
+          "last_offer_to_phase_end_ms": 317.720625,
+          "duration_ms": 47320.682084,
+          "frontier_samples": 441
+        },
+        {
+          "phase_first": 96,
+          "offers": 64,
+          "outstanding_transport_peak": 4,
+          "observed_accepted_pending_peak": 1,
+          "max_dispatch_delay_ms": 10.112209,
+          "max_reply_ms": 2146.837333,
+          "last_offer_to_last_reply_ms": 2146.837333,
+          "last_offer_to_phase_end_ms": 2147.639333,
+          "duration_ms": 33654.972917,
+          "frontier_samples": 312
+        }
+      ],
+      "windows": [
+        {
+          "window_ms": [
+            0,
+            10000
+          ],
+          "lines": [
+            549,
+            663
+          ],
+          "actual_span_ms": [
+            0.731709,
+            9906.930042
+          ],
+          "accepted_progress": 20,
+          "committed_progress": 20
+        },
+        {
+          "window_ms": [
+            10000,
+            20000
+          ],
+          "lines": [
+            665,
+            776
+          ],
+          "actual_span_ms": [
+            10011.783209,
+            19896.484375
+          ],
+          "accepted_progress": 20,
+          "committed_progress": 19
+        },
+        {
+          "window_ms": [
+            20000,
+            30000
+          ],
+          "lines": [
+            778,
+            888
+          ],
+          "actual_span_ms": [
+            20002.86225,
+            29996.952167
+          ],
+          "accepted_progress": 18,
+          "committed_progress": 18
+        }
+      ],
+      "fault_event_lines": {
+        "ingest_line": 543,
+        "s_restart_line": 547,
+        "q_restart_line": 646
+      }
+    }
+  },
+  "http_totals": {
+    "a": {
+      "requests": 121,
+      "wire_bytes": 13752137,
+      "complete": 119,
+      "snapshot_pages": 110,
+      "rows": 3284,
+      "full_installed_state": 5,
+      "deltas": 8,
+      "gaps": 2
+    },
+    "b": {
+      "requests": 113,
+      "wire_bytes": 13124799,
+      "complete": 111,
+      "snapshot_pages": 102,
+      "rows": 3036,
+      "full_installed_state": 5,
+      "deltas": 8,
+      "gaps": 2
+    }
+  },
+  "gui_summary": {
+    "schema": "tb01c.final_current_gui_independent.v1",
+    "status": "PASS_BOUNDED_CURRENT_GUI_POSITIVES",
+    "session_id": "/root/r7_codex_product_review",
+    "candidate": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+    "source_sha256": {
+      "s_session/browser/index.html": "25e9469a7913d3a181d26bd6bfc3e8f6698fc3d71bfdd92511c1c0168aad6639",
+      "s_session/browser/tb01c-client.js": "1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c",
+      "s_session/s_readonly_server.py": "5118f3f53f199413000918f3d5c36bae391c8b13ade7afc2b174773da8a790dd",
+      "s_session/s_query.py": "ce51b7a72de1bf1ab869da9e1498bc8ef95e3458981b847aaab033453268ad65",
+      "s_session/s_query_integrity.py": "d69fda491cbb52ead1a714bf942d5c8229ddd9d9f83dd4a17910515d101780bc",
+      "s_session/s_service_control.py": "bab9162f5054d1fadc72d55783f0289981a8b41b89fce0e48348d66682603bad"
+    },
+    "manifest_count": 1079,
+    "manifest_bytes": 90407398,
+    "all_manifest_hashes_equal": true,
+    "ascii_exports": [
+      {
+        "name": "as-known96",
+        "outer_sha256": "5a1c43319f237601566683d52f5fb2dcb3f4e624808cea76ccd1ad7584f34de2",
+        "decoded_sha256": "6baff811fb00a8bd1948729fa80f08a0acfe1cb0b827e323638fceaca7076da5",
+        "replacement_characters": 0
+      },
+      {
+        "name": "filter-before",
+        "outer_sha256": "74b6b70fa7b561be50264077b70fe36e9374508bc87057163936b859afb8d8ee",
+        "decoded_sha256": "8e4138a1687a95d7fcf3dc80d25832ec7bbc568be2a731efbafc16890c2fa885",
+        "replacement_characters": 0
+      },
+      {
+        "name": "filter-completion-recapture/before",
+        "outer_sha256": "fc15012d94474d9370b0c6a1f85833665e2c9b3212195701920fe02c92ab375b",
+        "decoded_sha256": "24113d20cd4b672531ebbfe6b0ca91bab07d5347b4ecf5ba339008420c2e25c0",
+        "replacement_characters": 0
+      },
+      {
+        "name": "filter-completion-recapture/off",
+        "outer_sha256": "8f56a963bb335a8ac076b73137d1a2abedfbc55ba08a26ee4d4cc10a9308ba32",
+        "decoded_sha256": "389883b05876d5dc22e8d851d2170a6cab66e2c933fc7071f50d4de7b5aac86f",
+        "replacement_characters": 0
+      },
+      {
+        "name": "filter-completion-recapture/restored",
+        "outer_sha256": "fc15012d94474d9370b0c6a1f85833665e2c9b3212195701920fe02c92ab375b",
+        "decoded_sha256": "24113d20cd4b672531ebbfe6b0ca91bab07d5347b4ecf5ba339008420c2e25c0",
+        "replacement_characters": 0
+      },
+      {
+        "name": "filter-off",
+        "outer_sha256": "540ba2d53441233b94cc7ccc4fc75ba43e3eb37344410ebafd899a6b86109e4b",
+        "decoded_sha256": "37bb8fa7cb55e7b3f4b43b97b360ac508cfed5f4e6c7e0ce9cc997a52bffd700",
+        "replacement_characters": 0
+      },
+      {
+        "name": "filter-restored",
+        "outer_sha256": "37f7c89e338507f3eb0df0d8bb16ee69d3568d6eef09e00f880f98b4de9459f7",
+        "decoded_sha256": "ee8b890567c85fa802a22b99d2b93b71784fc9035f4b8766510bc3cd3e6d0ec1",
+        "replacement_characters": 0
+      },
+      {
+        "name": "healthy-watch156-160",
+        "outer_sha256": "870f3f8c2db1bc4be512baf54116573e54808402187f9e9ddf8766360bf589ba",
+        "decoded_sha256": "9b90d82278a7f1bd254fe4927a85be22b193d6128276e7ed67523618dcb2888d",
+        "replacement_characters": 0
+      },
+      {
+        "name": "initial-current160",
+        "outer_sha256": "8ef6ae1d14c569742ea127b904278c5cce95e1bcd7c3f6071835b71dc5ae4597",
+        "decoded_sha256": "27738683bbc5218ca4226ca0015020fc732ebbb24a85a65f060246ade8d42ee4",
+        "replacement_characters": 0
+      },
+      {
+        "name": "recomputed156",
+        "outer_sha256": "e5f4aa1353acaf6b7d1837ce3b98761b12504960746f180b780b771bba14a5d0",
+        "decoded_sha256": "183d19f0f54bf334a15e8f93360f52756856b92c8a70f0d68417553385df4e74",
+        "replacement_characters": 0
+      },
+      {
+        "name": "revised-detail",
+        "outer_sha256": "57b9dd079bc6b4facc2459bd7b98ae45f9545fcae2bcb585bc6d888506fa6d54",
+        "decoded_sha256": "2a7c61b0b860040886fdcba65c96365a1cef4e3c4cb65d442b487246bfd71973",
+        "replacement_characters": 0
+      }
+    ],
+    "full_candidates": [
+      {
+        "name": "initial-current160",
+        "generation": 160,
+        "mode": "RecomputedWithRevision",
+        "rows": 1745,
+        "pages": 57,
+        "projection_sha256": "68f4b4eb2657fdd6d15d53e17c9781b4ecc7c65cb777b86e8755726a281cb18c"
+      },
+      {
+        "name": "as-known96",
+        "generation": 96,
+        "mode": "AsKnown",
+        "rows": 849,
+        "pages": 28,
+        "projection_sha256": "02c392f8e108c8240130a7302b56af2002ba12cd59da94829770a935263ee2cb"
+      },
+      {
+        "name": "recomputed156",
+        "generation": 156,
+        "mode": "RecomputedWithRevision",
+        "rows": 1689,
+        "pages": 55,
+        "projection_sha256": "e2b54eff66725fd3d3e1e92f0d9065fd2e45f0b2cf543c8b09df4a0510a6d1fc"
+      },
+      {
+        "name": "healthy-watch156-160",
+        "generation": 160,
+        "mode": "RecomputedWithRevision",
+        "rows": 1745,
+        "pages": 57,
+        "projection_sha256": "68f4b4eb2657fdd6d15d53e17c9781b4ecc7c65cb777b86e8755726a281cb18c"
+      }
+    ],
+    "actual_watch": {
+      "before": 156,
+      "after": 160,
+      "generations": [
+        157,
+        158,
+        159,
+        160
+      ],
+      "generation159_withdrawals": 3,
+      "generation159_replaces": 3,
+      "response_bytes": 2728573,
+      "response_sha256": "819d6d597426b1d890664e8ac6e646b7c77773d90c4ff10898ec244068d9248d",
+      "full_fields_match_authoritative_core": true
+    },
+    "filters_followup": [
+      {
+        "name": "before",
+        "cut": "160",
+        "checked": true,
+        "rows": 116,
+        "backend_rows": 116,
+        "complete_candidate_unchanged": true,
+        "projection_sha256": "68f4b4eb2657fdd6d15d53e17c9781b4ecc7c65cb777b86e8755726a281cb18c"
+      },
+      {
+        "name": "off",
+        "cut": "160",
+        "checked": false,
+        "rows": 1,
+        "backend_rows": 116,
+        "complete_candidate_unchanged": true,
+        "projection_sha256": "68f4b4eb2657fdd6d15d53e17c9781b4ecc7c65cb777b86e8755726a281cb18c"
+      },
+      {
+        "name": "restored",
+        "cut": "160",
+        "checked": true,
+        "rows": 116,
+        "backend_rows": 116,
+        "complete_candidate_unchanged": true,
+        "projection_sha256": "68f4b4eb2657fdd6d15d53e17c9781b4ecc7c65cb777b86e8755726a281cb18c"
+      }
+    ],
+    "initial_filter_attempt": {
+      "status": "NOT_VERIFIED_PRESERVED",
+      "rows": [
+        116,
+        116,
+        1
+      ]
+    },
+    "snapshot_encoding_diagnostics": [
+      {
+        "path": "before-as-known-snapshot.stdout",
+        "replacement_character_count": 19
+      },
+      {
+        "path": "before-filter-snapshot.stdout",
+        "replacement_character_count": 13
+      },
+      {
+        "path": "catalog-entry-before-snapshot.json",
+        "replacement_character_count": 6
+      },
+      {
+        "path": "filter-completion-recapture/off-snapshot.stdout",
+        "replacement_character_count": 2
+      },
+      {
+        "path": "filter-completion-recapture/restored-snapshot.stdout",
+        "replacement_character_count": 19
+      },
+      {
+        "path": "filter-off-snapshot.stdout",
+        "replacement_character_count": 18
+      },
+      {
+        "path": "filter-restored-snapshot.stdout",
+        "replacement_character_count": 8
+      },
+      {
+        "path": "initial-snapshot.stdout",
+        "replacement_character_count": 10
+      },
+      {
+        "path": "input-refs-before-snapshot.json",
+        "replacement_character_count": 10
+      },
+      {
+        "path": "relations-before-snapshot.json",
+        "replacement_character_count": 7
+      },
+      {
+        "path": "revision-witness-before-snapshot.json",
+        "replacement_character_count": 19
+      }
+    ],
+    "viewed_image": "revised-instance.png: price1030502/seq98/evt-0002/revision2及replaces可见",
+    "limits": [
+      "四候选由实际浏览器JSON导出，currentState相等来自页面脚本布尔回执，没有伪造两份外部rendered原件",
+      "网络964件已核所有hash；本脚本未重新逐页解析964件网络附件，每个完整候选+实际Watch原帧已逐字段核",
+      "大可访问性snapshot含替换字符，只定位控件；11ASCII语义导出无替换",
+      "此GUI时S已到160，不是持续输入或新故障运行",
+      "六类坏帧/旧帧/迟到历史页依同字节Client原R4及ASCII独评，未在此重新执行"
+    ]
+  },
+  "seals": {
+    "status": "PASS_FROZEN_BYTES_AND_SOURCE_BINDING",
+    "candidate": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+    "runs": [
+      {
+        "run": "trajectory-r5-a",
+        "seal": {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/SEALED-MANIFEST.json",
+          "bytes": 227934,
+          "sha256": "d44f3fba6dc86f7d5db74d53695d4abf3f9297885dd1f984ec9b994ccd5955cd"
+        },
+        "files": 1164,
+        "bytes": 354292032,
+        "source_files": 458,
+        "git_bound_files": [
+          "s_session/s_readonly_server.py",
+          "s_session/s_query.py",
+          "s_session/s_query_integrity.py",
+          "s_session/browser/index.html",
+          "s_session/browser/tb01c-client.js",
+          "s_session/launch_s.sh",
+          "s_session/s_socket_client.py",
+          "s_session/s_service_control.py",
+          "s_session/tests/tb01c_runtime.py",
+          "s_session/tests/tb01c_load_report.py",
+          "s_session/tests/tb01c_http_capture.cjs",
+          "s_session/tests/test_tb01c_browser.cjs",
+          "s_session/tests/fixtures/r12_consumer.json",
+          "s_session/catalog/signed-catalog.json",
+          "s_session/tests/fixtures/tb01c/profile.json",
+          "s_session/tests/fixtures/tb01c/clock-plan.json",
+          "s_session/tests/fixtures/tb01c/query-resources.json",
+          "s_session/tests/fixtures/tb01c/RUNTIME-MANIFEST.json",
+          "s_session/tests/fixtures/tb01c/MANIFEST.json",
+          "s_session/tests/fixtures/tb01c/raw-input.jsonl",
+          "s_session/tests/fixtures/tb01c/messages.jsonl",
+          "s_session/tests/fixtures/tb01c/runtime-plan.json"
+        ],
+        "external_build_or_run_materials": 436,
+        "all_manifest_bytes_equal": true,
+        "stop": {
+          "source": {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/POST-RUN-STOP.json",
+            "bytes": 5619,
+            "sha256": "a0028beac96ba31c768cdfb6816248239e330414696017894f0c5e12a3ae981c"
+          },
+          "receipts": [
+            {
+              "service": "q",
+              "state": "stopped",
+              "pid": 98221,
+              "signal": "SIGTERM",
+              "exit_observation_warnings": [
+                "进程命令暂不可读，不能确认完整参数"
+              ]
+            },
+            {
+              "service": "s",
+              "state": "stopped",
+              "pid": 98153,
+              "signal": "SIGTERM",
+              "exit_observation_warnings": [
+                "PID 已复用或进程命令改变，拒绝采用旧记录"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "run": "trajectory-r5-b",
+        "seal": {
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/SEALED-MANIFEST.json",
+          "bytes": 421548,
+          "sha256": "5c4f4b5b63f6cbaa281f2d122ff388673d3f9e5131b05861c83d54ffa27716c0"
+        },
+        "files": 2203,
+        "bytes": 443855476,
+        "source_files": 458,
+        "git_bound_files": [
+          "s_session/s_readonly_server.py",
+          "s_session/s_query.py",
+          "s_session/s_query_integrity.py",
+          "s_session/browser/index.html",
+          "s_session/browser/tb01c-client.js",
+          "s_session/launch_s.sh",
+          "s_session/s_socket_client.py",
+          "s_session/s_service_control.py",
+          "s_session/tests/tb01c_runtime.py",
+          "s_session/tests/tb01c_load_report.py",
+          "s_session/tests/tb01c_http_capture.cjs",
+          "s_session/tests/test_tb01c_browser.cjs",
+          "s_session/tests/fixtures/r12_consumer.json",
+          "s_session/catalog/signed-catalog.json",
+          "s_session/tests/fixtures/tb01c/profile.json",
+          "s_session/tests/fixtures/tb01c/clock-plan.json",
+          "s_session/tests/fixtures/tb01c/query-resources.json",
+          "s_session/tests/fixtures/tb01c/RUNTIME-MANIFEST.json",
+          "s_session/tests/fixtures/tb01c/MANIFEST.json",
+          "s_session/tests/fixtures/tb01c/raw-input.jsonl",
+          "s_session/tests/fixtures/tb01c/messages.jsonl",
+          "s_session/tests/fixtures/tb01c/runtime-plan.json"
+        ],
+        "external_build_or_run_materials": 436,
+        "all_manifest_bytes_equal": true,
+        "stop": {
+          "source": {
+            "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/POST-RUN-STOP.json",
+            "bytes": 1831,
+            "sha256": "9f43f0abcb42ff7480603efd3100d9c2d5752cb85a19109cb7bad49683c669db"
+          },
+          "receipts": [
+            {
+              "service": "q",
+              "state": "stopped",
+              "pid": 99864,
+              "signal": "SIGTERM",
+              "exit_observation_warnings": [
+                "进程命令暂不可读，不能确认完整参数"
+              ]
+            },
+            {
+              "service": "s",
+              "state": "stopped",
+              "pid": 99536,
+              "signal": "SIGTERM",
+              "exit_observation_warnings": [
+                "PID 已复用或进程命令改变，拒绝采用旧记录"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "same_source_snapshots": 455,
+    "run_configuration_differences": [
+      {
+        "snapshot": "023",
+        "a": {
+          "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/launcher.json",
+          "snapshot": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/source-before-run/023-launcher.json",
+          "bytes": 1701,
+          "sha256": "c175d3b29b5f840285413aed3881cf9d58f58d8626527f3f56e28225265f77f9"
+        },
+        "b": {
+          "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/launcher.json",
+          "snapshot": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/source-before-run/023-launcher.json",
+          "bytes": 1701,
+          "sha256": "19f33f3a02cd3ad876459ab1cc935a8d32bbf911b83f4fbd79c2693ed9f315a0"
+        }
+      },
+      {
+        "snapshot": "024",
+        "a": {
+          "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/PLAN.json",
+          "snapshot": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/source-before-run/024-PLAN.json",
+          "bytes": 4130,
+          "sha256": "1c019ab040f69e69660a6520b62a3dd74d8275f7c9872f3e6ee7c7609536c39c"
+        },
+        "b": {
+          "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/PLAN.json",
+          "snapshot": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/source-before-run/024-PLAN.json",
+          "bytes": 4127,
+          "sha256": "bf8743a06c636f5a5e8574fe4f7923701438c31d79bb8295fdb20a4b5a6da3e4"
+        }
+      },
+      {
+        "snapshot": "026",
+        "a": {
+          "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-plans/frozen-3ff8c47e/r5-a.json",
+          "snapshot": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/source-before-run/026-r5-a.json",
+          "bytes": 4130,
+          "sha256": "1c019ab040f69e69660a6520b62a3dd74d8275f7c9872f3e6ee7c7609536c39c"
+        },
+        "b": {
+          "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/browser-continuation-performance/final-run-plans/frozen-3ff8c47e/r5-b.json",
+          "snapshot": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-b/source-before-run/026-r5-b.json",
+          "bytes": 4127,
+          "sha256": "bf8743a06c636f5a5e8574fe4f7923701438c31d79bb8295fdb20a4b5a6da3e4"
+        }
+      }
+    ],
+    "database_opened": false,
+    "semantics_checked_by_separate_parsers": true
+  },
+  "first_semantic_difference": null,
+  "identity_mapping": {},
+  "excluded_semantic_fields": [],
+  "preserved_results": [
+    {
+      "id": "R1-A",
+      "status": "FAIL_PRESERVED",
+      "detail": "原P3负载最终88 Commit/7 offer未接纳、混用帧2s期限与历史成本失败保持；P4及新完整轨迹不回写旧结果。"
+    },
+    {
+      "id": "R3-A",
+      "status": "FAIL_OR_NOT_VERIFIED_PRESERVED",
+      "detail": "3lane初始化TypeError/无helper HTTP和GUI Illegal invocation原件保持；该次运行完成不替代HTTP/GUI验收。"
+    },
+    {
+      "id": "R4-EXPORTS",
+      "status": "NOT_VERIFIED_PRESERVED",
+      "detail": "旧24处替换字符与当次修订初读被Qkill截断保持；同字节范围的无损重采另具名。"
+    },
+    {
+      "id": "UTF8-CONTROL-POSTSEAL",
+      "status": "DISCLOSED",
+      "detail": "旧ASCII重采包40件中两control附属件后续改变，38语义件同字节；旧manifest未改，不宣称40件全静止。"
+    },
+    {
+      "id": "READY-OLD",
+      "status": "FAIL_PRESERVED",
+      "detail": "G160完整state超过controller1MiB的原startReady失败；紧凑ready走同完整核验独立修复，不以随后GUI成功追认旧Ready。"
+    },
+    {
+      "id": "R5-A-B-REVISION-ASKNOWN",
+      "status": "NOT_VERIFIED_PRESERVED",
+      "detail": "每臂G96候选已安装；随后修订Watch虽取得4批，却在同cut分页中被实际Qkill截断，保持96；后续AsKnown ECONNREFUSED未安装。"
+    },
+    {
+      "id": "CURRENT-FILTER-INITIAL",
+      "status": "NOT_VERIFIED_PRESERVED",
+      "detail": "116→116→1即时观察不算完成；独立补验116→1→116和候选保持另作PASS。"
+    },
+    {
+      "id": "REVIEW-HARNESS-ATTEMPTS",
+      "status": "HARNESS_ERRORS_PRESERVED",
+      "detail": "GUI v1过窄脚本文字断言、v2假设click stderr为空（实际仅browse升级提示）；v3精确识别原脚本和该提示并核clicked:true。seal v1假设A/B stop包字段相同，B实际exit/result/expected_pids；v2分别严格核两种原shape。原stdout/stderr/脚本全部保留，不计产品失败，也不隐藏执行失败。"
+    }
+  ],
+  "limits": [
+    "本次独评仅封存文件与纯解析；不访问API/浏览器/SQL连接、不启动任何S/Q、不重跑native/GUI、不修改产品/refs/GH。工具边界是任务指令，不是OS沙盒声明。",
+    "全manifest字节读过不等于全文件语义阅读；HTTP公共页/帧与候选按独立投影器解析，GUI964网络附件只核完整hash，未逐页二次语义解码；四完整候选与完整实际Watch帧已解析。",
+    "没有重新生成每次中间SQLite capture_digest；只核来源、格式与一致绑定。新鲜门与digest算法由具名Q源增量独评和副本反例支持。",
+    "本代理曾实施Rust，不对自己的Rust产品代码独立签名；Rust结论依已读的他人P3、P4和queue门独评及冻结源绑定。此处独立比较运行事实不等于新Rust源码评审。",
+    "TestOnly CC006 tick1:1 OHLC、相邻无包含、固定初始化方向、无同价竞争；116目录记录不等于116分类算法均运行。本票不关闭#1323全图、经济链或#1448旧R6迁移。",
+    "有限160输入和已声明资源窗口不推出无界负载/任意长历史/生产容量。受限响应/捕获会拒绝，未测环境不算PASS。"
+  ],
+  "delivery_blockers": [
+    {
+      "id": "DELIVERY-AC8",
+      "type": "required_check_not_passed",
+      "status": "FAIL",
+      "trigger": "固定3ff的DevSkim零发现门未通过且无本轮有效例外",
+      "location": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/DEVSKIM-JOB.json",
+        "bytes": 2253,
+        "sha256": "5e0808d0403b16a5e18e045e6f56929131ea6a5f0f8bead94d02e1c2b733a55e",
+        "json_pointer": "/steps/5"
+      },
+      "consequence": "不能据产品行为通过宣称本票已满足全部关票条件",
+      "recommendation": "完成具名扫描分诊并按现行门处理；修复则固定新候选/相关回验，例外必须来自本轮明确授权；不得套用B例外或改旧报告"
+    }
+  ],
+  "merge_authorized": false,
+  "ticket_closure_authorized": false,
+  "root_draft_review": {
+    "status": "BOUNDED_MAPPING_CONSISTENT_WITH_DELIVERY_CAVEAT",
+    "source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/ROOT-README-AT-REVIEW.md",
+      "bytes": 8935,
+      "sha256": "74aa9ae7099b10a95e47b021c372fe786f7e8b601c84a4f406ab0f06353be779"
+    },
+    "detail": "八AC映射的运行/HTTP/GUI正负界限与本独核一致；需以本最终AC8交付未满足结论替换待独评占位，不能写成已可关票。"
+  },
+  "devskim_triage_boundary": {
+    "source": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/supporting/DEVSKIM-TRIAGE-SUMMARY.json",
+      "bytes": 16086,
+      "sha256": "caec0cf010a844b79fab07abb390f55997c17682dc997b57ff8412abcb894ee5"
+    },
+    "provenance": "另一原生工位已完成的具名分诊；本工位实读报告并核固定head，不声称独立重审345处或扫描全仓",
+    "counts": "11235基线外键=10888继承债务+2旧baseline行移+345本C新增",
+    "new_classification": "339逐源摘要/Git对象、5有意loopback、1固定函数setTimeout；作者未确认新产品安全缺陷",
+    "remaining": "实际安全缺陷总数未知；#1385 strategy314仍needs_review；门禁FAIL不变，无合入/豁免效力",
+    "gate_semantics": "现名zero-findings gate实际按ruleId|path|startLine baseline差集；随后摘要1122k超1024k不解释掉前序差集exit1"
+  },
+  "clock_counts": {
+    "plan": {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/evidence/source-before-run/15-clock-plan.json",
+        "bytes": 32493,
+        "sha256": "3d7d0470f9e6e358e645b3e757b85ed212d45bb0024f9a90b6919bebc4001709",
+        "json_pointer": "/events"
+      },
+      "counts": {
+        "accept_ns": 160,
+        "begin_ns": 161,
+        "commit_ns": 161,
+        "recover_ns": 1
+      },
+      "nonrecover_phases": 482,
+      "with_recover_slots": 483
+    },
+    "actual": {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/trajectory-r5-a/evidence/semantic-core.jsonl",
+        "bytes": 161080375,
+        "sha256": "02fdd97ed3f2efbc2493a44506d1bc33cc3619fe57f0d25a781c39a50edd0442",
+        "lines": [
+          487,
+          487
+        ]
+      },
+      "counts": {
+        "accept": 160,
+        "begin": 161,
+        "commit": 160,
+        "recover": 1
+      },
+      "persisted_rows": 482
+    },
+    "explanation": "op95 attempt0只Begin后SIGKILL，预声明Commit未发生；attempt1在recover后Begin+Commit。双跑比较保留全部已发生语义时间，也绑定完整事前计划，无字段排除。"
+  }
+}

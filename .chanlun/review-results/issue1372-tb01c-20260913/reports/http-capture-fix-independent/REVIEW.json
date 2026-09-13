@@ -1,0 +1,43 @@
+{
+  "reviewer": "/root/r7_codex_product_review",
+  "runtime": "codex_native_subagent",
+  "status": "HTTP_CAPTURE_01_CLOSED_IN_REVIEWED_BYTES",
+  "candidate": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1372-codex/s_session/tests/tb01c_http_capture.cjs",
+    "copy": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/http-capture-fix-independent/source/s_session/tests/tb01c_http_capture.cjs",
+    "bytes": 24509,
+    "sha256": "cc0e3dc134deda93fcc64b6d6e2807a1e403ea509f81afbab882b8ff239c7397"
+  },
+  "original_sha256": "7212908128f14b56d7c006fc3fbb03276ca3a0b61f1013ea0c1a2ec96b980745",
+  "scope": "仅HTTP-CAPTURE-01介质失败闭合及健康正控，不继承为C整体通过",
+  "proof": {
+    "original_trigger_reused": "仅首次committed-candidate.json的fs.writeFileSync注入EIO，真实CLI/正式Client/自有loopback",
+    "prequeued": "load与queued-watch同一次stdin发送；输入原件已保存",
+    "fault": "6次HTTP完成Client私有load提交后记录fatal_recording_failure、full_state_installed=true、committed_but_not_archived=true；只1个stdout回执，退出1，queued-watch http目录为空且没有RESULT，queued_commands_not_executed精确列出它。",
+    "positive": "无注入同两条CLI命令均captured_validated_commit并退出0",
+    "result": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/http-capture-fix-independent/RESULT.json",
+      "sha256": "a72e07dfe37b2da28dfc5d329037f5a1ab3a0753a972731227c8b2ad90c3b6d6",
+      "json_pointers": [
+        "/checks/0",
+        "/checks/1"
+      ]
+    }
+  },
+  "execution": {
+    "command": "node /Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/http-capture-fix-independent/probe.cjs",
+    "exit_code": 0,
+    "owned_cli_processes": 2,
+    "http_requests": 18,
+    "fault_child_exit": 1,
+    "healthy_child_exit": 0,
+    "fatal": null
+  },
+  "static_reading": "完整SOURCE.diff；RecordingError包裹write/open/writeSync/closeSync；execute归档失败后清队列并抛出；enqueue与pump拒后续处理。未修改生产私有cut。",
+  "limitations": [
+    "只有自有loopback响应，历史payload按本次请求重新封头；不是当前Q/S/GUI证据。",
+    "介质异常不是正常业务拒绝，当前失败状态诚实描述已安装未归档；不能声称回滚旧cut。",
+    "旧报告和原例不改；未扩大检查其它产品功能。"
+  ],
+  "sources_unchanged": true
+}

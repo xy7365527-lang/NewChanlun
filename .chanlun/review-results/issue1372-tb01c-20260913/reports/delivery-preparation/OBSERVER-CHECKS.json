@@ -1,0 +1,38 @@
+{
+  "head": "18ee720a02e4c4bb4fd8447ab99e6ef518957e14",
+  "checks": [
+    {
+      "name": "observer-python",
+      "argv": [
+        "/Users/silencehan/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/bin/python3.11",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "s_session/tests",
+        "-p",
+        "test_tb01c_*.py",
+        "-v"
+      ],
+      "exit": 0,
+      "seconds": 0.7007589580025524
+    },
+    {
+      "name": "observer-node",
+      "argv": [
+        "node",
+        "s_session/tests/test_tb01c_browser.cjs"
+      ],
+      "exit": 0,
+      "seconds": 2.7177105419978034
+    }
+  ],
+  "source_sha256": {
+    "s_session/tests/test_tb01c_browser.cjs": "960b3a0ca2d862df1fd013442bb51a0abc457754a9b5bc1790b6c6ec9e250601",
+    "s_session/tests/test_tb01c_compare.py": "f0123fcf17cde919d619d131fed44ecfa25d3b7506dc8ba791ad5af1b35a53ef",
+    "s_session/tests/test_tb01c_runtime_evidence.py": "f1671416662c773442da14c592d0bc891e882d9034e15b3edecef28a481a5029",
+    "s_session/tests/test_tb01c_service_control.py": "23bd87c495e8dcdf8d532453532b415e5caea5ea7aaed30a69c57f9b25575ced",
+    "s_session/tests/test_tb01c_socket_client.py": "893171b5cd6d8fffc66f632f9207be4d6fc10f49703beb08d8f7c51d25fc40a6"
+  }
+}

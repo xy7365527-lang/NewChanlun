@@ -1,0 +1,43 @@
+{
+  "reviewer": "/root/r7_codex_product_review",
+  "ticket": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/TB01C-ENTRY-READINESS.json",
+    "bytes": 10508,
+    "sha256": "073e65c5da0d693d85d492671ca853b1e4b50443450a707443ac79adf004902c"
+  },
+  "signed_spec": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/review-package-r7/inputs/candidate/.chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/SPEC.md",
+    "bytes": 68412,
+    "sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11",
+    "lines": [
+      310,
+      341
+    ]
+  },
+  "actual_semantic_reading": [
+    "R5A/B全部495记录、160消息/receipts/真实Delta/batch原BLOB、15表schema完整字段、事件951/928及原500ms计划",
+    "两臂全部121/113 HTTP调用、完整119/111响应、全部公共页/所有Watch/Gap/oldtoken与五安装候选",
+    "当前GUI 11 ASCII导出双层解码/四完整候选/Watch157..160整帧、过滤完成补验与修订详情",
+    "已具名旧独评报告限域复用；Rust仅他人独评，不自评源码",
+    "root打包README八AC映射；冻结DevSkim RUN/JOB/checkout/log facts",
+    "最终DevSkim作者SUMMARY全文只作具名分诊继承；明确未自行重审345项。另逐事件核事前clock slots及权威第487行实际phase计数。"
+  ],
+  "hash_only_or_index_reading": [
+    "两臂全封存manifest：A1164件、B2203件（含GUI1079件）逐字节hash；有些文件仅hash",
+    "源458件每臂，22个root Git文件每臂绑定3ff；其余436为冻结构建/源/运行材料，未在本轮语义重读所有Rust文件",
+    "GUI964 network附件hash全核，语义以完整候选与真实Watch原帧而非逐附件重判"
+  ],
+  "not_performed": [
+    "本次独评仅封存文件与纯解析；不访问API/浏览器/SQL连接、不启动任何S/Q、不重跑native/GUI、不修改产品/refs/GH。工具边界是任务指令，不是OS沙盒声明。",
+    "全manifest字节读过不等于全文件语义阅读；HTTP公共页/帧与候选按独立投影器解析，GUI964网络附件只核完整hash，未逐页二次语义解码；四完整候选与完整实际Watch帧已解析。",
+    "没有重新生成每次中间SQLite capture_digest；只核来源、格式与一致绑定。新鲜门与digest算法由具名Q源增量独评和副本反例支持。",
+    "本代理曾实施Rust，不对自己的Rust产品代码独立签名；Rust结论依已读的他人P3、P4和queue门独评及冻结源绑定。此处独立比较运行事实不等于新Rust源码评审。",
+    "TestOnly CC006 tick1:1 OHLC、相邻无包含、固定初始化方向、无同价竞争；116目录记录不等于116分类算法均运行。本票不关闭#1323全图、经济链或#1448旧R6迁移。",
+    "有限160输入和已声明资源窗口不推出无界负载/任意长历史/生产容量。受限响应/捕获会拒绝，未测环境不算PASS。"
+  ],
+  "input_ledger": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/INPUTS.json",
+    "bytes": 1136447,
+    "sha256": "a37dddbcf47082e0c7a8190b44d63af488de57a4969b84f6d6db5319a9397334"
+  }
+}

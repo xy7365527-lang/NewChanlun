@@ -1,0 +1,550 @@
+[
+  {
+    "path": "rust/src/bin/s_session_v2/mod.rs",
+    "bytes": 71635,
+    "sha256": "e89e62bf0d4570b21b00c2bc555df9f19062482cb5cd231530a9ef7ceb1903df",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "rust/src/bin/s_structure_session.rs",
+    "bytes": 253395,
+    "sha256": "35233d1967650bf5fb0c7f09038f86716f286516bf87ba4711673cf96ecb085f",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "s_session/s_readonly_server.py",
+    "bytes": 58800,
+    "sha256": "3739cd7f306eda44994e3939c0388174de65f265923ce19a661f0d7794893ce0",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/r13_integrity.py",
+    "bytes": 7891,
+    "sha256": "8991739d14a876bbf7d20430ab227e935b8dd968322d30297ba01757bea10e21",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/r9_contract.py",
+    "bytes": 15817,
+    "sha256": "89eeaff7430a098c4abaf239b71f0d684da6dd1f53038dba9d2f84667cdadc2f",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/audit.rs",
+    "bytes": 12961,
+    "sha256": "1f872e576817d2dc99b8631c57265a0288ecabd5240ea67de295e532a3cce7d2",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/mod.rs",
+    "bytes": 74983,
+    "sha256": "e3fffbafb8788c5ddf1a1c1f296ba6182c978e5d06d0a5826bd1a7714df5f739",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "rust/src/bin/s_structure_session.rs",
+    "bytes": 248431,
+    "sha256": "36e2db45d557cc3258edc5123d14f47f468a550bf01893511cbad4a8690551ae",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "s_session/s_query.py",
+    "bytes": 23831,
+    "sha256": "09a5619da9dcf5fda6967a5725a4c6dd2aea14db777506e44719b47142b3163a",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/s_query_integrity.py",
+    "bytes": 51406,
+    "sha256": "92a0ac309cb036e510f2dbf0e9bb7cd850779c3bf620c336efc05cda79f74b20",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/s_readonly_server.py",
+    "bytes": 51823,
+    "sha256": "a1ac9b93802cfc732d413675ffe13afacc91c62bda0d16407fd8700bf2b93466",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/tb01c_query_tests.py",
+    "bytes": 21082,
+    "sha256": "874996f9d0a4ffa2e15921ae458d36659f782ef95a029244502d1219d57fa640",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/tb01c_query_v2.py",
+    "bytes": 11152,
+    "sha256": "7d70325d9d03794b020b8bf250ced94665e80d415ce85eb053e8063180f79ce6",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/mod.rs",
+    "bytes": 84264,
+    "sha256": "491392d21580bd9a3ec1a91bc497768222d9750dc5aa977f31436fbe4c3042cf",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "s_session/s_query_integrity.py",
+    "bytes": 52259,
+    "sha256": "406ae4f8082b49eaf0e0b5c4d47691593f6b48f283c0057cff309aff0471a749",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/tb01c_query_tests.py",
+    "bytes": 23966,
+    "sha256": "add3d3798ae738021d29579fbfa00a129ae5c836895e556901c0141db216e0a5",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/tb01c_query_v2.py",
+    "bytes": 12047,
+    "sha256": "3c14298fd19843fad7ee52c52659b673cdcf6b5896fa91d37676d191684a0c58",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/s_query.py",
+    "bytes": 23968,
+    "sha256": "11e217b8c7c5d42a74ac919cf7f1e78a18b4c5d4b2e9afc60a82dd1efffb9731",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/s_query_integrity.py",
+    "bytes": 52954,
+    "sha256": "0abd7e1556c5d05d732d93f5b0e77dff1ad495f94f619011074a4f34b0f1a73d",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/tb01c_query_tests.py",
+    "bytes": 24738,
+    "sha256": "5d8ac267b11e6369ebc0ba51144dccfb2c1d882dede2d3b11efab9409a961a02",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/audit.rs",
+    "bytes": 16737,
+    "sha256": "7dfd60f7b589091c37b37154e8b8525fe80c62736f0ce0afa83048f86e8e1bfa",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/cache.rs",
+    "bytes": 4348,
+    "sha256": "ac75fd1ff4dda4e453b1b2a3e2c3e9001fea672cc99a03548d79b1b639c60b9e",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/mod.rs",
+    "bytes": 92340,
+    "sha256": "fca526fe8a79e7fbff53b4b482775defa5022b8cd05fded1e25fad0d165c959f",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "rust/src/bin/s_structure_session.rs",
+    "bytes": 249399,
+    "sha256": "031e8e01dc483fe3346e9cee24a926ce70bde8b199e49ac3f7499e2188e0fed2",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "rust/src/bin/s_session_v2/mod.rs",
+    "bytes": 93827,
+    "sha256": "64f8d0a8307e5c3f4173be94491b1e3cd4104276dce246d0cc544700e0746a6a",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "s_session/s_query.py",
+    "bytes": 24902,
+    "sha256": "ce51b7a72de1bf1ab869da9e1498bc8ef95e3458981b847aaab033453268ad65",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/s_query_integrity.py",
+    "bytes": 57869,
+    "sha256": "eeef35dd6c65a158237b1380e987e8c0eed184efcada64f65ffffd1fb169cfbf",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/s_readonly_server.py",
+    "bytes": 51924,
+    "sha256": "a025f706271a1ae73697b0e330871bd2988f3c3ce1a3b6271d15e257c3ca0ca8",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/tb01c_query_tests.py",
+    "bytes": 28609,
+    "sha256": "c4bc43d9d928707f7fa69643fee945c510654f5a55547fa8bb87408d85f8019c",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/browser/index.html",
+    "bytes": 47080,
+    "sha256": "25e9469a7913d3a181d26bd6bfc3e8f6698fc3d71bfdd92511c1c0168aad6639",
+    "status": "PASS",
+    "method": "HTMLParser摘取全部内嵌可执行script + node --check，非DOM运行",
+    "scripts": [
+      {
+        "index": 0,
+        "sha256": "e2fa17c754b51bf080722114ecc28ecdde691ef4d90cff57a695e05c5ab324b7",
+        "exit_code": 0,
+        "stderr": ""
+      }
+    ]
+  },
+  {
+    "path": "s_session/browser/tb01c-client.js",
+    "bytes": 29266,
+    "sha256": "f0a86251506633f73958b56c1978a9c8774d670d13486165bbcfe8b59033b060",
+    "status": "PASS",
+    "method": "node --check",
+    "argv": [
+      "node",
+      "--check",
+      "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/f0a86251506633f73958b56c1978a9c8774d670d13486165bbcfe8b59033b060.js"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "s_session/launch_s.sh",
+    "bytes": 9636,
+    "sha256": "e8c75555c885684addc2c384dd65656a742cdf5567557f7c176c3cc218e0e487",
+    "status": "PASS",
+    "method": "bash -n",
+    "argv": [
+      "bash",
+      "-n",
+      "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/e8c75555c885684addc2c384dd65656a742cdf5567557f7c176c3cc218e0e487.sh"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "s_session/s_service_control.py",
+    "bytes": 29333,
+    "sha256": "7811bd5562b9df0a5d9d306f14d86d6a2ad2b7e681d02804645369e0ef2ffcef",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/s_socket_client.py",
+    "bytes": 7434,
+    "sha256": "7f14b63c3c84cdf9c1b1368e3e135da560e52dc1945cdaf4e6e5f7d9f5933cae",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/MANIFEST.json",
+    "bytes": 8308,
+    "sha256": "6e41985da0791592163187a454d24651493843369689862320b4f507aa069b29",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/RUNTIME-MANIFEST.json",
+    "bytes": 1052,
+    "sha256": "ce8b7dc5cdbf8436b69bdcdcf6de4b268503b21f4f279536d33d57af0fae2991",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/clock-plan.json",
+    "bytes": 32493,
+    "sha256": "3d7d0470f9e6e358e645b3e757b85ed212d45bb0024f9a90b6919bebc4001709",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/live-input.json",
+    "bytes": 15289,
+    "sha256": "c6d5b7bbdad2b4e3be0980159b2810fee0a1cc460b9395deb23ece79d876345f",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/messages.jsonl",
+    "bytes": 136704,
+    "sha256": "29a202bf4a94e69ed503db54e1e30c52d052616447bbd1c4f37488169cc8ac58",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/operation-schedule.json",
+    "bytes": 252835,
+    "sha256": "34904c1c774ab5088ea43870b204a999b48234b6cc629de301af705d6d8e6f87",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/operation-schedule.jsonl",
+    "bytes": 199028,
+    "sha256": "daffb9ecf2c63d757bca49dbc34dc65bf926c4f4394078ff578bc3f0602f5b88",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/profile.json",
+    "bytes": 409,
+    "sha256": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/query-resources.json",
+    "bytes": 571,
+    "sha256": "36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/raw-input.json",
+    "bytes": 37733,
+    "sha256": "b83542e6ad6af3a4da27768601c7f9a2e019a6cae77e4c8785e5f0e9edf6772a",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/raw-input.jsonl",
+    "bytes": 57184,
+    "sha256": "bc94f1e7fddde4c726fac9b60a12178420cd55fb37a4e9a1c598ef20bd18eb1d",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/runtime-plan.json",
+    "bytes": 4104,
+    "sha256": "18e9b3cd6cb5f17ba715b09405995b68b627bcd696ba457de790dfa9a51125c3",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/fixtures/tb01c/seed-input.json",
+    "bytes": 22673,
+    "sha256": "423dc00069462ba23fdc32c07310d1553f29e3e226893814df5185efff31b23f",
+    "status": "PASS",
+    "method": "JSON语法解码；不等于fixture语义验证"
+  },
+  {
+    "path": "s_session/tests/tb01c_compare.py",
+    "bytes": 6126,
+    "sha256": "73d46806b792b17519aa3ad3bcc0128d0e6af26b09a4fec4a9d66e3ceffcf347",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/tb01c_http_capture.cjs",
+    "bytes": 24509,
+    "sha256": "cc0e3dc134deda93fcc64b6d6e2807a1e403ea509f81afbab882b8ff239c7397",
+    "status": "PASS",
+    "method": "node --check",
+    "argv": [
+      "node",
+      "--check",
+      "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/cc0e3dc134deda93fcc64b6d6e2807a1e403ea509f81afbab882b8ff239c7397.cjs"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "s_session/tests/tb01c_load_report.py",
+    "bytes": 6016,
+    "sha256": "d3a6edf39b6315c40dd44bbf095690b1d1225b36aa97dd01f3f02ae84f6332ce",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/tb01c_query_v2.py",
+    "bytes": 12235,
+    "sha256": "a3e8546c0acd09d792ce4dc8a8c7c3840ca782d008a2fa7268541c67e1bb7b22",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/tb01c_runtime.py",
+    "bytes": 24807,
+    "sha256": "d2689b9b6e61ddb5430e7df075787977e65c119d08bc34da21773ccb8a1a96ca",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/test_tb01c_browser.cjs",
+    "bytes": 19789,
+    "sha256": "6a35f6fe4d8361467593deb741ff649b04ca57493d7a6be94941f7663b512a92",
+    "status": "PASS",
+    "method": "node --check",
+    "argv": [
+      "node",
+      "--check",
+      "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/6a35f6fe4d8361467593deb741ff649b04ca57493d7a6be94941f7663b512a92.cjs"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "s_session/tests/test_tb01c_compare.py",
+    "bytes": 4537,
+    "sha256": "f0123fcf17cde919d619d131fed44ecfa25d3b7506dc8ba791ad5af1b35a53ef",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/test_tb01c_runtime_evidence.py",
+    "bytes": 4912,
+    "sha256": "3323efff944d42a61253d64de7b156c3658229bba4d14d9a47e725389478b7e8",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/test_tb01c_service_control.py",
+    "bytes": 28133,
+    "sha256": "23bd87c495e8dcdf8d532453532b415e5caea5ea7aaed30a69c57f9b25575ced",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/test_tb01c_socket_client.py",
+    "bytes": 6706,
+    "sha256": "893171b5cd6d8fffc66f632f9207be4d6fc10f49703beb08d8f7c51d25fc40a6",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/tb01c_runtime.py",
+    "bytes": 25183,
+    "sha256": "0a7ad225773c05c0f16dcd883ac3be134ab4f72354ca6d1b824d31301017480a",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/test_tb01c_runtime_evidence.py",
+    "bytes": 6023,
+    "sha256": "f1671416662c773442da14c592d0bc891e882d9034e15b3edecef28a481a5029",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/browser/tb01c-client.js",
+    "bytes": 29406,
+    "sha256": "1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c",
+    "status": "PASS",
+    "method": "node --check",
+    "argv": [
+      "node",
+      "--check",
+      "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c.js"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "s_session/tests/test_tb01c_browser.cjs",
+    "bytes": 21281,
+    "sha256": "960b3a0ca2d862df1fd013442bb51a0abc457754a9b5bc1790b6c6ec9e250601",
+    "status": "PASS",
+    "method": "node --check",
+    "argv": [
+      "node",
+      "--check",
+      "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/960b3a0ca2d862df1fd013442bb51a0abc457754a9b5bc1790b6c6ec9e250601.cjs"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "s_session/launch_s.sh",
+    "bytes": 10512,
+    "sha256": "28e052bb0ec7f77bddfac932c602f89c2e0eb4d902df2e451c35da09b03cad0f",
+    "status": "PASS",
+    "method": "bash -n",
+    "argv": [
+      "bash",
+      "-n",
+      "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/commit-check-inventory/syntax-inputs/28e052bb0ec7f77bddfac932c602f89c2e0eb4d902df2e451c35da09b03cad0f.sh"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "s_session/README.md",
+    "bytes": 17925,
+    "sha256": "b15a4f107e7fa879b20dd0878730deed333f0a1e8f830dcec1a0cd8320d892c1",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "s_session/README.md",
+    "bytes": 18110,
+    "sha256": "9b9e80c58d5cc71b165ea2becb5c9cbe2c599cfbd21424a0fa14f01be5ab1b4b",
+    "status": "NOT_APPLICABLE"
+  },
+  {
+    "path": "s_session/s_readonly_server.py",
+    "bytes": 52275,
+    "sha256": "5118f3f53f199413000918f3d5c36bae391c8b13ade7afc2b174773da8a790dd",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/s_service_control.py",
+    "bytes": 29333,
+    "sha256": "bab9162f5054d1fadc72d55783f0289981a8b41b89fce0e48348d66682603bad",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/tb01c_query_tests.py",
+    "bytes": 29156,
+    "sha256": "393982272b727472c7167b67c1cf4615bdc5f5cb6ff31eda8892913401083822",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/r9_contract.py",
+    "bytes": 16843,
+    "sha256": "9a307a82fcb0fc2d9121a5b56ce4d9812a1e048cb5238c4a70f14eb0fee8fc99",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/s_query_integrity.py",
+    "bytes": 59092,
+    "sha256": "d69fda491cbb52ead1a714bf942d5c8229ddd9d9f83dd4a17910515d101780bc",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": "s_session/tests/tb01c_query_tests.py",
+    "bytes": 31014,
+    "sha256": "74d4e9b8d5d8516b8dd2903e291dfb7f769c397f7e6300855ff0e077bc4a82e4",
+    "status": "PASS",
+    "method": "Python AST + compile(exec), 不导入/执行，不证明依赖可用"
+  },
+  {
+    "path": ".github/workflows/ci.yml",
+    "bytes": 15365,
+    "sha256": "e74bdcb4d40dab700c2f5615d88395359714423070b1b8c075aec6b0777b9261",
+    "status": "PASS",
+    "method": "PyYAML语法解析；不模拟GitHub Actions表达式/runner"
+  }
+]

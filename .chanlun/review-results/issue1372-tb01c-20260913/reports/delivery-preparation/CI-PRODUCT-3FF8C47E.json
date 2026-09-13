@@ -1,0 +1,65 @@
+{
+  "captured_at": "2026-09-13T10:48:05.903060+00:00",
+  "scope": "产品候选3ff8c47e的实际远端检查；后续纯报告提交尚不在本收据内",
+  "pr": {
+    "baseRefOid": "e46cf3bca6a67da821f9ab046507563b8133f6d9",
+    "headRefOid": "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f",
+    "isDraft": true,
+    "mergeStateStatus": "UNSTABLE",
+    "number": 1451,
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-13T10:28:47Z",
+        "conclusion": "FAILURE",
+        "detailsUrl": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34751431403/job/103708534271",
+        "name": "DevSkim",
+        "startedAt": "2026-09-13T10:16:46Z",
+        "status": "COMPLETED",
+        "workflowName": "DevSkim"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-13T10:21:01Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34751431336/job/103708534089",
+        "name": "test",
+        "startedAt": "2026-09-13T10:16:46Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-13T10:24:22Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34751431336/job/103708534137",
+        "name": "rust-check",
+        "startedAt": "2026-09-13T10:16:46Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-13T10:17:24Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34751431336/job/103708534151",
+        "name": "s-observer",
+        "startedAt": "2026-09-13T10:16:46Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-13T10:18:23Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34751431336/job/103708534042",
+        "name": "fixture-drift",
+        "startedAt": "2026-09-13T10:16:46Z",
+        "status": "COMPLETED",
+        "workflowName": "CI"
+      }
+    ],
+    "title": "feat: 持续结构会话的固定 cut 分页与断线续接 (#1372)",
+    "url": "https://github.com/xy7365527-lang/NewChanlun/pull/1451"
+  }
+}

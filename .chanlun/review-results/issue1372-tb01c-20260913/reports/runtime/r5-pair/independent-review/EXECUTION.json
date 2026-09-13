@@ -1,0 +1,143 @@
+{
+  "runtime": "codex_native_subagent",
+  "identity": "/root/r7_codex_product_review",
+  "only_offline_parsing_and_hashing": true,
+  "product_tests": 0,
+  "services_started": 0,
+  "sql_connections": 0,
+  "git_operations": "只读git show固定3ff绑定22源文件/臂，无Git变更",
+  "runs": [
+    {
+      "name": "R5-A",
+      "exit_code": 0,
+      "stdout": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-A.stdout",
+        "bytes": 1262,
+        "sha256": "739edfced09a3d4854e93d7e76c43ec02924003605403a574ec13850ee9a2462"
+      },
+      "stderr": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-A.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "R5-B",
+      "exit_code": 0,
+      "stdout": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B.stdout",
+        "bytes": 1267,
+        "sha256": "1c6f6ad3d3e6772bee92e880b7dd28133d6dbe76b066c452cb3df7d0e6e068c5"
+      },
+      "stderr": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "R5-A-HTTP",
+      "exit_code": 0,
+      "stdout": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-A-HTTP.stdout",
+        "bytes": 2616,
+        "sha256": "70b846684888b53ce9e1263bdbaee8b6ce8dcb1345b2ff3ccaccedb37181e46c"
+      },
+      "stderr": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-A-HTTP.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "R5-B-HTTP",
+      "exit_code": 0,
+      "stdout": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B-HTTP.stdout",
+        "bytes": 2616,
+        "sha256": "ada964d8e1d3f7b0b4244c374aae080bf459003345117d39e26590073e64a0ab"
+      },
+      "stderr": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/R5-B-HTTP.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "GUI",
+      "exit_code": 1,
+      "stdout": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/GUI.stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/GUI.stderr",
+        "bytes": 503,
+        "sha256": "bad575b667c5bb2549abe500791a6e44a147cd1da72030bf682d34937de51562"
+      }
+    },
+    {
+      "name": "GUI-V2",
+      "exit_code": 1,
+      "stdout": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/GUI-V2.stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/GUI-V2.stderr",
+        "bytes": 375,
+        "sha256": "a69c1f4251615e840b68bf4a3e95626a893cbdcb3ae44ff4d0f2cc844b34e53b"
+      }
+    },
+    {
+      "name": "GUI-V3",
+      "exit_code": 0,
+      "stdout": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/GUI-V3.stdout",
+        "bytes": 3390,
+        "sha256": "b4b1487d7b4aed5c603f5ddf3c72d89952e4c18fac1eb263fca7c2ea7a2b633a"
+      },
+      "stderr": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/GUI-V3.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "SEAL",
+      "exit_code": 1,
+      "stdout": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/SEAL.stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/SEAL.stderr",
+        "bytes": 434,
+        "sha256": "ab4a701e7403f60cd0a019896a7c08c04acd10c55e98e7479229a81e6e1bb58d"
+      }
+    },
+    {
+      "name": "SEAL-V2",
+      "exit_code": 0,
+      "stdout": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/SEAL-V2.stdout",
+        "bytes": 4037,
+        "sha256": "0ef4dcf85ecafe541712d14b756a487c8f10848c3daa5bdefdb174e5825af3c9"
+      },
+      "stderr": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/runtime/r5-pair/independent-review/SEAL-V2.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "preserved_harness_failures": {
+    "id": "REVIEW-HARNESS-ATTEMPTS",
+    "status": "HARNESS_ERRORS_PRESERVED",
+    "detail": "GUI v1过窄脚本文字断言、v2假设click stderr为空（实际仅browse升级提示）；v3精确识别原脚本和该提示并核clicked:true。seal v1假设A/B stop包字段相同，B实际exit/result/expected_pids；v2分别严格核两种原shape。原stdout/stderr/脚本全部保留，不计产品失败，也不隐藏执行失败。"
+  },
+  "image_inspection": "view_image实际查看revised-instance.png（本轮上下文前半段）；文字/字段另外以ASCII解析，不以图片数量代替语义"
+}
