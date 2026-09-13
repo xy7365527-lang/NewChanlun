@@ -350,10 +350,10 @@ class QueryTests(unittest.TestCase):
 
     def test_real_http_legacy_health_and_corruption_without_s_socket(self):
         server = self.server()
-        def get():
+        def get(path="/api/state"):
             conn = http.client.HTTPConnection(*server.server_address, timeout=3)
             try:
-                conn.request("GET", "/api/state")
+                conn.request("GET", path)
                 response = conn.getresponse()
                 return response.status, json.loads(response.read())
             finally:
@@ -363,8 +363,16 @@ class QueryTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["producer_epoch"], "7")
         self.assertEqual(result["control_instance_id"], "test-only-start-nonce")
+        ready_status, ready = get("/api/ready")
+        self.assertEqual(ready_status, 200)
+        self.assertEqual(ready, {key: result[key] for key in ("ok", "cut", "producer_epoch", "control_instance_id")})
+        for path in ("/api/ready?as_of=0", "/api/ready?ignored=1"):
+            invalid_status, invalid = get(path)
+            self.assertEqual((invalid_status, invalid["error"]), (400, "InvalidQuery"))
         self.mutate("UPDATE raw_events SET price='changed' WHERE seq=0")
         status, result = get()
+        self.assertEqual((status, result["error"]), (503, "StorageUnavailable"))
+        status, result = get("/api/ready")
         self.assertEqual((status, result["error"]), (503, "StorageUnavailable"))
 
     def test_fixed_static_script_route_and_no_path_traversal(self):

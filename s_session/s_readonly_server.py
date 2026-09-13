@@ -898,11 +898,11 @@ class Handler(BaseHTTPRequestHandler):
         audit = _query_integrity()
         try:
             proof = self.server.query_reader().capture_verified()
-            if kind in ("state", "catalog", "snapshot"):
+            if kind in ("ready", "state", "catalog", "snapshot"):
                 state = audit.project_state(proof, as_of, globals())
                 if proof["protocol"] is not None:
                     state["cut"]["session_generation"] = proof["protocol"]["session_generation"]
-                payload = state if kind == "state" else state[kind]
+                payload = {"cut": state["cut"]} if kind == "ready" else state if kind == "state" else state[kind]
             elif kind == "delta":
                 payload = _delta_from_proof(proof, after_generation)
             elif kind == "meta":
@@ -910,7 +910,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 raise InvalidQuery("未知只读操作")
             response = dict(payload, ok=True, producer_epoch=str(self.server.producer_epoch))
-            if kind == "state":
+            if kind in ("ready", "state"):
                 # 控制器启动诊断；不进入 v2 公共业务头、投影摘要或语义重放。
                 response["control_instance_id"] = self.server.control_instance_id
             body = serialize_payload(response)
@@ -1035,6 +1035,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": False, "error": "browser file not found"}, 404)
             except OSError as e:
                 self._send_json({"ok": False, "error": "browser unreadable", "detail": str(e)}, 503)
+            return
+        if path == "/api/ready":
+            if query:
+                self._send_json({"ok": False, "error": "InvalidQuery", "detail": "就绪控制读口只核当前会话，不接受查询参数"}, 400)
+                return
+            self._read_only("ready")
             return
         if path == "/api/state":
             self._read_only("state", query, as_of=as_of)

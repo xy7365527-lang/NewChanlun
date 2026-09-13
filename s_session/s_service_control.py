@@ -74,7 +74,7 @@ def read_health(port, deadline):
     limit = 1024 * 1024
     with socket.create_connection(("127.0.0.1", int(port)), timeout=remaining(deadline)) as connection:
         connection.settimeout(remaining(deadline))
-        connection.sendall(b"GET /api/state HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+        connection.sendall(b"GET /api/ready HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
         raw = bytearray()
         header_end = -1
         while True:
