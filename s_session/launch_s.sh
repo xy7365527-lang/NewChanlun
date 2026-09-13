@@ -16,6 +16,8 @@
 #   ./s_session/launch_s.sh --input <输入.json> --profile <profile.json> [--db <sqlite路径>] [--port <端口>] [--build]
 #   ./s_session/launch_s.sh --testonly [--db <sqlite路径>] [--port <端口>] [--build]   # 显式选择 TestOnly 档案
 #   ./s_session/launch_s.sh stop [--port <端口>]
+#   ./s_session/launch_s.sh service <start|start-s|start-q|status|stop|stop-s|stop-q|recover> \
+#       --config <s-launcher-v2.json> --state-dir <专属控制目录> [恢复/信号参数]
 #   覆盖：--bin <s_structure_session 路径> --python <python3 路径>
 set -euo pipefail
 
@@ -37,6 +39,13 @@ DO_RESET=0
 CATALOG="$HERE/catalog/signed-catalog.json"
 BROWSER="$HERE/browser/index.html"
 SESSION_ID="${SESSION_ID:-s-session-testonly-001}"
+
+# #1372：同一正式 launcher 的常驻入口；运行配置显式指定已构建 binary/Python/profile/clock。
+# S/Q 各自启动、验证和停止，查询进程失败不触发终止 S 的清理 trap。
+if [[ "${1:-}" == "service" ]]; then
+  shift
+  exec "${PYO3_PYTHON:-python3}" "$HERE/s_service_control.py" "$@"
+fi
 
 # 从候选 Python 的 sysconfig 取实际 LIBDIR 与 LDLIBRARY 并核真实文件——兼容 .so / .dylib
 # （macOS LDLIBRARY=libpython3.11.dylib，Linux=libpython3.11.so），不写死任一平台路径。

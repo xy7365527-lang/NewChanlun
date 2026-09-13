@@ -103,7 +103,8 @@ def main():
             assert zero["fixed_cut"]["profile_id"] == initial["meta"]["profile_id"]
             process = subprocess.Popen([binary,"serve","--db",str(db),"--socket",str(endpoint),"--writer-epoch","1",
                 "--profile",str(profile),"--clock-plan",str(clock_path),"--max-frame-bytes","1048576",
-                "--read-timeout-ms","2000","--write-timeout-ms","2000","--queue-capacity","8","--max-connections","8"],
+                "--read-timeout-ms","2000","--write-timeout-ms","2000","--response-timeout-ms","10000",
+                "--audit-cache-source-bytes","268435456","--queue-capacity","8","--max-connections","8"],
                 env=env,stdout=log,stderr=log,start_new_session=True)
             deadline = time.monotonic()+5
             while not endpoint.exists():
@@ -151,7 +152,8 @@ def main():
             assert recovery.returncode == 0, recovery.stderr
             recovered = qreader.capture_verified()
             assert recovered["meta"]["writer_epoch"] == "2"
-            assert recovered["tables"]["writer_epoch_history"][0]["advance_state_at_transition"] == "idle"
+            with closing(reader.open_readonly(db)) as check:
+                assert check.execute("SELECT advance_state_at_transition FROM writer_epoch_history ORDER BY ordinal").fetchall() == [("idle",)]
             assert post({"op":"snapshot","snapshot_token":old_token},"after-recover")["cut_projection_digest"] == first_digest
             corruption_cases = {
                 "begin_wrong_publication": "UPDATE s_clock_events SET generation=2 WHERE phase='begin' AND clock_event_id='op-0'",

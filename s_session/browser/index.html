@@ -97,7 +97,8 @@
   <section id="stream-section">
     <h2>同源 Watch（持久 StructureDelta 续接 + 与同 cut Snapshot 逐字段对拍）</h2>
     <div class="controls">
-      <button id="btn-stream" type="button">读取新 Delta（同源 /api/delta）</button>
+      <button id="btn-stream" type="button" disabled>读取新 Delta（同源 /api/delta）</button>
+      <button id="btn-live" class="hidden" type="button">开始持续读取（500 ms）</button>
       <span class="muted" id="stream-cursor"></span>
     </div>
     <div id="stream-result"></div>
@@ -121,6 +122,7 @@
     </table>
   </section>
 </main>
+<script src="/tb01c-client.js"></script>
 <script>
 "use strict";
 let currentState = null;
@@ -136,6 +138,56 @@ let appliedRawHistory = new Map();
 let lastAppliedGen = "0";
 let sessionBinding = null; // {session_id, structure_cut, generation, catalog_revision}
 let pageEpoch = 0;          // 请求代际：晚到响应不覆盖新提交
+let v2Detected = false, v2Client = null, v2Discovery = null;
+let v2Live = false, v2Busy = false, v2Timer = null;
+
+function v2Polling() {
+  if (v2Timer !== null) { clearTimeout(v2Timer); v2Timer = null; }
+  document.getElementById("btn-live").textContent = v2Live ? "暂停持续读取" : "开始持续读取（500 ms）";
+  if (v2Live && !v2Busy) v2Timer = setTimeout(() => applyStream(), 500);
+}
+function v2Failure(error) {
+  v2Live = false;
+  v2Polling();
+  renderStatus("本次读取未验证；保留上次已提交切面。持续读取已暂停，可重试。", "err-box");
+  document.getElementById("stream-result").innerHTML = `<div class="err-box">${esc(error)}</div>`;
+}
+function ensureV2(discovery) {
+  if (v2Client) return;
+  if (typeof TB01C === "undefined") throw new Error("v2 校验模块未加载，无法验证分页");
+  v2Discovery = discovery;
+  v2Client = new TB01C.Client({hooks: {validateState, validateDelta, comparePublication}, onCommit(candidate, event) {
+    const state = candidate.state;
+    rebuildCommittedFromState(state);
+    syncModeUI(state.snapshot.history_mode === "AsKnown" ? "asof" : "current", state.snapshot);
+    renderAllFromState(state);
+    v2Discovery = {cut: {session_id: candidate.cursor.session_id, session_generation: candidate.cursor.session_generation}};
+    renderStatus("", "");
+    document.getElementById("stream-cursor").textContent =
+      `v2 已验证 ${candidate.cursor.base_cut} · session ${candidate.cursor.session_id} · 化身 ${candidate.cursor.session_generation}`;
+    const action = event.kind === "gap" ? `Gap ${event.reason}：已按返回 token 重建` :
+      event.kind === "watch" ? `Watch ${event.batches} 个完整批次：与各自同 cut 分页逐字段及顺序一致` : "完整固定切面分页已验证";
+    document.getElementById("stream-result").innerHTML = `<div class="${event.kind === "gap" ? "warn-box" : "ok-box"}">${esc(action)}；` +
+      `${candidate.pages} 页、六族 ${candidate.projection.rows.length} 条记录。状态与完整 cursor 已一并提交。</div>`;
+  }});
+  document.getElementById("btn-stream").textContent = "读取新批次（v2 Watch）";
+  document.getElementById("btn-live").classList.toggle("hidden", false);
+}
+async function loadV2(mode, generation, epoch) {
+  v2Busy = true; v2Polling();
+  try {
+    const normalized = mode === "asof" ? "AsKnown" : "RecomputedWithRevision";
+    if (mode !== "asof" && mode !== "current") throw new Error("未知状态查询模式");
+    await v2Client.load(v2Discovery, normalized, mode === "asof" ? generation : null);
+  } catch (error) { if (epoch === pageEpoch) v2Failure(error); }
+  finally { if (epoch === pageEpoch) { v2Busy = false; v2Polling(); } }
+}
+async function watchV2(epoch) {
+  v2Busy = true; v2Polling();
+  try { await v2Client.watch(); }
+  catch (error) { if (epoch === pageEpoch) v2Failure(error); }
+  finally { if (epoch === pageEpoch) { v2Busy = false; v2Polling(); } }
+}
 
 function esc(s) { const d = document.createElement("div"); d.textContent = String(s); return d.innerHTML; }
 function escAttr(s) { return esc(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
@@ -344,11 +396,13 @@ function validateEvidence(evidence, gen) {
 }
 const sourceKeys = ["profile_id", "profile_hash"];
 function bindingOf(snap) { return Object.fromEntries([...publicationKeys, ...sourceKeys].map(k => [k, deepClone(snap[k])])); }
-function validateSource(snap) {
+function validateSource(snap, protocol = "s-session/1") {
   requireKeys(snap, [...sourceKeys, "history_mode", "as_of_generation"], "Snapshot来源");
   if (sourceKeys.some(k => typeof snap[k] !== "string")) throw new Error("Snapshot profile非文本");
   if (snap.generation === "0") {
-    if (snap.profile_id !== "" || snap.profile_hash !== "") throw new Error("cut0不得回填未来profile");
+    if (protocol === "s-session/2") {
+      if (!snap.profile_id || !/^[a-f0-9]{64}$/.test(snap.profile_hash)) throw new Error("v2 cut0缺少已初始化profile身份");
+    } else if (snap.profile_id !== "" || snap.profile_hash !== "") throw new Error("cut0不得回填未来profile");
   } else {
     for (const k of sourceKeys) if (snap[k] !== snap.catalog_evidence[k]) throw new Error(`Snapshot/${k} 与同cut证据不一致`);
   }
@@ -358,7 +412,8 @@ function validateSource(snap) {
     throw new Error("history_mode/as_of_generation不一致");
   }
 }
-function validateState(state) {
+function validateState(state, protocol = "s-session/1") {
+  if (!["s-session/1", "s-session/2"].includes(protocol)) throw new Error("未知State校验协议");
   requireKeys(state, ["catalog", "snapshot", "cut"], "State");
   const cat = state.catalog, snap = state.snapshot;
   requireKeys(cat, publicationKeys, "Catalog"); requireKeys(snap, publicationKeys, "Snapshot");
@@ -376,7 +431,7 @@ function validateState(state) {
   requireArrays(snap, ["objects", "withdrawn_objects", "witnesses", "relations", "observations", "raw_history"], "Snapshot");
   validateExactRecords([snap.objects, snap.withdrawn_objects, snap.witnesses, snap.observations, snap.raw_history]);
   validateEvidence(snap.catalog_evidence, snap.generation);
-  validateSource(snap);
+  validateSource(snap, protocol);
   requireArrays(cat, ["items"], "Catalog");
   const cc = cat.items.filter(x => x.id === "CC-006");
   if (cc.length !== 1 || !exactJson(cc[0].evidence, snap.catalog_evidence) || cc[0].run_status !== snap.catalog_run_status)
@@ -444,6 +499,7 @@ function renderAllFromState(state) {
   const cat = state.catalog;
   const snap = state.snapshot;
   currentState = state;
+  document.getElementById("btn-stream").disabled = false;
   renderMeta(snap, cat);
   renderObjects(snap);
   renderWithdrawn(snap);
@@ -455,15 +511,23 @@ function renderAllFromState(state) {
 async function load(mode = "current", asOfGen) {
   const epoch = beginRequest();
   renderStatus("", "");
+  if (v2Detected) return loadV2(mode, asOfGen, epoch);
   try {
     const request = stateRequest(mode, asOfGen);
     const state = await fetchJson(request.url);
     if (epoch !== pageEpoch) return; // 晚到响应不覆盖新请求
+    if (state && state.cut && Object.hasOwn(state.cut, "session_generation")) {
+      // discovery 不安装 legacy 全量状态；发现 v2 后只走固定 token 分页。
+      v2Detected = true;
+      ensureV2(state);
+      return await loadV2(mode, asOfGen, epoch);
+    }
     validateRequestedState(state, request); // 先核本次请求及整份 state，再提交渲染
     syncModeUI(mode, state.snapshot);
     renderAllFromState(state);
   } catch (e) {
     if (epoch !== pageEpoch) return;
+    if (v2Detected) { v2Failure(e); return; }
     currentState = null;
     renderStatus("读取失败：" + e, "err-box");
     document.getElementById("mode-indicator").textContent = "未显示（本次请求失败）";
@@ -515,6 +579,7 @@ function rebuildCommittedFromState(state) {
   sessionBinding = bindingOf(snap);
 }
 async function applyStream() {
+  if (v2Detected) return watchV2(beginRequest());
   const el = document.getElementById("stream-result");
   const cursorEl = document.getElementById("stream-cursor");
   const epoch = beginRequest();
@@ -688,12 +753,20 @@ document.getElementById("btn-current").addEventListener("click", () => load("cur
 document.getElementById("btn-asof").addEventListener("click", () => {
   const g = document.getElementById("asof-input").value.trim();
   if (g === "" || !/^\d+$/.test(g)) {
+    if (v2Detected) {
+      beginRequest(); if (v2Client) v2Client.cancel(); v2Busy = false;
+      v2Failure(new Error("AsKnown 输入必须是规范十进制整数且 >= 0")); return;
+    }
     renderStatus("AsKnown 输入必须是规范十进制整数且 >= 0", "err-box");
     return;
   }
   load("asof", g).then(() => {}).catch(() => {});
 });
 document.getElementById("btn-stream").addEventListener("click", () => applyStream());
+document.getElementById("btn-live").addEventListener("click", () => {
+  if (!v2Detected || !v2Client || !v2Client.committed) return;
+  v2Live = !v2Live; v2Polling();
+});
 document.getElementById("catalog-table").addEventListener("click", event => {
   const button = event.target.closest("button[data-catalog-id]");
   if (!button || !currentState) return;
