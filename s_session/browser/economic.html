@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>逐重账簿 · 只读观察</title>
+<style>
+:root{color-scheme:dark;font:15px/1.6 system-ui;background:#0d1117;color:#e6edf3}body{max-width:1200px;margin:32px auto;padding:0 20px}h1{font-size:26px}h2{font-size:20px}a{color:#79c0ff}.muted{color:#9da7b1}button,input,select{font:inherit;background:#161b22;color:inherit;border:1px solid #485260;border-radius:5px;padding:7px 12px}button{cursor:pointer}.controls{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}article{border:1px solid #30363d;border-radius:8px;padding:20px;margin:20px 0}.metrics{display:flex;gap:36px;flex-wrap:wrap}.metrics strong{display:block;font-size:26px}.label{font-size:13px;color:#9da7b1}.error{color:#ff9892;border:1px solid #853c3c;padding:12px}.status{margin:16px 0;white-space:pre-wrap}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px;border-bottom:1px solid #30363d}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#161b22;padding:12px;max-height:420px;overflow:auto}summary{cursor:pointer}code{overflow-wrap:anywhere}#cuts{font-size:13px}#books:empty:after{content:"尚未取得账簿数据"}
+</style>
+</head>
+<body>
+<a href="/">结构观察</a>
+<h1>逐重账簿</h1>
+<p class="muted">受控历史事实 · 只读。各重独立保存；本金、阶段或开局依据缺失时会明确显示。</p>
+<div class="controls">
+<button id="current">读取当前账簿</button><button id="watch">读取后续变化</button>
+<label>已保存切面 <select id="history"><option value="">请选择</option></select></label>
+<button id="revisit">回看所选切面</button>
+<label>当时可知时间（纳秒） <input id="known-at" type="text" inputmode="numeric" size="20"></label>
+<button id="as-known">按时间回看</button>
+</div>
+<div id="status" class="status" role="status"></div><div id="cuts"></div>
+<main id="books"></main><section id="external"></section>
+<script src="/tb01c-client.js"></script><script src="/tb03a-client.js"></script>
+<script>
+"use strict";
+const saved = new Map(), client = new TB03A.Client({onCommit:render});
+function el(tag, text, cls) { const node=document.createElement(tag); if(text!==undefined)node.textContent=text; if(cls)node.className=cls; return node; }
+function detail(title,value) { const d=el("details");d.append(el("summary",title),el("pre",JSON.stringify(value,null,2)));return d; }
+function metric(title,value){const d=el("div");d.append(el("span",title,"label"),el("strong",value));return d;}
+function voiceDetails(voice) {
+  const section=el("section");section.dataset.voice=voice.voice_id;
+  section.append(el("h3","Voice · "+(voice.identity.sigma==="Long"?"买方向":"卖方向")),
+    el("p","不可变身份 "+voice.voice_id,"muted"));
+  const table=el("table");
+  const fields=[
+    ["嵌套代际 n",voice.identity.n],
+    ["证书成立层",voice.structure_view.confirmation_level],
+    ["执行级",voice.structure_view.execution_level],
+    ["区间套梯级数",voice.structure_view.nest_depth],
+    ["冻结开局数量",voice.opening_basis.quantity],
+    ["首次获知时间（纳秒）",voice.first_known_ns]
+  ];
+  for(const [label,value] of fields){const row=el("tr");row.append(el("th",label),el("td",value));table.append(row);}
+  section.append(table,el("p","业务生命周期：尚无记录；责任尾账：未知。","muted"),
+    detail("载体、证书、数量来源与完整开局记录",voice));
+  return section;
+}
+function render(state) {
+  document.getElementById("status").textContent=(state.mode==="AsKnown"?"历史切面":"当前已知")+" · "+(state.completeness==="CompleteVector"?"各域已核对":"部分域不可用，见具体原因");
+  document.getElementById("status").className="status";
+  const books=document.getElementById("books"), external=document.getElementById("external"), cuts=document.getElementById("cuts");
+  books.replaceChildren();external.replaceChildren();cuts.replaceChildren(el("p","会话 "+state.session_id+" · 化身 "+state.session_generation,"muted"));
+  for(const [domain,view] of Object.entries(state.domains)){
+    cuts.append(el("div",domain+" · "+(view.status==="Available"?"提交 "+view.cut.commit_seq+" · "+view.cut.root_hash:"不可用")));
+    const card=el("article");card.dataset.domain=domain;
+    if(view.status!=="Available"){card.append(el("h2",domain),el("div",view.error,"error"));books.append(card);continue;}
+    if(domain==="E"){
+      card.append(el("h2","外部原始事实"),el("p","已记录 "+view.image.recorded.length+" 件；仍保留待核责任 "+view.image.pending.length+" 项。"),detail("原始字节、来源与待核记录",view.image));external.append(card);continue;
+    }
+    const b=view.image.book;
+    if(b===null){card.append(el("h2",domain),el("p","尚无已应用的非空开局原件。","muted"));books.append(card);continue;}
+    card.append(el("h2",b.symbol+" · 操作级别 "+b.operation_level),el("p","重身份 "+b.chong_id,"muted"));
+    const metrics=el("div",undefined,"metrics");metrics.append(metric("固定 Q",b.fixed_q),metric("实际数量",b.actual_quantity),metric("开局数量",b.opening_quantity));card.append(metrics);
+    const table=el("table"), labels={Pi:"累计已实现利润 Π",A:"已分配利润 A",W:"已提取利润 W",R:"留存储备 R"};
+    for(const [key,label] of Object.entries(labels)){const row=el("tr");row.append(el("th",label),el("td",b.income_book[key]));table.append(row);}card.append(table);
+    card.append(el("p","已列采购现金 "+b.known_cost_totals.acquisition_cash+"；已列佣金 "+b.known_cost_totals.commission+"；列明分量合计 "+b.known_cost_totals.listed_component_total+"。"));
+    card.append(el("p","本金与阶段："+b.unknown.principal_baseline.status+" / "+b.unknown.capital_phase.status,"muted"));
+    if(b.voice.status==="Bound"){
+      card.append(el("p","Voice 开局依据：已绑定 "+b.voice.records.length+" 份。"));
+      for(const voice of b.voice.records)card.append(voiceDetails(voice));
+    }else card.append(el("p","Voice 开局依据尚未绑定"+(b.voice.reason?" · "+b.voice.reason:"")));
+    card.append(detail("原始开局、Voice 身份与量纲",{opening_fact_ref:b.opening_fact_ref,voice:b.voice,units:b.units}),detail("逐项成本事件与缺项",{known_cost_components:b.known_cost_components,unknown:b.unknown}),detail("已应用事实、完整历史与原始回执",view.image));books.append(card);
+  }
+  if(state.completeness==="CompleteVector"&&!saved.has(state.snapshot_token)){
+    saved.set(state.snapshot_token,state);const option=el("option",Object.entries(state.domains).map(([d,v])=>d+":"+v.cut.commit_seq).join(" / "));option.value=state.snapshot_token;document.getElementById("history").append(option);
+  }
+}
+let busy=false;
+async function run(action){
+  if(busy)return;busy=true;
+  const buttons=[...document.querySelectorAll(".controls button")],status=document.getElementById("status");
+  for(const button of buttons)button.disabled=true;
+  status.textContent="正在读取并核对账簿，请稍候…";status.className="status";status.setAttribute("aria-busy","true");
+  try{await action();}catch(error){status.textContent="读取未通过核对；保留上次已核切面。"+error.message;status.className="status error";}
+  finally{busy=false;for(const button of buttons)button.disabled=false;status.removeAttribute("aria-busy");}
+}
+document.getElementById("current").onclick=()=>run(()=>client.load());
+document.getElementById("watch").onclick=()=>run(()=>client.watch());
+document.getElementById("revisit").onclick=()=>run(()=>{const state=saved.get(document.getElementById("history").value);if(!state)throw new Error("请先选一个切面");return client.load({cuts:Object.fromEntries(Object.entries(state.domains).map(([d,v])=>[d,v.cut]))});});
+document.getElementById("as-known").onclick=()=>run(()=>client.load({asKnown:document.getElementById("known-at").value}));
+run(()=>client.load());
+</script>
+</body></html>

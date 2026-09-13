@@ -1,16 +1,13 @@
 //! #1372：本地单写者传输、语义时钟和独立普通投递保留；结构判断仍由父模块唯一核心完成。
 use super::*;
-use serde::de::{MapAccess, SeqAccess, Visitor};
-use serde::Deserialize;
+pub use newchan_rust::session_protocol::strict_json;
+use newchan_rust::session_protocol::{nonnegative, positive, required, validate_envelope};
+use newchan_rust::session_transport::{self, serve_unix, TransportBounds};
 use std::fmt;
-use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
-use std::os::unix::net::{UnixListener, UnixStream};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    mpsc, Arc,
-};
-use std::time::{Duration, Instant};
+use std::fs::File;
+use std::time::Duration;
+#[cfg(test)]
+use std::time::Instant;
 
 pub const SCHEMA_V2: &str = r#"
 CREATE TABLE s_protocol_meta (
@@ -64,88 +61,6 @@ CREATE TABLE s_delivery_refs (
 fn err(e: impl fmt::Display) -> String {
     format!("StorageUnavailable：{e}")
 }
-fn required<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
-    v.get(k)
-        .and_then(Value::as_str)
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| format!("SchemaUnsupported：缺非空字符串 {k}"))
-}
-fn nonnegative(s: &str, field: &str) -> Result<i64, String> {
-    let n = parse_canonical_i64(s, field)?;
-    if n < 0 {
-        return Err(format!("InvalidDomain：{field} 必须非负"));
-    }
-    Ok(n)
-}
-fn positive(s: &str, field: &str) -> Result<i64, String> {
-    let n = nonnegative(s, field)?;
-    if n == 0 {
-        return Err(format!("InvalidDomain：{field} 必须大于0"));
-    }
-    Ok(n)
-}
-
-/// serde_json::Value 的普通解析会覆盖重复键；所有新协议/clock输入先经过此严格解码器。
-struct Strict(Value);
-impl<'de> Deserialize<'de> for Strict {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        struct V;
-        impl<'de> Visitor<'de> for V {
-            type Value = Strict;
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("JSON without duplicate keys")
-            }
-            fn visit_bool<E: serde::de::Error>(self, v: bool) -> Result<Strict, E> {
-                Ok(Strict(json!(v)))
-            }
-            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Strict, E> {
-                Ok(Strict(json!(v)))
-            }
-            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Strict, E> {
-                Ok(Strict(json!(v)))
-            }
-            fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<Strict, E> {
-                Ok(Strict(json!(v)))
-            }
-            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Strict, E> {
-                Ok(Strict(json!(v)))
-            }
-            fn visit_string<E: serde::de::Error>(self, v: String) -> Result<Strict, E> {
-                Ok(Strict(json!(v)))
-            }
-            fn visit_unit<E: serde::de::Error>(self) -> Result<Strict, E> {
-                Ok(Strict(Value::Null))
-            }
-            fn visit_none<E: serde::de::Error>(self) -> Result<Strict, E> {
-                Ok(Strict(Value::Null))
-            }
-            fn visit_seq<A: SeqAccess<'de>>(self, mut a: A) -> Result<Strict, A::Error> {
-                let mut v = Vec::new();
-                while let Some(x) = a.next_element::<Strict>()? {
-                    v.push(x.0)
-                }
-                Ok(Strict(Value::Array(v)))
-            }
-            fn visit_map<A: MapAccess<'de>>(self, mut a: A) -> Result<Strict, A::Error> {
-                let mut v = serde_json::Map::new();
-                while let Some(k) = a.next_key::<String>()? {
-                    if v.contains_key(&k) {
-                        return Err(serde::de::Error::custom(format!("duplicate key {k}")));
-                    }
-                    v.insert(k, a.next_value::<Strict>()?.0);
-                }
-                Ok(Strict(Value::Object(v)))
-            }
-        }
-        d.deserialize_any(V)
-    }
-}
-pub fn strict_json(bytes: &[u8]) -> Result<Value, String> {
-    serde_json::from_slice::<Strict>(bytes)
-        .map(|s| s.0)
-        .map_err(|e| format!("SchemaUnsupported：{e}"))
-}
-
 #[derive(Clone)]
 pub struct ClockPlan {
     value: Value,
@@ -494,62 +409,7 @@ pub fn record_recover(
 }
 
 fn envelope(value: Value) -> Result<Value, String> {
-    let allowed = [
-        "schema_revision",
-        "session_id",
-        "session_generation",
-        "source_namespace",
-        "source_epoch",
-        "message_id",
-        "producer_id",
-        "producer_epoch",
-        "payload_hash",
-        "causal_refs",
-        "payload",
-    ];
-    let map = value.as_object().ok_or("SchemaUnsupported：消息必须对象")?;
-    if map.len() != allowed.len() || map.keys().any(|k| !allowed.contains(&k.as_str())) {
-        return Err("SchemaUnsupported：公共头字段不完整/多余".into());
-    }
-    if required(&value, "schema_revision")? != "s-session/2" {
-        return Err("SchemaUnsupported：仅s-session/2".into());
-    }
-    for k in [
-        "session_id",
-        "source_namespace",
-        "source_epoch",
-        "message_id",
-        "producer_id",
-    ] {
-        required(&value, k)?;
-    }
-    positive(
-        required(&value, "session_generation")?,
-        "session_generation",
-    )?;
-    positive(required(&value, "producer_epoch")?, "producer_epoch")?;
-    let refs = value["causal_refs"]
-        .as_array()
-        .ok_or("SchemaUnsupported：causal_refs必须数组")?;
-    for r in refs {
-        for k in [
-            "source_namespace",
-            "source_epoch",
-            "message_id",
-            "payload_hash",
-        ] {
-            required(r, k)?;
-        }
-    }
-    if !value["payload"].is_object() {
-        return Err("SchemaUnsupported：payload必须对象".into());
-    }
-    if required(&value, "payload_hash")? != sha256_hex(canonical_json(&value["payload"]).as_bytes())
-    {
-        return Err("IdentityConflict：payload_hash与规范业务内容不同".into());
-    }
-    required(&value["payload"], "op")?;
-    Ok(value)
+    validate_envelope(value, "s-session/2")
 }
 fn normalize_schema(s: &str) -> String {
     s.replace("IF NOT EXISTS", "")
@@ -1053,29 +913,7 @@ pub fn verify_control(
 }
 
 fn process_lock(db: &Path) -> Result<File, String> {
-    let canonical = if db.exists() {
-        db.canonicalize().map_err(err)?
-    } else {
-        let parent = db
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .unwrap_or_else(|| Path::new("."));
-        parent
-            .canonicalize()
-            .map_err(err)?
-            .join(db.file_name().ok_or("InvalidDomain：数据库路径缺文件名")?)
-    };
-    let p = PathBuf::from(format!("{}.writer.lock", canonical.display()));
-    let f = OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(p)
-        .map_err(err)?;
-    f.try_lock()
-        .map_err(|e| format!("StaleWriter：S独占进程锁不可得：{e}"))?;
-    Ok(f)
+    session_transport::process_lock(db, "S")
 }
 fn init_v2(
     db: &Path,
@@ -1332,21 +1170,17 @@ fn response(
     control_instance_id: Option<&str>,
 ) -> Value {
     let payload = result.unwrap_or_else(|error| json!({"ok":false,"error":error,"identity_binding":"verified_at_service_start_only"}));
-    let hash = sha256_hex(canonical_json(&payload).as_bytes());
-    let id = format!(
-        "reply-{}",
-        sha256_hex(
-            canonical_json(&json!([
-                e["source_namespace"],
-                e["source_epoch"],
-                e["message_id"],
-                hash
-            ]))
-            .as_bytes()
-        )
-    );
     let ready = payload["kind"] == "Ready";
-    let mut reply = json!({"schema_revision":"s-session/2","session_id":identity.0,"session_generation":identity.1,"source_namespace":"s-session/replies","source_epoch":identity.2,"message_id":id,"producer_id":format!("S:{}",identity.0),"producer_epoch":identity.2,"payload_hash":hash,"causal_refs":[{"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]}],"payload":payload});
+    let mut reply = newchan_rust::session_protocol::reply_envelope(
+        e,
+        payload,
+        "s-session/2",
+        &identity.0,
+        &identity.1,
+        "s-session/replies",
+        &format!("S:{}", identity.0),
+        &identity.2,
+    );
     if ready {
         if let Some(value) = control_instance_id {
             reply["control_instance_id"] = json!(value);
@@ -1365,112 +1199,19 @@ struct Bounds {
     queue: usize,
     connections: usize,
 }
-struct Job {
-    envelope: Value,
-    result: mpsc::SyncSender<Value>,
-}
-fn read_frame(stream: &mut UnixStream, max: usize, deadline: Instant) -> Result<Value, String> {
-    let mut bytes = Vec::new();
-    let mut chunk = [0u8; 4096];
-    loop {
-        let remaining = deadline
-            .checked_duration_since(Instant::now())
-            .ok_or("TransportTimeout：请求读期限")?;
-        stream.set_read_timeout(Some(remaining)).map_err(err)?;
-        let n = stream
-            .read(&mut chunk)
-            .map_err(|e| format!("TransportUnavailable：{e}"))?;
-        if n == 0 {
-            break;
-        }
-        if bytes.len() + n > max {
-            return Err("SchemaUnsupported：frame字节超过已声明界限".into());
-        }
-        bytes.extend_from_slice(&chunk[..n]);
-    }
-    if bytes.last() != Some(&b'\n') || bytes[..bytes.len().saturating_sub(1)].contains(&b'\n') {
-        return Err("SchemaUnsupported：只接收一个LF终止帧与请求EOF".into());
-    }
-    let value = envelope(strict_json(&bytes[..bytes.len() - 1])?)?;
-    if Instant::now() > deadline {
-        return Err("TransportTimeout：JSON解码超期".into());
-    }
-    Ok(value)
-}
-fn enqueue_before_deadline(tx: &mpsc::SyncSender<Job>, mut job: Job, deadline: Instant) -> bool {
-    loop {
-        // #1372：等待队列后先重核同一期限，不能在过期后的下一轮入队。
-        if Instant::now() >= deadline {
-            return false;
-        }
-        match tx.try_send(job) {
-            Ok(()) => return true,
-            Err(mpsc::TrySendError::Full(returned)) => {
-                job = returned;
-                std::thread::sleep(
-                    Duration::from_millis(1)
-                        .min(deadline.saturating_duration_since(Instant::now())),
-                );
-            }
-            Err(_) => return false,
+impl Bounds {
+    fn transport(&self) -> TransportBounds {
+        TransportBounds {
+            frame: self.frame,
+            read: self.read,
+            write: self.write,
+            response: self.response,
+            queue: self.queue,
+            connections: self.connections,
         }
     }
 }
 
-fn io_connection(
-    mut stream: UnixStream,
-    tx: mpsc::SyncSender<Job>,
-    bounds: Bounds,
-    count: Arc<AtomicUsize>,
-) {
-    struct Release(Arc<AtomicUsize>);
-    impl Drop for Release {
-        fn drop(&mut self) {
-            self.0.fetch_sub(1, Ordering::SeqCst);
-        }
-    }
-    let _release = Release(count);
-    let deadline = Instant::now() + bounds.read;
-    let output = match read_frame(&mut stream, bounds.frame, deadline) {
-        Err(error) => json!({"ok":false,"error":error}),
-        Ok(e) => {
-            let response_deadline = Instant::now() + bounds.response;
-            let (reply_tx, reply_rx) = mpsc::sync_channel(1);
-            let job = Job {
-                envelope: e,
-                result: reply_tx,
-            };
-            if !enqueue_before_deadline(&tx, job, response_deadline) {
-                return;
-            }
-            // 已入actor后，回包超期只结束此连接；不能撤销/重复权威工作。
-            match reply_rx.recv_timeout(response_deadline.saturating_duration_since(Instant::now()))
-            {
-                Ok(v) => v,
-                Err(_) => return,
-            }
-        }
-    };
-    let body = format!("{}\n", canonical_json(&output));
-    if body.len() > bounds.frame {
-        return;
-    }
-    let deadline = Instant::now() + bounds.write;
-    let mut sent = 0;
-    while sent < body.len() {
-        let Some(left) = deadline.checked_duration_since(Instant::now()) else {
-            break;
-        };
-        if stream.set_write_timeout(Some(left)).is_err() {
-            break;
-        }
-        match stream.write(&body.as_bytes()[sent..]) {
-            Ok(0) | Err(_) => break,
-            Ok(n) => sent += n,
-        }
-    }
-    let _ = stream.shutdown(std::net::Shutdown::Both);
-}
 fn serve(
     db: &Path,
     socket: &Path,
@@ -1521,46 +1262,16 @@ fn serve(
         // 此身份已持久接纳：换代只取得新推进权，不能修改原payload中的旧writer_epoch。
         advance_core(db, epoch, Some(&context))?;
     }
-    // 不擅自unlink既有socket：SIGKILL残留由监督器核路径/PID后清理。
-    let listener = UnixListener::bind(socket)
-        .map_err(|e| format!("TransportUnavailable：socket绑定失败 {e}"))?;
-    let (tx, rx) = mpsc::sync_channel::<Job>(bounds.queue);
-    let count = Arc::new(AtomicUsize::new(0));
-    let accept_bounds = bounds.clone();
-    std::thread::spawn(move || {
-        for incoming in listener.incoming() {
-            let Ok(stream) = incoming else { break };
-            if count
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
-                    if n < accept_bounds.connections {
-                        Some(n + 1)
-                    } else {
-                        None
-                    }
-                })
-                .is_err()
-            {
-                drop(stream);
-                continue;
-            }
-            let t = tx.clone();
-            let b = accept_bounds.clone();
-            let c = count.clone();
-            std::thread::spawn(move || io_connection(stream, t, b, c));
-        }
-    });
-    for job in rx {
-        let out = response(
-            &job.envelope,
-            handle(db, profile, epoch, &clock, &job.envelope),
+    serve_unix(socket, bounds.transport(), envelope, |e| {
+        response(
+            e,
+            handle(db, profile, epoch, &clock, e),
             &identity,
             control_instance_id.as_deref(),
-        );
-        // try_send保证慢客户端不能挡住下一输入；权威结果已持久可查。
-        let _ = job.result.try_send(out);
-    }
-    Ok(())
+        )
+    })
 }
+
 fn arg(args: &[String], key: &str) -> Result<String, String> {
     arg_value(args, key).ok_or_else(|| format!("缺 {key}"))
 }
@@ -1684,6 +1395,16 @@ pub fn retained_watch(conn: &Connection, after: i64) -> Result<Option<Value>, St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use newchan_rust::session_transport::{
+        enqueue_before_deadline, io_connection, read_frame, Job,
+    };
+    use std::io::{Read, Write};
+    use std::os::unix::net::UnixStream;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc, Arc,
+    };
+    use std::time::Instant;
     static N: AtomicUsize = AtomicUsize::new(0);
     struct Fixture {
         dir: PathBuf,
@@ -2262,8 +1983,10 @@ mod tests {
                         cache_bytes: 0,
                         queue: 1,
                         connections: 1,
-                    },
+                    }
+                    .transport(),
                     remaining,
+                    envelope,
                 )
             });
             client
@@ -2291,7 +2014,13 @@ mod tests {
             b.write_all(b"{}\n").unwrap();
             b.shutdown(std::net::Shutdown::Write).unwrap();
         });
-        assert!(read_frame(&mut a, 1024 * 1024, Instant::now() + Duration::from_secs(1)).is_err());
+        assert!(read_frame(
+            &mut a,
+            1024 * 1024,
+            Instant::now() + Duration::from_secs(1),
+            envelope
+        )
+        .is_err());
         sender.join().unwrap();
     }
     #[test]

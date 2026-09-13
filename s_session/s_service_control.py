@@ -52,6 +52,11 @@ def read_config(path):
         if type(value) is not str or not value:
             raise ValueError("缺少启动路径 " + field)
         config[field] = str((path.parent / value).resolve())
+    if "economic_query_config" in config:
+        value = config["economic_query_config"]
+        if type(value) is not str or not value:
+            raise ValueError("economic_query_config 须为具名配置路径")
+        config["economic_query_config"] = str((path.parent / value).resolve())
     if len(os.fsencode(config["socket"])) > 100:
         raise ValueError("Unix socket 路径超过本 launcher 的跨平台 100 字节上限")
     for field in ("max_frame_bytes", "read_timeout_ms", "write_timeout_ms", "response_timeout_ms",
@@ -166,6 +171,9 @@ def process_identity(pid, command=None, *, deadline=None):
 class Controller:
     def __init__(self, config, state_dir):
         self.config = config
+        self.socket_service = config.get("socket_service", "s")
+        if self.socket_service not in ("s", "owner"):
+            raise ValueError("未知 socket 服务类型")
         self.db = Path(config["db"])
         if not self.db.is_absolute():
             raise ValueError("生命周期数据库必须为已解析的绝对路径")
@@ -218,7 +226,7 @@ class Controller:
             raise ValueError("进程记录字段不完整或类型无效，状态未知")
         if "socket_identity" in record:
             identity = record["socket_identity"]
-            if (service != "s" or type(identity) is not dict
+            if (service != self.socket_service or type(identity) is not dict
                     or set(identity) != {"path", "device", "inode", "uid"}
                     or identity.get("path") != self.config.get("socket")
                     or any(type(identity.get(k)) is not int for k in ("device", "inode", "uid"))):
@@ -282,9 +290,9 @@ class Controller:
         path = Path(self.config["socket"])
         if not os.path.lexists(path):
             return None
-        record = self.status("s")
+        record = self.status(self.socket_service)
         if record["state"] != "stopped" or record.get("socket_identity") is None:
-            raise ValueError("已有 socket 缺少已确认停止的原 S 及其就绪时身份，不接管未知路径")
+            raise ValueError("已有 socket 缺少已确认停止的原 owner 及其就绪时身份，不接管未知路径")
         expected = record["socket_identity"]
         if self.socket_identity() != expected:
             raise ValueError("socket 已被替换，拒绝删除")
@@ -311,7 +319,8 @@ class Controller:
             raise ValueError(service + " 已在运行，不覆盖 PID 记录")
         instance_id = str(uuid.uuid4())
         environment = dict(os.environ if environment is None else environment)
-        environment["S_CONTROL_INSTANCE_ID"] = instance_id
+        instance_key = "SESSION_CONTROL_INSTANCE_ID" if self.socket_service == "owner" else "S_CONTROL_INSTANCE_ID"
+        environment[instance_key] = instance_id
         with (self.state_dir / (service + ".log")).open("ab") as log:
             remaining(deadline)
             process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
@@ -331,7 +340,17 @@ class Controller:
 
     def runtime_environment(self, deadline):
         python = self.config["python"]
-        result = subprocess.run([python, "-c", "import json,sysconfig; print(json.dumps([sysconfig.get_config_var('LIBDIR'),sysconfig.get_config_var('LDLIBRARY')]))"],
+        # 同一 Python 的 sysconfig 明确区分普通共享库与 macOS framework 布局。
+        # framework 的 LDLIBRARY 是相对框架前缀的路径，不能再拼到版本 lib/ 下。
+        probe = (
+            "import json,sysconfig; from pathlib import Path; "
+            "d=sysconfig.get_config_var('LIBDIR'); n=sysconfig.get_config_var('LDLIBRARY'); "
+            "f=sysconfig.get_config_var('PYTHONFRAMEWORK'); p=sysconfig.get_config_var('PYTHONFRAMEWORKPREFIX'); "
+            "candidates=([Path(p)/n] if f and p and n else [])+([Path(d)/n] if d and n else []); "
+            "library=next((candidate for candidate in candidates if candidate.is_file()),None); "
+            "print(json.dumps([str(library.parent),library.name] if library else [d,n]))"
+        )
+        result = subprocess.run([python, "-c", probe],
                                 capture_output=True, check=True, timeout=remaining(deadline))
         library_dir, library_name = json.loads(result.stdout)
         if (type(library_dir) is not str or type(library_name) is not str
@@ -450,6 +469,8 @@ class Controller:
         command = [config["python"], str(script), "--db", config["db"], "--port", config["port"],
                    "--browser", config["browser"], "--resource-config", config["query_resource_config"],
                    "--producer-epoch", query_epoch]
+        if config.get("economic_query_config"):
+            command += ["--economic-config", config["economic_query_config"]]
         self.start_process("q", command, deadline=deadline)
         return self.wait_ready("q", query_epoch=query_epoch, deadline=deadline)
 

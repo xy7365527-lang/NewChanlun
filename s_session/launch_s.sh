@@ -49,6 +49,12 @@ if [[ "${1:-}" == "service" ]]; then
   exec "${PYO3_PYTHON:-python3}" "$HERE/s_service_control.py" "$@"
 fi
 
+# #1374：同一会话入口显式选择 E 或一个 B 的独立持久域；不启动交易发送者。
+if [[ "${1:-}" == "economic" ]]; then
+  shift
+  exec "${PYO3_PYTHON:-python3}" "$HERE/economic_service_control.py" "$@"
+fi
+
 # 从候选 Python 的 sysconfig 取实际 LIBDIR 与 LDLIBRARY 并核真实文件——兼容 .so / .dylib
 # （macOS LDLIBRARY=libpython3.11.dylib，Linux=libpython3.11.so），不写死任一平台路径。
 lib_available() {

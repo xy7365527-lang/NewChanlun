@@ -15,6 +15,32 @@ import time
 from pathlib import Path
 
 
+def canonical(value):
+    """与 Rust session_protocol 相同的规范 JSON；不进行业务计算。"""
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+                      allow_nan=False).encode("utf-8")
+
+
+def digest(value):
+    return hashlib.sha256(canonical(value)).hexdigest()
+
+
+def reply_envelope(request, payload, *, session_id, session_generation, namespace,
+                   producer_id, producer_epoch):
+    """公共响应头；身份参数必须来自服务配置，不能从请求复制为权威。"""
+    payload_hash = digest(payload)
+    cause = {key: request[key] for key in (
+        "source_namespace", "source_epoch", "message_id", "payload_hash")}
+    return {
+        "schema_revision": request["schema_revision"], "session_id": session_id,
+        "session_generation": session_generation, "source_namespace": namespace,
+        "source_epoch": producer_epoch, "producer_id": producer_id, "producer_epoch": producer_epoch,
+        "message_id": "reply-" + digest([
+            request["source_namespace"], request["source_epoch"], request["message_id"], payload_hash]),
+        "payload_hash": payload_hash, "causal_refs": [cause], "payload": payload,
+    }
+
+
 def _unique_object(pairs):
     out = {}
     for key, value in pairs:
@@ -48,17 +74,21 @@ def validate_reply(request, response, *, producer, producer_epoch, allow_control
     for key in ("schema_revision", "session_id", "session_generation"):
         if response[key] != request[key]:
             raise ValueError("响应身份不属于原请求：" + key)
-    if producer not in ("S", "Q") or type(producer_epoch) is not str or not producer_epoch:
+    economic = request.get("schema_revision") == "economic-session/1"
+    economic_book = (type(producer) is str and producer.startswith("B:")
+                     and bool(producer[2:]) and not any(c.isspace() for c in producer))
+    allowed = ((producer in ("E", "Q") or economic_book)
+               if economic else producer in ("S", "Q"))
+    if not allowed or type(producer_epoch) is not str or not producer_epoch:
         raise ValueError("须显式指定响应生产者及epoch")
-    expected_namespace = "s-session/replies" if producer == "S" else "s-observe/replies"
+    expected_namespace = ("economic-session/replies" if economic and producer != "Q"
+                          else "economic-observe/replies" if economic
+                          else "s-session/replies" if producer == "S" else "s-observe/replies")
     if (response["producer_id"] != producer + ":" + request["session_id"]
             or response["producer_epoch"] != producer_epoch
             or response["source_epoch"] != producer_epoch
             or response["source_namespace"] != expected_namespace):
         raise ValueError("响应生产者/epoch不符")
-    def digest(value):
-        raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
-        return hashlib.sha256(raw).hexdigest()
     payload_hash = digest(response["payload"])
     cause = {key: request[key] for key in ("source_namespace", "source_epoch", "message_id", "payload_hash")}
     reply_id = "reply-" + digest([request["source_namespace"], request["source_epoch"], request["message_id"], payload_hash])
@@ -75,8 +105,7 @@ def exchange(socket_path, request, *, timeout_ms, max_frame_bytes):
         raise ValueError("max_frame_bytes 必须是正整数")
     if type(request) is not dict or not request:
         raise ValueError("request 必须是非空对象")
-    body = json.dumps(request, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
-                      allow_nan=False).encode("utf-8") + b"\n"
+    body = canonical(request) + b"\n"
     if len(body) > max_frame_bytes:
         raise ValueError("请求超过具名帧字节上限")
     # 同一解码约束核调用方直接传入的值，不能绕过文件入口数值校验。
