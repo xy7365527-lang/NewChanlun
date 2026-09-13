@@ -1,0 +1,1531 @@
+{
+  "schema": "issue1374-bounded-delivery-evidence/1",
+  "issue": 1374,
+  "document_status": "具名成功范围验收完成；产品与报告交付，未合入 main",
+  "generated_at_utc": "2026-09-13T20:13:29.474927+00:00",
+  "author": "Codex 原生子代理 tb03a_delivery_report",
+  "generation_rules": "docs/agents/generation-constitution.md §5；docs/agents/delivery-discipline.md 关票实体报告与评审面条款",
+  "archive_root": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913",
+  "archive_path_rule": "review_entries 和 artifacts 的 source_path 均相对 archive_root；repository_copy 为本目录内原文逐字副本。仓外原始执行数据未复制入仓。",
+  "workspace": "/Users/silencehan/Projects/NewChanlun-1374-codex",
+  "base_commit": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+  "current_head": "c0ed0497a1bcd3cfca7e5b73a8af1cae229e0863",
+  "branch": "codex/1374-codex",
+  "delivery_commit": "c0ed0497a1bcd3cfca7e5b73a8af1cae229e0863",
+  "merged_main_commit": null,
+  "main_ci_run": null,
+  "report": {
+    "path": "REPORT.md",
+    "sha256": "f4fbc2736f377e8cbf8703c13926d2bb237722fe0c08ea436accb0ec86280163",
+    "bytes": 11054
+  },
+  "counting_rule": "每项统计沿各自原报告保留；作者断言、独立断言、负控、测试函数、制品数不相加为独立测试总量。旧报告中的未验边界仅指该次范围，后续证据以新增索引连接，不改原文。",
+  "review_entries": [
+    {
+      "id": "owner_initial",
+      "source_path": "evidence/owner-review/REVIEW.json",
+      "repository_copy": "owner_initial.json",
+      "sha256": "70a937064dd9d0815563c35c601f57f4da7459cec86cccb5e66919f03c453245",
+      "bytes": 13101,
+      "verdict": "REQUEST_CHANGES",
+      "scope": "E/B Rust economic owners, standalone bins, Cargo feature entrypoints, shared no-I0 ledger component extraction; gamma positive path and Q/frontend work in progress excluded",
+      "metrics_from_original_report": {
+        "verification": {
+          "independent_cases": 5,
+          "normal_defenses_passed": 6,
+          "business_findings_reproduced": 4,
+          "author_tests_inspected": {
+            "rust_negative_tests": 4,
+            "runtime_smoke_checks": 76,
+            "actual_transaction_boundary_checks": 72
+          },
+          "sqlite_runtime": "3.53.2 (3053002), WAL, synchronous=2, macOS fullfsync=1; separate temporary E/B databases and processes",
+          "tests_have_transport_retries": "Only unbound os35 transport failures were retried at most3 times using exactly the same envelope; all failures retained. Passing business controls do not claim transport reliability.",
+          "transport": "Initial independent failure, plus two logged 5002.97/5003.06ms failures. Later precision samples20 and100 did not reproduce; those have real peerPID/socket inode/monotonic phase timestamps. Cause unresolved; no timeout widening, no production changes."
+        }
+      },
+      "status": "历史缺陷报告；四项缺陷由 owner_v2 关闭"
+    },
+    {
+      "id": "owner_v2",
+      "source_path": "evidence/owner-review-v2/REVIEW.json",
+      "repository_copy": "owner_v2.json",
+      "sha256": "daddc4c10dd519577842ea807302a939efa4e2052cdea4c63a7ee79c2c849d10",
+      "bytes": 6186,
+      "verdict": "APPROVE",
+      "scope": null,
+      "metrics_from_original_report": {
+        "checks": {
+          "actual_runtime_scenarios": 8,
+          "original_attacks": 4,
+          "clean_defenses": 6,
+          "B_sibling_attacks": 3,
+          "request_count": 28,
+          "unwrapped_transport_errors": 0,
+          "rustfmt": "PASS",
+          "owner_sources_stable": true,
+          "oracle_unchanged": true,
+          "test_processes_stopped": true,
+          "formal_pids_touched": false,
+          "production_files_modified": false
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "query_final",
+      "source_path": "evidence/query-review-recheck/REVIEW.json",
+      "repository_copy": "query_final.json",
+      "sha256": "930b1ca1a8f10b5f03ad1c0583057d829eae4992efaab3c6f8fdb4d077bf6727",
+      "bytes": 3360,
+      "verdict": "APPROVE",
+      "scope": null,
+      "metrics_from_original_report": {
+        "checks": {
+          "independent_cases": 18,
+          "browser_cases": 12,
+          "query_unix_cases": 6,
+          "python_ast": "PASS",
+          "node_syntax": "PASS",
+          "git_diff_check": "PASS",
+          "production_pids_touched": false,
+          "production_files_modified": false,
+          "real_owner_gui_acceptance": "NOT_RUN",
+          "controller_review": "SEPARATE"
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "shared_wire",
+      "source_path": "evidence/shared-wire-review/REVIEW.json",
+      "repository_copy": "shared_wire.json",
+      "sha256": "28e93b8805f59b5bb7b01cd8c43556cfe31cc88d9d52146b7c101f43255a5791",
+      "bytes": 4380,
+      "verdict": "APPROVE",
+      "scope": {
+        "files": [
+          {
+            "path": "rust/src/session_protocol.rs",
+            "bytes": 13416,
+            "sha256": "87456952f5e74e7d932760b73647fbb1dad382b41098e441686a4b7ee87ffa00"
+          },
+          {
+            "path": "rust/src/session_transport.rs",
+            "bytes": 7560,
+            "sha256": "d65cd465d6d32e3274530e80c20ebb9d4cef7766f7cb772ebeae4155a3a04a87"
+          },
+          {
+            "path": "rust/src/bin/s_structure_session.rs",
+            "bytes": 247453,
+            "sha256": "66e7af17326d8ee04dd3062a3e4f62b6541b6389089762d7889ad2bd4d22cca5"
+          },
+          {
+            "path": "rust/src/bin/s_session_v2/mod.rs",
+            "bytes": 83491,
+            "sha256": "e235ed35402c1fb63f504d8252857e33a48d6eddbddbd33fc7039b4b4494b624"
+          },
+          {
+            "path": "rust/src/lib.rs",
+            "bytes": 111248,
+            "sha256": "388e9588e1deea05c4c35797dd56403b4d547d513605d6c5adf743b75fd72e89"
+          }
+        ],
+        "lib_rs_reviewed_region": "仅共享 session_protocol 与 session_transport 导出块；当前全文件 hash 仅用于定位，economic_session 导出排除",
+        "lib_rs_shared_exports_sha256": "c1aa662dcd948d4620ea86a51ad77779a1dec8763306c8dda3295b9ac613a268",
+        "excluded": [
+          "economic_session 及其导出",
+          "ledger、Python/Q、GUI 在制品",
+          "E/B 业务权限和账户事实语义",
+          "TB-03-A 整票验收及 main 合入"
+        ]
+      },
+      "metrics_from_original_report": {
+        "verification": {
+          "new_independent_checks": 55,
+          "independent_script_exit": 0,
+          "reused_S_tests": "65 passed / 1 existing ignored 前后同名；原失编日志保留，修复后全组通过",
+          "reused_protocol_tests": "4 passed",
+          "reused_socket_trace": "实际 S 进程 8 轨迹；单原输入/单消息/单 delta，进程已停止",
+          "fresh_python_recomputation": "未导入生产实现，以 json/hashlib 独立重构完整回复规范字节及 SHA-256，匹配仓内固定向量",
+          "business_regions": "8 段与 baseline 逐字节相同",
+          "evidence_index": "25 件证据的 bytes/SHA-256 全部匹配",
+          "git_diff_check_exit": 0,
+          "cargo_rerun": false,
+          "socket_rerun": false,
+          "artifacts": [
+            {
+              "path": "VERIFICATION.json",
+              "bytes": 7463,
+              "sha256": "c603de909eb8ee4fc7f3755ed103f41ccca02dade2a57164c9262d090a15046a"
+            },
+            {
+              "path": "verify_evidence.py",
+              "bytes": 7741,
+              "sha256": "aec03accc4c52636a7d5a68f4e50e2c3cc3ef88f2ba19ca0895508492759386d"
+            }
+          ]
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "controller",
+      "source_path": "evidence/controller-review/REVIEW.json",
+      "repository_copy": "controller.json",
+      "sha256": "cf6a5c484908341ef53433dbfa7007a8de41eafff6c99792da46b7d9f1328289",
+      "bytes": 1832,
+      "verdict": "APPROVE",
+      "scope": null,
+      "metrics_from_original_report": {
+        "checks": {
+          "independent_records": 22,
+          "runtime_library_probe": "PASS",
+          "python_ast": "PASS",
+          "bash_syntax": "PASS",
+          "git_diff_check": "PASS",
+          "formal_pid_touched": false,
+          "production_file_modified": false,
+          "real_crash_recovery_acceptance": "NOT_RUN"
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "controller_send_delta",
+      "source_path": "evidence/controller-send-delta-review/REVIEW.json",
+      "repository_copy": "controller_send_delta.json",
+      "sha256": "8e48b8cce5806867a9f041b56d4561a9c3b351ff33e36a15b49cd5d822200d08",
+      "bytes": 1745,
+      "verdict": "APPROVE",
+      "scope": "send lifecycle lock delta only",
+      "metrics_from_original_report": {
+        "checks": {
+          "independent_records": 10,
+          "all_pass": true,
+          "ast": "PASS",
+          "formal_pid_touched": false,
+          "production_file_modified": false,
+          "real_owner_fault_recovery": "NOT_RUN"
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "filesystem_delta",
+      "source_path": "evidence/filesystem-delta-review/REVIEW.json",
+      "repository_copy": "filesystem_delta.json",
+      "sha256": "740e76c420deb4a7af36f227740160866b1d50a5eedf17e3fc24a240bf2f3c39",
+      "bytes": 2222,
+      "verdict": "APPROVE",
+      "scope": null,
+      "metrics_from_original_report": {
+        "checks": {
+          "count": 10,
+          "all_pass": true,
+          "new_owner_views": 3,
+          "business_events": 0,
+          "formal_pid_touched": false,
+          "rustfmt": "PASS"
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "transport_final",
+      "source_path": "formal-v2/transport-independent-v3/ROOT-REVIEW.json",
+      "repository_copy": "transport_final.json",
+      "sha256": "16a454e2e0a079f3688c2e72f014823f6153589199569a75ba743cb8f072cdeb",
+      "bytes": 1137,
+      "verdict": "APPROVE_BOUNDED_TRANSPORT_DELTA",
+      "scope": "真实EOF、noEOF截止、重复帧/尾字节/缺LF拒绝、完整与分片帧成功；无业务重试；不把旧browser超时直接归因本故障",
+      "metrics_from_original_report": {
+        "checks": 206
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "economic_script",
+      "source_path": "evidence/formal-script-review/REVIEW.json",
+      "repository_copy": "economic_script.json",
+      "sha256": "48be5a88cc3ab161c675684a26064cbcde208e7f19c14ddc610a539dffae6d51",
+      "bytes": 3517,
+      "verdict": "APPROVE",
+      "scope": null,
+      "metrics_from_original_report": {
+        "checks": {
+          "independent_offline": 23,
+          "all_pass": true,
+          "two_drivers_identical_bytes": true,
+          "three_source_freeze_functions_equal_ast": true,
+          "ast": "PASS",
+          "formal_pid_touched": false,
+          "production_modified": false
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "economic_normal",
+      "source_path": "evidence/formal-v2-execution-review/REVIEW.json",
+      "repository_copy": "economic_normal.json",
+      "sha256": "f020b4fa10f034a9674e09e89947768359817a88b7f35badd432aa622ec57f6e",
+      "bytes": 4960,
+      "verdict": "APPROVE_BOUNDED_EXECUTION_EVIDENCE",
+      "scope": "正常六事件双跑/实际HTTP/真实浏览器AX/正式停止归档证据；不作transport独评，不重跑服务、不操纵浏览器、不触SQLite原件",
+      "metrics_from_original_report": {
+        "checks": 2437,
+        "actual_owner_checks_per_run": 1022,
+        "actual_http_checks_per_run": 376,
+        "actual_browser_checks": 19,
+        "paired_byte_artifacts": 152
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "economic_faults",
+      "source_path": "evidence/formal-faults-review/REVIEW.json",
+      "repository_copy": "economic_faults.json",
+      "sha256": "711ce8a0d8fc1ed8f1631c47fdb7573d313172edb8db73655c521827073ac11a",
+      "bytes": 2059,
+      "verdict": "APPROVE",
+      "scope": "four transaction boundaries, two runs each, opening-events slice only",
+      "metrics_from_original_report": {
+        "counts": {
+          "runs": 8,
+          "sql": 216,
+          "requests": 148,
+          "views": 96,
+          "assertions": 2429,
+          "negative_control_cases": 5,
+          "archived_database_copies_reopened": 24,
+          "absent_owned_pids": 32,
+          "eof_traces": 180,
+          "indexed_artifacts": 2796
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "gamma_definition",
+      "source_path": "evidence/gamma-v2-definition-review/REVIEW.json",
+      "repository_copy": "gamma_definition.json",
+      "sha256": "9b77ef5397476ffd10a0dd8d2a7a7be4cbc0d87021d256536c09326f57f39b7a",
+      "bytes": 1725,
+      "verdict": "APPROVE_BOUNDED_DEFINITION_GAMMAS",
+      "scope": "固定 synthetic OHLC 50069 前缀内两张受控定义 gamma；不含 carrier/economic/Strict/N7",
+      "metrics_from_original_report": {
+        "independent_raw_assertions": 14441,
+        "independent_lean_assertions": 11,
+        "independently_rebuilt_lean_dependencies": 13
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "voice_authority",
+      "source_path": "evidence/voice-binding-independent/actual-binding/REVIEW.json",
+      "repository_copy": "voice_authority.json",
+      "sha256": "a099cdd64634cfa6dcb206e7cb7db71c85befb9126cbeac611e343b1ab614f41",
+      "bytes": 1483,
+      "verdict": "APPROVE_CONTROLLED_VOICE_BINDING",
+      "scope": "真实数值受控工作例的不可变来源认证；root实际E/B/HTTP/GUI运行另验",
+      "metrics_from_original_report": {
+        "checks": 2756
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "voice_authority_receipt",
+      "source_path": "evidence/voice-binding-independent/actual-binding/VERIFICATION.json",
+      "repository_copy": "voice_authority_receipt.json",
+      "sha256": "85d9adea47705768fd71de0a39a72e85313b77b4814082746bb9a5963de48d8f",
+      "bytes": 11855,
+      "verdict": "APPROVE_CONTROLLED_VOICE_BINDING",
+      "scope": "批准一个 TestOnly root Voice 的固定完整来源绑定：原定义gamma→实际terminal BSP→原K source carrier，同源TEST.GAMMA.V1与明确受控开局事实。第二gamma只做真实关系对照。",
+      "metrics_from_original_report": {},
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "voice_core",
+      "source_path": "evidence/voice-binding-independent/REVIEW.json",
+      "repository_copy": "voice_core.json",
+      "sha256": "5919422f64cdf1677a9172ddb98642069cb28b43052d0c2161b8b4f20bd62130",
+      "bytes": 4051,
+      "verdict": "APPROVE_BOUNDED_VOICE_CORE_ADAPTER",
+      "scope": "#1374 B Voice immutable binding and pinned TestOnly evidence adapter; excludes actual authority semantic certification",
+      "metrics_from_original_report": {
+        "validation": {
+          "source_matches": 7,
+          "original_economic_tests_passed": 16,
+          "new_independent_tests_passed": 6,
+          "filtered_command_total_tests_passed": 7,
+          "extra_filtered_test": "existing session_protocol::tests::reply_bytes_match_independent_python_wire_vector",
+          "independent_cases": {
+            "invalid_payloads_atomic": 4,
+            "changed_original_envelope_atomic": 1,
+            "alias_original_receipt": 1,
+            "fully_rehashed_forged_record": 4,
+            "forced_before_commit_rollback_all_tables": 10,
+            "stale_epoch_or_before_recover_time": 2,
+            "as_known_exact_cut_reads": 4,
+            "external_files_removed_before_recovery": 7,
+            "repinned_invalid_authority_cases_live_and_replay": 8
+          },
+          "cargo": "offline isolated small crate with exact production core/protocol/transport/ledger source copies; no official process operation",
+          "first_attempt": "review harness called private root function; failed compilation saved; replaced with independently reproduced documented root preimage; production untouched"
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "voice_ui",
+      "source_path": "evidence/voice-ui-independent-v2/REVIEW.json",
+      "repository_copy": "voice_ui.json",
+      "sha256": "d403193d482474d31071d8648eebed929db6b2ddf2593d8fbb1f79dfa0b0a057",
+      "bytes": 852,
+      "verdict": "APPROVE_BOUNDED_VOICE_UI_DELTA",
+      "scope": "仅三组已报 UI 数据契约修复，不证明 γ 或实际 Voice 业务成功",
+      "metrics_from_original_report": {
+        "independent_checks": 37,
+        "archived_actual_snapshots": 18,
+        "mutations_rejected": 16
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "voice_normal_driver",
+      "source_path": "evidence/voice-driver-review/REVIEW-normal-final.json",
+      "repository_copy": "voice_normal_driver.json",
+      "sha256": "3374223a343d63702494458def18cc62670f0cc74fa3bd87b63641e5b6417092",
+      "bytes": 1098,
+      "verdict": "APPROVE_BOUNDED_NORMAL_DRIVER_REPAIR",
+      "scope": null,
+      "metrics_from_original_report": {
+        "checks": {
+          "aggregate_checks": 41,
+          "reviewed_artifact_byte_checks": 25
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "voice_normal",
+      "source_path": "evidence/voice-normal-execution-independent/REVIEW.json",
+      "repository_copy": "voice_normal.json",
+      "sha256": "2dd03bdf2af739d5af5664a7031494097b2ee4f8d5b393303ada5df8700be269",
+      "bytes": 4654,
+      "verdict": "APPROVE_BOUNDED_FORMAL_VOICE_NORMAL_DOUBLE_RUN",
+      "scope": "实际受控 root Voice 的正常入口双跑及完整来源、SQL、原回复、历史、独立重和归档一致性",
+      "metrics_from_original_report": {
+        "results": {
+          "checks": 5558,
+          "commands": 70,
+          "databases_copied_and_checked": 6,
+          "negative_controls": 8,
+          "public_views": 20,
+          "request_files": 48,
+          "runs": 2,
+          "scope": "受控定义 root Voice 的实际 E/B 正常入口双跑、原回执、幂等/冲突/历史及归档；没有 GUI 或故障轮验收主张",
+          "sql_snapshots": 66,
+          "status": "PASS_BOUNDED_FORMAL_VOICE_NORMAL_INDEPENDENT"
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "voice_gui_helper",
+      "source_path": "evidence/voice-gui-script-independent/REVIEW-gui-v2.json",
+      "repository_copy": "voice_gui_helper.json",
+      "sha256": "46f696bebdbfe2965c15a1e8adddb9b4cbb6aace5b84942e6b14455c36e3e0e7",
+      "bytes": 1194,
+      "verdict": "APPROVE_BOUNDED_GUI_AUXILIARY_SCRIPTS",
+      "scope": "只读审查 GUI 辅助脚本和离线负控；真实服务与浏览器验收另计",
+      "metrics_from_original_report": {
+        "tests": {
+          "author_unittest_normal": 8,
+          "author_unittest_optimized": 8,
+          "independent_v2_each_mode": {
+            "lifecycle_readonly_method_chains": 2,
+            "positive_public_shape": 1,
+            "negative_controls_rejected": 6
+          },
+          "source_files_per_version": 483,
+          "source_mismatches": 0
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "voice_gui",
+      "source_path": "evidence/voice-gui-execution-independent/REVIEW.json",
+      "repository_copy": "voice_gui.json",
+      "sha256": "07f216d695c73122b25a9a21e35e22561471648f140074b7141eff1b87f6084a",
+      "bytes": 5187,
+      "verdict": "APPROVE_BOUNDED_ACTUAL_VOICE_GUI_EXECUTION",
+      "scope": "GUI-v2真实E/B/S/Q正式入口、HTTP与owner同源、真实浏览器AX/CDP原件、停止归档；本审阅者只读验收未操作浏览器",
+      "metrics_from_original_report": {
+        "results": {
+          "actual_commands": 69,
+          "actual_economic_requests": 21,
+          "actual_helper_http_exchanges": 16,
+          "archive_databases_copied": 4,
+          "complete_economic_sql_snapshots": 24,
+          "full_visible_json_objects": 2,
+          "independent_checks": 3028,
+          "negative_controls": 6,
+          "original_pids": [
+            76171,
+            76184,
+            76197,
+            76211,
+            76218
+          ],
+          "settled_ax_states": 9,
+          "unique_browser_network_requests": 6
+        }
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "economic_export_delta",
+      "source_path": "evidence/voice-gui-execution-independent/EXPORT-DELTA-REVIEW.json",
+      "repository_copy": "economic_export_delta.json",
+      "sha256": "6d9ed21d97fd721fc2050a31e3f65dff78ddfe3561e3e1d9787303b7b43909b5",
+      "bytes": 1964,
+      "verdict": "APPROVE_BOUNDED_ECONOMIC_MODULE_EXPORT_DELTA",
+      "scope": "仅lib.rs末尾新增4行（空行、说明、cfg、模块导出）与Cargo feature/两个E/B target启用条件；不是全lib.rs或核心业务重审",
+      "metrics_from_original_report": {
+        "checks": [
+          "经济模块导出准确挂在s_session feature",
+          "默认feature不隐式启用经济模块",
+          "s_session显式启用经济服务使用的可选依赖",
+          "可选依赖 sha2",
+          "可选依赖 rusqlite",
+          "可选依赖 libc",
+          "正式bin和lib使用相同feature e_economic_session",
+          "正式bin和lib使用相同feature b_chong_session",
+          "公开模块路径实际存在"
+        ]
+      },
+      "status": "已完成具名范围独评"
+    },
+    {
+      "id": "voice_fault_driver",
+      "source_path": "evidence/voice-fault-script-independent/v4/REVIEW.json",
+      "repository_copy": "voice_fault_driver.json",
+      "sha256": "2ff7beaff887b28df9822e9dd4544f6ada2be2039bdd4ad43c1a4bec94affa35",
+      "bytes": 1165,
+      "verdict": "APPROVE_BOUNDED_FAULT_DRIVER",
+      "scope": "最终故障脚本及误拒修复；真实四轮产物另行独验",
+      "status": "APPROVE_BOUNDED_FAULT_DRIVER",
+      "metrics_from_original_report": {
+        "independent_checks_each_mode": 24,
+        "author_checks_each_mode": 31,
+        "modes": [
+          "normal",
+          "-O"
+        ]
+      }
+    },
+    {
+      "id": "voice_faults",
+      "source_path": "evidence/voice-fault-execution-independent/REVIEW.json",
+      "repository_copy": "voice_faults.json",
+      "sha256": "b2cab3de57e7d867889932c059fbbc631d1c2938ea95a49768bebb157f7c60bb",
+      "bytes": 8306,
+      "verdict": "APPROVE_BOUNDED_ACTUAL_VOICE_FAULT_DOUBLE_RUNS",
+      "scope": "BindVoice before_commit / after_commit 两phase各真实新进程双跑，实际KILL、恢复、原请求重送与历史边界；不包含叶票或父图完成",
+      "metrics_from_original_report": {
+        "results": {
+          "actual_commands": 200,
+          "actual_runs": 4,
+          "complete_sql_snapshots": 120,
+          "complete_views": 60,
+          "copied_databases": 12,
+          "independent_checks": 12468,
+          "negative_controls": 6,
+          "request_files": 100,
+          "scope": "真实BindVoice提交前/后故障各双跑、恢复和原重送边界；不增称整叶或父图完成",
+          "status": "PASS_BOUNDED_ACTUAL_VOICE_FAULT_DOUBLE_RUNS"
+        }
+      },
+      "status": "已完成四轮实际证据独验；首尝试失败保留且排除成功计数"
+    },
+    {
+      "id": "final_delivery_scope",
+      "source_path": "evidence/final-delivery-scope-independent/REVIEW.json",
+      "repository_copy": "final_delivery_scope.json",
+      "sha256": "9ee05269d5067c8ff5b87dbacb1b5e7e8d49074f83b01d1fde6f31d4ddd3de1e",
+      "bytes": 40540,
+      "verdict": "APPROVE_BOUNDED_FINAL_DELIVERY_SOURCE_SCOPE",
+      "scope": "最终 git 产品变更集合、当前源码字节、连续评审链和既有构建/运行冻结身份；非重新业务审查",
+      "metrics_from_original_report": {
+        "verification": {
+          "mechanical_identity_checks": 1914,
+          "all_pass": true,
+          "tests_or_build_rerun": false,
+          "services_started_or_stopped": false,
+          "sqlite_opened": false,
+          "W4_modified": false,
+          "source_drift": false,
+          "unexplained_changed_files": []
+        },
+        "committed_product_verification": {
+          "base": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+          "commit": "c0ed0497a1bcd3cfca7e5b73a8af1cae229e0863",
+          "committed_files": 31,
+          "committed_product_sources": 30,
+          "additional_file": ".chanlun/agent-roster-2026-09-13.md",
+          "all_30_committed_blob_hashes_equal_reviewed_current_sources": true,
+          "tracked_product_tail": [],
+          "verified_at_utc": "2026-09-13T20:30:00.385573+00:00"
+        }
+      },
+      "status": "已核实际产品 commit；30 个产品文件+1 工位登记，无源码尾部漂移"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "issue_entry",
+      "source_path": "ISSUE-1374-ENTRY.json",
+      "sha256": "ecdaf4bb0596ab23ef65d0e313f2562269d3936a2e4ffbb8bfec4edc7ec6602a",
+      "bytes": 8476,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "economic_archive",
+      "source_path": "formal-v2/lifecycle/ARCHIVE-CHECK-RESULT.json",
+      "sha256": "091ab9aeacc329d0c5300319a1bd173e069200c2968ad5a9d2310c646add2544",
+      "bytes": 1178,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_build",
+      "source_path": "formal-voice-v1/binaries-v1/BUILD-BINDING.json",
+      "sha256": "9f9977a2e8b20688c07533d9da92cc0d5e4b9870fba29557d9979fec696bfde6",
+      "bytes": 2052,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_binaries",
+      "source_path": "formal-voice-v1/binaries-v1/BINARY-FREEZE.json",
+      "sha256": "92f27012126d68c64c3fc25d48ff102bce916761483b3eb57b1c2f93dbb00600",
+      "bytes": 1545,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_core_freeze",
+      "source_path": "evidence/voice-binding-implementation/CORE-FREEZE-2.json",
+      "sha256": "2cd1376ae793cbc17f44cc5f222c67c0113f38e23dcd11c02b1f1e6af314dcc0",
+      "bytes": 1628,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_bundle",
+      "source_path": "voice-fixture-v1/binding-v1/AUTHORITY-BUNDLE.json",
+      "sha256": "5f20cf8b3359a1e7d89cfa369a19e1576fa51dfcda7eef8e10a51407cd836ee2",
+      "bytes": 11716,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_normal_source_freeze",
+      "source_path": "formal-voice-v1/normal/SOURCE-FREEZE-v2.json",
+      "sha256": "de6ce23b62c740cd7add99286cb8f8c26b5148b65ddce7a2141d7abe394609f1",
+      "bytes": 92629,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_normal_run_1",
+      "source_path": "formal-voice-v1/normal/run-1/RESULT.json",
+      "sha256": "5fc815a74ee78edc4fdd86bd19a8bd0484884d93e028132acce96e03c815472d",
+      "bytes": 263,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_normal_run_2",
+      "source_path": "formal-voice-v1/normal/run-2/RESULT.json",
+      "sha256": "5fc815a74ee78edc4fdd86bd19a8bd0484884d93e028132acce96e03c815472d",
+      "bytes": 263,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_normal_comparison",
+      "source_path": "formal-voice-v1/normal/COMPARISON.json",
+      "sha256": "352f850469444add992301d2ca42f82297cef00004236dbda45978998753a6d7",
+      "bytes": 5182,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_gui_source_freeze",
+      "source_path": "formal-voice-v1/gui-v2/SOURCE-FREEZE.json",
+      "sha256": "563ebdefdc70f8796211af830f5c59cf9b556479675c6066c68581882c564563",
+      "bytes": 96031,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_gui_seed",
+      "source_path": "formal-voice-v1/gui-v2/stages/01-seed/RESULT.json",
+      "sha256": "3baeea01e48a5f03beacd23bd4f60d3a8f5ffbff5a9774a3055ccaafb409a075",
+      "bytes": 313,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_gui_bind",
+      "source_path": "formal-voice-v1/gui-v2/stages/02-bind/RESULT.json",
+      "sha256": "600f5d9b5e7275bb9c60c26f6d6618be67cad67f6483a9fe96dab8d801235ace",
+      "bytes": 313,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_gui_observe",
+      "source_path": "formal-voice-v1/gui-v2/stages/03-observe-browser-check/RESULT.json",
+      "sha256": "08f4584aee9ca54fadb6a044fbb907b9dfbe8aef8df01ff64bd7f0746237a772",
+      "bytes": 316,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_gui_archive",
+      "source_path": "formal-voice-v1/gui-v2/stages/99-stoparchive/RESULT.json",
+      "sha256": "07ae9045ce06204c3060386f79d68de0325ee735c0c054fe586a6e8d612d0bc1",
+      "bytes": 320,
+      "copied_into_repository": false,
+      "role": "具名原证据、运行或冻结记录；不能单靠作者状态代替独立结论"
+    },
+    {
+      "id": "voice_gui_root",
+      "source_path": "formal-voice-v1/gui-v2/browser-root/ROOT-CHECKS.json",
+      "sha256": "1a656c102f44bfaca99324f1b9d07b61543522c201cdf7fbf72a4a466c270566",
+      "bytes": 1100,
+      "copied_into_repository": false,
+      "role": "root 真实浏览器检查；voice_gui 最终独评已接回，原自报 pending 字段保留不改原件。"
+    },
+    {
+      "id": "voice_gui_independent_freeze",
+      "source_path": "evidence/voice-gui-execution-independent/FREEZE.json",
+      "sha256": "2e2ecbbea3945382cb1e2e2311722ed4dabecfade85c729d8814aeeb7a75c5b2",
+      "bytes": 15738,
+      "copied_into_repository": false,
+      "role": "GUI 实际独验冻结"
+    },
+    {
+      "id": "voice_fault_before_comparison",
+      "source_path": "formal-voice-v1/faults-attempt-2/before_commit/COMPARISON.json",
+      "sha256": "b861fe299ed7816f8465d58fbb0d3cb5d49bfcfcf4058f6e62e7bc8c8929c265",
+      "bytes": 3301,
+      "copied_into_repository": false,
+      "role": "作者实际故障双跑对拍；独立验收待接回"
+    },
+    {
+      "id": "voice_fault_after_comparison",
+      "source_path": "formal-voice-v1/faults-attempt-2/after_commit/COMPARISON.json",
+      "sha256": "763401d7a24cea20c3e74fca42447e16dd8773d7aa87756e97c85dd07aa74cad",
+      "bytes": 3299,
+      "copied_into_repository": false,
+      "role": "作者实际故障双跑对拍；独立验收待接回"
+    },
+    {
+      "id": "voice_faults_freeze",
+      "source_path": "evidence/voice-fault-execution-independent/FREEZE.json",
+      "sha256": "cf5870ea8fd4a66a9e1f31b248ae4e6df417bd8085d61db65b71adfcac902231",
+      "bytes": 27366,
+      "copied_into_repository": false,
+      "role": "实际 Voice 故障独验包冻结，81 份验收包文件与 2098 份输入文件的校验入口"
+    }
+  ],
+  "frozen_binaries_verified_now": [
+    {
+      "name": "s_structure_session",
+      "path_relative_to_archive": "formal-voice-v1/binaries-v1/s_structure_session",
+      "sha256": "543356ab4b9378ba21c9ed365a665b0b62f01c2a113b6f284ae2b86a71bb869a",
+      "bytes": 8653928
+    },
+    {
+      "name": "e_economic_session",
+      "path_relative_to_archive": "formal-voice-v1/binaries-v1/e_economic_session",
+      "sha256": "9286b23705712939af3bc77b55c7455ddaef068eb85e65357d81f210ef31dfac",
+      "bytes": 5641440
+    },
+    {
+      "name": "b_chong_session",
+      "path_relative_to_archive": "formal-voice-v1/binaries-v1/b_chong_session",
+      "sha256": "90426704b011fa6cbc9ce432e46eb12dc56e2e8665848c100c20f498b468825d",
+      "bytes": 5641376
+    }
+  ],
+  "code_source_coverage": [
+    {
+      "path": "rust/Cargo.lock",
+      "sha256": "c591858344c1ff7c62335e10c0e2f1f5cf9e7447a8caf81cd92e556bac248b62",
+      "bytes": 55961,
+      "review_snapshots": [
+        {
+          "review_id": "filesystem_delta",
+          "reviewed_sha256": "c591858344c1ff7c62335e10c0e2f1f5cf9e7447a8caf81cd92e556bac248b62",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "filesystem_delta"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "Cargo 原 owner 入口初审与后续 statfs 依赖增量连续覆盖；当前字节与 filesystem_delta 相符。"
+    },
+    {
+      "path": "rust/Cargo.toml",
+      "sha256": "db8af9ea30e1840b87759aedd67a556fa506d152be1b01d3e068d8be610c1bdf",
+      "bytes": 12154,
+      "review_snapshots": [
+        {
+          "review_id": "owner_initial",
+          "reviewed_sha256": "bccf41deac2a55ec71da0ec33ab0080754fe08772a33ec733e0159eae3c1481d",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "filesystem_delta",
+          "reviewed_sha256": "db8af9ea30e1840b87759aedd67a556fa506d152be1b01d3e068d8be610c1bdf",
+          "matches_current_bytes": true
+        },
+        {
+          "review_id": "economic_export_delta",
+          "reviewed_sha256": "db8af9ea30e1840b87759aedd67a556fa506d152be1b01d3e068d8be610c1bdf",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "owner_initial",
+        "filesystem_delta",
+        "economic_export_delta"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "Cargo 原 owner 入口初审与后续 statfs 依赖增量连续覆盖；当前字节与 filesystem_delta 相符。"
+    },
+    {
+      "path": "rust/src/bin/b_chong_session.rs",
+      "sha256": "34adfbb8456b5e81ea35c81b6cb11ebc83fe85f4aa571ea669115adf3ff56af1",
+      "bytes": 211,
+      "review_snapshots": [
+        {
+          "review_id": "owner_initial",
+          "reviewed_sha256": "34adfbb8456b5e81ea35c81b6cb11ebc83fe85f4aa571ea669115adf3ff56af1",
+          "matches_current_bytes": true
+        },
+        {
+          "review_id": "owner_v2",
+          "reviewed_sha256": "34adfbb8456b5e81ea35c81b6cb11ebc83fe85f4aa571ea669115adf3ff56af1",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "owner_initial",
+        "owner_v2"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/bin/e_economic_session.rs",
+      "sha256": "866dbe66d598648b5c324ad77eaa825c2a856caa37a19b41d4145f7f251e7005",
+      "bytes": 208,
+      "review_snapshots": [
+        {
+          "review_id": "owner_initial",
+          "reviewed_sha256": "866dbe66d598648b5c324ad77eaa825c2a856caa37a19b41d4145f7f251e7005",
+          "matches_current_bytes": true
+        },
+        {
+          "review_id": "owner_v2",
+          "reviewed_sha256": "866dbe66d598648b5c324ad77eaa825c2a856caa37a19b41d4145f7f251e7005",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "owner_initial",
+        "owner_v2"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/mod.rs",
+      "sha256": "e235ed35402c1fb63f504d8252857e33a48d6eddbddbd33fc7039b4b4494b624",
+      "bytes": 83491,
+      "review_snapshots": [
+        {
+          "review_id": "shared_wire",
+          "reviewed_sha256": "e235ed35402c1fb63f504d8252857e33a48d6eddbddbd33fc7039b4b4494b624",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "shared_wire"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/bin/s_structure_session.rs",
+      "sha256": "66e7af17326d8ee04dd3062a3e4f62b6541b6389089762d7889ad2bd4d22cca5",
+      "bytes": 247453,
+      "review_snapshots": [
+        {
+          "review_id": "shared_wire",
+          "reviewed_sha256": "66e7af17326d8ee04dd3062a3e4f62b6541b6389089762d7889ad2bd4d22cca5",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "shared_wire"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/economic_session/book.rs",
+      "sha256": "e6dbd45a64c4c93f6de59c1f4362a89c2a4b134106ea2a57bc470fb020e7a09e",
+      "bytes": 27027,
+      "review_snapshots": [
+        {
+          "review_id": "owner_initial",
+          "reviewed_sha256": "3b81b353595aec0fadb333c673891c2a6e4dda22d74f7c48e1177bfc9627b939",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "owner_v2",
+          "reviewed_sha256": "a6c9b768cfd51a931a3affc8b2ed137cce873b29e4f4b0628199a81969592957",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "voice_core",
+          "reviewed_sha256": "e6dbd45a64c4c93f6de59c1f4362a89c2a4b134106ea2a57bc470fb020e7a09e",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "owner_initial",
+        "owner_v2",
+        "voice_core"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "原 owner 缺陷关闭后追加 Voice 核心审查；当前字节与 voice_core 相符，不能把早期 hash 当当前 hash。"
+    },
+    {
+      "path": "rust/src/economic_session/evidence.rs",
+      "sha256": "77cac6ff99a793d142c3f3701f29d4a24c722cbdcc4b2926bd54181661f0b0ad",
+      "bytes": 13614,
+      "review_snapshots": [
+        {
+          "review_id": "voice_core",
+          "reviewed_sha256": "77cac6ff99a793d142c3f3701f29d4a24c722cbdcc4b2926bd54181661f0b0ad",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "voice_core"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/economic_session/mod.rs",
+      "sha256": "de1a4948affcf62074adffed513ecd65643c51e01c164419ecafa321a9bd0196",
+      "bytes": 296,
+      "review_snapshots": [
+        {
+          "review_id": "owner_initial",
+          "reviewed_sha256": "0ced9a53a31f2ea3f5ae50ed53ede6a526d07ceaac1840ffcfb819fe6dcf5bf9",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "owner_v2",
+          "reviewed_sha256": "0ced9a53a31f2ea3f5ae50ed53ede6a526d07ceaac1840ffcfb819fe6dcf5bf9",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "voice_core",
+          "reviewed_sha256": "de1a4948affcf62074adffed513ecd65643c51e01c164419ecafa321a9bd0196",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "owner_initial",
+        "owner_v2",
+        "voice_core"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "原 owner 缺陷关闭后追加 Voice 核心审查；当前字节与 voice_core 相符，不能把早期 hash 当当前 hash。"
+    },
+    {
+      "path": "rust/src/economic_session/service.rs",
+      "sha256": "b34fdc8f6f72d8e1bb1797b53351a00b496ede843c917166f335295598de89a1",
+      "bytes": 26370,
+      "review_snapshots": [
+        {
+          "review_id": "owner_initial",
+          "reviewed_sha256": "1dce183034f59cc9fe8a82b55eecbbeaa85224c1ee4f0e9c69f313ac510ca6af",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "owner_v2",
+          "reviewed_sha256": "0c557fe239060a0ca78d418e10374ea825edfec65a4383d37565ef003f0238d4",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "voice_core",
+          "reviewed_sha256": "b34fdc8f6f72d8e1bb1797b53351a00b496ede843c917166f335295598de89a1",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "owner_initial",
+        "owner_v2",
+        "voice_core"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "原 owner 缺陷关闭后追加 Voice 核心审查；当前字节与 voice_core 相符，不能把早期 hash 当当前 hash。"
+    },
+    {
+      "path": "rust/src/economic_session/store.rs",
+      "sha256": "6916304230861685682535388923168034419940c5f92d1ed8fa800c3c32048c",
+      "bytes": 44132,
+      "review_snapshots": [
+        {
+          "review_id": "owner_initial",
+          "reviewed_sha256": "4ec364566bea46cb2668002b17a00dfd3b03e8195084cc46d92d6065a2d7fb96",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "owner_v2",
+          "reviewed_sha256": "e9a3559a61aa364700cf09bf902a91358f8a188bda26c277f844e76d3dbd538c",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "filesystem_delta",
+          "reviewed_sha256": "56830533eccc8a8f0fafc4f596af93b059f80c42b23a4a6abac25cae69702b17",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "voice_core",
+          "reviewed_sha256": "6916304230861685682535388923168034419940c5f92d1ed8fa800c3c32048c",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "owner_initial",
+        "owner_v2",
+        "filesystem_delta",
+        "voice_core"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "原 owner 缺陷关闭后追加 Voice 核心审查；当前字节与 voice_core 相符，不能把早期 hash 当当前 hash。"
+    },
+    {
+      "path": "rust/src/economic_session/voice.rs",
+      "sha256": "a70364ef809d120a56a2b18801e7f0984ed34bd15df9706114eedd49acc504d2",
+      "bytes": 15429,
+      "review_snapshots": [
+        {
+          "review_id": "voice_core",
+          "reviewed_sha256": "a70364ef809d120a56a2b18801e7f0984ed34bd15df9706114eedd49acc504d2",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "voice_core"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/economic_session/voice_tests.rs",
+      "sha256": "47509489a874f37d51afef33af67ba1ce68ad652426a9b135db57bc21d1640d7",
+      "bytes": 21494,
+      "review_snapshots": [
+        {
+          "review_id": "voice_core",
+          "reviewed_sha256": "47509489a874f37d51afef33af67ba1ce68ad652426a9b135db57bc21d1640d7",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "voice_core"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/lib.rs",
+      "sha256": "388e9588e1deea05c4c35797dd56403b4d547d513605d6c5adf743b75fd72e89",
+      "bytes": 111248,
+      "review_snapshots": [
+        {
+          "review_id": "shared_wire",
+          "reviewed_sha256": "388e9588e1deea05c4c35797dd56403b4d547d513605d6c5adf743b75fd72e89",
+          "matches_current_bytes": true
+        },
+        {
+          "review_id": "economic_export_delta",
+          "reviewed_sha256": "388e9588e1deea05c4c35797dd56403b4d547d513605d6c5adf743b75fd72e89",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "shared_wire",
+        "economic_export_delta"
+      ],
+      "status": "当前改动由共享抽取与经济导出增量两份独评覆盖",
+      "qualification": "shared_wire 仅共享导出块；economic_export_delta 仅末尾四行经济导出及 Cargo feature/target 条件，9项检查，不宣称全lib.rs重审。"
+    },
+    {
+      "path": "rust/src/session_protocol.rs",
+      "sha256": "87456952f5e74e7d932760b73647fbb1dad382b41098e441686a4b7ee87ffa00",
+      "bytes": 13416,
+      "review_snapshots": [
+        {
+          "review_id": "owner_initial",
+          "reviewed_sha256": "87456952f5e74e7d932760b73647fbb1dad382b41098e441686a4b7ee87ffa00",
+          "matches_current_bytes": true
+        },
+        {
+          "review_id": "shared_wire",
+          "reviewed_sha256": "87456952f5e74e7d932760b73647fbb1dad382b41098e441686a4b7ee87ffa00",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "owner_initial",
+        "shared_wire"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "rust/src/session_transport.rs",
+      "sha256": "0b968ef87bfe5f4bcfc7dbd136ba2401066a892a24ce598a9874fcffe9f1132c",
+      "bytes": 18546,
+      "review_snapshots": [
+        {
+          "review_id": "owner_initial",
+          "reviewed_sha256": "d65cd465d6d32e3274530e80c20ebb9d4cef7766f7cb772ebeae4155a3a04a87",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "shared_wire",
+          "reviewed_sha256": "d65cd465d6d32e3274530e80c20ebb9d4cef7766f7cb772ebeae4155a3a04a87",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "transport_final",
+          "reviewed_sha256": "0b968ef87bfe5f4bcfc7dbd136ba2401066a892a24ce598a9874fcffe9f1132c",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "shared_wire",
+        "transport_final"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "共享抽取审查加最终 macOS EOF/截止修复 206 项审查，当前字节与最终源副本相符。"
+    },
+    {
+      "path": "rust/src/theta_v0/strategy/ledger.rs",
+      "sha256": "7c218a26af9a7ad0fd2cbe5cfc51511cc3dc98a402541281ab3590280c911f24",
+      "bytes": 94302,
+      "review_snapshots": [
+        {
+          "review_id": "owner_initial",
+          "reviewed_sha256": "7c218a26af9a7ad0fd2cbe5cfc51511cc3dc98a402541281ab3590280c911f24",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "owner_initial",
+        "owner_v2"
+      ],
+      "status": "初审覆盖且缺陷由后续 owner_v2 关闭；连续审查链复用",
+      "qualification": "owner_initial 审查 ledger_step_components 抽取但总判 REQUEST_CHANGES；四项具名缺陷均在 book/store/service，owner_v2 已关闭。本处未新增代码。"
+    },
+    {
+      "path": "s_session/browser/economic.html",
+      "sha256": "623dc71dca16828b0b089b9d43400e40e470a18fb1f123a5c9943b5e8a7b43b0",
+      "bytes": 8075,
+      "review_snapshots": [
+        {
+          "review_id": "query_final",
+          "reviewed_sha256": "4db00f5aae1b4fda59b29445b7b83b1c978322c45ba153bc6d6b49024d473036",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "voice_ui",
+          "reviewed_sha256": "623dc71dca16828b0b089b9d43400e40e470a18fb1f123a5c9943b5e8a7b43b0",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "query_final",
+        "voice_ui"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "查询全链原审加后续 Voice UI 契约独评；实际浏览器由 voice_gui 另行独验。"
+    },
+    {
+      "path": "s_session/browser/index.html",
+      "sha256": "ac42bf0c2ff530d8b6f53f4e086bf7d84fd2babcf6e7ba59d97f20f9eebf177b",
+      "bytes": 47130,
+      "review_snapshots": [
+        {
+          "review_id": "query_final",
+          "reviewed_sha256": "ac42bf0c2ff530d8b6f53f4e086bf7d84fd2babcf6e7ba59d97f20f9eebf177b",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "query_final"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/browser/tb03a-client.js",
+      "sha256": "097fcabb8b678fed19cd85a0f365c989e3c3b2d72c05ee990d09902e1f9305b2",
+      "bytes": 18776,
+      "review_snapshots": [
+        {
+          "review_id": "query_final",
+          "reviewed_sha256": "4f530c223da31580cbc8d771d7018a2d732d77047eeb92ccf027b880b3cb3136",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "voice_ui",
+          "reviewed_sha256": "097fcabb8b678fed19cd85a0f365c989e3c3b2d72c05ee990d09902e1f9305b2",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "query_final",
+        "voice_ui"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "查询全链原审加后续 Voice UI 契约独评；实际浏览器由 voice_gui 另行独验。"
+    },
+    {
+      "path": "s_session/economic_http.py",
+      "sha256": "c9aee04f19694d5ff79b6367e057f424aba8aa18a708098dc38e13aef468b0dd",
+      "bytes": 5686,
+      "review_snapshots": [
+        {
+          "review_id": "query_final",
+          "reviewed_sha256": "c9aee04f19694d5ff79b6367e057f424aba8aa18a708098dc38e13aef468b0dd",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "query_final"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/economic_query.py",
+      "sha256": "4a4491efcb8ae58a634d3a0969e5b624fde05f06f91d897ad59c16339c4be349",
+      "bytes": 15394,
+      "review_snapshots": [
+        {
+          "review_id": "query_final",
+          "reviewed_sha256": "4a4491efcb8ae58a634d3a0969e5b624fde05f06f91d897ad59c16339c4be349",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "query_final"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/economic_service_control.py",
+      "sha256": "a4d2d25665b3163cc6ef183e4dba29ac8cef8ac8f0f716384251e68d143f94e4",
+      "bytes": 9886,
+      "review_snapshots": [
+        {
+          "review_id": "controller",
+          "reviewed_sha256": "c99a0a831e93784d5dac5cfd7f8e89c233d8d8ea4a2f565705ecc67c7613b98f",
+          "matches_current_bytes": false
+        },
+        {
+          "review_id": "controller_send_delta",
+          "reviewed_sha256": "a4d2d25665b3163cc6ef183e4dba29ac8cef8ac8f0f716384251e68d143f94e4",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "controller",
+        "controller_send_delta"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "控制器初审加 send 生命周期锁增量审查，当前字节与增量报告相符。"
+    },
+    {
+      "path": "s_session/launch_s.sh",
+      "sha256": "5bd94dbd39efc5a14be7d2fa23b3ed6b9c7c4570bc38338876c6451eec67522a",
+      "bytes": 10740,
+      "review_snapshots": [
+        {
+          "review_id": "controller",
+          "reviewed_sha256": "5bd94dbd39efc5a14be7d2fa23b3ed6b9c7c4570bc38338876c6451eec67522a",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "controller"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/s_readonly_server.py",
+      "sha256": "c8c3be8c09177cc8fd9f0fb7b3a4c1dcfb6d0eee9e222628fc63cc24fdb20916",
+      "bytes": 52779,
+      "review_snapshots": [
+        {
+          "review_id": "query_final",
+          "reviewed_sha256": "c8c3be8c09177cc8fd9f0fb7b3a4c1dcfb6d0eee9e222628fc63cc24fdb20916",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "query_final"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/s_service_control.py",
+      "sha256": "adf11ed673902705fc1a5776c3fcd68417cbc69690e5ba19157b515a691fd039",
+      "bytes": 30744,
+      "review_snapshots": [
+        {
+          "review_id": "controller",
+          "reviewed_sha256": "adf11ed673902705fc1a5776c3fcd68417cbc69690e5ba19157b515a691fd039",
+          "matches_current_bytes": true
+        },
+        {
+          "review_id": "controller_send_delta",
+          "reviewed_sha256": "adf11ed673902705fc1a5776c3fcd68417cbc69690e5ba19157b515a691fd039",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "controller",
+        "controller_send_delta"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/s_socket_client.py",
+      "sha256": "fdd8a40a501e1de9a740304667c9ba491a8ca3e1ac251ec62bf4832e7e425a27",
+      "bytes": 8845,
+      "review_snapshots": [
+        {
+          "review_id": "query_final",
+          "reviewed_sha256": "fdd8a40a501e1de9a740304667c9ba491a8ca3e1ac251ec62bf4832e7e425a27",
+          "matches_current_bytes": true
+        },
+        {
+          "review_id": "controller",
+          "reviewed_sha256": "fdd8a40a501e1de9a740304667c9ba491a8ca3e1ac251ec62bf4832e7e425a27",
+          "matches_current_bytes": true
+        },
+        {
+          "review_id": "controller_send_delta",
+          "reviewed_sha256": "fdd8a40a501e1de9a740304667c9ba491a8ca3e1ac251ec62bf4832e7e425a27",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "query_final",
+        "controller",
+        "controller_send_delta"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/tests/test_tb03a_query.py",
+      "sha256": "bc635f54cf8b354697cf0ecacf6e9a5f52fabcf90599615187223a5e1ad81440",
+      "bytes": 6614,
+      "review_snapshots": [
+        {
+          "review_id": "query_final",
+          "reviewed_sha256": "bc635f54cf8b354697cf0ecacf6e9a5f52fabcf90599615187223a5e1ad81440",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "query_final"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/tests/test_tb03a_socket_identity.py",
+      "sha256": "d4c5eb73de580a7b4b4e8dd1d1f9c5b67c2ad4263c332cf64a4deb1d6a66b6ea",
+      "bytes": 3240,
+      "review_snapshots": [
+        {
+          "review_id": "query_final",
+          "reviewed_sha256": "d4c5eb73de580a7b4b4e8dd1d1f9c5b67c2ad4263c332cf64a4deb1d6a66b6ea",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "query_final"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    },
+    {
+      "path": "s_session/tests/test_tb03a_voice_client.cjs",
+      "sha256": "13ba54bd723f4700833372804100c1f87886a7955ddeb6ce911a862423d1634a",
+      "bytes": 6447,
+      "review_snapshots": [
+        {
+          "review_id": "voice_ui",
+          "reviewed_sha256": "13ba54bd723f4700833372804100c1f87886a7955ddeb6ce911a862423d1634a",
+          "matches_current_bytes": true
+        }
+      ],
+      "review_chain": [
+        "voice_ui"
+      ],
+      "status": "当前字节有对应评审快照；结论限于报告明示范围",
+      "qualification": "不得以文件哈希相同扩大评审语义；后续代码变更须重新核面。"
+    }
+  ],
+  "non_code_changes": [
+    {
+      "path": ".chanlun/agent-roster-2026-09-13.md",
+      "sha256": "58751ec9d50ed78a271042be466651d98d9cb0b613e0da8ff32eec17e71e2f72",
+      "bytes": 3852,
+      "status": "已有工位登记文档；本代理未修改，本交付代码评审覆盖不据此扩大"
+    }
+  ],
+  "bounded_observations": {
+    "economic_normal": {
+      "runs": 2,
+      "author_owner_checks_per_run": 1022,
+      "author_http_checks_per_run": 376,
+      "paired_byte_artifacts": 152,
+      "root_browser_checks": 19,
+      "independent_checks": 2437
+    },
+    "economic_faults": {
+      "runs": 8,
+      "boundaries": "原 CaptureExternal/ApplyAllocation 的 E/B 提交前后，各两轮",
+      "independent_checks": 2429,
+      "independent_negative_controls": 5,
+      "sql_snapshots": 216,
+      "requests": 148,
+      "public_views": 96,
+      "database_copies": 24
+    },
+    "voice_normal": {
+      "runs": 2,
+      "author_checks_per_run": 261,
+      "paired_objects": 97,
+      "independent_checks": 5558,
+      "independent_negative_controls": 8,
+      "commands": 70,
+      "request_files": 48,
+      "public_views": 20,
+      "sql_snapshots": 66,
+      "database_copies": 6,
+      "actual_services": "E 与两个 B；本轮未启动 S/Q"
+    },
+    "voice_gui": {
+      "author_stages": "seed/bind/observe/stoparchive 全部有真实完成记录",
+      "root_browser_checks": 20,
+      "owned_services_stopped": 5,
+      "independent_final_status": "APPROVE_BOUNDED_ACTUAL_VOICE_GUI_EXECUTION",
+      "independent_checks": 3028,
+      "independent_negative_controls": 6,
+      "actual_commands": 69,
+      "actual_economic_requests": 21,
+      "actual_helper_http_exchanges": 16,
+      "complete_economic_sql_snapshots": 24,
+      "archive_databases_copied": 4,
+      "settled_ax_states": 9,
+      "unique_browser_network_requests": 6,
+      "full_visible_json_objects": 2
+    },
+    "voice_faults": {
+      "actual_runs": 4,
+      "attempt": "formal-voice-v1/faults-attempt-2",
+      "boundaries": [
+        "before_commit",
+        "after_commit"
+      ],
+      "runs_per_boundary": 2,
+      "compared_objects_per_boundary": 93,
+      "author_status": "PASS_BOUNDED_FORMAL_VOICE_FAULT_DOUBLE_RUN",
+      "independent_status": "APPROVE_BOUNDED_ACTUAL_VOICE_FAULT_DOUBLE_RUNS",
+      "prior_attempt": {
+        "path": "formal-voice-v1/faults/before_commit/run-1",
+        "counted_as_pass": false,
+        "reported_reason": "业务与正式停止完成后，归档比较器误拒 SIGKILL 遗留 socket；修正审计后以具名新 case 再跑，原件未覆盖。",
+        "reporter": "root 原执行与 voice_faults 独验；FAILURE 优先于较早 RESULT，原现场未覆盖"
+      },
+      "author_checks_per_run": 333,
+      "driver_independent_status": "APPROVE_BOUNDED_FAULT_DRIVER",
+      "independent_checks": 12468,
+      "independent_negative_controls": 6,
+      "actual_commands": 200,
+      "request_files": 100,
+      "public_views": 60,
+      "sql_snapshots": 120,
+      "database_copies": 12,
+      "original_owner_pids_confirmed_absent": 16
+    }
+  },
+  "finalization_pending": [],
+  "limits": [
+    "受控 TestOnly 单根 Voice，不证明父子经营成功链、Active、阶段政策、责任尾清退、订单或真实资金。",
+    "gamma 首次确证为源序号 50069；运行时明示 TestOnly 仿射时钟，不把序号当墙钟纳秒。",
+    "独立来源认证与真实 owner 成功执行分开；来源载体来自 K 森林，不替换为非延伸 OperationSequence 或 Active 块。",
+    "未改生产 formal/Lean；仓外 Lean 工作例不构成生产形式化变更。",
+    "#1323 六 Destination、#1361 及其他父域不因本叶证据关闭；已完成前置 #1359 保持原验收范围；#1453 独立 draft 的合入授权未由本报告产生。",
+    "只读证据整理未新启服务、未读原 SQLite、未重新跑已通过测试，未 commit/push/merge/comment/close。"
+  ],
+  "updated_at_utc": "2026-09-13T20:31:00.149736+00:00",
+  "delivery_identity": {
+    "product_commit": "c0ed0497a1bcd3cfca7e5b73a8af1cae229e0863",
+    "parent_commit": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+    "product_file_count": 30,
+    "roster_file_count": 1,
+    "committed_bytes_match_reviewed_sources": true,
+    "build_binding_artifact_id": "voice_build",
+    "binary_artifact_id": "voice_binaries",
+    "build_reuse_basis": "已成功构建及实际运行的源码字节未改变；当前产品 commit 的全部 30 份代码/构建文件与索引所审哈希逐项相同。无需重复相同构建。",
+    "report_commit_rule": "本报告与索引由紧随产品提交的纯文档 commit 承载，其准确 hash 从包含本文件的 Git 历史读取，避免自引用 hash。",
+    "report_only_compile_exemption": "后续报告 commit 仅 .chanlun/review-results/ 文档，不改变产品源码；提交后以实际 diff 确认。",
+    "final_scope_review_id": "final_delivery_scope"
+  },
+  "subsequent_delivery_gates": [
+    "main 合入仍需对实际 PR 的批准",
+    "主线 CI、关票与工位清理只在实际发生后记录；本报告不预写"
+  ]
+}

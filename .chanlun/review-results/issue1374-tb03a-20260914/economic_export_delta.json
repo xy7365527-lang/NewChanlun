@@ -1,0 +1,47 @@
+{
+  "schema": "bounded-export-delta-review/1",
+  "issue": 1374,
+  "verdict": "APPROVE_BOUNDED_ECONOMIC_MODULE_EXPORT_DELTA",
+  "scope": "仅lib.rs末尾新增4行（空行、说明、cfg、模块导出）与Cargo feature/两个E/B target启用条件；不是全lib.rs或核心业务重审",
+  "files": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/src/lib.rs",
+      "sha256": "388e9588e1deea05c4c35797dd56403b4d547d513605d6c5adf743b75fd72e89",
+      "reviewed_lines": [
+        2849,
+        2852
+      ]
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1374-codex/rust/Cargo.toml",
+      "sha256": "db8af9ea30e1840b87759aedd67a556fa506d152be1b01d3e068d8be610c1bdf",
+      "reviewed_sections": [
+        "features.default",
+        "features.s_session",
+        "dependencies.sha2/rusqlite/libc",
+        "bin.e_economic_session",
+        "bin.b_chong_session"
+      ]
+    }
+  ],
+  "checks": [
+    "经济模块导出准确挂在s_session feature",
+    "默认feature不隐式启用经济模块",
+    "s_session显式启用经济服务使用的可选依赖",
+    "可选依赖 sha2",
+    "可选依赖 rusqlite",
+    "可选依赖 libc",
+    "正式bin和lib使用相同feature e_economic_session",
+    "正式bin和lib使用相同feature b_chong_session",
+    "公开模块路径实际存在"
+  ],
+  "findings": [],
+  "reused_build": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-voice-v1/binaries-v1/BUILD-BINDING.json",
+    "sha256": "9f9977a2e8b20688c07533d9da92cc0d5e4b9870fba29557d9979fec696bfde6",
+    "scope": "复用已独验正常双跑与GUI实际运行同一冻结3bin的构建绑定，未再次构建"
+  },
+  "production_changed": false,
+  "build_or_test_rerun": false,
+  "limitation": "此处仅确认现有feature布线与已验macOS真实构建一致，不增称未运行平台构建覆盖"
+}

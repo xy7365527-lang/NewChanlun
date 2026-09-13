@@ -1,0 +1,40 @@
+{
+  "status": "APPROVE_BOUNDED_DEFINITION_GAMMAS",
+  "scope": "固定 synthetic OHLC 50069 前缀内两张受控定义 gamma；不含 carrier/economic/Strict/N7",
+  "gamma_ids": [
+    "3a1bcbdadd2bc2464c2bc7655ab98910bd15d07c5ef5a35cb08a2609564b17f3",
+    "52b8734f0ed22795fbac9d0bc043ceb9ae345108044d0106d8d62fa9f9cede89"
+  ],
+  "author_freeze_sha256": "0d55292b570adbf11e4428148f1520e65a6b0830c132e24e465ccce12924a294",
+  "author_files": 726,
+  "author_correction_freeze_sha256": "c87d26b1d0bb0d9900976b47b8592a8daaff117991c0f10bfcc1ad81a63b1801",
+  "positive_proof_sha256": "2caea0cf105905f89428eb75ffaa920a0eb679569d07d0349633e9f70384c644",
+  "independently_rebuilt_lean_dependencies": 13,
+  "independent_positive_lean_exit": 0,
+  "independent_negative_lean_exit": 0,
+  "independent_lean_assertions": 11,
+  "independent_raw_assertions": 14441,
+  "independent_probe_exit": 0,
+  "fresh_compare_files_per_prior_run": 19,
+  "fresh_byte_equal_per_prior_run": 18,
+  "remaining_one_file": "four complete records same byte multiset, order differs; original bytes preserved",
+  "findings": [
+    {
+      "id": "GAMMA-DOC-1",
+      "severity": "MEDIUM",
+      "status": "RESOLVED_BY_APPEND_ONLY_CORRECTION",
+      "description": "native候选误报空流，实为6候选(5Provisional/1Unresolved)，原生chains/Closed均0",
+      "affects_gamma_validity": false
+    }
+  ],
+  "report_sha256": "4bb952fe0770adbf51db8bd7cd9e9972b1c428d3c34ce206c54d67cf993768eb",
+  "checklist_sha256": "ab50d3f958438fd83025c1a44742072c7ad14d54a0f91703741da0e56c51d46e",
+  "not_proved": [
+    "carrier/economic绑定",
+    "native Closed",
+    "Strict/N7",
+    "旧pi完整准入",
+    "实际市场可交易性",
+    "理论最早可证时刻"
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "ticket": 1374,
+  "reviewer": "/root/tb03a_shared_wire_review",
+  "at_utc": "2026-09-13T16:17:52.942241+00:00",
+  "base": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+  "verdict": "APPROVE",
+  "overall": "PASS",
+  "concept_layer": {
+    "result": "PASS",
+    "definitions": [
+      "共同消息身份与内容绑定",
+      "规范精确整数与业务字节哈希",
+      "传输成功不等于持久提交",
+      "独立 owner、单写者、各域持久 writer_epoch"
+    ],
+    "contradictions": [],
+    "authority_sources": [
+      {
+        "path": ".chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/INTERFACE-CONTRACTS.md",
+        "bytes": 10889,
+        "sha256": "f1a2993c6fa4c6c29c6b9a4de7c1d0334c697aaa03e282f621171c37fc01d0e7"
+      },
+      {
+        "path": ".chanlun/review-results/issue1339-r2-spec-20260909/payload/spec/SPEC.md",
+        "bytes": 68412,
+        "sha256": "42fc34cd0bb6736469db5b6e652f861bee41b6ccc5808677125fae831b75bd11"
+      }
+    ],
+    "no_domain_semantic_change": true
+  },
+  "engineering_layer": {
+    "result": "PASS",
+    "counts": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0
+    },
+    "findings": []
+  },
+  "scope": {
+    "files": [
+      {
+        "path": "rust/src/session_protocol.rs",
+        "bytes": 13416,
+        "sha256": "87456952f5e74e7d932760b73647fbb1dad382b41098e441686a4b7ee87ffa00"
+      },
+      {
+        "path": "rust/src/session_transport.rs",
+        "bytes": 7560,
+        "sha256": "d65cd465d6d32e3274530e80c20ebb9d4cef7766f7cb772ebeae4155a3a04a87"
+      },
+      {
+        "path": "rust/src/bin/s_structure_session.rs",
+        "bytes": 247453,
+        "sha256": "66e7af17326d8ee04dd3062a3e4f62b6541b6389089762d7889ad2bd4d22cca5"
+      },
+      {
+        "path": "rust/src/bin/s_session_v2/mod.rs",
+        "bytes": 83491,
+        "sha256": "e235ed35402c1fb63f504d8252857e33a48d6eddbddbd33fc7039b4b4494b624"
+      },
+      {
+        "path": "rust/src/lib.rs",
+        "bytes": 111248,
+        "sha256": "388e9588e1deea05c4c35797dd56403b4d547d513605d6c5adf743b75fd72e89"
+      }
+    ],
+    "lib_rs_reviewed_region": "仅共享 session_protocol 与 session_transport 导出块；当前全文件 hash 仅用于定位，economic_session 导出排除",
+    "lib_rs_shared_exports_sha256": "c1aa662dcd948d4620ea86a51ad77779a1dec8763306c8dda3295b9ac613a268",
+    "excluded": [
+      "economic_session 及其导出",
+      "ledger、Python/Q、GUI 在制品",
+      "E/B 业务权限和账户事实语义",
+      "TB-03-A 整票验收及 main 合入"
+    ]
+  },
+  "verification": {
+    "new_independent_checks": 55,
+    "independent_script_exit": 0,
+    "reused_S_tests": "65 passed / 1 existing ignored 前后同名；原失编日志保留，修复后全组通过",
+    "reused_protocol_tests": "4 passed",
+    "reused_socket_trace": "实际 S 进程 8 轨迹；单原输入/单消息/单 delta，进程已停止",
+    "fresh_python_recomputation": "未导入生产实现，以 json/hashlib 独立重构完整回复规范字节及 SHA-256，匹配仓内固定向量",
+    "business_regions": "8 段与 baseline 逐字节相同",
+    "evidence_index": "25 件证据的 bytes/SHA-256 全部匹配",
+    "git_diff_check_exit": 0,
+    "cargo_rerun": false,
+    "socket_rerun": false,
+    "artifacts": [
+      {
+        "path": "VERIFICATION.json",
+        "bytes": 7463,
+        "sha256": "c603de909eb8ee4fc7f3755ed103f41ccca02dade2a57164c9262d090a15046a"
+      },
+      {
+        "path": "verify_evidence.py",
+        "bytes": 7741,
+        "sha256": "aec03accc4c52636a7d5a68f4e50e2c3cc3ef88f2ba19ca0895508492759386d"
+      }
+    ]
+  },
+  "limitations": [
+    "此结论只批准共享机械抽取，不给新 E/B handler 授权或来源可信证明。",
+    "共用 envelope 校形状与哈希；具体业务整数类型、金额单位、producer/target 权威核验必须由域入口完成。",
+    "复用最终全 S 回归后的一处 cfg(test) import 微调，已有最终正式编译及对应单测证明。",
+    "只验证规范化路径与符号链接指向同一 DB 时的进程锁，不扩大为整个宿主或所有文件别名的互斥证明。",
+    "未审查或通过 TB-03-A 的 Voice 正例、经济持久恢复、双跑、GUI；不表示 #1323 全图完成。",
+    "审查只写仓外证据，无仓内源代码修改，无 commit/push/merge。"
+  ]
+}

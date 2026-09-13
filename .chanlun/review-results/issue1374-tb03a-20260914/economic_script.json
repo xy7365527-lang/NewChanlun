@@ -1,0 +1,82 @@
+{
+  "schema_revision": "independent-formal-script-review/1",
+  "issue": 1374,
+  "verdict": "APPROVE",
+  "ready_for_run_1": true,
+  "formal_run_executed_by_reviewer": false,
+  "findings": [],
+  "reviewed_at_utc": "2026-09-13T18:21:32.982754+00:00",
+  "files": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-v2/prepare.py",
+      "sha256": "5d7c2257def3c92d37fc1a15746eebb0328b7741f02de94b5067fc8f510cbadd",
+      "bytes": 4612
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-v2/check_public_query.py",
+      "sha256": "6a593127e620ebeab0ebf34d1932a9f950fb125246c3942d066818d5af122fb9",
+      "bytes": 13451
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-v2/check_transport.py",
+      "sha256": "bfae259f5c3af942903fc7783fe01154f8b78c6985fe051a2592438df9d5a93a",
+      "bytes": 4753
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-v2/compare_runs.py",
+      "sha256": "30444e29a11e5b784a06e3ac35171fe67f8eca45b21b3a2142e5aa9bf93bef0a",
+      "bytes": 7643
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-v2/run-1/run_six_originals.py",
+      "sha256": "e92f37fc07874369f696e6fc8841255509e56b4a71d6667118b7c0d38591234d",
+      "bytes": 20381
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-v2/run-2/run_six_originals.py",
+      "sha256": "e92f37fc07874369f696e6fc8841255509e56b4a71d6667118b7c0d38591234d",
+      "bytes": 20381
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-v2/EXPECTED-ARTIFACTS.json",
+      "sha256": "594e6a273cb72b30d8d6e9d56b0ac90e73daa433acf2814a09af19cb6f4ca53c",
+      "bytes": 5783
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/formal-v2/lifecycle/lifecycle.py",
+      "sha256": "95e93f9ed77cc0cbdfd2a81fff4b9caca920dbf7f36707e819bcf49aba5c5ce8",
+      "bytes": 6020
+    }
+  ],
+  "checks": {
+    "independent_offline": 23,
+    "all_pass": true,
+    "two_drivers_identical_bytes": true,
+    "three_source_freeze_functions_equal_ast": true,
+    "ast": "PASS",
+    "formal_pid_touched": false,
+    "production_modified": false
+  },
+  "evidence": [
+    {
+      "path": "REVIEW.md",
+      "sha256": "97b1a0b107fdbdded90044890b04d251c0765e729ced68b89e95d38f5dc72122",
+      "bytes": 2786
+    },
+    {
+      "path": "independent_negative.py",
+      "sha256": "faa214a6d920b275a0f834872a4c85c86bfde4c8438af5a0577f39a837ffc1c0",
+      "bytes": 9313
+    },
+    {
+      "path": "NEGATIVE-CHECKS.json",
+      "sha256": "7507dc1bf39e83a875a06d5d03dabd26aef464d32dacf8cb64d171a8ec9038fe",
+      "bytes": 4278
+    },
+    {
+      "path": "AUTHOR-FREEZE-CHECK.json",
+      "sha256": "245d64e540b159f8074cc5db3af460950ccbfeace9e5dcd5d93e4c1ffc6a0703",
+      "bytes": 1785
+    }
+  ]
+}

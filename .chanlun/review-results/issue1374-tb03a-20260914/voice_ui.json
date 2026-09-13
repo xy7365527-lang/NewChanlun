@@ -1,0 +1,17 @@
+{
+  "verdict": "APPROVE_BOUNDED_VOICE_UI_DELTA",
+  "scope": "仅三组已报 UI 数据契约修复，不证明 γ 或实际 Voice 业务成功",
+  "source_sha256": {
+    "source/tb01c-client.js": "1a462574a697e9c7c9cc24f5e3af69c4dd0a1329d3df3e578a4b3ba26496147c",
+    "source/test_tb03a_voice_client.cjs": "13ba54bd723f4700833372804100c1f87886a7955ddeb6ce911a862423d1634a",
+    "source/economic.html": "623dc71dca16828b0b089b9d43400e40e470a18fb1f123a5c9943b5e8a7b43b0",
+    "source/tb03a-client.js": "097fcabb8b678fed19cd85a0f365c989e3c3b2d72c05ee990d09902e1f9305b2"
+  },
+  "independent_checks": 37,
+  "archived_actual_snapshots": 18,
+  "mutations_rejected": 16,
+  "previous_six_counterexamples_rejected": true,
+  "DOM_safety": "执行原页面 inline renderer 的 DOM sink 模拟，不是实际浏览器截图",
+  "root_test_exit": 0,
+  "risks": []
+}
