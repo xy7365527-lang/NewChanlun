@@ -240,16 +240,26 @@ max_bytes 计实际 Python 捕获对象大小的保守增量（含每行/每值�
     return image
 
 
-def capture_digest(image):
-    """包含当前全部 typed 行及模式；连接版本、墙钟、路径和物理页号不入业务摘要。"""
+def capture_digest(image, *, verified_delta_entries=None):
+    """包含当前全部 typed 行及模式；连接版本、墙钟、路径和物理页号不入业务摘要。
+
+    可选编码仅来自本次 verify 已逐字确认源相同的逐代证书；它是 canonical(str)
+    原字节的压缩件，不是代替当前行的摘要。未提供证书时保留完整原算法。
+    """
     digest = hashlib.sha256()
     digest.update(canonical({"schema": image["schema"], "schema_rows": image["schema_rows"]}))
+    if verified_delta_entries is not None:
+        columns = [column[1] for column in image["schema"]["structure_deltas"][0]]
+        generation_column, delta_column = columns.index("generation"), columns.index("delta_json")
     for table in sorted(image["tables"]):
         digest.update(canonical(table))
         for row in image["tables"][table]:
             digest.update(b"[")
-            for value in row:
-                if type(value) is bytes:
+            for index, value in enumerate(row):
+                if verified_delta_entries is not None and table == "structure_deltas" and index == delta_column:
+                    certificate = verified_delta_entries[row[generation_column]-1]
+                    data, tag = zlib.decompress(certificate["delta_digest_json"]), b"str"
+                elif type(value) is bytes:
                     data, tag = value, b"b"
                 else:
                     data, tag = canonical(value), type(value).__name__.encode("ascii")
@@ -824,6 +834,10 @@ def verify(image, h, deadline=None, memo=None):
                     raise ValueError("memo首版observation顺序不闭合")
                 original_observations[oid] = original
         if memo is not None:
+            if "delta_digest_json" not in certificate:
+                # 本代源已全核或与当前捕获逐字相同；只复用其 JSON 字符串编码。
+                # 不修改旧 proof 的证书，新增 bytes 由 proof/memo 联合预算完整计量。
+                certificate = dict(certificate, delta_digest_json=zlib.compress(canonical(row["delta_json"]), 1))
             next_entries.append(certificate)
         header, sets = certificate["header"], certificate["sets"]
         if header["seq_range"] != {"from": str(prev_frontier+1), "to": str(frontier)}:
@@ -885,7 +899,7 @@ def verify(image, h, deadline=None, memo=None):
                ("structure_cut", "next_cut"), ("last_advance_frontier", "input_frontier"))):
             raise ValueError("meta 与末代 Delta 根元组不一致")
     protocol = _verify_control(tables, meta, raw, verified_deltas, decoded_batches, deadline)
-    digest = capture_digest(image)
+    digest = capture_digest(image, verified_delta_entries=next_entries if memo is not None else None)
     _deadline(deadline)
     # 完整新鲜审计结束后才缩减保留量；上方所有当前typed行、batch原字节和关联门仍必跑。
     # 投影依赖完整清单：meta/generation身份与根、raw公开历史、wires四类索引、

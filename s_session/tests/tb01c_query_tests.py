@@ -255,6 +255,7 @@ class QueryTests(unittest.TestCase):
         self.addCleanup(disabled.close)
         full = disabled.capture_verified()
         self.assertNotIn("_audit_memo", full)
+        self.assertEqual(later["capture_digest"], full["capture_digest"])
         for cut in (None, 0, 1, 2, 3, 4):
             self.assertEqual(audit.project_state(later, cut, vars(reader)),
                              audit.project_state(full, cut, vars(reader)))
@@ -269,6 +270,8 @@ class QueryTests(unittest.TestCase):
 
     def test_memo_budget_counts_sources_certificates_and_public_history_together(self):
         proof = self.reader.capture_verified()
+        self.assertTrue(all(type(entry["delta_digest_json"]) is bytes
+                            for entry in proof["_audit_memo"]["entries"]))
         amount = audit.object_bytes(proof)
         self.assertIs(self.reader.memo, proof["_audit_memo"])
         self.assertEqual(audit.object_bytes((proof, self.reader.memo)), amount+sys.getsizeof((proof, self.reader.memo)))
@@ -299,6 +302,7 @@ class QueryTests(unittest.TestCase):
         full_reader = query.AuditReader(self.db, resources(), vars(reader), use_memo=False)
         self.addCleanup(full_reader.close)
         full = full_reader.capture_verified()
+        self.assertEqual(changed["capture_digest"], full["capture_digest"])
         self.assertEqual(audit.project_delta(changed, 2)["delta"], delta)
         for after in range(5):
             self.assertEqual(reader._delta_from_proof(changed, after), reader._delta_from_proof(full, after))
@@ -309,6 +313,29 @@ class QueryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.reader.capture_verified()
         self.assertEqual(self.reader.memo, {})
+
+    def test_encoded_delta_certificate_preserves_exact_digest_after_text_change(self):
+        initial = self.reader.capture_verified()
+        original_digest = initial["capture_digest"]
+        with closing(reader.open_readonly(self.db)) as conn:
+            source = conn.execute("SELECT delta_json FROM structure_deltas WHERE generation=3").fetchone()[0]
+        delta = audit.parse_json(source)
+        delta["source_extension"] = {"escaped": "引号\"反斜线\\换行\n制表\t控制\x00"}
+        changed_source = " \n" + audit.canonical(delta).decode() + "\n "
+        self.mutate("UPDATE structure_deltas SET delta_json=? WHERE generation=3", (changed_source,))
+        later = self.reader.capture_verified()
+        self.assertEqual((later["_audit_memo"]["hits"], later["_audit_memo"]["misses"]), (2, 2))
+        self.assertNotEqual(later["capture_digest"], original_digest)
+        with closing(reader.open_readonly(self.db)) as conn:
+            conn.execute("BEGIN")
+            image = audit.capture(conn)
+        # 不带编码证书的原始逐值算法独立对拍；连同空白/转义字节一并约束。
+        self.assertEqual(later["capture_digest"], audit.capture_digest(image))
+        self.assertEqual(audit.project_delta(later, 2)["delta"], delta)
+        self.reader.cached = None  # 同镜像重新捕获，不冒称另一次实际 Commit。
+        repeated = self.reader.capture_verified()
+        self.assertEqual(repeated["_audit_memo"]["hits"], 4)
+        self.assertEqual(repeated["capture_digest"], later["capture_digest"])
 
     def test_header_byte_and_total_time_limits_are_not_per_read_timeouts(self):
         left, right = socket.socketpair()
