@@ -1,0 +1,434 @@
+{
+  "schema": "issue1372-main-ci-evidence/v1",
+  "created_at": "2026-09-13T12:40:18.661065+00:00",
+  "source_directory": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci",
+  "verdict": "MAIN_CI_PASS_DEVSKIM_SAME_APPROVED_FAILURE",
+  "tree_binding": {
+    "main": "21b7898a19baa4d17c5885d122ea57ed882e4f73",
+    "main_tree": "4ebe9ffe886229634640a0e7c5da57f9d8ecacb8",
+    "main_parents": [
+      "e46cf3bca6a67da821f9ab046507563b8133f6d9",
+      "041c8e2ef7916a465d8b352ff9dc1469707f8ac1"
+    ],
+    "approved": "041c8e2ef7916a465d8b352ff9dc1469707f8ac1",
+    "approved_tree": "4ebe9ffe886229634640a0e7c5da57f9d8ecacb8",
+    "trees_equal": true,
+    "observed_main_ref": "21b7898a19baa4d17c5885d122ea57ed882e4f73"
+  },
+  "actual_checkout_log_bindings": [
+    {
+      "job": "rust-check",
+      "line": 160,
+      "checkout": "21b7898a19baa4d17c5885d122ea57ed882e4f73"
+    },
+    {
+      "job": "test",
+      "line": 165,
+      "checkout": "21b7898a19baa4d17c5885d122ea57ed882e4f73"
+    },
+    {
+      "job": "fixture-drift",
+      "line": 163,
+      "checkout": "21b7898a19baa4d17c5885d122ea57ed882e4f73"
+    },
+    {
+      "job": "s-observer",
+      "line": 194,
+      "checkout": "21b7898a19baa4d17c5885d122ea57ed882e4f73"
+    },
+    {
+      "job": "DevSkim",
+      "line": 170,
+      "checkout": "21b7898a19baa4d17c5885d122ea57ed882e4f73"
+    }
+  ],
+  "ci_run": {
+    "id": 34757202243,
+    "head_sha": "21b7898a19baa4d17c5885d122ea57ed882e4f73",
+    "event": "push",
+    "head_branch": "main",
+    "conclusion": "success",
+    "html_url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34757202243",
+    "created_at": "2026-09-13T12:28:57Z",
+    "updated_at": "2026-09-13T12:36:39Z"
+  },
+  "ci_jobs": [
+    {
+      "id": 103723520380,
+      "name": "rust-check",
+      "head_sha": "21b7898a19baa4d17c5885d122ea57ed882e4f73",
+      "conclusion": "success",
+      "started_at": "2026-09-13T12:28:59Z",
+      "completed_at": "2026-09-13T12:36:39Z",
+      "html_url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34757202243/job/103723520380"
+    },
+    {
+      "id": 103723520413,
+      "name": "test",
+      "head_sha": "21b7898a19baa4d17c5885d122ea57ed882e4f73",
+      "conclusion": "success",
+      "started_at": "2026-09-13T12:28:59Z",
+      "completed_at": "2026-09-13T12:34:27Z",
+      "html_url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34757202243/job/103723520413"
+    },
+    {
+      "id": 103723520491,
+      "name": "fixture-drift",
+      "head_sha": "21b7898a19baa4d17c5885d122ea57ed882e4f73",
+      "conclusion": "success",
+      "started_at": "2026-09-13T12:28:59Z",
+      "completed_at": "2026-09-13T12:30:32Z",
+      "html_url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34757202243/job/103723520491"
+    },
+    {
+      "id": 103723520497,
+      "name": "s-observer",
+      "head_sha": "21b7898a19baa4d17c5885d122ea57ed882e4f73",
+      "conclusion": "success",
+      "started_at": "2026-09-13T12:28:59Z",
+      "completed_at": "2026-09-13T12:29:30Z",
+      "html_url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34757202243/job/103723520497"
+    }
+  ],
+  "rust_test_steps": [
+    {
+      "name": "cargo test — default targets",
+      "conclusion": "success",
+      "summary_row_count": 55,
+      "counts": {
+        "passed": 3121,
+        "failed": 0,
+        "ignored": 172,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "log_line_numbers": [
+        9654,
+        9660,
+        9667,
+        9673,
+        9679,
+        9685,
+        9691,
+        9697,
+        9703,
+        9709,
+        9715,
+        9721,
+        9727,
+        9733,
+        9739,
+        9745,
+        9751,
+        9770,
+        9776,
+        9786,
+        9792,
+        9798,
+        9804,
+        9810,
+        9816,
+        9822,
+        9828,
+        9834,
+        9840,
+        9846,
+        9852,
+        9858,
+        9897,
+        9937,
+        9969,
+        9975,
+        9981,
+        9987,
+        9993,
+        10027,
+        10042,
+        10048,
+        10058,
+        10065,
+        10071,
+        10079,
+        10086,
+        10095,
+        10103,
+        10120,
+        10129,
+        10154,
+        10161,
+        10168,
+        10175
+      ]
+    },
+    {
+      "name": "cargo test — s_session 正式结构会话（#1370）",
+      "conclusion": "success",
+      "summary_row_count": 1,
+      "counts": {
+        "passed": 65,
+        "failed": 0,
+        "ignored": 1,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "log_line_numbers": [
+        10847
+      ]
+    },
+    {
+      "name": "cargo test — backtest_bin feature（econ_oddeven_diagnosis.rs 仅在此 feature 下编译）",
+      "conclusion": "success",
+      "summary_row_count": 1,
+      "counts": {
+        "passed": 2941,
+        "failed": 0,
+        "ignored": 161,
+        "measured": 0,
+        "filtered_out": 0
+      },
+      "log_line_numbers": [
+        14674
+      ]
+    }
+  ],
+  "rust_count_scope": "分命令汇总；default、s_session、backtest_bin 有重叠，不相加为唯一测试数；ignored 未当作 PASS。",
+  "python": {
+    "passed": 5059,
+    "skipped": 107,
+    "deselected": 11,
+    "xfailed": 1,
+    "warnings": 23,
+    "seconds": 147.35,
+    "summary": [
+      {
+        "line": 1167,
+        "text": "2026-09-13T12:34:20.8147316Z 5059 passed, 107 skipped, 11 deselected, 1 xfailed, 23 warnings in 147.35s (0:02:27)"
+      }
+    ],
+    "complete_skip_summary_line_count": 54,
+    "complete_skip_summary_count_sum": 107,
+    "complete_skip_summary_equal_to_candidate": true,
+    "new_five_test_names": [
+      "test_no_findings_succeeds_without_summary_file",
+      "test_known_baseline_and_removed_key_are_not_new_findings",
+      "test_large_difference_is_complete_ordered_and_appended",
+      "test_multiple_errors_and_summary_write_failure_remain_visible",
+      "test_summary_write_failure_overrides_an_otherwise_passing_gate"
+    ],
+    "new_five_inference": "主线与批准候选同树、同命令、同5059通过/107跳过/11取消选择/1预期失败；54行完整skip逐字对拍，无新五项门卫skip；复用候选到旧提交的5项增量证据，因此支持五项在主线实际执行通过。-q日志不含五条具名PASS。",
+    "new_five_log_does_not_have_named_pass_lines": true
+  },
+  "observer": {
+    "python_tests": 51,
+    "python_outcome": "OK",
+    "browser_passed": 32,
+    "browser_failed": 0
+  },
+  "fixture_drift": {
+    "fixtures": [
+      "theta_v0_center_parity.json",
+      "certificate_chain_parity.json",
+      "theta_v0_parity.json"
+    ],
+    "all_semantic_field_differences": 0,
+    "all_bytes_equal": true,
+    "log_lines": [
+      428,
+      431,
+      434,
+      435
+    ]
+  },
+  "devskim": {
+    "run_id": 34757202251,
+    "job_id": 103723520409,
+    "head_sha": "21b7898a19baa4d17c5885d122ea57ed882e4f73",
+    "run_conclusion": "failure",
+    "job_conclusion": "failure",
+    "gate": {
+      "name": "Enforce zero-findings gate and write summary",
+      "status": "completed",
+      "conclusion": "failure",
+      "number": 6,
+      "started_at": "2026-09-13T12:34:11Z",
+      "completed_at": "2026-09-13T12:34:20Z"
+    },
+    "gate_seconds": 9.0,
+    "scanner_step": {
+      "name": "Run DevSkim scanner",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 4,
+      "started_at": "2026-09-13T12:29:34Z",
+      "completed_at": "2026-09-13T12:34:07Z"
+    },
+    "artifact_step": {
+      "name": "Upload DevSkim SARIF as an ordinary Actions artifact",
+      "status": "completed",
+      "conclusion": "success",
+      "number": 5,
+      "started_at": "2026-09-13T12:34:07Z",
+      "completed_at": "2026-09-13T12:34:11Z"
+    },
+    "log_evidence": [
+      {
+        "line": 354,
+        "text": "2026-09-13T12:34:19.5275277Z - **Gate conclusion:** FAIL — scanner, evidence upload, SARIF/tool contract, baseline comparison, or zero-findings requirement failed."
+      },
+      {
+        "line": 358,
+        "text": "2026-09-13T12:34:19.5277099Z - SARIF contains 25691 finding(s) not in the baseline (total 33952). New findings:"
+      },
+      {
+        "line": 26050,
+        "text": "2026-09-13T12:34:20.5938967Z ##[error]Process completed with exit code 1."
+      },
+      {
+        "line": 26051,
+        "text": "2026-09-13T12:34:20.5950306Z ##[error]$GITHUB_STEP_SUMMARY upload aborted, supports content up to a size of 1024k, got 3037k. For more information see: https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#adding-a-markdown-summary"
+      }
+    ]
+  },
+  "sarif_comparison": {
+    "raw_results": 33952,
+    "unique_keys": 33878,
+    "baseline_outside_keys": 25691,
+    "baseline_outside_raw": 25734,
+    "baseline_count": 8201,
+    "baseline_present": 8187,
+    "baseline_absent": 14,
+    "added_keys_count": 0,
+    "removed_keys_count": 0,
+    "raw_key_multisets_equal": true,
+    "common_snippet_multiset_changed_count": 0,
+    "full_canonical_result_multisets_equal": true,
+    "logged_gate_keys_equal_sorted_sarif_baseline_difference": true,
+    "raw_file_difference": {
+      "result_lists_identical_in_order": [
+        false
+      ],
+      "non_result_json_equal": true,
+      "non_result_differing_json_pointers": [],
+      "raw_file_bytes_equal": false
+    }
+  },
+  "raw_originals": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/rust-check.log",
+      "bytes": 1356826,
+      "sha256": "fe9f8e343477bf0cb78a597039ea74f4bbc478d8c270ca8948adf7cd619226b3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/test.log",
+      "bytes": 133120,
+      "sha256": "9f294f3c6f95f19e9c4699bdcd2418f2f9755188e6246689071f1d28e91a0dfb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/fixture-drift.log",
+      "bytes": 42187,
+      "sha256": "17c4c9ea4425ddcb24263dbc1069376edbc758aa4dab443ad1d7330f4891e498"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/s-observer.log",
+      "bytes": 39675,
+      "sha256": "47f2cf58ffaaab6d9acf0fbe7742851586fca2a117053a7772c6f97ddd5beafa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DevSkim.log",
+      "bytes": 3886428,
+      "sha256": "f4fdf26f538299b4caa3b271848e5d53a3e2de851daa07fe7d4f5a1ef667ae22"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/devskim-results.sarif",
+      "bytes": 130106700,
+      "sha256": "899b48a581e0d9b6221161c54dd6fb8ce04e86684ddc2126f65e03587778f9f2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/devskim-sarif.zip",
+      "bytes": 78668965,
+      "sha256": "29c419f91740f6220610cc31095bf9de9168eb45a73d2d40beba1b1f4d54ca2c"
+    }
+  ],
+  "reused_candidate_test_evidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/REPORT.md",
+      "bytes": 5237,
+      "sha256": "600f231e6c25a88f7526af65ba06c6d26d29021b2b0f8b5f8feeb3d84673d9b1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/FACTS.json",
+      "bytes": 16662,
+      "sha256": "b49cc5396c7c8f67e8156fa494648346ea8ae20bc8062a3e60866807dd4be3a5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/COMPARISON.json",
+      "bytes": 9097,
+      "sha256": "e2ff59745b7e531d77f5f310a735a5fe8e6f11f599922da7f6c87685b43e84fe"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/test.log",
+      "bytes": 134077,
+      "sha256": "c7edb76b9d5322cf1d26b88768012d7304355f9aa4669133e574908e397ec8ab"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/committed-source/tests/test_devskim_sarif_gate.py",
+      "bytes": 5365,
+      "sha256": "6ca76cb11f3ac7cb40ac767adf0440fe3e95a6f9e95ac9233755044205aeb33c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/committed-source/scripts/devskim_sarif_gate.sh",
+      "bytes": 9706,
+      "sha256": "c3154bd748c796ba950d1b4926308cd37a1cf54b0a802f644b6a8877132ce5fc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/committed-source/tests/conftest.py",
+      "bytes": 1638,
+      "sha256": "cb4da357a3972e4f08b82749edf17e64aa7fe5264a419f289cbffba649058c1d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/committed-source/pyproject.toml",
+      "bytes": 1141,
+      "sha256": "00037b0d319906b8096c9ef4861440483093e740e1425fd768abe8ab2e6311af"
+    }
+  ],
+  "reused_candidate_scan_evidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/SUMMARY.md",
+      "bytes": 4038,
+      "sha256": "8522eaa0d140ef7d5d7b623642d33e02f6aa9b3d6da5d15fad08a7b2d36f770a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/SUMMARY.json",
+      "bytes": 14259,
+      "sha256": "7b486000feb2ac869b2cd712acb680d74eb5d9f3b27bd1d047183a62959cd3a8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/CLASSIFICATION.json",
+      "bytes": 31859,
+      "sha256": "e64afbd9a9ab26b7e46d031360b55d18c162569efda759e2e0e540b3f171c75c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/COMPARISON.json",
+      "bytes": 92117,
+      "sha256": "91c71b91ddc95750077f0419bb3a1a0485daf5195354c0deeac5245b5098f58f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/REMOTE-TIMING.json",
+      "bytes": 997,
+      "sha256": "af94fecf5ed68ceebe42bdef160b81f61a61447eb5ba9998ee2b3c7b0d54c689"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/REPORT-FREEZE.json",
+      "bytes": 2685,
+      "sha256": "dcfcda6813432f1abea839a41dff8b58b28a9ecbe162c59ed9beaec3227548b6"
+    }
+  ],
+  "limitations": [
+    "仅跟踪既有 push CI 和下载原件，无本地/远端测试重跑，无再次扫描，无仓库或远端修改。",
+    "9秒是主线实际 gate 步骤观测，6秒是批准候选先前观察；非相同机器性能基准。",
+    "DevSkim 真实 exit 1，基线外25691键和后续3037k摘要展示超限均保留；没有把红灯改称绿。",
+    "用户对C合入及已说明扫描红灯的批准由root记录；本报告提供主线同结果证据，不自行扩大例外。",
+    "旧 DS176209|rust/src/theta_v0/nautilus/strategy.rs|314 的 #1385 needs_review 沿用已冻结候选分诊；本轮未重审该缺陷，全仓实际风险总数未知。",
+    "主线CI同树不代替扩大CC构造域、经营/真实故障/历史回放验收，也不关闭#1323总图。"
+  ]
+}

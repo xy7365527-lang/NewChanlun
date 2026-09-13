@@ -1,0 +1,164 @@
+{
+  "candidate": {
+    "summary": [
+      {
+        "line": 1181,
+        "text": "2026-09-13T11:56:36.9450292Z 5059 passed, 107 skipped, 11 deselected, 1 xfailed, 23 warnings in 166.40s (0:02:46)"
+      }
+    ],
+    "skip_summary_lines": [
+      "SKIPPED [1] tests/test_026_real_data_validation.py:163: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [1] tests/test_026_real_data_validation.py:171: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [1] tests/test_026_real_data_validation.py:177: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [1] tests/test_026_real_data_validation.py:199: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [1] tests/test_026_real_data_validation.py:212: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [1] tests/test_026_real_data_validation.py:228: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [1] tests/test_026_real_data_validation.py:244: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [6] tests/test_bsp_visualization.py:160: b_plot.plot_bsp 尚未实现（bsp-plot 工位进行中）",
+      "SKIPPED [1] tests/test_bsp_visualization.py:296: b_plot.plot_bsp 尚未实现",
+      "SKIPPED [7] tests/test_ceremony_scan.py: detect_pending_topo_effects 已从 ceremony_scan.py 删除（177号重构）",
+      "SKIPPED [5] tests/test_ceremony_scan.py: compute_delta_blocks 已从 ceremony_scan.py 删除（178号重构）",
+      "SKIPPED [5] tests/test_ceremony_scan.py: get_frozen_nodes 已从 ceremony_scan.py 删除（178号-2重构）",
+      "SKIPPED [3] tests/test_ceremony_scan.py: detect_genealogy_anomalies 已从 ceremony_scan.py 删除（178号重构）",
+      "SKIPPED [1] tests/test_ceremony_scan.py:479: detect_genealogy_anomalies 已从 main() 中移除，anomaly 工位不再产生",
+      "SKIPPED [6] tests/test_ceremony_scan.py: async_self_ref 集成已从 ceremony_scan.py 删除（183号功能移除）",
+      "SKIPPED [3] tests/test_ceremony_scan.py: ceremony_state suspended 过滤已从 ceremony_scan.py 删除（270号功能移除）",
+      "SKIPPED [12] tests/test_ceremony_scan_proposals.py: _scan_genealogy_proposals 已从 ceremony_scan.py 删除",
+      "SKIPPED [5] tests/test_ceremony_scan_proposals.py: _check_completion 已从 ceremony_scan.py 删除",
+      "SKIPPED [1] tests/test_databento_pipeline.py:91: 本地 DBN 缓存缺失（先跑 databento_catalog.py 拉数）",
+      "SKIPPED [6] tests/test_flow_relation_e2e.py:123: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [6] tests/test_flow_relation_e2e.py:147: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_flow_relation_e2e.py:199: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_flow_relation_e2e.py:204: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_flow_relation_e2e.py:212: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_flow_relation_e2e.py:225: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_flow_relation_e2e.py:234: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_flow_relation_e2e.py:260: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_ph_persistence_closed_form.py:108: 真实数据缓存缺失",
+      "SKIPPED [1] tests/test_real_data_e2e.py:90: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:97: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:110: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:122: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:136: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:147: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:159: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:170: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:209: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:250: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:95: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:101: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:106: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:112: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:123: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:130: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:139: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:150: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:161: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:168: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:178: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:193: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_sip_consolidate.py:215: Massive 原样数据未落地（#1040），真实对拍读数待数据后跑",
+      "SKIPPED [1] tests/test_topo_schema.py:391: Real blocks directory not available",
+      "SKIPPED [1] tests/test_topo_schema.py:401: Real blocks directory not available",
+      "SKIPPED [1] tests/test_topo_schema.py:411: Real blocks directory not available"
+    ],
+    "skip_count_sum": 107,
+    "gate_test_skipped": false,
+    "pytest_command_lines": [
+      {
+        "line": 764,
+        "text": "2026-09-13T11:53:48.7549605Z ##[group]Run pytest -m \"not slow\" --tb=short -q -rs --cov=newchan --cov-report=term-missing --cov-report=xml:coverage.xml"
+      },
+      {
+        "line": 765,
+        "text": "2026-09-13T11:53:48.7550517Z \u001b[36;1mpytest -m \"not slow\" --tb=short -q -rs --cov=newchan --cov-report=term-missing --cov-report=xml:coverage.xml\u001b[0m"
+      }
+    ]
+  },
+  "main": {
+    "summary": [
+      {
+        "line": 1167,
+        "text": "2026-09-13T12:34:20.8147316Z 5059 passed, 107 skipped, 11 deselected, 1 xfailed, 23 warnings in 147.35s (0:02:27)"
+      }
+    ],
+    "skip_summary_lines": [
+      "SKIPPED [1] tests/test_026_real_data_validation.py:163: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [1] tests/test_026_real_data_validation.py:171: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [1] tests/test_026_real_data_validation.py:177: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [1] tests/test_026_real_data_validation.py:199: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [1] tests/test_026_real_data_validation.py:212: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [1] tests/test_026_real_data_validation.py:228: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [1] tests/test_026_real_data_validation.py:244: ALPHAVANTAGE_API_KEY not set",
+      "SKIPPED [6] tests/test_bsp_visualization.py:160: b_plot.plot_bsp 尚未实现（bsp-plot 工位进行中）",
+      "SKIPPED [1] tests/test_bsp_visualization.py:296: b_plot.plot_bsp 尚未实现",
+      "SKIPPED [7] tests/test_ceremony_scan.py: detect_pending_topo_effects 已从 ceremony_scan.py 删除（177号重构）",
+      "SKIPPED [5] tests/test_ceremony_scan.py: compute_delta_blocks 已从 ceremony_scan.py 删除（178号重构）",
+      "SKIPPED [5] tests/test_ceremony_scan.py: get_frozen_nodes 已从 ceremony_scan.py 删除（178号-2重构）",
+      "SKIPPED [3] tests/test_ceremony_scan.py: detect_genealogy_anomalies 已从 ceremony_scan.py 删除（178号重构）",
+      "SKIPPED [1] tests/test_ceremony_scan.py:479: detect_genealogy_anomalies 已从 main() 中移除，anomaly 工位不再产生",
+      "SKIPPED [6] tests/test_ceremony_scan.py: async_self_ref 集成已从 ceremony_scan.py 删除（183号功能移除）",
+      "SKIPPED [3] tests/test_ceremony_scan.py: ceremony_state suspended 过滤已从 ceremony_scan.py 删除（270号功能移除）",
+      "SKIPPED [12] tests/test_ceremony_scan_proposals.py: _scan_genealogy_proposals 已从 ceremony_scan.py 删除",
+      "SKIPPED [5] tests/test_ceremony_scan_proposals.py: _check_completion 已从 ceremony_scan.py 删除",
+      "SKIPPED [1] tests/test_databento_pipeline.py:91: 本地 DBN 缓存缺失（先跑 databento_catalog.py 拉数）",
+      "SKIPPED [6] tests/test_flow_relation_e2e.py:123: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [6] tests/test_flow_relation_e2e.py:147: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_flow_relation_e2e.py:199: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_flow_relation_e2e.py:204: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_flow_relation_e2e.py:212: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_flow_relation_e2e.py:225: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_flow_relation_e2e.py:234: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_flow_relation_e2e.py:260: 缓存缺失：SPY_1day_raw.parquet",
+      "SKIPPED [1] tests/test_ph_persistence_closed_form.py:108: 真实数据缓存缺失",
+      "SKIPPED [1] tests/test_real_data_e2e.py:90: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:97: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:110: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:122: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:136: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:147: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:159: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:170: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:209: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_e2e.py:250: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:95: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:101: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:106: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:112: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:123: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:130: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:139: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:150: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:161: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:168: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:178: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_real_data_recursive_e2e.py:193: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv",
+      "SKIPPED [1] tests/test_sip_consolidate.py:215: Massive 原样数据未落地（#1040），真实对拍读数待数据后跑",
+      "SKIPPED [1] tests/test_topo_schema.py:391: Real blocks directory not available",
+      "SKIPPED [1] tests/test_topo_schema.py:401: Real blocks directory not available",
+      "SKIPPED [1] tests/test_topo_schema.py:411: Real blocks directory not available"
+    ],
+    "skip_count_sum": 107,
+    "gate_test_skipped": false,
+    "pytest_command_lines": [
+      {
+        "line": 750,
+        "text": "2026-09-13T12:31:50.9151499Z ##[group]Run pytest -m \"not slow\" --tb=short -q -rs --cov=newchan --cov-report=term-missing --cov-report=xml:coverage.xml"
+      },
+      {
+        "line": 751,
+        "text": "2026-09-13T12:31:50.9152361Z \u001b[36;1mpytest -m \"not slow\" --tb=short -q -rs --cov=newchan --cov-report=term-missing --cov-report=xml:coverage.xml\u001b[0m"
+      }
+    ]
+  },
+  "complete_skip_summary_equal": true,
+  "new_five_test_names": [
+    "test_no_findings_succeeds_without_summary_file",
+    "test_known_baseline_and_removed_key_are_not_new_findings",
+    "test_large_difference_is_complete_ordered_and_appended",
+    "test_multiple_errors_and_summary_write_failure_remain_visible",
+    "test_summary_write_failure_overrides_an_otherwise_passing_gate"
+  ],
+  "test_source_sha256": "6ca76cb11f3ac7cb40ac767adf0440fe3e95a6f9e95ac9233755044205aeb33c",
+  "inference": "主线与批准候选同树、同命令、同5059通过/107跳过/11取消选择/1预期失败；54行完整skip逐字对拍，无新五项门卫skip；复用候选到旧提交的5项增量证据，因此支持五项在主线实际执行通过。-q日志不含五条具名PASS。"
+}

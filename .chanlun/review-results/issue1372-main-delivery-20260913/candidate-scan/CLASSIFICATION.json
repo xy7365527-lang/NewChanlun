@@ -1,0 +1,723 @@
+{
+  "head": "041c8e2ef7916a465d8b352ff9dc1469707f8ac1",
+  "all_new_findings": 141,
+  "all_classified": 141,
+  "new_confirmed_product_security_defects": 0,
+  "new_needs_review": 0,
+  "actual_total_security_defects": null,
+  "categories": {
+    "named_file_sha256": 32,
+    "git_commit_identity": 2,
+    "bound_gate_replay_sha256": 8,
+    "comparison_case_output_sha256": 99
+  },
+  "verification_methods": {
+    "rehash_original_bytes": 11,
+    "rehash_original_bytes_and_compare_git_copy": 7,
+    "rehash_git_blob": 14,
+    "local_git_commit_object": 2,
+    "rehash_fixed_baseline": 1,
+    "frozen_previous_artifact_digest_and_size": 1,
+    "rehash_fixed_head_gate": 3,
+    "rehash_original_stdout": 1,
+    "named_use_and_frozen_report_bytes": 99,
+    "rehash_fixed_old_gate": 2
+  },
+  "source_checks": [
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/review/REVIEW.md",
+      "bytes": 2788,
+      "sha256": "1827929fb1a70535364c4c71524b7ae6ec43a6ae832bc0fbf38ffdfc642cf425",
+      "method": "rehash_original_bytes_and_compare_git_copy"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/review/REVIEW.json",
+      "bytes": 1762,
+      "sha256": "48c954ca3ed1094ab5a8be0dd36af7a26bb37b67086b792f038903ba0ccfca15",
+      "method": "rehash_original_bytes_and_compare_git_copy"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/review/MATRIX-RESULTS.json",
+      "bytes": 15761,
+      "sha256": "3ea61e59c9cbdf2ad0e947602d24efef960b4923d9cb3b405a0f082d5123fdb5",
+      "method": "rehash_original_bytes_and_compare_git_copy"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/python-review/REVIEW.md",
+      "bytes": 5724,
+      "sha256": "e8a61cf147e6387f551d69fcc7b38da23e2200c27f46a57410d6b0872cc7c7a4",
+      "method": "rehash_original_bytes_and_compare_git_copy"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/python-review/REVIEW.json",
+      "bytes": 1629,
+      "sha256": "23ada8d1f463e4758b51759d4e5667182e5427a5f102bfacc9247699597bfa34",
+      "method": "rehash_original_bytes_and_compare_git_copy"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/REAL-SARIF-REPLAY.json",
+      "bytes": 1568,
+      "sha256": "c1686a0bc707b5b3b92207171cab9e878b19f76f363df01187855fda2f7aeea3",
+      "method": "rehash_original_bytes_and_compare_git_copy"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/OLD-RUN-SNAPSHOT.json",
+      "bytes": 2817,
+      "sha256": "e46d3a0df751cb23301f3a83f396ec870d37918638568500cf3b9ea46880ce39",
+      "method": "rehash_original_bytes_and_compare_git_copy"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/BEFORE.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "method": "rehash_original_bytes"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/BEFORE.stderr",
+      "bytes": 2920,
+      "sha256": "dce33e4b4656acfef435c4830ce2a3152c505b24b1198bddfed18789550a3990",
+      "method": "rehash_original_bytes"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/AFTER-FINAL.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "method": "rehash_original_bytes"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/AFTER-FINAL.stderr",
+      "bytes": 861,
+      "sha256": "31ec8f0129692cf0b62aa993ebd9c53e64b0027896f89beb66c4532f76f387f3",
+      "method": "rehash_original_bytes"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/REAL-SARIF.stdout",
+      "bytes": 3094460,
+      "sha256": "f5449750d9fe5e2401edd00721deb999ca1380922b1f60c95591f55b54d6a9ab",
+      "method": "rehash_original_bytes"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/REAL-SARIF.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "method": "rehash_original_bytes"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/REAL-SARIF-SUMMARY.md",
+      "bytes": 3094460,
+      "sha256": "f5449750d9fe5e2401edd00721deb999ca1380922b1f60c95591f55b54d6a9ab",
+      "method": "rehash_original_bytes"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/review/MANIFEST.json",
+      "bytes": 59696,
+      "sha256": "a3266873480d0ea99554bc2a5d634a5d7449cd3392d136ea7946f432304fdde6",
+      "method": "rehash_original_bytes"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/python-review/MANIFEST.json",
+      "bytes": 2491,
+      "sha256": "8cb02130b14856dd5115783118cadebefec0fec31a0a57d3d3d4ac25a5f2fc13",
+      "method": "rehash_original_bytes"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-acd30cb61e/SUMMARY.md",
+      "bytes": 4357,
+      "sha256": "042a115a87b4304c8ea8d9e04127a3fc448e58b62f06e0b791b87c17e2ec1a7d",
+      "method": "rehash_original_bytes"
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-acd30cb61e/SUMMARY.json",
+      "bytes": 15394,
+      "sha256": "410526f7632ac3776de15e0fdd81059c86685a94bcd6b99e949cb419a3d5bf1a",
+      "method": "rehash_original_bytes"
+    },
+    {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/EVIDENCE-SOURCES.json",
+      "bytes": 6982,
+      "sha256": "564f98c72d1d2b60a61d0cd97f73b381d840fdc3642cff2fde7c1e80135f36b3",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/README.md",
+      "bytes": 3340,
+      "sha256": "556eb68b1e7d38e9e293643b73a8c62dacc1a94adbf09c26a7bbef9758df74c0",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/OLD-RUN-SNAPSHOT.json",
+      "bytes": 2817,
+      "sha256": "e46d3a0df751cb23301f3a83f396ec870d37918638568500cf3b9ea46880ce39",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/REAL-SARIF-REPLAY.json",
+      "bytes": 1568,
+      "sha256": "c1686a0bc707b5b3b92207171cab9e878b19f76f363df01187855fda2f7aeea3",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/python-review/REVIEW.json",
+      "bytes": 1629,
+      "sha256": "23ada8d1f463e4758b51759d4e5667182e5427a5f102bfacc9247699597bfa34",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/python-review/REVIEW.md",
+      "bytes": 5724,
+      "sha256": "e8a61cf147e6387f551d69fcc7b38da23e2200c27f46a57410d6b0872cc7c7a4",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json",
+      "bytes": 15761,
+      "sha256": "3ea61e59c9cbdf2ad0e947602d24efef960b4923d9cb3b405a0f082d5123fdb5",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/REVIEW.json",
+      "bytes": 1762,
+      "sha256": "48c954ca3ed1094ab5a8be0dd36af7a26bb37b67086b792f038903ba0ccfca15",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/REVIEW.md",
+      "bytes": 2788,
+      "sha256": "1827929fb1a70535364c4c71524b7ae6ec43a6ae832bc0fbf38ffdfc642cf425",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": "tests/test_devskim_sarif_gate.py",
+      "bytes": 5365,
+      "sha256": "6ca76cb11f3ac7cb40ac767adf0440fe3e95a6f9e95ac9233755044205aeb33c",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": "scripts/devskim_sarif_gate.sh",
+      "bytes": 9706,
+      "sha256": "c3154bd748c796ba950d1b4926308cd37a1cf54b0a802f644b6a8877132ce5fc",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 1141,
+      "sha256": "00037b0d319906b8096c9ef4861440483093e740e1425fd768abe8ab2e6311af",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 15365,
+      "sha256": "e74bdcb4d40dab700c2f5615d88395359714423070b1b8c075aec6b0777b9261",
+      "method": "rehash_git_blob"
+    },
+    {
+      "path": "tests/conftest.py",
+      "bytes": 1638,
+      "sha256": "cb4da357a3972e4f08b82749edf17e64aa7fe5264a419f289cbffba649058c1d",
+      "method": "rehash_git_blob"
+    }
+  ],
+  "matrix_named_output_fields": [
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|393",
+      "case": "many-new-keys",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|392",
+      "case": "many-new-keys",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|391",
+      "case": "many-new-keys",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|382",
+      "case": "no-summary-option",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|381",
+      "case": "no-summary-option",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|380",
+      "case": "no-summary-option",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|371",
+      "case": "summary-directory-fail",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|370",
+      "case": "summary-directory-fail",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|369",
+      "case": "summary-directory-fail",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|360",
+      "case": "summary-directory-pass",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|359",
+      "case": "summary-directory-pass",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|358",
+      "case": "summary-directory-pass",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|348",
+      "case": "baseline-unicode-special-key",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|347",
+      "case": "baseline-unicode-special-key",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|346",
+      "case": "baseline-unicode-special-key",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|336",
+      "case": "baseline-key-missing-fields",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|335",
+      "case": "baseline-key-missing-fields",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|334",
+      "case": "baseline-key-missing-fields",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|324",
+      "case": "baseline-key-extract-fails",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|323",
+      "case": "baseline-key-extract-fails",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|322",
+      "case": "baseline-key-extract-fails",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|312",
+      "case": "baseline-invalid-element",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|311",
+      "case": "baseline-invalid-element",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|310",
+      "case": "baseline-invalid-element",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|300",
+      "case": "baseline-invalid-schema",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|299",
+      "case": "baseline-invalid-schema",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|298",
+      "case": "baseline-invalid-schema",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|288",
+      "case": "baseline-missing",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|287",
+      "case": "baseline-missing",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|286",
+      "case": "baseline-missing",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|276",
+      "case": "baseline-new",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|275",
+      "case": "baseline-new",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|274",
+      "case": "baseline-new",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|264",
+      "case": "baseline-empty-zero",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|263",
+      "case": "baseline-empty-zero",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|262",
+      "case": "baseline-empty-zero",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|252",
+      "case": "baseline-fixed-only",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|251",
+      "case": "baseline-fixed-only",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|250",
+      "case": "baseline-fixed-only",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|240",
+      "case": "baseline-all-known",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|239",
+      "case": "baseline-all-known",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|238",
+      "case": "baseline-all-known",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|228",
+      "case": "missing-jq",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|227",
+      "case": "missing-jq",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|226",
+      "case": "missing-jq",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|216",
+      "case": "without-expected-name-version",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|215",
+      "case": "without-expected-name-version",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|214",
+      "case": "without-expected-name-version",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|204",
+      "case": "expected-name-version-mismatch",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|203",
+      "case": "expected-name-version-mismatch",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|202",
+      "case": "expected-name-version-mismatch",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|192",
+      "case": "mixed-version",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|191",
+      "case": "mixed-version",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|190",
+      "case": "mixed-version",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|180",
+      "case": "mixed-name",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|179",
+      "case": "mixed-name",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|178",
+      "case": "mixed-name",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|168",
+      "case": "empty-name",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|167",
+      "case": "empty-name",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|166",
+      "case": "empty-name",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|156",
+      "case": "missing-version",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|155",
+      "case": "missing-version",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|154",
+      "case": "missing-version",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|144",
+      "case": "wrong-schema",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|143",
+      "case": "wrong-schema",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|142",
+      "case": "wrong-schema",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|132",
+      "case": "two-documents",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|131",
+      "case": "two-documents",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|130",
+      "case": "two-documents",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|120",
+      "case": "malformed-sarif",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|119",
+      "case": "malformed-sarif",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|118",
+      "case": "malformed-sarif",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|108",
+      "case": "missing-sarif",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|107",
+      "case": "missing-sarif",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|106",
+      "case": "missing-sarif",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|96",
+      "case": "metadata-special-characters",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|95",
+      "case": "metadata-special-characters",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|94",
+      "case": "metadata-special-characters",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|84",
+      "case": "scanner-upload-both-fail",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|83",
+      "case": "scanner-upload-both-fail",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|82",
+      "case": "scanner-upload-both-fail",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|72",
+      "case": "nonzero-fail",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|71",
+      "case": "nonzero-fail",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|70",
+      "case": "nonzero-fail",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|60",
+      "case": "zero-pass",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|59",
+      "case": "zero-pass",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|58",
+      "case": "zero-pass",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|49",
+      "case": "missing-required",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|48",
+      "case": "missing-required",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|47",
+      "case": "missing-required",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|38",
+      "case": "missing-value",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|37",
+      "case": "missing-value",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|36",
+      "case": "missing-value",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|27",
+      "case": "unknown-argument",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|26",
+      "case": "unknown-argument",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|25",
+      "case": "unknown-argument",
+      "output": "stdout_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|16",
+      "case": "help",
+      "output": "summary_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|15",
+      "case": "help",
+      "output": "stderr_normalized_sha256"
+    },
+    {
+      "key": "DS173237|.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json|14",
+      "case": "help",
+      "output": "stdout_sha256"
+    }
+  ],
+  "limits": [
+    "141新增键已逐条绑定固定Git原字节与唯一JSON Pointer，无抽样或未分类项。",
+    "99个具名对拍输出摘要只核用途与已冻报告原字节，不重跑用例、不重新规范化stderr。",
+    "1个旧SARIF摘要复用已冻结artifact摘要及当前长度；其余39个文件/源码/输出摘要重算，2个Git commit身份直接解析。",
+    "未重新评审本人Q实现；旧25,550基线外键保持既有分诊与strategy.rs:314 needs_review，实际全仓风险总数未知。"
+  ]
+}

@@ -1,0 +1,378 @@
+{
+  "verdict": "PASS_REMOTE_TEST_JOB_AND_FIVE_NEW_CASES_BY_COLLECTION_DELTA",
+  "head": "041c8e2ef7916a465d8b352ff9dc1469707f8ac1",
+  "run_id": 34755511547,
+  "job_id": 103719090618,
+  "job_url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34755511547/job/103719090618",
+  "job_conclusion": "success",
+  "test_step": {
+    "name": "Run tests with coverage",
+    "status": "completed",
+    "conclusion": "success",
+    "number": 10,
+    "started_at": "2026-09-13T11:53:48Z",
+    "completed_at": "2026-09-13T11:56:38Z"
+  },
+  "counts": {
+    "passed": 5059,
+    "skipped": 107,
+    "deselected": 11,
+    "xfailed": 1,
+    "warnings": 23,
+    "seconds": 166.4
+  },
+  "previous_counts": {
+    "passed": 5054,
+    "skipped": 107,
+    "deselected": 11,
+    "xfailed": 1,
+    "warnings": 23,
+    "seconds": 143.1
+  },
+  "new_tests": [
+    "test_no_findings_succeeds_without_summary_file",
+    "test_known_baseline_and_removed_key_are_not_new_findings",
+    "test_large_difference_is_complete_ordered_and_appended",
+    "test_multiple_errors_and_summary_write_failure_remain_visible",
+    "test_summary_write_failure_overrides_an_otherwise_passing_gate"
+  ],
+  "new_test_count": 5,
+  "passed_delta": 5,
+  "skip_summary_count": 107,
+  "skip_summary_entries": 54,
+  "skip_details_identical": true,
+  "new_test_file_in_skip_list": false,
+  "bash_jq_guard_in_skip_list": false,
+  "source_identity": {
+    "label": "current",
+    "head": "041c8e2ef7916a465d8b352ff9dc1469707f8ac1",
+    "merge_commit": "1098c0cacf74e4a79e3966d4e1a280d6a9a37081",
+    "merge_tree": "4ebe9ffe886229634640a0e7c5da57f9d8ecacb8",
+    "head_tree": "4ebe9ffe886229634640a0e7c5da57f9d8ecacb8",
+    "same_tree": true,
+    "parents": [
+      "e46cf3bca6a67da821f9ab046507563b8133f6d9",
+      "041c8e2ef7916a465d8b352ff9dc1469707f8ac1"
+    ]
+  },
+  "new_test_source_sha256": "6ca76cb11f3ac7cb40ac767adf0440fe3e95a6f9e95ac9233755044205aeb33c",
+  "direct_per_case_pass_names_printed": false,
+  "inference_basis": [
+    "实际merge tree与head tree完全相同",
+    "完整tests差异面只新增一个文件且其中恰好五项测试",
+    "默认pytest收集与not slow选择器保持不变，新五项没有slow或其他排除标记",
+    "新旧完整skip明细54行合计107项逐字相同",
+    "passed恰好增加5，skipped/deselected/xfailed/warnings计数全不变"
+  ],
+  "bash_runtime_observed": "日志多次明确shell: /usr/bin/bash -e {0}",
+  "jq_runtime_explicit_version_observed": false,
+  "jq_availability_evidence": "固定runner镜像清单含jq；新五项不在skip集合且pass增加5，class skipUnless(BASH and which(jq))未触发",
+  "runner_inventory": {
+    "image": "ubuntu-24.04",
+    "version": "20260907.300.1",
+    "source_url": "https://github.com/actions/runner-images/blob/ubuntu24/20260907.300/images/ubuntu/Ubuntu2404-Readme.md",
+    "bash_inventory": "5.2.21(1)-release",
+    "jq_software_list": "1.7",
+    "jq_apt_package": "1.7.1-3ubuntu0.24.04.2"
+  },
+  "log_anchors": {
+    "checkout": [
+      {
+        "line": 176,
+        "text": "2026-09-13T11:51:30.1918914Z HEAD is now at 1098c0c Merge 041c8e2ef7916a465d8b352ff9dc1469707f8ac1 into e46cf3bca6a67da821f9ab046507563b8133f6d9"
+      }
+    ],
+    "checkout_sha": [
+      {
+        "line": 95,
+        "text": "2026-09-13T11:51:12.2199322Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +1098c0cacf74e4a79e3966d4e1a280d6a9a37081:refs/remotes/pull/1451/merge"
+      },
+      {
+        "line": 97,
+        "text": "2026-09-13T11:51:26.3291369Z  * [new ref]         1098c0cacf74e4a79e3966d4e1a280d6a9a37081 -> pull/1451/merge"
+      },
+      {
+        "line": 179,
+        "text": "2026-09-13T11:51:30.2571283Z 1098c0cacf74e4a79e3966d4e1a280d6a9a37081"
+      }
+    ],
+    "pytest_command": [
+      {
+        "line": 764,
+        "text": "2026-09-13T11:53:48.7549605Z ##[group]Run pytest -m \"not slow\" --tb=short -q -rs --cov=newchan --cov-report=term-missing --cov-report=xml:coverage.xml"
+      },
+      {
+        "line": 765,
+        "text": "2026-09-13T11:53:48.7550517Z \u001b[36;1mpytest -m \"not slow\" --tb=short -q -rs --cov=newchan --cov-report=term-missing --cov-report=xml:coverage.xml\u001b[0m"
+      }
+    ],
+    "pytest_summary": [
+      {
+        "line": 1181,
+        "text": "2026-09-13T11:56:36.9450292Z 5059 passed, 107 skipped, 11 deselected, 1 xfailed, 23 warnings in 166.40s (0:02:46)"
+      }
+    ],
+    "runner_image": [
+      {
+        "line": 16,
+        "text": "2026-09-13T11:51:11.0151290Z Image: ubuntu-24.04"
+      }
+    ],
+    "runner_version": [
+      {
+        "line": 17,
+        "text": "2026-09-13T11:51:11.0151879Z Version: 20260907.300.1"
+      }
+    ],
+    "runner_software_url": [
+      {
+        "line": 18,
+        "text": "2026-09-13T11:51:11.0153149Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260907.300/images/ubuntu/Ubuntu2404-Readme.md"
+      }
+    ],
+    "bash_shell": [
+      {
+        "line": 203,
+        "text": "2026-09-13T11:51:33.2451597Z shell: /usr/bin/bash -e {0}"
+      },
+      {
+        "line": 207,
+        "text": "2026-09-13T11:51:34.2626525Z shell: /usr/bin/bash -e {0}"
+      },
+      {
+        "line": 274,
+        "text": "2026-09-13T11:51:42.8071448Z shell: /usr/bin/bash -e {0}"
+      },
+      {
+        "line": 736,
+        "text": "2026-09-13T11:53:15.6759415Z shell: /usr/bin/bash -e {0}"
+      },
+      {
+        "line": 766,
+        "text": "2026-09-13T11:53:48.7587479Z shell: /usr/bin/bash -e {0}"
+      }
+    ],
+    "python": [],
+    "skip_summary": [
+      {
+        "line": 1127,
+        "text": "2026-09-13T11:56:36.9404146Z SKIPPED [1] tests/test_026_real_data_validation.py:163: ALPHAVANTAGE_API_KEY not set"
+      },
+      {
+        "line": 1128,
+        "text": "2026-09-13T11:56:36.9405018Z SKIPPED [1] tests/test_026_real_data_validation.py:171: ALPHAVANTAGE_API_KEY not set"
+      },
+      {
+        "line": 1129,
+        "text": "2026-09-13T11:56:36.9405810Z SKIPPED [1] tests/test_026_real_data_validation.py:177: ALPHAVANTAGE_API_KEY not set"
+      },
+      {
+        "line": 1130,
+        "text": "2026-09-13T11:56:36.9406580Z SKIPPED [1] tests/test_026_real_data_validation.py:199: ALPHAVANTAGE_API_KEY not set"
+      },
+      {
+        "line": 1131,
+        "text": "2026-09-13T11:56:36.9407361Z SKIPPED [1] tests/test_026_real_data_validation.py:212: ALPHAVANTAGE_API_KEY not set"
+      },
+      {
+        "line": 1132,
+        "text": "2026-09-13T11:56:36.9408160Z SKIPPED [1] tests/test_026_real_data_validation.py:228: ALPHAVANTAGE_API_KEY not set"
+      },
+      {
+        "line": 1133,
+        "text": "2026-09-13T11:56:36.9408957Z SKIPPED [1] tests/test_026_real_data_validation.py:244: ALPHAVANTAGE_API_KEY not set"
+      },
+      {
+        "line": 1134,
+        "text": "2026-09-13T11:56:36.9410108Z SKIPPED [6] tests/test_bsp_visualization.py:160: b_plot.plot_bsp 尚未实现（bsp-plot 工位进行中）"
+      },
+      {
+        "line": 1135,
+        "text": "2026-09-13T11:56:36.9410950Z SKIPPED [1] tests/test_bsp_visualization.py:296: b_plot.plot_bsp 尚未实现"
+      },
+      {
+        "line": 1136,
+        "text": "2026-09-13T11:56:36.9412179Z SKIPPED [7] tests/test_ceremony_scan.py: detect_pending_topo_effects 已从 ceremony_scan.py 删除（177号重构）"
+      },
+      {
+        "line": 1137,
+        "text": "2026-09-13T11:56:36.9413046Z SKIPPED [5] tests/test_ceremony_scan.py: compute_delta_blocks 已从 ceremony_scan.py 删除（178号重构）"
+      },
+      {
+        "line": 1138,
+        "text": "2026-09-13T11:56:36.9414549Z SKIPPED [5] tests/test_ceremony_scan.py: get_frozen_nodes 已从 ceremony_scan.py 删除（178号-2重构）"
+      },
+      {
+        "line": 1139,
+        "text": "2026-09-13T11:56:36.9415431Z SKIPPED [3] tests/test_ceremony_scan.py: detect_genealogy_anomalies 已从 ceremony_scan.py 删除（178号重构）"
+      },
+      {
+        "line": 1140,
+        "text": "2026-09-13T11:56:36.9416342Z SKIPPED [1] tests/test_ceremony_scan.py:479: detect_genealogy_anomalies 已从 main() 中移除，anomaly 工位不再产生"
+      },
+      {
+        "line": 1141,
+        "text": "2026-09-13T11:56:36.9417226Z SKIPPED [6] tests/test_ceremony_scan.py: async_self_ref 集成已从 ceremony_scan.py 删除（183号功能移除）"
+      },
+      {
+        "line": 1142,
+        "text": "2026-09-13T11:56:36.9418084Z SKIPPED [3] tests/test_ceremony_scan.py: ceremony_state suspended 过滤已从 ceremony_scan.py 删除（270号功能移除）"
+      },
+      {
+        "line": 1143,
+        "text": "2026-09-13T11:56:36.9419003Z SKIPPED [12] tests/test_ceremony_scan_proposals.py: _scan_genealogy_proposals 已从 ceremony_scan.py 删除"
+      },
+      {
+        "line": 1144,
+        "text": "2026-09-13T11:56:36.9419900Z SKIPPED [5] tests/test_ceremony_scan_proposals.py: _check_completion 已从 ceremony_scan.py 删除"
+      },
+      {
+        "line": 1145,
+        "text": "2026-09-13T11:56:36.9420742Z SKIPPED [1] tests/test_databento_pipeline.py:91: 本地 DBN 缓存缺失（先跑 databento_catalog.py 拉数）"
+      },
+      {
+        "line": 1146,
+        "text": "2026-09-13T11:56:36.9421486Z SKIPPED [6] tests/test_flow_relation_e2e.py:123: 缓存缺失：SPY_1day_raw.parquet"
+      },
+      {
+        "line": 1147,
+        "text": "2026-09-13T11:56:36.9422124Z SKIPPED [6] tests/test_flow_relation_e2e.py:147: 缓存缺失：SPY_1day_raw.parquet"
+      },
+      {
+        "line": 1148,
+        "text": "2026-09-13T11:56:36.9422657Z SKIPPED [1] tests/test_flow_relation_e2e.py:199: 缓存缺失：SPY_1day_raw.parquet"
+      },
+      {
+        "line": 1149,
+        "text": "2026-09-13T11:56:36.9423195Z SKIPPED [1] tests/test_flow_relation_e2e.py:204: 缓存缺失：SPY_1day_raw.parquet"
+      },
+      {
+        "line": 1150,
+        "text": "2026-09-13T11:56:36.9424090Z SKIPPED [1] tests/test_flow_relation_e2e.py:212: 缓存缺失：SPY_1day_raw.parquet"
+      },
+      {
+        "line": 1151,
+        "text": "2026-09-13T11:56:36.9424646Z SKIPPED [1] tests/test_flow_relation_e2e.py:225: 缓存缺失：SPY_1day_raw.parquet"
+      },
+      {
+        "line": 1152,
+        "text": "2026-09-13T11:56:36.9425182Z SKIPPED [1] tests/test_flow_relation_e2e.py:234: 缓存缺失：SPY_1day_raw.parquet"
+      },
+      {
+        "line": 1153,
+        "text": "2026-09-13T11:56:36.9425708Z SKIPPED [1] tests/test_flow_relation_e2e.py:260: 缓存缺失：SPY_1day_raw.parquet"
+      },
+      {
+        "line": 1154,
+        "text": "2026-09-13T11:56:36.9426252Z SKIPPED [1] tests/test_ph_persistence_closed_form.py:108: 真实数据缓存缺失"
+      },
+      {
+        "line": 1155,
+        "text": "2026-09-13T11:56:36.9427007Z SKIPPED [1] tests/test_real_data_e2e.py:90: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1156,
+        "text": "2026-09-13T11:56:36.9427931Z SKIPPED [1] tests/test_real_data_e2e.py:97: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1157,
+        "text": "2026-09-13T11:56:36.9428840Z SKIPPED [1] tests/test_real_data_e2e.py:110: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1158,
+        "text": "2026-09-13T11:56:36.9429754Z SKIPPED [1] tests/test_real_data_e2e.py:122: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1159,
+        "text": "2026-09-13T11:56:36.9430649Z SKIPPED [1] tests/test_real_data_e2e.py:136: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1160,
+        "text": "2026-09-13T11:56:36.9431526Z SKIPPED [1] tests/test_real_data_e2e.py:147: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1161,
+        "text": "2026-09-13T11:56:36.9432426Z SKIPPED [1] tests/test_real_data_e2e.py:159: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1162,
+        "text": "2026-09-13T11:56:36.9433305Z SKIPPED [1] tests/test_real_data_e2e.py:170: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1163,
+        "text": "2026-09-13T11:56:36.9434424Z SKIPPED [1] tests/test_real_data_e2e.py:209: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1164,
+        "text": "2026-09-13T11:56:36.9435307Z SKIPPED [1] tests/test_real_data_e2e.py:250: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1165,
+        "text": "2026-09-13T11:56:36.9436241Z SKIPPED [1] tests/test_real_data_recursive_e2e.py:95: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1166,
+        "text": "2026-09-13T11:56:36.9437214Z SKIPPED [1] tests/test_real_data_recursive_e2e.py:101: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1167,
+        "text": "2026-09-13T11:56:36.9438319Z SKIPPED [1] tests/test_real_data_recursive_e2e.py:106: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1168,
+        "text": "2026-09-13T11:56:36.9439286Z SKIPPED [1] tests/test_real_data_recursive_e2e.py:112: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1169,
+        "text": "2026-09-13T11:56:36.9440248Z SKIPPED [1] tests/test_real_data_recursive_e2e.py:123: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1170,
+        "text": "2026-09-13T11:56:36.9441204Z SKIPPED [1] tests/test_real_data_recursive_e2e.py:130: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1171,
+        "text": "2026-09-13T11:56:36.9442170Z SKIPPED [1] tests/test_real_data_recursive_e2e.py:139: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1172,
+        "text": "2026-09-13T11:56:36.9443122Z SKIPPED [1] tests/test_real_data_recursive_e2e.py:150: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1173,
+        "text": "2026-09-13T11:56:36.9444276Z SKIPPED [1] tests/test_real_data_recursive_e2e.py:161: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1174,
+        "text": "2026-09-13T11:56:36.9445239Z SKIPPED [1] tests/test_real_data_recursive_e2e.py:168: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1175,
+        "text": "2026-09-13T11:56:36.9446196Z SKIPPED [1] tests/test_real_data_recursive_e2e.py:178: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1176,
+        "text": "2026-09-13T11:56:36.9447153Z SKIPPED [1] tests/test_real_data_recursive_e2e.py:193: 真实数据不可用: /home/runner/work/NewChanlun/NewChanlun/data/AAPL_20260209_20260213_1m.csv"
+      },
+      {
+        "line": 1177,
+        "text": "2026-09-13T11:56:36.9448117Z SKIPPED [1] tests/test_sip_consolidate.py:215: Massive 原样数据未落地（#1040），真实对拍读数待数据后跑"
+      },
+      {
+        "line": 1178,
+        "text": "2026-09-13T11:56:36.9448674Z SKIPPED [1] tests/test_topo_schema.py:391: Real blocks directory not available"
+      },
+      {
+        "line": 1179,
+        "text": "2026-09-13T11:56:36.9449195Z SKIPPED [1] tests/test_topo_schema.py:401: Real blocks directory not available"
+      },
+      {
+        "line": 1180,
+        "text": "2026-09-13T11:56:36.9449726Z SKIPPED [1] tests/test_topo_schema.py:411: Real blocks directory not available"
+      }
+    ]
+  },
+  "local_tests_rerun": false,
+  "source_or_ci_modified": false,
+  "prior_review_modified": false
+}

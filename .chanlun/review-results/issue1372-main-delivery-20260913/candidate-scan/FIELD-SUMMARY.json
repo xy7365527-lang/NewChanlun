@@ -1,0 +1,146 @@
+[
+  {
+    "rule": "DS173237",
+    "field": "stdout_sha256",
+    "kind": "value",
+    "count": 34,
+    "example": {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/REAL-SARIF-REPLAY.json",
+      "line": 10,
+      "pointer": "/stdout_sha256",
+      "value": "<digest omitted>"
+    }
+  },
+  {
+    "rule": "DS173237",
+    "field": "stderr_normalized_sha256",
+    "kind": "value",
+    "count": 33,
+    "example": {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json",
+      "line": 392,
+      "pointer": "/records/32/stderr_normalized_sha256",
+      "value": "<digest omitted>"
+    }
+  },
+  {
+    "rule": "DS173237",
+    "field": "summary_sha256",
+    "kind": "value",
+    "count": 33,
+    "example": {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json",
+      "line": 393,
+      "pointer": "/records/32/summary_sha256",
+      "value": "<digest omitted>"
+    }
+  },
+  {
+    "rule": "DS173237",
+    "field": "sha256",
+    "kind": "value",
+    "count": 32,
+    "example": {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/EVIDENCE-SOURCES.json",
+      "line": 110,
+      "pointer": "/external_originals/10/sha256",
+      "value": "<digest omitted>"
+    }
+  },
+  {
+    "rule": "DS173237",
+    "field": "old_sha256",
+    "kind": "value",
+    "count": 2,
+    "example": {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json",
+      "line": 2,
+      "pointer": "/old_sha256",
+      "value": "<digest omitted>"
+    }
+  },
+  {
+    "rule": "DS173237",
+    "field": "base_head",
+    "kind": "value",
+    "count": 1,
+    "example": {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/REVIEW.json",
+      "line": 4,
+      "pointer": "/base_head",
+      "value": "<digest omitted>"
+    }
+  },
+  {
+    "rule": "DS173237",
+    "field": "baseline_sha256",
+    "kind": "value",
+    "count": 1,
+    "example": {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/REAL-SARIF-REPLAY.json",
+      "line": 13,
+      "pointer": "/baseline_sha256",
+      "value": "<digest omitted>"
+    }
+  },
+  {
+    "rule": "DS173237",
+    "field": "candidate_sha256",
+    "kind": "value",
+    "count": 1,
+    "example": {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/REVIEW.json",
+      "line": 6,
+      "pointer": "/candidate_sha256",
+      "value": "<digest omitted>"
+    }
+  },
+  {
+    "rule": "DS173237",
+    "field": "head_sha",
+    "kind": "value",
+    "count": 1,
+    "example": {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/OLD-RUN-SNAPSHOT.json",
+      "line": 12,
+      "pointer": "/job/head_sha",
+      "value": "<digest omitted>"
+    }
+  },
+  {
+    "rule": "DS173237",
+    "field": "new_sha256",
+    "kind": "value",
+    "count": 1,
+    "example": {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json",
+      "line": 3,
+      "pointer": "/new_sha256",
+      "value": "<digest omitted>"
+    }
+  },
+  {
+    "rule": "DS173237",
+    "field": "sarif_sha256",
+    "kind": "value",
+    "count": 1,
+    "example": {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/REAL-SARIF-REPLAY.json",
+      "line": 12,
+      "pointer": "/sarif_sha256",
+      "value": "<digest omitted>"
+    }
+  },
+  {
+    "rule": "DS173237",
+    "field": "script_sha256",
+    "kind": "value",
+    "count": 1,
+    "example": {
+      "path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/REAL-SARIF-REPLAY.json",
+      "line": 11,
+      "pointer": "/script_sha256",
+      "value": "<digest omitted>"
+    }
+  }
+]

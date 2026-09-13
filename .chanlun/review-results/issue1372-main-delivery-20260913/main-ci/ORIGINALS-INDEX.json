@@ -1,0 +1,585 @@
+{
+  "source_directory": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci",
+  "created_at": "2026-09-13T12:41:37.305010+00:00",
+  "file_count": 96,
+  "bytes_sum": 221008507,
+  "records": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-1231.json",
+      "relative_path": "CI-1231.json",
+      "bytes": 12851,
+      "sha256": "789f2f287cb7e03569f63fd4421b826595134f3a0b3ef6d2a40913810eb3a077"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-1231.json.receipt.json",
+      "relative_path": "CI-1231.json.receipt.json",
+      "bytes": 329,
+      "sha256": "a249d7c1b02005225c87d7fe1fc52dd71638d50df3e1a5c09b587b54ec3acfc2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-1231.json.stderr",
+      "relative_path": "CI-1231.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-FINAL.json",
+      "relative_path": "CI-FINAL.json",
+      "bytes": 12854,
+      "sha256": "a101b3e9f6bd191dec4ef4da4dbaa751a72d6078a156a9ae97a8b867a57925eb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-FINAL.json.receipt.json",
+      "relative_path": "CI-FINAL.json.receipt.json",
+      "bytes": 329,
+      "sha256": "bc057015f801581fa7c4f25fd55cb93e2ffc4a92f27ecef02d848be6fe29c25a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-FINAL.json.stderr",
+      "relative_path": "CI-FINAL.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-INITIAL.json",
+      "relative_path": "CI-INITIAL.json",
+      "bytes": 12851,
+      "sha256": "789f2f287cb7e03569f63fd4421b826595134f3a0b3ef6d2a40913810eb3a077"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-INITIAL.receipt.json",
+      "relative_path": "CI-INITIAL.receipt.json",
+      "bytes": 329,
+      "sha256": "7578216f8eaa4a4ab386d70b2574eff1cd2ae469e3655ee75dc4d3dd02ea3fb8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-INITIAL.stderr",
+      "relative_path": "CI-INITIAL.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-1232.json",
+      "relative_path": "CI-JOBS-1232.json",
+      "bytes": 11480,
+      "sha256": "cb3405de61fc57750f6b141a7533ce812deb0d6dabe7b5cad2a56d4519ac5fa2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-1232.json.receipt.json",
+      "relative_path": "CI-JOBS-1232.json.receipt.json",
+      "bytes": 347,
+      "sha256": "1d373856c17d45852852ab2cf90b9483a48a353730be284d978af2e22d7fc6fe"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-1232.json.stderr",
+      "relative_path": "CI-JOBS-1232.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-1234.json",
+      "relative_path": "CI-JOBS-1234.json",
+      "bytes": 11523,
+      "sha256": "0692c6a280bd7e70712a3b10350fbe4a9f6d98e4f86223c493f3e39699742ba0"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-1234.json.receipt.json",
+      "relative_path": "CI-JOBS-1234.json.receipt.json",
+      "bytes": 347,
+      "sha256": "d22e0e13c7c94e3c28df816682e3199fa546efcbc426427669e0887e648911d9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-1234.json.stderr",
+      "relative_path": "CI-JOBS-1234.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-1235.json",
+      "relative_path": "CI-JOBS-1235.json",
+      "bytes": 11977,
+      "sha256": "38325ac82abb7334c9371d2156ce2a8fc93974e16332e2cdcfac200aec32a381"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-1235.json.receipt.json",
+      "relative_path": "CI-JOBS-1235.json.receipt.json",
+      "bytes": 347,
+      "sha256": "6063e2eecaaf2ffd2188292ad1b186f6878cbbdbe9b25aea13ee45f6f11d1c3c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-1235.json.stderr",
+      "relative_path": "CI-JOBS-1235.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-1237.json",
+      "relative_path": "CI-JOBS-1237.json",
+      "bytes": 12259,
+      "sha256": "a27156fd205096b5863c1f01853cd18ef1ee0339ab8acab6b3c595da06bba630"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-1237.json.receipt.json",
+      "relative_path": "CI-JOBS-1237.json.receipt.json",
+      "bytes": 347,
+      "sha256": "18540fe036750b4e85e1ebdb7c8872198b56c0ec844183197cd0920c81b3b1b9"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-1237.json.stderr",
+      "relative_path": "CI-JOBS-1237.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-INITIAL.json",
+      "relative_path": "CI-JOBS-INITIAL.json",
+      "bytes": 10983,
+      "sha256": "449640c400502824ffa02ebe71cc40fabef6cebe1fd1576ebca1a47b0b93e96f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-INITIAL.receipt.json",
+      "relative_path": "CI-JOBS-INITIAL.receipt.json",
+      "bytes": 347,
+      "sha256": "608221850d0c26dfea38e086b0e645eabd8b51a198a19723fce6e675a06bf1b1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CI-JOBS-INITIAL.stderr",
+      "relative_path": "CI-JOBS-INITIAL.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/COMMIT-APPROVED.json",
+      "relative_path": "COMMIT-APPROVED.json",
+      "bytes": 65545,
+      "sha256": "9be56de480557a5a3c5683ef8ecfa192ab4e285a2d26e5853ab41c4874f96290"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/COMMIT-APPROVED.receipt.json",
+      "relative_path": "COMMIT-APPROVED.receipt.json",
+      "bytes": 353,
+      "sha256": "7c4b3e2a8a21afb02913ed504c4169069ea360ba33c8a2f44ee21dc537011cd2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/COMMIT-APPROVED.stderr",
+      "relative_path": "COMMIT-APPROVED.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/COMMIT-MAIN.json",
+      "relative_path": "COMMIT-MAIN.json",
+      "bytes": 1211526,
+      "sha256": "2fe79b3478e7f7b91a53cf4016e488ebdbbae8fb56ceb7d3b3b64e286e547d3e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/COMMIT-MAIN.receipt.json",
+      "relative_path": "COMMIT-MAIN.receipt.json",
+      "bytes": 355,
+      "sha256": "64c975ec8461d10f8193d60d0456cb3f95ef86bff96f5b5d46f492d9209efe1b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/COMMIT-MAIN.stderr",
+      "relative_path": "COMMIT-MAIN.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CURRENT-MAIN-REF.json",
+      "relative_path": "CURRENT-MAIN-REF.json",
+      "bytes": 348,
+      "sha256": "a7e90f0bc08e072c32fd0efe723739d44796f6d7377e70063da710ecae1b7e0d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CURRENT-MAIN-REF.receipt.json",
+      "relative_path": "CURRENT-MAIN-REF.receipt.json",
+      "bytes": 321,
+      "sha256": "5ceb4b17d2894d0c18471b8061183e0553d7fc399dbbfc6252bc2f003dc475e6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/CURRENT-MAIN-REF.stderr",
+      "relative_path": "CURRENT-MAIN-REF.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-1231.json",
+      "relative_path": "DEVSKIM-1231.json",
+      "bytes": 12860,
+      "sha256": "060fd45becb22b6ee3dcf8d0b4bd67ed1aff66abafcf9329ec72d60bf3462916"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-1231.json.receipt.json",
+      "relative_path": "DEVSKIM-1231.json.receipt.json",
+      "bytes": 329,
+      "sha256": "f70a3a73619377def2fc2735b30bc92d74beca5110fc94c6cb3331163fbadd0c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-1231.json.stderr",
+      "relative_path": "DEVSKIM-1231.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-ARTIFACTS.json",
+      "relative_path": "DEVSKIM-ARTIFACTS.json",
+      "bytes": 725,
+      "sha256": "11e010906f95f14c37d18ed6bc0c92c49138e2682bb9ecbade7811c44d884218"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-ARTIFACTS.json.receipt.json",
+      "relative_path": "DEVSKIM-ARTIFACTS.json.receipt.json",
+      "bytes": 350,
+      "sha256": "8afecfb9bea4ca429da5f0345ac9677d210693975f82a70aff9b63e937b6c16c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-ARTIFACTS.json.stderr",
+      "relative_path": "DEVSKIM-ARTIFACTS.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-FINAL-FACTS.json",
+      "relative_path": "DEVSKIM-FINAL-FACTS.json",
+      "bytes": 1737,
+      "sha256": "947c25217813487beaef7ca99e455d7cd7b1aa3512a18ba82e7f8110354799dc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-FINAL.json",
+      "relative_path": "DEVSKIM-FINAL.json",
+      "bytes": 12863,
+      "sha256": "f173b8e0542c15c6ef18d310e6e4018c2af37280d9324b83b4cdd00b0eb09825"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-FINAL.json.receipt.json",
+      "relative_path": "DEVSKIM-FINAL.json.receipt.json",
+      "bytes": 329,
+      "sha256": "56f02d04f1c7cc8b327c4f9cb789c4944a792a6e4f48c5b475f90a87a46c1310"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-FINAL.json.stderr",
+      "relative_path": "DEVSKIM-FINAL.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-INITIAL.json",
+      "relative_path": "DEVSKIM-INITIAL.json",
+      "bytes": 12860,
+      "sha256": "060fd45becb22b6ee3dcf8d0b4bd67ed1aff66abafcf9329ec72d60bf3462916"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-INITIAL.receipt.json",
+      "relative_path": "DEVSKIM-INITIAL.receipt.json",
+      "bytes": 329,
+      "sha256": "383c3e7439797df964cfd7346c489de075e09e1662b19661c4a1d62ebfb23bcb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-INITIAL.stderr",
+      "relative_path": "DEVSKIM-INITIAL.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-JOBS-1232.json",
+      "relative_path": "DEVSKIM-JOBS-1232.json",
+      "bytes": 1943,
+      "sha256": "bd74221fa8c1144e10f272d05bcac8ca259a9e37cd18dcc85a12c32c0dc908ab"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-JOBS-1232.json.receipt.json",
+      "relative_path": "DEVSKIM-JOBS-1232.json.receipt.json",
+      "bytes": 346,
+      "sha256": "08c476a26ab7d35095fd85a061206dc8619d3f38da7741dcf63b0221676cc968"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-JOBS-1232.json.stderr",
+      "relative_path": "DEVSKIM-JOBS-1232.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-JOBS-1234.json",
+      "relative_path": "DEVSKIM-JOBS-1234.json",
+      "bytes": 1943,
+      "sha256": "bd74221fa8c1144e10f272d05bcac8ca259a9e37cd18dcc85a12c32c0dc908ab"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-JOBS-1234.json.receipt.json",
+      "relative_path": "DEVSKIM-JOBS-1234.json.receipt.json",
+      "bytes": 346,
+      "sha256": "faec7efa0549725323015926a9f3d7f676238ea9a1c4f736d13bd81685622520"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-JOBS-1234.json.stderr",
+      "relative_path": "DEVSKIM-JOBS-1234.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-JOBS-1235.json",
+      "relative_path": "DEVSKIM-JOBS-1235.json",
+      "bytes": 2268,
+      "sha256": "faeda7fb65b38ccc2d8f3aa418cbe754ce5c8d5c2897f602271fc3b0d1d499e3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-JOBS-1235.json.receipt.json",
+      "relative_path": "DEVSKIM-JOBS-1235.json.receipt.json",
+      "bytes": 346,
+      "sha256": "bacb59a1400fbcc22587e7936f2b3b26dbe9eb94b96a8dee9e16001b761ada67"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-JOBS-1235.json.stderr",
+      "relative_path": "DEVSKIM-JOBS-1235.json.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-JOBS-INITIAL.json",
+      "relative_path": "DEVSKIM-JOBS-INITIAL.json",
+      "bytes": 1943,
+      "sha256": "bd74221fa8c1144e10f272d05bcac8ca259a9e37cd18dcc85a12c32c0dc908ab"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-JOBS-INITIAL.receipt.json",
+      "relative_path": "DEVSKIM-JOBS-INITIAL.receipt.json",
+      "bytes": 346,
+      "sha256": "edf7e5f5735a9513bcf7c158e6ec0b121fc5b42212659d5755bcd7e119c63bc1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DEVSKIM-JOBS-INITIAL.stderr",
+      "relative_path": "DEVSKIM-JOBS-INITIAL.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DevSkim.log",
+      "relative_path": "DevSkim.log",
+      "bytes": 3886428,
+      "sha256": "f4fdf26f538299b4caa3b271848e5d53a3e2de851daa07fe7d4f5a1ef667ae22"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DevSkim.log.receipt.json",
+      "relative_path": "DevSkim.log.receipt.json",
+      "bytes": 337,
+      "sha256": "645fbf3a6a28a39b6994bec1e4fd8086857dfb64303b981bd8f44c951a195b71"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/DevSkim.log.stderr",
+      "relative_path": "DevSkim.log.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/FACTS.json",
+      "relative_path": "FACTS.json",
+      "bytes": 17226,
+      "sha256": "a051a57dd52fc42a252a361ec3a35cdf5d252ad63b4a7004dfcf065b8d0a3276"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/MAIN-KEYS.json",
+      "relative_path": "MAIN-KEYS.json",
+      "bytes": 4132754,
+      "sha256": "115e2418931597bdfbd26c6e1f3321a900f3a2b25cae3dacbde6c409d51fad84"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/REPORT.md",
+      "relative_path": "REPORT.md",
+      "bytes": 5638,
+      "sha256": "d20a33e2110e0d9a147903ba35b7c284482a5270d788e136f8e39318e25f6112"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/REUSED-CANDIDATE-SCAN-EVIDENCE.json",
+      "relative_path": "REUSED-CANDIDATE-SCAN-EVIDENCE.json",
+      "bytes": 1831,
+      "sha256": "350b92b0c7729db926e19f7ee6450a4e624d647ea9d25b6fde73899f08dda04a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/REUSED-CANDIDATE-TEST-EVIDENCE.json",
+      "relative_path": "REUSED-CANDIDATE-TEST-EVIDENCE.json",
+      "bytes": 2704,
+      "sha256": "8293555f5465347cbd3d3abcd1398493b69bc9061095817f043a6c7fde33f301"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/SARIF-COMPARISON.json",
+      "relative_path": "SARIF-COMPARISON.json",
+      "bytes": 3287,
+      "sha256": "277275bc80a0ba7d7e7719c82cd36e78323cec61f6b513be6b5b9831d0dddb1a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/SARIF-FILE-DIFFERENCE.json",
+      "relative_path": "SARIF-FILE-DIFFERENCE.json",
+      "bytes": 167,
+      "sha256": "050642c65a5a372871cbda01ac25cb25020cb442e8dc6aa81c0428a1c1058266"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/SOURCE-BINDINGS.json",
+      "relative_path": "SOURCE-BINDINGS.json",
+      "bytes": 1630,
+      "sha256": "20ba7481603f030f134751eb6427cef1bf61c5640681be04f9128da96d161080"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/TEST-COMPARISON.json",
+      "relative_path": "TEST-COMPARISON.json",
+      "bytes": 15917,
+      "sha256": "ea8fb73958ecc64e66544cd207cb8580bc313e001991a76f6764ec5ee36b1242"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/TREE-BINDING.json",
+      "relative_path": "TREE-BINDING.json",
+      "bytes": 447,
+      "sha256": "a20cdd640586bd1d7a93f5b08ea6f3c3a5271763c11cae6169a67154993c9182"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/approved-source/.github/devskim-baseline.json",
+      "relative_path": "approved-source/.github/devskim-baseline.json",
+      "bytes": 1119384,
+      "sha256": "df25ff2ec9a0898de03a4450fc3506444f08100ca0657a32665086991e202595"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/approved-source/.github/workflows/ci.yml",
+      "relative_path": "approved-source/.github/workflows/ci.yml",
+      "bytes": 15365,
+      "sha256": "e74bdcb4d40dab700c2f5615d88395359714423070b1b8c075aec6b0777b9261"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/approved-source/.github/workflows/devskim.yml",
+      "relative_path": "approved-source/.github/workflows/devskim.yml",
+      "bytes": 3429,
+      "sha256": "f3a11c5e2f4c782e07b7bb494bb994de5df3548d5290eaab9b221bae6e45772e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/approved-source/pyproject.toml",
+      "relative_path": "approved-source/pyproject.toml",
+      "bytes": 1141,
+      "sha256": "00037b0d319906b8096c9ef4861440483093e740e1425fd768abe8ab2e6311af"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/approved-source/scripts/devskim_sarif_gate.sh",
+      "relative_path": "approved-source/scripts/devskim_sarif_gate.sh",
+      "bytes": 9706,
+      "sha256": "c3154bd748c796ba950d1b4926308cd37a1cf54b0a802f644b6a8877132ce5fc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/approved-source/tests/conftest.py",
+      "relative_path": "approved-source/tests/conftest.py",
+      "bytes": 1638,
+      "sha256": "cb4da357a3972e4f08b82749edf17e64aa7fe5264a419f289cbffba649058c1d"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/approved-source/tests/test_devskim_sarif_gate.py",
+      "relative_path": "approved-source/tests/test_devskim_sarif_gate.py",
+      "bytes": 5365,
+      "sha256": "6ca76cb11f3ac7cb40ac767adf0440fe3e95a6f9e95ac9233755044205aeb33c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/compare_sarif.py",
+      "relative_path": "compare_sarif.py",
+      "bytes": 4408,
+      "sha256": "fa6a0984972aba2bd6bf006e43d4a5e2ddd7c9f049112ccaadea9d9c2b8af329"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/devskim-results.sarif",
+      "relative_path": "devskim-results.sarif",
+      "bytes": 130106700,
+      "sha256": "899b48a581e0d9b6221161c54dd6fb8ce04e86684ddc2126f65e03587778f9f2"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/devskim-sarif.zip",
+      "relative_path": "devskim-sarif.zip",
+      "bytes": 78668965,
+      "sha256": "29c419f91740f6220610cc31095bf9de9168eb45a73d2d40beba1b1f4d54ca2c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/devskim-sarif.zip.receipt.json",
+      "relative_path": "devskim-sarif.zip.receipt.json",
+      "bytes": 341,
+      "sha256": "a099a1cc870f5d205a64ac55cd72b17eb4e39055b95425d087bcbe5d66347efa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/devskim-sarif.zip.stderr",
+      "relative_path": "devskim-sarif.zip.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/fetch_evidence.py",
+      "relative_path": "fetch_evidence.py",
+      "bytes": 737,
+      "sha256": "d58ecf184ee746505f84f5411d3fa386f7d976763c76bf71510e52d4966a75d1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/fixture-drift.log",
+      "relative_path": "fixture-drift.log",
+      "bytes": 42187,
+      "sha256": "17c4c9ea4425ddcb24263dbc1069376edbc758aa4dab443ad1d7330f4891e498"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/fixture-drift.log.receipt.json",
+      "relative_path": "fixture-drift.log.receipt.json",
+      "bytes": 335,
+      "sha256": "1b38bb1f1659c69f5a766cce23fd41dc6134ede9d5141d29ef89e29a020baef6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/fixture-drift.log.stderr",
+      "relative_path": "fixture-drift.log.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/rust-check.log",
+      "relative_path": "rust-check.log",
+      "bytes": 1356826,
+      "sha256": "fe9f8e343477bf0cb78a597039ea74f4bbc478d8c270ca8948adf7cd619226b3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/rust-check.log.receipt.json",
+      "relative_path": "rust-check.log.receipt.json",
+      "bytes": 337,
+      "sha256": "1e9e9bb6bd0cd1494de3bec4aad807b0f9706e97ad8c3a04494b531ae7b4eab5"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/rust-check.log.stderr",
+      "relative_path": "rust-check.log.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/s-observer.log",
+      "relative_path": "s-observer.log",
+      "bytes": 39675,
+      "sha256": "47f2cf58ffaaab6d9acf0fbe7742851586fca2a117053a7772c6f97ddd5beafa"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/s-observer.log.receipt.json",
+      "relative_path": "s-observer.log.receipt.json",
+      "bytes": 335,
+      "sha256": "9b7e8ececaff25e1790e9d19bf5d1a983910bd43ddd2fcd67f6706e834fcab83"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/s-observer.log.stderr",
+      "relative_path": "s-observer.log.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/test.log",
+      "relative_path": "test.log",
+      "bytes": 133120,
+      "sha256": "9f294f3c6f95f19e9c4699bdcd2418f2f9755188e6246689071f1d28e91a0dfb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/test.log.receipt.json",
+      "relative_path": "test.log.receipt.json",
+      "bytes": 336,
+      "sha256": "b04cfd11b1cb952aef5c850d1c4e988c4015ad29c94f4388752d64c01729abdd"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/test.log.stderr",
+      "relative_path": "test.log.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "scope": "本工位仓外文件，排除索引本身和最终冻结文件；不要求把原件入仓。"
+}

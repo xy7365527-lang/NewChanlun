@@ -1,0 +1,687 @@
+{
+  "schema": "issue1372.doc_delivery_tail_review.v1",
+  "reviewer": "/root/tb02a_entry_preflight",
+  "runtime": "codex_native_subagent",
+  "status": "PASS_DOC_DELIVERY_TAIL",
+  "findings": [],
+  "reviewed_at_utc": "2026-09-13T12:46:25.438863+00:00",
+  "reviewed_worktree": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail",
+  "reviewed_branch": "codex/1372-delivery-tail",
+  "base_commit": "21b7898a19baa4d17c5885d122ea57ed882e4f73",
+  "report": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/tail-review/REVIEW.md",
+    "bytes": 3907,
+    "sha256": "a2b59a8b02935352437c5b2d63b0af0ffcf9b5dabdf7d5c401b5508d27512f11"
+  },
+  "scope": "未提交纯文档尾增量；18份报告副本与README/清单/roster，不重做产品验收",
+  "snapshot_files": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/README.md",
+      "bytes": 6055,
+      "sha256": "6d62950879a995e24a3380fbfa209109da2d74fc8289bce90ca7fde225e465cf"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/REPORT-SOURCES.json",
+      "bytes": 6774,
+      "sha256": "86991f996da6ab2750f6491bd731ea6531fb47330b265ccdc81a227209851d40"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/COMPARISON.json",
+      "bytes": 9097,
+      "sha256": "e2ff59745b7e531d77f5f310a735a5fe8e6f11f599922da7f6c87685b43e84fe"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/FACTS.json",
+      "bytes": 16662,
+      "sha256": "b49cc5396c7c8f67e8156fa494648346ea8ae20bc8062a3e60866807dd4be3a5"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/MANIFEST.json",
+      "bytes": 5842,
+      "sha256": "408975756103719771cde25eb3f82c9f8702bd5a4235b62adda5434b05f07f90"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/REPORT.md",
+      "bytes": 5237,
+      "sha256": "600f231e6c25a88f7526af65ba06c6d26d29021b2b0f8b5f8feeb3d84673d9b1"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/CLASSIFICATION.json",
+      "bytes": 31859,
+      "sha256": "e64afbd9a9ab26b7e46d031360b55d18c162569efda759e2e0e540b3f171c75c"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/COMPARISON.json",
+      "bytes": 92117,
+      "sha256": "91c71b91ddc95750077f0419bb3a1a0485daf5195354c0deeac5245b5098f58f"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/FIELD-MAPPING.json",
+      "bytes": 106366,
+      "sha256": "462e2fcc811922eafa00b52b39db5667b73d2c2af0890f7da08dc0709d6b5489"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/FIELD-SUMMARY.json",
+      "bytes": 3844,
+      "sha256": "8d437f930287146cbf61e96fcb7811b32e2a68f6d03973b8533e30657c607478"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/ORIGINALS-INDEX.json",
+      "bytes": 11196,
+      "sha256": "04351f6efd72b80f1daed4d585d0f3570b7b3e44466742ca7283949bb8acb187"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/SUMMARY.json",
+      "bytes": 14259,
+      "sha256": "7b486000feb2ac869b2cd712acb680d74eb5d9f3b27bd1d047183a62959cd3a8"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/SUMMARY.md",
+      "bytes": 4038,
+      "sha256": "8522eaa0d140ef7d5d7b623642d33e02f6aa9b3d6da5d15fad08a7b2d36f770a"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/FACTS.json",
+      "bytes": 17226,
+      "sha256": "a051a57dd52fc42a252a361ec3a35cdf5d252ad63b4a7004dfcf065b8d0a3276"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/ORIGINALS-INDEX.json",
+      "bytes": 36063,
+      "sha256": "679955673b7148a5ead2c3126fb837521ec71f28e8784408bbc699dbdc7d79c6"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/REPORT-FREEZE.json",
+      "bytes": 2614,
+      "sha256": "e9432ec2eaaebb67d36c8687e614607a4849f16e03fccaa65723511045775dc5"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/REPORT.md",
+      "bytes": 5638,
+      "sha256": "d20a33e2110e0d9a147903ba35b7c284482a5270d788e136f8e39318e25f6112"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/SARIF-COMPARISON.json",
+      "bytes": 3287,
+      "sha256": "277275bc80a0ba7d7e7719c82cd36e78323cec61f6b513be6b5b9831d0dddb1a"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/SARIF-FILE-DIFFERENCE.json",
+      "bytes": 167,
+      "sha256": "050642c65a5a372871cbda01ac25cb25020cb442e8dc6aa81c0428a1c1058266"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/TEST-COMPARISON.json",
+      "bytes": 15917,
+      "sha256": "ea8fb73958ecc64e66544cd207cb8580bc313e001991a76f6764ec5ee36b1242"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/agent-roster-2026-09-13.md",
+      "bytes": 3088,
+      "sha256": "641bce80bcc0044c29422e7b98e57ed10e9c4e3196bc94f12aeb892c645fe99c"
+    }
+  ],
+  "report_copies": [
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/SUMMARY.md",
+        "bytes": 4038,
+        "sha256": "8522eaa0d140ef7d5d7b623642d33e02f6aa9b3d6da5d15fad08a7b2d36f770a"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/SUMMARY.md",
+        "bytes": 4038,
+        "sha256": "8522eaa0d140ef7d5d7b623642d33e02f6aa9b3d6da5d15fad08a7b2d36f770a"
+      },
+      "stored_relative": "candidate-scan/SUMMARY.md",
+      "exact_copy": true,
+      "manifest_matches": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/SUMMARY.json",
+        "bytes": 14259,
+        "sha256": "7b486000feb2ac869b2cd712acb680d74eb5d9f3b27bd1d047183a62959cd3a8"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/SUMMARY.json",
+        "bytes": 14259,
+        "sha256": "7b486000feb2ac869b2cd712acb680d74eb5d9f3b27bd1d047183a62959cd3a8"
+      },
+      "stored_relative": "candidate-scan/SUMMARY.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/CLASSIFICATION.json",
+        "bytes": 31859,
+        "sha256": "e64afbd9a9ab26b7e46d031360b55d18c162569efda759e2e0e540b3f171c75c"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/CLASSIFICATION.json",
+        "bytes": 31859,
+        "sha256": "e64afbd9a9ab26b7e46d031360b55d18c162569efda759e2e0e540b3f171c75c"
+      },
+      "stored_relative": "candidate-scan/CLASSIFICATION.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/COMPARISON.json",
+        "bytes": 92117,
+        "sha256": "91c71b91ddc95750077f0419bb3a1a0485daf5195354c0deeac5245b5098f58f"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/COMPARISON.json",
+        "bytes": 92117,
+        "sha256": "91c71b91ddc95750077f0419bb3a1a0485daf5195354c0deeac5245b5098f58f"
+      },
+      "stored_relative": "candidate-scan/COMPARISON.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/FIELD-MAPPING.json",
+        "bytes": 106366,
+        "sha256": "462e2fcc811922eafa00b52b39db5667b73d2c2af0890f7da08dc0709d6b5489"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/FIELD-MAPPING.json",
+        "bytes": 106366,
+        "sha256": "462e2fcc811922eafa00b52b39db5667b73d2c2af0890f7da08dc0709d6b5489"
+      },
+      "stored_relative": "candidate-scan/FIELD-MAPPING.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/FIELD-SUMMARY.json",
+        "bytes": 3844,
+        "sha256": "8d437f930287146cbf61e96fcb7811b32e2a68f6d03973b8533e30657c607478"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/FIELD-SUMMARY.json",
+        "bytes": 3844,
+        "sha256": "8d437f930287146cbf61e96fcb7811b32e2a68f6d03973b8533e30657c607478"
+      },
+      "stored_relative": "candidate-scan/FIELD-SUMMARY.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-final-041c8e2ef7/ORIGINALS-INDEX.json",
+        "bytes": 11196,
+        "sha256": "04351f6efd72b80f1daed4d585d0f3570b7b3e44466742ca7283949bb8acb187"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/ORIGINALS-INDEX.json",
+        "bytes": 11196,
+        "sha256": "04351f6efd72b80f1daed4d585d0f3570b7b3e44466742ca7283949bb8acb187"
+      },
+      "stored_relative": "candidate-scan/ORIGINALS-INDEX.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/REPORT.md",
+        "bytes": 5237,
+        "sha256": "600f231e6c25a88f7526af65ba06c6d26d29021b2b0f8b5f8feeb3d84673d9b1"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/REPORT.md",
+        "bytes": 5237,
+        "sha256": "600f231e6c25a88f7526af65ba06c6d26d29021b2b0f8b5f8feeb3d84673d9b1"
+      },
+      "stored_relative": "candidate-ci/REPORT.md",
+      "exact_copy": true,
+      "manifest_matches": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/FACTS.json",
+        "bytes": 16662,
+        "sha256": "b49cc5396c7c8f67e8156fa494648346ea8ae20bc8062a3e60866807dd4be3a5"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/FACTS.json",
+        "bytes": 16662,
+        "sha256": "b49cc5396c7c8f67e8156fa494648346ea8ae20bc8062a3e60866807dd4be3a5"
+      },
+      "stored_relative": "candidate-ci/FACTS.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/COMPARISON.json",
+        "bytes": 9097,
+        "sha256": "e2ff59745b7e531d77f5f310a735a5fe8e6f11f599922da7f6c87685b43e84fe"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/COMPARISON.json",
+        "bytes": 9097,
+        "sha256": "e2ff59745b7e531d77f5f310a735a5fe8e6f11f599922da7f6c87685b43e84fe"
+      },
+      "stored_relative": "candidate-ci/COMPARISON.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/devskim-summary-performance/ci-final-041c8e2ef7/MANIFEST.json",
+        "bytes": 5842,
+        "sha256": "408975756103719771cde25eb3f82c9f8702bd5a4235b62adda5434b05f07f90"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/MANIFEST.json",
+        "bytes": 5842,
+        "sha256": "408975756103719771cde25eb3f82c9f8702bd5a4235b62adda5434b05f07f90"
+      },
+      "stored_relative": "candidate-ci/MANIFEST.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/REPORT.md",
+        "bytes": 5638,
+        "sha256": "d20a33e2110e0d9a147903ba35b7c284482a5270d788e136f8e39318e25f6112"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/REPORT.md",
+        "bytes": 5638,
+        "sha256": "d20a33e2110e0d9a147903ba35b7c284482a5270d788e136f8e39318e25f6112"
+      },
+      "stored_relative": "main-ci/REPORT.md",
+      "exact_copy": true,
+      "manifest_matches": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/FACTS.json",
+        "bytes": 17226,
+        "sha256": "a051a57dd52fc42a252a361ec3a35cdf5d252ad63b4a7004dfcf065b8d0a3276"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/FACTS.json",
+        "bytes": 17226,
+        "sha256": "a051a57dd52fc42a252a361ec3a35cdf5d252ad63b4a7004dfcf065b8d0a3276"
+      },
+      "stored_relative": "main-ci/FACTS.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/SARIF-COMPARISON.json",
+        "bytes": 3287,
+        "sha256": "277275bc80a0ba7d7e7719c82cd36e78323cec61f6b513be6b5b9831d0dddb1a"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/SARIF-COMPARISON.json",
+        "bytes": 3287,
+        "sha256": "277275bc80a0ba7d7e7719c82cd36e78323cec61f6b513be6b5b9831d0dddb1a"
+      },
+      "stored_relative": "main-ci/SARIF-COMPARISON.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/SARIF-FILE-DIFFERENCE.json",
+        "bytes": 167,
+        "sha256": "050642c65a5a372871cbda01ac25cb25020cb442e8dc6aa81c0428a1c1058266"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/SARIF-FILE-DIFFERENCE.json",
+        "bytes": 167,
+        "sha256": "050642c65a5a372871cbda01ac25cb25020cb442e8dc6aa81c0428a1c1058266"
+      },
+      "stored_relative": "main-ci/SARIF-FILE-DIFFERENCE.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/TEST-COMPARISON.json",
+        "bytes": 15917,
+        "sha256": "ea8fb73958ecc64e66544cd207cb8580bc313e001991a76f6764ec5ee36b1242"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/TEST-COMPARISON.json",
+        "bytes": 15917,
+        "sha256": "ea8fb73958ecc64e66544cd207cb8580bc313e001991a76f6764ec5ee36b1242"
+      },
+      "stored_relative": "main-ci/TEST-COMPARISON.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/ORIGINALS-INDEX.json",
+        "bytes": 36063,
+        "sha256": "679955673b7148a5ead2c3126fb837521ec71f28e8784408bbc699dbdc7d79c6"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/ORIGINALS-INDEX.json",
+        "bytes": 36063,
+        "sha256": "679955673b7148a5ead2c3126fb837521ec71f28e8784408bbc699dbdc7d79c6"
+      },
+      "stored_relative": "main-ci/ORIGINALS-INDEX.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    },
+    {
+      "source": {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/ci/REPORT-FREEZE.json",
+        "bytes": 2614,
+        "sha256": "e9432ec2eaaebb67d36c8687e614607a4849f16e03fccaa65723511045775dc5"
+      },
+      "stored": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/REPORT-FREEZE.json",
+        "bytes": 2614,
+        "sha256": "e9432ec2eaaebb67d36c8687e614607a4849f16e03fccaa65723511045775dc5"
+      },
+      "stored_relative": "main-ci/REPORT-FREEZE.json",
+      "exact_copy": true,
+      "manifest_matches": true,
+      "json_valid": true
+    }
+  ],
+  "report_copy_count": 18,
+  "report_copy_bytes": 381429,
+  "relative_markdown_links": [
+    {
+      "from": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/README.md",
+      "target": "candidate-ci/REPORT.md",
+      "resolved": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/REPORT.md",
+      "exists": true
+    },
+    {
+      "from": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/README.md",
+      "target": "main-ci/REPORT.md",
+      "resolved": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/REPORT.md",
+      "exists": true
+    },
+    {
+      "from": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/README.md",
+      "target": "../issue1372-tb01c-20260913/README.md",
+      "resolved": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-tb01c-20260913/README.md",
+      "exists": true
+    },
+    {
+      "from": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/README.md",
+      "target": "../issue1372-devskim-summary-20260913/README.md",
+      "resolved": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-devskim-summary-20260913/README.md",
+      "exists": true
+    },
+    {
+      "from": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/README.md",
+      "target": "candidate-scan/SUMMARY.md",
+      "resolved": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/SUMMARY.md",
+      "exists": true
+    }
+  ],
+  "main_ci_freeze_checks": [
+    {
+      "file": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/REPORT.md",
+        "bytes": 5638,
+        "sha256": "d20a33e2110e0d9a147903ba35b7c284482a5270d788e136f8e39318e25f6112"
+      },
+      "freeze_matches": true
+    },
+    {
+      "file": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/FACTS.json",
+        "bytes": 17226,
+        "sha256": "a051a57dd52fc42a252a361ec3a35cdf5d252ad63b4a7004dfcf065b8d0a3276"
+      },
+      "freeze_matches": true
+    },
+    {
+      "file": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/SARIF-COMPARISON.json",
+        "bytes": 3287,
+        "sha256": "277275bc80a0ba7d7e7719c82cd36e78323cec61f6b513be6b5b9831d0dddb1a"
+      },
+      "freeze_matches": true
+    },
+    {
+      "file": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/SARIF-FILE-DIFFERENCE.json",
+        "bytes": 167,
+        "sha256": "050642c65a5a372871cbda01ac25cb25020cb442e8dc6aa81c0428a1c1058266"
+      },
+      "freeze_matches": true
+    },
+    {
+      "file": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/TEST-COMPARISON.json",
+        "bytes": 15917,
+        "sha256": "ea8fb73958ecc64e66544cd207cb8580bc313e001991a76f6764ec5ee36b1242"
+      },
+      "freeze_matches": true
+    },
+    {
+      "file": {
+        "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-main-delivery-20260913/main-ci/ORIGINALS-INDEX.json",
+        "bytes": 36063,
+        "sha256": "679955673b7148a5ead2c3126fb837521ec71f28e8784408bbc699dbdc7d79c6"
+      },
+      "freeze_matches": true
+    }
+  ],
+  "referenced_evidence": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-tb01c-20260913/README.md",
+      "bytes": 9489,
+      "sha256": "ab8c0b25c80edf8abe3f9a887a565f1cd52344f90b8d634288bc2e2e7d52c82e"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/commit-check-inventory/INVENTORY.md",
+      "bytes": 6712,
+      "sha256": "526e43e6af6bb6a49797d77e25338ed518741a6acd99e31146c372b4fa5e29e6"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/commit-check-inventory/INVENTORY.json",
+      "bytes": 99980,
+      "sha256": "bb981807b1fe482cdba4c048e99e41a8625eb5b2794f14a999b13f1824077894"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/R9-REVIEW.json",
+      "bytes": 4475,
+      "sha256": "2befb22588c6177d71fa2868bf7b21992925a2ea4b8b5f71ecd3ca87e3afa9f9"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/REVIEW.md",
+      "bytes": 5515,
+      "sha256": "e98f03df1fb8bf95dc8f5e4961db94725b7867b6589ec40c8d9ad82fa8bc7621"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/REVIEW.json",
+      "bytes": 15506,
+      "sha256": "334984d95258c71860c0e9f77ce5eaba7bd30088421f89f899270cbd7f2c4dcc"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/CI-REVIEW.json",
+      "bytes": 983,
+      "sha256": "17ebf97d183b6d153ddbf759608a998c044c1863bbfdc3f783f770cef3b5f679"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/REVIEW.md",
+      "bytes": 9655,
+      "sha256": "a99505fd74640cd942a0f4bbe3dea12db09aabf685b1eafa5d9c187a4183a245"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-devskim-summary-20260913/README.md",
+      "bytes": 3340,
+      "sha256": "556eb68b1e7d38e9e293643b73a8c62dacc1a94adbf09c26a7bbef9758df74c0"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/REVIEW.json",
+      "bytes": 1762,
+      "sha256": "48c954ca3ed1094ab5a8be0dd36af7a26bb37b67086b792f038903ba0ccfca15"
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1372-delivery-tail/.chanlun/review-results/issue1372-devskim-summary-20260913/reports/python-review/REVIEW.json",
+      "bytes": 1629,
+      "sha256": "23ada8d1f463e4758b51759d4e5667182e5427a5f102bfacc9247699597bfa34"
+    }
+  ],
+  "commit_inventory": {
+    "actual_count": 20,
+    "commits": [
+      "387a4cbc66ef7c9be7724ff430a75a35e7a322eb #1372 add persistent single-writer session service and delivery retention",
+      "32c907a637721af46bf6096c01fc381e5ca6d2b3 #1372 audit fresh history with generation buckets and one batch decode",
+      "0e83b681dad5e1196d26f34639e28051cf462360 feat(#1372): add bounded read-only query audit pagination and watch",
+      "73ef75bcef0a9cc01aa25155492763fb3402959e #1372 reject uncovered control rows and incomplete epoch history",
+      "609716c07badac301eeae7108f654a0b0cde97f3 fix(#1372): validate signed raw integers and v2 recovery state",
+      "0b219fd47c07f363a9b318960e8f5c4c98779edc fix(query): 缩减完整审计后的缓存保留对象",
+      "8bbaaffd42da6c2c17537e1375b19ebe59c6ce6c #1372 reuse verified history prefixes after fresh dependency checks",
+      "b924a71fb11d36977819499d078ddc603ce3a466 fix: 核对响应期限后再向 S 入队 (#1372)",
+      "bf28062adb8a0e9569e43e10d9db2dc9699cd621 perf(query): memoize sealed sources with fresh integrity checks",
+      "42389dd2a879fb89f95dbbbc0f585991a450ef11 feat: 接入固定 cut 消费和独立服务验收流程 (#1372)",
+      "a2fc4a957ae7e567f0fc9c10bc683851e45b60f5 fix: 对齐单服务停止的正式控制回执 (#1372)",
+      "1a57fb684e5a6aa18e4f962b68ba3d9f9a908c66 fix(browser): 保持原生 fetch 的窗口绑定 (#1372)",
+      "2317369c3de2e3d9e8d90a545dd32d0e759d2b8b fix: 为旧启动入口显式接入 Q 资源和化身 (#1372)",
+      "68198a6cdabbdbfeee916a00321442999c3de673 docs: 补齐 S/Q 独立运行与固定轨迹复现说明 (#1372)",
+      "14c15bd44eeff6c0ecc75f3768a7fb734f398230 fix: 完整审计后返回有界 Q 就绪回执 (#1372)",
+      "932de089e989ca9ce482a93d6db825c4d4fda028 test: 恢复现役 R9 与 R10 查询入口回归 (#1372)",
+      "18ee720a02e4c4bb4fd8447ab99e6ef518957e14 perf(query): 复用已核源的无损 JSON 编码 (#1372)",
+      "3ff8c47ea4ab2aeb4672722e204d9f20b35f9b7f ci: 执行结构观察与浏览器协议回归 (#1372)",
+      "acd30cb61e59762114061b2d0b394aa270ed35ec docs: 收录 C 的最终有界验收与扫描分诊 (#1372)",
+      "041c8e2ef7916a465d8b352ff9dc1469707f8ac1 fix: 避免 DevSkim 大差集摘要的重复复制 (#1372)"
+    ],
+    "prior_inventory_count": 18,
+    "documentation_exemptions": [
+      "68198a6cdabbdbfeee916a00321442999c3de673",
+      "acd30cb61e59762114061b2d0b394aa270ed35ec"
+    ],
+    "acd_paths": [
+      ".chanlun/agent-roster-2026-09-13.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/PACKAGE-MANIFEST.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/README.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/REPORT-SOURCES.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/REPORT.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/FINALIZATION.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/FINALIZATION.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/MANIFEST.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/R5-CORE-COMPARISON.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/RAW-CROSS-RESPONSE-CHECKS.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/REPORT.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/THREE-ARM-SOURCE-COMPARISON.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/CI-PRODUCT-3FF8C47E.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/OBSERVER-CHECKS.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/commit-check-inventory/INVENTORY.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/commit-check-inventory/INVENTORY.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/commit-check-inventory/RUST-BUILD-BINDINGS.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/commit-check-inventory/SYNTAX-CHECKS.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/INCREMENTAL-FINDINGS.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/LINE-MOVES.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/MANIFEST.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/ORIGINALS-INDEX.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/RULE-SOURCES.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/SUMMARY.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/SUMMARY.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/package-integrity-review/REVIEW-FINAL.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/package-integrity-review/REVIEW-FINAL.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/driver-stop-envelope-independent/REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/driver-stop-envelope-independent/REVIEW.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/gui-utf8-recapture-independent/MANIFEST-DIFFERENCES.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/gui-utf8-recapture-independent/READY-REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/gui-utf8-recapture-independent/REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/gui-utf8-recapture-independent/REVIEW.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/http-capture-fix-independent/REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/http-capture-fix-independent/REVIEW.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/legacy-query-callers-audit/REPORT.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/legacy-query-callers-audit/REPORT.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/python-cross-review-fix-01/REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/python-cross-review-fix-01/REVIEW.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-continuation-performance/DELIVERY.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-continuation-performance/DELIVERY.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/CI-REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/R9-REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/REVIEW.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-memo-independent/REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-memo-independent/REVIEW.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime-driver-boundary-independent/REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime-driver-boundary-independent/REVIEW.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r4-pair/independent-review/LEGACY-REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r4-pair/independent-review/LEGACY-REVIEW.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r4-pair/independent-review/REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r4-pair/independent-review/REVIEW.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/EXECUTION.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/MANIFEST.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/READING.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/REVIEW.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-a/EVIDENCE-INDEX.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-a/FACTS.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-a/REPORT.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/EVIDENCE-INDEX.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/FACTS.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/POST-RUN-STOP.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/REPORT.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/gui-final/FACTS.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/gui-final/MANIFEST.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/gui-final/REPORT.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/gui-final/revised-instance.png",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-final-ac3/EVIDENCE-INDEX.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-final-ac3/FACTS.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-final-ac3/REPORT.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-final-ac3/independent-review/MANIFEST.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-r1/REPORT.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-r2-ac3/REPORT.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-r3-ac3/REPORT.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/rust-p4-independent/REVIEW-OLD-P4.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/rust-p4-independent/REVIEW-OLD-P4.md",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/rust-p4-independent/queue-fix-recheck/RESULT.json",
+      ".chanlun/review-results/issue1372-tb01c-20260913/reports/rust-p4-independent/queue-fix-recheck/REVIEW-QUEUE-FIX.md"
+    ],
+    "tail_041c_exempt": false,
+    "new_compilation_or_test_execution": false
+  },
+  "git_identity": {
+    "merge": "21b7898a19baa4d17c5885d122ea57ed882e4f73 4ebe9ffe886229634640a0e7c5da57f9d8ecacb8 e46cf3bca6a67da821f9ab046507563b8133f6d9 041c8e2ef7916a465d8b352ff9dc1469707f8ac1 2026-09-13T20:28:54+08:00",
+    "candidate": "041c8e2ef7916a465d8b352ff9dc1469707f8ac1 4ebe9ffe886229634640a0e7c5da57f9d8ecacb8 acd30cb61e59762114061b2d0b394aa270ed35ec 2026-09-13T19:50:38+08:00",
+    "status_short": " M .chanlun/agent-roster-2026-09-13.md\n?? .chanlun/review-results/issue1372-main-delivery-20260913/\n",
+    "roster_diff": "diff --git a/.chanlun/agent-roster-2026-09-13.md b/.chanlun/agent-roster-2026-09-13.md\nindex 64353767f0..1fe901382d 100644\n--- a/.chanlun/agent-roster-2026-09-13.md\n+++ b/.chanlun/agent-roster-2026-09-13.md\n@@ -3,12 +3,14 @@\n | 工位 | 票 | 分支与起点 | 登记时状态 | 职责 |\n |---|---|---|---|---|\n | `/Users/silencehan/Projects/NewChanlun-1371-delivery-tail` | #1371 | `codex/1371-delivery-tail`，起点 `d2219e8e014a5d55c091f8eda62ffb9dd8154953` | 已交付并清理 | Codex 主控整理 PR #1449 合入后的扫描分诊、修复可行性和主线验证收尾文档；无产品修改。 |\n-| `/Users/silencehan/Projects/NewChanlun-1372-codex` | #1372 | `codex/1372-codex`，起点 `e46cf3bca6a67da821f9ab046507563b8133f6d9` | 在跑（交付待批准） | 原生 Codex 已实施固定 cut 分页、Watch/Gap、持续 S 与只读 Q、有限资源和独立重启。产品候选 `3ff8c47e` 完成最终三臂及实际浏览器采集，R5 两轮495条完整轨迹相同；源与报告见 `.chanlun/review-results/issue1372-tb01c-20260913/`，PR #1451。DevSkim 红灯与 C 的 main 批准门另列，不清理未合入提交。 |\n+| `/Users/silencehan/Projects/NewChanlun-1372-codex` | #1372 | `codex/1372-codex`，起点 `e46cf3bca6a67da821f9ab046507563b8133f6d9` | 产品已合入，待关票清理 | 原生 Codex 已实施固定 cut 分页、Watch/Gap、持续 S 与只读 Q、有限资源和独立重启。产品候选 `3ff8c47e` 完成最终三臂及实际浏览器采集，R5 两轮495条完整轨迹相同；源与报告见 `.chanlun/review-results/issue1372-tb01c-20260913/`，PR #1451。用户已批准 PR #1451 的 041c 候选及扫描例外，已合入 main 21b7898；三旧分支 bundle 保全，尾报告与工位处置继续见新交付工位。 |\n \n-| `/Users/silencehan/Projects/NewChanlun-1372-rust` | #1372 | `codex/1372-rust`，起点 `e46cf3bca6a67da821f9ab046507563b8133f6d9` | 在跑（实施已接回） | Rust 持续写者、确定性时钟、普通投递保留与权威分页协议已由根整合；队列时限修复及独立评审见 C 报告包，正式二进制绑定根提交 `b924a71f`。该工位旧提交不是最终二进制版本，待票面与未合入提交核清后再清理。 |\n+| `/Users/silencehan/Projects/NewChanlun-1372-rust` | #1372 | `codex/1372-rust`，起点 `e46cf3bca6a67da821f9ab046507563b8133f6d9` | 旧候选已接回并保全，待清理 | Rust 持续写者、确定性时钟、普通投递保留与权威分页协议已由根整合；队列时限修复及独立评审见 C 报告包，正式二进制绑定根提交 `b924a71f`。该工位旧提交不是最终二进制版本，待票面与未合入提交核清后再清理。 |\n \n-| `/Users/silencehan/Projects/NewChanlun-1372-query` | #1372 | `codex/1372-query`，起点 `e46cf3bca6a67da821f9ab046507563b8133f6d9` | 在跑（实施已接回） | Q 完整性审计、固定 cut 分页、Watch/Gap 已由根整合；最终无损编码缓存提交 `18ee720a` 在根工作树，并已独立复核。该工位旧候选不得冒充最终源码，待票面与未合入提交核清后再清理。 |\n+| `/Users/silencehan/Projects/NewChanlun-1372-query` | #1372 | `codex/1372-query`，起点 `e46cf3bca6a67da821f9ab046507563b8133f6d9` | 旧候选已接回并保全，待清理 | Q 完整性审计、固定 cut 分页、Watch/Gap 已由根整合；最终无损编码缓存提交 `18ee720a` 在根工作树，并已独立复核。该工位旧候选不得冒充最终源码，待票面与未合入提交核清后再清理。 |\n \n 本工位承接 #1371 同范围交付。PR #1449 已按用户“如果不行就批准”的条件授权，以固定 head `256cd822e0d872f1fb65d433ca0b15b01fa621a2` 例外合入；DevSkim 失败与 #1385 旧待办保持真实记录。仅用 Codex 原生子代理，未启动 PrimeAgent。尾文档不回写冻结报告，不将旧检查说成新提交检查。新文档版本的 main 合入按现有明确批准门处理。\n \n 2026-09-13 续接：#1371 产品及纯报告均已获用户批准合入 main `e46cf3bca6a67da821f9ab046507563b8133f6d9`，常规 CI 通过，DevSkim 如实保留红灯与 #1385 待核指针；15 个 B 工作树、4 个分支已清理且在制品保全。C 从该主线独立实施；不得用 B 的单次扫描例外代替 C 后续合入批准。\n+\n+2026-09-13 C 合入后交付工位：`/Users/silencehan/Projects/NewChanlun-1372-delivery-tail`，分支 `codex/1372-delivery-tail`，起点 `21b7898a19baa4d17c5885d122ea57ed882e4f73`；#1372 专属在跑工位，只整理已批准 PR #1451 的实际主线 CI、工位处置与交付报告，不修改产品。原三个工位在核清在制品并保全后处置；本行不预称关票。\n"
+  },
+  "workstation_bundle": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1372-tb01c-preparation/delivery-preparation/main-merge-20260913/workstation-preservation/issue1372-original-workstations.bundle",
+    "bytes": 1080545,
+    "sha256": "8b3ad554ec09a4f2c0afa7f8cc9c8b657757d712d91105938c7ee8ade8250540"
+  },
+  "limits": [
+    "本审阅不代表尾包提交/合入后的CI",
+    "不扩大已批准扫描例外或TestOnly CC006/local_shape范围",
+    "没有重跑产品测试/扫描/Lean/服务，未穷举历史原件",
+    "旧评审和CI报告按原范围复用，未将历史待补改写为历史已通过",
+    "未修改被审工作树、仓库或远端；只写仓外本评审md/json",
+    "主控可一次原字节复制本评审并提交，不要求自我递归复审"
+  ]
+}
