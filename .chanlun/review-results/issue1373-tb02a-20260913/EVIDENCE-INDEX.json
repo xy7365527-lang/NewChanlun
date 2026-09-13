@@ -1158,5 +1158,11 @@
         "sha256": "69be05359b27fc8b8432352e94996ae3e6b3503d58e0140994eff9bd68b8daff"
       }
     ]
+  },
+  "integration_delivery": {
+    "entrypoint": "INTEGRATION.md",
+    "reports_directory": "reports/integration-20260914",
+    "product_reviewed_head": "214bf906cf1ead05365d9e4ace50c8141b3949ca",
+    "status": "产品验证与独评完成，扫描红灯按完整分诊披露，最终版本及合入待主控封包/批准"
   }
 }

@@ -1,0 +1,85 @@
+{
+  "status": "IMPLEMENTATION_AND_TARGETED_CHECKS_COMPLETE_NOT_INDEPENDENT_REVIEW",
+  "ticket": 1373,
+  "pr": 1453,
+  "created_at": "2026-09-13T22:46:44.182275+00:00",
+  "worktree": "/Users/silencehan/Projects/NewChanlun-1373-delivery-integration",
+  "branch": "codex/1373-delivery-integration",
+  "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+  "merge_head": "abf5c0f8491fc066a0f2bc47ab4defdb120035c1",
+  "changes": [
+    {
+      "file": "s_session/browser/index.html",
+      "reason": "同一页同时保留 #1373 OHLC 包含/局部分型同源展示与 main /economic.html 逐重账簿入口；其余结构观察实现未替换。"
+    },
+    {
+      "file": "s_session/s_service_control.py",
+      "reason": "解除 Python sysconfig 探测返回2字段与后续解包4字段的冲突；统一保留完整4字段声明、普通/Framework真实库路径核验及DYLD_FRAMEWORK_PATH。main的owner身份、实例nonce、Q economic_query_config接线保留。"
+    },
+    {
+      "file": "s_session/tests/test_tb01c_runtime_environment.py",
+      "reason": "5个合并回归测试，涵盖普通/Framework布局作用于S/E/B、库缺失拒绝、真实显式Python探测、owner/S nonce隔离和Q经济配置透传。"
+    }
+  ],
+  "source_hashes": {
+    "s_session/browser/index.html": "fba6ae5591bedf0339c03992ad21444a6acc592687ccebcd226bfacdc4b52ba6",
+    "s_session/s_service_control.py": "512c113b56e76acb0a8ad075cddefe6e90db755fc13948cb1382c5223f04b73e",
+    "s_session/tests/test_tb01c_runtime_environment.py": "cb8f62928b889a95924df91a578d753c1f452c4d4103702a0a59785efb2c67b6"
+  },
+  "checks": [
+    {
+      "command": "python3 -B -m unittest discover -s s_session/tests -p 'test_tb01c_*.py' -v",
+      "exit_code": 0,
+      "passed": 56,
+      "failed": 0,
+      "log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/PR1453-INTEGRATION-PYTHON-CONTROL.log",
+      "sha256": "64647aa3b65586663f1ac7a27a42b99366c1754485407b83a01f010e33a6708e"
+    },
+    {
+      "command": "python3 -B -m unittest discover -s s_session/tests -p 'test_tb03a_*.py' -v",
+      "exit_code": 0,
+      "passed": 11,
+      "failed": 0,
+      "log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/PR1453-INTEGRATION-PYTHON-ECONOMIC.log",
+      "sha256": "d4fe8dd9f7e4487d03fcc5903e3b58d127f4596fc39d926871b8b7779b13fb3a"
+    },
+    {
+      "command": "node s_session/tests/test_tb01c_browser.cjs",
+      "exit_code": 0,
+      "passed": 33,
+      "failed": 0,
+      "log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/PR1453-INTEGRATION-BROWSER-STRUCTURE.log",
+      "sha256": "2bde01cfc2ff3459a044779be86e5119eb3f66705ee32bd2e65139a0e71fbc86"
+    },
+    {
+      "command": "node --test s_session/tests/test_tb03a_voice_client.cjs",
+      "exit_code": 0,
+      "passed": 24,
+      "failed": 0,
+      "log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/PR1453-INTEGRATION-BROWSER-ECONOMIC.log",
+      "sha256": "42153ec72efe4209b00b09b556fa1ea4d7b2fdd3447e68a74caacf92401e100a"
+    }
+  ],
+  "syntax_compile": {
+    "files": [
+      "s_session/s_service_control.py",
+      "s_session/tests/test_tb01c_runtime_environment.py"
+    ],
+    "status": "PASS",
+    "writes_pyc": false
+  },
+  "conflict_marker_check": {
+    "files": [
+      "s_session/browser/index.html",
+      "s_session/s_service_control.py"
+    ],
+    "remaining": 0
+  },
+  "whitespace_check": "git diff --check -- <owned files>: exit 0",
+  "boundaries": [
+    "未stage/commit/push/abort/切分支；冲突索引由主控统一收包。",
+    "未编辑自动合并的Rust或s_readonly_server.py；Rust编译/源码组合检查由主控负责。",
+    "Python/浏览器脚本是定向回归，不是新的正式HTTP/GUI/经济业务验收。",
+    "本文件是实施说明，不是独立审阅或合入批准。"
+  ]
+}

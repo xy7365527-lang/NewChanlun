@@ -1,0 +1,136 @@
+{
+  "schema_revision": "bounded-python-integration-review/1",
+  "ticket": 1373,
+  "pr": 1453,
+  "created_at": "2026-09-13T22:49:11.292323+00:00",
+  "reviewer": "/root/integration_python_review",
+  "verdict": "APPROVE_BOUNDED_PYTHON_INTEGRATION",
+  "blocking": false,
+  "findings": [],
+  "merge_authorized": false,
+  "issue_closure_authorized": false,
+  "worktree": "/Users/silencehan/Projects/NewChanlun-1373-delivery-integration",
+  "snapshot": {
+    "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+    "merge_head": "abf5c0f8491fc066a0f2bc47ab4defdb120035c1",
+    "reviewed_source_state": "合并进行中的工作树文件；结论绑定下列真实字节摘要，不将未提交文件归给 HEAD。",
+    "source_sha256": {
+      "s_session/s_service_control.py": "512c113b56e76acb0a8ad075cddefe6e90db755fc13948cb1382c5223f04b73e",
+      "s_session/s_readonly_server.py": "0c4fc9527058b5b4c87984122cef8e7034fe0c356c39308bc463bf0b1d644545",
+      "s_session/s_socket_client.py": "fdd8a40a501e1de9a740304667c9ba491a8ca3e1ac251ec62bf4832e7e425a27",
+      "s_session/tests/test_tb01c_runtime_environment.py": "cb8f62928b889a95924df91a578d753c1f452c4d4103702a0a59785efb2c67b6"
+    },
+    "context_source_sha256": {
+      "s_session/economic_service_control.py": "a4d2d25665b3163cc6ef183e4dba29ac8cef8ac8f0f716384251e68d143f94e4",
+      "s_session/economic_http.py": "c9aee04f19694d5ff79b6367e057f424aba8aa18a708098dc38e13aef468b0dd",
+      "s_session/economic_query.py": "4a4491efcb8ae58a634d3a0969e5b624fde05f06f91d897ad59c16339c4be349"
+    }
+  },
+  "scope": [
+    "独立窄审 s_service_control.py 的实际冲突解法及新 runtime_environment 五项回归测试。",
+    "核对自动合并的 s_readonly_server.py 与 s_socket_client.py 对两边既有契约的兼容；追踪 EconomicController 继承和 Q 经济路由衔接。",
+    "对照 PR 父版本 e7fe54e8cd041e18ea8e473a41a5621cbe90b693 与 main 父版本 abf5c0f8491fc066a0f2bc47ab4defdb120035c1，区分继承逻辑和集成新增行为。"
+  ],
+  "review_evidence": [
+    {
+      "file": "s_session/s_service_control.py",
+      "line": 341,
+      "result": "runtime_environment 返回 LIBDIR、LDLIBRARY、PYTHONFRAMEWORK、PYTHONFRAMEWORKPREFIX 四字段，与后续解包一致。将本次新增 probe 局部变量内联后，其 AST 与 PR 父版本完全相同；不是把 main 二字段输出接到四字段解包。"
+    },
+    {
+      "file": "s_session/s_service_control.py",
+      "line": 353,
+      "result": "普通库使用 LIBDIR，Framework 使用 PYTHONFRAMEWORKPREFIX；核绝对根、相对非空库名及真实文件，随后保持既有库搜索路径并设置显式 PYO3_PYTHON；Framework 另保留 DYLD_FRAMEWORK_PATH。"
+    },
+    {
+      "file": "s_session/s_service_control.py",
+      "line": 317,
+      "result": "start_process、prepare_socket、status、read_config、start_q 的 AST 分别等于 main 父版本；S/owner 分别注入 S_CONTROL_INSTANCE_ID / SESSION_CONTROL_INSTANCE_ID，保留 socket 身份和显式 economic_query_config。wait_ready AST 同时等于两个父版本，nonce 核验未被冲突解法删去。"
+    },
+    {
+      "file": "s_session/s_readonly_server.py",
+      "line": 1045,
+      "result": "逐定义比较没有一项 AST 同时偏离两个父版本；结构 OHLC 校验保留 PR 侧，经济路由白名单、分派和 --economic-config 装载保留 main 侧，二者路径衔接未见新增覆盖。"
+    },
+    {
+      "file": "s_session/s_socket_client.py",
+      "line": 77,
+      "result": "逐定义比较没有一项 AST 同时偏离两个父版本；economic-session/1 的生产者分支和 namespace 仍由明确 schema 选择，s-session/2 维持 S/Q 身份、摘要和原因果校验。"
+    },
+    {
+      "file": "s_session/tests/test_tb01c_runtime_environment.py",
+      "line": 42,
+      "result": "五项测试覆盖普通/Framework 布局在 S/E/B 的继承调用、缺库拒绝、实际解释器、nonce 名称和 Q 经济配置透传；mock 探测执行的是产品生成的固定 probe 字符串，并校验 argv/期限。该 exec 不接收用户输入，未判命令注入。"
+    },
+    {
+      "file": "s_session/tests/test_tb01c_runtime_environment.py",
+      "line": 70,
+      "result": "缺库测试只直接调用 runtime_environment；Popen 未调用断言的证明范围限于该探测函数，不能单独提升为完整启动流程验收。该边界不构成本次实现阻断。"
+    }
+  ],
+  "validation": {
+    "independent_checks": [
+      {
+        "command": "git diff -- '*.py'",
+        "result": "已执行；另分别比较两个父版本的实际文件差异。"
+      },
+      {
+        "kind": "in_memory_compile",
+        "files": [
+          "s_session/s_service_control.py",
+          "s_session/s_readonly_server.py",
+          "s_session/s_socket_client.py",
+          "s_session/tests/test_tb01c_runtime_environment.py"
+        ],
+        "result": "4/4 PASS；不写 pyc。"
+      },
+      {
+        "kind": "parent_ast_comparison",
+        "result": "readonly_server、socket_client 全部定义至少对应一个父版本；controller 除 probe 局部变量抽取外保留两边目标逻辑。"
+      },
+      {
+        "kind": "source_freeze_check",
+        "result": "报告落盘前重新核对四项主审源码 SHA-256，均与审查及实施者冻结值一致。"
+      }
+    ],
+    "reused_targeted_checks": [
+      {
+        "command": "python3 -B -m unittest discover -s s_session/tests -p 'test_tb01c_*.py' -v",
+        "exit_code": 0,
+        "passed": 56,
+        "failed": 0,
+        "log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/PR1453-INTEGRATION-PYTHON-CONTROL.log",
+        "sha256": "64647aa3b65586663f1ac7a27a42b99366c1754485407b83a01f010e33a6708e",
+        "reviewer_action": "复核完整日志、退出状态记录及已冻结源摘要；没有重复运行实施者已完成的套件。"
+      },
+      {
+        "command": "python3 -B -m unittest discover -s s_session/tests -p 'test_tb03a_*.py' -v",
+        "exit_code": 0,
+        "passed": 11,
+        "failed": 0,
+        "log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/PR1453-INTEGRATION-PYTHON-ECONOMIC.log",
+        "sha256": "d4fe8dd9f7e4487d03fcc5903e3b58d127f4596fc39d926871b8b7779b13fb3a",
+        "reviewer_action": "复核完整日志、退出状态记录及已冻结源摘要；没有重复运行实施者已完成的套件。"
+      }
+    ],
+    "static_analysis_availability": {
+      "python": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "ruff": "PATH 与当前解释器模块均不可用",
+      "mypy": "PATH 与当前解释器模块均不可用",
+      "pylint": "PATH 与当前解释器模块均不可用",
+      "black": "PATH 与当前解释器模块均不可用",
+      "action": "未安装新工具，未声称 lint/type/format 全部通过；以差异人工审查和内存编译补足本次窄审。"
+    },
+    "implementation_report": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/PR1453-INTEGRATION-IMPLEMENTATION.json",
+      "sha256": "6a3822bbee1c023260d858caa945f9a78a66d4b6bb078e58b2591bf4b31a8ca3"
+    }
+  },
+  "boundaries": [
+    "未发现本次集成新增的 CRITICAL/HIGH/MEDIUM 问题；findings=[] 仅对应声明的 Python 变化范围。",
+    "没有重新审阅全部已存在的经济/结构功能，也没有把历史风格、类型注解或代码形状问题当作本次冲突新增缺陷。",
+    "本审查不替代 root 的 Rust 组合编译、正式 revision_recovery a/b、浏览器同源证据或 CI/扫描接回。",
+    "未运行生产交易；没有修改产品、测试、Git 索引或分支，只写本报告。",
+    "不授权合入 main、关闭 #1373 或宣告 #1323 整图完成。"
+  ]
+}

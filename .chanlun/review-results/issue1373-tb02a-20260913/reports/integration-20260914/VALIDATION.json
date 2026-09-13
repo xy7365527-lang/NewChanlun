@@ -1,0 +1,119 @@
+{
+  "schema": "issue1373-integration-validation/1",
+  "old_candidate": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+  "integrated_main": "abf5c0f8491fc066a0f2bc47ab4defdb120035c1",
+  "scope": "#1373候选与当前main组合的针对验证；不替代旧完整验收，不授权main合入",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--features",
+        "s_session",
+        "--bin",
+        "s_structure_session",
+        "--jobs",
+        "4"
+      ],
+      "cwd": "/Users/silencehan/Projects/NewChanlun-1373-delivery-integration/rust",
+      "env": {
+        "CARGO_TARGET_DIR": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/build"
+      },
+      "exit_code": 0,
+      "passed": 71,
+      "ignored": 1,
+      "log": "rust-session-tests.log"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--features",
+        "s_session",
+        "--lib",
+        "economic_session",
+        "--jobs",
+        "4"
+      ],
+      "cwd": "/Users/silencehan/Projects/NewChanlun-1373-delivery-integration/rust",
+      "env": {
+        "CARGO_TARGET_DIR": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/build"
+      },
+      "exit_code": 0,
+      "passed": 16,
+      "ignored": 0,
+      "log": "rust-economic-tests.log"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--features",
+        "s_session",
+        "--lib",
+        "session_",
+        "--jobs",
+        "4"
+      ],
+      "cwd": "/Users/silencehan/Projects/NewChanlun-1373-delivery-integration/rust",
+      "env": {
+        "CARGO_TARGET_DIR": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/build"
+      },
+      "exit_code": 0,
+      "passed": 7,
+      "ignored": 0,
+      "log": "rust-shared-session-tests.log"
+    },
+    {
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--features",
+        "s_session",
+        "--bin",
+        "s_structure_session",
+        "--bin",
+        "e_economic_session",
+        "--bin",
+        "b_chong_session",
+        "--jobs",
+        "4"
+      ],
+      "exit_code": 0,
+      "log": "rust-build.log"
+    },
+    {
+      "result": "BROWSER-OHLC.json",
+      "sha256": "26f590fadec62d0e2c2ea06b52ce1abc86d258fe9903d5ac5f130b3f4499f47a",
+      "exit_code": 0
+    },
+    {
+      "result": "q-ohlc/RESULT.json",
+      "sha256": "d69553eb8381ce74f686762f6a29a5438741569e22b6edeaef099965ac8deb3b",
+      "exit_code": 0
+    },
+    {
+      "result": "RUNTIME-PAIR-ORACLE.json",
+      "sha256": "88d61cdb14e6621c50d7609070003219e993a20689c486d49f4d1c9ec6005a1b",
+      "exit_code": 0
+    }
+  ],
+  "head": "214bf906cf1ead05365d9e4ace50c8141b3949ca",
+  "source_manifest": "SOURCE.json",
+  "implementation_report": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/PR1453-INTEGRATION-IMPLEMENTATION.json",
+    "sha256": "6a3822bbee1c023260d858caa945f9a78a66d4b6bb078e58b2591bf4b31a8ca3"
+  },
+  "python_review": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/PYTHON-REVIEW.json",
+    "sha256": "03371591c983efde4f2e36e278ad3b45baaf17883bf304e11b70d5cdebe4e230"
+  },
+  "execution": "RUNTIME-V2-EXECUTION.json",
+  "setup_failure_preserved": "RUNTIME-EXECUTION.json",
+  "gui": "未重验；HTML行为由生产函数检查，不冒称GUI",
+  "status": "PASS_BOUNDED_INTEGRATION_PENDING_SANDCASTLE_REVIEW_AND_CI"
+}
