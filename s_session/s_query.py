@@ -43,7 +43,7 @@ def load_resources(path, audit):
 class AuditReader:
     """一个 worker 独占一个只读连接；data_version 绝不跨连接比较。"""
 
-    def __init__(self, db_path, resources, helpers, seam=None):
+    def __init__(self, db_path, resources, helpers, seam=None, *, use_memo=True):
         self.path = Path(db_path).resolve()
         self.resources = resources
         self.h = helpers
@@ -52,11 +52,14 @@ class AuditReader:
         self.identity = None
         self.cached = None
         self.cached_version = None
+        self.use_memo = use_memo
+        self.memo = {} if use_memo else None
         self.seam = seam or (lambda _name: None)
         self.stats = {"captures": 0, "cache_hits": 0}
 
     def close(self):
         self.cached = self.cached_version = None
+        self.memo = {} if self.use_memo else None
         if self.connection is not None:
             self.connection.close()
             self.connection = None
@@ -124,15 +127,28 @@ class AuditReader:
         finally:
             conn.set_progress_handler(None, 0)
         verify_deadline = time.monotonic() + self.resources["verify_deadline_ms"] / 1000
-        proof = self.audit.verify(image, self.h, verify_deadline)
+        try:
+            proof = self.audit.verify(image, self.h, verify_deadline, memo=self.memo)
+        except Exception:
+            self.memo = {} if self.use_memo else None
+            raise
         # 只保留审计后的完整查询依赖；原捕获材料不再被proof引用，及时释放其BLOB副本。
         del image
         # 捕获值与解码后保留图像各受 max_capture_bytes 限制；该数不是进程 RSS。
         # JSON 解码、规范化与投影有临时对象，worker/帧/捕获上限共同限定输入域。
-        retained_bytes = self.audit.object_bytes(proof, self.resources["max_capture_bytes"], verify_deadline)
+        allowance = self.resources["max_cache_bytes"] // self.resources["max_query_workers"]
+        try:
+            retained_bytes = self.audit.object_bytes(proof, min(allowance, self.resources["max_capture_bytes"]), verify_deadline)
+        except self.audit.QueryBudgetExceeded:
+            # memo与完整公开proof联合计量；装不下就不保留memo，下次全核。
+            # 不通过自定义lazy对象漏算、不因cache不足删除历史或改变查询结果。
+            proof.pop("_audit_memo", None)
+            self.memo = {} if self.use_memo else None
+            retained_bytes = self.audit.object_bytes(proof, self.resources["max_capture_bytes"], verify_deadline)
         self.seam("before_cache_registration")
         v3 = conn.execute("PRAGMA data_version").fetchone()[0]
-        allowance = self.resources["max_cache_bytes"] // self.resources["max_query_workers"]
+        if self._identity() == identity and retained_bytes <= allowance:
+            self.memo = proof.get("_audit_memo", {}) if self.use_memo else None
         if v0 == v1 == v2 == v3 and self._identity() == identity and retained_bytes <= allowance:
             self.cached, self.cached_version = proof, v3
         return proof
@@ -399,7 +415,7 @@ def watch_page(proof, request, resources, h, leases):
                          "snapshot_token": _token(current, digest, proof["capture_digest"], resources["max_page_size"], 0, audit)}
         return output
     for index in range(after, min(head, after+maximum)):
-        delta = h["_project_wire_integers"](proof["deltas"][index])
+        delta = h["_project_wire_integers"](audit.project_delta(proof, index))
         if len(audit.canonical(delta)) > resources["max_atomic_batch_bytes"]:
             raise audit.QueryBudgetExceeded("单个完整 Delta 超出原子批字节上限")
         output["deltas"].append(delta)

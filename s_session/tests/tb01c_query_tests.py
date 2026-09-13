@@ -244,6 +244,72 @@ class QueryTests(unittest.TestCase):
         self.assertFalse(self.reader.connection.in_transaction)
         self.assertEqual(self.reader.stats["captures"], 2)
 
+    def test_source_memo_still_rechecks_current_rows_and_matches_disabled(self):
+        first = self.reader.capture_verified()
+        self.assertEqual(first["_audit_memo"]["misses"], 4)
+        self.mutate("INSERT INTO meta VALUES('memo_probe','new-current-value')")
+        later = self.reader.capture_verified()
+        self.assertEqual(later["_audit_memo"]["hits"], 4)
+        self.assertNotEqual(first["capture_digest"], later["capture_digest"])
+        disabled = query.AuditReader(self.db, resources(), vars(reader), use_memo=False)
+        self.addCleanup(disabled.close)
+        full = disabled.capture_verified()
+        self.assertNotIn("_audit_memo", full)
+        for cut in (None, 0, 1, 2, 3, 4):
+            self.assertEqual(audit.project_state(later, cut, vars(reader)),
+                             audit.project_state(full, cut, vars(reader)))
+        for after in range(5):
+            self.assertEqual(reader._delta_from_proof(later, after), reader._delta_from_proof(full, after))
+        self.mutate("UPDATE observations SET detail_json='{}'")
+        for check in (self.reader, disabled):
+            with self.assertRaises(ValueError):
+                check.capture_verified()
+            self.assertIsNone(check.cached)
+            self.assertFalse(check.connection.in_transaction)
+
+    def test_memo_budget_counts_sources_certificates_and_public_history_together(self):
+        proof = self.reader.capture_verified()
+        amount = audit.object_bytes(proof)
+        self.assertIs(self.reader.memo, proof["_audit_memo"])
+        self.assertEqual(audit.object_bytes((proof, self.reader.memo)), amount+sys.getsizeof((proof, self.reader.memo)))
+        self.reader.close()
+        self.reader.resources["max_cache_bytes"] = amount-1
+        smaller = self.reader.capture_verified()
+        self.assertNotIn("_audit_memo", smaller)
+        self.assertEqual(self.reader.memo, {})
+        self.assertEqual(reader._delta_from_proof(proof, 0), reader._delta_from_proof(smaller, 0))
+
+    def test_memo_does_not_hide_changed_first_known(self):
+        self.reader.capture_verified()
+        self.mutate("UPDATE objects SET first_known_cut='cut-0' WHERE object_id=(SELECT object_id FROM objects LIMIT 1)")
+        with self.assertRaises(ValueError):
+            self.reader.capture_verified()
+        self.assertEqual(self.reader.memo, {})
+
+    def test_changed_sealed_source_rebuilds_suffix_and_preserves_full_delta_order(self):
+        self.reader.capture_verified()
+        with closing(reader.open_readonly(self.db)) as conn:
+            delta = audit.parse_json(conn.execute("SELECT delta_json FROM structure_deltas WHERE generation=3").fetchone()[0])
+        self.assertGreater(len(delta["witnesses"]), 1)
+        delta["witnesses"].reverse()
+        delta["source_extension"] = {"preserved": ["all", "fields"]}
+        self.mutate("UPDATE structure_deltas SET delta_json=? WHERE generation=3", (audit.canonical(delta).decode(),))
+        changed = self.reader.capture_verified()
+        self.assertEqual((changed["_audit_memo"]["hits"], changed["_audit_memo"]["misses"]), (2, 2))
+        full_reader = query.AuditReader(self.db, resources(), vars(reader), use_memo=False)
+        self.addCleanup(full_reader.close)
+        full = full_reader.capture_verified()
+        self.assertEqual(audit.project_delta(changed, 2)["delta"], delta)
+        for after in range(5):
+            self.assertEqual(reader._delta_from_proof(changed, after), reader._delta_from_proof(full, after))
+
+    def test_memo_rejects_duplicate_json_key_after_source_change(self):
+        self.reader.capture_verified()
+        self.mutate("UPDATE structure_deltas SET delta_json=? WHERE generation=3", ('{"generation":"3","generation":"3"}',))
+        with self.assertRaises(ValueError):
+            self.reader.capture_verified()
+        self.assertEqual(self.reader.memo, {})
+
     def test_header_byte_and_total_time_limits_are_not_per_read_timeouts(self):
         left, right = socket.socketpair()
         self.addCleanup(left.close)

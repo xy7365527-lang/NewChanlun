@@ -11,6 +11,7 @@ import struct
 import sys
 import time
 import re
+import zlib
 from collections import defaultdict
 
 
@@ -368,6 +369,94 @@ def _same(actual, expected, h, name):
         raise ValueError(name + " 与独立持久索引/封存内容不一致")
 
 
+def _intern_set(records, h, name, pool):
+    return frozenset(pool.setdefault(key, key) for key in _record_set(records, h, name))
+
+
+def _same_keys(actual, expected, name):
+    if actual != expected:
+        raise ValueError(name + " 与独立持久索引/封存内容不一致")
+
+
+def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observations, raw, h, pool):
+    """验证当前代封存原件的内部关系；返回可逐字绑定源的规范集合，非当前库健康结论。"""
+    seq_range, evidence, delta = (parse_json(row[k]) for k in ("seq_range_json", "catalog_evidence_json", "delta_json"))
+    header = {k: row[k] for k in ("session_id", "catalog_revision", "base_cut", "next_cut", "index_frontier", "catalog_run_status")}
+    header.update(generation=str(gen), input_frontier=str(frontier), seq_range=seq_range, catalog_evidence=evidence)
+    if any(key not in delta or canonical(delta[key]) != canonical(value) for key, value in header.items()):
+        raise ValueError("Delta 内层字段与外层全部列不一致")
+    h["_validate_delta_shape"](delta)
+    batch_id = row["index_frontier"]
+    batch = parse_json(entry["canonical_bytes"])
+    for key, value in dict(generation=gen, structure_cut=row["next_cut"], input_frontier=frontier,
+                           catalog_revision=meta["catalog_revision"], rule_revision=meta["rule_revision"]).items():
+        if key not in batch or canonical(batch[key]) != canonical(value):
+            raise ValueError("batch 封存坐标/规则与根不一致")
+    h["_verify_batch_profile"](batch, binding)
+    h["_validate_scope"](batch.get("scope"))
+    h["_validate_scope"](evidence.get("scope"))
+    for key in ("profile_id", "profile_hash", "rule_revision"):
+        if key not in evidence or canonical(evidence[key]) != canonical(batch[key]):
+            raise ValueError("目录证据与 batch 绑定不一致")
+    if evidence.get("batch_id") != batch_id or evidence.get("structure_cut") != row["next_cut"]:
+        raise ValueError("目录证据 batch/cut 不一致")
+    for key in ("classified_objects", "windows_total", "merged_bars", "effective_source_positions",
+                "withdrawals", "replaces", "insufficient_knowledge", "domain_not_satisfied"):
+        value = evidence.get(key)
+        number = _int_text(value, key) if type(value) is str else value
+        if type(number) is not int or not 0 <= number < 2**63:
+            raise ValueError("目录计数不属于非负 i64")
+    if row["catalog_run_status"] != ("run" if batch["objects"] else "not_run"):
+        raise ValueError("目录运行状态与封存结果不符")
+    sets = {name: _intern_set(delta[name], h, name, pool) for name in
+            ("upserts", "withdrawals", "replaces", "witnesses", "relations", "observations", "raw_history_added")}
+    upserts = []
+    for obj in batch["objects"]:
+        values = (obj["object_id"], obj["object_revision"], obj["kind"], batch_id,
+                  obj["branch"], obj["dir_ab"], obj["dir_bc"], obj["window_start"], obj["window_mid"], obj["window_end"],
+                  obj["comparisons_json"], obj["input_refs_json"], obj["source_coords_json"], obj["first_known_generation"],
+                  obj["first_known_cut"], obj["published_generation"], None, None, None)
+        value = h["_project_object_row"](values)
+        previous = active.get(value["object_id"])
+        if previous is not None:
+            for key in ("batch_id", "first_known_generation", "first_known_cut", "published_generation"):
+                value[key] = previous[key]
+        upserts.append(value)
+    _same_keys(sets["upserts"], _intern_set(upserts, h, "upserts/batch", pool), "upserts/batch")
+    witnesses = [dict(w, slot=h["_num_to_str"](w["slot"]),
+                      merged_source_index=h["_num_to_str"](w["merged_source_index"]),
+                      raw_bars=h["_project_raw_bars"](w["raw_bars"])) for w in batch["witnesses"]]
+    _same_keys(sets["witnesses"], _intern_set(witnesses, h, "witnesses/batch", pool), "witnesses/batch")
+    relations = list(batch["relations"])
+    relations.extend({"subject": r["new_object_id"], "relation_type": "replaces", "object": r["old_object_id"]}
+                     for r in delta["replaces"])
+    for item in raw[:frontier+1]:
+        if item["supersedes_revision"] is not None:
+            relations.append({"subject": item["identity_key"]+"@"+item["revision"], "relation_type": "supersedes",
+                              "object": item["identity_key"]+"@"+item["supersedes_revision"]})
+    _same_keys(sets["relations"], _intern_set(relations, h, "relations/batch", pool), "relations/batch")
+    firsts, records = {}, []
+    for ob in batch["observations"]:
+        oid = h["_observation_id"](ob)
+        if oid not in observations:
+            original = dict(ob, observation_id=oid, batch_id=batch_id)
+            for key in ("window_start", "window_mid", "window_end"):
+                original[key] = h["_num_or_none_to_str"](original[key])
+            observations[oid] = firsts[oid] = original
+        records.append(observations[oid])
+    _same_keys(sets["observations"], _intern_set(records, h, "observations/首封存版本", pool), "observations/首封存版本")
+    return {"header": header, "sets": sets, "first_observations": firsts,
+            "delta_public": zlib.compress(row["delta_json"].encode("utf-8"), 1),
+            "raw_keys": _intern_set([_raw_wire(item) for item in batch["raw_events"]], h, "raw_history/batch", pool),
+            "batch": {key: batch[key] for key in ("profile_id", "profile_hash", "protocol_revision",
+                      "session_generation", "clock_plan_hash", "semantic_commit_ns") if key in batch}}
+
+
+def project_delta(proof, index):
+    """全历史原JSON以普通bytes无损保留；显式解压/解码，字段和数组原顺序不裁减。"""
+    return dict(proof["deltas"][index], delta=parse_json(zlib.decompress(proof["delta_json"][index])))
+
+
 def _verify_control(tables, meta, raw, deltas, batches, deadline=None):
     names = set(tables) - set(EXPECTED_LEGACY)
     if not names:
@@ -590,7 +679,7 @@ def _verify_control(tables, meta, raw, deltas, batches, deadline=None):
     return protocol
 
 
-def verify(image, h, deadline=None):
+def verify(image, h, deadline=None, memo=None):
     """一次处理全 typed 索引；各代只做该 batch/Delta 和该代变化的关联。"""
     _deadline(deadline)
     tables = _typed_rows(image, deadline)
@@ -636,6 +725,23 @@ def verify(image, h, deadline=None):
             if profile.get("profile_id") != pid or hashlib.sha256(canonical(profile)).hexdigest() != phash:
                 raise ValueError("旧未发布 profile 没有可核来源")
 
+    # memo是进程内已核源的派生集合；每次捕获完整typed材料后才允许比对原字节。
+    context = canonical((image["schema_rows"], image["schema"], binding,
+                         [(key, meta.get(key)) for key in ("session_id", "catalog_revision", "rule_revision",
+                          "scope", "profile_definition", "input_profile")]))
+    previous_entries = memo.get("entries", []) if memo is not None and memo.get("context") == context else []
+    reusable = bool(previous_entries)
+    next_entries, pool, memo_hits = [], {}, 0
+    for certificate in previous_entries:
+        for values in (*certificate["sets"].values(), certificate["raw_keys"]):
+            for key in values:
+                pool.setdefault(key, key)
+    raw_keys = []
+    for item in raw:
+        key = canonical(h["_legacy_payload_projection"](item))
+        raw_keys.append(pool.setdefault(key, key))
+    if len(set(raw_keys)) != len(raw_keys):
+        raise ValueError("raw_history 含重复成员")
     births, deaths = defaultdict(list), defaultdict(list)
     active, wires = {}, {"objects": [], "witnesses": [], "relations": [], "observations": []}
     for table in ("objects", "witnesses", "relations", "observations"):
@@ -678,7 +784,8 @@ def verify(image, h, deadline=None):
             stored[table][key] = published
             born[table][published].add(key)
     original_observations = {}
-    verified_deltas, decoded_batches = [], {}
+    verified_deltas, decoded_batches, delta_json = [], {}, []
+    active_keys = {}
     prev_frontier = -1
     for gen, row in enumerate(deltas, 1):
         _deadline(deadline)
@@ -689,97 +796,65 @@ def verify(image, h, deadline=None):
         frontier = h["_frontier_i64"](row["input_frontier"])
         if frontier < prev_frontier or frontier >= len(raw):
             raise ValueError("Delta 输入前沿不属于已接纳 raw")
-        seq_range, evidence, delta = (parse_json(row[k]) for k in ("seq_range_json", "catalog_evidence_json", "delta_json"))
-        if seq_range != {"from": str(prev_frontier+1), "to": str(frontier)}:
-            raise ValueError("Delta seq_range 与前沿链不一致")
-        header = {k: row[k] for k in ("session_id", "catalog_revision", "base_cut", "next_cut", "index_frontier", "catalog_run_status")}
-        header.update(generation=str(gen), input_frontier=str(frontier), seq_range=seq_range, catalog_evidence=evidence)
-        if any(key not in delta or canonical(delta[key]) != canonical(value) for key, value in header.items()):
-            raise ValueError("Delta 内层字段与外层全部列不一致")
-        h["_validate_delta_shape"](delta)
         batch_id = row["index_frontier"]
         entry = batches.get(batch_id)
         if entry is None or batch_id != "batch-" + hashlib.sha256(entry["canonical_bytes"]).hexdigest() or entry["byte_len"] != len(entry["canonical_bytes"]):
             raise ValueError("可达 batch 内容/长度/哈希不闭合")
-        batch = parse_json(entry["canonical_bytes"])
-        decoded_batches[gen] = batch
-        for key, value in dict(generation=gen, structure_cut=row["next_cut"], input_frontier=frontier,
-                               catalog_revision=meta["catalog_revision"], rule_revision=meta["rule_revision"]).items():
-            if key not in batch or canonical(batch[key]) != canonical(value):
-                raise ValueError("batch 封存坐标/规则与根不一致")
-        h["_verify_batch_profile"](batch, binding)
-        h["_validate_scope"](batch.get("scope"))
-        h["_validate_scope"](evidence.get("scope"))
-        for key in ("profile_id", "profile_hash", "rule_revision"):
-            if key not in evidence or canonical(evidence[key]) != canonical(batch[key]):
-                raise ValueError("目录证据与 batch 绑定不一致")
-        if evidence.get("batch_id") != batch_id or evidence.get("structure_cut") != row["next_cut"]:
-            raise ValueError("目录证据 batch/cut 不一致")
-        for key in ("classified_objects", "windows_total", "merged_bars", "effective_source_positions",
-                    "withdrawals", "replaces", "insufficient_knowledge", "domain_not_satisfied"):
-            value = evidence.get(key)
-            number = _int_text(value, key) if type(value) is str else value
-            if type(number) is not int or not 0 <= number < 2**63:
-                raise ValueError("目录计数不属于非负 i64")
-        if row["catalog_run_status"] != ("run" if batch["objects"] else "not_run"):
-            raise ValueError("目录运行状态与封存结果不符")
-        upserts = []
-        for obj in batch["objects"]:
-            values = (obj["object_id"], obj["object_revision"], obj["kind"], batch_id,
-                      obj["branch"], obj["dir_ab"], obj["dir_bc"], obj["window_start"], obj["window_mid"], obj["window_end"],
-                      obj["comparisons_json"], obj["input_refs_json"], obj["source_coords_json"], obj["first_known_generation"],
-                      obj["first_known_cut"], obj["published_generation"], None, None, None)
-            value = h["_project_object_row"](values)
-            old = active.get(value["object_id"])
-            if old is not None:
-                for key in ("batch_id", "first_known_generation", "first_known_cut", "published_generation"):
-                    value[key] = old[key]
-            upserts.append(value)
+        # 全typed列逐值一致，Delta原文另按UTF-8字节比较；避免每次重新转义整个大JSON文本。
+        # _typed_rows已核确切SQL类型，tuple保留列名、次序、值及null，无字符串化降格。
+        row_columns = tuple((key, value) for key, value in row.items() if key != "delta_json")
+        certificate = previous_entries[gen-1] if reusable and gen <= len(previous_entries) else None
+        if certificate is not None:
+            if (certificate["delta_columns"] != row_columns
+                    or zlib.decompress(certificate["delta_public"]) != row["delta_json"].encode("utf-8")
+                    or zlib.decompress(certificate["batch_source"]) != entry["canonical_bytes"]):
+                certificate = None
+        if certificate is None:
+            # 一处源变化后，后续first-known/首版observation依赖全部重新建立。
+            reusable = False
+            certificate = _sealed_generation(row, entry, gen, frontier, meta, binding, active,
+                                             original_observations, raw, h, pool)
+            if memo is not None:
+                certificate["delta_columns"] = row_columns
+                certificate["batch_source"] = zlib.compress(entry["canonical_bytes"], 1)
+        else:
+            memo_hits += 1
+            for oid, original in certificate["first_observations"].items():
+                if oid in original_observations:
+                    raise ValueError("memo首版observation顺序不闭合")
+                original_observations[oid] = original
+        if memo is not None:
+            next_entries.append(certificate)
+        header, sets = certificate["header"], certificate["sets"]
+        if header["seq_range"] != {"from": str(prev_frontier+1), "to": str(frontier)}:
+            raise ValueError("Delta seq_range 与前沿链不一致")
+        # 无论命中memo与否，独立索引生命周期和全raw前缀均来自本次完整typed捕获。
         for obj in births[gen]:
-            active[obj["object_id"]] = dict(obj, withdrawn_generation=None, withdrawal_reason=None,
-                                             superseded_by=None, lifecycle="active")
+            value = dict(obj, withdrawn_generation=None, withdrawal_reason=None,
+                         superseded_by=None, lifecycle="active")
+            active[obj["object_id"]] = value
+            key = canonical(h["_legacy_payload_projection"](value))
+            active_keys[obj["object_id"]] = pool.setdefault(key, key)
         withdrawals, replaces = [], []
         for obj in deaths[gen]:
             if active.pop(obj["object_id"], None) is None:
                 raise ValueError("对象撤回无活动前件")
+            active_keys.pop(obj["object_id"])
             withdrawals.append({"object_id": obj["object_id"], "window_start": obj["window_start"],
                                 "window_mid": obj["window_mid"], "window_end": obj["window_end"],
                                 "reason": obj["withdrawal_reason"], "superseded_by": obj["superseded_by"]})
             if obj["superseded_by"] is not None:
                 replaces.append({"old_object_id": obj["object_id"], "new_object_id": obj["superseded_by"]})
-        _same(delta["upserts"], upserts, h, "upserts/batch")
-        _same(upserts, list(active.values()), h, "objects/独立索引")
-        _same(delta["withdrawals"], withdrawals, h, "withdrawals")
-        _same(delta["replaces"], replaces, h, "replaces")
-        witnesses = []
-        for witness in batch["witnesses"]:
-            witness = dict(witness, slot=h["_num_to_str"](witness["slot"]),
-                           merged_source_index=h["_num_to_str"](witness["merged_source_index"]),
-                           raw_bars=h["_project_raw_bars"](witness["raw_bars"]))
-            witnesses.append(witness)
-        _same(delta["witnesses"], witnesses, h, "witnesses/batch")
-        batch_raw = [_raw_wire(item) for item in batch["raw_events"]]
-        _same(batch_raw, raw[:frontier+1], h, "raw_history/batch")
-        _same(delta["raw_history_added"], raw[prev_frontier+1:frontier+1], h, "raw_history_added")
-        relations = list(batch["relations"])
-        relations.extend({"subject": r["new_object_id"], "relation_type": "replaces", "object": r["old_object_id"]} for r in replaces)
-        for item in raw[:frontier+1]:
-            if item["supersedes_revision"] is not None:
-                relations.append({"subject": item["identity_key"]+"@"+item["revision"], "relation_type": "supersedes",
-                                  "object": item["identity_key"]+"@"+item["supersedes_revision"]})
-        _same(delta["relations"], relations, h, "relations/batch")
-        observations = []
-        for ob in batch["observations"]:
-            oid = h["_observation_id"](ob)
-            if oid not in original_observations:
-                original = dict(ob, observation_id=oid, batch_id=batch_id)
-                for key in ("window_start", "window_mid", "window_end"):
-                    original[key] = h["_num_or_none_to_str"](original[key])
-                original_observations[oid] = original
-            observations.append(original_observations[oid])
-        _same(delta["observations"], observations, h, "observations/首封存版本")
+        current_objects = frozenset(active_keys.values())
+        if len(current_objects) != len(active):
+            raise ValueError("objects/独立索引 含重复成员")
+        _same_keys(sets["upserts"], current_objects, "objects/独立索引")
+        _same_keys(sets["withdrawals"], _intern_set(withdrawals, h, "withdrawals", pool), "withdrawals")
+        _same_keys(sets["replaces"], _intern_set(replaces, h, "replaces", pool), "replaces")
+        _same_keys(certificate["raw_keys"], frozenset(raw_keys[:frontier+1]), "raw_history/batch")
+        _same_keys(sets["raw_history_added"], frozenset(raw_keys[prev_frontier+1:frontier+1]), "raw_history_added")
         for table in ("witnesses", "relations", "observations"):
-            added = _record_set(delta[table], h, table)
+            added = sets[table]
             for key in added:
                 published = stored[table].get(key)
                 if published is None or published > gen:
@@ -789,7 +864,9 @@ def verify(image, h, deadline=None):
             if not born[table][gen] <= added:
                 raise ValueError(table + " 含该代没有发布的幽灵端点")
             seen[table].update(added)
-        verified_deltas.append(dict(header, delta=delta))
+        verified_deltas.append(header)
+        decoded_batches[gen] = certificate["batch"]
+        delta_json.append(certificate["delta_public"])
         prev_frontier = frontier
     for table in seen:
         if seen[table] != stored[table].keys():
@@ -817,9 +894,13 @@ def verify(image, h, deadline=None):
     # 下一次data_version变化仍从当前全库重新capture/verify，不能拿此精简值替代审计输入。
     profiles = {gen: {key: batch[key] for key in ("profile_id", "profile_hash")}
                 for gen, batch in decoded_batches.items()}
-    return {"meta": meta, "generation": generation, "raw": raw, "wires": wires,
-            "tables": {"catalog": catalog}, "deltas": verified_deltas, "batches": profiles,
-            "capture_digest": digest, "protocol": protocol}
+    proof = {"meta": meta, "generation": generation, "raw": raw, "wires": wires,
+             "tables": {"catalog": catalog}, "deltas": verified_deltas, "delta_json": tuple(delta_json),
+             "batches": profiles, "capture_digest": digest, "protocol": protocol}
+    if memo is not None:
+        proof["_audit_memo"] = {"context": context, "entries": next_entries,
+                                "hits": memo_hits, "misses": generation-memo_hits}
+    return proof
 
 
 def project_state(proof, as_of, h):

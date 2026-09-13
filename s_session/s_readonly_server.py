@@ -695,7 +695,8 @@ def _delta_from_proof(proof, after_generation):
     return _project_wire_integers({"session_id": proof["meta"]["session_id"],
             "generation": str(generation), "structure_cut": f"cut-{generation}",
             "after_generation": str(after_generation), "gap": gap,
-            "deltas": [] if gap else proof["deltas"][after_generation:]})
+            "deltas": [] if gap else [_query_integrity().project_delta(proof, index)
+                                      for index in range(after_generation, generation)]})
 
 
 def read_delta(conn, after_generation):
