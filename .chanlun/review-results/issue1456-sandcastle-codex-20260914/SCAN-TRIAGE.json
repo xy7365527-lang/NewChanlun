@@ -1,0 +1,4772 @@
+{
+  "schemaVersion": 1,
+  "ticket": 1456,
+  "pullRequest": 1457,
+  "scannedHead": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+  "executedAt": "2026-09-13T22:00:31Z",
+  "exitCode": 1,
+  "reason": "PR1457 固定产品 head aa208aed38188ecc78205853e50c4b4d8ece4dd0 的真实 DevSkim 门禁退出 1：35226 条原始结果、35149 个唯一键，其中 26962 键在现有基线之外。相对 main abf5c0f8491fc066a0f2bc47ab4defdb120035c1，既有 35168 条完整实体全部保留，新增 58 条/55 键；新增项经逐条核为 38 条证据摘要、6 条 Git 提交引用、7 条固定代理/NO_PROXY 测试向量、4 条固定测试函数计时器、3 条生产监督器函数计时器。当前变更面已确认未修复产品问题为 0。尚待用户批准的是仅对该固定扫描树保留实际非零门禁状态的披露例外；不把扫描改记通过，不自动接受历史基线外项的一般安全性，不覆盖扫描后尾部文件或未来提交。",
+  "confirmedUnfixedProductFindings": 0,
+  "triageCreatedAt": "2026-09-13T22:12:47.036204+00:00",
+  "triageStatus": "COMPLETE_EXCEPTION_PENDING_APPROVAL",
+  "approvalGranted": false,
+  "reviewerNativeAgent": "/root/tb03b_contract_preparation",
+  "scope": "main→固定 PR 产品树的完整 SARIF 差异分诊，GitHub 只读，无重跑扫描/测试/工蜂。",
+  "scanRun": {
+    "id": 34785441478,
+    "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34785441478",
+    "headShaMetadata": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+    "event": "pull_request",
+    "scannerStartedAt": "2026-09-13T22:00:31Z",
+    "scannerCompletedAt": "2026-09-13T22:05:04Z",
+    "scannerConclusion": "success",
+    "artifactConclusion": "success",
+    "gateStartedAt": "2026-09-13T22:05:08Z",
+    "gateCompletedAt": "2026-09-13T22:05:18Z",
+    "gateConclusion": "failure",
+    "gateExitCode": 1,
+    "workflowConclusion": "failure"
+  },
+  "checkoutBinding": {
+    "actualCheckoutRef": "refs/remotes/pull/1457/merge",
+    "actualCheckoutCommit": "55af656dc521a13ac40c6906308f9d1a1f09a1a4",
+    "actualCheckoutTree": "54afbb7f374a73416558002902dcb3272114873a",
+    "reportedProductHead": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+    "productHeadTree": "54afbb7f374a73416558002902dcb3272114873a",
+    "treesEqual": true,
+    "bindingKind": "actual_merge_ref_tree_equals_fixed_product_head_tree",
+    "logEvidence": [
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/RUN-FINAL.log",
+        "line": 185,
+        "text": "DevSkim\tCheckout code\t2026-09-13T22:00:14.3970822Z HEAD is now at 55af656 Merge aa208aed38188ecc78205853e50c4b4d8ece4dd0 into abf5c0f8491fc066a0f2bc47ab4defdb120035c1"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/RUN-FINAL.log",
+        "line": 371,
+        "text": "DevSkim\tEnforce zero-findings gate and write summary\t2026-09-13T22:05:17.1860194Z - **Scanner outcome:** `success`"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/RUN-FINAL.log",
+        "line": 373,
+        "text": "DevSkim\tEnforce zero-findings gate and write summary\t2026-09-13T22:05:17.1861799Z - **DevSkim tool version:** `1.0.90+fb2d676ce4` (expected: `1.0.90+fb2d676ce4`)"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/RUN-FINAL.log",
+        "line": 374,
+        "text": "DevSkim\tEnforce zero-findings gate and write summary\t2026-09-13T22:05:17.1862498Z - **SARIF findings:** `35226`"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/RUN-FINAL.log",
+        "line": 381,
+        "text": "DevSkim\tEnforce zero-findings gate and write summary\t2026-09-13T22:05:17.1866705Z - SARIF contains 26962 finding(s) not in the baseline (total 35226). New findings:"
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/RUN-FINAL.log",
+        "line": 27344,
+        "text": "DevSkim\tEnforce zero-findings gate and write summary\t2026-09-13T22:05:18.3103238Z ##[error]Process completed with exit code 1."
+      }
+    ]
+  },
+  "baseScan": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/main-devskim/artifact/devskim-results.sarif",
+    "bytes": 131022598,
+    "sha256": "7c218bae95ad4839596833ff1d822577589c7a38dde648a0ec50890e6f5fca72",
+    "raw_findings": 35168,
+    "unique_keys": 35094,
+    "unique_full_results": 35168,
+    "rule_count": 11,
+    "drivers": [
+      {
+        "name": "devskim",
+        "fullName": "Microsoft DevSkim Command Line Interface",
+        "version": "1.0.90+fb2d676ce4",
+        "informationUri": "https://github.com/microsoft/DevSkim/"
+      }
+    ],
+    "column_kinds": [
+      "utf16CodeUnits"
+    ],
+    "sarif_version": "2.1.0",
+    "head": "abf5c0f8491fc066a0f2bc47ab4defdb120035c1",
+    "runId": 34782751153,
+    "metadataPath": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/main-devskim/MAIN-RUN.json"
+  },
+  "prScan": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/artifact/devskim-results.sarif",
+    "bytes": 131065708,
+    "sha256": "9adb421dcd226c507ee6cb85d1259ebc72a33001ffc6a50dbb8b2cbde1a81867",
+    "raw_findings": 35226,
+    "unique_keys": 35149,
+    "unique_full_results": 35226,
+    "rule_count": 11,
+    "drivers": [
+      {
+        "name": "devskim",
+        "fullName": "Microsoft DevSkim Command Line Interface",
+        "version": "1.0.90+fb2d676ce4",
+        "informationUri": "https://github.com/microsoft/DevSkim/"
+      }
+    ],
+    "column_kinds": [
+      "utf16CodeUnits"
+    ],
+    "sarif_version": "2.1.0"
+  },
+  "scannerContract": {
+    "drivers": [
+      {
+        "name": "devskim",
+        "fullName": "Microsoft DevSkim Command Line Interface",
+        "version": "1.0.90+fb2d676ce4",
+        "informationUri": "https://github.com/microsoft/DevSkim/"
+      }
+    ],
+    "driverMetadataEqual": true,
+    "ruleDefinitionMultisetsEqual": true,
+    "ruleCount": 11,
+    "sarifVersionEqual": true,
+    "columnKindsEqual": true,
+    "fullRuleDefinitions": [
+      {
+        "id": "DS197836",
+        "name": "DoNotTakeTheHashOfLowentropyContent",
+        "fullDescription": {
+          "text": "Do not take the hash of low-entropy content.: Taking a hash of a time value is suspicious, as there is insufficient entropy to protect against brute-force attacks."
+        },
+        "help": {
+          "text": "Taking a hash of a time value is suspicious, as there is insufficient entropy to protect against brute-force attacks.",
+          "markdown": "Visit [https://github.com/Microsoft/DevSkim/blob/main/guidance/DS197836.md](https://github.com/Microsoft/DevSkim/blob/main/guidance/DS197836.md) for additional guidance on this issue."
+        },
+        "shortDescription": {
+          "text": "Taking a hash of a time value is suspicious, as there is insufficient entropy to protect against brute-force attacks."
+        },
+        "defaultConfiguration": {
+          "level": "error"
+        },
+        "helpUri": "https://github.com/Microsoft/DevSkim/blob/main/guidance/DS197836.md",
+        "properties": {
+          "precision": "high",
+          "problem.severity": "warning",
+          "DevSkimSeverity": "Important",
+          "DevSkimConfidence": "High"
+        }
+      },
+      {
+        "id": "DS149435",
+        "name": "DoNotSeedRandomnessBasedOnSystemTimeOraStaticValue",
+        "fullDescription": {
+          "text": "Do not seed randomness based on system time or a static value.: Passing a predicable value to srand() is very insecure and should be avoided."
+        },
+        "help": {
+          "text": "Passing a predicable value to srand() is very insecure and should be avoided.",
+          "markdown": "Visit [https://github.com/Microsoft/DevSkim/blob/main/guidance/DS149435.md](https://github.com/Microsoft/DevSkim/blob/main/guidance/DS149435.md) for additional guidance on this issue."
+        },
+        "shortDescription": {
+          "text": "Passing a predicable value to srand() is very insecure and should be avoided."
+        },
+        "defaultConfiguration": {
+          "level": "error"
+        },
+        "helpUri": "https://github.com/Microsoft/DevSkim/blob/main/guidance/DS149435.md",
+        "properties": {
+          "precision": "high",
+          "problem.severity": "error",
+          "DevSkimSeverity": "Critical",
+          "DevSkimConfidence": "High"
+        }
+      },
+      {
+        "id": "DS176209",
+        "name": "SuspiciousComment",
+        "fullDescription": {
+          "text": "Suspicious comment: A \"TODO\" or similar was left in source code, possibly indicating incomplete functionality"
+        },
+        "help": {
+          "text": "A \"TODO\" or similar was left in source code, possibly indicating incomplete functionality",
+          "markdown": "Visit [https://github.com/Microsoft/DevSkim/blob/main/guidance/DS176209.md](https://github.com/Microsoft/DevSkim/blob/main/guidance/DS176209.md) for additional guidance on this issue."
+        },
+        "shortDescription": {
+          "text": "A \"TODO\" or similar was left in source code, possibly indicating incomplete functionality"
+        },
+        "defaultConfiguration": {
+          "level": "note"
+        },
+        "helpUri": "https://github.com/Microsoft/DevSkim/blob/main/guidance/DS176209.md",
+        "properties": {
+          "precision": "high",
+          "problem.severity": "recommendation",
+          "DevSkimSeverity": "ManualReview",
+          "DevSkimConfidence": "High"
+        }
+      },
+      {
+        "id": "DS172411",
+        "name": "ReviewSettimeoutForUntrustedData",
+        "fullDescription": {
+          "text": "Review setTimeout for untrusted data: If untrusted data (data from HTTP requests, user submitted files, etc.) is included in an setTimeout statement it can allow an attacker to inject their own code."
+        },
+        "help": {
+          "text": "Edit the setTimeout so that no untrusted data is included. If untrusted data is absolutely necessary a great deal of care should be taken to ensure it is properly escaped so that it cannot be executed. This is not as simple as just escaping quotes.",
+          "markdown": "Edit the setTimeout so that no untrusted data is included. If untrusted data is absolutely necessary a great deal of care should be taken to ensure it is properly escaped so that it cannot be executed. This is not as simple as just escaping quotes. Visit [https://github.com/Microsoft/DevSkim/blob/main/guidance/DS172411.md](https://github.com/Microsoft/DevSkim/blob/main/guidance/DS172411.md) for additional guidance on this issue."
+        },
+        "shortDescription": {
+          "text": "If untrusted data (data from HTTP requests, user submitted files, etc.) is included in an setTimeout statement it can allow an attacker to inject their own code."
+        },
+        "defaultConfiguration": {
+          "level": "note"
+        },
+        "helpUri": "https://github.com/Microsoft/DevSkim/blob/main/guidance/DS172411.md",
+        "properties": {
+          "precision": "high",
+          "problem.severity": "recommendation",
+          "DevSkimSeverity": "ManualReview",
+          "DevSkimConfidence": "High"
+        }
+      },
+      {
+        "id": "DS173237",
+        "name": "DoNotStoreTokensOrKeysInSourceCode",
+        "fullDescription": {
+          "text": "Do not store tokens or keys in source code.: A token or key was found in source code. If this represents a secret, it should be moved somewhere else."
+        },
+        "help": {
+          "text": "A token or key was found in source code. If this represents a secret, it should be moved somewhere else.",
+          "markdown": "Visit [https://github.com/Microsoft/DevSkim/blob/main/guidance/DS173237.md](https://github.com/Microsoft/DevSkim/blob/main/guidance/DS173237.md) for additional guidance on this issue."
+        },
+        "shortDescription": {
+          "text": "A token or key was found in source code. If this represents a secret, it should be moved somewhere else."
+        },
+        "defaultConfiguration": {
+          "level": "error"
+        },
+        "helpUri": "https://github.com/Microsoft/DevSkim/blob/main/guidance/DS173237.md",
+        "properties": {
+          "precision": "medium",
+          "problem.severity": "warning",
+          "DevSkimSeverity": "Important",
+          "DevSkimConfidence": "Medium"
+        }
+      },
+      {
+        "id": "DS117838",
+        "name": "DoNotStoreTokensOrKeysInSourceCode",
+        "fullDescription": {
+          "text": "Do not store tokens or keys in source code.: A token or key was found in source code. If this represents a secret, it should be moved somewhere else."
+        },
+        "help": {
+          "text": "A token or key was found in source code. If this represents a secret, it should be moved somewhere else.",
+          "markdown": "Visit [https://github.com/Microsoft/DevSkim/blob/main/guidance/DS117838.md](https://github.com/Microsoft/DevSkim/blob/main/guidance/DS117838.md) for additional guidance on this issue."
+        },
+        "shortDescription": {
+          "text": "A token or key was found in source code. If this represents a secret, it should be moved somewhere else."
+        },
+        "defaultConfiguration": {
+          "level": "error"
+        },
+        "helpUri": "https://github.com/Microsoft/DevSkim/blob/main/guidance/DS117838.md",
+        "properties": {
+          "precision": "high",
+          "problem.severity": "error",
+          "DevSkimSeverity": "Critical",
+          "DevSkimConfidence": "High"
+        }
+      },
+      {
+        "id": "DS126858",
+        "name": "WeakbrokenHashAlgorithm",
+        "fullDescription": {
+          "text": "Weak/Broken Hash Algorithm: A weak or broken hash algorithm was detected."
+        },
+        "help": {
+          "text": "Consider switching to use SHA-256 or SHA-512 instead.",
+          "markdown": "Consider switching to use SHA-256 or SHA-512 instead. Visit [https://github.com/Microsoft/DevSkim/blob/main/guidance/DS126858.md](https://github.com/Microsoft/DevSkim/blob/main/guidance/DS126858.md) for additional guidance on this issue."
+        },
+        "shortDescription": {
+          "text": "A weak or broken hash algorithm was detected."
+        },
+        "defaultConfiguration": {
+          "level": "error"
+        },
+        "helpUri": "https://github.com/Microsoft/DevSkim/blob/main/guidance/DS126858.md",
+        "properties": {
+          "precision": "high",
+          "problem.severity": "error",
+          "DevSkimSeverity": "Critical",
+          "DevSkimConfidence": "High"
+        }
+      },
+      {
+        "id": "DS187371",
+        "name": "AWeakCipherModeOfOperationWasUsed",
+        "fullDescription": {
+          "text": "A weak cipher mode of operation was used: A potentially weak cipher mode of operation was used."
+        },
+        "help": {
+          "text": "Consider using CBC, CTR, or GCM.",
+          "markdown": "Consider using CBC, CTR, or GCM. Visit [https://github.com/Microsoft/DevSkim/blob/main/guidance/DS182720.md](https://github.com/Microsoft/DevSkim/blob/main/guidance/DS182720.md) for additional guidance on this issue."
+        },
+        "shortDescription": {
+          "text": "A potentially weak cipher mode of operation was used."
+        },
+        "defaultConfiguration": {
+          "level": "error"
+        },
+        "helpUri": "https://github.com/Microsoft/DevSkim/blob/main/guidance/DS182720.md",
+        "properties": {
+          "precision": "medium",
+          "problem.severity": "warning",
+          "DevSkimSeverity": "Important",
+          "DevSkimConfidence": "Medium"
+        }
+      },
+      {
+        "id": "DS137138",
+        "name": "InsecureUrl",
+        "fullDescription": {
+          "text": "Insecure URL: An HTTP-based URL without TLS was detected."
+        },
+        "help": {
+          "text": "Update to an HTTPS-based URL if possible.",
+          "markdown": "Update to an HTTPS-based URL if possible. Visit [https://github.com/Microsoft/DevSkim/blob/main/guidance/DS137138.md](https://github.com/Microsoft/DevSkim/blob/main/guidance/DS137138.md) for additional guidance on this issue."
+        },
+        "shortDescription": {
+          "text": "An HTTP-based URL without TLS was detected."
+        },
+        "helpUri": "https://github.com/Microsoft/DevSkim/blob/main/guidance/DS137138.md",
+        "properties": {
+          "precision": "high",
+          "problem.severity": "warning",
+          "DevSkimSeverity": "Moderate",
+          "DevSkimConfidence": "High"
+        },
+        "defaultConfiguration": {
+          "level": "warning"
+        }
+      },
+      {
+        "id": "DS162092",
+        "name": "DoNotLeaveDebugCodeInProduction",
+        "fullDescription": {
+          "text": "Do not leave debug code in production: Accessing localhost could indicate debug code, or could hinder scaling."
+        },
+        "help": {
+          "text": "Accessing localhost could indicate debug code, or could hinder scaling.",
+          "markdown": "Visit [https://github.com/Microsoft/DevSkim/blob/main/guidance/DS162092.md](https://github.com/Microsoft/DevSkim/blob/main/guidance/DS162092.md) for additional guidance on this issue."
+        },
+        "shortDescription": {
+          "text": "Accessing localhost could indicate debug code, or could hinder scaling."
+        },
+        "defaultConfiguration": {
+          "level": "note"
+        },
+        "helpUri": "https://github.com/Microsoft/DevSkim/blob/main/guidance/DS162092.md",
+        "properties": {
+          "precision": "high",
+          "problem.severity": "recommendation",
+          "DevSkimSeverity": "ManualReview",
+          "DevSkimConfidence": "High"
+        }
+      },
+      {
+        "id": "DS148264",
+        "name": "DoNotUseWeaknoncryptographicRandomNumberGenerators",
+        "fullDescription": {
+          "text": "Do not use weak/non-cryptographic random number generators: Use cryptographic random numbers generators for anything even close to a security function."
+        },
+        "help": {
+          "text": "Replacements depend on language.",
+          "markdown": "Replacements depend on language. Visit [https://github.com/Microsoft/DevSkim/blob/main/guidance/DS148264.md](https://github.com/Microsoft/DevSkim/blob/main/guidance/DS148264.md) for additional guidance on this issue."
+        },
+        "shortDescription": {
+          "text": "Use cryptographic random numbers generators for anything even close to a security function."
+        },
+        "defaultConfiguration": {
+          "level": "error"
+        },
+        "helpUri": "https://github.com/Microsoft/DevSkim/blob/main/guidance/DS148264.md",
+        "properties": {
+          "precision": "high",
+          "problem.severity": "warning",
+          "DevSkimSeverity": "Important",
+          "DevSkimConfidence": "High"
+        }
+      }
+    ]
+  },
+  "counts": {
+    "baseRaw": 35168,
+    "prRaw": 35226,
+    "baseUniqueKeys": 35094,
+    "prUniqueKeys": 35149,
+    "baselineKeys": 8201,
+    "baselineSha256": "df25ff2ec9a0898de03a4450fc3506444f08100ca0657a32665086991e202595",
+    "baseOutsideBaselineKeys": 26907,
+    "prOutsideBaselineKeys": 26962,
+    "addedUniqueKeys": 55,
+    "removedUniqueKeys": 0,
+    "addedFullResults": 58,
+    "removedFullResults": 0,
+    "unchangedFullResults": 35168,
+    "addedByRule": {
+      "DS137138": 5,
+      "DS173237": 44,
+      "DS172411": 7,
+      "DS162092": 2
+    },
+    "addedByClassification": {
+      "explicit_proxy_test_vector": 5,
+      "git_commit_reference": 6,
+      "evidence_digest": 38,
+      "fixed_test_function_callback": 4,
+      "explicit_no_proxy_test_vector": 2,
+      "fixed_supervisor_function_callback": 3
+    },
+    "defensiveConditionLiteralAddedFindings": 0,
+    "readmeRelocatedFindings": 0,
+    "allNewEntitiesClassified": true,
+    "perScanRuleCounts": [
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/artifact/devskim-results.sarif",
+        "readmeFindings": 0,
+        "ruleCounts": {
+          "DS173237": 32828,
+          "DS162092": 1400,
+          "DS117838": 804,
+          "DS197836": 11,
+          "DS148264": 36,
+          "DS176209": 68,
+          "DS149435": 1,
+          "DS126858": 45,
+          "DS137138": 17,
+          "DS172411": 15,
+          "DS187371": 1
+        }
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/main-devskim/artifact/devskim-results.sarif",
+        "readmeFindings": 0,
+        "ruleCounts": {
+          "DS173237": 32784,
+          "DS162092": 1398,
+          "DS117838": 804,
+          "DS197836": 11,
+          "DS148264": 36,
+          "DS176209": 68,
+          "DS126858": 45,
+          "DS137138": 12,
+          "DS149435": 1,
+          "DS172411": 8,
+          "DS187371": 1
+        }
+      }
+    ]
+  },
+  "sixAddedCodeAndTestFiles": [
+    {
+      "status": "A",
+      "path": ".sandcastle/codex-child.mts",
+      "bytes": 3193,
+      "sha256": "03f261b77cf325f882213450a98754c9958cc431579b3d16edc79730bcead5b8",
+      "newRawFindings": 0,
+      "triagedFindingIds": [],
+      "scope": "固定提交源码散列与扫描结果覆盖；逐条审查实际命中及相关调用，不宣称对无命中文件做完整安全审计。"
+    },
+    {
+      "status": "A",
+      "path": ".sandcastle/codex-child.test.ts",
+      "bytes": 27395,
+      "sha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+      "newRawFindings": 11,
+      "triagedFindingIds": [
+        "PR1457-ADDED-001",
+        "PR1457-ADDED-002",
+        "PR1457-ADDED-003",
+        "PR1457-ADDED-004",
+        "PR1457-ADDED-005",
+        "PR1457-ADDED-050",
+        "PR1457-ADDED-051",
+        "PR1457-ADDED-052",
+        "PR1457-ADDED-053",
+        "PR1457-ADDED-054",
+        "PR1457-ADDED-055"
+      ],
+      "scope": "固定提交源码散列与扫描结果覆盖；逐条审查实际命中及相关调用，不宣称对无命中文件做完整安全审计。"
+    },
+    {
+      "status": "A",
+      "path": ".sandcastle/codex-child.ts",
+      "bytes": 30090,
+      "sha256": "69a552ecc95749ec776657ec42245e1adf81ec4a7398bc95117290ad510a8e70",
+      "newRawFindings": 3,
+      "triagedFindingIds": [
+        "PR1457-ADDED-056",
+        "PR1457-ADDED-057",
+        "PR1457-ADDED-058"
+      ],
+      "scope": "固定提交源码散列与扫描结果覆盖；逐条审查实际命中及相关调用，不宣称对无命中文件做完整安全审计。"
+    },
+    {
+      "status": "A",
+      "path": ".sandcastle/delivery-bundle.mts",
+      "bytes": 749,
+      "sha256": "ef3dfa70769cc6e8479a1ab77a8494404029d10a8d80acc677b1e6ba34c74b5c",
+      "newRawFindings": 0,
+      "triagedFindingIds": [],
+      "scope": "固定提交源码散列与扫描结果覆盖；逐条审查实际命中及相关调用，不宣称对无命中文件做完整安全审计。"
+    },
+    {
+      "status": "A",
+      "path": ".sandcastle/delivery-bundle.test.ts",
+      "bytes": 17878,
+      "sha256": "571bfdbed8c91c3585cf16c85292d979c56c78b024138dd3179cf3e9f67c47bb",
+      "newRawFindings": 0,
+      "triagedFindingIds": [],
+      "scope": "固定提交源码散列与扫描结果覆盖；逐条审查实际命中及相关调用，不宣称对无命中文件做完整安全审计。"
+    },
+    {
+      "status": "A",
+      "path": ".sandcastle/delivery-bundle.ts",
+      "bytes": 18593,
+      "sha256": "cc4d43e45a8e32eaacfed939263f6133acc9e305dacf57b64600888167a02d20",
+      "newRawFindings": 0,
+      "triagedFindingIds": [],
+      "scope": "固定提交源码散列与扫描结果覆盖；逐条审查实际命中及相关调用，不宣称对无命中文件做完整安全审计。"
+    }
+  ],
+  "addedKeys": [
+    "DS137138|.sandcastle/codex-child.test.ts|168",
+    "DS137138|.sandcastle/codex-child.test.ts|88",
+    "DS137138|.sandcastle/codex-child.test.ts|90",
+    "DS162092|.sandcastle/codex-child.test.ts|89",
+    "DS172411|.sandcastle/codex-child.test.ts|261",
+    "DS172411|.sandcastle/codex-child.test.ts|433",
+    "DS172411|.sandcastle/codex-child.test.ts|446",
+    "DS172411|.sandcastle/codex-child.test.ts|475",
+    "DS172411|.sandcastle/codex-child.ts|336",
+    "DS172411|.sandcastle/codex-child.ts|347",
+    "DS172411|.sandcastle/codex-child.ts|351",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json|199",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json|29",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json|34",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json|38",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json|42",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json|10",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json|11",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json|22",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json|40",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json|50",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json|59",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json|6",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json|7",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json|8",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json|9",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|102",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|107",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|112",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|117",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|122",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|127",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|132",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|137",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|142",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|36",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|37",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|45",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|46",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|54",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|55",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|64",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|87",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|92",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json|97",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json|21",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json|25",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json|31",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json|47",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json|25",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json|26",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json|29",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json|30",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json|31",
+    "DS173237|.chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json|32"
+  ],
+  "removedKeys": [],
+  "addedFindings": [
+    {
+      "id": "PR1457-ADDED-001",
+      "additionIndex": 0,
+      "ruleId": "DS137138",
+      "path": ".sandcastle/codex-child.test.ts",
+      "line": 168,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "fixes": [
+          {
+            "artifactChanges": [
+              {
+                "artifactLocation": {
+                  "uri": ".sandcastle/codex-child.test.ts"
+                },
+                "replacements": [
+                  {
+                    "deletedRegion": {
+                      "charLength": 33,
+                      "charOffset": 10109
+                    },
+                    "insertedContent": {
+                      "text": "https://proxy.example.invalid:8080"
+                    }
+                  }
+                ]
+              }
+            ],
+            "description": {
+              "text": "An HTTP-based URL without TLS was detected."
+            }
+          }
+        ],
+        "level": "warning",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.test.ts"
+              },
+              "region": {
+                "charLength": 33,
+                "charOffset": 10109,
+                "endColumn": 52,
+                "endLine": 168,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`http://proxy.example.invalid:8080`",
+                    "text": "http://proxy.example.invalid:8080"
+                  },
+                  "text": "http://proxy.example.invalid:8080"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 19,
+                "startLine": 168
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Insecure URL"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "Moderate",
+          "tags": [
+            "ThreatModel.Integration.HTTP"
+          ]
+        },
+        "ruleId": "DS137138"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+        "sourceLine": "    const route = \"http://proxy.example.invalid:8080\";"
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "explicit_proxy_test_vector",
+      "rationale": "固定 example.invalid 代理字符串用于 workerEnvironment 纯函数和临时假 Codex 环境转发测试。fixture 将 PATH 指向自建假 Codex；该用例捕获环境/结果，不把此地址作为生产网络端点连接。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 20,
+          "endLine": 55
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 86,
+          "endLine": 94
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 160,
+          "endLine": 189
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-002",
+      "additionIndex": 1,
+      "ruleId": "DS137138",
+      "path": ".sandcastle/codex-child.test.ts",
+      "line": 88,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "fixes": [
+          {
+            "artifactChanges": [
+              {
+                "artifactLocation": {
+                  "uri": ".sandcastle/codex-child.test.ts"
+                },
+                "replacements": [
+                  {
+                    "deletedRegion": {
+                      "charLength": 33,
+                      "charOffset": 5683
+                    },
+                    "insertedContent": {
+                      "text": "https://proxy.example.invalid:8080"
+                    }
+                  }
+                ]
+              }
+            ],
+            "description": {
+              "text": "An HTTP-based URL without TLS was detected."
+            }
+          }
+        ],
+        "level": "warning",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.test.ts"
+              },
+              "region": {
+                "charLength": 33,
+                "charOffset": 5683,
+                "endColumn": 50,
+                "endLine": 88,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`http://proxy.example.invalid:8080`",
+                    "text": "http://proxy.example.invalid:8080"
+                  },
+                  "text": "http://proxy.example.invalid:8080"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 17,
+                "startLine": 88
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Insecure URL"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "Moderate",
+          "tags": [
+            "ThreatModel.Integration.HTTP"
+          ]
+        },
+        "ruleId": "DS137138"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+        "sourceLine": "    HTTP_PROXY: \"http://proxy.example.invalid:8080\", HTTPS_PROXY: \"http://proxy.example.invalid:8081\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "explicit_proxy_test_vector",
+      "rationale": "固定 example.invalid 代理字符串用于 workerEnvironment 纯函数和临时假 Codex 环境转发测试。fixture 将 PATH 指向自建假 Codex；该用例捕获环境/结果，不把此地址作为生产网络端点连接。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 20,
+          "endLine": 55
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 86,
+          "endLine": 94
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 160,
+          "endLine": 189
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-003",
+      "additionIndex": 2,
+      "ruleId": "DS137138",
+      "path": ".sandcastle/codex-child.test.ts",
+      "line": 88,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "fixes": [
+          {
+            "artifactChanges": [
+              {
+                "artifactLocation": {
+                  "uri": ".sandcastle/codex-child.test.ts"
+                },
+                "replacements": [
+                  {
+                    "deletedRegion": {
+                      "charLength": 33,
+                      "charOffset": 5733
+                    },
+                    "insertedContent": {
+                      "text": "https://proxy.example.invalid:8081"
+                    }
+                  }
+                ]
+              }
+            ],
+            "description": {
+              "text": "An HTTP-based URL without TLS was detected."
+            }
+          }
+        ],
+        "level": "warning",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.test.ts"
+              },
+              "region": {
+                "charLength": 33,
+                "charOffset": 5733,
+                "endColumn": 100,
+                "endLine": 88,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`http://proxy.example.invalid:8081`",
+                    "text": "http://proxy.example.invalid:8081"
+                  },
+                  "text": "http://proxy.example.invalid:8081"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 67,
+                "startLine": 88
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Insecure URL"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "Moderate",
+          "tags": [
+            "ThreatModel.Integration.HTTP"
+          ]
+        },
+        "ruleId": "DS137138"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+        "sourceLine": "    HTTP_PROXY: \"http://proxy.example.invalid:8080\", HTTPS_PROXY: \"http://proxy.example.invalid:8081\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "explicit_proxy_test_vector",
+      "rationale": "固定 example.invalid 代理字符串用于 workerEnvironment 纯函数和临时假 Codex 环境转发测试。fixture 将 PATH 指向自建假 Codex；该用例捕获环境/结果，不把此地址作为生产网络端点连接。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 20,
+          "endLine": 55
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 86,
+          "endLine": 94
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 160,
+          "endLine": 189
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-004",
+      "additionIndex": 3,
+      "ruleId": "DS137138",
+      "path": ".sandcastle/codex-child.test.ts",
+      "line": 90,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "fixes": [
+          {
+            "artifactChanges": [
+              {
+                "artifactLocation": {
+                  "uri": ".sandcastle/codex-child.test.ts"
+                },
+                "replacements": [
+                  {
+                    "deletedRegion": {
+                      "charLength": 33,
+                      "charOffset": 5873
+                    },
+                    "insertedContent": {
+                      "text": "https://proxy.example.invalid:8082"
+                    }
+                  }
+                ]
+              }
+            ],
+            "description": {
+              "text": "An HTTP-based URL without TLS was detected."
+            }
+          }
+        ],
+        "level": "warning",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.test.ts"
+              },
+              "region": {
+                "charLength": 33,
+                "charOffset": 5873,
+                "endColumn": 50,
+                "endLine": 90,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`http://proxy.example.invalid:8082`",
+                    "text": "http://proxy.example.invalid:8082"
+                  },
+                  "text": "http://proxy.example.invalid:8082"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 17,
+                "startLine": 90
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Insecure URL"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "Moderate",
+          "tags": [
+            "ThreatModel.Integration.HTTP"
+          ]
+        },
+        "ruleId": "DS137138"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+        "sourceLine": "    http_proxy: \"http://proxy.example.invalid:8082\", https_proxy: \"http://proxy.example.invalid:8083\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "explicit_proxy_test_vector",
+      "rationale": "固定 example.invalid 代理字符串用于 workerEnvironment 纯函数和临时假 Codex 环境转发测试。fixture 将 PATH 指向自建假 Codex；该用例捕获环境/结果，不把此地址作为生产网络端点连接。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 20,
+          "endLine": 55
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 86,
+          "endLine": 94
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 160,
+          "endLine": 189
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-005",
+      "additionIndex": 4,
+      "ruleId": "DS137138",
+      "path": ".sandcastle/codex-child.test.ts",
+      "line": 90,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "fixes": [
+          {
+            "artifactChanges": [
+              {
+                "artifactLocation": {
+                  "uri": ".sandcastle/codex-child.test.ts"
+                },
+                "replacements": [
+                  {
+                    "deletedRegion": {
+                      "charLength": 33,
+                      "charOffset": 5923
+                    },
+                    "insertedContent": {
+                      "text": "https://proxy.example.invalid:8083"
+                    }
+                  }
+                ]
+              }
+            ],
+            "description": {
+              "text": "An HTTP-based URL without TLS was detected."
+            }
+          }
+        ],
+        "level": "warning",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.test.ts"
+              },
+              "region": {
+                "charLength": 33,
+                "charOffset": 5923,
+                "endColumn": 100,
+                "endLine": 90,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`http://proxy.example.invalid:8083`",
+                    "text": "http://proxy.example.invalid:8083"
+                  },
+                  "text": "http://proxy.example.invalid:8083"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 67,
+                "startLine": 90
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Insecure URL"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "Moderate",
+          "tags": [
+            "ThreatModel.Integration.HTTP"
+          ]
+        },
+        "ruleId": "DS137138"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+        "sourceLine": "    http_proxy: \"http://proxy.example.invalid:8082\", https_proxy: \"http://proxy.example.invalid:8083\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "explicit_proxy_test_vector",
+      "rationale": "固定 example.invalid 代理字符串用于 workerEnvironment 纯函数和临时假 Codex 环境转发测试。fixture 将 PATH 指向自建假 Codex；该用例捕获环境/结果，不把此地址作为生产网络端点连接。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 20,
+          "endLine": 55
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 86,
+          "endLine": 94
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 160,
+          "endLine": 189
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-006",
+      "additionIndex": 5,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json",
+      "line": 29,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json"
+              },
+              "region": {
+                "charLength": 42,
+                "charOffset": 834,
+                "endColumn": 63,
+                "endLine": 29,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"abf5c0f8491fc066a0f2bc47ab4defdb120035c1\"`",
+                    "text": "\"abf5c0f8491fc066a0f2bc47ab4defdb120035c1\""
+                  },
+                  "text": "\"abf5c0f8491fc066a0f2bc47ab4defdb120035c1\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 21,
+                "startLine": 29
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "ae366880f7621c2bd95a8202e3783549bfac1e4bcf584b1bb5d505f5ba0341f3",
+        "sourceLine": "    \"headAtBinding\": \"abf5c0f8491fc066a0f2bc47ab4defdb120035c1\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "git_commit_reference",
+      "evidence": [
+        {
+          "kind": "verified_git_commit_object",
+          "sha": "abf5c0f8491fc066a0f2bc47ab4defdb120035c1",
+          "object_type": "commit"
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/sourceBinding/headAtBinding"
+      ],
+      "rationale": "已核为可解析的 Git commit 对象，报告用来绑定基线或受审 checkout，不参与认证。"
+    },
+    {
+      "id": "PR1457-ADDED-007",
+      "additionIndex": 6,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json",
+      "line": 34,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1041,
+                "endColumn": 84,
+                "endLine": 34,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"cc4d43e45a8e32eaacfed939263f6133acc9e305dacf57b64600888167a02d20\"`",
+                    "text": "\"cc4d43e45a8e32eaacfed939263f6133acc9e305dacf57b64600888167a02d20\""
+                  },
+                  "text": "\"cc4d43e45a8e32eaacfed939263f6133acc9e305dacf57b64600888167a02d20\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 18,
+                "startLine": 34
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "ae366880f7621c2bd95a8202e3783549bfac1e4bcf584b1bb5d505f5ba0341f3",
+        "sourceLine": "        \"sha256\": \"cc4d43e45a8e32eaacfed939263f6133acc9e305dacf57b64600888167a02d20\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".sandcastle/delivery-bundle.ts",
+          "bytes": 18593
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/sourceBinding/files/0/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-008",
+      "additionIndex": 7,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json",
+      "line": 38,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1194,
+                "endColumn": 84,
+                "endLine": 38,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"ef3dfa70769cc6e8479a1ab77a8494404029d10a8d80acc677b1e6ba34c74b5c\"`",
+                    "text": "\"ef3dfa70769cc6e8479a1ab77a8494404029d10a8d80acc677b1e6ba34c74b5c\""
+                  },
+                  "text": "\"ef3dfa70769cc6e8479a1ab77a8494404029d10a8d80acc677b1e6ba34c74b5c\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 18,
+                "startLine": 38
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "ae366880f7621c2bd95a8202e3783549bfac1e4bcf584b1bb5d505f5ba0341f3",
+        "sourceLine": "        \"sha256\": \"ef3dfa70769cc6e8479a1ab77a8494404029d10a8d80acc677b1e6ba34c74b5c\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".sandcastle/delivery-bundle.mts",
+          "bytes": 749
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/sourceBinding/files/1/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-009",
+      "additionIndex": 8,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json",
+      "line": 42,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1351,
+                "endColumn": 84,
+                "endLine": 42,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"571bfdbed8c91c3585cf16c85292d979c56c78b024138dd3179cf3e9f67c47bb\"`",
+                    "text": "\"571bfdbed8c91c3585cf16c85292d979c56c78b024138dd3179cf3e9f67c47bb\""
+                  },
+                  "text": "\"571bfdbed8c91c3585cf16c85292d979c56c78b024138dd3179cf3e9f67c47bb\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 18,
+                "startLine": 42
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "ae366880f7621c2bd95a8202e3783549bfac1e4bcf584b1bb5d505f5ba0341f3",
+        "sourceLine": "        \"sha256\": \"571bfdbed8c91c3585cf16c85292d979c56c78b024138dd3179cf3e9f67c47bb\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".sandcastle/delivery-bundle.test.ts",
+          "bytes": 17878
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/sourceBinding/files/2/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-010",
+      "additionIndex": 9,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json",
+      "line": 199,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 7122,
+                "endColumn": 86,
+                "endLine": 199,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"d0aad10dfb49f9072d41b2b8a928f35410ae89669ea24d95abff4e4735add285\"`",
+                    "text": "\"d0aad10dfb49f9072d41b2b8a928f35410ae89669ea24d95abff4e4735add285\""
+                  },
+                  "text": "\"d0aad10dfb49f9072d41b2b8a928f35410ae89669ea24d95abff4e4735add285\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 20,
+                "startLine": 199
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "ae366880f7621c2bd95a8202e3783549bfac1e4bcf584b1bb5d505f5ba0341f3",
+        "sourceLine": "    \"scriptSha256\": \"d0aad10dfb49f9072d41b2b8a928f35410ae89669ea24d95abff4e4735add285\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_embedded_script_sha256",
+          "report": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json",
+          "jsonPointer": "/verification/scriptSource"
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/verification/scriptSha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-011",
+      "additionIndex": 10,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json",
+      "line": 59,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json"
+              },
+              "region": {
+                "charLength": 42,
+                "charOffset": 2726,
+                "endColumn": 54,
+                "endLine": 59,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"abf5c0f8491fc066a0f2bc47ab4defdb120035c1\"`",
+                    "text": "\"abf5c0f8491fc066a0f2bc47ab4defdb120035c1\""
+                  },
+                  "text": "\"abf5c0f8491fc066a0f2bc47ab4defdb120035c1\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 12,
+                "startLine": 59
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "763467d231a12ee63124768440e02a1df741e8b9e6b7fe1fe89d76297675e852",
+        "sourceLine": "    \"base\": \"abf5c0f8491fc066a0f2bc47ab4defdb120035c1\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "git_commit_reference",
+      "evidence": [
+        {
+          "kind": "verified_git_commit_object",
+          "sha": "abf5c0f8491fc066a0f2bc47ab4defdb120035c1",
+          "object_type": "commit"
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/fullProjectTypecheck/base"
+      ],
+      "rationale": "已核为可解析的 Git commit 对象，报告用来绑定基线或受审 checkout，不参与认证。"
+    },
+    {
+      "id": "PR1457-ADDED-012",
+      "additionIndex": 11,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json",
+      "line": 22,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1264,
+                "endColumn": 84,
+                "endLine": 22,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"`",
+                    "text": "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\""
+                  },
+                  "text": "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 18,
+                "startLine": 22
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "763467d231a12ee63124768440e02a1df741e8b9e6b7fe1fe89d76297675e852",
+        "sourceLine": "        \"sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/typecheck.log",
+          "bytes": 0
+        },
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/codex.stderr.log",
+          "bytes": 0
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/checks/0/log/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-013",
+      "additionIndex": 12,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json",
+      "line": 6,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 143,
+                "endColumn": 100,
+                "endLine": 6,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"69a552ecc95749ec776657ec42245e1adf81ec4a7398bc95117290ad510a8e70\"`",
+                    "text": "\"69a552ecc95749ec776657ec42245e1adf81ec4a7398bc95117290ad510a8e70\""
+                  },
+                  "text": "\"69a552ecc95749ec776657ec42245e1adf81ec4a7398bc95117290ad510a8e70\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 34,
+                "startLine": 6
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "763467d231a12ee63124768440e02a1df741e8b9e6b7fe1fe89d76297675e852",
+        "sourceLine": "    \".sandcastle/codex-child.ts\": \"69a552ecc95749ec776657ec42245e1adf81ec4a7398bc95117290ad510a8e70\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".sandcastle/codex-child.ts",
+          "bytes": 30090
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/sources/.sandcastle~1codex-child.ts"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-014",
+      "additionIndex": 13,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json",
+      "line": 40,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 2092,
+                "endColumn": 88,
+                "endLine": 40,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"eb04805cbdf3621bb734296353dead42b47aa8d645cef96844d4c65e701cd93c\"`",
+                    "text": "\"eb04805cbdf3621bb734296353dead42b47aa8d645cef96844d4c65e701cd93c\""
+                  },
+                  "text": "\"eb04805cbdf3621bb734296353dead42b47aa8d645cef96844d4c65e701cd93c\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 22,
+                "startLine": 40
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "763467d231a12ee63124768440e02a1df741e8b9e6b7fe1fe89d76297675e852",
+        "sourceLine": "            \"sha256\": \"eb04805cbdf3621bb734296353dead42b47aa8d645cef96844d4c65e701cd93c\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-tests.log",
+          "bytes": 7799
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/checks/1/runs/0/log/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-015",
+      "additionIndex": 14,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json",
+      "line": 7,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 246,
+                "endColumn": 101,
+                "endLine": 7,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"03f261b77cf325f882213450a98754c9958cc431579b3d16edc79730bcead5b8\"`",
+                    "text": "\"03f261b77cf325f882213450a98754c9958cc431579b3d16edc79730bcead5b8\""
+                  },
+                  "text": "\"03f261b77cf325f882213450a98754c9958cc431579b3d16edc79730bcead5b8\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 35,
+                "startLine": 7
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "763467d231a12ee63124768440e02a1df741e8b9e6b7fe1fe89d76297675e852",
+        "sourceLine": "    \".sandcastle/codex-child.mts\": \"03f261b77cf325f882213450a98754c9958cc431579b3d16edc79730bcead5b8\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".sandcastle/codex-child.mts",
+          "bytes": 3193
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/sources/.sandcastle~1codex-child.mts"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-016",
+      "additionIndex": 15,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json",
+      "line": 50,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 2522,
+                "endColumn": 88,
+                "endLine": 50,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"aa59467fd75578b093f208baac2cb8a77b980af88292f3f0087e17bfb10f9d70\"`",
+                    "text": "\"aa59467fd75578b093f208baac2cb8a77b980af88292f3f0087e17bfb10f9d70\""
+                  },
+                  "text": "\"aa59467fd75578b093f208baac2cb8a77b980af88292f3f0087e17bfb10f9d70\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 22,
+                "startLine": 50
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "763467d231a12ee63124768440e02a1df741e8b9e6b7fe1fe89d76297675e852",
+        "sourceLine": "            \"sha256\": \"aa59467fd75578b093f208baac2cb8a77b980af88292f3f0087e17bfb10f9d70\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/delivery-tests.log",
+          "bytes": 5580
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/checks/1/runs/1/log/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-017",
+      "additionIndex": 16,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json",
+      "line": 8,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 353,
+                "endColumn": 105,
+                "endLine": 8,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741\"`",
+                    "text": "\"40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741\""
+                  },
+                  "text": "\"40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 39,
+                "startLine": 8
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "763467d231a12ee63124768440e02a1df741e8b9e6b7fe1fe89d76297675e852",
+        "sourceLine": "    \".sandcastle/codex-child.test.ts\": \"40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".sandcastle/codex-child.test.ts",
+          "bytes": 27395
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/sources/.sandcastle~1codex-child.test.ts"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-018",
+      "additionIndex": 17,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json",
+      "line": 9,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 459,
+                "endColumn": 104,
+                "endLine": 9,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"cc4d43e45a8e32eaacfed939263f6133acc9e305dacf57b64600888167a02d20\"`",
+                    "text": "\"cc4d43e45a8e32eaacfed939263f6133acc9e305dacf57b64600888167a02d20\""
+                  },
+                  "text": "\"cc4d43e45a8e32eaacfed939263f6133acc9e305dacf57b64600888167a02d20\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 38,
+                "startLine": 9
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "763467d231a12ee63124768440e02a1df741e8b9e6b7fe1fe89d76297675e852",
+        "sourceLine": "    \".sandcastle/delivery-bundle.ts\": \"cc4d43e45a8e32eaacfed939263f6133acc9e305dacf57b64600888167a02d20\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".sandcastle/delivery-bundle.ts",
+          "bytes": 18593
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/sources/.sandcastle~1delivery-bundle.ts"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-019",
+      "additionIndex": 18,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json",
+      "line": 10,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 566,
+                "endColumn": 105,
+                "endLine": 10,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"ef3dfa70769cc6e8479a1ab77a8494404029d10a8d80acc677b1e6ba34c74b5c\"`",
+                    "text": "\"ef3dfa70769cc6e8479a1ab77a8494404029d10a8d80acc677b1e6ba34c74b5c\""
+                  },
+                  "text": "\"ef3dfa70769cc6e8479a1ab77a8494404029d10a8d80acc677b1e6ba34c74b5c\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 39,
+                "startLine": 10
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "763467d231a12ee63124768440e02a1df741e8b9e6b7fe1fe89d76297675e852",
+        "sourceLine": "    \".sandcastle/delivery-bundle.mts\": \"ef3dfa70769cc6e8479a1ab77a8494404029d10a8d80acc677b1e6ba34c74b5c\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".sandcastle/delivery-bundle.mts",
+          "bytes": 749
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/sources/.sandcastle~1delivery-bundle.mts"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-020",
+      "additionIndex": 19,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json",
+      "line": 11,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 677,
+                "endColumn": 109,
+                "endLine": 11,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"571bfdbed8c91c3585cf16c85292d979c56c78b024138dd3179cf3e9f67c47bb\"`",
+                    "text": "\"571bfdbed8c91c3585cf16c85292d979c56c78b024138dd3179cf3e9f67c47bb\""
+                  },
+                  "text": "\"571bfdbed8c91c3585cf16c85292d979c56c78b024138dd3179cf3e9f67c47bb\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 43,
+                "startLine": 11
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "763467d231a12ee63124768440e02a1df741e8b9e6b7fe1fe89d76297675e852",
+        "sourceLine": "    \".sandcastle/delivery-bundle.test.ts\": \"571bfdbed8c91c3585cf16c85292d979c56c78b024138dd3179cf3e9f67c47bb\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".sandcastle/delivery-bundle.test.ts",
+          "bytes": 17878
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/sources/.sandcastle~1delivery-bundle.test.ts"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-021",
+      "additionIndex": 20,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 64,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 42,
+                "charOffset": 3117,
+                "endColumn": 54,
+                "endLine": 64,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"c64e72501b4210c0851f08e020a683b5180ab731\"`",
+                    "text": "\"c64e72501b4210c0851f08e020a683b5180ab731\""
+                  },
+                  "text": "\"c64e72501b4210c0851f08e020a683b5180ab731\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 12,
+                "startLine": 64
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "    \"head\": \"c64e72501b4210c0851f08e020a683b5180ab731\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "git_commit_reference",
+      "evidence": [
+        {
+          "kind": "verified_git_commit_object",
+          "sha": "c64e72501b4210c0851f08e020a683b5180ab731",
+          "object_type": "commit"
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/checkout_after/head"
+      ],
+      "rationale": "已核为可解析的 Git commit 对象，报告用来绑定基线或受审 checkout，不参与认证。"
+    },
+    {
+      "id": "PR1457-ADDED-022",
+      "additionIndex": 21,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 36,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1218,
+                "endColumn": 89,
+                "endLine": 36,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1\"`",
+                    "text": "\"a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1\""
+                  },
+                  "text": "\"a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 23,
+                "startLine": 36
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256_before\": \"a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-input/source-original/codex-child.ts",
+          "bytes": 25115
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/source_bindings/0/sha256_before",
+        "/source_bindings/0/sha256_after",
+        "/artifacts/4/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-023",
+      "additionIndex": 22,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 37,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1308,
+                "endColumn": 88,
+                "endLine": 37,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1\"`",
+                    "text": "\"a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1\""
+                  },
+                  "text": "\"a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 22,
+                "startLine": 37
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256_after\": \"a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-input/source-original/codex-child.ts",
+          "bytes": 25115
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/source_bindings/0/sha256_before",
+        "/source_bindings/0/sha256_after",
+        "/artifacts/4/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-024",
+      "additionIndex": 23,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 45,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1848,
+                "endColumn": 89,
+                "endLine": 45,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25\"`",
+                    "text": "\"865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25\""
+                  },
+                  "text": "\"865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 23,
+                "startLine": 45
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256_before\": \"865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-input/source-original/codex-child.mts",
+          "bytes": 2731
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/source_bindings/1/sha256_before",
+        "/source_bindings/1/sha256_after",
+        "/artifacts/2/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-025",
+      "additionIndex": 24,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 46,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1938,
+                "endColumn": 88,
+                "endLine": 46,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25\"`",
+                    "text": "\"865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25\""
+                  },
+                  "text": "\"865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 22,
+                "startLine": 46
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256_after\": \"865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-input/source-original/codex-child.mts",
+          "bytes": 2731
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/source_bindings/1/sha256_before",
+        "/source_bindings/1/sha256_after",
+        "/artifacts/2/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-026",
+      "additionIndex": 25,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 54,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 2484,
+                "endColumn": 89,
+                "endLine": 54,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3\"`",
+                    "text": "\"fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3\""
+                  },
+                  "text": "\"fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 23,
+                "startLine": 54
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256_before\": \"fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-input/source-original/codex-child.test.ts",
+          "bytes": 18006
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/source_bindings/2/sha256_before",
+        "/source_bindings/2/sha256_after",
+        "/artifacts/3/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-027",
+      "additionIndex": 26,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 55,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 2574,
+                "endColumn": 88,
+                "endLine": 55,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3\"`",
+                    "text": "\"fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3\""
+                  },
+                  "text": "\"fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 22,
+                "startLine": 55
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256_after\": \"fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-input/source-original/codex-child.test.ts",
+          "bytes": 18006
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/source_bindings/2/sha256_before",
+        "/source_bindings/2/sha256_after",
+        "/artifacts/3/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-028",
+      "additionIndex": 27,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 87,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 4171,
+                "endColumn": 82,
+                "endLine": 87,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"ce9027e9f65b82a9892520495ffc43859f26e28c1b0f28f5d23f4a7f7c42c389\"`",
+                    "text": "\"ce9027e9f65b82a9892520495ffc43859f26e28c1b0f28f5d23f4a7f7c42c389\""
+                  },
+                  "text": "\"ce9027e9f65b82a9892520495ffc43859f26e28c1b0f28f5d23f4a7f7c42c389\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 16,
+                "startLine": 87
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256\": \"ce9027e9f65b82a9892520495ffc43859f26e28c1b0f28f5d23f4a7f7c42c389\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-input/PROMPT.md",
+          "bytes": 3067
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/artifacts/0/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-029",
+      "additionIndex": 28,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 92,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 4508,
+                "endColumn": 82,
+                "endLine": 92,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"5a7eca932860df9dd678e2d51b2a91bd53c424b46b447db380b0a0f93c7c8e17\"`",
+                    "text": "\"5a7eca932860df9dd678e2d51b2a91bd53c424b46b447db380b0a0f93c7c8e17\""
+                  },
+                  "text": "\"5a7eca932860df9dd678e2d51b2a91bd53c424b46b447db380b0a0f93c7c8e17\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 16,
+                "startLine": 92
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256\": \"5a7eca932860df9dd678e2d51b2a91bd53c424b46b447db380b0a0f93c7c8e17\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-input/SOURCE-BEFORE.json",
+          "bytes": 1220
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/artifacts/1/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-030",
+      "additionIndex": 29,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 97,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 4858,
+                "endColumn": 82,
+                "endLine": 97,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25\"`",
+                    "text": "\"865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25\""
+                  },
+                  "text": "\"865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 16,
+                "startLine": 97
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256\": \"865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-input/source-original/codex-child.mts",
+          "bytes": 2731
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/source_bindings/1/sha256_before",
+        "/source_bindings/1/sha256_after",
+        "/artifacts/2/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-031",
+      "additionIndex": 30,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 102,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 5213,
+                "endColumn": 82,
+                "endLine": 102,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3\"`",
+                    "text": "\"fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3\""
+                  },
+                  "text": "\"fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 16,
+                "startLine": 102
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256\": \"fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-input/source-original/codex-child.test.ts",
+          "bytes": 18006
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/source_bindings/2/sha256_before",
+        "/source_bindings/2/sha256_after",
+        "/artifacts/3/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-032",
+      "additionIndex": 31,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 107,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 5563,
+                "endColumn": 82,
+                "endLine": 107,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1\"`",
+                    "text": "\"a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1\""
+                  },
+                  "text": "\"a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 16,
+                "startLine": 107
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256\": \"a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-input/source-original/codex-child.ts",
+          "bytes": 25115
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/source_bindings/0/sha256_before",
+        "/source_bindings/0/sha256_after",
+        "/artifacts/4/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-033",
+      "additionIndex": 32,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 112,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 5896,
+                "endColumn": 82,
+                "endLine": 112,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"`",
+                    "text": "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\""
+                  },
+                  "text": "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 16,
+                "startLine": 112
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/typecheck.log",
+          "bytes": 0
+        },
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/codex.stderr.log",
+          "bytes": 0
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/artifacts/5/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-034",
+      "additionIndex": 33,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 117,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 6236,
+                "endColumn": 82,
+                "endLine": 117,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"7309c4cb7f8067acdbcffb6f6a821b304cfe7254ba6e1768bfc528aed8e1c215\"`",
+                    "text": "\"7309c4cb7f8067acdbcffb6f6a821b304cfe7254ba6e1768bfc528aed8e1c215\""
+                  },
+                  "text": "\"7309c4cb7f8067acdbcffb6f6a821b304cfe7254ba6e1768bfc528aed8e1c215\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 16,
+                "startLine": 117
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256\": \"7309c4cb7f8067acdbcffb6f6a821b304cfe7254ba6e1768bfc528aed8e1c215\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/codex.stdout.jsonl",
+          "bytes": 121293
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/artifacts/6/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-035",
+      "additionIndex": 34,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 122,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 6569,
+                "endColumn": 82,
+                "endLine": 122,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"0aece1dd4a326c6e309e7984af9c1bfa0c838e72504d4fd3e9d81822ae7ce2f8\"`",
+                    "text": "\"0aece1dd4a326c6e309e7984af9c1bfa0c838e72504d4fd3e9d81822ae7ce2f8\""
+                  },
+                  "text": "\"0aece1dd4a326c6e309e7984af9c1bfa0c838e72504d4fd3e9d81822ae7ce2f8\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 16,
+                "startLine": 122
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256\": \"0aece1dd4a326c6e309e7984af9c1bfa0c838e72504d4fd3e9d81822ae7ce2f8\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/events.jsonl",
+          "bytes": 13080
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/artifacts/7/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-036",
+      "additionIndex": 35,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 127,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 6906,
+                "endColumn": 82,
+                "endLine": 127,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"9433b5a74a8d18bfeeedc52771fb08dd8b6df922e2a7bae7c8a45cd61815b713\"`",
+                    "text": "\"9433b5a74a8d18bfeeedc52771fb08dd8b6df922e2a7bae7c8a45cd61815b713\""
+                  },
+                  "text": "\"9433b5a74a8d18bfeeedc52771fb08dd8b6df922e2a7bae7c8a45cd61815b713\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 16,
+                "startLine": 127
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256\": \"9433b5a74a8d18bfeeedc52771fb08dd8b6df922e2a7bae7c8a45cd61815b713\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/output.schema.json",
+          "bytes": 322
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/artifacts/8/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-037",
+      "additionIndex": 36,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 132,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 7235,
+                "endColumn": 82,
+                "endLine": 132,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"717a9a152f0c132526c68417c2788e964c2e314fd8643d889d38256da007abcf\"`",
+                    "text": "\"717a9a152f0c132526c68417c2788e964c2e314fd8643d889d38256da007abcf\""
+                  },
+                  "text": "\"717a9a152f0c132526c68417c2788e964c2e314fd8643d889d38256da007abcf\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 16,
+                "startLine": 132
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256\": \"717a9a152f0c132526c68417c2788e964c2e314fd8643d889d38256da007abcf\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/prompt.md",
+          "bytes": 4037
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/artifacts/9/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-038",
+      "additionIndex": 37,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 137,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 7566,
+                "endColumn": 82,
+                "endLine": 137,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f\"`",
+                    "text": "\"a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f\""
+                  },
+                  "text": "\"a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 16,
+                "startLine": 137
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256\": \"a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json",
+          "bytes": 7744
+        },
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/result.json",
+          "bytes": 7744
+        },
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/state.json",
+          "bytes": 7744
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/artifacts/10/sha256",
+        "/artifacts/11/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-039",
+      "additionIndex": 38,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "line": 142,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 7896,
+                "endColumn": 82,
+                "endLine": 142,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f\"`",
+                    "text": "\"a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f\""
+                  },
+                  "text": "\"a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 16,
+                "startLine": 142
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "86cd62d81e7d180742b07628ef3ee46cd4f13facd07144576ae73273ac933842",
+        "sourceLine": "      \"sha256\": \"a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f\""
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json",
+          "bytes": 7744
+        },
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/result.json",
+          "bytes": 7744
+        },
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/state.json",
+          "bytes": 7744
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/artifacts/10/sha256",
+        "/artifacts/11/sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-040",
+      "additionIndex": 39,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json",
+      "line": 31,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json"
+              },
+              "region": {
+                "charLength": 42,
+                "charOffset": 1076,
+                "endColumn": 54,
+                "endLine": 31,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"c64e72501b4210c0851f08e020a683b5180ab731\"`",
+                    "text": "\"c64e72501b4210c0851f08e020a683b5180ab731\""
+                  },
+                  "text": "\"c64e72501b4210c0851f08e020a683b5180ab731\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 12,
+                "startLine": 31
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f",
+        "sourceLine": "    \"head\": \"c64e72501b4210c0851f08e020a683b5180ab731\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "git_commit_reference",
+      "evidence": [
+        {
+          "kind": "verified_git_commit_object",
+          "sha": "c64e72501b4210c0851f08e020a683b5180ab731",
+          "object_type": "commit"
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/expected_head",
+        "/checkout_before/head",
+        "/checkout_after/head"
+      ],
+      "rationale": "已核为可解析的 Git commit 对象，报告用来绑定基线或受审 checkout，不参与认证。"
+    },
+    {
+      "id": "PR1457-ADDED-041",
+      "additionIndex": 40,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json",
+      "line": 21,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json"
+              },
+              "region": {
+                "charLength": 42,
+                "charOffset": 653,
+                "endColumn": 61,
+                "endLine": 21,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"c64e72501b4210c0851f08e020a683b5180ab731\"`",
+                    "text": "\"c64e72501b4210c0851f08e020a683b5180ab731\""
+                  },
+                  "text": "\"c64e72501b4210c0851f08e020a683b5180ab731\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 19,
+                "startLine": 21
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f",
+        "sourceLine": "  \"expected_head\": \"c64e72501b4210c0851f08e020a683b5180ab731\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "git_commit_reference",
+      "evidence": [
+        {
+          "kind": "verified_git_commit_object",
+          "sha": "c64e72501b4210c0851f08e020a683b5180ab731",
+          "object_type": "commit"
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/expected_head",
+        "/checkout_before/head",
+        "/checkout_after/head"
+      ],
+      "rationale": "已核为可解析的 Git commit 对象，报告用来绑定基线或受审 checkout，不参与认证。"
+    },
+    {
+      "id": "PR1457-ADDED-042",
+      "additionIndex": 41,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json",
+      "line": 25,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json"
+              },
+              "region": {
+                "charLength": 42,
+                "charOffset": 854,
+                "endColumn": 54,
+                "endLine": 25,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"c64e72501b4210c0851f08e020a683b5180ab731\"`",
+                    "text": "\"c64e72501b4210c0851f08e020a683b5180ab731\""
+                  },
+                  "text": "\"c64e72501b4210c0851f08e020a683b5180ab731\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 12,
+                "startLine": 25
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f",
+        "sourceLine": "    \"head\": \"c64e72501b4210c0851f08e020a683b5180ab731\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "git_commit_reference",
+      "evidence": [
+        {
+          "kind": "verified_git_commit_object",
+          "sha": "c64e72501b4210c0851f08e020a683b5180ab731",
+          "object_type": "commit"
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/expected_head",
+        "/checkout_before/head",
+        "/checkout_after/head"
+      ],
+      "rationale": "已核为可解析的 Git commit 对象，报告用来绑定基线或受审 checkout，不参与认证。"
+    },
+    {
+      "id": "PR1457-ADDED-043",
+      "additionIndex": 42,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json",
+      "line": 47,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 2405,
+                "endColumn": 85,
+                "endLine": 47,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"717a9a152f0c132526c68417c2788e964c2e314fd8643d889d38256da007abcf\"`",
+                    "text": "\"717a9a152f0c132526c68417c2788e964c2e314fd8643d889d38256da007abcf\""
+                  },
+                  "text": "\"717a9a152f0c132526c68417c2788e964c2e314fd8643d889d38256da007abcf\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 19,
+                "startLine": 47
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f",
+        "sourceLine": "  \"prompt_sha256\": \"717a9a152f0c132526c68417c2788e964c2e314fd8643d889d38256da007abcf\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/prompt.md",
+          "bytes": 4037
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/prompt_sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-044",
+      "additionIndex": 43,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json",
+      "line": 26,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1066,
+                "endColumn": 96,
+                "endLine": 26,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"42ca85f38d36e555351c8ee3c6e871dd7836ed4ccbc7cab96504880d8b886972\"`",
+                    "text": "\"42ca85f38d36e555351c8ee3c6e871dd7836ed4ccbc7cab96504880d8b886972\""
+                  },
+                  "text": "\"42ca85f38d36e555351c8ee3c6e871dd7836ed4ccbc7cab96504880d8b886972\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 30,
+                "startLine": 26
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "d6b9ffbb3139d6bc480bdc2d00ec2adf120bacde1bf6e98af6b96e1edda52df5",
+        "sourceLine": "  \"base_product_tree_sha256\": \"42ca85f38d36e555351c8ee3c6e871dd7836ed4ccbc7cab96504880d8b886972\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "previously_recorded_product_tree_digest",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/SOURCE-BEFORE.json",
+          "jsonPointer": "/product_tree_sha256",
+          "record_file_sha256": "4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602",
+          "not_recomputed_tree_in_this_triage": true
+        },
+        {
+          "kind": "previously_recorded_product_tree_digest",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/SOURCE-BEFORE.json",
+          "jsonPointer": "/base_product_tree_sha256",
+          "record_file_sha256": "4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602",
+          "not_recomputed_tree_in_this_triage": true
+        },
+        {
+          "kind": "previously_recorded_product_tree_digest",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/SOURCE-AFTER.json",
+          "jsonPointer": "/product_tree_sha256",
+          "record_file_sha256": "4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602",
+          "not_recomputed_tree_in_this_triage": true
+        },
+        {
+          "kind": "previously_recorded_product_tree_digest",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/SOURCE-AFTER.json",
+          "jsonPointer": "/base_product_tree_sha256",
+          "record_file_sha256": "4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602",
+          "not_recomputed_tree_in_this_triage": true
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/product_tree_sha256",
+        "/base_product_tree_sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-045",
+      "additionIndex": 44,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json",
+      "line": 29,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1208,
+                "endColumn": 85,
+                "endLine": 29,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"45f04b88d197023e90b2ef3185caba9a3aa83d9abc17a86c6449df5567913a94\"`",
+                    "text": "\"45f04b88d197023e90b2ef3185caba9a3aa83d9abc17a86c6449df5567913a94\""
+                  },
+                  "text": "\"45f04b88d197023e90b2ef3185caba9a3aa83d9abc17a86c6449df5567913a94\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 19,
+                "startLine": 29
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "d6b9ffbb3139d6bc480bdc2d00ec2adf120bacde1bf6e98af6b96e1edda52df5",
+        "sourceLine": "  \"report_sha256\": \"45f04b88d197023e90b2ef3185caba9a3aa83d9abc17a86c6449df5567913a94\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_git_blob_sha256",
+          "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+          "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-review.md",
+          "bytes": 7568
+        },
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/REPORT.md",
+          "bytes": 7568
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/report_sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-046",
+      "additionIndex": 45,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json",
+      "line": 30,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1295,
+                "endColumn": 85,
+                "endLine": 30,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"0addb17e9f92f46054b9466b6f1d8a49578cc5ad1cdf06436e4ccf6c48a11af6\"`",
+                    "text": "\"0addb17e9f92f46054b9466b6f1d8a49578cc5ad1cdf06436e4ccf6c48a11af6\""
+                  },
+                  "text": "\"0addb17e9f92f46054b9466b6f1d8a49578cc5ad1cdf06436e4ccf6c48a11af6\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 19,
+                "startLine": 30
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "d6b9ffbb3139d6bc480bdc2d00ec2adf120bacde1bf6e98af6b96e1edda52df5",
+        "sourceLine": "  \"result_sha256\": \"0addb17e9f92f46054b9466b6f1d8a49578cc5ad1cdf06436e4ccf6c48a11af6\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/RESULT.json",
+          "bytes": 736
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/result_sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-047",
+      "additionIndex": 46,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json",
+      "line": 31,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1389,
+                "endColumn": 92,
+                "endLine": 31,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602\"`",
+                    "text": "\"4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602\""
+                  },
+                  "text": "\"4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 26,
+                "startLine": 31
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "d6b9ffbb3139d6bc480bdc2d00ec2adf120bacde1bf6e98af6b96e1edda52df5",
+        "sourceLine": "  \"source_before_sha256\": \"4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/SOURCE-AFTER.json",
+          "bytes": 2325
+        },
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/SOURCE-BEFORE.json",
+          "bytes": 2325
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/source_before_sha256",
+        "/source_after_sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-048",
+      "additionIndex": 47,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json",
+      "line": 32,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 1482,
+                "endColumn": 91,
+                "endLine": 32,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602\"`",
+                    "text": "\"4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602\""
+                  },
+                  "text": "\"4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 25,
+                "startLine": 32
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "d6b9ffbb3139d6bc480bdc2d00ec2adf120bacde1bf6e98af6b96e1edda52df5",
+        "sourceLine": "  \"source_after_sha256\": \"4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/SOURCE-AFTER.json",
+          "bytes": 2325
+        },
+        {
+          "kind": "recomputed_owned_evidence_sha256",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/SOURCE-BEFORE.json",
+          "bytes": 2325
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/source_before_sha256",
+        "/source_after_sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-049",
+      "additionIndex": 48,
+      "ruleId": "DS173237",
+      "path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json",
+      "line": 25,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "error",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json"
+              },
+              "region": {
+                "charLength": 66,
+                "charOffset": 968,
+                "endColumn": 91,
+                "endLine": 25,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`\"42ca85f38d36e555351c8ee3c6e871dd7836ed4ccbc7cab96504880d8b886972\"`",
+                    "text": "\"42ca85f38d36e555351c8ee3c6e871dd7836ed4ccbc7cab96504880d8b886972\""
+                  },
+                  "text": "\"42ca85f38d36e555351c8ee3c6e871dd7836ed4ccbc7cab96504880d8b886972\""
+                },
+                "sourceLanguage": "json",
+                "startColumn": 25,
+                "startLine": 25
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not store tokens or keys in source code."
+        },
+        "properties": {
+          "DevSkimConfidence": "Medium",
+          "DevSkimSeverity": "Important",
+          "tags": [
+            "Implementation.Privacy.Token"
+          ]
+        },
+        "ruleId": "DS173237"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "d6b9ffbb3139d6bc480bdc2d00ec2adf120bacde1bf6e98af6b96e1edda52df5",
+        "sourceLine": "  \"product_tree_sha256\": \"42ca85f38d36e555351c8ee3c6e871dd7836ed4ccbc7cab96504880d8b886972\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "evidence_digest",
+      "evidence": [
+        {
+          "kind": "previously_recorded_product_tree_digest",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/SOURCE-BEFORE.json",
+          "jsonPointer": "/product_tree_sha256",
+          "record_file_sha256": "4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602",
+          "not_recomputed_tree_in_this_triage": true
+        },
+        {
+          "kind": "previously_recorded_product_tree_digest",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/SOURCE-BEFORE.json",
+          "jsonPointer": "/base_product_tree_sha256",
+          "record_file_sha256": "4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602",
+          "not_recomputed_tree_in_this_triage": true
+        },
+        {
+          "kind": "previously_recorded_product_tree_digest",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/SOURCE-AFTER.json",
+          "jsonPointer": "/product_tree_sha256",
+          "record_file_sha256": "4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602",
+          "not_recomputed_tree_in_this_triage": true
+        },
+        {
+          "kind": "previously_recorded_product_tree_digest",
+          "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/first-worker/SOURCE-AFTER.json",
+          "jsonPointer": "/base_product_tree_sha256",
+          "record_file_sha256": "4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602",
+          "not_recomputed_tree_in_this_triage": true
+        }
+      ],
+      "jsonPointersMatchingValue": [
+        "/product_tree_sha256",
+        "/base_product_tree_sha256"
+      ],
+      "rationale": "已核为证据文件、源码、嵌入验证脚本的 SHA256，或原始产品树记录中的摘要；语义是完整性绑定，不是认证令牌。"
+    },
+    {
+      "id": "PR1457-ADDED-050",
+      "additionIndex": 49,
+      "ruleId": "DS172411",
+      "path": ".sandcastle/codex-child.test.ts",
+      "line": 261,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "note",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.test.ts"
+              },
+              "region": {
+                "charLength": 13,
+                "charOffset": 15406,
+                "endColumn": 48,
+                "endLine": 261,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`setTimeout(()`",
+                    "text": "setTimeout(()"
+                  },
+                  "text": "setTimeout(()"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 35,
+                "startLine": 261
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Review setTimeout for untrusted data"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "ManualReview",
+          "tags": [
+            "JavaScript.DangerousFunctionCall",
+            "TypeScript.DangerousFunctionCall"
+          ]
+        },
+        "ruleId": "DS172411"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+        "sourceLine": "    f.fake(\"session(); complete(); setTimeout(() => fs.writeFileSync(path.join(root, 'actually-exiting'), 'yes'), 200);\");"
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "fixed_test_function_callback",
+      "rationale": "测试夹具中的函数式 setTimeout：固定创建退出标记、延迟发会话事件，或超时终止本用例创建的 CLI；不存在来自请求/文件的 JavaScript 字符串交给 setTimeout 执行。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 257,
+          "endLine": 266
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 43,
+          "endLine": 55
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-051",
+      "additionIndex": 50,
+      "ruleId": "DS172411",
+      "path": ".sandcastle/codex-child.test.ts",
+      "line": 433,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "note",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.test.ts"
+              },
+              "region": {
+                "charLength": 26,
+                "charOffset": 23573,
+                "endColumn": 38,
+                "endLine": 433,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`setTimeout(() => session()`",
+                    "text": "setTimeout(() => session()"
+                  },
+                  "text": "setTimeout(() => session()"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 12,
+                "startLine": 433
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Review setTimeout for untrusted data"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "ManualReview",
+          "tags": [
+            "JavaScript.DangerousFunctionCall",
+            "TypeScript.DangerousFunctionCall"
+          ]
+        },
+        "ruleId": "DS172411"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+        "sourceLine": "    f.fake(\"setTimeout(() => session(), 100); setInterval(() => {}, 1000);\");"
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "fixed_test_function_callback",
+      "rationale": "测试夹具中的函数式 setTimeout：固定创建退出标记、延迟发会话事件，或超时终止本用例创建的 CLI；不存在来自请求/文件的 JavaScript 字符串交给 setTimeout 执行。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 429,
+          "endLine": 438
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 43,
+          "endLine": 55
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-052",
+      "additionIndex": 51,
+      "ruleId": "DS172411",
+      "path": ".sandcastle/codex-child.test.ts",
+      "line": 446,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "note",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.test.ts"
+              },
+              "region": {
+                "charLength": 36,
+                "charOffset": 24358,
+                "endColumn": 56,
+                "endLine": 446,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`setTimeout(() => cli.kill(\"SIGKILL\")`",
+                    "text": "setTimeout(() => cli.kill(\"SIGKILL\")"
+                  },
+                  "text": "setTimeout(() => cli.kill(\"SIGKILL\")"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 20,
+                "startLine": 446
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Review setTimeout for untrusted data"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "ManualReview",
+          "tags": [
+            "JavaScript.DangerousFunctionCall",
+            "TypeScript.DangerousFunctionCall"
+          ]
+        },
+        "ruleId": "DS172411"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+        "sourceLine": "    const timeout = setTimeout(() => cli.kill(\"SIGKILL\"), 10000);"
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "fixed_test_function_callback",
+      "rationale": "测试夹具中的函数式 setTimeout：固定创建退出标记、延迟发会话事件，或超时终止本用例创建的 CLI；不存在来自请求/文件的 JavaScript 字符串交给 setTimeout 执行。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 442,
+          "endLine": 451
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 43,
+          "endLine": 55
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-053",
+      "additionIndex": 52,
+      "ruleId": "DS172411",
+      "path": ".sandcastle/codex-child.test.ts",
+      "line": 475,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "note",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.test.ts"
+              },
+              "region": {
+                "charLength": 36,
+                "charOffset": 25801,
+                "endColumn": 58,
+                "endLine": 475,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`setTimeout(() => cli.kill(\"SIGKILL\")`",
+                    "text": "setTimeout(() => cli.kill(\"SIGKILL\")"
+                  },
+                  "text": "setTimeout(() => cli.kill(\"SIGKILL\")"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 22,
+                "startLine": 475
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Review setTimeout for untrusted data"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "ManualReview",
+          "tags": [
+            "JavaScript.DangerousFunctionCall",
+            "TypeScript.DangerousFunctionCall"
+          ]
+        },
+        "ruleId": "DS172411"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+        "sourceLine": "      const timeout = setTimeout(() => cli.kill(\"SIGKILL\"), 10000);"
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "fixed_test_function_callback",
+      "rationale": "测试夹具中的函数式 setTimeout：固定创建退出标记、延迟发会话事件，或超时终止本用例创建的 CLI；不存在来自请求/文件的 JavaScript 字符串交给 setTimeout 执行。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 471,
+          "endLine": 480
+        },
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 43,
+          "endLine": 55
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-054",
+      "additionIndex": 53,
+      "ruleId": "DS162092",
+      "path": ".sandcastle/codex-child.test.ts",
+      "line": 89,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "note",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.test.ts"
+              },
+              "region": {
+                "charLength": 9,
+                "charOffset": 5834,
+                "endColumn": 74,
+                "endLine": 89,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`localhost`",
+                    "text": "localhost"
+                  },
+                  "text": "localhost"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 65,
+                "startLine": 89
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not leave debug code in production"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "ManualReview",
+          "tags": [
+            "Hygiene.Network.AccessingLocalhost"
+          ]
+        },
+        "ruleId": "DS162092"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+        "sourceLine": "    ALL_PROXY: \"socks5://proxy.example.invalid:1080\", NO_PROXY: \"localhost,127.0.0.1\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "explicit_no_proxy_test_vector",
+      "rationale": "NO_PROXY 中 localhost/127.0.0.1 是纯环境映射断言的固定输入，未访问该地址或在生产路径开启调试。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 86,
+          "endLine": 94
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-055",
+      "additionIndex": 54,
+      "ruleId": "DS162092",
+      "path": ".sandcastle/codex-child.test.ts",
+      "line": 89,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "note",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.test.ts"
+              },
+              "region": {
+                "charLength": 9,
+                "charOffset": 5844,
+                "endColumn": 84,
+                "endLine": 89,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`127.0.0.1`",
+                    "text": "127.0.0.1"
+                  },
+                  "text": "127.0.0.1"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 75,
+                "startLine": 89
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Do not leave debug code in production"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "ManualReview",
+          "tags": [
+            "Hygiene.Network.AccessingLocalhost"
+          ]
+        },
+        "ruleId": "DS162092"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+        "sourceLine": "    ALL_PROXY: \"socks5://proxy.example.invalid:1080\", NO_PROXY: \"localhost,127.0.0.1\","
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "explicit_no_proxy_test_vector",
+      "rationale": "NO_PROXY 中 localhost/127.0.0.1 是纯环境映射断言的固定输入，未访问该地址或在生产路径开启调试。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.test.ts",
+          "startLine": 86,
+          "endLine": 94
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-056",
+      "additionIndex": 55,
+      "ruleId": "DS172411",
+      "path": ".sandcastle/codex-child.ts",
+      "line": 336,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "note",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.ts"
+              },
+              "region": {
+                "charLength": 13,
+                "charOffset": 14367,
+                "endColumn": 35,
+                "endLine": 336,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`setTimeout(()`",
+                    "text": "setTimeout(()"
+                  },
+                  "text": "setTimeout(()"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 22,
+                "startLine": 336
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Review setTimeout for untrusted data"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "ManualReview",
+          "tags": [
+            "JavaScript.DangerousFunctionCall",
+            "TypeScript.DangerousFunctionCall"
+          ]
+        },
+        "ruleId": "DS172411"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "69a552ecc95749ec776657ec42245e1adf81ec4a7398bc95117290ad510a8e70",
+        "sourceLine": "          killTimer = setTimeout(() => {"
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "fixed_supervisor_function_callback",
+      "rationale": "生产监督器向 setTimeout 传入固定函数闭包，用于超时 stop 或结束既有工蜂进程组；用户参数只影响已验证的正有限秒数，不作为代码解析执行。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.ts",
+          "startLine": 133,
+          "endLine": 150
+        },
+        {
+          "path": ".sandcastle/codex-child.ts",
+          "startLine": 324,
+          "endLine": 351
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-057",
+      "additionIndex": 56,
+      "ruleId": "DS172411",
+      "path": ".sandcastle/codex-child.ts",
+      "line": 351,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "note",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.ts"
+              },
+              "region": {
+                "charLength": 32,
+                "charOffset": 15048,
+                "endColumn": 58,
+                "endLine": 351,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`setTimeout(() => stop(\"工蜂总运行超时\")`",
+                    "text": "setTimeout(() => stop(\"工蜂总运行超时\")"
+                  },
+                  "text": "setTimeout(() => stop(\"工蜂总运行超时\")"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 26,
+                "startLine": 351
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Review setTimeout for untrusted data"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "ManualReview",
+          "tags": [
+            "JavaScript.DangerousFunctionCall",
+            "TypeScript.DangerousFunctionCall"
+          ]
+        },
+        "ruleId": "DS172411"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "69a552ecc95749ec776657ec42245e1adf81ec4a7398bc95117290ad510a8e70",
+        "sourceLine": "        const fullTimer = setTimeout(() => stop(\"工蜂总运行超时\"), observation.timeoutSeconds * 1000);"
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "fixed_supervisor_function_callback",
+      "rationale": "生产监督器向 setTimeout 传入固定函数闭包，用于超时 stop 或结束既有工蜂进程组；用户参数只影响已验证的正有限秒数，不作为代码解析执行。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.ts",
+          "startLine": 133,
+          "endLine": 150
+        },
+        {
+          "path": ".sandcastle/codex-child.ts",
+          "startLine": 324,
+          "endLine": 351
+        }
+      ]
+    },
+    {
+      "id": "PR1457-ADDED-058",
+      "additionIndex": 57,
+      "ruleId": "DS172411",
+      "path": ".sandcastle/codex-child.ts",
+      "line": 347,
+      "multiplicity": 1,
+      "fullSarifResult": {
+        "level": "note",
+        "locations": [
+          {
+            "physicalLocation": {
+              "artifactLocation": {
+                "uri": ".sandcastle/codex-child.ts"
+              },
+              "region": {
+                "charLength": 33,
+                "charOffset": 14813,
+                "endColumn": 55,
+                "endLine": 347,
+                "snippet": {
+                  "rendered": {
+                    "markdown": "`setTimeout(() => stop(\"工蜂输出空闲超时\")`",
+                    "text": "setTimeout(() => stop(\"工蜂输出空闲超时\")"
+                  },
+                  "text": "setTimeout(() => stop(\"工蜂输出空闲超时\")"
+                },
+                "sourceLanguage": "typescript",
+                "startColumn": 22,
+                "startLine": 347
+              }
+            }
+          }
+        ],
+        "message": {
+          "text": "Review setTimeout for untrusted data"
+        },
+        "properties": {
+          "DevSkimConfidence": "High",
+          "DevSkimSeverity": "ManualReview",
+          "tags": [
+            "JavaScript.DangerousFunctionCall",
+            "TypeScript.DangerousFunctionCall"
+          ]
+        },
+        "ruleId": "DS172411"
+      },
+      "sourceBinding": {
+        "head": "aa208aed38188ecc78205853e50c4b4d8ece4dd0",
+        "fileSha256": "69a552ecc95749ec776657ec42245e1adf81ec4a7398bc95117290ad510a8e70",
+        "sourceLine": "          idleTimer = setTimeout(() => stop(\"工蜂输出空闲超时\"), observation.idleTimeoutSeconds * 1000);"
+      },
+      "confirmedUnfixedProductFinding": false,
+      "classification": "fixed_supervisor_function_callback",
+      "rationale": "生产监督器向 setTimeout 传入固定函数闭包，用于超时 stop 或结束既有工蜂进程组；用户参数只影响已验证的正有限秒数，不作为代码解析执行。",
+      "supportingSourceLocations": [
+        {
+          "path": ".sandcastle/codex-child.ts",
+          "startLine": 133,
+          "endLine": 150
+        },
+        {
+          "path": ".sandcastle/codex-child.ts",
+          "startLine": 324,
+          "endLine": 351
+        }
+      ]
+    }
+  ],
+  "removedFindings": [],
+  "relocatedFindings": [],
+  "readmeCheck": {
+    "baseRawFindings": 0,
+    "prRawFindings": 0,
+    "addedOrRelocatedScanFindings": 0,
+    "sourceDiff": "diff --git a/.sandcastle/README.md b/.sandcastle/README.md\nindex 98343cbf8a..c63f03b48b 100644\n--- a/.sandcastle/README.md\n+++ b/.sandcastle/README.md\n@@ -1,4 +1,6 @@\n # .sandcastle —— 两段式工蜂管线（sandcastle × prime-agent）\n \n+当前 Codex 任务需要由原生子代理管理单次 Codex 工蜂时，使用 [Codex 工蜂入口与交付封包](CODEX-CHILD.md)（#1456）。该入口直接调用 Sandcastle 的 Codex provider，登记父任务、管理者和外部会话，等待实际退出后回传；下文的旧队列入口继续保持原有用途。\n+\n ## 这是什么\n \n",
+    "interpretation": "README 首部插入两行使旧文字行号后移，但两份真实 SARIF 对 README 均无实体；本次不能凭预期制造旧项移位分类。"
+  },
+  "limitations": [
+    "未重新审查既有 35168 条实体的一般安全性；只核完整多重集全部保留。",
+    "六份源码/测试均绑定固定提交和扫描覆盖；对 14 条源码/测试新命中及上下文完成分诊，未把零告警当完整安全证明。",
+    "报告的产品树 SHA256 与原始已封存记录核对，本轮不重跑该产品树计算或首工蜂验收。",
+    "W6 后续未提交的最终独审/smoke/分诊等尾部报告不在本次扫描树内，必须由主控另做逐文件内容及位置披露。",
+    "MCP 图工具返回当前工位未索引，代码定位回退为固定 git show 的具名文件和精确告警行。"
+  ],
+  "evidenceArtifacts": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/ARTIFACT-METADATA.json",
+      "bytes": 748,
+      "sha256": "bca164e3fe8cf514c940d2284727250b524c011bac2b91ed4a8a2e5eec674408"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/DIGEST-REFERENCE-RECON.json",
+      "bytes": 145426,
+      "sha256": "998d9ec6f50dc8f68a7f67b51c7e8495dbbe82eed72f983f546f5979d2df1cd7"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/MERGE-COMMIT.json",
+      "bytes": 2654,
+      "sha256": "01b5d0e66c011817edc541e2897c2d95d449d9ffdcbd5dc722677d64ccd224cd"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/PR-COMMIT.json",
+      "bytes": 1444,
+      "sha256": "a5f7428251073ee3053f45dad3863b75414deb56738daed40a7237b4c8498e01"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/PR-INITIAL.json",
+      "bytes": 17533,
+      "sha256": "f6052e30d401c43cd201b19275aee802536f82da6e4cd984106dd82a34b25f16"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/PRODUCT-DIFF.txt",
+      "bytes": 1146,
+      "sha256": "237a3e460b5540b2f887ed2022f455f1c176e14f934d6e3dbb3a2cae51d66d4f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/PRODUCT-SOURCES.json",
+      "bytes": 4181,
+      "sha256": "04e476acd0b301d02416b9d474d067653432c1f96d95604912327536d154d2ab"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/REFERENCE-VALIDATION.json",
+      "bytes": 34991,
+      "sha256": "fc4878f0072ff760f156a3c306520c11e49d612630d5e982bb439fa68b161d89"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/RULE-DEFINITIONS.json",
+      "bytes": 11783,
+      "sha256": "af4e10c4fa0c0db0ff1d2b06bba8900076f3224908e13eaf618c29e79154f4de"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/RUN-FINAL.json",
+      "bytes": 1927,
+      "sha256": "88d5179cf4c228a2b128ed9eb165b092ea4175030f4e99953b02a4c2fab8797b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/RUN-FINAL.log",
+      "bytes": 5495225,
+      "sha256": "120c3de8216404c6f35245bd3ece5b908964d65c794c34524f657611bc27e9b8"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/RUN-INITIAL.json",
+      "bytes": 13596,
+      "sha256": "6bf6874aae26eec981035548a217b2c3ca9c2022634ce40512537704df7f5a33"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/SCAN-COMPARISON-RAW.json",
+      "bytes": 87483,
+      "sha256": "d20c1561e79476cf516d6159bab740ee3232b0c56bd96604c4f040e9a24183e6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/artifact/devskim-results.sarif",
+      "bytes": 131065708,
+      "sha256": "9adb421dcd226c507ee6cb85d1259ebc72a33001ffc6a50dbb8b2cbde1a81867"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/pr1457-devskim/watch.log",
+      "bytes": 1993,
+      "sha256": "1218fb55b394bfcb0fd7c12600bbf62a5eea707e2b29e43c80ac6a685ecf2ef9"
+    }
+  ]
+}
