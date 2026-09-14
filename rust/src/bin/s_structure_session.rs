@@ -37,6 +37,10 @@ use std::collections::BTreeMap;
 mod audit;
 #[path = "s_session_v2/cache.rs"]
 mod cache;
+#[path = "s_session_v2/tb02a.rs"]
+mod tb02a;
+#[path = "s_session_v2/tb02a_facts.rs"]
+mod tb02a_facts;
 use std::path::{Path, PathBuf};
 
 #[cfg(test)]
@@ -104,6 +108,8 @@ struct RawEvent {
     price: String,
     timestamp: String,
     volume: String,
+    #[serde(skip)]
+    ohlc: Option<tb02a::Ohlc>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -121,6 +127,9 @@ struct RawInputFile {
 
 /// 规范事件内容字节（payload_hash 绑定规范字节；固定键序，含事件自身字段）。
 fn canonical_event_content(e: &RawEvent) -> String {
+    if let Some(prices) = &e.ohlc {
+        return tb02a::canonical(e, prices);
+    }
     format!(
         r#"{{"event_id":{},"price":{},"raw_text":{},"received_at":{},"revision":{},"seq":{},"timestamp":{},"volume":{}}}"#,
         jstr(&e.event_id),
@@ -582,6 +591,40 @@ fn verify_delta_evidence(delta: &Value, batch: &Value) -> Result<(), String> {
     {
         return Err("StorageUnavailable：目录证据 batch/cut 不一致".to_string());
     }
+    if batch["profile_id"] == tb02a::PROFILE
+        && (batch["catalog_axes"].as_object().is_none()
+            || evidence["axes"] != batch["catalog_axes"])
+    {
+        return Err("StorageUnavailable：逐轴目录证据与封存批次不一致".into());
+    }
+    if batch["profile_id"] == tb02a::PROFILE {
+        let changes = &evidence["axes"]["CC-056"]["evidence"];
+        same_records(
+            &changes["withdrawals"],
+            &delta["withdrawals"],
+            "CC056撤回证据",
+        )?;
+        same_records(&changes["replaces"], &delta["replaces"], "CC056替代证据")?;
+        let start = parse_canonical_i64(
+            delta["seq_range"]["from"]
+                .as_str()
+                .ok_or("StorageUnavailable：Delta起始前沿缺失")?,
+            "from",
+        )?;
+        let revisions: Vec<Value> = required_array(batch, "raw_events")?
+            .iter()
+            .filter(|r| {
+                r["seq"].as_i64().is_some_and(|n| n >= start)
+                    && r["revision"].as_i64().is_some_and(|n| n > 1)
+            })
+            .map(tb02a_facts::raw_ref)
+            .collect();
+        same_records(
+            &changes["raw_revisions"],
+            &json!(revisions),
+            "CC056原始修订证据",
+        )?;
+    }
     let expected_run = if required_array(batch, "objects")?.is_empty() {
         "not_run"
     } else {
@@ -613,6 +656,9 @@ fn verify_delta_evidence(delta: &Value, batch: &Value) -> Result<(), String> {
 }
 
 fn observation_id(ob: &Value) -> String {
+    if ob["detail"]["tb02a"] == true {
+        return format!("obs-{}", sha256_hex(canonical_json(ob).as_bytes()));
+    }
     format!(
         "obs-{}",
         &sha256_hex(&canonical_bytes_of_value(&json!({
@@ -965,17 +1011,32 @@ fn verify_reachable_root_in_tx(
     audit.finish()?;
     // meta 与最末已发布 Delta 的根元组对应关系。
     let last = rows.last().unwrap();
-    let (run, evidence): (String, String) = conn
-        .query_row(
-            "SELECT run_status,evidence_json FROM catalog WHERE catalog_id='CC-006'",
-            [],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
-        .map_err(|e| format!("StorageUnavailable：读当前目录证据失败：{e}"))?;
-    if run != last.8
-        || json_shape(&evidence, JsonShape::Object)? != json_shape(&last.9, JsonShape::Object)?
-    {
-        return Err("StorageUnavailable：当前目录与末代 Delta 证据不一致".to_string());
+    if tb02a::enabled(conn)? {
+        let last_evidence = json_shape(&last.9, JsonShape::Object)?;
+        let axes = last_evidence["axes"]
+            .as_object()
+            .ok_or("StorageUnavailable：末代逐轴证据缺失")?;
+        for (axis, expected) in axes {
+            let actual:Value=conn.query_row("SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1",params![axis],|r|Ok(json!({"impl_status":r.get::<_,String>(0)?,"proof_status":r.get::<_,String>(1)?,"run_status":r.get::<_,String>(2)?,"evidence":json_column(r,3,JsonShape::Object)?}))).map_err(|e|e.to_string())?;
+            if actual != *expected {
+                return Err(format!(
+                    "StorageUnavailable：当前目录轴{axis}与末代Delta证据不一致"
+                ));
+            }
+        }
+    } else {
+        let (run, evidence): (String, String) = conn
+            .query_row(
+                "SELECT run_status,evidence_json FROM catalog WHERE catalog_id='CC-006'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .map_err(|e| format!("StorageUnavailable：读当前目录证据失败：{e}"))?;
+        if run != last.8
+            || json_shape(&evidence, JsonShape::Object)? != json_shape(&last.9, JsonShape::Object)?
+        {
+            return Err("StorageUnavailable：当前目录与末代 Delta 证据不一致".to_string());
+        }
     }
     if meta_idx != last.6 {
         return Err(format!(
@@ -1013,6 +1074,15 @@ fn load_profile(path: &Path) -> Result<(Value, String, String), String> {
         .and_then(Value::as_str)
         .ok_or("profile 缺 profile_id")?
         .to_string();
+    if profile_id == tb02a::PROFILE {
+        let declared: Value = serde_json::from_str(include_str!(
+            "../../../s_session/profiles/ohlc_integer_tb02a_v1.json"
+        ))
+        .map_err(|e| e.to_string())?;
+        if profile != declared {
+            return Err("InvalidDomain：OHLC profile必须为已声明的完整固定配置".into());
+        }
+    }
     let profile_hash = sha256_hex(&canonical_bytes_of_value(&profile));
     Ok((profile, profile_id, profile_hash))
 }
@@ -1235,15 +1305,11 @@ fn accept_core(
     configured_epoch: &str,
     context: Option<&v2::InputContext>,
 ) -> Result<Value, String> {
-    let input: RawInputFile =
-        serde_json::from_str(&text).map_err(|e| format!("输入 JSON 解析失败：{e}"))?;
-    if input.schema_revision != "1" {
-        return Err(format!(
-            "SchemaUnsupported：schema_revision={}",
-            input.schema_revision
-        ));
-    }
+    let input = tb02a::parse_input(&v2::strict_json(text.as_bytes())?)?;
     let (profile, profile_id, profile_hash) = load_profile(profile_path)?;
+    if (input.schema_revision == tb02a::RAW_SCHEMA) != (profile_id == tb02a::PROFILE) {
+        return Err("SchemaUnsupported：绑定profile/schema不一致".into());
+    }
     if input.profile != profile_id {
         return Err(format!(
             "InvalidDomain：输入 profile=`{}` 与 --profile 的 profile_id=`{profile_id}` 不一致",
@@ -1276,6 +1342,9 @@ fn accept_core(
 
         let bound_profile_id = meta_get_opt(&tx, "profile_id")?.unwrap_or_default();
         if bound_profile_id.is_empty() {
+            if profile_id == tb02a::PROFILE {
+                tx.execute_batch(tb02a::SCHEMA).map_err(|e| e.to_string())?;
+            }
             meta_set(&tx, "profile_id", &profile_id)?;
             meta_set(&tx, "profile_hash", &profile_hash)?;
             meta_set(&tx, "profile_definition", &canonical_json(&profile))?;
@@ -1449,6 +1518,9 @@ fn accept_core(
                     supersedes,
                 ])
                 .map_err(|e| format!("insert raw_events 失败：{e}"))?;
+            if let Some(prices) = &e.ohlc {
+                tb02a::save_raw(&tx, &ikey, rev, prices)?;
+            }
             results.push(json!({
                 "status": "accepted",
                 "identity_key": ikey,
@@ -1491,7 +1563,7 @@ fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
              FROM raw_events ORDER BY seq ASC",
         )
         .map_err(|e| format!("prepare 读取失败：{e}"))?;
-    let rows = stmt
+    let mut rows = stmt
         .query_map([], |r| {
             Ok(json!({
                 "identity_key": r.get::<_, String>(0)?,
@@ -1516,6 +1588,7 @@ fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
         .map_err(|e| format!("query 失败：{e}"))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("collect 失败：{e}"))?;
+    tb02a::enrich_raw(conn, &mut rows)?;
     let mut owners = BTreeMap::new();
     let mut positions = BTreeMap::new();
     let mut prior_revisions = BTreeMap::new();
@@ -1534,6 +1607,7 @@ fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
             return Err("StorageUnavailable：原始源坐标与业务身份的唯一归属被破坏".to_string());
         }
         let raw = RawEvent {
+            ohlc: tb02a::stored_prices(event)?,
             event_id: event["event_id"]
                 .as_str()
                 .ok_or("StorageUnavailable：event_id非文本")?
@@ -1564,6 +1638,7 @@ fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
                 .ok_or("StorageUnavailable：volume非文本")?
                 .to_owned(),
         };
+        tb02a::validate_prices(&raw).map_err(|e| format!("StorageUnavailable：{e}"))?;
         let revision = parse_canonical_i64(&raw.revision, "input_revision")
             .map_err(|e| format!("StorageUnavailable：{e}"))?;
         let previous = prior_revisions.insert(identity, revision);
@@ -1726,6 +1801,28 @@ fn build_object_and_witnesses(
         "object": object_id,
     }));
 
+    let all_source_coords = if profile_id == tb02a::PROFILE {
+        let mut coords: Vec<i64> = input_refs
+            .iter()
+            .flat_map(|group| {
+                ["raw_refs", "dependency_refs"]
+                    .into_iter()
+                    .flat_map(move |key| group[key].as_array().unwrap().iter())
+            })
+            .map(|raw| {
+                raw["source_coord"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<i64>()
+                    .unwrap()
+            })
+            .collect();
+        coords.sort_unstable();
+        coords.dedup();
+        coords.iter().map(ToString::to_string).collect::<Vec<_>>()
+    } else {
+        source_coords.clone()
+    };
     let object = json!({
         "object_id": object_id,
         "object_revision": 1,
@@ -1738,7 +1835,7 @@ fn build_object_and_witnesses(
         "dir_bc": dir_bc,
         "comparisons_json": comparisons_json,
         "input_refs_json": canonical_json(&json!(input_refs)),
-        "source_coords_json": canonical_json(&json!(source_coords)),
+        "source_coords_json": canonical_json(&json!(all_source_coords)),
         "first_known_generation": gen,
         "first_known_cut": structure_cut,
         "published_generation": gen,
@@ -1753,7 +1850,7 @@ fn read_active_objects(conn: &Connection) -> Result<Vec<Value>, String> {
             "SELECT object_id, branch, window_start, window_mid, window_end, first_known_generation, first_known_cut, batch_id, published_generation FROM objects WHERE withdrawn_generation IS NULL ORDER BY window_start",
         )
         .map_err(|e| format!("prepare 读活动对象失败：{e}"))?;
-    let rows = stmt
+    let mut rows = stmt
         .query_map([], |r| {
             Ok(json!({
                 "object_id": r.get::<_, String>(0)?,
@@ -1770,6 +1867,7 @@ fn read_active_objects(conn: &Connection) -> Result<Vec<Value>, String> {
         .map_err(|e| format!("query 活动对象失败：{e}"))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("collect 活动对象失败：{e}"))?;
+    rows.extend(tb02a::read_facts(conn, None)?.0);
     Ok(rows)
 }
 
@@ -1783,50 +1881,30 @@ fn compute_diff(
     let mut withdrawals: Vec<Value> = Vec::new();
     let mut replaces: Vec<Value> = Vec::new();
 
-    // 区间 → 新对象（同一发生区间在合法域内唯一）。
-    let mut new_by_window: BTreeMap<(i64, i64, i64), &Value> = BTreeMap::new();
-    for o in new_objects {
-        let w = (
-            o["window_start"].as_i64().unwrap_or(0),
-            o["window_mid"].as_i64().unwrap_or(0),
-            o["window_end"].as_i64().unwrap_or(0),
-        );
-        new_by_window.insert(w, o);
-    }
-
+    let new_by_slot: BTreeMap<String, &Value> =
+        new_objects.iter().map(|o| (tb02a::slot(o), o)).collect();
     for old in existing_active {
-        let w = (
-            old["window_start"].as_i64().unwrap_or(0),
-            old["window_mid"].as_i64().unwrap_or(0),
-            old["window_end"].as_i64().unwrap_or(0),
-        );
-        match new_by_window.get(&w) {
-            None => {
-                withdrawals.push(json!({
-                    "object_id": old["object_id"],
-                    "window_start": w.0,
-                    "window_mid": w.1,
-                    "window_end": w.2,
-                    "reason": "window_removed",
-                    "superseded_by": Value::Null,
-                }));
+        match new_by_slot.get(&tb02a::slot(old)) {
+            None => withdrawals.push(tb02a::withdrawal(
+                old,
+                if tb02a::typed(old) {
+                    "fact_removed"
+                } else {
+                    "window_removed"
+                },
+                Value::Null,
+            )),
+            Some(new) if new["object_id"] != old["object_id"] => {
+                withdrawals.push(tb02a::withdrawal(
+                    old,
+                    "superseded_by_revision",
+                    new["object_id"].clone(),
+                ));
+                replaces.push(
+                    json!({"new_object_id":new["object_id"],"old_object_id":old["object_id"]}),
+                );
             }
-            Some(new) => {
-                if new["object_id"].as_str() != old["object_id"].as_str() {
-                    withdrawals.push(json!({
-                        "object_id": old["object_id"],
-                        "window_start": w.0,
-                        "window_mid": w.1,
-                        "window_end": w.2,
-                        "reason": "superseded_by_revision",
-                        "superseded_by": new["object_id"].clone(),
-                    }));
-                    replaces.push(json!({
-                        "new_object_id": new["object_id"],
-                        "old_object_id": old["object_id"],
-                    }));
-                }
-            }
+            _ => {}
         }
     }
 
@@ -2039,41 +2117,61 @@ fn advance_core(
     }
 
     let config = ThetaConfig::default();
+    let is_ohlc = profile_id == tb02a::PROFILE;
     let mut incr = ParseLayerIncr::new(&config);
     let mut layer = None;
     let mut raw_bars: Vec<Bar> = Vec::new();
     for ev in &effective {
         let px = parse_canonical_i64(ev["price"].as_str().unwrap_or(""), "price")?;
-        let t = parse_canonical_i64(ev["ts"].as_str().unwrap_or(""), "timestamp")?;
-        let coord = stored_source_coord(ev)?;
-        // 源坐标即本根在该源流中的位置；1:1 退化 OHLC 逐点即标准 K。
+        let price = |key: &str| {
+            parse_canonical_i64(
+                ev[key].as_str().ok_or("StorageUnavailable：OHLC价缺失")?,
+                key,
+            )
+        };
         let bar = Bar {
-            source_index: usize::try_from(coord)
+            source_index: usize::try_from(stored_source_coord(ev)?)
                 .map_err(|_| "StorageUnavailable：源坐标不能无损转换为 source_index")?,
-            timestamp: t,
-            open: px,
-            high: px,
-            low: px,
-            close: px,
+            timestamp: parse_canonical_i64(ev["ts"].as_str().unwrap_or(""), "timestamp")?,
+            open: if is_ohlc { price("open")? } else { px },
+            high: if is_ohlc { price("high")? } else { px },
+            low: if is_ohlc { price("low")? } else { px },
+            close: if is_ohlc { price("close")? } else { px },
             volume: 1.0,
             untradable: false,
         };
         raw_bars.push(bar);
-        layer = Some(incr.append(bar));
+        if !is_ohlc {
+            layer = Some(incr.append(bar));
+        }
     }
-    let layer = layer.unwrap_or_else(|| parser::parse_layer(&[], &config));
+    let (layer, inclusion_facts) = if is_ohlc {
+        let (layer, facts) = parser::parse_layer_with_inclusion_facts(&raw_bars, &config);
+        (layer, Some(facts))
+    } else {
+        (
+            layer.unwrap_or_else(|| parser::parse_layer(&[], &config)),
+            None,
+        )
+    };
     let merged_rc = layer.merged_bars.clone();
     let merged: &[Bar] = merged_rc.as_ref();
 
     let wins = classify_local_shape_sliding(merged);
 
-    // source_coord → merged 组号（inclusion 同源映射；1:1 域各根一组）。
+    // 同次包含 trace 提供完整成员；旧 tick 保留原映射。
     let mut merged_raws: Vec<Vec<i64>> = vec![Vec::new(); merged.len()];
-    for coord in raw_by_coord.keys().copied() {
-        let source_index = usize::try_from(coord)
-            .map_err(|_| "StorageUnavailable：源坐标不能无损转换为 source_index")?;
-        if let Some(g) = parser::inclusion::merged_group_index(merged, source_index) {
-            merged_raws[g].push(coord);
+    if let Some(facts) = &inclusion_facts {
+        for (i, group) in facts.groups.iter().enumerate() {
+            merged_raws[i] = group.members.iter().map(|x| *x as i64).collect();
+        }
+    } else {
+        for coord in raw_by_coord.keys().copied() {
+            let source_index =
+                usize::try_from(coord).map_err(|_| "StorageUnavailable：源坐标超界")?;
+            if let Some(g) = parser::inclusion::merged_group_index(merged, source_index) {
+                merged_raws[g].push(coord);
+            }
         }
     }
 
@@ -2083,7 +2181,11 @@ fn advance_core(
     let mut observations: Vec<Value> = Vec::new();
 
     let mut raw_violations: Vec<(usize, Cc006DomainViolation)> = Vec::new();
-    for i in 0..raw_bars.len().saturating_sub(2) {
+    for i in 0..if is_ohlc {
+        0
+    } else {
+        raw_bars.len().saturating_sub(2)
+    } {
         if let Some(reason) =
             window_domain_violation(&raw_bars[i], &raw_bars[i + 1], &raw_bars[i + 2])
         {
@@ -2091,7 +2193,7 @@ fn advance_core(
         }
     }
 
-    if raw_bars.len() < 3 {
+    if !is_ohlc && raw_bars.len() < 3 {
         observations.push(json!({
             "kind": "insufficient_knowledge",
             "reason": "fewer_than_three_bars",
@@ -2120,6 +2222,14 @@ fn advance_core(
 
     for (start, shape) in &wins {
         let start = *start;
+        // #1373 同角色极值身份仍有竞争时，不给依赖该组的分型选根。
+        if inclusion_facts.as_ref().is_some_and(|f| {
+            f.groups[start..start + 3]
+                .iter()
+                .any(|g| g.high_sources.len() != 1 || g.low_sources.len() != 1)
+        }) {
+            continue;
+        }
         match shape {
             Cc006LocalShape::Classified {
                 branch,
@@ -2161,7 +2271,23 @@ fn advance_core(
                                 })
                             })
                             .collect();
-                        json!({ "merged_index": mi, "raw_refs": refs })
+                        let mut group_refs=json!({ "merged_index": mi, "raw_refs": refs });
+                        if let Some(facts)=&inclusion_facts {
+                            let group=&facts.groups[*mi];
+                            let mut dependency_coords=group.direction_evidence.as_ref().map(|e|e.source_coords.clone()).unwrap_or_default();
+                            // #1373：三组当前划分还依赖关闭边界的真实后继，不能只绑定价格算式。
+                            if let Some(boundary)=&group.confirmation_evidence {dependency_coords.extend(&boundary.source_coords);}
+                            dependency_coords.retain(|coord|!group.members.contains(coord));
+                            dependency_coords.sort_unstable();dependency_coords.dedup();
+                            let dependencies:Vec<Value>=dependency_coords.iter().map(|coord|{
+                                let ev=&raw_by_coord[&(*coord as i64)];
+                                json!({"identity_key":ev["identity_key"],"payload_hash":ev["payload_hash"],"receipt_id":ev["receipt_id"],
+                                    "event_id":ev["event_id"],"input_revision":ev["input_revision"],"revision":ev["revision"],
+                                    "seq":ev["seq"],"source_coord":ev["source_coord"]})
+                            }).collect();
+                            group_refs["dependency_refs"]=json!(dependencies);
+                        }
+                        group_refs
                     })
                     .collect();
 
@@ -2206,14 +2332,36 @@ fn advance_core(
         }
     }
 
+    let structure_cut = format!("cut-{gen}");
+    if let Some(facts) = &inclusion_facts {
+        let (typed, waiting) = tb02a_facts::build(
+            facts,
+            &raw_by_coord,
+            &objects,
+            gen,
+            &structure_cut,
+            frontier,
+        );
+        objects.extend(typed);
+        observations.extend(waiting);
+    }
+
     // 去重：同一 (kind, window, reason) 只发布一次。
     {
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         observations.retain(|ob| {
-            let key = format!(
-                "{}|{:?}|{:?}|{:?}|{}",
-                ob["kind"], ob["window_start"], ob["window_mid"], ob["window_end"], ob["reason"]
-            );
+            let key = if ob["detail"]["tb02a"] == true {
+                canonical_json(ob)
+            } else {
+                format!(
+                    "{}|{:?}|{:?}|{:?}|{}",
+                    ob["kind"],
+                    ob["window_start"],
+                    ob["window_mid"],
+                    ob["window_end"],
+                    ob["reason"]
+                )
+            };
             seen.insert(key)
         });
     }
@@ -2236,6 +2384,19 @@ fn advance_core(
         "observations": observations,
         "scope": {"structure": "CompleteCut", "economic": "not_started"},
     });
+    if is_ohlc {
+        let previous_frontier = meta_get_opt(&conn, "last_advance_frontier")?
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap_or(-1);
+        let (_, withdrawals, replaces) = compute_diff(&objects, &read_active_objects(&conn)?);
+        batch_json["catalog_axes"] = tb02a_facts::catalog_axes(
+            &objects,
+            &all_events,
+            previous_frontier,
+            &withdrawals,
+            &replaces,
+        );
+    }
     v2::seal_batch(&conn, context, &mut batch_json)?;
     let batch_bytes = canonical_bytes_of_value(&batch_json);
     let batch_id = format!("batch-{}", sha256_hex(&batch_bytes));
@@ -2304,6 +2465,10 @@ fn advance_core(
                     .map_err(|e| format!("prepare 撤回失败：{e}"))?;
                 for w in &withdrawals {
                     let superseded = w["superseded_by"].as_str().map(|s| s.to_string());
+                    if tb02a::typed(w) {
+                        tx.execute("UPDATE structure_facts SET withdrawn_generation=?1,withdrawal_reason=?2,superseded_by=?3 WHERE object_id=?4 AND withdrawn_generation IS NULL",params![gen,w["reason"].as_str(),superseded,w["object_id"].as_str()]).map_err(|e|e.to_string())?;
+                        continue;
+                    }
                     stmt.execute(params![
                         gen,
                         w["reason"].as_str().unwrap_or(""),
@@ -2326,6 +2491,10 @@ fn advance_core(
                 )
                 .map_err(|e| format!("prepare objects 失败：{e}"))?;
                 for o in &objects {
+                    if tb02a::typed(o) {
+                        tb02a::save_fact(&tx, o, &batch_id)?;
+                        continue;
+                    }
                     stmt.execute(params![
                         o["object_id"].as_str().unwrap_or(""),
                         batch_id.as_str(),
@@ -2476,7 +2645,7 @@ fn advance_core(
             } else {
                 "not_run"
             };
-            let evidence = json!({
+            let mut evidence = json!({
                 "tested_domain": "TestOnly tick 1:1 OHLC（O=H=L=C），相邻严格无包含，初始化方向由前两点确定，无同价端点竞争",
                 "profile_id": profile_id,
                 "profile_hash": profile_hash,
@@ -2493,6 +2662,10 @@ fn advance_core(
                 "domain_not_satisfied": observations.iter().filter(|o| o["kind"] == "domain_not_satisfied").count().to_string(),
                 "scope": {"structure": "CompleteCut", "economic": "not_started"},
             });
+            if is_ohlc {
+                evidence["tested_domain"]=json!("TB-02-A：显式规范整数OHLC；已建方向与无同角色极值身份竞争域；初始包含/tie具名等待");
+                evidence["axes"] = batch_json["catalog_axes"].clone();
+            }
             // wire 形态：整数坐标/版本 → 规范十进制字符串，与同 cut Snapshot 逐字段对齐。
             let wire_upserts: Vec<Value> = delta_upserts
                 .iter()
@@ -2560,17 +2733,24 @@ fn advance_core(
             meta_set(&tx, "index_frontier", &batch_id)?;
             meta_set(&tx, "last_advance_frontier", &frontier.to_string())?;
 
-            // 6) 目录状态：实现/证明/运行分列（与 delta 同代证据一致）。
-            tx.execute(
+            if is_ohlc {
+                for (axis, value) in batch_json["catalog_axes"].as_object().ok_or("目录轴缺失")?
+                {
+                    tx.execute("UPDATE catalog SET impl_status=?1,proof_status=?2,run_status=?3,evidence_json=?4 WHERE catalog_id=?5",params![value["impl_status"].as_str(),value["proof_status"].as_str(),value["run_status"].as_str(),canonical_json(&value["evidence"]),axis]).map_err(|e|e.to_string())?;
+                }
+            } else {
+                // 6) 目录状态：实现/证明/运行分列（与 delta 同代证据一致）。
+                tx.execute(
             "UPDATE catalog SET impl_status='implemented', proof_status='not_proved', run_status=?1, evidence_json=?2 WHERE catalog_id='CC-006'",
             params![run_status, evidence.to_string()],
         )
         .map_err(|e| format!("update CC-006 catalog 失败：{e}"))?;
-            tx.execute(
-                "UPDATE catalog SET run_status='not_run' WHERE catalog_id <> 'CC-006'",
-                [],
-            )
-            .map_err(|e| format!("update 其余 catalog 失败：{e}"))?;
+                tx.execute(
+                    "UPDATE catalog SET run_status='not_run' WHERE catalog_id <> 'CC-006'",
+                    [],
+                )
+                .map_err(|e| format!("update 其余 catalog 失败：{e}"))?;
+            }
 
             v2::record_commit(&tx, context, gen, frontier)?;
             meta_set(&tx, "advance_state", "idle")?;
@@ -2672,17 +2852,22 @@ fn project_input_refs(refs: &Value) -> Result<Value, String> {
             .clone();
         let index = num_to_str(obj.get("merged_index").unwrap_or(&Value::Null))?;
         obj.insert("merged_index".to_string(), index);
-        let raw_refs = obj
-            .get_mut("raw_refs")
-            .and_then(Value::as_array_mut)
-            .ok_or("input_refs 成员必须含 raw_refs 数组")?;
-        for raw in raw_refs {
-            let raw = raw.as_object_mut().ok_or("raw_refs 成员必须是对象")?;
-            let seq = num_to_str(raw.get("seq").unwrap_or(&Value::Null))?;
-            raw.insert("seq".to_string(), seq);
-            if raw.contains_key("revision") {
-                let rev = num_to_str(raw.get("revision").unwrap_or(&Value::Null))?;
-                raw.insert("revision".to_string(), rev);
+        for key in ["raw_refs", "dependency_refs"] {
+            if key == "dependency_refs" && !obj.contains_key(key) {
+                continue;
+            }
+            let raw_refs = obj
+                .get_mut(key)
+                .and_then(Value::as_array_mut)
+                .ok_or("input_refs成员来源必须为数组")?;
+            for raw in raw_refs {
+                let raw = raw.as_object_mut().ok_or("input_refs来源成员必须对象")?;
+                let seq = num_to_str(raw.get("seq").unwrap_or(&Value::Null))?;
+                raw.insert("seq".to_string(), seq);
+                if raw.contains_key("revision") {
+                    let rev = num_to_str(raw.get("revision").unwrap_or(&Value::Null))?;
+                    raw.insert("revision".to_string(), rev);
+                }
             }
         }
         out.push(Value::Object(obj));
@@ -2710,13 +2895,18 @@ fn project_raw_bars(bars: &Value) -> Result<Value, String> {
                 return Err("raw_bars.supersedes_revision 必须是 i64 或 null".to_string());
             }
         }
-        out.push(Value::Object(obj));
+        let mut wire = Value::Object(obj);
+        tb02a::raw_wire(&mut wire, bar);
+        out.push(wire);
     }
     Ok(Value::Array(out))
 }
 
 /// i64 形态对象 → wire 形态（与 read_snapshot 投影一致）。
 fn project_object_wire(o: &Value) -> Result<Value, String> {
+    if tb02a::typed(o) {
+        return tb02a::project(o);
+    }
     let comparisons = json_shape(
         o["comparisons_json"].as_str().unwrap_or("[]"),
         JsonShape::Array,
@@ -2766,6 +2956,9 @@ fn project_object_wire(o: &Value) -> Result<Value, String> {
 }
 
 fn project_withdrawal_wire(w: &Value) -> Result<Value, String> {
+    if tb02a::typed(w) {
+        return Ok(w.clone());
+    }
     Ok(json!({
         "object_id": w["object_id"].clone(),
         "window_start": num_to_str(&w["window_start"])?,
@@ -2813,7 +3006,7 @@ fn project_observation_wire(ob: &Value) -> Result<Value, String> {
 
 /// i64 形态源事件 → wire 形态（revision/seq/supersedes → 规范十进制字符串）。
 fn project_raw_event_wire(ev: &Value) -> Result<Value, String> {
-    Ok(json!({
+    let mut wire = json!({
         "identity_key": ev["identity_key"].clone(),
         "revision": num_to_str(&ev["revision"])?,
         "input_revision": ev["input_revision"].clone(),
@@ -2835,7 +3028,9 @@ fn project_raw_event_wire(ev: &Value) -> Result<Value, String> {
             .and_then(|v| v.as_i64())
             .map(|v| Value::String(v.to_string()))
             .unwrap_or(Value::Null),
-    }))
+    });
+    tb02a::raw_wire(&mut wire, ev);
+    Ok(wire)
 }
 
 enum JsonShape {
@@ -2941,6 +3136,31 @@ fn read_catalog_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, St
         }
     };
 
+    let sealed_axes = if tb02a::enabled(conn)? {
+        let generation = header_gen
+            .parse::<i64>()
+            .map_err(|_| "StorageUnavailable：目录代号非法")?;
+        if generation == 0 {
+            None
+        } else {
+            let evidence: String = conn
+                .query_row(
+                    "SELECT catalog_evidence_json FROM structure_deltas WHERE generation=?1",
+                    params![generation],
+                    |r| r.get(0),
+                )
+                .map_err(|e| e.to_string())?;
+            let evidence = json_shape(&evidence, JsonShape::Object)?;
+            Some(
+                evidence["axes"]
+                    .as_object()
+                    .ok_or("StorageUnavailable：逐轴目录缺失")?
+                    .clone(),
+            )
+        }
+    } else {
+        None
+    };
     let mut stmt = conn
         .prepare("SELECT catalog_id, kind, title, domain, branches_json, impl_status, proof_status, run_status, evidence_json FROM catalog ORDER BY catalog_id")
         .map_err(|e| format!("prepare catalog 失败：{e}"))?;
@@ -2958,7 +3178,7 @@ fn read_catalog_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, St
                         json_shape(ev, JsonShape::Object).map_err(|e| json_column_error(8, e))?;
                 }
             }
-            let (implementation_status, proof_status) = if let Some(n) = as_of {
+            let (mut implementation_status, mut proof_status) = if let Some(n) = as_of {
                 if n == 0 {
                     run_status = "not_run".to_string();
                     evidence = json!({});
@@ -2975,6 +3195,21 @@ fn read_catalog_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, St
             } else {
                 (r.get::<_, String>(5)?, r.get::<_, String>(6)?)
             };
+            if let Some(axis) = sealed_axes.as_ref().and_then(|axes| axes.get(&cid)) {
+                implementation_status = axis["impl_status"]
+                    .as_str()
+                    .ok_or_else(|| json_column_error(8, "目录实现状态缺失".into()))?
+                    .to_string();
+                proof_status = axis["proof_status"]
+                    .as_str()
+                    .ok_or_else(|| json_column_error(8, "目录证明状态缺失".into()))?
+                    .to_string();
+                run_status = axis["run_status"]
+                    .as_str()
+                    .ok_or_else(|| json_column_error(8, "目录运行状态缺失".into()))?
+                    .to_string();
+                evidence = axis["evidence"].clone();
+            }
             Ok(json!({
                 "id": cid,
                 "kind": r.get::<_, String>(1)?,
@@ -3064,7 +3299,7 @@ fn read_objects_view(
     let mut stmt = conn
         .prepare(&active_sql)
         .map_err(|e| format!("prepare objects 失败：{e}"))?;
-    let objects = match as_of {
+    let mut objects = match as_of {
         None => stmt
             .query_map([], |r| project_object_row(r, None))
             .map_err(|e| format!("query objects 失败：{e}"))?
@@ -3080,7 +3315,7 @@ fn read_objects_view(
     let mut wstmt = conn
         .prepare(&withdrawn_sql)
         .map_err(|e| format!("prepare withdrawn 失败：{e}"))?;
-    let withdrawn = match as_of {
+    let mut withdrawn = match as_of {
         None => wstmt
             .query_map([], |r| project_object_row(r, None))
             .map_err(|e| format!("query withdrawn 失败：{e}"))?
@@ -3093,6 +3328,19 @@ fn read_objects_view(
             .map_err(|e| format!("collect withdrawn 失败：{e}"))?,
     };
 
+    let (typed_active, typed_dead) = tb02a::read_facts(conn, as_of)?;
+    objects.extend(
+        typed_active
+            .iter()
+            .map(tb02a::project)
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    withdrawn.extend(
+        typed_dead
+            .iter()
+            .map(tb02a::project)
+            .collect::<Result<Vec<_>, _>>()?,
+    );
     Ok((objects, withdrawn))
 }
 
@@ -3202,7 +3450,7 @@ fn read_raw_history(conn: &Connection, max_seq: Option<i64>) -> Result<Vec<Value
     let mut stmt = conn
         .prepare(&sql)
         .map_err(|e| format!("prepare raw_history 失败：{e}"))?;
-    let rows = match max_seq {
+    let mut rows = match max_seq {
         None => stmt
             .query_map([], project)
             .map_err(|e| format!("query raw_history 失败：{e}"))?
@@ -3214,6 +3462,11 @@ fn read_raw_history(conn: &Connection, max_seq: Option<i64>) -> Result<Vec<Value
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| format!("collect raw_history 失败：{e}"))?,
     };
+    tb02a::enrich_raw(conn, &mut rows)?;
+    for row in &mut rows {
+        let raw = row.clone();
+        tb02a::raw_wire(row, &raw);
+    }
     Ok(rows)
 }
 
@@ -3436,7 +3689,7 @@ fn cmd_query(db: &Path, identity_key: &str) -> Result<(), String> {
         .map_err(|e| format!("开读事务失败：{e}"))?;
     verify_reachable_root(&tx)?;
     let published_frontier: i64 = meta_i64(&tx, "last_advance_frontier")?;
-    let rows: Vec<Value> = {
+    let mut rows: Vec<Value> = {
         let mut stmt = tx
             .prepare(
                 "SELECT revision, input_revision, payload_hash, receipt_id, seq, source_coord, price, supersedes_revision FROM raw_events WHERE identity_key=?1 ORDER BY revision ASC",
@@ -3464,6 +3717,17 @@ fn cmd_query(db: &Path, identity_key: &str) -> Result<(), String> {
         }
         out
     };
+    if tb02a::enabled(&tx)? {
+        for row in &mut rows {
+            row["identity_key"] = json!(identity_key);
+        }
+        tb02a::enrich_raw(&tx, &mut rows)?;
+        for row in &mut rows {
+            let raw = row.clone();
+            tb02a::raw_wire(row, &raw);
+            row.as_object_mut().unwrap().remove("identity_key");
+        }
+    }
     let latest = rows
         .iter()
         .max_by_key(|r| {
@@ -3946,6 +4210,366 @@ mod tests {
         let out = read_snapshot_in_tx(&tx, as_of).unwrap();
         drop(tx);
         out
+    }
+
+    fn ohlc_input(bars: &[(i64, i64)], revision: bool) -> Value {
+        let events:Vec<Value>=bars.iter().enumerate().map(|(i,(low,high))|json!({
+            "event_id":format!("o{i}"),"revision":if revision && i==2{"2"}else{"1"},"seq":i.to_string(),
+            "received_at":"2026-09-13T00:00:00Z","raw_text":format!("{low}/{high}"),
+            "open":low.to_string(),"high":high.to_string(),"low":low.to_string(),"close":high.to_string(),
+            "timestamp":i.to_string(),"volume":"1"})).collect();
+        json!({"schema_revision":"s-ohlc/1","session_id":"s-session-testonly-001","source_namespace":"testonly.ohlc",
+            "source_epoch":"1","instrument":"TEST.OHLC","profile":tb02a::PROFILE,"events":events})
+    }
+    fn accept_ohlc(files: &TestFiles, input: &Value) {
+        accept_core(
+            &files.db(),
+            &canonical_json(input),
+            &fixture("profiles/ohlc_integer_tb02a_v1.json"),
+            DEFAULT_WRITER_EPOCH,
+            None,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn tb02a_strict_schema_discriminator_and_numeric_domain() {
+        let valid = ohlc_input(&[(5, 10), (6, 12), (7, 11)], false);
+        assert!(tb02a::parse_input(&valid).is_ok());
+        for (key, value) in [
+            ("schema_revision", json!("1")),
+            ("profile", json!("testonly_tick_1_1_ohlc")),
+        ] {
+            let mut bad = valid.clone();
+            bad[key] = value;
+            assert!(tb02a::parse_input(&bad).is_err());
+        }
+        for (key, value) in [
+            ("price", json!("10")),
+            ("high", json!(10)),
+            ("open", json!("05")),
+            ("low", json!("13")),
+        ] {
+            let mut bad = valid.clone();
+            bad["events"][0][key] = value;
+            assert!(tb02a::parse_input(&bad).is_err());
+        }
+    }
+
+    #[test]
+    fn tb02a_sealed_revision_history_and_independent_fact_index() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(&files, &ohlc_input(&[(5, 10), (6, 12), (7, 11)], false));
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let old = snapshot_of(&files, Some(1));
+        assert!(!old["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|o| o["kind"] == "CC-006.local_shape"));
+        assert!(old["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|o| o["kind"] == "CC-005.inclusion_group"
+                && o["payload"]["members"] == json!(["1", "2"])));
+        assert!(old["raw_history"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|r| r.get("price").is_none() && r["schema_revision"] == tb02a::RAW_SCHEMA));
+        accept_ohlc(&files, &ohlc_input(&[(5, 10), (6, 12), (4, 9)], true));
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(snapshot_of(&files, Some(1)), old);
+        let now = snapshot_of(&files, None);
+        assert!(now["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|o| o["kind"] == "CC-006.local_shape" && o["branch"] == "TOP"));
+        assert!(now["withdrawn_objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|o| o["kind"] == "CC-005.inclusion_group"));
+        let delta: String = conn
+            .query_row(
+                "SELECT delta_json FROM structure_deltas WHERE generation=2",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let delta: Value = serde_json::from_str(&delta).unwrap();
+        assert_eq!(
+            delta["catalog_evidence"]["axes"]["CC-056"]["run_status"],
+            "run"
+        );
+        assert_eq!(
+            delta["catalog_evidence"]["axes"]["CC-056"]["evidence"]["raw_revisions"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        conn.execute("UPDATE structure_facts SET payload_json='{}' WHERE kind='CC-005.inclusion_group' AND withdrawn_generation IS NULL",[]).unwrap();
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+    }
+
+    #[test]
+    fn tb02a_three_groups_with_equal_roots_wait_for_exact_shape_request() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(
+            &files,
+            &ohlc_input(&[(0, 1), (3, 10), (5, 10), (20, 30)], false),
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        verify_reachable_root(&open_db(&files.db()).unwrap()).unwrap();
+        let snapshot = snapshot_of(&files, None);
+        let objects = snapshot["objects"].as_array().unwrap();
+        assert_eq!(
+            objects
+                .iter()
+                .filter(|o| o["kind"] == "CC-005.inclusion_group")
+                .count(),
+            3
+        );
+        assert!(objects.iter().any(|o| o["kind"] == "CC-005.inclusion_group"
+            && o["payload"]["high_sources"] == json!(["1", "2"])));
+        assert!(!objects.iter().any(|o| o["kind"] == "CC-006.local_shape"));
+        let knowledge = objects
+            .iter()
+            .find(|o| o["kind"] == "CC-054.knowledge_state")
+            .unwrap();
+        let slot = canonical_json(&json!(["CC-006.local_shape", ["0", "1", "3"]]));
+        let request = knowledge["payload"]["requests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["request_id"] == slot)
+            .unwrap();
+        assert!(request["subject_id"].is_null());
+        assert_eq!(request["reasons"], json!(["equal_extreme_identity"]));
+        assert_eq!(request["source_coords"], json!(["0", "1", "2", "3"]));
+        assert_eq!(request["axes"]["computation"], "INCOMPLETE");
+        let conn = open_db(&files.db()).unwrap();
+        let evidence: String = conn
+            .query_row(
+                "SELECT catalog_evidence_json FROM structure_deltas WHERE generation=1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let evidence: Value = serde_json::from_str(&evidence).unwrap();
+        assert_eq!(evidence["axes"]["CC-006"]["run_status"], "waiting");
+    }
+
+    #[test]
+    fn tb02a_window_external_direction_revision_disappearance_and_return() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let base = [(0, 1), (4, 8), (5, 7), (2, 4), (6, 9)];
+        let mut histories = Vec::new();
+        let mut shape_ids = Vec::new();
+        let mut description_ids = Vec::new();
+        for (generation, first) in [(1, (0, 1)), (2, (0, 2)), (3, (0, 10)), (4, (0, 1))] {
+            let mut bars = base;
+            bars[0] = first;
+            let mut input = ohlc_input(&bars, false);
+            input["events"][0]["revision"] = json!(generation.to_string());
+            accept_ohlc(&files, &input);
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            verify_reachable_root(&open_db(&files.db()).unwrap()).unwrap();
+            let snapshot = snapshot_of(&files, None);
+            for (i, old) in histories.iter().enumerate() {
+                assert_eq!(&snapshot_of(&files, Some((i + 1) as i64)), old);
+            }
+            let objects = snapshot["objects"].as_array().unwrap();
+            let shape = objects.iter().find(|o| {
+                o["kind"] == "CC-006.local_shape"
+                    && o["window_start"] == "1"
+                    && o["window_mid"] == "3"
+                    && o["window_end"] == "4"
+            });
+            if generation == 3 {
+                assert!(shape.is_none());
+                assert!(snapshot["withdrawn_objects"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|o| shape_ids.contains(&o["object_id"])));
+            } else {
+                let shape = shape.unwrap();
+                assert_eq!(shape["branch"], "BOTTOM");
+                assert_eq!(shape["source_coords"], json!(["0", "1", "2", "3", "4"]));
+                let first_group = &shape["input_refs"][0];
+                assert_eq!(
+                    first_group["raw_refs"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|r| r["source_coord"].clone())
+                        .collect::<Vec<_>>(),
+                    vec![json!("1"), json!("2")]
+                );
+                assert!(first_group["dependency_refs"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|r| r["source_coord"] == "0" && r["revision"] == generation.to_string()));
+                assert!(!shape_ids.contains(&shape["object_id"]));
+                shape_ids.push(shape["object_id"].clone());
+                let description = objects
+                    .iter()
+                    .find(|o| {
+                        o["kind"] == "CC-007.fractal_description"
+                            && o["payload"]["shape_object_id"] == shape["object_id"]
+                    })
+                    .unwrap();
+                assert!(description["input_refs"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|r| r["source_coord"] == "0" && r["revision"] == generation.to_string()));
+                assert!(!description_ids.contains(&description["object_id"]));
+                description_ids.push(description["object_id"].clone());
+                let knowledge = objects
+                    .iter()
+                    .find(|o| o["kind"] == "CC-054.knowledge_state")
+                    .unwrap();
+                for request in knowledge["payload"]["requests"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|r| {
+                        r["subject_id"] == shape["object_id"]
+                            || r["subject_id"] == description["object_id"]
+                    })
+                {
+                    let request_key: Value =
+                        serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
+                    if request_key[1] == "descriptive_labels" {
+                        assert_eq!(request["source_coords"], json!(["1", "2", "3", "4"]));
+                    } else {
+                        assert!(request["source_coords"]
+                            .as_array()
+                            .unwrap()
+                            .contains(&json!("0")));
+                    }
+                }
+                // 仅重放对象声明的计算输入，仍恢复同一真实三锚 BOTTOM。
+                let replay: Vec<Bar> = shape["source_coords"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|coord| {
+                        let i = coord.as_str().unwrap().parse::<usize>().unwrap();
+                        let (low, high) = bars[i];
+                        Bar {
+                            source_index: i,
+                            timestamp: i as i64,
+                            open: low,
+                            high,
+                            low,
+                            close: high,
+                            volume: 1.0,
+                            untradable: false,
+                        }
+                    })
+                    .collect();
+                let (layer, facts) =
+                    parser::parse_layer_with_inclusion_facts(&replay, &ThetaConfig::default());
+                assert!(!facts.initial_direction_unsettled);
+                assert!(classify_local_shape_sliding(&layer.merged_bars).iter().any(|(i,shape)|layer.merged_bars[*i].source_index==1 && matches!(shape,Cc006LocalShape::Classified{branch,..} if branch.as_str()=="BOTTOM")));
+            }
+            histories.push(snapshot_of(&files, Some(generation)));
+        }
+    }
+
+    #[test]
+    fn tb02a_restored_numeric_shape_has_new_boundary_identity_without_reviving_history() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let stages: Vec<Vec<(i64, i64)>> = vec![
+            vec![(0, 1), (2, 3), (4, 6)],
+            vec![(0, 1), (2, 3), (4, 6), (5, 5)],
+            vec![(0, 1), (2, 3), (4, 6), (7, 8)],
+        ];
+        let mut histories = Vec::new();
+        let mut shapes = Vec::new();
+        for (index, bars) in stages.iter().enumerate() {
+            let generation = (index + 1) as i64;
+            let mut input = ohlc_input(bars, false);
+            if generation == 3 {
+                input["events"][3]["revision"] = json!("2");
+            }
+            accept_ohlc(&files, &input);
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            verify_reachable_root(&open_db(&files.db()).unwrap()).unwrap();
+            for (old_index, old) in histories.iter().enumerate() {
+                assert_eq!(&snapshot_of(&files, Some((old_index + 1) as i64)), old);
+            }
+            let snapshot = snapshot_of(&files, Some(generation));
+            let shape = snapshot["objects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|o| {
+                    o["kind"] == "CC-006.local_shape"
+                        && o["window_start"] == "0"
+                        && o["window_mid"] == "1"
+                        && o["window_end"] == "2"
+                })
+                .unwrap();
+            assert_eq!(shape["branch"], "RISING");
+            assert!(shapes
+                .iter()
+                .all(|old: &Value| old["object_id"] != shape["object_id"]));
+            shapes.push(shape.clone());
+            histories.push(snapshot);
+        }
+        assert_eq!(shapes[0]["comparisons"], shapes[2]["comparisons"]);
+        assert_eq!(shapes[0]["source_coords"], json!(["0", "1", "2"]));
+        assert_eq!(shapes[2]["source_coords"], json!(["0", "1", "2", "3"]));
+        assert_eq!(
+            shapes[2]["input_refs"][2]["raw_refs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|r| r["source_coord"].clone())
+                .collect::<Vec<_>>(),
+            vec![json!("2")]
+        );
+        assert!(shapes[2]["input_refs"][2]["dependency_refs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["source_coord"] == "3" && r["revision"] == "2"));
+        assert!(histories[2]["withdrawn_objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|o| o["object_id"] == shapes[0]["object_id"] && o["withdrawn_generation"] == "2"));
+        assert_eq!(shapes[2]["first_known_generation"], "3");
+    }
+
+    #[test]
+    fn tb02a_raw_sidecar_tampering_is_not_tick_fallback() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(&files, &ohlc_input(&[(5, 10), (6, 12)], false));
+        let conn = open_db(&files.db()).unwrap();
+        conn.execute("UPDATE raw_ohlc SET high='99' WHERE revision=1", [])
+            .unwrap();
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
     }
 
     #[test]

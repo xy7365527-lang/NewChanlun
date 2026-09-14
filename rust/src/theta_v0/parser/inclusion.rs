@@ -139,22 +139,7 @@ pub fn process_inclusion(bars: &[Bar]) -> InclusionResult {
     };
 
     // 步骤 2：有方向左折叠。
-    let mut merged: Vec<Bar> = Vec::with_capacity(bars.len());
-    let mut acc = bars[0];
-    let mut dir = dir0;
-    for b in &bars[1..] {
-        if contains(&acc, b) {
-            acc = merge(&acc, b, dir);
-        } else {
-            // acc 定稿，更新方向（acc → b 的严格高低变化），b 成为新 acc。
-            if let Some(d) = strict_dir(&acc, b) {
-                dir = d;
-            }
-            merged.push(acc);
-            acc = *b;
-        }
-    }
-    merged.push(acc);
+    let (merged, _) = fold_all(bars, dir0);
 
     InclusionResult {
         merged,
@@ -565,6 +550,222 @@ pub fn process_inclusion_append(
     (next, result)
 }
 
+/// #1373：方向证据保存建立时的 acc，而不是以后变化的组快照。
+#[derive(Debug, Clone, PartialEq)]
+pub struct InclusionDirectionEvidence {
+    pub direction: Direction,
+    pub previous_acc: Bar,
+    pub incoming: Bar,
+    pub source_coords: Vec<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct InclusionGroupFact {
+    pub bar: Bar,
+    pub members: Vec<usize>,
+    pub high_sources: Vec<usize>,
+    pub low_sources: Vec<usize>,
+    pub confirmed: bool,
+    pub confirmation_evidence: Option<InclusionDirectionEvidence>,
+    pub direction_evidence: Option<InclusionDirectionEvidence>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct InclusionStepFact {
+    pub action: &'static str,
+    pub incoming: Bar,
+    pub acc_before: Option<Bar>,
+    pub acc_after: Option<Bar>,
+    pub contains: Option<bool>,
+    pub direction_evidence: Option<InclusionDirectionEvidence>,
+    pub source_coords: Vec<usize>,
+    pub high_sources: Vec<usize>,
+    pub low_sources: Vec<usize>,
+    pub waiting_reasons: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct InclusionFacts {
+    pub merged: Vec<Bar>,
+    pub groups: Vec<InclusionGroupFact>,
+    pub steps: Vec<InclusionStepFact>,
+    pub initial_direction_unsettled: bool,
+    pub unmapped_sources: Vec<usize>,
+}
+
+/// #1373 已批有界入口：与全量/增量共享 fold_step，额外保存该步事实。
+/// 未建方向的包含前缀不借未来方向回折；同价来源保留全集，不选择身份。
+/// 这是知识域限制，不改变 contains/strict_dir/merge 的判据。
+pub fn process_inclusion_with_facts(bars: &[Bar]) -> InclusionFacts {
+    let mut result = InclusionFacts::default();
+    let mut evidence: Option<InclusionDirectionEvidence> = None;
+    let mut processed = 0usize;
+    for (i, &incoming) in bars.iter().enumerate() {
+        let before = result.merged.last().copied();
+        if result.initial_direction_unsettled {
+            result.unmapped_sources.push(incoming.source_index);
+            result.steps.push(InclusionStepFact {
+                action: "waiting",
+                incoming,
+                acc_before: before,
+                acc_after: None,
+                contains: None,
+                direction_evidence: None,
+                source_coords: bars[..=i].iter().map(|b| b.source_index).collect(),
+                high_sources: vec![],
+                low_sources: vec![],
+                waiting_reasons: vec!["initial_direction_unsettled"],
+            });
+            continue;
+        }
+        if let Some(acc) = before {
+            // 仅初始化知识门调用同一 contains；已建方向后的分支取自实际 fold_step 输出。
+            if evidence.is_none() && contains(&acc, &incoming) {
+                result.initial_direction_unsettled = true;
+                result.unmapped_sources.push(incoming.source_index);
+                result.steps.push(InclusionStepFact {
+                    action: "waiting",
+                    incoming,
+                    acc_before: Some(acc),
+                    acc_after: None,
+                    contains: Some(true),
+                    direction_evidence: None,
+                    source_coords: vec![acc.source_index, incoming.source_index],
+                    high_sources: vec![],
+                    low_sources: vec![],
+                    waiting_reasons: vec!["initial_direction_unsettled"],
+                });
+                continue;
+            }
+            let direction = evidence
+                .as_ref()
+                .map(|e| e.direction)
+                .or_else(|| strict_dir(&acc, &incoming))
+                .expect("合法非包含区间必有严格方向");
+            let previous_members = result.groups.last().unwrap().members.clone();
+            let was_established = evidence.is_some();
+            result.merged.pop();
+            let prefix_len = result.merged.len();
+            let (after, new_direction) = fold_step(&acc, incoming, direction, &mut result.merged);
+            let included = result.merged.len() == prefix_len;
+            result.merged.push(after);
+            if !included {
+                let mut sources = previous_members.clone();
+                if let Some(e) = &evidence {
+                    sources.extend(&e.source_coords);
+                }
+                sources.push(incoming.source_index);
+                sources.sort_unstable();
+                sources.dedup();
+                evidence = Some(InclusionDirectionEvidence {
+                    direction: new_direction,
+                    previous_acc: acc,
+                    incoming,
+                    source_coords: sources,
+                });
+                result.groups.last_mut().unwrap().confirmation_evidence = evidence.clone();
+                result.groups.push(InclusionGroupFact {
+                    bar: after,
+                    members: vec![incoming.source_index],
+                    high_sources: vec![incoming.source_index],
+                    low_sources: vec![incoming.source_index],
+                    confirmed: false,
+                    confirmation_evidence: None,
+                    direction_evidence: evidence.clone(),
+                });
+            } else {
+                let group = result.groups.last_mut().unwrap();
+                group.bar = after;
+                group.members.push(incoming.source_index);
+                // 数值来源投影：只读同核 merge 输出，不另算极值、不裁同价身份。
+                group.high_sources = bars[..=i]
+                    .iter()
+                    .filter(|b| group.members.contains(&b.source_index) && b.high == after.high)
+                    .map(|b| b.source_index)
+                    .collect();
+                group.low_sources = bars[..=i]
+                    .iter()
+                    .filter(|b| group.members.contains(&b.source_index) && b.low == after.low)
+                    .map(|b| b.source_index)
+                    .collect();
+            }
+            let group = result.groups.last().unwrap();
+            let mut sources = previous_members;
+            sources.push(incoming.source_index);
+            if let Some(e) = &evidence {
+                sources.extend(&e.source_coords);
+            }
+            sources.sort_unstable();
+            sources.dedup();
+            result.steps.push(InclusionStepFact {
+                action: if included {
+                    "merge"
+                } else if was_established {
+                    "new_group"
+                } else {
+                    "establish_direction"
+                },
+                incoming,
+                acc_before: Some(acc),
+                acc_after: Some(after),
+                contains: Some(included),
+                direction_evidence: evidence.clone(),
+                source_coords: sources,
+                high_sources: group.high_sources.clone(),
+                low_sources: group.low_sources.clone(),
+                waiting_reasons: if group.high_sources.len() > 1 || group.low_sources.len() > 1 {
+                    vec!["equal_extreme_identity"]
+                } else {
+                    vec![]
+                },
+            });
+        } else {
+            result.merged.push(incoming);
+            result.groups.push(InclusionGroupFact {
+                bar: incoming,
+                members: vec![incoming.source_index],
+                high_sources: vec![incoming.source_index],
+                low_sources: vec![incoming.source_index],
+                confirmed: false,
+                confirmation_evidence: None,
+                direction_evidence: None,
+            });
+            result.steps.push(InclusionStepFact {
+                action: "seed",
+                incoming,
+                acc_before: None,
+                acc_after: Some(incoming),
+                contains: None,
+                direction_evidence: None,
+                source_coords: vec![incoming.source_index],
+                high_sources: vec![incoming.source_index],
+                low_sources: vec![incoming.source_index],
+                waiting_reasons: vec![],
+            });
+        }
+        processed += 1;
+    }
+    // 正式成员映射复用 S9 稠密标注；未裁前缀之后的 raw 不冒充已分组。
+    let annotations = dense_annotation(
+        &bars[..processed],
+        &InclusionResult {
+            merged: result.merged.clone(),
+            only_open_tail: evidence.is_none(),
+        },
+    );
+    let group_count = result.groups.len();
+    for (index, group) in result.groups.iter_mut().enumerate() {
+        group.members = bars[..processed]
+            .iter()
+            .zip(&annotations)
+            .filter(|(_, a)| a.group == index)
+            .map(|(b, _)| b.source_index)
+            .collect();
+        group.confirmed = evidence.is_some() && index + 1 < group_count;
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::super::types::Tick;
@@ -581,6 +782,93 @@ mod tests {
             volume: 1.0,
             untradable: false,
         }
+    }
+
+    #[test]
+    fn tb02a_trace_matches_existing_kernel_and_preserves_actual_roots() {
+        for (bars, high, low) in [
+            (
+                vec![
+                    bar(0, 10, 5),
+                    bar(3, 12, 7),
+                    bar(8, 11, 8),
+                    bar(14, 13, 6),
+                    bar(20, 16, 14),
+                ],
+                vec![14],
+                vec![8],
+            ),
+            (
+                vec![
+                    bar(0, 12, 7),
+                    bar(3, 10, 5),
+                    bar(8, 9, 6),
+                    bar(14, 11, 4),
+                    bar(20, 3, 1),
+                ],
+                vec![8],
+                vec![14],
+            ),
+        ] {
+            let facts = process_inclusion_with_facts(&bars);
+            assert_eq!(facts.merged, process_inclusion(&bars).merged);
+            let group = &facts.groups[1];
+            assert_eq!(group.members, vec![3, 8, 14]);
+            assert_eq!(group.bar.source_index, 3);
+            assert_eq!(group.high_sources, high);
+            assert_eq!(group.low_sources, low);
+            assert!(group.confirmed);
+            let confirmation = group.confirmation_evidence.as_ref().unwrap();
+            assert_eq!(confirmation.incoming.source_index, 20);
+            assert!(confirmation.source_coords.contains(&20));
+            assert_eq!(facts.groups.last().unwrap().confirmation_evidence, None);
+        }
+    }
+
+    #[test]
+    fn tb02a_initial_inclusion_does_not_borrow_future_direction() {
+        let bars = vec![bar(0, 5, 1), bar(1, 4, 2), bar(2, 6, 3)];
+        let facts = process_inclusion_with_facts(&bars);
+        assert!(facts.initial_direction_unsettled);
+        assert_eq!(facts.merged, vec![bars[0]]);
+        assert_eq!(facts.groups[0].members, vec![0]);
+        assert_eq!(facts.unmapped_sources, vec![1, 2]);
+        assert!(facts.steps[1..].iter().all(|s| s.action == "waiting"
+            && s.direction_evidence.is_none()
+            && s.acc_after.is_none()));
+    }
+
+    #[test]
+    fn tb02a_direction_is_from_actual_accumulator_not_previous_raw() {
+        let bars = vec![
+            bar(0, 20, 10),
+            bar(1, 24, 14),
+            bar(2, 22, 16),
+            bar(3, 23, 15),
+        ];
+        let facts = process_inclusion_with_facts(&bars);
+        assert_eq!(facts.merged, process_inclusion(&bars).merged);
+        assert!(contains(&bars[2], &bars[3]));
+        let last = facts.steps.last().unwrap();
+        assert_eq!(last.contains, Some(false));
+        let e = last.direction_evidence.as_ref().unwrap();
+        assert_eq!(e.direction, Direction::Down);
+        assert_eq!((e.previous_acc.low, e.previous_acc.high), (16, 24));
+        assert_eq!(e.source_coords, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn tb02a_equal_role_roots_wait_but_cross_axis_equality_does_not() {
+        let facts = process_inclusion_with_facts(&[bar(0, 4, 1), bar(1, 6, 2), bar(2, 6, 3)]);
+        assert_eq!(facts.groups[1].high_sources, vec![1, 2]);
+        assert_eq!(
+            facts.steps.last().unwrap().waiting_reasons,
+            vec!["equal_extreme_identity"]
+        );
+        let cross = process_inclusion_with_facts(&[bar(0, 3, 1), bar(1, 6, 3)]);
+        assert!(!cross.initial_direction_unsettled);
+        assert_eq!(cross.steps[1].contains, Some(false));
+        assert!(cross.steps[1].waiting_reasons.is_empty());
     }
 
     // -------- T1 (#170) 组锚供给线测试（先红后绿） --------

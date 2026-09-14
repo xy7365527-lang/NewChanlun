@@ -1,0 +1,355 @@
+{
+  "schema": "tb02a-independent-raw-ohlc-ledger-v1",
+  "issue": 1373,
+  "source_commit": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+  "oracle_kind": "AUTHOR_CONSTRUCTED_EXACT_INTEGER_WORKED_EXAMPLES",
+  "coordinate": {
+    "instrument": "TB02A-WORKED-OHLC",
+    "price_unit": "exact_integer_test_unit",
+    "time_unit": "ordinal_raw_bar",
+    "meaning": "完整显式原始 OHLC 工作例；不是交易所行情、tick 聚合、交易政策或市场统计。"
+  },
+  "cases": [
+    {
+      "case_id": "up_member_equal_and_touch",
+      "raw_bars": [
+        {
+          "raw_index": 0,
+          "raw_id": "raw-000",
+          "open": 12,
+          "high": 20,
+          "low": 10,
+          "close": 18
+        },
+        {
+          "raw_index": 1,
+          "raw_id": "raw-001",
+          "open": 70,
+          "high": 100,
+          "low": 30,
+          "close": 90
+        },
+        {
+          "raw_index": 2,
+          "raw_id": "raw-002",
+          "open": 60,
+          "high": 80,
+          "low": 50,
+          "close": 70
+        },
+        {
+          "raw_index": 3,
+          "raw_id": "raw-003",
+          "open": 65,
+          "high": 80,
+          "low": 60,
+          "close": 75
+        },
+        {
+          "raw_index": 4,
+          "raw_id": "raw-004",
+          "open": 105,
+          "high": 120,
+          "low": 100,
+          "close": 115
+        }
+      ]
+    },
+    {
+      "case_id": "down_member_equal_and_touch",
+      "raw_bars": [
+        {
+          "raw_index": 0,
+          "raw_id": "raw-000",
+          "open": 182,
+          "high": 190,
+          "low": 180,
+          "close": 188
+        },
+        {
+          "raw_index": 1,
+          "raw_id": "raw-001",
+          "open": 130,
+          "high": 170,
+          "low": 100,
+          "close": 110
+        },
+        {
+          "raw_index": 2,
+          "raw_id": "raw-002",
+          "open": 130,
+          "high": 150,
+          "low": 120,
+          "close": 140
+        },
+        {
+          "raw_index": 3,
+          "raw_id": "raw-003",
+          "open": 125,
+          "high": 140,
+          "low": 120,
+          "close": 135
+        },
+        {
+          "raw_index": 4,
+          "raw_id": "raw-004",
+          "open": 85,
+          "high": 100,
+          "low": 80,
+          "close": 95
+        }
+      ]
+    },
+    {
+      "case_id": "four_local_leaves",
+      "raw_bars": [
+        {
+          "raw_index": 0,
+          "raw_id": "raw-000",
+          "open": 12,
+          "high": 20,
+          "low": 10,
+          "close": 18
+        },
+        {
+          "raw_index": 1,
+          "raw_id": "raw-001",
+          "open": 32,
+          "high": 40,
+          "low": 30,
+          "close": 38
+        },
+        {
+          "raw_index": 2,
+          "raw_id": "raw-002",
+          "open": 52,
+          "high": 60,
+          "low": 50,
+          "close": 58
+        },
+        {
+          "raw_index": 3,
+          "raw_id": "raw-003",
+          "open": 37,
+          "high": 45,
+          "low": 35,
+          "close": 43
+        },
+        {
+          "raw_index": 4,
+          "raw_id": "raw-004",
+          "open": 17,
+          "high": 25,
+          "low": 15,
+          "close": 23
+        },
+        {
+          "raw_index": 5,
+          "raw_id": "raw-005",
+          "open": 33,
+          "high": 41,
+          "low": 31,
+          "close": 39
+        }
+      ]
+    },
+    {
+      "case_id": "high_only_before_revision",
+      "raw_bars": [
+        {
+          "raw_index": 0,
+          "raw_id": "raw-000",
+          "open": 0,
+          "high": 1,
+          "low": 0,
+          "close": 1
+        },
+        {
+          "raw_index": 1,
+          "raw_id": "raw-001",
+          "open": 5,
+          "high": 8,
+          "low": 4,
+          "close": 7
+        },
+        {
+          "raw_index": 2,
+          "raw_id": "raw-002",
+          "open": 3,
+          "high": 9,
+          "low": 2,
+          "close": 8
+        },
+        {
+          "raw_index": 3,
+          "raw_id": "raw-003",
+          "open": 6,
+          "high": 7,
+          "low": 5,
+          "close": 6
+        },
+        {
+          "raw_index": 4,
+          "raw_id": "raw-004",
+          "open": 11,
+          "high": 12,
+          "low": 10,
+          "close": 11
+        }
+      ]
+    },
+    {
+      "case_id": "high_only_after_revision",
+      "raw_bars": [
+        {
+          "raw_index": 0,
+          "raw_id": "raw-000",
+          "open": 0,
+          "high": 1,
+          "low": 0,
+          "close": 1
+        },
+        {
+          "raw_index": 1,
+          "raw_id": "raw-001",
+          "open": 5,
+          "high": 8,
+          "low": 4,
+          "close": 7
+        },
+        {
+          "raw_index": 2,
+          "raw_id": "raw-002",
+          "open": 7,
+          "high": 11,
+          "low": 6,
+          "close": 10
+        },
+        {
+          "raw_index": 3,
+          "raw_id": "raw-003",
+          "open": 6,
+          "high": 7,
+          "low": 5,
+          "close": 6
+        },
+        {
+          "raw_index": 4,
+          "raw_id": "raw-004",
+          "open": 11,
+          "high": 12,
+          "low": 10,
+          "close": 11
+        }
+      ]
+    },
+    {
+      "case_id": "wait_equal_high",
+      "raw_bars": [
+        {
+          "raw_index": 0,
+          "raw_id": "raw-000",
+          "open": 0,
+          "high": 1,
+          "low": 0,
+          "close": 1
+        },
+        {
+          "raw_index": 1,
+          "raw_id": "raw-001",
+          "open": 5,
+          "high": 10,
+          "low": 3,
+          "close": 7
+        },
+        {
+          "raw_index": 2,
+          "raw_id": "raw-002",
+          "open": 6,
+          "high": 10,
+          "low": 5,
+          "close": 8
+        }
+      ]
+    },
+    {
+      "case_id": "wait_equal_low",
+      "raw_bars": [
+        {
+          "raw_index": 0,
+          "raw_id": "raw-000",
+          "open": 0,
+          "high": 1,
+          "low": 0,
+          "close": 1
+        },
+        {
+          "raw_index": 1,
+          "raw_id": "raw-001",
+          "open": 5,
+          "high": 10,
+          "low": 3,
+          "close": 7
+        },
+        {
+          "raw_index": 2,
+          "raw_id": "raw-002",
+          "open": 4,
+          "high": 8,
+          "low": 3,
+          "close": 6
+        }
+      ]
+    },
+    {
+      "case_id": "wait_equal_both",
+      "raw_bars": [
+        {
+          "raw_index": 0,
+          "raw_id": "raw-000",
+          "open": 0,
+          "high": 1,
+          "low": 0,
+          "close": 1
+        },
+        {
+          "raw_index": 1,
+          "raw_id": "raw-001",
+          "open": 5,
+          "high": 10,
+          "low": 3,
+          "close": 7
+        },
+        {
+          "raw_index": 2,
+          "raw_id": "raw-002",
+          "open": 6,
+          "high": 10,
+          "low": 3,
+          "close": 8
+        }
+      ]
+    },
+    {
+      "case_id": "wait_initial_direction",
+      "raw_bars": [
+        {
+          "raw_index": 0,
+          "raw_id": "raw-000",
+          "open": 5,
+          "high": 10,
+          "low": 3,
+          "close": 7
+        },
+        {
+          "raw_index": 1,
+          "raw_id": "raw-001",
+          "open": 6,
+          "high": 8,
+          "low": 5,
+          "close": 7
+        }
+      ]
+    }
+  ]
+}

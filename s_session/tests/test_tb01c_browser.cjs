@@ -32,7 +32,8 @@ function htmlContext(extra = {}) {
 }
 // root 真实 HTTP driver 可复用这三份实际 HTML 函数；不存在测试放行实现。
 function makeHooks() {
-  const {context} = htmlContext();
+  // 与真实页面的静态脚本绑定一致；HTTP helper 不能缺少新域正式校验模块。
+  const {context} = htmlContext({TB01C: API});
   return Object.fromEntries(['validateState', 'validateDelta', 'comparePublication'].map(k => [k, context[k]]));
 }
 // 原历史样本不足31行：测试页3迫使跨页；生产默认页31另有具名正控。
@@ -45,7 +46,7 @@ function primary(family, row) {
 }
 function order(family, r) {
   switch (family) {
-    case 'objects': return [BigInt(r.window_start), BigInt(r.window_mid), BigInt(r.window_end), r.object_id, BigInt(r.object_revision)];
+    case 'objects': return Object.hasOwn(r, 'fact_key') ? [1n, r.kind, r.fact_key, r.object_id, BigInt(r.object_revision)] : [0n, BigInt(r.window_start), BigInt(r.window_mid), BigInt(r.window_end), r.object_id, BigInt(r.object_revision)];
     case 'withdrawn_objects': return [BigInt(r.withdrawn_generation), r.object_id, BigInt(r.object_revision)];
     case 'witnesses': return [r.object_id, BigInt(r.slot), r.witness_id];
     case 'relations': return [r.subject, r.relation_type, r.object];
@@ -72,11 +73,11 @@ function projection(state, mode) {
     counts[family] = String(records.length);
   }
   counts.total = String(rows.length);
-  return {fixed_cut: fixed, catalog: copy(state.catalog), rows, counts, scope: copy(s.scope), omissions: [], order_version: 's-record-order/1'};
+  return {fixed_cut: fixed, catalog: copy(state.catalog), rows, counts, scope: copy(s.scope), omissions: [], order_version: s.profile_id === 'ohlc_integer_tb02a_v1' ? 's-record-order/2' : 's-record-order/1'};
 }
 function token(p, offset, pageSize = TEST_PAGE_SIZE) {
   const t = Object.fromEntries(['session_id', 'session_generation', 'cut_generation', 'scope', 'history_mode', 'structure_cut', 'catalog_revision', 'index_frontier', 'profile_hash', 'rule_revision'].map(k => [k, copy(p.fixed_cut[k])]));
-  Object.assign(t, {token_schema: 's-snapshot-token/1', order_version: 's-record-order/1', page_size: String(pageSize), offset: String(offset),
+  Object.assign(t, {token_schema: 's-snapshot-token/1', order_version: p.order_version, page_size: String(pageSize), offset: String(offset),
     cut_projection_digest: hash(p), issued_capture_digest: 'a'.repeat(64)});
   t.token_checksum = hash(t); return t;
 }
@@ -137,7 +138,22 @@ function fakeServer(f) {
   };
   return server;
 }
+// 实际 OHLC Q 状态仅重封装分页公共头；故意重签摘要，测完整候选语义门而非传输hash门。
+function actualTB02Server(state) {
+  return async (url, options) => {
+    const request = JSON.parse(options.body), payload = request.payload, t = payload.snapshot_token;
+    assert.equal(url, '/api/v2/snapshot');
+    const p = projection(state, t ? t.history_mode : payload.history_mode);
+    const response = page(p, t ? Number(t.offset) : 0, Number(t ? t.page_size : payload.page_size));
+    return new Response(canonical(seal(request, response, p.fixed_cut)), {status:200});
+  };
+}
 async function run() {
+  const argv = process.argv.slice(2);
+  assert(argv.length === 0 || (argv.length === 2 && argv[0] === '--tb02-states'), '用法：node test_tb01c_browser.cjs [--tb02-states <正式Q状态JSON>]');
+  const tb02Bytes = argv.length ? fs.readFileSync(path.resolve(argv[1])) : null;
+  const tb02Value = tb02Bytes ? API.parse(new TextDecoder('utf-8', {fatal:true}).decode(tb02Bytes)) : null;
+  const tb02States = tb02Value === null ? null : Array.isArray(tb02Value) ? tb02Value : [tb02Value];
   const f = fixtures(), result = {scope: 'TestOnly：真实B原件构造v2响应替身；非真实C/HTTP/GUI验收',
     test_page_size: TEST_PAGE_SIZE, production_page_size: API.DEFAULTS.pageSize,
     html_sha256: hashBytes(fs.readFileSync(htmlPath)), client_sha256: hashBytes(fs.readFileSync(clientPath)), fixture_sha256: f.fixtureHash, cases: []};
@@ -261,6 +277,21 @@ async function run() {
     const value = {'😀': '跨域', '\ue000': '私用区', nested: {'中': true, a: null}};
     assert.equal(await API.sha256(value), hash(value));
   });
+  await test('浏览器完整目录生成摘要与冻结正本逐值无漂移', async () => {
+    const declared = JSON.parse(fs.readFileSync(path.join(root, 's_session/catalog/signed-catalog.json'), 'utf8'));
+    function wire(v) {
+      if (typeof v === 'number') { assert(Number.isSafeInteger(v)); return String(v); }
+      if (Array.isArray(v)) return v.map(wire);
+      if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k,x])=>[k,wire(x)]));
+      return v;
+    }
+    const items = Object.fromEntries(declared.items.map(i => [i.id, wire(Object.fromEntries(['kind','title','domain','branches'].map(k=>[k,i[k] ?? (k==='branches'?[]:'')])))]));
+    assert.equal(API.TB02_CATALOG.catalog_revision, declared.catalog_revision);
+    assert.equal(API.TB02_CATALOG.source_sha256, declared.source_sha256);
+    assert.deepEqual(API.TB02_CATALOG.ids, Object.keys(items).sort());
+    assert.equal(API.TB02_CATALOG.ids.length, declared.item_count);
+    assert.equal(API.TB02_CATALOG.public_static_sha256, hash(items));
+  });
   await test('无效新请求使在途旧分页失效且保留已提交cut', async () => {
     const {client, server} = await setup(), before = canonical(client.committed); let release, entered;
     const gate = new Promise(resolve => { release = resolve; }), ready = new Promise(resolve => { entered = resolve; });
@@ -289,6 +320,88 @@ async function run() {
     await vm.runInContext('applyStream()', context); assert.equal(vm.runInContext('lastAppliedGen', context), '4');
     assert.equal(legacyReads, 1);
   });
+  if (tb02States !== null) {
+    result.tb02_fixture = {path:path.resolve(argv[1]), sha256:hashBytes(tb02Bytes), states:tb02States.length,
+      scope:'由正式S/Q另次运行取得的原始公开状态；本项只核生产makeHooks路径，不充当结构oracle/真实HTTP或GUI验收'};
+    await test('生产HTTP helper的makeHooks完整校验实际TB02状态', async () => {
+      assert(tb02States.length > 0); const hooks = makeHooks();
+      for (const state of tb02States) {
+        assert.equal(state.snapshot.profile_id, 'ohlc_integer_tb02a_v1');
+        hooks.validateState(state, 's-session/2');
+      }
+    });
+    await test('生产makeHooks拒绝实际TB02深层字段缺失', async () => {
+      const state = copy(tb02States.find(s => s.snapshot.objects.some(o => o.kind === 'CC-004.inclusion_step')));
+      assert(state, '真实状态未覆盖包含步骤');
+      delete state.snapshot.objects.find(o => o.kind === 'CC-004.inclusion_step').payload.incoming.high;
+      assert.throws(() => makeHooks().validateState(state, 's-session/2'));
+    });
+    await test('生产makeHooks拒绝实际TB02目录与固定cut不一致', async () => {
+      const state = copy(tb02States.find(s => s.snapshot.generation !== '0'));
+      assert(state, '真实状态未覆盖非空发布');
+      state.catalog.items.find(i => i.id === 'CC-005').evidence = {};
+      assert.throws(() => makeHooks().validateState(state, 's-session/2'));
+    });
+    await test('真实合并组序号与不连续原始锚分别校验', async () => {
+      const shape = tb02States.flatMap(s => s.snapshot.objects).find(o => o.kind === 'CC-006.local_shape' &&
+        o.input_refs.some((g, i) => g.merged_index !== [o.window_start, o.window_mid, o.window_end][i]));
+      assert(shape, '真实状态缺少包含后的不连续原始锚');
+      API.validateTB02ShapeRefs(shape);
+      shape.input_refs.forEach((g, i) => assert.equal(g.raw_refs[0].source_coord, [shape.window_start, shape.window_mid, shape.window_end][i]));
+    });
+    await test('形态原始锚与合并组序号损坏分别拒绝', async () => {
+      const shape = tb02States.flatMap(s => s.snapshot.objects).find(o => o.kind === 'CC-006.local_shape');
+      assert(shape, '真实状态缺少形态');
+      const anchor = copy(shape), ordinal = copy(shape);
+      anchor.window_end = String(BigInt(anchor.window_end) + 1n);
+      ordinal.input_refs[2].merged_index = String(BigInt(ordinal.input_refs[2].merged_index) + 1n);
+      assert.throws(() => API.validateTB02ShapeRefs(anchor));
+      assert.throws(() => API.validateTB02ShapeRefs(ordinal));
+    });
+    const nonempty = tb02States.find(s => s.snapshot.generation === '5');
+    async function collectActual(state) {
+      const client = new API.Client({fetch:actualTB02Server(state), hooks:makeHooks()});
+      // 该自建S以session_generation=1初始化；纯state投影未附Q discovery字段。
+      await client.load({...state, cut:{...state.cut, session_generation:'1'}}); return client;
+    }
+    await test('正式Client.load接受真实OHLC完整候选与撤回历史', async () => {
+      for (const state of tb02States.filter(s => ['5','6'].includes(s.snapshot.generation))) {
+        const client = await collectActual(state); assert.equal(client.committed.cursor.after_generation, state.snapshot.generation);
+      }
+    });
+    for (const cid of ['CC-005','CC-008']) await test('正式Client.load拒绝完整目录缺项'+cid, async () => {
+      const state = copy(nonempty); state.catalog.items = state.catalog.items.filter(i => i.id !== cid);
+      await assert.rejects(collectActual(state), /目录数量/);
+    });
+    await test('正式Client.load拒绝CC006不存在的原始receipt', async () => {
+      const state = copy(nonempty); state.snapshot.objects.find(o => o.kind === 'CC-006.local_shape').input_refs[0].raw_refs[0].receipt_id = 'rcpt-not-present';
+      await assert.rejects(collectActual(state), /八键来源/);
+    });
+    await test('正式Client.load拒绝将边界依赖伪作成员', async () => {
+      const state = copy(nonempty), shape = state.snapshot.objects.find(o => o.kind === 'CC-006.local_shape');
+      const group = shape.input_refs.find(g => g.dependency_refs.some(r => BigInt(r.source_coord) > BigInt(g.raw_refs[0].source_coord)));
+      assert(group); const i = group.dependency_refs.findIndex(r => BigInt(r.source_coord) > BigInt(group.raw_refs[0].source_coord));
+      group.raw_refs.push(group.dependency_refs.splice(i,1)[0]); group.raw_refs.sort((a,b)=>Number(BigInt(a.source_coord)-BigInt(b.source_coord)));
+      await assert.rejects(collectActual(state), /真实成员/);
+    });
+    await test('正式Client.load拒绝冻结目录重复身份', async () => {
+      const state = copy(nonempty); state.catalog.items[1] = copy(state.catalog.items[0]);
+      await assert.rejects(collectActual(state), /冻结目录身份/);
+    });
+    await test('正式Client.load拒绝非本叶目录静态内容篡改', async () => {
+      const state = copy(nonempty); state.catalog.items.find(i=>i.id==='CC-008').title += '篡改';
+      await assert.rejects(collectActual(state), /目录静态列摘要/);
+    });
+    await test('正式Client.load核CC006真实内容ID而非只核typed', async () => {
+      const state = copy(nonempty); state.snapshot.objects.find(o=>o.kind==='CC-006.local_shape').comparisons[0].prev='999';
+      await assert.rejects(collectActual(state), /对象内容身份 SHA/);
+    });
+    await test('正式Client.load拒绝整体平移组序号仍内部连续', async () => {
+      const state = copy(nonempty), shape=state.snapshot.objects.find(o=>o.kind==='CC-006.local_shape');
+      shape.input_refs.forEach(g=>{g.merged_index=String(BigInt(g.merged_index)+1n);});
+      await assert.rejects(collectActual(state), /序号\/真实成员/);
+    });
+  }
   result.failed = result.cases.filter(c => !c.passed).map(c => c.name);
   console.log(JSON.stringify(result, null, 2)); if (result.failed.length) process.exitCode = 1;
 }

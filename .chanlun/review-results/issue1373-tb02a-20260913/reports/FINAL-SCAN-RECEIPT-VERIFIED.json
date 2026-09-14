@@ -1,0 +1,25 @@
+{
+  "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+  "verified_indexed_files": 70,
+  "index_keys": [
+    "frozen_at_utc",
+    "head",
+    "local_files",
+    "external_previous_evidence",
+    "scope",
+    "large_raw_policy"
+  ],
+  "report_sha256": "9e9a8c83418f4862a30dfdc947b08131dba6cda594128366ae96d896c5d8e2be",
+  "validation": {
+    "new_raw": 34783,
+    "gate_keys": 34708,
+    "outside_baseline": 26521,
+    "vs4408_added": 0,
+    "vs4408_removed": 0,
+    "vs652_added_results": 122,
+    "unclassified_added": 0,
+    "gate_log_all_keys_match": true,
+    "checkout_tree_matches": true
+  },
+  "gate_result": "FAILURE; no automatic exception"
+}

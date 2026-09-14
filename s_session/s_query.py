@@ -194,11 +194,17 @@ def validate_envelope(envelope, audit, invalid):
     return envelope["payload"]
 
 
+def _order_version(proof):
+    return "s-record-order/2" if proof["meta"].get("profile_id") == "ohlc_integer_tb02a_v1" else ORDER_VERSION
+
+
 def _order(family, record):
     numeric = lambda key: int(record[key])
     text = lambda key: record[key].encode("utf-8")
     if family == "objects":
-        return numeric("window_start"), numeric("window_mid"), numeric("window_end"), text("object_id"), numeric("object_revision")
+        if "fact_key" in record:
+            return 1, text("kind"), text("fact_key"), text("object_id"), numeric("object_revision")
+        return 0, numeric("window_start"), numeric("window_mid"), numeric("window_end"), text("object_id"), numeric("object_revision")
     if family == "withdrawn_objects":
         return numeric("withdrawn_generation"), text("object_id"), numeric("object_revision")
     if family == "witnesses":
@@ -255,7 +261,7 @@ def project_fixed_cut(proof, generation, mode, h):
                  rule_revision=proof["meta"]["rule_revision"], history_mode=mode,
                  as_of_generation=snapshot["as_of_generation"])
     projection = dict(fixed_cut=fixed, catalog=state["catalog"], rows=rows, counts=counts,
-                      scope=snapshot["scope"], omissions=[], order_version=ORDER_VERSION)
+                      scope=snapshot["scope"], omissions=[], order_version=_order_version(proof))
     return projection, hashlib.sha256(audit.canonical(projection)).hexdigest()
 
 
@@ -263,7 +269,7 @@ def _token(projection, digest, capture_digest, page_size, offset, audit):
     fixed = projection["fixed_cut"]
     result = {key: fixed[key] for key in ("session_id", "session_generation", "cut_generation", "scope", "history_mode",
               "structure_cut", "catalog_revision", "index_frontier", "profile_hash", "rule_revision")}
-    result.update(token_schema=TOKEN_SCHEMA, order_version=ORDER_VERSION, page_size=str(page_size), offset=str(offset),
+    result.update(token_schema=TOKEN_SCHEMA, order_version=projection["order_version"], page_size=str(page_size), offset=str(offset),
                   cut_projection_digest=digest, issued_capture_digest=capture_digest)
     result["token_checksum"] = hashlib.sha256(audit.canonical(result)).hexdigest()
     return result
@@ -297,7 +303,7 @@ def snapshot_page(proof, request, resources, h):
         token = None
         if request["session_id"] != proof["meta"]["session_id"] or request["session_generation"] != proof.get("protocol", {}).get("session_generation"):
             raise invalid("请求 session/化身不符；必须显式重新建立快照")
-        if request["scope"] != h["_scope"](proof["meta"]) or request["order_version"] != ORDER_VERSION:
+        if request["scope"] != h["_scope"](proof["meta"]) or request["order_version"] != _order_version(proof):
             raise invalid("请求 scope/order_version 不符")
     if mode not in ("AsKnown", "RecomputedWithRevision"):
         raise invalid("history_mode 不符")
@@ -325,7 +331,7 @@ def cursor_at(proof, generation, h):
             "catalog_revision": proof["meta"]["catalog_revision"], "scope": h["_scope"](proof["meta"]),
             "after_generation": str(generation), "base_cut": f"cut-{generation}",
             "index_frontier": publication["index_frontier"] if publication else "",
-            "last_seq": publication["input_frontier"] if publication else "-1", "order_version": ORDER_VERSION}
+            "last_seq": publication["input_frontier"] if publication else "-1", "order_version": _order_version(proof)}
 
 
 class ClientLeases:

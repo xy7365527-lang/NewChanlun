@@ -15,4 +15,5 @@
 
 2026-09-13 C 合入后交付工位：`/Users/silencehan/Projects/NewChanlun-1372-delivery-tail`，分支 `codex/1372-delivery-tail`，起点 `21b7898a19baa4d17c5885d122ea57ed882e4f73`；#1372 专属在跑工位，只整理已批准 PR #1451 的实际主线 CI、工位处置与交付报告，不修改产品。原三个工位在核清在制品并保全后处置；本行不预称关票。
 
+2026-09-13 TB-02-A 实施工位：`/Users/silencehan/Projects/NewChanlun-1373-codex`，分支 `codex/1373-codex`，起点 `65298686cf3e7c9e94e0b9ceeb83aebad2b5530b`。#1359 已关闭，#1373 原生未关闭前置为空；按已批准 SPEC #1340 实施完整 OHLC 的包含、来源映射与局部分型具名域。Codex 主控及原生子代理分工为 S/parser、Q/浏览器、独立手算检查器和独立 Rust 评审。工位在跑，证据保存在票号对应仓外工作目录；main 合入仍须绑定具体候选另经批准。本片不关闭初始方向/同价身份一般域或 #1323 总图。
 2026-09-13 TB-03-A 工位：`/Users/silencehan/Projects/NewChanlun-1374-codex`，分支 `codex/1374-codex`，起点 `65298686cf3e7c9e94e0b9ceeb83aebad2b5530b`；#1374 原生唯一前置 #1359 已于 13:23:57 UTC 关闭，实时核得 open blockers 为 0。仅用 Codex 原生子代理实施本叶的非空持久重、固定 Q、Voice 开局引用、已知经济事实和同源观察；未知本金/阶段与其他局部政策继续保留。S、E、各 B 的独立进程和持久域按已签 C09 实施，核心经营 reducer 使用 Rust。#1373 / PR #1453 是独立待批准候选，本工位从已交付 main 起步，不消费其未合入结果。main 合入、真实外效和父图关闭仍守原门；此前冻结证据及主工作区未提交修改保持。

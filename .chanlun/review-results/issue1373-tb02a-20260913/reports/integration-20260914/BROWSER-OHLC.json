@@ -1,0 +1,205 @@
+{
+  "scope": "TestOnly：真实B原件构造v2响应替身；非真实C/HTTP/GUI验收",
+  "test_page_size": 3,
+  "production_page_size": 31,
+  "html_sha256": "fba6ae5591bedf0339c03992ad21444a6acc592687ccebcd226bfacdc4b52ba6",
+  "client_sha256": "e0907290a2f89570454a06f309ea1c917e24ca2d308b41070c1615c70ed81793",
+  "fixture_sha256": "1b0020a69a897da000056666907ef606a6d0b2ed35bac97ec65d625131e25745",
+  "cases": [
+    {
+      "name": "完整多页只原子安装一次，记录与精确cursor同提交",
+      "passed": true
+    },
+    {
+      "name": "正式默认页31及Watch4资源保持，完整快照可安装",
+      "passed": true
+    },
+    {
+      "name": "默认fetch以全局接收者完成分页与Watch校验提交",
+      "passed": true
+    },
+    {
+      "name": "显式注入fetch保持原函数与调用接口",
+      "passed": true
+    },
+    {
+      "name": "跨页记录缺项保持旧cut并可同页重试",
+      "passed": true
+    },
+    {
+      "name": "跨页重复记录保持旧cut并可同页重试",
+      "passed": true
+    },
+    {
+      "name": "跨页顺序倒退保持旧cut并可同页重试",
+      "passed": true
+    },
+    {
+      "name": "完整投影摘要不符保持旧cut并可同页重试",
+      "passed": true
+    },
+    {
+      "name": "固定切面身份漂移保持旧cut并可同页重试",
+      "passed": true
+    },
+    {
+      "name": "完整六族计数漏项保持旧cut并可同页重试",
+      "passed": true
+    },
+    {
+      "name": "续页token不允许跳过offset，即使checksum重算",
+      "passed": true
+    },
+    {
+      "name": "公共头因果身份错误不提交",
+      "passed": true
+    },
+    {
+      "name": "payload摘要错误不提交",
+      "passed": true
+    },
+    {
+      "name": "重复JSON键不提交",
+      "passed": true
+    },
+    {
+      "name": "精度丢失JSON数字不提交",
+      "passed": true
+    },
+    {
+      "name": "孤立Unicode代理项不提交",
+      "passed": true
+    },
+    {
+      "name": "响应截断不提交",
+      "passed": true
+    },
+    {
+      "name": "额外第二JSON帧不提交",
+      "passed": true
+    },
+    {
+      "name": "健康更正批次逐字段对拍后提交第四代",
+      "passed": true
+    },
+    {
+      "name": "替代集合漏项保持旧cut且健康重试成功",
+      "passed": true
+    },
+    {
+      "name": "撤回原因被改写保持旧cut且健康重试成功",
+      "passed": true
+    },
+    {
+      "name": "批次乱序保持旧cut且健康重试成功",
+      "passed": true
+    },
+    {
+      "name": "空批次伪装到达当前head保持旧cut且健康重试成功",
+      "passed": true
+    },
+    {
+      "name": "cursor前沿不符保持旧cut且健康重试成功",
+      "passed": true
+    },
+    {
+      "name": "batch额外未声明字段保持旧cut且健康重试成功",
+      "passed": true
+    },
+    {
+      "name": "Gap以新身份原token完整分页后重建",
+      "passed": true
+    },
+    {
+      "name": "Gap错目标页保持原身份并允许健康重试",
+      "passed": true
+    },
+    {
+      "name": "迟到分页不能覆盖较新完整提交",
+      "passed": true
+    },
+    {
+      "name": "UTF8规范键序摘要与独立实现一致",
+      "passed": true
+    },
+    {
+      "name": "浏览器完整目录生成摘要与冻结正本逐值无漂移",
+      "passed": true
+    },
+    {
+      "name": "无效新请求使在途旧分页失效且保留已提交cut",
+      "passed": true
+    },
+    {
+      "name": "G0来源按显式协议校验，v1空profile与v2初始化profile互不兜底",
+      "passed": true
+    },
+    {
+      "name": "正式HTML发现v2后从分页安装，无legacy状态混入",
+      "passed": true
+    },
+    {
+      "name": "生产HTTP helper的makeHooks完整校验实际TB02状态",
+      "passed": true
+    },
+    {
+      "name": "生产makeHooks拒绝实际TB02深层字段缺失",
+      "passed": true
+    },
+    {
+      "name": "生产makeHooks拒绝实际TB02目录与固定cut不一致",
+      "passed": true
+    },
+    {
+      "name": "真实合并组序号与不连续原始锚分别校验",
+      "passed": true
+    },
+    {
+      "name": "形态原始锚与合并组序号损坏分别拒绝",
+      "passed": true
+    },
+    {
+      "name": "正式Client.load接受真实OHLC完整候选与撤回历史",
+      "passed": true
+    },
+    {
+      "name": "正式Client.load拒绝完整目录缺项CC-005",
+      "passed": true
+    },
+    {
+      "name": "正式Client.load拒绝完整目录缺项CC-008",
+      "passed": true
+    },
+    {
+      "name": "正式Client.load拒绝CC006不存在的原始receipt",
+      "passed": true
+    },
+    {
+      "name": "正式Client.load拒绝将边界依赖伪作成员",
+      "passed": true
+    },
+    {
+      "name": "正式Client.load拒绝冻结目录重复身份",
+      "passed": true
+    },
+    {
+      "name": "正式Client.load拒绝非本叶目录静态内容篡改",
+      "passed": true
+    },
+    {
+      "name": "正式Client.load核CC006真实内容ID而非只核typed",
+      "passed": true
+    },
+    {
+      "name": "正式Client.load拒绝整体平移组序号仍内部连续",
+      "passed": true
+    }
+  ],
+  "tb02_fixture": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/OHLC-STATES.json",
+    "sha256": "6e5f2f2a3fa76b202bd8269eca152aa7752d8c97c1cb590719d0ef00d4db510c",
+    "states": 6,
+    "scope": "由正式S/Q另次运行取得的原始公开状态；本项只核生产makeHooks路径，不充当结构oracle/真实HTTP或GUI验收"
+  },
+  "failed": []
+}

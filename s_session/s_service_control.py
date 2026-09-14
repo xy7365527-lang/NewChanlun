@@ -340,26 +340,30 @@ class Controller:
 
     def runtime_environment(self, deadline):
         python = self.config["python"]
-        # 同一 Python 的 sysconfig 明确区分普通共享库与 macOS framework 布局。
-        # framework 的 LDLIBRARY 是相对框架前缀的路径，不能再拼到版本 lib/ 下。
+        # #1373/#1374：共享同一显式 Python 的布局声明，探测结果与下方四字段契约一致。
         probe = (
-            "import json,sysconfig; from pathlib import Path; "
-            "d=sysconfig.get_config_var('LIBDIR'); n=sysconfig.get_config_var('LDLIBRARY'); "
-            "f=sysconfig.get_config_var('PYTHONFRAMEWORK'); p=sysconfig.get_config_var('PYTHONFRAMEWORKPREFIX'); "
-            "candidates=([Path(p)/n] if f and p and n else [])+([Path(d)/n] if d and n else []); "
-            "library=next((candidate for candidate in candidates if candidate.is_file()),None); "
-            "print(json.dumps([str(library.parent),library.name] if library else [d,n]))"
+            "import json,sysconfig; print(json.dumps([sysconfig.get_config_var(k) "
+            "for k in ('LIBDIR','LDLIBRARY','PYTHONFRAMEWORK','PYTHONFRAMEWORKPREFIX')]))"
         )
         result = subprocess.run([python, "-c", probe],
                                 capture_output=True, check=True, timeout=remaining(deadline))
-        library_dir, library_name = json.loads(result.stdout)
-        if (type(library_dir) is not str or type(library_name) is not str
-                or not (Path(library_dir) / library_name).is_file()):
+        library_dir, library_name, framework, framework_prefix = json.loads(result.stdout)
+        # #1373：同一显式 Python 声明的两种安装布局，各自核真实文件。
+        # Framework 的 LDLIBRARY 相对于 PYTHONFRAMEWORKPREFIX，而不是 LIBDIR。
+        root = framework_prefix if framework else library_dir
+        if (type(root) is not str or not Path(root).is_absolute()
+                or type(library_name) is not str or not library_name
+                or Path(library_name).is_absolute()
+                or not (Path(root) / library_name).is_file()):
             raise ValueError("显式 Python 不具备可验证的共享运行库")
+        library_dir = str((Path(root) / library_name).resolve().parent)
         environment = dict(os.environ)
         environment["PYO3_PYTHON"] = python
         for key in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
             environment[key] = library_dir + (os.pathsep + environment[key] if environment.get(key) else "")
+        if framework:
+            key = "DYLD_FRAMEWORK_PATH"
+            environment[key] = root + (os.pathsep + environment[key] if environment.get(key) else "")
         return environment
 
     def ready_request(self, writer_epoch):

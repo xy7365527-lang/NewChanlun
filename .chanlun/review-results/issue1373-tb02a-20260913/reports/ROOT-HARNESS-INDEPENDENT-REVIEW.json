@@ -1,0 +1,161 @@
+{
+  "schema": "tb02a-root-harness-independent-review/1",
+  "ticket": "#1373",
+  "reviewer": "Codex native subagent /root/tb02a_driver_review",
+  "recorded_at_utc": "2026-09-13T15:04:25.585364+00:00",
+  "record_type": "本次确认先前独立评审结论与当前源码快照；不是重新构造历史工具输出",
+  "review_status": "APPROVE",
+  "blocking_findings": [],
+  "nonblocking_findings": [],
+  "scope": [
+    "tb02a_runtime.py 的采集、完整帧截止时间、原身份最终收据、独立清理与失败状态",
+    "tb02a_prepare.py 的冻结原始账簿包装、修订身份、语义时钟与20条双跑物理隔离",
+    "s_service_control.py 仅 runtime_environment 的 regular/Framework 显式共享库布局修复",
+    "test_tb02a_runtime.py 既有6项采集/清理锁及3项RuntimeLibraryTests",
+    ".github/workflows/ci.yml 本次新增 unittest discover TB02A 步骤"
+  ],
+  "current_files": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1373-codex/s_session/tests/tb02a_runtime.py",
+      "sha256": "76cc9996531071eb28edb23471a712d2f0a4b169cc4472489563244e10fb1932",
+      "bytes": 16396,
+      "previously_reviewed_snapshot_unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1373-codex/s_session/tests/tb02a_prepare.py",
+      "sha256": "c8c90fb8986fc8ae2a4b661179ad86980c071461b47f38b443e0795d7334e45a",
+      "bytes": 8914,
+      "previously_reviewed_snapshot_unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1373-codex/s_session/s_service_control.py",
+      "sha256": "1b2201ad01157037ee61de17a60d8d065282317a9465e25adc20c56093046e51",
+      "bytes": 29976,
+      "previously_reviewed_snapshot_unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1373-codex/s_session/tests/test_tb02a_runtime.py",
+      "sha256": "1b6e7a9dec2d404d9296a8f8242b5add4d71a4b411ca14f0ac367f3857058bcf",
+      "bytes": 6521,
+      "previously_reviewed_snapshot_unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1373-codex/.github/workflows/ci.yml",
+      "sha256": "f8b4a3795968c73b492e9e3b8a2cf9daac8c14ce057ab8da7f86415c1c025a71",
+      "bytes": 15509,
+      "previously_reviewed_snapshot_unchanged": false
+    }
+  ],
+  "prior_findings_and_verified_fixes": [
+    {
+      "id": "HARNESS-H1",
+      "prior_severity": "HIGH",
+      "issue": "清理失败仍可能保留成功采集状态或CLI返回0。",
+      "verified_fix": "helper/Q/S/eventlog 的任一清理失败汇总为 FAIL，写 RESULT 后 CLI 返回非0。",
+      "status": "FIXED_AND_PREVIOUSLY_REVIEWED; CURRENT_SHA_UNCHANGED"
+    },
+    {
+      "id": "HARNESS-H2",
+      "prior_severity": "HIGH",
+      "issue": "helper清理异常或Q停止失败可能跳过S停止。",
+      "verified_fix": "helper各动作、Q、S及事件日志逐项独立尝试，错误完整保留；Q失败仍执行S停止。",
+      "status": "FIXED_AND_PREVIOUSLY_REVIEWED; CURRENT_SHA_UNCHANGED"
+    },
+    {
+      "id": "HARNESS-H3",
+      "prior_severity": "HIGH",
+      "issue": "仅首字节受selector等待约束，后续阻塞readline可超时挂起。",
+      "verified_fix": "非阻塞字节管道；同一绝对deadline覆盖请求写入与完整JSONL响应，每轮显式检查时间，并设置1MiB响应上限。",
+      "status": "FIXED_AND_PREVIOUSLY_REVIEWED; CURRENT_SHA_UNCHANGED"
+    },
+    {
+      "id": "PREPARE-M1",
+      "prior_severity": "MEDIUM",
+      "issue": "消费的ledger内容与之后重读的hash可能来自不同文件时点。",
+      "verified_fix": "同一ledger/oracle原始bytes同时用于消费与hash，收尾核原件未变；RUN-PLAN明确声明timestamp、volume和instrument包装。",
+      "status": "FIXED_AND_PREVIOUSLY_REVIEWED; CURRENT_SHA_UNCHANGED"
+    }
+  ],
+  "additional_verified_properties": [
+    "冻结ledger全部bar字段保留于raw_text；OHLC按原件传递，未写包含/分型expected或实现市场oracle。",
+    "修订保持原始身份与source_coord，新的输入message使用独立序号；最终按全部原始消息身份重新取已提交收据。",
+    "9个原始case及revision_recovery各a/b，20组目录/DB/socket/port分别隔离，a/b语义时钟一致。",
+    "after_batch恢复点及writer_epoch变化具名保留，运行失败不降级成成功。",
+    "runtime_environment按显式Python声明选择Framework prefix或regular LIBDIR，分别要求真实共享库存在；Framework失败不回退到另一布局放行。",
+    "运行时环境只由已核共享库父目录扩展LD_LIBRARY_PATH/DYLD_LIBRARY_PATH，Framework同时使用声明的DYLD_FRAMEWORK_PATH。"
+  ],
+  "ci_tail_review": {
+    "status": "APPROVE",
+    "changed_step": "TB-02-A capture deadline and cleanup tests",
+    "command": "python -B -m unittest discover -s s_session/tests -p 'test_tb02a_*.py' -v",
+    "placement": "现有s-observer Ubuntu job，Python3.11/Node22配置之后，与TB01C及browser协议测试并列。",
+    "current_matching_test_files": [
+      "s_session/tests/test_tb02a_runtime.py"
+    ],
+    "static_test_count": 9,
+    "test_names": [
+      "test_complete_fragmented_response",
+      "test_eof_before_newline_is_failure",
+      "test_failed_helper_exit_cannot_be_capture_success",
+      "test_framework_uses_its_declared_prefix",
+      "test_missing_declared_framework_cannot_fall_back_to_libdir",
+      "test_partial_frame_cannot_outlive_deadline",
+      "test_q_cleanup_failure_still_stops_s_and_writes_failure",
+      "test_regular_shared_library_layout",
+      "test_response_size_is_bounded"
+    ],
+    "finding": "命令匹配现有9项锁，正常传播unittest失败退出码；未添加continue-on-error或输出过滤。远端CI本次未执行。"
+  },
+  "reused_execution_evidence": {
+    "artifact_files": [
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/HARNESS-TESTS.json",
+        "sha256": "4c4d35f608e4a7b1bd1344363e4e76d7a059857d50789d7a3aa538c40df40b87",
+        "bytes": 770
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/HARNESS-TESTS.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/HARNESS-TESTS.stderr",
+        "sha256": "26424379d310f2b0791c07ee33b895f2d611988350894bd2658c9ba6a50fafa4",
+        "bytes": 882
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/SERVICE-CONTROL-TESTS.json",
+        "sha256": "d46a8af713e03d208958bc1625605a704ec1e04c862c4e3a54a4a738c4077b57",
+        "bytes": 321
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/SERVICE-CONTROL-TESTS.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/SERVICE-CONTROL-TESTS.stderr",
+        "sha256": "510231ee514e20b7686a1ce40c64ce619cd27f18725cb4033b2f0fbc0b768f25",
+        "bytes": 4067
+      },
+      {
+        "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/HARNESS-NINE-ORIGINAL-TOOL-RECEIPT.json",
+        "sha256": "e52a25aad1be42a403522689a219ba7b4fe14584f58f9abfd28adafb78ea39b1",
+        "bytes": 5234
+      }
+    ],
+    "six_test_saved_receipt": "HARNESS-TESTS.json/.stderr为加入三项库路径测试前的6项，exit0，Ran 6 tests in 0.335s；其test文件sha ce86d827b547cb454c3155ef5253b9e6082a85fb4b173ba6bf50e8b3cdf9bfad，不冒充当前9项原始输出。",
+    "nine_test_prior_tool_result": "已读取主控从本会话原日志无损提取的 HARNESS-NINE-ORIGINAL-TOOL-RECEIPT.json；逐项核9个测试名称与当前AST一致，嵌入的原custom_tool_call_output/result/stdout_stderr相符，exit0，Ran 9 tests in 0.329s，OK。本次未重跑或重构输出；原事件定位和完整内容随该收据保留。",
+    "controller_saved_receipt": "SERVICE-CONTROL-TESTS.json与.stderr当前原件均已读取；exit0，Ran 24 tests in 0.223s，source_sha与当前s_service_control.py完全一致。"
+  },
+  "prior_actual_acceptance": {
+    "runtime_v3_oracle_result": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/ORACLE-RESULT.json",
+    "execution_receipt": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/runtime-v3/ORACLE-EXECUTION.json",
+    "scope": "本工位此前实际运行冻结checker，20条/10对通过；本次未重复运行，亦不将该结果替代本次源码独立评审。"
+  },
+  "limitations": [
+    "仅上述文件及明确diff范围；不代表全仓或一般市场域证明。",
+    "本次未运行测试、服务、20条轨迹或远端CI。",
+    "本次只写仓外本收据，未修改任何受审源码、fixture、业务core或已有工具输出。"
+  ]
+}

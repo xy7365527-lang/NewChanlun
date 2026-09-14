@@ -1,0 +1,17 @@
+{
+  "checkout": "22f7e0101503c4a1ce4e958400ac53271c84ca92",
+  "checkout_tree": "c906d23276d6263a67363b146b8f70958a77b81b",
+  "parents": [
+    "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+    "e7fe54e8cd041e18ea8e473a41a5621cbe90b693"
+  ],
+  "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+  "head_tree": "c906d23276d6263a67363b146b8f70958a77b81b",
+  "tree_equals_head": true,
+  "parents_exact": true,
+  "log_lines": [
+    204,
+    206,
+    207
+  ]
+}

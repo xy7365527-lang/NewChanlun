@@ -1,0 +1,14 @@
+{
+  "log_keys": 26521,
+  "expected_keys": 26521,
+  "exact_ordered_list_equal": true,
+  "raw_count": 34783,
+  "fixed_since_baseline": 14,
+  "scanner": "success",
+  "artifact": "success",
+  "gate": "failure",
+  "started_at": "2026-09-13T15:30:46Z",
+  "completed_at": "2026-09-13T15:30:53Z",
+  "gate_seconds": 7.0,
+  "summary_upload_limit_error": "1024k limit, actual 3122k; occurs after gate exit1; fixing display alone does not make gate green"
+}

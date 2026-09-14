@@ -273,6 +273,8 @@ jobs:
           node-version: '22'
       - name: Python observer and lifecycle tests
         run: python -B -m unittest discover -s s_session/tests -p 'test_tb01c_*.py' -v
+      - name: TB-02-A capture deadline and cleanup tests
+        run: python -B -m unittest discover -s s_session/tests -p 'test_tb02a_*.py' -v
       - name: Browser protocol tests
         run: node s_session/tests/test_tb01c_browser.cjs
 

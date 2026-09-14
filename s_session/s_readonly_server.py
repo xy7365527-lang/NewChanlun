@@ -49,6 +49,10 @@ def _query_integrity():
     return _query_module("s_query_integrity")
 
 
+def _tb02_contract():
+    return _query_integrity().tb02
+
+
 def open_readonly(db_path, *, check_same_thread=True):
     """PY-H01：URI 编码 + query_only。"""
     uri = Path(db_path).resolve().as_uri() + "?mode=ro"
@@ -154,8 +158,11 @@ def _legacy_payload_projection(value):
 def _observation_id(ob):
     import hashlib
     content = {k: ob[k] for k in ("kind", "window_start", "window_mid", "window_end", "reason")}
+    if ob["kind"] == "awaiting_scope":
+        content["detail"] = ob["detail"]
     b = json.dumps(content, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
-    return "obs-" + hashlib.sha256(b).hexdigest()[:16]
+    digest = hashlib.sha256(b).hexdigest()
+    return "obs-" + (digest if ob["kind"] == "awaiting_scope" else digest[:16])
 
 
 def _verify_batch_profile(batch, binding):
@@ -240,16 +247,21 @@ def _project_input_refs(refs):
             raise ValueError("input_refs 成员必须含 raw_refs 数组")
         g = dict(g)
         g["merged_index"] = _num_to_str(g.get("merged_index"))
-        projected_refs = []
-        for item in g["raw_refs"]:
-            if not isinstance(item, dict):
-                raise ValueError("raw_refs 成员必须是对象")
-            item = dict(item)
-            item["seq"] = _num_to_str(item.get("seq"))
-            if "revision" in item:
-                item["revision"] = _num_to_str(item.get("revision"))
-            projected_refs.append(item)
-        g["raw_refs"] = projected_refs
+        for name in ("raw_refs", "dependency_refs"):
+            if name == "dependency_refs" and name not in g:
+                continue  # 旧 tick 形状；OHLC 必需性由明确 profile 的新域门核。
+            if not isinstance(g[name], list):
+                raise ValueError(name + " 必须是数组")
+            projected_refs = []
+            for item in g[name]:
+                if not isinstance(item, dict):
+                    raise ValueError(name + " 成员必须是对象")
+                item = dict(item)
+                item["seq"] = _num_to_str(item.get("seq"))
+                if "revision" in item:
+                    item["revision"] = _num_to_str(item.get("revision"))
+                projected_refs.append(item)
+            g[name] = projected_refs
         out.append(g)
     return out
 
@@ -262,6 +274,10 @@ def _project_raw_bars(bars):
         if not isinstance(b, dict):
             raise ValueError("raw_bars 成员必须是对象")
         b = dict(b)
+        if b.get("schema_revision") == _tb02_contract().RAW_SCHEMA:
+            if b.get("price") != b.get("close"):
+                raise ValueError("OHLC 原始见证 close 索引不一致")
+            b.pop("price")
         b["seq"] = _num_to_str(b.get("seq"))
         if "revision" in b:
             b["revision"] = _num_to_str(b.get("revision"))
@@ -561,6 +577,9 @@ def _validate_delta_shape(delta):
         p = "delta.upserts[%d]" % i
         if not isinstance(u, dict):
             raise ValueError("%s 必须是对象" % p)
+        if u.get("kind") in _tb02_contract().KINDS:
+            _tb02_contract().validate_fact(u)
+            continue
         for k in ("object_id", "kind", "batch_id", "branch", "dir_ab", "dir_bc",
                   "first_known_cut"):
             _req_str(u, k, p)
@@ -581,6 +600,8 @@ def _validate_delta_shape(delta):
         else:
             if wg is not None or u.get("withdrawal_reason") is not None or u.get("superseded_by") is not None:
                 raise ValueError("%s.lifecycle=active 却带撤回代际/理由/替代" % p)
+        if delta.get("catalog_evidence", {}).get("profile_id") == _tb02_contract().PROFILE:
+            _tb02_contract().validate_shape_refs(u)
         if not isinstance(u.get("comparisons"), list):
             raise ValueError("%s.comparisons 必须是数组" % p)
         if not isinstance(u.get("input_refs"), list):
@@ -612,8 +633,14 @@ def _validate_delta_shape(delta):
             raise ValueError("%s 必须是对象" % p)
         _req_str(w, "object_id", p)
         _req_str(w, "reason", p)
-        for k in ("window_start", "window_mid", "window_end"):
-            _canonical_int_field(w, k, p)
+        if "fact_key" in w:
+            _tb02_contract().keys(w, ("object_id", "fact_key", "reason", "superseded_by"), p)
+            _req_str(w, "fact_key", p)
+            if w["reason"] not in ("fact_removed", "superseded_by_revision"):
+                raise ValueError("typed withdrawal reason 不符")
+        else:
+            for k in ("window_start", "window_mid", "window_end"):
+                _canonical_int_field(w, k, p)
         _req_str_or_none(w, "superseded_by", p)
 
     for i, r in enumerate(delta.get("replaces", [])):
@@ -668,8 +695,15 @@ def _validate_delta_shape(delta):
         if not isinstance(rh, dict):
             raise ValueError("%s 必须是对象" % p)
         for k in ("identity_key", "input_revision", "payload_hash", "receipt_id",
-                  "event_id", "source_coord", "price"):
+                  "event_id", "source_coord"):
             _req_str(rh, k, p)
+        if "schema_revision" in rh:
+            if rh["schema_revision"] != _tb02_contract().RAW_SCHEMA or "price" in rh:
+                raise ValueError("OHLC raw wire schema/price 不符")
+            for k in ("open", "high", "low", "close"):
+                _tb02_contract().integer(rh.get(k), p + "." + k)
+        else:
+            _req_str(rh, "price", p)
         _canonical_int_field(rh, "revision", p)
         _canonical_int_field(rh, "seq", p)
         _req_str_or_none(rh, "supersedes_revision", p)

@@ -1,0 +1,137 @@
+{
+  "reviewed_at": "2026-09-13T15:24:05.655897+00:00",
+  "reviewer": "Codex 原生独立只读子代理 tb02a_rust_ci_review",
+  "issue": 1373,
+  "pr": 1453,
+  "baseline_head": "4408b0c233f45e33f53cf152112bbcdc3604344f",
+  "scope": "Rust CI 中 BSP 单源绑定扫描器对 CC-007 包含组查询的三处误报修复；仅审阅工作树新增 6 行，不批准 main 合入、不宣称整个 PR 或远端新 CI 通过。",
+  "verdict": "APPROVE",
+  "conclusion": "PASS",
+  "findings": [],
+  "concept_layer": {
+    "result": "通过",
+    "definition_backtrace": [
+      "bsp.rs:259-279 的四个单源 API 操作 BspPoint/BspBits/Side；三处命中操作 InclusionGroupFact，不同对象与判断。",
+      "InclusionFacts.groups 类型由 inclusion.rs:563-590 明确为包含组事实；bar.source_index 是组首原始锚。",
+      "fenxing.md:94-126、缠论知识库.md:97-112 规定分型建立在包含后相邻三组。CC-007 在已识别 TOP/BOTTOM 上取既有组的参考价/成员，没有重判分型或买卖点。",
+      "definitions.yaml:80-115 的分型条目与上述正本一致。本地 docs/spec/、.chanlun/genealogy/ 搜索 #747/#756 及四个 API 名无命中；守卫本体明确记录 #747/#756 的同类型收口与异类型精确登记契约。本修复无领域定义或判据变化。"
+    ],
+    "counterexamples": [
+      "新扫描器实际命中 25 项，精确白名单 25 项，stray=0、stale=0；移除每条新增条目都会仅恢复对应误报。",
+      "在实际命中集合中另加同文件第 268 行仍被报为 stray；删除或移动已登记行使原条目 stale。反例仅作内存集合运算，未写入生产文件。"
+    ],
+    "implication_check": "组首锚查询可读取三组 high/low、右组末成员、三组原始成员；强行调用 BSP 绑定 API 会引入不相同的载体。三处没有 BspPoint、买卖位、方向/确认侧判据，不是同一判断的宽严两档。",
+    "genealogy": "未发现本变更概念矛盾；没有新增裁定或谱系写入。"
+  },
+  "engineering_layer": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 0,
+    "diff": "只在 #[cfg(test)] mod tests 的 WHITELIST 增 3 行理由与 3 条精确 file:line；没有目录级/文件级豁免、regex 扩宽或关闭断言。",
+    "production_source": "bsp.rs 的 cfg(test) 前生产内容逐字不变；所有其他 tracked 文件相对 4408 逐字不变，无 untracked；tb02a_facts.rs SHA 与原候选一致。",
+    "guard": "regex、扫描范围、stray 断言、stale 断言的整个执行体逐字不变。"
+  },
+  "validation": {
+    "original_remote_run": 34764681623,
+    "original_remote_job": 103743435412,
+    "original_remote_result": "2938 passed; 1 failed; 161 ignored，唯一失败为本守卫的三处命中。",
+    "local_before": "作者原始重现 exit 101，0 passed / 1 failed；源码哈希与 4408 一致。",
+    "local_after": "作者实际 BSP 模块测试 18 passed / 0 failed / 0 ignored，exit 0；测试 0.19 秒，含编译命令 5.783 秒；已独立核验收据与最终源码哈希。",
+    "format_and_diff": "cargo fmt --all -- --check 与 git diff --check 的实际收据均 exit 0。",
+    "independent_checks": "另执行原 regex 与上述内存集合边界反例；不重复 cargo、runtime、产品或 GUI 验证。",
+    "remote_recheck": "待 root 提交推送后新远端 CI；本审查没有将本地 18 项冒充远端全套。"
+  },
+  "source_sha256": {
+    "bsp_before": "dd17a9dca0d312a77196ef2bb13e8e2d5ce7a77e11bb874f68e0808d7afea21e",
+    "bsp_after": "c54c104b18661d0ea6b07907e63c8aa79b7e12873a91ac27f9a061295db2a671",
+    "tb02a_facts_unchanged": "2cd5d8b1db2c330eeaf0107cb89642c29b281f105f6013902ad50ccb6f6df7ac"
+  },
+  "evidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-review/READONLY-EVIDENCE.json",
+      "bytes": 2048,
+      "sha256": "c3d17a651142a7b52a1a8e1fb1262348a3969d5a55dc4ff5141c4fca7290f6c3"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-review/FINAL-DIFF.patch",
+      "bytes": 1189,
+      "sha256": "4c3365865cdcf36c1a99bf258e38a518a86c94065b4b5ea92d8e1326a160807e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/BEFORE.json",
+      "bytes": 952,
+      "sha256": "f12c216be3980e2b9b971c242782cd9c54a2248e0c2e1d7aa9fc90f3dfe8af6c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/BEFORE.stdout",
+      "bytes": 323,
+      "sha256": "2809593dca528f44d46b1bcc88ea71fcdc738f66d577d2d10af41ed8b1de5c61"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/BEFORE.stderr",
+      "bytes": 20950,
+      "sha256": "71b5a9fdff38c50516b51b368bac7505f807ef80270414c4593ca50f50471d8a"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/AFTER.json",
+      "bytes": 888,
+      "sha256": "6b3f9a0e675bd4c20d6d273b3a23495eaf26978ba635008b03ca770f73127d66"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/AFTER.stdout",
+      "bytes": 1609,
+      "sha256": "289ae0bbfbb4d62f9311ec02bb14b3ddb86be03a4d6f283ce9fa9582c7121bce"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/AFTER.stderr",
+      "bytes": 20405,
+      "sha256": "46c4455f21166375d2433a97e9dbfca981d5a34e0cdbb985d5e3a2d857b2b4eb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/FMT.json",
+      "bytes": 247,
+      "sha256": "c6d9449ed2b761b945837dc8c681f54ff1ee1ca9a7f21af9b10a1bc892a00e25"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/FMT.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/FMT.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/DIFF-CHECK.json",
+      "bytes": 179,
+      "sha256": "79af3850cc19a1bf3f69dabb0e90008bf0c72515000b0f2c7b8b139c0574b495"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/DIFF-CHECK.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/DIFF-CHECK.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/ORIGINAL-CI-RUST.log",
+      "bytes": 1465682,
+      "sha256": "b0da8b747141222bff3d08eaea7a70ce80df3be2e87ec7223e94c8be2010f5dc"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/ORIGINAL-CI-FAILURE-EXCERPT.log",
+      "bytes": 1616,
+      "sha256": "54e7833f69721d280646147505a9ccab6972d9a0829c6e723abf491be16fad7c"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-rust-fix/FIX.diff",
+      "bytes": 1189,
+      "sha256": "4c3365865cdcf36c1a99bf258e38a518a86c94065b4b5ea92d8e1326a160807e"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "scope": "只运行revision_recovery a/b两个新进程，不是原20轨迹全集重验",
+  "prior_setup_failure": "runtime首轮填写不存在node路径，S/Q均已清理；本轮绑定实际node路径，原失败保留",
+  "runs": [
+    {
+      "case_id": "revision_recovery",
+      "arm": "a",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/bin/python3.12",
+        "/Users/silencehan/Projects/NewChanlun-1373-delivery-integration/s_session/tests/tb02a_runtime.py",
+        "--config",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/runtime-v2/revision_recovery-a/config.json",
+        "--messages",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/runtime-v2/revision_recovery-a/messages.jsonl",
+        "--output",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/runtime-v2/revision_recovery-a/evidence",
+        "--node",
+        "/Users/silencehan/.hermes/node/bin/node",
+        "--fault-index",
+        "5",
+        "--fault-stage",
+        "after_batch"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.2750385830004234
+    },
+    {
+      "case_id": "revision_recovery",
+      "arm": "b",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/bin/python3.12",
+        "/Users/silencehan/Projects/NewChanlun-1373-delivery-integration/s_session/tests/tb02a_runtime.py",
+        "--config",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/runtime-v2/revision_recovery-b/config.json",
+        "--messages",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/runtime-v2/revision_recovery-b/messages.jsonl",
+        "--output",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/runtime-v2/revision_recovery-b/evidence",
+        "--node",
+        "/Users/silencehan/.hermes/node/bin/node",
+        "--fault-index",
+        "5",
+        "--fault-stage",
+        "after_batch"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.3438929580152035
+    }
+  ]
+}

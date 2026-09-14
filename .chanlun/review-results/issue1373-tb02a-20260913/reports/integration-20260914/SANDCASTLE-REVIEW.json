@@ -1,0 +1,311 @@
+{
+  "schema": "issue1373-integration-independent-review/1",
+  "ticket": 1373,
+  "pullRequest": 1453,
+  "verdict": "APPROVE_BOUNDED",
+  "reviewedHead": "214bf906cf1ead05365d9e4ace50c8141b3949ca",
+  "reviewedTree": "633a8e4e7d9e32a60d259a1ad610248dbc4f0312",
+  "parents": [
+    "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+    "abf5c0f8491fc066a0f2bc47ab4defdb120035c1"
+  ],
+  "reviewer": {
+    "nativeManager": "/root/tb03b_contract_preparation",
+    "parentThreadId": "01a07fb3-9da9-7ca0-9be2-e15de6eac7b3",
+    "externalSessionId": "01a09cf9-09b5-76b1-ba60-98393b309aba",
+    "workerKind": "sandcastle_external_codex",
+    "externalSessionIsNativeChild": false,
+    "model": "gpt-6-astra",
+    "effort": "xhigh"
+  },
+  "summary": "APPROVE_BOUNDED：固定 HEAD 214bf906cf1ead05365d9e4ace50c8141b3949ca 的限定集成审面内，未发现可复现的阻断缺陷。TB-02-A 具名 OHLC 域与 TB-03-A 既有 Q→Chong 契约未见新增冲突；不代表整票、父图或生产启用验收完成。",
+  "findings": [],
+  "validation": [
+    "版本与冻结：审前、审后 HEAD 均为指定提交，工位均干净，tree 为 633a8e4e7d9e32a60d259a1ad610248dbc4f0312。分别比较 HEAD 对 e7fe54e8cd041e18ea8e473a41a5621cbe90b693、abf5c0f8491fc066a0f2bc47ab4defdb120035c1 的差异，并核对两侧相对 65298686cf3e7c9e94e0b9ceeb83aebad2b5530b 的改动清单，包含自动合并部分。",
+    "证据绑定：SOURCE.json、VALIDATION.json、PYTHON-REVIEW.json、RUNTIME-PAIR-ORACLE.json、BROWSER-OHLC.json、RUNTIME-EXECUTION.json 六份摘要全部匹配指定值；独立读取并复核 SOURCE 的 53 个源码绑定及 S/E/B 三二进制摘要，均一致。",
+    "入口与控制：index.html:60 保留经济观察入口，结构页与 economic.html 的事件、状态及切面缓存分别由各自客户端管理。s_service_control.py:341 的四字段运行库探测与解包一致；:319 保留 S/owner 各自 nonce，:473 透传显式经济查询配置。未发现组合后参数丢失或页面状态互相覆盖。",
+    "正式 S 路径：tb02a.rs:64 明确区分 tick 与 OHLC 的 schema/profile；s_structure_session.rs:1308、:1343 拒绝输入或既有会话 profile 不符，s_session_v2/mod.rs:1204 在恢复服务时重核 profile 摘要。:2148 的 OHLC 路径使用包含事实解析入口，旧 tick 路径保留；共同规范字节、回复身份及有界输送抽取未见契约改变。窗口核查限已给定 OHLC、无重采样及包含后三组滑窗，不扩张为 TakeWindow 一般域或跨经济域单一 cut。",
+    "来源与历史：s_structure_session.rs:2255 将真实成员与方向、关闭边界依赖分别绑定八键引用；s_query_integrity.py:908 及 s_tb02_contract.py:360 核对应 cut 的有效修订和完整组映射。tb01c-client.js:494 在安装前核完整候选、116 项冻结目录、来源及 CC006 内容身份，:552 的 Gap 重建继续使用明确目标切面；未发现宽松校验接管严格失败。",
+    "经济域契约：s_readonly_server.py:961、:1043 保留独立经济路由；economic_query.py:149、:163、:205 分别核 owner 回执、获准 epoch、域身份及完整 cut 向量。economic_session/service.rs:395 拒绝缺失或错根历史 cut，:534 保留 owner 授权及读写操作分派。经济查询没有借用 S 结构 cut 或将 OHLC 结构事实直接提升为经营资格。",
+    "已有验证记录：读取针对性 Rust 日志，记录为 S 71 通过／1 忽略、经济核 16 通过、共享协议与 transport 7 通过，以及 S/E/B 构建成功。Q OHLC 记录为 23 项通过；BROWSER-OHLC 为 47 项通过，其六 cut 夹具摘要匹配。浏览器记录属于响应替身下的生产函数检查；Python 窄审的 findings=[] 与当前源码摘要一致。上述均为读取既有记录，本工蜂未运行测试。",
+    "恢复轨迹独立比对：RUNTIME-V2-EXECUTION.json 记录两次 revision_recovery 退出码均为 0，RESULT 的清理错误均为空。直接读取两份 semantic-core.jsonl，各 49 条、6259252 字节，逐字相同，SHA256 为 40d2895bb8e29a4c9c18bceef8e720c4a83ba305c6ae9266fbdf87fb6221801f。轨迹包含 after_batch 的 SIGKILL、writer epoch 1→2、Q 存活及原消息最终回执；首次错误 node 路径失败仍保留。",
+    "具名账例核对：cut-5 中组为 [1,2,3]、区间 [5,9]、高根 2、低根 3；修订 raw2 后 cut-6 为五个单成员组，窗口依次 RISING、TOP、BOTTOM，与 ORACLE.md:41 对应。六个 known/revisit 完整候选逐项相同。384666 checks／155563 leaf 是冻结独立核报告的计数，本工蜂未执行该核。",
+    "未验证边界：两次恢复配置均未启用 economic_query_config，因此不证明同一 Q 下 S/OHLC 与 E/B 同时运行；也未重验原 20 条轨迹全集、GUI、全部 UP/DOWN 与等号工作例。初始方向 #1342、同价竞争 #1343、#1349 政策、#1394 完整经营接线及 #1323 六 Destination 均不在结论内。全程未修改文件、执行被审模块、联网或委派。"
+  ],
+  "sourceBindings": {
+    ".github/workflows/ci.yml": {
+      "sha256": "f8b4a3795968c73b492e9e3b8a2cf9daac8c14ce057ab8da7f86415c1c025a71",
+      "bytes": 15509
+    },
+    "rust/Cargo.lock": {
+      "sha256": "c591858344c1ff7c62335e10c0e2f1f5cf9e7447a8caf81cd92e556bac248b62",
+      "bytes": 55961
+    },
+    "rust/Cargo.toml": {
+      "sha256": "db8af9ea30e1840b87759aedd67a556fa506d152be1b01d3e068d8be610c1bdf",
+      "bytes": 12154
+    },
+    "rust/src/bin/b_chong_session.rs": {
+      "sha256": "34adfbb8456b5e81ea35c81b6cb11ebc83fe85f4aa571ea669115adf3ff56af1",
+      "bytes": 211
+    },
+    "rust/src/bin/e_economic_session.rs": {
+      "sha256": "866dbe66d598648b5c324ad77eaa825c2a856caa37a19b41d4145f7f251e7005",
+      "bytes": 208
+    },
+    "rust/src/bin/s_session_v2/audit.rs": {
+      "sha256": "61dfb078c39f386a5730a78c30f8fd26ddd096b79098d7595a143bad973bb59a",
+      "bytes": 16805
+    },
+    "rust/src/bin/s_session_v2/mod.rs": {
+      "sha256": "f274a12b8ffd95516a1d35a84588c4af55c064b3180f53d39de76c7b93478c56",
+      "bytes": 82564
+    },
+    "rust/src/bin/s_session_v2/tb02a.rs": {
+      "sha256": "bd43770c045b311bbc757569196000556ac5a2c485e0d6d04f959cea85e23618",
+      "bytes": 13538
+    },
+    "rust/src/bin/s_session_v2/tb02a_facts.rs": {
+      "sha256": "2cd5d8b1db2c330eeaf0107cb89642c29b281f105f6013902ad50ccb6f6df7ac",
+      "bytes": 18734
+    },
+    "rust/src/bin/s_structure_session.rs": {
+      "sha256": "2564f5f05bc40275200c73230a738ac124f13c5f5d1477922311171259de23c3",
+      "bytes": 274119
+    },
+    "rust/src/economic_session/book.rs": {
+      "sha256": "e6dbd45a64c4c93f6de59c1f4362a89c2a4b134106ea2a57bc470fb020e7a09e",
+      "bytes": 27027
+    },
+    "rust/src/economic_session/evidence.rs": {
+      "sha256": "77cac6ff99a793d142c3f3701f29d4a24c722cbdcc4b2926bd54181661f0b0ad",
+      "bytes": 13614
+    },
+    "rust/src/economic_session/mod.rs": {
+      "sha256": "1d64bfc38dee56a0049aaff9486bf77a0a3c56334748bfcdb02f2866b1a65c8c",
+      "bytes": 296
+    },
+    "rust/src/economic_session/service.rs": {
+      "sha256": "b34fdc8f6f72d8e1bb1797b53351a00b496ede843c917166f335295598de89a1",
+      "bytes": 26370
+    },
+    "rust/src/economic_session/store.rs": {
+      "sha256": "6916304230861685682535388923168034419940c5f92d1ed8fa800c3c32048c",
+      "bytes": 44132
+    },
+    "rust/src/economic_session/voice.rs": {
+      "sha256": "a70364ef809d120a56a2b18801e7f0984ed34bd15df9706114eedd49acc504d2",
+      "bytes": 15429
+    },
+    "rust/src/economic_session/voice_tests.rs": {
+      "sha256": "47509489a874f37d51afef33af67ba1ce68ad652426a9b135db57bc21d1640d7",
+      "bytes": 21494
+    },
+    "rust/src/lib.rs": {
+      "sha256": "388e9588e1deea05c4c35797dd56403b4d547d513605d6c5adf743b75fd72e89",
+      "bytes": 111248
+    },
+    "rust/src/session_protocol.rs": {
+      "sha256": "87456952f5e74e7d932760b73647fbb1dad382b41098e441686a4b7ee87ffa00",
+      "bytes": 13416
+    },
+    "rust/src/session_transport.rs": {
+      "sha256": "0b968ef87bfe5f4bcfc7dbd136ba2401066a892a24ce598a9874fcffe9f1132c",
+      "bytes": 18546
+    },
+    "rust/src/theta_v0/classifier/bsp.rs": {
+      "sha256": "c54c104b18661d0ea6b07907e63c8aa79b7e12873a91ac27f9a061295db2a671",
+      "bytes": 47779
+    },
+    "rust/src/theta_v0/parser/inclusion.rs": {
+      "sha256": "cc48d963132d8d7e1bdc0043925831d941f873d8c7c71765962379649d28a3eb",
+      "bytes": 55031
+    },
+    "rust/src/theta_v0/parser/mod.rs": {
+      "sha256": "25ba82f776f7aefcac414cd6963e3b239d2534241995f1f4c1992e1b7e46cbcb",
+      "bytes": 23548
+    },
+    "rust/src/theta_v0/strategy/ledger.rs": {
+      "sha256": "7c218a26af9a7ad0fd2cbe5cfc51511cc3dc98a402541281ab3590280c911f24",
+      "bytes": 94302
+    },
+    "s_session/README.md": {
+      "sha256": "c3f9d42a8428a856ebf7f86bede4c75346b432b403601cc1d46acaf97f4dffcb",
+      "bytes": 21768
+    },
+    "s_session/browser/economic.html": {
+      "sha256": "623dc71dca16828b0b089b9d43400e40e470a18fb1f123a5c9943b5e8a7b43b0",
+      "bytes": 8075
+    },
+    "s_session/browser/index.html": {
+      "sha256": "fba6ae5591bedf0339c03992ad21444a6acc592687ccebcd226bfacdc4b52ba6",
+      "bytes": 52404
+    },
+    "s_session/browser/tb01c-client.js": {
+      "sha256": "e0907290a2f89570454a06f309ea1c917e24ca2d308b41070c1615c70ed81793",
+      "bytes": 52202
+    },
+    "s_session/browser/tb03a-client.js": {
+      "sha256": "097fcabb8b678fed19cd85a0f365c989e3c3b2d72c05ee990d09902e1f9305b2",
+      "bytes": 18776
+    },
+    "s_session/economic_http.py": {
+      "sha256": "c9aee04f19694d5ff79b6367e057f424aba8aa18a708098dc38e13aef468b0dd",
+      "bytes": 5686
+    },
+    "s_session/economic_query.py": {
+      "sha256": "4a4491efcb8ae58a634d3a0969e5b624fde05f06f91d897ad59c16339c4be349",
+      "bytes": 15394
+    },
+    "s_session/economic_service_control.py": {
+      "sha256": "a4d2d25665b3163cc6ef183e4dba29ac8cef8ac8f0f716384251e68d143f94e4",
+      "bytes": 9886
+    },
+    "s_session/launch_s.sh": {
+      "sha256": "5bd94dbd39efc5a14be7d2fa23b3ed6b9c7c4570bc38338876c6451eec67522a",
+      "bytes": 10740
+    },
+    "s_session/profiles/ohlc_integer_tb02a_v1.json": {
+      "sha256": "482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6",
+      "bytes": 468
+    },
+    "s_session/s_query.py": {
+      "sha256": "048478fdab43716a413fdafc68e0b7316451d3db9b3499cbddb6da463a66e322",
+      "bytes": 25216
+    },
+    "s_session/s_query_integrity.py": {
+      "sha256": "5e701d23c27e0053a8ca22b59d796e210331a45d2bed633d10db22207d840f9b",
+      "bytes": 67256
+    },
+    "s_session/s_readonly_server.py": {
+      "sha256": "0c4fc9527058b5b4c87984122cef8e7034fe0c356c39308bc463bf0b1d644545",
+      "bytes": 54494
+    },
+    "s_session/s_service_control.py": {
+      "sha256": "512c113b56e76acb0a8ad075cddefe6e90db755fc13948cb1382c5223f04b73e",
+      "bytes": 30891
+    },
+    "s_session/s_socket_client.py": {
+      "sha256": "fdd8a40a501e1de9a740304667c9ba491a8ca3e1ac251ec62bf4832e7e425a27",
+      "bytes": 8845
+    },
+    "s_session/s_tb02_contract.py": {
+      "sha256": "1a10d53b4750dc9760738c14c80e195efbc9e5413575683ead066b8e5549a2d8",
+      "bytes": 23367
+    },
+    "s_session/tests/fixtures/tb02a/ORACLE.md": {
+      "sha256": "6f42224e070db2de5ad42ef4bb8c81ca82dcf3867ee38edbe57c563524f7fa20",
+      "bytes": 6113
+    },
+    "s_session/tests/fixtures/tb02a/hand-oracle.json": {
+      "sha256": "6a9489be8220d794950fec676d316f6f55e4910f157c174954d57c2cea1304ec",
+      "bytes": 40386
+    },
+    "s_session/tests/fixtures/tb02a/raw-ledger.json": {
+      "sha256": "b321c037723cc00d597b441cd5eca6736249240d812dde2ede03e28e44fca7bf",
+      "bytes": 7278
+    },
+    "s_session/tests/tb02a_oracle_check.py": {
+      "sha256": "6bcd5c973495055bf95deef5112d118fa94a75a4af51cfafa4d207203dadd280",
+      "bytes": 49274
+    },
+    "s_session/tests/tb02a_prepare.py": {
+      "sha256": "c8c90fb8986fc8ae2a4b661179ad86980c071461b47f38b443e0795d7334e45a",
+      "bytes": 8914
+    },
+    "s_session/tests/tb02a_query_tests.py": {
+      "sha256": "d4ddf1623317640426f13505ab384a5ede93bb81506f2653fd4cc707786834be",
+      "bytes": 19152
+    },
+    "s_session/tests/tb02a_runtime.py": {
+      "sha256": "76cc9996531071eb28edb23471a712d2f0a4b169cc4472489563244e10fb1932",
+      "bytes": 16396
+    },
+    "s_session/tests/test_tb01c_browser.cjs": {
+      "sha256": "18be8d6709748926393de55613c4c34acb62c1fedfe64cb69a55a8369de5ea01",
+      "bytes": 29552
+    },
+    "s_session/tests/test_tb01c_runtime_environment.py": {
+      "sha256": "cb8f62928b889a95924df91a578d753c1f452c4d4103702a0a59785efb2c67b6",
+      "bytes": 7863
+    },
+    "s_session/tests/test_tb02a_runtime.py": {
+      "sha256": "1b6e7a9dec2d404d9296a8f8242b5add4d71a4b411ca14f0ac367f3857058bcf",
+      "bytes": 6521
+    },
+    "s_session/tests/test_tb03a_query.py": {
+      "sha256": "bc635f54cf8b354697cf0ecacf6e9a5f52fabcf90599615187223a5e1ad81440",
+      "bytes": 6614
+    },
+    "s_session/tests/test_tb03a_socket_identity.py": {
+      "sha256": "d4c5eb73de580a7b4b4e8dd1d1f9c5b67c2ad4263c332cf64a4deb1d6a66b6ea",
+      "bytes": 3240
+    },
+    "s_session/tests/test_tb03a_voice_client.cjs": {
+      "sha256": "13ba54bd723f4700833372804100c1f87886a7955ddeb6ce911a862423d1634a",
+      "bytes": 6447
+    }
+  },
+  "binaryBindings": {
+    "s_structure_session": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/build/debug/s_structure_session",
+      "sha256": "20f377b400f5886a93f1e606d781bf6369516d1c2714c191f2e93ffa60d62292"
+    },
+    "e_economic_session": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/build/debug/e_economic_session",
+      "sha256": "3baa528da600bfbb0e0918b6147d5f2520e1027a6dff5bec676192d4874ce872"
+    },
+    "b_chong_session": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/build/debug/b_chong_session",
+      "sha256": "04a8bf7a1c44b79e9e4bcb00cf99833528182d722775d259a7e5f9c1a5fb76a3"
+    }
+  },
+  "frozenEvidence": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/SOURCE.json",
+      "sha256": "b831822f7c909355164076ef1a1791b542506bbf4d48e35847450e929866f263",
+      "bytes": 9524
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/VALIDATION.json",
+      "sha256": "27a2db0d6dce3b0a8507ee54b0e2e5994ad00caf2e0511b3fa7a168543a8c66c",
+      "bytes": 4079
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/PYTHON-REVIEW.json",
+      "sha256": "03371591c983efde4f2e36e278ad3b45baaf17883bf304e11b70d5cdebe4e230",
+      "bytes": 8126
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/RUNTIME-PAIR-ORACLE.json",
+      "sha256": "88d61cdb14e6621c50d7609070003219e993a20689c486d49f4d1c9ec6005a1b",
+      "bytes": 25996
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/BROWSER-OHLC.json",
+      "sha256": "26f590fadec62d0e2c2ea06b52ce1abc86d258fe9903d5ac5f130b3f4499f47a",
+      "bytes": 5728
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration/RUNTIME-EXECUTION.json",
+      "sha256": "8fd288c7cbbcc227d6c378b670c6f7bd693ed068e45c3c451eebb349f33b79b0",
+      "bytes": 1410
+    }
+  ],
+  "promptSha256": "6859ff04f1042002e577a9e116d396d2e811a76b6bce2d7b361e432ca1aabe19",
+  "originalOutput": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-readiness-20260914/issue1373-integration-review/worker-run/result.json",
+    "sha256": "275822a538e65d998a5722c6273e2badbaa0dc2d0e930fcb7d71e353903e61bd",
+    "jsonPointer": "/result",
+    "verbatimSummaryFindingsValidation": true
+  },
+  "boundaries": {
+    "fullIssueAcceptance": false,
+    "mainMergeAuthorized": false,
+    "parentGraphAcceptance": false,
+    "productionEnablementAuthorized": false,
+    "reviewerRanTests": false,
+    "twoRunRuntimeProvesCombinedEconomicSession": false,
+    "guiAcceptance": false
+  }
+}

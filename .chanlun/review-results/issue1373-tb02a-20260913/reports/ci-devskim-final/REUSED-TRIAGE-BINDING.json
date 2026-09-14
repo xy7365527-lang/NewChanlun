@@ -1,0 +1,79 @@
+{
+  "prior_rows": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/TRIAGE-ROWS.json",
+    "bytes": 151158,
+    "sha256": "2be0ab2340cf47b317af9cbc1f58a00ed26e086f3e63f901147e6387bc2595e1"
+  },
+  "prior_report": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/TRIAGE-SUMMARY.md",
+    "bytes": 6605,
+    "sha256": "f7461fb3232c522d91c02acc450589c6f5f71ad9e1b517700b683901842250f5"
+  },
+  "prior_freeze": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim/REPORT-FREEZE.json",
+    "bytes": 2176,
+    "sha256": "1a094de2ec24b50155ceab13d64f4977c8ed3ee59c265ddbf28138a052a9a2c8"
+  },
+  "full_added_result_multiset_equal": true,
+  "added_rows": 122,
+  "added_keys": 121,
+  "all_six_hit_files_equal": [
+    {
+      "path": ".chanlun/review-results/issue1373-tb02a-20260913/EVIDENCE-INDEX.json",
+      "old_head": "4408b0c233f45e33f53cf152112bbcdc3604344f",
+      "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+      "bytes": 55534,
+      "sha256": "31a6252507175ade18a6e71073682d58cdc6d4921757041f6ba4c9232ca685af",
+      "byte_equal": true
+    },
+    {
+      "path": "s_session/browser/tb01c-client.js",
+      "old_head": "4408b0c233f45e33f53cf152112bbcdc3604344f",
+      "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+      "bytes": 52202,
+      "sha256": "e0907290a2f89570454a06f309ea1c917e24ca2d308b41070c1615c70ed81793",
+      "byte_equal": true
+    },
+    {
+      "path": "s_session/s_readonly_server.py",
+      "old_head": "4408b0c233f45e33f53cf152112bbcdc3604344f",
+      "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+      "bytes": 53990,
+      "sha256": "fcb033680a1ce1b351a6b2ca250bb56ccc69af6acd7ce52ce77265def4341165",
+      "byte_equal": true
+    },
+    {
+      "path": "s_session/tests/fixtures/tb02a/hand-oracle.json",
+      "old_head": "4408b0c233f45e33f53cf152112bbcdc3604344f",
+      "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+      "bytes": 40386,
+      "sha256": "6a9489be8220d794950fec676d316f6f55e4910f157c174954d57c2cea1304ec",
+      "byte_equal": true
+    },
+    {
+      "path": "s_session/tests/fixtures/tb02a/raw-ledger.json",
+      "old_head": "4408b0c233f45e33f53cf152112bbcdc3604344f",
+      "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+      "bytes": 7278,
+      "sha256": "b321c037723cc00d597b441cd5eca6736249240d812dde2ede03e28e44fca7bf",
+      "byte_equal": true
+    },
+    {
+      "path": "s_session/tests/tb02a_runtime.py",
+      "old_head": "4408b0c233f45e33f53cf152112bbcdc3604344f",
+      "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+      "bytes": 16396,
+      "sha256": "76cc9996531071eb28edb23471a712d2f0a4b169cc4472489563244e10fb1932",
+      "byte_equal": true
+    }
+  ],
+  "classification_counts": {
+    "inherited_exact_line_shift": 2,
+    "integrity_checksum_false_positive": 2,
+    "intentional_testonly_loopback": 1,
+    "evidence_checksum_false_positive": 113,
+    "git_identity_false_positive": 2,
+    "fixture_checksum_false_positive": 2
+  },
+  "boundary": "复用完全相同命中及逐字相同源文件的既有用途证据；当前候选依然需自己的真实扫描和合入决定，不复用旧例外。"
+}

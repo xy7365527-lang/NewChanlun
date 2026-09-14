@@ -418,7 +418,16 @@ fn normalize_schema(s: &str) -> String {
         .collect()
 }
 fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
-    let all = format!("{}{}", SCHEMA, if v2 { SCHEMA_V2 } else { "" });
+    let all = format!(
+        "{}{}{}",
+        SCHEMA,
+        if v2 { SCHEMA_V2 } else { "" },
+        if tb02a::enabled(conn)? {
+            tb02a::SCHEMA
+        } else {
+            ""
+        }
+    );
     let mut expected = BTreeMap::new();
     for stmt in all.split(';').map(str::trim).filter(|s| !s.is_empty()) {
         let rest = stmt
@@ -704,8 +713,7 @@ pub fn verify_control(
             return Err(err("消息独立列/规范原件不一致"));
         }
         validate_ingest(&e).map_err(err)?;
-        let input: RawInputFile =
-            serde_json::from_value(e["payload"]["raw_input"].clone()).map_err(err)?;
+        let input = tb02a::parse_input(&e["payload"]["raw_input"]).map_err(err)?;
         if input.events.len() != 1 {
             return Err(err("持久输入消息非单事件"));
         }
@@ -939,6 +947,9 @@ fn init_v2(
         .map_err(err)?;
     verify_reachable_root(&tx)?;
     tx.execute_batch(SCHEMA_V2).map_err(err)?;
+    if profile_id == tb02a::PROFILE {
+        tx.execute_batch(tb02a::SCHEMA).map_err(err)?;
+    }
     meta_set(&tx, "protocol_revision", "s-session/2")?;
     meta_set(&tx, "profile_id", &profile_id)?;
     meta_set(&tx, "profile_hash", &profile_hash)?;
@@ -1031,59 +1042,15 @@ fn validate_ingest(e: &Value) -> Result<(), String> {
     required(p, "clock_event_id")?;
     positive(required(p, "writer_epoch")?, "writer_epoch")?;
     let raw = &p["raw_input"];
-    let rk = [
-        "schema_revision",
-        "session_id",
-        "source_namespace",
-        "source_epoch",
-        "instrument",
-        "profile",
-        "events",
-    ];
-    if raw.as_object().map(|m| m.len()) != Some(rk.len())
-        || raw
-            .as_object()
-            .unwrap()
-            .keys()
-            .any(|k| !rk.contains(&k.as_str()))
-    {
-        return Err("SchemaUnsupported：原始输入字段不完整/多余".into());
-    }
-    if raw["schema_revision"] != "1"
-        || raw["session_id"] != e["session_id"]
+    tb02a::parse_input(raw)?;
+    if raw["session_id"] != e["session_id"]
         || raw["source_namespace"] != e["source_namespace"]
         || raw["source_epoch"] != e["source_epoch"]
     {
         return Err("IdentityConflict：原始输入与公共头不同".into());
     }
-    let events = raw["events"]
-        .as_array()
-        .filter(|a| a.len() == 1)
-        .ok_or("InvalidDomain：ingest必须一事件")?;
-    let ek = [
-        "event_id",
-        "revision",
-        "seq",
-        "received_at",
-        "raw_text",
-        "price",
-        "timestamp",
-        "volume",
-    ];
-    if events[0].as_object().map(|m| m.len()) != Some(ek.len())
-        || events[0]
-            .as_object()
-            .unwrap()
-            .keys()
-            .any(|k| !ek.contains(&k.as_str()))
-    {
-        return Err("SchemaUnsupported：event字段不完整/多余".into());
-    }
-    for k in ek {
-        events[0]
-            .get(k)
-            .and_then(Value::as_str)
-            .ok_or("SchemaUnsupported：raw event字段必须文本")?;
+    if raw["events"].as_array().map(Vec::len) != Some(1) {
+        return Err("InvalidDomain：ingest必须一事件".into());
     }
     Ok(())
 }

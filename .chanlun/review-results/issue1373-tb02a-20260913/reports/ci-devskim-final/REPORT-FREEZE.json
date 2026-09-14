@@ -1,0 +1,57 @@
+{
+  "frozen_at_utc": "2026-09-13T15:34:58.494051+00:00",
+  "head": "e7fe54e8cd041e18ea8e473a41a5621cbe90b693",
+  "files": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/TRIAGE-SUMMARY.md",
+      "bytes": 4485,
+      "sha256": "9e9a8c83418f4862a30dfdc947b08131dba6cda594128366ae96d896c5d8e2be"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/TRIAGE-SUMMARY.json",
+      "bytes": 4393,
+      "sha256": "fbb0205869ac33ec44746db16a33a8e32d4f3c76d2d85b882dd4b62080d6e748"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/REUSED-TRIAGE-BINDING.json",
+      "bytes": 3418,
+      "sha256": "75488f8cd81c3efb13bdf229aec20a4598e2d789397dcbc6b79b287693f95d75"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/DIFF-VS4408.json",
+      "bytes": 2222,
+      "sha256": "4aebe8d43d1bcf47130e43bb3d69840466471a498565aae733448dc9c4e4721b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/DIFF-VS652.json",
+      "bytes": 14175,
+      "sha256": "f03c158ee0102dca013b1c94b4bc1218ad33a904b9e49e12a468aa5c5bbb1d6f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/GATE-VERIFICATION.json",
+      "bytes": 446,
+      "sha256": "d965a6a167f10fee7c9a98f118ecf04842a2c4005ad452327ee8870bd89f09cb"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/CHECKOUT-BINDING.json",
+      "bytes": 453,
+      "sha256": "b1085d43aa55065a1b7717c62dffd783bc5b6be0ac12702fc7f7052ec19d13d1"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1373-tb02a-implementation-20260913/ci-devskim-final/EVIDENCE-INDEX.json",
+      "bytes": 25461,
+      "sha256": "8b7fede3ea0eab6557342c872b49b7962397cf04abe09211391e8b04698cef53"
+    }
+  ],
+  "validation": {
+    "new_raw": 34783,
+    "gate_keys": 34708,
+    "outside_baseline": 26521,
+    "vs4408_added": 0,
+    "vs4408_removed": 0,
+    "vs652_added_results": 122,
+    "unclassified_added": 0,
+    "gate_log_all_keys_match": true,
+    "checkout_tree_matches": true
+  }
+}

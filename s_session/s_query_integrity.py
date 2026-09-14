@@ -5,6 +5,8 @@
 """
 
 import hashlib
+import importlib.util
+from pathlib import Path
 import json
 import sqlite3
 import struct
@@ -20,6 +22,11 @@ class QueryBudgetExceeded(RuntimeError):
 
 
 # 与正式 S v1 DDL 同一列/约束；v2 的控制表由其显式版本另行登记。
+_tb02_spec = importlib.util.spec_from_file_location("s_tb02_contract", Path(__file__).with_name("s_tb02_contract.py"))
+tb02 = importlib.util.module_from_spec(_tb02_spec)
+_tb02_spec.loader.exec_module(tb02)
+
+
 LEGACY_SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE raw_events (
@@ -185,11 +192,13 @@ CREATE TABLE s_delivery_refs (
  FOREIGN KEY(generation) REFERENCES structure_deltas(generation));
 """
 EXPECTED_V2 = _expected_schema(LEGACY_SCHEMA + CONTROL_SCHEMA)
-EXPECTED_SQL = _expected_sql(LEGACY_SCHEMA + CONTROL_SCHEMA)
+EXPECTED_OHLC = _expected_schema(LEGACY_SCHEMA + tb02.SCHEMA)
+EXPECTED_V2_OHLC = _expected_schema(LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA)
+EXPECTED_SQL = _expected_sql(LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA)
 
 
 def _validate_schema(rows, tables):
-    if tables not in (EXPECTED_LEGACY, EXPECTED_V2):
+    if tables not in (EXPECTED_LEGACY, EXPECTED_V2, EXPECTED_OHLC, EXPECTED_V2_OHLC):
         raise ValueError("S 权威表/列/PK/UNIQUE/NOT NULL 与已知协议模式不符")
     if any(kind not in ("table", "index") for kind, *_rest in rows):
         raise ValueError("S 权威模式包含未声明视图/触发器")
@@ -210,7 +219,7 @@ max_bytes 计实际 Python 捕获对象大小的保守增量（含每行/每值�
     if max_bytes is not None:
         count, schema_bytes = conn.execute(
             "SELECT COUNT(*),COALESCE(SUM(length(CAST(sql AS BLOB))),0) FROM sqlite_schema").fetchone()
-        if count > 2*len(EXPECTED_V2) or schema_bytes > min(max_bytes, 128*1024):
+        if count > 2*len(EXPECTED_V2_OHLC) or schema_bytes > min(max_bytes, 128*1024):
             raise QueryBudgetExceeded("当前模式元数据超过捕获界限")
     schema_rows, schema = _schema(conn)
     _validate_schema(schema_rows, schema)
@@ -319,6 +328,8 @@ def _int_text(value, name, minimum=0):
 
 def _raw_wire(row):
     result = dict(row)
+    if result.get("schema_revision") == tb02.RAW_SCHEMA:
+        result.pop("price", None)
     for key in ("revision", "seq", "supersedes_revision"):
         value = result[key]
         if value is None and key == "supersedes_revision":
@@ -329,13 +340,45 @@ def _raw_wire(row):
     return result
 
 
+def _raw_event_content(row):
+    price_keys = ("open", "high", "low", "close") if row.get("schema_revision") == tb02.RAW_SCHEMA else ("price",)
+    result = {key: row[key] for key in ("event_id", "raw_text", "received_at", "volume", *price_keys)}
+    result.update(revision=row["input_revision"], seq=row["source_coord"], timestamp=row["ts"])
+    return result
+
+
+def _raw_rows(tables, meta):
+    enabled = meta.get("profile_id") == tb02.PROFILE
+    if enabled != ("raw_ohlc" in tables and "structure_facts" in tables):
+        raise ValueError("OHLC 固定 profile 与必需两表模式不一致")
+    rows = tables["raw_events"]
+    if not enabled:
+        return rows
+    extras = {(r["identity_key"], r["revision"]): r for r in tables["raw_ohlc"]}
+    if set(extras) != {(r["identity_key"], r["revision"]) for r in rows}:
+        raise ValueError("raw_ohlc 与接纳账缺行/多行/身份不符")
+    enriched = []
+    for row in rows:
+        prices = extras[(row["identity_key"], row["revision"])]
+        if prices["schema_revision"] != tb02.RAW_SCHEMA or prices["close"] != row["price"]:
+            raise ValueError("OHLC schema/close 兼容索引不一致")
+        enriched.append(dict(row, **{key: prices[key] for key in ("schema_revision", "open", "high", "low", "close")}))
+    return enriched
+
+
 def _verify_raw(rows, deadline=None):
     owners, positions, revisions = {}, {}, {}
     for seq, row in enumerate(rows):
         _deadline(deadline)
         # 已接纳但未发布的行也必须先核数值域；自洽 hash/receipt 不能证明域合法。
-        for key in ("price", "ts", "volume"):
+        for key in ("ts", "volume"):
             _signed_i64_text(row[key], "raw."+key)
+        if row.get("schema_revision") == tb02.RAW_SCHEMA:
+            prices = {key: _signed_i64_text(row[key], "raw."+key) for key in ("open", "high", "low", "close")}
+            if not prices["low"] <= prices["open"] <= prices["high"] or not prices["low"] <= prices["close"] <= prices["high"] or int(row["volume"]) < 0:
+                raise ValueError("raw OHLC/volume 不属于声明输入域")
+        else:
+            _signed_i64_text(row["price"], "raw.price")
         if row["seq"] != seq:
             raise ValueError("raw.seq 接纳全序断裂/重复")
         identity = "|".join(row[k] for k in ("source_namespace", "source_epoch", "instrument", "event_id"))
@@ -352,8 +395,7 @@ def _verify_raw(rows, deadline=None):
         if row["supersedes_revision"] != revisions.get(identity):
             raise ValueError("raw.supersedes_revision 不指向该身份上一接纳修订")
         revisions[identity] = revision
-        content = {k: row[k] for k in ("event_id", "price", "raw_text", "received_at", "volume")}
-        content.update(revision=row["input_revision"], seq=row["source_coord"], timestamp=row["ts"])
+        content = _raw_event_content(row)
         payload_hash = hashlib.sha256(canonical(content)).hexdigest()
         receipt = "rcpt-" + hashlib.sha256((identity + "|" + payload_hash).encode()).hexdigest()[:16]
         if payload_hash != row["payload_hash"] or receipt != row["receipt_id"]:
@@ -421,12 +463,27 @@ def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observa
     sets = {name: _intern_set(delta[name], h, name, pool) for name in
             ("upserts", "withdrawals", "replaces", "witnesses", "relations", "observations", "raw_history_added")}
     upserts = []
+    ohlc = meta.get("profile_id") == tb02.PROFILE
+    if ohlc:
+        tb02.validate_axes(batch.get("catalog_axes"), {obj["object_id"] for obj in batch["objects"]})
+        if canonical(evidence.get("axes")) != canonical(batch["catalog_axes"]):
+            raise ValueError("每代目录九轴与原 batch 不一致")
+    elif "catalog_axes" in batch or "axes" in evidence:
+        raise ValueError("旧 profile 不允许混入 OHLC 目录轴")
     for obj in batch["objects"]:
-        values = (obj["object_id"], obj["object_revision"], obj["kind"], batch_id,
-                  obj["branch"], obj["dir_ab"], obj["dir_bc"], obj["window_start"], obj["window_mid"], obj["window_end"],
-                  obj["comparisons_json"], obj["input_refs_json"], obj["source_coords_json"], obj["first_known_generation"],
-                  obj["first_known_cut"], obj["published_generation"], None, None, None)
-        value = h["_project_object_row"](values)
+        if obj.get("kind") in tb02.KINDS:
+            if not ohlc:
+                raise ValueError("旧域批次包含新 typed 对象")
+            internal = set(tb02.FACT_COLUMNS) - {"batch_id", "withdrawn_generation", "withdrawal_reason", "superseded_by"}
+            tb02.keys(obj, internal, "batch.typed_object")
+            value = tb02.project_fact(dict(obj, batch_id=batch_id, withdrawn_generation=None, withdrawal_reason=None, superseded_by=None), parse_json)
+            tb02.validate_fact(value, meta, raw)
+        else:
+            values = (obj["object_id"], obj["object_revision"], obj["kind"], batch_id,
+                      obj["branch"], obj["dir_ab"], obj["dir_bc"], obj["window_start"], obj["window_mid"], obj["window_end"],
+                      obj["comparisons_json"], obj["input_refs_json"], obj["source_coords_json"], obj["first_known_generation"],
+                      obj["first_known_cut"], obj["published_generation"], None, None, None)
+            value = h["_project_object_row"](values)
         previous = active.get(value["object_id"])
         if previous is not None:
             for key in ("batch_id", "first_known_generation", "first_known_cut", "published_generation"):
@@ -468,7 +525,7 @@ def project_delta(proof, index):
 
 
 def _verify_control(tables, meta, raw, deltas, batches, deadline=None):
-    names = set(tables) - set(EXPECTED_LEGACY)
+    names = set(tables) - set(EXPECTED_LEGACY) - {"raw_ohlc", "structure_facts"}
     if not names:
         if "protocol_revision" in meta:
             raise ValueError("协议标记存在但控制表缺失")
@@ -589,12 +646,11 @@ def _verify_control(tables, meta, raw, deltas, batches, deadline=None):
             raise ValueError("消息原始输入字段缺失/多余")
         if any(source[key] != envelope[key] for key in ("source_namespace", "source_epoch")):
             raise ValueError("原始输入来源与公共头身份不同")
-        if source.get("schema_revision") != "1" or source.get("session_id") != meta["session_id"]:
+        if source.get("schema_revision") != (tb02.RAW_SCHEMA if meta.get("profile_id") == tb02.PROFILE else "1") or source.get("session_id") != meta["session_id"]:
             raise ValueError("消息原始输入 schema/session 不符")
         if any(source.get(key) != raw[seq][key] for key in ("source_namespace", "source_epoch", "instrument")):
             raise ValueError("消息原始来源与接纳行不符")
-        expected_event = {key: raw[seq][key] for key in ("event_id", "received_at", "raw_text", "price", "volume")}
-        expected_event.update(revision=raw[seq]["input_revision"], seq=raw[seq]["source_coord"], timestamp=raw[seq]["ts"])
+        expected_event = _raw_event_content(raw[seq])
         if canonical(source["events"][0]) != canonical(expected_event) or source.get("profile") != meta.get("profile_id"):
             raise ValueError("消息原始内容/profile 与接纳行不符")
         published = published_at.get(seq)
@@ -709,8 +765,9 @@ def verify(image, h, deadline=None, memo=None):
         raise ValueError("meta.writer_epoch 与持久换代历史不闭合")
     if type(meta.get("rule_revision")) is not str or not meta["rule_revision"]:
         raise ValueError("meta.rule_revision 缺失")
-    _verify_raw(tables["raw_events"], deadline)
-    raw = [_raw_wire(row) for row in tables["raw_events"]]
+    raw_rows = _raw_rows(tables, meta)
+    _verify_raw(raw_rows, deadline)
+    raw = [_raw_wire(row) for row in raw_rows]
     batches = {r["batch_id"]: r for r in tables["batches"]}
     deltas = tables["structure_deltas"]
     if len(deltas) != generation:
@@ -754,21 +811,28 @@ def verify(image, h, deadline=None, memo=None):
         raise ValueError("raw_history 含重复成员")
     births, deaths = defaultdict(list), defaultdict(list)
     active, wires = {}, {"objects": [], "witnesses": [], "relations": [], "observations": []}
-    for table in ("objects", "witnesses", "relations", "observations"):
+    object_ids = set()
+    object_tables = ("objects", "structure_facts") if meta.get("profile_id") == tb02.PROFILE else ("objects",)
+    for table in (*object_tables, "witnesses", "relations", "observations"):
         for row in tables[table]:
             _deadline(deadline)
             for key in (("first_known_generation", "published_generation", "withdrawn_generation")
-                        if table == "objects" else ("published_generation",)):
+                        if table in object_tables else ("published_generation",)):
                 number = row[key]
                 if number is None and key == "withdrawn_generation":
                     continue
                 if type(number) is not int or not 1 <= number <= generation:
                     raise ValueError(f"{table}.{key} 不属于 1..G 发布代")
-            if table == "objects":
+            if table in object_tables:
+                if row["object_id"] in object_ids:
+                    raise ValueError("两事实表公开对象身份重复")
+                object_ids.add(row["object_id"])
                 first, withdrawn = row["first_known_generation"], row["withdrawn_generation"]
                 if withdrawn is not None and withdrawn <= first:
                     raise ValueError("对象生命周期非法")
-                value = h["_project_object_row"](tuple(row.values()))
+                value = tb02.project_fact(row, parse_json) if table == "structure_facts" else h["_project_object_row"](tuple(row.values()))
+                if table == "structure_facts":
+                    tb02.validate_fact(value, meta, raw)
                 births[first].append(value)
                 if withdrawn is not None:
                     deaths[withdrawn].append(value)
@@ -782,7 +846,7 @@ def verify(image, h, deadline=None, memo=None):
                 value = {k: row[k] for k in ("observation_id", "batch_id", "kind", "reason")}
                 value.update({k: None if row[k] is None else str(row[k]) for k in ("window_start", "window_mid", "window_end")})
                 value["detail"] = parse_json(row["detail_json"])
-            wires[table].append((row["published_generation"], value))
+            wires["objects" if table in object_tables else table].append((row["published_generation"], value))
 
     stored, born, seen = {}, {}, {}
     for table in ("witnesses", "relations", "observations"):
@@ -797,6 +861,7 @@ def verify(image, h, deadline=None, memo=None):
     verified_deltas, decoded_batches, delta_json = [], {}, []
     active_keys = {}
     prev_frontier = -1
+    effective_sources = {}
     for gen, row in enumerate(deltas, 1):
         _deadline(deadline)
         if row["generation"] != gen or row["session_id"] != meta["session_id"] or row["catalog_revision"] != meta["catalog_revision"]:
@@ -843,7 +908,15 @@ def verify(image, h, deadline=None, memo=None):
         if header["seq_range"] != {"from": str(prev_frontier+1), "to": str(frontier)}:
             raise ValueError("Delta seq_range 与前沿链不一致")
         # 无论命中memo与否，独立索引生命周期和全raw前缀均来自本次完整typed捕获。
+        for item in raw[prev_frontier+1:frontier+1]:
+            effective_sources[item["source_coord"]] = {key: item[key] for key in tb02.REF_FIELDS}
         for obj in births[gen]:
+            if obj["kind"] in tb02.KINDS:
+                by_source, source_bars = tb02.validate_sources(obj, effective_sources)
+                for bar in source_bars:
+                    source = raw[int(by_source[bar["source_coord"]]["seq"])]
+                    if any(bar[key] != source[key] for key in ("open", "high", "low", "close")):
+                        raise ValueError("事实中原始 OHLC 值与真实源记录不符")
             value = dict(obj, withdrawn_generation=None, withdrawal_reason=None,
                          superseded_by=None, lifecycle="active")
             active[obj["object_id"]] = value
@@ -854,11 +927,34 @@ def verify(image, h, deadline=None, memo=None):
             if active.pop(obj["object_id"], None) is None:
                 raise ValueError("对象撤回无活动前件")
             active_keys.pop(obj["object_id"])
-            withdrawals.append({"object_id": obj["object_id"], "window_start": obj["window_start"],
-                                "window_mid": obj["window_mid"], "window_end": obj["window_end"],
-                                "reason": obj["withdrawal_reason"], "superseded_by": obj["superseded_by"]})
+            withdrawal = {"object_id": obj["object_id"], "reason": obj["withdrawal_reason"], "superseded_by": obj["superseded_by"]}
+            withdrawal.update({key: obj[key] for key in (("fact_key",) if obj["kind"] in tb02.KINDS else ("window_start", "window_mid", "window_end"))})
+            withdrawals.append(withdrawal)
             if obj["superseded_by"] is not None:
                 replaces.append({"old_object_id": obj["object_id"], "new_object_id": obj["superseded_by"]})
+        if meta.get("profile_id") == tb02.PROFILE:
+            tb02.validate_axes(header["catalog_evidence"].get("axes"), set(active))
+            revision_evidence = header["catalog_evidence"]["axes"]["CC-056"]["evidence"]
+            revision_refs = [{key: item[key] for key in tb02.REF_FIELDS} for item in raw[prev_frontier+1:frontier+1] if int(item["revision"]) > 1]
+            _same(revision_evidence["raw_revisions"], revision_refs, h, "CC056.raw_revisions")
+            _same(revision_evidence["withdrawals"], withdrawals, h, "CC056.withdrawals")
+            _same(revision_evidence["replaces"], replaces, h, "CC056.replaces")
+            groups = {obj["payload"]["group_anchor"]: obj["payload"] for obj in active.values() if obj["kind"] == tb02.KINDS[1]}
+            for obj in births[gen]:
+                if obj["kind"] == "CC-006.local_shape":
+                    tb02.validate_shape_refs(obj, effective_sources, groups)
+                if obj["kind"] == tb02.KINDS[2]:
+                    shape = active.get(obj["payload"]["shape_object_id"])
+                    if shape is None or shape["kind"] != "CC-006.local_shape" or shape["branch"] != obj["payload"]["branch"] or [shape[key] for key in ("window_start", "window_mid", "window_end")] != obj["payload"]["window"]:
+                        raise ValueError("CC007 不属于该 cut 真实 CC006 顶/底对象")
+                    if not set(shape["source_coords"]) <= set(obj["source_coords"]):
+                        raise ValueError("CC007 没有传递所描述形态的构造/分组边界来源")
+                if obj["kind"] == tb02.KINDS[3]:
+                    if obj["payload"]["input_frontier"] != str(frontier):
+                        raise ValueError("知识状态首次发布的输入前沿不符")
+                    for request in obj["payload"]["requests"]:
+                        if request["subject_id"] is not None and request["subject_id"] not in active:
+                            raise ValueError("逐请求引用未绑定该 cut 真实对象")
         current_objects = frozenset(active_keys.values())
         if len(current_objects) != len(active):
             raise ValueError("objects/独立索引 含重复成员")
@@ -886,6 +982,11 @@ def verify(image, h, deadline=None, memo=None):
         if seen[table] != stored[table].keys():
             raise ValueError(table + " 存在未被任何已发布代证明的索引")
     catalog = tables["catalog"]
+    if meta.get("profile_id") == tb02.PROFILE:
+        for item in catalog:
+            if generation == 0 or item["catalog_id"] not in tb02.AXES:
+                if (item["impl_status"], item["proof_status"], item["run_status"]) != ("not_implemented", "not_proved", "not_run") or parse_json(item["evidence_json"]) != {}:
+                    raise ValueError("无发布轴的当前目录携带未封存运行/证明事实")
     if meta.get("profile_definition") is None and binding != ("", "") and not any(b["profile_id"] for b in decoded_batches.values()):
         profile = parse_json((h["Path"](h["__file__"]).resolve().parent / "profiles/testonly_tick_1_1_ohlc.json").read_bytes())
         if (profile.get("profile_id"), hashlib.sha256(canonical(profile)).hexdigest()) != binding:
@@ -893,7 +994,15 @@ def verify(image, h, deadline=None, memo=None):
     if generation:
         cc = [r for r in catalog if r["catalog_id"] == "CC-006"]
         last = verified_deltas[-1]
-        if len(cc) != 1 or cc[0]["run_status"] != last["catalog_run_status"] or canonical(parse_json(cc[0]["evidence_json"])) != canonical(last["catalog_evidence"]):
+        if meta.get("profile_id") == tb02.PROFILE:
+            axes = last["catalog_evidence"].get("axes")
+            tb02.validate_axes(axes)
+            by_id = {item["catalog_id"]: item for item in catalog}
+            for cid, axis in axes.items():
+                current = by_id.get(cid)
+                if current is None or any(current[key] != axis[key] for key in ("impl_status", "proof_status", "run_status")) or canonical(parse_json(current["evidence_json"])) != canonical(axis["evidence"]):
+                    raise ValueError("当前逐轴目录与末代 Delta 不一致")
+        elif len(cc) != 1 or cc[0]["run_status"] != last["catalog_run_status"] or canonical(parse_json(cc[0]["evidence_json"])) != canonical(last["catalog_evidence"]):
             raise ValueError("当前目录与末代 Delta 证据不一致")
         if any(meta[key] != last[dkey] for key, dkey in (("index_frontier", "index_frontier"),
                ("structure_cut", "next_cut"), ("last_advance_frontier", "input_frontier"))):
@@ -937,6 +1046,8 @@ def project_state(proof, as_of, h):
                     profile_id=batch["profile_id"] if batch else "", profile_hash=batch["profile_hash"] if batch else "",
                     history_mode="RecomputedWithRevision" if as_of is None else "AsKnown",
                     as_of_generation=None if as_of is None else str(gen))
+    if gen == 0 and meta.get("profile_id") == tb02.PROFILE:
+        snapshot["profile_id"], snapshot["profile_hash"] = meta["profile_id"], meta["profile_hash"]
     active, withdrawn = [], []
     for _published, obj in proof["wires"]["objects"]:
         if int(obj["first_known_generation"]) > gen:
@@ -947,7 +1058,8 @@ def project_state(proof, as_of, h):
                                superseded_by=None, lifecycle="active"))
         else:
             withdrawn.append(obj)
-    snapshot["objects"] = sorted(active, key=lambda o: int(o["window_start"]))
+    snapshot["objects"] = sorted(active, key=lambda o: (1, o["kind"], o["fact_key"], o["object_id"])
+                                 if o["kind"] in tb02.KINDS else (0, int(o["window_start"])))
     snapshot["withdrawn_objects"] = sorted(withdrawn, key=lambda o: int(o["first_known_generation"]))
     snapshot["witnesses"] = sorted([v for pg, v in proof["wires"]["witnesses"] if pg <= gen],
                                     key=lambda v: (v["object_id"], int(v["slot"])))
@@ -962,7 +1074,14 @@ def project_state(proof, as_of, h):
                 "branches": parse_json(row["branches_json"], (list, dict)),
                 "implementation_status": row["impl_status"], "proof_status": row["proof_status"],
                 "run_status": row["run_status"], "evidence": parse_json(row["evidence_json"])}
-        if as_of is not None:
+        if meta.get("profile_id") == tb02.PROFILE:
+            axis = publication["catalog_evidence"].get("axes", {}).get(item["id"])
+            if gen and item["id"] in tb02.AXES and axis is None:
+                raise ValueError("历史 cut 缺少逐轴封存证据")
+            item.update(implementation_status=axis["impl_status"] if axis else "not_implemented",
+                        proof_status=axis["proof_status"] if axis else "not_proved",
+                        run_status=axis["run_status"] if axis else "not_run", evidence=axis["evidence"] if axis else {})
+        elif as_of is not None:
             item["implementation_status"] = "implemented" if item["id"] == "CC-006" and gen else "not_implemented"
             item["proof_status"] = "not_proved"
             if gen == 0 or item["id"] == "CC-006":

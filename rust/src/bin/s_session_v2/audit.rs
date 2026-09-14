@@ -310,7 +310,13 @@ impl AuditWalk {
                 if self.active.remove(&identity(&o, "objects")?).is_none() {
                     return Err("StorageUnavailable：撤回对象尚未出生".into());
                 }
-                withdrawals.push(json!({"object_id":o["object_id"],"window_start":o["window_start"],"window_mid":o["window_mid"],"window_end":o["window_end"],"reason":o["withdrawal_reason"],"superseded_by":o["superseded_by"]}));
+                withdrawals.push(tb02a::withdrawal(
+                    &o,
+                    o["withdrawal_reason"]
+                        .as_str()
+                        .ok_or("StorageUnavailable：撤回原因缺失")?,
+                    o["superseded_by"].clone(),
+                ));
                 if !o["superseded_by"].is_null() {
                     replaces.push(
                         json!({"old_object_id":o["object_id"],"new_object_id":o["superseded_by"]}),

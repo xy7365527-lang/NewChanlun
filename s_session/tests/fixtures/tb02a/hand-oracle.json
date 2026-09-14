@@ -1,0 +1,1873 @@
+{
+  "schema": "tb02a-independent-hand-oracle-v1",
+  "issue": 1373,
+  "authorship": "逐根按正本关系式手算的常量；没有调用、导入或抓取生产实现输出作为 expected。",
+  "sources": [
+    {
+      "path": ".chanlun/definitions/baohan.md",
+      "sha256": "73a895bdaf196efc6e81183518a8395a3548101fda3cf1a68465d1595da7203f",
+      "used_lines": "88-115,119-147"
+    },
+    {
+      "path": ".chanlun/definitions/fenxing.md",
+      "sha256": "0285fd9d9352b63a6ec1686bd5d7543dcd2a7c2d93c9a2e47d007507fc58f88f",
+      "used_lines": "92-126"
+    }
+  ],
+  "scope": {
+    "input_direction": "SINGLE 不虚填方向。第二根无包含相邻 K 的双严格比较建立方向，随后才准入包含折叠。",
+    "price_identity": "成功组每一步选中 high/low 各一个原始根；等号非获选成员关系不等于实际折叠端点等号。",
+    "descriptions": "强弱描述没有获裁数值门；TOP/BOTTOM 不推出后续成笔或交易事件。",
+    "coordinate_indices": "raw_index、merged_index 与原始极值成员角色分别核验。方向 source_pair_anchor_raw_indices 指当步标准组首锚，左组可能包含多个 raw 成员，须结合该步前缀展开。",
+    "protocol_boundary": "这些是独立数学事实与期望对象账簿，正式消息字段、持久 ID、cut ID 和查询封装由实施适配，不能只比较本文少数字段宣称全部协议字段已对拍。"
+  },
+  "success_cases": [
+    {
+      "case_id": "up_member_equal_and_touch",
+      "status": "IN_BOUNDED_DOMAIN",
+      "groups": [
+        {
+          "merged_index": 0,
+          "raw_member_indices": [
+            0
+          ],
+          "raw_range_inclusive": [
+            0,
+            0
+          ],
+          "group_anchor_raw_index": 0,
+          "open": 12,
+          "high": 20,
+          "low": 10,
+          "close": 18,
+          "high_raw_indices": [
+            0
+          ],
+          "low_raw_indices": [
+            0
+          ]
+        },
+        {
+          "merged_index": 1,
+          "raw_member_indices": [
+            1,
+            2,
+            3
+          ],
+          "raw_range_inclusive": [
+            1,
+            3
+          ],
+          "group_anchor_raw_index": 1,
+          "open": 70,
+          "high": 100,
+          "low": 60,
+          "close": 75,
+          "high_raw_indices": [
+            1
+          ],
+          "low_raw_indices": [
+            3
+          ]
+        },
+        {
+          "merged_index": 2,
+          "raw_member_indices": [
+            4
+          ],
+          "raw_range_inclusive": [
+            4,
+            4
+          ],
+          "group_anchor_raw_index": 4,
+          "open": 105,
+          "high": 120,
+          "low": 100,
+          "close": 115,
+          "high_raw_indices": [
+            4
+          ],
+          "low_raw_indices": [
+            4
+          ]
+        }
+      ],
+      "raw_to_merged": [
+        0,
+        1,
+        1,
+        1,
+        2
+      ],
+      "fold_steps": [
+        {
+          "raw_index": 0,
+          "branch": "SINGLE",
+          "direction": null,
+          "source_pair_anchor_raw_indices": null,
+          "tail_member_indices": [
+            0
+          ],
+          "tail_low": 10,
+          "tail_high": 20,
+          "tail_high_raw_indices": [
+            0
+          ],
+          "tail_low_raw_indices": [
+            0
+          ]
+        },
+        {
+          "raw_index": 1,
+          "branch": "APPEND_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            0,
+            1
+          ],
+          "tail_member_indices": [
+            1
+          ],
+          "tail_low": 30,
+          "tail_high": 100,
+          "tail_high_raw_indices": [
+            1
+          ],
+          "tail_low_raw_indices": [
+            1
+          ]
+        },
+        {
+          "raw_index": 2,
+          "branch": "MERGE_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            0,
+            1
+          ],
+          "tail_member_indices": [
+            1,
+            2
+          ],
+          "tail_low": 50,
+          "tail_high": 100,
+          "tail_high_raw_indices": [
+            1
+          ],
+          "tail_low_raw_indices": [
+            2
+          ]
+        },
+        {
+          "raw_index": 3,
+          "branch": "MERGE_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            0,
+            1
+          ],
+          "tail_member_indices": [
+            1,
+            2,
+            3
+          ],
+          "tail_low": 60,
+          "tail_high": 100,
+          "tail_high_raw_indices": [
+            1
+          ],
+          "tail_low_raw_indices": [
+            3
+          ]
+        },
+        {
+          "raw_index": 4,
+          "branch": "APPEND_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            1,
+            4
+          ],
+          "tail_member_indices": [
+            4
+          ],
+          "tail_low": 100,
+          "tail_high": 120,
+          "tail_high_raw_indices": [
+            4
+          ],
+          "tail_low_raw_indices": [
+            4
+          ]
+        }
+      ],
+      "windows": [
+        {
+          "merged_indices": [
+            0,
+            1,
+            2
+          ],
+          "group_anchor_raw_indices": [
+            0,
+            1,
+            4
+          ],
+          "shape": "RISING",
+          "comparison_order": [
+            "middle_high_vs_left_high",
+            "middle_low_vs_left_low",
+            "middle_high_vs_right_high",
+            "middle_low_vs_right_low"
+          ],
+          "comparisons": [
+            "GT",
+            "GT",
+            "LT",
+            "LT"
+          ],
+          "adjacent_contains": [
+            false,
+            false
+          ]
+        }
+      ],
+      "edge_requests": [
+        {
+          "merged_index": 0,
+          "missing": [
+            "left_neighbor"
+          ],
+          "shape": null
+        },
+        {
+          "merged_index": 2,
+          "missing": [
+            "right_neighbor"
+          ],
+          "shape": null
+        }
+      ],
+      "descriptions": {
+        "numerical_strength_threshold": null,
+        "strength_label": null,
+        "later_development_events": []
+      }
+    },
+    {
+      "case_id": "down_member_equal_and_touch",
+      "status": "IN_BOUNDED_DOMAIN",
+      "groups": [
+        {
+          "merged_index": 0,
+          "raw_member_indices": [
+            0
+          ],
+          "raw_range_inclusive": [
+            0,
+            0
+          ],
+          "group_anchor_raw_index": 0,
+          "open": 182,
+          "high": 190,
+          "low": 180,
+          "close": 188,
+          "high_raw_indices": [
+            0
+          ],
+          "low_raw_indices": [
+            0
+          ]
+        },
+        {
+          "merged_index": 1,
+          "raw_member_indices": [
+            1,
+            2,
+            3
+          ],
+          "raw_range_inclusive": [
+            1,
+            3
+          ],
+          "group_anchor_raw_index": 1,
+          "open": 130,
+          "high": 140,
+          "low": 100,
+          "close": 135,
+          "high_raw_indices": [
+            3
+          ],
+          "low_raw_indices": [
+            1
+          ]
+        },
+        {
+          "merged_index": 2,
+          "raw_member_indices": [
+            4
+          ],
+          "raw_range_inclusive": [
+            4,
+            4
+          ],
+          "group_anchor_raw_index": 4,
+          "open": 85,
+          "high": 100,
+          "low": 80,
+          "close": 95,
+          "high_raw_indices": [
+            4
+          ],
+          "low_raw_indices": [
+            4
+          ]
+        }
+      ],
+      "raw_to_merged": [
+        0,
+        1,
+        1,
+        1,
+        2
+      ],
+      "fold_steps": [
+        {
+          "raw_index": 0,
+          "branch": "SINGLE",
+          "direction": null,
+          "source_pair_anchor_raw_indices": null,
+          "tail_member_indices": [
+            0
+          ],
+          "tail_low": 180,
+          "tail_high": 190,
+          "tail_high_raw_indices": [
+            0
+          ],
+          "tail_low_raw_indices": [
+            0
+          ]
+        },
+        {
+          "raw_index": 1,
+          "branch": "APPEND_DOWN",
+          "direction": "DOWN",
+          "source_pair_anchor_raw_indices": [
+            0,
+            1
+          ],
+          "tail_member_indices": [
+            1
+          ],
+          "tail_low": 100,
+          "tail_high": 170,
+          "tail_high_raw_indices": [
+            1
+          ],
+          "tail_low_raw_indices": [
+            1
+          ]
+        },
+        {
+          "raw_index": 2,
+          "branch": "MERGE_DOWN",
+          "direction": "DOWN",
+          "source_pair_anchor_raw_indices": [
+            0,
+            1
+          ],
+          "tail_member_indices": [
+            1,
+            2
+          ],
+          "tail_low": 100,
+          "tail_high": 150,
+          "tail_high_raw_indices": [
+            2
+          ],
+          "tail_low_raw_indices": [
+            1
+          ]
+        },
+        {
+          "raw_index": 3,
+          "branch": "MERGE_DOWN",
+          "direction": "DOWN",
+          "source_pair_anchor_raw_indices": [
+            0,
+            1
+          ],
+          "tail_member_indices": [
+            1,
+            2,
+            3
+          ],
+          "tail_low": 100,
+          "tail_high": 140,
+          "tail_high_raw_indices": [
+            3
+          ],
+          "tail_low_raw_indices": [
+            1
+          ]
+        },
+        {
+          "raw_index": 4,
+          "branch": "APPEND_DOWN",
+          "direction": "DOWN",
+          "source_pair_anchor_raw_indices": [
+            1,
+            4
+          ],
+          "tail_member_indices": [
+            4
+          ],
+          "tail_low": 80,
+          "tail_high": 100,
+          "tail_high_raw_indices": [
+            4
+          ],
+          "tail_low_raw_indices": [
+            4
+          ]
+        }
+      ],
+      "windows": [
+        {
+          "merged_indices": [
+            0,
+            1,
+            2
+          ],
+          "group_anchor_raw_indices": [
+            0,
+            1,
+            4
+          ],
+          "shape": "FALLING",
+          "comparison_order": [
+            "middle_high_vs_left_high",
+            "middle_low_vs_left_low",
+            "middle_high_vs_right_high",
+            "middle_low_vs_right_low"
+          ],
+          "comparisons": [
+            "LT",
+            "LT",
+            "GT",
+            "GT"
+          ],
+          "adjacent_contains": [
+            false,
+            false
+          ]
+        }
+      ],
+      "edge_requests": [
+        {
+          "merged_index": 0,
+          "missing": [
+            "left_neighbor"
+          ],
+          "shape": null
+        },
+        {
+          "merged_index": 2,
+          "missing": [
+            "right_neighbor"
+          ],
+          "shape": null
+        }
+      ],
+      "descriptions": {
+        "numerical_strength_threshold": null,
+        "strength_label": null,
+        "later_development_events": []
+      }
+    },
+    {
+      "case_id": "four_local_leaves",
+      "status": "IN_BOUNDED_DOMAIN",
+      "groups": [
+        {
+          "merged_index": 0,
+          "raw_member_indices": [
+            0
+          ],
+          "raw_range_inclusive": [
+            0,
+            0
+          ],
+          "group_anchor_raw_index": 0,
+          "open": 12,
+          "high": 20,
+          "low": 10,
+          "close": 18,
+          "high_raw_indices": [
+            0
+          ],
+          "low_raw_indices": [
+            0
+          ]
+        },
+        {
+          "merged_index": 1,
+          "raw_member_indices": [
+            1
+          ],
+          "raw_range_inclusive": [
+            1,
+            1
+          ],
+          "group_anchor_raw_index": 1,
+          "open": 32,
+          "high": 40,
+          "low": 30,
+          "close": 38,
+          "high_raw_indices": [
+            1
+          ],
+          "low_raw_indices": [
+            1
+          ]
+        },
+        {
+          "merged_index": 2,
+          "raw_member_indices": [
+            2
+          ],
+          "raw_range_inclusive": [
+            2,
+            2
+          ],
+          "group_anchor_raw_index": 2,
+          "open": 52,
+          "high": 60,
+          "low": 50,
+          "close": 58,
+          "high_raw_indices": [
+            2
+          ],
+          "low_raw_indices": [
+            2
+          ]
+        },
+        {
+          "merged_index": 3,
+          "raw_member_indices": [
+            3
+          ],
+          "raw_range_inclusive": [
+            3,
+            3
+          ],
+          "group_anchor_raw_index": 3,
+          "open": 37,
+          "high": 45,
+          "low": 35,
+          "close": 43,
+          "high_raw_indices": [
+            3
+          ],
+          "low_raw_indices": [
+            3
+          ]
+        },
+        {
+          "merged_index": 4,
+          "raw_member_indices": [
+            4
+          ],
+          "raw_range_inclusive": [
+            4,
+            4
+          ],
+          "group_anchor_raw_index": 4,
+          "open": 17,
+          "high": 25,
+          "low": 15,
+          "close": 23,
+          "high_raw_indices": [
+            4
+          ],
+          "low_raw_indices": [
+            4
+          ]
+        },
+        {
+          "merged_index": 5,
+          "raw_member_indices": [
+            5
+          ],
+          "raw_range_inclusive": [
+            5,
+            5
+          ],
+          "group_anchor_raw_index": 5,
+          "open": 33,
+          "high": 41,
+          "low": 31,
+          "close": 39,
+          "high_raw_indices": [
+            5
+          ],
+          "low_raw_indices": [
+            5
+          ]
+        }
+      ],
+      "raw_to_merged": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "fold_steps": [
+        {
+          "raw_index": 0,
+          "branch": "SINGLE",
+          "direction": null,
+          "source_pair_anchor_raw_indices": null,
+          "tail_member_indices": [
+            0
+          ],
+          "tail_low": 10,
+          "tail_high": 20,
+          "tail_high_raw_indices": [
+            0
+          ],
+          "tail_low_raw_indices": [
+            0
+          ]
+        },
+        {
+          "raw_index": 1,
+          "branch": "APPEND_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            0,
+            1
+          ],
+          "tail_member_indices": [
+            1
+          ],
+          "tail_low": 30,
+          "tail_high": 40,
+          "tail_high_raw_indices": [
+            1
+          ],
+          "tail_low_raw_indices": [
+            1
+          ]
+        },
+        {
+          "raw_index": 2,
+          "branch": "APPEND_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            1,
+            2
+          ],
+          "tail_member_indices": [
+            2
+          ],
+          "tail_low": 50,
+          "tail_high": 60,
+          "tail_high_raw_indices": [
+            2
+          ],
+          "tail_low_raw_indices": [
+            2
+          ]
+        },
+        {
+          "raw_index": 3,
+          "branch": "APPEND_DOWN",
+          "direction": "DOWN",
+          "source_pair_anchor_raw_indices": [
+            2,
+            3
+          ],
+          "tail_member_indices": [
+            3
+          ],
+          "tail_low": 35,
+          "tail_high": 45,
+          "tail_high_raw_indices": [
+            3
+          ],
+          "tail_low_raw_indices": [
+            3
+          ]
+        },
+        {
+          "raw_index": 4,
+          "branch": "APPEND_DOWN",
+          "direction": "DOWN",
+          "source_pair_anchor_raw_indices": [
+            3,
+            4
+          ],
+          "tail_member_indices": [
+            4
+          ],
+          "tail_low": 15,
+          "tail_high": 25,
+          "tail_high_raw_indices": [
+            4
+          ],
+          "tail_low_raw_indices": [
+            4
+          ]
+        },
+        {
+          "raw_index": 5,
+          "branch": "APPEND_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            4,
+            5
+          ],
+          "tail_member_indices": [
+            5
+          ],
+          "tail_low": 31,
+          "tail_high": 41,
+          "tail_high_raw_indices": [
+            5
+          ],
+          "tail_low_raw_indices": [
+            5
+          ]
+        }
+      ],
+      "windows": [
+        {
+          "merged_indices": [
+            0,
+            1,
+            2
+          ],
+          "group_anchor_raw_indices": [
+            0,
+            1,
+            2
+          ],
+          "shape": "RISING",
+          "comparison_order": [
+            "middle_high_vs_left_high",
+            "middle_low_vs_left_low",
+            "middle_high_vs_right_high",
+            "middle_low_vs_right_low"
+          ],
+          "comparisons": [
+            "GT",
+            "GT",
+            "LT",
+            "LT"
+          ],
+          "adjacent_contains": [
+            false,
+            false
+          ]
+        },
+        {
+          "merged_indices": [
+            1,
+            2,
+            3
+          ],
+          "group_anchor_raw_indices": [
+            1,
+            2,
+            3
+          ],
+          "shape": "TOP",
+          "comparison_order": [
+            "middle_high_vs_left_high",
+            "middle_low_vs_left_low",
+            "middle_high_vs_right_high",
+            "middle_low_vs_right_low"
+          ],
+          "comparisons": [
+            "GT",
+            "GT",
+            "GT",
+            "GT"
+          ],
+          "adjacent_contains": [
+            false,
+            false
+          ]
+        },
+        {
+          "merged_indices": [
+            2,
+            3,
+            4
+          ],
+          "group_anchor_raw_indices": [
+            2,
+            3,
+            4
+          ],
+          "shape": "FALLING",
+          "comparison_order": [
+            "middle_high_vs_left_high",
+            "middle_low_vs_left_low",
+            "middle_high_vs_right_high",
+            "middle_low_vs_right_low"
+          ],
+          "comparisons": [
+            "LT",
+            "LT",
+            "GT",
+            "GT"
+          ],
+          "adjacent_contains": [
+            false,
+            false
+          ]
+        },
+        {
+          "merged_indices": [
+            3,
+            4,
+            5
+          ],
+          "group_anchor_raw_indices": [
+            3,
+            4,
+            5
+          ],
+          "shape": "BOTTOM",
+          "comparison_order": [
+            "middle_high_vs_left_high",
+            "middle_low_vs_left_low",
+            "middle_high_vs_right_high",
+            "middle_low_vs_right_low"
+          ],
+          "comparisons": [
+            "LT",
+            "LT",
+            "LT",
+            "LT"
+          ],
+          "adjacent_contains": [
+            false,
+            false
+          ]
+        }
+      ],
+      "edge_requests": [
+        {
+          "merged_index": 0,
+          "missing": [
+            "left_neighbor"
+          ],
+          "shape": null
+        },
+        {
+          "merged_index": 5,
+          "missing": [
+            "right_neighbor"
+          ],
+          "shape": null
+        }
+      ],
+      "descriptions": {
+        "numerical_strength_threshold": null,
+        "strength_label": null,
+        "later_development_events": []
+      }
+    },
+    {
+      "case_id": "high_only_before_revision",
+      "status": "IN_BOUNDED_DOMAIN",
+      "groups": [
+        {
+          "merged_index": 0,
+          "raw_member_indices": [
+            0
+          ],
+          "raw_range_inclusive": [
+            0,
+            0
+          ],
+          "group_anchor_raw_index": 0,
+          "open": 0,
+          "high": 1,
+          "low": 0,
+          "close": 1,
+          "high_raw_indices": [
+            0
+          ],
+          "low_raw_indices": [
+            0
+          ]
+        },
+        {
+          "merged_index": 1,
+          "raw_member_indices": [
+            1,
+            2,
+            3
+          ],
+          "raw_range_inclusive": [
+            1,
+            3
+          ],
+          "group_anchor_raw_index": 1,
+          "open": 5,
+          "high": 9,
+          "low": 5,
+          "close": 6,
+          "high_raw_indices": [
+            2
+          ],
+          "low_raw_indices": [
+            3
+          ]
+        },
+        {
+          "merged_index": 2,
+          "raw_member_indices": [
+            4
+          ],
+          "raw_range_inclusive": [
+            4,
+            4
+          ],
+          "group_anchor_raw_index": 4,
+          "open": 11,
+          "high": 12,
+          "low": 10,
+          "close": 11,
+          "high_raw_indices": [
+            4
+          ],
+          "low_raw_indices": [
+            4
+          ]
+        }
+      ],
+      "raw_to_merged": [
+        0,
+        1,
+        1,
+        1,
+        2
+      ],
+      "fold_steps": [
+        {
+          "raw_index": 0,
+          "branch": "SINGLE",
+          "direction": null,
+          "source_pair_anchor_raw_indices": null,
+          "tail_member_indices": [
+            0
+          ],
+          "tail_low": 0,
+          "tail_high": 1,
+          "tail_high_raw_indices": [
+            0
+          ],
+          "tail_low_raw_indices": [
+            0
+          ]
+        },
+        {
+          "raw_index": 1,
+          "branch": "APPEND_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            0,
+            1
+          ],
+          "tail_member_indices": [
+            1
+          ],
+          "tail_low": 4,
+          "tail_high": 8,
+          "tail_high_raw_indices": [
+            1
+          ],
+          "tail_low_raw_indices": [
+            1
+          ]
+        },
+        {
+          "raw_index": 2,
+          "branch": "MERGE_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            0,
+            1
+          ],
+          "tail_member_indices": [
+            1,
+            2
+          ],
+          "tail_low": 4,
+          "tail_high": 9,
+          "tail_high_raw_indices": [
+            2
+          ],
+          "tail_low_raw_indices": [
+            1
+          ]
+        },
+        {
+          "raw_index": 3,
+          "branch": "MERGE_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            0,
+            1
+          ],
+          "tail_member_indices": [
+            1,
+            2,
+            3
+          ],
+          "tail_low": 5,
+          "tail_high": 9,
+          "tail_high_raw_indices": [
+            2
+          ],
+          "tail_low_raw_indices": [
+            3
+          ]
+        },
+        {
+          "raw_index": 4,
+          "branch": "APPEND_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            1,
+            4
+          ],
+          "tail_member_indices": [
+            4
+          ],
+          "tail_low": 10,
+          "tail_high": 12,
+          "tail_high_raw_indices": [
+            4
+          ],
+          "tail_low_raw_indices": [
+            4
+          ]
+        }
+      ],
+      "windows": [
+        {
+          "merged_indices": [
+            0,
+            1,
+            2
+          ],
+          "group_anchor_raw_indices": [
+            0,
+            1,
+            4
+          ],
+          "shape": "RISING",
+          "comparison_order": [
+            "middle_high_vs_left_high",
+            "middle_low_vs_left_low",
+            "middle_high_vs_right_high",
+            "middle_low_vs_right_low"
+          ],
+          "comparisons": [
+            "GT",
+            "GT",
+            "LT",
+            "LT"
+          ],
+          "adjacent_contains": [
+            false,
+            false
+          ]
+        }
+      ],
+      "edge_requests": [
+        {
+          "merged_index": 0,
+          "missing": [
+            "left_neighbor"
+          ],
+          "shape": null
+        },
+        {
+          "merged_index": 2,
+          "missing": [
+            "right_neighbor"
+          ],
+          "shape": null
+        }
+      ],
+      "descriptions": {
+        "numerical_strength_threshold": null,
+        "strength_label": null,
+        "later_development_events": []
+      }
+    },
+    {
+      "case_id": "high_only_after_revision",
+      "status": "IN_BOUNDED_DOMAIN",
+      "groups": [
+        {
+          "merged_index": 0,
+          "raw_member_indices": [
+            0
+          ],
+          "raw_range_inclusive": [
+            0,
+            0
+          ],
+          "group_anchor_raw_index": 0,
+          "open": 0,
+          "high": 1,
+          "low": 0,
+          "close": 1,
+          "high_raw_indices": [
+            0
+          ],
+          "low_raw_indices": [
+            0
+          ]
+        },
+        {
+          "merged_index": 1,
+          "raw_member_indices": [
+            1
+          ],
+          "raw_range_inclusive": [
+            1,
+            1
+          ],
+          "group_anchor_raw_index": 1,
+          "open": 5,
+          "high": 8,
+          "low": 4,
+          "close": 7,
+          "high_raw_indices": [
+            1
+          ],
+          "low_raw_indices": [
+            1
+          ]
+        },
+        {
+          "merged_index": 2,
+          "raw_member_indices": [
+            2
+          ],
+          "raw_range_inclusive": [
+            2,
+            2
+          ],
+          "group_anchor_raw_index": 2,
+          "open": 7,
+          "high": 11,
+          "low": 6,
+          "close": 10,
+          "high_raw_indices": [
+            2
+          ],
+          "low_raw_indices": [
+            2
+          ]
+        },
+        {
+          "merged_index": 3,
+          "raw_member_indices": [
+            3
+          ],
+          "raw_range_inclusive": [
+            3,
+            3
+          ],
+          "group_anchor_raw_index": 3,
+          "open": 6,
+          "high": 7,
+          "low": 5,
+          "close": 6,
+          "high_raw_indices": [
+            3
+          ],
+          "low_raw_indices": [
+            3
+          ]
+        },
+        {
+          "merged_index": 4,
+          "raw_member_indices": [
+            4
+          ],
+          "raw_range_inclusive": [
+            4,
+            4
+          ],
+          "group_anchor_raw_index": 4,
+          "open": 11,
+          "high": 12,
+          "low": 10,
+          "close": 11,
+          "high_raw_indices": [
+            4
+          ],
+          "low_raw_indices": [
+            4
+          ]
+        }
+      ],
+      "raw_to_merged": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "fold_steps": [
+        {
+          "raw_index": 0,
+          "branch": "SINGLE",
+          "direction": null,
+          "source_pair_anchor_raw_indices": null,
+          "tail_member_indices": [
+            0
+          ],
+          "tail_low": 0,
+          "tail_high": 1,
+          "tail_high_raw_indices": [
+            0
+          ],
+          "tail_low_raw_indices": [
+            0
+          ]
+        },
+        {
+          "raw_index": 1,
+          "branch": "APPEND_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            0,
+            1
+          ],
+          "tail_member_indices": [
+            1
+          ],
+          "tail_low": 4,
+          "tail_high": 8,
+          "tail_high_raw_indices": [
+            1
+          ],
+          "tail_low_raw_indices": [
+            1
+          ]
+        },
+        {
+          "raw_index": 2,
+          "branch": "APPEND_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            1,
+            2
+          ],
+          "tail_member_indices": [
+            2
+          ],
+          "tail_low": 6,
+          "tail_high": 11,
+          "tail_high_raw_indices": [
+            2
+          ],
+          "tail_low_raw_indices": [
+            2
+          ]
+        },
+        {
+          "raw_index": 3,
+          "branch": "APPEND_DOWN",
+          "direction": "DOWN",
+          "source_pair_anchor_raw_indices": [
+            2,
+            3
+          ],
+          "tail_member_indices": [
+            3
+          ],
+          "tail_low": 5,
+          "tail_high": 7,
+          "tail_high_raw_indices": [
+            3
+          ],
+          "tail_low_raw_indices": [
+            3
+          ]
+        },
+        {
+          "raw_index": 4,
+          "branch": "APPEND_UP",
+          "direction": "UP",
+          "source_pair_anchor_raw_indices": [
+            3,
+            4
+          ],
+          "tail_member_indices": [
+            4
+          ],
+          "tail_low": 10,
+          "tail_high": 12,
+          "tail_high_raw_indices": [
+            4
+          ],
+          "tail_low_raw_indices": [
+            4
+          ]
+        }
+      ],
+      "windows": [
+        {
+          "merged_indices": [
+            0,
+            1,
+            2
+          ],
+          "group_anchor_raw_indices": [
+            0,
+            1,
+            2
+          ],
+          "shape": "RISING",
+          "comparison_order": [
+            "middle_high_vs_left_high",
+            "middle_low_vs_left_low",
+            "middle_high_vs_right_high",
+            "middle_low_vs_right_low"
+          ],
+          "comparisons": [
+            "GT",
+            "GT",
+            "LT",
+            "LT"
+          ],
+          "adjacent_contains": [
+            false,
+            false
+          ]
+        },
+        {
+          "merged_indices": [
+            1,
+            2,
+            3
+          ],
+          "group_anchor_raw_indices": [
+            1,
+            2,
+            3
+          ],
+          "shape": "TOP",
+          "comparison_order": [
+            "middle_high_vs_left_high",
+            "middle_low_vs_left_low",
+            "middle_high_vs_right_high",
+            "middle_low_vs_right_low"
+          ],
+          "comparisons": [
+            "GT",
+            "GT",
+            "GT",
+            "GT"
+          ],
+          "adjacent_contains": [
+            false,
+            false
+          ]
+        },
+        {
+          "merged_indices": [
+            2,
+            3,
+            4
+          ],
+          "group_anchor_raw_indices": [
+            2,
+            3,
+            4
+          ],
+          "shape": "BOTTOM",
+          "comparison_order": [
+            "middle_high_vs_left_high",
+            "middle_low_vs_left_low",
+            "middle_high_vs_right_high",
+            "middle_low_vs_right_low"
+          ],
+          "comparisons": [
+            "LT",
+            "LT",
+            "LT",
+            "LT"
+          ],
+          "adjacent_contains": [
+            false,
+            false
+          ]
+        }
+      ],
+      "edge_requests": [
+        {
+          "merged_index": 0,
+          "missing": [
+            "left_neighbor"
+          ],
+          "shape": null
+        },
+        {
+          "merged_index": 4,
+          "missing": [
+            "right_neighbor"
+          ],
+          "shape": null
+        }
+      ],
+      "descriptions": {
+        "numerical_strength_threshold": null,
+        "strength_label": null,
+        "later_development_events": []
+      }
+    }
+  ],
+  "waiting_cases": [
+    {
+      "case_id": "wait_equal_high",
+      "waiting_raw_index": 2,
+      "direction": "UP",
+      "source_pair_anchor_raw_indices": [
+        0,
+        1
+      ],
+      "accumulator": [
+        3,
+        10
+      ],
+      "incoming": [
+        5,
+        10
+      ],
+      "incoming_vs_accumulator": [
+        "EQ",
+        "GT"
+      ],
+      "contains_acc_incoming": true,
+      "contains_incoming_acc": false,
+      "candidate_value_only": [
+        5,
+        10
+      ],
+      "candidate_high_raw_indices": [
+        1,
+        2
+      ],
+      "candidate_low_raw_indices": [
+        2
+      ],
+      "missing": [
+        "G-002:extremum_identity_tie_policy"
+      ],
+      "must_not": "不得选择 first/last high 根，不得当无竞争成功。"
+    },
+    {
+      "case_id": "wait_equal_low",
+      "waiting_raw_index": 2,
+      "direction": "UP",
+      "source_pair_anchor_raw_indices": [
+        0,
+        1
+      ],
+      "accumulator": [
+        3,
+        10
+      ],
+      "incoming": [
+        3,
+        8
+      ],
+      "incoming_vs_accumulator": [
+        "LT",
+        "EQ"
+      ],
+      "contains_acc_incoming": true,
+      "contains_incoming_acc": false,
+      "candidate_value_only": [
+        3,
+        10
+      ],
+      "candidate_high_raw_indices": [
+        1
+      ],
+      "candidate_low_raw_indices": [
+        1,
+        2
+      ],
+      "missing": [
+        "G-002:extremum_identity_tie_policy"
+      ],
+      "must_not": "不得选择 first/last low 根，不得当无竞争成功。"
+    },
+    {
+      "case_id": "wait_equal_both",
+      "waiting_raw_index": 2,
+      "direction": "UP",
+      "source_pair_anchor_raw_indices": [
+        0,
+        1
+      ],
+      "accumulator": [
+        3,
+        10
+      ],
+      "incoming": [
+        3,
+        10
+      ],
+      "incoming_vs_accumulator": [
+        "EQ",
+        "EQ"
+      ],
+      "contains_acc_incoming": true,
+      "contains_incoming_acc": true,
+      "candidate_value_only": [
+        3,
+        10
+      ],
+      "candidate_high_raw_indices": [
+        1,
+        2
+      ],
+      "candidate_low_raw_indices": [
+        1,
+        2
+      ],
+      "missing": [
+        "G-002:extremum_identity_tie_policy"
+      ],
+      "must_not": "双向包含必须同时真；不得 one-hot，只能准确等待身份策略。"
+    },
+    {
+      "case_id": "wait_initial_direction",
+      "waiting_raw_index": 1,
+      "direction": null,
+      "source_pair_anchor_raw_indices": null,
+      "accumulator": [
+        3,
+        10
+      ],
+      "incoming": [
+        5,
+        8
+      ],
+      "incoming_vs_accumulator": [
+        "LT",
+        "GT"
+      ],
+      "contains_acc_incoming": true,
+      "contains_incoming_acc": false,
+      "missing": [
+        "G-001:initial_direction_policy"
+      ],
+      "must_not": "不默认 UP/DOWN，不用 open/close 填初始方向，不称已有含方向成功。"
+    }
+  ],
+  "relation_witnesses": [
+    {
+      "id": "UP_RAW_MEMBER_EQUAL_HIGH",
+      "case_id": "up_member_equal_and_touch",
+      "scope": "raw_adjacent_members_inside_one_merged_group",
+      "a_raw": 2,
+      "b_raw": 3,
+      "a": [
+        50,
+        80
+      ],
+      "b": [
+        60,
+        80
+      ],
+      "b_vs_a": [
+        "EQ",
+        "GT"
+      ],
+      "a_contains_b": true,
+      "b_contains_a": false,
+      "equal_fields": [
+        "a.high",
+        "b.high"
+      ],
+      "equal_price": 80,
+      "merged_selected_high": 100,
+      "merged_selected_high_raw_indices": [
+        1
+      ],
+      "actual_fold_at_b": [
+        "LT",
+        "GT"
+      ],
+      "coverage": [
+        "CC-001 comparison EQ",
+        "CC-002 shared-high containment endpoint relation",
+        "CC-003 raw-pair EQ/GT relation"
+      ],
+      "not_covered": "实际累加器端点 EQ 的无竞争折叠；九叶全域；同价根选择。"
+    },
+    {
+      "id": "DOWN_RAW_MEMBER_EQUAL_LOW",
+      "case_id": "down_member_equal_and_touch",
+      "scope": "raw_adjacent_members_inside_one_merged_group",
+      "a_raw": 2,
+      "b_raw": 3,
+      "a": [
+        120,
+        150
+      ],
+      "b": [
+        120,
+        140
+      ],
+      "b_vs_a": [
+        "LT",
+        "EQ"
+      ],
+      "a_contains_b": true,
+      "b_contains_a": false,
+      "equal_fields": [
+        "a.low",
+        "b.low"
+      ],
+      "equal_price": 120,
+      "merged_selected_low": 100,
+      "merged_selected_low_raw_indices": [
+        1
+      ],
+      "actual_fold_at_b": [
+        "LT",
+        "GT"
+      ],
+      "coverage": [
+        "CC-001 comparison EQ",
+        "CC-002 shared-low containment endpoint relation",
+        "CC-003 raw-pair LT/EQ relation"
+      ],
+      "not_covered": "实际累加器端点 EQ 的无竞争折叠；九叶全域；同价根选择。"
+    },
+    {
+      "id": "UP_CROSS_GROUP_TOUCH",
+      "case_id": "up_member_equal_and_touch",
+      "scope": "final_adjacent_merged_groups",
+      "a_merged": 1,
+      "b_merged": 2,
+      "a": [
+        60,
+        100
+      ],
+      "b": [
+        100,
+        120
+      ],
+      "endpoint_order": "a.low < a.high = b.low < b.high",
+      "a_contains_b": false,
+      "b_contains_a": false,
+      "closed_overlap": true,
+      "strict_gap": false,
+      "equal_price": 100,
+      "coverage": [
+        "CC-001 comparison EQ",
+        "CC-002 touching non-containing intervals"
+      ],
+      "not_covered": "同一端点轴 EQ 或实际折叠端点 EQ；本例 high/high 与 low/low 都严格 UP。"
+    },
+    {
+      "id": "DOWN_CROSS_GROUP_TOUCH",
+      "case_id": "down_member_equal_and_touch",
+      "scope": "final_adjacent_merged_groups",
+      "a_merged": 1,
+      "b_merged": 2,
+      "a": [
+        100,
+        140
+      ],
+      "b": [
+        80,
+        100
+      ],
+      "endpoint_order": "b.low < b.high = a.low < a.high",
+      "a_contains_b": false,
+      "b_contains_a": false,
+      "closed_overlap": true,
+      "strict_gap": false,
+      "equal_price": 100,
+      "coverage": [
+        "CC-001 comparison EQ",
+        "CC-002 touching non-containing intervals"
+      ],
+      "not_covered": "同一端点轴 EQ 或实际折叠端点 EQ；本例 high/high 与 low/low 都严格 DOWN。"
+    }
+  ],
+  "raw_high_only_counterexample": {
+    "case_id": "high_only_before_revision",
+    "raw_window": [
+      1,
+      2,
+      3
+    ],
+    "highs": [
+      8,
+      9,
+      7
+    ],
+    "lows": [
+      4,
+      2,
+      5
+    ],
+    "middle_high_strictly_above_both": true,
+    "middle_low_strictly_above_both": false,
+    "adjacent_raw_contains": [
+      true,
+      true
+    ],
+    "domain_is_raw_not_merged": true,
+    "after_real_preprocessing_groups": [
+      [
+        0
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        4
+      ]
+    ],
+    "after_real_preprocessing_shape": "RISING",
+    "no_top_on_raw_window": true,
+    "coverage": "A-ST-003-01 的完整非退化原始 OHLC / 包含预处理前件反例；没有声称后包含合法三 K 存在 high-only 与双条件分歧。"
+  },
+  "revision_scenario": {
+    "scenario_id": "split_previous_inclusion_group_keep_old_cut",
+    "before_case_id": "high_only_before_revision",
+    "after_case_id": "high_only_after_revision",
+    "corrected_raw_index": 2,
+    "changed_fields": {
+      "open": [
+        3,
+        7
+      ],
+      "high": [
+        9,
+        11
+      ],
+      "low": [
+        2,
+        6
+      ],
+      "close": [
+        8,
+        10
+      ]
+    },
+    "unchanged_raw_indices": [
+      0,
+      1,
+      3,
+      4
+    ],
+    "correction_is_same_raw_identity": true,
+    "before_groups": [
+      [
+        0
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        4
+      ]
+    ],
+    "after_groups": [
+      [
+        0
+      ],
+      [
+        1
+      ],
+      [
+        2
+      ],
+      [
+        3
+      ],
+      [
+        4
+      ]
+    ],
+    "withdraw_old_exact_group_fact": {
+      "anchor_raw_index": 1,
+      "members": [
+        1,
+        2,
+        3
+      ],
+      "high": 9,
+      "low": 5,
+      "high_roots": [
+        2
+      ],
+      "low_roots": [
+        3
+      ]
+    },
+    "replace_with_exact_groups_by_after_oracle": true,
+    "old_window_anchor_raw_indices": [
+      [
+        0,
+        1,
+        4
+      ]
+    ],
+    "new_window_anchor_raw_indices": [
+      [
+        0,
+        1,
+        2
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        2,
+        3,
+        4
+      ]
+    ],
+    "new_shapes": [
+      "RISING",
+      "TOP",
+      "BOTTOM"
+    ],
+    "old_cut_obligation": "修订提交后读取固定旧 cut 仍逐字段返回 before；新 cut 完整返回 after；撤回/替代关系须引用旧新真实版本身份。",
+    "replay_obligation": "两新进程同完整原始输入及同修订计划，全结构化输出对拍；所改持久边界恢复同样对拍，协议身份与证据集合不能剔除。",
+    "no_implementation_claim": true
+  }
+}
