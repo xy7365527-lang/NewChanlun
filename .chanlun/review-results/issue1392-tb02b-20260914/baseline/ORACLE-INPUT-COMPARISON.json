@@ -1,0 +1,107 @@
+{
+  "comparison": "value sequences, not names; equality only, no claim about other transformations",
+  "rows": [
+    {
+      "oracle": "A",
+      "count": 7,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "A_REFLECTED",
+      "count": 7,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "B",
+      "count": 6,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "B_REFLECTED",
+      "count": 6,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "C",
+      "count": 7,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "C_REFLECTED",
+      "count": 7,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "D",
+      "count": 8,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "D_REFLECTED",
+      "count": 8,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "A_STRICT_HIGHER_TOP",
+      "count": 9,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "A_STRICT_WEAKER_TOP",
+      "count": 9,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "A_STRICT_LOWER_BOTTOM_REFLECTED",
+      "count": 9,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "A_STRICT_WEAKER_BOTTOM_REFLECTED",
+      "count": 9,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "OPPOSITE_FORMATION_COMPONENT",
+      "count": 13,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "RIGHT_GROUP_SEALED_COMPONENT",
+      "count": 14,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "APPEND_ABOVE_OLD_TOP",
+      "count": 17,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "CORRECTION_WITHDRAW_TOP",
+      "count": 9,
+      "same_ohlc": [],
+      "same_high_low": []
+    },
+    {
+      "oracle": "CORRECTION_CONFIRMED_COMPONENT",
+      "count": 14,
+      "same_ohlc": [],
+      "same_high_low": []
+    }
+  ]
+}

@@ -139,6 +139,12 @@ class Tb02aRun(Run):
         self.public.append({"command": command, "candidate": candidate})
         return candidate
 
+    def after_start(self):
+        """默认无动作；子类可在此观察 S/Q 刚就绪、尚无任何输入时的初始态。
+
+        本钩子不改变既有语义：默认实现什么都不做。
+        """
+
     def inject_fault(self, index):
         self.control("stop-s")
         marker = self.output / (self.fault_stage + ".marker")
@@ -253,6 +259,7 @@ class Tb02aRun(Run):
                   "browser": "not_evaluated", "input_count": len(self.messages)}
         try:
             self.control("start")
+            self.after_start()
             originals = []
             for index in range(len(self.messages)):
                 if index == self.fault_index:

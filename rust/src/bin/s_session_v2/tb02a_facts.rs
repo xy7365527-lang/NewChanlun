@@ -49,14 +49,20 @@ pub(super) fn raw_ref(raw: &Value) -> Value {
     "seq":raw["seq"].as_i64().unwrap().to_string(),"source_coord":raw["source_coord"]})
 }
 
-struct Builder<'a> {
-    raw: &'a BTreeMap<i64, Value>,
-    generation: i64,
-    cut: &'a str,
-    objects: Vec<Value>,
+pub(super) struct Builder<'a> {
+    pub(super) raw: &'a BTreeMap<i64, Value>,
+    pub(super) generation: i64,
+    pub(super) cut: &'a str,
+    pub(super) objects: Vec<Value>,
 }
 impl Builder<'_> {
-    fn add(&mut self, kind: &str, slot: Value, payload: Value, mut sources: Vec<usize>) -> String {
+    pub(super) fn add(
+        &mut self,
+        kind: &str,
+        slot: Value,
+        payload: Value,
+        mut sources: Vec<usize>,
+    ) -> String {
         sources.sort_unstable();
         sources.dedup();
         let refs: Vec<Value> = sources
@@ -368,7 +374,8 @@ pub(super) fn catalog_axes(
         .find(|o| o["kind"] == "CC-054.knowledge_state")
         .map(|o| serde_json::from_str::<Value>(o["payload_json"].as_str().unwrap()).unwrap());
     for axis in [
-        "CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-054", "CC-056",
+        "CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-008", "CC-009",
+        "CC-010", "CC-054", "CC-055", "CC-056",
     ] {
         let kind = match axis {
             "CC-001" | "CC-002" | "CC-003" | "CC-004" => "CC-004.inclusion_step",
@@ -376,11 +383,24 @@ pub(super) fn catalog_axes(
             "CC-006" => "CC-006.local_shape",
             "CC-007" => "CC-007.fractal_description",
             "CC-054" => "CC-054.knowledge_state",
+            "CC-008" => "CC-008.",
+            "CC-009" => "CC-009.same_kind",
+            "CC-010" => "CC-010.bi",
+            "CC-055" => "CC-055.",
+            "CC-056" => "CC-056.version",
             _ => "",
         };
         let ids: Vec<Value> = objects
             .iter()
-            .filter(|o| o["kind"] == kind)
+            .filter(|o| {
+                o["kind"].as_str().is_some_and(|k| {
+                    if kind.ends_with('.') {
+                        k.starts_with(kind)
+                    } else {
+                        k == kind
+                    }
+                })
+            })
             .filter(|o| {
                 if matches!(axis, "CC-001" | "CC-002" | "CC-003") {
                     let p: Value =
@@ -404,6 +424,12 @@ pub(super) fn catalog_axes(
                         waiting.extend(request["reasons"].as_array().unwrap().clone());
                     }
                 }
+            }
+        }
+        if matches!(axis, "CC-008" | "CC-009" | "CC-010" | "CC-055" | "CC-056") {
+            for o in objects.iter().filter(|o| o["kind"] == "CC-056.version") {
+                let p: Value = serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
+                waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
             }
         }
         waiting.sort_by_key(canonical_json);

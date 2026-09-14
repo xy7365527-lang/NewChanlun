@@ -106,6 +106,10 @@
   }
   const TB02_KINDS = ["CC-004.inclusion_step", "CC-005.inclusion_group", "CC-007.fractal_description", "CC-054.knowledge_state"];
   const TB02_AXES = ["CC-001", "CC-002", "CC-003", "CC-004", "CC-005", "CC-006", "CC-007", "CC-054", "CC-056"];
+  const LEGACY_TB02_AXES = [...TB02_AXES];
+  const BI_KINDS = ["CC-008.endpoint", "CC-008.new_bi_pair", "CC-009.same_kind", "CC-010.bi", "CC-055.relation", "CC-055.change_event", "CC-056.version"];
+  TB02_KINDS.push(...BI_KINDS);
+  TB02_AXES.push("CC-008", "CC-009", "CC-010", "CC-055");
   // 由 signed-catalog.json 的全部公共静态列生成；对应漂移锁逐值重算，不是新分类语义。
   const TB02_CATALOG = Object.freeze({"catalog_revision":"s2-axis-quantifiers (SPEC-COVERAGE-INPUT.json sha256=76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c)","source_sha256":"76019aba67712e9140a95f8eaf2495a9b745707fce1ce5684de7df4334fa2b4c","ids":["CC-001","CC-002","CC-003","CC-004","CC-005","CC-006","CC-007","CC-008","CC-009","CC-010","CC-011","CC-012","CC-013","CC-014","CC-015","CC-016","CC-017","CC-018","CC-019","CC-020","CC-021","CC-022","CC-023","CC-024","CC-025","CC-026","CC-027","CC-028","CC-029","CC-030","CC-031","CC-032","CC-033","CC-034","CC-035","CC-036","CC-037","CC-038","CC-039","CC-040","CC-041","CC-042","CC-043","CC-044","CC-045","CC-046","CC-047","CC-048","CC-049","CC-050","CC-051","CC-052","CC-053","CC-054","CC-055","CC-056","CC-057","CC-058","CC-059","CC-060","CC-061","CC-062","LC-01","LC-02","LC-03","LC-04","LC-05","LC-06","LC-07","LC-08","LC-09","LC-10","ST-001","ST-002","ST-003","ST-004","ST-005","ST-006","ST-007","ST-008","ST-009","ST-010","ST-011","ST-012","ST-013","ST-014","ST-015","ST-016","ST-017","ST-018","ST-019","ST-020","ST-021","ST-022","ST-023","ST-024","ST-025","ST-026","ST-027","ST-028","ST-029","ST-030","ST-031","ST-032","ST-033","ST-034","ST-035","ST-036","ST-037","ST-038","ST-043","ST-044","ST-045","ST-046","ST-047","ST-048"],"public_static_sha256":"974299745db38c9b83de3ccbd1e5fc8aab93d58037fd6ef5c1667509d6da8de2"});
   function signed(value) {
@@ -150,7 +154,8 @@
     }
     need(equal(record.source_coords, record.input_refs.map(r => r.source_coord)), "typed 源引用/坐标不一一对应");
     const p = record.payload, kind = record.kind;
-    if (kind === TB02_KINDS[0]) {
+    if (BI_KINDS.includes(kind)) { validateBiPayload(kind, p);
+    } else if (kind === TB02_KINDS[0]) {
       keys(p, ["action", "incoming", "acc_before", "acc_after", "direction", "direction_evidence", "comparisons", "endpoint_order", "contains", "high_sources", "low_sources", "waiting_reasons"], "包含步骤");
       need(["seed", "establish_direction", "merge", "new_group", "waiting"].includes(p.action), "步骤动作不符"); barRef(p.incoming);
       for (const k of ["acc_before", "acc_after"]) if (p[k] !== null) barRef(p[k]);
@@ -194,8 +199,64 @@
         for (const k of Object.keys(enums)) need(enums[k].includes(r.axes[k]), "请求四轴枚举不符"); texts(r.reasons); coordinates(r.source_coords);
       }
     }
-    const slot = kind === TB02_KINDS[0] ? p.incoming.source_coord : kind === TB02_KINDS[1] ? p.group_anchor : kind === TB02_KINDS[2] ? p.window : "TB-02-A";
+    const slot = BI_KINDS.includes(kind) ? p.slot : kind === TB02_KINDS[0] ? p.incoming.source_coord : kind === TB02_KINDS[1] ? p.group_anchor : kind === TB02_KINDS[2] ? p.window : "TB-02-A";
     need(record.fact_key === canonical([kind, slot]), "事实语义槽未绑定 payload");
+  }
+  function validateBiPayload(kind, p) {
+    keys(p, ["schema_revision", "semantic_version", "policy_version", "view_role", "object_generation", "slot", "data"], "新笔合同");
+    need(p.schema_revision === "s-new-bi/1" && p.semantic_version === "new-bi-dual-coordinate/1" && p.policy_version === "standard_raw_gap_3" && p.view_role === "main", "新笔规则/政策版本不符");
+    integer(p.object_generation, true);
+    const d = p.data;
+    function endpoint(e) {
+      keys(e, ["kind", "merged_index", "group_anchor", "price", "extreme_roots", "raw_position", "source_coords", "sealed_at", "waiting_reasons"], "新笔端点");
+      need(["TOP", "BOTTOM"].includes(e.kind), "端点类型不符"); integer(e.merged_index); integer(e.group_anchor); signed(e.price);
+      coordinates(e.extreme_roots); coordinates(e.source_coords); texts(e.waiting_reasons);
+      need(e.extreme_roots.every(c => e.source_coords.includes(c)), "实际根缺原始来源");
+      for (const k of ["raw_position", "sealed_at"]) if (e[k] !== null) integer(e[k]);
+    }
+    function conditions(c) {
+      keys(c, ["merged_gap", "raw_between_actual_extrema", "top_price", "bottom_price", "vector", "failed_conditions", "waiting_reasons"], "新笔完整条件");
+      integer(c.merged_gap); if (c.raw_between_actual_extrema !== null) integer(c.raw_between_actual_extrema); signed(c.top_price); signed(c.bottom_price);
+      need(Array.isArray(c.vector) && c.vector.length === 3 && c.vector.every(v => v === null || typeof v === "boolean"), "条件向量缺位/错型");
+      texts(c.failed_conditions); texts(c.waiting_reasons);
+    }
+    function known(k) {
+      keys(k, ["generation", "input_frontier", "receipt_id", "received_at", "semantic_commit_ns"], "新笔获知时点");
+      integer(k.generation, true); integer(k.input_frontier); text(k.receipt_id); text(k.received_at); if (k.semantic_commit_ns !== null) integer(k.semantic_commit_ns);
+    }
+    if (kind === BI_KINDS[0]) endpoint(d);
+    else if ([BI_KINDS[1], BI_KINDS[2]].includes(kind)) {
+      keys(d, ["old", "new", "endpoint_kind_pair", "conditions", "comparison", "selection", "retained_anchors", "waiting_reasons"], "端点对");
+      endpoint(d.old); endpoint(d.new); need(d.endpoint_kind_pair === d.old.kind + "/" + d.new.kind, "端点分域标签不符");
+      if (kind === BI_KINDS[1]) { need(d.old.kind !== d.new.kind, "异型请求实际同型"); conditions(d.conditions); need(d.comparison === null && d.selection === null, "异型域混入同型选择"); }
+      else need(d.old.kind === d.new.kind && d.conditions === null && ["LT", "EQ", "GT"].includes(d.comparison) && ["KEEP", "REPLACE", "UNDETERMINED"].includes(d.selection), "同型域混入假条件或未声明取舍");
+      coordinates(d.retained_anchors); texts(d.waiting_reasons);
+    } else if (kind === BI_KINDS[3]) {
+      keys(d, ["identity_anchor", "start", "end", "formation", "confirmation", "entity_id", "entity_revision", "state", "formed_known_at", "confirmed_known_at", "formed_evidence", "version_causes"], "新笔实体");
+      integer(d.identity_anchor); integer(d.entity_revision, true); text(d.entity_id); endpoint(d.start); endpoint(d.end); conditions(d.formation); conditions(d.formed_evidence); known(d.formed_known_at); texts(d.version_causes);
+      need(d.state === (d.confirmation === null ? "FORMED_UNCONFIRMED" : "CONFIRMED"), "生命周期/确认见证不符");
+      need(d.entity_id === "bi:" + p.object_generation + ":" + d.identity_anchor, "笔身份未绑定代际与形成起点");
+      if (d.confirmation !== null) {
+        const c = d.confirmation; keys(c, ["successor_start", "successor_end", "successor_conditions", "right_group_sealed_at", "source_coords"], "确认见证");
+        integer(c.successor_start); integer(c.successor_end); integer(c.right_group_sealed_at); coordinates(c.source_coords); conditions(c.successor_conditions); known(d.confirmed_known_at);
+      } else need(d.confirmed_known_at === null, "无确认见证却有确认时点");
+    } else if (kind === BI_KINDS[4]) {
+      keys(d, ["source_id", "relation_kind", "target_id", "version", "witness_object_id"], "新笔关系"); Object.values(d).forEach(text);
+      need(["member_of", "derived_from", "successor_of", "leaves", "retests", "returns_to", "extends", "newborn_after", "expands_with", "caused_turn_at", "confirms", "selected_from"].includes(d.relation_kind), "未声明关系种类");
+    } else if (kind === BI_KINDS[5]) {
+      keys(d, ["entity_id", "change", "before", "after", "known_at", "event_at", "causes", "object_id"], "新笔变化");
+      text(d.entity_id); need(["formed", "extended", "endpoint_replaced", "confirmed", "source_or_boundary_updated", "withdrawn"].includes(d.change), "未声明变化"); known(d.known_at); signed(d.event_at); texts(d.causes);
+      for (const k of ["before", "after"]) if (d[k] !== null) validateBiPayload(BI_KINDS[3], {...p, slot:d[k].entity_id, object_generation:d[k].entity_id.split(":")[1], data:d[k]});
+    } else {
+      keys(d, ["input_frontier", "version_causes", "identity_basis", "classification_obligation", "waiting_reasons", "known_at"], "新笔版本");
+      integer(d.input_frontier, false, true); texts(d.version_causes); texts(d.waiting_reasons); known(d.known_at);
+    }
+    const slot = kind === BI_KINDS[0] ? "fx:" + p.object_generation + ":" + d.group_anchor :
+      [BI_KINDS[1], BI_KINDS[2]].includes(kind) ? [p.object_generation, d.old.group_anchor, d.new.group_anchor] :
+      kind === BI_KINDS[3] ? d.entity_id :
+      kind === BI_KINDS[4] ? [d.source_id, d.relation_kind, d.target_id] :
+      kind === BI_KINDS[5] ? [d.known_at.generation, d.entity_id, d.change] : "TB-02-B";
+    need(equal(p.slot, slot), "新笔 slot 未绑定其具名对象身份");
   }
   function validateTB02ShapeRefs(shape) {
     need(shape.kind === "CC-006.local_shape" && Array.isArray(shape.input_refs) && shape.input_refs.length === 3, "OHLC形态缺完整三组");
@@ -305,7 +366,7 @@
     }
   }
   function validateTB02Axes(axes, records = null) {
-    keys(axes, TB02_AXES, "逐 cut 九轴目录");
+    keys(axes, Object.hasOwn(axes, "CC-008") ? TB02_AXES : LEGACY_TB02_AXES, "逐 cut 类型目录");
     const ids = records === null ? null : new Set(records.map(r => r.object_id));
     for (const [cid, axis] of Object.entries(axes)) {
       keys(axis, ["impl_status", "proof_status", "run_status", "evidence"], "目录轴");

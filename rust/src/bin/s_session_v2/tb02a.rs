@@ -255,7 +255,8 @@ pub(super) fn project(o: &Value) -> Result<Value, String> {
             | "CC-005.inclusion_group"
             | "CC-007.fractal_description"
             | "CC-054.knowledge_state"
-    ) {
+    ) && !tb02b::KINDS.contains(&kind)
+    {
         return Err("StorageUnavailable：未知结构事实kind".into());
     }
     let mut result = json!({"object_id":o["object_id"],"object_revision":num_to_str(&o["object_revision"])?,"kind":kind,

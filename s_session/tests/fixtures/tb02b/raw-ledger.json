@@ -1,0 +1,1296 @@
+{
+  "schema": "tb02b-raw-ledger/1",
+  "oracle_kind": "implementation-side-hand-ledger-not-independent-acceptance",
+  "cases": [
+    {
+      "case_id": "gap2_raw3",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": 10,
+          "high": 12,
+          "low": 10,
+          "close": 12
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": 12,
+          "high": 14,
+          "low": 12,
+          "close": 14
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": 7,
+          "high": 11,
+          "low": 7,
+          "close": 11
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": 8,
+          "high": 10,
+          "low": 8,
+          "close": 10
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": 6,
+          "high": 12,
+          "low": 6,
+          "close": 12
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": 4,
+          "high": 8,
+          "low": 4,
+          "close": 8
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": 5,
+          "high": 9,
+          "low": 5,
+          "close": 9
+        }
+      ]
+    },
+    {
+      "case_id": "gap3_raw2",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": 6,
+          "high": 8,
+          "low": 6,
+          "close": 8
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": 2,
+          "high": 4,
+          "low": 2,
+          "close": 4
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": 5,
+          "high": 7,
+          "low": 5,
+          "close": 7
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": 8,
+          "high": 10,
+          "low": 8,
+          "close": 10
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": 11,
+          "high": 13,
+          "low": 11,
+          "close": 13
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": 7,
+          "high": 9,
+          "low": 7,
+          "close": 9
+        }
+      ]
+    },
+    {
+      "case_id": "gap3_raw3",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": 6,
+          "high": 8,
+          "low": 6,
+          "close": 8
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": 2,
+          "high": 4,
+          "low": 2,
+          "close": 4
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": 5,
+          "high": 7,
+          "low": 5,
+          "close": 7
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": 4,
+          "high": 8,
+          "low": 4,
+          "close": 8
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": 8,
+          "high": 10,
+          "low": 8,
+          "close": 10
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": 11,
+          "high": 13,
+          "low": 11,
+          "close": 13
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": 7,
+          "high": 9,
+          "low": 7,
+          "close": 9
+        }
+      ]
+    },
+    {
+      "case_id": "internal_root",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": 5,
+          "high": 9,
+          "low": 5,
+          "close": 9
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": 2,
+          "high": 6,
+          "low": 2,
+          "close": 6
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": 1,
+          "high": 7,
+          "low": 1,
+          "close": 7
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": 3,
+          "high": 5,
+          "low": 3,
+          "close": 5
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": 4,
+          "high": 8,
+          "low": 4,
+          "close": 8
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": 7,
+          "high": 11,
+          "low": 7,
+          "close": 11
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": 10,
+          "high": 14,
+          "low": 10,
+          "close": 14
+        },
+        {
+          "raw_id": "raw-7",
+          "raw_index": 7,
+          "open": 6,
+          "high": 10,
+          "low": 6,
+          "close": 10
+        }
+      ]
+    },
+    {
+      "case_id": "lifecycle",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": 8,
+          "high": 10,
+          "low": 8,
+          "close": 10
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": 3,
+          "high": 5,
+          "low": 3,
+          "close": 5
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": 6,
+          "high": 8,
+          "low": 6,
+          "close": 8
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": 9,
+          "high": 11,
+          "low": 9,
+          "close": 11
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": 12,
+          "high": 14,
+          "low": 12,
+          "close": 14
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": 15,
+          "high": 17,
+          "low": 15,
+          "close": 17
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": 11,
+          "high": 13,
+          "low": 11,
+          "close": 13
+        },
+        {
+          "raw_id": "raw-7",
+          "raw_index": 7,
+          "open": 8,
+          "high": 10,
+          "low": 8,
+          "close": 10
+        },
+        {
+          "raw_id": "raw-8",
+          "raw_index": 8,
+          "open": 5,
+          "high": 7,
+          "low": 5,
+          "close": 7
+        },
+        {
+          "raw_id": "raw-9",
+          "raw_index": 9,
+          "open": 1,
+          "high": 3,
+          "low": 1,
+          "close": 3
+        },
+        {
+          "raw_id": "raw-10",
+          "raw_index": 10,
+          "open": 4,
+          "high": 6,
+          "low": 4,
+          "close": 6
+        },
+        {
+          "raw_id": "raw-11",
+          "raw_index": 11,
+          "open": 7,
+          "high": 9,
+          "low": 7,
+          "close": 9
+        }
+      ]
+    },
+    {
+      "case_id": "extend_top",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": 8,
+          "high": 10,
+          "low": 8,
+          "close": 10
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": 3,
+          "high": 5,
+          "low": 3,
+          "close": 5
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": 6,
+          "high": 8,
+          "low": 6,
+          "close": 8
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": 9,
+          "high": 11,
+          "low": 9,
+          "close": 11
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": 12,
+          "high": 14,
+          "low": 12,
+          "close": 14
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": 15,
+          "high": 17,
+          "low": 15,
+          "close": 17
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": 11,
+          "high": 13,
+          "low": 11,
+          "close": 13
+        },
+        {
+          "raw_id": "raw-7",
+          "raw_index": 7,
+          "open": 16,
+          "high": 18,
+          "low": 16,
+          "close": 18
+        },
+        {
+          "raw_id": "raw-8",
+          "raw_index": 8,
+          "open": 13,
+          "high": 15,
+          "low": 13,
+          "close": 15
+        }
+      ]
+    },
+    {
+      "case_id": "keep_top",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": 8,
+          "high": 10,
+          "low": 8,
+          "close": 10
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": 3,
+          "high": 5,
+          "low": 3,
+          "close": 5
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": 6,
+          "high": 8,
+          "low": 6,
+          "close": 8
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": 9,
+          "high": 11,
+          "low": 9,
+          "close": 11
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": 12,
+          "high": 14,
+          "low": 12,
+          "close": 14
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": 15,
+          "high": 17,
+          "low": 15,
+          "close": 17
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": 11,
+          "high": 13,
+          "low": 11,
+          "close": 13
+        },
+        {
+          "raw_id": "raw-7",
+          "raw_index": 7,
+          "open": 14,
+          "high": 16,
+          "low": 14,
+          "close": 16
+        },
+        {
+          "raw_id": "raw-8",
+          "raw_index": 8,
+          "open": 10,
+          "high": 12,
+          "low": 10,
+          "close": 12
+        }
+      ]
+    },
+    {
+      "case_id": "tie_top",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": 8,
+          "high": 10,
+          "low": 8,
+          "close": 10
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": 3,
+          "high": 5,
+          "low": 3,
+          "close": 5
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": 6,
+          "high": 8,
+          "low": 6,
+          "close": 8
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": 9,
+          "high": 11,
+          "low": 9,
+          "close": 11
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": 12,
+          "high": 14,
+          "low": 12,
+          "close": 14
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": 15,
+          "high": 17,
+          "low": 15,
+          "close": 17
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": 11,
+          "high": 13,
+          "low": 11,
+          "close": 13
+        },
+        {
+          "raw_id": "raw-7",
+          "raw_index": 7,
+          "open": 15,
+          "high": 17,
+          "low": 15,
+          "close": 17
+        },
+        {
+          "raw_id": "raw-8",
+          "raw_index": 8,
+          "open": 10,
+          "high": 12,
+          "low": 10,
+          "close": 12
+        }
+      ]
+    },
+    {
+      "case_id": "mirror_gap2_raw3",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": -12,
+          "high": -10,
+          "low": -12,
+          "close": -10
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": -14,
+          "high": -12,
+          "low": -14,
+          "close": -12
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": -11,
+          "high": -7,
+          "low": -11,
+          "close": -7
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": -10,
+          "high": -8,
+          "low": -10,
+          "close": -8
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": -12,
+          "high": -6,
+          "low": -12,
+          "close": -6
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": -8,
+          "high": -4,
+          "low": -8,
+          "close": -4
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": -9,
+          "high": -5,
+          "low": -9,
+          "close": -5
+        }
+      ]
+    },
+    {
+      "case_id": "mirror_gap3_raw2",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": -8,
+          "high": -6,
+          "low": -8,
+          "close": -6
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": -4,
+          "high": -2,
+          "low": -4,
+          "close": -2
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": -7,
+          "high": -5,
+          "low": -7,
+          "close": -5
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": -10,
+          "high": -8,
+          "low": -10,
+          "close": -8
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": -13,
+          "high": -11,
+          "low": -13,
+          "close": -11
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": -9,
+          "high": -7,
+          "low": -9,
+          "close": -7
+        }
+      ]
+    },
+    {
+      "case_id": "mirror_gap3_raw3",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": -8,
+          "high": -6,
+          "low": -8,
+          "close": -6
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": -4,
+          "high": -2,
+          "low": -4,
+          "close": -2
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": -7,
+          "high": -5,
+          "low": -7,
+          "close": -5
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": -8,
+          "high": -4,
+          "low": -8,
+          "close": -4
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": -10,
+          "high": -8,
+          "low": -10,
+          "close": -8
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": -13,
+          "high": -11,
+          "low": -13,
+          "close": -11
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": -9,
+          "high": -7,
+          "low": -9,
+          "close": -7
+        }
+      ]
+    },
+    {
+      "case_id": "mirror_internal_root",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": -9,
+          "high": -5,
+          "low": -9,
+          "close": -5
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": -6,
+          "high": -2,
+          "low": -6,
+          "close": -2
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": -7,
+          "high": -1,
+          "low": -7,
+          "close": -1
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": -5,
+          "high": -3,
+          "low": -5,
+          "close": -3
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": -8,
+          "high": -4,
+          "low": -8,
+          "close": -4
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": -11,
+          "high": -7,
+          "low": -11,
+          "close": -7
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": -14,
+          "high": -10,
+          "low": -14,
+          "close": -10
+        },
+        {
+          "raw_id": "raw-7",
+          "raw_index": 7,
+          "open": -10,
+          "high": -6,
+          "low": -10,
+          "close": -6
+        }
+      ]
+    },
+    {
+      "case_id": "mirror_lifecycle",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": -10,
+          "high": -8,
+          "low": -10,
+          "close": -8
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": -5,
+          "high": -3,
+          "low": -5,
+          "close": -3
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": -8,
+          "high": -6,
+          "low": -8,
+          "close": -6
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": -11,
+          "high": -9,
+          "low": -11,
+          "close": -9
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": -14,
+          "high": -12,
+          "low": -14,
+          "close": -12
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": -17,
+          "high": -15,
+          "low": -17,
+          "close": -15
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": -13,
+          "high": -11,
+          "low": -13,
+          "close": -11
+        },
+        {
+          "raw_id": "raw-7",
+          "raw_index": 7,
+          "open": -10,
+          "high": -8,
+          "low": -10,
+          "close": -8
+        },
+        {
+          "raw_id": "raw-8",
+          "raw_index": 8,
+          "open": -7,
+          "high": -5,
+          "low": -7,
+          "close": -5
+        },
+        {
+          "raw_id": "raw-9",
+          "raw_index": 9,
+          "open": -3,
+          "high": -1,
+          "low": -3,
+          "close": -1
+        },
+        {
+          "raw_id": "raw-10",
+          "raw_index": 10,
+          "open": -6,
+          "high": -4,
+          "low": -6,
+          "close": -4
+        },
+        {
+          "raw_id": "raw-11",
+          "raw_index": 11,
+          "open": -9,
+          "high": -7,
+          "low": -9,
+          "close": -7
+        }
+      ]
+    },
+    {
+      "case_id": "mirror_extend_top",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": -10,
+          "high": -8,
+          "low": -10,
+          "close": -8
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": -5,
+          "high": -3,
+          "low": -5,
+          "close": -3
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": -8,
+          "high": -6,
+          "low": -8,
+          "close": -6
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": -11,
+          "high": -9,
+          "low": -11,
+          "close": -9
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": -14,
+          "high": -12,
+          "low": -14,
+          "close": -12
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": -17,
+          "high": -15,
+          "low": -17,
+          "close": -15
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": -13,
+          "high": -11,
+          "low": -13,
+          "close": -11
+        },
+        {
+          "raw_id": "raw-7",
+          "raw_index": 7,
+          "open": -18,
+          "high": -16,
+          "low": -18,
+          "close": -16
+        },
+        {
+          "raw_id": "raw-8",
+          "raw_index": 8,
+          "open": -15,
+          "high": -13,
+          "low": -15,
+          "close": -13
+        }
+      ]
+    },
+    {
+      "case_id": "mirror_keep_top",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": -10,
+          "high": -8,
+          "low": -10,
+          "close": -8
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": -5,
+          "high": -3,
+          "low": -5,
+          "close": -3
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": -8,
+          "high": -6,
+          "low": -8,
+          "close": -6
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": -11,
+          "high": -9,
+          "low": -11,
+          "close": -9
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": -14,
+          "high": -12,
+          "low": -14,
+          "close": -12
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": -17,
+          "high": -15,
+          "low": -17,
+          "close": -15
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": -13,
+          "high": -11,
+          "low": -13,
+          "close": -11
+        },
+        {
+          "raw_id": "raw-7",
+          "raw_index": 7,
+          "open": -16,
+          "high": -14,
+          "low": -16,
+          "close": -14
+        },
+        {
+          "raw_id": "raw-8",
+          "raw_index": 8,
+          "open": -12,
+          "high": -10,
+          "low": -12,
+          "close": -10
+        }
+      ]
+    },
+    {
+      "case_id": "mirror_tie_top",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": -10,
+          "high": -8,
+          "low": -10,
+          "close": -8
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": -5,
+          "high": -3,
+          "low": -5,
+          "close": -3
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": -8,
+          "high": -6,
+          "low": -8,
+          "close": -6
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": -11,
+          "high": -9,
+          "low": -11,
+          "close": -9
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": -14,
+          "high": -12,
+          "low": -14,
+          "close": -12
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": -17,
+          "high": -15,
+          "low": -17,
+          "close": -15
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": -13,
+          "high": -11,
+          "low": -13,
+          "close": -11
+        },
+        {
+          "raw_id": "raw-7",
+          "raw_index": 7,
+          "open": -17,
+          "high": -15,
+          "low": -17,
+          "close": -15
+        },
+        {
+          "raw_id": "raw-8",
+          "raw_index": 8,
+          "open": -12,
+          "high": -10,
+          "low": -12,
+          "close": -10
+        }
+      ]
+    },
+    {
+      "case_id": "raw_root_tie",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": 6,
+          "high": 8,
+          "low": 6,
+          "close": 8
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": 10,
+          "high": 12,
+          "low": 10,
+          "close": 12
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": 11,
+          "high": 12,
+          "low": 11,
+          "close": 12
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": 7,
+          "high": 9,
+          "low": 7,
+          "close": 9
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": 5,
+          "high": 7,
+          "low": 5,
+          "close": 7
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": 3,
+          "high": 5,
+          "low": 3,
+          "close": 5
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": 1,
+          "high": 3,
+          "low": 1,
+          "close": 3
+        },
+        {
+          "raw_id": "raw-7",
+          "raw_index": 7,
+          "open": 4,
+          "high": 6,
+          "low": 4,
+          "close": 6
+        }
+      ]
+    },
+    {
+      "case_id": "mirror_raw_root_tie",
+      "raw_bars": [
+        {
+          "raw_id": "raw-0",
+          "raw_index": 0,
+          "open": -8,
+          "high": -6,
+          "low": -8,
+          "close": -6
+        },
+        {
+          "raw_id": "raw-1",
+          "raw_index": 1,
+          "open": -12,
+          "high": -10,
+          "low": -12,
+          "close": -10
+        },
+        {
+          "raw_id": "raw-2",
+          "raw_index": 2,
+          "open": -12,
+          "high": -11,
+          "low": -12,
+          "close": -11
+        },
+        {
+          "raw_id": "raw-3",
+          "raw_index": 3,
+          "open": -9,
+          "high": -7,
+          "low": -9,
+          "close": -7
+        },
+        {
+          "raw_id": "raw-4",
+          "raw_index": 4,
+          "open": -7,
+          "high": -5,
+          "low": -7,
+          "close": -5
+        },
+        {
+          "raw_id": "raw-5",
+          "raw_index": 5,
+          "open": -5,
+          "high": -3,
+          "low": -5,
+          "close": -3
+        },
+        {
+          "raw_id": "raw-6",
+          "raw_index": 6,
+          "open": -3,
+          "high": -1,
+          "low": -3,
+          "close": -1
+        },
+        {
+          "raw_id": "raw-7",
+          "raw_index": 7,
+          "open": -6,
+          "high": -4,
+          "low": -6,
+          "close": -4
+        }
+      ]
+    }
+  ]
+}

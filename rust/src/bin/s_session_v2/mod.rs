@@ -328,6 +328,22 @@ pub fn record_begin(
         )
     ))
 }
+/// #1392：本次已持久 Begin 对应的语义提交时刻；不读后续输入的时钟/收据。
+pub fn commit_time(conn: &Connection, c: Option<&InputContext>) -> Result<Option<String>, String> {
+    if !active(conn)? {
+        return Ok(None);
+    }
+    let c = c.ok_or("MissingDependency：新笔获知时点缺本次上下文")?;
+    let index: i64 = conn
+        .query_row(
+            "SELECT attempt_count-1 FROM s_input_messages WHERE clock_event_id=?1",
+            params![c.id()],
+            |r| r.get(0),
+        )
+        .map_err(err)?;
+    Ok(Some(c.clock.phase(c.id(), "commit", index)?))
+}
+
 pub fn seal_batch(
     conn: &Connection,
     c: Option<&InputContext>,
