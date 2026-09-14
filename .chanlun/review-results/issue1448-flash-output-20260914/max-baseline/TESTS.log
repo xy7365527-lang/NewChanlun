@@ -1,0 +1,412 @@
+TAP version 13
+# Subtest: SDK bypass 被精确收紧，prompt 不进入 argv，模型和推理档固定
+ok 1 - SDK bypass 被精确收紧，prompt 不进入 argv，模型和推理档固定
+  ---
+  duration_ms: 351.910875
+  type: 'test'
+  ...
+# Subtest: Router 拒绝非本机地址及 caller secret，错误不泄漏输入
+ok 2 - Router 拒绝非本机地址及 caller secret，错误不泄漏输入
+  ---
+  duration_ms: 335.081166
+  type: 'test'
+  ...
+# Subtest: Router 目录须唯一登记 Flash max；缺配置或坏 TOML 不回退
+ok 3 - Router 目录须唯一登记 Flash max；缺配置或坏 TOML 不回退
+  ---
+  duration_ms: 225.451709
+  type: 'test'
+  ...
+# Subtest: 认证沿用目录，环境只留白名单，不转发密钥或自动续跑配置
+ok 4 - 认证沿用目录，环境只留白名单，不转发密钥或自动续跑配置
+  ---
+  duration_ms: 0.393167
+  type: 'test'
+  ...
+# Subtest: 保留大小写代理路由环境，但不传 API/GitHub 密钥
+ok 5 - 保留大小写代理路由环境，但不传 API/GitHub 密钥
+  ---
+  duration_ms: 0.079333
+  type: 'test'
+  ...
+# Subtest: checkout 守卫拒绝共享 cwd、脏树、错误 HEAD、main、detached HEAD 和项目配置
+ok 6 - checkout 守卫拒绝共享 cwd、脏树、错误 HEAD、main、detached HEAD 和项目配置
+  ---
+  duration_ms: 726.144083
+  type: 'test'
+  ...
+# Subtest: 预检拒绝 assume-unchanged 隐藏的实际修改，保留原始 index 标志
+ok 7 - 预检拒绝 assume-unchanged 隐藏的实际修改，保留原始 index 标志
+  ---
+  duration_ms: 173.626209
+  type: 'test'
+  ...
+# Subtest: 后检拒绝工蜂新增 assume-unchanged 隐藏的修改
+ok 8 - 后检拒绝工蜂新增 assume-unchanged 隐藏的修改
+  ---
+  duration_ms: 785.829292
+  type: 'test'
+  ...
+# Subtest: 预检拒绝 skip-worktree 隐藏的实际修改，保留原始 index 标志
+ok 9 - 预检拒绝 skip-worktree 隐藏的实际修改，保留原始 index 标志
+  ---
+  duration_ms: 156.55325
+  type: 'test'
+  ...
+# Subtest: 后检拒绝工蜂新增 skip-worktree 隐藏的修改
+ok 10 - 后检拒绝工蜂新增 skip-worktree 隐藏的修改
+  ---
+  duration_ms: 688.100541
+  type: 'test'
+  ...
+# Subtest: core.filemode=false 不能隐藏权限修改，真实配置不变
+ok 11 - core.filemode=false 不能隐藏权限修改，真实配置不变
+  ---
+  duration_ms: 224.16375
+  type: 'test'
+  ...
+# Subtest: 真实子进程：直接 SDK provider 完成，保存 session/parent 映射，不加载项目 .env
+ok 12 - 真实子进程：直接 SDK provider 完成，保存 session/parent 映射，不加载项目 .env
+  ---
+  duration_ms: 721.820625
+  type: 'test'
+  ...
+# Subtest: 不会覆盖结果目录，失败预检也留结构化结果且不开进程
+ok 13 - 不会覆盖结果目录，失败预检也留结构化结果且不开进程
+  ---
+  duration_ms: 144.54475
+  type: 'test'
+  ...
+# Subtest: 异常不成功：空输出 exit0
+ok 14 - 异常不成功：空输出 exit0
+  ---
+  duration_ms: 668.591667
+  type: 'test'
+  ...
+# Subtest: 异常不成功：坏 JSONL 后还有完成结果
+ok 15 - 异常不成功：坏 JSONL 后还有完成结果
+  ---
+  duration_ms: 656.444333
+  type: 'test'
+  ...
+# Subtest: 异常不成功：最终结果坏 JSON
+ok 16 - 异常不成功：最终结果坏 JSON
+  ---
+  duration_ms: 653.235042
+  type: 'test'
+  ...
+# Subtest: 异常不成功：error 不能被后续完成掩盖
+ok 17 - 异常不成功：error 不能被后续完成掩盖
+  ---
+  duration_ms: 650.959417
+  type: 'test'
+  ...
+# Subtest: 异常不成功：缺少 turn.completed
+ok 18 - 异常不成功：缺少 turn.completed
+  ---
+  duration_ms: 672.991375
+  type: 'test'
+  ...
+# Subtest: 异常不成功：有效结果但进程 exit7
+ok 19 - 异常不成功：有效结果但进程 exit7
+  ---
+  duration_ms: 658.613291
+  type: 'test'
+  ...
+# Subtest: 异常不成功：有效结果但自杀信号
+ok 20 - 异常不成功：有效结果但自杀信号
+  ---
+  duration_ms: 646.014458
+  type: 'test'
+  ...
+# Subtest: 异常不成功：session 文件缺失
+ok 21 - 异常不成功：session 文件缺失
+  ---
+  duration_ms: 643.494708
+  type: 'test'
+  ...
+# Subtest: 异常不成功：业务 blocked
+ok 22 - 异常不成功：业务 blocked
+  ---
+  duration_ms: 661.928
+  type: 'test'
+  ...
+# Subtest: 异常不成功：只读模式出现改动
+ok 23 - 异常不成功：只读模式出现改动
+  ---
+  duration_ms: 657.082416
+  type: 'test'
+  ...
+# Subtest: execute 只留独立分支差异，不做 commit/push/merge
+ok 24 - execute 只留独立分支差异，不做 commit/push/merge
+  ---
+  duration_ms: 659.420334
+  type: 'test'
+  ...
+# Subtest: 运行中 HEAD 漂移必失败并保留差异，不自行回滚
+ok 25 - 运行中 HEAD 漂移必失败并保留差异，不自行回滚
+  ---
+  duration_ms: 700.314417
+  type: 'test'
+  ...
+# Subtest: 收到完成文本仍等待真实进程退出
+ok 26 - 收到完成文本仍等待真实进程退出
+  ---
+  duration_ms: 854.571542
+  type: 'test'
+  ...
+# Subtest: 无输出超时停止进程并失败
+ok 27 - 无输出超时停止进程并失败
+  ---
+  duration_ms: 433.902958
+  type: 'test'
+  ...
+# Subtest: 管理者取消只终止自己的进程组，等待根进程和子进程退出
+ok 28 - 管理者取消只终止自己的进程组，等待根进程和子进程退出
+  ---
+  duration_ms: 656.813333
+  type: 'test'
+  ...
+# Subtest: 预先取消不开工；相同 checkout 并行任务被锁挡住
+ok 29 - 预先取消不开工；相同 checkout 并行任务被锁挡住
+  ---
+  duration_ms: 668.351
+  type: 'test'
+  ...
+# Subtest: 流解析拒绝重复 session 及 schema 外内容
+ok 30 - 流解析拒绝重复 session 及 schema 外内容
+  ---
+  duration_ms: 0.515292
+  type: 'test'
+  ...
+# Subtest: onState 在 spawn 同步抛错：停止工蜂、释放锁、持久化 failed
+ok 31 - onState 在 spawn 同步抛错：停止工蜂、释放锁、持久化 failed
+  ---
+  duration_ms: 276.443334
+  type: 'test'
+  ...
+# Subtest: onState 在 session 同步抛错：停止工蜂、释放锁、持久化 failed
+ok 32 - onState 在 session 同步抛错：停止工蜂、释放锁、持久化 failed
+  ---
+  duration_ms: 653.608625
+  type: 'test'
+  ...
+# Subtest: onState 在 terminal 同步抛错：停止工蜂、释放锁、持久化 failed
+ok 33 - onState 在 terminal 同步抛错：停止工蜂、释放锁、持久化 failed
+  ---
+  duration_ms: 659.859791
+  type: 'test'
+  ...
+# Subtest: stdout 日志 ENOSPC：实际子进程被停止，failed 仍可交付
+ok 34 - stdout 日志 ENOSPC：实际子进程被停止，failed 仍可交付
+  ---
+  duration_ms: 639.746458
+  type: 'test'
+  ...
+# Subtest: stderr 日志 ENOSPC：实际子进程被停止，failed 仍可交付
+ok 35 - stderr 日志 ENOSPC：实际子进程被停止，failed 仍可交付
+  ---
+  duration_ms: 645.533833
+  type: 'test'
+  ...
+# Subtest: 运行状态文件写失败接入清理；独立 result 记录 failed
+ok 36 - 运行状态文件写失败接入清理；独立 result 记录 failed
+  ---
+  duration_ms: 653.034916
+  type: 'test'
+  ...
+# Subtest: 最终 receipt 无法写入也返回 failed，不通知 completed，已退出并释放锁
+ok 37 - 最终 receipt 无法写入也返回 failed，不通知 completed，已退出并释放锁
+  ---
+  duration_ms: 660.528958
+  type: 'test'
+  ...
+# Subtest: session finder pending 时取消，查找返回后仍为 cancelled
+ok 38 - session finder pending 时取消，查找返回后仍为 cancelled
+  ---
+  duration_ms: 650.71925
+  type: 'test'
+  ...
+# Subtest: CLI stdout 管道关闭不会击穿监督器或遗留 detached 工蜂
+ok 39 - CLI stdout 管道关闭不会击穿监督器或遗留 detached 工蜂
+  ---
+  duration_ms: 1054.587958
+  type: 'test'
+  ...
+# Subtest: CLI SIGINT 被转为取消，退出码非零且留下结果
+ok 40 - CLI SIGINT 被转为取消，退出码非零且留下结果
+  ---
+  duration_ms: 933.144875
+  type: 'test'
+  ...
+# Subtest: CLI SIGTERM 被转为取消，退出码非零且留下结果
+ok 41 - CLI SIGTERM 被转为取消，退出码非零且留下结果
+  ---
+  duration_ms: 957.210125
+  type: 'test'
+  ...
+# Subtest: 完整交付只得到可请示状态，预检不写 Git/工作树也不产生合入授权
+ok 42 - 完整交付只得到可请示状态，预检不写 Git/工作树也不产生合入授权
+  ---
+  duration_ms: 762.932375
+  type: 'test'
+  ...
+# Subtest: 漏列必需实体报告，与声明了但未入仓的文件，分别报出缺口
+ok 43 - 漏列必需实体报告，与声明了但未入仓的文件，分别报出缺口
+  ---
+  duration_ms: 841.483875
+  type: 'test'
+  ...
+# Subtest: 绝对路径、父目录路径和已跟踪符号链接不算报告入仓
+ok 44 - 绝对路径、父目录路径和已跟踪符号链接不算报告入仓
+  ---
+  duration_ms: 946.977667
+  type: 'test'
+  ...
+# Subtest: 已跟踪报告的错误 SHA-256 不能通过
+ok 45 - 已跟踪报告的错误 SHA-256 不能通过
+  ---
+  duration_ms: 702.990166
+  type: 'test'
+  ...
+# Subtest: 尚未提交的代码改动和 manifest 指向旧 HEAD 均被阻断
+ok 46 - 尚未提交的代码改动和 manifest 指向旧 HEAD 均被阻断
+  ---
+  duration_ms: 1425.728875
+  type: 'test'
+  ...
+# Subtest: 审查后的代码尾部提交同时使审查和已跑检查过期
+ok 47 - 审查后的代码尾部提交同时使审查和已跑检查过期
+  ---
+  duration_ms: 842.508875
+  type: 'test'
+  ...
+# Subtest: Git assume-unchanged 不得隐藏产品工作树内容漂移
+ok 48 - Git assume-unchanged 不得隐藏产品工作树内容漂移
+  ---
+  duration_ms: 717.425417
+  type: 'test'
+  ...
+# Subtest: 不在交付 diff 内的隐藏文件也不能凭干净 status 放行
+ok 49 - 不在交付 diff 内的隐藏文件也不能凭干净 status 放行
+  ---
+  duration_ms: 726.639167
+  type: 'test'
+  ...
+# Subtest: core.filemode=false 不能隐藏 diff 外文件的可执行位漂移
+ok 50 - core.filemode=false 不能隐藏 diff 外文件的可执行位漂移
+  ---
+  duration_ms: 750.710833
+  type: 'test'
+  ...
+# Subtest: diff.ignoreSubmodules=all 不能把 gitlink 变更藏出交付差异
+ok 51 - diff.ignoreSubmodules=all 不能把 gitlink 变更藏出交付差异
+  ---
+  duration_ms: 892.787834
+  type: 'test'
+  ...
+# Subtest: 本地 replace refs 不能替换最终 commit 的实际树来隐藏源码
+ok 52 - 本地 replace refs 不能替换最终 commit 的实际树来隐藏源码
+  ---
+  duration_ms: 824.598708
+  type: 'test'
+  ...
+# Subtest: 新增构建配置即使未写入产品清单也须纳入审查
+ok 53 - 新增构建配置即使未写入产品清单也须纳入审查
+  ---
+  duration_ms: 863.5135
+  type: 'test'
+  ...
+# Subtest: 已入仓但未列出的报告也会被发现
+ok 54 - 已入仓但未列出的报告也会被发现
+  ---
+  duration_ms: 882.641708
+  type: 'test'
+  ...
+# Subtest: 存在报告不等于审查已覆盖最终代码
+ok 55 - 存在报告不等于审查已覆盖最终代码
+  ---
+  duration_ms: 712.904208
+  type: 'test'
+  ...
+# Subtest: 原审查与尾部审查可按连续字节连接，断裂链不能覆盖最终代码
+ok 56 - 原审查与尾部审查可按连续字节连接，断裂链不能覆盖最终代码
+  ---
+  duration_ms: 1458.494041
+  type: 'test'
+  ...
+# Subtest: 必需检查的漏项、未跑、失败、伪通过均给出独立诊断
+ok 57 - 必需检查的漏项、未跑、失败、伪通过均给出独立诊断
+  ---
+  duration_ms: 700.828791
+  type: 'test'
+  ...
+# Subtest: 产品变更不能删除编译必检项来获得就绪状态
+ok 58 - 产品变更不能删除编译必检项来获得就绪状态
+  ---
+  duration_ms: 722.686458
+  type: 'test'
+  ...
+# Subtest: 编译豁免由实际差异判断，产品差异不能伪称纯文档
+ok 59 - 编译豁免由实际差异判断，产品差异不能伪称纯文档
+  ---
+  duration_ms: 1398.879417
+  type: 'test'
+  ...
+# Subtest: 可执行位变化不能借文档后缀绕过代码差异检查
+ok 60 - 可执行位变化不能借文档后缀绕过代码差异检查
+  ---
+  duration_ms: 799.608834
+  type: 'test'
+  ...
+# Subtest: 构建 txt 与可执行 MDX 不能凭后缀获得文档编译豁免
+ok 61 - 构建 txt 与可执行 MDX 不能凭后缀获得文档编译豁免
+  ---
+  duration_ms: 1063.209
+  type: 'test'
+  ...
+# Subtest: 红扫描只有实体分诊和显式披露齐全才得到待批准例外
+ok 62 - 红扫描只有实体分诊和显式披露齐全才得到待批准例外
+  ---
+  duration_ms: 1203.424292
+  type: 'test'
+  ...
+# Subtest: 未执行扫描或已确认产品问题不能借扫描误报披露放行
+ok 63 - 未执行扫描或已确认产品问题不能借扫描误报披露放行
+  ---
+  duration_ms: 1238.891334
+  type: 'test'
+  ...
+# Subtest: 纯报告尾部保留代码检查，但准确披露最终 head 尚未扫描
+ok 64 - 纯报告尾部保留代码检查，但准确披露最终 head 尚未扫描
+  ---
+  duration_ms: 2352.092792
+  type: 'test'
+  ...
+# Subtest: 合入机械收据无需新生报告，新发现必须转回修复
+ok 65 - 合入机械收据无需新生报告，新发现必须转回修复
+  ---
+  duration_ms: 1187.735875
+  type: 'test'
+  ...
+# Subtest: 删除的产品文件也按前像被审查，不能以最终文件不存在跳过
+ok 66 - 删除的产品文件也按前像被审查，不能以最终文件不存在跳过
+  ---
+  duration_ms: 787.443333
+  type: 'test'
+  ...
+# Subtest: manifest 多出的自动批准字段被拒绝，不执行任何附带操作
+ok 67 - manifest 多出的自动批准字段被拒绝，不执行任何附带操作
+  ---
+  duration_ms: 175.569666
+  type: 'test'
+  ...
+1..67
+# tests 67
+# suites 0
+# pass 67
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 25091.107416
