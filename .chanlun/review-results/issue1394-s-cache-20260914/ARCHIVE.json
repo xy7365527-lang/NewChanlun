@@ -1,0 +1,46 @@
+{
+  "ticket": 1394,
+  "source_sha256": "468d24143ddf6a63cffd66059ce69dce31c3eeb6a1028a8e26e9bc4baa4aa254",
+  "files": [
+    {
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-s-cache/.scratch/issue1394-s-cache/report.md",
+      "archive": ".chanlun/review-results/issue1394-s-cache-20260914/AUTHOR-REPORT.md",
+      "sha256": "fd20c2a2831d6c6514b07747dcf6facaa335251e5d571a2ce28aa820bae7730b",
+      "bytes": 7254
+    },
+    {
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-s-cache/.scratch/issue1394-s-cache/REVIEW.md",
+      "archive": ".chanlun/review-results/issue1394-s-cache-20260914/REVIEW.md",
+      "sha256": "84db365657239b31078ec1a92457852ff46b75e12eec7c33c9db53bc10efb7a7",
+      "bytes": 5085
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/s-cache-cost-r1/RESULT.json",
+      "archive": ".chanlun/review-results/issue1394-s-cache-20260914/REAL-AUDIT.json",
+      "sha256": "57fc3f3d738f82d95595676f315de59ad29da2ce60face4c340f8b3aa23a78dd",
+      "bytes": 1764
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/s-cache-cost-r1/baseline.log",
+      "archive": ".chanlun/review-results/issue1394-s-cache-20260914/BASELINE-AUDIT.log",
+      "sha256": "18c3c1b21e2409f7ef2ee3197276e5707760f72a218c38dd8a0e0cc9f4dd20fd",
+      "bytes": 19141
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/s-cache-cost-r1/candidate.log",
+      "archive": ".chanlun/review-results/issue1394-s-cache-20260914/CANDIDATE-AUDIT.log",
+      "sha256": "5cd7701c0dfb5cadd80c4c1b373c30366f5e70865e3f3641bbe5f8caa826907d",
+      "bytes": 19259
+    },
+    {
+      "source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1394-cache-sandcastle-run/result.json",
+      "archive": ".chanlun/review-results/issue1394-s-cache-20260914/WORKER-RESULT.json",
+      "sha256": "0c04287d2047367f2017cbc33396be73b56fcd4460fa681199867509e2ec3b46",
+      "bytes": 6993
+    }
+  ],
+  "scope": "单一总预算缓存替换；独评和真实停库诊断通过；非9011全源程序通过",
+  "actual_generation": 75,
+  "acknowledged_commits_before_manual_stop": 74,
+  "sampling_limit": "旧新成本测试进程有重叠，不是独占机器吞吐保证"
+}

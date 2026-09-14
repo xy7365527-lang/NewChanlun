@@ -1,0 +1,64 @@
+{
+  "scope": "READ_ONLY_REAL_DATABASE_AUDIT_DIAGNOSTIC; two executions overlapped; not a controlled throughput benchmark",
+  "exit_codes": {
+    "baseline": 0,
+    "candidate": 0
+  },
+  "measurements": {
+    "baseline": [
+      {
+        "batches_ms": 762.5985830000001,
+        "control_ms": 149.45137499999998,
+        "generation": 75,
+        "iteration": 0,
+        "structure_ms": 9217.89225,
+        "total_ms": 10129.942207999999
+      },
+      {
+        "batches_ms": 849.993625,
+        "control_ms": 140.60887499999998,
+        "generation": 75,
+        "iteration": 1,
+        "structure_ms": 9103.961125,
+        "total_ms": 10094.563624999999
+      },
+      {
+        "batches_ms": 778.9335,
+        "control_ms": 133.18887500000002,
+        "generation": 75,
+        "iteration": 2,
+        "structure_ms": 9015.430916,
+        "total_ms": 9927.553291
+      }
+    ],
+    "candidate": [
+      {
+        "batches_ms": 756.430792,
+        "control_ms": 150.162208,
+        "generation": 75,
+        "iteration": 0,
+        "structure_ms": 9072.394334,
+        "total_ms": 9978.987334
+      },
+      {
+        "batches_ms": 637.690625,
+        "control_ms": 133.451708,
+        "generation": 75,
+        "iteration": 1,
+        "structure_ms": 1047.1682090000002,
+        "total_ms": 1818.310542
+      },
+      {
+        "batches_ms": 636.171708,
+        "control_ms": 136.3745,
+        "generation": 75,
+        "iteration": 2,
+        "structure_ms": 981.997084,
+        "total_ms": 1754.543292
+      }
+    ]
+  },
+  "baseline_db_sha_after": "a1b9b6b7019b1fe65f7bbf04818568591f39ae6998061d851cb48e83270ce2fb",
+  "candidate_db_sha_after": "a1b9b6b7019b1fe65f7bbf04818568591f39ae6998061d851cb48e83270ce2fb",
+  "copied_database_files_still_equal": true
+}
