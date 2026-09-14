@@ -984,7 +984,7 @@ def verify(image, h, deadline=None, memo=None):
     catalog = tables["catalog"]
     if meta.get("profile_id") == tb02.PROFILE:
         for item in catalog:
-            if generation == 0 or item["catalog_id"] not in tb02.AXES:
+            if generation == 0 or item["catalog_id"] not in (tb02.LEGACY_AXES if meta["rule_revision"] == "s2-axis-quantifiers" else tb02.AXES):
                 if (item["impl_status"], item["proof_status"], item["run_status"]) != ("not_implemented", "not_proved", "not_run") or parse_json(item["evidence_json"]) != {}:
                     raise ValueError("无发布轴的当前目录携带未封存运行/证明事实")
     if meta.get("profile_definition") is None and binding != ("", "") and not any(b["profile_id"] for b in decoded_batches.values()):
@@ -1076,7 +1076,7 @@ def project_state(proof, as_of, h):
                 "run_status": row["run_status"], "evidence": parse_json(row["evidence_json"])}
         if meta.get("profile_id") == tb02.PROFILE:
             axis = publication["catalog_evidence"].get("axes", {}).get(item["id"])
-            if gen and item["id"] in tb02.AXES and axis is None:
+            if gen and item["id"] in (tb02.LEGACY_AXES if meta["rule_revision"] == "s2-axis-quantifiers" else tb02.AXES) and axis is None:
                 raise ValueError("历史 cut 缺少逐轴封存证据")
             item.update(implementation_status=axis["impl_status"] if axis else "not_implemented",
                         proof_status=axis["proof_status"] if axis else "not_proved",

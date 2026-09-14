@@ -25,11 +25,11 @@
 //!
 //! 1. **K线包含合并**（:19，↔ `Origin.ElementPipeline.mergeBars`）：相邻区间包含即合并；向上
 //!    `high=max,low=max`，向下 `low=min,high=min`；方向按前一对非包含 K 严格高低变化决定；
-//!    开头无方向向前看第一个非包含对；全程无方向只输出 open-tail。[缠论可导,62/65课]
+//!    初始包含尚无方向证据时保持未定，不借未来方向回折。见 #1373 已签包含事实合同。
 //! 2. **分型识别**（:20，↔ `Origin.ElementPipeline.fractalsOf`）：包含处理后，顶=中 K 高低**严格**
 //!    高于左右；底反之；等价不成立；第三根 K 收盘确认。[缠论可导,62课]
 //! 3. **新笔**（:21，↔ `Origin.ElementPipeline.strokesOf`）：旧笔禁用；顶/底分型不共用 K；两极值
-//!    K 间排除两端 ≥3 根（config）；同类连续分型，顶保留更高/底保留更低/等价保留更早。[缠论可导,77/81课]
+//!    K 间排除两端 ≥3 根（config）；同类连续分型顶保留更高、底保留更低，同价保持身份未定（#1392/#1405）。
 //! 4. **线段 67 课特征序列法**（:22，↔ `Origin.SegmentConstruction.segmentsOf` +
 //!    `Origin.SegmentFeatureComplete.SegEndComplete`）：向上线段看反向笔特征序列顶分型，向下反之；
 //!    `segmentsOf` 用 `nextSegmentEnd`/`scanSegEnd` 滑窗（成立支消费 ≥1 笔，well-founded 终止）；
@@ -141,56 +141,22 @@ impl PartialEq for ParseLayer {
 /// 边界条件：`bars` 为空 / 全程无方向 ⟹ confirmed 全空，只有 open-tail
 /// （reference-theta-v0.md:19）；尾部延伸结构进 `tail`。
 pub fn parse_layer(bars: &[Bar], config: &ThetaConfig) -> ParseLayer {
-    // 步骤 1：K线包含合并（reference-theta-v0.md:19）。
-    let incl = inclusion::process_inclusion(bars);
-    // 步骤 2-7：从 merged 构造（与增量入口共享，下游步结构性 bit-exact）。
-    parse_layer_from_merged(&incl.merged, config)
+    parse_layer_with_inclusion_facts(bars, config).0
 }
 
-/// #1373：完整原始 OHLC 经同一包含 fold_step，返回同次来源事实；下游仍用既有解析核。
+/// #1373/#1392：完整 raw 经同一包含 fold_step 和新笔核，返回同次生产结果与来源事实。
 pub fn parse_layer_with_inclusion_facts(
     bars: &[Bar],
     config: &ThetaConfig,
 ) -> (ParseLayer, inclusion::InclusionFacts) {
-    let facts = inclusion::process_inclusion_with_facts(bars);
-    let layer = parse_layer_from_merged(&facts.merged, config);
+    let mut facts = inclusion::process_inclusion_with_facts(bars);
+    let layer = parse_layer_from_facts(&mut facts, &config.parse);
     (layer, facts)
 }
 
-// ============================================================================
-// 增量 parse_layer API（#93 per-bar substrate O(n²) 根因解——parser 侧入口）。
-//
-// ## 缺口锚点（aed4d5f5 + incremental.rs:10/23 + runner.rs:280）
-//
-// per-bar substrate 每 bar 调 `parse_layer(&bars[..=i])`。inclusion 全量左折叠 O(i)/bar 是
-// 精确实证的 O(n²) 根因。本入口把 inclusion 增量化（`IncrInclusion` append-1-bar O(1)），
-// 下游（fractal/stroke/segment/tail）基于增量 inclusion 的 merged 输出重算。
-//
-// ## 诚实标注（formalization-validity-domain：有效域边界）
-//
-// 本入口的增量收益**仅覆盖 inclusion 步**（O(i)→O(1)/bar）。下游 fractal/stroke/segment
-// 仍是 O(merged_i)/bar 的全量重算——**若 merged_i 随 i 线性增长，下游仍是 O(n²) 项**。
-// 即：本入口把 inclusion 这一项从 O(n²) 降到 O(n)，但**不改变下游步的标度**。
-//
-// 下游增量化（fractal 局部三元组可增量；stroke 的 collapse_consecutive 全局规整与 segment
-// 的 FeatureSeqState 状态机需独立工位）超出 inclusion 缺口范围——实测下游是否成新 O(n²)
-// 热点见 profile.rs `profile_parse_layer_incr_scaling`。本工位的严格范围 = inclusion 增量化。
-//
-// ## bit-exact 不变量（铁律）
-//
-// 对任意 bar 序列与任意 i：`parse_layer_append` 链的输出 == `parse_layer(&bars[..=i])`，
-// 逐字段精确（ParseLayer #[derive(PartialEq)]）。逐 bar 断言见 profile.rs
-// `bit_exact_parse_layer_incr_per_bar`（合成 + 真实数据）。
-// ============================================================================
-
-/// 增量 parse_layer 状态（封装增量 inclusion + 增量 fractal/stroke/segment + tail 重算）。
-///
-/// 每 bar `append` 推进：
-/// 1. 增量 inclusion（O(1) 稳态）→ merged 输出。
-/// 2. 增量 fractal（O(尾部)/bar，保留 confirmed 前缀）。
-/// 3. 增量 stroke（O(尾部)/bar，保留 confirmed 前缀）。
-/// 4. 增量 segment（O(pending)/bar，保留 confirmed 前缀）。
-/// 5. tail 全量重算（O(merged_i)，tail 依赖全字段——非热点，profile 坐实）。
+// #1392：包含状态、新笔扫描 checkpoint 和分型尾部缓存共同推进。
+// 新笔核给出真实稳定前缀后才复用段状态；深回退用同一段判据重建。
+/// 逐 raw 输入的解析适配器；与同一原始前缀的全量入口逐字段对齐。
 #[derive(Debug, Clone)]
 pub struct ParseLayerIncr<'c> {
     incr_inclusion: inclusion::IncrInclusion,
@@ -212,15 +178,7 @@ impl<'c> ParseLayerIncr<'c> {
         }
     }
 
-    /// 追加 1 bar，返回该 bar 后的 `ParseLayer`（bit-exact 对齐 `parse_layer(&bars[..=i])`）。
-    ///
-    /// 内部：增量 inclusion → 增量 fractal → 增量 stroke → 增量 segment → tail 重算。
-    /// ponytail: Rc 共享消除每 bar Vec clone——`to_result_rc()` 返回 Rc clone O(1)，
-    /// 替代旧 `to_result().to_vec()` 的 O(n)/bar。tail 二分查找消除 O(merged_i) 线性扫描。
-    ///
-    /// 委托 [`append_incr_layer`]（#345：与 `OwnedIncrementalClassifier`〈owned config，
-    /// Nautilus 流式变体〉共享同一份步进实现，避免第二份平行实现——本仓库的 O(n²) 根因
-    /// 正是"两条平行实现互不复用"，本次抽取不重蹈）。
+    /// 追加一个原始 bar；不沿用旧笔的冻结前缀证书。
     pub fn append(&mut self, bar: Bar) -> ParseLayer {
         append_incr_layer(
             &mut self.incr_inclusion,
@@ -233,16 +191,8 @@ impl<'c> ParseLayerIncr<'c> {
     }
 }
 
-/// **增量 parse 单 bar 步进的共享实现**（#345）。
-///
-/// [`ParseLayerIncr::append`]（借用 `&'c ThetaConfig`，批量回测场景）与
-/// `backtest::incremental::OwnedIncrementalClassifier::append_bar`（owned `ThetaConfig`
-/// 拷贝，Nautilus 流式场景——`self.bars: Vec<Bar>` 逐 bar `push` 会重分配，任何 `&'a` 借用
-/// 都可能失效）共用本函数：两种宿主的**生命周期/所有权模型不同**，但增量步进算法必须
-/// **同一份代码**（否则退回本仓库当前正在修的"两条平行实现"病灶——#342 根因）。
-///
-/// 只需 `&ParseConfig`（stroke/segment 增量步唯一消费的 config 子字段），故两个调用方
-/// 都能各自传自己持有的 config 存储形态（借用/owned）而不额外分裂逻辑。
+/// #1392：借用与 owned 调用者共用同一 raw 前缀入口。
+/// 旧缓存参数暂留调用合同；本叶明确不发出它们的复用许可。
 pub(crate) fn append_incr_layer(
     incr_inclusion: &mut inclusion::IncrInclusion,
     incr_fractals: &mut fractal::IncrFractals,
@@ -251,61 +201,64 @@ pub(crate) fn append_incr_layer(
     bar: Bar,
     parse_config: &super::config::ParseConfig,
 ) -> ParseLayer {
-    // #106 证书：append 前的相位决定本 bar confirmed 前缀语义（O(1)）。
-    let was_open_tail = incr_inclusion.to_result_ref().only_open_tail;
-    let prev = std::mem::replace(incr_inclusion, inclusion::IncrInclusion::empty());
-    *incr_inclusion = prev.append(bar);
-    // merged_rc: Rc 共享 clone（O(1)），替代旧 to_result_ref().merged.to_vec() 的 O(n)/bar。
-    // 下游 fractal/stroke/segment/tail 借用 &merged（Rc::deref → &[Bar]，透明）。
-    let merged = incr_inclusion.merged_rc();
-    // #106 confirmed 前缀长度（O(1) 证书）：相 B 稳态（append 前后均非 open_tail）⟹ 仅末根
-    // acc 可改写，前缀 [..len-1] 物理不变（append_folded 用 Rc::make_mut pop/push 末根，
-    // 前缀字节不动）⟹ confirmed = len-1。相 A（仍 open_tail）/ 相 A→B 迁移本 bar（was_open_tail
-    // 但现非）⟹ 0（整段折叠或无方向，对 classifier 旧 closes cache 无可复用前缀，退化全量）。
-    let now_open_tail = incr_inclusion.to_result_ref().only_open_tail;
-    let merged_confirmed_len = if was_open_tail || now_open_tail {
-        0
-    } else {
-        merged.len().saturating_sub(1)
-    };
+    // 旧包含状态没有本票的初始未定与极值根事实；只保留调用者字段兼容。
+    let _ = incr_inclusion;
+    let previous_strokes_len = incr_strokes.to_result().len();
+    incr_strokes.append_bar_incremental(bar);
+    parse_layer_from_compact_facts(
+        incr_strokes,
+        incr_fractals,
+        incr_segments,
+        previous_strokes_len,
+        parse_config,
+    )
+}
 
-    // 增量 fractal：保留 confirmed 前缀，重算尾部 2 个三元组。
-    // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
-    let prev_fractals = std::mem::replace(incr_fractals, fractal::IncrFractals::empty());
-    *incr_fractals = prev_fractals.append(&merged);
+/// #1392：从紧凑包含状态构造 ParseLayer——与 [`parse_layer_from_facts`] 共用分型/新笔/段/tail
+/// 同一批函数（判据同源），差别只在 `positions` 由状态维护、`merged_bars` 走 Rc 共享。
+fn parse_layer_from_compact_facts(
+    incr_strokes: &mut stroke::IncrStrokes,
+    incr_fractals: &mut fractal::IncrFractals,
+    incr_segments: &mut segment::IncrSegments,
+    previous_strokes_len: usize,
+    config: &super::config::ParseConfig,
+) -> ParseLayer {
+    let strokes = incr_strokes.update_strokes_incremental(config);
+    let stable_strokes = incr_strokes.stable_strokes_prefix();
+    debug_assert!(stable_strokes <= previous_strokes_len.min(strokes.len()));
+    let state = incr_strokes.facts_state();
+    let merged = state.merged_slice();
+    *incr_fractals =
+        std::mem::replace(incr_fractals, fractal::IncrFractals::empty()).append(merged);
     let fractals = incr_fractals.to_result_rc();
-
-    // 增量 stroke：保留 confirmed 交替序列前缀 + confirmed strokes，续扫配对。
-    // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
-    let prev_strokes = std::mem::replace(incr_strokes, stroke::IncrStrokes::empty());
-    *incr_strokes = prev_strokes.append(&fractals, parse_config);
-    let strokes = incr_strokes.to_result_rc();
-
-    // 增量 segment：保留 confirmed segments 前缀，从 pending_start 续扫。
-    // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
-    let prev_segments = std::mem::replace(incr_segments, segment::IncrSegments::empty());
-    *incr_segments = prev_segments.append(&strokes, parse_config);
+    // 旧段缓存只接受“旧末笔之前不变”的输入。撤尾或更深回退明确使其失效，
+    // 不以新旧长度/末笔碰巧相等冒充整段输入相同。
+    let can_reuse_segments = strokes.len() >= previous_strokes_len
+        && stable_strokes >= previous_strokes_len.saturating_sub(1);
+    let previous_segments = std::mem::replace(incr_segments, segment::IncrSegments::empty());
+    let segments_state = if can_reuse_segments {
+        previous_segments
+    } else {
+        segment::IncrSegments::empty()
+    };
+    *incr_segments = segments_state.append(&strokes, config);
     let (segments, pending_start) = incr_segments.to_result_rc();
-    // #106 segments 证书（O(1)）：l0_tower 复用边界。
-    let segments_confirmed_len = incr_segments.confirmed_len();
-    let segments_earliest_unsealed = incr_segments.earliest_unsealed_from();
-
-    // tail 全量重算（O(tail) 非 O(merged_i)——二分查找定位锚点 + 尾部延伸段扫描）。
-    let tail = tail::build_tail(&merged, &fractals, &strokes, &segments, pending_start);
-
-    ParseLayer {
-        merged_bars: merged,
-        merged_confirmed_len,
-        segments_confirmed_len,
-        segments_earliest_unsealed,
+    let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
+    let layer = ParseLayer {
+        merged_bars: state.merged_rc(),
+        // #1392：由新包含状态**实际发证**（前缀一经定稿不再改写）；初始/等待为 0。
+        merged_confirmed_len: state.merged_confirmed_len(),
+        segments_confirmed_len: incr_segments.confirmed_len(),
+        segments_earliest_unsealed: incr_segments.earliest_unsealed_from(),
         fractals,
         strokes,
         segments,
         tail: Rc::new(tail),
-    }
+    };
+    layer
 }
 
-/// 从已合并的 merged bar 序列构造 ParseLayer（步骤 2-7，复用全量子步）。
+/// 从同次包含事实构造 ParseLayer；双坐标与极值根属于必需输入。
 ///
 /// 增量与全量共享此函数——保证下游步 bit-exact（同一代码路径）。
 ///
@@ -323,10 +276,16 @@ pub(crate) fn append_incr_layer(
 /// 构造）；Lean `originPipeline` 是 3+2 段**吃 strokes/candidates**（构造链 segmentsOf→
 /// centersOf→bspOf + 闭环链 chanlunTransitionFold，`OriginInput` 已携笔流与候选端点流）——
 /// 非同一函数、输入域不同，禁直接对拍。重叠区 = strokes/segments（交接对账项在案，#240 终裁）。
-fn parse_layer_from_merged(merged: &[Bar], config: &ThetaConfig) -> ParseLayer {
+fn parse_layer_from_facts(
+    facts: &mut inclusion::InclusionFacts,
+    config: &super::config::ParseConfig,
+) -> ParseLayer {
+    let merged = &facts.merged;
     let fractals = fractal::detect_fractals(merged);
-    let strokes = stroke::build_strokes(&fractals, &config.parse);
-    let (segments, pending_start) = segment::divide_segments_with_tail(&strokes, &config.parse);
+    let stroke_facts = stroke::build_stroke_facts(facts, config);
+    let strokes = stroke_facts.production_strokes();
+    facts.stroke_facts = Some(stroke_facts);
+    let (segments, pending_start) = segment::divide_segments_with_tail(&strokes, config);
     let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
     ParseLayer {
         merged_bars: Rc::new(merged.to_vec()),

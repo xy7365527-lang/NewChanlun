@@ -586,6 +586,8 @@ pub struct InclusionStepFact {
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InclusionFacts {
+    /// #1392：同次 parser 的生产新笔与证据，包含层自身不填判定。
+    pub stroke_facts: Option<super::stroke::StrokeFacts>,
     pub merged: Vec<Bar>,
     pub groups: Vec<InclusionGroupFact>,
     pub steps: Vec<InclusionStepFact>,
@@ -675,19 +677,28 @@ pub fn process_inclusion_with_facts(bars: &[Bar]) -> InclusionFacts {
                 });
             } else {
                 let group = result.groups.last_mut().unwrap();
+                let prev_bar = group.bar;
                 group.bar = after;
                 group.members.push(incoming.source_index);
-                // 数值来源投影：只读同核 merge 输出，不另算极值、不裁同价身份。
-                group.high_sources = bars[..=i]
-                    .iter()
-                    .filter(|b| group.members.contains(&b.source_index) && b.high == after.high)
-                    .map(|b| b.source_index)
-                    .collect();
-                group.low_sources = bars[..=i]
-                    .iter()
-                    .filter(|b| group.members.contains(&b.source_index) && b.low == after.low)
-                    .map(|b| b.source_index)
-                    .collect();
+                // 数值来源投影（#1392）：同核 `merge` 输出 ⟹ `after.high ∈ {prev_bar.high,
+                // incoming.high}`，故「成员中取到组极值者」这一集合可 O(1) 归并维护
+                // （旧集不变量 = 旧成员中取到旧组极值者），无需每步重扫 `bars[..=i]`。
+                // 判据与旧 `filter(high == after.high)` 逐位相同：merge_up 取 max、merge_down
+                // 取 min，等价于「值等于新组极值的成员」，顺序仍按到达序（同 `bars` 序）。
+                if incoming.high == after.high {
+                    if prev_bar.high == after.high {
+                        group.high_sources.push(incoming.source_index);
+                    } else {
+                        group.high_sources = vec![incoming.source_index];
+                    }
+                }
+                if incoming.low == after.low {
+                    if prev_bar.low == after.low {
+                        group.low_sources.push(incoming.source_index);
+                    } else {
+                        group.low_sources = vec![incoming.source_index];
+                    }
+                }
             }
             let group = result.groups.last().unwrap();
             let mut sources = previous_members;
@@ -764,6 +775,158 @@ pub fn process_inclusion_with_facts(bars: &[Bar]) -> InclusionFacts {
         group.confirmed = evidence.is_some() && index + 1 < group_count;
     }
     result
+}
+
+/// #1392：热路径逐 bar 的**紧凑同源包含状态**。
+///
+/// 与 [`process_inclusion_with_facts`] **逐句同源**：同一 `contains`/`strict_dir`/`fold_step`、
+/// 同一分支顺序（先判初始方向未定、再判建立方向、再分 merge / new_group）。差别只是状态化后
+/// 只推进末组，不重扫历史：
+///
+/// - `merged`：`Rc` 共享的连续合并序列（末根 = acc）。前缀一经定稿不再改写 ⟹ 可直接作为
+///   `ParseLayer.merged_bars` 的 O(1) 句柄，`merged_confirmed_len = len-1` 有实际发证。
+/// - `groups`：末组 O(1) 归并 `members`/`high_sources`/`low_sources`（见上 `merge` 分支注释），
+///   new_group 只改前一组的封口证据并追加一组。三组 high/low 根的**唯一性**与
+///   `waiting_reasons` 因此仍是同一读数，不另立判据。
+/// - `evidence`：方向证据链（仅 new_group 时换指向），与全量同一更新点。
+/// - `positions`：raw 序位映射（`source_index → 第几根 raw`，同坐标后者覆盖）。这是
+///   `Endpoint.raw_position` 的唯一来源，**不能**用源坐标相减冒充。
+///
+/// ## 与全量入口的**唯一**差别：历史 `source_coords` 的展开时机
+///
+/// 本状态**不**逐 bar 展开历史来源链：`InclusionGroupFact.direction_evidence` /
+/// `confirmation_evidence` 的 `source_coords` 在热路径留空，`steps` 不物化。
+/// 全量 [`process_inclusion_with_facts`] 保持完整展开（schema 与内容不变）——这是
+/// 「观察/完整 facts 请求才展开历史」的落地，**不是**判据分档：`Endpoint` 的结构字段
+/// （`kind`/`merged_index`/`group_anchor`/`price`/`extreme_roots`/`raw_position`/`sealed_at`）
+/// 与 `waiting_reasons` 两条路径逐位相同（`source_coords` 是纯证据面字段，不进任何判据）。
+#[derive(Debug, Clone, Default)]
+pub struct IncrFactsState {
+    merged: Rc<Vec<Bar>>,
+    groups: Vec<InclusionGroupFact>,
+    evidence: Option<InclusionDirectionEvidence>,
+    unsettled: bool,
+    positions: std::collections::BTreeMap<usize, usize>,
+    ordinal: usize,
+}
+
+impl IncrFactsState {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
+    /// 追加 1 根 raw bar——`process_inclusion_with_facts` 循环体的状态化版本（逐句对应）。
+    pub fn append(&mut self, incoming: Bar) {
+        self.positions.insert(incoming.source_index, self.ordinal);
+        self.ordinal += 1;
+        // 初始方向永久未定：此后 raw 不再进入折叠（与全量同一 continue）。
+        if self.unsettled {
+            return;
+        }
+        let Some(acc) = self.merged.last().copied() else {
+            // seed：首根 raw 原样入 merged 与 groups。
+            Rc::make_mut(&mut self.merged).push(incoming);
+            self.groups.push(InclusionGroupFact {
+                bar: incoming,
+                members: vec![incoming.source_index],
+                high_sources: vec![incoming.source_index],
+                low_sources: vec![incoming.source_index],
+                confirmed: false,
+                confirmation_evidence: None,
+                direction_evidence: None,
+            });
+            return;
+        };
+        // 未建方向前的包含 —— 不借未来方向回折，转「永久未定」（#1392 语义保留）。
+        if self.evidence.is_none() && contains(&acc, &incoming) {
+            self.unsettled = true;
+            return;
+        }
+        let direction = self
+            .evidence
+            .as_ref()
+            .map(|e| e.direction)
+            .or_else(|| strict_dir(&acc, &incoming))
+            .expect("合法非包含区间必有严格方向");
+        let merged = Rc::make_mut(&mut self.merged);
+        merged.pop();
+        let prefix_len = merged.len();
+        let (after, new_direction) = fold_step(&acc, incoming, direction, merged);
+        let included = merged.len() == prefix_len;
+        merged.push(after);
+        if !included {
+            // new_group：改前一组的封口证据，追加新组。证据链只在此处换指向。
+            let evidence = InclusionDirectionEvidence {
+                direction: new_direction,
+                previous_acc: acc,
+                incoming,
+                // 热路径不展开历史链（见类型头）：全量入口保留完整展开。
+                source_coords: Vec::new(),
+            };
+            let previous = self.groups.last_mut().unwrap();
+            previous.confirmation_evidence = Some(evidence.clone());
+            previous.confirmed = true;
+            self.groups.push(InclusionGroupFact {
+                bar: after,
+                members: vec![incoming.source_index],
+                high_sources: vec![incoming.source_index],
+                low_sources: vec![incoming.source_index],
+                confirmed: false,
+                confirmation_evidence: None,
+                direction_evidence: Some(evidence.clone()),
+            });
+            self.evidence = Some(evidence);
+        } else {
+            // merge：改末组的 bar/members/high&low 根（不换证据指向）。
+            let group = self.groups.last_mut().unwrap();
+            let prev_bar = group.bar;
+            group.bar = after;
+            group.members.push(incoming.source_index);
+            if incoming.high == after.high {
+                if prev_bar.high == after.high {
+                    group.high_sources.push(incoming.source_index);
+                } else {
+                    group.high_sources = vec![incoming.source_index];
+                }
+            }
+            if incoming.low == after.low {
+                if prev_bar.low == after.low {
+                    group.low_sources.push(incoming.source_index);
+                } else {
+                    group.low_sources = vec![incoming.source_index];
+                }
+            }
+        }
+    }
+
+    pub fn merged_slice(&self) -> &[Bar] {
+        &self.merged
+    }
+
+    pub fn merged_rc(&self) -> Rc<Vec<Bar>> {
+        Rc::clone(&self.merged)
+    }
+
+    pub fn groups_slice(&self) -> &[InclusionGroupFact] {
+        &self.groups
+    }
+
+    pub fn positions(&self) -> &std::collections::BTreeMap<usize, usize> {
+        &self.positions
+    }
+
+    pub fn unsettled(&self) -> bool {
+        self.unsettled
+    }
+
+    /// 跨 bar 稳定的 merged 前缀长度（实际发证）：末根 acc 仍可被下一根改写，其余**一经
+    /// 定稿不再改写**（`fold_step` 只 push 已定稿的 acc）。初始只有 seed 时为 0。
+    pub fn merged_confirmed_len(&self) -> usize {
+        if self.unsettled {
+            return 0;
+        }
+        self.merged.len().saturating_sub(1)
+    }
 }
 
 #[cfg(test)]

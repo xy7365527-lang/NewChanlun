@@ -1,0 +1,263 @@
+{
+  "schema": "tb02b-hand-oracle/1",
+  "cases": {
+    "gap2_raw3": {
+      "pair": [
+        1,
+        5
+      ],
+      "vector": [
+        false,
+        true,
+        true
+      ],
+      "merged_gap": 2,
+      "raw_between": 3,
+      "strokes": []
+    },
+    "gap3_raw2": {
+      "pair": [
+        1,
+        4
+      ],
+      "vector": [
+        true,
+        false,
+        true
+      ],
+      "merged_gap": 3,
+      "raw_between": 2,
+      "strokes": []
+    },
+    "gap3_raw3": {
+      "pair": [
+        1,
+        5
+      ],
+      "vector": [
+        true,
+        true,
+        true
+      ],
+      "merged_gap": 3,
+      "raw_between": 3,
+      "strokes": [
+        [
+          1,
+          5
+        ]
+      ]
+    },
+    "internal_root": {
+      "pair": [
+        1,
+        6
+      ],
+      "vector": [
+        true,
+        true,
+        true
+      ],
+      "merged_gap": 3,
+      "raw_between": 3,
+      "strokes": [
+        [
+          2,
+          6
+        ]
+      ]
+    },
+    "lifecycle": {
+      "strokes": [
+        [
+          1,
+          5
+        ],
+        [
+          5,
+          9
+        ]
+      ],
+      "confirmed": [
+        true,
+        false
+      ],
+      "first_formed_prefix": 7,
+      "first_confirmed_prefix": 12
+    },
+    "extend_top": {
+      "strokes": [
+        [
+          1,
+          7
+        ]
+      ],
+      "same_pair": [
+        5,
+        7
+      ],
+      "selection": "REPLACE"
+    },
+    "keep_top": {
+      "strokes": [
+        [
+          1,
+          5
+        ]
+      ],
+      "same_pair": [
+        5,
+        7
+      ],
+      "selection": "KEEP"
+    },
+    "tie_top": {
+      "same_pair": [
+        5,
+        7
+      ],
+      "selection": "UNDETERMINED",
+      "retained_anchors": [
+        5,
+        7
+      ]
+    },
+    "mirror_gap2_raw3": {
+      "pair": [
+        1,
+        5
+      ],
+      "vector": [
+        false,
+        true,
+        true
+      ],
+      "merged_gap": 2,
+      "raw_between": 3,
+      "strokes": []
+    },
+    "mirror_gap3_raw2": {
+      "pair": [
+        1,
+        4
+      ],
+      "vector": [
+        true,
+        false,
+        true
+      ],
+      "merged_gap": 3,
+      "raw_between": 2,
+      "strokes": []
+    },
+    "mirror_gap3_raw3": {
+      "pair": [
+        1,
+        5
+      ],
+      "vector": [
+        true,
+        true,
+        true
+      ],
+      "merged_gap": 3,
+      "raw_between": 3,
+      "strokes": [
+        [
+          1,
+          5
+        ]
+      ]
+    },
+    "mirror_internal_root": {
+      "pair": [
+        1,
+        6
+      ],
+      "vector": [
+        true,
+        true,
+        true
+      ],
+      "merged_gap": 3,
+      "raw_between": 3,
+      "strokes": [
+        [
+          2,
+          6
+        ]
+      ]
+    },
+    "mirror_lifecycle": {
+      "strokes": [
+        [
+          1,
+          5
+        ],
+        [
+          5,
+          9
+        ]
+      ],
+      "confirmed": [
+        true,
+        false
+      ],
+      "first_formed_prefix": 7,
+      "first_confirmed_prefix": 12
+    },
+    "mirror_extend_top": {
+      "strokes": [
+        [
+          1,
+          7
+        ]
+      ],
+      "same_pair": [
+        5,
+        7
+      ],
+      "selection": "REPLACE"
+    },
+    "mirror_keep_top": {
+      "strokes": [
+        [
+          1,
+          5
+        ]
+      ],
+      "same_pair": [
+        5,
+        7
+      ],
+      "selection": "KEEP"
+    },
+    "mirror_tie_top": {
+      "same_pair": [
+        5,
+        7
+      ],
+      "selection": "UNDETERMINED",
+      "retained_anchors": [
+        5,
+        7
+      ]
+    },
+    "raw_root_tie": {
+      "strokes": [],
+      "ambiguous_root_anchor": 1,
+      "ambiguous_roots": [
+        1,
+        2
+      ]
+    },
+    "mirror_raw_root_tie": {
+      "strokes": [],
+      "ambiguous_root_anchor": 1,
+      "ambiguous_roots": [
+        1,
+        2
+      ]
+    }
+  }
+}

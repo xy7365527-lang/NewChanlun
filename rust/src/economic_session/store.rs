@@ -501,7 +501,8 @@ pub(super) fn sync_pending(c: &Connection, image: &Value) -> Result<(), String> 
         .filter(|k| !kept.contains(k))
         .collect();
     for k in stale {
-        c.execute("DELETE FROM pending WHERE k=?", [&k]).map_err(err)?;
+        c.execute("DELETE FROM pending WHERE k=?", [&k])
+            .map_err(err)?;
     }
     Ok(())
 }

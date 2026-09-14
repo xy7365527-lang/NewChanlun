@@ -282,13 +282,7 @@ impl Fixture {
         let w = self.witness(op);
         persist(&mut self.dbs[n], &self.configs[n], 1, &e, w).unwrap()
     }
-    fn step_as(
-        &mut self,
-        n: usize,
-        op: &str,
-        name: &str,
-        message: &str,
-    ) -> Result<Value, String> {
+    fn step_as(&mut self, n: usize, op: &str, name: &str, message: &str) -> Result<Value, String> {
         let mut e = self.request(op, name);
         e["message_id"] = json!(message);
         let w = self.witness(op);
@@ -376,10 +370,7 @@ fn covered_pending_without_applied_does_not_block_healthy_beta_reserve() {
     assert_eq!(r["record"]["retained_total"], "60");
     assert_eq!(r["record"]["grants"].as_array().unwrap().len(), 1);
     let image = latest(&f.dbs[0]).unwrap().3;
-    assert!(
-        image["pending"].as_array().unwrap().is_empty(),
-        "{image}"
-    );
+    assert!(image["pending"].as_array().unwrap().is_empty(), "{image}");
     assert!(rows(&f.dbs[0], "pending").unwrap().is_empty());
     // 健康 beta 在 A 不可读、E 完整界可核时须实际到达新的 Committed 与原收据。
     let committed = f.step(2, "CommitDecision", "beta");
