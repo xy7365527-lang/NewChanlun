@@ -77,7 +77,8 @@ test("SDK bypass 被精确收紧，prompt 不进入 argv，模型和推理档固
     assert.ok(command.command.includes(mode === "review" ? "--sandbox read-only" : "--sandbox workspace-write"));
     assert.ok(command.command.includes("--ignore-user-config"));
     assert.ok(command.command.includes("'deepseek/deepseek-v4.1-flash'"));
-    assert.ok(command.command.includes('model_reasoning_effort="high"'));
+    assert.ok(command.command.includes('model_reasoning_effort="max"'));
+    assert.equal(command.command.split("model_reasoning_effort").length, 2);
     assert.ok(command.command.includes('model_provider="codex-router"'));
     assert.ok(command.command.includes('model_providers.codex-router.base_url="http://127.0.0.1:4202/v1"'));
     assert.ok(command.command.includes('model_providers.codex-router.requires_openai_auth=true'));
@@ -106,15 +107,15 @@ test("Router 拒绝非本机地址及 caller secret，错误不泄漏输入", as
   } finally { f.clean(); }
 });
 
-test("Router 目录须唯一登记 Flash high；缺配置或坏 TOML 不回退", () => {
+test("Router 目录须唯一登记 Flash max；缺配置或坏 TOML 不回退", () => {
   const f = fixture();
   try {
     const env = workerEnvironment(f.env);
     assert.equal(readRouterConfiguration(env).baseUrl, "http://127.0.0.1:4202/v1");
-    const model = { slug: MODEL, supported_reasoning_levels: [{ effort: "high" }] };
-    for (const models of [[], [model, model], [{ slug: MODEL, supported_reasoning_levels: [{ effort: "xhigh" }] }]]) {
+    const model = { slug: MODEL, supported_reasoning_levels: [{ effort: "max" }] };
+    for (const models of [[], [model, model], [{ slug: MODEL, supported_reasoning_levels: [{ effort: "high" }, { effort: "xhigh" }] }]]) {
       writeFileSync(join(f.env.CODEX_HOME, "models.json"), JSON.stringify({ models }));
-      assert.throws(() => readRouterConfiguration(env), /唯一.*high/);
+      assert.throws(() => readRouterConfiguration(env), /唯一.*max/);
     }
     writeFileSync(join(f.env.CODEX_HOME, "config.toml"), 'invalid = "UNREVEALED\n');
     assert.throws(() => readRouterConfiguration(env), (error: unknown) => error instanceof Error && !error.message.includes("UNREVEALED"));

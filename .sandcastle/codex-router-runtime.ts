@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 
 export const MODEL = "deepseek/deepseek-v4.1-flash";
-export const EFFORT = "high";
+export const EFFORT = "max";
 
 export function readRouterConfiguration(env: NodeJS.ProcessEnv): { baseUrl: string; catalog: string } {
   const config = join(env.CODEX_HOME ?? join(env.HOME ?? homedir(), ".codex"), "config.toml");
@@ -41,7 +41,7 @@ export function readRouterConfiguration(env: NodeJS.ProcessEnv): { baseUrl: stri
     if (models.length !== 1 || !Array.isArray(models[0].supported_reasoning_levels)
       || !models[0].supported_reasoning_levels.some((x: { effort?: string } | null) => x?.effort === EFFORT)) throw new Error();
   } catch {
-    throw new Error("Router 模型目录必须包含唯一的 DeepSeek V4.1 Flash 且支持 high");
+    throw new Error("Router 模型目录必须包含唯一的 DeepSeek V4.1 Flash 且支持 max");
   }
   return { baseUrl, catalog };
 }

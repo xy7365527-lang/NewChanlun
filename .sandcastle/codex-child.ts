@@ -189,7 +189,7 @@ export async function boundedCodex(mode: ChildMode, schemaPath: string, env = wo
   // 根 package 为 CommonJS、Sandcastle 只导出 ESM；显式动态导入，不改变全仓模块制。
   const { codex } = await import("@ai-hero/sandcastle");
   const provider = codex(MODEL, {
-    effort: EFFORT,
+    // SDK 0.12 的 effort 类型尚不含 max；在下方直接传给 Codex CLI，避免窄化或重复参数。
     sessionStorage: { hostSessionsDir: join(env.CODEX_HOME ?? join(env.HOME ?? homedir(), ".codex"), "sessions") },
   });
   return {
@@ -197,6 +197,7 @@ export async function boundedCodex(mode: ChildMode, schemaPath: string, env = wo
     buildPrintCommand(options) {
       if (options.resumeSession || options.forkSession) throw new Error("一次性工蜂入口不允许隐式 resume/fork");
       const built = provider.buildPrintCommand({ ...options, dangerouslySkipPermissions: false });
+      if (built.command.includes("model_reasoning_effort")) throw new Error("SDK 新增默认推理档，拒绝重复覆盖");
       const bypass = " --dangerously-bypass-approvals-and-sandbox";
       if (!built.command.startsWith("codex exec --json ") || built.command.split(bypass).length !== 2 || built.stdin !== options.prompt) {
         throw new Error("Sandcastle codex() 命令契约已变，拒绝猜测权限替换");
@@ -204,6 +205,7 @@ export async function boundedCodex(mode: ChildMode, schemaPath: string, env = wo
       const sandbox = mode === "review" ? "read-only" : "workspace-write";
       const route = readRouterConfiguration(env);
       const routing = [
+        `model_reasoning_effort=${JSON.stringify(EFFORT)}`,
         'model_provider="codex-router"',
         'model_providers.codex-router.name="Codex Router"',
         `model_providers.codex-router.base_url=${JSON.stringify(route.baseUrl)}`,
