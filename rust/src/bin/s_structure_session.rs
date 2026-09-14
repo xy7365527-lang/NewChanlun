@@ -3767,6 +3767,29 @@ fn cmd_query(db: &Path, identity_key: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// #1394：普通财务准备读取 S 原结构证据，S 不参加经济事务或经营轮。
+fn cmd_financial_basis(db: &Path) -> Result<(), String> {
+    let conn = open_db(db)?;
+    ensure_initialized(&conn)?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    verify_reachable_root(&tx)?;
+    let meta = db_meta(&tx)?;
+    let (sid, generation, _) = v2::protocol_identity(&tx)?;
+    let pending = meta.get("begin_token").is_some_and(|s| !s.is_empty());
+    let snapshot = read_snapshot_in_tx(&tx, None)?;
+    let commit_ns: Option<String> = tx.query_row(
+        "SELECT semantic_ns FROM s_clock_events WHERE phase='commit' AND generation=? ORDER BY attempt_index DESC LIMIT 1",
+        [snapshot["generation"].as_str().ok_or("MissingDependency：S 发布代缺失")?], |r|r.get(0)
+    ).optional().map_err(|e|e.to_string())?;
+    println!(
+        "{}",
+        project_wire_integers(&json!({"kind":"FinancialBasis", "session_id":sid,
+        "session_generation":generation, "writer_epoch":meta.get("writer_epoch"),
+        "pending_revision":pending, "commit_ns":commit_ns, "snapshot":snapshot}))
+    );
+    Ok(())
+}
+
 fn cmd_meta(db: &Path) -> Result<(), String> {
     let conn = open_db(db)?;
     ensure_initialized(&conn)?;
@@ -4073,6 +4096,7 @@ fn run() -> Result<(), String> {
         "advance" => cmd_advance(&db.ok_or("缺 --db".to_string())?, &configured_epoch),
         "catalog" => cmd_catalog(&db.ok_or("缺 --db".to_string())?, as_of),
         "snapshot" => cmd_snapshot(&db.ok_or("缺 --db".to_string())?, as_of),
+        "financial-basis" => cmd_financial_basis(&db.ok_or("缺 --db".to_string())?),
         "meta" => cmd_meta(&db.ok_or("缺 --db".to_string())?),
         "pragma" => cmd_pragma(&db.ok_or("缺 --db".to_string())?),
         "query" => {

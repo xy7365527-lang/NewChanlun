@@ -94,3 +94,25 @@ for (const [name,change] of negativeCases) test(name,async () => {
   const state=await fixture();await change(state);
   await assert.rejects(verifySnapshot(await seal(state),discovery));
 });
+
+// #1394：声明财务版本后不能静默丢失锁/责任族。仅协议单位测试。
+const financialDiscovery={...discovery,finance_revision:"tb03b-finance/1"};
+async function financeFixture(){
+  const state=await fixture();
+  state.domains["B:fixture"].image.finance={schema_revision:"tb03b-finance/1",rights:[],decisions:[],slots:[],responsibilities:[]};
+  return seal(state);
+}
+test("财务版本声明的空创世图像可读，后续记录不以此替代成功",async()=>{
+  await verifySnapshot(await financeFixture(),financialDiscovery);
+});
+test("已声明财务能力时丢失整族不能重签外层掩盖",async()=>{
+  await assert.rejects(verifySnapshot(await fixture(),financialDiscovery));
+});
+test("B 不得持有伪公共责任",async()=>{
+  const state=await financeFixture();state.domains["B:fixture"].image.finance.responsibilities=[{responsibility_id:"fake",amount:"30"}];
+  await assert.rejects(verifySnapshot(await seal(state),financialDiscovery));
+});
+test("Prepared 不得给场所调用资格",async()=>{
+  const state=await financeFixture();state.domains["B:fixture"].image.finance.decisions=[{decision_id:"fake",state:"Prepared",execution_eligibility:"Execute"}];
+  await assert.rejects(verifySnapshot(await seal(state),financialDiscovery));
+});

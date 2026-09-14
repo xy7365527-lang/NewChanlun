@@ -100,6 +100,43 @@
       }
     }
   }
+  // #1394：精确整数、owner、锁/责任/回执和知识时态先核再展示。
+  function verifyFinance(f, view, domain) {
+    keys(f, ["schema_revision", "rights", "decisions", "slots", "responsibilities",
+      ...(Object.hasOwn(f, "closed_applicants") ? ["closed_applicants"] : [])], "财务图像");
+    need(f.schema_revision === "tb03b-finance/1", "未知财务版本");
+    for (const k of Object.keys(f).filter(k => k !== "schema_revision")) need(Array.isArray(f[k]), "财务记录族须数组");
+    const ids = new Set();
+    for (const d of f.decisions) {
+      need(domain.startsWith("B:") && !ids.has(d.decision_id), "决定归属或身份重复"); ids.add(d.decision_id);
+      need(["Prepared", "Committed", "AbortedBeforeCommit"].includes(d.state) && d.execution_eligibility === "None", "普通财务状态不能有执行资格");
+      const p = d.prepared, plan = p.plan;
+      need(plan.owner === domain && plan.decision_id === d.decision_id, "决定与计划归属不符");
+      need(integer(p.locked_amount) === integer(plan.quantity, true) * integer(plan.limit_price, true) + integer(plan.fee_tail), "私有锁未覆盖全额责任");
+      need(integer(p.worst_quantity) <= integer(p.fixed_q, true), "最坏量越过固定 Q");
+      need(integer(p.book_version_after, true) <= BigInt(view.cut.commit_seq) && integer(p.prepared_ns) <= BigInt(view.commit_ns), "Prepared 晚于观察切面");
+      if (d.state === "Committed") {
+        const receipt = d.local_commit_receipt;
+        need(object(receipt) && object(d.grant), "Committed 缺原 grant/本地收据");
+        digest(receipt.commit_hash, "本地提交"); cut(receipt.e_cut, "E");
+        need(receipt.grant_id === d.grant.original.grant_id && receipt.plan_hash === p.plan_hash &&
+          integer(receipt.commit_ns) <= BigInt(view.commit_ns) && integer(receipt.book_version_after, true) <= BigInt(view.cut.commit_seq), "提交收据归属或时态不符");
+      } else need(d.local_commit_receipt === null && d.grant === null, "未提交状态不能回填后得收据");
+    }
+    const responsibilities = new Map();
+    for (const r of f.responsibilities) {
+      need(domain === "E" && !responsibilities.has(r.responsibility_id), "公共责任 owner/身份不符");
+      integer(r.amount); responsibilities.set(r.responsibility_id, r);
+    }
+    for (const slot of f.slots) {
+      need(domain === "E" && ["Reserved", "AwaitingAllocationPolicy"].includes(slot.state), "slot 状态或归属无效");
+      if (slot.state === "AwaitingAllocationPolicy") need(slot.waiting_for === "#1349/unresolved-common-cap-allocation" && slot.grants.length === 0, "未决资金政策不能选择赢家");
+      for (const g of slot.grants) {
+        const r = responsibilities.get(g.grant_id);
+        need(r !== undefined && r.amount === g.amount && same(r.grant, g) && g.execution_eligibility === "None", "grant 缺已增加的全额责任");
+      }
+    }
+  }
   async function verifySnapshot(value, discovery) {
     keys(value, ["kind", "session_id", "session_generation", "manifest_hash", "mode", "as_known_ns", "domains", "completeness", "snapshot_token"], "经济快照");
     need(value.kind === "EconomicSnapshot" && value.session_id === discovery.session_id &&
@@ -121,7 +158,8 @@
       cut(view.cut, domain);
       integer(view.commit_ns);
       if (value.as_known_ns !== null) need(BigInt(view.commit_ns) <= BigInt(value.as_known_ns), "图像晚于所声明的获知截止时刻");
-      keys(view.image, ["book", "recorded", "pending", "applied", "unmatched", "history"], "完整经济图像");
+      keys(view.image, ["book", "recorded", "pending", "applied", "unmatched", "history", ...(discovery.finance_revision === "tb03b-finance/1" ? ["finance"] : [])], "完整经济图像");
+      if (Object.hasOwn(view.image, "finance")) verifyFinance(view.image.finance, view, domain);
       for (const key of ["recorded", "pending", "applied", "unmatched", "history"]) need(Array.isArray(view.image[key]), "经济记录族不是数组");
       need(await sha256(view.image) === view.image_hash, "完整经济图像摘要不同");
       const book = view.image.book;
@@ -170,6 +208,7 @@
       integer(d.session_generation, true); integer(d.producer_epoch, true);
       need(Array.isArray(d.domains) && d.domains.length > 0 && new Set(d.domains).size === d.domains.length &&
         d.domains.every(v => typeof v === "string" && (v === "E" || /^B:.+/.test(v))), "域目录无效");
+      need(d.finance_revision === undefined || d.finance_revision === "tb03b-finance/1", "未知财务查询版本");
       integer(d.max_reply_bytes, true); integer(d.operation_timeout_ms, true);
       need(BigInt(d.max_reply_bytes) <= 67108864n && BigInt(d.operation_timeout_ms) <= 60000n, "公开配置超过浏览器资源界限");
       this.discovery = d; return d;

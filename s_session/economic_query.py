@@ -69,7 +69,7 @@ class EconomicQuery:
             raise EconomicQueryError("Q 连接身份不在获准源内")
         matching = [entry for entry in manifest.get("authorized_sources", [])
                     if type(entry) is dict and {k: entry.get(k) for k in source_fields} == self.source]
-        read_ops = {"ReadView", "Watch", "QueryFact", "QueryAllocation"}
+        read_ops = {"ReadView", "Watch", "QueryFact", "QueryAllocation", "QueryVoice", "QueryDecision", "QueryGrant"}
         if (len(matching) != 1 or type(matching[0].get("operations")) is not list
                 or any(type(op) is not str for op in matching[0]["operations"])
                 or not {"ReadView", "Watch"} <= set(matching[0]["operations"]) <= read_ops):
@@ -177,10 +177,18 @@ class EconomicQuery:
             raise EconomicQueryError("owner 回看切面与请求不同")
         image = response.get("image")
         if (type(image) is not dict
-                or set(image) != {"book", "recorded", "pending", "applied", "unmatched", "history"}
-                or any(type(image[k]) is not list for k in set(image) - {"book"})
+                or set(image) != ({"book", "recorded", "pending", "applied", "unmatched", "history"}
+                                  | ({"finance"} if self.manifest.get("finance") else set()))
+                or any(type(image[k]) is not list for k in set(image) - {"book", "finance"})
                 or (image["book"] is not None and type(image["book"]) is not dict)):
             raise EconomicQueryError("经济图像字段不完整或类型错误")
+        if "finance" in image:
+            finance = image["finance"]
+            fields = {"schema_revision", "rights", "decisions", "slots", "responsibilities"}
+            if (type(finance) is not dict or set(finance) not in (fields, fields | {"closed_applicants"})
+                    or finance.get("schema_revision") != "tb03b-finance/1"
+                    or any(type(finance[k]) is not list for k in set(finance) - {"schema_revision"})):
+                raise EconomicQueryError("财务图像字段、版本或类型错误")
         if response.get("image_hash") != digest(image):
             raise EconomicQueryError("经济图像与完整摘要不同")
         # 当前读取 PID/运行环境/epoch 单列诊断，不改变历史图像或语义 token。
@@ -236,6 +244,43 @@ class EconomicQuery:
             "as_known_ns": as_known, "domains": views,
             "completeness": "CompleteVector" if all(v["status"] == "Available" for v in views.values()) else "PartialVector",
         })
+
+    def original(self, payload):
+        """#1394：沿指定完整经济 cut 向量查原件，绝不用后来回执填旧 cut。"""
+        self._start()
+        if (type(payload) is not dict
+                or set(payload) != {"op", "kind", "domain_id", "object_id", "cuts"}
+                or payload["op"] != "original" or payload["kind"] not in ("decision", "grant")):
+            raise EconomicQueryError("原件查询参数不完整或多余")
+        domain, cuts = payload["domain_id"], payload["cuts"]
+        if domain not in self.nodes or type(cuts) is not dict or set(cuts) != set(self.nodes):
+            raise EconomicQueryError("原件查询须固定完整域向量和目标 owner")
+        for name, cut in cuts.items():
+            verify_cut(cut, name)
+        kind = payload["kind"]
+        if (kind == "grant") != (domain == "E"):
+            raise EconomicQueryError("原件类型不属于该权威域")
+        object_id = text(payload["object_id"], "原身份")
+        view = self.view(domain, cuts[domain])
+        response = self.owner(domain, {"op": "QueryDecision" if kind == "decision" else "QueryGrant",
+                                      "decision_id" if kind == "decision" else "grant_id": object_id,
+                                      "cut": cuts[domain], "as_known_ns": None})
+        finance = view["image"].get("finance", {})
+        candidates = finance.get("decisions", []) if kind == "decision" else [
+            grant for slot in finance.get("slots", []) for grant in slot["grants"]]
+        selected = next((x for x in candidates if x[kind + "_id"] == object_id), None)
+        if selected is None or response.get(kind) != selected:
+            raise EconomicQueryError("原件与指定 cut 的已核图像不同")
+        receipts = response.get("receipts") if kind == "decision" else [response.get("receipt")]
+        if type(receipts) is not list or not receipts:
+            raise EconomicQueryError("原件缺实际持久回执")
+        for receipt in receipts:
+            verify_cut(receipt.get("cut"), domain)
+            if int(receipt["cut"]["commit_seq"]) > int(cuts[domain]["commit_seq"]):
+                raise EconomicQueryError("旧 cut 不能查到未来回执")
+        return {"kind": "EconomicOriginal", "session_id": self.session,
+                "session_generation": self.generation, "manifest_hash": self.manifest_hash,
+                "cuts": cuts, "domain_id": domain, "original": response}
 
     def watch(self, payload):
         self._start()

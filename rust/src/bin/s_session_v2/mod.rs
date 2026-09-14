@@ -979,7 +979,7 @@ fn init_v2(
     result["profile_hash"] = json!(profile_hash);
     Ok(result)
 }
-fn protocol_identity(conn: &Connection) -> Result<(String, String, String), String> {
+pub(super) fn protocol_identity(conn: &Connection) -> Result<(String, String, String), String> {
     Ok((
         meta_get_opt(conn, "session_id")?.ok_or_else(|| err("缺session"))?,
         conn.query_row(

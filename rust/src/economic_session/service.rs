@@ -27,7 +27,7 @@ fn message_key(e: &Value) -> String {
         e["message_id"]
     ]))
 }
-fn previous_message(c: &Connection, e: &Value) -> Result<Option<Value>, String> {
+pub(super) fn previous_message(c: &Connection, e: &Value) -> Result<Option<Value>, String> {
     let r: Option<(String, String, String)> = c
         .query_row(
             "SELECT payload_hash,receipt_key,request_json FROM messages WHERE k=?",
@@ -46,7 +46,7 @@ fn previous_message(c: &Connection, e: &Value) -> Result<Option<Value>, String> 
     }
     Ok(None)
 }
-fn bind_message(c: &Connection, e: &Value, k: &str) -> Result<(), String> {
+pub(super) fn bind_message(c: &Connection, e: &Value, k: &str) -> Result<(), String> {
     c.execute(
         "INSERT INTO messages(k,payload_hash,receipt_key,request_json)VALUES(?,?,?,?)",
         params![
@@ -59,7 +59,7 @@ fn bind_message(c: &Connection, e: &Value, k: &str) -> Result<(), String> {
     .map_err(err)?;
     Ok(())
 }
-fn clocks(
+pub(super) fn clocks(
     config: &Config,
     e: &Value,
     last_ns: &str,
@@ -392,7 +392,7 @@ fn bind_voice(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Res
     config.pause(required(e, "message_id")?, "after_commit")?;
     Ok(receipt)
 }
-fn select_cut(
+pub(super) fn select_cut(
     c: &Connection,
     config: &Config,
     p: &Value,
@@ -488,6 +488,7 @@ fn read(
             let (s, h, _, _) = latest(&tx)?;
             json!({"kind":"EconomicChanges","domain_id":config.domain,"cut":cut(config,s,&h),"changes":changes,"writer_epoch":epoch.to_string()})
         }
+        "QueryDecision" | "QueryGrant" => super::finance::query(&tx, config, p)?,
         "QueryFact" => {
             exact(p, &["op", "fact_key"])?;
             let k = required(p, "fact_key")?;
@@ -535,14 +536,22 @@ pub(super) fn handle(
         config.authorized(e)?;
         let op = required(&e["payload"], "op")?;
         match op {
+            "ChongAdvance" if config.domain == "E" => super::finance::advance(c, config, epoch, e),
+            "PrepareDecision" | "CommitDecision" | "AbortDecision"
+                if config.domain.starts_with("B:") =>
+            {
+                super::finance::write(c, config, epoch, e)
+            }
+            "ImportResponsibility" | "Reserve" | "CloseApplicants" if config.domain == "E" => {
+                super::finance::write(c, config, epoch, e)
+            }
             "CaptureExternal" if config.domain == "E" => capture(c, config, epoch, e),
             "ApplyAllocation" if config.domain.starts_with("B:") => {
                 apply_allocation(c, config, epoch, e_epoch, e)
             }
             "BindVoice" if config.domain.starts_with("B:") => bind_voice(c, config, epoch, e),
-            "ReadView" | "Watch" | "QueryFact" | "QueryAllocation" | "QueryVoice" => {
-                read(c, config, epoch, runtime, &e["payload"])
-            }
+            "ReadView" | "Watch" | "QueryFact" | "QueryAllocation" | "QueryVoice"
+            | "QueryDecision" | "QueryGrant" => read(c, config, epoch, runtime, &e["payload"]),
             _ => Err("SchemaUnsupported：操作不属于本域".into()),
         }
     })();

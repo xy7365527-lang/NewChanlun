@@ -55,12 +55,13 @@ def get(handler):
                             "manifest_hash": query.manifest_hash, "domains": list(query.nodes),
                             "max_reply_bytes": str(query.resources["max_reply_bytes"]),
                             "operation_timeout_ms": str(query.resources["operation_timeout_ms"]),
-                            "scope": "TestOnlyRecordedEconomics", "configured": True})
+                            "scope": "TestOnlyRecordedEconomics", "configured": True,
+                            **({"finance_revision": "tb03b-finance/1"} if query.manifest.get("finance") else {})})
     return True
 
 
 def post(handler):
-    if handler.path not in ("/api/economic/snapshot", "/api/economic/watch"):
+    if handler.path not in ("/api/economic/snapshot", "/api/economic/watch", "/api/economic/original"):
         return False
     query = getattr(handler.server, "economic_query", None)
     if query is None:
@@ -92,7 +93,7 @@ def post(handler):
         op = handler.path.rsplit("/", 1)[1]
         if payload.get("op") != op:
             raise EconomicQueryError("路由与 op 不符")
-        result = query.snapshot(payload) if op == "snapshot" else query.watch(payload)
+        result = {"snapshot": query.snapshot, "watch": query.watch, "original": query.original}[op](payload)
         status = 200
     except (ValueError, KeyError, TypeError, UnicodeError, RecursionError, OSError) as exc:
         result, status = {"ok": False, "error": "EconomicQueryUnavailable", "detail": str(exc)}, 400

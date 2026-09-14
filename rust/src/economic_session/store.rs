@@ -1,4 +1,4 @@
-use super::book::{apply, decode, empty_image, fact_key, hash, target};
+use super::book::{apply, decode, fact_key, hash, target};
 use crate::session_protocol::{
     canonical_json, nonnegative, positive, required, sha256_hex, strict_json,
 };
@@ -56,6 +56,7 @@ impl Config {
             return Err("SchemaUnsupported：manifest版本".into());
         }
         super::evidence::validate_config(&manifest)?;
+        super::finance::validate_config(&manifest)?;
         let session = required(&manifest, "session_id")?.to_owned();
         let generation = required(&manifest, "session_generation")?.to_owned();
         positive(&generation, "session_generation")?;
@@ -115,6 +116,15 @@ impl Config {
                     "QueryAllocation",
                     "BindVoice",
                     "QueryVoice",
+                    "ImportResponsibility",
+                    "ChongAdvance",
+                    "PrepareDecision",
+                    "Reserve",
+                    "CommitDecision",
+                    "AbortDecision",
+                    "CloseApplicants",
+                    "QueryDecision",
+                    "QueryGrant",
                 ]
                 .contains(&op)
                     || !unique.insert(op)
@@ -144,12 +154,17 @@ impl Config {
             }
             _ => return Err("InvalidDomain：必须显式指定时钟adapter".into()),
         }
-        if let Some(f) = manifest.get("test_only_fault").filter(|v| !v.is_null()) {
+        let configured_faults = fault_plans(&manifest["test_only_fault"]);
+        let mut fault_keys = std::collections::BTreeSet::new();
+        for f in configured_faults {
             if manifest["clock"]["kind"] != "TestOnly" {
                 return Err("InvalidDomain：故障暂停仅TestOnly".into());
             }
             required(f, "message_id")?;
-            required(f, "marker_path")?;
+            absolute(required(f, "marker_path")?)?;
+            if !fault_keys.insert((required(f, "message_id")?, required(f, "phase")?)) {
+                return Err("IdentityConflict：故障调度重复".into());
+            }
             match required(f, "phase")? {
                 "before_commit" | "after_commit" => (),
                 _ => return Err("InvalidDomain：未支持故障点".into()),
@@ -270,8 +285,10 @@ impl Config {
         Ok(())
     }
     pub fn pause(&self, msg: &str, phase: &str) -> Result<(), String> {
-        let f = &self.manifest["test_only_fault"];
-        if f.is_object() && f["message_id"] == msg && f["phase"] == phase {
+        if let Some(f) = fault_plans(&self.manifest["test_only_fault"])
+            .into_iter()
+            .find(|f| f["message_id"] == msg && f["phase"] == phase)
+        {
             let p = absolute(required(f, "marker_path")?)?;
             let text = canonical_json(
                 &json!({"domain_id":self.domain,"message_id":msg,"phase":phase,"pid":std::process::id(),"test_only":true}),
@@ -304,6 +321,13 @@ impl Config {
             }
         }
         Ok(())
+    }
+}
+fn fault_plans(value: &Value) -> Vec<&Value> {
+    match value {
+        Value::Null => vec![],
+        Value::Array(values) => values.iter().collect(),
+        _ => vec![value],
     }
 }
 fn absolute(s: &str) -> Result<PathBuf, String> {
@@ -471,7 +495,7 @@ pub(crate) fn check_epoch(c: &Connection, expected: i64) -> Result<(), String> {
 pub(crate) fn cut(config: &Config, seq: i64, root: &str) -> Value {
     json!({"domain_id":config.domain,"commit_seq":seq.to_string(),"root_hash":root})
 }
-fn root(config: &Config, seq: i64, prev: &str, ns: &str, image: &Value) -> String {
+pub(super) fn root(config: &Config, seq: i64, prev: &str, ns: &str, image: &Value) -> String {
     hash(
         &json!({"domain_id":config.domain,"session_id":config.session,"session_generation":config.generation,"commit_seq":seq.to_string(),"previous_root":prev,"commit_ns":ns,"image_hash":hash(image)}),
     )
@@ -525,7 +549,7 @@ pub(crate) fn init(config: &Config) -> Result<Value, String> {
     let ns = config.clock(None, "init_ns", 0)?;
     tx.execute("INSERT INTO epochs VALUES(1,'init',?)", [&ns])
         .map_err(err)?;
-    let cut = append(&tx, config, 0, "", &ns, &empty_image())?;
+    let cut = append(&tx, config, 0, "", &ns, &super::finance::empty(config))?;
     tx.commit().map_err(err)?;
     Ok(
         json!({"kind":"Initialized","domain_id":config.domain,"writer_epoch":"1","cut":cut,"runtime":runtime}),
@@ -633,7 +657,7 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
         })
         .map_err(err)?;
     let mut previous = String::new();
-    let mut previous_image = empty_image();
+    let mut previous_image = super::finance::empty(config);
     let mut last_ns = -1;
     let mut seen = 0i64;
     for r in rs {
@@ -648,8 +672,17 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
             return Err("StorageUnavailable：域损坏：提交链/时间/根不一致".into());
         }
         if seq == 0 {
-            if image != empty_image() {
+            if image != super::finance::empty(config) {
                 return Err("StorageUnavailable：域损坏：创世图像非空".into());
+            }
+        } else if image["history"]
+            .as_array()
+            .and_then(|a| a.last())
+            .is_some_and(super::finance::is_event)
+        {
+            let event = image["history"].as_array().unwrap().last().unwrap();
+            if image != super::finance::replay(c, config, &previous_image, event, seq, &ns)? {
+                return Err("StorageUnavailable：财务重放不等于完整提交图像".into());
             }
         } else if image["history"]
             .as_array()
@@ -730,6 +763,10 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
         return Err("StorageUnavailable：域损坏：永久回执数不等于业务提交数".into());
     }
     for r in receipt_rows {
+        if r.get("receipt_key").is_some() {
+            super::finance::audit_receipt(c, config, &r)?;
+            continue;
+        }
         if r["kind"] == "VoiceBound" {
             if config.domain == "E" {
                 return Err("StorageUnavailable：E 非法持有 Voice 回执".into());
@@ -832,7 +869,9 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
         for r in rs {
             let (k, s) = r.map_err(err)?;
             let v = strict_json(s.as_bytes())?;
-            let expected_key = if table == "receipts" && v["kind"] == "VoiceBound" {
+            let expected_key = if table == "receipts" && v.get("receipt_key").is_some() {
+                required(&v, "receipt_key")?.to_owned()
+            } else if table == "receipts" && v["kind"] == "VoiceBound" {
                 super::voice::receipt_key(required(&v, "binding_id")?)
             } else {
                 required(&v, field)?.to_owned()
@@ -883,7 +922,9 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
         }
         let receipt = row(c, "receipts", &rk)?.ok_or("StorageUnavailable：域损坏：消息缺原回执")?;
         let payload = &request["payload"];
-        if config.domain == "E" {
+        if receipt.get("receipt_key").is_some() {
+            super::finance::audit_message(c, config, &request, &receipt)?;
+        } else if config.domain == "E" {
             let f = row(c, "facts", &rk)?.ok_or("StorageUnavailable：域损坏：E消息缺原件")?;
             if payload["op"] != "CaptureExternal"
                 || payload["raw_utf8"] != f["raw_utf8"]
@@ -1011,12 +1052,7 @@ pub(crate) fn verify_e_copy(record: &Value, config: &Config) -> Result<(), Strin
             .ok_or("StorageUnavailable：域损坏：B证据非对象")?
             .remove(key);
     }
-    if image["recorded"]
-        .as_array()
-        .filter(|a| a.len() == seq as usize)
-        .and_then(|a| a.last())
-        != Some(&original)
-    {
+    if image["recorded"].as_array().and_then(|a| a.last()) != Some(&original) {
         return Err("StorageUnavailable：域损坏：E提交证明不含对应完整原件".into());
     }
     Ok(())
