@@ -356,6 +356,23 @@ fn bound(p: &Value) -> Result<i64, String> {
         .and_then(|v| v.checked_add(number(p, "fee_tail").ok()?))
         .ok_or("InvalidDomain：完整责任算式溢出".into())
 }
+/// C06.3/C06.5：核 Pending 是否由固定 E 保守完整界（covered_facts）覆盖，并对应 E 实存原事实与 token。
+/// 只认 E 已独立保存的界与原件，不读坏 B、不用缓存余额、不伪造 Applied。
+fn covered_pending(previous: &Value, coverage: &[Value], pending: &Value) -> Result<(), String> {
+    let covered = coverage
+        .iter()
+        .find(|x| x["fact_key"] == pending["fact_key"] && x["token"] == pending["token"])
+        .ok_or("MissingDependency：相关 Pending 未被已核责任界覆盖")?;
+    let fact = item(
+        list(previous, "recorded")?,
+        "fact_key",
+        required(covered, "fact_key")?,
+    )?;
+    if fact["fact_hash"] != covered["fact_hash"] {
+        return Err("IdentityConflict：共同责任原件覆盖的事实内容不同".into());
+    }
+    Ok(())
+}
 fn plan<'a>(d: &'a Value, p: &Value) -> Result<&'a Value, String> {
     item(
         list(d, "plans")?,
@@ -819,35 +836,22 @@ fn reduce(
                 additional = add(additional, bound(q)?)?;
                 grants.push(json!({"grant_id":hash(&json!([REV,config.session,config.generation,slot["slot_id"],id,hash(q)])),"decision_id":id,"owner":q["owner"],"plan_hash":hash(q),"plan_id":q["plan_id"],"attempt_id":q["attempt_id"],"applicant_epoch":q["applicant_epoch"],"applicant_generation":q["applicant_generation"],"e_epoch":p["writer_epoch"],"amount":bound(q)?.to_string(),"quantity":q["quantity"],"units":original["prepared"]["units"],"policy":d["policy"],"prepared_cut":pf["receipt"]["cut"],"reserved_seq":seq.to_string(),"reserved_ns":ns,"execution_eligibility":"None"}));
             }
-            // 本片只接纳冻结且覆盖已发生开局事实的保守完整界；新 Pending 仍封新增。
+            // C06.3/C06.5：E 已独立保存的完整保守界覆盖该原事实与 token 时，E 保持该责任并核实清除
+            // 对应 Pending，不等待参与 B 的 Applied（A 账不可读不挡健康 B 的新增）；
+            // 未覆盖或原件内容不符仍封新增，不无条件忽略 Pending。
             let coverage = list(&d["baseline"], "covered_facts")?;
+            let mut resolved = BTreeSet::new();
             for pending in list(previous, "pending")? {
-                let covered = coverage
+                covered_pending(previous, coverage, pending)?;
+                resolved.insert(required(pending, "fact_key")?.to_owned());
+            }
+            if !resolved.is_empty() {
+                let kept: Vec<Value> = list(previous, "pending")?
                     .iter()
-                    .find(|x| {
-                        x["fact_key"] == pending["fact_key"] && x["token"] == pending["token"]
-                    })
-                    .ok_or("MissingDependency：相关 Pending 未被已核责任界覆盖")?;
-                let fact = item(
-                    list(previous, "recorded")?,
-                    "fact_key",
-                    required(covered, "fact_key")?,
-                )?;
-                if fact["fact_hash"] != covered["fact_hash"] {
-                    return Err("IdentityConflict：共同责任原件覆盖的事实内容不同".into());
-                }
-                let applied = proofs.iter().any(|pf| {
-                    list(&pf["image"], "applied").is_ok_and(|a| {
-                        a.iter().any(|a| {
-                            a["fact_key"] == fact["fact_key"]
-                                && a["fact_hash"] == fact["fact_hash"]
-                                && a["status"] == "Applied"
-                        })
-                    })
-                });
-                if !applied {
-                    return Err("MissingDependency：开局 Pending 缺其参与 B 的持久应用证据".into());
-                }
+                    .filter(|p| !p["fact_key"].as_str().is_some_and(|k| resolved.contains(k)))
+                    .cloned()
+                    .collect();
+                next["pending"] = json!(kept);
             }
             let responsibilities = list(f, "responsibilities")?;
             if responsibilities.is_empty() {
@@ -898,6 +902,12 @@ fn reduce(
             )?;
             if slot["state"] != "Reserved" || current_slot != slot {
                 return Err("InvalidDomain：实际 E grant 当前范围失效".into());
+            }
+            // C06.3/INTERFACE B.Commit：收到旧 grant 的首次 Commit 须核其当前范围。Reserve 后新增的
+            // 未覆盖风险 token 使共同约束不可核，暂停受影响新增；已独立保存的界仍覆盖的责任保留。
+            let coverage = list(&d["baseline"], "covered_facts")?;
+            for pending in list(&gp["current_image"], "pending")? {
+                covered_pending(&gp["current_image"], coverage, pending)?;
             }
             let closed = finance(&gp["current_image"])?
                 .get("closed_applicants")
@@ -1231,6 +1241,8 @@ fn persist(
     let (received, first, ns) = super::service::clocks(config, e, &floor, epoch)?;
     knowledge_floor(&w, &first)?;
     let (mut next, record) = reduce(config, &image, e, &w, seq, &ns)?;
+    // C06.5：已核覆盖 token 的清除须与 E 本事务持久状态一致，不能只改返回 JSON。
+    super::store::sync_pending(&tx, &next)?;
     let event = json!({"kind":e["payload"]["op"],"record":record,"request":e,"witness":w,"received_ns":received,"first_known_ns":first,"commit_ns":ns,"commit_seq":seq.to_string()});
     push(&mut next, "history", event.clone());
     let cut = append(&tx, config, seq, &prev, &ns, &next)?;

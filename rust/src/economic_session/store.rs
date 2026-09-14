@@ -486,6 +486,25 @@ pub(crate) fn put(c: &Connection, table: &str, k: &str, v: &Value) -> Result<(),
     .map_err(err)?;
     Ok(())
 }
+/// #1394/C06.5：把本事务已核证据覆盖、从完整图像移除的 Pending 持久清除。
+/// 只删当前图像已不含的 token；连续 Capture 的新 token 不在其中，不被前一个 Resolve 带走。
+pub(super) fn sync_pending(c: &Connection, image: &Value) -> Result<(), String> {
+    let kept: std::collections::BTreeSet<String> = image["pending"]
+        .as_array()
+        .ok_or("StorageUnavailable：域损坏：pending形状")?
+        .iter()
+        .filter_map(|p| p["fact_key"].as_str().map(str::to_owned))
+        .collect();
+    let stale: Vec<String> = rows(c, "pending")?
+        .iter()
+        .filter_map(|p| p["fact_key"].as_str().map(str::to_owned))
+        .filter(|k| !kept.contains(k))
+        .collect();
+    for k in stale {
+        c.execute("DELETE FROM pending WHERE k=?", [&k]).map_err(err)?;
+    }
+    Ok(())
+}
 pub(crate) fn check_epoch(c: &Connection, expected: i64) -> Result<(), String> {
     if positive(&meta(c, "writer_epoch")?, "writer_epoch")? != expected {
         return Err("StaleWriter：持久epoch不等于获准写者".into());

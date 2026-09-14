@@ -9,6 +9,7 @@ struct Fixture {
     dbs: Vec<Connection>,
     data: Value,
     basis: Value,
+    applicants: Vec<String>,
 }
 fn save(dir: &Path, name: &str, v: &Value) -> (String, String) {
     let p = dir.join(name);
@@ -19,11 +20,35 @@ fn save(dir: &Path, name: &str, v: &Value) -> (String, String) {
 fn envelope(message: &str, payload: Value) -> Value {
     json!({"schema_revision":SCHEMA,"session_id":"tb03b-unit","session_generation":"1","source_namespace":"test","source_epoch":"one","producer_id":"unit","producer_epoch":"1","message_id":message,"payload_hash":hash(&payload),"causal_refs":[],"payload":payload})
 }
+/// #1394：真实 E.Capture 用的新原事实原件（TestOnly 语义与既有夹具同族，仅换来源身份）。
+fn extra_opening_doc(external_fact_id: &str, allocation: &str) -> Value {
+    let mut doc = book::tests::document();
+    let event = &mut doc["events"][0];
+    event["book_identity"] =
+        json!({"chong_id":"alpha","symbol":"alpha","op_level":"2","fixed_q":"12"});
+    event["source"]["external_fact_id"] = json!(external_fact_id);
+    event["allocation_id"] = json!(allocation);
+    doc
+}
+fn responsibility_total(image: &Value) -> i64 {
+    image["finance"]["responsibilities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| number(r, "amount").unwrap())
+        .sum()
+}
 impl Fixture {
     fn new(cap: &str) -> Self {
-        Self::with_fault(cap, None)
+        Self::build(cap, None, &["alpha", "beta"])
     }
     fn with_fault(cap: &str, fault: Option<(&str, &str)>) -> Self {
+        Self::build(cap, fault, &["alpha", "beta"])
+    }
+    fn for_applicants(cap: &str, applicants: &[&str]) -> Self {
+        Self::build(cap, None, applicants)
+    }
+    fn build(cap: &str, fault: Option<(&str, &str)>, applicants: &[&str]) -> Self {
         let parent = std::env::var_os("TB03B_TEST_ROOT")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
@@ -89,12 +114,16 @@ impl Fixture {
             );
             authorities.push(json!({"authority_id":name,"bundle_path":bp,"bundle_sha256":bh,"verification_path":rp,"verification_sha256":rh,"max_bytes":"1048576"}));
             rights.push(json!({"right_id":name,"owner":format!("B:{name}"),"version":"1","amount":cash,"currency":"TEST-CASH","source_ref":format!("TestOnly-privately-owned-cash-original/{name}")}));
-            plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":"slot","quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":{"object_id":"unit-S-object","object_hash":hash(&object),"profile_id":"unit"},"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":"unit-S-object","quantity":new_quantity}}));
+            if applicants.contains(&name) {
+                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":"slot","quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":{"object_id":"unit-S-object","object_hash":hash(&object),"profile_id":"unit"},"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":"unit-S-object","quantity":new_quantity}}));
+            }
             routes.push(json!({"chong_id":name,"symbol":name,"operation_level":"2","fixed_q":fixed,"db":dir.join(format!("{name}.db")),"socket":dir.join(format!("{name}.sock"))}));
             docs.push(doc);
             bindings.push(p);
         }
-        let data = json!({"schema_revision":REV,"kind":"TestOnly","source_id":"unit-fixture","source_epoch":"1","policy":{"policy_id":format!("TestOnly-cash-cap-{cap}"),"allocation_policy_id":"#1349/unresolved-common-cap-allocation","cap":cap,"currency":"TEST-CASH","money_unit":"TEST-CASH","quantity_unit":"TEST-UNIT","quantum":"1","capability_id":"TestOnly-no-leverage-no-venue","model":"TestOnlyUnleveragedCashBuy","valid_through_ns":"100000"},"baseline":{"responsibility_id":"existing20","amount":"20","source_ref":"TestOnly-existing-full-liability-original","covered_facts":covered},"rights":rights,"plans":plans,"slots":[{"slot_id":"slot","applicants":["alpha","beta"],"input_end":{"kind":"ControlledInputEnd","source_id":"unit-fixture","source_epoch":"1","watermark":"2","complete_request_hash":hash(&json!(["alpha","beta"]))}}]});
+        let applicant_list = Value::Array(applicants.iter().map(|n| json!(n)).collect());
+        let request_hash = hash(&applicant_list);
+        let data = json!({"schema_revision":REV,"kind":"TestOnly","source_id":"unit-fixture","source_epoch":"1","policy":{"policy_id":format!("TestOnly-cash-cap-{cap}"),"allocation_policy_id":"#1349/unresolved-common-cap-allocation","cap":cap,"currency":"TEST-CASH","money_unit":"TEST-CASH","quantity_unit":"TEST-UNIT","quantum":"1","capability_id":"TestOnly-no-leverage-no-venue","model":"TestOnlyUnleveragedCashBuy","valid_through_ns":"100000"},"baseline":{"responsibility_id":"existing20","amount":"20","source_ref":"TestOnly-existing-full-liability-original","covered_facts":covered},"rights":rights,"plans":plans,"slots":[{"slot_id":"slot","applicants":applicant_list,"input_end":{"kind":"ControlledInputEnd","source_id":"unit-fixture","source_epoch":"1","watermark":"2","complete_request_hash":request_hash}}]});
         let (ip, ih) = save(&dir, "input.json", &data);
         let source = json!({"source_namespace":"test","source_epoch":"one","producer_id":"unit","producer_epoch":"1"});
         let mut auth = source.clone();
@@ -139,6 +168,11 @@ impl Fixture {
         }
         clocks["ImportResponsibility-existing20"] =
             json!({"received_ns":"63","first_known_ns":"64","commit_ns":"65"});
+        // #1394：Reserve 后真实 E.Capture 与随后首次 Commit 的独立时钟；不改变既有前缀数值。
+        clocks["capture-gamma"] =
+            json!({"received_ns":"95","first_known_ns":"96","commit_ns":"97"});
+        clocks["commit-beta-late"] =
+            json!({"received_ns":"110","first_known_ns":"111","commit_ns":"112"});
         let mut manifest = json!({"schema_revision":"economic-manifest/1","session_id":"tb03b-unit","session_generation":"1","e":{"db":dir.join("e.db"),"socket":dir.join("e.sock")},"chongs":routes,"authorized_sources":[auth],"resources":{"max_frame_bytes":"16777216","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"3000","queue_capacity":"4","max_connections":"4"},"clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["1000","2000"],"messages":clocks}},"voice_binding":{"schema_revision":"voice-binding/1","authorities":authorities},"finance":{"schema_revision":REV,"input_path":ip,"input_sha256":ih,"coordinator_source":source,"structure":{"binary":"/unit-unavailable-S-binary","binary_sha256":hash(&json!("unit")),"db":dir.join("s.db"),"session_id":"tb03b-unit","session_generation":"1","writer_epoch":"1"}}});
         if let Some((message, phase)) = fault {
             manifest["test_only_fault"] = json!({"message_id":message,"phase":phase,"marker_path":dir.join("fault-marker.json")});
@@ -160,6 +194,7 @@ impl Fixture {
             dbs,
             data,
             basis,
+            applicants: applicants.iter().map(|n| n.to_string()).collect(),
         };
         for (i, name) in ["alpha", "beta"].iter().enumerate() {
             let captured=f.handle(0,&format!("capture-{name}"),json!({"op":"CaptureExternal","raw_utf8":canonical_json(&docs[i]),"json_pointer":"/events/0","token":format!("token-{name}"),"source_event_time":null}));
@@ -222,20 +257,19 @@ impl Fixture {
     fn witness(&self, op: &str) -> Value {
         let mut w = json!({"input_raw":canonical_json(&self.data),"structure":self.basis});
         if op == "Reserve" {
-            w["prepared_proofs"] = json!([
-                proof(
-                    &self.configs[0],
-                    "B:alpha",
-                    &receipt_key("PrepareDecision", "alpha")
-                )
-                .unwrap(),
-                proof(
-                    &self.configs[0],
-                    "B:beta",
-                    &receipt_key("PrepareDecision", "beta")
-                )
-                .unwrap()
-            ]);
+            let proofs: Vec<Value> = self
+                .applicants
+                .iter()
+                .map(|name| {
+                    proof(
+                        &self.configs[0],
+                        &format!("B:{name}"),
+                        &receipt_key("PrepareDecision", name),
+                    )
+                    .unwrap()
+                })
+                .collect();
+            w["prepared_proofs"] = json!(proofs);
         }
         if op == "CommitDecision" {
             w["grant_proof"] =
@@ -247,6 +281,18 @@ impl Fixture {
         let e = self.request(op, name);
         let w = self.witness(op);
         persist(&mut self.dbs[n], &self.configs[n], 1, &e, w).unwrap()
+    }
+    fn step_as(
+        &mut self,
+        n: usize,
+        op: &str,
+        name: &str,
+        message: &str,
+    ) -> Result<Value, String> {
+        let mut e = self.request(op, name);
+        e["message_id"] = json!(message);
+        let w = self.witness(op);
+        persist(&mut self.dbs[n], &self.configs[n], 1, &e, w)
     }
     fn prepare(&mut self) {
         self.step(1, "PrepareDecision", "alpha");
@@ -311,6 +357,105 @@ fn insufficient_cap_waits_for_exact_policy_without_selecting_winner() {
     assert_eq!(r["record"]["retained_total"], "20");
     assert_eq!(r["record"]["required_total"], "90");
     assert_eq!(r["record"]["grants"], json!([]));
+    f.audit();
+}
+
+/// #1394 缺陷1 / SPEC C06.3：A 的普通开局回报已被 E 独立完整旧界涵盖但 A 账不可读时，
+/// 健康 B 的新 Reserve 不得被「原 Pending 缺当前申请者的 Applied」错误挡住。
+/// 只认 E 已存完整保守界与原事实、token；不要求 A 的 Applied，也不扩大读坏 A。
+#[test]
+fn covered_pending_without_applied_does_not_block_healthy_beta_reserve() {
+    let mut f = Fixture::for_applicants("100", &["beta"]);
+    // alpha 仅作为被旧责任独立涵盖的原事实来源；其账此后不可读，E 仍持有原界。
+    f.dbs[1].execute("UPDATE book SET json='{}'", []).unwrap();
+    assert!(audit(&f.dbs[1], &f.configs[1]).is_err());
+    f.step(2, "PrepareDecision", "beta");
+    let r = f.step(0, "Reserve", "slot");
+    assert_eq!(r["record"]["state"], "Reserved");
+    assert_eq!(r["record"]["required_total"], "60");
+    assert_eq!(r["record"]["retained_total"], "60");
+    assert_eq!(r["record"]["grants"].as_array().unwrap().len(), 1);
+    let image = latest(&f.dbs[0]).unwrap().3;
+    assert!(
+        image["pending"].as_array().unwrap().is_empty(),
+        "{image}"
+    );
+    assert!(rows(&f.dbs[0], "pending").unwrap().is_empty());
+    // 健康 beta 在 A 不可读、E 完整界可核时须实际到达新的 Committed 与原收据。
+    let committed = f.step(2, "CommitDecision", "beta");
+    assert_eq!(committed["kind"], "LocalCommitReceipt");
+    assert_eq!(committed["record"]["state"], "Committed");
+    assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 60);
+    audit(&f.dbs[0], &f.configs[0]).unwrap();
+    audit(&f.dbs[2], &f.configs[2]).unwrap();
+}
+
+/// #1394 缺陷2 / SPEC C06.5：Reserve 已核覆盖 token 的清除须与 E 当前事务持久状态一致；
+/// 后续真实 Capture 的新未覆盖 token 不被前一个 Resolve 带走；全部责任不减少。
+#[test]
+fn reserve_persists_resolved_pending_and_keeps_new_uncovered_token_across_restart() {
+    let mut f = Fixture::new("100");
+    f.prepare();
+    f.step(0, "Reserve", "slot");
+    let reserved = latest(&f.dbs[0]).unwrap().3;
+    assert!(
+        reserved["pending"].as_array().unwrap().is_empty(),
+        "{reserved}"
+    );
+    assert!(rows(&f.dbs[0], "pending").unwrap().is_empty());
+    let doc = extra_opening_doc("gamma-opening", "allocation-gamma");
+    let captured = f.handle(
+        0,
+        "capture-gamma",
+        json!({"op":"CaptureExternal","raw_utf8":canonical_json(&doc),"json_pointer":"/events/0","token":"token-gamma","source_event_time":null}),
+    );
+    assert_eq!(captured["kind"], "Recorded", "{captured}");
+    let with_pending = latest(&f.dbs[0]).unwrap().3;
+    let pending = with_pending["pending"].as_array().unwrap();
+    assert_eq!(pending.len(), 1, "{with_pending}");
+    assert_eq!(pending[0]["token"], "token-gamma");
+    assert_eq!(pending[0]["fact_key"], captured["fact_key"]);
+    assert_eq!(responsibility_total(&with_pending), 90);
+    // 持久重启对照：covered token 仍消失、新未覆盖 token 保留封门、全部责任不减少。
+    recover(&f.configs[0]).unwrap();
+    let restored = latest(&f.dbs[0]).unwrap().3;
+    assert_eq!(restored["pending"], with_pending["pending"]);
+    assert_eq!(responsibility_total(&restored), 90);
+    f.audit();
+}
+
+/// #1394 缺陷3 / INTERFACE B.Commit + SPEC C06.3：beta 拿旧 grant 首次 Commit 须核当前共同范围；
+/// Reserve 后新增未覆盖风险 token 使共同约束不可核，暂停受影响新增；原 Committed 收据不被倒写。
+#[test]
+fn stale_grant_first_commit_blocked_by_new_uncovered_pending_and_receipt_not_rewritten() {
+    let mut f = Fixture::new("100");
+    f.prepare();
+    f.step(0, "Reserve", "slot");
+    let committed = f.step(1, "CommitDecision", "alpha");
+    assert_eq!(committed["record"]["state"], "Committed");
+    let doc = extra_opening_doc("gamma-opening", "allocation-gamma");
+    let captured = f.handle(
+        0,
+        "capture-gamma",
+        json!({"op":"CaptureExternal","raw_utf8":canonical_json(&doc),"json_pointer":"/events/0","token":"token-gamma","source_event_time":null}),
+    );
+    assert_eq!(captured["kind"], "Recorded", "{captured}");
+    // 原 Committed 幂等重送仍返回原永久收据，不被后来 Pending 倒写。
+    let again = f.step(1, "CommitDecision", "alpha");
+    assert_eq!(again, committed);
+    assert_eq!(
+        decision(&latest(&f.dbs[1]).unwrap().3, "alpha").unwrap()["state"],
+        "Committed"
+    );
+    let err = f
+        .step_as(2, "CommitDecision", "beta", "commit-beta-late")
+        .unwrap_err();
+    assert!(err.contains("MissingDependency"), "{err}");
+    assert_eq!(
+        decision(&latest(&f.dbs[2]).unwrap().3, "beta").unwrap()["state"],
+        "Prepared"
+    );
+    assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 90);
     f.audit();
 }
 #[test]
