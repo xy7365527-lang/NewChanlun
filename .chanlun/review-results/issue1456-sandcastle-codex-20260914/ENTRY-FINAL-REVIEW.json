@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "ticket": 1456,
+  "artifactKind": "independent_fix_review",
+  "reviewerAgent": "/root/delivery_bundle_preflight/preflight_independent_review",
+  "reviewedAtUtc": "2026-09-13T22:10:56.431Z",
+  "verdict": "PASS_BOUNDED_FIX_REVIEW",
+  "summary": "原完整外审的 P1 监督异常清理和 P2 会话查找取消两项缺陷已修复；本次指定 Git/代理差异及直接收尾调用未发现剩余阻断。继承原三文件完整静态审查，补审原快照到最终固定三文件的全部修复差异。",
+  "remainingFindings": [],
+  "mergeAuthorized": false,
+  "repo": "/Users/silencehan/Projects/NewChanlun-1456-sandcastle",
+  "sourceBinding": [
+    {
+      "path": ".sandcastle/codex-child.ts",
+      "beforeSha256": "a7e67e49b4cfd27fddb36012fc0a2f56e0be537cc66dbf0f6abf2de14b1a70b1",
+      "afterSha256": "69a552ecc95749ec776657ec42245e1adf81ec4a7398bc95117290ad510a8e70"
+    },
+    {
+      "path": ".sandcastle/codex-child.mts",
+      "beforeSha256": "865fb53e57399ed0e3b5bd2c38115b5f5e677688f575c57c78cea2162f369a25",
+      "afterSha256": "03f261b77cf325f882213450a98754c9958cc431579b3d16edc79730bcead5b8"
+    },
+    {
+      "path": ".sandcastle/codex-child.test.ts",
+      "beforeSha256": "fdf7197ee734e057f90f3eb97b2f90b1f3eef8d4614e69bf5871c11e584c3ca3",
+      "afterSha256": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741"
+    }
+  ],
+  "coverageInheritance": {
+    "originalReview": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-worker/result.json",
+      "sha256": "a00ab24c4269999b8d8f64ebde8f141f07509a57cc5d4c65ab2cef6d38fcd14f",
+      "workerSessionId": "01a09cb7-6cdc-7a22-9cf9-2ca4f68911e3",
+      "scope": "原始三个 codex-child 文件的完整静态外审；外审自身未运行测试。",
+      "findings": [
+        "P1 状态通知、日志或 CLI 输出异常可击穿监督器并留下脱管工蜂",
+        "P2 会话日志异步查找期间取消仍交付 completed"
+      ]
+    },
+    "originalSnapshotDirectory": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-entry-input/source-original",
+    "continuity": "逐文件验证原快照 SHA-256 与原外审、CANDIDATE.json 一致；验证 W6 最终 SHA-256 与冻结指纹、候选元数据和真实 smoke 一致。以 diff -u -L 对三文件现场重建原→最终差异，逐字节等于 ENTRY-REPAIR.diff，无未纳入补审的产品或测试尾部变化。",
+    "actualDiffEqualsDeclared": true,
+    "actualDiffSha256": "c1cc58af574fa81c920ed9cf852618e454dbb6e3a6629dc619d5935f03b6cb02",
+    "diffEvidence": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/entry-repair-candidate/ENTRY-REPAIR.diff"
+  },
+  "fixAssessments": [
+    {
+      "id": "ENTRY-P1",
+      "originalSeverity": "HIGH",
+      "originalPriority": "P1",
+      "judgment": "FIXED",
+      "locations": [
+        ".sandcastle/codex-child.ts:302",
+        ".sandcastle/codex-child.ts:330",
+        ".sandcastle/codex-child.ts:340",
+        ".sandcastle/codex-child.ts:353",
+        ".sandcastle/codex-child.ts:377",
+        ".sandcastle/codex-child.ts:555",
+        ".sandcastle/codex-child.mts:28",
+        ".sandcastle/codex-child.mts:47"
+      ],
+      "reason": "spawn 通知、stdout/stderr 记录和解析回调、prompt 写入异常由 guarded 接 stop；stop 对登记的独立进程组先 TERM、后 KILL，close 等待组消失后拒绝 Promise。FD 关闭和 onExit 异常转失败；runCodexChild finally 接 handle.close、释放锁、失败终态持久化。CLI 使用 writeSync 使 EPIPE 同步回到监督路径，同时处理 stdout error；失败退出 1。receipt 持久化先于 completed 通知，写失败保持 failed。",
+      "reusedRuntimeEvidence": "39项日志中 spawn/session/terminal 同步回调失败、stdout/stderr ENOSPC、state 写失败、receipt 写失败、CLI 管道关闭均为 ok；对应源码断言进程退出、锁移除和 failed 结果。"
+    },
+    {
+      "id": "ENTRY-P2",
+      "originalSeverity": "MEDIUM",
+      "originalPriority": "P2",
+      "judgment": "FIXED",
+      "locations": [
+        ".sandcastle/codex-child.ts:544",
+        ".sandcastle/codex-child.ts:545",
+        ".sandcastle/codex-child.ts:564",
+        ".sandcastle/codex-child.ts:579",
+        ".sandcastle/codex-child.mts:55"
+      ],
+      "reason": "session 查找返回后立即检查 signal；finally 中 close/session await 后及终态通知后再次 applyCancellation。管理者取消保持 cancelled，SupervisionError 保持 failed；CLI cancelled 退出 130。sessionLookupAttempted 避免失败时重复进入同一次查找。",
+      "reusedRuntimeEvidence": "session finder pending 时 abort 后释放桩的测试通过，断言无 completed 通知且 receipt 为 cancelled；SIGINT/SIGTERM 测试均退出 130。"
+    },
+    {
+      "id": "ENTRY-GIT-FLAGS",
+      "judgment": "PASS_WITHIN_SCOPE",
+      "locations": [
+        ".sandcastle/codex-child.ts:118"
+      ],
+      "reason": "snapshotCheckout 在每次前后检查中拒绝 ls-files -v 的 S 或小写标志；没有清除索引标志或覆盖隐藏改动。",
+      "reusedRuntimeEvidence": "assume-unchanged/skip-worktree 各自前检和后检四例均通过，检查保留原标志和文件内容。"
+    },
+    {
+      "id": "ENTRY-GIT-FILEMODE",
+      "judgment": "PASS_WITHIN_SCOPE",
+      "locations": [
+        ".sandcastle/codex-child.ts:108"
+      ],
+      "reason": "所有 Git 调用强制 core.filemode=true；真实仓库配置不改写。",
+      "reusedRuntimeEvidence": "core.filemode=false 隐藏权限修改 fixture 通过，断言预检拒绝且配置仍 false。"
+    },
+    {
+      "id": "ENTRY-GIT-REPLACE-SUBMODULE",
+      "judgment": "PASS_STATIC_WITHIN_SCOPE",
+      "locations": [
+        ".sandcastle/codex-child.ts:108",
+        ".sandcastle/codex-child.ts:129"
+      ],
+      "reason": "所有 Git 调用固定 --no-replace-objects；status 显式 --ignore-submodules=none，且配置 diff.ignoreSubmodules=none。前后快照读取真实提交/索引并暴露子模块状态。",
+      "reusedRuntimeEvidence": "此项以最终源码差异静态核对为依据；本轮未新增子模块/replace 运行试验，不借预检辅助工具的五例冒充入口自身的运行证据。"
+    },
+    {
+      "id": "ENTRY-PROXY",
+      "judgment": "PASS_WITH_STATED_LOG_LIMIT",
+      "locations": [
+        ".sandcastle/codex-child.ts:174",
+        ".sandcastle/codex-child.ts:182",
+        ".sandcastle/codex-child.ts:466",
+        ".sandcastle/codex-child.mts:47"
+      ],
+      "reason": "保留八个大小写代理路由变量，经显式 env 传给子进程；入口不枚举或持久化其值，不在 ChildRecord/CLI 状态字段加入环境。API/GitHub 密钥仍不在白名单。",
+      "reusedRuntimeEvidence": "代理白名单测试与真实假 Codex 进程例均通过，后者核对代理变量名已传递且 result.json/events.jsonl 没有测试代理值。限制是原始 stdout/stderr 和工蜂返回内容不做通用脱敏。"
+    }
+  ],
+  "validation": {
+    "testsRerunByThisReviewer": false,
+    "additionalFaultFixturesExecuted": false,
+    "sourceAndDiffIntegrityChecked": true,
+    "tests": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/entry-repair-candidate/tests.tap",
+      "sha256": "eb04805cbdf3621bb734296353dead42b47aa8d645cef96844d4c65e701cd93c",
+      "command": "node --import tsx --test .sandcastle/codex-child.test.ts",
+      "executionAttribution": "实施方候选验证；本轮读取并核对日志/指纹，未重新执行。",
+      "passed": 39,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "matchingRelevantOkEntries": [
+        "ok 3 - 保留大小写代理路由环境，但不传 API/GitHub 密钥",
+        "ok 5 - 预检拒绝 assume-unchanged 隐藏的实际修改，保留原始 index 标志",
+        "ok 6 - 后检拒绝工蜂新增 assume-unchanged 隐藏的修改",
+        "ok 7 - 预检拒绝 skip-worktree 隐藏的实际修改，保留原始 index 标志",
+        "ok 8 - 后检拒绝工蜂新增 skip-worktree 隐藏的修改",
+        "ok 9 - core.filemode=false 不能隐藏权限修改，真实配置不变",
+        "ok 10 - 真实子进程：直接 SDK provider 完成，保存 session/parent 映射，不加载项目 .env",
+        "ok 29 - onState 在 spawn 同步抛错：停止工蜂、释放锁、持久化 failed",
+        "ok 30 - onState 在 session 同步抛错：停止工蜂、释放锁、持久化 failed",
+        "ok 31 - onState 在 terminal 同步抛错：停止工蜂、释放锁、持久化 failed",
+        "ok 32 - stdout 日志 ENOSPC：实际子进程被停止，failed 仍可交付",
+        "ok 33 - stderr 日志 ENOSPC：实际子进程被停止，failed 仍可交付",
+        "ok 34 - 运行状态文件写失败接入清理；独立 result 记录 failed",
+        "ok 35 - 最终 receipt 无法写入也返回 failed，不通知 completed，已退出并释放锁",
+        "ok 36 - session finder pending 时取消，查找返回后仍为 cancelled",
+        "ok 37 - CLI stdout 管道关闭不会击穿监督器或遗留 detached 工蜂",
+        "ok 38 - CLI SIGINT 被转为取消，退出码非零且留下结果",
+        "ok 39 - CLI SIGTERM 被转为取消，退出码非零且留下结果"
+      ]
+    },
+    "candidateManifest": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/entry-repair-candidate/CANDIDATE.json",
+      "sha256": "38a9587b23c3c4295bd799ac409f802b37a9f4a30635cc447a930bdc612c6c09",
+      "note": "其中 CANDIDATE_NOT_COPIED_TO_W6 是生成时历史状态；本轮通过 W6 实际文件哈希验证已经对应最终候选。"
+    },
+    "supervisionDiff": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/entry-repair-candidate/ENTRY-SUPERVISION.diff",
+      "sha256": "d55cb185e692ce90c679bfbee2fcb11bd6e0479f505c7098f74752b2688a5cce"
+    },
+    "realSmoke": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker/MANAGER-POSTCHECK.json",
+      "sha256": "6a2b59ba9b3944707e4475137d4aabdfcdc41635e1cce24944311a8ae3e087ae",
+      "verdict": "PASS_BOUNDED_WRITE_SMOKE",
+      "executionAttribution": "管理者已执行；本轮复用已哈希绑定的真实 execute 写入/读取/回流/清理记录。",
+      "sourceHashesMatch": true,
+      "entryExitCode": 0,
+      "workerExitCode": 0,
+      "recordedPidAndGroupAbsent": true
+    }
+  },
+  "limitations": [
+    "只补审已指定修复差异和直接收尾路径；未重新完整审查 SDK、全仓、其他并行产物或展开依赖漏洞扫描。",
+    "复用39项假 Codex 实进程夹具与单次真实 execute smoke；不把 smoke 当异常场景测试，也不把作者执行称为本审查者独立重跑。",
+    "session finder 的取消修复保证返回后的终态正确，没有为异步目录遍历提供即时取消或额外时限。",
+    "进程清理边界是登记的进程及原独立进程组；不证明追踪主动脱离原组的后代。",
+    "日志 ENOSPC 覆盖的是定向抛错，不能保证物理磁盘完全不可写时仍生成实体 receipt；此时进程清理与非零失败状态仍是可实现边界。",
+    "代理值不由入口主动记录；原始工蜂 stdout/stderr、返回结果和任意回调异常文本没有通用敏感值脱敏保证。",
+    "入口沿用现有 Git/宿主信任边界；对本次明确的索引标志、filemode、replace 和子模块隐藏路径作出判断，不声称穷尽所有 Git 配置或跨进程竞态。",
+    "本报告只写 ENTRY-FINAL-REVIEW.json；未修改三个固定源码/测试，未执行真实新工蜂、commit、push、merge 或 GitHub 发布。"
+  ]
+}

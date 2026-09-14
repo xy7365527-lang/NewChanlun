@@ -1,0 +1,89 @@
+{
+  "schema": "newchanlun.sandcastle.first-worker.postcheck.v1",
+  "checked_at_utc": "2026-09-13T21:34:40.043812+00:00",
+  "status": "PASS_BOUNDED_WORKER_DELIVERY_AND_SOURCE_IDENTITY",
+  "parent_thread_id": "01a07fb3-9da9-7ca0-9be2-e15de6eac7b3",
+  "manager_native_agent_name": "/root/tb03b_contract_preparation",
+  "external_codex_session_ids": [
+    "01a09cab-357f-7c51-90cd-dd9934120168"
+  ],
+  "external_session_is_native_child": false,
+  "attempt_count": 2,
+  "productive_attempt_count": 1,
+  "attempt_1": "CLI参数解析失败：--ignore-user-config误置全局位，退出2，未产生session，保留attempt-1全部原证据。",
+  "repair": "仅把参数移至codex exec --ignore-user-config；同范围重跑成功。",
+  "worker_scope": "PR1455的六文档纯报告复核；不构成PR1455实际CI/合入批准、1374或整图销项。",
+  "manager_exit": {
+    "manager_pid": 5270,
+    "exit_code": 0,
+    "external_session_ids": [
+      "01a09cab-357f-7c51-90cd-dd9934120168"
+    ],
+    "finished_at": "2026-09-13T21:33:07.472Z"
+  },
+  "source_pre_post_equal": true,
+  "product_tree_sha256": "42ca85f38d36e555351c8ee3c6e871dd7836ed4ccbc7cab96504880d8b886972",
+  "base_product_tree_sha256": "42ca85f38d36e555351c8ee3c6e871dd7836ed4ccbc7cab96504880d8b886972",
+  "product_tree_entries": 7926,
+  "document_count": 6,
+  "report_sha256": "45f04b88d197023e90b2ef3185caba9a3aa83d9abc17a86c6449df5567913a94",
+  "result_sha256": "0addb17e9f92f46054b9466b6f1d8a49578cc5ad1cdf06436e4ccf6c48a11af6",
+  "source_before_sha256": "4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602",
+  "source_after_sha256": "4e1560069dbc9e8b43df1c5ca7cedbccfe7a53ef0d05c5cdf6db1afa4eeba602",
+  "process_classification": [
+    {
+      "pid": 5440,
+      "original_ppid": 5439,
+      "original_executable": "/Users/silencehan/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex",
+      "actual_argv": "/Users/silencehan/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex exec --ignore-user-config --json -s read-only -c approval_policy=\"never\" -m gpt-6-astra -c model_reasoning_effort=\"xhigh\"",
+      "classification": "external_codex_cli",
+      "process_now_present": false,
+      "current_process_row": null
+    },
+    {
+      "pid": 5546,
+      "original_ppid": 5440,
+      "original_executable": "/Users/silencehan/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+      "actual_argv": "/Users/silencehan/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node /Users/silencehan/.codex/plugins/cache/openai-curated-remote/codex-security/0.1.24/scripts/../mcp/server.mjs --stdio",
+      "classification": "observed_auxiliary_descendant_not_codex_cli",
+      "process_now_present": false,
+      "current_process_row": null
+    },
+    {
+      "pid": 5769,
+      "original_ppid": 5440,
+      "original_executable": "/Users/silencehan/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex-code-mode-host",
+      "actual_argv": "/Users/silencehan/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex-code-mode-host",
+      "classification": "observed_auxiliary_descendant_not_codex_cli",
+      "process_now_present": false,
+      "current_process_row": null
+    }
+  ],
+  "observed_processes_all_absent": true,
+  "raw_event_classifier_limitation": "首版观测器使用路径含codex，原EVENTS/RESULT因此把辅助node及codex-code-mode-host子进程也收入actual_codex_pids。原件不改；本表按可执行文件basename==codex作精确区分。持久入口应直接记录真实CLI PID/argv。",
+  "runtime_isolation": "SDK noSandbox；真实Codex参数-s read-only；未用Docker，无Docker隔离声明。",
+  "ignore_user_config_limitation": "实际argv含exec --ignore-user-config，但CLI仍启动codex-security MCP辅助node。只能证明参数生效且本次JSONL未见MCP工具调用，不能声称全部插件均未加载或已有网络隔离。",
+  "stream_item_types": {
+    "no_item": 3,
+    "error": 1,
+    "agent_message": 3,
+    "command_execution": 40
+  },
+  "command_execution_started_count": 20,
+  "mcp_tool_calls_observed": 0,
+  "network_isolation_measured": false,
+  "cancel_signal_wired": true,
+  "cancellation_executed": false,
+  "cancellation_scope": "本次只实证正常等待接回；未打断成功复核以伪造取消实证。",
+  "model_usage": {
+    "inputTokens": 78835,
+    "cacheCreationInputTokens": 0,
+    "cacheReadInputTokens": 391424,
+    "outputTokens": 9445
+  },
+  "external_cli_exit_status": {
+    "status": "SDK_REPORTED_SUCCESSFUL_AGENT_TERMINATION",
+    "exit_code": 0,
+    "evidence_scope": "正常run完成；SDK对非零退出抛AgentError，首轮原错误实际记录退出2。RunResult未单独暴露waitpid结构。"
+  }
+}

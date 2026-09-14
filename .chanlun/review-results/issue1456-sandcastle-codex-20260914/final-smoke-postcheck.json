@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "checked_at_utc": "2026-09-13T21:59:52.261731+00:00",
+  "ticket": 1456,
+  "verdict": "PASS_BOUNDED_WRITE_SMOKE",
+  "scope": "最终入口 execute 模式单次真实写入、读取、回流和管理者清理；不代替独立代码审查或异常路径测试。",
+  "run_id": "2c5ae771-5abf-492b-8719-1fe10902c1cf",
+  "parent_thread_id": "01a07fb3-9da9-7ca0-9be2-e15de6eac7b3",
+  "native_manager_agent_id": "/root/tb03b_contract_preparation",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "external_worker_is_native_child": false,
+  "external_session_id": "01a09cc6-b0ab-73c2-b8c9-1e1e1af431be",
+  "mode": "execute",
+  "model": "gpt-6-astra",
+  "effort": "xhigh",
+  "sdk_version": "0.12.0",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "workspace-write",
+  "approval_policy": "never",
+  "docker_isolation_claimed": false,
+  "source_files": [
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1456-sandcastle/.sandcastle/codex-child.ts",
+      "bytes": 30090,
+      "sha256_before": "69a552ecc95749ec776657ec42245e1adf81ec4a7398bc95117290ad510a8e70",
+      "sha256_after": "69a552ecc95749ec776657ec42245e1adf81ec4a7398bc95117290ad510a8e70",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1456-sandcastle/.sandcastle/codex-child.mts",
+      "bytes": 3193,
+      "sha256_before": "03f261b77cf325f882213450a98754c9958cc431579b3d16edc79730bcead5b8",
+      "sha256_after": "03f261b77cf325f882213450a98754c9958cc431579b3d16edc79730bcead5b8",
+      "unchanged": true
+    },
+    {
+      "path": "/Users/silencehan/Projects/NewChanlun-1456-sandcastle/.sandcastle/codex-child.test.ts",
+      "bytes": 27395,
+      "sha256_before": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+      "sha256_after": "40829fcbd3aaa59622ddd36eb8a9638090c744e4b4e4dc239b90c885558be741",
+      "unchanged": true
+    }
+  ],
+  "entry_tool_session_id": 87753,
+  "entry_tool_exit_code": 0,
+  "worker_pid": 23672,
+  "worker_process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "process_check_command": [
+    "ps",
+    "-axo",
+    "pid=,ppid=,pgid=,comm="
+  ],
+  "remaining_pid_ppid_pgid_matches": [],
+  "worker_pid_and_original_process_group_absent": true,
+  "process_check_limit": "已登记进程及原进程组不存在；未额外证明对主动脱离原组的未登记后代的追踪能力。",
+  "checkout": "/Users/silencehan/Projects/NewChanlun-1455-sandcastle-review",
+  "head_before": "c64e72501b4210c0851f08e020a683b5180ab731",
+  "head_after_worker": "c64e72501b4210c0851f08e020a683b5180ab731",
+  "head_after_cleanup": "c64e72501b4210c0851f08e020a683b5180ab731",
+  "branch_before": "codex/1456-sandcastle-review",
+  "branch_after_worker": "codex/1456-sandcastle-review",
+  "branch_after_cleanup": "codex/1456-sandcastle-review",
+  "status_before": "",
+  "status_after_worker": "?? .sandcastle/codex-child-smoke-1456.txt",
+  "status_after_cleanup": "",
+  "tracked_diff_after_worker": "",
+  "index_diff_after_worker": "",
+  "only_observed_change": ".sandcastle/codex-child-smoke-1456.txt",
+  "probe": {
+    "path": "/Users/silencehan/Projects/NewChanlun-1455-sandcastle-review/.sandcastle/codex-child-smoke-1456.txt",
+    "bytes": 37,
+    "sha256": "dc90631b7f7f3f37c46b99374ef4176cebdabbaf0fa493e4fed9d7769ab9f5d3",
+    "utf8_content": "issue1456 sandbox worker write probe\n",
+    "exact_content_match": true,
+    "symlink": false,
+    "manager_deleted_only_this_probe": true,
+    "absent_after_cleanup": true
+  },
+  "worker_commands_completed": [
+    {
+      "id": "item_2",
+      "type": "command_execution",
+      "command": "/bin/zsh -c \"python3 -c 'from pathlib import Path; p = Path(\\\".sandcastle/codex-child-smoke-1456.txt\\\"); expected = b\\\"issue1456 sandbox worker write probe\\\\n\\\"; written = p.write_bytes(expected); actual = p.read_bytes(); assert actual == expected, \\\"file bytes mismatch\\\"; print(f\\\"written_bytes={written}; read_bytes={len(actual)}; exact_match=true\\\")'\"",
+      "aggregated_output": "written_bytes=37; read_bytes=37; exact_match=true\n",
+      "exit_code": 0,
+      "status": "completed"
+    }
+  ],
+  "stderr_bytes": 0,
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "review_checkout_retained": true,
+  "result_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker/result.json",
+  "artifacts": [
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-input/OBSERVED-RUNTIME.json",
+      "bytes": 515,
+      "sha256": "247c0565e8814c3fead5357c47a266264d4b3134ba8cc9f6d470908d3f35732b"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-input/PROMPT.md",
+      "bytes": 1475,
+      "sha256": "1ee11fcfc2cdc0f30d958aef3b78cb78d5afe2dce0c18bdaa2d53016aa657583"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-input/SOURCE-BEFORE.json",
+      "bytes": 1281,
+      "sha256": "30ee373a406291364375c979a056cb05a615310ba41bf47abdb92d6c96fc28b6"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker/codex.stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker/codex.stdout.jsonl",
+      "bytes": 2258,
+      "sha256": "2200c3933e51b8c71f88a327cca01a34e37f1d2d4c56657d80af43e13cd87c2e"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker/events.jsonl",
+      "bytes": 8364,
+      "sha256": "a0bf3dc6977635bccf22eae873a1eca88a4d6b562f02d2878d58f854e439a63f"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker/output.schema.json",
+      "bytes": 322,
+      "sha256": "9433b5a74a8d18bfeeedc52771fb08dd8b6df922e2a7bae7c8a45cd61815b713"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker/prompt.md",
+      "bytes": 2527,
+      "sha256": "446c35f472817810edaaaf4475db405340439528965bfbefa3a9260441458299"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker/result.json",
+      "bytes": 2958,
+      "sha256": "1cd0df5be06c06fb32f3bb7b5ab7bbcf71d043b6b9e9fafe85ee31b449d65992"
+    },
+    {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker/state.json",
+      "bytes": 2958,
+      "sha256": "1cd0df5be06c06fb32f3bb7b5ab7bbcf71d043b6b9e9fafe85ee31b449d65992"
+    }
+  ]
+}

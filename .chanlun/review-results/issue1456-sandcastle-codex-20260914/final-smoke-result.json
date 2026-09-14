@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "run_id": "2c5ae771-5abf-492b-8719-1fe10902c1cf",
+  "ticket": 1456,
+  "parent_thread_id": "01a07fb3-9da9-7ca0-9be2-e15de6eac7b3",
+  "manager_agent_id": "/root/tb03b_contract_preparation",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "status": "completed",
+  "mode": "execute",
+  "model": "gpt-6-astra",
+  "effort": "xhigh",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "workspace-write",
+  "approval_policy": "never",
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "checkout_preserved": true,
+  "expected_head": "c64e72501b4210c0851f08e020a683b5180ab731",
+  "checkout_before": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1455-sandcastle-review",
+    "branch": "codex/1456-sandcastle-review",
+    "head": "c64e72501b4210c0851f08e020a683b5180ab731",
+    "status": ""
+  },
+  "checkout_after": {
+    "root": "/Users/silencehan/Projects/NewChanlun-1455-sandcastle-review",
+    "branch": "codex/1456-sandcastle-review",
+    "head": "c64e72501b4210c0851f08e020a683b5180ab731",
+    "status": "?? .sandcastle/codex-child-smoke-1456.txt"
+  },
+  "started_at": "2026-09-13T21:57:38.369Z",
+  "ended_at": "2026-09-13T21:58:05.352Z",
+  "process_pid": 23672,
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "external_session_id": "01a09cc6-b0ab-73c2-b8c9-1e1e1af431be",
+  "external_session_log": "/Users/silencehan/.codex/sessions/2026/09/14/rollout-2026-09-14T05-57-42-01a09cc6-b0ab-73c2-b8c9-1e1e1af431be.jsonl",
+  "output_dir": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker",
+  "stdout_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker/codex.stdout.jsonl",
+  "stderr_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker/codex.stderr.log",
+  "events_log": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1456-sandcastle-child/final-smoke-worker/events.jsonl",
+  "prompt_sha256": "446c35f472817810edaaaf4475db405340439528965bfbefa3a9260441458299",
+  "result": {
+    "status": "completed",
+    "summary": "已创建指定文件并精确校验，文件留待管理者验收与清理。",
+    "findings": [
+      "已写入 .sandcastle/codex-child-smoke-1456.txt，共 37 字节。"
+    ],
+    "validation": [
+      "读取同一文件，确认字节与 b\"issue1456 sandbox worker write probe\\n\" 完全一致，无 BOM、引号或额外空行。"
+    ]
+  },
+  "failure_reason": null
+}

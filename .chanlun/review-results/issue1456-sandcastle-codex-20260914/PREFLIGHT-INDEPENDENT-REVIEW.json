@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 1,
+  "ticket": 1456,
+  "artifactKind": "independent_security_review",
+  "language": "zh-CN",
+  "reviewerAgent": "/root/delivery_bundle_preflight/preflight_independent_review",
+  "reviewConclusion": "PASS_BOUNDED_INDEPENDENT_REVIEW",
+  "remainingActionableBlockers": [],
+  "mergeAuthorized": false,
+  "scope": {
+    "repo": "/Users/silencehan/Projects/NewChanlun-1456-sandcastle",
+    "files": [
+      ".sandcastle/delivery-bundle.ts",
+      ".sandcastle/delivery-bundle.mts",
+      ".sandcastle/delivery-bundle.test.ts"
+    ],
+    "focus": [
+      "错误 READY",
+      "仓内报告路径和符号链接",
+      "无 shell 的 Git 命令调用",
+      "实际 Git base/head 差异与工作树漂移",
+      "逐文件审查 SHA-256 链",
+      "扫描失败与旧 head 的显式例外",
+      "报告尾部覆盖"
+    ]
+  },
+  "sourceBinding": {
+    "recordedAtUtc": "2026-09-13T21:52:49.293Z",
+    "headAtBinding": "abf5c0f8491fc066a0f2bc47ab4defdb120035c1",
+    "workingTreeState": "三文件仍为 untracked 新生实现；此处绑定文件字节，不声称它们已在该 HEAD。",
+    "files": [
+      {
+        "path": ".sandcastle/delivery-bundle.ts",
+        "sha256": "cc4d43e45a8e32eaacfed939263f6133acc9e305dacf57b64600888167a02d20"
+      },
+      {
+        "path": ".sandcastle/delivery-bundle.mts",
+        "sha256": "ef3dfa70769cc6e8479a1ab77a8494404029d10a8d80acc677b1e6ba34c74b5c"
+      },
+      {
+        "path": ".sandcastle/delivery-bundle.test.ts",
+        "sha256": "571bfdbed8c91c3585cf16c85292d979c56c78b024138dd3179cf3e9f67c47bb"
+      }
+    ],
+    "hashAlgorithm": "SHA-256",
+    "executionTimeHashesCaptured": false,
+    "note": "绑定报告生成时 W6 三文件的最终字节。此前五例执行时未同步留存源码 SHA-256，故不声称具有当时原子指纹见证；本次复读最终修复和测试，并按指令复用原结果、不重跑。"
+  },
+  "findings": [
+    {
+      "id": "IR-01",
+      "severity": "HIGH",
+      "priority": "P1",
+      "title": "未参与交付 diff 的产品可被索引跳过标记隐藏脏改动",
+      "location": {
+        "path": ".sandcastle/delivery-bundle.ts",
+        "lines": [
+          141,
+          143,
+          144,
+          145
+        ]
+      },
+      "originalEvidence": {
+        "kind": "source_review",
+        "description": "原实现仅逐字节验证 actual productDiff；首尾 git status 不能发现未变更产品路径上的 assume-unchanged/skip-worktree 脏改动。本项修前未单独保存运行输出。"
+      },
+      "fix": "全索引 ls-files -v -z 检出小写 assume-unchanged 或 S skip-worktree 即 INDEX_FLAGS_HIDE_DIRTY；不修改索引。",
+      "verificationCase": "hidden_unchanged_product",
+      "resolution": "FIXED_AND_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "id": "IR-02",
+      "severity": "MEDIUM",
+      "priority": "P2",
+      "title": "core.filemode=false 隐藏未改产品文件的执行权限变化",
+      "location": {
+        "path": ".sandcastle/delivery-bundle.ts",
+        "lines": [
+          124,
+          141,
+          311
+        ]
+      },
+      "originalEvidence": {
+        "kind": "executed_temp_git_reproduction",
+        "toolOutputChunkId": "3cba0a",
+        "description": "helper.js 在 HEAD 为 100644，工作树 chmod 755 后设置 core.filemode=false，status 为空，修前结果 READY_FOR_APPROVAL。该命令批次之后的另一项试验失败，不作为此项结果的通过依据；此项已单独输出完整结果。"
+      },
+      "fix": "所有 Git 调用强制 core.filemode=true；同时关闭 core.fsmonitor，以真实状态作为冻结检查依据。",
+      "verificationCase": "hidden_executable_bit",
+      "resolution": "FIXED_AND_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "id": "IR-03",
+      "severity": "HIGH",
+      "priority": "P1",
+      "title": "diff.ignoreSubmodules=all 隐藏已提交 gitlink 变更",
+      "location": {
+        "path": ".sandcastle/delivery-bundle.ts",
+        "lines": [
+          141,
+          151,
+          154,
+          155,
+          161,
+          311
+        ]
+      },
+      "originalEvidence": {
+        "kind": "executed_temp_git_reproduction",
+        "toolOutputChunkId": "5f719d",
+        "description": "真实临时嵌套 Git 仓库提交子模块更新后，默认 diff 隐去 submod，显式 diff.ignoreSubmodules=none 能看到 submod；修前预检仍 READY_FOR_APPROVAL。该批次之后的非 UTF-8 文件创建被 macOS 拒绝，不计为任何发现；子模块项已输出完整结果。"
+      },
+      "fix": "status/diff 显式 --ignore-submodules=none；非 blob 对象及 gitlink 明确 UNSUPPORTED_PRODUCT_FILE，不作自动就绪判断。",
+      "verificationCase": "hidden_committed_submodule",
+      "resolution": "FIXED_AND_INDEPENDENTLY_VERIFIED"
+    },
+    {
+      "id": "IR-04",
+      "severity": "HIGH",
+      "priority": "P1",
+      "title": "refs/replace 替换真实 head 树并隐藏未评审源码",
+      "location": {
+        "path": ".sandcastle/delivery-bundle.ts",
+        "lines": [
+          124,
+          147,
+          158,
+          161
+        ]
+      },
+      "originalEvidence": {
+        "kind": "executed_temp_git_reproduction",
+        "toolOutputChunkId": "9fed8f",
+        "description": "base→benign→rawHead（新增 hidden.js），随后 git replace rawHead benign 与 git read-tree --reset -u benign；HEAD 仍 rawHead，status 为空，普通 diff 看不到 hidden.js，而 git --no-replace-objects diff 能看到；修前预检 READY_FOR_APPROVAL。"
+      },
+      "fix": "统一 Git 入口加 --no-replace-objects，ancestry、ls-tree、show、diff、status 均对原始对象执行。",
+      "verificationCase": "replacement_hides_product",
+      "resolution": "FIXED_AND_INDEPENDENTLY_VERIFIED"
+    }
+  ],
+  "verification": {
+    "method": "独立编写临时 Git fixture，执行预检并逐项核对实际 stdout；不是仓内整包测试的转述。",
+    "caseCount": 5,
+    "allExpectedResultsObserved": true,
+    "fullSuiteRerun": false,
+    "command": "./node_modules/.bin/tsx \"$review_dir/repro.mts\"",
+    "cwd": "/Users/silencehan/Projects/NewChanlun-1456-sandcastle",
+    "executedAtExact": null,
+    "shellToolReportedExitCode": 0,
+    "perProcessExitCodeSeparatelyCaptured": false,
+    "toolOutputChunkId": "761bd8",
+    "results": [
+      {
+        "case": "clean_control",
+        "status": "READY_FOR_APPROVAL",
+        "codes": []
+      },
+      {
+        "case": "hidden_unchanged_product",
+        "status": "BLOCKED",
+        "codes": [
+          "INDEX_FLAGS_HIDE_DIRTY"
+        ]
+      },
+      {
+        "case": "hidden_executable_bit",
+        "status": "BLOCKED",
+        "codes": [
+          "DIRTY_WORKTREE"
+        ]
+      },
+      {
+        "case": "hidden_committed_submodule",
+        "status": "BLOCKED",
+        "codes": [
+          "UNSUPPORTED_PRODUCT_FILE",
+          "UNSUPPORTED_PRODUCT_FILE",
+          "UNSUPPORTED_PRODUCT_FILE",
+          "PRODUCT_DIFF_MISMATCH",
+          "REVIEW_COVERAGE_MISSING",
+          "CHECK_SOURCE_DRIFT"
+        ]
+      },
+      {
+        "case": "replacement_hides_product",
+        "status": "BLOCKED",
+        "codes": [
+          "DIRTY_WORKTREE",
+          "PRODUCT_WORKTREE_DRIFT",
+          "PRODUCT_DIFF_MISMATCH",
+          "REVIEW_COVERAGE_MISSING",
+          "CHECK_SOURCE_DRIFT"
+        ]
+      }
+    ],
+    "stdout": "{\"case\":\"clean_control\",\"status\":\"READY_FOR_APPROVAL\",\"codes\":[]}\n{\"case\":\"hidden_unchanged_product\",\"status\":\"BLOCKED\",\"codes\":[\"INDEX_FLAGS_HIDE_DIRTY\"]}\n{\"case\":\"hidden_executable_bit\",\"status\":\"BLOCKED\",\"codes\":[\"DIRTY_WORKTREE\"]}\n{\"case\":\"hidden_committed_submodule\",\"status\":\"BLOCKED\",\"codes\":[\"UNSUPPORTED_PRODUCT_FILE\",\"UNSUPPORTED_PRODUCT_FILE\",\"UNSUPPORTED_PRODUCT_FILE\",\"PRODUCT_DIFF_MISMATCH\",\"REVIEW_COVERAGE_MISSING\",\"CHECK_SOURCE_DRIFT\"]}\n{\"case\":\"replacement_hides_product\",\"status\":\"BLOCKED\",\"codes\":[\"DIRTY_WORKTREE\",\"PRODUCT_WORKTREE_DRIFT\",\"PRODUCT_DIFF_MISMATCH\",\"REVIEW_COVERAGE_MISSING\",\"CHECK_SOURCE_DRIFT\"]}\n",
+    "scriptSha256": "d0aad10dfb49f9072d41b2b8a928f35410ae89669ea24d95abff4e4735add285",
+    "scriptSource": "import {execFileSync} from 'node:child_process';\nimport {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync,chmodSync} from 'node:fs';\nimport {tmpdir} from 'node:os';\nimport {join,dirname} from 'node:path';\nimport {createHash} from 'node:crypto';\nimport {preflightDelivery} from '/Users/silencehan/Projects/NewChanlun-1456-sandcastle/.sandcastle/delivery-bundle.ts';\nconst hash=s=>createHash('sha256').update(s).digest('hex');\nconst root=mkdtempSync(join(tmpdir(),'1456-more-'));\nfunction make(name,submod=false){\n const repo=join(root,name);mkdirSync(repo);\n const run=(r,...args)=>execFileSync('git',['-C',r,...args],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();\n const git=(...args)=>run(repo,...args);\n const init=r=>{run(r,'init','-q');run(r,'config','user.name','Fixture');run(r,'config','user.email','fixture@example.invalid');};\n const write=(p,s)=>{mkdirSync(dirname(join(repo,p)),{recursive:true});writeFileSync(join(repo,p),s)};\n const commit=()=>{git('add','.');git('-c','commit.gpgsign=false','commit','-qm','fixture');return git('rev-parse','HEAD')};\n init(repo);git('config','core.filemode','true');write('app.js','module.exports=1;\\n');write('helper.js','module.exports=1;\\n');\n if(submod){const inner=join(repo,'submod');mkdirSync(inner);init(inner);write('submod/a.js','module.exports=1;\\n');run(inner,'add','.');run(inner,'-c','commit.gpgsign=false','commit','-qm','submodule initial');}\n const base=commit();write('app.js','module.exports=2;\\n');\n if(submod){const inner=join(repo,'submod');write('submod/a.js','module.exports=2;\\n');run(inner,'add','.');run(inner,'-c','commit.gpgsign=false','commit','-qm','submodule updated');}\n write('.chanlun/review-results/issue1456/evidence.md','Evidence for fixture.\\n');const head=commit();\n const artifact={path:'.chanlun/review-results/issue1456/evidence.md',sha256:hash(readFileSync(join(repo,'.chanlun/review-results/issue1456/evidence.md')))};\n const changes=[{path:'app.js',beforeSha256:hash('module.exports=1;\\n'),afterSha256:hash('module.exports=2;\\n'),beforeMode:'100644',afterMode:'100644'}];\n const manifest={schemaVersion:1,ticket:1456,base,head,productDiff:changes,requiredReports:[artifact.path],reports:[artifact],reviews:[{report:artifact,covers:changes}],requiredChecks:['syntax'],checks:[{id:'syntax',kind:'compile',status:'passed',evidence:artifact,covers:changes,command:'node --check app.js',executedAt:new Date().toISOString(),exitCode:0}],scan:{status:'passed',scannedHead:head,evidence:artifact,executedAt:new Date().toISOString(),exitCode:0}};\n return {repo,git,write,commit,manifest};\n}\nconst verify=(name,f)=>{const r=preflightDelivery(f.repo,f.manifest);console.log(JSON.stringify({case:name,status:r.status,codes:r.diagnostics.map(d=>d.code)}));return r.status;};\ntry {\n const clean=make('clean');verify('clean_control',clean);\n const hidden=make('hidden');hidden.git('update-index','--assume-unchanged','helper.js');hidden.write('helper.js','module.exports=999;\\n');verify('hidden_unchanged_product',hidden);\n const mode=make('mode');chmodSync(join(mode.repo,'helper.js'),0o755);mode.git('config','core.filemode','false');verify('hidden_executable_bit',mode);\n const sub=make('submodule',true);sub.git('config','diff.ignoreSubmodules','all');verify('hidden_committed_submodule',sub);\n const replace=make('replacement');const benign=replace.manifest.head;replace.write('hidden.js','module.exports=\"unreviewed product\";\\n');const rawHead=replace.commit();replace.git('replace',rawHead,benign);replace.git('read-tree','--reset','-u',benign);replace.manifest.head=rawHead;replace.manifest.scan.scannedHead=rawHead;verify('replacement_hides_product',replace);\n} finally {rmSync(root,{recursive:true,force:true});}",
+    "executionHarness": "review_dir=\"$(mktemp -d /tmp/1456-review.XXXXXX)\"\ncat > \"$review_dir/repro.mts\" <<'EOF'\n<JSON verification.scriptSource 的原文>\nEOF\n./node_modules/.bin/tsx \"$review_dir/repro.mts\"\nrm \"$review_dir/repro.mts\"\nrmdir \"$review_dir\"",
+    "temporaryRepositoriesRemoved": true,
+    "temporaryScriptRemoved": true
+  },
+  "evidenceProvenance": {
+    "source": "本会话真实工具输出与 functions store 中保留的已执行脚本原文；现回填为持久实体报告。",
+    "originalPersistentLogPath": null,
+    "originalPersistentLogSha256": null,
+    "reason": "独立五例原先直接输出至工具结果，没有另存日志文件；临时目录已清理。此 JSON 保留实际输出和原执行脚本，未虚构原日志路径或哈希。",
+    "sourceHashCommand": "shasum -a 256 .sandcastle/delivery-bundle.ts .sandcastle/delivery-bundle.mts .sandcastle/delivery-bundle.test.ts",
+    "sourceHashToolOutputChunkId": "e7f088",
+    "finalTestSourceReadToolOutputChunkId": "e844e6"
+  },
+  "otherReviewResults": [
+    "报告数据豁免已收为 .chanlun/review-results 下已声明的数据文件；.txt/.mdx 不能按文档后缀豁免。",
+    "范围内未发现其他可操作的路径穿越、符号链接报告替代、命令注入或扫描例外静默放行问题。",
+    "原审查加尾部审查可以逐文件 before/after hash 与 mode 连续覆盖；接受此已声明边界。"
+  ],
+  "limitations": [
+    "本报告不证明异构报告语义真实性、审查人独立性、声明命令确实执行或 scanner 发现真伪；只审工具的已声明绑定及阻断逻辑。",
+    "五例中的报告、扫描和检查元数据是测试夹具；该独立脚本没有实际执行其中声明的编译命令或安全扫描，不能充当项目编译/scanner 运行凭据。",
+    "独立脚本打印结果后由审查者逐项核对；未声称它自身含五个自动 assert。",
+    "未重复实现方整包测试、类型检查或全仓安全扫描；其结果应另由实际执行者交付。",
+    "没有跨进程原子锁证明；不会把本次有界审查称为整个仓库安全证明或交付/合入授权。",
+    "本次只写 P6 中指定的 Markdown 与 JSON 两份报告，未修改 W6 源码、未合入、未发布外部消息。"
+  ]
+}
