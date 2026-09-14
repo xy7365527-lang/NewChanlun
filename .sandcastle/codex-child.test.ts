@@ -6,9 +6,10 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFile
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
-  boundedCodex, CodexTranscript, preflightCheckout, runCodexChild, workerEnvironment,
+  boundedCodex, CodexTranscript, OUTPUT_SCHEMA, preflightCheckout, runCodexChild, workerEnvironment,
   type ChildOptions,
 } from "./codex-child.ts";
+import { MODEL, EFFORT, readRouterConfiguration } from "./codex-router-runtime.ts";
 
 const goodResult = { status: "completed", summary: "已完成限定审阅", findings: [], validation: ["只读检查"] };
 const sessionId = "12345678-1234-1234-1234-123456789abc";
@@ -25,6 +26,9 @@ function fixture() {
   const home = join(dir, "home");
   const codexHome = join(home, ".codex");
   for (const path of [checkout, controller, bin, codexHome]) mkdirSync(path, { recursive: true });
+  const catalog = join(codexHome, "models.json");
+  writeFileSync(catalog, JSON.stringify({ models: [{ slug: MODEL, supported_reasoning_levels: [{ effort: EFFORT }] }] }));
+  writeFileSync(join(codexHome, "config.toml"), `openai_base_url = "http://127.0.0.1:4202/v1"\nmodel_catalog_json = ${JSON.stringify(catalog)}\n`);
   git(checkout, "init", "-b", "codex/1456-fixture");
   git(checkout, "config", "user.name", "Fixture");
   git(checkout, "config", "user.email", "fixture@example.invalid");
@@ -63,23 +67,65 @@ function assertStoppedAndUnlocked(result: Awaited<ReturnType<typeof runCodexChil
 }
 
 test("SDK bypass 被精确收紧，prompt 不进入 argv，模型和推理档固定", async () => {
+  const f = fixture();
+  try {
   for (const mode of ["review", "execute"] as const) {
-    const provider = await boundedCodex(mode, "/tmp/schema's.json");
+    const provider = await boundedCodex(mode, "/tmp/schema's.json", workerEnvironment(f.env));
     const command = provider.buildPrintCommand({ prompt: "$(touch /tmp/never-run) `pwd`", dangerouslySkipPermissions: true });
     assert.equal(command.stdin, "$(touch /tmp/never-run) `pwd`");
     assert.ok(command.command.startsWith("codex -a never exec --json --sandbox "));
     assert.ok(command.command.includes(mode === "review" ? "--sandbox read-only" : "--sandbox workspace-write"));
     assert.ok(command.command.includes("--ignore-user-config"));
-    assert.ok(command.command.includes("'gpt-6-astra'"));
-    assert.ok(command.command.includes('model_reasoning_effort="xhigh"'));
+    assert.ok(command.command.includes("'deepseek/deepseek-v4.1-flash'"));
+    assert.ok(command.command.includes('model_reasoning_effort="max"'));
+    assert.equal(command.command.split("model_reasoning_effort").length, 2);
+    assert.ok(command.command.includes('model_provider="codex-router"'));
+    assert.ok(command.command.includes('model_providers.codex-router.base_url="http://127.0.0.1:4202/v1"'));
+    assert.ok(command.command.includes('model_providers.codex-router.requires_openai_auth=true'));
+    assert.ok(command.command.includes('model_providers.codex-router.supports_websockets=false'));
+    assert.ok(command.command.includes('model_catalog_json='));
     assert.ok(command.command.includes("network_access=false"));
     assert.ok(!/dangerously|danger-full-access|merge-to-head|prime-agent|touch/.test(command.command));
     assert.throws(() => provider.buildPrintCommand({ prompt: "x", dangerouslySkipPermissions: false, resumeSession: "old" }), /resume\/fork/);
   }
+  } finally { f.clean(); }
+});
+
+test("Router 拒绝非本机地址及 caller secret，错误不泄漏输入", async () => {
+  const f = fixture();
+  try {
+    const token = "DO_NOT_EXPOSE_CALLER_CAPABILITY_1234567890";
+    for (const baseUrl of ["https://127.0.0.1:4202/v1", "http://example.invalid:4202/v1", "http://127.0.0.1:99999/v1", `http://127.0.0.1:4202/_codex-router/${token}/v1`, "http://user:pass@127.0.0.1:4202/v1", "http://127.0.0.1:4202/v1?key=x"]) {
+      writeFileSync(join(f.env.CODEX_HOME, "config.toml"), `openai_base_url = ${JSON.stringify(baseUrl)}\nmodel_catalog_json = ${JSON.stringify(join(f.env.CODEX_HOME, "models.json"))}\n`);
+      assert.throws(() => readRouterConfiguration(workerEnvironment(f.env)), (error: unknown) => error instanceof Error && /Router 地址/.test(error.message) && !error.message.includes(token));
+    }
+    writeFileSync(join(f.env.CODEX_HOME, "config.toml"), `openai_base_url = "http://127.0.0.1:4202/_codex-router/${token}/v1"\nmodel_catalog_json = ${JSON.stringify(join(f.env.CODEX_HOME, "models.json"))}\n`);
+    const result = await runCodexChild(f.options, { env: f.env });
+    assert.equal(result.status, "failed");
+    assert.equal(result.process_pid, null);
+    assert.ok(!JSON.stringify(result).includes(token));
+  } finally { f.clean(); }
+});
+
+test("Router 目录须唯一登记 Flash max；缺配置或坏 TOML 不回退", () => {
+  const f = fixture();
+  try {
+    const env = workerEnvironment(f.env);
+    assert.equal(readRouterConfiguration(env).baseUrl, "http://127.0.0.1:4202/v1");
+    const model = { slug: MODEL, supported_reasoning_levels: [{ effort: "max" }] };
+    for (const models of [[], [model, model], [{ slug: MODEL, supported_reasoning_levels: [{ effort: "high" }, { effort: "xhigh" }] }]]) {
+      writeFileSync(join(f.env.CODEX_HOME, "models.json"), JSON.stringify({ models }));
+      assert.throws(() => readRouterConfiguration(env), /唯一.*max/);
+    }
+    writeFileSync(join(f.env.CODEX_HOME, "config.toml"), 'invalid = "UNREVEALED\n');
+    assert.throws(() => readRouterConfiguration(env), (error: unknown) => error instanceof Error && !error.message.includes("UNREVEALED"));
+    rmSync(join(f.env.CODEX_HOME, "config.toml"));
+    assert.throws(() => readRouterConfiguration(env), /无法读取 Router/);
+  } finally { f.clean(); }
 });
 
 test("认证沿用目录，环境只留白名单，不转发密钥或自动续跑配置", () => {
-  const env = workerEnvironment({ PATH: "/bin", HOME: "/home/u", CODEX_HOME: "/auth-location", GH_TOKEN: "fixture", OPENAI_API_KEY: "fixture", CODEX_THREAD_ID: "another", BASH_ENV: "/unsafe" });
+  const env = workerEnvironment({ PATH: "/bin", HOME: "/home/u", CODEX_HOME: "/auth-location", GH_TOKEN: "fixture", OPENAI_API_KEY: "fixture", OPENAI_BASE_URL: "http://untrusted.invalid", CODEX_THREAD_ID: "another", BASH_ENV: "/unsafe" });
   assert.deepEqual(env, { PATH: "/bin", HOME: "/home/u", CODEX_HOME: "/auth-location", NO_COLOR: "1" });
 });
 
@@ -185,7 +231,11 @@ test("真实子进程：直接 SDK provider 完成，保存 session/parent 映�
     assert.ok(readFileSync(join(f.dir, "worker-env.json"), "utf8").includes("HTTPS_PROXY"));
     assert.ok(!readFileSync(join(f.options.outputDir, "result.json"), "utf8").includes(route));
     assert.ok(!readFileSync(join(f.options.outputDir, "events.jsonl"), "utf8").includes(route));
-    assert.ok(readFileSync(join(f.dir, "received-prompt.md"), "utf8").includes("$(touch"));
+    const receivedPrompt = readFileSync(join(f.dir, "received-prompt.md"), "utf8");
+    assert.ok(receivedPrompt.includes("$(touch"));
+    const visibleSchema = receivedPrompt.split("最终输出 JSON Schema：\n").at(-1)!.split("\n")[0];
+    assert.deepEqual(JSON.parse(visibleSchema), OUTPUT_SCHEMA);
+    assert.ok(receivedPrompt.includes("最终 JSON 保持简短"));
     assert.ok(!existsSync(join(f.dir, "injection")));
     assert.equal(git(f.options.checkout, "status", "--porcelain"), "");
     assert.equal(git(f.options.checkout, "rev-parse", "HEAD"), f.options.expectedHead);

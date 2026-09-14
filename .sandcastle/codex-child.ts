@@ -9,9 +9,9 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { MODEL, EFFORT, readRouterConfiguration } from "./codex-router-runtime.ts";
 
-export const MODEL = "gpt-6-astra";
-export const EFFORT = "xhigh";
+export { MODEL, EFFORT };
 export type ChildMode = "review" | "execute";
 export type ChildStatus = "running" | "completed" | "failed" | "cancelled";
 /** 输出渠道等监督设施失败属于 failed，不冒充管理者主动取消。 */
@@ -189,7 +189,7 @@ export async function boundedCodex(mode: ChildMode, schemaPath: string, env = wo
   // 根 package 为 CommonJS、Sandcastle 只导出 ESM；显式动态导入，不改变全仓模块制。
   const { codex } = await import("@ai-hero/sandcastle");
   const provider = codex(MODEL, {
-    effort: EFFORT,
+    // SDK 0.12 的 effort 类型尚不含 max；在下方直接传给 Codex CLI，避免窄化或重复参数。
     sessionStorage: { hostSessionsDir: join(env.CODEX_HOME ?? join(env.HOME ?? homedir(), ".codex"), "sessions") },
   });
   return {
@@ -197,15 +197,28 @@ export async function boundedCodex(mode: ChildMode, schemaPath: string, env = wo
     buildPrintCommand(options) {
       if (options.resumeSession || options.forkSession) throw new Error("一次性工蜂入口不允许隐式 resume/fork");
       const built = provider.buildPrintCommand({ ...options, dangerouslySkipPermissions: false });
+      if (built.command.includes("model_reasoning_effort")) throw new Error("SDK 新增默认推理档，拒绝重复覆盖");
       const bypass = " --dangerously-bypass-approvals-and-sandbox";
       if (!built.command.startsWith("codex exec --json ") || built.command.split(bypass).length !== 2 || built.stdin !== options.prompt) {
         throw new Error("Sandcastle codex() 命令契约已变，拒绝猜测权限替换");
       }
       const sandbox = mode === "review" ? "read-only" : "workspace-write";
+      const route = readRouterConfiguration(env);
+      const routing = [
+        `model_reasoning_effort=${JSON.stringify(EFFORT)}`,
+        'model_provider="codex-router"',
+        'model_providers.codex-router.name="Codex Router"',
+        `model_providers.codex-router.base_url=${JSON.stringify(route.baseUrl)}`,
+        'model_providers.codex-router.wire_api="responses"',
+        'model_providers.codex-router.requires_openai_auth=true',
+        'model_providers.codex-router.supports_websockets=false',
+        `model_catalog_json=${JSON.stringify(route.catalog)}`,
+      ].map((value) => ` -c ${shellQuote(value)}`).join("");
       const command = built.command
         .replace("codex exec", "codex -a never exec")
         .replace(bypass, ` --sandbox ${sandbox} --ignore-user-config --color never`)
         + ` --output-schema ${shellQuote(schemaPath)}`
+        + routing
         + ` -c 'sandbox_workspace_write.network_access=false' -c 'web_search="disabled"'`
         + ` -c 'shell_environment_policy.inherit="core"' --disable multi_agent -`;
       if (/dangerously|danger-full-access|--full-auto|on-request/.test(command)) throw new Error("检测到不允许的权限参数");
@@ -431,7 +444,13 @@ function runPrompt(options: ChildOptions, task: string): string {
 ${options.mode === "review" ? "只读审阅，不写 checkout。" : "只在当前独立 codex/* checkout 修改任务范围文件并做定向验证；保留差异给管理者收包。"}
 不重跑无关全量验证。若阻塞，说明实际缺项，不擅自换判据或批准后续动作。
 最终仅返回符合输出 schema 的 JSON；summary、findings、validation 用简体中文，status 为 completed、blocked 或 failed。
-\n管理者任务：\n${task}`;
+\n管理者任务：\n${task}
+\n最终输出 JSON Schema：
+${JSON.stringify(OUTPUT_SCHEMA)}
+最终消息必须是单个合法 JSON 对象，不加 Markdown 围栏或前后说明。findings 和 validation 只能是字符串数组，不能放对象。
+以下仅为字段形状示例，状态和内容必须按实际结果填写：
+${JSON.stringify({ status: "blocked", summary: "实际缺项的简短说明", findings: ["实际发现"], validation: ["实际执行的检查或未执行的原因"] })}
+只有任务已授权写入产物时，才把详细内容保存在指定文件中；只读任务在 findings 和 validation 中保留必要发现与证据。最终 JSON 保持简短，已有产物给出准确路径。不得声称未执行的检查通过。`;
 }
 
 export async function runCodexChild(
