@@ -2,7 +2,11 @@
 
 本入口绑定 #1456。它供当前 Codex 原生子代理管理单次 Sandcastle/Codex CLI 工蜂：主控派任务，管理子代理启动、等待或停止实际工蜂，再将结果回传。管理子代理 ID、父任务 ID 与外部 Codex session ID 分别记录；外部进程没有因此注册为 Codex App 的原生 child。
 
-旧 `main.mts` 和常驻拾取队列仍是各自已有入口。本入口只处理显式指定的 ticket、工作区和版本，使用 Sandcastle 原生 Codex provider，模型为已指定的 `gpt-6-astra`、`xhigh`。它不经过 PrimeAgent，不改变全局模型、队列或合入设置。
+旧 `main.mts` 和常驻拾取队列仍是各自已有入口。本入口只处理显式指定的 ticket、工作区和版本，使用 Sandcastle 原生 Codex provider。#1448 的后续用户指令将执行与辅助复核工蜂指定为 `deepseek/deepseek-v4.1-flash`、`high`；模型常量在 `codex-router-runtime.ts`。根任务仍由 Astra 负责规划、架构、安全和最终验收。入口不经过 PrimeAgent，不改变全局模型、队列或合入设置。
+
+本机需有 Python 3.11+、已运行的 Codex Router 和已登记 Flash high 的模型目录。入口只解析用户 `config.toml` 的 `openai_base_url` 与 `model_catalog_json`，再显式指定 `codex-router` provider；继续保留 `--ignore-user-config`，不加载其他用户插件、MCP 或模型设置。认证由 Codex 和 Router 各自沿用，不复制 API key。缺配置、错误模型目录或路由失败即停止，不自动换模型。
+
+目前支持本机无秘密的 `http://127.0.0.1:<port>/v1` 地址。若 Router 改用含 caller capability 的认证路径，入口会在启动前拒绝，需适配安全的配置传递方式；不可删除认证路径来放行，也不可把 capability 写入命令或日志。`NewChanlun-sandcastle-host` 中已有的 Prime 队列改动属于另一入口，本次不覆盖或启动该队列。
 
 ## 单次运行
 

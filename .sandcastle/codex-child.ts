@@ -9,9 +9,9 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { MODEL, EFFORT, readRouterConfiguration } from "./codex-router-runtime.ts";
 
-export const MODEL = "gpt-6-astra";
-export const EFFORT = "xhigh";
+export { MODEL, EFFORT };
 export type ChildMode = "review" | "execute";
 export type ChildStatus = "running" | "completed" | "failed" | "cancelled";
 /** 输出渠道等监督设施失败属于 failed，不冒充管理者主动取消。 */
@@ -202,10 +202,21 @@ export async function boundedCodex(mode: ChildMode, schemaPath: string, env = wo
         throw new Error("Sandcastle codex() 命令契约已变，拒绝猜测权限替换");
       }
       const sandbox = mode === "review" ? "read-only" : "workspace-write";
+      const route = readRouterConfiguration(env);
+      const routing = [
+        'model_provider="codex-router"',
+        'model_providers.codex-router.name="Codex Router"',
+        `model_providers.codex-router.base_url=${JSON.stringify(route.baseUrl)}`,
+        'model_providers.codex-router.wire_api="responses"',
+        'model_providers.codex-router.requires_openai_auth=true',
+        'model_providers.codex-router.supports_websockets=false',
+        `model_catalog_json=${JSON.stringify(route.catalog)}`,
+      ].map((value) => ` -c ${shellQuote(value)}`).join("");
       const command = built.command
         .replace("codex exec", "codex -a never exec")
         .replace(bypass, ` --sandbox ${sandbox} --ignore-user-config --color never`)
         + ` --output-schema ${shellQuote(schemaPath)}`
+        + routing
         + ` -c 'sandbox_workspace_write.network_access=false' -c 'web_search="disabled"'`
         + ` -c 'shell_environment_policy.inherit="core"' --disable multi_agent -`;
       if (/dangerously|danger-full-access|--full-auto|on-request/.test(command)) throw new Error("检测到不允许的权限参数");
