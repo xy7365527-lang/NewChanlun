@@ -1,0 +1,1565 @@
+{
+  "schema": "inherited-scan-boundary/1",
+  "base": "6f99b36c64e0560febdb08e5d1f8e781d2af9299",
+  "scanned_head": "950a49719bf1cc340ca4d1308df7710bbaff6557",
+  "unchanged_file_keys": 31693,
+  "existing_baseline_keys": 8187,
+  "paths": [
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/IMPLEMENTATION-REPORT.json",
+      "base_entry": "100644 blob 05b8bdc3b438430e37fd3808ae3cb7463f3cdd04",
+      "head_entry": "100644 blob 05b8bdc3b438430e37fd3808ae3cb7463f3cdd04",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r10.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r10.json",
+      "base_entry": "100644 blob 2abb646f79217af745b670e55f3105a321f6a40c",
+      "head_entry": "100644 blob 2abb646f79217af745b670e55f3105a321f6a40c",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r11.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r11.json",
+      "base_entry": "100644 blob debcdeb7d7887bc9a3976bfa07b927962d702cfe",
+      "head_entry": "100644 blob debcdeb7d7887bc9a3976bfa07b927962d702cfe",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r9.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/implementation-r9.json",
+      "base_entry": "100644 blob e9e5d468dc0748d11401256e0c83eda977a2253e",
+      "head_entry": "100644 blob e9e5d468dc0748d11401256e0c83eda977a2253e",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/COMMIT-DECLARATIONS.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/COMMIT-DECLARATIONS.json",
+      "base_entry": "100644 blob de5cf08f0d261b1dd27e09b736c59a275df26af8",
+      "head_entry": "100644 blob de5cf08f0d261b1dd27e09b736c59a275df26af8",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/EVIDENCE-ATTACHMENTS.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/EVIDENCE-ATTACHMENTS.json",
+      "base_entry": "100644 blob ca7bc9c06eb313dc3d937d7840e3bb5f6f8f74ef",
+      "head_entry": "100644 blob ca7bc9c06eb313dc3d937d7840e3bb5f6f8f74ef",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/EVIDENCE-INDEX.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/EVIDENCE-INDEX.json",
+      "base_entry": "100644 blob 72103d972f8f7456818fe92ce0c5abf7fd730889",
+      "head_entry": "100644 blob 72103d972f8f7456818fe92ce0c5abf7fd730889",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/ROOT-ACCEPTANCE.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/ROOT-ACCEPTANCE.json",
+      "base_entry": "100644 blob e151eda565beff45337d5de88215323d93089a93",
+      "head_entry": "100644 blob e151eda565beff45337d5de88215323d93089a93",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/ROOT-VALIDATION.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/ROOT-VALIDATION.json",
+      "base_entry": "100644 blob a092b601916a319b3747fb8c0d3cf4c1d0531a2b",
+      "head_entry": "100644 blob a092b601916a319b3747fb8c0d3cf4c1d0531a2b",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/r13/EXECUTION.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/r13/EXECUTION.json",
+      "base_entry": "100644 blob aaa37101c5587889c79026ec330e07d8274cfc0d",
+      "head_entry": "100644 blob aaa37101c5587889c79026ec330e07d8274cfc0d",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/r13/READING-LOG.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/r13/READING-LOG.json",
+      "base_entry": "100644 blob 7d3f6f0785ec34e8d66bcf43c8880de5d4599fdb",
+      "head_entry": "100644 blob 7d3f6f0785ec34e8d66bcf43c8880de5d4599fdb",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/r13/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/r13/REVIEW.json",
+      "base_entry": "100644 blob 3e06c3f4c8ea91f26c3f76d2bf356d3b64bf32db",
+      "head_entry": "100644 blob 3e06c3f4c8ea91f26c3f76d2bf356d3b64bf32db",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/r14/EXECUTION.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/r14/EXECUTION.json",
+      "base_entry": "100644 blob 4f2f7a470a27c08893eceb224072d4002effbe60",
+      "head_entry": "100644 blob 4f2f7a470a27c08893eceb224072d4002effbe60",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/r14/READING-LOG.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/r14/READING-LOG.json",
+      "base_entry": "100644 blob abcc6cf6da9f181daa61da4d0400e3ca7374f065",
+      "head_entry": "100644 blob abcc6cf6da9f181daa61da4d0400e3ca7374f065",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/r14/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r13-r14/r14/REVIEW.json",
+      "base_entry": "100644 blob 83293727ff3fa96780a2c36eb6243dd42587bc33",
+      "head_entry": "100644 blob 83293727ff3fa96780a2c36eb6243dd42587bc33",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/AUTHORIZATION.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/AUTHORIZATION.json",
+      "base_entry": "100644 blob 86bd33e96e9fcd32a17a4767a1ff8566e2253b77",
+      "head_entry": "100644 blob 86bd33e96e9fcd32a17a4767a1ff8566e2253b77",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/COMMIT-DECLARATIONS.json",
+      "base_entry": "100644 blob 8d503c019dac84827d312e9e6b3c11f9316d30c1",
+      "head_entry": "100644 blob 8d503c019dac84827d312e9e6b3c11f9316d30c1",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-ATTACHMENTS.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-ATTACHMENTS.json",
+      "base_entry": "100644 blob 58065705323550c08884444bf68ce7bada645972",
+      "head_entry": "100644 blob 58065705323550c08884444bf68ce7bada645972",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-INDEX.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/EVIDENCE-INDEX.json",
+      "base_entry": "100644 blob ced43a7224072c30e7e09586e9442068ee497d92",
+      "head_entry": "100644 blob ced43a7224072c30e7e09586e9442068ee497d92",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-MANIFEST.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-MANIFEST.json",
+      "base_entry": "100644 blob 3ab05245dc204cb9a399f69de19c5e57f361cdba",
+      "head_entry": "100644 blob 3ab05245dc204cb9a399f69de19c5e57f361cdba",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-RESULT.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/GUI-RESULT.json",
+      "base_entry": "100644 blob e743f80ed475cebfc89f4e46107fb3f5c791ce81",
+      "head_entry": "100644 blob e743f80ed475cebfc89f4e46107fb3f5c791ce81",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/ROOT-ACCEPTANCE.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/ROOT-ACCEPTANCE.json",
+      "base_entry": "100644 blob 33f877c9ea05613be9ba949448fd7fb1ad8d6d14",
+      "head_entry": "100644 blob 33f877c9ea05613be9ba949448fd7fb1ad8d6d14",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/EXECUTION.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/EXECUTION.json",
+      "base_entry": "100644 blob 0a5cbd45bd3e656b6ecc3465c434e130e9595e5c",
+      "head_entry": "100644 blob 0a5cbd45bd3e656b6ecc3465c434e130e9595e5c",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/FINAL-CHECK.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/FINAL-CHECK.json",
+      "base_entry": "100644 blob d07f1c654155a46f6206897c00a7603d5e8d39a2",
+      "head_entry": "100644 blob d07f1c654155a46f6206897c00a7603d5e8d39a2",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/READING-LOG.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/READING-LOG.json",
+      "base_entry": "100644 blob 048f4bdc2676e8f3da527daccee6dfad615f83a3",
+      "head_entry": "100644 blob 048f4bdc2676e8f3da527daccee6dfad615f83a3",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r12/REVIEW.json",
+      "base_entry": "100644 blob 2cb1225436e355c3c475ec6865292b85fe0bc8c3",
+      "head_entry": "100644 blob 2cb1225436e355c3c475ec6865292b85fe0bc8c3",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/FINAL-CHECK.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/FINAL-CHECK.json",
+      "base_entry": "100644 blob 3f51ef3d01c945d6fc65a24c736a325662720916",
+      "head_entry": "100644 blob 3f51ef3d01c945d6fc65a24c736a325662720916",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/READING-LOG.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/READING-LOG.json",
+      "base_entry": "100644 blob 5ac56446fb231cf2122a1b43a28666c7fa0ab890",
+      "head_entry": "100644 blob 5ac56446fb231cf2122a1b43a28666c7fa0ab890",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/native-codex-r7-r12/r7/REVIEW.json",
+      "base_entry": "100644 blob 06213aa45cddaf53b34b4545caa2998cff39526e",
+      "head_entry": "100644 blob 06213aa45cddaf53b34b4545caa2998cff39526e",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/ACTUAL-MERGE.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/ACTUAL-MERGE.json",
+      "base_entry": "100644 blob ae33af1fa0f2a91f6cd17c5824bdcc399b6fff8f",
+      "head_entry": "100644 blob ae33af1fa0f2a91f6cd17c5824bdcc399b6fff8f",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/AUTHORIZATION-AND-MERGE.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/AUTHORIZATION-AND-MERGE.json",
+      "base_entry": "100644 blob 75e5f4458ff8c707664acbd583e44c4db3f1552e",
+      "head_entry": "100644 blob 75e5f4458ff8c707664acbd583e44c4db3f1552e",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/CLOSURE-REQUIREMENTS.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/CLOSURE-REQUIREMENTS.json",
+      "base_entry": "100644 blob e564dc85aadaa1fe2d1e9ab92b1780e11dd74598",
+      "head_entry": "100644 blob e564dc85aadaa1fe2d1e9ab92b1780e11dd74598",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/COMMIT-COVERAGE.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/COMMIT-COVERAGE.json",
+      "base_entry": "100644 blob 87e8b257f2bac3f3de183d40cd9dba3fc15eedaf",
+      "head_entry": "100644 blob 87e8b257f2bac3f3de183d40cd9dba3fc15eedaf",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/EVIDENCE-ATTACHMENTS.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/EVIDENCE-ATTACHMENTS.json",
+      "base_entry": "100644 blob 0a630492d65bdbc945b54883cf80d07b67d130e9",
+      "head_entry": "100644 blob 0a630492d65bdbc945b54883cf80d07b67d130e9",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/EVIDENCE-INDEX.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/EVIDENCE-INDEX.json",
+      "base_entry": "100644 blob ea520c2e371cdc74211f214528806c44004a3c71",
+      "head_entry": "100644 blob ea520c2e371cdc74211f214528806c44004a3c71",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/MAIN-CHECKS.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/MAIN-CHECKS.json",
+      "base_entry": "100644 blob a81f0f30e80fb4dfaf9afd6d23737416a1ec6374",
+      "head_entry": "100644 blob a81f0f30e80fb4dfaf9afd6d23737416a1ec6374",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/PACKAGE-VALIDATION.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/PACKAGE-VALIDATION.json",
+      "base_entry": "100644 blob 3500e02de7b48002504e8027e4b8bb67f68f81fb",
+      "head_entry": "100644 blob 3500e02de7b48002504e8027e4b8bb67f68f81fb",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/PRESERVATION-MANIFEST.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/PRESERVATION-MANIFEST.json",
+      "base_entry": "100644 blob efcd48d69c8861c3b712982005644b5dc75e0ffe",
+      "head_entry": "100644 blob efcd48d69c8861c3b712982005644b5dc75e0ffe",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/R14-FINAL-DELIVERY.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/R14-FINAL-DELIVERY.json",
+      "base_entry": "100644 blob 9614fea72705eb5f8f7330de6c7c977abf252ba4",
+      "head_entry": "100644 blob 9614fea72705eb5f8f7330de6c7c977abf252ba4",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/ROOT-ARCHIVE-VALIDATION.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/ROOT-ARCHIVE-VALIDATION.json",
+      "base_entry": "100644 blob 1a0aecd24fd5c4f7e1f7610a6338920015e3f276",
+      "head_entry": "100644 blob 1a0aecd24fd5c4f7e1f7610a6338920015e3f276",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/WORKSTATION-LIVE-CHECK.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/WORKSTATION-LIVE-CHECK.json",
+      "base_entry": "100644 blob 4b99017e9dbc722bf689d3d93167a611bf03e0b9",
+      "head_entry": "100644 blob 4b99017e9dbc722bf689d3d93167a611bf03e0b9",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/WORKSTATION-PREFLIGHT.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/WORKSTATION-PREFLIGHT.json",
+      "base_entry": "100644 blob 28f6cd641281ea9e957e5f8eef1e38bc2017fa89",
+      "head_entry": "100644 blob 28f6cd641281ea9e957e5f8eef1e38bc2017fa89",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/WORKSTATION-R14-PREFLIGHT.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/WORKSTATION-R14-PREFLIGHT.json",
+      "base_entry": "100644 blob 9ef68c0b03eec5c62bd439a3aec743597656480e",
+      "head_entry": "100644 blob 9ef68c0b03eec5c62bd439a3aec743597656480e",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/ARTIFACTS.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/ARTIFACTS.json",
+      "base_entry": "100644 blob 2396823e2549a20c488d5768284d4e2dfe816a5d",
+      "head_entry": "100644 blob 2396823e2549a20c488d5768284d4e2dfe816a5d",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/CHECKOUT-BINDING.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/CHECKOUT-BINDING.json",
+      "base_entry": "100644 blob 9e0e7232ff2f1ca27c90083d0e0f1acf466b1af5",
+      "head_entry": "100644 blob 9e0e7232ff2f1ca27c90083d0e0f1acf466b1af5",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/CONTAINER-SPANS.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/CONTAINER-SPANS.json",
+      "base_entry": "100644 blob 351974c788c8c29e516bf05ff24817b641b5cd10",
+      "head_entry": "100644 blob 351974c788c8c29e516bf05ff24817b641b5cd10",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/DOWNLOAD.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/DOWNLOAD.json",
+      "base_entry": "100644 blob bc160c340cf8149232c9ee158c1a84dc96721b67",
+      "head_entry": "100644 blob bc160c340cf8149232c9ee158c1a84dc96721b67",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/JOBS.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/JOBS.json",
+      "base_entry": "100644 blob b1be3a3110d0e3dc139b302cd319234cf17b1b7b",
+      "head_entry": "100644 blob b1be3a3110d0e3dc139b302cd319234cf17b1b7b",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/PREPARED-EVIDENCE.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/PREPARED-EVIDENCE.json",
+      "base_entry": "100644 blob 2cfb51b0b6f332384194cb9e5376130dc9d2fee6",
+      "head_entry": "100644 blob 2cfb51b0b6f332384194cb9e5376130dc9d2fee6",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/REPORT-FREEZE.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/REPORT-FREEZE.json",
+      "base_entry": "100644 blob 7cfeef9bcc656c3e7eb675237388c0f6f56968ca",
+      "head_entry": "100644 blob 7cfeef9bcc656c3e7eb675237388c0f6f56968ca",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/RUN-FINAL.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/RUN-FINAL.json",
+      "base_entry": "100644 blob 1c4fc90d6a73ea28643628398e02c137628df293",
+      "head_entry": "100644 blob 1c4fc90d6a73ea28643628398e02c137628df293",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/SARIF-REFERENCE.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/devskim/SARIF-REFERENCE.json",
+      "base_entry": "100644 blob 86346c2ad8ba13d10bcc8b898b17fc13964a899b",
+      "head_entry": "100644 blob 86346c2ad8ba13d10bcc8b898b17fc13964a899b",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/repair-probe/RESULT.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/repair-probe/RESULT.json",
+      "base_entry": "100644 blob bd63f2dc8bdd12fd70e89258b35e5658aa685025",
+      "head_entry": "100644 blob bd63f2dc8bdd12fd70e89258b35e5658aa685025",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/REPORT-FREEZE.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/REPORT-FREEZE.json",
+      "base_entry": "100644 blob 943f926ec703c56580d711db61388660020659c5",
+      "head_entry": "100644 blob 943f926ec703c56580d711db61388660020659c5",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/UPSTREAM-SOURCES.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/UPSTREAM-SOURCES.json",
+      "base_entry": "100644 blob 6aed514cb08909def52c16630e7f1660e7eae811",
+      "head_entry": "100644 blob 6aed514cb08909def52c16630e7f1660e7eae811",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/UPSTREAM-TREE.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/UPSTREAM-TREE.json",
+      "base_entry": "100644 blob 632610b5d1fae9be2244298bd65374444fde40d7",
+      "head_entry": "100644 blob 632610b5d1fae9be2244298bd65374444fde40d7",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/hash_algorithm.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/hash_algorithm.json",
+      "base_entry": "100644 blob abd6871cd7eb5ad01b33cee5c2089766a233b2f1",
+      "head_entry": "100644 blob abd6871cd7eb5ad01b33cee5c2089766a233b2f1",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/random.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/random.json",
+      "base_entry": "100644 blob 9ff37d933aae43b11a2721ca37131fa74d066d90",
+      "head_entry": "100644 blob 9ff37d933aae43b11a2721ca37131fa74d066d90",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/secrets.json",
+      "base_entry": "100644 blob ed44c86593eefebbc7e1061157628e360fba203c",
+      "head_entry": "100644 blob ed44c86593eefebbc7e1061157628e360fba203c",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/todo.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/evidence/rules/todo.json",
+      "base_entry": "100644 blob 375901229fd53676df45678a6352b3a3157fd0b6",
+      "head_entry": "100644 blob 375901229fd53676df45678a6352b3a3157fd0b6",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/reports/DEVSKIM-REPAIR-FEASIBILITY.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/postmerge-devskim/reports/DEVSKIM-REPAIR-FEASIBILITY.json",
+      "base_entry": "100644 blob 2a1187445471d3da9b61faa7913874d7531d804c",
+      "head_entry": "100644 blob 2a1187445471d3da9b61faa7913874d7531d804c",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/review-incremental.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/review-incremental.json",
+      "base_entry": "100644 blob 78b879c1331b9e5e87f2aeb717db28e4e5ca3068",
+      "head_entry": "100644 blob 78b879c1331b9e5e87f2aeb717db28e4e5ca3068",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/review-r3.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/review-r3.json",
+      "base_entry": "100644 blob 24f133d1b93d8917ccc9a72e0e5c266ce490d5bd",
+      "head_entry": "100644 blob 24f133d1b93d8917ccc9a72e0e5c266ce490d5bd",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/review-r4.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/review-r4.json",
+      "base_entry": "100644 blob 09bc86e4f9a221178a045d4ca17d77db5c8628b5",
+      "head_entry": "100644 blob 09bc86e4f9a221178a045d4ca17d77db5c8628b5",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/review-r5.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/review-r5.json",
+      "base_entry": "100644 blob 74a138b6b14216c136a6305e2edcf0e45f1721d0",
+      "head_entry": "100644 blob 74a138b6b14216c136a6305e2edcf0e45f1721d0",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1371-tb01-b/review.json",
+      "tracked_path": ".chanlun/review-results/issue1371-tb01-b/review.json",
+      "base_entry": "100644 blob 71538b340237f34c1dc4a694e01ac9baf2ef5915",
+      "head_entry": "100644 blob 71538b340237f34c1dc4a694e01ac9baf2ef5915",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/EVIDENCE-SOURCES.json",
+      "tracked_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/EVIDENCE-SOURCES.json",
+      "base_entry": "100644 blob 81a3980b5f80cfb9f18b6d2a1c2dd8039259e4cd",
+      "head_entry": "100644 blob 81a3980b5f80cfb9f18b6d2a1c2dd8039259e4cd",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/MANIFEST.json",
+      "tracked_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/MANIFEST.json",
+      "base_entry": "100644 blob 96b8cfff7e0e891d841e5f3f76273b66d6429d22",
+      "head_entry": "100644 blob 96b8cfff7e0e891d841e5f3f76273b66d6429d22",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/OLD-RUN-SNAPSHOT.json",
+      "tracked_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/OLD-RUN-SNAPSHOT.json",
+      "base_entry": "100644 blob ed165dc8d6e8cba84fdd6855585efe39dfc1c1fe",
+      "head_entry": "100644 blob ed165dc8d6e8cba84fdd6855585efe39dfc1c1fe",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/REAL-SARIF-REPLAY.json",
+      "tracked_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/REAL-SARIF-REPLAY.json",
+      "base_entry": "100644 blob a5f79a07e3ad7ad697670c1badb2919243e075ec",
+      "head_entry": "100644 blob a5f79a07e3ad7ad697670c1badb2919243e075ec",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/python-review/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/python-review/REVIEW.json",
+      "base_entry": "100644 blob 8e913efbfde81c5c2e65adef1487846f7eca55ba",
+      "head_entry": "100644 blob 8e913efbfde81c5c2e65adef1487846f7eca55ba",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json",
+      "tracked_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/MATRIX-RESULTS.json",
+      "base_entry": "100644 blob 8d0a744e7cd6548a40f7fc7957d90cb1cea9c95d",
+      "head_entry": "100644 blob 8d0a744e7cd6548a40f7fc7957d90cb1cea9c95d",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-devskim-summary-20260913/reports/review/REVIEW.json",
+      "base_entry": "100644 blob c0af5df8dec676b28f14708cdcd55df009b7758f",
+      "head_entry": "100644 blob c0af5df8dec676b28f14708cdcd55df009b7758f",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/REPORT-SOURCES.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/REPORT-SOURCES.json",
+      "base_entry": "100644 blob c4f7dc10fa595ed74647b58b3985e79970837c4c",
+      "head_entry": "100644 blob c4f7dc10fa595ed74647b58b3985e79970837c4c",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/COMPARISON.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/COMPARISON.json",
+      "base_entry": "100644 blob d3826410bdcf55847f6ec4d812d9f158b66a43ac",
+      "head_entry": "100644 blob d3826410bdcf55847f6ec4d812d9f158b66a43ac",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/FACTS.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/FACTS.json",
+      "base_entry": "100644 blob 77f3f6f1301f26746b0889e8cbd6c913f3f40b2f",
+      "head_entry": "100644 blob 77f3f6f1301f26746b0889e8cbd6c913f3f40b2f",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/MANIFEST.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-ci/MANIFEST.json",
+      "base_entry": "100644 blob d4a147610233eecb81864b4c411ba01c341fa317",
+      "head_entry": "100644 blob d4a147610233eecb81864b4c411ba01c341fa317",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/CLASSIFICATION.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/CLASSIFICATION.json",
+      "base_entry": "100644 blob b7c8945ceb300706f94bbf312d1d3c6201e6d3a1",
+      "head_entry": "100644 blob b7c8945ceb300706f94bbf312d1d3c6201e6d3a1",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/COMPARISON.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/COMPARISON.json",
+      "base_entry": "100644 blob 8757fff3c0fc0b7faa6396ed811944d44b8520c2",
+      "head_entry": "100644 blob 8757fff3c0fc0b7faa6396ed811944d44b8520c2",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/FIELD-MAPPING.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/FIELD-MAPPING.json",
+      "base_entry": "100644 blob 0aba6df0789ac8bca88bc1d505605c0a1e06f01b",
+      "head_entry": "100644 blob 0aba6df0789ac8bca88bc1d505605c0a1e06f01b",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/ORIGINALS-INDEX.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/ORIGINALS-INDEX.json",
+      "base_entry": "100644 blob bd1e71fd983aa35a6c121d1d5b26c9d006fdaade",
+      "head_entry": "100644 blob bd1e71fd983aa35a6c121d1d5b26c9d006fdaade",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/SUMMARY.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/candidate-scan/SUMMARY.json",
+      "base_entry": "100644 blob 356f4c426c9bbbe5c6806402242caa6fafe93be0",
+      "head_entry": "100644 blob 356f4c426c9bbbe5c6806402242caa6fafe93be0",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/independent-review/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/independent-review/REVIEW.json",
+      "base_entry": "100644 blob 887990685dc7be2aa59f460bcdbc0970e7d0ecc0",
+      "head_entry": "100644 blob 887990685dc7be2aa59f460bcdbc0970e7d0ecc0",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/main-ci/FACTS.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/main-ci/FACTS.json",
+      "base_entry": "100644 blob 0c13fbe6b7ecd494cf5bbfebbb779c760fe14c6b",
+      "head_entry": "100644 blob 0c13fbe6b7ecd494cf5bbfebbb779c760fe14c6b",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/main-ci/ORIGINALS-INDEX.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/main-ci/ORIGINALS-INDEX.json",
+      "base_entry": "100644 blob 1234c71b04e85fc2fe3df6cae647f99d86d66521",
+      "head_entry": "100644 blob 1234c71b04e85fc2fe3df6cae647f99d86d66521",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/main-ci/REPORT-FREEZE.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/main-ci/REPORT-FREEZE.json",
+      "base_entry": "100644 blob 233209fe69ad760eeff7cad2a3a5df65e0a01451",
+      "head_entry": "100644 blob 233209fe69ad760eeff7cad2a3a5df65e0a01451",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/main-ci/SARIF-COMPARISON.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/main-ci/SARIF-COMPARISON.json",
+      "base_entry": "100644 blob 1eac6a4e21e6e39c72985e35b97fea104068a268",
+      "head_entry": "100644 blob 1eac6a4e21e6e39c72985e35b97fea104068a268",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-main-delivery-20260913/main-ci/TEST-COMPARISON.json",
+      "tracked_path": ".chanlun/review-results/issue1372-main-delivery-20260913/main-ci/TEST-COMPARISON.json",
+      "base_entry": "100644 blob d50cd957d321b61fa9590ba3bdcfff081380568d",
+      "head_entry": "100644 blob d50cd957d321b61fa9590ba3bdcfff081380568d",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/PACKAGE-MANIFEST.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/PACKAGE-MANIFEST.json",
+      "base_entry": "100644 blob 430c50994f93afe8f195fade16b88977174b6503",
+      "head_entry": "100644 blob 430c50994f93afe8f195fade16b88977174b6503",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/REPORT-SOURCES.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/REPORT-SOURCES.json",
+      "base_entry": "100644 blob 0fada341f39812e51e266ce34ad3327901c7a043",
+      "head_entry": "100644 blob 0fada341f39812e51e266ce34ad3327901c7a043",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/FINALIZATION.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/FINALIZATION.json",
+      "base_entry": "100644 blob 38f0e9af6961b0f103f1f15c7dfdac6e8c0c4857",
+      "head_entry": "100644 blob 38f0e9af6961b0f103f1f15c7dfdac6e8c0c4857",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/MANIFEST.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/MANIFEST.json",
+      "base_entry": "100644 blob bae060f976620d1158bb510b8a157d605bce4ee1",
+      "head_entry": "100644 blob bae060f976620d1158bb510b8a157d605bce4ee1",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/R5-CORE-COMPARISON.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/R5-CORE-COMPARISON.json",
+      "base_entry": "100644 blob 0226ac29891aef9680466491b5a03adefeb99f99",
+      "head_entry": "100644 blob 0226ac29891aef9680466491b5a03adefeb99f99",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/RAW-CROSS-RESPONSE-CHECKS.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/RAW-CROSS-RESPONSE-CHECKS.json",
+      "base_entry": "100644 blob 9ec6a5c8eba462f3f1ca09daceb02d71d4eb0042",
+      "head_entry": "100644 blob 9ec6a5c8eba462f3f1ca09daceb02d71d4eb0042",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/THREE-ARM-SOURCE-COMPARISON.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/browser-continuation-performance/final-run-results/THREE-ARM-SOURCE-COMPARISON.json",
+      "base_entry": "100644 blob e6f406f0e5e0baffca81527f740f793a51d9874c",
+      "head_entry": "100644 blob e6f406f0e5e0baffca81527f740f793a51d9874c",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/CI-PRODUCT-3FF8C47E.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/CI-PRODUCT-3FF8C47E.json",
+      "base_entry": "100644 blob 368ca78cd007b53a4d80d1f9b3344e1ee035c3b6",
+      "head_entry": "100644 blob 368ca78cd007b53a4d80d1f9b3344e1ee035c3b6",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/OBSERVER-CHECKS.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/OBSERVER-CHECKS.json",
+      "base_entry": "100644 blob ae94a10dee6840810da4b6a3c48212685ae2745d",
+      "head_entry": "100644 blob ae94a10dee6840810da4b6a3c48212685ae2745d",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/commit-check-inventory/INVENTORY.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/commit-check-inventory/INVENTORY.json",
+      "base_entry": "100644 blob abe2a21e6e2ab35e0f05b4918a01683c3138debc",
+      "head_entry": "100644 blob abe2a21e6e2ab35e0f05b4918a01683c3138debc",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/commit-check-inventory/RUST-BUILD-BINDINGS.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/commit-check-inventory/RUST-BUILD-BINDINGS.json",
+      "base_entry": "100644 blob c86a1795838ef63284c2150ca837223b947f95b2",
+      "head_entry": "100644 blob c86a1795838ef63284c2150ca837223b947f95b2",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/commit-check-inventory/SYNTAX-CHECKS.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/commit-check-inventory/SYNTAX-CHECKS.json",
+      "base_entry": "100644 blob 287c917192f2014f5a1b33f796efb51ff3932a13",
+      "head_entry": "100644 blob 287c917192f2014f5a1b33f796efb51ff3932a13",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/INCREMENTAL-FINDINGS.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/INCREMENTAL-FINDINGS.json",
+      "base_entry": "100644 blob 7ca131d6e95922e8866c891968636646b7df0c8f",
+      "head_entry": "100644 blob 7ca131d6e95922e8866c891968636646b7df0c8f",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/LINE-MOVES.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/LINE-MOVES.json",
+      "base_entry": "100644 blob 8cfff9424b0db0ec6a64e0bca648f03370579a16",
+      "head_entry": "100644 blob 8cfff9424b0db0ec6a64e0bca648f03370579a16",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/MANIFEST.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/MANIFEST.json",
+      "base_entry": "100644 blob 01a1406028d88a25cff5bae804993bf114e3eb25",
+      "head_entry": "100644 blob 01a1406028d88a25cff5bae804993bf114e3eb25",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/ORIGINALS-INDEX.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/ORIGINALS-INDEX.json",
+      "base_entry": "100644 blob 573eae527368cdca673e45f1adb9c7254dc9ee09",
+      "head_entry": "100644 blob 573eae527368cdca673e45f1adb9c7254dc9ee09",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/RULE-SOURCES.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/RULE-SOURCES.json",
+      "base_entry": "100644 blob 233fe620ba7a54864e4d3ceb496fd05dd0941b52",
+      "head_entry": "100644 blob 233fe620ba7a54864e4d3ceb496fd05dd0941b52",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/SUMMARY.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/devskim-pr1451/review-package/SUMMARY.json",
+      "base_entry": "100644 blob 3d03874fa62aa3f3101b91f38719781ed191ca2c",
+      "head_entry": "100644 blob 3d03874fa62aa3f3101b91f38719781ed191ca2c",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/package-integrity-review/REVIEW-FINAL.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/delivery-preparation/package-integrity-review/REVIEW-FINAL.json",
+      "base_entry": "100644 blob 71d353b21c9a6beca28b4c978b6c0b0e3f3c07b5",
+      "head_entry": "100644 blob 71d353b21c9a6beca28b4c978b6c0b0e3f3c07b5",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/driver-stop-envelope-independent/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/driver-stop-envelope-independent/REVIEW.json",
+      "base_entry": "100644 blob 5b1701b1eba3f6483d4a27f8deec22423543988c",
+      "head_entry": "100644 blob 5b1701b1eba3f6483d4a27f8deec22423543988c",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/gui-utf8-recapture-independent/MANIFEST-DIFFERENCES.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/gui-utf8-recapture-independent/MANIFEST-DIFFERENCES.json",
+      "base_entry": "100644 blob d7c86fc46bff91f2c75285fd8759f429bafb6518",
+      "head_entry": "100644 blob d7c86fc46bff91f2c75285fd8759f429bafb6518",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/gui-utf8-recapture-independent/READY-REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/gui-utf8-recapture-independent/READY-REVIEW.json",
+      "base_entry": "100644 blob 218e9ded0902d90d9a352c46f93dd64a3dd9b001",
+      "head_entry": "100644 blob 218e9ded0902d90d9a352c46f93dd64a3dd9b001",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/gui-utf8-recapture-independent/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/gui-utf8-recapture-independent/REVIEW.json",
+      "base_entry": "100644 blob 7643bcb0d5659738189f2255a56b47c7714a0568",
+      "head_entry": "100644 blob 7643bcb0d5659738189f2255a56b47c7714a0568",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/http-capture-fix-independent/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/http-capture-fix-independent/REVIEW.json",
+      "base_entry": "100644 blob 69c0144321fa2f81a93429fdabd548cac71541ae",
+      "head_entry": "100644 blob 69c0144321fa2f81a93429fdabd548cac71541ae",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/legacy-query-callers-audit/REPORT.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/legacy-query-callers-audit/REPORT.json",
+      "base_entry": "100644 blob 154af3f5240d8b90657274ac2bd303e463d26b8d",
+      "head_entry": "100644 blob 154af3f5240d8b90657274ac2bd303e463d26b8d",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/python-cross-review-fix-01/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/python-cross-review-fix-01/REVIEW.json",
+      "base_entry": "100644 blob a12321f00236098038d3d7473e2a0e4149055fb7",
+      "head_entry": "100644 blob a12321f00236098038d3d7473e2a0e4149055fb7",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-continuation-performance/DELIVERY.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-continuation-performance/DELIVERY.json",
+      "base_entry": "100644 blob 3b19300f1b0686b52f896fd7f36717a81ad17a19",
+      "head_entry": "100644 blob 3b19300f1b0686b52f896fd7f36717a81ad17a19",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/CI-REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/CI-REVIEW.json",
+      "base_entry": "100644 blob aa38ac63b5029eb8f87651cf135a83437ba43670",
+      "head_entry": "100644 blob aa38ac63b5029eb8f87651cf135a83437ba43670",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/R9-REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/R9-REVIEW.json",
+      "base_entry": "100644 blob 3c6c32d996b76fb2d6fe75e64ff0da31e25ae55b",
+      "head_entry": "100644 blob 3c6c32d996b76fb2d6fe75e64ff0da31e25ae55b",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-encoding-memo-independent/REVIEW.json",
+      "base_entry": "100644 blob 82ad46d8429cdaf2593efe3c45ed6550d4e879ed",
+      "head_entry": "100644 blob 82ad46d8429cdaf2593efe3c45ed6550d4e879ed",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-memo-independent/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/q-memo-independent/REVIEW.json",
+      "base_entry": "100644 blob b5299622bab670838b25f0a713718b8e6db1d68b",
+      "head_entry": "100644 blob b5299622bab670838b25f0a713718b8e6db1d68b",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime-driver-boundary-independent/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime-driver-boundary-independent/REVIEW.json",
+      "base_entry": "100644 blob 66d78bafeab4ae90e012cd979c0419aeb9239094",
+      "head_entry": "100644 blob 66d78bafeab4ae90e012cd979c0419aeb9239094",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r4-pair/independent-review/LEGACY-REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r4-pair/independent-review/LEGACY-REVIEW.json",
+      "base_entry": "100644 blob 435b6a32165ee3b9e62c919c6a374575a4b31348",
+      "head_entry": "100644 blob 435b6a32165ee3b9e62c919c6a374575a4b31348",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r4-pair/independent-review/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r4-pair/independent-review/REVIEW.json",
+      "base_entry": "100644 blob 8c34df54d35638e34df3c76574ed93ae68875f8d",
+      "head_entry": "100644 blob 8c34df54d35638e34df3c76574ed93ae68875f8d",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/EXECUTION.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/EXECUTION.json",
+      "base_entry": "100644 blob b6ec7fe5ceb42c85ece4e17fb32d0e7ae8ee1880",
+      "head_entry": "100644 blob b6ec7fe5ceb42c85ece4e17fb32d0e7ae8ee1880",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/MANIFEST.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/MANIFEST.json",
+      "base_entry": "100644 blob 3f12aea67f97146ff633314efa388622f4fe67e2",
+      "head_entry": "100644 blob 3f12aea67f97146ff633314efa388622f4fe67e2",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/READING.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/READING.json",
+      "base_entry": "100644 blob 985776d9a8de6a5bdaa68c3fb9edcd7b17ab5927",
+      "head_entry": "100644 blob 985776d9a8de6a5bdaa68c3fb9edcd7b17ab5927",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/r5-pair/independent-review/REVIEW.json",
+      "base_entry": "100644 blob 54c3bed9e635921855ecc34cd26a6b82f4d7b6f1",
+      "head_entry": "100644 blob 54c3bed9e635921855ecc34cd26a6b82f4d7b6f1",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-a/EVIDENCE-INDEX.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-a/EVIDENCE-INDEX.json",
+      "base_entry": "100644 blob c4e3e10629394ed2ff60af6e4aa822872edabec1",
+      "head_entry": "100644 blob c4e3e10629394ed2ff60af6e4aa822872edabec1",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-a/FACTS.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-a/FACTS.json",
+      "base_entry": "100644 blob f845d2bbb066b9798dcc07067c9c711b3097efe1",
+      "head_entry": "100644 blob f845d2bbb066b9798dcc07067c9c711b3097efe1",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/EVIDENCE-INDEX.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/EVIDENCE-INDEX.json",
+      "base_entry": "100644 blob 35afc23626ce6868c2657a149073729e2a6278ad",
+      "head_entry": "100644 blob 35afc23626ce6868c2657a149073729e2a6278ad",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/FACTS.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/FACTS.json",
+      "base_entry": "100644 blob 92142f32e897fbcddd16173c594cf7a7102a7de2",
+      "head_entry": "100644 blob 92142f32e897fbcddd16173c594cf7a7102a7de2",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/gui-final/FACTS.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/gui-final/FACTS.json",
+      "base_entry": "100644 blob fac56d12acaeaa712b8567927f2ad024340c1b7b",
+      "head_entry": "100644 blob fac56d12acaeaa712b8567927f2ad024340c1b7b",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/gui-final/MANIFEST.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-r5-b/gui-final/MANIFEST.json",
+      "base_entry": "100644 blob d64605d110aa9586ee7de04216fd1bbc0a0241ae",
+      "head_entry": "100644 blob d64605d110aa9586ee7de04216fd1bbc0a0241ae",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-final-ac3/FACTS.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-final-ac3/FACTS.json",
+      "base_entry": "100644 blob fea60e550e440eb25fd545661ce56f24e92afdc3",
+      "head_entry": "100644 blob fea60e550e440eb25fd545661ce56f24e92afdc3",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-final-ac3/independent-review/MANIFEST.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-final-ac3/independent-review/MANIFEST.json",
+      "base_entry": "100644 blob 8d3ca8d13f91aa61a91f26ab78b70295d637eb84",
+      "head_entry": "100644 blob 8d3ca8d13f91aa61a91f26ab78b70295d637eb84",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/runtime/trajectory-revision-final-ac3/independent-review/REVIEW.json",
+      "base_entry": "100644 blob f139e9d32a77e092e8a49a5dab45239fe90b1581",
+      "head_entry": "100644 blob f139e9d32a77e092e8a49a5dab45239fe90b1581",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/rust-p4-independent/REVIEW-OLD-P4.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/rust-p4-independent/REVIEW-OLD-P4.json",
+      "base_entry": "100644 blob 2b7f2dbf6ba93c1a1af425d49bce5587cea893c8",
+      "head_entry": "100644 blob 2b7f2dbf6ba93c1a1af425d49bce5587cea893c8",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/rust-p4-independent/queue-fix-recheck/RESULT.json",
+      "tracked_path": ".chanlun/review-results/issue1372-tb01c-20260913/reports/rust-p4-independent/queue-fix-recheck/RESULT.json",
+      "base_entry": "100644 blob 2732d4ae5aa6002586016de72838aa9464b998b4",
+      "head_entry": "100644 blob 2732d4ae5aa6002586016de72838aa9464b998b4",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/EVIDENCE-INDEX.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/EVIDENCE-INDEX.json",
+      "base_entry": "100644 blob 85cd90a92353cce248b4f237e05ea697c0d8a6ae",
+      "head_entry": "100644 blob 85cd90a92353cce248b4f237e05ea697c0d8a6ae",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/FINAL-SCAN-RECEIPT-VERIFIED.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/FINAL-SCAN-RECEIPT-VERIFIED.json",
+      "base_entry": "100644 blob da9ca00415fc319fa7128fdd184a8a7b3398922f",
+      "head_entry": "100644 blob da9ca00415fc319fa7128fdd184a8a7b3398922f",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/FINAL-SOURCE.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/FINAL-SOURCE.json",
+      "base_entry": "100644 blob afcc7f8bbe027bd3fac7b2da76e4b8a85491f4ee",
+      "head_entry": "100644 blob afcc7f8bbe027bd3fac7b2da76e4b8a85491f4ee",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ROOT-HARNESS-INDEPENDENT-REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ROOT-HARNESS-INDEPENDENT-REVIEW.json",
+      "base_entry": "100644 blob 592e968f15daaed592a5243ac217f4c61a61e8f2",
+      "head_entry": "100644 blob 592e968f15daaed592a5243ac217f4c61a61e8f2",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/CHECKOUT-BINDING.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/CHECKOUT-BINDING.json",
+      "base_entry": "100644 blob d5967c5c580376b1c77a1f0db279d922424c5b13",
+      "head_entry": "100644 blob d5967c5c580376b1c77a1f0db279d922424c5b13",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/DIFF-VS4408.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/DIFF-VS4408.json",
+      "base_entry": "100644 blob cdfb6fdb093695b19868d5b92c9904af14442ad1",
+      "head_entry": "100644 blob cdfb6fdb093695b19868d5b92c9904af14442ad1",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/EVIDENCE-INDEX.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/EVIDENCE-INDEX.json",
+      "base_entry": "100644 blob 6dd4a4e4e922945e0a084aeed12696613aac3221",
+      "head_entry": "100644 blob 6dd4a4e4e922945e0a084aeed12696613aac3221",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/REPORT-FREEZE.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/REPORT-FREEZE.json",
+      "base_entry": "100644 blob 58b087bd1deb2fdc1097ee17dd75e366953b731f",
+      "head_entry": "100644 blob 58b087bd1deb2fdc1097ee17dd75e366953b731f",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/REUSED-TRIAGE-BINDING.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/REUSED-TRIAGE-BINDING.json",
+      "base_entry": "100644 blob 68f9cdd7c02ab31d4150e1ad306939a46e0c6aa5",
+      "head_entry": "100644 blob 68f9cdd7c02ab31d4150e1ad306939a46e0c6aa5",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/TRIAGE-SUMMARY.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim-final/TRIAGE-SUMMARY.json",
+      "base_entry": "100644 blob 628740d51716e0c6765552e89e7125201532586f",
+      "head_entry": "100644 blob 628740d51716e0c6765552e89e7125201532586f",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim/TRIAGE-ROWS.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-devskim/TRIAGE-ROWS.json",
+      "base_entry": "100644 blob cee1b330ad9ac189ad2b38dea4685056a9a69cee",
+      "head_entry": "100644 blob cee1b330ad9ac189ad2b38dea4685056a9a69cee",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-monitor-final/CI-FINAL.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-monitor-final/CI-FINAL.json",
+      "base_entry": "100644 blob 549829e649eb19940dd0a55df4b4d75c4e51cf8b",
+      "head_entry": "100644 blob 549829e649eb19940dd0a55df4b4d75c4e51cf8b",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-rust-review/READONLY-EVIDENCE.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-rust-review/READONLY-EVIDENCE.json",
+      "base_entry": "100644 blob 15c8d0403f195cac1e4f2347a7c9a8fe6bfd5dbc",
+      "head_entry": "100644 blob 15c8d0403f195cac1e4f2347a7c9a8fe6bfd5dbc",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-rust-review/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/ci-rust-review/REVIEW.json",
+      "base_entry": "100644 blob 5013300be34bc5ebc328252d84f88ac2e19caf66",
+      "head_entry": "100644 blob 5013300be34bc5ebc328252d84f88ac2e19caf66",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/independent-q-review-post-fix/MANIFEST.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/independent-q-review-post-fix/MANIFEST.json",
+      "base_entry": "100644 blob 88da6f174605eaa3067d9beedc753481574c670a",
+      "head_entry": "100644 blob 88da6f174605eaa3067d9beedc753481574c670a",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/independent-q-review-post-fix/REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/independent-q-review-post-fix/REVIEW.json",
+      "base_entry": "100644 blob 88f964e2d4fd427edfb508004802b4a2a5b1e31c",
+      "head_entry": "100644 blob 88f964e2d4fd427edfb508004802b4a2a5b1e31c",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/independent-review-final-rust/PRESERVATION-MANIFEST.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/independent-review-final-rust/PRESERVATION-MANIFEST.json",
+      "base_entry": "100644 blob dac6fe495cd728d65a1086e4fbda52a694146779",
+      "head_entry": "100644 blob dac6fe495cd728d65a1086e4fbda52a694146779",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/independent-review-final-rust/RESULT.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/independent-review-final-rust/RESULT.json",
+      "base_entry": "100644 blob 4ecdfb182e81650a564bf18ba0b588fa3edd55e1",
+      "head_entry": "100644 blob 4ecdfb182e81650a564bf18ba0b588fa3edd55e1",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/BROWSER-OHLC.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/BROWSER-OHLC.json",
+      "base_entry": "100644 blob 099557d3b319027d4a4102f19d6fff6ec6655a0b",
+      "head_entry": "100644 blob 099557d3b319027d4a4102f19d6fff6ec6655a0b",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/CI-PRODUCT.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/CI-PRODUCT.json",
+      "base_entry": "100644 blob 96b142f1f5965cd408e48a2060071acd0f22ae0b",
+      "head_entry": "100644 blob 96b142f1f5965cd408e48a2060071acd0f22ae0b",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/IMPLEMENTATION.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/IMPLEMENTATION.json",
+      "base_entry": "100644 blob 51c31f7feb6c315b2ffd86b046dcc214e0d8700f",
+      "head_entry": "100644 blob 51c31f7feb6c315b2ffd86b046dcc214e0d8700f",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/PYTHON-REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/PYTHON-REVIEW.json",
+      "base_entry": "100644 blob b5dd7ca5cc32e0d1968404788a3591e00d8ada8e",
+      "head_entry": "100644 blob b5dd7ca5cc32e0d1968404788a3591e00d8ada8e",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/RUNTIME-PAIR-ORACLE.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/RUNTIME-PAIR-ORACLE.json",
+      "base_entry": "100644 blob d2b2dfa78496758c1140918f00a91c871398d35c",
+      "head_entry": "100644 blob d2b2dfa78496758c1140918f00a91c871398d35c",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/SANDCASTLE-REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/SANDCASTLE-REVIEW.json",
+      "base_entry": "100644 blob 7fbe4e25252ed16278fd9251ca5591ecc89d0441",
+      "head_entry": "100644 blob 7fbe4e25252ed16278fd9251ca5591ecc89d0441",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/SCAN-TRIAGE.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/SCAN-TRIAGE.json",
+      "base_entry": "100644 blob 6b19984d47fd587cab4244de94050cfdf519b5cb",
+      "head_entry": "100644 blob 6b19984d47fd587cab4244de94050cfdf519b5cb",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/SOURCE.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/SOURCE.json",
+      "base_entry": "100644 blob ee9b222f7eb0d96558643b07168686afd44505cf",
+      "head_entry": "100644 blob ee9b222f7eb0d96558643b07168686afd44505cf",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/VALIDATION.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/integration-20260914/VALIDATION.json",
+      "base_entry": "100644 blob bd13f08fc15e1571be468eed5dbd691303dfec96",
+      "head_entry": "100644 blob bd13f08fc15e1571be468eed5dbd691303dfec96",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/rust-checks/f1/TEST-SOURCE.json",
+      "tracked_path": ".chanlun/review-results/issue1373-tb02a-20260913/reports/rust-checks/f1/TEST-SOURCE.json",
+      "base_entry": "100644 blob 53d9a43a26694d07987c1263c81e0559c2ab286e",
+      "head_entry": "100644 blob 53d9a43a26694d07987c1263c81e0559c2ab286e",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/EVIDENCE.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/EVIDENCE.json",
+      "base_entry": "100644 blob 998fefdd40bfad6f323ca9e9cbaa18a80cfea2ed",
+      "head_entry": "100644 blob 998fefdd40bfad6f323ca9e9cbaa18a80cfea2ed",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/controller.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/controller.json",
+      "base_entry": "100644 blob 7993bd2efadf5c443d470b385c69e575671b8150",
+      "head_entry": "100644 blob 7993bd2efadf5c443d470b385c69e575671b8150",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/controller_send_delta.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/controller_send_delta.json",
+      "base_entry": "100644 blob 9cafaba842f5ddefabdd85319af940bb3b8a6278",
+      "head_entry": "100644 blob 9cafaba842f5ddefabdd85319af940bb3b8a6278",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/devskim_main_review.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/devskim_main_review.json",
+      "base_entry": "100644 blob 3950b3f2a8d59273deaeb5ff0f874fc04bff3727",
+      "head_entry": "100644 blob 3950b3f2a8d59273deaeb5ff0f874fc04bff3727",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/devskim_pr_review.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/devskim_pr_review.json",
+      "base_entry": "100644 blob bf086cc719afb839edc05ca047140e912e093015",
+      "head_entry": "100644 blob bf086cc719afb839edc05ca047140e912e093015",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/economic_export_delta.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/economic_export_delta.json",
+      "base_entry": "100644 blob eb4b16d5100c4210c0ec53a9e1211066a5e349d5",
+      "head_entry": "100644 blob eb4b16d5100c4210c0ec53a9e1211066a5e349d5",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/economic_faults.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/economic_faults.json",
+      "base_entry": "100644 blob d22def783ff28cf353c317f9c6ea8e5514a7a1cd",
+      "head_entry": "100644 blob d22def783ff28cf353c317f9c6ea8e5514a7a1cd",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/economic_normal.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/economic_normal.json",
+      "base_entry": "100644 blob 55f15c97364ed5f0ccebd8d5b02d04fed188e3e9",
+      "head_entry": "100644 blob 55f15c97364ed5f0ccebd8d5b02d04fed188e3e9",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/economic_script.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/economic_script.json",
+      "base_entry": "100644 blob b7d57b155b9a895dc7b3da22db6433405801a890",
+      "head_entry": "100644 blob b7d57b155b9a895dc7b3da22db6433405801a890",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/filesystem_delta.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/filesystem_delta.json",
+      "base_entry": "100644 blob 8df997b9b76c41a21db3fd5e40b8d9556e52efc4",
+      "head_entry": "100644 blob 8df997b9b76c41a21db3fd5e40b8d9556e52efc4",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/final_delivery_scope.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/final_delivery_scope.json",
+      "base_entry": "100644 blob 3cbf9a46408b177abe84c6f81bb0bd8c7e65be8d",
+      "head_entry": "100644 blob 3cbf9a46408b177abe84c6f81bb0bd8c7e65be8d",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/fmt_tail.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/fmt_tail.json",
+      "base_entry": "100644 blob ff93c16738be77ef18257d5a75265303d0ee3726",
+      "head_entry": "100644 blob ff93c16738be77ef18257d5a75265303d0ee3726",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/gamma_definition.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/gamma_definition.json",
+      "base_entry": "100644 blob 0dc067598f598fffb5368ea0bb3ef9853e89632e",
+      "head_entry": "100644 blob 0dc067598f598fffb5368ea0bb3ef9853e89632e",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/owner_initial.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/owner_initial.json",
+      "base_entry": "100644 blob 9302e65fe74cc0269886fa12878c5a9509ffc7db",
+      "head_entry": "100644 blob 9302e65fe74cc0269886fa12878c5a9509ffc7db",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/owner_v2.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/owner_v2.json",
+      "base_entry": "100644 blob 7edbbb91234771d61d71d3b63288e0272754d011",
+      "head_entry": "100644 blob 7edbbb91234771d61d71d3b63288e0272754d011",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/query_final.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/query_final.json",
+      "base_entry": "100644 blob 4124ec3a54fe1cad206a47cf3081951df3f10e9e",
+      "head_entry": "100644 blob 4124ec3a54fe1cad206a47cf3081951df3f10e9e",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/shared_wire.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/shared_wire.json",
+      "base_entry": "100644 blob 6bd5b5cdf78cbd54f00236b028767470aa68a473",
+      "head_entry": "100644 blob 6bd5b5cdf78cbd54f00236b028767470aa68a473",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/transport_final.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/transport_final.json",
+      "base_entry": "100644 blob 005eda1de6542f4d97b6d2a12ca024f13d1a149f",
+      "head_entry": "100644 blob 005eda1de6542f4d97b6d2a12ca024f13d1a149f",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_authority.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_authority.json",
+      "base_entry": "100644 blob 326e8c768a23de42aeda9c077ee5ab3b76393ee8",
+      "head_entry": "100644 blob 326e8c768a23de42aeda9c077ee5ab3b76393ee8",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_authority_receipt.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_authority_receipt.json",
+      "base_entry": "100644 blob 7c768b6bfb25b050fb90b8bf8e2778c69c0da8d2",
+      "head_entry": "100644 blob 7c768b6bfb25b050fb90b8bf8e2778c69c0da8d2",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_core.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_core.json",
+      "base_entry": "100644 blob dfe1181c26fb3b4166368c8cf960c9bd2872b3e9",
+      "head_entry": "100644 blob dfe1181c26fb3b4166368c8cf960c9bd2872b3e9",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_fault_driver.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_fault_driver.json",
+      "base_entry": "100644 blob f28e10825da7ba158580420959bc001f306a34fe",
+      "head_entry": "100644 blob f28e10825da7ba158580420959bc001f306a34fe",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_faults.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_faults.json",
+      "base_entry": "100644 blob eea51155757cb7afc96d95f8a2832e6a65aff183",
+      "head_entry": "100644 blob eea51155757cb7afc96d95f8a2832e6a65aff183",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_gui.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_gui.json",
+      "base_entry": "100644 blob 1a5d219cc9d58850c4150d6f212c4052ffaba7d2",
+      "head_entry": "100644 blob 1a5d219cc9d58850c4150d6f212c4052ffaba7d2",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_gui_helper.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_gui_helper.json",
+      "base_entry": "100644 blob 0e93c266a1313d07c4a65a6844b3977d7343fa0a",
+      "head_entry": "100644 blob 0e93c266a1313d07c4a65a6844b3977d7343fa0a",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_normal.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_normal.json",
+      "base_entry": "100644 blob 10085faa3933fa5703064399ae5932ee5dc7984b",
+      "head_entry": "100644 blob 10085faa3933fa5703064399ae5932ee5dc7984b",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_normal_driver.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_normal_driver.json",
+      "base_entry": "100644 blob 75656d8d7240fd2c5c3d33bab7b0a9edde8af953",
+      "head_entry": "100644 blob 75656d8d7240fd2c5c3d33bab7b0a9edde8af953",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_ui.json",
+      "tracked_path": ".chanlun/review-results/issue1374-tb03a-20260914/voice_ui.json",
+      "base_entry": "100644 blob 39c0673b916dc808318d52b43c3fdbcec65057fc",
+      "head_entry": "100644 blob 39c0673b916dc808318d52b43c3fdbcec65057fc",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/ENTRY-FINAL-REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/ENTRY-FINAL-REVIEW.json",
+      "base_entry": "100644 blob db478e6f9273002107dea6061f84017449e7b8fc",
+      "head_entry": "100644 blob db478e6f9273002107dea6061f84017449e7b8fc",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json",
+      "tracked_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/PREFLIGHT-INDEPENDENT-REVIEW.json",
+      "base_entry": "100644 blob c8cb3b1c1876faf15072e3e0a33f3bfadcca3f8d",
+      "head_entry": "100644 blob c8cb3b1c1876faf15072e3e0a33f3bfadcca3f8d",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/SCAN-TRIAGE.json",
+      "tracked_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/SCAN-TRIAGE.json",
+      "base_entry": "100644 blob 74ac634879be1d04b0e904cefaa0cb7c5b3cc4cb",
+      "head_entry": "100644 blob 74ac634879be1d04b0e904cefaa0cb7c5b3cc4cb",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json",
+      "tracked_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/VALIDATION.json",
+      "base_entry": "100644 blob 5be273a116bd32242fe03a5c4f0d26fedd631bf8",
+      "head_entry": "100644 blob 5be273a116bd32242fe03a5c4f0d26fedd631bf8",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "tracked_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-postcheck.json",
+      "base_entry": "100644 blob c17f0fd9356f487f08b575b1f4187d814ed9d2be",
+      "head_entry": "100644 blob c17f0fd9356f487f08b575b1f4187d814ed9d2be",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json",
+      "tracked_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/entry-initial-review.json",
+      "base_entry": "100644 blob ce31911285e75043ea911373d419038de805524a",
+      "head_entry": "100644 blob ce31911285e75043ea911373d419038de805524a",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/final-smoke-postcheck.json",
+      "tracked_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/final-smoke-postcheck.json",
+      "base_entry": "100644 blob 36b7c3bbbc215a8ffc3fbf339eacd0ab6355667a",
+      "head_entry": "100644 blob 36b7c3bbbc215a8ffc3fbf339eacd0ab6355667a",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/final-smoke-result.json",
+      "tracked_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/final-smoke-result.json",
+      "base_entry": "100644 blob a50ab373eaac6a35083f28ab91bce58588ba038e",
+      "head_entry": "100644 blob a50ab373eaac6a35083f28ab91bce58588ba038e",
+      "same_git_object": true
+    },
+    {
+      "scan_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json",
+      "tracked_path": ".chanlun/review-results/issue1456-sandcastle-codex-20260914/first-worker-postcheck.json",
+      "base_entry": "100644 blob b1d81c9b5fb47e66fa6784d991f33820de2431e4",
+      "head_entry": "100644 blob b1d81c9b5fb47e66fa6784d991f33820de2431e4",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "analysis/p3_random_gate_control.py",
+      "tracked_path": "analysis/p3_random_gate_control.py",
+      "base_entry": "100644 blob 6c51722c07d87b6a09b4d88e340dfe276373e2e9",
+      "head_entry": "100644 blob 6c51722c07d87b6a09b4d88e340dfe276373e2e9",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "rust/src/economic_session/service.rs",
+      "tracked_path": "rust/src/economic_session/service.rs",
+      "base_entry": "100644 blob 27401de756fc9df39cdd2df30d4ba5b59e9ab9f3",
+      "head_entry": "100644 blob 27401de756fc9df39cdd2df30d4ba5b59e9ab9f3",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "rust/src/session_protocol.rs",
+      "tracked_path": "rust/src/session_protocol.rs",
+      "base_entry": "100644 blob 12d22d3c05c93d4dd024149210b5fc2291e8a478",
+      "head_entry": "100644 blob 12d22d3c05c93d4dd024149210b5fc2291e8a478",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "rust/src/theta_v0/nautilus/strategy.rs",
+      "tracked_path": "rust/src/theta_v0/nautilus/strategy.rs",
+      "base_entry": "100644 blob 6e293c5f98634fa8f2dfea6fb65c006abd8b98a1",
+      "head_entry": "100644 blob 6e293c5f98634fa8f2dfea6fb65c006abd8b98a1",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/browser/tb01c-client.js",
+      "tracked_path": "s_session/browser/tb01c-client.js",
+      "base_entry": "100644 blob 6277a0259caa0b41b26f420c0eb83f1843a47c8c",
+      "head_entry": "100644 blob 6277a0259caa0b41b26f420c0eb83f1843a47c8c",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/browser/tb03a-client.js",
+      "tracked_path": "s_session/browser/tb03a-client.js",
+      "base_entry": "100644 blob 07d76c6395e3cfb76bd0405d4f93ccd1b07f34ef",
+      "head_entry": "100644 blob 07d76c6395e3cfb76bd0405d4f93ccd1b07f34ef",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/launch_s.sh",
+      "tracked_path": "s_session/launch_s.sh",
+      "base_entry": "100755 blob 4cf17673141d391a2346bf8a32c71e43565f045d",
+      "head_entry": "100755 blob 4cf17673141d391a2346bf8a32c71e43565f045d",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/s_readonly_server.py",
+      "tracked_path": "s_session/s_readonly_server.py",
+      "base_entry": "100644 blob 9774af1fbf01753e7c2693ab98d5fd2af9cf7d45",
+      "head_entry": "100644 blob 9774af1fbf01753e7c2693ab98d5fd2af9cf7d45",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/s_service_control.py",
+      "tracked_path": "s_session/s_service_control.py",
+      "base_entry": "100644 blob 36b6c6ce5401cada758e49fe0b4663efde5d2dde",
+      "head_entry": "100644 blob 36b6c6ce5401cada758e49fe0b4663efde5d2dde",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/tests/fixtures/r12_consumer.json",
+      "tracked_path": "s_session/tests/fixtures/r12_consumer.json",
+      "base_entry": "100644 blob 3cdf3099c4ac8f9725f8704a8bf3f3e32f9d7241",
+      "head_entry": "100644 blob 3cdf3099c4ac8f9725f8704a8bf3f3e32f9d7241",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/tests/fixtures/tb01c/MANIFEST.json",
+      "tracked_path": "s_session/tests/fixtures/tb01c/MANIFEST.json",
+      "base_entry": "100644 blob 81add2257e5e3139026eda1157a1c1e740ff048a",
+      "head_entry": "100644 blob 81add2257e5e3139026eda1157a1c1e740ff048a",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/tests/fixtures/tb01c/RUNTIME-MANIFEST.json",
+      "tracked_path": "s_session/tests/fixtures/tb01c/RUNTIME-MANIFEST.json",
+      "base_entry": "100644 blob 8f55bfe214591bd1ec154fa46868e5e411c7fd0a",
+      "head_entry": "100644 blob 8f55bfe214591bd1ec154fa46868e5e411c7fd0a",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/tests/fixtures/tb01c/operation-schedule.json",
+      "tracked_path": "s_session/tests/fixtures/tb01c/operation-schedule.json",
+      "base_entry": "100644 blob b7b65b239506bdd50d011d7396fffde858fe055d",
+      "head_entry": "100644 blob b7b65b239506bdd50d011d7396fffde858fe055d",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/tests/fixtures/tb02a/hand-oracle.json",
+      "tracked_path": "s_session/tests/fixtures/tb02a/hand-oracle.json",
+      "base_entry": "100644 blob b154978f1f5c1879644ab81a0deeb09a1a97c6ce",
+      "head_entry": "100644 blob b154978f1f5c1879644ab81a0deeb09a1a97c6ce",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/tests/fixtures/tb02a/raw-ledger.json",
+      "tracked_path": "s_session/tests/fixtures/tb02a/raw-ledger.json",
+      "base_entry": "100644 blob 70756c243636802d10ed08d7c584e74bd3475ee4",
+      "head_entry": "100644 blob 70756c243636802d10ed08d7c584e74bd3475ee4",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/tests/r9_contract.py",
+      "tracked_path": "s_session/tests/r9_contract.py",
+      "base_entry": "100644 blob 6a27fd7040c6a200b8b9b7075ce319c7cbe733dd",
+      "head_entry": "100644 blob 6a27fd7040c6a200b8b9b7075ce319c7cbe733dd",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/tests/tb01c_query_tests.py",
+      "tracked_path": "s_session/tests/tb01c_query_tests.py",
+      "base_entry": "100644 blob c4e3fa59012ab806ead455c8d857b1d077627913",
+      "head_entry": "100644 blob c4e3fa59012ab806ead455c8d857b1d077627913",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/tests/tb01c_query_v2.py",
+      "tracked_path": "s_session/tests/tb01c_query_v2.py",
+      "base_entry": "100644 blob d82f61edfe4c6b17f1d3b66f7d3d56ae3d9bbe5c",
+      "head_entry": "100644 blob d82f61edfe4c6b17f1d3b66f7d3d56ae3d9bbe5c",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/tests/tb02a_runtime.py",
+      "tracked_path": "s_session/tests/tb02a_runtime.py",
+      "base_entry": "100644 blob abb17f3243f4deb60153e2e6f4cbb9e581ac8655",
+      "head_entry": "100644 blob abb17f3243f4deb60153e2e6f4cbb9e581ac8655",
+      "same_git_object": true
+    },
+    {
+      "scan_path": "s_session/tests/test_tb01c_service_control.py",
+      "tracked_path": "s_session/tests/test_tb01c_service_control.py",
+      "base_entry": "100644 blob 3ce67f43b425acff8411732c2911b999d44e214a",
+      "head_entry": "100644 blob 3ce67f43b425acff8411732c2911b999d44e214a",
+      "same_git_object": true
+    }
+  ],
+  "unresolved_git_paths": 0,
+  "statement": "未变文件中31693个基线外key未在本轮重审；字节继承不是安全无缺陷证明。新head的main扫描例外仍需明确批准。"
+}
