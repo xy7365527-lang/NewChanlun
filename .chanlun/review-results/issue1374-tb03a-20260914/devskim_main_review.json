@@ -1,0 +1,239 @@
+{
+  "schema": "pr1454-main-devskim-review/1",
+  "generated_at_utc": "2026-09-13T21:14:19.491632+00:00",
+  "reviewer": "Codex native pr1454_devskim_triage",
+  "pr": 1454,
+  "issue": 1374,
+  "verdict": "PASS_SAME_APPROVED_SCAN_FINDING_SCOPE_WITH_DEVSKIM_FAIL",
+  "scope_comparison": "PASS",
+  "actual_devskim_status": "FAIL",
+  "new_waiver_granted": false,
+  "base": {
+    "head": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+    "run_id": 34759110350,
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/pr1454-devskim-triage/base-run34759110350-artifact/devskim-results.sarif",
+    "bytes": 130647088,
+    "sha256": "8cb07ed21430c93dd6447d59f97597a80fdfc8e1d01c28fe04d1f96c9bdab807",
+    "raw_findings": 34663,
+    "unique_keys": 34589,
+    "unique_full_results": 34663,
+    "rule_count": 11,
+    "drivers": [
+      {
+        "name": "devskim",
+        "fullName": "Microsoft DevSkim Command Line Interface",
+        "version": "1.0.90+fb2d676ce4",
+        "informationUri": "https://github.com/microsoft/DevSkim/"
+      }
+    ],
+    "column_kinds": [
+      "utf16CodeUnits"
+    ],
+    "sarif_version": "2.1.0",
+    "outside_baseline": 26402,
+    "results_multiset_sha256": "4b33b7dd2e9bcd80fdf9aefad76e91c4a08de2947db0ac2f9bd7f4c414cc46f9"
+  },
+  "approved_pr": {
+    "head": "5d5d6236a71b6726078d180fd09b2b32c5de0371",
+    "run_id": 34781472772,
+    "review": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/pr1454-devskim-triage/REVIEW.json",
+      "bytes": 9831,
+      "sha256": "d2d73d9d18fa9db785b281ac1de34bebdef0041e824ec1a6ec432deafa6558b1"
+    },
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/pr1454-devskim-triage/latest-run34781472772-artifact/devskim-results.sarif",
+    "bytes": 131022598,
+    "sha256": "d60c374a6c7ebd90b7f210c5b18813127693cf312c9d98a835c1ae02af092de6",
+    "raw_findings": 35168,
+    "unique_keys": 35094,
+    "unique_full_results": 35168,
+    "rule_count": 11,
+    "drivers": [
+      {
+        "name": "devskim",
+        "fullName": "Microsoft DevSkim Command Line Interface",
+        "version": "1.0.90+fb2d676ce4",
+        "informationUri": "https://github.com/microsoft/DevSkim/"
+      }
+    ],
+    "column_kinds": [
+      "utf16CodeUnits"
+    ],
+    "sarif_version": "2.1.0",
+    "outside_baseline": 26907,
+    "results_multiset_sha256": "d5eb6a7afb65e36ae26ec171dbc0f9d869effdfcafe651ea9a07c973b58830bd"
+  },
+  "main": {
+    "head": "abf5c0f8491fc066a0f2bc47ab4defdb120035c1",
+    "run_id": 34782751153,
+    "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34782751153",
+    "actual_checkout_log_head": "abf5c0f8491fc066a0f2bc47ab4defdb120035c1",
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/main-devskim/artifact/devskim-results.sarif",
+    "bytes": 131022598,
+    "sha256": "7c218bae95ad4839596833ff1d822577589c7a38dde648a0ec50890e6f5fca72",
+    "raw_findings": 35168,
+    "unique_keys": 35094,
+    "unique_full_results": 35168,
+    "rule_count": 11,
+    "drivers": [
+      {
+        "name": "devskim",
+        "fullName": "Microsoft DevSkim Command Line Interface",
+        "version": "1.0.90+fb2d676ce4",
+        "informationUri": "https://github.com/microsoft/DevSkim/"
+      }
+    ],
+    "column_kinds": [
+      "utf16CodeUnits"
+    ],
+    "sarif_version": "2.1.0",
+    "outside_baseline": 26907,
+    "results_multiset_sha256": "d5eb6a7afb65e36ae26ec171dbc0f9d869effdfcafe651ea9a07c973b58830bd"
+  },
+  "trees": {
+    "approved_pr": "9bc6b379220769276ef5070d3a5312acb6231863",
+    "main": "9bc6b379220769276ef5070d3a5312acb6231863",
+    "equal": true
+  },
+  "baseline": {
+    "keys": 8201,
+    "sha256": "df25ff2ec9a0898de03a4450fc3506444f08100ca0657a32665086991e202595",
+    "same_tree_guarantees_identical_baseline": true
+  },
+  "comparisons": {
+    "main_tree_equals_approved_pr_tree": true,
+    "raw_result_count_equal": true,
+    "unique_keys_equal": true,
+    "outside_baseline_keys_equal": true,
+    "full_result_multisets_equal": true,
+    "rule_definition_multisets_equal": true,
+    "driver_metadata_equal": true,
+    "column_kinds_equal": true,
+    "sarif_version_equal": true,
+    "all_remaining_sarif_document_metadata_equal": true,
+    "full_result_added_count": 0,
+    "full_result_removed_count": 0,
+    "key_added_count": 0,
+    "key_removed_count": 0,
+    "outside_baseline_added_count": 0,
+    "outside_baseline_removed_count": 0,
+    "raw_sarif_file_bytes_equal": false
+  },
+  "base_to_approved_pr": {
+    "added_keys": 512,
+    "removed_keys": 7,
+    "full_result_additions": 512,
+    "full_result_removals": 7,
+    "scope": "实际历史 base 与获批 PR 多重集数量对拍；沿用既有逐键分诊，不重复全仓漏洞评审"
+  },
+  "base_to_main": {
+    "added_keys": 512,
+    "removed_keys": 7,
+    "full_result_additions": 512,
+    "full_result_removals": 7
+  },
+  "full_result_multiset_algorithm": "每条完整 result 用 UTF-8 JSON key排序与无额外空白编码，Counter 保留重复次数；排序后的每个{multiplicity,result}规范JSON追加换行后求SHA256。不删除snippet/region/message/properties等字段。",
+  "actual_gate": {
+    "steps": {
+      "Set up job": "success",
+      "Checkout code": "success",
+      "Build reproducible DevSkim scanner image": "success",
+      "Run DevSkim scanner": "success",
+      "Upload DevSkim SARIF as an ordinary Actions artifact": "success",
+      "Enforce zero-findings gate and write summary": "failure",
+      "Post Checkout code": "success",
+      "Complete job": "success"
+    },
+    "failure_causes": [
+      {
+        "line": 358,
+        "text": "DevSkim\tEnforce zero-findings gate and write summary\t2026-09-13T21:10:24.6908135Z - **SARIF findings:** `35168`"
+      },
+      {
+        "line": 365,
+        "text": "DevSkim\tEnforce zero-findings gate and write summary\t2026-09-13T21:10:24.6911270Z - SARIF contains 26907 finding(s) not in the baseline (total 35168). New findings:"
+      },
+      {
+        "line": 27274,
+        "text": "DevSkim\tEnforce zero-findings gate and write summary\t2026-09-13T21:10:25.6022317Z ##[error]$GITHUB_STEP_SUMMARY upload aborted, supports content up to a size of 1024k, got 3155k. For more information see: https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#adding-a-markdown-summary"
+      }
+    ],
+    "meaning": "扫描和SARIF上传成功；现有基线外键门禁失败及摘要上传超限真实保留"
+  },
+  "artifact_provenance": {
+    "artifact_id": 10324808723,
+    "name": "devskim-sarif",
+    "created_at": "2026-09-13T21:10:17Z",
+    "expires_at": "2026-09-27T21:10:13Z",
+    "published_archive_digest": "sha256:07fa0dcde3bab63d1781beef97718a37759913bf9cf7838eedcc65ad8bd254a5",
+    "archive_digest_independently_verified": false,
+    "download": "gh run download 对本次 main 运行下载一次并提取SARIF；未另下载ZIP重验归档digest"
+  },
+  "evidence": {
+    "comparison": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/main-devskim/COMPARISON.json",
+      "bytes": 4201,
+      "sha256": "e2dfd43fde7e3f6afaa1e0b8b05c0cf4efc8763a2eff0158f846e76a0b0fa192"
+    },
+    "remaining_document_comparison": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/main-devskim/SARIF-REMAINDER-COMPARISON.json",
+      "bytes": 1220,
+      "sha256": "c801c1e75820b1c877c80b210635933478c238bbd62d504c48a8033af4f4af84"
+    },
+    "actual_run": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/main-devskim/MAIN-RUN.json",
+      "bytes": 1696,
+      "sha256": "4aa7460457e85d1a317a59d1bc27a4d47a607edfdd2b258ccc40a6720c7b0618"
+    },
+    "actual_log": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/main-devskim/MAIN-RUN.log",
+      "bytes": 5483456,
+      "sha256": "e9197e7b72e591b2381179dd0e9e717c40ba32b77b1133b4257a4fad2b840513"
+    },
+    "artifact_metadata": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/main-devskim/MAIN-ARTIFACT-METADATA.json",
+      "bytes": 725,
+      "sha256": "23944a1e000b948bcb53bee83a594072803593d967230819640188b257b4fd8d"
+    },
+    "main_commit": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/main-devskim/MAIN-COMMIT.json",
+      "bytes": 2744,
+      "sha256": "5ce5f3e4c2c9bf5eee94c794cd7f5a8f8757df33636cdadc8f8768d5135dba54"
+    },
+    "approved_pr_input": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/main-devskim/PR-FROZEN-INPUT.json",
+      "bytes": 1573,
+      "sha256": "a228b1fcc35ff1e07bc80970432d627bb2494fff7eee04a1003b8723f00ef7ce"
+    },
+    "comparison_program": {
+      "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/main-devskim/compare_sarif.py",
+      "bytes": 6363,
+      "sha256": "f90e91a1ea1af5459df3841eb0f303706d10081f92a7c18659275dcc0e8239cf"
+    }
+  },
+  "report_md": {
+    "path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/merge-closure-20260914/MAIN-DEVSKIM-REVIEW.md",
+    "bytes": 2637,
+    "sha256": "103fd868239ac08807c336fb80305b5d0a7b4844a8af18f8f5f6e92636654313"
+  },
+  "limits": [
+    "仅绑定以上base/PR/main实际扫描与main树；后续不同树不自动继承",
+    "结果范围相同不代表CI绿或全仓漏洞清零",
+    "延续既有增量分诊；不重审基线内、既有needs_review或扫描未覆盖面",
+    "SHA不同，未声称两份SARIF原字节相同",
+    "未改变或新增用户批准范围；不关闭父TB和#1323"
+  ],
+  "actions": [
+    "只读下载主线实际SARIF、日志和元数据",
+    "与已冻结真实PR/base扫描比较",
+    "仅写本工位指定主线报告及main-devskim目录"
+  ],
+  "actions_not_taken": [
+    "未修改代码/规则/基线/ignore",
+    "未重新扫描",
+    "未运行产品测试",
+    "未修改旧冻结",
+    "未触服务或交易",
+    "未发布GitHub评论"
+  ]
+}

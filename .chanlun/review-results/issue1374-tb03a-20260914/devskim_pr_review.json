@@ -1,0 +1,247 @@
+{
+  "schema": "pr1454-devskim-triage/1",
+  "generated_at_utc": "2026-09-13T20:50:33.645354+00:00",
+  "pr": 1454,
+  "issue": 1374,
+  "reviewer": "Codex native pr1454_devskim_triage",
+  "verdict": "TRIAGED_LATEST_FAIL_NO_NEW_CONFIRMED_PRODUCT_VULNERABILITY",
+  "latest_head": "5d5d6236a71b6726078d180fd09b2b32c5de0371",
+  "base": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+  "gate_status": "FAIL",
+  "merge_approved": false,
+  "scope": "三轮 actual SARIF 对拍和本 PR 新增告警语境；非全仓安全清零",
+  "runs": [
+    {
+      "run_id": 34759110350,
+      "head": "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34759110350",
+      "raw_findings": 34663,
+      "unique_keys": 34589,
+      "outside_baseline": 26402,
+      "baseline_keys": 8201,
+      "baseline_absent_keys": 14,
+      "scanner": "devskim",
+      "version": "1.0.90+fb2d676ce4",
+      "scanner_and_upload_succeeded": true,
+      "gate": "FAIL",
+      "sarif": {
+        "path": "base-run34759110350-artifact/devskim-results.sarif",
+        "bytes": 130647088,
+        "sha256": "8cb07ed21430c93dd6447d59f97597a80fdfc8e1d01c28fe04d1f96c9bdab807"
+      },
+      "log": {
+        "path": "base-run34759110350.log",
+        "bytes": 4548513,
+        "sha256": "753337dbb865737013ef6fb1d19feb16adc8b43c9b43ebf32f5fc0e2c2f97c9e"
+      },
+      "artifact_metadata": {
+        "path": "base-artifact-metadata.json",
+        "bytes": 725,
+        "sha256": "a25ead9c7a3d5297fafcdd32d27bf3434aeca5c6f6fa332a49e51d7cd640556a"
+      },
+      "artifact_id": 10318262472,
+      "artifact_created_at": "2026-09-13T13:15:15Z",
+      "artifact_expires_at": "2026-09-27T13:15:12Z",
+      "published_archive_digest": "sha256:60c11488135dba9d93051c38d6873d783f1a8200cc0a8ac86a5656f93931de2d",
+      "archive_digest_independently_verified": false
+    },
+    {
+      "run_id": 34781051428,
+      "head": "b5b1ab14ea5947c77fe0b9e8d6f734d5a777d260",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34781051428",
+      "raw_findings": 35122,
+      "unique_keys": 35048,
+      "outside_baseline": 26861,
+      "baseline_keys": 8201,
+      "baseline_absent_keys": 14,
+      "scanner": "devskim",
+      "version": "1.0.90+fb2d676ce4",
+      "scanner_and_upload_succeeded": true,
+      "gate": "FAIL",
+      "sarif": {
+        "path": "run34781051428-artifact/devskim-results.sarif",
+        "bytes": 130988843,
+        "sha256": "3ebcd5cda7a59e807f6209d4ef09adb4352fc7b038c53a4a26246038a44333ce"
+      },
+      "log": {
+        "path": "run34781051428.log",
+        "bytes": 5475968,
+        "sha256": "735b82e26fb8792106ef68a28c37e91aab0a202b9ceb89bbeda9e1b39fb0559e"
+      },
+      "artifact_metadata": {
+        "path": "first-artifact-metadata.json",
+        "bytes": 737,
+        "sha256": "149145533f0f0692af0490bef6f18209e5728ee549dffeacaaf3fc7116ef4b5b"
+      },
+      "artifact_id": 10325427347,
+      "artifact_created_at": "2026-09-13T20:37:08Z",
+      "artifact_expires_at": "2026-09-27T20:37:04Z",
+      "published_archive_digest": "sha256:6b6ad4cd52023ce505803fcad6585df6ed3bba7521fdfd14ea44374db4d61839",
+      "archive_digest_independently_verified": false
+    },
+    {
+      "run_id": 34781472772,
+      "head": "5d5d6236a71b6726078d180fd09b2b32c5de0371",
+      "url": "https://github.com/xy7365527-lang/NewChanlun/actions/runs/34781472772",
+      "raw_findings": 35168,
+      "unique_keys": 35094,
+      "outside_baseline": 26907,
+      "baseline_keys": 8201,
+      "baseline_absent_keys": 14,
+      "scanner": "devskim",
+      "version": "1.0.90+fb2d676ce4",
+      "scanner_and_upload_succeeded": true,
+      "gate": "FAIL",
+      "sarif": {
+        "path": "latest-run34781472772-artifact/devskim-results.sarif",
+        "bytes": 131022598,
+        "sha256": "d60c374a6c7ebd90b7f210c5b18813127693cf312c9d98a835c1ae02af092de6"
+      },
+      "log": {
+        "path": "latest-run34781472772.log",
+        "bytes": 5482582,
+        "sha256": "12f818656d983051a935a9bb9d4c920f71f2f3f951895c3be112713e9d399a88"
+      },
+      "artifact_metadata": {
+        "path": "latest-artifact-metadata.json",
+        "bytes": 737,
+        "sha256": "7adf3d08a7ab20ef30f4dff24b08797b361032555e54dd097a3e2b4162a4d565"
+      },
+      "artifact_id": 10325610773,
+      "artifact_created_at": "2026-09-13T20:44:36Z",
+      "artifact_expires_at": "2026-09-27T20:44:33Z",
+      "published_archive_digest": "sha256:4de68ec070b1a5ac0253b2bc978669a911858845ca585e026c7772ecdbcc8104",
+      "archive_digest_independently_verified": false
+    }
+  ],
+  "delta": {
+    "common_outside_baseline": 26395,
+    "all_common_outside_on_unchanged_files": true,
+    "added_keys": 512,
+    "removed_keys": 7,
+    "unchanged_localhost_relocations": 7,
+    "new_content_keys": 505,
+    "new_content_classification": {
+      "report_hash_or_git_reference": 502,
+      "wire_vector_hash": 1,
+      "fixed_function_timeout": 1,
+      "json_field_lexical_hash_match": 1
+    },
+    "added_rule_counts": {
+      "DS162092": 7,
+      "DS172411": 1,
+      "DS173237": 503,
+      "DS197836": 1
+    },
+    "report_sha256_or_object_id_locations": 481,
+    "report_git_commit_locations": 21,
+    "report_git_unique_commits": 4,
+    "tail_added_keys": 145,
+    "tail_removed_keys": 99,
+    "tail_only_paths": [
+      ".chanlun/review-results/issue1374-tb03a-20260914/EVIDENCE.json",
+      ".chanlun/review-results/issue1374-tb03a-20260914/fmt_tail.json"
+    ]
+  },
+  "failure_reason": {
+    "primary": "既有 gate 拒绝 26907 个 baseline 外唯一键；scanner/upload/tool identity 正常",
+    "secondary": "完整 GITHUB_STEP_SUMMARY 3155 KiB 超过 1024 KiB；base 同有 3112 KiB 超限",
+    "no_rule_or_baseline_changes": true
+  },
+  "source_review": {
+    "service_hash_rule": "DS197836",
+    "service_location": "rust/src/economic_session/service.rs:118:71",
+    "independent_native_subagent": "/root/pr1454_devskim_triage/service_rule_review",
+    "native_subagent_fixed_commit": "b5b1ab14ea5947c77fe0b9e8d6f734d5a777d260",
+    "latest_service_bytes_unchanged": true,
+    "classification": "词法跨字段误报，不是 hash 调用，不是安全 token 生成",
+    "actual_hashes": "完整 raw_utf8、完整规范事实、完整原请求；用途为一致性与重放",
+    "consumer_locations": [
+      "rust/src/economic_session/store.rs:1025",
+      "rust/src/economic_session/store.rs:934"
+    ],
+    "optional_formatting_only": "每 JSON 字段一行可改善可读性；不更名协议、不加盐，不作为消除所有告警的承诺"
+  },
+  "existing_risk_handoff": {
+    "issue": 1385,
+    "url": "https://github.com/xy7365527-lang/NewChanlun/issues/1385#issuecomment-5648592872",
+    "key": "DS176209|rust/src/theta_v0/nautilus/strategy.rs|314",
+    "status": "needs_review",
+    "file_base_head_equal": true,
+    "file_sha256": "31425429a9c823b7b958a803a8a0520e306693383e95d13b8cab5e045b3506d8",
+    "comment_evidence": {
+      "path": "issue1385-comments-live.json",
+      "bytes": 2534,
+      "sha256": "86d3137599b2e560ade403a11df8f455e7f8e7a1c6bdaec39e34fb8aafc68856"
+    },
+    "previous_approval_not_inherited": true
+  },
+  "evidence": {
+    "latest_checkout": {
+      "commit": "65cd98e0cd122653f2d02ec31deb1e73400452d1",
+      "parents": [
+        "65298686cf3e7c9e94e0b9ceeb83aebad2b5530b",
+        "5d5d6236a71b6726078d180fd09b2b32c5de0371"
+      ],
+      "checkout_tree": "9bc6b379220769276ef5070d3a5312acb6231863",
+      "head_tree": "9bc6b379220769276ef5070d3a5312acb6231863",
+      "tree_equal": true
+    },
+    "first_checkout": {
+      "commit": "9a2e1ead32f56057e00034aea0e0b48e5dff2196",
+      "tree": "f5c896de1b4bc15e3e799e3120e3f9d85d2f605c",
+      "head_tree_equal": true
+    },
+    "scan_contract_unchanged": {
+      "path": "SCAN-CONTRACT-UNCHANGED.json",
+      "bytes": 917,
+      "sha256": "2cd11ee42b38137d309c3f22d498c76ec248059fc25e8d3771fe8fff36c18004"
+    },
+    "line_shift_proofs": {
+      "path": "UNCHANGED-LOCALHOST-LINE-SHIFTS.json",
+      "bytes": 1708,
+      "sha256": "0fb9900d94cd2f5f792b6ba5a3c04c5aa2c21d25634d669cefbb667b428217a4"
+    },
+    "all_delta_locations_and_classifications": {
+      "path": "LATEST-NEW-FINDINGS-ASSESSED.json",
+      "bytes": 373627,
+      "sha256": "234d61ee99eeeb8645a4f99776f33a279e90fd42f1f4c4068289081460fe0e85"
+    },
+    "exact_delta": {
+      "path": "exact-base-to-latest-delta.json",
+      "bytes": 331553,
+      "sha256": "3b5541fa500bdffe9cf8cdcfeb8944bdb0bf4e6bc82727eaf6bf1a864ed4200e"
+    },
+    "first_delta": {
+      "path": "exact-base-to-firsthead-delta.json",
+      "bytes": 228832,
+      "sha256": "f9969fd7df5669a2ca674a189184806528e4042a2cc05f53672f2bbbb5466daf"
+    }
+  },
+  "report": {
+    "path": "REVIEW.md",
+    "bytes": 4364,
+    "sha256": "3086691d81b22f0c6387047e2b36440c700f8efc8d0633675e2f32b568286188"
+  },
+  "limitations": [
+    "本 PR 新增命中未确认产品漏洞，不等于全仓没有安全漏洞",
+    "基线内 8187 个仍出现键、存量基线外与未扫描面未重新完整审计",
+    "503 个凭证检测命中均有明确摘要/版本/对象标识语境；除 wire payload 外未在本次重新计算全部业务证据",
+    "GitHub 归档 digest 已保留；gh 下载提取后的 SARIF SHA 已计算，未另行下载 ZIP 重验 archive digest",
+    "任何后续 head 的新增内容需另按真实扫描核实"
+  ],
+  "actions_taken": [
+    "下载三个实际运行日志/SARIF/元数据",
+    "读取冻结 Git 源与差异、重新计算独立 wire payload",
+    "只读核 #1385 现有评论",
+    "写入本工位独占 P4 evidence 目录"
+  ],
+  "actions_not_taken": [
+    "未修改 W4",
+    "未修改规则/基线/ignore",
+    "未修改冻结审查原件",
+    "未触服务或交易",
+    "未发布评论",
+    "未批准合入或扫描例外"
+  ]
+}
