@@ -6,7 +6,7 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFile
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
-  boundedCodex, CodexTranscript, preflightCheckout, runCodexChild, workerEnvironment,
+  boundedCodex, CodexTranscript, OUTPUT_SCHEMA, preflightCheckout, runCodexChild, workerEnvironment,
   type ChildOptions,
 } from "./codex-child.ts";
 import { MODEL, EFFORT, readRouterConfiguration } from "./codex-router-runtime.ts";
@@ -231,7 +231,11 @@ test("真实子进程：直接 SDK provider 完成，保存 session/parent 映�
     assert.ok(readFileSync(join(f.dir, "worker-env.json"), "utf8").includes("HTTPS_PROXY"));
     assert.ok(!readFileSync(join(f.options.outputDir, "result.json"), "utf8").includes(route));
     assert.ok(!readFileSync(join(f.options.outputDir, "events.jsonl"), "utf8").includes(route));
-    assert.ok(readFileSync(join(f.dir, "received-prompt.md"), "utf8").includes("$(touch"));
+    const receivedPrompt = readFileSync(join(f.dir, "received-prompt.md"), "utf8");
+    assert.ok(receivedPrompt.includes("$(touch"));
+    const visibleSchema = receivedPrompt.split("最终输出 JSON Schema：\n").at(-1)!.split("\n")[0];
+    assert.deepEqual(JSON.parse(visibleSchema), OUTPUT_SCHEMA);
+    assert.ok(receivedPrompt.includes("最终 JSON 保持简短"));
     assert.ok(!existsSync(join(f.dir, "injection")));
     assert.equal(git(f.options.checkout, "status", "--porcelain"), "");
     assert.equal(git(f.options.checkout, "rev-parse", "HEAD"), f.options.expectedHead);

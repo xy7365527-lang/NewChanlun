@@ -1,0 +1,22 @@
+{
+  "ticket": 1448,
+  "schema": "flash-visible-schema-check/1",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "effort": "max",
+  "regression_passed": 41,
+  "final_prompt_subprocess_test_passed": 1,
+  "runtime_status": "completed",
+  "external_session_id": "01a0a006-9e14-7a80-ba16-bedd090e084d",
+  "fixture_sha256": "06610f767f56666770c90a7f5658582ccb0c6503ca3714992f810dac282edd6d",
+  "fixture_bytes": 71,
+  "sources": {
+    ".sandcastle/codex-child.ts": "2feba6333802eeeee6f7caa478f5cd887c0c72f0f4f30758d675bd21b3028a03",
+    ".sandcastle/codex-child.test.ts": "0cc296b8c8746457c310e69f95896d94c032a3a88e044e29ab87cb4c435f5e8c"
+  },
+  "scope": "一次短小只读格式探针；不声称上游强制JSONSchema或消除所有格式失败",
+  "historical_failed_runs": [
+    "b7e39af6-1395-4c04-8500-564a4efea57f",
+    "8fa1699e-a567-4b65-8d19-6c850741dac7"
+  ],
+  "main_merged": false
+}

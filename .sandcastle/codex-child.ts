@@ -444,7 +444,13 @@ function runPrompt(options: ChildOptions, task: string): string {
 ${options.mode === "review" ? "只读审阅，不写 checkout。" : "只在当前独立 codex/* checkout 修改任务范围文件并做定向验证；保留差异给管理者收包。"}
 不重跑无关全量验证。若阻塞，说明实际缺项，不擅自换判据或批准后续动作。
 最终仅返回符合输出 schema 的 JSON；summary、findings、validation 用简体中文，status 为 completed、blocked 或 failed。
-\n管理者任务：\n${task}`;
+\n管理者任务：\n${task}
+\n最终输出 JSON Schema：
+${JSON.stringify(OUTPUT_SCHEMA)}
+最终消息必须是单个合法 JSON 对象，不加 Markdown 围栏或前后说明。findings 和 validation 只能是字符串数组，不能放对象。
+以下仅为字段形状示例，状态和内容必须按实际结果填写：
+${JSON.stringify({ status: "blocked", summary: "实际缺项的简短说明", findings: ["实际发现"], validation: ["实际执行的检查或未执行的原因"] })}
+只有任务已授权写入产物时，才把详细内容保存在指定文件中；只读任务在 findings 和 validation 中保留必要发现与证据。最终 JSON 保持简短，已有产物给出准确路径。不得声称未执行的检查通过。`;
 }
 
 export async function runCodexChild(
