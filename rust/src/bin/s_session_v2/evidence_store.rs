@@ -230,7 +230,9 @@ pub(super) fn root_kind(root_key: &str) -> Result<(RootKind, &str), String> {
     for kind in [RootKind::Batch, RootKind::Delta, RootKind::Fact] {
         if let Some(rest) = root_key.strip_prefix(kind.prefix()) {
             if rest.is_empty() {
-                return Err(format!("StorageUnavailable：私有根 `{root_key}` 缺逻辑记录标识"));
+                return Err(format!(
+                    "StorageUnavailable：私有根 `{root_key}` 缺逻辑记录标识"
+                ));
             }
             if kind == RootKind::Delta {
                 let generation = parse_canonical_i64(rest, "Delta 私有根代数")
@@ -259,7 +261,10 @@ pub(super) fn fact_root_value(
 }
 
 /// 从事实根展开字节还原三列精确文本（数组布局、元素必须是字符串；否则拒绝）。
-pub(super) fn split_fact_root(bytes: &[u8], what: &str) -> Result<(String, String, String), String> {
+pub(super) fn split_fact_root(
+    bytes: &[u8],
+    what: &str,
+) -> Result<(String, String, String), String> {
     let text = std::str::from_utf8(bytes)
         .map_err(|e| format!("StorageUnavailable：{what} 事实原件非 UTF-8：{e}"))?;
     let value = v2::strict_json(text.as_bytes())
@@ -967,12 +972,7 @@ fn closure_digest(row: &RootRow, subtree: &[u8; 32]) -> [u8; 32] {
 }
 
 /// 子树摘要：id 已经把 payload（含子节点 id 与顺序）钉死，故摘要再收 id、种类、声明长度与子摘要。
-fn node_subtree_digest(
-    kind: i64,
-    id: &[u8; 32],
-    length: u64,
-    children: &[[u8; 32]],
-) -> [u8; 32] {
+fn node_subtree_digest(kind: i64, id: &[u8; 32], length: u64, children: &[[u8; 32]]) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();
     h.update(b"evidence-node-subtree/1");
@@ -1065,12 +1065,8 @@ impl<'a> Reader<'a> {
     /// 闭包遍历（**不展开**）：从当前新鲜行读根行与闭包内每个唯一节点原行，逐节点核内容寻址、
     /// 种类、参数叶身份与声明长度自洽，最后给出与**节点 id/种类/长度 + 根行**一一对应的闭包指纹。
     ///
-    /// 指纹相同 ⟺ 本次读到的闭包与原次同形：节点 id 是内容地址且每次都用刚读到的 payload 重算，
-    /// 故不比较「ID/hash 自述」，而是比较**当前字节算出的**指纹。
-    fn closure(
-        &mut self,
-        root_key: &str,
-    ) -> Result<ClosureCheck, String> {
+    /// 指纹由当前内容计算，只作附加校验；复用另须根行、全部节点与参数槽原件逐字节匹配。
+    fn closure(&mut self, root_key: &str) -> Result<ClosureCheck, String> {
         let (root, slots, expanded_len, hash) = Reader::root_row(self.conn, root_key)?
             .ok_or_else(|| format!("StorageUnavailable：私有根 `{root_key}` 缺失"))?;
         // 声明槽未必都被模板引用：只核每个槽叶自身可寻址；实际占用的槽字节在遍历时累计。
@@ -1121,7 +1117,11 @@ impl<'a> Reader<'a> {
             &row.content_sha256,
         )
         .is_some()
-            && cache::cert_is_certified(self.conn_id, root);
+            && cache::cert_is_certified(self.conn_id, root)
+            && row
+                .slots
+                .iter()
+                .all(|id| cache::cert_marked(self.conn_id, *id));
         Ok(ClosureCheck {
             row,
             digest,
@@ -1261,7 +1261,7 @@ impl<'a> Reader<'a> {
             .ok_or_else(|| "StorageUnavailable：私有节点派生量缺失（实现缺陷）".to_string())
     }
 
-    /// 读一个根（**单次闭包遍历**）：指纹命中已核句柄即复用其已验展开字节/解析结果；未命中则
+    /// 读一个根：完整原件证明与附加指纹均命中，才复用已验展开字节/解析结果；未命中则
     /// 完整展开并核公开长度与摘要后入句柄。两条路径的返回必须逐字节相同。
     pub(super) fn read_root(
         &mut self,
@@ -1269,6 +1269,9 @@ impl<'a> Reader<'a> {
         with_value: bool,
     ) -> Result<VerifiedRoot, String> {
         let check = self.closure(root_key)?;
+        if !check.originals_verified {
+            cache::invalidate_root(root_key);
+        }
         // 复用门：闭包指纹只是**附加**校验；真正的门是 (a) 该根保留着的原件证书与本次新鲜根行
         // 逐字节相同、(b) 闭包内每个唯一节点都在本次捕获与保留证书逐字节相同。
         let mut retained = if check.originals_verified {
@@ -1294,32 +1297,39 @@ impl<'a> Reader<'a> {
             None => {
                 let expanded = self.expand(root_key, &check.row)?;
                 let bytes: std::sync::Arc<[u8]> = std::sync::Arc::from(expanded.as_slice());
-                // 已核闭包：把本次读到的**原件证书**保留下来（共享同一份原节点，按唯一保留量
-                // 记账），供后续捕获逐字节比较。只在成功核过长度/摘要之后才保留。
-                let mut ids: std::collections::BTreeSet<[u8; 32]> =
-                    std::collections::BTreeSet::new();
-                let mut frontier: Vec<[u8; 32]> = vec![check.row.node];
-                while let Some(id) = frontier.pop() {
-                    if !ids.insert(id) {
-                        continue;
+                if cache::retention_enabled() {
+                    // 已核闭包：把本次读到的**原件证书**保留下来（共享同一份原节点，按唯一保留量
+                    // 记账），供后续捕获逐字节比较。只在成功核过长度/摘要之后才保留。
+                    let mut ids: std::collections::BTreeSet<[u8; 32]> =
+                        std::collections::BTreeSet::new();
+                    let mut frontier: Vec<[u8; 32]> = check.row.slots.clone();
+                    frontier.push(check.row.node);
+                    while let Some(id) = frontier.pop() {
+                        if !ids.insert(id) {
+                            continue;
+                        }
+                        // 命中本捕获读集时不再读 SQLite；读集被逐出时按新鲜行重读。
+                        frontier.extend(self.load(&id)?.children.iter().copied());
                     }
-                    // 命中本捕获读集时不再读 SQLite；读集被逐出时按新鲜行重读。
-                    frontier.extend(self.load(&id)?.children.iter().copied());
+                    cache::cert_commit(self.conn_id, &ids);
+                    let cert = cache::RootCert::new(
+                        check.row.node,
+                        check.row.slots.clone(),
+                        check.row.expanded_length,
+                        check.row.content_sha256.clone(),
+                    );
+                    retained = if cache::certify_retained_originals(self.conn_id, &ids) {
+                        cache::handle_put_certified(
+                            root_key,
+                            &cert,
+                            check.digest,
+                            bytes.clone(),
+                            None,
+                        )
+                    } else {
+                        None
+                    };
                 }
-                cache::cert_commit(self.conn_id, &ids);
-                let cert = cache::RootCert {
-                    node: check.row.node,
-                    slots: check.row.slots.clone(),
-                    expanded_length: check.row.expanded_length,
-                    content_sha256: check.row.content_sha256.clone(),
-                };
-                retained = cache::handle_put_certified(
-                    root_key,
-                    &cert,
-                    check.digest,
-                    bytes.clone(),
-                    None,
-                );
                 (bytes, None)
             }
         };
@@ -1358,7 +1368,10 @@ impl<'a> Reader<'a> {
     }
 
     /// 读一个根的展开字节。
-    pub(super) fn read_fixed_cut(&mut self, root_key: &str) -> Result<std::sync::Arc<[u8]>, String> {
+    pub(super) fn read_fixed_cut(
+        &mut self,
+        root_key: &str,
+    ) -> Result<std::sync::Arc<[u8]>, String> {
         Ok(self.read_root(root_key, false)?.bytes)
     }
 

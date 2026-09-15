@@ -17,7 +17,10 @@
 //! 不是 allocator/RSS 上限，也不声称 RSS 受其限制。
 use super::*;
 use std::collections::{BTreeSet, HashMap};
-use std::{cell::RefCell, sync::Arc};
+use std::{
+    cell::RefCell,
+    sync::{Arc, Weak},
+};
 
 pub(super) type DeltaRow = (
     i64,
@@ -44,7 +47,7 @@ struct Root {
     identity: Identity,
     /// 每代 Delta 原件的已核原件证书（图域）；整块域为 `None`——那里原件就在行内列里，
     /// 已由 `rows` 的逐字节比较钉死。长度恒等于 `rows.len()`。
-    delta_certs: Vec<Option<Arc<RootCert>>>,
+    delta_certs: Vec<Option<Weak<RootCert>>>,
     walk: audit::AuditWalk,
     bytes: usize,
 }
@@ -67,7 +70,10 @@ impl Cert {
             && self.payload.as_ref() == payload
     }
     fn payload_cost(&self) -> usize {
-        self.payload.len().saturating_add(64)
+        self.payload
+            .len()
+            .saturating_add(64)
+            .saturating_add(self.children.len().saturating_mul(32))
     }
 }
 
@@ -77,8 +83,24 @@ pub(super) struct RootCert {
     pub(super) slots: Vec<[u8; 32]>,
     pub(super) expanded_length: u64,
     pub(super) content_sha256: String,
+    // 原件池一旦丢失或替换节点，这份证明失效；此令牌仅负责失效，不能替代新鲜原件比较。
+    lineage: Weak<()>,
 }
 impl RootCert {
+    pub(super) fn new(
+        node: [u8; 32],
+        slots: Vec<[u8; 32]>,
+        expanded_length: u64,
+        content_sha256: String,
+    ) -> Self {
+        Self {
+            node,
+            slots,
+            expanded_length,
+            content_sha256,
+            lineage: Weak::new(),
+        }
+    }
     /// 逐字节比较**实际原件**：根指针、有序槽列、声明长度、内容摘要。
     pub(super) fn same_originals(
         &self,
@@ -107,7 +129,7 @@ impl RootCert {
 /// （指针同一），故摘要相等既不是充分条件也不是唯一条件。
 struct Handle {
     closure: [u8; 32],
-    root_cert: Option<Arc<RootCert>>,
+    root_cert: Option<Weak<RootCert>>,
     bytes: Arc<[u8]>,
     value: Option<Arc<Value>>,
     cost: usize,
@@ -157,6 +179,7 @@ struct Memo {
     /// 私有根的精确原件证书：按根键唯一保留一份（保持指针稳定供「同一原件」判定）。
     root_certs: HashMap<String, Arc<RootCert>>,
     certs_bytes: usize,
+    cert_lineage: Arc<()>,
     capture: Option<Capture>,
     root: Option<Root>,
 }
@@ -176,6 +199,7 @@ impl Default for Memo {
             certs: HashMap::new(),
             root_certs: HashMap::new(),
             certs_bytes: 0,
+            cert_lineage: Arc::new(()),
             capture: None,
             root: None,
         }
@@ -248,6 +272,25 @@ impl Memo {
             .saturating_add(cost)
             <= self.limit
     }
+    /// 移除索引后，捕获若仍持有原件，把唯一 payload 费用转给其中一个读集条目。
+    fn remove_cert(&mut self, key: &[u8; 32]) {
+        let Some(cert) = self.certs.remove(key) else {
+            return;
+        };
+        self.certs_bytes = self.certs_bytes.saturating_sub(cert.payload_cost());
+        self.cert_lineage = Arc::new(());
+        if let Some(c) = self.capture.as_mut() {
+            if let Some(owner) = c
+                .nodes
+                .iter()
+                .find(|(_, held)| Arc::ptr_eq(held, &cert))
+                .map(|(key, _)| *key)
+            {
+                c.owned.insert(owner);
+                c.bytes = c.bytes.saturating_add(cert.payload_cost());
+            }
+        }
+    }
     /// 驱逐独有节点证书（单条最大者优先）与根证书，直到证书总量不超过给定预算。
     /// 证书只影响复用、不影响任何判据；根证书被驱逐时其句柄一并作废（不留永远命不中的死句柄）。
     fn trim_certs(&mut self, budget: usize) {
@@ -265,10 +308,8 @@ impl Memo {
             if over == 0 {
                 break;
             }
-            if self.certs.remove(&key).is_some() {
-                self.certs_bytes = self.certs_bytes.saturating_sub(cost);
-                over = over.saturating_sub(cost);
-            }
+            self.remove_cert(&key);
+            over = over.saturating_sub(cost);
         }
         if over > 0 {
             let mut order = self
@@ -300,27 +341,50 @@ impl Memo {
             .saturating_sub(self.capture_bytes());
         self.trim_handles(after_root.saturating_sub(self.certs_bytes));
         self.trim_certs(after_root.saturating_sub(self.handles_bytes));
+        // 证书驱逐会把仍活着的共享原件转入捕获；若其暂存挤占新 root，只放弃节点暂存。
+        // 必要的遍历派生量/可达集合仍属当前算法工作集，根与下一次请求不能持有它们。
+        if self.retained_bytes().saturating_add(self.capture_bytes()) > self.limit {
+            if let Some(c) = self.capture.as_mut() {
+                c.nodes.clear();
+                c.owned.clear();
+                c.bytes = 0;
+            }
+        }
+        let after_root = self
+            .limit
+            .saturating_sub(self.root_bytes())
+            .saturating_sub(self.capture_bytes());
+        self.trim_handles(after_root.saturating_sub(self.certs_bytes));
+        self.trim_certs(after_root.saturating_sub(self.handles_bytes));
     }
 }
 /// 保留一份根原件证书（指针稳定：内容相同则复用既有 Arc，不换原件）。
-fn put_root_cert(memo: &mut Memo, root_key: &str, cert: RootCert) -> Option<Arc<RootCert>> {
+fn put_root_cert(memo: &mut Memo, root_key: &str, mut cert: RootCert) -> Option<Arc<RootCert>> {
     if memo.limit == 0 {
         return None;
     }
     if let Some(old) = memo.root_certs.get(root_key) {
-        if old.same_originals(
-            &cert.node,
-            &cert.slots,
-            cert.expanded_length,
-            &cert.content_sha256,
-        ) {
+        if Weak::ptr_eq(&old.lineage, &Arc::downgrade(&memo.cert_lineage))
+            && old.same_originals(
+                &cert.node,
+                &cert.slots,
+                cert.expanded_length,
+                &cert.content_sha256,
+            )
+        {
             return Some(old.clone());
         }
     }
     let cost = cert.cost().saturating_add(root_key.len());
+    if let Some(old) = memo.root_certs.remove(root_key) {
+        memo.certs_bytes = memo
+            .certs_bytes
+            .saturating_sub(old.cost().saturating_add(root_key.len()));
+    }
     if !memo.make_room(cost) {
         return None;
     }
+    cert.lineage = Arc::downgrade(&memo.cert_lineage);
     let old = memo.root_certs.insert(root_key.to_string(), Arc::new(cert));
     if let Some(old) = old {
         memo.certs_bytes = memo
@@ -387,7 +451,10 @@ pub(super) fn clear_handles() {
         let mut m = m.borrow_mut();
         m.handles.clear();
         m.handles_bytes = 0;
-        m.certs.clear();
+        let ids: Vec<_> = m.certs.keys().copied().collect();
+        for id in ids {
+            m.remove_cert(&id);
+        }
         m.root_certs.clear();
         m.certs_bytes = 0;
         m.root = None;
@@ -401,6 +468,9 @@ pub(super) fn configure(limit: usize) {
             ..Memo::default()
         }
     });
+}
+pub(super) fn retention_enabled() -> bool {
+    MEMO.with(|m| m.borrow().limit != 0)
 }
 
 /// 跨请求**保留量**的当前值（测试用；供「预算在每一处都实际满足」的行为证据）。
@@ -493,8 +563,7 @@ pub(super) fn node_put(conn_id: usize, cert: Arc<Cert>, owned: bool) {
             32 + 64
         };
         // 瞬时读集上限先判：装不下就直接不保留，**不**去动任何持久持有（无副作用）。
-        if m
-            .capture
+        if m.capture
             .as_ref()
             .is_some_and(|c| c.bytes.saturating_add(cost) > c.node_budget)
         {
@@ -515,12 +584,7 @@ pub(super) fn node_put(conn_id: usize, cert: Arc<Cert>, owned: bool) {
 /// 本次捕获已读入的节点数（供「同次捕获只读一次」的行为证据）。
 #[cfg(test)]
 pub(super) fn capture_len() -> usize {
-    MEMO.with(|m| {
-        m.borrow()
-            .capture
-            .as_ref()
-            .map_or(0, |c| c.nodes.len())
-    })
+    MEMO.with(|m| m.borrow().capture.as_ref().map_or(0, |c| c.nodes.len()))
 }
 
 /// 本捕获已算出的节点派生量（同一连接、同一次捕获内复用；跨捕获必然重算）。
@@ -560,10 +624,9 @@ pub(super) fn mark_reachable(conn_id: usize, id: [u8; 32]) {
 /// 本捕获在该连接上读入过的可达节点数（与节点表行数比对即等价于「无不可达残留」）。
 pub(super) fn capture_reachable_len(conn_id: usize) -> usize {
     MEMO.with(|m| {
-        m.borrow()
-            .capture
-            .as_ref()
-            .map_or(0, |c| c.reachable.iter().filter(|(id, _)| *id == conn_id).count())
+        m.borrow().capture.as_ref().map_or(0, |c| {
+            c.reachable.iter().filter(|(id, _)| *id == conn_id).count()
+        })
     })
 }
 /// 本捕获内已解析的存储格式（只在同一次捕获、同一个连接上复用；捕获结束即作废）。
@@ -652,17 +715,28 @@ pub(super) fn cert_commit(conn_id: usize, ids: &BTreeSet<[u8; 32]>) {
             return;
         }
         for id in ids {
-            if m.certs.contains_key(id) {
-                continue;
-            }
             let key = (conn_id, *id);
-            let Some((cert, owned)) = m
-                .capture
-                .as_ref()
-                .and_then(|c| c.nodes.get(&key).map(|n| (n.clone(), c.owned.contains(&key))))
-            else {
+            let Some(cert) = m.capture.as_ref().and_then(|c| c.nodes.get(&key).cloned()) else {
                 continue;
             };
+            if m.certs.get(id).is_some_and(|old| Arc::ptr_eq(old, &cert)) {
+                continue;
+            }
+            m.remove_cert(id);
+            let owner = m.capture.as_ref().and_then(|c| {
+                if c.owned.contains(&key) {
+                    return Some(key);
+                }
+                c.owned
+                    .iter()
+                    .find(|key| {
+                        c.nodes
+                            .get(key)
+                            .is_some_and(|held| Arc::ptr_eq(held, &cert))
+                    })
+                    .copied()
+            });
+            let owned = owner.is_some();
             if !owned && !m.make_room(cert.payload_cost()) {
                 continue;
             }
@@ -670,13 +744,49 @@ pub(super) fn cert_commit(conn_id: usize, ids: &BTreeSet<[u8; 32]>) {
                 // 独占：字节已由读集持有，只把它从瞬时读集**转记**为持久证书（总量不变）。
                 if let Some(c) = m.capture.as_mut() {
                     c.bytes = c.bytes.saturating_sub(cert.payload_cost());
-                    c.owned.remove(&key);
+                    c.owned.remove(&owner.unwrap());
                 }
             }
             m.certs_bytes = m.certs_bytes.saturating_add(cert.payload_cost());
             m.certs.insert(*id, cert);
             #[cfg(test)]
             counter(|c| c.cert_committed += 1);
+        }
+    });
+}
+/// 冷展开后，只有全部当前原件仍在池里且与本次读集为同一不可变原件，才能建立新根证明。
+pub(super) fn certify_retained_originals(conn_id: usize, ids: &BTreeSet<[u8; 32]>) -> bool {
+    MEMO.with(|m| {
+        let mut m = m.borrow_mut();
+        let Some(c) = &m.capture else { return false };
+        let complete = ids
+            .iter()
+            .all(|id| match (m.certs.get(id), c.nodes.get(&(conn_id, *id))) {
+                (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                _ => false,
+            });
+        // 已完整展开核验、且整个闭包仍持有同一份原件：本次捕获后续读取可复用刚建立的证明。
+        if complete {
+            let c = m.capture.as_mut().unwrap();
+            for id in ids {
+                c.matched.insert((conn_id, *id));
+                c.certified.insert((conn_id, *id));
+            }
+        }
+        complete
+    })
+}
+/// 旧依赖未被逐字节确认时撤销该根的旧证明，即便根行/摘要本身未变。
+pub(super) fn invalidate_root(root_key: &str) {
+    MEMO.with(|m| {
+        let mut m = m.borrow_mut();
+        if let Some(old) = m.root_certs.remove(root_key) {
+            m.certs_bytes = m
+                .certs_bytes
+                .saturating_sub(old.cost().saturating_add(root_key.len()));
+        }
+        if let Some(old) = m.handles.remove(root_key) {
+            m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
         }
     });
 }
@@ -693,10 +803,13 @@ pub(super) fn root_cert_match(
     content_sha256: &str,
 ) -> Option<Arc<RootCert>> {
     MEMO.with(|m| {
-        m.borrow()
-            .root_certs
+        let m = m.borrow();
+        m.root_certs
             .get(root_key)
-            .filter(|c| c.same_originals(node, slots, expanded_length, content_sha256))
+            .filter(|c| {
+                Weak::ptr_eq(&c.lineage, &Arc::downgrade(&m.cert_lineage))
+                    && c.same_originals(node, slots, expanded_length, content_sha256)
+            })
             .cloned()
     })
 }
@@ -712,14 +825,15 @@ pub(super) fn handle_get_certified(
     closure: &[u8; 32],
 ) -> Option<(Arc<[u8]>, Option<Arc<Value>>)> {
     MEMO.with(|m| {
-        m.borrow()
-            .handles
+        let m = m.borrow();
+        m.handles
             .get(root_key)
             .filter(|h| {
-                h.closure == *closure
+                Weak::ptr_eq(&root_cert.lineage, &Arc::downgrade(&m.cert_lineage))
+                    && h.closure == *closure
                     && h.root_cert
                         .as_ref()
-                        .is_some_and(|c| Arc::ptr_eq(c, root_cert))
+                        .is_some_and(|c| Weak::ptr_eq(c, &Arc::downgrade(root_cert)))
             })
             .map(|h| (h.bytes.clone(), h.value.clone()))
     })
@@ -760,12 +874,12 @@ pub(super) fn handle_put_certified(
         let retained = put_root_cert(
             &mut m,
             root_key,
-            RootCert {
-                node: root_cert.node,
-                slots: root_cert.slots.clone(),
-                expanded_length: root_cert.expanded_length,
-                content_sha256: root_cert.content_sha256.clone(),
-            },
+            RootCert::new(
+                root_cert.node,
+                root_cert.slots.clone(),
+                root_cert.expanded_length,
+                root_cert.content_sha256.clone(),
+            ),
         )?;
         let cost = handle_cost(root_key.len(), bytes.len(), value.is_some());
         if let Some(old) = m.handles.remove(root_key) {
@@ -779,7 +893,7 @@ pub(super) fn handle_put_certified(
             root_key.to_string(),
             Handle {
                 closure,
-                root_cert: Some(retained.clone()),
+                root_cert: Some(Arc::downgrade(&retained)),
                 bytes,
                 value,
                 cost,
@@ -857,8 +971,11 @@ pub(super) fn resume(
         for i in 0..old.rows.len() {
             match (&old.delta_certs[i], &delta_certs[i]) {
                 // 整块域：原件就在行内列里，已由上面的逐字节比较钉死。
-                (None, None) => {}
-                (Some(a), Some(b)) if Arc::ptr_eq(a, b) => {}
+                (None, None) if identity.4 != evidence_store::GRAPH_FORMAT => {}
+                (Some(a), Some(b))
+                    if Weak::ptr_eq(a, &Arc::downgrade(b))
+                        && (identity.4 != evidence_store::GRAPH_FORMAT
+                            || Weak::ptr_eq(&b.lineage, &Arc::downgrade(&m.cert_lineage))) => {}
                 _ => return 0,
             }
         }
@@ -905,7 +1022,10 @@ pub(super) fn store_root(
         m.root = Some(Root {
             rows,
             identity,
-            delta_certs,
+            delta_certs: delta_certs
+                .into_iter()
+                .map(|c| c.as_ref().map(Arc::downgrade))
+                .collect(),
             walk,
             bytes,
         });
@@ -968,7 +1088,7 @@ mod tests {
             "catalog-hash".to_string(),
             ("profile-id".to_string(), "profile-hash".to_string()),
             delta_storage::CHANGES_ONLY.to_string(),
-            evidence_store::GRAPH_FORMAT.to_string(),
+            evidence_store::GRAPH_FORMAT_V2.to_string(),
         )
     }
     fn rows(n: i64) -> Vec<DeltaRow> {
@@ -1011,12 +1131,12 @@ mod tests {
         )
     }
     fn root_cert(node: u8, slots: &[u8], len: u64, hash: &str) -> Arc<RootCert> {
-        Arc::new(RootCert {
-            node: [node; 32],
-            slots: slots.iter().map(|s| [*s; 32]).collect(),
-            expanded_length: len,
-            content_sha256: hash.to_string(),
-        })
+        Arc::new(RootCert::new(
+            [node; 32],
+            slots.iter().map(|s| [*s; 32]).collect(),
+            len,
+            hash.to_string(),
+        ))
     }
     fn plain_certs(n: usize) -> Vec<Option<Arc<RootCert>>> {
         (0..n).map(|_| None).collect()
@@ -1032,6 +1152,131 @@ mod tests {
     }
     fn memo_retained() -> usize {
         MEMO.with(|m| m.borrow().retained_bytes())
+    }
+
+    #[test]
+    fn graph3_missing_both_delta_certificates_never_resumes() {
+        configure(1 << 20);
+        let mut graph = identity("test-c");
+        graph.4 = evidence_store::GRAPH_FORMAT.to_string();
+        store_root(rows(2), graph.clone(), empty_walk(), plain_certs(2));
+        assert_eq!(
+            resume(&rows(2), &graph, &mut empty_walk(), &plain_certs(2)),
+            0
+        );
+        configure(0);
+    }
+
+    #[test]
+    fn graph3_parameter_originals_and_cold_proof_are_bound_to_the_root() {
+        configure(1 << 20);
+        let conn = Connection::open_in_memory().unwrap();
+        evidence_store::declare_new(&conn).unwrap();
+        let staged = evidence_store::stage_complete(
+            &json!({"v": 9}),
+            &[evidence_store::SlotSpec::number("9")],
+        )
+        .unwrap();
+        evidence_store::publish_refs(&conn, "batch/proof", &staged).unwrap();
+        let first = evidence_store::Reader::new(&conn, 1 << 20)
+            .read_root("batch/proof", false)
+            .unwrap();
+        let (_, slots, _, _) = evidence_store::Reader::root_row(&conn, "batch/proof")
+            .unwrap()
+            .unwrap();
+        assert!(!slots.is_empty());
+        assert!(
+            slots.iter().all(|id| cert_get(id).is_some()),
+            "参数槽原件必须随根保留"
+        );
+        let warm = evidence_store::Reader::new(&conn, 1 << 20)
+            .read_root("batch/proof", false)
+            .unwrap();
+        assert!(warm.originals_verified && warm.reused);
+        // 人为移除一份原件，模拟证书不可保留；数据库和所有摘要都保持不变。
+        MEMO.with(|m| {
+            let mut m = m.borrow_mut();
+            let old = m.certs.remove(&slots[0]).unwrap();
+            m.certs_bytes -= old.payload_cost();
+        });
+        let cold = evidence_store::Reader::new(&conn, 1 << 20)
+            .read_root("batch/proof", false)
+            .unwrap();
+        assert_eq!(first.bytes, cold.bytes);
+        assert!(!cold.originals_verified && !cold.reused);
+        assert!(
+            !Arc::ptr_eq(
+                first.root_cert.as_ref().unwrap(),
+                cold.root_cert.as_ref().unwrap()
+            ),
+            "未比较齐旧依赖时不得返回旧根证明供前缀复用"
+        );
+        configure(0);
+    }
+
+    #[test]
+    fn certificate_eviction_accounts_for_still_owned_original_bytes() {
+        configure(1 << 20);
+        let _capture = begin_capture(1 << 20);
+        node_put(7, cert(4, 0, &[0u8; 4096], 4096), true);
+        cert_commit(7, &BTreeSet::from([[4u8; 32]]));
+        MEMO.with(|m| {
+            let mut m = m.borrow_mut();
+            m.trim_certs(0);
+            // 独立从仍持有的 Arc 读取真实 payload；不以被测计数器自证。
+            let payload = m
+                .capture
+                .as_ref()
+                .unwrap()
+                .nodes
+                .values()
+                .map(|c| c.payload.len())
+                .sum::<usize>();
+            assert!(
+                m.total_bytes() >= payload,
+                "被驱逐索引中的原件仍被 Capture 持有，不能漏记"
+            );
+        });
+        end_capture();
+        assert_eq!(memo_total(), 0);
+        configure(0);
+    }
+
+    #[test]
+    fn evicted_certificates_cannot_be_retained_or_reused_by_old_root_handles() {
+        configure(1 << 20);
+        let original = root_cert(1, &[], 2, "hash");
+        let retained =
+            handle_put_certified("delta/1", &original, [0; 32], Arc::from(&b"{}"[..]), None)
+                .unwrap();
+        let weak = Arc::downgrade(&retained);
+        store_root(
+            rows(1),
+            identity("test-c"),
+            empty_walk(),
+            vec![Some(retained.clone())],
+        );
+        drop(retained);
+        MEMO.with(|m| m.borrow_mut().trim_certs(0));
+        assert!(
+            weak.upgrade().is_none(),
+            "旧 root/walk 不得持有已从预算索引移除的根证书"
+        );
+
+        let kept = handle_put_certified("delta/1", &original, [0; 32], Arc::from(&b"{}"[..]), None)
+            .unwrap();
+        {
+            let _capture = begin_capture(1 << 20);
+            node_put(7, cert(4, 0, b"x", 1), true);
+            cert_commit(7, &BTreeSet::from([[4; 32]]));
+        }
+        assert!(handle_get_certified("delta/1", &kept, &[0; 32]).is_some());
+        MEMO.with(|m| m.borrow_mut().remove_cert(&[4; 32]));
+        assert!(
+            handle_get_certified("delta/1", &kept, &[0; 32]).is_none(),
+            "原件池丢失依赖后，旧根证明不能依赖同一摘要重新生效"
+        );
+        configure(0);
     }
 
     #[test]
@@ -1092,13 +1337,23 @@ mod tests {
         store_root(small, identity("test-c"), empty_walk(), plain_certs(2));
         let (bytes, value) = handle("batch-a", 64, true);
         handle_put_blob("batch-a", [0u8; 32], bytes, value);
-        store_root(huge.clone(), identity("test-c"), empty_walk(), plain_certs(64));
+        store_root(
+            huge.clone(),
+            identity("test-c"),
+            empty_walk(),
+            plain_certs(64),
+        );
         // 装不下新 root：旧前缀与句柄都保留，不清整个 Memo。
         assert_eq!(memo_root_rows(), Some(2));
         assert_eq!(memo_handle_keys(), vec!["batch-a"]);
         assert!(memo_total() <= limit);
         assert_eq!(
-            resume(&huge, &identity("test-c"), &mut empty_walk(), &plain_certs(64)),
+            resume(
+                &huge,
+                &identity("test-c"),
+                &mut empty_walk(),
+                &plain_certs(64)
+            ),
             2
         );
         assert_eq!(last_resumed(), 2);
@@ -1106,7 +1361,12 @@ mod tests {
         let mut changed = huge.clone();
         changed[0].6 = "batch-9".to_string();
         assert_eq!(
-            resume(&changed, &identity("test-c"), &mut empty_walk(), &plain_certs(64)),
+            resume(
+                &changed,
+                &identity("test-c"),
+                &mut empty_walk(),
+                &plain_certs(64)
+            ),
             0
         );
         assert_eq!(last_resumed(), 0);
@@ -1154,7 +1414,12 @@ mod tests {
         assert_eq!(last_resumed(), 0);
         // 图域缺原件证据（None）同样不得复用。
         assert_eq!(
-            resume(&rows3, &identity("test-c"), &mut empty_walk(), &plain_certs(3)),
+            resume(
+                &rows3,
+                &identity("test-c"),
+                &mut empty_walk(),
+                &plain_certs(3)
+            ),
             0
         );
         // 整块域（双方都是 None）仍按行内列逐字节比较复用。
@@ -1165,7 +1430,12 @@ mod tests {
             plain_certs(3),
         );
         assert_eq!(
-            resume(&rows3, &identity("test-c"), &mut empty_walk(), &plain_certs(3)),
+            resume(
+                &rows3,
+                &identity("test-c"),
+                &mut empty_walk(),
+                &plain_certs(3)
+            ),
             3
         );
         configure(0);
@@ -1183,12 +1453,12 @@ mod tests {
         let (bytes, value) = handle("delta/1", 64, true);
         let retained = handle_put_certified(
             "delta/1",
-            &RootCert {
-                node: wanted.node,
-                slots: wanted.slots.clone(),
-                expanded_length: wanted.expanded_length,
-                content_sha256: wanted.content_sha256.clone(),
-            },
+            &RootCert::new(
+                wanted.node,
+                wanted.slots.clone(),
+                wanted.expanded_length,
+                wanted.content_sha256.clone(),
+            ),
             digest,
             bytes,
             value,
@@ -1199,12 +1469,7 @@ mod tests {
         assert!(root_cert_match("delta/1", &node, &slots, 64, "hash-a").is_some());
         assert!(handle_get_certified("delta/1", &retained, &digest).is_some());
         // 摘要相同、内容也相同的**另一份**证书对象仍不是同一个原件：不得命中句柄。
-        let other_object = Arc::new(RootCert {
-            node,
-            slots: slots.clone(),
-            expanded_length: 64,
-            content_sha256: "hash-a".to_string(),
-        });
+        let other_object = Arc::new(RootCert::new(node, slots.clone(), 64, "hash-a".to_string()));
         assert!(
             handle_get_certified("delta/1", &other_object, &digest).is_none(),
             "另一份证书对象不得冒充同一原件"
@@ -1229,8 +1494,8 @@ mod tests {
         assert!(!kept.same_originals(1, b"same-payloaD", 12)); // payload 差一个字节
         assert!(!kept.same_originals(1, b"same-payload", 13)); // 声明长度不同
         assert!(!kept.same_originals(0, b"same-payload", 12)); // 种类不同
-        // ⑥ 子依赖原件变化：父节点 payload 逐字节不变（子引用相同），但子节点原件不同 ⟹
-        // 闭包门必须为假（全闭包逐字节命中才允许复用）。
+                                                               // ⑥ 子依赖原件变化：父节点 payload 逐字节不变（子引用相同），但子节点原件不同 ⟹
+                                                               // 闭包门必须为假（全闭包逐字节命中才允许复用）。
         let mut parent = cert(2, 1, b"parent-refs-child", 40);
         Arc::get_mut(&mut parent).unwrap().children = vec![[1u8; 32]];
         node_put(0, parent, true);
@@ -1307,21 +1572,41 @@ mod tests {
         assert!(handle_get_blob("batch-a", &[b'y'; 64], &[7u8; 32]).is_none());
         store_root(rows(3), identity("test-c"), empty_walk(), plain_certs(3));
         assert_eq!(
-            resume(&rows(5), &identity("test-c"), &mut empty_walk(), &plain_certs(5)),
+            resume(
+                &rows(5),
+                &identity("test-c"),
+                &mut empty_walk(),
+                &plain_certs(5)
+            ),
             3
         );
         assert_eq!(
-            resume(&rows(5), &identity("other-c"), &mut empty_walk(), &plain_certs(5)),
+            resume(
+                &rows(5),
+                &identity("other-c"),
+                &mut empty_walk(),
+                &plain_certs(5)
+            ),
             0
         );
         let mut changed = rows(5);
         changed[1].4 = "cut-99".to_string();
         assert_eq!(
-            resume(&changed, &identity("test-c"), &mut empty_walk(), &plain_certs(5)),
+            resume(
+                &changed,
+                &identity("test-c"),
+                &mut empty_walk(),
+                &plain_certs(5)
+            ),
             0
         );
         assert_eq!(
-            resume(&rows(2), &identity("test-c"), &mut empty_walk(), &plain_certs(2)),
+            resume(
+                &rows(2),
+                &identity("test-c"),
+                &mut empty_walk(),
+                &plain_certs(2)
+            ),
             0
         );
     }
@@ -1340,7 +1625,12 @@ mod tests {
         assert!(node_get(7, &[9u8; 32]).is_none());
         assert!(cert_get(&[9u8; 32]).is_none());
         assert_eq!(
-            resume(&rows(2), &identity("test-c"), &mut empty_walk(), &plain_certs(2)),
+            resume(
+                &rows(2),
+                &identity("test-c"),
+                &mut empty_walk(),
+                &plain_certs(2)
+            ),
             0
         );
         assert_eq!(last_resumed(), 0);
@@ -1463,14 +1753,14 @@ mod tests {
         configure(4096);
         store_root(
             rows(3),
-            with_format(evidence_store::GRAPH_FORMAT),
+            with_format(evidence_store::GRAPH_FORMAT_V2),
             empty_walk(),
             plain_certs(3),
         );
         assert_eq!(
             resume(
                 &rows(3),
-                &with_format(evidence_store::GRAPH_FORMAT),
+                &with_format(evidence_store::GRAPH_FORMAT_V2),
                 &mut empty_walk(),
                 &plain_certs(3)
             ),
@@ -1479,7 +1769,7 @@ mod tests {
         assert_eq!(
             resume(
                 &rows(3),
-                &with_format(evidence_store::GRAPH_FORMAT_V2),
+                &with_format(evidence_store::GRAPH_FORMAT),
                 &mut empty_walk(),
                 &plain_certs(3)
             ),
