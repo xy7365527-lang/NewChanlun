@@ -612,9 +612,9 @@ fn verify_epoch_history(conn: &Connection, v2: bool) -> Result<Vec<(String, i64)
 }
 
 /// 所有当前控制行都新鲜检查，不能按generation过滤未来/同代损坏或信任自报摘要。
-pub fn verify_control(
+pub(super) fn verify_control(
     conn: &Connection,
-    batches: &BTreeMap<String, std::sync::Arc<Value>>,
+    batches: &BTreeMap<String, BatchControlHeader>,
 ) -> Result<(), String> {
     let enabled = active(conn)?;
     verify_schema(conn, enabled)?;
@@ -977,10 +977,11 @@ pub fn verify_control(
         let (id, index) = commits_by_generation
             .get(&g)
             .ok_or_else(|| err("v2发布缺真实Commit phase"))?;
-        if batch["protocol_revision"] != "s-session/2"
-            || batch["session_generation"] != inc
-            || batch["clock_plan_hash"] != clock.hash
-            || batch["semantic_commit_ns"] != clock.phase(id, "commit", *index).map_err(err)?
+        if batch.protocol_revision.as_deref() != Some("s-session/2")
+            || batch.session_generation.as_deref() != Some(inc.as_str())
+            || batch.clock_plan_hash.as_deref() != Some(clock.hash.as_str())
+            || batch.semantic_commit_ns.as_deref()
+                != Some(clock.phase(id, "commit", *index).map_err(err)?.as_str())
         {
             return Err(err("发布batch与真实语义clock/session不一致"));
         }
@@ -1927,6 +1928,51 @@ mod tests {
     }
 
     #[test]
+    fn v2_header_capture_survives_full_handle_eviction() {
+        cache::configure(268435456);
+        let f = Fixture::new(8, 2);
+        for i in 0..4 {
+            f.ingest(i);
+        }
+        let conn = open_db(&f.db).unwrap();
+        cache::configure(268435456);
+        cache::counters_reset();
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::counters_snapshot().batch_header_full_fallbacks, 4);
+        assert_eq!(cache::counters_snapshot().batch_suffix_full_reads, 4);
+        cache::evict_full_handles_for_test();
+        cache::counters_reset();
+        let tx = conn.unchecked_transaction().unwrap();
+        let reachable = capture_reachable_batches(&tx).unwrap();
+        verify_control(&tx, &reachable.batches).unwrap();
+        assert_eq!(cache::counters_snapshot().batch_header_hits, 4);
+        assert_eq!(cache::counters_snapshot().batch_full_reads, 0);
+        assert_eq!(
+            cache::counters_snapshot().batch_expansions,
+            0,
+            "完整原件证明尚存时，控制头捕获不得因大句柄驱逐而展开历史batch"
+        );
+        verify_reachable_root_in_tx(&tx, &reachable).unwrap();
+        assert_eq!(cache::last_resumed(), 4);
+        assert_eq!(cache::counters_snapshot().batch_suffix_full_reads, 0);
+        for field in 0..4 {
+            let mut bad = reachable.batches.clone();
+            let header = bad.values_mut().next().unwrap();
+            match field {
+                0 => header.protocol_revision = None,
+                1 => header.session_generation = None,
+                2 => header.clock_plan_hash = None,
+                _ => header.semantic_commit_ns = Some("01020".into()),
+            }
+            assert!(
+                verify_control(&tx, &bad).is_err(),
+                "控制头不得暗补或数字归一化"
+            );
+        }
+        cache::configure(0);
+    }
+
+    #[test]
     fn v2_bounded_cache_reuses_only_fresh_equal_dependencies() {
         cache::configure(268435456);
         let f = Fixture::new(8, 2);
@@ -1952,8 +1998,12 @@ mod tests {
         verify_reachable_root(&conn).unwrap();
         // 缓存极小须回完整门，既不拒合法库也不留下前缀健康标签。
         cache::configure(1);
+        cache::counters_reset();
         verify_reachable_root(&conn).unwrap();
         assert_eq!(cache::last_resumed(), 0);
+        assert_eq!(cache::counters_snapshot().batch_header_hits, 0);
+        assert!(cache::counters_snapshot().batch_header_full_fallbacks >= 5);
+        assert!(cache::counters_snapshot().batch_suffix_full_reads >= 5);
         verify_reachable_root(&conn).unwrap();
         assert_eq!(cache::last_resumed(), 0);
         cache::configure(0);
@@ -1979,6 +2029,10 @@ mod tests {
             "UPDATE structure_deltas SET delta_json='{}' WHERE generation=1",
             "UPDATE structure_deltas SET catalog_evidence_json='{}' WHERE generation=1",
             "UPDATE batches SET canonical_bytes=x'7b7d',byte_len=2",
+            "UPDATE batches SET byte_len=byte_len+1",
+            "UPDATE s_evidence_nodes SET payload=CAST(payload||x'00' AS BLOB) WHERE node_id=(SELECT node_id FROM s_evidence_roots WHERE root_key LIKE 'batch/%' LIMIT 1)",
+            "UPDATE s_evidence_roots SET slot_ids=zeroblob(32) WHERE root_key LIKE 'batch/%'",
+            "UPDATE s_evidence_roots SET content_sha256=lower(hex(zeroblob(32))) WHERE root_key LIKE 'batch/%'",
             "DELETE FROM meta WHERE key='profile_definition'",
             "UPDATE meta SET value='foreign' WHERE key='catalog_hash'",
             "UPDATE meta SET value='-1' WHERE key='writer_epoch'",
@@ -2002,6 +2056,7 @@ mod tests {
             let healthy = open_db(&f.db).unwrap();
             verify_reachable_root(&healthy).unwrap();
             assert_eq!(cache::last_resumed(), 4);
+            cache::evict_full_handles_for_test();
             let other = open_db(&f.db).unwrap();
             other.execute_batch(sql).unwrap();
             drop(other);
@@ -2448,7 +2503,7 @@ fn testonly_audit_cost_breakdown() {
     fn retained_sample() -> Value {
         let (root, handles, originals) = cache::retained_breakdown();
         json!({
-            "retained_breakdown": {"root_walk_bytes":root,"handle_bytes":handles,"original_cert_bytes":originals},
+            "retained_breakdown": {"root_walk_bytes":root,"handle_bytes":handles,"original_cert_bytes":originals,"batch_header_bytes":cache::batch_header_bytes()},
             "capture_bytes_now":cache::capture_bytes_now()
         })
     }

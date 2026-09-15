@@ -2,7 +2,7 @@
 //! 不使用 generation/mtime/data_version 代替依赖校验；默认禁用，serve 显式配置容量。
 //!
 //! #1394 第二段（2B/2D）的单预算纪律：**一个**可配置上限（`configure`）约束全部**保留量**——
-//! root walk（Delta 行前缀 + 审计捕获）、持久句柄（展开字节 + 解码 JSON + 根原件证书）、持久
+//! root walk（Delta 行前缀 + 审计捕获）、持久句柄（展开字节 + 解码 JSON + 根原件证书）、小批次控制头、持久
 //! 原件证书（每个唯一节点一份原始行）。本次捕获的临时读集与派生量是**瞬时工作集**：每次捕获
 //! 重建、捕获结束即释放，不是第二个可配置预算、也不是跨请求缓存。超限先驱逐**可丢弃**的持久
 //! 句柄（最贵、最可弃），仍装不下就跳过该项保留——只失去复用，不改变任何合法性判据。
@@ -136,6 +136,15 @@ struct Handle {
     value: Option<Arc<Value>>,
     cost: usize,
 }
+/// 经公开 batch 身份核验后取得的小头；弱绑定完整原件证明，不持大 Value/bytes 或强证书。
+struct BatchHeaderEntry {
+    batch_id: String,
+    byte_len: usize,
+    root_cert: Weak<RootCert>,
+    closure: [u8; 32],
+    header: BatchControlHeader,
+    cost: usize,
+}
 /// 本次捕获的临时读集（瞬时工作集，捕获结束即释放）：本次读入并比较过的节点原件。
 #[derive(Default)]
 struct Capture {
@@ -176,6 +185,8 @@ struct Memo {
     limit: usize,
     handles: BTreeMap<String, Handle>,
     handles_bytes: usize,
+    batch_headers: BTreeMap<String, BatchHeaderEntry>,
+    batch_headers_bytes: usize,
     /// 精确原件证书：按内容寻址 id 唯一保留一份（共享原件按唯一保留量记账）。
     certs: HashMap<[u8; 32], Arc<Cert>>,
     /// 私有根的精确原件证书：按根键唯一保留一份（保持指针稳定供「同一原件」判定）。
@@ -198,6 +209,8 @@ impl Default for Memo {
             limit,
             handles: BTreeMap::new(),
             handles_bytes: 0,
+            batch_headers: BTreeMap::new(),
+            batch_headers_bytes: 0,
             certs: HashMap::new(),
             root_certs: HashMap::new(),
             certs_bytes: 0,
@@ -221,10 +234,11 @@ impl Memo {
     fn root_bytes(&self) -> usize {
         self.root.as_ref().map_or(0, |r| r.bytes)
     }
-    /// 跨请求**保留量**：root walk + 持久句柄 + 持久原件证书。由单一 `limit` 约束。
+    /// 跨请求**保留量**：root walk + 持久句柄 + 小控制头 + 持久原件证书。由单一 `limit` 约束。
     fn retained_bytes(&self) -> usize {
         self.root_bytes()
             .saturating_add(self.handles_bytes)
+            .saturating_add(self.batch_headers_bytes)
             .saturating_add(self.certs_bytes)
     }
     #[cfg(test)]
@@ -257,9 +271,33 @@ impl Memo {
             over = over.saturating_sub(cost);
         }
     }
-    /// 单一预算下为 `cost` 字节腾出空间：先驱逐**可丢弃**的持久句柄，返回腾出后是否装得下。
+    fn remove_batch_header(&mut self, root_key: &str) {
+        if let Some(old) = self.batch_headers.remove(root_key) {
+            self.batch_headers_bytes = self.batch_headers_bytes.saturating_sub(old.cost);
+        }
+    }
+    fn trim_batch_headers(&mut self, budget: usize) {
+        if self.batch_headers_bytes <= budget {
+            return;
+        }
+        let mut order = self
+            .batch_headers
+            .iter()
+            .map(|(key, entry)| (entry.cost, key.clone()))
+            .collect::<Vec<_>>();
+        order.sort_by(|a, b| b.cmp(a));
+        for (_, key) in order {
+            if self.batch_headers_bytes <= budget {
+                break;
+            }
+            self.remove_batch_header(&key);
+            #[cfg(test)]
+            counter(|c| c.batch_header_capacity_evictions += 1);
+        }
+    }
+    /// 单一预算下先丢大句柄、再丢小控制头；不为准入旋转原件池。
     fn make_room(&mut self, cost: usize) -> bool {
-        // 先判这一项在**没有任何句柄**时能否装下：装不下就不该为它驱逐其他仍可复用的句柄
+        // 先判这一项在**没有句柄/控制头**时能否装下：装不下就不该为它驱逐其他仍可复用项
         // （单条过大只跳过自己，不牵连别人）。
         let floor = self
             .root_bytes()
@@ -274,6 +312,12 @@ impl Memo {
         }
         let need = used.saturating_add(cost).saturating_sub(self.limit);
         self.trim_handles(self.handles_bytes.saturating_sub(need));
+        let need = self
+            .retained_bytes()
+            .saturating_add(self.capture_bytes())
+            .saturating_add(cost)
+            .saturating_sub(self.limit);
+        self.trim_batch_headers(self.batch_headers_bytes.saturating_sub(need));
         self.retained_bytes()
             .saturating_add(self.capture_bytes())
             .saturating_add(cost)
@@ -286,6 +330,9 @@ impl Memo {
         };
         self.certs_bytes = self.certs_bytes.saturating_sub(cert.payload_cost());
         self.cert_lineage = Arc::new(());
+        // 每个头都绑定这一 lineage；旋转后不可再复用，立即释放其源字节账。
+        self.batch_headers.clear();
+        self.batch_headers_bytes = 0;
         #[cfg(test)]
         counter(|c| c.lineage_rotations += 1);
         if let Some(c) = self.capture.as_mut() {
@@ -334,6 +381,7 @@ impl Memo {
                     break;
                 }
                 if self.root_certs.remove(&key).is_some() {
+                    self.remove_batch_header(&key);
                     #[cfg(test)]
                     counter(|c| c.root_cert_capacity_evictions += 1);
                     self.certs_bytes = self.certs_bytes.saturating_sub(cost);
@@ -357,8 +405,21 @@ impl Memo {
             .limit
             .saturating_sub(self.root_bytes())
             .saturating_sub(self.capture_bytes());
-        self.trim_handles(after_root.saturating_sub(self.certs_bytes));
-        self.trim_certs(after_root.saturating_sub(self.handles_bytes));
+        self.trim_handles(
+            after_root
+                .saturating_sub(self.certs_bytes)
+                .saturating_sub(self.batch_headers_bytes),
+        );
+        self.trim_batch_headers(
+            after_root
+                .saturating_sub(self.certs_bytes)
+                .saturating_sub(self.handles_bytes),
+        );
+        self.trim_certs(
+            after_root
+                .saturating_sub(self.handles_bytes)
+                .saturating_sub(self.batch_headers_bytes),
+        );
         // 证书驱逐会把仍活着的共享原件转入捕获；若其暂存挤占新 root，只放弃节点暂存。
         // 必要的遍历派生量/可达集合仍属当前算法工作集，根与下一次请求不能持有它们。
         if self.retained_bytes().saturating_add(self.capture_bytes()) > self.limit {
@@ -372,8 +433,21 @@ impl Memo {
             .limit
             .saturating_sub(self.root_bytes())
             .saturating_sub(self.capture_bytes());
-        self.trim_handles(after_root.saturating_sub(self.certs_bytes));
-        self.trim_certs(after_root.saturating_sub(self.handles_bytes));
+        self.trim_handles(
+            after_root
+                .saturating_sub(self.certs_bytes)
+                .saturating_sub(self.batch_headers_bytes),
+        );
+        self.trim_batch_headers(
+            after_root
+                .saturating_sub(self.certs_bytes)
+                .saturating_sub(self.handles_bytes),
+        );
+        self.trim_certs(
+            after_root
+                .saturating_sub(self.handles_bytes)
+                .saturating_sub(self.batch_headers_bytes),
+        );
     }
 }
 /// 保留一份根原件证书（指针稳定：内容相同则复用既有 Arc，不换原件）。
@@ -395,6 +469,7 @@ fn put_root_cert(memo: &mut Memo, root_key: &str, mut cert: RootCert) -> Option<
     }
     let cost = cert.cost().saturating_add(root_key.len());
     if let Some(old) = memo.root_certs.remove(root_key) {
+        memo.remove_batch_header(root_key);
         memo.certs_bytes = memo
             .certs_bytes
             .saturating_sub(old.cost().saturating_add(root_key.len()));
@@ -439,6 +514,18 @@ pub(super) struct EvidenceCounters {
     pub root_handle_hits: usize,
     pub root_expansions: usize,
     pub root_parses: usize,
+    /// proof-only 与控制头复用单列，不能冒充全文句柄命中。
+    pub root_proof_reads: usize,
+    pub root_proof_hits: usize,
+    pub root_proof_misses: usize,
+    pub root_proof_errors: usize,
+    pub batch_header_hits: usize,
+    pub batch_header_misses: usize,
+    pub batch_header_admission_rejected: usize,
+    pub batch_header_capacity_evictions: usize,
+    pub batch_full_reads: usize,
+    pub batch_header_full_fallbacks: usize,
+    pub batch_suffix_full_reads: usize,
     /// 批次：命中已核句柄 vs 本次完整展开（历史 batch 展开数）。
     pub batch_handle_hits: usize,
     pub batch_expansions: usize,
@@ -523,13 +610,15 @@ pub(super) fn counters_snapshot() -> EvidenceCounters {
     COUNTERS.with(|c| *c.borrow())
 }
 
-/// #1394：丢掉**跨请求的持久持有**（句柄 + 原件证书 + root walk），保留配置与临时读集。
+/// #1394：丢掉**跨请求的持久持有**（句柄 + 控制头 + 原件证书 + root walk），保留配置与临时读集。
 /// 用于测量真正的冷展开成本，也用于「冷/暖结果必须一致」的对照。
 pub(super) fn clear_handles() {
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
         m.handles.clear();
         m.handles_bytes = 0;
+        m.batch_headers.clear();
+        m.batch_headers_bytes = 0;
         let ids: Vec<_> = m.certs.keys().copied().collect();
         for id in ids {
             m.remove_cert(&id);
@@ -569,6 +658,14 @@ pub(super) fn retained_breakdown() -> (usize, usize, usize) {
         let m = m.borrow();
         (m.root_bytes(), m.handles_bytes, m.certs_bytes)
     })
+}
+#[cfg(test)]
+pub(super) fn batch_header_bytes() -> usize {
+    MEMO.with(|m| m.borrow().batch_headers_bytes)
+}
+#[cfg(test)]
+pub(super) fn evict_full_handles_for_test() {
+    MEMO.with(|m| m.borrow_mut().trim_handles(0));
 }
 
 // ───────────────────────── 临时读集（本次捕获） ─────────────────────────
@@ -865,6 +962,7 @@ pub(super) fn certify_retained_originals(conn_id: usize, ids: &BTreeSet<[u8; 32]
 pub(super) fn invalidate_root(root_key: &str) {
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
+        m.remove_batch_header(root_key);
         if let Some(old) = m.root_certs.remove(root_key) {
             m.certs_bytes = m
                 .certs_bytes
@@ -921,6 +1019,85 @@ pub(super) fn root_cert_match(
 }
 
 // ───────────────────────── 持久句柄（跨请求复用） ─────────────────────────
+
+pub(super) fn batch_header_get(
+    root_key: &str,
+    batch_id: &str,
+    byte_len: usize,
+    root_cert: &Arc<RootCert>,
+    closure: &[u8; 32],
+) -> Option<BatchControlHeader> {
+    MEMO.with(|m| {
+        let m = m.borrow();
+        let found = m.batch_headers.get(root_key).filter(|entry| {
+            entry.batch_id == batch_id
+                && entry.byte_len == byte_len
+                && entry.closure == *closure
+                && Weak::ptr_eq(&entry.root_cert, &Arc::downgrade(root_cert))
+                && Weak::ptr_eq(&root_cert.lineage, &Arc::downgrade(&m.cert_lineage))
+                && m.root_certs
+                    .get(root_key)
+                    .is_some_and(|current| Arc::ptr_eq(current, root_cert))
+        });
+        #[cfg(test)]
+        counter(|c| {
+            if found.is_some() {
+                c.batch_header_hits += 1;
+            } else {
+                c.batch_header_misses += 1;
+            }
+        });
+        found.map(|entry| entry.header.clone())
+    })
+}
+
+/// 只由外层完整读取、严格解析及公开身份通过后的路径晋升；预算不足只放弃小头。
+pub(super) fn batch_header_put(
+    root_key: &str,
+    batch_id: &str,
+    byte_len: usize,
+    root_cert: &Arc<RootCert>,
+    closure: [u8; 32],
+    header: BatchControlHeader,
+) {
+    MEMO.with(|m| {
+        let mut m = m.borrow_mut();
+        if m.limit == 0
+            || !Weak::ptr_eq(&root_cert.lineage, &Arc::downgrade(&m.cert_lineage))
+            || !m
+                .root_certs
+                .get(root_key)
+                .is_some_and(|current| Arc::ptr_eq(current, root_cert))
+        {
+            #[cfg(test)]
+            counter(|c| c.batch_header_admission_rejected += 1);
+            return;
+        }
+        let cost = root_key
+            .len()
+            .saturating_add(batch_id.len())
+            .saturating_add(header.source_bytes())
+            .saturating_add(128);
+        m.remove_batch_header(root_key);
+        if !m.make_room(cost) {
+            #[cfg(test)]
+            counter(|c| c.batch_header_admission_rejected += 1);
+            return;
+        }
+        m.batch_headers_bytes = m.batch_headers_bytes.saturating_add(cost);
+        m.batch_headers.insert(
+            root_key.to_owned(),
+            BatchHeaderEntry {
+                batch_id: batch_id.to_owned(),
+                byte_len,
+                root_cert: Arc::downgrade(root_cert),
+                closure,
+                header,
+                cost,
+            },
+        );
+    });
+}
 
 /// 取**图域**已核根句柄：要求 (a) 该句柄绑定的根原件证书与当前保留证书是同一个原件
 /// （指针同一），(b) 闭包指纹一致（附加校验）。闭包内每个唯一节点的原件已由调用方在本次捕获
@@ -1324,6 +1501,52 @@ mod tests {
     }
     fn memo_retained() -> usize {
         MEMO.with(|m| m.borrow().retained_bytes())
+    }
+
+    #[test]
+    fn batch_headers_share_budget_without_forcing_certificate_eviction() {
+        configure(1 << 20);
+        let key = "batch/public-id";
+        let original = RootCert::new([1; 32], vec![], 4096, "hash".into());
+        let retained =
+            handle_put_certified(key, &original, [2; 32], Arc::from(vec![0; 4096]), None).unwrap();
+        let header = BatchControlHeader::from_verified_batch(&json!({
+            "protocol_revision":"s-session/2", "session_generation":"1", "clock_plan_hash":"hash", "semantic_commit_ns":"20"
+        }));
+        batch_header_put(key, "public-id", 4096, &retained, [2; 32], header.clone());
+        let total = retained_bytes();
+        assert!(batch_header_bytes() > 0);
+        let weak = Arc::downgrade(&retained);
+        evict_full_handles_for_test();
+        assert!(retained_bytes() < total);
+        assert_eq!(
+            batch_header_get(key, "public-id", 4096, &retained, &[2; 32]),
+            Some(header)
+        );
+        assert!(batch_header_get(key, "wrong-id", 4096, &retained, &[2; 32]).is_none());
+        assert!(batch_header_get(key, "public-id", 4095, &retained, &[2; 32]).is_none());
+        assert!(batch_header_get(key, "public-id", 4096, &retained, &[3; 32]).is_none());
+        counters_reset();
+        MEMO.with(|m| {
+            let mut m = m.borrow_mut();
+            m.limit = m.certs_bytes;
+            m.fit_retention();
+            assert_eq!(m.retained_bytes(), m.certs_bytes);
+            assert!(m.root_certs.contains_key(key));
+        });
+        assert_eq!(batch_header_bytes(), 0);
+        assert_eq!(counters_snapshot().batch_header_capacity_evictions, 1);
+        assert_eq!(counters_snapshot().root_cert_capacity_evictions, 0);
+        assert_eq!(counters_snapshot().lineage_rotations, 0);
+        let oversized =
+            BatchControlHeader::from_verified_batch(&json!({"protocol_revision":"x".repeat(4096)}));
+        batch_header_put(key, "public-id", 4096, &retained, [2; 32], oversized);
+        assert_eq!(counters_snapshot().batch_header_admission_rejected, 1);
+        assert_eq!(batch_header_bytes(), 0);
+        drop(retained);
+        invalidate_root(key);
+        assert!(weak.upgrade().is_none(), "控制头不得保强证书");
+        configure(0);
     }
 
     #[test]

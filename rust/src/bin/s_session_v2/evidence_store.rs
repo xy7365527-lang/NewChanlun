@@ -955,6 +955,14 @@ pub(super) struct VerifiedRoot {
     pub(super) root_cert: Option<std::sync::Arc<cache::RootCert>>,
 }
 
+/// 只有当前完整闭包逐字节命中已核原件才成立；没有展开字节或解码值。
+pub(super) struct VerifiedRootProof {
+    pub(super) declared_length: u64,
+    pub(super) content_sha256: String,
+    pub(super) closure: [u8; 32],
+    pub(super) root_cert: std::sync::Arc<cache::RootCert>,
+}
+
 /// 一次根闭包核验的结果：根行 + 派生量 + 指纹 + 原件门 + 闭包内唯一节点集。
 struct ClosureCheck {
     row: RootRow,
@@ -1282,6 +1290,39 @@ impl<'a> Reader<'a> {
             .cloned()
             .or_else(|| cache::derived_get(self.conn_id, &root))
             .ok_or_else(|| "StorageUnavailable：私有节点派生量缺失（实现缺陷）".to_string())
+    }
+
+    /// 只证明当前完整原件；缺缓存返回 None，闭包错误原样传播，不替换全文读取出口。
+    pub(super) fn prove_root(
+        &mut self,
+        root_key: &str,
+    ) -> Result<Option<VerifiedRootProof>, String> {
+        #[cfg(test)]
+        cache::counter(|c| c.root_proof_reads += 1);
+        let check = self.closure(root_key).map_err(|error| {
+            #[cfg(test)]
+            cache::counter(|c| c.root_proof_errors += 1);
+            error
+        })?;
+        if !check.originals_verified {
+            cache::invalidate_root(root_key);
+            #[cfg(test)]
+            cache::counter(|c| c.root_proof_misses += 1);
+            return Ok(None);
+        }
+        let Some(root_cert) = cache::root_cert_get(root_key) else {
+            #[cfg(test)]
+            cache::counter(|c| c.root_proof_misses += 1);
+            return Ok(None);
+        };
+        #[cfg(test)]
+        cache::counter(|c| c.root_proof_hits += 1);
+        Ok(Some(VerifiedRootProof {
+            declared_length: check.row.expanded_length,
+            content_sha256: check.row.content_sha256,
+            closure: check.digest,
+            root_cert,
+        }))
     }
 
     /// 读一个根：完整原件证明与附加指纹均命中，才复用已验展开字节/解析结果；未命中则

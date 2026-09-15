@@ -371,6 +371,118 @@ fn load_batch_bytes_with(
     load_batch_with(conn, reader, batch_id, false).map(|(bytes, _, _)| bytes)
 }
 
+/// 只从已完整严格解析且公开内容身份核验通过的 batch 投影；不补字段、不从控制表反推。
+/// 旧 v1 忽略这四字段；v2 对每个 Some 字符串继续逐字比较，缺失/非字符串均不能通过。
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BatchControlHeader {
+    protocol_revision: Option<String>,
+    session_generation: Option<String>,
+    clock_plan_hash: Option<String>,
+    semantic_commit_ns: Option<String>,
+}
+impl BatchControlHeader {
+    fn from_verified_batch(batch: &Value) -> Self {
+        let string = |key| batch.get(key).and_then(Value::as_str).map(str::to_owned);
+        Self {
+            protocol_revision: string("protocol_revision"),
+            session_generation: string("session_generation"),
+            clock_plan_hash: string("clock_plan_hash"),
+            semantic_commit_ns: string("semantic_commit_ns"),
+        }
+    }
+    fn source_bytes(&self) -> usize {
+        [
+            &self.protocol_revision,
+            &self.session_generation,
+            &self.clock_plan_hash,
+            &self.semantic_commit_ns,
+        ]
+        .iter()
+        .fold(4usize, |n, value| {
+            n.saturating_add(value.as_ref().map_or(0, String::len))
+        })
+    }
+}
+
+fn batch_content_hash(batch_id: &str) -> Result<&str, String> {
+    match batch_id.strip_prefix("batch-") {
+        Some(h) if h.len() == 64 => Ok(h),
+        _ => Err(format!(
+            "StorageUnavailable：batch_id `{batch_id}` 非规范内容寻址形态"
+        )),
+    }
+}
+
+/// 全文/控制头共用同一条当前批次行与公开身份读取门。
+fn read_batch_row(conn: &Connection, batch_id: &str) -> Result<(Vec<u8>, usize), String> {
+    let row: Option<(Vec<u8>, i64)> = conn
+        .query_row(
+            "SELECT canonical_bytes, byte_len FROM batches WHERE batch_id=?1",
+            params![batch_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()
+        .map_err(|e| format!("读 batch {batch_id} 失败：{e}"))?;
+    let (blob, byte_len) = row.ok_or_else(|| {
+        format!("StorageUnavailable：可达 batch `{batch_id}` 不存在（引用不完整，拒绝写入）")
+    })?;
+    batch_content_hash(batch_id)?;
+    let byte_len = usize::try_from(byte_len)
+        .map_err(|_| format!("StorageUnavailable：batch `{batch_id}` byte_len 非负越界"))?;
+    Ok((blob, byte_len))
+}
+
+fn verify_batch_root_binding(
+    batch_id: &str,
+    byte_len: usize,
+    declared_length: u64,
+    hash: &str,
+) -> Result<(), String> {
+    if declared_length as usize != byte_len {
+        return Err(format!(
+            "StorageUnavailable：图域 batch `{batch_id}` 根展开长度与 byte_len 不符"
+        ));
+    }
+    if hash != batch_content_hash(batch_id)? {
+        return Err(format!(
+            "StorageUnavailable：batch `{batch_id}` 私有根展开内容与公开身份不符，拒绝写入"
+        ));
+    }
+    Ok(())
+}
+
+fn load_batch_header_with(
+    conn: &Connection,
+    reader: &mut evidence_store::Reader<'_>,
+    batch_id: &str,
+) -> Result<(BatchControlHeader, Option<std::sync::Arc<cache::RootCert>>), String> {
+    if evidence_store::format(conn)?.graph() {
+        let (blob, byte_len) = read_batch_row(conn, batch_id)?;
+        if !blob.is_empty() {
+            return Err(format!("StorageUnavailable：图域 batch `{batch_id}` 仍带整块字节（与私有根混写），拒绝写入"));
+        }
+        let key = evidence_store::batch_root_key(batch_id);
+        if let Some(proof) = reader.prove_root(&key)? {
+            verify_batch_root_binding(
+                batch_id,
+                byte_len,
+                proof.declared_length,
+                &proof.content_sha256,
+            )?;
+            if let Some(header) =
+                cache::batch_header_get(&key, batch_id, byte_len, &proof.root_cert, &proof.closure)
+            {
+                return Ok((header, Some(proof.root_cert)));
+            }
+        }
+    }
+    // 缺证明或缺小头仅失去复用。仍完整读取/严格解析/核公开身份，不用弱判据替代。
+    #[cfg(test)]
+    cache::counter(|c| c.batch_header_full_fallbacks += 1);
+    let (value, root_cert) = load_batch_value_with(conn, reader, batch_id)?;
+    Ok((BatchControlHeader::from_verified_batch(&value), root_cert))
+}
+
 /// 批次规范字节的**唯一**读取内核：整块域取行内字节，图域由私有根无损展开（可带解码值）。
 ///
 /// 图域的公开身份绑定是**廉价且完整**的：根行 `content_sha256` 在完整展开时与展开字节逐字节
@@ -389,27 +501,10 @@ fn load_batch_with(
     ),
     String,
 > {
-    let row: Option<(Vec<u8>, i64)> = conn
-        .query_row(
-            "SELECT canonical_bytes, byte_len FROM batches WHERE batch_id=?1",
-            params![batch_id],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
-        .optional()
-        .map_err(|e| format!("读 batch {batch_id} 失败：{e}"))?;
-    let (blob, byte_len) = row.ok_or_else(|| {
-        format!("StorageUnavailable：可达 batch `{batch_id}` 不存在（引用不完整，拒绝写入）")
-    })?;
-    let expect_hash = match batch_id.strip_prefix("batch-") {
-        Some(h) if h.len() == 64 => h,
-        _ => {
-            return Err(format!(
-                "StorageUnavailable：batch_id `{batch_id}` 非规范内容寻址形态"
-            ))
-        }
-    };
-    let byte_len = usize::try_from(byte_len)
-        .map_err(|_| format!("StorageUnavailable：batch `{batch_id}` byte_len 非负越界"))?;
+    #[cfg(test)]
+    cache::counter(|c| c.batch_full_reads += 1);
+    let (blob, byte_len) = read_batch_row(conn, batch_id)?;
+    let expect_hash = batch_content_hash(batch_id)?;
     let graph = evidence_store::format(conn)?.graph();
     if !graph {
         // 旧整块域：完整规范字节就在这一行。
@@ -453,15 +548,21 @@ fn load_batch_with(
             c.batch_expansions += 1;
         }
     });
-    if root.declared_length as usize != byte_len {
-        return Err(format!(
-            "StorageUnavailable：图域 batch `{batch_id}` 根展开长度与 byte_len 不符"
-        ));
-    }
-    if root.content_sha256 != expect_hash {
-        return Err(format!(
-            "StorageUnavailable：batch `{batch_id}` 私有根展开内容与公开身份不符，拒绝写入"
-        ));
+    verify_batch_root_binding(
+        batch_id,
+        byte_len,
+        root.declared_length,
+        &root.content_sha256,
+    )?;
+    if let (Some(value), Some(cert)) = (&root.value, &root.root_cert) {
+        cache::batch_header_put(
+            &root_key,
+            batch_id,
+            byte_len,
+            cert,
+            root.closure,
+            BatchControlHeader::from_verified_batch(value),
+        );
     }
     Ok((root.bytes, root.value, root.root_cert))
 }
@@ -946,12 +1047,12 @@ fn profile_at_cut(conn: &Connection, generation: i64) -> Result<(String, String)
     ))
 }
 
-/// 一次新鲜捕获的全部可达内容：批次解码值 + 每个私有根的闭包指纹。
+/// 一次新鲜捕获：小批次控制头/引用 + 每个私有根的完整原件证明；不持全部历史解码值。
 ///
 /// 捕获作用域（`_capture`）**活到调用方释放为止**：同一次根审计里批次、Delta 原件与结构事实
 /// 共用同一份节点读集，任一唯一节点原行只读一次。
 struct Reachable {
-    batches: BTreeMap<String, std::sync::Arc<Value>>,
+    batches: BTreeMap<String, BatchControlHeader>,
     /// 私有根 key → 本次新鲜行算出的闭包指纹（节点/根/槽任一变化都改它）。
     roots: BTreeMap<String, [u8; 32]>,
     /// 私有根 key → 该根**当前保留的原件证书**（本次新鲜行已逐字节比较过）。
@@ -982,11 +1083,11 @@ fn capture_reachable_batches(conn: &Connection) -> Result<Reachable, String> {
     let mut batches = BTreeMap::new();
     let mut originals = cache::Originals::new();
     for id in ids {
-        let (value, root_cert) = load_batch_value_with(conn, &mut reader, &id)?;
+        let (header, root_cert) = load_batch_header_with(conn, &mut reader, &id)?;
         if format.graph() {
             originals.insert(evidence_store::batch_root_key(&id), root_cert);
         }
-        batches.insert(id, value);
+        batches.insert(id, header);
     }
     let mut roots: BTreeMap<String, [u8; 32]> = BTreeMap::new();
     // 不可达残留不得发布：每个私有根都必须有**唯一对应逻辑记录**（批次行 / Delta 行 / 结构事实行）、
@@ -1317,8 +1418,13 @@ fn verify_reachable_root_in_tx(
                 "StorageUnavailable：delta[{g}].index_frontier 为空（已发布 cut 缺批次引用）"
             ));
         }
-        let batch = batches.get(idx).ok_or("StorageUnavailable：缺可达批次")?;
-        verify_batch_coordinates(batch, idx, *g, next, *frontier, cat)?;
+        if !batches.contains_key(idx) {
+            return Err("StorageUnavailable：缺可达批次".into());
+        }
+        #[cfg(test)]
+        cache::counter(|c| c.batch_suffix_full_reads += 1);
+        let (batch, _) = load_batch_value_with(conn, &mut reader, idx)?;
+        verify_batch_coordinates(&batch, idx, *g, next, *frontier, cat)?;
         // seq_range 连续：from = 上一已发布 frontier + 1，to = 本代 frontier。
         let sr: Value = json_shape(seq_range_json, JsonShape::Object)?;
         let sr_from = sr["from"]
@@ -1364,8 +1470,8 @@ fn verify_reachable_root_in_tx(
                 "StorageUnavailable：delta[{g}] 内层 catalog_evidence 与外层 catalog_evidence_json 不一致"
             ));
         }
-        verify_batch_profile(batch, &profile_binding)?;
-        audit.verify(&dj, *g, batch, mode)?;
+        verify_batch_profile(&batch, &profile_binding)?;
+        audit.verify(&dj, *g, &batch, mode)?;
     }
     audit.finish()?;
     // meta 与最末已发布 Delta 的根元组对应关系。
@@ -3418,11 +3524,7 @@ fn advance_core(
                     evidence_store::SlotSpec::string(&batch_id),
                 ];
                 let staged = evidence_store::stage_complete(&delta_json, &delta_slots)?;
-                evidence_store::publish_refs(
-                    &tx,
-                    &evidence_store::delta_root_key(gen),
-                    &staged,
-                )?;
+                evidence_store::publish_refs(&tx, &evidence_store::delta_root_key(gen), &staged)?;
                 String::new()
             } else {
                 delta_text.clone()
@@ -4601,7 +4703,17 @@ fn delta_wire_rows(
     sql: &str,
     after_generation: i64,
 ) -> Result<Vec<Value>, String> {
-    let raw: Vec<(i64, String, String, String, String, String, String, i64, String)> = {
+    let raw: Vec<(
+        i64,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        i64,
+        String,
+    )> = {
         let mut stmt = conn
             .prepare(sql)
             .map_err(|e| format!("prepare 读 Delta 行失败：{e}"))?;
@@ -9697,6 +9809,82 @@ mod staged_graph_audit_regressions {
         let (after, _) = tb02a::read_facts(&conn, None).unwrap();
         assert_eq!(after[0], fact);
         verify_reachable_root(&conn).unwrap();
+    }
+
+    #[test]
+    fn batch_header_preserves_legacy_fields_and_strict_full_parse() {
+        cache::configure(0);
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        for field in [
+            Value::Null,
+            json!(3),
+            json!([]),
+            json!({}),
+            json!("unchanged"),
+        ] {
+            let value = json!({"protocol_revision":field,"session_generation":field,
+                "clock_plan_hash":field,"semantic_commit_ns":field});
+            let bytes = canonical_json(&value).into_bytes();
+            let id = format!("batch-{}", sha256_hex(&bytes));
+            conn.execute(
+                "INSERT INTO batches(batch_id,canonical_bytes,byte_len) VALUES(?1,?2,?3)",
+                params![id, bytes, bytes.len() as i64],
+            )
+            .unwrap();
+            let header = load_batch_header_with(
+                &conn,
+                &mut evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET),
+                &id,
+            )
+            .unwrap()
+            .0;
+            assert_eq!(header.protocol_revision.as_deref(), field.as_str());
+            assert_eq!(load_batch_bytes(&conn, &id).unwrap().as_ref(), bytes);
+        }
+        let duplicate = br#"{"protocol_revision":"s-session/2","nested":{"x":1,"x":2}}"#;
+        let id = format!("batch-{}", sha256_hex(duplicate));
+        conn.execute(
+            "INSERT INTO batches(batch_id,canonical_bytes,byte_len) VALUES(?1,?2,?3)",
+            params![id, duplicate.as_slice(), duplicate.len() as i64],
+        )
+        .unwrap();
+        assert!(load_batch_header_with(
+            &conn,
+            &mut evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET),
+            &id
+        )
+        .is_err());
+        assert_eq!(cache::retained_bytes(), 0);
+    }
+
+    #[test]
+    fn batch_header_never_promotes_before_public_identity_validation() {
+        cache::configure(1 << 20);
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        evidence_store::declare_new(&conn).unwrap();
+        let value = json!({"protocol_revision":"s-session/2","session_generation":"1",
+            "clock_plan_hash":"hash","semantic_commit_ns":"20"});
+        let staged = evidence_store::stage_complete(&value, &[]).unwrap();
+        let wrong_id = format!("batch-{}", "0".repeat(64));
+        evidence_store::publish_refs(&conn, &evidence_store::batch_root_key(&wrong_id), &staged)
+            .unwrap();
+        conn.execute(
+            "INSERT INTO batches(batch_id,canonical_bytes,byte_len) VALUES(?1,x'',?2)",
+            params![wrong_id, canonical_json(&value).len() as i64],
+        )
+        .unwrap();
+        for _ in 0..2 {
+            assert!(load_batch_header_with(
+                &conn,
+                &mut evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET),
+                &wrong_id
+            )
+            .is_err());
+            assert_eq!(cache::batch_header_bytes(), 0);
+        }
+        cache::configure(0);
     }
 
     #[test]
