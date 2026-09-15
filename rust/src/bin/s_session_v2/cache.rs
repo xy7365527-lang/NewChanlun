@@ -21,7 +21,9 @@ pub(super) type DeltaRow = (
     String,
     String,
 );
-type Identity = (String, String, (String, String));
+/// （session_id、catalog_revision、（profile_id、profile_hash）、存储格式标签）。
+/// 末项是 #1394 的私有 Delta 域：模式变化必须使旧 root/证书失效，不跨模式复用。
+type Identity = (String, String, (String, String), String);
 struct Root {
     rows: Vec<DeltaRow>,
     identity: Identity,
@@ -249,7 +251,8 @@ fn root_cost(rows: &[DeltaRow], identity: &Identity, walk: &audit::AuditWalk) ->
                 .len()
                 .saturating_add(identity.1.len())
                 .saturating_add(identity.2 .0.len())
-                .saturating_add(identity.2 .1.len()),
+                .saturating_add(identity.2 .1.len())
+                .saturating_add(identity.3.len()),
         )
 }
 
@@ -275,6 +278,7 @@ mod tests {
             session.to_string(),
             "catalog-hash".to_string(),
             ("profile-id".to_string(), "profile-hash".to_string()),
+            delta_storage::CHANGES_ONLY.to_string(),
         )
     }
     fn rows(n: i64) -> Vec<DeltaRow> {
@@ -420,5 +424,38 @@ mod tests {
         store_batches(batch_map(&[("batch-a", 64)]));
         assert_eq!(memo_batch_ids(), vec!["batch-a"]);
         assert!(decoded("batch-b", &vec![b'x'; 64]).is_none());
+    }
+
+    /// #1394：Delta 域是缓存身份的一部分——同 session/catalog/profile 但模式不同不得复用已核前缀。
+    #[test]
+    fn storage_format_tag_is_part_of_the_verified_root_identity() {
+        let with_format = |tag: &str| {
+            (
+                "test-c".to_string(),
+                "catalog-hash".to_string(),
+                ("profile-id".to_string(), "profile-hash".to_string()),
+                tag.to_string(),
+            )
+        };
+        configure(4096);
+        store_root(
+            rows(3),
+            with_format(delta_storage::CHANGES_ONLY),
+            empty_walk(),
+        );
+        assert_eq!(
+            resume(
+                &rows(3),
+                &with_format(delta_storage::CHANGES_ONLY),
+                &mut empty_walk()
+            ),
+            3
+        );
+        assert_eq!(
+            resume(&rows(3), &with_format("legacy-full/0"), &mut empty_walk()),
+            0
+        );
+        assert_eq!(last_resumed(), 0);
+        configure(0);
     }
 }

@@ -37,6 +37,9 @@ use std::collections::BTreeMap;
 mod audit;
 #[path = "s_session_v2/cache.rs"]
 mod cache;
+// #1394：新库的显式私有存储格式登记（changes-only/1）；旧库无该表即旧 full 域。
+#[path = "s_session_v2/delta_storage.rs"]
+mod delta_storage;
 #[path = "s_session_v2/tb02a.rs"]
 mod tb02a;
 #[path = "s_session_v2/tb02a_facts.rs"]
@@ -843,6 +846,9 @@ fn verify_reachable_root_in_tx(
     conn: &Connection,
     batches: &BTreeMap<String, std::sync::Arc<Value>>,
 ) -> Result<Vec<Value>, String> {
+    // #1394：库的 Delta 域（旧 full / changes-only）由私有登记表唯一决定；模式损坏在读取与
+    // 任何写入之前拒绝，不提供「旧全量核验失败再试稀疏」的降级通道。
+    let mode = delta_storage::read_mode(conn)?;
     let generation = verify_required_meta(conn)?;
     verify_published_index_generations(conn, generation)?;
     // #1371 AC7：已接纳但未发布的原始事实也是持久前件；所有结构读写共用坐标完整性门。
@@ -901,6 +907,7 @@ fn verify_reachable_root_in_tx(
         meta_session.clone(),
         meta_cat.clone(),
         profile_binding.clone(),
+        mode.tag().to_string(),
     );
     let resume = cache::resume(&rows, &identity, &mut audit);
     let mut prev_frontier: i64 = if resume == 0 { -1 } else { rows[resume - 1].7 };
@@ -1008,7 +1015,7 @@ fn verify_reachable_root_in_tx(
             ));
         }
         verify_batch_profile(batch, &profile_binding)?;
-        audit.verify(&dj, *g, batch)?;
+        audit.verify(&dj, *g, batch, mode)?;
     }
     audit.finish()?;
     // meta 与最末已发布 Delta 的根元组对应关系。
@@ -1176,6 +1183,8 @@ fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, Str
     let conn = open_db(db)?;
     conn.execute_batch(SCHEMA)
         .map_err(|e| format!("建 schema 失败：{e}"))?;
+    // #1394：新库固定私有 changes-only/1 登记（显式单行）。旧库无此表，继续旧 full 域，不迁移。
+    delta_storage::declare_new(&conn)?;
     let sqlite_version: String = conn
         .query_row("SELECT sqlite_version()", [], |r| r.get(0))
         .map_err(|e| format!("读 sqlite_version 失败：{e}"))?;
@@ -1848,47 +1857,156 @@ fn build_object_and_witnesses(
     (object, witnesses, relations)
 }
 
-/// 读当前活动对象（withdrawn_generation IS NULL），供 diff 使用（在提交事务内调用）。
-fn read_active_objects(conn: &Connection) -> Result<Vec<Value>, String> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT object_id, branch, window_start, window_mid, window_end, first_known_generation, first_known_cut, batch_id, published_generation FROM objects WHERE withdrawn_generation IS NULL ORDER BY window_start",
-        )
-        .map_err(|e| format!("prepare 读活动对象失败：{e}"))?;
-    let mut rows = stmt
-        .query_map([], |r| {
-            Ok(json!({
-                "object_id": r.get::<_, String>(0)?,
-                "branch": r.get::<_, String>(1)?,
-                "window_start": r.get::<_, i64>(2)?,
-                "window_mid": r.get::<_, i64>(3)?,
-                "window_end": r.get::<_, i64>(4)?,
-                "first_known_generation": r.get::<_, i64>(5)?,
-                "first_known_cut": r.get::<_, String>(6)?,
-                "batch_id": r.get::<_, String>(7)?,
-                "published_generation": r.get::<_, i64>(8)?,
-            }))
-        })
-        .map_err(|e| format!("query 活动对象失败：{e}"))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("collect 活动对象失败：{e}"))?;
-    rows.extend(tb02a::read_facts(conn, None)?.0);
-    Ok(rows)
+/// 已存对象的完整不可变内容读集（**含已撤回历史身份**），供 diff 逐字段对拍；提交事务内调用。
+struct StoredObjects {
+    /// 当前活动对象（`withdrawn_generation IS NULL`），保持既有排序（objects → facts）。
+    active: Vec<Value>,
+    /// 全部已存身份（活动 + 已撤回）的不可变内容，按 object_id。
+    identities: BTreeMap<String, Value>,
 }
 
-/// 新对象集与既有活动对象对拍，产出 (upserts, withdrawals, replaces)。同一发生区间同一内容 = 无变化；
-/// 同一发生区间内容变 = 撤旧 + 替代；新区间 = upsert；旧区间消失 = 撤（防御性，append-only 域不触发）。
+fn stored_object_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
+    Ok(json!({
+        "object_id": r.get::<_, String>(0)?,
+        "object_revision": r.get::<_, i64>(1)?,
+        "kind": r.get::<_, String>(2)?,
+        "branch": r.get::<_, String>(3)?,
+        "dir_ab": r.get::<_, String>(4)?,
+        "dir_bc": r.get::<_, String>(5)?,
+        "window_start": r.get::<_, i64>(6)?,
+        "window_mid": r.get::<_, i64>(7)?,
+        "window_end": r.get::<_, i64>(8)?,
+        "comparisons_json": r.get::<_, String>(9)?,
+        "input_refs_json": r.get::<_, String>(10)?,
+        "source_coords_json": r.get::<_, String>(11)?,
+        "first_known_generation": r.get::<_, i64>(12)?,
+        "first_known_cut": r.get::<_, String>(13)?,
+        "batch_id": r.get::<_, String>(14)?,
+        "published_generation": r.get::<_, i64>(15)?,
+        "withdrawn_generation": r.get::<_, Option<i64>>(16)?,
+    }))
+}
+
+/// 读全部已存对象身份：不可变内容 + 四个可沿用元数据 + 撤回状态。
+/// 只读 ID 不足以宣称「同 ID 相等」——同 ID 异内容必须在此暴露，不得被后面的 DO NOTHING 吞掉。
+fn read_stored_objects(conn: &Connection) -> Result<StoredObjects, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT object_id, object_revision, kind, branch, dir_ab, dir_bc,
+                    window_start, window_mid, window_end,
+                    comparisons_json, input_refs_json, source_coords_json,
+                    first_known_generation, first_known_cut, batch_id, published_generation,
+                    withdrawn_generation
+             FROM objects ORDER BY window_start",
+        )
+        .map_err(|e| format!("prepare 读已存对象失败：{e}"))?;
+    let rows = stmt
+        .query_map([], stored_object_row)
+        .map_err(|e| format!("query 已存对象失败：{e}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("collect 已存对象失败：{e}"))?;
+    let (facts_active, facts_withdrawn) = tb02a::read_facts(conn, None)?;
+    let mut active: Vec<Value> = Vec::new();
+    let mut identities: BTreeMap<String, Value> = BTreeMap::new();
+    let mut insert = |o: &Value| -> Result<(), String> {
+        let id = o["object_id"]
+            .as_str()
+            .ok_or("StorageUnavailable：已存身份缺 object_id")?
+            .to_string();
+        if identities.insert(id, o.clone()).is_some() {
+            return Err("StorageUnavailable：两份事实表公开对象身份重复".into());
+        }
+        Ok(())
+    };
+    for o in rows
+        .iter()
+        .chain(facts_active.iter())
+        .chain(facts_withdrawn.iter())
+    {
+        insert(o)?;
+    }
+    for o in rows.iter().chain(facts_active.iter()) {
+        if o["withdrawn_generation"].is_null() {
+            active.push(o.clone());
+        }
+    }
+    Ok(StoredObjects { active, identities })
+}
+
+/// 活动对象读集（供既有调用方沿用）+ 完整身份读集。
+fn read_active_objects(conn: &Connection) -> Result<Vec<Value>, String> {
+    Ok(read_stored_objects(conn)?.active)
+}
+
+/// 同 ID 必须逐字段等价的不可变内容；四个可沿用元数据（first_known/batch/published）不在其中。
+fn immutable_content(o: &Value, what: &str) -> Result<String, String> {
+    let keys: &[&str] = if tb02a::typed(o) {
+        &[
+            "object_revision",
+            "kind",
+            "fact_key",
+            "payload_json",
+            "input_refs_json",
+            "source_coords_json",
+        ]
+    } else {
+        &[
+            "object_revision",
+            "kind",
+            "branch",
+            "dir_ab",
+            "dir_bc",
+            "window_start",
+            "window_mid",
+            "window_end",
+            "comparisons_json",
+            "input_refs_json",
+            "source_coords_json",
+        ]
+    };
+    let map = o
+        .as_object()
+        .ok_or_else(|| format!("StorageUnavailable：{what} 非对象"))?;
+    let mut out = serde_json::Map::new();
+    for key in keys {
+        let value = map
+            .get(*key)
+            .filter(|v| !v.is_null())
+            .ok_or_else(|| format!("StorageUnavailable：{what} 缺不可变字段 {key}"))?;
+        out.insert((*key).to_string(), value.clone());
+    }
+    Ok(canonical_json(&Value::Object(out)))
+}
+
+/// 新对象集与既有持久身份对拍，产出 (upserts, withdrawals, replaces)。
+///
+/// - 同一发生区间同一 ID：先核不可变内容等价 → 等价即「未变化」，不重发，元数据仍沿用既有首次值；
+///   异内容 → `IdentityConflict`（不吞掉、不静默改内容、不借 `DO NOTHING` 掩盖）。
+/// - 同一发生区间异 ID：撤旧 + 替代 + 新生；新区间 = 新生；旧区间消失 = 撤（防御性，append-only 域不触发）。
+/// - 已撤回历史身份不得借本次发布复活。
+/// - `LegacyFull`（无登记表的旧库）保持旧语义：upserts 仍是完整活动集，既有对象沿用原首次元数据。
 fn compute_diff(
     new_objects: &[Value],
-    existing_active: &[Value],
-) -> (Vec<Value>, Vec<Value>, Vec<Value>) {
-    let mut upserts: Vec<Value> = Vec::new();
+    stored: &StoredObjects,
+    mode: delta_storage::Mode,
+) -> Result<(Vec<Value>, Vec<Value>, Vec<Value>), String> {
     let mut withdrawals: Vec<Value> = Vec::new();
     let mut replaces: Vec<Value> = Vec::new();
-
+    let mut active_by_slot: BTreeMap<String, &Value> = BTreeMap::new();
+    let mut active_by_id: BTreeMap<String, &Value> = BTreeMap::new();
+    for old in &stored.active {
+        let id = old["object_id"]
+            .as_str()
+            .ok_or("StorageUnavailable：活动对象缺 object_id")?
+            .to_string();
+        active_by_slot.insert(tb02a::slot(old), old);
+        active_by_id.insert(id, old);
+    }
     let new_by_slot: BTreeMap<String, &Value> =
         new_objects.iter().map(|o| (tb02a::slot(o), o)).collect();
-    for old in existing_active {
+
+    // 1) 以既有活动集为主序（与旧实现同序）：同区间替换 = 撤旧 + 替代；旧区间消失 = 撤。
+    for old in &stored.active {
         match new_by_slot.get(&tb02a::slot(old)) {
             None => withdrawals.push(tb02a::withdrawal(
                 old,
@@ -1913,11 +2031,63 @@ fn compute_diff(
         }
     }
 
-    // upsert = 全部新对象（含无变化者，供同 cut 对拍与幂等重投）。
-    for o in new_objects {
-        upserts.push(o.clone());
+    // 2) 新生/替代目标：同 ID 先核不可变内容，再决定是否发布。
+    let mut births: Vec<Value> = Vec::new();
+    for candidate in new_objects {
+        let oid = candidate["object_id"]
+            .as_str()
+            .ok_or("StorageUnavailable：本次对象缺 object_id")?
+            .to_string();
+        let existing = stored.identities.get(&oid);
+        if let Some(existing) = existing {
+            if immutable_content(existing, "已存身份")? != immutable_content(candidate, "本次对象")?
+            {
+                return Err(format!(
+                    "IdentityConflict：object_id `{oid}` 已存在且不可变内容不同（同 ID 异内容不得覆盖或吞掉）"
+                ));
+            }
+        }
+        match active_by_id.get(&oid) {
+            Some(old) => {
+                if tb02a::slot(old) != tb02a::slot(candidate) {
+                    return Err(format!(
+                        "StorageUnavailable：object_id `{oid}` 的活动发生区间与本次不一致"
+                    ));
+                }
+                // 未变化：不重发（changes-only 域的 Delta 不重复完整活动集）。
+            }
+            None => {
+                if existing.is_some() {
+                    return Err(format!(
+                        "IdentityConflict：object_id `{oid}` 是已撤回历史身份，不得复活"
+                    ));
+                }
+                births.push(candidate.clone());
+            }
+        }
     }
-    (upserts, withdrawals, replaces)
+
+    if mode.changes_only() {
+        return Ok((births, withdrawals, replaces));
+    }
+    // 旧 full 域：Delta 仍是完整活动集；既有对象沿用既有首次元数据/批次（逐字节同旧实现）。
+    let mut upserts: Vec<Value> = Vec::with_capacity(new_objects.len());
+    for candidate in new_objects {
+        let oid = candidate["object_id"].as_str().unwrap_or("");
+        let mut obj = candidate.clone();
+        if let Some(ex) = active_by_id.get(oid) {
+            for key in [
+                "first_known_generation",
+                "first_known_cut",
+                "batch_id",
+                "published_generation",
+            ] {
+                obj[key] = ex[key].clone();
+            }
+        }
+        upserts.push(obj);
+    }
+    Ok((upserts, withdrawals, replaces))
 }
 
 /// DUR-H01：已知失败的正常收尾——仅当仍持有本 attempt 的 Begin（token/gen/frontier 精确匹配、
@@ -2050,12 +2220,24 @@ fn advance_core(
     }
     record_connection_pragmas(&conn, "advance");
     // ── Begin：判定前先由短写事务核 writer_epoch、取得唯一推进权、持久 Begin/门/输入前沿 ──
-    let (token, gen, frontier, base_cut, profile_id, profile_hash, catalog_revision, all_events) = {
+    let (
+        token,
+        gen,
+        frontier,
+        base_cut,
+        profile_id,
+        profile_hash,
+        catalog_revision,
+        all_events,
+        mode,
+    ) = {
         let tx = conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|e| format!("Begin 事务失败：{e}"))?;
         verify_writer_epoch(&tx, configured_epoch)?;
         let all_events = verified_root_raw_events(&tx)?;
+        // 模式由登记表唯一决定：损坏（缺行/多行/未声明值）在本次任何写入之前即拒绝。
+        let mode = delta_storage::read_mode(&tx)?;
         let (profile_id, profile_hash) = verify_profile_binding(&tx)?;
         let catalog_revision = meta_get_opt(&tx, "catalog_revision")?.unwrap_or_default();
         let state = meta_get_opt(&tx, "advance_state")?.unwrap_or_else(|| "idle".to_string());
@@ -2110,6 +2292,7 @@ fn advance_core(
             profile_hash,
             catalog_revision,
             all_events,
+            mode,
         )
     };
 
@@ -2413,7 +2596,8 @@ fn advance_core(
         let previous_frontier = meta_get_opt(&conn, "last_advance_frontier")?
             .and_then(|v| v.parse::<i64>().ok())
             .unwrap_or(-1);
-        let (_, withdrawals, replaces) = compute_diff(&objects, &read_active_objects(&conn)?);
+        let (_, withdrawals, replaces) =
+            compute_diff(&objects, &read_stored_objects(&conn)?, mode)?;
         batch_json["catalog_axes"] = tb02a_facts::catalog_axes(
             &objects,
             &all_events,
@@ -2459,27 +2643,10 @@ fn advance_core(
         if cur_frontier != frontier {
             frontier_moved = true;
         } else {
-            // 与既有活动对象对拍（提交事务内，原子）。
-            let existing_active = read_active_objects(&tx)?;
-            let (_upserts, withdrawals, replaces) = compute_diff(&objects, &existing_active);
+            // 与既有持久身份对拍（提交事务内，原子）：同 ID 先核不可变内容，异内容即 IdentityConflict。
             // 未变化对象沿用既有 first_known（不把重发布当新获知）；新对象 first_known = 本 gen。
-            let existing_by_id: BTreeMap<String, Value> = existing_active
-                .iter()
-                .map(|o| (o["object_id"].as_str().unwrap_or("").to_string(), o.clone()))
-                .collect();
-            let mut delta_upserts: Vec<Value> = Vec::new();
-            for o in &objects {
-                let oid = o["object_id"].as_str().unwrap_or("").to_string();
-                let mut obj = o.clone();
-                if let Some(ex) = existing_by_id.get(&oid) {
-                    // 未变对象沿用既有 first_known / batch / published（首发布即历史稳定值，不因重发布前移）。
-                    obj["first_known_generation"] = ex["first_known_generation"].clone();
-                    obj["first_known_cut"] = ex["first_known_cut"].clone();
-                    obj["batch_id"] = ex["batch_id"].clone();
-                    obj["published_generation"] = ex["published_generation"].clone();
-                }
-                delta_upserts.push(obj);
-            }
+            let (delta_upserts, withdrawals, replaces) =
+                compute_diff(&objects, &read_stored_objects(&tx)?, mode)?;
 
             // 1) 撤回：当前视图移除，历史不删（UPDATE 生命周期，保留原身份/first_known/发生区间）。
             {
@@ -2515,7 +2682,8 @@ fn advance_core(
                      ON CONFLICT(object_id) DO NOTHING",
                 )
                 .map_err(|e| format!("prepare objects 失败：{e}"))?;
-                for o in &objects {
+                // 只写真正新生/替代的对象（旧 full 域下 delta_upserts 仍是完整活动集，逐字节同旧实现）。
+                for o in &delta_upserts {
                     if tb02a::typed(o) {
                         tb02a::save_fact(&tx, o, &batch_id)?;
                         continue;
@@ -2541,6 +2709,8 @@ fn advance_core(
             }
 
             // 3) 见证 / 关系 / 观察（内容寻址，幂等插入）。
+            // changes-only 域：各族 Delta 只含本代首次发布成员；旧 full 域保持完整集（与旧实现逐字节相同）。
+            let mut first_witnesses: Vec<Value> = Vec::new();
             {
                 let mut stmt = tx
                 .prepare(
@@ -2550,19 +2720,24 @@ fn advance_core(
                 )
                 .map_err(|e| format!("prepare witnesses 失败：{e}"))?;
                 for w in &witnesses {
-                    stmt.execute(params![
-                        w["witness_id"].as_str().unwrap_or(""),
-                        w["object_id"].as_str().unwrap_or(""),
-                        w["slot"].as_i64().unwrap_or(0),
-                        w["merged_source_index"].as_i64().unwrap_or(0),
-                        w["merged_high"].as_str().unwrap_or(""),
-                        w["merged_low"].as_str().unwrap_or(""),
-                        w["merged_open"].as_str().unwrap_or(""),
-                        w["merged_close"].as_str().unwrap_or(""),
-                        serde_json::to_string(&w["raw_bars"]).unwrap_or_else(|_| "[]".to_string()),
-                        gen,
-                    ])
-                    .map_err(|e| format!("insert witnesses 失败：{e}"))?;
+                    let inserted = stmt
+                        .execute(params![
+                            w["witness_id"].as_str().unwrap_or(""),
+                            w["object_id"].as_str().unwrap_or(""),
+                            w["slot"].as_i64().unwrap_or(0),
+                            w["merged_source_index"].as_i64().unwrap_or(0),
+                            w["merged_high"].as_str().unwrap_or(""),
+                            w["merged_low"].as_str().unwrap_or(""),
+                            w["merged_open"].as_str().unwrap_or(""),
+                            w["merged_close"].as_str().unwrap_or(""),
+                            serde_json::to_string(&w["raw_bars"])
+                                .unwrap_or_else(|_| "[]".to_string()),
+                            gen,
+                        ])
+                        .map_err(|e| format!("insert witnesses 失败：{e}"))?;
+                    if inserted == 1 {
+                        first_witnesses.push(w.clone());
+                    }
                 }
             }
             // 关系集合：has_witness / classified_as + replaces（替代边）+ raw supersedes（源修订链）。
@@ -2590,6 +2765,7 @@ fn advance_core(
                         "INSERT OR IGNORE INTO relations(relation_id, subject, relation_type, object, published_generation) VALUES(?1, ?2, ?3, ?4, ?5)",
                     )
                     .map_err(|e| format!("prepare relations 失败：{e}"))?;
+                let mut first_relations: Vec<Value> = Vec::new();
                 for r in &rels {
                     let rid = format!(
                         "rel-{}",
@@ -2599,18 +2775,28 @@ fn advance_core(
                             "o": r["object"],
                         })))[..16]
                     );
-                    stmt.execute(params![
-                        rid,
-                        r["subject"].as_str().unwrap_or(""),
-                        r["relation_type"].as_str().unwrap_or(""),
-                        r["object"].as_str().unwrap_or(""),
-                        gen,
-                    ])
-                    .map_err(|e| format!("insert relations 失败：{e}"))?;
+                    let inserted = stmt
+                        .execute(params![
+                            rid,
+                            r["subject"].as_str().unwrap_or(""),
+                            r["relation_type"].as_str().unwrap_or(""),
+                            r["object"].as_str().unwrap_or(""),
+                            gen,
+                        ])
+                        .map_err(|e| format!("insert relations 失败：{e}"))?;
+                    if inserted == 1 {
+                        first_relations.push(r.clone());
+                    }
                 }
+                rels = if mode.changes_only() {
+                    first_relations
+                } else {
+                    rels
+                };
             }
             // 观察：补 identity/batch，供 delta 与同 cut Snapshot 逐字段对齐（INSERT OR IGNORE：首获知固定）。
             let mut obs_with_id: Vec<Value> = Vec::with_capacity(observations.len());
+            let mut first_observations: Vec<Value> = Vec::new();
             for ob in &observations {
                 let oid = observation_id(ob);
                 let stored: Option<Value> = tx.query_row(
@@ -2621,6 +2807,7 @@ fn advance_core(
                         "window_mid":r.get::<_,Option<i64>>(4)?, "window_end":r.get::<_,Option<i64>>(5)?,
                         "reason":r.get::<_,String>(6)?, "detail":json_column(r,7,JsonShape::Object)?,
                     }))).optional().map_err(|e| format!("读观察首版失败：{e}"))?;
+                let first = stored.is_none();
                 let o = if let Some(stored) = stored {
                     stored
                 } else {
@@ -2629,6 +2816,9 @@ fn advance_core(
                     fresh["batch_id"] = json!(batch_id);
                     fresh
                 };
+                if first {
+                    first_observations.push(o.clone());
+                }
                 obs_with_id.push(o);
             }
             {
@@ -2700,14 +2890,31 @@ fn advance_core(
                 .iter()
                 .map(project_withdrawal_wire)
                 .collect::<Result<_, _>>()?;
-            let wire_witnesses: Vec<Value> = witnesses
-                .iter()
-                .map(project_witness_wire)
-                .collect::<Result<_, _>>()?;
-            let wire_observations: Vec<Value> = obs_with_id
-                .iter()
-                .map(project_observation_wire)
-                .collect::<Result<_, _>>()?;
+            // changes-only 域：三族 Delta 只含本代首次发布（与独立索引 born[gen] 强相等）；
+            // 旧 full 域仍是完整集。封存 full batch 自身保持完整（本段不改 batch 形态）。
+            let (wire_witnesses, wire_observations) = if mode.changes_only() {
+                (
+                    first_witnesses
+                        .iter()
+                        .map(project_witness_wire)
+                        .collect::<Result<Vec<_>, _>>()?,
+                    first_observations
+                        .iter()
+                        .map(project_observation_wire)
+                        .collect::<Result<Vec<_>, _>>()?,
+                )
+            } else {
+                (
+                    witnesses
+                        .iter()
+                        .map(project_witness_wire)
+                        .collect::<Result<Vec<_>, _>>()?,
+                    obs_with_id
+                        .iter()
+                        .map(project_observation_wire)
+                        .collect::<Result<Vec<_>, _>>()?,
+                )
+            };
             // 本代新接纳的源事件（seq ∈ seq_range），供 Watch 消费者重建 raw_history（不另轮询）。
             let wire_raw_history_added: Vec<Value> = all_events
                 .iter()
@@ -3794,6 +4001,18 @@ fn cmd_query(db: &Path, identity_key: &str) -> Result<(), String> {
 }
 
 /// #1394：普通财务准备读取 S 原结构证据，S 不参加经济事务或经营轮。
+fn financial_basis_pending(conn: &Connection) -> Result<bool, String> {
+    // begin_token 在 Commit 后保留为历史证据；只有当前 Begin 门或未发布输入才未完成。
+    let state = meta_get_opt(conn, "advance_state")?.ok_or("MissingDependency：S 缺推进状态")?;
+    let published = meta_i64(conn, "last_advance_frontier")?;
+    let accepted: i64 = conn
+        .query_row("SELECT COALESCE(MAX(seq), -1) FROM raw_events", [], |r| {
+            r.get(0)
+        })
+        .map_err(|e| format!("读 S 已接纳前沿失败：{e}"))?;
+    Ok(state != "idle" || accepted != published)
+}
+
 fn cmd_financial_basis(db: &Path) -> Result<(), String> {
     let conn = open_db(db)?;
     ensure_initialized(&conn)?;
@@ -3801,7 +4020,7 @@ fn cmd_financial_basis(db: &Path) -> Result<(), String> {
     verify_reachable_root(&tx)?;
     let meta = db_meta(&tx)?;
     let (sid, generation, _) = v2::protocol_identity(&tx)?;
-    let pending = meta.get("begin_token").is_some_and(|s| !s.is_empty());
+    let pending = financial_basis_pending(&tx)?;
     let snapshot = read_snapshot_in_tx(&tx, None)?;
     let commit_ns: Option<String> = tx.query_row(
         "SELECT semantic_ns FROM s_clock_events WHERE phase='commit' AND generation=? ORDER BY attempt_index DESC LIMIT 1",
@@ -5021,7 +5240,36 @@ mod tests {
             )
             .unwrap();
         let delta: Value = serde_json::from_str(&delta).unwrap();
-        assert_eq!(delta["observations"], before["observations"]);
+        // #1394 changes-only 域：Delta 只含本代首次封存的观察。首次版本仍完整保留在持久索引与
+        // 同 cut 快照里（含首次 batch），只是不再逐代重发——这正是「未变对象不重发」的收益面。
+        let before_ids: std::collections::BTreeSet<String> = before["observations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| o["observation_id"].as_str().unwrap().to_string())
+            .collect();
+        for ob in delta["observations"].as_array().unwrap() {
+            assert!(
+                !before_ids.contains(ob["observation_id"].as_str().unwrap()),
+                "旧观察不得重发到本代 Delta：{ob}"
+            );
+        }
+        let after = snapshot_of(&files, None);
+        let find = |snap: &Value, oid: &str| {
+            snap["observations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|o| o["observation_id"].as_str() == Some(oid))
+                .cloned()
+        };
+        for oid in &before_ids {
+            assert_eq!(
+                find(&after, oid),
+                find(&before, oid),
+                "旧观察必须逐字段保留首次封存版本（含首次 batch_id）"
+            );
+        }
         assert_eq!(snapshot_of(&files, Some(1)), before);
     }
 
@@ -6013,6 +6261,72 @@ mod tests {
     }
 
     #[test]
+    fn financial_basis_pending_distinguishes_commit_history_and_unpublished_revision() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let conn = open_db(&files.db()).unwrap();
+        assert!(!financial_basis_pending(&conn).unwrap());
+        drop(conn);
+        accept(
+            &files,
+            &test_input(&[ev("e0", "1", "0", "10000")]),
+            "first.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        assert!(financial_basis_pending(&open_db(&files.db()).unwrap()).unwrap());
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
+            Some("idle")
+        );
+        assert!(meta_get_opt(&conn, "begin_token")
+            .unwrap()
+            .is_some_and(|t| !t.is_empty()));
+        assert!(
+            !financial_basis_pending(&conn).unwrap(),
+            "历史 Begin 标记不是未完成修订"
+        );
+        drop(conn);
+        accept(
+            &files,
+            &test_input(&[ev("e0", "2", "0", "10001")]),
+            "revision.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        let conn = open_db(&files.db()).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
+            Some("idle")
+        );
+        assert!(
+            financial_basis_pending(&conn).unwrap(),
+            "修订已接纳但未 Begin/发布也必须等待"
+        );
+        drop(conn);
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        assert!(!financial_basis_pending(&open_db(&files.db()).unwrap()).unwrap());
+    }
+
+    #[test]
+    fn financial_basis_pending_detects_active_begin_without_new_raw_input() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut conn = open_db(&files.db()).unwrap();
+        let tx = conn.transaction().unwrap();
+        let token = v2::record_begin(&tx, None, 1, -1, "cut-0", DEFAULT_WRITER_EPOCH).unwrap();
+        meta_set(&tx, "advance_state", &format!("begun:{token}:1:-1")).unwrap();
+        meta_set(&tx, "begin_token", &token).unwrap();
+        meta_set(&tx, "begin_generation", "1").unwrap();
+        meta_set(&tx, "begin_input_frontier", "-1").unwrap();
+        tx.commit().unwrap();
+        assert!(financial_basis_pending(&conn).unwrap());
+        drop(conn);
+        cmd_recover(&files.db(), "2").unwrap();
+        assert!(!financial_basis_pending(&open_db(&files.db()).unwrap()).unwrap());
+    }
+
+    #[test]
     fn recover_clears_pending_begin_and_keeps_reachable_root() {
         let files = TestFiles::new();
         init_test_db(&files);
@@ -6984,5 +7298,703 @@ mod tests {
                 }
             }
         }
+    }
+
+    // ── #1394：私有 changes-only/1 域的真实变化 Delta、撤回历史与三方对拍 ──
+
+    fn delta_of(conn: &Connection, generation: i64) -> Value {
+        let text: String = conn
+            .query_row(
+                "SELECT delta_json FROM structure_deltas WHERE generation=?1",
+                params![generation],
+                |r| r.get(0),
+            )
+            .unwrap();
+        serde_json::from_str(&text).unwrap()
+    }
+
+    fn set_delta(conn: &Connection, generation: i64, delta: &Value) {
+        conn.execute(
+            "UPDATE structure_deltas SET delta_json=?1 WHERE generation=?2",
+            params![canonical_json(delta), generation],
+        )
+        .unwrap();
+    }
+
+    fn sorted_records(v: &Value) -> Vec<String> {
+        let mut out: Vec<String> = v.as_array().unwrap().iter().map(canonical_json).collect();
+        out.sort();
+        out
+    }
+
+    /// 消费端重放：base 快照 + 本代 Delta。upsert 按身份覆盖、撤回移入 withdrawn_objects，
+    /// 发布头取自 Delta 自身（与 read_snapshot 的公开字段一一对应）。
+    fn apply_delta(base: &Value, delta: &Value) -> Value {
+        let mut out = base.clone();
+        let mut objects: Vec<Value> = base["objects"].as_array().unwrap().clone();
+        let mut withdrawn: Vec<Value> = base["withdrawn_objects"].as_array().unwrap().clone();
+        for u in delta["upserts"].as_array().unwrap() {
+            let id = u["object_id"].as_str().unwrap().to_string();
+            objects.retain(|o| o["object_id"].as_str() != Some(id.as_str()));
+            withdrawn.retain(|o| o["object_id"].as_str() != Some(id.as_str()));
+            objects.push(u.clone());
+        }
+        for w in delta["withdrawals"].as_array().unwrap() {
+            let id = w["object_id"].as_str().unwrap().to_string();
+            if let Some(pos) = objects
+                .iter()
+                .position(|o| o["object_id"].as_str() == Some(id.as_str()))
+            {
+                let mut moved = objects.remove(pos);
+                moved["lifecycle"] = json!("withdrawn");
+                moved["withdrawn_generation"] = delta["generation"].clone();
+                moved["withdrawal_reason"] = w["reason"].clone();
+                moved["superseded_by"] = w["superseded_by"].clone();
+                withdrawn.push(moved);
+            }
+        }
+        for (field, key) in [
+            ("witnesses", "witness_id"),
+            ("relations", ""),
+            ("observations", "observation_id"),
+        ] {
+            let mut list: Vec<Value> = out[field].as_array().unwrap().clone();
+            for rec in delta[field].as_array().unwrap() {
+                let fresh = canonical_json(rec);
+                if list.iter().any(|old| {
+                    if key.is_empty() {
+                        canonical_json(old) == fresh
+                    } else {
+                        old[key] == rec[key]
+                    }
+                }) {
+                    continue;
+                }
+                list.push(rec.clone());
+            }
+            out[field] = json!(list);
+        }
+        out["objects"] = json!(objects);
+        out["withdrawn_objects"] = json!(withdrawn);
+        for rec in delta["raw_history_added"].as_array().unwrap() {
+            out["raw_history"].as_array_mut().unwrap().push(rec.clone());
+        }
+        out["generation"] = delta["generation"].clone();
+        out["structure_cut"] = delta["next_cut"].clone();
+        out["index_frontier"] = delta["index_frontier"].clone();
+        for key in [
+            "input_frontier",
+            "seq_range",
+            "catalog_run_status",
+            "catalog_evidence",
+        ] {
+            out[key] = delta[key].clone();
+        }
+        out
+    }
+
+    /// #1394：新域下真正未变的对象不重发；四个首次元数据与批次列在跨代保持首发布值。
+    #[test]
+    fn changes_only_delta_omits_unchanged_objects_and_keeps_first_metadata() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let rows = tb02b_oracle_rows();
+        for n in 1..=rows.len() {
+            accept_ohlc(&files, &located_ohlc_input(&rows[..n]));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let gen: i64 = meta_get_opt(&conn, "generation")
+            .unwrap()
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert!(gen >= 2);
+        let delta = delta_of(&conn, gen);
+        let prev = snapshot_of(&files, Some(gen - 1));
+        let next = snapshot_of(&files, None);
+        let by_id = |snap: &Value| -> BTreeMap<String, Value> {
+            snap["objects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|o| (o["object_id"].as_str().unwrap().to_string(), o.clone()))
+                .collect()
+        };
+        let (old, new) = (by_id(&prev), by_id(&next));
+        let upsert_ids: std::collections::BTreeSet<String> = delta["upserts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| o["object_id"].as_str().unwrap().to_string())
+            .collect();
+        let mut unchanged = 0;
+        for (id, before) in &old {
+            let Some(after) = new.get(id) else { continue };
+            unchanged += 1;
+            assert_eq!(
+                canonical_json(before),
+                canonical_json(after),
+                "未变对象必须逐字段保持"
+            );
+            for key in [
+                "first_known_generation",
+                "first_known_cut",
+                "batch_id",
+                "published_generation",
+            ] {
+                assert_eq!(before[key], after[key], "首次元数据不得漂移：{id}.{key}");
+            }
+            assert!(
+                !upsert_ids.contains(id),
+                "未变对象不得出现在本代 upserts：{id}"
+            );
+        }
+        assert!(unchanged >= 1, "该场景必须存在跨代未变对象");
+        assert!(
+            delta["upserts"].as_array().unwrap().len() < next["objects"].as_array().unwrap().len(),
+            "本代 upsert 必须是完整活动集的真子集"
+        );
+        for u in delta["upserts"].as_array().unwrap() {
+            assert_eq!(
+                u["first_known_generation"],
+                json!(gen.to_string()),
+                "本代 upsert 只能是本代新生/替代目标：{u}"
+            );
+            assert_eq!(u["batch_id"], delta["index_frontier"]);
+        }
+    }
+
+    /// #1394：替换/撤回历史完整；三族 Delta 精确等于本代首次发布（首次 batch 不外移）。
+    #[test]
+    fn changes_only_replacement_keeps_withdrawn_history_and_first_published_families() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept(
+            &files,
+            &test_input(&[ev("e2", "2", "2", "11500")]),
+            "in2.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let delta = delta_of(&conn, 2);
+        assert_eq!(delta["withdrawals"].as_array().unwrap().len(), 1);
+        assert_eq!(delta["replaces"].as_array().unwrap().len(), 1);
+        let old_id = delta["withdrawals"][0]["object_id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let new_id = delta["replaces"][0]["new_object_id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        // 撤回历史完整：旧身份仍以原发生区间在库，撤回代/理由/替代指针闭合。
+        let (wg, reason, sup): (Option<i64>, Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT withdrawn_generation,withdrawal_reason,superseded_by FROM objects WHERE object_id=?1",
+                params![old_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(wg, Some(2));
+        assert_eq!(reason.as_deref(), Some("superseded_by_revision"));
+        assert_eq!(sup.as_deref(), Some(new_id.as_str()));
+        // 替代目标：first_known 本代、批次本代，且被撤对象不得复活。
+        let (fk, batch): (i64, String) = conn
+            .query_row(
+                "SELECT first_known_generation,batch_id FROM objects WHERE object_id=?1",
+                params![new_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            (fk, batch.as_str()),
+            (2, delta["index_frontier"].as_str().unwrap())
+        );
+        assert!(!delta["upserts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|o| o["object_id"].as_str() == Some(old_id.as_str())));
+        let snapshot = snapshot_of(&files, None);
+        let withdrawn = snapshot["withdrawn_objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| o["object_id"].as_str() == Some(old_id.as_str()))
+            .unwrap();
+        assert_eq!(withdrawn["lifecycle"], json!("withdrawn"));
+        assert_eq!(withdrawn["withdrawn_generation"], json!("2"));
+        // 三族 Delta 精确等于本代首次发布（published_generation=2），不是完整累计集。
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap() };
+        assert_eq!(
+            delta["witnesses"].as_array().unwrap().len() as i64,
+            count("SELECT COUNT(*) FROM witnesses WHERE published_generation=2")
+        );
+        assert_eq!(
+            delta["relations"].as_array().unwrap().len() as i64,
+            count("SELECT COUNT(*) FROM relations WHERE published_generation=2")
+        );
+        assert_eq!(
+            delta["observations"].as_array().unwrap().len() as i64,
+            count("SELECT COUNT(*) FROM observations WHERE published_generation=2")
+        );
+        assert!(
+            (delta["witnesses"].as_array().unwrap().len() as i64)
+                < count("SELECT COUNT(*) FROM witnesses"),
+            "本代见证必须是完整见证集的真子集"
+        );
+        // 旧观察（若有）保留首次 batch：不重发，也不改持久行。
+        let gen1_batch: String = conn
+            .query_row(
+                "SELECT index_frontier FROM structure_deltas WHERE generation=1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let mut stmt = conn
+            .prepare("SELECT observation_id,batch_id FROM observations ORDER BY observation_id")
+            .unwrap();
+        let rows: Vec<(String, String)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        for (oid, batch) in rows {
+            let resent = delta["observations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|o| o["observation_id"].as_str() == Some(oid.as_str()));
+            if resent {
+                assert_eq!(batch, delta["index_frontier"].as_str().unwrap());
+            } else {
+                assert_eq!(batch, gen1_batch, "旧观察必须保留首次 batch");
+            }
+        }
+    }
+
+    /// #1394：base Snapshot + Delta = next Snapshot（含发布头）；重复应用同一 Delta 不再生效。
+    #[test]
+    fn changes_only_base_snapshot_plus_delta_replays_next_snapshot() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let prices = [10, 5, 8, 11, 14, 17, 13, 18, 15];
+        let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
+        for n in 1..=bars.len() {
+            accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let mut revised = ohlc_input(&bars, false);
+        revised["events"][5]["revision"] = json!("2");
+        revised["events"][5]["high"] = json!("18");
+        revised["events"][5]["close"] = json!("18");
+        revised["events"][5]["raw_text"] = json!("15/18 revision");
+        accept_ohlc(&files, &revised);
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let gen: i64 = meta_get_opt(&conn, "generation")
+            .unwrap()
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(gen, bars.len() as i64 + 1);
+        let mut replayed = snapshot_of(&files, Some(1));
+        for g in 2..=gen {
+            let delta = delta_of(&conn, g);
+            let next = snapshot_of(&files, Some(g));
+            replayed = apply_delta(&replayed, &delta);
+            let twice = apply_delta(&replayed, &delta);
+            for field in [
+                "objects",
+                "withdrawn_objects",
+                "witnesses",
+                "relations",
+                "observations",
+            ] {
+                assert_eq!(
+                    sorted_records(&replayed[field]),
+                    sorted_records(&next[field]),
+                    "base+Delta 必须逐字段等于 next Snapshot：{field} @ cut-{g}"
+                );
+                assert_eq!(
+                    sorted_records(&twice[field]),
+                    sorted_records(&replayed[field]),
+                    "重复应用同一 Delta 不再生效：{field} @ cut-{g}"
+                );
+            }
+            assert_eq!(
+                sorted_records(&replayed["raw_history"]),
+                sorted_records(&next["raw_history"]),
+                "raw_history 必须完整续接 @ cut-{g}"
+            );
+            // 发布头（generation/cut/frontier/seq_range/catalog_evidence）也须等价，不能只比六族。
+            for key in [
+                "generation",
+                "structure_cut",
+                "index_frontier",
+                "input_frontier",
+                "seq_range",
+                "catalog_run_status",
+                "catalog_evidence",
+            ] {
+                assert_eq!(
+                    canonical_json(&replayed[key]),
+                    canonical_json(&next[key]),
+                    "发布头 {key} 必须与 next Snapshot 一致 @ cut-{g}"
+                );
+            }
+        }
+    }
+
+    /// #1394：新域漏 birth / 伪旧 member 都必须拒绝（不做降级重判）。
+    #[test]
+    fn changes_only_audit_rejects_missing_birth_and_fake_old_member() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let prices = [10, 5, 8, 11, 14, 17, 13, 18];
+        let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
+        for n in 1..=bars.len() {
+            accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let gen: i64 = meta_get_opt(&conn, "generation")
+            .unwrap()
+            .unwrap()
+            .parse()
+            .unwrap();
+        let delta = delta_of(&conn, gen);
+        assert!(!delta["upserts"].as_array().unwrap().is_empty());
+        // ① 漏 birth：抹掉本代新生 → 独立索引出生不再出现在 Delta。
+        let mut missing = delta.clone();
+        missing["upserts"] = json!([]);
+        set_delta(&conn, gen, &missing);
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        // ② 伪旧 member：把一个未变对象当本代 upsert 重新发布 → 它没有本代出生。
+        set_delta(&conn, gen, &delta);
+        verify_reachable_root(&conn).unwrap();
+        let prev = snapshot_of(&files, Some(gen - 1));
+        let fresh: std::collections::BTreeSet<String> = delta["upserts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| o["object_id"].as_str().unwrap().to_string())
+            .collect();
+        let old = prev["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| !fresh.contains(o["object_id"].as_str().unwrap()))
+            .unwrap()
+            .clone();
+        let mut fake = delta.clone();
+        fake["upserts"].as_array_mut().unwrap().push(old);
+        set_delta(&conn, gen, &fake);
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        set_delta(&conn, gen, &delta);
+        verify_reachable_root(&conn).unwrap();
+    }
+
+    /// #1394：索引和 Delta 一起被改时，仍须由完整封存原件揭露漂移。
+    #[test]
+    fn changes_only_rejects_witness_index_and_delta_drift_from_sealed_source() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        for (i, price) in ["10000", "11000", "10500"].iter().enumerate() {
+            accept(
+                &files,
+                &test_input(&[ev(&format!("e{i}"), "1", &i.to_string(), price)]),
+                &format!("input-{i}.json"),
+                DEFAULT_WRITER_EPOCH,
+            );
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let (id, old_high, born): (String, String, i64) = conn
+            .query_row(
+                "SELECT witness_id,merged_high,published_generation FROM witnesses ORDER BY witness_id LIMIT 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        let changed_high = (old_high.parse::<i64>().unwrap() + 1).to_string();
+        let mut delta = delta_of(&conn, born);
+        let witness = delta["witnesses"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|w| w["witness_id"] == id)
+            .unwrap();
+        witness["merged_high"] = json!(changed_high);
+        conn.execute(
+            "UPDATE witnesses SET merged_high=?1 WHERE witness_id=?2",
+            params![changed_high, id],
+        )
+        .unwrap();
+        set_delta(&conn, born, &delta);
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("封存批次内容/发布代与独立索引不一致"));
+        let output = std::process::Command::new("python3")
+            .arg(fixture("tests/tb02b_verify.py"))
+            .arg("--database")
+            .arg(files.db())
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("封存原件内容/发布代与独立索引不一致")
+        );
+    }
+
+    /// #1394：旧 full 域（无登记表）保持旧判据——删掉冗余的未变对象 upsert 仍当损坏拒绝。
+    #[test]
+    fn legacy_full_domain_rejects_dropped_redundant_upsert() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        // 模拟旧库：无私有登记表 → 旧 full 域（本测试的全部代都由新 writer 按旧域语义写入）。
+        {
+            let conn = open_db(&files.db()).unwrap();
+            conn.execute("DROP TABLE s_storage_format", []).unwrap();
+            verify_reachable_root(&conn).unwrap();
+        }
+        let prices = [10, 5, 8, 11, 14, 17, 13, 18];
+        let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
+        for n in 1..=bars.len() {
+            accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let gen: i64 = meta_get_opt(&conn, "generation")
+            .unwrap()
+            .unwrap()
+            .parse()
+            .unwrap();
+        let delta = delta_of(&conn, gen);
+        assert_eq!(
+            delta["upserts"].as_array().unwrap().len(),
+            snapshot_of(&files, None)["objects"]
+                .as_array()
+                .unwrap()
+                .len(),
+            "旧 full 域的 Delta upserts 仍是完整活动集"
+        );
+        let mut broken = delta.clone();
+        broken["upserts"].as_array_mut().unwrap().pop();
+        set_delta(&conn, gen, &broken);
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        set_delta(&conn, gen, &delta);
+        verify_reachable_root(&conn).unwrap();
+    }
+
+    /// #1394：私有格式登记的未知值/缺行/多行/结构不符与暖 cache 后改模式，都在写入前拒绝。
+    #[test]
+    fn storage_format_registry_corruption_is_rejected_before_any_write() {
+        // 先放对照：同一输入链在新旧两域必须得到同一 batch 字节/hash（见下一个测试）。
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept(
+            &files,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let before = db_meta(&conn).unwrap();
+        // ① 未知模式值。
+        conn.execute(
+            "UPDATE s_storage_format SET storage_format='changes-only/9'",
+            [],
+        )
+        .unwrap();
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("SchemaUnsupported"));
+        for refused in [
+            cmd_snapshot(&files.db(), None),
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
+            cmd_recover(&files.db(), "2"),
+        ] {
+            assert!(refused.is_err());
+        }
+        assert_eq!(db_meta(&conn).unwrap(), before);
+        // ② 缺行（表在而登记行没了）。
+        conn.execute(
+            "UPDATE s_storage_format SET storage_format='changes-only/1'",
+            [],
+        )
+        .unwrap();
+        verify_reachable_root(&conn).unwrap();
+        conn.execute("DELETE FROM s_storage_format", []).unwrap();
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        // ③ 多行（换掉 CHECK 的 DDL）：结构不符即拒绝，不按「最后一行」猜。
+        conn.execute_batch(
+            "DROP TABLE s_storage_format;
+             CREATE TABLE s_storage_format(singleton INTEGER, storage_format TEXT);
+             INSERT INTO s_storage_format VALUES(1,'changes-only/1'),(2,'changes-only/1');",
+        )
+        .unwrap();
+        assert!(verify_reachable_root(&conn)
+            .unwrap_err()
+            .contains("StorageUnavailable"));
+        drop(conn);
+        // ④ 暖 cache 后改模式：已核前缀/证书身份含模式标签，改模式即失效且写前拒绝，库不变。
+        let warm = TestFiles::new();
+        init_test_db(&warm);
+        accept(
+            &warm,
+            &test_input(&[
+                ev("e0", "1", "0", "10000"),
+                ev("e1", "1", "1", "11000"),
+                ev("e2", "1", "2", "10500"),
+            ]),
+            "in1.json",
+            DEFAULT_WRITER_EPOCH,
+        );
+        cmd_advance(&warm.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        cache::configure(268435456);
+        let healthy = open_db(&warm.db()).unwrap();
+        verify_reachable_root(&healthy).unwrap(); // 首次装入，尚无已核前缀可复用
+        verify_reachable_root(&healthy).unwrap();
+        assert_eq!(cache::last_resumed(), 1);
+        let other = open_db(&warm.db()).unwrap();
+        other
+            .execute(
+                "UPDATE s_storage_format SET storage_format='legacy-full/0'",
+                [],
+            )
+            .unwrap();
+        drop(other);
+        let before = db_meta(&healthy).unwrap();
+        assert!(verify_reachable_root(&healthy).is_err());
+        for refused in [
+            cmd_snapshot(&warm.db(), None),
+            cmd_advance(&warm.db(), DEFAULT_WRITER_EPOCH),
+            cmd_recover(&warm.db(), "2"),
+        ] {
+            assert!(refused.is_err());
+        }
+        assert_eq!(db_meta(&healthy).unwrap(), before);
+        // ⑤ 暖 cache 后整表消失（退化为旧 full 域）：模式标签进缓存身份，已核前缀不得复用；
+        //    稀疏 Delta 也不满足旧 full 判据，故仍在写入前拒绝（不是「旧全量失败了再试稀疏」）。
+        let dropped = TestFiles::new();
+        init_test_db(&dropped);
+        let rows = tb02b_oracle_rows();
+        for n in 1..=rows.len() {
+            accept_ohlc(&dropped, &located_ohlc_input(&rows[..n]));
+            cmd_advance(&dropped.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        cache::configure(268435456);
+        let healthy = open_db(&dropped.db()).unwrap();
+        verify_reachable_root(&healthy).unwrap(); // 首次装入
+        verify_reachable_root(&healthy).unwrap();
+        assert_eq!(cache::last_resumed(), rows.len());
+        let other = open_db(&dropped.db()).unwrap();
+        other.execute("DROP TABLE s_storage_format", []).unwrap();
+        drop(other);
+        let before = db_meta(&healthy).unwrap();
+        assert!(verify_reachable_root(&healthy).is_err());
+        assert_eq!(cache::last_resumed(), 0, "模式变化不得复用旧前缀/证书");
+        for refused in [
+            cmd_snapshot(&dropped.db(), None),
+            cmd_advance(&dropped.db(), DEFAULT_WRITER_EPOCH),
+            cmd_recover(&dropped.db(), "2"),
+        ] {
+            assert!(refused.is_err());
+        }
+        assert_eq!(db_meta(&healthy).unwrap(), before);
+        cache::configure(0);
+    }
+
+    /// #1394：封存 batch 的字节/内容寻址 hash 不得随 Delta 域变化。
+    /// 同一条输入链分别只改「有没有私有登记表」，逐代 batch_id 与 byte_len 必须完全相同；
+    /// 变化只能落在 Delta 的 upserts 上（新域少发未变对象）。
+    #[test]
+    fn batch_bytes_and_hash_do_not_depend_on_delta_domain() {
+        let build = |legacy: bool| -> (TestFiles, Vec<(i64, String, i64)>, Vec<usize>) {
+            let files = TestFiles::new();
+            init_test_db(&files);
+            if legacy {
+                let conn = open_db(&files.db()).unwrap();
+                conn.execute("DROP TABLE s_storage_format", []).unwrap();
+            }
+            let prices = [10, 5, 8, 11, 14, 17, 13, 18];
+            let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
+            for n in 1..=bars.len() {
+                accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            }
+            let conn = open_db(&files.db()).unwrap();
+            let batches: Vec<(i64, String, i64)> = {
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT d.generation,b.batch_id,b.byte_len FROM structure_deltas d
+                         JOIN batches b ON b.batch_id=d.index_frontier ORDER BY d.generation",
+                    )
+                    .unwrap();
+                stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+                    .unwrap()
+                    .collect::<Result<_, _>>()
+                    .unwrap()
+            };
+            let upserts: Vec<usize> = (1..=batches.len() as i64)
+                .map(|g| delta_of(&conn, g)["upserts"].as_array().unwrap().len())
+                .collect();
+            (files, batches, upserts)
+        };
+        let (_new_files, new_batches, new_upserts) = build(false);
+        let (_old_files, old_batches, old_upserts) = build(true);
+        assert_eq!(
+            new_batches, old_batches,
+            "batch 字节长度与内容寻址 hash 必须与 Delta 域无关"
+        );
+        assert_eq!(new_upserts.len(), old_upserts.len());
+        assert!(
+            new_upserts
+                .iter()
+                .zip(&old_upserts)
+                .all(|(new, old)| new <= old),
+            "新域的 upserts 不得多于旧 full 域"
+        );
+        assert!(
+            new_upserts
+                .iter()
+                .zip(&old_upserts)
+                .any(|(new, old)| new < old),
+            "新域必须在至少一代真正少发未变对象"
+        );
     }
 }

@@ -194,11 +194,28 @@ CREATE TABLE s_delivery_refs (
 EXPECTED_V2 = _expected_schema(LEGACY_SCHEMA + CONTROL_SCHEMA)
 EXPECTED_OHLC = _expected_schema(LEGACY_SCHEMA + tb02.SCHEMA)
 EXPECTED_V2_OHLC = _expected_schema(LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA)
-EXPECTED_SQL = _expected_sql(LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA)
+
+# #1394：新库固定私有 changes-only/1 的显式单行登记表；无该表的旧库继续旧 full 域。
+# 两个域各自都是「已知协议模式」，不存在第三种；未知模式/缺行/多行/结构不符一律拒绝。
+STORAGE_FORMAT_SCHEMA = """
+CREATE TABLE s_storage_format (
+ singleton INTEGER PRIMARY KEY CHECK(singleton=1), storage_format TEXT NOT NULL);
+"""
+STORAGE_FORMAT_TABLE = "s_storage_format"
+STORAGE_FORMAT_CHANGES_ONLY = "changes-only/1"
+STORAGE_FORMAT_LEGACY = "legacy-full/0"
+EXPECTED_LEGACY_FORMAT = _expected_schema(LEGACY_SCHEMA + STORAGE_FORMAT_SCHEMA)
+EXPECTED_V2_FORMAT = _expected_schema(LEGACY_SCHEMA + CONTROL_SCHEMA + STORAGE_FORMAT_SCHEMA)
+EXPECTED_OHLC_FORMAT = _expected_schema(LEGACY_SCHEMA + tb02.SCHEMA + STORAGE_FORMAT_SCHEMA)
+EXPECTED_V2_OHLC_FORMAT = _expected_schema(
+    LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA + STORAGE_FORMAT_SCHEMA)
+EXPECTED_SCHEMAS = (EXPECTED_LEGACY, EXPECTED_LEGACY_FORMAT, EXPECTED_V2, EXPECTED_V2_FORMAT,
+                    EXPECTED_OHLC, EXPECTED_OHLC_FORMAT, EXPECTED_V2_OHLC, EXPECTED_V2_OHLC_FORMAT)
+EXPECTED_SQL = _expected_sql(LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA + STORAGE_FORMAT_SCHEMA)
 
 
 def _validate_schema(rows, tables):
-    if tables not in (EXPECTED_LEGACY, EXPECTED_V2, EXPECTED_OHLC, EXPECTED_V2_OHLC):
+    if tables not in EXPECTED_SCHEMAS:
         raise ValueError("S 权威表/列/PK/UNIQUE/NOT NULL 与已知协议模式不符")
     if any(kind not in ("table", "index") for kind, *_rest in rows):
         raise ValueError("S 权威模式包含未声明视图/触发器")
@@ -207,6 +224,22 @@ def _validate_schema(rows, tables):
     for kind, name, _table, sql in rows:
         if kind == "table" and re.sub(r"\s+", "", sql).rstrip(";") != EXPECTED_SQL[name]:
             raise ValueError("S 权威表 SQL/约束定义与协议不符")
+
+
+def storage_mode(tables):
+    """Delta 域的唯一入口：无登记表 = 旧 full 域；有表 = 恰一行且为本程序唯一声明值。
+
+    这里不做二次尝试：模式读不出来就是拒绝，不存在「旧全量核验失败再试稀疏」的降级通道。
+    """
+    if STORAGE_FORMAT_TABLE not in tables:
+        return STORAGE_FORMAT_LEGACY
+    rows = tables[STORAGE_FORMAT_TABLE]
+    if len(rows) != 1:
+        raise ValueError("私有格式登记必须恰一行（缺行/多行一律拒绝）")
+    row = rows[0]
+    if row["singleton"] != 1 or row["storage_format"] != STORAGE_FORMAT_CHANGES_ONLY:
+        raise ValueError("未知/损坏的 S 私有存储模式（只认旧 full 域与 changes-only/1）")
+    return STORAGE_FORMAT_CHANGES_ONLY
 
 
 def capture(conn, max_bytes=None, deadline=None):
@@ -219,7 +252,7 @@ max_bytes 计实际 Python 捕获对象大小的保守增量（含每行/每值�
     if max_bytes is not None:
         count, schema_bytes = conn.execute(
             "SELECT COUNT(*),COALESCE(SUM(length(CAST(sql AS BLOB))),0) FROM sqlite_schema").fetchone()
-        if count > 2*len(EXPECTED_V2_OHLC) or schema_bytes > min(max_bytes, 128*1024):
+        if count > 2*len(EXPECTED_V2_OHLC_FORMAT) or schema_bytes > min(max_bytes, 128*1024):
             raise QueryBudgetExceeded("当前模式元数据超过捕获界限")
     schema_rows, schema = _schema(conn)
     _validate_schema(schema_rows, schema)
@@ -430,8 +463,14 @@ def _same_keys(actual, expected, name):
         raise ValueError(name + " 与独立持久索引/封存内容不一致")
 
 
-def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observations, raw, h, pool):
-    """验证当前代封存原件的内部关系；返回可逐字绑定源的规范集合，非当前库健康结论。"""
+def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observations, raw, h, pool, mode):
+    """验证当前代封存原件的内部关系；返回可逐字绑定源的规范集合，非当前库健康结论。
+
+    mode 决定本代 Delta 的判据：旧 full 域的 Delta 仍是完整活动集/完整三族；
+    changes-only 域的 Delta 只含本代新生与首次发布，故这里不重述完整集比较
+    （「精确等于首次发布集」由 verify 用独立索引另行核定）。
+    """
+    changes_only = mode != STORAGE_FORMAT_LEGACY
     seq_range, evidence, delta = (parse_json(row[k]) for k in ("seq_range_json", "catalog_evidence_json", "delta_json"))
     header = {k: row[k] for k in ("session_id", "catalog_revision", "base_cut", "next_cut", "index_frontier", "catalog_run_status")}
     header.update(generation=str(gen), input_frontier=str(frontier), seq_range=seq_range, catalog_evidence=evidence)
@@ -489,11 +528,12 @@ def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observa
             for key in ("batch_id", "first_known_generation", "first_known_cut", "published_generation"):
                 value[key] = previous[key]
         upserts.append(value)
-    _same_keys(sets["upserts"], _intern_set(upserts, h, "upserts/batch", pool), "upserts/batch")
+    batch_object_keys = _intern_set(upserts, h, "batch.objects", pool)
+    if not changes_only:
+        _same_keys(sets["upserts"], batch_object_keys, "upserts/batch")
     witnesses = [dict(w, slot=h["_num_to_str"](w["slot"]),
                       merged_source_index=h["_num_to_str"](w["merged_source_index"]),
                       raw_bars=h["_project_raw_bars"](w["raw_bars"])) for w in batch["witnesses"]]
-    _same_keys(sets["witnesses"], _intern_set(witnesses, h, "witnesses/batch", pool), "witnesses/batch")
     relations = list(batch["relations"])
     relations.extend({"subject": r["new_object_id"], "relation_type": "replaces", "object": r["old_object_id"]}
                      for r in delta["replaces"])
@@ -501,7 +541,9 @@ def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observa
         if item["supersedes_revision"] is not None:
             relations.append({"subject": item["identity_key"]+"@"+item["revision"], "relation_type": "supersedes",
                               "object": item["identity_key"]+"@"+item["supersedes_revision"]})
-    _same_keys(sets["relations"], _intern_set(relations, h, "relations/batch", pool), "relations/batch")
+    if not changes_only:
+        _same_keys(sets["witnesses"], _intern_set(witnesses, h, "witnesses/batch", pool), "witnesses/batch")
+        _same_keys(sets["relations"], _intern_set(relations, h, "relations/batch", pool), "relations/batch")
     firsts, records = {}, []
     for ob in batch["observations"]:
         oid = h["_observation_id"](ob)
@@ -511,8 +553,21 @@ def _sealed_generation(row, entry, gen, frontier, meta, binding, active, observa
                 original[key] = h["_num_or_none_to_str"](original[key])
             observations[oid] = firsts[oid] = original
         records.append(observations[oid])
-    _same_keys(sets["observations"], _intern_set(records, h, "observations/首封存版本", pool), "observations/首封存版本")
+    if changes_only:
+        # 本代 Delta 只含本代首次封存的观察；旧观察保留首次 batch（records 仍是完整首版集）。
+        _same_keys(sets["observations"], _intern_set(firsts.values(), h, "observations/本代首次", pool),
+                   "observations/本代首次")
+    else:
+        _same_keys(sets["observations"], _intern_set(records, h, "observations/首封存版本", pool), "observations/首封存版本")
     return {"header": header, "sets": sets, "first_observations": firsts,
+            "batch_object_keys": batch_object_keys,
+            "batch_family_keys": {
+                "witnesses": _intern_set(witnesses, h, "witnesses/封存原件", pool),
+                "relations": _intern_set(relations, h, "relations/封存原件及派生边", pool),
+                "observations": _intern_set(records, h, "observations/封存原件", pool),
+            },
+            "delta_upserts": delta["upserts"] if changes_only else [],
+            "delta_withdrawals": delta["withdrawals"] if changes_only else [],
             "delta_public": zlib.compress(row["delta_json"].encode("utf-8"), 1),
             "raw_keys": _intern_set([_raw_wire(item) for item in batch["raw_events"]], h, "raw_history/batch", pool),
             "batch": {key: batch[key] for key in ("profile_id", "profile_hash", "protocol_revision",
@@ -525,7 +580,8 @@ def project_delta(proof, index):
 
 
 def _verify_control(tables, meta, raw, deltas, batches, deadline=None):
-    names = set(tables) - set(EXPECTED_LEGACY) - {"raw_ohlc", "structure_facts"}
+    # 私有格式登记不是控制表：它不参与协议标记判定，也不得被读成 v2 控制面。
+    names = set(tables) - set(EXPECTED_LEGACY) - {STORAGE_FORMAT_TABLE, "raw_ohlc", "structure_facts"}
     if not names:
         if "protocol_revision" in meta:
             raise ValueError("协议标记存在但控制表缺失")
@@ -750,6 +806,8 @@ def verify(image, h, deadline=None, memo=None):
     _deadline(deadline)
     tables = _typed_rows(image, deadline)
     meta = dict((r["key"], r["value"]) for r in tables["meta"])
+    # #1394：Delta 域由私有登记表唯一决定；模式损坏（缺行/多行/未知值）在任何代比较之前拒绝。
+    mode = storage_mode(tables)
     generation = h["_validate_required_meta"](meta)
     epoch = _int_text(meta.get("writer_epoch"), "meta.writer_epoch")
     previous_epoch, previous_generation = None, 0
@@ -793,7 +851,7 @@ def verify(image, h, deadline=None, memo=None):
                 raise ValueError("旧未发布 profile 没有可核来源")
 
     # memo是进程内已核源的派生集合；每次捕获完整typed材料后才允许比对原字节。
-    context = canonical((image["schema_rows"], image["schema"], binding,
+    context = canonical((image["schema_rows"], image["schema"], binding, mode,
                          [(key, meta.get(key)) for key in ("session_id", "catalog_revision", "rule_revision",
                           "scope", "profile_definition", "input_profile")]))
     previous_entries = memo.get("entries", []) if memo is not None and memo.get("context") == context else []
@@ -888,7 +946,7 @@ def verify(image, h, deadline=None, memo=None):
             # 一处源变化后，后续first-known/首版observation依赖全部重新建立。
             reusable = False
             certificate = _sealed_generation(row, entry, gen, frontier, meta, binding, active,
-                                             original_observations, raw, h, pool)
+                                             original_observations, raw, h, pool, mode)
             if memo is not None:
                 certificate["delta_columns"] = row_columns
                 certificate["batch_source"] = zlib.compress(entry["canonical_bytes"], 1)
@@ -910,6 +968,7 @@ def verify(image, h, deadline=None, memo=None):
         # 无论命中memo与否，独立索引生命周期和全raw前缀均来自本次完整typed捕获。
         for item in raw[prev_frontier+1:frontier+1]:
             effective_sources[item["source_coord"]] = {key: item[key] for key in tb02.REF_FIELDS}
+        base_active = dict(active)  # 本代开始前的完整活动集（供 Delta 腿独立重建）
         for obj in births[gen]:
             if obj["kind"] in tb02.KINDS:
                 by_source, source_bars = tb02.validate_sources(obj, effective_sources)
@@ -958,20 +1017,52 @@ def verify(image, h, deadline=None, memo=None):
         current_objects = frozenset(active_keys.values())
         if len(current_objects) != len(active):
             raise ValueError("objects/独立索引 含重复成员")
-        _same_keys(sets["upserts"], current_objects, "objects/独立索引")
+        if mode == STORAGE_FORMAT_CHANGES_ONLY:
+            # 三方强相等：① 封存 full batch 正规化 ② 独立索引 born/death ③ base active + 本代 Delta。
+            # 旧实现假定「Delta upserts == 完整活动集」，本域不成立，但完整结果核验不得取消。
+            _same_keys(certificate["batch_object_keys"], current_objects, "objects/封存批次活动集")
+            delta_state = dict(base_active)
+            for record in certificate["delta_upserts"]:
+                oid = record["object_id"]
+                if oid in delta_state:
+                    raise ValueError("Delta upsert 覆盖既有活动身份（同 ID 异内容不得吞掉）")
+                delta_state[oid] = record
+            for withdrawal in certificate["delta_withdrawals"]:
+                if delta_state.pop(withdrawal["object_id"], None) is None:
+                    raise ValueError("Delta 撤回无活动前件")
+            _same_keys(_intern_set(list(delta_state.values()), h, "objects/Delta活动集", pool),
+                       current_objects, "objects/Delta活动集")
+            born_keys = _intern_set(
+                [dict(obj, withdrawn_generation=None, withdrawal_reason=None, superseded_by=None,
+                      lifecycle="active") for obj in births[gen]],
+                h, "objects/本代首次", pool)
+            _same_keys(sets["upserts"], born_keys, "upserts/本代首次")
+        else:
+            _same_keys(sets["upserts"], current_objects, "objects/独立索引")
         _same_keys(sets["withdrawals"], _intern_set(withdrawals, h, "withdrawals", pool), "withdrawals")
         _same_keys(sets["replaces"], _intern_set(replaces, h, "replaces", pool), "replaces")
         _same_keys(certificate["raw_keys"], frozenset(raw_keys[:frontier+1]), "raw_history/batch")
         _same_keys(sets["raw_history_added"], frozenset(raw_keys[prev_frontier+1:frontier+1]), "raw_history_added")
         for table in ("witnesses", "relations", "observations"):
             added = sets[table]
+            batch_members = certificate["batch_family_keys"][table]
+            for key in batch_members:
+                published = stored[table].get(key)
+                if published is None or published > gen:
+                    raise ValueError(table + " 封存原件内容/发布代与独立索引不一致")
             for key in added:
                 published = stored[table].get(key)
                 if published is None or published > gen:
                     raise ValueError(table + " 内容/发布代与独立索引不一致")
                 if key not in seen[table] and published != gen:
                     raise ValueError(table + " 首次出现代与持久发布代不一致")
-            if not born[table][gen] <= added:
+            if mode == STORAGE_FORMAT_CHANGES_ONLY:
+                # 本代 Delta 精确等于本代首次发布集：漏 birth 与伪旧 member 都拒绝。
+                if added != frozenset(born[table][gen]):
+                    raise ValueError(table + " 本代 Delta 不等于本代首次发布集（漏 birth 或伪旧 member）")
+                if not born[table][gen] <= batch_members:
+                    raise ValueError(table + " 封存原件缺本代首次成员")
+            elif not born[table][gen] <= added:
                 raise ValueError(table + " 含该代没有发布的幽灵端点")
             seen[table].update(added)
         verified_deltas.append(header)

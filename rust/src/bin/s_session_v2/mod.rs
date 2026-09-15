@@ -457,6 +457,21 @@ fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
             .unwrap();
         expected.insert(name.to_string(), normalize_schema(stmt));
     }
+    // #1394：存在私有格式登记表时严格核其结构与声明；无表则按旧库的完整 Delta 判据验证。
+    // 删除新库登记表不在此处硬拒：若各代稀疏 Delta 恰等于完整活动集，字节上无法与旧库区分。
+    let has_format_table: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name=?1",
+            params![delta_storage::TABLE],
+            |r| r.get(0),
+        )
+        .map_err(err)?;
+    if has_format_table == 1 {
+        expected.insert(
+            delta_storage::TABLE.to_string(),
+            normalize_schema(delta_storage::DDL),
+        );
+    }
     let mut q = conn
         .prepare(
             "SELECT type,name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name",
@@ -514,6 +529,8 @@ fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
             }
         }
     }
+    // 表在而登记行缺/多/未声明值：与模式损坏同门，读取与写入前一律拒绝。
+    delta_storage::read_mode(conn)?;
     Ok(())
 }
 
@@ -1464,6 +1481,7 @@ mod tests {
                 "relations",
                 "observations",
                 "structure_deltas",
+                "s_storage_format",
                 "writer_epoch_history",
                 "catalog",
                 "s_protocol_meta",
@@ -1598,6 +1616,10 @@ mod tests {
             "DELETE FROM s_delivery_refs",
             "UPDATE s_delivery_policy SET first_available_generation=3",
             "CREATE TABLE foreign_schema(value TEXT)",
+            // #1394：私有存储格式登记损坏（未知值 / 缺行）必须与其它根损坏同门拒绝。
+            "UPDATE s_storage_format SET storage_format='changes-only/9'",
+            "UPDATE s_storage_format SET storage_format='legacy-full/0'",
+            "DELETE FROM s_storage_format",
             "INSERT INTO writer_epoch_history VALUES(1,'bad','2',4,'idle','bad')",
         ] {
             cache::configure(268435456);
