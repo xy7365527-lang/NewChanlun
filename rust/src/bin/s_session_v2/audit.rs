@@ -512,35 +512,41 @@ impl AuditWalk {
         }
 
         // 三方逐字段相等（不能只核其中两方，也不能只核活动集大小）。
-        same_records(
-            &json!(index_next
-                .values()
-                .map(|v| &**v)
-                .collect::<Vec<&Value>>()),
-            &json!(batch_next),
-            "objects/独立索引活动集",
-        )?;
-        same_records(
-            &json!(delta_next
-                .values()
-                .map(|v| &**v)
-                .collect::<Vec<&Value>>()),
-            &json!(batch_next),
-            "objects/Delta活动集",
-        )?;
-        same_records(&delta["withdrawals"], &json!(withdrawals), "withdrawals")?;
-        same_records(&delta["replaces"], &json!(replaces), "replaces")?;
+        let normalized_batch_next = {
+            // 首次仍先完整规范化 actual，再规范化/查重 expected，保留原错误优先顺序。
+            let actual = normalize_record_iter(
+                index_next.values().map(|v| v.as_ref()),
+                "objects/独立索引活动集",
+            )?;
+            let expected = normalize_record_iter(&batch_next, "objects/独立索引活动集")?;
+            compare_normalized_records(&actual, &expected, "objects/独立索引活动集")?;
+            expected
+        };
+        // 只在首次完整比较成功后复用规范字符串；不再需要这份派生 Value 集合。
+        drop(batch_next);
+        {
+            let actual = normalize_record_iter(
+                delta_next.values().map(|v| v.as_ref()),
+                "objects/Delta活动集",
+            )?;
+            compare_normalized_records(&actual, &normalized_batch_next, "objects/Delta活动集")?;
+        }
+        same_records_against_iter(&delta["withdrawals"], &withdrawals, "withdrawals")?;
+        same_records_against_iter(&delta["replaces"], &replaces, "replaces")?;
         if mode.changes_only() {
             // 本代新生/替代精确等于 Delta upserts：漏 birth 与伪旧 member 都拒绝。
-            same_records(
+            same_records_against_iter(
                 &delta["upserts"],
-                &json!(index_born.iter().map(|v| &**v).collect::<Vec<&Value>>()),
+                index_born.iter().map(|v| v.as_ref()),
                 "upserts/本代首次",
             )?;
         } else {
             // 旧 full 域保持旧判据：Delta upserts 仍是完整活动集。
-            same_records(&delta["upserts"], &json!(batch_next), "upserts/batch")?;
+            let actual = normalize_record_array(&delta["upserts"], "upserts/batch")?;
+            compare_normalized_records(&actual, &normalized_batch_next, "upserts/batch")?;
         }
+        // 此完整规范化向量仅属于本次 verify，最后一次比较后立即释放，不跨代保留。
+        drop(normalized_batch_next);
 
         // 三族：封存批次成员须有独立端点；changes-only 域另核 Delta 精确等于本代首次发布集。
         // 三族成员同样以共享不可变投影持有（一记录一份），不按视图重复深拷贝。
@@ -572,12 +578,12 @@ impl AuditWalk {
             .iter()
             .map(project_raw_event_wire)
             .collect::<Result<Vec<_>, _>>()?;
-        same_records(&json!(raw), &json!(batch_raw), "raw_history/batch")?;
+        same_record_iters(raw, &batch_raw, "raw_history/batch")?;
         let from =
             usize::try_from(number(&delta["seq_range"], "from")?).map_err(|e| e.to_string())?;
-        same_records(
+        same_records_against_iter(
             &delta["raw_history_added"],
-            &json!(raw.get(from..).ok_or("StorageUnavailable：raw区间反向")?),
+            raw.get(from..).ok_or("StorageUnavailable：raw区间反向")?,
             "raw_history_added",
         )?;
         for e in raw {
@@ -588,14 +594,14 @@ impl AuditWalk {
         // changes-only 域的三族 Delta 由下面 Family::verify 的「精确等于本代首次发布集」独立核定，
         // 不在此重述一遍完整集比较（那正是旧实现被取消的假定）。
         if !mode.changes_only() {
-            same_records(
+            same_records_against_iter(
                 &delta["witnesses"],
-                &json!(batch_witnesses.iter().map(|v| &**v).collect::<Vec<&Value>>()),
+                batch_witnesses.iter().map(|v| v.as_ref()),
                 "witnesses/batch",
             )?;
-            same_records(
+            same_records_against_iter(
                 &delta["relations"],
-                &json!(relations.iter().map(|v| &**v).collect::<Vec<&Value>>()),
+                relations.iter().map(|v| v.as_ref()),
                 "relations/batch",
             )?;
         }
@@ -616,9 +622,9 @@ impl AuditWalk {
                 first["observation_id"] = json!(id);
                 first["batch_id"] = delta["index_frontier"].clone();
                 let original = project_observation_wire(&first)?;
-                same_records(
-                    &json!([&**stored]),
-                    &json!([original]),
+                same_record_iters(
+                    std::iter::once(stored.as_ref()),
+                    std::iter::once(&original),
                     "observation/原封存首版",
                 )?;
                 self.original_observations
@@ -631,15 +637,15 @@ impl AuditWalk {
             observations.push(original);
         }
         if mode.changes_only() {
-            same_records(
+            same_records_against_iter(
                 &delta["observations"],
-                &json!(first_observations.iter().map(|v| &**v).collect::<Vec<&Value>>()),
+                first_observations.iter().map(|v| v.as_ref()),
                 "observations/本代首次",
             )?;
         } else {
-            same_records(
+            same_records_against_iter(
                 &delta["observations"],
-                &json!(observations.iter().map(|v| &**v).collect::<Vec<&Value>>()),
+                observations.iter().map(|v| v.as_ref()),
                 "observations/首版",
             )?;
         }

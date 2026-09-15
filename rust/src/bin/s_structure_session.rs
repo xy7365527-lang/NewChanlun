@@ -809,31 +809,73 @@ fn legacy_payload_projection(value: &Value) -> Value {
     }
 }
 
-fn same_records(actual: &Value, expected: &Value, field: &str) -> Result<(), String> {
-    let normalize = |v: &Value| -> Result<Vec<String>, String> {
-        let mut records = v
-            .as_array()
-            .ok_or("StorageUnavailable：集合非数组")?
-            .iter()
-            .map(|r| {
-                if !r.is_object() {
-                    return Err("StorageUnavailable：集合成员非对象".to_string());
-                }
-                Ok(canonical_json(&legacy_payload_projection(r)))
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        records.sort();
-        if records.windows(2).any(|w| w[0] == w[1]) {
-            return Err(format!("StorageUnavailable：{field} 重复成员"));
-        }
-        Ok(records)
-    };
-    if normalize(actual)? != normalize(expected)? {
+/// 借用记录，只省去调用方的临时 Value 数组；投影、完整规范字符串、排序与查重逐项保留。
+fn normalize_record_iter<'a>(
+    records: impl IntoIterator<Item = &'a Value>,
+    field: &str,
+) -> Result<Vec<String>, String> {
+    let mut records = records
+        .into_iter()
+        .map(|r| {
+            if !r.is_object() {
+                return Err("StorageUnavailable：集合成员非对象".to_string());
+            }
+            Ok(canonical_json(&legacy_payload_projection(r)))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    records.sort();
+    if records.windows(2).any(|w| w[0] == w[1]) {
+        return Err(format!("StorageUnavailable：{field} 重复成员"));
+    }
+    Ok(records)
+}
+
+fn normalize_record_array(records: &Value, field: &str) -> Result<Vec<String>, String> {
+    normalize_record_iter(
+        records.as_array().ok_or("StorageUnavailable：集合非数组")?,
+        field,
+    )
+}
+
+/// 两侧必须已完整规范化并查重；比较全部字符串，不使用 Value 相等或摘要替代。
+fn compare_normalized_records(
+    actual: &[String],
+    expected: &[String],
+    field: &str,
+) -> Result<(), String> {
+    if actual != expected {
         return Err(format!(
             "StorageUnavailable：{field} 与封存批次/同 cut 持久快照不一致"
         ));
     }
     Ok(())
+}
+
+fn same_record_iters<'a, 'b>(
+    actual: impl IntoIterator<Item = &'a Value>,
+    expected: impl IntoIterator<Item = &'b Value>,
+    field: &str,
+) -> Result<(), String> {
+    let actual = normalize_record_iter(actual, field)?;
+    let expected = normalize_record_iter(expected, field)?;
+    compare_normalized_records(&actual, &expected, field)
+}
+
+fn same_records_against_iter<'a>(
+    actual: &Value,
+    expected: impl IntoIterator<Item = &'a Value>,
+    field: &str,
+) -> Result<(), String> {
+    let actual = normalize_record_array(actual, field)?;
+    let expected = normalize_record_iter(expected, field)?;
+    compare_normalized_records(&actual, &expected, field)
+}
+
+fn same_records(actual: &Value, expected: &Value, field: &str) -> Result<(), String> {
+    // 必须先完成 actual 的全部规范化/查重，再检查 expected 的数组形状和内容。
+    let actual = normalize_record_array(actual, field)?;
+    let expected = normalize_record_array(expected, field)?;
+    compare_normalized_records(&actual, &expected, field)
 }
 
 // #1371 R9：七集合均为必需。以不可变 batch 的本次结果和独立历史索引对拍；
@@ -9983,5 +10025,311 @@ mod staged_graph_audit_regressions {
             capture_reachable_batches(&conn).is_err(),
             "私有根摘要正确不能代替公开批次身份核验"
         );
+    }
+}
+
+#[cfg(test)]
+mod record_borrow_regressions {
+    use super::*;
+
+    // #1394：从 b8d423be 原样保留旧判据，仅更名；不调用新的规范化/比较帮助函数。
+    fn old_same_records(actual: &Value, expected: &Value, field: &str) -> Result<(), String> {
+        let normalize = |v: &Value| -> Result<Vec<String>, String> {
+            let mut records = v
+                .as_array()
+                .ok_or("StorageUnavailable：集合非数组")?
+                .iter()
+                .map(|r| {
+                    if !r.is_object() {
+                        return Err("StorageUnavailable：集合成员非对象".to_string());
+                    }
+                    Ok(canonical_json(&legacy_payload_projection(r)))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            records.sort();
+            if records.windows(2).any(|w| w[0] == w[1]) {
+                return Err(format!("StorageUnavailable：{field} 重复成员"));
+            }
+            Ok(records)
+        };
+        if normalize(actual)? != normalize(expected)? {
+            return Err(format!(
+                "StorageUnavailable：{field} 与封存批次/同 cut 持久快照不一致"
+            ));
+        }
+        Ok(())
+    }
+
+    fn rejected(message: &str) -> Result<(), String> {
+        Err(message.to_string())
+    }
+
+    fn check_case(
+        name: &str,
+        actual_json: &str,
+        expected_json: &str,
+        field: &str,
+        wanted: Result<(), String>,
+    ) {
+        // from_str 保留 -0.0、0.0、1.0 的浮点表示。
+        let actual: Value = serde_json::from_str(actual_json).unwrap();
+        let expected: Value = serde_json::from_str(expected_json).unwrap();
+        let oracle = old_same_records(&actual, &expected, field);
+        assert_eq!(oracle, wanted, "旧判据明确预期：{name}");
+        assert_eq!(
+            same_records(&actual, &expected, field),
+            oracle,
+            "数组入口：{name}"
+        );
+        if let Some(expected) = expected.as_array() {
+            // 旧 Audit 经 Vec<&Value> + json! 物化；必须保留浮点规范字节。
+            let materialized_expected = json!(expected.iter().collect::<Vec<&Value>>());
+            let materialized_oracle = old_same_records(&actual, &materialized_expected, field);
+            assert_eq!(materialized_oracle, oracle, "旧 expected 物化路径：{name}");
+            assert_eq!(
+                same_records_against_iter(&actual, expected.iter(), field),
+                materialized_oracle,
+                "借用 expected：{name}"
+            );
+            if let Some(actual) = actual.as_array() {
+                let materialized_actual = json!(actual.iter().collect::<Vec<&Value>>());
+                let materialized_oracle =
+                    old_same_records(&materialized_actual, &materialized_expected, field);
+                assert_eq!(materialized_oracle, oracle, "旧双侧物化路径：{name}");
+                assert_eq!(
+                    same_record_iters(actual.iter(), expected.iter(), field),
+                    materialized_oracle,
+                    "双侧借用：{name}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn borrowed_records_preserve_complete_canonical_set_semantics() {
+        let mismatch = || rejected("StorageUnavailable：records 与封存批次/同 cut 持久快照不一致");
+        let duplicate = || rejected("StorageUnavailable：records 重复成员");
+        for (name, actual, expected, wanted) in [
+            ("空集合", "[]", "[]", Ok(())),
+            (
+                "集合排列与对象键序",
+                r#"[{"id":"b","v":2},{"id":"a","v":1}]"#,
+                r#"[{"v":1,"id":"a"},{"v":2,"id":"b"}]"#,
+                Ok(()),
+            ),
+            (
+                "actual 完整重复",
+                r#"[{"id":"a"},{"id":"a"}]"#,
+                r#"[{"id":"a"}]"#,
+                duplicate(),
+            ),
+            (
+                "expected 完整重复",
+                r#"[{"id":"a"}]"#,
+                r#"[{"id":"a"},{"id":"a"}]"#,
+                duplicate(),
+            ),
+            (
+                "detail 递归整数投影",
+                r#"[{"id":"a","detail":{"n":[1,{"v":2}]}}]"#,
+                r#"[{"id":"a","detail":{"n":["1",{"v":"2"}]}}]"#,
+                Ok(()),
+            ),
+            (
+                "detail 投影后 actual 重复",
+                r#"[{"detail":{"n":1}},{"detail":{"n":"1"}}]"#,
+                r#"[{"detail":{"n":"1"}}]"#,
+                duplicate(),
+            ),
+            (
+                "detail 投影后 expected 重复",
+                r#"[{"detail":{"n":"1"}}]"#,
+                r#"[{"detail":{"n":1}},{"detail":{"n":"1"}}]"#,
+                duplicate(),
+            ),
+            (
+                "raw_bars 修订投影",
+                r#"[{"raw_bars":[{"supersedes_revision":2,"seq":7}]}]"#,
+                r#"[{"raw_bars":[{"supersedes_revision":"2","seq":7}]}]"#,
+                Ok(()),
+            ),
+            (
+                "raw_bars 投影后重复",
+                r#"[{"raw_bars":[{"supersedes_revision":2}]},{"raw_bars":[{"supersedes_revision":"2"}]}]"#,
+                r#"[{"raw_bars":[{"supersedes_revision":"2"}]}]"#,
+                duplicate(),
+            ),
+            (
+                "raw_bars 其它整数不投影",
+                r#"[{"raw_bars":[{"supersedes_revision":2,"seq":7}]}]"#,
+                r#"[{"raw_bars":[{"supersedes_revision":"2","seq":"7"}]}]"#,
+                mismatch(),
+            ),
+            (
+                "嵌套数组顺序",
+                r#"[{"id":"a","nested":[{"v":1},{"v":2}]}]"#,
+                r#"[{"id":"a","nested":[{"v":2},{"v":1}]}]"#,
+                mismatch(),
+            ),
+            (
+                "正负浮点零有别",
+                r#"[{"v":-0.0}]"#,
+                r#"[{"v":0.0}]"#,
+                mismatch(),
+            ),
+            (
+                "正负浮点零不去重",
+                r#"[{"v":-0.0},{"v":0.0}]"#,
+                r#"[{"v":0.0},{"v":-0.0}]"#,
+                Ok(()),
+            ),
+            (
+                "整数与浮点有别",
+                r#"[{"v":1}]"#,
+                r#"[{"v":1.0}]"#,
+                mismatch(),
+            ),
+            (
+                "整数与浮点不去重",
+                r#"[{"v":1},{"v":1.0}]"#,
+                r#"[{"v":1.0},{"v":1}]"#,
+                Ok(()),
+            ),
+            (
+                "detail 浮点不转整数 wire",
+                r#"[{"detail":{"v":1.0}}]"#,
+                r#"[{"detail":{"v":"1"}}]"#,
+                mismatch(),
+            ),
+            (
+                "同 identity 异内容不一致",
+                r#"[{"id":"a","v":1}]"#,
+                r#"[{"id":"a","v":2}]"#,
+                mismatch(),
+            ),
+            (
+                "同 identity 异内容不算重复",
+                r#"[{"id":"a","v":1},{"id":"a","v":2}]"#,
+                r#"[{"id":"a","v":2},{"id":"a","v":1}]"#,
+                Ok(()),
+            ),
+        ] {
+            check_case(name, actual, expected, "records", wanted);
+        }
+    }
+
+    #[test]
+    fn borrowed_records_preserve_actual_first_error_priority() {
+        let array = || rejected("StorageUnavailable：集合非数组");
+        let member = || rejected("StorageUnavailable：集合成员非对象");
+        let duplicate = || rejected("StorageUnavailable：priority 重复成员");
+        for (name, actual, expected, wanted) in [
+            ("双侧非数组", "null", "false", array()),
+            (
+                "actual 非数组先于 expected 坏成员",
+                "null",
+                "[false]",
+                array(),
+            ),
+            (
+                "actual 非数组先于 expected 重复",
+                "null",
+                "[{},{}]",
+                array(),
+            ),
+            (
+                "actual 坏成员先于 expected 非数组",
+                "[false]",
+                "null",
+                member(),
+            ),
+            ("双侧坏成员", "[false]", "[null]", member()),
+            (
+                "actual 坏成员先于 expected 重复",
+                "[false]",
+                "[{},{}]",
+                member(),
+            ),
+            (
+                "actual 重复先于 expected 非数组",
+                "[{},{}]",
+                "null",
+                duplicate(),
+            ),
+            (
+                "actual 重复先于 expected 坏成员",
+                "[{},{}]",
+                "[false]",
+                duplicate(),
+            ),
+            ("双侧重复", "[{},{}]", "[{},{}]", duplicate()),
+            ("actual 扫完成员才查重复", "[{},{},false]", "null", member()),
+            ("expected 非数组先于集合差异", "[]", "null", array()),
+            ("expected 坏成员先于集合差异", "[]", "[false]", member()),
+            ("expected 重复先于集合差异", "[]", "[{},{}]", duplicate()),
+            ("expected 扫完成员才查重复", "[]", "[{},{},false]", member()),
+        ] {
+            check_case(name, actual, expected, "priority", wanted);
+        }
+    }
+
+    #[test]
+    fn normalized_batch_reuse_matches_oracle_after_successful_index_comparison() {
+        let index: Value = serde_json::from_str(r#"[
+            {"id":"a","detail":{"count":"1"},"raw_bars":[{"supersedes_revision":"2","seq":7}],"nested":[0.0,-0.0]},
+            {"id":"b","detail":{"count":"2"},"raw_bars":[],"nested":[1,1.0]}
+        ]"#).unwrap();
+        let batch: Value = serde_json::from_str(r#"[
+            {"id":"b","detail":{"count":2},"raw_bars":[],"nested":[1,1.0]},
+            {"id":"a","detail":{"count":1},"raw_bars":[{"supersedes_revision":2,"seq":7}],"nested":[0.0,-0.0]}
+        ]"#).unwrap();
+        for key in ["objects", "witnesses", "relations", "observations"] {
+            let initial_field = format!("index.{key}");
+            assert_eq!(old_same_records(&index, &batch, &initial_field), Ok(()));
+            let actual = normalize_record_array(&index, &initial_field).unwrap();
+            let expected =
+                normalize_record_iter(batch.as_array().unwrap().iter(), &initial_field).unwrap();
+            assert_eq!(
+                compare_normalized_records(&actual, &expected, &initial_field),
+                Ok(())
+            );
+            // 初次 index/batch 完整比较成功后，才把已排序、查重的全文向量用于后续比较。
+            assert_eq!(expected, vec![
+                r#"{"detail":{"count":"1"},"id":"a","nested":[0.0,-0.0],"raw_bars":[{"seq":7,"supersedes_revision":"2"}]}"#.to_string(),
+                r#"{"detail":{"count":"2"},"id":"b","nested":[1,1.0],"raw_bars":[]}"#.to_string(),
+            ]);
+            let mut changed = index.clone();
+            changed[0]["detail"]["count"] = json!("99");
+            for (name, actual, error) in [
+                ("delta.upserts", index.clone(), None),
+                ("full.upserts", batch.clone(), None),
+                ("delta.changed", changed, Some("mismatch")),
+                ("full.missing", json!([index[0]]), Some("mismatch")),
+                (
+                    "delta.duplicate",
+                    json!([index[0], index[0]]),
+                    Some("duplicate"),
+                ),
+                ("full.member", json!([false]), Some("member")),
+                ("delta.array", Value::Null, Some("array")),
+            ] {
+                let field = format!("{name}.{key}");
+                let wanted = match error {
+                    None => Ok(()),
+                    Some("mismatch") => Err(format!(
+                        "StorageUnavailable：{field} 与封存批次/同 cut 持久快照不一致"
+                    )),
+                    Some("duplicate") => Err(format!("StorageUnavailable：{field} 重复成员")),
+                    Some("member") => rejected("StorageUnavailable：集合成员非对象"),
+                    Some("array") => rejected("StorageUnavailable：集合非数组"),
+                    _ => unreachable!(),
+                };
+                let oracle = old_same_records(&actual, &batch, &field);
+                assert_eq!(oracle, wanted, "旧判据明确预期：{field}");
+                let reused = normalize_record_array(&actual, &field)
+                    .and_then(|actual| compare_normalized_records(&actual, &expected, &field));
+                assert_eq!(reused, oracle, "复用 batch 全文：{field}");
+            }
+        }
     }
 }
