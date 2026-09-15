@@ -54,9 +54,14 @@ def _reject_number(value):
     raise ValueError("协议不接受非精确数值：" + value)
 
 
+def decode_json_value(raw):
+    """精确 JSON 值；调用方另核其文件或协议容器形状。"""
+    return json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object,
+                      parse_float=_reject_number, parse_constant=_reject_number)
+
+
 def decode_frame(raw):
-    result = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object,
-                        parse_float=_reject_number, parse_constant=_reject_number)
+    result = decode_json_value(raw)
     if type(result) is not dict or not result:
         raise ValueError("协议帧必须为非空 JSON 对象")
     return result

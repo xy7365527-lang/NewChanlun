@@ -18,7 +18,7 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from s_socket_client import canonical, decode_frame, digest, exchange, validate_reply
+from s_socket_client import canonical, decode_frame, decode_json_value, digest, exchange, validate_reply
 from tb03b_oracle import check as independent_check, read_domain
 
 FAULTS = [("PrepareDecision", "alpha", "B:alpha"), ("Reserve", "slot", "E"),
@@ -32,12 +32,18 @@ def save(path, value):
         stream.write("\n")
 
 
-def pinned(seed, item):
+def pinned(seed, item, *, sequence=False):
     path = Path(item["path"])
     raw = path.read_bytes()
     if hashlib.sha256(raw).hexdigest() != item["sha256"]:
         raise ValueError("种子具名原件 hash 不符：" + str(path))
-    return decode_frame(raw)
+    if not sequence:
+        return decode_frame(raw)
+    entries = decode_json_value(raw)
+    if (type(entries) is not list or not entries
+            or any(type(entry) is not dict or not entry for entry in entries)):
+        raise ValueError("种子请求文件必须为非空对象序列：" + str(path))
+    return entries
 
 
 def envelope(manifest, source, message, payload):
@@ -200,7 +206,7 @@ class Run:
     def setup(self):
         self.started.append("S")
         self.s_control("start-s")
-        for i, request in enumerate(pinned(self.seed, self.seed["s_requests"])):
+        for i, request in enumerate(pinned(self.seed, self.seed["s_requests"], sequence=True)):
             result = exchange(self.s["socket"], request, timeout_ms=int(self.seed["business_timeout_ms"]),
                               max_frame_bytes=int(self.s["s_resources"]["max_frame_bytes"]))
             save(self.output / ("s-input-" + str(i) + ".json"), {"request": request, "result": result})
@@ -218,7 +224,7 @@ class Run:
         for domain in self.epochs:
             self.started.append(domain)
             self.economic_control("start", domain)
-        for i, entry in enumerate(pinned(self.seed, self.seed["setup_requests"])):
+        for i, entry in enumerate(pinned(self.seed, self.seed["setup_requests"], sequence=True)):
             if entry["request"]["payload"]["op"] not in ("CaptureExternal", "ApplyAllocation", "BindVoice"):
                 raise ValueError("前置输入不得预写本票财务成功")
             result = self.send(entry["domain"], entry["request"], "setup-" + str(i))
