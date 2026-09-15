@@ -961,6 +961,8 @@ struct ClosureCheck {
     digest: [u8; 32],
     /// 根行与闭包内每个唯一节点都在本捕获与保留证书逐字节相同。
     originals_verified: bool,
+    #[cfg(test)]
+    reuse_outcome: Option<cache::ReuseOutcome>,
 }
 
 /// 闭包指纹：把**当前新鲜行**读到的根行（根指针、有序参数槽列、声明长度、内容摘要）与闭包内
@@ -1120,12 +1122,16 @@ impl<'a> Reader<'a> {
         // 原件门：根行原件（根指针 + 有序槽 + 声明长度 + 内容摘要）与闭包内**每个唯一节点**的
         // 当前原行都必须在本次捕获与保留证书逐字节相同，才允许复用展开/解析/审计。
         // 节点那一半沿**保留证书**的有序子引用认证（同次认证去重，整次捕获 O(唯一节点)）。
+        #[cfg(test)]
+        let mut reuse_outcome = None;
         let originals_verified = cache::root_cert_match(
             root_key,
             &row.node,
             &row.slots,
             row.expanded_length,
             &row.content_sha256,
+            #[cfg(test)]
+            &mut reuse_outcome,
         )
         .is_some()
             && cache::cert_is_certified(self.conn_id, root)
@@ -1133,10 +1139,16 @@ impl<'a> Reader<'a> {
                 .slots
                 .iter()
                 .all(|id| cache::cert_marked(self.conn_id, *id));
+        #[cfg(test)]
+        if !originals_verified && reuse_outcome.is_none() {
+            reuse_outcome = Some(cache::ReuseOutcome::ClosureOriginalsIncomplete);
+        }
         Ok(ClosureCheck {
             row,
             digest,
             originals_verified,
+            #[cfg(test)]
+            reuse_outcome,
         })
     }
 
@@ -1279,7 +1291,13 @@ impl<'a> Reader<'a> {
         root_key: &str,
         with_value: bool,
     ) -> Result<VerifiedRoot, String> {
-        let check = self.closure(root_key)?;
+        let check = self.closure(root_key).map_err(|error| {
+            #[cfg(test)]
+            cache::counter(|c| c.reuse_gate_not_reached += 1);
+            error
+        })?;
+        #[cfg(test)]
+        let mut reuse_outcome = check.reuse_outcome;
         if !check.originals_verified {
             cache::invalidate_root(root_key);
         }
@@ -1290,13 +1308,23 @@ impl<'a> Reader<'a> {
         } else {
             None
         };
-        let cached = retained
-            .as_ref()
-            .and_then(|rc| cache::handle_get_certified(root_key, rc, &check.digest));
+        let cached = retained.as_ref().and_then(|rc| {
+            cache::handle_get_certified(
+                root_key,
+                rc,
+                &check.digest,
+                #[cfg(test)]
+                &mut reuse_outcome,
+            )
+        });
         let reused = cached.is_some();
         #[cfg(test)]
         cache::counter(|c| {
             c.root_reads += 1;
+            c.record_reuse(
+                root_key,
+                reuse_outcome.expect("root reuse gate must record one outcome"),
+            );
             if reused {
                 c.root_handle_hits += 1;
             } else {
@@ -1338,6 +1366,8 @@ impl<'a> Reader<'a> {
                             None,
                         )
                     } else {
+                        #[cfg(test)]
+                        cache::counter(|c| c.root_proof_rebuild_incomplete += 1);
                         None
                     };
                 }

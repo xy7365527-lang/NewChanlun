@@ -249,6 +249,11 @@ impl Memo {
             }
             self.handles.remove(&key);
             self.handles_bytes = self.handles_bytes.saturating_sub(cost);
+            #[cfg(test)]
+            counter(|c| {
+                c.handle_capacity_evictions += 1;
+                c.handle_capacity_evicted_bytes += cost;
+            });
             over = over.saturating_sub(cost);
         }
     }
@@ -281,6 +286,8 @@ impl Memo {
         };
         self.certs_bytes = self.certs_bytes.saturating_sub(cert.payload_cost());
         self.cert_lineage = Arc::new(());
+        #[cfg(test)]
+        counter(|c| c.lineage_rotations += 1);
         if let Some(c) = self.capture.as_mut() {
             if let Some(owner) = c
                 .nodes
@@ -311,6 +318,8 @@ impl Memo {
                 break;
             }
             self.remove_cert(&key);
+            #[cfg(test)]
+            counter(|c| c.node_cert_capacity_evictions += 1);
             over = over.saturating_sub(cost);
         }
         if over > 0 {
@@ -325,10 +334,17 @@ impl Memo {
                     break;
                 }
                 if self.root_certs.remove(&key).is_some() {
+                    #[cfg(test)]
+                    counter(|c| c.root_cert_capacity_evictions += 1);
                     self.certs_bytes = self.certs_bytes.saturating_sub(cost);
                     over = over.saturating_sub(cost);
                     if let Some(old) = self.handles.remove(&key) {
                         self.handles_bytes = self.handles_bytes.saturating_sub(old.cost);
+                        #[cfg(test)]
+                        counter(|c| {
+                            c.handle_capacity_evictions += 1;
+                            c.handle_capacity_evicted_bytes += old.cost;
+                        });
                     }
                 }
             }
@@ -406,7 +422,7 @@ thread_local! { static MEMO: RefCell<Memo> = RefCell::new(Memo::default()); }
 
 /// #1394 阶段计数（只在测试构建里累加，供成本/复用证据；生产构建不含这些计数）。
 #[cfg(test)]
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, serde::Serialize)]
 pub(super) struct EvidenceCounters {
     /// 从 SQLite **新鲜读入**的唯一节点行数（捕获内去重后）。
     pub node_rows_read: usize,
@@ -426,10 +442,71 @@ pub(super) struct EvidenceCounters {
     /// 批次：命中已核句柄 vs 本次完整展开（历史 batch 展开数）。
     pub batch_handle_hits: usize,
     pub batch_expansions: usize,
+    /// 容量驱逐；不含替换、失效或显式清空。字节是既有源字节账，不是 RSS。
+    pub handle_capacity_evictions: usize,
+    pub handle_capacity_evicted_bytes: usize,
+    pub node_cert_capacity_evictions: usize,
+    pub root_cert_capacity_evictions: usize,
+    /// 原件池移除/替换节点时的 lineage 旋转（可与容量驱逐重叠，不相加）。
+    pub lineage_rotations: usize,
+    pub handle_admission_rejected: usize,
+    pub root_proof_rebuild_incomplete: usize,
+    pub capture_node_admission_rejected: usize,
+    pub shared_node_cert_admission_rejected: usize,
+    /// 每次到达复用门的根只记一次首个失败原因或 hit。
+    pub batch_reuse_outcome: ReuseOutcomes,
+    pub delta_reuse_outcome: ReuseOutcomes,
+    pub fact_reuse_outcome: ReuseOutcomes,
+    pub other_reuse_outcome: ReuseOutcomes,
+    /// closure 提前报错时根尚未到达复用门，不能伪归入七类 cache miss。
+    pub reuse_gate_not_reached: usize,
     /// 阶段耗时（ns）：根审计（含闭包新鲜读 + 句柄复用/展开）、批次 stage、Commit。
     pub audit_ns: u64,
     pub stage_ns: u64,
     pub commit_ns: u64,
+}
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ReuseOutcome {
+    RootCertAbsent,
+    LineageStale,
+    RootOriginalMismatch,
+    ClosureOriginalsIncomplete,
+    HandleAbsent,
+    HandleBindingMismatch,
+    Hit,
+}
+#[cfg(test)]
+#[derive(Default, Clone, Copy, serde::Serialize)]
+pub(super) struct ReuseOutcomes {
+    pub root_cert_absent: usize,
+    pub lineage_stale: usize,
+    pub root_original_mismatch: usize,
+    pub closure_originals_incomplete: usize,
+    pub handle_absent: usize,
+    pub handle_binding_mismatch: usize,
+    pub hit: usize,
+}
+#[cfg(test)]
+impl EvidenceCounters {
+    pub(super) fn record_reuse(&mut self, root_key: &str, outcome: ReuseOutcome) {
+        let counts = match evidence_store::root_kind(root_key).map(|(kind, _)| kind) {
+            Ok(evidence_store::RootKind::Batch) => &mut self.batch_reuse_outcome,
+            Ok(evidence_store::RootKind::Delta) => &mut self.delta_reuse_outcome,
+            Ok(evidence_store::RootKind::Fact) => &mut self.fact_reuse_outcome,
+            Err(_) => &mut self.other_reuse_outcome,
+        };
+        let count = match outcome {
+            ReuseOutcome::RootCertAbsent => &mut counts.root_cert_absent,
+            ReuseOutcome::LineageStale => &mut counts.lineage_stale,
+            ReuseOutcome::RootOriginalMismatch => &mut counts.root_original_mismatch,
+            ReuseOutcome::ClosureOriginalsIncomplete => &mut counts.closure_originals_incomplete,
+            ReuseOutcome::HandleAbsent => &mut counts.handle_absent,
+            ReuseOutcome::HandleBindingMismatch => &mut counts.handle_binding_mismatch,
+            ReuseOutcome::Hit => &mut counts.hit,
+        };
+        *count += 1;
+    }
 }
 #[cfg(test)]
 thread_local! { static COUNTERS: RefCell<EvidenceCounters> = RefCell::new(EvidenceCounters::default()); }
@@ -569,9 +646,13 @@ pub(super) fn node_put(conn_id: usize, cert: Arc<Cert>, owned: bool) {
             .as_ref()
             .is_some_and(|c| c.bytes.saturating_add(cost) > c.node_budget)
         {
+            #[cfg(test)]
+            counter(|c| c.capture_node_admission_rejected += 1);
             return;
         }
         if !m.make_room(cost) {
+            #[cfg(test)]
+            counter(|c| c.capture_node_admission_rejected += 1);
             return;
         }
         let id = cert.id;
@@ -740,6 +821,8 @@ pub(super) fn cert_commit(conn_id: usize, ids: &BTreeSet<[u8; 32]>) {
             });
             let owned = owner.is_some();
             if !owned && !m.make_room(cert.payload_cost()) {
+                #[cfg(test)]
+                counter(|c| c.shared_node_cert_admission_rejected += 1);
                 continue;
             }
             if owned {
@@ -803,14 +886,35 @@ pub(super) fn root_cert_match(
     slots: &[[u8; 32]],
     expanded_length: u64,
     content_sha256: &str,
+    #[cfg(test)] reuse_outcome: &mut Option<ReuseOutcome>,
 ) -> Option<Arc<RootCert>> {
+    #[cfg(test)]
+    {
+        *reuse_outcome = Some(ReuseOutcome::RootCertAbsent);
+    }
     MEMO.with(|m| {
         let m = m.borrow();
         m.root_certs
             .get(root_key)
             .filter(|c| {
-                Weak::ptr_eq(&c.lineage, &Arc::downgrade(&m.cert_lineage))
-                    && c.same_originals(node, slots, expanded_length, content_sha256)
+                let lineage_matches = Weak::ptr_eq(&c.lineage, &Arc::downgrade(&m.cert_lineage));
+                #[cfg(test)]
+                if !lineage_matches {
+                    *reuse_outcome = Some(ReuseOutcome::LineageStale);
+                }
+                lineage_matches && {
+                    let originals_match =
+                        c.same_originals(node, slots, expanded_length, content_sha256);
+                    #[cfg(test)]
+                    {
+                        *reuse_outcome = if originals_match {
+                            None
+                        } else {
+                            Some(ReuseOutcome::RootOriginalMismatch)
+                        };
+                    }
+                    originals_match
+                }
             })
             .cloned()
     })
@@ -825,17 +929,31 @@ pub(super) fn handle_get_certified(
     root_key: &str,
     root_cert: &Arc<RootCert>,
     closure: &[u8; 32],
+    #[cfg(test)] reuse_outcome: &mut Option<ReuseOutcome>,
 ) -> Option<(Arc<[u8]>, Option<Arc<Value>>)> {
+    #[cfg(test)]
+    {
+        *reuse_outcome = Some(ReuseOutcome::HandleAbsent);
+    }
     MEMO.with(|m| {
         let m = m.borrow();
         m.handles
             .get(root_key)
             .filter(|h| {
-                Weak::ptr_eq(&root_cert.lineage, &Arc::downgrade(&m.cert_lineage))
+                let matches = Weak::ptr_eq(&root_cert.lineage, &Arc::downgrade(&m.cert_lineage))
                     && h.closure == *closure
                     && h.root_cert
                         .as_ref()
-                        .is_some_and(|c| Weak::ptr_eq(c, &Arc::downgrade(root_cert)))
+                        .is_some_and(|c| Weak::ptr_eq(c, &Arc::downgrade(root_cert)));
+                #[cfg(test)]
+                {
+                    *reuse_outcome = Some(if matches {
+                        ReuseOutcome::Hit
+                    } else {
+                        ReuseOutcome::HandleBindingMismatch
+                    });
+                }
+                matches
             })
             .map(|h| (h.bytes.clone(), h.value.clone()))
     })
@@ -870,6 +988,8 @@ pub(super) fn handle_put_certified(
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
         if m.limit == 0 {
+            #[cfg(test)]
+            counter(|c| c.handle_admission_rejected += 1);
             return None;
         }
         // 根证书先保留（小，且是审计前缀与逐字节比较的原件证据）。
@@ -882,12 +1002,19 @@ pub(super) fn handle_put_certified(
                 root_cert.expanded_length,
                 root_cert.content_sha256.clone(),
             ),
-        )?;
+        );
+        let Some(retained) = retained else {
+            #[cfg(test)]
+            counter(|c| c.handle_admission_rejected += 1);
+            return None;
+        };
         let cost = handle_cost(root_key.len(), bytes.len(), value.is_some());
         if let Some(old) = m.handles.remove(root_key) {
             m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
         }
         if !m.make_room(cost) {
+            #[cfg(test)]
+            counter(|c| c.handle_admission_rejected += 1);
             return Some(retained);
         }
         m.handles_bytes = m.handles_bytes.saturating_add(cost);
@@ -914,6 +1041,8 @@ pub(super) fn handle_put_blob(
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
         if m.limit == 0 {
+            #[cfg(test)]
+            counter(|c| c.handle_admission_rejected += 1);
             return;
         }
         let cost = handle_cost(root_key.len(), bytes.len(), value.is_some());
@@ -921,6 +1050,8 @@ pub(super) fn handle_put_blob(
             m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
         }
         if !m.make_room(cost) {
+            #[cfg(test)]
+            counter(|c| c.handle_admission_rejected += 1);
             return;
         }
         m.handles_bytes = m.handles_bytes.saturating_add(cost);
@@ -1196,6 +1327,184 @@ mod tests {
     }
 
     #[test]
+    fn diagnostic_reuse_outcomes_follow_real_gates_without_changing_bytes() {
+        for (key, family) in [
+            ("batch/proof", "batch_reuse_outcome"),
+            ("delta/1", "delta_reuse_outcome"),
+            ("fact/proof", "fact_reuse_outcome"),
+        ] {
+            configure(1 << 20);
+            let conn = Connection::open_in_memory().unwrap();
+            evidence_store::declare_new(&conn).unwrap();
+            let staged = evidence_store::stage_complete(
+                &json!({"v": 9}),
+                &[evidence_store::SlotSpec::number("9")],
+            )
+            .unwrap();
+            evidence_store::publish_refs(&conn, key, &staged).unwrap();
+            let read = || {
+                evidence_store::Reader::new(&conn, 1 << 20)
+                    .read_root(key, false)
+                    .unwrap()
+                    .bytes
+                    .to_vec()
+            };
+            counters_reset();
+            let expected = read();
+            assert_eq!(
+                serde_json::to_value(counters_snapshot()).unwrap()[family]["root_cert_absent"],
+                1
+            );
+            let (node, slots, _, _) = evidence_store::Reader::root_row(&conn, key)
+                .unwrap()
+                .unwrap();
+            assert!(!slots.is_empty());
+            for reason in [
+                "hit",
+                "handle_absent",
+                "handle_binding_mismatch",
+                "root_original_mismatch",
+                "closure_originals_incomplete",
+                "lineage_stale",
+            ] {
+                MEMO.with(|m| {
+                    let mut m = m.borrow_mut();
+                    match reason {
+                        "handle_absent" => {
+                            let old = m.handles.remove(key).unwrap();
+                            m.handles_bytes -= old.cost;
+                        }
+                        "handle_binding_mismatch" => {
+                            m.handles.get_mut(key).unwrap().closure[0] ^= 1
+                        }
+                        "root_original_mismatch" => {
+                            let old = m.root_certs.remove(key).unwrap();
+                            let mut changed = RootCert::new(
+                                old.node,
+                                old.slots.clone(),
+                                old.expanded_length,
+                                old.content_sha256.clone(),
+                            );
+                            changed.lineage = old.lineage.clone();
+                            changed.node[0] ^= 1;
+                            m.root_certs.insert(key.to_string(), Arc::new(changed));
+                        }
+                        "closure_originals_incomplete" => {
+                            // 不旋转 lineage，单独模拟缺原件：不得被归到前面的 lineage 档。
+                            let old = m.certs.remove(&slots[0]).unwrap();
+                            m.certs_bytes -= old.payload_cost();
+                        }
+                        "lineage_stale" => m.remove_cert(&node),
+                        "hit" => {}
+                        _ => unreachable!(),
+                    }
+                });
+                counters_reset();
+                assert_eq!(read(), expected, "{key}: {reason}");
+                let counts = serde_json::to_value(counters_snapshot()).unwrap();
+                assert_eq!(counts["root_reads"], 1);
+                assert_eq!(counts[family][reason], 1, "{key}: {reason}");
+                let all_outcomes = [
+                    "batch_reuse_outcome",
+                    "delta_reuse_outcome",
+                    "fact_reuse_outcome",
+                    "other_reuse_outcome",
+                ]
+                .iter()
+                .map(|name| {
+                    counts[*name]
+                        .as_object()
+                        .unwrap()
+                        .values()
+                        .map(|n| n.as_u64().unwrap())
+                        .sum::<u64>()
+                })
+                .sum::<u64>();
+                assert_eq!(
+                    all_outcomes, 1,
+                    "每根只记一次，且原因必须保存在 invalidate_root 前"
+                );
+                assert_eq!(capture_bytes_now(), 0);
+            }
+            counters_reset();
+            assert!(evidence_store::Reader::new(&conn, 1 << 20)
+                .read_root("batch/missing", false)
+                .is_err());
+            assert_eq!(counters_snapshot().reuse_gate_not_reached, 1);
+            assert_eq!(counters_snapshot().root_reads, 0);
+            configure(0);
+        }
+    }
+
+    #[test]
+    fn diagnostic_capacity_counts_distinguish_eviction_from_admission() {
+        configure(1 << 20);
+        let (bytes, value) = handle("batch/one", 64, false);
+        handle_put_blob("batch/one", [0; 32], bytes, value);
+        let expected_cost = MEMO.with(|m| m.borrow().handles["batch/one"].cost);
+        counters_reset();
+        MEMO.with(|m| m.borrow_mut().trim_handles(0));
+        assert_eq!(counters_snapshot().handle_capacity_evictions, 1);
+        assert_eq!(
+            counters_snapshot().handle_capacity_evicted_bytes,
+            expected_cost
+        );
+
+        let _capture = begin_capture(1 << 20);
+        node_put(7, cert(4, 0, b"x", 1), true);
+        cert_commit(7, &BTreeSet::from([[4; 32]]));
+        handle_put_certified(
+            "delta/1",
+            &RootCert::new([4; 32], vec![], 1, "hash".into()),
+            [0; 32],
+            Arc::from(&b"x"[..]),
+            None,
+        )
+        .unwrap();
+        counters_reset();
+        MEMO.with(|m| m.borrow_mut().trim_certs(0));
+        let counts = counters_snapshot();
+        assert_eq!(counts.node_cert_capacity_evictions, 1);
+        assert_eq!(counts.root_cert_capacity_evictions, 1);
+        assert_eq!(counts.lineage_rotations, 1);
+        assert_eq!(counts.handle_capacity_evictions, 1);
+        assert_eq!(counts.handle_admission_rejected, 0);
+        end_capture();
+
+        configure(32);
+        let _capture = begin_capture(1 << 20);
+        counters_reset();
+        node_put(7, cert(5, 0, b"x", 1), true);
+        handle_put_blob("batch/too-big", [0; 32], Arc::from(&b"x"[..]), None);
+        assert_eq!(counters_snapshot().capture_node_admission_rejected, 1);
+        assert_eq!(counters_snapshot().handle_admission_rejected, 1);
+        assert_eq!(counters_snapshot().handle_capacity_evictions, 0);
+        end_capture();
+
+        configure(128);
+        let _capture = begin_capture(128);
+        counters_reset();
+        node_put(7, cert(6, 0, b"x", 1), false);
+        cert_commit(7, &BTreeSet::from([[6; 32]]));
+        assert_eq!(counters_snapshot().shared_node_cert_admission_rejected, 1);
+        assert!(cert_get(&[6; 32]).is_none());
+        end_capture();
+
+        configure(32);
+        let conn = Connection::open_in_memory().unwrap();
+        evidence_store::declare_new(&conn).unwrap();
+        let staged = evidence_store::stage_complete(&json!({"v": 9}), &[]).unwrap();
+        evidence_store::publish_refs(&conn, "batch/small", &staged).unwrap();
+        counters_reset();
+        let result = evidence_store::Reader::new(&conn, 1 << 20)
+            .read_root("batch/small", false)
+            .unwrap();
+        assert!(result.root_cert.is_none());
+        assert_eq!(counters_snapshot().root_proof_rebuild_incomplete, 1);
+        configure(0);
+    }
+
+    #[test]
     fn graph3_missing_both_delta_certificates_never_resumes() {
         configure(1 << 20);
         let mut graph = inline_identity("test-c");
@@ -1344,10 +1653,10 @@ mod tests {
             node_put(7, cert(4, 0, b"x", 1), true);
             cert_commit(7, &BTreeSet::from([[4; 32]]));
         }
-        assert!(handle_get_certified("delta/1", &kept, &[0; 32]).is_some());
+        assert!(handle_get_certified("delta/1", &kept, &[0; 32], &mut None).is_some());
         MEMO.with(|m| m.borrow_mut().remove_cert(&[4; 32]));
         assert!(
-            handle_get_certified("delta/1", &kept, &[0; 32]).is_none(),
+            handle_get_certified("delta/1", &kept, &[0; 32], &mut None).is_none(),
             "原件池丢失依赖后，旧根证明不能依赖同一摘要重新生效"
         );
         configure(0);
@@ -1602,23 +1911,23 @@ mod tests {
         .expect("根证书应当被保留");
         let node = [7u8; 32];
         // 正路：根行原件逐字节相同 ⟹ 可复用。
-        assert!(root_cert_match("delta/1", &node, &slots, 64, "hash-a").is_some());
-        assert!(handle_get_certified("delta/1", &retained, &digest).is_some());
+        assert!(root_cert_match("delta/1", &node, &slots, 64, "hash-a", &mut None).is_some());
+        assert!(handle_get_certified("delta/1", &retained, &digest, &mut None).is_some());
         // 摘要相同、内容也相同的**另一份**证书对象仍不是同一个原件：不得命中句柄。
         let other_object = Arc::new(RootCert::new(node, slots.clone(), 64, "hash-a".to_string()));
         assert!(
-            handle_get_certified("delta/1", &other_object, &digest).is_none(),
+            handle_get_certified("delta/1", &other_object, &digest, &mut None).is_none(),
             "另一份证书对象不得冒充同一原件"
         );
         // ① 根行原件不同（槽顺序调换）⟹ 不复用。
         let swapped = vec![[6u8; 32], [5u8; 32]];
-        assert!(root_cert_match("delta/1", &node, &swapped, 64, "hash-a").is_none());
+        assert!(root_cert_match("delta/1", &node, &swapped, 64, "hash-a", &mut None).is_none());
         // ② 根行原件不同（声明长度）⟹ 不复用。
-        assert!(root_cert_match("delta/1", &node, &slots, 65, "hash-a").is_none());
+        assert!(root_cert_match("delta/1", &node, &slots, 65, "hash-a", &mut None).is_none());
         // ③ 根行原件不同（内容摘要）⟹ 不复用。
-        assert!(root_cert_match("delta/1", &node, &slots, 64, "hash-b").is_none());
+        assert!(root_cert_match("delta/1", &node, &slots, 64, "hash-b", &mut None).is_none());
         // ④ 根行原件不同（根指针）⟹ 不复用。
-        assert!(root_cert_match("delta/1", &[8u8; 32], &slots, 64, "hash-a").is_none());
+        assert!(root_cert_match("delta/1", &[8u8; 32], &slots, 64, "hash-a", &mut None).is_none());
         // ⑤ 节点原件：payload / 声明长度 / 种类任一不同都判为不同（逐字节，不是摘要）。
         assert!(cert_get(&[1u8; 32]).is_none()); // 尚未保留任何节点证书
         let _g = begin_capture(1 << 20);

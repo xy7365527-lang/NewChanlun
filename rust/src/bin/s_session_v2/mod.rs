@@ -2445,21 +2445,88 @@ mod tests {
 #[test]
 #[ignore = "explicit isolated database diagnostic"]
 fn testonly_audit_cost_breakdown() {
+    fn retained_sample() -> Value {
+        let (root, handles, originals) = cache::retained_breakdown();
+        json!({
+            "retained_breakdown": {"root_walk_bytes":root,"handle_bytes":handles,"original_cert_bytes":originals},
+            "capture_bytes_now":cache::capture_bytes_now()
+        })
+    }
+    fn counter_delta(after: &Value, before: &Value) -> Value {
+        if let Some(fields) = after.as_object() {
+            return Value::Object(
+                fields
+                    .iter()
+                    .map(|(key, value)| (key.clone(), counter_delta(value, &before[key])))
+                    .collect(),
+            );
+        }
+        json!(after
+            .as_u64()
+            .unwrap()
+            .checked_sub(before.as_u64().unwrap())
+            .unwrap())
+    }
     let path = std::env::var("S_AUDIT_COST_DB").expect("isolated copy path required");
+    let expected_text = std::env::var("S_AUDIT_COST_EXPECT_GENERATION")
+        .expect("explicit actual persistent generation required; not the requested prefix length");
+    let expected_generation =
+        parse_canonical_i64(&expected_text, "expected persistent generation").unwrap();
+    assert!(expected_generation >= 0);
+    assert!(
+        Path::new(&path).is_file(),
+        "existing stopped database copy required"
+    );
+    let _lock =
+        process_lock(Path::new(&path)).expect("database copy must not have an active S writer");
     let conn = open_db(Path::new(&path)).unwrap();
     let tx = conn.unchecked_transaction().unwrap();
+    let generation = meta_i64(&tx, "generation").unwrap();
+    assert_eq!(
+        generation, expected_generation,
+        "persistent generation differs from the explicit declaration"
+    );
     cache::configure(268435456);
     for iteration in 0..3 {
+        cache::counters_reset();
+        let before = retained_sample();
         let t = Instant::now();
         let batches = capture_reachable_batches(&tx).unwrap();
         let b = t.elapsed();
+        let captured = retained_sample();
+        let capture_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
         verify_control(&tx, &batches.batches).unwrap();
         let c = t.elapsed();
+        let control_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
         verify_reachable_root_in_tx(&tx, &batches).unwrap();
         let r = t.elapsed();
+        let verified = retained_sample();
+        let last_resumed = cache::last_resumed();
+        let verified_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
+        drop(batches);
+        let released = retained_sample();
+        assert_eq!(
+            cache::capture_bytes_now(),
+            0,
+            "capture must end after releasing batches"
+        );
+        assert_eq!(meta_i64(&tx, "generation").unwrap(), expected_generation);
+        let total_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
         eprintln!(
             "AUDIT_COST {}",
-            json!({"iteration":iteration,"generation":meta_i64(&tx,"generation").unwrap(),"batches_ms":b.as_secs_f64()*1000.0,"control_ms":(c-b).as_secs_f64()*1000.0,"structure_ms":(r-c).as_secs_f64()*1000.0,"total_ms":r.as_secs_f64()*1000.0})
+            json!({
+                "iteration":iteration,"cache_state":if iteration == 0 {"cold"} else {"warm"},
+                "generation":generation,"expected_generation":expected_generation,
+                "cache_source_byte_limit":268435456,"last_resumed":last_resumed,
+                "retention":{"before":before,"captured":captured,"verified":verified,"released":released},
+                "counters":{"capture":capture_counters,
+                    "control":counter_delta(&control_counters, &capture_counters),
+                    "structure":counter_delta(&verified_counters, &control_counters),"total":total_counters},
+                "batches_ms":b.as_secs_f64()*1000.0,"control_ms":(c-b).as_secs_f64()*1000.0,
+                "structure_ms":(r-c).as_secs_f64()*1000.0,"total_ms":r.as_secs_f64()*1000.0,
+                "timing_note":"沿原累积 Instant 分段；测试采样开销含在墙钟内。内部 audit_ns 与墙钟重叠，不相加。",
+                "storage_note":"保留量是源字节账，非 RSS；只验证显式实际代号，不代表目标前缀已全部完成。"
+            })
         );
     }
 }
