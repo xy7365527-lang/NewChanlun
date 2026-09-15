@@ -836,8 +836,8 @@ fn capture_reachable_batches(
     conn: &Connection,
 ) -> Result<BTreeMap<String, std::sync::Arc<Value>>, String> {
     // #1394 第二段（2D）：每次仍在当前一致性读集中取得全部可达根与各唯一依赖节点；
-    // 同一次审计里同一个私有节点只读/解码一次，多个历史批次不必各自展开一遍。
-    // 容量有限只失去复用，不改变合法性判据。
+    // 同次审计复用节点解码，每个历史批次仍需完整展开；已核批次不在根清单遍历时重复展开。
+    // 跨请求历史展开的消除仍待完整2D。容量有限只失去复用，不改变合法性判据。
     let ids = {
         let mut q = conn
             .prepare("SELECT d.index_frontier FROM structure_deltas d")
@@ -890,7 +890,10 @@ fn capture_reachable_batches(
                     "StorageUnavailable：私有根 `{key}` 没有对应批次行（不可达残留），拒绝写入"
                 ));
             }
-            reader.read_fixed_cut(&key)?;
+            if !batches.contains_key(batch_id) {
+                // 尚未 Commit 的根也须核公开 batch_id/长度，不能只核私有根的自述摘要。
+                load_batch_bytes_with(conn, &mut reader, batch_id)?;
+            }
         }
         let orphan = evidence_store::unreachable_nodes(conn, reader.touched())?;
         if !orphan.is_empty() {
@@ -910,6 +913,16 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
 }
 
 fn verified_root_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
+    if conn.is_autocommit() {
+        // 所有节点、根和独立索引必须来自同一个读集，包括直接调用本入口的读者。
+        let tx = conn
+            .unchecked_transaction()
+            .map_err(|e| format!("开根审计读事务失败：{e}"))?;
+        let raw = verified_root_raw_events(&tx)?;
+        tx.commit()
+            .map_err(|e| format!("结束根审计读事务失败：{e}"))?;
+        return Ok(raw);
+    }
     let batches = capture_reachable_batches(conn)?;
     v2::verify_control(conn, &batches)?;
     verify_reachable_root_in_tx(conn, &batches).map_err(|e| format!("StorageUnavailable：{e}"))
@@ -8362,6 +8375,41 @@ mod tests {
                 .zip(&old_upserts)
                 .any(|(new, old)| new < old),
             "新域必须在至少一代真正少发未变对象"
+        );
+    }
+}
+
+#[cfg(test)]
+mod staged_graph_audit_regressions {
+    use super::*;
+
+    #[test]
+    fn graph_unpublished_batch_still_requires_its_full_public_hash() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        evidence_store::declare_new(&conn).unwrap();
+        let value = json!({"phase": "staged"});
+        let staged = evidence_store::stage_complete(&value, &[]).unwrap();
+        let id = format!("batch-{}", sha256_hex(&canonical_bytes_of_value(&value)));
+        conn.execute(
+            "INSERT INTO batches VALUES(?1,x'',?2)",
+            params![id, staged.expanded_length as i64],
+        )
+        .unwrap();
+        evidence_store::publish_refs(&conn, &evidence_store::batch_root_key(&id), &staged).unwrap();
+        assert!(capture_reachable_batches(&conn).unwrap().is_empty());
+        // 尚未发布的合法暂存根允许存在，但批次身份仍须绑定完整字节。
+        let bad = format!("batch-{}", "0".repeat(64));
+        conn.execute("UPDATE batches SET batch_id=?1", params![bad])
+            .unwrap();
+        conn.execute(
+            "UPDATE s_evidence_roots SET root_key=?1",
+            params![evidence_store::batch_root_key(&bad)],
+        )
+        .unwrap();
+        assert!(
+            capture_reachable_batches(&conn).is_err(),
+            "私有根摘要正确不能代替公开批次身份核验"
         );
     }
 }
