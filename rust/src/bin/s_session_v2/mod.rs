@@ -1184,16 +1184,19 @@ fn handle(
                 )?;
             }
             advance_core(db, epoch, Some(&c))?;
+            let started = s_fact_cache::phase::begin();
             let conn = open_db(db)?;
             let tx = conn.unchecked_transaction().map_err(err)?;
             verify_reachable_root(&tx)?;
-            lookup(
+            let out = lookup(
                 &tx,
                 required(e, "source_namespace")?,
                 required(e, "source_epoch")?,
                 required(e, "message_id")?,
                 required(e, "payload_hash")?,
-            )
+            );
+            s_fact_cache::phase::record("post_advance_root_audit", started.elapsed().as_nanos());
+            out
         }
         _ => Err("SchemaUnsupported：未知op，恢复只允许正式监督器CLI".into()),
     }

@@ -55,6 +55,8 @@ use super::types::{Bar, Fractal, PendingTail, Segment, Stroke};
 use std::rc::Rc;
 
 pub mod canonical;
+/// #1394：完整包含证据的内部共享表示（不可变节点 + 迭代展开，无递归、无逐追加全复制）。
+pub(crate) mod evidence;
 pub mod feature_seq;
 pub mod fractal;
 /// Θ_parse 流水线分步实现（聚焦小文件，coding-style <400 行/文件）。
@@ -150,6 +152,16 @@ pub fn parse_layer_with_inclusion_facts(
     config: &ThetaConfig,
 ) -> (ParseLayer, inclusion::InclusionFacts) {
     let mut facts = inclusion::process_inclusion_with_facts(bars);
+    let layer = parse_layer_from_facts(&mut facts, &config.parse);
+    (layer, facts)
+}
+
+/// #1394：从**已有**完整事实构造单层解析——与 [`parse_layer_with_inclusion_facts`] 共用
+/// 同一条下游（分型/新笔/段/tail 与 tail 同源），供 S 的同代增量状态复用，不另立判据。
+pub fn parse_layer_from_inclusion_facts(
+    mut facts: inclusion::InclusionFacts,
+    config: &ThetaConfig,
+) -> (ParseLayer, inclusion::InclusionFacts) {
     let layer = parse_layer_from_facts(&mut facts, &config.parse);
     (layer, facts)
 }

@@ -43,6 +43,9 @@ mod delta_storage;
 // #1394 第二段：完整证据的私有内容寻址共享表示（evidence-graph/2）；旧库无该表即旧整块域。
 #[path = "s_session_v2/evidence_store.rs"]
 mod evidence_store;
+// #1394 2A-S：正式 S 的同代增量状态与稳定对象复用（进程内缓存；性能结构，不充任准入权威）。
+#[path = "s_session_v2/s_fact_cache.rs"]
+mod s_fact_cache;
 #[path = "s_session_v2/tb02a.rs"]
 mod tb02a;
 #[path = "s_session_v2/tb02a_facts.rs"]
@@ -2426,6 +2429,17 @@ fn advance_core(
 
     let config = ThetaConfig::default();
     let is_ohlc = profile_id == tb02a::PROFILE;
+    // #1394 2A-S：同代增量车道（库/会话/规则/档案/目录身份键；身份不符即丢弃旧车道）。
+    let session_id = meta_get_opt(&conn, "session_id")?.unwrap_or_default();
+    let lane_key = s_fact_cache::lane_key(
+        db,
+        &session_id,
+        &profile_hash,
+        RULE_REVISION,
+        &profile_id,
+        &catalog_revision,
+    );
+    let mut lane_guard = s_fact_cache::LaneGuard::take(&lane_key);
     let mut incr = ParseLayerIncr::new(&config);
     let mut layer = None;
     let mut raw_bars: Vec<Bar> = Vec::new();
@@ -2454,8 +2468,22 @@ fn advance_core(
         }
     }
     let (layer, inclusion_facts) = if is_ohlc {
-        let (layer, facts) = parser::parse_layer_with_inclusion_facts(&raw_bars, &config);
+        if s_fact_cache::oracle_enabled() {
+            // 测试开关：全量 oracle（与增量路径逐代对拍用）。
+            let started = s_fact_cache::phase::begin();
+            let (layer, facts) = parser::parse_layer_with_inclusion_facts(&raw_bars, &config);
+            s_fact_cache::phase::record("parse_oracle", started.elapsed().as_nanos());
+            (layer, Some(facts))
+        } else {
+        // 从**真实生效输入**的已证稳定前缀追加；前缀内变化即从最早受影响坐标失效并保守重放。
+        let started = s_fact_cache::phase::begin();
+        let outcome = lane_guard.lane(&lane_key).advance(&raw_bars);
+        let facts = lane_guard.lane(&lane_key).state().materialize_facts();
+        let (layer, facts) = parser::parse_layer_from_inclusion_facts(facts, &config);
+        s_fact_cache::phase::record("parse", started.elapsed().as_nanos());
+        let _ = outcome;
         (layer, Some(facts))
+        }
     } else {
         (
             layer.unwrap_or_else(|| parser::parse_layer(&[], &config)),
@@ -2642,14 +2670,27 @@ fn advance_core(
 
     let structure_cut = format!("cut-{gen}");
     if let Some(facts) = &inclusion_facts {
-        let (typed, waiting) = tb02a_facts::build(
-            facts,
-            &raw_by_coord,
-            &objects,
-            gen,
-            &structure_cut,
-            frontier,
-        );
+        // #1394 2A-S/2C：同代增量状态 + 稳定对象原件复用 + 比较单元缓存（与全量路径逐字段相同）。
+        let started = s_fact_cache::phase::begin();
+        let (typed, waiting) = if is_ohlc && !s_fact_cache::oracle_enabled() {
+            lane_guard.lane(&lane_key).build_typed(
+                &raw_by_coord,
+                &objects,
+                gen,
+                &structure_cut,
+                frontier,
+            )
+        } else {
+            tb02a_facts::build(
+                facts,
+                &raw_by_coord,
+                &objects,
+                gen,
+                &structure_cut,
+                frontier,
+            )
+        };
+        s_fact_cache::phase::record("facts", started.elapsed().as_nanos());
         objects.extend(typed);
         observations.extend(waiting);
         let (new_bi, edges) = tb02b::build(
@@ -2711,6 +2752,7 @@ fn advance_core(
         let previous_frontier = meta_get_opt(&conn, "last_advance_frontier")?
             .and_then(|v| v.parse::<i64>().ok())
             .unwrap_or(-1);
+        let started = s_fact_cache::phase::begin();
         let (_, withdrawals, replaces) =
             compute_diff(&objects, &read_stored_objects(&conn)?, mode)?;
         batch_json["catalog_axes"] = tb02a_facts::catalog_axes(
@@ -2720,10 +2762,13 @@ fn advance_core(
             &withdrawals,
             &replaces,
         );
+        s_fact_cache::phase::record("catalog_axes", started.elapsed().as_nanos());
     }
+    let started = s_fact_cache::phase::begin();
     v2::seal_batch(&conn, context, &mut batch_json)?;
     let batch_bytes = canonical_bytes_of_value(&batch_json);
     let batch_id = format!("batch-{}", sha256_hex(&batch_bytes));
+    s_fact_cache::phase::record("batch_materialize", started.elapsed().as_nanos());
     for o in &mut objects {
         o["batch_id"] = json!(batch_id);
     }
@@ -2739,6 +2784,7 @@ fn advance_core(
         evidence_slots.push(evidence_store::SlotSpec::string(ns));
     }
 
+    let started = s_fact_cache::phase::begin();
     persist_batch_before_publish(
         &mut conn,
         &token,
@@ -2750,6 +2796,8 @@ fn advance_core(
         &evidence_slots,
         configured_epoch,
     )?;
+    s_fact_cache::phase::record("persist_batch", started.elapsed().as_nanos());
+    let started_commit = s_fact_cache::phase::begin();
 
     // ★测试暂停点 2：完整不可变批次已独立持久、Commit 尚未发生（供 SIGKILL）。
     testonly_pause("after_batch");
@@ -3123,6 +3171,7 @@ fn advance_core(
         tx.commit()
             .map_err(|e| format!("advance commit 失败：{e}"))?;
     }
+    s_fact_cache::phase::record("commit", started_commit.elapsed().as_nanos());
 
     if frontier_moved {
         let released = cancel_own_begin(&mut conn, &token, gen, frontier, configured_epoch)?;
@@ -8377,6 +8426,164 @@ mod tests {
             "新域必须在至少一代真正少发未变对象"
         );
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // #1394 2A-S/2C：增量路径 vs 全量 oracle 的逐代对拍与测量入口（显式 ignored）。
+    //
+    // 对拍面：同一输入逐代 Advance 的 batch_id（= 每代完整快照的内容寻址身份）必须逐代相同。
+    // 测量面：parse / facts 阶段 wall time、稳定对象命中/未命中、CC-007 比较单元实算/复用。
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// 同源 OHLC 输入：`bars[i] = (low, high)`，逐根一代。
+    fn incremental_bars(n: usize) -> Vec<(i64, i64)> {
+        (0..n)
+            .map(|i| {
+                let base = 1000 + (i as i64) * 3 + ((i as i64 * 37) % 47) - 23;
+                let span = 1 + (i as i64 % 5);
+                (base, base + span)
+            })
+            .collect()
+    }
+
+    /// 逐根 Advance，返回每代的 (batch_id, batch 字节数)。`lane_cold` 为真时每代先清空车道。
+    fn drive_prefix(bars: &[(i64, i64)], lane_cold: bool) -> Vec<(String, usize)> {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut out = Vec::new();
+        for n in 1..=bars.len() {
+            if lane_cold {
+                s_fact_cache::cold_lane();
+            }
+            accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            let conn = open_db(&files.db()).unwrap();
+            let (batch_id, byte_len): (String, i64) = conn
+                .query_row(
+                    "SELECT d.index_frontier, b.byte_len FROM structure_deltas d
+                     JOIN batches b ON b.batch_id=d.index_frontier ORDER BY d.generation DESC LIMIT 1",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .unwrap();
+            out.push((batch_id, usize::try_from(byte_len).unwrap()));
+        }
+        out
+    }
+
+    #[test]
+    #[ignore = "#1394 显式测量入口（逐代增量状态 + 稳定对象复用 + 比较单元缓存）"]
+    fn issue1394_incremental_prefix_measurement() {
+        let prefix: usize = std::env::var("ISSUE1394_MEASURE_PREFIX")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(64);
+        let bars = incremental_bars(prefix);
+        // 1) 增量路径（暖车道）
+        s_fact_cache::phase::reset();
+        s_fact_cache::phase::enable(true);
+        s_fact_cache::warm_lane_reset();
+        let started = std::time::Instant::now();
+        let warm = drive_prefix(&bars, false);
+        let warm_total = started.elapsed();
+        let phases = s_fact_cache::phase::summary();
+        let counts = s_fact_cache::lane_counts();
+        s_fact_cache::phase::enable(false);
+        // 2) 全量 oracle（同输入，另一个库）
+        s_fact_cache::set_oracle(true);
+        let started = std::time::Instant::now();
+        let oracle = drive_prefix(&bars, false);
+        let oracle_total = started.elapsed();
+        s_fact_cache::set_oracle(false);
+        assert_eq!(
+            warm, oracle,
+            "增量路径与全量 oracle 的逐代 batch_id/字节数必须逐项相同"
+        );
+        // 3) 冷车道（每代清空）必须同样一致
+        let cold = drive_prefix(&bars, true);
+        assert_eq!(cold, warm, "冷车道与暖车道输出必须一致");
+        let report = serde_json::json!({
+            "schema": "issue1394-incremental-prefix/1",
+            "prefix": prefix.to_string(),
+            "generations": warm.len().to_string(),
+            "warm_wall_seconds": format!("{:.6}", warm_total.as_secs_f64()),
+            "oracle_wall_seconds": format!("{:.6}", oracle_total.as_secs_f64()),
+            "warm_vs_oracle_ratio": format!("{:.4}", warm_total.as_secs_f64() / oracle_total.as_secs_f64()),
+            "batch_bytes_last": warm.last().map(|(_, b)| b.to_string()).unwrap_or_default(),
+            "batch_bytes_total": warm.iter().map(|(_, b)| *b as u64).sum::<u64>().to_string(),
+            "phases": phases.iter().map(|(name, nanos, count)| serde_json::json!({
+                "phase": name, "total_ms": format!("{:.3}", *nanos as f64 / 1e6), "calls": count.to_string()})).collect::<Vec<_>>(),
+            "fact_cache": {
+                "hits": counts.0.to_string(), "misses": counts.1.to_string(),
+                "units_computed": counts.2.to_string(), "units_reused": counts.3.to_string(),
+            },
+            "batch_hashes": warm.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>(),
+        });
+        println!("{report}");
+    }
+
+    #[test]
+    fn issue1394_incremental_matches_oracle_on_revision_return() {
+        // 真实修订（消失/返回）+ 追加：增量路径与 oracle 逐代 batch_id 必须相同。
+        let bars = incremental_bars(12);
+        // 与 ohlc_input 同形，但把 events[index] 的 revision 设为给定值（真实 late revision）。
+        let revision_input = |bars: &[(i64, i64)], index: usize, revision: &str| -> Value {
+            let events: Vec<Value> = bars
+                .iter()
+                .enumerate()
+                .map(|(i, (low, high))| {
+                    json!({
+                        "event_id":format!("o{i}"),
+                        "revision":if i == index { revision } else { "1" },
+                        "seq":i.to_string(),
+                        "received_at":"2026-09-13T00:00:00Z",
+                        "raw_text":format!("{low}/{high}"),
+                        "open":low.to_string(),"high":high.to_string(),"low":low.to_string(),"close":high.to_string(),
+                        "timestamp":i.to_string(),"volume":"1"
+                    })
+                })
+                .collect();
+            json!({"schema_revision":"s-ohlc/1","session_id":"s-session-testonly-001","source_namespace":"testonly.ohlc",
+                "source_epoch":"1","instrument":"TEST.OHLC","profile":tb02a::PROFILE,"events":events})
+        };
+        let mut revised = bars.clone();
+        revised[2] = (bars[2].0 + 7, bars[2].1 + 7);
+        let steps: Vec<Vec<(i64, i64)>> = vec![
+            bars.clone(),
+            revised.clone(),
+            bars.clone(), // 返回原价（revision 3）
+        ];
+        let run = |oracle: bool| -> Vec<(i64, String)> {
+            s_fact_cache::warm_lane_reset();
+            s_fact_cache::set_oracle(oracle);
+            let files = TestFiles::new();
+            init_test_db(&files);
+            for n in 1..=bars.len() {
+                accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            }
+            accept_ohlc(&files, &revision_input(&steps[1], 2, "2"));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            accept_ohlc(&files, &revision_input(&steps[2], 2, "3"));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            s_fact_cache::set_oracle(false);
+            let conn = open_db(&files.db()).unwrap();
+            let mut stmt = conn
+                .prepare("SELECT d.generation, d.index_frontier FROM structure_deltas d ORDER BY d.generation")
+                .unwrap();
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        let warm_ids = run(false);
+        let oracle_ids = run(true);
+        assert_eq!(
+            warm_ids, oracle_ids,
+            "真实修订（消失/返回）下增量与 oracle 的逐代 batch_id 必须相同"
+        );
+        assert_eq!(warm_ids.len(), bars.len() + 2);
+    }
+
 }
 
 #[cfg(test)]
