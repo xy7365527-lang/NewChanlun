@@ -240,6 +240,10 @@ EXPECTED_SCHEMAS = tuple(
     for facts in _FACT_SCHEMAS
     for fmt in _FORMAT_SCHEMAS
     for graph in _GRAPH_SCHEMAS)
+# 包含各已声明表及其隐式索引；新私有图模式也受同一事前界限和后续严格模式核验约束。
+MAX_SCHEMA_OBJECTS = max(
+    sum(1 + len(indexes) for _columns, indexes in schema.values())
+    for schema in EXPECTED_SCHEMAS)
 EXPECTED_LEGACY_FORMAT = _expected_schema(LEGACY_SCHEMA + STORAGE_FORMAT_SCHEMA)
 EXPECTED_V2_OHLC_FORMAT = _expected_schema(
     LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA + STORAGE_FORMAT_SCHEMA)
@@ -487,7 +491,7 @@ max_bytes 计实际 Python 捕获对象大小的保守增量（含每行/每值�
     if max_bytes is not None:
         count, schema_bytes = conn.execute(
             "SELECT COUNT(*),COALESCE(SUM(length(CAST(sql AS BLOB))),0) FROM sqlite_schema").fetchone()
-        if count > 2*len(EXPECTED_V2_OHLC_FORMAT) or schema_bytes > min(max_bytes, 128*1024):
+        if count > MAX_SCHEMA_OBJECTS or schema_bytes > min(max_bytes, 128*1024):
             raise QueryBudgetExceeded("当前模式元数据超过捕获界限")
     schema_rows, schema = _schema(conn)
     _validate_schema(schema_rows, schema)

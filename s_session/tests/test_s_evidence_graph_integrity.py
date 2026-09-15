@@ -1,9 +1,38 @@
 """#1394 私有图完整性；具名格式夹具，不代替真实 S/Q 验收。"""
 import copy
 import hashlib
+import itertools
+import sqlite3
 import unittest
 
 import s_query_integrity as graph
+
+
+class EvidenceSchemaCaptureTests(unittest.TestCase):
+    def test_bounded_capture_accepts_every_declared_schema(self):
+        for parts in itertools.product(graph._CORE_SCHEMAS, graph._FACT_SCHEMAS,
+                                       graph._FORMAT_SCHEMAS, graph._GRAPH_SCHEMAS):
+            with self.subTest(parts=tuple(bool(part) for part in parts)):
+                conn = sqlite3.connect(":memory:")
+                try:
+                    conn.executescript("".join(parts))
+                    conn.execute("BEGIN")
+                    captured = graph.capture(conn, max_bytes=268435456)
+                    self.assertIn(captured["schema"], graph.EXPECTED_SCHEMAS)
+                finally:
+                    conn.close()
+
+    def test_bounded_capture_still_rejects_extra_schema_objects(self):
+        conn = sqlite3.connect(":memory:")
+        try:
+            conn.executescript(graph.LEGACY_SCHEMA + graph.CONTROL_SCHEMA + graph.tb02.SCHEMA
+                               + graph.STORAGE_FORMAT_SCHEMA + graph.EVIDENCE_GRAPH_SCHEMA)
+            conn.execute("CREATE TABLE extra_untrusted(value TEXT)")
+            conn.execute("BEGIN")
+            with self.assertRaises(graph.QueryBudgetExceeded):
+                graph.capture(conn, max_bytes=268435456)
+        finally:
+            conn.close()
 
 
 def node(kind, payload, length):
