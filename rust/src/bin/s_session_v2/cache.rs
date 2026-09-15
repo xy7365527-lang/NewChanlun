@@ -1318,13 +1318,14 @@ pub(super) fn store_root(
     walk: audit::AuditWalk,
     originals: &Originals,
 ) {
-    let bytes = root_cost(&rows, &identity, &walk, originals);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
         if m.limit == 0 {
             *m = Memo::disabled();
             return;
         }
+        // #1394：关闭保留时无需为随即丢弃的审计投影再次生成规范字节记账。
+        let bytes = root_cost(&rows, &identity, &walk, originals);
         if bytes > m.limit {
             // 新 root 单独超限：保留此前仍可复用的旧前缀（仍在当前上限内、身份相同、且仍是当前行的
             // 前缀），不清空句柄缓存；判不出仍有用时只丢旧 root。

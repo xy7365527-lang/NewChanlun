@@ -1488,6 +1488,10 @@ impl<'a> Reader<'a> {
         let mut out: Vec<u8> = Vec::new();
         let mut stack: Vec<Frame> = vec![Frame::Open(root)];
         let mut slot_bytes = 0u64;
+        // #1394：仅在固定事务内复用本次已完成的展开区间；自动提交仍逐次 Open 读新鲜行。
+        // 只记 out 的区间和槽字节增量，不持有原件/证书；参数固定，out 只追加，区间始终有效。
+        let mut completed = (!self.conn.is_autocommit())
+            .then(std::collections::HashMap::<[u8; 32], (usize, usize, u64)>::new);
         while let Some(item) = stack.pop() {
             match item {
                 Frame::Lit(bytes) => append_checked(&mut out, &bytes, expanded_len)?,
@@ -1499,6 +1503,25 @@ impl<'a> Reader<'a> {
                     slot_bytes += bytes.len() as u64;
                 }
                 Frame::Open(id) => {
+                    if let Some((start, end, slots)) = completed
+                        .as_ref()
+                        .and_then(|spans| spans.get(&id))
+                        .copied()
+                    {
+                        let len = end - start;
+                        let next = out
+                            .len()
+                            .checked_add(len)
+                            .ok_or("StorageUnavailable：证据图展开长度溢出")?;
+                        if next as u64 > expanded_len {
+                            return Err("StorageUnavailable：证据图实际展开超过根声明长度".into());
+                        }
+                        out.try_reserve(len)
+                            .map_err(|_| "StorageUnavailable：证据图展开内存不足")?;
+                        out.extend_from_within(start..end);
+                        slot_bytes += slots;
+                        continue;
+                    }
                     let node = self.load(&id)?;
                     stack.push(Frame::Close {
                         id,
@@ -1515,13 +1538,17 @@ impl<'a> Reader<'a> {
                     slot_bytes_at_open,
                 } => {
                     let actual = (out.len() - start) as u64;
-                    let without_slots = actual - (slot_bytes - slot_bytes_at_open);
+                    let slots = slot_bytes - slot_bytes_at_open;
+                    let without_slots = actual - slots;
                     if without_slots != declared_length {
                         return Err(format!(
                             "StorageUnavailable：私有节点 {} 声明长度 {} 与实际展开 {without_slots} 不符",
                             hex(&id),
                             declared_length
                         ));
+                    }
+                    if let Some(spans) = completed.as_mut() {
+                        spans.insert(id, (start, out.len(), slots));
                     }
                 }
             }
@@ -1839,6 +1866,189 @@ pub(super) fn describe(conn: &Connection, root_key: &str) -> Result<Value, Strin
 #[cfg(test)]
 mod metadata_regressions {
     use super::*;
+
+    fn publish_shared_slotted_root(
+        conn: &Connection,
+        key: &str,
+        slot: u64,
+    ) -> (RootRow, Vec<u8>) {
+        let part = json!({"x": {"v": slot}, "y": {"v": slot}});
+        let value = json!({"a": part, "b": part});
+        let staged = stage_complete(&value, &[SlotSpec::number(&slot.to_string())]).unwrap();
+        // 根、两次引用的父 SEQ、四次引用的子 SEQ、参数叶，只有四个唯一节点。
+        assert_eq!(staged.nodes.len(), 4);
+        publish_refs(conn, key, &staged).unwrap();
+        let (node, slots, expanded_length, content_sha256) =
+            Reader::root_row(conn, key).unwrap().unwrap();
+        (
+            RootRow {
+                node,
+                slots,
+                expanded_length,
+                content_sha256,
+            },
+            canonical_bytes_of_value(&value),
+        )
+    }
+
+    #[test]
+    fn completed_spans_read_nested_shared_slot_subtrees_once_in_transaction() {
+        cache::configure(0);
+        let conn = Connection::open_in_memory().unwrap();
+        declare_new(&conn).unwrap();
+        let (row, expected) = publish_shared_slotted_root(&conn, "batch/shared", 9);
+        let tx = conn.unchecked_transaction().unwrap();
+        assert!(!tx.is_autocommit());
+        let mut reader = Reader::new(&tx, 0);
+        cache::counters_reset();
+        assert_eq!(reader.expand("batch/shared", &row).unwrap(), expected);
+        // 真实 SQL 读数：一个参数叶 + 三个唯一 SEQ；旧展开会读 1 + 1 + 2 + 4 = 8 行。
+        assert_eq!(cache::counters_snapshot().node_rows_read, 4);
+        assert_eq!(cache::retained_bytes(), 0);
+        assert_eq!(cache::capture_bytes_now(), 0);
+        let full = reader.read_root("batch/shared", true).unwrap();
+        assert_eq!(full.bytes.as_ref(), expected);
+        assert_eq!(
+            full.value.as_deref(),
+            Some(&v2::strict_json(&expected).unwrap())
+        );
+        assert_eq!(cache::retained_bytes(), 0);
+        assert_eq!(cache::capture_bytes_now(), 0);
+    }
+
+    #[test]
+    fn completed_spans_keep_autocommit_reads_and_do_not_cross_roots_or_slots() {
+        cache::configure(0);
+        let conn = Connection::open_in_memory().unwrap();
+        declare_new(&conn).unwrap();
+        let (first, first_bytes) = publish_shared_slotted_root(&conn, "batch/first", 9);
+        let (second, second_bytes) = publish_shared_slotted_root(&conn, "batch/second", 1000);
+        assert_eq!(first.node, second.node);
+        assert_ne!(first.slots, second.slots);
+        assert!(conn.is_autocommit());
+        {
+            let mut reader = Reader::new(&conn, 0);
+            cache::counters_reset();
+            assert_eq!(reader.expand("batch/first", &first).unwrap(), first_bytes);
+            // 自动提交调用没有固定快照，仍按每次 Open 读当前行。
+            assert_eq!(cache::counters_snapshot().node_rows_read, 8);
+        }
+        let tx = conn.unchecked_transaction().unwrap();
+        let mut reader = Reader::new(&tx, 0);
+        for (key, row, expected) in [
+            ("batch/first", &first, &first_bytes),
+            ("batch/second", &second, &second_bytes),
+            ("batch/first", &first, &first_bytes),
+        ] {
+            cache::counters_reset();
+            assert_eq!(&reader.expand(key, row).unwrap(), expected);
+            // 同一 Reader、相同模板也不能继承前一次根/参数的展开区间。
+            assert_eq!(cache::counters_snapshot().node_rows_read, 4);
+            assert_eq!(cache::retained_bytes(), 0);
+            assert_eq!(cache::capture_bytes_now(), 0);
+        }
+    }
+
+    #[test]
+    fn completed_spans_still_reject_damaged_nodes_and_root_bounds() {
+        for (damage, message) in [
+            ("node_length", "声明长度"),
+            ("node_hash", "同 ID 异内容"),
+            ("missing_node", "缺失"),
+            ("unknown_tag", "分量标签 `255` 未声明"),
+            ("root_hash", "展开字节与登记摘要不符"),
+            ("root_short", "实际展开超过根声明长度"),
+            ("root_long", "展开长度不符"),
+        ] {
+            cache::configure(0);
+            let conn = Connection::open_in_memory().unwrap();
+            declare_new(&conn).unwrap();
+            let (row, _) = publish_shared_slotted_root(&conn, "batch/damaged", 9);
+            let tx = conn.unchecked_transaction().unwrap();
+            match damage {
+                "node_length" => {
+                    let payload: Vec<u8> = tx
+                        .query_row(
+                            "SELECT payload FROM s_evidence_nodes WHERE node_id=?1",
+                            params![&row.node[..]],
+                            |r| r.get(0),
+                        )
+                        .unwrap();
+                    let shared = split_seq(&payload)
+                        .unwrap()
+                        .into_iter()
+                        .find_map(|part| {
+                            if let Part::Ref(id) = part { Some(id) } else { None }
+                        })
+                        .unwrap();
+                    // 首次 Close 就须拒绝共享子树的坏长度，不能先登记为已完成区间。
+                    tx.execute(
+                        "UPDATE s_evidence_nodes SET expanded_length=expanded_length+1 WHERE node_id=?1",
+                        params![&shared[..]],
+                    )
+                    .unwrap();
+                }
+                "node_hash" => {
+                    tx.execute(
+                        "UPDATE s_evidence_nodes SET payload=x'ff' WHERE node_id=?1",
+                        params![&row.node[..]],
+                    )
+                    .unwrap();
+                }
+                "missing_node" => {
+                    tx.execute(
+                        "DELETE FROM s_evidence_nodes WHERE node_id=?1",
+                        params![&row.node[..]],
+                    )
+                    .unwrap();
+                }
+                "unknown_tag" => {
+                    // 使用真实内容 ID，使错误落在标签语法门，不能被同 ID 异内容门代替。
+                    let id = node_id(KIND_SEQ, &[255]);
+                    tx.execute(
+                        "UPDATE s_evidence_nodes SET node_id=?1,payload=x'ff' WHERE node_id=?2",
+                        params![&id[..], &row.node[..]],
+                    )
+                    .unwrap();
+                    tx.execute("UPDATE s_evidence_roots SET node_id=?1", params![&id[..]])
+                        .unwrap();
+                }
+                "root_hash" => {
+                    tx.execute(
+                        "UPDATE s_evidence_roots SET content_sha256=?1",
+                        params!["0".repeat(64)],
+                    )
+                    .unwrap();
+                }
+                "root_short" | "root_long" => {
+                    // short 在第二次父 SEQ 的整个区间追加时越界；long 仍须核最终等式。
+                    let length = row.expanded_length as i64
+                        + if damage == "root_short" { -2 } else { 1 };
+                    tx.execute(
+                        "UPDATE s_evidence_roots SET expanded_length=?1",
+                        params![length],
+                    )
+                    .unwrap();
+                }
+                _ => unreachable!(),
+            }
+            let (node, slots, expanded_length, content_sha256) =
+                Reader::root_row(&tx, "batch/damaged").unwrap().unwrap();
+            let current = RootRow {
+                node,
+                slots,
+                expanded_length,
+                content_sha256,
+            };
+            let mut reader = Reader::new(&tx, 0);
+            let error = reader.expand("batch/damaged", &current).unwrap_err();
+            assert!(error.contains(message), "{damage}: {error}");
+            // 公开读取仍先走完整闭包，损坏不得由区间复用放行。
+            assert!(reader.read_root("batch/damaged", true).is_err(), "{damage}");
+            assert_eq!(cache::retained_bytes(), 0);
+            assert_eq!(cache::capture_bytes_now(), 0);
+        }
+    }
 
     fn slotted_frame_fixture() -> (Connection, RootRow, Vec<u8>) {
         let conn = Connection::open_in_memory().unwrap();
