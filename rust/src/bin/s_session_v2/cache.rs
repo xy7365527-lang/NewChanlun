@@ -36,18 +36,20 @@ pub(super) type DeltaRow = (
     String,
     // 末项：该代 Delta 原件的私有根闭包指纹（图域）；整块域为空串（原件就在上一列）。
     // 它使「已核前缀」对 Delta 原件的**当前内容**敏感，但它只是附加校验——
-    // 图域真正的前缀门是 `Root::delta_certs` 里那份已核原件证书（见 `resume`）。
+    // 图域真正的前缀门是 `Root::originals` 里的全部已核原件证书（见 `resume`）。
     String,
 );
 /// （session_id、catalog_revision、（profile_id、profile_hash）、Delta 模式标签、证据图格式标签）。
 /// 末两项是 #1394 的私有域：Delta 模式与证据图格式变化必须使旧 root/证书失效，不跨域复用。
 type Identity = (String, String, (String, String), String, String);
+/// 本次捕获的全部私有根证明。无法保留的根仍须带键，以 `None` 禁止前缀复用。
+pub(super) type Originals = BTreeMap<String, Option<Arc<RootCert>>>;
 struct Root {
     rows: Vec<DeltaRow>,
     identity: Identity,
-    /// 每代 Delta 原件的已核原件证书（图域）；整块域为 `None`——那里原件就在行内列里，
-    /// 已由 `rows` 的逐字节比较钉死。长度恒等于 `rows.len()`。
-    delta_certs: Vec<Option<Weak<RootCert>>>,
+    /// batch、Delta、fact 的全部私有根证明；只持弱引用，不让被驱逐原件逃出预算。
+    /// 旧整块域为空，行内原件由 `rows` / `AuditWalk` 逐字节比较。
+    originals: BTreeMap<String, Option<Weak<RootCert>>>,
     walk: audit::AuditWalk,
     bytes: usize,
 }
@@ -945,14 +947,13 @@ fn handle_cost(key_len: usize, bytes_len: usize, decoded: bool) -> usize {
         .saturating_add(64)
 }
 
-/// 审计前缀复用：前缀行必须逐字节相同，**且**每代 Delta 原件必须是同一个已核原件证书
-/// （指针同一）。行内列的逐字节比较钉不住图域的真原件——它在私有根里；末列摘要因此只是
-/// 附加校验，不是唯一证书。
+/// 审计前缀复用：前缀行逐字节相同，且旧捕获的每个私有根仍是同一份有效原件证明。
+/// 新根可加入；旧根缺失、未保留、旋转或原件池失效均须重核。末列摘要只作附加校验。
 pub(super) fn resume(
     rows: &[DeltaRow],
     identity: &Identity,
     walk: &mut audit::AuditWalk,
-    delta_certs: &[Option<Arc<RootCert>>],
+    originals: &Originals,
 ) -> usize {
     #[cfg(test)]
     LAST_RESUMED.with(|v| v.set(0));
@@ -965,17 +966,26 @@ pub(super) fn resume(
         {
             return 0;
         }
-        if old.delta_certs.len() != old.rows.len() || delta_certs.len() < old.rows.len() {
+        let graph3 = identity.4 == evidence_store::GRAPH_FORMAT;
+        let graph = graph3 || identity.4 == evidence_store::GRAPH_FORMAT_V2;
+        // 图域不得因两边漏收同一根而空集放行。graph/2 的 Delta 原件仍在行内。
+        if graph
+            && old.rows.iter().any(|row| {
+                !old.originals
+                    .contains_key(&evidence_store::batch_root_key(&row.6))
+                    || (graph3
+                        && !old
+                            .originals
+                            .contains_key(&evidence_store::delta_root_key(row.0)))
+            })
+        {
             return 0;
         }
-        for i in 0..old.rows.len() {
-            match (&old.delta_certs[i], &delta_certs[i]) {
-                // 整块域：原件就在行内列里，已由上面的逐字节比较钉死。
-                (None, None) if identity.4 != evidence_store::GRAPH_FORMAT => {}
-                (Some(a), Some(b))
+        for (key, old_cert) in &old.originals {
+            match (old_cert, originals.get(key)) {
+                (Some(a), Some(Some(b)))
                     if Weak::ptr_eq(a, &Arc::downgrade(b))
-                        && (identity.4 != evidence_store::GRAPH_FORMAT
-                            || Weak::ptr_eq(&b.lineage, &Arc::downgrade(&m.cert_lineage))) => {}
+                        && Weak::ptr_eq(&b.lineage, &Arc::downgrade(&m.cert_lineage)) => {}
                 _ => return 0,
             }
         }
@@ -993,10 +1003,9 @@ pub(super) fn store_root(
     rows: Vec<DeltaRow>,
     identity: Identity,
     walk: audit::AuditWalk,
-    delta_certs: Vec<Option<Arc<RootCert>>>,
+    originals: &Originals,
 ) {
-    debug_assert_eq!(delta_certs.len(), rows.len());
-    let bytes = root_cost(&rows, &identity, &walk);
+    let bytes = root_cost(&rows, &identity, &walk, originals);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
         if m.limit == 0 {
@@ -1022,9 +1031,9 @@ pub(super) fn store_root(
         m.root = Some(Root {
             rows,
             identity,
-            delta_certs: delta_certs
-                .into_iter()
-                .map(|c| c.as_ref().map(Arc::downgrade))
+            originals: originals
+                .iter()
+                .map(|(key, cert)| (key.clone(), cert.as_ref().map(Arc::downgrade)))
                 .collect(),
             walk,
             bytes,
@@ -1034,8 +1043,14 @@ pub(super) fn store_root(
     });
 }
 
-/// root 记账：行内字符串 + 每行 16B + walk 的规范源字节 + identity 字段；全程饱和加，避免溢出。
-fn root_cost(rows: &[DeltaRow], identity: &Identity, walk: &audit::AuditWalk) -> usize {
+/// root 记账：行内字符串 + 每行 16B + walk + identity + 每个证明键及条目 16B。
+/// 证明原件仍只在原件池记一份；此处不复制闭包或解码值。全程饱和加，避免溢出。
+fn root_cost(
+    rows: &[DeltaRow],
+    identity: &Identity,
+    walk: &audit::AuditWalk,
+    originals: &Originals,
+) -> usize {
     let row_bytes = rows.iter().fold(0usize, |n, r| {
         n.saturating_add(
             r.1.len()
@@ -1052,6 +1067,9 @@ fn root_cost(rows: &[DeltaRow], identity: &Identity, walk: &audit::AuditWalk) ->
         )
     });
     row_bytes
+        .saturating_add(originals.keys().fold(0usize, |n, key| {
+            n.saturating_add(key.len()).saturating_add(16)
+        }))
         .saturating_add(walk.source_bytes())
         .saturating_add(
             identity
@@ -1082,13 +1100,13 @@ mod tests {
         .unwrap();
         audit::AuditWalk::capture(&conn, &[]).unwrap()
     }
-    fn identity(session: &str) -> Identity {
+    fn inline_identity(session: &str) -> Identity {
         (
             session.to_string(),
             "catalog-hash".to_string(),
             ("profile-id".to_string(), "profile-hash".to_string()),
             delta_storage::CHANGES_ONLY.to_string(),
-            evidence_store::GRAPH_FORMAT_V2.to_string(),
+            evidence_store::Format::LegacyBlob.tag().to_string(),
         )
     }
     fn rows(n: i64) -> Vec<DeltaRow> {
@@ -1138,8 +1156,31 @@ mod tests {
             hash.to_string(),
         ))
     }
-    fn plain_certs(n: usize) -> Vec<Option<Arc<RootCert>>> {
-        (0..n).map(|_| None).collect()
+    fn inline_originals() -> Originals {
+        Originals::new()
+    }
+    fn retained_originals(rows: &[DeltaRow], graph3: bool) -> Originals {
+        let mut keys = rows
+            .iter()
+            .map(|row| evidence_store::batch_root_key(&row.6))
+            .collect::<Vec<_>>();
+        if graph3 {
+            keys.extend(rows.iter().map(|row| evidence_store::delta_root_key(row.0)));
+            keys.push(evidence_store::fact_root_key("fact-1"));
+        }
+        keys.into_iter()
+            .map(|key| {
+                let retained = handle_put_certified(
+                    &key,
+                    &RootCert::new([1; 32], Vec::new(), 2, "hash".to_string()),
+                    [0; 32],
+                    Arc::from(&b"{}"[..]),
+                    None,
+                );
+                assert!(retained.is_some());
+                (key, retained)
+            })
+            .collect()
     }
     fn memo_root_rows() -> Option<usize> {
         MEMO.with(|m| m.borrow().root.as_ref().map(|r| r.rows.len()))
@@ -1157,13 +1198,46 @@ mod tests {
     #[test]
     fn graph3_missing_both_delta_certificates_never_resumes() {
         configure(1 << 20);
-        let mut graph = identity("test-c");
+        let mut graph = inline_identity("test-c");
         graph.4 = evidence_store::GRAPH_FORMAT.to_string();
-        store_root(rows(2), graph.clone(), empty_walk(), plain_certs(2));
-        assert_eq!(
-            resume(&rows(2), &graph, &mut empty_walk(), &plain_certs(2)),
-            0
-        );
+        let complete = retained_originals(&rows(2), true);
+        for missing in [None, Some(None)] {
+            let mut originals = complete.clone();
+            match missing {
+                None => {
+                    originals.remove("delta/1");
+                }
+                Some(value) => {
+                    originals.insert("delta/1".to_string(), value);
+                }
+            }
+            store_root(rows(2), graph.clone(), empty_walk(), &originals);
+            assert_eq!(resume(&rows(2), &graph, &mut empty_walk(), &originals), 0);
+        }
+        configure(0);
+    }
+
+    #[test]
+    fn graph_domains_require_every_historical_batch_proof_and_nonempty_maps() {
+        configure(1 << 20);
+        for graph3 in [false, true] {
+            let mut graph = inline_identity("test-c");
+            graph.4 = if graph3 {
+                evidence_store::GRAPH_FORMAT
+            } else {
+                evidence_store::GRAPH_FORMAT_V2
+            }
+            .to_string();
+            let mut originals = retained_originals(&rows(2), graph3);
+            originals.remove("batch/batch-1");
+            store_root(rows(2), graph.clone(), empty_walk(), &originals);
+            assert_eq!(resume(&rows(2), &graph, &mut empty_walk(), &originals), 0);
+            store_root(rows(2), graph.clone(), empty_walk(), &Originals::new());
+            assert_eq!(
+                resume(&rows(2), &graph, &mut empty_walk(), &Originals::new()),
+                0
+            );
+        }
         configure(0);
     }
 
@@ -1252,9 +1326,9 @@ mod tests {
         let weak = Arc::downgrade(&retained);
         store_root(
             rows(1),
-            identity("test-c"),
+            inline_identity("test-c"),
             empty_walk(),
-            vec![Some(retained.clone())],
+            &BTreeMap::from([("delta/1".to_string(), Some(retained.clone()))]),
         );
         drop(retained);
         MEMO.with(|m| m.borrow_mut().trim_certs(0));
@@ -1282,11 +1356,21 @@ mod tests {
     #[test]
     fn root_survives_and_handles_fill_only_the_shared_budget() {
         let base = rows(2);
-        let root = root_cost(&base, &identity("test-c"), &empty_walk());
+        let root = root_cost(
+            &base,
+            &inline_identity("test-c"),
+            &empty_walk(),
+            &inline_originals(),
+        );
         let one = handle_cost("batch-a".len(), 64, true);
         let limit = root + one * 3;
         configure(limit);
-        store_root(base, identity("test-c"), empty_walk(), plain_certs(2));
+        store_root(
+            base,
+            inline_identity("test-c"),
+            empty_walk(),
+            &inline_originals(),
+        );
         for (key, len) in [
             ("batch-a", 64),
             ("batch-bb", 1 << 20),
@@ -1306,20 +1390,54 @@ mod tests {
     }
 
     #[test]
+    fn root_proof_keys_and_entries_count_toward_the_same_budget() {
+        configure(0);
+        let rows = rows(2);
+        let identity = inline_identity("test-c");
+        let base = root_cost(&rows, &identity, &empty_walk(), &inline_originals());
+        let originals = BTreeMap::from([(format!("fact/{}", "x".repeat(4096)), None)]);
+        let cost = root_cost(&rows, &identity, &empty_walk(), &originals);
+        assert_eq!(cost - base, 4101 + 16);
+        configure(cost - 1);
+        store_root(rows.clone(), identity.clone(), empty_walk(), &originals);
+        assert_eq!(memo_root_rows(), None, "证明键不能绕过 root 保留预算");
+        configure(cost);
+        store_root(rows, identity, empty_walk(), &originals);
+        assert_eq!(memo_root_rows(), Some(2));
+        assert_eq!(memo_retained(), cost);
+        configure(0);
+    }
+
+    #[test]
     fn growing_root_evicts_handles_instead_of_dropping_everything() {
         let small = rows(2);
         let big = rows(6);
-        let big_bytes = root_cost(&big, &identity("test-c"), &empty_walk());
+        let big_bytes = root_cost(
+            &big,
+            &inline_identity("test-c"),
+            &empty_walk(),
+            &inline_originals(),
+        );
         let one = handle_cost("batch-a".len(), 64, true);
         let limit = big_bytes + one;
         configure(limit);
-        store_root(small, identity("test-c"), empty_walk(), plain_certs(2));
+        store_root(
+            small,
+            inline_identity("test-c"),
+            empty_walk(),
+            &inline_originals(),
+        );
         for key in ["batch-a", "batch-b"] {
             let (bytes, value) = handle(key, 64, true);
             handle_put_blob(key, [0u8; 32], bytes, value);
         }
         assert_eq!(memo_handle_keys(), vec!["batch-a", "batch-b"]);
-        store_root(big, identity("test-c"), empty_walk(), plain_certs(6));
+        store_root(
+            big,
+            inline_identity("test-c"),
+            empty_walk(),
+            &inline_originals(),
+        );
         assert_eq!(memo_root_rows(), Some(6));
         assert_eq!(memo_handle_keys(), vec!["batch-a"]); // 句柄部分驱逐，root 保留
         assert!(memo_total() <= limit);
@@ -1329,19 +1447,36 @@ mod tests {
     fn oversized_new_root_keeps_previous_verified_prefix_usable() {
         let small = rows(2);
         let huge = rows(64);
-        let small_bytes = root_cost(&small, &identity("test-c"), &empty_walk());
+        let small_bytes = root_cost(
+            &small,
+            &inline_identity("test-c"),
+            &empty_walk(),
+            &inline_originals(),
+        );
         let one = handle_cost("batch-a".len(), 64, true);
         let limit = small_bytes + one;
-        assert!(root_cost(&huge, &identity("test-c"), &empty_walk()) > limit);
+        assert!(
+            root_cost(
+                &huge,
+                &inline_identity("test-c"),
+                &empty_walk(),
+                &inline_originals()
+            ) > limit
+        );
         configure(limit);
-        store_root(small, identity("test-c"), empty_walk(), plain_certs(2));
+        store_root(
+            small,
+            inline_identity("test-c"),
+            empty_walk(),
+            &inline_originals(),
+        );
         let (bytes, value) = handle("batch-a", 64, true);
         handle_put_blob("batch-a", [0u8; 32], bytes, value);
         store_root(
             huge.clone(),
-            identity("test-c"),
+            inline_identity("test-c"),
             empty_walk(),
-            plain_certs(64),
+            &inline_originals(),
         );
         // 装不下新 root：旧前缀与句柄都保留，不清整个 Memo。
         assert_eq!(memo_root_rows(), Some(2));
@@ -1350,9 +1485,9 @@ mod tests {
         assert_eq!(
             resume(
                 &huge,
-                &identity("test-c"),
+                &inline_identity("test-c"),
                 &mut empty_walk(),
-                &plain_certs(64)
+                &inline_originals()
             ),
             2
         );
@@ -1363,78 +1498,79 @@ mod tests {
         assert_eq!(
             resume(
                 &changed,
-                &identity("test-c"),
+                &inline_identity("test-c"),
                 &mut empty_walk(),
-                &plain_certs(64)
+                &inline_originals()
             ),
             0
         );
         assert_eq!(last_resumed(), 0);
     }
 
-    /// #1394 第三段：审计前缀的第二道门是**每代 Delta 原件的同一已核证书**，不是末列摘要。
-    /// 摘要完全相同（行内列与指纹列都相同）但原件证书换了另一个对象 ⟹ 不复用。
+    /// #1394：原件证明逐键绑定，不能由相同摘要、遗漏键或失效谱系替代。
     #[test]
-    fn audit_prefix_requires_the_same_verified_delta_original_not_only_the_digest() {
+    fn audit_prefix_requires_the_same_verified_originals_not_only_the_digest() {
         configure(1 << 20);
         let rows3 = rows(3);
-        let c1 = root_cert(1, &[1, 2], 64, "hash-1");
-        let c2 = root_cert(2, &[3], 128, "hash-2");
-        let c3 = root_cert(3, &[4], 256, "hash-3");
+        let mut graph = inline_identity("test-c");
+        graph.4 = evidence_store::GRAPH_FORMAT.to_string();
+        let originals = retained_originals(&rows3, true);
+        store_root(rows3.clone(), graph.clone(), empty_walk(), &originals);
+        assert_eq!(resume(&rows3, &graph, &mut empty_walk(), &originals), 3);
+
+        for key in originals.keys() {
+            // 每类根都覆盖缺键、显式 None 和同原文却不同对象的证明。
+            let mut changed = originals.clone();
+            changed.remove(key);
+            assert_eq!(
+                resume(&rows3, &graph, &mut empty_walk(), &changed),
+                0,
+                "{key}"
+            );
+            changed.insert(key.clone(), None);
+            assert_eq!(
+                resume(&rows3, &graph, &mut empty_walk(), &changed),
+                0,
+                "{key}"
+            );
+            let current = originals[key].as_ref().unwrap();
+            let mut rotated = RootCert::new(
+                current.node,
+                current.slots.clone(),
+                current.expanded_length,
+                current.content_sha256.clone(),
+            );
+            rotated.lineage = current.lineage.clone();
+            changed.insert(key.clone(), Some(Arc::new(rotated)));
+            assert_eq!(
+                resume(&rows3, &graph, &mut empty_walk(), &changed),
+                0,
+                "{key}"
+            );
+        }
+        let expanded = retained_originals(&rows(4), true);
+        assert_eq!(
+            resume(&rows(4), &graph, &mut empty_walk(), &expanded),
+            3,
+            "新根加入不应废掉完整旧前缀"
+        );
+        // 原件池失效即使指针相同也不得复用。
+        MEMO.with(|m| m.borrow_mut().cert_lineage = Arc::new(()));
+        assert_eq!(resume(&rows3, &graph, &mut empty_walk(), &originals), 0);
+
+        // 真实整块域按行内列与审计原规则复用，不假借 graph/2 缺证明的宽松分支。
         store_root(
             rows3.clone(),
-            identity("test-c"),
+            inline_identity("test-c"),
             empty_walk(),
-            vec![Some(c1.clone()), Some(c2.clone()), Some(c3.clone())],
-        );
-        // 同一批证书（指针同一）+ 同行 ⟹ 复用。
-        assert_eq!(
-            resume(
-                &rows3,
-                &identity("test-c"),
-                &mut empty_walk(),
-                &[Some(c1.clone()), Some(c2.clone()), Some(c3.clone())]
-            ),
-            3
-        );
-        // 行与摘要列逐字节相同，但第 2 代的原件证书是另一个对象 ⟹ 不复用。
-        assert_eq!(
-            resume(
-                &rows3,
-                &identity("test-c"),
-                &mut empty_walk(),
-                &[
-                    Some(c1.clone()),
-                    Some(root_cert(2, &[3], 128, "hash-2")),
-                    Some(c3.clone())
-                ]
-            ),
-            0
-        );
-        assert_eq!(last_resumed(), 0);
-        // 图域缺原件证据（None）同样不得复用。
-        assert_eq!(
-            resume(
-                &rows3,
-                &identity("test-c"),
-                &mut empty_walk(),
-                &plain_certs(3)
-            ),
-            0
-        );
-        // 整块域（双方都是 None）仍按行内列逐字节比较复用。
-        store_root(
-            rows3.clone(),
-            identity("test-c"),
-            empty_walk(),
-            plain_certs(3),
+            &inline_originals(),
         );
         assert_eq!(
             resume(
                 &rows3,
-                &identity("test-c"),
+                &inline_identity("test-c"),
                 &mut empty_walk(),
-                &plain_certs(3)
+                &inline_originals()
             ),
             3
         );
@@ -1570,22 +1706,27 @@ mod tests {
         assert!(handle_get_blob("batch-a", &[b'x'; 64], &[8u8; 32]).is_none());
         // 整块域的原件就是行内字节：字节不同即不复用，即使摘要相同。
         assert!(handle_get_blob("batch-a", &[b'y'; 64], &[7u8; 32]).is_none());
-        store_root(rows(3), identity("test-c"), empty_walk(), plain_certs(3));
+        store_root(
+            rows(3),
+            inline_identity("test-c"),
+            empty_walk(),
+            &inline_originals(),
+        );
         assert_eq!(
             resume(
                 &rows(5),
-                &identity("test-c"),
+                &inline_identity("test-c"),
                 &mut empty_walk(),
-                &plain_certs(5)
+                &inline_originals()
             ),
             3
         );
         assert_eq!(
             resume(
                 &rows(5),
-                &identity("other-c"),
+                &inline_identity("other-c"),
                 &mut empty_walk(),
-                &plain_certs(5)
+                &inline_originals()
             ),
             0
         );
@@ -1594,18 +1735,18 @@ mod tests {
         assert_eq!(
             resume(
                 &changed,
-                &identity("test-c"),
+                &inline_identity("test-c"),
                 &mut empty_walk(),
-                &plain_certs(5)
+                &inline_originals()
             ),
             0
         );
         assert_eq!(
             resume(
                 &rows(2),
-                &identity("test-c"),
+                &inline_identity("test-c"),
                 &mut empty_walk(),
-                &plain_certs(2)
+                &inline_originals()
             ),
             0
         );
@@ -1616,7 +1757,12 @@ mod tests {
         configure(0);
         let (bytes, value) = handle("batch-a", 64, true);
         handle_put_blob("batch-a", [0u8; 32], bytes, value);
-        store_root(rows(2), identity("test-c"), empty_walk(), plain_certs(2));
+        store_root(
+            rows(2),
+            inline_identity("test-c"),
+            empty_walk(),
+            &inline_originals(),
+        );
         node_put(7, cert(9, 0, b"xx", 2), true);
         assert_eq!(memo_root_rows(), None);
         assert!(memo_handle_keys().is_empty());
@@ -1627,9 +1773,9 @@ mod tests {
         assert_eq!(
             resume(
                 &rows(2),
-                &identity("test-c"),
+                &inline_identity("test-c"),
                 &mut empty_walk(),
-                &plain_certs(2)
+                &inline_originals()
             ),
             0
         );
@@ -1751,18 +1897,19 @@ mod tests {
             )
         };
         configure(4096);
+        let originals = retained_originals(&rows(3), false);
         store_root(
             rows(3),
             with_format(evidence_store::GRAPH_FORMAT_V2),
             empty_walk(),
-            plain_certs(3),
+            &originals,
         );
         assert_eq!(
             resume(
                 &rows(3),
                 &with_format(evidence_store::GRAPH_FORMAT_V2),
                 &mut empty_walk(),
-                &plain_certs(3)
+                &originals
             ),
             3
         );
@@ -1771,7 +1918,7 @@ mod tests {
                 &rows(3),
                 &with_format(evidence_store::GRAPH_FORMAT),
                 &mut empty_walk(),
-                &plain_certs(3)
+                &originals
             ),
             0
         );

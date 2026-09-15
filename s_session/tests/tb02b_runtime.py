@@ -227,7 +227,7 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--oracle-case')
     parser.add_argument('--fault-index', type=int)
-    parser.add_argument('--fault-stage', choices=('after_begin', 'after_batch', 'before_commit', 'after_commit'), default='after_batch')
+    parser.add_argument('--fault-stage', choices=('after_begin', 'after_batch', 'before_commit', 'after_commit', 'after_evidence_node'), default='after_batch')
     parser.add_argument('--initial-as-known', action='store_true',
                         help='独立 client 取正式 prefix0/AsKnown0 并在后续输入后重访比较')
     parser.add_argument('--prefix-map', type=Path, help='prefix→实际 cut 映射原件，原样带入证据')

@@ -849,6 +849,17 @@ pub(super) fn publish_refs(
             if changed == 1 {
                 inserted += 1;
                 inserted_bytes += node.payload.len() as u64;
+                if kind == RootKind::Batch
+                    && inserted == 1
+                    && staged.nodes.len() > 1
+                    && std::env::var("S_SESSION_PAUSE").ok().as_deref()
+                        == Some("after_evidence_node")
+                {
+                    // #1394：真实节点页已刷入当前未提交事务，根行尚未写入；外部按标记 PID 注入 SIGKILL。
+                    tx.cache_flush()
+                        .map_err(|e| format!("TestOnly：节点页刷新失败：{e}"))?;
+                    testonly_pause("after_evidence_node");
+                }
                 continue;
             }
             // 同 ID 必须同内容：逐字节比对，不符即拒绝发布。

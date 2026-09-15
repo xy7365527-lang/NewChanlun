@@ -20,7 +20,10 @@ def dump(path, value):
         stream.write(json.dumps(value, ensure_ascii=False, indent=2).encode() + b'\n')
 
 
-def prepare(output, binary, python, node, playwright_module, port_base):
+def prepare(output, binary, python, node, playwright_module, port_base, *, extra_fault_stages=()):
+    extra_fault_stages = tuple(extra_fault_stages)
+    if extra_fault_stages not in ((), ('after_evidence_node',)):
+        raise ValueError('额外故障点只允许显式选择 after_evidence_node')
     output = output.resolve()
     if not output.is_relative_to(RESULT_ROOT) or output == RESULT_ROOT:
         raise ValueError('输出必须是指定 runtime 下的全新具名子目录')
@@ -31,7 +34,7 @@ def prepare(output, binary, python, node, playwright_module, port_base):
     cases = {c['case_id']: c['raw_bars'] for c in ledger['cases']}
     planned = [(name, bars, name, None, None) for name, bars in cases.items()]
     revision = dict(cases['lifecycle'][5], high=18, close=18)
-    for stage in ('after_begin', 'after_batch', 'before_commit', 'after_commit'):
+    for stage in ('after_begin', 'after_batch', 'before_commit', 'after_commit') + extra_fault_stages:
         planned.append(('revision_' + stage, cases['lifecycle'] + [revision], None, 12, stage))
     resources = json.loads((ROOT / 'tests/fixtures/tb01c/runtime-plan.json').read_text())['s_resources']
     runs = []
@@ -88,9 +91,10 @@ def prepare(output, binary, python, node, playwright_module, port_base):
     plan = {'schema': 'tb02b-runtime-plan/1', 'normalization': '无字段剔除、无身份重命名；诊断耗时/PID从采集起单列。语义核心逐字段硬比较。',
             'fixture_sha256': {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in (ledger_path, oracle_path)},
             # #1394：新 writer 的 init 会一并落私有存储格式登记表，权威表清单须含它。
-            'expected_tables': sorted(re.findall(r'CREATE TABLE(?: IF NOT EXISTS)? (\w+)', __import__('s_query_integrity').LEGACY_SCHEMA + __import__('s_query_integrity').CONTROL_SCHEMA + __import__('s_query_integrity').tb02.SCHEMA + __import__('s_query_integrity').STORAGE_FORMAT_SCHEMA)),
+            'expected_tables': sorted(re.findall(r'CREATE TABLE(?: IF NOT EXISTS)? (\w+)', __import__('s_query_integrity').LEGACY_SCHEMA + __import__('s_query_integrity').CONTROL_SCHEMA + __import__('s_query_integrity').tb02.SCHEMA + __import__('s_query_integrity').STORAGE_FORMAT_SCHEMA + __import__('s_query_integrity').EVIDENCE_GRAPH_SCHEMA)),
             'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'rule': 'new-bi-dual-coordinate/1',
-            'fault_boundaries': ['持久Begin后', '不可变批次后', '对象/关系/变化/索引提交前', '提交后回执前'], 'runs': runs}
+            'fault_boundaries': ['持久Begin后', '不可变批次后', '对象/关系/变化/索引提交前', '提交后回执前']
+                + (['首个新批次节点页已刷入未提交事务、根行写入前'] if extra_fault_stages else []), 'runs': runs}
     dump(output / 'RUN-PLAN.json', plan)
     return plan
 

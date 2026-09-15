@@ -360,7 +360,7 @@ fn blob_digest(bytes: &[u8]) -> [u8; 32] {
 /// 不提供「一种失败再试另一种」的降级通道：图域见到整块字节即拒绝，整块域见不到字节即拒绝。
 fn load_batch_bytes(conn: &Connection, batch_id: &str) -> Result<std::sync::Arc<[u8]>, String> {
     let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
-    load_batch_with(conn, &mut reader, batch_id, false).map(|(bytes, _)| bytes)
+    load_batch_with(conn, &mut reader, batch_id, false).map(|(bytes, _, _)| bytes)
 }
 
 fn load_batch_bytes_with(
@@ -368,7 +368,7 @@ fn load_batch_bytes_with(
     reader: &mut evidence_store::Reader<'_>,
     batch_id: &str,
 ) -> Result<std::sync::Arc<[u8]>, String> {
-    load_batch_with(conn, reader, batch_id, false).map(|(bytes, _)| bytes)
+    load_batch_with(conn, reader, batch_id, false).map(|(bytes, _, _)| bytes)
 }
 
 /// 批次规范字节的**唯一**读取内核：整块域取行内字节，图域由私有根无损展开（可带解码值）。
@@ -381,7 +381,14 @@ fn load_batch_with(
     reader: &mut evidence_store::Reader<'_>,
     batch_id: &str,
     with_value: bool,
-) -> Result<(std::sync::Arc<[u8]>, Option<std::sync::Arc<Value>>), String> {
+) -> Result<
+    (
+        std::sync::Arc<[u8]>,
+        Option<std::sync::Arc<Value>>,
+        Option<std::sync::Arc<cache::RootCert>>,
+    ),
+    String,
+> {
     let row: Option<(Vec<u8>, i64)> = conn
         .query_row(
             "SELECT canonical_bytes, byte_len FROM batches WHERE batch_id=?1",
@@ -428,7 +435,7 @@ fn load_batch_with(
             cache::handle_put_blob(&key, digest, bytes.clone(), None);
             None
         };
-        return Ok((bytes, value));
+        return Ok((bytes, value, None));
     }
     // 图域：批次行只留长度占位；完整字节必须由私有根无损展开，且根闭包必须完整。
     if !blob.is_empty() {
@@ -456,7 +463,7 @@ fn load_batch_with(
             "StorageUnavailable：batch `{batch_id}` 私有根展开内容与公开身份不符，拒绝写入"
         ));
     }
-    Ok((root.bytes, root.value))
+    Ok((root.bytes, root.value, root.root_cert))
 }
 
 fn parse_batch_value(bytes: &[u8], batch_id: &str) -> Result<std::sync::Arc<Value>, String> {
@@ -511,10 +518,16 @@ fn load_batch_value_with(
     conn: &Connection,
     reader: &mut evidence_store::Reader<'_>,
     batch_id: &str,
-) -> Result<(std::sync::Arc<[u8]>, std::sync::Arc<Value>), String> {
-    let (bytes, value) = load_batch_with(conn, reader, batch_id, true)?;
+) -> Result<
+    (
+        std::sync::Arc<Value>,
+        Option<std::sync::Arc<cache::RootCert>>,
+    ),
+    String,
+> {
+    let (_, value, root_cert) = load_batch_with(conn, reader, batch_id, true)?;
     let value = value.ok_or("StorageUnavailable：batch 解码值缺失（实现缺陷）")?;
-    Ok((bytes, value))
+    Ok((value, root_cert))
 }
 
 /// 核已发布可达根与全部历史可达引用（ROOT-B-R2-01）：
@@ -942,8 +955,8 @@ struct Reachable {
     /// 私有根 key → 本次新鲜行算出的闭包指纹（节点/根/槽任一变化都改它）。
     roots: BTreeMap<String, [u8; 32]>,
     /// 私有根 key → 该根**当前保留的原件证书**（本次新鲜行已逐字节比较过）。
-    /// 这是审计前缀复用门的原件证据：摘要不是唯一证书。
-    originals: BTreeMap<String, std::sync::Arc<cache::RootCert>>,
+    /// 覆盖 batch、Delta、fact；无法保留时显式记 `None`，不得漏键放行旧前缀。
+    originals: cache::Originals,
     _capture: cache::CaptureGuard,
 }
 
@@ -967,12 +980,15 @@ fn capture_reachable_batches(conn: &Connection) -> Result<Reachable, String> {
     let format = evidence_store::format(conn)?;
     let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
     let mut batches = BTreeMap::new();
+    let mut originals = cache::Originals::new();
     for id in ids {
-        let (_, value) = load_batch_value_with(conn, &mut reader, &id)?;
+        let (value, root_cert) = load_batch_value_with(conn, &mut reader, &id)?;
+        if format.graph() {
+            originals.insert(evidence_store::batch_root_key(&id), root_cert);
+        }
         batches.insert(id, value);
     }
     let mut roots: BTreeMap<String, [u8; 32]> = BTreeMap::new();
-    let mut originals: BTreeMap<String, std::sync::Arc<cache::RootCert>> = BTreeMap::new();
     // 不可达残留不得发布：每个私有根都必须有**唯一对应逻辑记录**（批次行 / Delta 行 / 结构事实行）、
     // 闭包完整（缺节点/坏字节/坏长度、未 Commit 的 after_batch 批次都在此核验），且库内每个节点
     // 都落在某个根的闭包内。命名空间与物理域必须一致：graph/2 只声明 batch 域。
@@ -995,7 +1011,8 @@ fn capture_reachable_batches(conn: &Connection) -> Result<Reachable, String> {
                     }
                     if !batches.contains_key(record) {
                         // 尚未 Commit 的根也须核公开 batch_id/长度，不能只核私有根的自述摘要。
-                        load_batch_bytes_with(conn, &mut reader, record)?;
+                        let (_, _, root_cert) = load_batch_with(conn, &mut reader, record, false)?;
+                        originals.insert(key.clone(), root_cert);
                     }
                 }
                 evidence_store::RootKind::Delta => {
@@ -1022,9 +1039,7 @@ fn capture_reachable_batches(conn: &Connection) -> Result<Reachable, String> {
                     }
                     let verified = reader.read_root(&key, false)?;
                     roots.insert(key.clone(), verified.closure);
-                    if let Some(cert) = verified.root_cert.clone() {
-                        originals.insert(key.clone(), cert);
-                    }
+                    originals.insert(key.clone(), verified.root_cert);
                 }
                 evidence_store::RootKind::Fact => {
                     if !format.records_in_graph() {
@@ -1047,6 +1062,7 @@ fn capture_reachable_batches(conn: &Connection) -> Result<Reachable, String> {
                     }
                     let verified = reader.read_root(&key, false)?;
                     roots.insert(key.clone(), verified.closure);
+                    originals.insert(key.clone(), verified.root_cert);
                 }
             }
         }
@@ -1230,17 +1246,8 @@ fn verify_reachable_root_in_tx(
         mode.tag().to_string(),
         format.tag().to_string(),
     );
-    // 审计前缀的原件证据：图域每代 Delta 原件一份**已核原件证书**（指针同一才算同一个原件）；
-    // 整块域为 `None`——那里原件就在行内列里，已由 `rows` 的逐字节比较钉死。
-    let rows_delta_certs: Vec<Option<std::sync::Arc<cache::RootCert>>> = if format.records_in_graph()
-    {
-        (1..=generation)
-            .map(|g| reachable.originals.get(&evidence_store::delta_root_key(g)).cloned())
-            .collect()
-    } else {
-        (0..rows.len()).map(|_| None).collect()
-    };
-    let resume = cache::resume(&rows, &identity, &mut audit, &rows_delta_certs);
+    // 同一次捕获的全部私有根原件共同绑定前缀；行内原件仍由 rows/AuditWalk 逐字节核对。
+    let resume = cache::resume(&rows, &identity, &mut audit, &reachable.originals);
     let mut prev_frontier: i64 = if resume == 0 { -1 } else { rows[resume - 1].7 };
     // 后缀核验共用一个读取器：与批次/事实共用本次捕获的节点读集与已核句柄。
     let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
@@ -1402,7 +1409,7 @@ fn verify_reachable_root_in_tx(
             last.4
         ));
     }
-    cache::store_root(rows, identity, audit, rows_delta_certs);
+    cache::store_root(rows, identity, audit, &reachable.originals);
     Ok(raw_events)
 }
 
@@ -9408,6 +9415,92 @@ mod staged_graph_audit_regressions {
         assert_eq!(graph_digest(&conn), digest);
         assert_eq!(snapshot_here(&files), cold_snapshot, "查询结果必须一致");
         cache::configure(268_435_456);
+    }
+
+    /// #1394：合法包装只改变原件根指针，保留公开 bytes、槽和所有旧节点的可达性。
+    fn wrap_root_with_single_ref(conn: &Connection, key: &str) {
+        use sha2::{Digest, Sha256};
+        let (node, _, _, _) = evidence_store::Reader::root_row(conn, key)
+            .unwrap()
+            .unwrap();
+        let length: i64 = conn
+            .query_row(
+                "SELECT expanded_length FROM s_evidence_nodes WHERE node_id=?1",
+                params![node.as_slice()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let mut payload = vec![1u8]; // TAG_REF
+        payload.extend_from_slice(&node);
+        let wrapped: [u8; 32] = Sha256::digest([&[1u8][..], &payload].concat()).into();
+        conn.execute(
+            "INSERT INTO s_evidence_nodes(node_id,node_kind,payload,expanded_length) VALUES(?1,1,?2,?3)",
+            params![wrapped.as_slice(), payload, length],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE s_evidence_roots SET node_id=?1 WHERE root_key=?2",
+            params![wrapped.as_slice(), key],
+        )
+        .unwrap();
+    }
+
+    fn assert_wrapped_root_rechecks_prefix(kind: &str, graph2: bool) {
+        let files = TestFiles::new();
+        build_oracle(&files, 3);
+        let conn = open_db(&files.db()).unwrap();
+        if graph2 {
+            downgrade_to_graph2(&conn);
+        }
+        cache::configure(1 << 30);
+        cache::clear_handles();
+        let key: String = conn
+            .query_row(
+                "SELECT root_key FROM s_evidence_roots WHERE root_key LIKE ?1 ORDER BY root_key LIMIT 1",
+                params![format!("{kind}/%")],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let original = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET)
+            .read_root(&key, false)
+            .unwrap();
+        let snapshot = snapshot_here(&files);
+        verify_reachable_root(&conn).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 3, "变更前须已复用暖前缀");
+
+        wrap_root_with_single_ref(&conn, &key);
+        // 先验证包装是合法的内容等价原件，且确实旋转了根证明。
+        let wrapped = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET)
+            .read_root(&key, false)
+            .unwrap();
+        assert_eq!(wrapped.bytes, original.bytes);
+        assert!(!wrapped.originals_verified && !wrapped.reused);
+        assert!(!std::sync::Arc::ptr_eq(
+            original.root_cert.as_ref().unwrap(),
+            wrapped.root_cert.as_ref().unwrap()
+        ));
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 0, "{key} 原件变化必须重核旧前缀");
+        assert_eq!(snapshot_here(&files), snapshot);
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 3, "下一次未改原件须恢复暖前缀复用");
+        cache::configure(268_435_456);
+    }
+
+    #[test]
+    fn graph3_batch_original_wrapper_rechecks_prefix() {
+        assert_wrapped_root_rechecks_prefix("batch", false);
+    }
+
+    #[test]
+    fn graph3_fact_original_wrapper_rechecks_prefix() {
+        assert_wrapped_root_rechecks_prefix("fact", false);
+    }
+
+    #[test]
+    fn graph2_batch_original_wrapper_rechecks_prefix() {
+        assert_wrapped_root_rechecks_prefix("batch", true);
     }
 
     /// #1394 第二段：`evidence-graph/2`（只有 batch 走私有图）继续**只读**兼容；本 writer 明确
