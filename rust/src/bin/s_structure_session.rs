@@ -8538,9 +8538,10 @@ mod tests {
                 cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
                 let conn = open_db(&files.db()).unwrap();
                 verify_reachable_root(&conn).unwrap();
-                let bytes: Vec<u8> = conn.query_row(
-                    "SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE d.generation=?1",
+                let batch_id: String = conn.query_row(
+                    "SELECT index_frontier FROM structure_deltas WHERE generation=?1",
                     params![revision], |row| row.get(0)).unwrap();
+                let bytes = load_batch_bytes(&conn, &batch_id).unwrap();
                 for (old, (_, snapshot)) in published.iter().enumerate() {
                     assert!(&snapshot_of(&files, Some(old as i64 + 1)) == snapshot,
                         "真实 revision 后旧 cut {} 改变", old + 1);
