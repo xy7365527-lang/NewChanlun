@@ -140,8 +140,57 @@ impl PartialEq for ParseLayer {
 ///
 /// 边界条件：`bars` 为空 / 全程无方向 ⟹ confirmed 全空，只有 open-tail
 /// （reference-theta-v0.md:19）；尾部延伸结构进 `tail`。
+/// ★#1392 成本回归修复：本入口只复用**包含折叠状态**（[`inclusion::IncrFactsState`]，与
+/// [`process_inclusion_with_facts`] 逐句同源），新笔仍**从头**走同一非增量 transition
+/// （[`stroke::build_stroke_facts_with_positions`]）——与 [`parse_layer_from_facts`] 同一批
+/// 分型/新笔/段/tail 函数，判据同源、不另立档。
+///
+/// 旧实现直接 `parse_layer_with_inclusion_facts(...).0`：每前缀重扫历史 `source_coords`/`steps`
+/// （`inclusion.rs:768-774` 的 `dense_annotation` 全前缀扫描 + 逐步 `source_coords` 展开）⟹
+/// 逐前缀调用退化为 O(n²) 与历史深拷贝。完整 facts 入口**未改**（观察/证据请求仍走
+/// [`parse_layer_with_inclusion_facts`]）。
 pub fn parse_layer(bars: &[Bar], config: &ThetaConfig) -> ParseLayer {
-    parse_layer_with_inclusion_facts(bars, config).0
+    let mut state = inclusion::IncrFactsState::empty();
+    for bar in bars {
+        state.append(*bar);
+    }
+    parse_layer_from_inclusion_state(&state, &config.parse)
+}
+
+/// #1392：紧凑包含状态 → `ParseLayer` 的**唯一**装配（与 [`parse_layer_from_facts`] 同形）。
+///
+/// 三个缓存证书字段保持全量构造的保守值（0/0/None，见 [`ParseLayer`] 字段文档）——本入口无
+/// 增量血缘，不发出复用许可。
+///
+/// ⚠`positions` 必须显式取自状态：`build_stroke_facts`（空 steps 版）的 `positions_of_steps`
+/// 会丢 raw 序位（结果为空映射），使 `raw_position`/raw 间隔判据失真，故本处只能走
+/// [`stroke::build_stroke_facts_with_positions`]。
+fn parse_layer_from_inclusion_state(
+    state: &inclusion::IncrFactsState,
+    config: &super::config::ParseConfig,
+) -> ParseLayer {
+    let merged = state.merged_slice();
+    let fractals = fractal::detect_fractals(merged);
+    let stroke_facts = stroke::build_stroke_facts_with_positions(
+        merged,
+        state.groups_slice(),
+        state.unsettled(),
+        state.positions(),
+        config,
+    );
+    let strokes = stroke_facts.production_strokes();
+    let (segments, pending_start) = segment::divide_segments_with_tail(&strokes, config);
+    let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
+    ParseLayer {
+        merged_bars: state.merged_rc(),
+        merged_confirmed_len: 0,
+        segments_confirmed_len: 0,
+        segments_earliest_unsealed: None,
+        fractals: Rc::new(fractals),
+        strokes: Rc::new(strokes),
+        segments: Rc::new(segments),
+        tail: Rc::new(tail),
+    }
 }
 
 /// #1373/#1392：完整 raw 经同一包含 fold_step 和新笔核，返回同次生产结果与来源事实。
@@ -364,5 +413,217 @@ mod tests {
         let cfg = ThetaConfig::default();
         let out = parse_layer(&[], &cfg);
         assert_eq!(out, ParseLayer::default());
+    }
+
+    // -------- #1392 成本回归：紧凑包含状态入口的逐前缀对拍锁 --------
+
+    fn issue1392_bar(source_index: usize, high: i64, low: i64) -> Bar {
+        Bar {
+            source_index,
+            timestamp: source_index as i64,
+            open: low,
+            high,
+            low,
+            close: high,
+            volume: 1.0,
+            untradable: false,
+        }
+    }
+
+    /// 确定性伪随机游走（同 CI 夹具族，密度可调）——覆盖长包含/同价极值/形成后重算。
+    fn issue1392_walk(n: usize, seed: u64, stride: usize) -> Vec<Bar> {
+        let mut out = Vec::with_capacity(n);
+        let mut level: i64 = 5_000;
+        let mut state = seed;
+        for i in 0..n {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            let step = ((state >> 33) % 61) as i64 - 30;
+            let next = level + step;
+            out.push(issue1392_bar(
+                i * stride,
+                level.max(next) + 2,
+                level.min(next) - 2,
+            ));
+            level = next;
+        }
+        out
+    }
+
+    /// TB-02 手工 oracle 台账的单 case（`stride` 制造非连续 source coords）。
+    fn issue1392_ledger_case(case_id: &str, stride: usize) -> Vec<Bar> {
+        let ledger: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../s_session/tests/fixtures/tb02b/raw-ledger.json"
+        ))
+        .expect("台账 JSON");
+        let case = ledger["cases"]
+            .as_array()
+            .expect("cases")
+            .iter()
+            .find(|c| c["case_id"] == case_id)
+            .unwrap_or_else(|| panic!("夹具缺 case {case_id}"));
+        case["raw_bars"]
+            .as_array()
+            .expect("raw_bars")
+            .iter()
+            .map(|r| {
+                issue1392_bar(
+                    r["raw_index"].as_u64().expect("raw_index") as usize * stride,
+                    r["high"].as_i64().expect("high"),
+                    r["low"].as_i64().expect("low"),
+                )
+            })
+            .collect()
+    }
+
+    /// #1392 验收点①：`parse_layer`（紧凑包含状态 + **从头**走同一非增量新笔核）与完整 facts
+    /// 路径 [`parse_layer_with_inclusion_facts`] 的结果在**每个前缀**逐结构字段一致，且三件
+    /// 缓存证书显式 = 0/0/None（`PartialEq` 排除这三项，见 [`ParseLayer`] 手写实现）。
+    ///
+    /// 多形态覆盖：空 / 初始包含未定 / 长包含 / 非连续 source coords / 同价极值 waiting /
+    /// 形成后封口确认重算（每类都有前提取证，见 `saw_*`）。
+    #[test]
+    fn issue1392_parse_layer_compact_matches_full_facts_on_every_prefix() {
+        let cfg = ThetaConfig::default();
+
+        // 空形态：0 前缀 / 全空输入。
+        let empty = parse_layer(&[], &cfg);
+        assert_eq!(empty, ParseLayer::default());
+        assert_eq!(empty.merged_confirmed_len, 0);
+        assert_eq!(empty.segments_confirmed_len, 0);
+        assert_eq!(empty.segments_earliest_unsealed, None);
+
+        let mut cases: Vec<(String, Vec<Bar>)> = vec![
+            (
+                "initial_inclusion_unsettled".to_string(),
+                vec![
+                    issue1392_bar(0, 5, 1),
+                    issue1392_bar(1, 4, 2),
+                    issue1392_bar(2, 6, 3),
+                    issue1392_bar(3, 8, 4),
+                    issue1392_bar(4, 9, 5),
+                ],
+            ),
+            ("long_inclusion".to_string(), {
+                let mut bars = vec![issue1392_bar(0, 5, 1), issue1392_bar(1, 6, 2)];
+                for k in 0..10 {
+                    bars.push(issue1392_bar(2 + k, 5, 3));
+                }
+                bars.push(issue1392_bar(13, 4, 1));
+                bars.push(issue1392_bar(14, 8, 5));
+                bars.push(issue1392_bar(15, 3, 0));
+                bars
+            }),
+            (
+                "same_price_extreme_waiting".to_string(),
+                vec![
+                    issue1392_bar(0, 5, 1),
+                    issue1392_bar(1, 6, 2),
+                    issue1392_bar(2, 6, 3),
+                    issue1392_bar(3, 4, 0),
+                    issue1392_bar(4, 7, 2),
+                    issue1392_bar(5, 3, 1),
+                ],
+            ),
+        ];
+        for (case, stride) in [
+            ("lifecycle", 1),
+            ("tie_top", 1),
+            ("raw_root_tie", 7),
+            ("gap3_raw3", 7),
+        ] {
+            cases.push((
+                format!("ledger_{case}_stride{stride}"),
+                issue1392_ledger_case(case, stride),
+            ));
+        }
+        cases.push((
+            "walk_dense".to_string(),
+            issue1392_walk(160, 0x9E37_79B9_7F4A_7C15, 1),
+        ));
+        cases.push((
+            "walk_sparse".to_string(),
+            issue1392_walk(160, 0xD1B5_4A32_D192_ED03, 5),
+        ));
+
+        let mut saw_unsettled = false;
+        let mut saw_long_group = false;
+        let mut saw_sparse_positions = false;
+        let mut saw_tie = false;
+        let mut saw_confirmation_recompute = false;
+
+        for (label, raw) in &cases {
+            // 形成时无确认 → 后续前缀同身份出现确认 = 「形成后封口重算」。
+            let mut formed_without_confirmation: std::collections::HashSet<usize> =
+                std::collections::HashSet::new();
+            for i in 1..=raw.len() {
+                let bars = &raw[..i];
+                let fast = parse_layer(bars, &cfg);
+                let (oracle, facts) = parse_layer_with_inclusion_facts(bars, &cfg);
+
+                assert_eq!(
+                    fast.merged_bars, oracle.merged_bars,
+                    "[{label}] prefix {i}: merged_bars"
+                );
+                assert_eq!(
+                    fast.fractals, oracle.fractals,
+                    "[{label}] prefix {i}: fractals"
+                );
+                assert_eq!(
+                    fast.strokes, oracle.strokes,
+                    "[{label}] prefix {i}: strokes"
+                );
+                assert_eq!(
+                    fast.segments, oracle.segments,
+                    "[{label}] prefix {i}: segments"
+                );
+                assert_eq!(fast.tail, oracle.tail, "[{label}] prefix {i}: tail");
+                // 证书字段被 PartialEq 排除 ⟹ 显式核保守值。
+                assert_eq!(
+                    fast.merged_confirmed_len, 0,
+                    "[{label}] prefix {i}: merged_confirmed_len"
+                );
+                assert_eq!(
+                    fast.segments_confirmed_len, 0,
+                    "[{label}] prefix {i}: segments_confirmed_len"
+                );
+                assert_eq!(
+                    fast.segments_earliest_unsealed, None,
+                    "[{label}] prefix {i}: segments_earliest_unsealed"
+                );
+
+                // 形态前提取证（读未改动的完整 facts 路径）。
+                saw_unsettled |= facts.initial_direction_unsettled;
+                saw_long_group |= facts.groups.iter().any(|g| g.members.len() >= 8);
+                saw_tie |= facts
+                    .groups
+                    .iter()
+                    .any(|g| g.high_sources.len() > 1 || g.low_sources.len() > 1);
+                let stroke_facts = facts.stroke_facts.as_ref().expect("同次生产新笔");
+                for e in &stroke_facts.endpoints {
+                    if let (Some(position), Some(root)) =
+                        (e.raw_position, e.extreme_roots.first().copied())
+                    {
+                        // 非连续 source coords：极值根坐标 ≠ raw 序位（坐标相减必错）。
+                        saw_sparse_positions |= root != position;
+                    }
+                }
+                for bi in &stroke_facts.strokes {
+                    if bi.confirmation.is_some() {
+                        saw_confirmation_recompute |=
+                            formed_without_confirmation.contains(&bi.identity_anchor);
+                    } else {
+                        formed_without_confirmation.insert(bi.identity_anchor);
+                    }
+                }
+            }
+        }
+
+        assert!(saw_unsettled, "夹具未覆盖初始包含未定");
+        assert!(saw_long_group, "夹具未覆盖长包含（组内 ≥8 根）");
+        assert!(saw_sparse_positions, "夹具未覆盖非连续 source coords");
+        assert!(saw_tie, "夹具未覆盖同价极值 waiting");
+        assert!(saw_confirmation_recompute, "夹具未覆盖形成后封口确认重算");
     }
 }

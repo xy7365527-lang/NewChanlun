@@ -662,13 +662,14 @@ mod tests {
             // 已改调 `bsp_bit_at`，不再命中本 grep——不登记进白名单。
             //
             // Fractal 类型的单源函数体（作用于 `Fractal`，非 `BspPoint`，不入本族）。
-            "theta_v0/parser/fractal.rs:82",
+            // #1392：同一查询随解析入口改动移行；逐点重核原有非 BSP 理由，不新增豁免。
+            "theta_v0/parser/fractal.rs:74",
             // #1373 CC-007：按组锚查询 `InclusionFacts.groups` 中的 `InclusionGroupFact`，
             // 分别取得三组高低价、右组末成员（后续原始 OHLC 起界）、三组原始成员。
             // 这是 parser 事实的只读描述，不查询 `BspPoint`/买卖位，不能改调 BSP 绑定 API。
-            "bin/s_session_v2/tb02a_facts.rs:231",
-            "bin/s_session_v2/tb02a_facts.rs:241",
-            "bin/s_session_v2/tb02a_facts.rs:267",
+            "bin/s_session_v2/tb02a_facts.rs:237",
+            "bin/s_session_v2/tb02a_facts.rs:247",
+            "bin/s_session_v2/tb02a_facts.rs:273",
             // #[ignore] 死探针（已被 runner::newly_confirmed_step 取代，issue #747 条目6 登记不入
             // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。）
             "theta_v0/backtest/l3_pi_probe.rs:603",
