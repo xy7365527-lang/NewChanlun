@@ -1,0 +1,2627 @@
+{
+  "status": "PASS_BOUNDED_17_TRACES_82_PREFIXES",
+  "oracle_sha256": "0450031d1201f64e1cfcd5f347a2597070e6c61f31f9376434382ac09245ac56",
+  "plan_sha256": "0b109bcb012b0f6eebbdd2835863a410cbec3114c9471b5f11799b89f7c14d4e",
+  "counts": {
+    "traces": 17,
+    "checked_arm_prefixes": 164,
+    "declared_prefixes": 82,
+    "candidates": 476
+  },
+  "actual_candidate_vectors": [
+    "001",
+    "011",
+    "101",
+    "111"
+  ],
+  "runs": [
+    {
+      "trace": "A",
+      "arm": "a",
+      "core_sha256": "27f18152a30dc089ee31f392c93da58c138d0bd173d111f98e9e283111416377",
+      "candidate_count": 23
+    },
+    {
+      "trace": "A",
+      "arm": "b",
+      "core_sha256": "27f18152a30dc089ee31f392c93da58c138d0bd173d111f98e9e283111416377",
+      "candidate_count": 23
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "a",
+      "core_sha256": "67aa497aebab7e1f0dd04cbcefe58b004567129c1e8cb507439c0c5638277a4d",
+      "candidate_count": 23
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "b",
+      "core_sha256": "67aa497aebab7e1f0dd04cbcefe58b004567129c1e8cb507439c0c5638277a4d",
+      "candidate_count": 23
+    },
+    {
+      "trace": "B",
+      "arm": "a",
+      "core_sha256": "a353376f592be1dbfbe0d3067613803f3bfe2516053f67e97f4db331dc1832ed",
+      "candidate_count": 20
+    },
+    {
+      "trace": "B",
+      "arm": "b",
+      "core_sha256": "a353376f592be1dbfbe0d3067613803f3bfe2516053f67e97f4db331dc1832ed",
+      "candidate_count": 20
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "a",
+      "core_sha256": "4a2b14a876470c545d929f2b5b71046bfb26195322924569d99426871963ac0f",
+      "candidate_count": 20
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "b",
+      "core_sha256": "4a2b14a876470c545d929f2b5b71046bfb26195322924569d99426871963ac0f",
+      "candidate_count": 20
+    },
+    {
+      "trace": "C",
+      "arm": "a",
+      "core_sha256": "ee9e4983eb6276ff7a045abc61bf509b473dcc95d222f23b19225e40967ce126",
+      "candidate_count": 23
+    },
+    {
+      "trace": "C",
+      "arm": "b",
+      "core_sha256": "ee9e4983eb6276ff7a045abc61bf509b473dcc95d222f23b19225e40967ce126",
+      "candidate_count": 23
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "a",
+      "core_sha256": "8b01909d30ba9f7d5289192df166e5aaa82803c40ecce6447ffb5bc7623480f0",
+      "candidate_count": 23
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "b",
+      "core_sha256": "8b01909d30ba9f7d5289192df166e5aaa82803c40ecce6447ffb5bc7623480f0",
+      "candidate_count": 23
+    },
+    {
+      "trace": "D",
+      "arm": "a",
+      "core_sha256": "8360c10c79a4e6d14cb47231a52b0f66ce4f6765c421258badaab837fd2158fd",
+      "candidate_count": 26
+    },
+    {
+      "trace": "D",
+      "arm": "b",
+      "core_sha256": "8360c10c79a4e6d14cb47231a52b0f66ce4f6765c421258badaab837fd2158fd",
+      "candidate_count": 26
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "a",
+      "core_sha256": "89efec649695dc208e53908cef3f0919cff2c8591901e2833999879be65eefb5",
+      "candidate_count": 26
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "b",
+      "core_sha256": "89efec649695dc208e53908cef3f0919cff2c8591901e2833999879be65eefb5",
+      "candidate_count": 26
+    },
+    {
+      "trace": "A_STRICT_HIGHER_TOP",
+      "arm": "a",
+      "core_sha256": "0182fbe01d944cfdf9b525b98f47f6951cbab6f49db5d683bd72cf31e237358d",
+      "candidate_count": 29
+    },
+    {
+      "trace": "A_STRICT_HIGHER_TOP",
+      "arm": "b",
+      "core_sha256": "0182fbe01d944cfdf9b525b98f47f6951cbab6f49db5d683bd72cf31e237358d",
+      "candidate_count": 29
+    },
+    {
+      "trace": "A_STRICT_WEAKER_TOP",
+      "arm": "a",
+      "core_sha256": "0cd5d3301a8c04a9c12951b2a2dd8d52dc41544281e233744d0bcd3fc93aacaf",
+      "candidate_count": 29
+    },
+    {
+      "trace": "A_STRICT_WEAKER_TOP",
+      "arm": "b",
+      "core_sha256": "0cd5d3301a8c04a9c12951b2a2dd8d52dc41544281e233744d0bcd3fc93aacaf",
+      "candidate_count": 29
+    },
+    {
+      "trace": "A_STRICT_LOWER_BOTTOM_REFLECTED",
+      "arm": "a",
+      "core_sha256": "8e5c202a836e1aaef084af76027b1430895e5b470417a12c609a3db076293011",
+      "candidate_count": 29
+    },
+    {
+      "trace": "A_STRICT_LOWER_BOTTOM_REFLECTED",
+      "arm": "b",
+      "core_sha256": "8e5c202a836e1aaef084af76027b1430895e5b470417a12c609a3db076293011",
+      "candidate_count": 29
+    },
+    {
+      "trace": "A_STRICT_WEAKER_BOTTOM_REFLECTED",
+      "arm": "a",
+      "core_sha256": "9cfa8d85b4246bf3fd270c4d08151af0a46c5b80e9f77ab18cae5e6bba84707f",
+      "candidate_count": 29
+    },
+    {
+      "trace": "A_STRICT_WEAKER_BOTTOM_REFLECTED",
+      "arm": "b",
+      "core_sha256": "9cfa8d85b4246bf3fd270c4d08151af0a46c5b80e9f77ab18cae5e6bba84707f",
+      "candidate_count": 29
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "arm": "a",
+      "core_sha256": "a9d41d532ce2838c521abfd5b4c2252528b81d06894e390d2f470e90a939b23c",
+      "candidate_count": 41
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "arm": "b",
+      "core_sha256": "a9d41d532ce2838c521abfd5b4c2252528b81d06894e390d2f470e90a939b23c",
+      "candidate_count": 41
+    },
+    {
+      "trace": "RIGHT_GROUP_SEALED_COMPONENT",
+      "arm": "a",
+      "core_sha256": "5160272f3c7bb4c9657e3f5af3fdcdd6ce7146447ce884d6a5852d84bf635932",
+      "candidate_count": 44
+    },
+    {
+      "trace": "RIGHT_GROUP_SEALED_COMPONENT",
+      "arm": "b",
+      "core_sha256": "5160272f3c7bb4c9657e3f5af3fdcdd6ce7146447ce884d6a5852d84bf635932",
+      "candidate_count": 44
+    },
+    {
+      "trace": "APPEND_ABOVE_OLD_TOP",
+      "arm": "a",
+      "core_sha256": "9573a6c0bd17eac1915bca296e20b493dba8a87c2e357f77ee377d909ff749ff",
+      "candidate_count": 53
+    },
+    {
+      "trace": "APPEND_ABOVE_OLD_TOP",
+      "arm": "b",
+      "core_sha256": "9573a6c0bd17eac1915bca296e20b493dba8a87c2e357f77ee377d909ff749ff",
+      "candidate_count": 53
+    },
+    {
+      "trace": "CORRECTION_WITHDRAW_TOP",
+      "arm": "a",
+      "core_sha256": "6c51bf5ca7c57367112cc6bddb0545d124c99cb322cf86875146a297899a08ea",
+      "candidate_count": 32
+    },
+    {
+      "trace": "CORRECTION_WITHDRAW_TOP",
+      "arm": "b",
+      "core_sha256": "6c51bf5ca7c57367112cc6bddb0545d124c99cb322cf86875146a297899a08ea",
+      "candidate_count": 32
+    },
+    {
+      "trace": "CORRECTION_CONFIRMED_COMPONENT",
+      "arm": "a",
+      "core_sha256": "ef268fbbae280c344dd6c93fbd03d32c8e187370789f43afaee7be3a6124e48c",
+      "candidate_count": 47
+    },
+    {
+      "trace": "CORRECTION_CONFIRMED_COMPONENT",
+      "arm": "b",
+      "core_sha256": "ef268fbbae280c344dd6c93fbd03d32c8e187370789f43afaee7be3a6124e48c",
+      "candidate_count": 47
+    }
+  ],
+  "checked": [
+    {
+      "trace": "A",
+      "arm": "a",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "a",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "a",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "a",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "a",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "a",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "a",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "a",
+      "prefix": 7,
+      "cut": 7,
+      "candidates": 3,
+      "vectors": [
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "b",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "b",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "b",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "b",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "b",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "b",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "b",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A",
+      "arm": "b",
+      "prefix": 7,
+      "cut": 7,
+      "candidates": 3,
+      "vectors": [
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "a",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "a",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "a",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "a",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "a",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "a",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "a",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "a",
+      "prefix": 7,
+      "cut": 7,
+      "candidates": 3,
+      "vectors": [
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "b",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "b",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "b",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "b",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "b",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "b",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "b",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_REFLECTED",
+      "arm": "b",
+      "prefix": 7,
+      "cut": 7,
+      "candidates": 3,
+      "vectors": [
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "a",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "a",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "a",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "a",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "a",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "a",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "a",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [
+        "101"
+      ],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "b",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "b",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "b",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "b",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "b",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "b",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B",
+      "arm": "b",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [
+        "101"
+      ],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "a",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "a",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "a",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "a",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "a",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "a",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "a",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [
+        "101"
+      ],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "b",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "b",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "b",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "b",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "b",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "b",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "B_REFLECTED",
+      "arm": "b",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [
+        "101"
+      ],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "a",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "a",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "a",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "a",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "a",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "a",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "a",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "a",
+      "prefix": 7,
+      "cut": 7,
+      "candidates": 3,
+      "vectors": [
+        "011"
+      ],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "b",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "b",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "b",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "b",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "b",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "b",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "b",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C",
+      "arm": "b",
+      "prefix": 7,
+      "cut": 7,
+      "candidates": 3,
+      "vectors": [
+        "011"
+      ],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "a",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "a",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "a",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "a",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "a",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "a",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "a",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "a",
+      "prefix": 7,
+      "cut": 7,
+      "candidates": 3,
+      "vectors": [
+        "011"
+      ],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "b",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "b",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "b",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "b",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "b",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "b",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "b",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "C_REFLECTED",
+      "arm": "b",
+      "prefix": 7,
+      "cut": 7,
+      "candidates": 3,
+      "vectors": [
+        "011"
+      ],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "a",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "a",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "a",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "a",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "a",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "a",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "a",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "a",
+      "prefix": 7,
+      "cut": 7,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "a",
+      "prefix": 8,
+      "cut": 8,
+      "candidates": 3,
+      "vectors": [
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          6
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "b",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "b",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "b",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "b",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "b",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "b",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "b",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "b",
+      "prefix": 7,
+      "cut": 7,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D",
+      "arm": "b",
+      "prefix": 8,
+      "cut": 8,
+      "candidates": 3,
+      "vectors": [
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          6
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "a",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "a",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "a",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "a",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "a",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "a",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "a",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "a",
+      "prefix": 7,
+      "cut": 7,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "a",
+      "prefix": 8,
+      "cut": 8,
+      "candidates": 3,
+      "vectors": [
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          6
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "b",
+      "prefix": 0,
+      "cut": 0,
+      "candidates": 2,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "b",
+      "prefix": 1,
+      "cut": 1,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "b",
+      "prefix": 2,
+      "cut": 2,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "b",
+      "prefix": 3,
+      "cut": 3,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "b",
+      "prefix": 4,
+      "cut": 4,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "b",
+      "prefix": 5,
+      "cut": 5,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "b",
+      "prefix": 6,
+      "cut": 6,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "b",
+      "prefix": 7,
+      "cut": 7,
+      "candidates": 3,
+      "vectors": [],
+      "same_kind": 0,
+      "selected_bis": [],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "D_REFLECTED",
+      "arm": "b",
+      "prefix": 8,
+      "cut": 8,
+      "candidates": 3,
+      "vectors": [
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          6
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_STRICT_HIGHER_TOP",
+      "arm": "a",
+      "prefix": 8,
+      "cut": 8,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_STRICT_HIGHER_TOP",
+      "arm": "a",
+      "prefix": 9,
+      "cut": 9,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "A_STRICT_HIGHER_TOP",
+      "arm": "b",
+      "prefix": 8,
+      "cut": 8,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_STRICT_HIGHER_TOP",
+      "arm": "b",
+      "prefix": 9,
+      "cut": 9,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "A_STRICT_WEAKER_TOP",
+      "arm": "a",
+      "prefix": 8,
+      "cut": 8,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_STRICT_WEAKER_TOP",
+      "arm": "a",
+      "prefix": 9,
+      "cut": 9,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "A_STRICT_WEAKER_TOP",
+      "arm": "b",
+      "prefix": 8,
+      "cut": 8,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_STRICT_WEAKER_TOP",
+      "arm": "b",
+      "prefix": 9,
+      "cut": 9,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "A_STRICT_LOWER_BOTTOM_REFLECTED",
+      "arm": "a",
+      "prefix": 8,
+      "cut": 8,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_STRICT_LOWER_BOTTOM_REFLECTED",
+      "arm": "a",
+      "prefix": 9,
+      "cut": 9,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "A_STRICT_LOWER_BOTTOM_REFLECTED",
+      "arm": "b",
+      "prefix": 8,
+      "cut": 8,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_STRICT_LOWER_BOTTOM_REFLECTED",
+      "arm": "b",
+      "prefix": 9,
+      "cut": 9,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "A_STRICT_WEAKER_BOTTOM_REFLECTED",
+      "arm": "a",
+      "prefix": 8,
+      "cut": 8,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_STRICT_WEAKER_BOTTOM_REFLECTED",
+      "arm": "a",
+      "prefix": 9,
+      "cut": 9,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "A_STRICT_WEAKER_BOTTOM_REFLECTED",
+      "arm": "b",
+      "prefix": 8,
+      "cut": 8,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "A_STRICT_WEAKER_BOTTOM_REFLECTED",
+      "arm": "b",
+      "prefix": 9,
+      "cut": 9,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "arm": "a",
+      "prefix": 10,
+      "cut": 10,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "arm": "a",
+      "prefix": 11,
+      "cut": 11,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "arm": "a",
+      "prefix": 12,
+      "cut": 12,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "arm": "a",
+      "prefix": 13,
+      "cut": 13,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          11
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "arm": "b",
+      "prefix": 10,
+      "cut": 10,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "arm": "b",
+      "prefix": 11,
+      "cut": 11,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "arm": "b",
+      "prefix": 12,
+      "cut": 12,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "OPPOSITE_FORMATION_COMPONENT",
+      "arm": "b",
+      "prefix": 13,
+      "cut": 13,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          11
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "RIGHT_GROUP_SEALED_COMPONENT",
+      "arm": "a",
+      "prefix": 14,
+      "cut": 14,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          11
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "RIGHT_GROUP_SEALED_COMPONENT",
+      "arm": "b",
+      "prefix": 14,
+      "cut": 14,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          11
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "APPEND_ABOVE_OLD_TOP",
+      "arm": "a",
+      "prefix": 15,
+      "cut": 15,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          11
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "APPEND_ABOVE_OLD_TOP",
+      "arm": "a",
+      "prefix": 16,
+      "cut": 16,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          11
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "APPEND_ABOVE_OLD_TOP",
+      "arm": "a",
+      "prefix": 17,
+      "cut": 17,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          11
+        ],
+        [
+          11,
+          15
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "APPEND_ABOVE_OLD_TOP",
+      "arm": "b",
+      "prefix": 15,
+      "cut": 15,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          11
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "APPEND_ABOVE_OLD_TOP",
+      "arm": "b",
+      "prefix": 16,
+      "cut": 16,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          11
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "APPEND_ABOVE_OLD_TOP",
+      "arm": "b",
+      "prefix": 17,
+      "cut": 17,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          11
+        ],
+        [
+          11,
+          15
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "CORRECTION_WITHDRAW_TOP",
+      "arm": "a",
+      "prefix": 9,
+      "cut": 10,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "CORRECTION_WITHDRAW_TOP",
+      "arm": "b",
+      "prefix": 9,
+      "cut": 10,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 0,
+      "selected_bis": [
+        [
+          1,
+          5
+        ]
+      ],
+      "constructible_not_candidate": []
+    },
+    {
+      "trace": "CORRECTION_CONFIRMED_COMPONENT",
+      "arm": "a",
+      "prefix": 14,
+      "cut": 15,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          11
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "trace": "CORRECTION_CONFIRMED_COMPONENT",
+      "arm": "b",
+      "prefix": 14,
+      "cut": 15,
+      "candidates": 3,
+      "vectors": [
+        "001",
+        "111"
+      ],
+      "same_kind": 1,
+      "selected_bis": [
+        [
+          1,
+          7
+        ],
+        [
+          7,
+          11
+        ]
+      ],
+      "constructible_not_candidate": [
+        [
+          6,
+          7
+        ]
+      ]
+    }
+  ],
+  "corrections": [
+    {
+      "trace": "CORRECTION_WITHDRAW_TOP",
+      "before_cut": 9,
+      "after_cut": 10,
+      "old_entity_ids": [
+        "bi:1:1"
+      ],
+      "status": "passed",
+      "arm": "a"
+    },
+    {
+      "trace": "CORRECTION_WITHDRAW_TOP",
+      "before_cut": 9,
+      "after_cut": 10,
+      "old_entity_ids": [
+        "bi:1:1"
+      ],
+      "status": "passed",
+      "arm": "b"
+    },
+    {
+      "trace": "CORRECTION_CONFIRMED_COMPONENT",
+      "before_cut": 14,
+      "after_cut": 15,
+      "old_entity_ids": [
+        "bi:1:1",
+        "bi:1:7"
+      ],
+      "status": "passed",
+      "arm": "a"
+    },
+    {
+      "trace": "CORRECTION_CONFIRMED_COMPONENT",
+      "before_cut": 14,
+      "after_cut": 15,
+      "old_entity_ids": [
+        "bi:1:1",
+        "bi:1:7"
+      ],
+      "status": "passed",
+      "arm": "b"
+    }
+  ],
+  "errors": [],
+  "scope": "冻结原始Oracle的公开投影、实际候选条件、具名选取、确认组件、完整同cut重访和双进程重放；确认充分性另由源码证明和追加反例测试支撑。",
+  "not_covered": [
+    "真实SIGKILL/恢复矩阵",
+    "同价未定域及全部市场输入",
+    "S-4跨实现等价",
+    "完整#1392关票或#1323总图验收"
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "entry": "OwnedIncrementalClassifier::append_bar",
+  "input_sha256": "795d5000f7c9965ad0f3d9bcea3fdc50ef26ef9b69f7ccce3266015473b56f09",
+  "binary_sha256": "4eaa1d2e032700773146168b4608d590cb7121b7011d29492d434d2b33300656",
+  "source_sha256": {
+    "inclusion.rs": "77257554c750bae866fab1c74845a1696644f5a61e6c949911ee0853bc1a506d",
+    "fractal.rs": "3d4c7c40d74225366d7488522d795dafbf24a1149bdf8903de5dbfd11970401c",
+    "stroke.rs": "f96a72fa786bc720e3479165b2972f51452633f640531548aa9d8978d434eee7",
+    "mod.rs": "0e24cce81af484cf885c49d75c8fc1876283b5fb00ffb0f5b4549e1b8f89012f"
+  },
+  "results": [
+    {
+      "command": [
+        "/Users/silencehan/Projects/NewChanlun-1392-incremental/.scratch/issue1392-incremental/target-scaling/release/tb02b-append-scaling",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/gamma-work-example-v2/input.json",
+        "512"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.5398472499800846,
+      "result": {
+        "bar_count": 512,
+        "bars": 512,
+        "elapsed_seconds": 0.000534833,
+        "final_levels": 0
+      }
+    },
+    {
+      "command": [
+        "/Users/silencehan/Projects/NewChanlun-1392-incremental/.scratch/issue1392-incremental/target-scaling/release/tb02b-append-scaling",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/gamma-work-example-v2/input.json",
+        "1024"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.03638887498527765,
+      "result": {
+        "bar_count": 1024,
+        "bars": 1024,
+        "elapsed_seconds": 0.001441583,
+        "final_levels": 1
+      }
+    },
+    {
+      "command": [
+        "/Users/silencehan/Projects/NewChanlun-1392-incremental/.scratch/issue1392-incremental/target-scaling/release/tb02b-append-scaling",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/gamma-work-example-v2/input.json",
+        "2048"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.0413025000016205,
+      "result": {
+        "bar_count": 2048,
+        "bars": 2048,
+        "elapsed_seconds": 0.005861791,
+        "final_levels": 1
+      }
+    },
+    {
+      "command": [
+        "/Users/silencehan/Projects/NewChanlun-1392-incremental/.scratch/issue1392-incremental/target-scaling/release/tb02b-append-scaling",
+        "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/gamma-work-example-v2/input.json",
+        "4096"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.04945345799205825,
+      "result": {
+        "bar_count": 4096,
+        "bars": 4096,
+        "elapsed_seconds": 0.014795042,
+        "final_levels": 2
+      }
+    }
+  ],
+  "scope": "same fixed input/config/counts as pre-repair scaling; not a whole-market latency guarantee"
+}

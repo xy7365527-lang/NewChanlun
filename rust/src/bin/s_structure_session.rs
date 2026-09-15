@@ -41,6 +41,8 @@ mod cache;
 mod tb02a;
 #[path = "s_session_v2/tb02a_facts.rs"]
 mod tb02a_facts;
+#[path = "s_session_v2/tb02b.rs"]
+mod tb02b;
 use std::path::{Path, PathBuf};
 
 #[cfg(test)]
@@ -56,7 +58,7 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 
 /// CC-006 验收合同修订（SPEC-COVERAGE-INPUT.json `/classification_axes/5`）。
-const RULE_REVISION: &str = "s2-axis-quantifiers";
+const RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
@@ -1323,6 +1325,9 @@ fn accept_core(
 
     let mut conn = open_db(db)?;
     ensure_initialized(&conn)?;
+    if meta_get_opt(&conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
+        return Err("VersionMismatch：历史规则会话仅可读，禁止接纳新规则输入".into());
+    }
     record_connection_pragmas(&conn, "accept");
     let meta_session = meta_get_opt(&conn, "session_id")?.unwrap_or_default();
     if meta_session != input.session_id {
@@ -2038,6 +2043,11 @@ fn advance_core(
 ) -> Result<Value, String> {
     let mut conn = open_db(db)?;
     ensure_initialized(&conn)?;
+    if meta_get_opt(&conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
+        return Err(
+            "VersionMismatch：历史规则会话只读；新笔规则须新建代际，不复用旧 Open 缓存".into(),
+        );
+    }
     record_connection_pragmas(&conn, "advance");
     // ── Begin：判定前先由短写事务核 writer_epoch、取得唯一推进权、持久 Begin/门/输入前沿 ──
     let (token, gen, frontier, base_cut, profile_id, profile_hash, catalog_revision, all_events) = {
@@ -2344,6 +2354,21 @@ fn advance_core(
         );
         objects.extend(typed);
         observations.extend(waiting);
+        let (new_bi, edges) = tb02b::build(
+            facts
+                .stroke_facts
+                .as_ref()
+                .expect("同次 parser 必须携生产新笔事实"),
+            &raw_by_coord,
+            &all_events,
+            &read_active_objects(&conn)?,
+            gen,
+            &structure_cut,
+            frontier,
+            v2::commit_time(&conn, context)?,
+        );
+        objects.extend(new_bi);
+        relations.extend(edges);
     }
 
     // 去重：同一 (kind, window, reason) 只发布一次。
@@ -2759,6 +2784,7 @@ fn advance_core(
     if frontier_moved {
         drop(tx);
     } else {
+        testonly_pause("before_commit");
         tx.commit()
             .map_err(|e| format!("advance commit 失败：{e}"))?;
     }
@@ -4230,6 +4256,376 @@ mod tests {
             None,
         )
         .unwrap();
+    }
+
+    /// #1392 独立 oracle 的具名 OHLC（A_STRICT_HIGHER_TOP + OPPOSITE_FORMATION_COMPONENT +
+    /// RIGHT_GROUP_SEALED_COMPONENT，逐根 H/L 抄自 ORACLE.json），`source_coord` ×10 以留出
+    /// 70 与 80 之间的历史插入位。O=C=floor((H+L)/2)。
+    fn tb02b_oracle_rows() -> Vec<(&'static str, i64, i64, i64, i64, i64)> {
+        vec![
+            ("b0", 0, 8, 10, 7, 8),
+            ("b1", 10, 6, 8, 5, 6),
+            ("b2", 20, 10, 12, 8, 10),
+            ("b3", 30, 10, 11, 9, 10),
+            ("b4", 40, 12, 14, 11, 12),
+            ("b5", 50, 15, 17, 14, 15),
+            ("b6", 60, 13, 15, 12, 13),
+            ("b7", 70, 17, 19, 16, 17),
+            ("b8", 80, 14, 16, 13, 14),
+            ("b9", 90, 12, 14, 10, 12),
+            ("b10", 100, 10, 12, 8, 10),
+            ("b11", 110, 8, 10, 6, 8),
+            ("b12", 120, 11, 13, 9, 11),
+            ("b13", 130, 13, 15, 11, 13),
+        ]
+    }
+
+    /// 显式 (event_id, source_coord, open, high, low, close) 的 OHLC 输入；业务身份由 event_id
+    /// 固定，历史插入不改旧身份，故不得按数组下标命名。
+    fn located_ohlc_input(rows: &[(&str, i64, i64, i64, i64, i64)]) -> Value {
+        let events: Vec<Value> = rows
+            .iter()
+            .map(|(id, coord, open, high, low, close)| {
+                json!({"event_id":id,"revision":"1","seq":coord.to_string(),
+                    "received_at":"2026-09-13T00:00:00Z","raw_text":format!("{low}/{high}"),
+                    "open":open.to_string(),"high":high.to_string(),
+                    "low":low.to_string(),"close":close.to_string(),
+                    "timestamp":coord.to_string(),"volume":"1"})
+            })
+            .collect();
+        json!({"schema_revision":"s-ohlc/1","session_id":"s-session-testonly-001",
+            "source_namespace":"testonly.ohlc","source_epoch":"1","instrument":"TEST.OHLC",
+            "profile":tb02a::PROFILE,"events":events})
+    }
+
+    fn bi_object(snap: &Value, entity: &str) -> Option<Value> {
+        snap["objects"].as_array().unwrap().iter().find_map(|o| {
+            (o["kind"] == "CC-010.bi" && o["payload"]["data"]["entity_id"] == entity)
+                .then(|| o["payload"]["data"].clone())
+        })
+    }
+
+    #[test]
+    fn tb02b_persisted_identity_lifecycle_revision_and_old_cuts() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let prices = [10, 5, 8, 11, 14, 17, 13, 10, 7, 3, 6, 9];
+        let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
+        let mut snapshots = vec![];
+        for n in 1..=bars.len() {
+            accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            let snap = snapshot_of(&files, None);
+            if n >= 7 {
+                let bi = snap["objects"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|o| {
+                        o["kind"] == "CC-010.bi" && o["payload"]["data"]["entity_id"] == "bi:1:1"
+                    })
+                    .unwrap();
+                assert_eq!(bi["payload"]["data"]["formed_known_at"]["generation"], "7");
+                assert_eq!(
+                    bi["payload"]["data"]["state"],
+                    if n == 12 {
+                        "CONFIRMED"
+                    } else {
+                        "FORMED_UNCONFIRMED"
+                    }
+                );
+                if n == 12 {
+                    assert_eq!(
+                        bi["payload"]["data"]["confirmed_known_at"]["generation"],
+                        "12"
+                    );
+                }
+            }
+            snapshots.push(snapshot_of(&files, Some(n as i64)));
+        }
+        let mut revised = ohlc_input(&bars, false);
+        revised["events"][5]["revision"] = json!("2");
+        revised["events"][5]["high"] = json!("18");
+        revised["events"][5]["close"] = json!("18");
+        revised["events"][5]["raw_text"] = json!("15/18 revision");
+        accept_ohlc(&files, &revised);
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        for (index, snap) in snapshots.iter().enumerate() {
+            assert_eq!(&snapshot_of(&files, Some(index as i64 + 1)), snap);
+        }
+        let final_snapshot = snapshot_of(&files, None);
+        assert!(final_snapshot["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|o| o["kind"] == "CC-010.bi" && o["payload"]["data"]["entity_id"] == "bi:2:1"));
+        let conn = open_db(&files.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        let verifier = fixture("tests/tb02b_verify.py");
+        let result = std::process::Command::new("python3")
+            .arg(verifier)
+            .arg("--database")
+            .arg(files.db())
+            .arg("--node")
+            .arg("node")
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "Q/前端合同真实库验证失败：{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+
+    #[test]
+    fn tb02b_same_input_extension_emits_all_changes() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let prices = [10, 5, 8, 11, 14, 17, 13, 18, 15];
+        let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
+        for n in 1..=bars.len() {
+            accept_ohlc(&files, &ohlc_input(&bars[..n], false));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let s = snapshot_of(&files, None);
+        let changes: Vec<_> = s["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|o| o["kind"] == "CC-055.change_event")
+            .map(|o| o["payload"]["data"]["change"].as_str().unwrap())
+            .collect();
+        assert!(changes.contains(&"extended"));
+        assert!(changes.contains(&"endpoint_replaced"));
+        let bi = s["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| o["kind"] == "CC-010.bi")
+            .unwrap();
+        assert_eq!(bi["payload"]["data"]["entity_id"], "bi:1:1");
+        assert_eq!(bi["payload"]["data"]["end"]["group_anchor"], "7");
+    }
+
+    #[test]
+    fn tb02b_historical_identity_insertion_opens_new_generation_and_keeps_old_cut() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let before = snapshot_of(&files, None);
+        let old = bi_object(&before, "bi:1:10").expect("独立 oracle 前缀下 UP 笔必须存在");
+        assert_eq!(old["end"]["group_anchor"], "70");
+        assert_eq!(old["end"]["price"], "19");
+        let old_confirmation = old["confirmation"].clone();
+        let old_confirmed_known_at = old["confirmed_known_at"].clone();
+        assert!(!old_confirmation.is_null(), "该端点须已确认");
+        assert_eq!(
+            old_confirmation["successor_start"],
+            old["end"]["group_anchor"]
+        );
+        // 历史插入：新业务身份 rev1 落在已接纳过的坐标区间内（75 ∈ (70, 80)），旧 raw 不改。
+        accept_ohlc(&files, &located_ohlc_input(&[("x75", 75, 22, 25, 20, 22)]));
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let after = snapshot_of(&files, None);
+        // 当前视图：被改写端点不再是原代际对象；新代际对象承载重建后的确认事实。
+        assert!(
+            bi_object(&after, "bi:1:10").is_none(),
+            "历史插入必须退出原代际身份，不得就地改写"
+        );
+        let new = bi_object(&after, "bi:2:10").expect("历史插入须开新代际对象");
+        assert_eq!(new["end"]["group_anchor"], "75");
+        assert_eq!(new["end"]["price"], "25");
+        assert_ne!(new["confirmed_known_at"], old_confirmed_known_at);
+        if !new["confirmation"].is_null() {
+            // 证书必须与当前端点同源：不得把 70 端点的旧证书贴到 75。
+            assert_eq!(
+                new["confirmation"]["successor_start"],
+                new["end"]["group_anchor"]
+            );
+            assert_eq!(new["confirmed_known_at"]["generation"], "2");
+        }
+        let withdrawal = after["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|o| {
+                o["kind"] == "CC-055.change_event"
+                    && o["payload"]["data"]["entity_id"] == "bi:1:10"
+                    && o["payload"]["data"]["change"] == "withdrawn"
+            })
+            .expect("原代际对象须有撤回事件");
+        assert!(withdrawal["payload"]["data"]["causes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c == "raw_fact_revision"));
+        // 旧 AsKnown cut 保留 19 及当时证书。
+        let as_known = snapshot_of(&files, Some(1));
+        let old_cut = bi_object(&as_known, "bi:1:10").expect("旧 cut 必须保留原对象");
+        assert_eq!(old_cut["end"]["group_anchor"], "70");
+        assert_eq!(old_cut["end"]["price"], "19");
+        assert_eq!(old_cut["confirmation"], old_confirmation);
+        assert_eq!(old_cut["confirmed_known_at"], old_confirmed_known_at);
+    }
+
+    #[test]
+    fn tb02b_same_generation_tail_append_keeps_first_confirmation() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let before = bi_object(&snapshot_of(&files, None), "bi:1:10").unwrap();
+        // 普通尾部追加：新身份落在既有最大坐标之后（140 > 130），落在尾组内不封新组。
+        accept_ohlc(
+            &files,
+            &located_ohlc_input(&[("x140", 140, 13, 15, 12, 13)]),
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let after =
+            bi_object(&snapshot_of(&files, None), "bi:1:10").expect("同代际正常追加不得换身份");
+        assert_eq!(after["confirmed_known_at"], before["confirmed_known_at"]);
+        assert_eq!(after["confirmation"], before["confirmation"]);
+        assert_eq!(after["formed_known_at"], before["formed_known_at"]);
+    }
+
+    #[test]
+    fn tb02b_successor_extension_preserves_confirmation_and_relation() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let original = snapshot_of(&files, None);
+        let historical = snapshot_of(&files, Some(1));
+        let before = bi_object(&original, "bi:1:10").unwrap();
+        assert_eq!(before["state"], "CONFIRMED");
+        // #1392：raw13 顶的反向间距不足，被跳过；raw15 底更低，延伸后继 DOWN。
+        // 它的右邻 raw16 尚未封口，但此前 UP 的 raw11/13 证书仍有效。
+        accept_ohlc(
+            &files,
+            &located_ohlc_input(&[
+                ("b14", 140, 9, 11, 7, 9),
+                ("b15", 150, 5, 7, 3, 5),
+                ("b16", 160, 7, 9, 5, 7),
+            ]),
+        );
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let current = snapshot_of(&files, None);
+        let after = bi_object(&current, "bi:1:10").unwrap();
+        assert_eq!(after["end"]["group_anchor"], "70");
+        assert_eq!(after["confirmation"], before["confirmation"]);
+        assert_eq!(after["confirmed_known_at"], before["confirmed_known_at"]);
+        let successor = bi_object(&current, "bi:1:70").unwrap();
+        assert_eq!(successor["end"]["group_anchor"], "150");
+        assert!(successor["end"]["sealed_at"].is_null());
+        assert!(
+            current["objects"].as_array().unwrap().iter().any(|o| {
+                let d = &o["payload"]["data"];
+                o["kind"] == "CC-055.relation"
+                    && d["source_id"] == "bi:1:70"
+                    && d["relation_kind"] == "confirms"
+                    && d["target_id"] == "bi:1:10"
+            }),
+            "已保留的确认证书必须仍有同源 confirms 关系"
+        );
+        assert!(
+            snapshot_of(&files, Some(1)) == historical,
+            "旧 AsKnown 快照不得被后续追加改写"
+        );
+    }
+
+    #[test]
+    fn tb02b_revision_of_inserted_identity_opens_another_generation() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept_ohlc(&files, &located_ohlc_input(&[("x75", 75, 22, 25, 20, 22)]));
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let inserted =
+            bi_object(&snapshot_of(&files, None), "bi:2:10").expect("历史插入须开二代际");
+        // 对已被历史插入占用的坐标再做同身份修订：有效事实集只剩最新 revision，看不出
+        // 「先按序接纳再修订」与「历史插入后再修订」的差别——只看 Σ(revision−1) 会漏换代，
+        // 同一「贴旧确认」路径复发；须由完整接纳历史计数。
+        let mut revision = located_ohlc_input(&[("x75", 75, 23, 26, 21, 23)]);
+        revision["events"][0]["revision"] = json!("2");
+        accept_ohlc(&files, &revision);
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        let after = snapshot_of(&files, None);
+        assert!(
+            bi_object(&after, "bi:2:10").is_none(),
+            "再修订必须开新代际，不得就地改写二代际对象"
+        );
+        let third = bi_object(&after, "bi:3:10").expect("再修订须开三代际");
+        assert_eq!(third["end"]["group_anchor"], "75");
+        assert_eq!(third["end"]["price"], "26");
+        let kept =
+            bi_object(&snapshot_of(&files, Some(2)), "bi:2:10").expect("二代际 cut 保留当时对象");
+        assert_eq!(kept["end"]["price"], inserted["end"]["price"]);
+        assert_eq!(kept["confirmation"], inserted["confirmation"]);
+    }
+
+    #[test]
+    fn tb02b_batched_history_revision_and_tail_keep_distinct_fact_generation() {
+        for publish_revision_separately in [false, true] {
+            let files = TestFiles::new();
+            init_test_db(&files);
+            accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            accept_ohlc(&files, &located_ohlc_input(&[("x75", 75, 22, 25, 20, 22)]));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            let old_cut = snapshot_of(&files, Some(2));
+            let old = bi_object(&old_cut, "bi:2:10").unwrap();
+
+            let mut revision = located_ohlc_input(&[("x75", 75, 23, 26, 21, 23)]);
+            revision["events"][0]["revision"] = json!("2");
+            accept_ohlc(&files, &revision);
+            if publish_revision_separately {
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            }
+            accept_ohlc(
+                &files,
+                &located_ohlc_input(&[("x140", 140, 13, 15, 12, 13)]),
+            );
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            let current = snapshot_of(&files, None);
+            assert!(
+                bi_object(&current, "bi:2:10").is_none(),
+                "同批尾部追加不得遮蔽历史修订"
+            );
+            let new = bi_object(&current, "bi:3:10").expect("分批方式不得改变事实代际");
+            assert_eq!(new["end"]["price"], "26");
+            assert_ne!(new["formed_known_at"], old["formed_known_at"]);
+            assert_eq!(snapshot_of(&files, Some(2)), old_cut);
+            let version = current["objects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|o| o["kind"] == "CC-056.version" && o["payload"]["slot"] == "TB-02-B")
+                .unwrap();
+            assert_eq!(
+                version["payload"]["data"]["version_causes"],
+                if publish_revision_separately {
+                    json!(["append"])
+                } else {
+                    json!(["raw_fact_revision"])
+                }
+            );
+
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            assert_eq!(snapshot_of(&files, None), current);
+            cmd_recover(&files.db(), "2").unwrap();
+            cmd_advance(&files.db(), "2").unwrap();
+            assert_eq!(
+                snapshot_of(&files, None)["generation"],
+                current["generation"]
+            );
+            assert_eq!(bi_object(&snapshot_of(&files, None), "bi:3:10"), Some(new));
+            assert_eq!(
+                bi_object(&snapshot_of(&files, Some(2)), "bi:2:10"),
+                Some(old)
+            );
+        }
     }
 
     #[test]

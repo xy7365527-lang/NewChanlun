@@ -1,0 +1,28 @@
+{
+  "status": "PASS_PREPARE_ONLY",
+  "observed_main_arguments": {
+    "args": [
+      "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/portable-repro-prepare/case",
+      "/Users/silencehan/Projects/NewChanlun-1392-tb02b/rust/target/release/s_structure_session",
+      "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+      "/Users/silencehan/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+      "/Users/silencehan/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright",
+      "25520"
+    ],
+    "result_root": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/portable-repro-prepare",
+    "runs": 44,
+    "fault_runs": 8
+  },
+  "negative_rejections": [
+    "existing",
+    "root",
+    "outside"
+  ],
+  "original_plan_unchanged": true,
+  "plan_sha256": "3218e4cfb5f9236ffccf0e71bae4f1bc7b6f9649f976186704c89506696c0370",
+  "services_started": false,
+  "files": {
+    "s_session/tests/run_tb02b_faults.py": "339705de95b9481de514b1827e77ed9d29de57b50849aa3aa7f815cd88a17a21",
+    "s_session/tests/tb02b_harness.py": "e7bec8af5fc0d1d9e1fcefe0a0f31de8dd6f442236b5c8deaf19ff33ccff5985"
+  }
+}

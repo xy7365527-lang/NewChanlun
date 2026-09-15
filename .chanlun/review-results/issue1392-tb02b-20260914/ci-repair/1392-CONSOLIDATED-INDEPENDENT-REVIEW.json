@@ -1,0 +1,15 @@
+{
+  "issue": 1392,
+  "product_commit": "10be313b04aa24e67ea0f08d7a019a18f5f238a3",
+  "verdict": "approve_bounded",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "effort": "max",
+  "run_id": "45d47aa6-e181-4acd-b796-8c7cb6e6f88f",
+  "review_source": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/frontier-consolidated-review-sandcastle-run/result.json",
+  "review_source_sha256": "968c61733c076a6e887440e22d1b7a417310f5193fba23f7f5326541c00112d8",
+  "findings": [
+    "T1 approve_bounded：parse_layer 改走紧凑包含状态（rust/src/theta_v0/parser/mod.rs:152-166 → parse_layer_from_inclusion_state :168-192），仍从头调 build_stroke_facts_with_positions（stroke.rs:323-337），未以增量 classifier 充当全量 Oracle；parse_layer_with_inclusion_facts（:197-204）本体未动（该文件仅 2 个 hunk，第二个在 mod tests），证书 0/0/None 与 parse_layer_from_facts（:328-355）的保守值一致；两侧 positions 同为到达序（stroke.rs:118-125 的 positions_of_steps 对 inclusion.rs:819-821 的 ordinal 插入），source_coords 经 inclusion.rs:795-802 与 stroke.rs:129-130 声明为纯证据面且我核对 endpoint_at 仅在 expand_sources 分支写入，不进判据；对拍锁 parser/mod.rs:487 起逐前缀比 merged/fractals/strokes/segments/tail 并显式核三种证书，另有五类形态前提取证断言。边界：ParseLayer 不含坐标链，紧凑路径内部 StrokeFacts 的证据坐标与完整入口不同（热路径不展开，inclusion.rs:863-865），需坐标链的调用方仍须走完整入口。",
+    "T2 approve_bounded：夹具只做保序整数细化（incremental.rs:841-853，×len+1 再 +i），用于 owned_bit_exact_synthetic（:164-166）与两条 A3（:863-865、:876-888）；A3 断言一处未删（minparts_break>0 / t_eq1>0 / t_gt1>0 / empty_break>0）；rebase_txn.rs:8-20 seam_bars 被 :33 与 :119 两测试共用（仅去重复内联构造，断言未变）；bsp.rs 白名单只刷行号（:666、:670-673），我实读目标行仍是 InclusionGroupFact/Fractal（tb02a_facts.rs:237/247/273 的 groups 查询、fractal.rs:74 fractal_at_source），提交未新增任何 #[ignore]。边界：三条原同价非空失败保留（tick.rs 的 BTC 20000 非空断言、l3_delta_r_alpha.rs:2543「合成鞅 3000 bar 产非空 ledger」），本提交未触碰，全库 CI 非绿且交付也未宣称绿；「剩余失败恰为这三条」采信 1392-CI-REPAIR-CHECKS.json 与 1392-REMAINING-FIXTURE-DIAGNOSIS.json 记录，我未重跑全量核对条数。"
+  ],
+  "validation_scope": "Independent read-only source/diff and original logs review; no cargo/pytest/runtime rerun. Three same-price domain failures retained; no full green or main merge approval."
+}

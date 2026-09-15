@@ -1,533 +1,1223 @@
-//! 第三步：新笔划分（reference-theta-v0.md:21，[缠论可导,77/81课]）。
+//! #1392：生产新笔的唯一判据（bi.md §2/§4/§7）。
 //!
-//! ## 规则（reference-theta-v0.md:21 逐字）
-//!
-//! - **启用新笔，旧笔禁用**（《忽闻台风可休市》/第81课新笔定义）。
-//! - **顶/底分型不共用 K**：相邻笔端点分型不能是同一根 K。
-//! - **间隔约束**：两极值 K 间按**原始 K 计数**排除两端至少 N 根（config
-//!   `parse.new_stroke_min_gap`，default 3）。即两端点 source_index 之差 > N
-//!   （中间至少 N 根独立 K）。
-//! - **同类连续分型取舍**：相邻同类分型（连续两顶或两底，中间无异类），
-//!   **顶保留更高、底保留更低、等价保留更早**（tie-break 设计选择）。
-//!
-//! ## bit-exact 注意点
-//!
-//! - 间隔用**原始 K 序号**（`source_index`），不是合并后序号——「按原始 K 计数」。
-//! - 同类连续取舍是**先于**配对的预处理：先把分型序列规整为顶/底严格交替
-//!   （同类连续只留极值/更早），再在交替序列上配对成笔。
-//! - 「等价保留更早」：同类同价分型保留 `source_index` 更小者（平局裁决
-//!   reference-theta-v0.md:16）。
-
+//! 输入必须携带包含后的中心位置、完整 raw 成员及实际极值根；缺项不换档。
+//! 同价根与同型端点同价分别保留为未定事实（#1343/#1405）。
 use super::super::config::ParseConfig;
-use super::super::types::{Direction, Fractal, FractalKind, Stroke};
+use super::super::types::{Bar, Direction, FractalKind, Stroke};
+#[cfg(test)]
+use super::inclusion::process_inclusion_with_facts;
+use super::inclusion::InclusionFacts;
+use serde::Serialize;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
-/// 同类连续分型取舍 + 顶底交替规整（new 笔预处理）。
-///
-/// 扫描分型序列，把**连续同类**分型坍缩为一个代表：
-/// - 连续顶：保留 price 最高者；等价（同 price）保留 source_index 更小者（更早）。
-/// - 连续底：保留 price 最低者；等价保留更早。
-/// 结果是顶/底**严格交替**的分型序列（相邻必异类）。
-fn collapse_consecutive(fractals: &[Fractal]) -> Vec<Fractal> {
-    let mut out: Vec<Fractal> = Vec::new();
-    for &f in fractals {
-        match out.last() {
-            Some(prev) if prev.kind == f.kind => {
-                // 同类连续：按 kind 取极值，等价取更早。
-                let keep_new = match f.kind {
-                    FractalKind::Top => {
-                        f.price > prev.price
-                            || (f.price == prev.price && f.source_index < prev.source_index)
-                    }
-                    FractalKind::Bottom => {
-                        f.price < prev.price
-                            || (f.price == prev.price && f.source_index < prev.source_index)
-                    }
-                };
-                if keep_new {
-                    *out.last_mut().unwrap() = f;
-                }
-                // 否则保留 prev（更极值，或等价时更早），丢弃 f。
-            }
-            _ => out.push(f),
+pub const RULE: &str = "new-bi-dual-coordinate/1";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Endpoint {
+    pub kind: &'static str,
+    pub merged_index: usize,
+    pub group_anchor: usize,
+    pub price: i64,
+    pub extreme_roots: Vec<usize>,
+    pub raw_position: Option<usize>,
+    pub source_coords: Vec<usize>,
+    pub sealed_at: Option<usize>,
+    pub waiting_reasons: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Conditions {
+    pub merged_gap: usize,
+    pub raw_between_actual_extrema: Option<usize>,
+    pub top_price: i64,
+    pub bottom_price: i64,
+    pub vector: [Option<bool>; 3],
+    pub failed_conditions: Vec<&'static str>,
+    pub waiting_reasons: Vec<&'static str>,
+}
+impl Conditions {
+    pub fn formed(&self) -> bool {
+        self.vector == [Some(true); 3] && self.waiting_reasons.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PairFact {
+    pub old: Endpoint,
+    pub new: Endpoint,
+    pub endpoint_kind_pair: String,
+    pub conditions: Option<Conditions>,
+    pub comparison: Option<&'static str>,
+    pub selection: Option<&'static str>,
+    pub retained_anchors: Vec<usize>,
+    pub waiting_reasons: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Confirmation {
+    pub successor_start: usize,
+    pub successor_end: usize,
+    pub successor_conditions: Conditions,
+    pub right_group_sealed_at: usize,
+    pub source_coords: Vec<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BiFact {
+    /// 逻辑身份只锚形成时的起点；末端延伸不换身份。输入修订代际由 S 绑定。
+    pub identity_anchor: usize,
+    pub start: Endpoint,
+    pub end: Endpoint,
+    pub formation: Conditions,
+    pub confirmation: Option<Confirmation>,
+}
+impl BiFact {
+    fn stroke(&self) -> Stroke {
+        Stroke {
+            direction: if self.start.kind == "BOTTOM" {
+                Direction::Up
+            } else {
+                Direction::Down
+            },
+            // #1392：Stroke 坐标与 `ParseLayer.fractals` 同域——都是分型坐标（组锚），
+            // 现役 `anchor_resolver`/`resolve_triple_anchor`/`resolve_foot` 只按该坐标查。
+            // 实际极值根（`extreme_roots`）可以落在组内其它 raw 上（D 夹具顶组锚 5、根 6），
+            // 它继续独立供 `raw_position`/raw 间隔与追溯使用，不充当笔端点坐标。
+            start_index: self.start.group_anchor,
+            end_index: self.end.group_anchor,
+            start_price: self.start.price,
+            end_price: self.end.price,
         }
     }
-    out
 }
 
-/// 两分型间是否满足新笔间隔约束（reference-theta-v0.md:21）。
-///
-/// 「两极值 K 间按原始 K 计数排除两端至少 N 根」——两端点 source_index 之差需 > N
-/// （即中间至少 N 根独立原始 K，两端不共用 K 自动满足 diff>=1）。
-fn gap_ok(a: &Fractal, b: &Fractal, min_gap: u32) -> bool {
-    let diff = b.source_index.saturating_sub(a.source_index);
-    diff as u32 > min_gap
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+pub struct StrokeFacts {
+    pub endpoints: Vec<Endpoint>,
+    pub pairs: Vec<PairFact>,
+    pub strokes: Vec<BiFact>,
+    pub waiting_reasons: Vec<&'static str>,
+}
+impl StrokeFacts {
+    pub fn production_strokes(&self) -> Vec<Stroke> {
+        self.strokes.iter().map(BiFact::stroke).collect()
+    }
 }
 
-/// 新笔划分主流程（reference-theta-v0.md:21）。
-///
-/// 1. `collapse_consecutive`：同类连续取舍 → 顶/底严格交替序列。
-/// 2. 在交替序列上贪心配对成笔：相邻异类分型满足间隔约束则成笔（方向：底→顶=Up，
-///    顶→底=Down），笔尾成为下一笔的笔头；间隔不足则越过该候选对（保持交替）。
-///
-/// 边界条件：
-/// - 分型 < 2 ⟹ 无笔。
-/// - 相邻分型不满足间隔 ⟹ 越过该对（不强行成笔，i+=2 回到与 a 异类的下一候选）。
-pub fn build_strokes(fractals: &[Fractal], config: &ParseConfig) -> Vec<Stroke> {
-    let alt = collapse_consecutive(fractals);
-    let mut strokes = Vec::new();
-    if alt.len() < 2 {
-        return strokes;
-    }
-
-    let mut i = 0usize;
-    while i + 1 < alt.len() {
-        let a = &alt[i];
-        let b = &alt[i + 1];
-        // collapse 后必异类（严格交替），间隔满足才成笔。
-        if gap_ok(a, b, config.new_stroke_min_gap) {
-            let direction = match a.kind {
-                FractalKind::Bottom => Direction::Up, // 底→顶
-                FractalKind::Top => Direction::Down,  // 顶→底
-            };
-            strokes.push(Stroke {
-                direction,
-                start_index: a.source_index,
-                end_index: b.source_index,
-                start_price: a.price,
-                end_price: b.price,
-            });
-            i += 1; // 笔尾 b 成为下一笔笔头。
-        } else {
-            // 间隔不足：越过 b 与其后同类候选，回到与 a 异类的下一候选（保持交替）。
-            i += 2;
-        }
-    }
-    strokes
+fn sorted(mut xs: Vec<usize>) -> Vec<usize> {
+    xs.sort_unstable();
+    xs.dedup();
+    xs
 }
 
-// ============================================================================
-// 增量 stroke（#93 H1 主根因：parse_layer 下游 per-bar O(n²) → 增量化）。
-//
-// ## 前缀不变性（bit-exact 基础）
-//
-// collapse_consecutive 是左折叠：out.push(f) 后，前缀 out[0..len-1] 不可变，仅 out.last()
-// 可能被同类连续修改。贪心配对在交替序列上扫描：一旦某笔成笔（i+=1），其端点 fractal 固定。
-//
-// 增量策略：
-// 1. 增量 collapse：保留前缀交替序列（除末 1 个可能被修改），重算尾部 collapse。
-// 2. 增量配对：保留 confirmed strokes 前缀（端点 fractal 已固定），从最后一笔笔尾在
-//    新交替序列中的位置续扫。
-//
-// 严格性：存 (Fractal, fractal_idx) 对——fractal_idx 是在原始 fractals 输入中的下标，
-// 用于精确过滤前缀。不依赖 source_index 代理。
-//
-// ## O(n²) 修复（a5a1bb70 子步隔离坐实 IncrStrokes::append 为 incr_total exp 2.9 真主导）
-//
-// ae0118c0 增量实现有两处 O(n²)/bar：
-// 1. `take_while(|(_, fi)| *fi < confirmed_bound)` 遍历整个 alt_prefix O(n)/bar。
-// 2. 嵌套循环 `for s in &self.strokes { for (ai,..) in new_alt.iter() }` O(strokes×alt)/bar。
-//
-// 修复：维护 confirmed_alt_len / confirmed_strokes_len / last_end_alt_idx 三个索引，
-// append 入口 O(1) slice + O(1) 继承 resume_alt_idx，消除两处 O(n²)。出口 O(1) 更新
-// confirmed 索引（new_alt.last() fi == new_confirmed_bound 判定 + 续扫尾端 alt 索引追踪）。
-// ============================================================================
-
-/// 计算 confirmed strokes 长度 + 最后一个 confirmed stroke 笔尾的 alt 索引。
+/// 全量 facts 的 raw 序位映射：`source_index → 第几根 raw`（同坐标后者覆盖）。
 ///
-/// confirmed strokes = 端点 source_index 对应的 alt 条目在 `alt_prefix[..confirmed_alt_len]` 内的笔。
-/// alt 按 source_index 单调递增，strokes 按 end_index 单调递增 → partition_point O(log n)。
-/// 返回 `(confirmed_strokes_len, last_end_alt_idx)`，无 confirmed 笔时 last_end_alt_idx = 0。
-fn compute_confirmed_strokes(
-    strokes: &[Stroke],
-    alt_prefix: &[(Fractal, usize)],
-    confirmed_alt_len: usize,
-) -> (usize, usize) {
-    if confirmed_alt_len == 0 || strokes.is_empty() {
-        return (0, 0);
-    }
-    // confirmed 段最后一个 source_index（边界）。
-    let boundary_si = alt_prefix[confirmed_alt_len - 1].0.source_index;
-    // end_index <= boundary_si 的笔为 confirmed（端点在 confirmed alt 段内）。
-    let confirmed_strokes_len = strokes.partition_point(|s| s.end_index <= boundary_si);
-    let last_end_alt_idx = if confirmed_strokes_len == 0 {
-        0
+/// 这是 `Endpoint.raw_position` 的唯一来源——源坐标可以稀疏，不能拿坐标相减冒充根数。
+/// 增量热路径不物化 `steps`，改由 [`IncrFactsState::positions`] 逐 bar 维护同一映射。
+fn positions_of_steps(facts: &InclusionFacts) -> BTreeMap<usize, usize> {
+    facts
+        .steps
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (s.incoming.source_index, i))
+        .collect()
+}
+
+/// 端点扫描（唯一判据）：full 与增量共享本函数，差别只在 `positions` 的来源。
+///
+/// `merged`/`groups`/`initial_direction_unsettled` 是全部结构输入；`source_coords` 只进
+/// 证据面，不进任何判据（见 [`Endpoint`]）。
+fn endpoints_from(
+    merged: &[Bar],
+    groups: &[super::inclusion::InclusionGroupFact],
+    initial_direction_unsettled: bool,
+    positions: &BTreeMap<usize, usize>,
+) -> Vec<Endpoint> {
+    (1..merged.len().saturating_sub(1))
+        .filter_map(|mid| {
+            endpoint_at(
+                merged,
+                groups,
+                initial_direction_unsettled,
+                positions,
+                mid,
+                true,
+            )
+        })
+        .collect()
+}
+
+/// 同一个三组判据；紧凑路径只延迟展开纯追溯字段，不省略根唯一性、封口或 raw 序位。
+fn endpoint_at(
+    merged: &[Bar],
+    groups: &[super::inclusion::InclusionGroupFact],
+    initial_direction_unsettled: bool,
+    positions: &BTreeMap<usize, usize>,
+    mid: usize,
+    expand_sources: bool,
+) -> Option<Endpoint> {
+    let f = super::fractal::detect_fractal_at(merged, mid)?;
+    let g = &groups[mid];
+    let roots = if f.kind == FractalKind::Top {
+        &g.high_sources
     } else {
-        // 最后一个 confirmed stroke 笔尾在 alt_prefix 中的位置。
-        let end_si = strokes[confirmed_strokes_len - 1].end_index;
-        alt_prefix.partition_point(|(f, _)| f.source_index < end_si)
+        &g.low_sources
     };
-    (confirmed_strokes_len, last_end_alt_idx)
+    let mut waiting = vec![];
+    let mut sources = vec![];
+    for group in &groups[mid - 1..=mid + 1] {
+        if expand_sources {
+            sources.extend(&group.members);
+            if let Some(e) = &group.direction_evidence {
+                sources.extend(&e.source_coords);
+            }
+            if let Some(e) = &group.confirmation_evidence {
+                sources.extend(&e.source_coords);
+            }
+        }
+        if group.high_sources.len() != 1 || group.low_sources.len() != 1 {
+            waiting.push("raw_extreme_identity_tie");
+        }
+    }
+    if initial_direction_unsettled {
+        waiting.push("initial_direction_unsettled");
+    }
+    if roots.is_empty() {
+        waiting.push("actual_extreme_mapping_missing");
+    }
+    waiting.sort_unstable();
+    waiting.dedup();
+    Some(Endpoint {
+        kind: if f.kind == FractalKind::Top {
+            "TOP"
+        } else {
+            "BOTTOM"
+        },
+        merged_index: mid,
+        group_anchor: g.bar.source_index,
+        price: f.price,
+        extreme_roots: roots.clone(),
+        raw_position: if roots.len() == 1 {
+            positions.get(&roots[0]).copied()
+        } else {
+            None
+        },
+        source_coords: sorted(sources),
+        sealed_at: groups[mid + 1]
+            .confirmation_evidence
+            .as_ref()
+            .map(|e| e.incoming.source_index),
+        waiting_reasons: waiting,
+    })
 }
 
-/// 增量 stroke 状态（bit-exact 对齐 `build_strokes`）。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IncrStrokes {
-    /// confirmed 交替序列前缀 `(Fractal, fractal_idx)`（除末 1 个可能被 collapse 修改）。
-    alt_prefix: Vec<(Fractal, usize)>,
-    /// confirmed strokes 前缀（端点 fractal 已固定，不可变）。
-    /// Rc 共享——`to_result_rc()` O(1) clone 给 `ParseLayer.strokes`。
-    strokes: Rc<Vec<Stroke>>,
-    /// 上次快照时的 fractals 长度。
-    fractals_len: usize,
-    /// alt_prefix 中 `fi < fractals_len-1` 的条目数（confirmed alt 前缀长度）。
-    // ponytail: O(1) slice 替代 O(n) take_while（hotspot 1，ae0118c0 增量 bug）。
-    confirmed_alt_len: usize,
-    /// strokes 中端点 `fi < fractals_len-1` 的笔数（confirmed strokes 前缀长度）。
-    // ponytail: O(1) slice 替代 O(n²) 嵌套扫描（hotspot 2，ae0118c0 增量 bug）。
-    confirmed_strokes_len: usize,
-    /// 最后一个 confirmed stroke 笔尾在 alt_prefix 中的索引（续扫起点）。
-    // ponytail: O(1) 继承替代 O(n²) 逐笔重扫 new_alt（hotspot 2，ae0118c0 增量 bug）。
-    last_end_alt_idx: usize,
-    /// 上次 append 见到的末分型（相同输入早退用）。confirmed 前缀不可变，仅末分型可被 collapse
-    /// 改写 ⟹ (fractals_len, 末分型) 相同蕴含整个 fractals 相同 ⟹ 结果与 self 逐字段等。
-    last_fractal: Option<Fractal>,
+/// CC-008/009 分域；所有适用位都算，未知与 false 分开。
+fn pair(a: &Endpoint, b: &Endpoint, config: &ParseConfig) -> PairFact {
+    let mut waiting = a.waiting_reasons.clone();
+    waiting.extend(&b.waiting_reasons);
+    waiting.sort_unstable();
+    waiting.dedup();
+    let same = a.kind == b.kind;
+    let comparison = match b.price.cmp(&a.price) {
+        std::cmp::Ordering::Less => "LT",
+        std::cmp::Ordering::Equal => "EQ",
+        std::cmp::Ordering::Greater => "GT",
+    };
+    let stronger = if a.kind == "TOP" {
+        b.price > a.price
+    } else {
+        b.price < a.price
+    };
+    let selection = if comparison == "EQ" {
+        "UNDETERMINED"
+    } else if stronger {
+        "REPLACE"
+    } else {
+        "KEEP"
+    };
+    if same && comparison == "EQ" {
+        waiting.push("same_kind_endpoint_identity_tie");
+    }
+    let conditions = if same {
+        None
+    } else {
+        let merged_gap = b.merged_index.saturating_sub(a.merged_index);
+        let raw_between = match (a.raw_position, b.raw_position) {
+            (Some(x), Some(y)) if y > x => Some(y - x - 1),
+            _ => None,
+        };
+        let (top, bottom) = if a.kind == "TOP" {
+            (a.price, b.price)
+        } else {
+            (b.price, a.price)
+        };
+        let vector = [
+            Some(merged_gap >= 3),
+            raw_between.map(|n| n >= config.new_stroke_min_gap as usize),
+            Some(top > bottom),
+        ];
+        let labels = [
+            "merged_gap_below_3",
+            "raw_between_below_minimum",
+            "top_not_above_bottom",
+        ];
+        let failed = vector
+            .iter()
+            .zip(labels)
+            .filter_map(|(v, l)| if *v == Some(false) { Some(l) } else { None })
+            .collect();
+        if raw_between.is_none() && !waiting.contains(&"actual_extreme_mapping_missing") {
+            waiting.push("actual_extreme_mapping_missing");
+        }
+        Some(Conditions {
+            merged_gap,
+            raw_between_actual_extrema: raw_between,
+            top_price: top,
+            bottom_price: bottom,
+            vector,
+            failed_conditions: failed,
+            waiting_reasons: waiting.clone(),
+        })
+    };
+    PairFact {
+        old: a.clone(),
+        new: b.clone(),
+        endpoint_kind_pair: format!("{}/{}", a.kind, b.kind),
+        conditions,
+        comparison: same.then_some(comparison),
+        selection: same.then_some(selection),
+        retained_anchors: if !same {
+            vec![]
+        } else if comparison == "EQ" {
+            vec![a.group_anchor, b.group_anchor]
+        } else {
+            vec![if stronger {
+                b.group_anchor
+            } else {
+                a.group_anchor
+            }]
+        },
+        waiting_reasons: waiting,
+    }
 }
 
-impl Default for IncrStrokes {
+/// 唯一生产入口。异型失败不出笔；越过失败异型后，同型取舍仍走 CC-009。
+/// 同价未定之后不选择任一分支继续扫描，保全后续所有原候选（#1405）。
+pub fn build_stroke_facts(facts: &InclusionFacts, config: &ParseConfig) -> StrokeFacts {
+    stroke_transition(
+        &facts.merged,
+        &facts.groups,
+        facts.initial_direction_unsettled,
+        &positions_of_steps(facts),
+        config,
+    )
+}
+
+/// #1392：full 与增量共享的**唯一**新笔 transition。
+///
+/// 输入只有结构面五件（merged/groups/未定标志/raw 序位映射/config）——增量热路径由
+/// [`super::inclusion::IncrFactsState`] 直接喂入，不物化 `steps` 与历史 `source_coords`。
+/// 同一扫描状态机（current/blocked/pair/同型 KEEP/REPLACE/EQ 未定/formed/确认冻结），
+/// 不另写宽松新笔。
+pub fn build_stroke_facts_with_positions(
+    merged: &[Bar],
+    groups: &[super::inclusion::InclusionGroupFact],
+    initial_direction_unsettled: bool,
+    positions: &BTreeMap<usize, usize>,
+    config: &ParseConfig,
+) -> StrokeFacts {
+    stroke_transition(
+        merged,
+        groups,
+        initial_direction_unsettled,
+        positions,
+        config,
+    )
+}
+
+fn stroke_transition(
+    merged: &[Bar],
+    groups: &[super::inclusion::InclusionGroupFact],
+    initial_direction_unsettled: bool,
+    positions: &BTreeMap<usize, usize>,
+    config: &ParseConfig,
+) -> StrokeFacts {
+    let mut scan = ScanState::default();
+    if initial_direction_unsettled {
+        scan.out.waiting_reasons.push("initial_direction_unsettled");
+    }
+    for endpoint in endpoints_from(merged, groups, initial_direction_unsettled, positions) {
+        scan.apply(&endpoint, config);
+        scan.out.endpoints.push(endpoint);
+    }
+    scan.out.waiting_reasons.sort_unstable();
+    scan.out.waiting_reasons.dedup();
+    scan.out
+}
+
+#[derive(Debug, Clone, Default)]
+struct ScanState {
+    current: Option<Endpoint>,
+    blocked: bool,
+    out: StrokeFacts,
+}
+impl ScanState {
+    /// full 与增量的唯一单端点状态转移。所有写入至多触及转移前的最后一笔。
+    fn apply(&mut self, f: &Endpoint, config: &ParseConfig) {
+        let Some(a) = self.current.clone() else {
+            self.current = Some(f.clone());
+            return;
+        };
+        let mut p = pair(&a, f, config);
+        if self.blocked {
+            p.waiting_reasons
+                .push("earlier_endpoint_identity_unsettled");
+            if let Some(c) = &mut p.conditions {
+                c.waiting_reasons
+                    .push("earlier_endpoint_identity_unsettled");
+            }
+            self.out.pairs.push(p);
+            return;
+        }
+        if a.kind == f.kind {
+            if p.selection == Some("UNDETERMINED") {
+                self.out
+                    .waiting_reasons
+                    .push("same_kind_endpoint_identity_tie");
+                self.blocked = true;
+                // #1405：已形成尾笔的旧版保留在 S 历史，当前不把任一同价端点当唯一笔尾。
+                if self
+                    .out
+                    .strokes
+                    .last()
+                    .is_some_and(|s| s.end.group_anchor == a.group_anchor)
+                {
+                    self.out.strokes.pop();
+                }
+            } else if p.selection == Some("REPLACE") {
+                if p.waiting_reasons.is_empty() {
+                    if let Some(last) = self.out.strokes.last_mut() {
+                        if last.end.group_anchor == a.group_anchor {
+                            let extended = pair(&last.start, f, config);
+                            if extended.conditions.as_ref().is_some_and(Conditions::formed) {
+                                last.end = f.clone();
+                                last.formation = extended.conditions.unwrap();
+                            }
+                        }
+                    }
+                    self.current = Some(f.clone());
+                } else {
+                    self.blocked = true;
+                    self.out.waiting_reasons.extend(&p.waiting_reasons);
+                }
+            }
+        } else if p.conditions.as_ref().is_some_and(Conditions::formed) {
+            // #1392：在已选中后继笔的首次封口见证处冻结前笔证书。
+            // 后继尾笔以后可延伸到尚未封口的新端点，不能因此丢掉既有前缀证据。
+            if let (Some(sealed), Some(previous)) = (f.sealed_at, self.out.strokes.last_mut()) {
+                let mut sources = a.source_coords.clone();
+                sources.extend(&f.source_coords);
+                previous.confirmation = Some(Confirmation {
+                    successor_start: a.group_anchor,
+                    successor_end: f.group_anchor,
+                    successor_conditions: p.conditions.clone().unwrap(),
+                    right_group_sealed_at: sealed,
+                    source_coords: sorted(sources),
+                });
+            }
+            self.out.strokes.push(BiFact {
+                identity_anchor: a.group_anchor,
+                start: a,
+                end: f.clone(),
+                formation: p.conditions.clone().unwrap(),
+                confirmation: None,
+            });
+            self.current = Some(f.clone());
+        } else if !p.waiting_reasons.is_empty() {
+            self.blocked = true;
+            self.out.waiting_reasons.extend(&p.waiting_reasons);
+        }
+        self.out.pairs.push(p);
+    }
+}
+
+/// 稳定端点前的扫描 checkpoint。单端点转移至多写旧尾一笔，故只备份该尾，
+/// 不复制任何历史 endpoints / pairs / strokes。
+#[derive(Debug, Clone)]
+struct ScanCheckpoint {
+    next_mid: usize,
+    current: Option<Endpoint>,
+    blocked: bool,
+    endpoints_len: usize,
+    pairs_len: usize,
+    strokes_len: usize,
+    waiting_len: usize,
+    last_stroke: Option<BiFact>,
+}
+impl Default for ScanCheckpoint {
     fn default() -> Self {
-        IncrStrokes {
-            alt_prefix: Vec::new(),
-            strokes: Rc::new(Vec::new()),
-            fractals_len: 0,
-            confirmed_alt_len: 0,
-            confirmed_strokes_len: 0,
-            last_end_alt_idx: 0,
-            last_fractal: None,
+        Self::capture(&ScanState::default(), 1)
+    }
+}
+impl ScanCheckpoint {
+    fn capture(scan: &ScanState, next_mid: usize) -> Self {
+        Self {
+            next_mid,
+            current: scan.current.clone(),
+            blocked: scan.blocked,
+            endpoints_len: scan.out.endpoints.len(),
+            pairs_len: scan.out.pairs.len(),
+            strokes_len: scan.out.strokes.len(),
+            waiting_len: scan.out.waiting_reasons.len(),
+            last_stroke: scan.out.strokes.last().cloned(),
+        }
+    }
+    fn restore(&self, scan: &mut ScanState) {
+        scan.current = self.current.clone();
+        scan.blocked = self.blocked;
+        scan.out.endpoints.truncate(self.endpoints_len);
+        scan.out.pairs.truncate(self.pairs_len);
+        scan.out.waiting_reasons.truncate(self.waiting_len);
+        // 未定尾端点可能 pop 旧尾；先退至其前缀，再恢复冻结尾。
+        scan.out
+            .strokes
+            .truncate(self.strokes_len.saturating_sub(1));
+        if let Some(last) = &self.last_stroke {
+            scan.out.strokes.push(last.clone());
         }
     }
 }
 
+pub fn build_strokes(facts: &InclusionFacts, config: &ParseConfig) -> Vec<Stroke> {
+    build_stroke_facts(facts, config).production_strokes()
+}
+
+/// #1392：稳定三组端点 checkpoint + 可撤回的活动尾。
+#[derive(Debug, Clone, Default)]
+pub struct IncrStrokes {
+    pub(super) raw: Vec<Bar>,
+    strokes: Rc<Vec<Stroke>>,
+    facts: super::inclusion::IncrFactsState,
+    scan: ScanState,
+    checkpoint: ScanCheckpoint,
+    config: Option<ParseConfig>,
+    stable_prefix: usize,
+    last_source_index: Option<usize>,
+    #[cfg(test)]
+    endpoint_transitions: usize,
+    #[cfg(test)]
+    scanned_mids: usize,
+}
 impl IncrStrokes {
-    /// 空状态。
     pub fn empty() -> Self {
         Self::default()
     }
 
-    /// 从全量结果恢复增量状态（断点续算，一次性 O(n) 重建 alt_prefix 的 fractal_idx）。
-    pub fn from_full(fractals: &[Fractal], strokes: &[Stroke]) -> Self {
-        // 重建 (Fractal, fractal_idx)：重跑 collapse 逻辑记录 fractal_idx。
-        let mut alt_prefix: Vec<(Fractal, usize)> = Vec::with_capacity(fractals.len());
-        for (fi, &f) in fractals.iter().enumerate() {
-            match alt_prefix.last() {
-                Some(prev) if prev.0.kind == f.kind => {
-                    let keep_new = match f.kind {
-                        FractalKind::Top => {
-                            f.price > prev.0.price
-                                || (f.price == prev.0.price && f.source_index < prev.0.source_index)
-                        }
-                        FractalKind::Bottom => {
-                            f.price < prev.0.price
-                                || (f.price == prev.0.price && f.source_index < prev.0.source_index)
-                        }
-                    };
-                    if keep_new {
-                        *alt_prefix.last_mut().unwrap() = (f, fi);
-                    }
-                }
-                _ => alt_prefix.push((f, fi)),
-            }
+    /// 兼容整段 raw 入口；重建状态后仍通过同一增量核供后续逐根使用。
+    pub fn append(self, raw: &[Bar], config: &ParseConfig) -> Self {
+        let mut next = Self::empty();
+        for bar in raw {
+            next.append_bar_incremental(*bar);
+            next.update_strokes_incremental(config);
         }
-        // 重建 confirmed 索引（O(n) 一次性，断点续算非热路径）。
-        let confirmed_bound = fractals.len().saturating_sub(1);
-        let confirmed_alt_len = alt_prefix.partition_point(|(_, fi)| *fi < confirmed_bound);
-        // confirmed strokes：端点 source_index < alt_prefix[confirmed_alt_len] 的 source_index
-        //（alt 按 source_index 单调递增，strokes 按 end_index 单调递增）。
-        let (confirmed_strokes_len, last_end_alt_idx) =
-            compute_confirmed_strokes(strokes, &alt_prefix, confirmed_alt_len);
-        IncrStrokes {
-            alt_prefix,
-            strokes: Rc::new(strokes.to_vec()),
-            fractals_len: fractals.len(),
-            confirmed_alt_len,
-            confirmed_strokes_len,
-            last_end_alt_idx,
-            last_fractal: fractals.last().copied(),
-        }
+        next.raw = raw.to_vec();
+        next.stable_prefix = self
+            .strokes
+            .iter()
+            .zip(next.strokes.iter())
+            .take_while(|(a, b)| a == b)
+            .count();
+        next
     }
 
-    /// 增量追加 fractals 序列，返回新状态（by-value 缓冲复用，消除 O(n)/bar clone）。
-    ///
-    /// bit-exact：结果笔序列 == `build_strokes(fractals, config)`。
-    ///
-    /// 保留 alt_prefix 中 fractal_idx < confirmed_bound 的（除末 1 个可能被 collapse 修改），
-    /// 重算尾部 collapse + 保留 confirmed strokes 前缀并续扫配对。
-    /// ponytail: collapse 尾部局部重算 + 配对续扫（O(尾部)/bar，非 O(n)）。
-    pub fn append(self, fractals: &[Fractal], config: &ParseConfig) -> IncrStrokes {
-        // 相同输入早退：fractals 长度同 ∧ 末分型逐字段等 ⟹ 结果与 self 逐字段等（confirmed 前缀
-        // 不可变，仅末分型可被 collapse 改写，故 (len,末分型) 相同蕴含整个 fractals 相同）。
-        if fractals.len() == self.fractals_len && fractals.last().copied() == self.last_fractal {
-            return self;
+    pub fn append_bar_incremental(&mut self, bar: Bar) {
+        // 裸调用方若违反递增坐标域，positions 可能改历史根序位：撤销所有端点证书。
+        if self
+            .last_source_index
+            .is_some_and(|previous| bar.source_index <= previous)
+        {
+            self.config = None;
         }
-        let old_len = self.fractals_len;
-        // collapse 末元素可能被新 fractal 修改（同类连续），故保留 fractal_idx < old_len-1 的，
-        // 从 old_len-1 起重算（含重叠 1 个保边界）。
-        let confirmed_bound = old_len.saturating_sub(1);
+        self.last_source_index = Some(bar.source_index);
+        self.facts.append(bar);
+    }
 
-        // 保留 alt_prefix 中 fractal_idx < confirmed_bound 的。
-        // ponytail: truncate 复用 Vec 缓冲（O(尾部) drop），替代 O(n) take_while + to_vec
-        //（hotspot 1，a5a1bb70 坐实 exp 2.9 主导）。前缀不变性：alt_prefix[..confirmed_alt_len]
-        // 的 fi 均 < confirmed_bound（由上次 append 保证）。
-        let mut new_alt: Vec<(Fractal, usize)> = self.alt_prefix;
-        new_alt.truncate(self.confirmed_alt_len);
+    pub(crate) fn facts_state(&self) -> &super::inclusion::IncrFactsState {
+        &self.facts
+    }
 
-        // 重算 collapse：从 fractal_idx = confirmed_bound 起扫描到末尾。
-        for fi in confirmed_bound..fractals.len() {
-            let f = fractals[fi];
-            match new_alt.last() {
-                Some(prev) if prev.0.kind == f.kind => {
-                    let keep_new = match f.kind {
-                        FractalKind::Top => {
-                            f.price > prev.0.price
-                                || (f.price == prev.0.price && f.source_index < prev.0.source_index)
-                        }
-                        FractalKind::Bottom => {
-                            f.price < prev.0.price
-                                || (f.price == prev.0.price && f.source_index < prev.0.source_index)
-                        }
-                    };
-                    if keep_new {
-                        *new_alt.last_mut().unwrap() = (f, fi);
-                    }
+    pub(crate) fn update_strokes_incremental(&mut self, config: &ParseConfig) -> Rc<Vec<Stroke>> {
+        // 参数改变须重扫同一判据；常规逐 bar 路径保持 checkpoint。
+        let reset = self.config.as_ref() != Some(config);
+        if reset {
+            self.scan = ScanState::default();
+            self.checkpoint = ScanCheckpoint::default();
+            self.config = Some(*config);
+        }
+        let dirty_stroke = self.checkpoint.strokes_len.saturating_sub(1);
+        self.checkpoint.restore(&mut self.scan);
+        let n = self.facts.merged_slice().len();
+        // 当前末组 g=n-1 仍可变；只冻结 mid+1<g，含右组封口证据。
+        let stable_mid_end = n.saturating_sub(2).max(1);
+        for mid in self.checkpoint.next_mid..n.saturating_sub(1) {
+            #[cfg(test)]
+            {
+                self.scanned_mids += 1;
+            }
+            if let Some(endpoint) = endpoint_at(
+                self.facts.merged_slice(),
+                self.facts.groups_slice(),
+                self.facts.unsettled(),
+                self.facts.positions(),
+                mid,
+                false,
+            ) {
+                self.scan.apply(&endpoint, config);
+                self.scan.out.endpoints.push(endpoint);
+                #[cfg(test)]
+                {
+                    self.endpoint_transitions += 1;
                 }
-                _ => new_alt.push((f, fi)),
+            }
+            if mid < stable_mid_end {
+                self.checkpoint = ScanCheckpoint::capture(&self.scan, mid + 1);
             }
         }
-
-        // 增量配对：保留 confirmed strokes 前缀（笔尾 fractal_idx < confirmed_bound 的），
-        // 从最后一笔笔尾在 new_alt 中的位置续扫。
-        // ponytail: truncate 复用 Vec 缓冲 + O(1) 继承 resume_alt_idx，替代 O(n²) 嵌套扫描
-        //（hotspot 2，a5a1bb70 坐实 exp 2.9 主导）。confirmed_strokes_len 笔的笔尾 fi < confirmed_bound，
-        // 且其 alt 索引 = last_end_alt_idx（由上次 append 保证，new_alt 前缀不变）。
-        // Rc::make_mut——strong_count==1（self 消费，旧 ParseLayer 已 drop）时 O(1) in-place。
-        let mut strokes_rc = self.strokes;
-        let new_strokes = Rc::make_mut(&mut strokes_rc);
-        new_strokes.truncate(self.confirmed_strokes_len);
-        let resume_alt_idx = self.last_end_alt_idx;
-
-        // 从 resume_alt_idx 续扫配对（镜像 build_strokes 贪心逻辑）。
-        // 追踪续扫产出的每笔笔尾 alt 索引，用于最后 O(1) 更新 confirmed 索引。
-        let mut scan_end_alt_indices: Vec<usize> = Vec::new();
-        let mut i = resume_alt_idx;
-        while i + 1 < new_alt.len() {
-            let a = &new_alt[i].0;
-            let b = &new_alt[i + 1].0;
-            if gap_ok(a, b, config.new_stroke_min_gap) {
-                let direction = match a.kind {
-                    FractalKind::Bottom => Direction::Up,
-                    FractalKind::Top => Direction::Down,
-                };
-                new_strokes.push(Stroke {
-                    direction,
-                    start_index: a.source_index,
-                    end_index: b.source_index,
-                    start_price: a.price,
-                    end_price: b.price,
-                });
-                i += 1; // 笔尾 b 成为下一笔笔头。
-                scan_end_alt_indices.push(i); // 笔尾 alt 索引 = i（i+=1 后）。
-            } else {
-                i += 2;
-            }
+        // 未定初向只在三组形成以前触发，此时没有可冻结端点。
+        if self.facts.unsettled()
+            && !self
+                .scan
+                .out
+                .waiting_reasons
+                .contains(&"initial_direction_unsettled")
+        {
+            self.scan
+                .out
+                .waiting_reasons
+                .push("initial_direction_unsettled");
         }
-
-        // 更新 confirmed 索引（O(1) amortized）。
-        // 新 confirmed_bound = fractals.len()-1。new_alt 最后一个 fi 要么 = 新 bound（最后分型存活）
-        // 要么 < 新 bound（被 collapse 吞）。confirmed_alt_len = 前者 ? len-1 : len。
-        let new_confirmed_bound = fractals.len().saturating_sub(1);
-        let new_confirmed_alt_len = match new_alt.last() {
-            Some((_, fi)) if *fi == new_confirmed_bound => new_alt.len() - 1,
-            _ => new_alt.len(),
+        let new_len = self.scan.out.strokes.len();
+        let mut same = if reset {
+            0
+        } else {
+            dirty_stroke.min(self.strokes.len()).min(new_len)
         };
-        // confirmed strokes = confirmed 前缀 + 续扫中 fi < new_confirmed_bound 的笔。
-        // confirmed 前缀笔数 = self.confirmed_strokes_len（继承）。
-        // 续扫笔的笔尾 alt 索引 < new_confirmed_alt_len ⟺ 笔尾 fi < new_confirmed_bound。
-        let mut new_confirmed_strokes_len = self.confirmed_strokes_len;
-        let mut new_last_end_alt_idx = self.last_end_alt_idx;
-        for &end_ai in &scan_end_alt_indices {
-            if end_ai < new_confirmed_alt_len {
-                new_confirmed_strokes_len += 1;
-                new_last_end_alt_idx = end_ai;
-            } else {
-                break; // alt 按序，首个未确认后续全未确认。
-            }
+        while same < self.strokes.len().min(new_len)
+            && self.strokes[same] == self.scan.out.strokes[same].stroke()
+        {
+            same += 1;
         }
-
-        IncrStrokes {
-            alt_prefix: new_alt,
-            strokes: strokes_rc,
-            fractals_len: fractals.len(),
-            confirmed_alt_len: new_confirmed_alt_len,
-            confirmed_strokes_len: new_confirmed_strokes_len,
-            last_end_alt_idx: new_last_end_alt_idx,
-            last_fractal: fractals.last().copied(),
+        self.stable_prefix = same;
+        if same != self.strokes.len() || same != new_len {
+            let output = Rc::make_mut(&mut self.strokes);
+            output.truncate(same);
+            output.extend(self.scan.out.strokes[same..].iter().map(BiFact::stroke));
         }
+        Rc::clone(&self.strokes)
     }
 
-    /// 当前快照笔序列（与 `build_strokes` bit-exact）。
+    pub fn stable_strokes_prefix(&self) -> usize {
+        self.stable_prefix
+    }
     pub fn to_result(&self) -> &[Stroke] {
         &self.strokes
     }
-
-    /// 当前快照笔序列的 Rc 共享句柄（O(1) refcount bump）。
-    ///
-    /// ponytail: Rc 共享替代旧 `to_result().to_vec()` 的 O(n) clone——`ParseLayerIncr::append`
-    /// 用此填 `ParseLayer.strokes`，消除每 bar Vec clone。
     pub fn to_result_rc(&self) -> Rc<Vec<Stroke>> {
-        Rc::clone(&self.strokes)
+        self.strokes.clone()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
+    fn ledger() -> Value {
+        serde_json::from_str(include_str!(
+            "../../../../s_session/tests/fixtures/tb02b/raw-ledger.json"
+        ))
+        .unwrap()
+    }
+    fn oracle() -> Value {
+        serde_json::from_str(include_str!(
+            "../../../../s_session/tests/fixtures/tb02b/hand-oracle.json"
+        ))
+        .unwrap()
+    }
+    fn bars(case: &Value, stride: usize) -> Vec<Bar> {
+        case["raw_bars"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| Bar {
+                source_index: r["raw_index"].as_u64().unwrap() as usize * stride,
+                timestamp: r["raw_index"].as_i64().unwrap(),
+                open: r["open"].as_i64().unwrap(),
+                high: r["high"].as_i64().unwrap(),
+                low: r["low"].as_i64().unwrap(),
+                close: r["close"].as_i64().unwrap(),
+                volume: 1.0,
+                untradable: false,
+            })
+            .collect()
+    }
+    fn without_expanded_sources(mut facts: StrokeFacts) -> StrokeFacts {
+        for e in &mut facts.endpoints {
+            e.source_coords.clear();
+        }
+        for p in &mut facts.pairs {
+            p.old.source_coords.clear();
+            p.new.source_coords.clear();
+        }
+        for s in &mut facts.strokes {
+            s.start.source_coords.clear();
+            s.end.source_coords.clear();
+            if let Some(c) = &mut s.confirmation {
+                c.source_coords.clear();
+            }
+        }
+        facts.waiting_reasons.sort_unstable();
+        facts.waiting_reasons.dedup();
+        facts
+    }
 
-    fn frac(kind: FractalKind, idx: usize, price: i64) -> Fractal {
-        Fractal {
+    fn check_incremental_prefixes(raw: &[Bar], label: &str) -> IncrStrokes {
+        let config = ParseConfig::default();
+        let mut incr = IncrStrokes::empty();
+        for (i, bar) in raw.iter().enumerate() {
+            let old = incr.to_result_rc();
+            let scanned_before = incr.scanned_mids;
+            incr.append_bar_incremental(*bar);
+            let actual = incr.update_strokes_incremental(&config);
+            let full = build_stroke_facts(&process_inclusion_with_facts(&raw[..=i]), &config);
+            assert_eq!(
+                *actual,
+                full.production_strokes(),
+                "{label} prefix {}",
+                i + 1
+            );
+            assert_eq!(
+                without_expanded_sources(incr.scan.out.clone()),
+                without_expanded_sources(full),
+                "{label} prefix {}: 包括封口、根、条件、blocked 的全部结构字段",
+                i + 1
+            );
+            let same = old
+                .iter()
+                .zip(actual.iter())
+                .take_while(|(a, b)| a == b)
+                .count();
+            assert_eq!(
+                incr.stable_strokes_prefix(),
+                same,
+                "{label} prefix {}: 实际逐字段相同前缀",
+                i + 1
+            );
+            assert_eq!(&old[..same], &actual[..same]);
+            assert!(
+                incr.scanned_mids - scanned_before <= 2,
+                "{label}: 每 bar 至多重算两个 mid"
+            );
+        }
+        incr
+    }
+
+    fn hl_bars(hl: &[(i64, i64)], stride: usize) -> Vec<Bar> {
+        hl.iter()
+            .enumerate()
+            .map(|(i, &(high, low))| Bar {
+                source_index: i * stride,
+                timestamp: i as i64,
+                open: low,
+                high,
+                low,
+                close: high,
+                volume: 1.0,
+                untradable: false,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn tb02b_checkpoint_frozen_ledger_every_prefix_and_sparse_coordinates() {
+        for stride in [1, 7] {
+            for c in ledger()["cases"].as_array().unwrap() {
+                check_incremental_prefixes(&bars(c, stride), c["case_id"].as_str().unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn tb02b_checkpoint_sealing_ties_and_tail_retraction() {
+        let cases: &[(&str, &[(i64, i64)])] = &[
+            (
+                "initial_direction_unsettled",
+                &[(10, 1), (9, 2), (12, 5), (5, 0)],
+            ),
+            (
+                "right_group_seal_then_successor_extension",
+                &[
+                    (10, 7),
+                    (8, 5),
+                    (12, 8),
+                    (11, 9),
+                    (14, 11),
+                    (17, 14),
+                    (15, 12),
+                    (19, 16),
+                    (16, 13),
+                    (14, 10),
+                    (12, 8),
+                    (10, 6),
+                    (13, 9),
+                    (15, 11),
+                    (11, 7),
+                    (7, 3),
+                    (9, 5),
+                    (12, 8),
+                ],
+            ),
+            // active right group 同价高根先变非唯一，再以更低高值消除 tie。
+            (
+                "active_right_root_tie_to_unique",
+                &[
+                    (10, 7),
+                    (8, 5),
+                    (12, 8),
+                    (14, 10),
+                    (16, 12),
+                    (18, 14),
+                    (15, 11),
+                    (15, 10),
+                    (14, 11),
+                    (13, 8),
+                    (17, 12),
+                ],
+            ),
+            // 末组向下降包含合并，活动底分型可在该组三组判据改变时撤回。
+            (
+                "tail_geometry_retraction",
+                &[
+                    (12, 9),
+                    (8, 5),
+                    (10, 7),
+                    (13, 10),
+                    (16, 13),
+                    (19, 16),
+                    (17, 14),
+                    (16, 12),
+                    (15, 13),
+                    (20, 11),
+                    (14, 9),
+                    (18, 15),
+                ],
+            ),
+        ];
+        for (name, hl) in cases {
+            for stride in [1, 11] {
+                check_incremental_prefixes(&hl_bars(hl, stride), name);
+            }
+        }
+    }
+
+    #[test]
+    fn tb02b_checkpoint_rolls_back_blocked_when_active_root_becomes_unique() {
+        let hl = [
+            (10, 7),
+            (8, 5),
+            (12, 8),
+            (14, 10),
+            (16, 12),
+            (18, 14),
+            (15, 11),
+            (15, 10),
+            (14, 11),
+        ];
+        let raw = hl_bars(&hl, 7);
+        let config = ParseConfig::default();
+        let mut incr = IncrStrokes::empty();
+        for (i, bar) in raw.iter().enumerate() {
+            incr.append_bar_incremental(*bar);
+            incr.update_strokes_incremental(&config);
+            if i == 6 {
+                assert_eq!(incr.to_result().len(), 1);
+                assert!(!incr.scan.blocked);
+            }
+            if i == 7 {
+                assert!(incr.scan.blocked);
+                assert!(incr.to_result().is_empty());
+            }
+        }
+        assert!(
+            !incr.scan.blocked,
+            "活动右组 high 根 tie 消失必须撤回 blocked"
+        );
+        assert_eq!(incr.to_result().len(), 1);
+        check_incremental_prefixes(&raw, "observed_tie_to_unique");
+    }
+
+    #[test]
+    fn tb02b_checkpoint_restores_popped_tail_before_extension() {
+        let endpoint = |kind, mid, price| Endpoint {
             kind,
-            source_index: idx,
-            timestamp: idx as i64,
+            merged_index: mid,
+            group_anchor: mid * 7,
             price,
+            extreme_roots: vec![mid * 7],
+            raw_position: Some(mid),
+            source_coords: vec![],
+            sealed_at: Some((mid + 2) * 7),
+            waiting_reasons: vec![],
+        };
+        let config = ParseConfig::default();
+        let mut scan = ScanState::default();
+        for f in [
+            endpoint("BOTTOM", 1, 10),
+            endpoint("TOP", 5, 30),
+            endpoint("BOTTOM", 9, 15),
+        ] {
+            scan.apply(&f, &config);
+            scan.out.endpoints.push(f);
         }
-    }
-    fn cfg(min_gap: u32) -> ParseConfig {
-        ParseConfig {
-            new_stroke_min_gap: min_gap,
-            ..ParseConfig::default()
-        }
-    }
-
-    #[test]
-    fn collapse_keeps_higher_top_and_lower_bottom() {
-        // 连续两顶 [idx1 p10, idx3 p12] → 保留更高 p12(idx3)。
-        let fs = vec![frac(FractalKind::Top, 1, 10), frac(FractalKind::Top, 3, 12)];
-        let c = collapse_consecutive(&fs);
-        assert_eq!(c.len(), 1);
-        assert_eq!(c[0].price, 12);
-        assert_eq!(c[0].source_index, 3);
+        assert_eq!(scan.out.strokes.len(), 2);
+        let checkpoint = ScanCheckpoint::capture(&scan, 10);
+        let first = scan.out.strokes[0].clone();
+        scan.apply(&endpoint("BOTTOM", 11, 15), &config);
+        assert!(scan.blocked);
+        assert_eq!(scan.out.strokes.len(), 1, "同型EQ撤去原尾笔");
+        checkpoint.restore(&mut scan);
+        assert!(!scan.blocked);
+        scan.apply(&endpoint("BOTTOM", 11, 12), &config);
+        assert_eq!(scan.out.strokes.len(), 2);
+        assert_eq!(scan.out.strokes[1].end.group_anchor, 77);
+        assert_eq!(scan.out.strokes[1].end.price, 12);
+        assert_eq!(scan.out.strokes[0], first, "前笔所有确认字段保持原冻结版本");
     }
 
     #[test]
-    fn collapse_equal_keeps_earlier() {
-        // 连续两顶等价 p10 → 保留更早 idx1。
-        let fs = vec![frac(FractalKind::Top, 1, 10), frac(FractalKind::Top, 5, 10)];
-        let c = collapse_consecutive(&fs);
-        assert_eq!(c[0].source_index, 1);
-    }
-
-    #[test]
-    fn gap_constraint_enforced() {
-        // min_gap=3：底idx0 → 顶idx4，diff=4>3 → 成笔。
-        let fs = vec![
-            frac(FractalKind::Bottom, 0, 5),
-            frac(FractalKind::Top, 4, 15),
-        ];
-        let s = build_strokes(&fs, &cfg(3));
-        assert_eq!(s.len(), 1);
-        assert_eq!(s[0].direction, Direction::Up);
-        assert_eq!((s[0].start_index, s[0].end_index), (0, 4));
-    }
-
-    #[test]
-    fn gap_too_small_no_stroke() {
-        // 底idx0 → 顶idx3，diff=3，非 >3 → 不成笔。
-        let fs = vec![
-            frac(FractalKind::Bottom, 0, 5),
-            frac(FractalKind::Top, 3, 15),
-        ];
-        let s = build_strokes(&fs, &cfg(3));
-        assert!(s.is_empty());
-    }
-
-    #[test]
-    fn golden_bottom_top_bottom_two_strokes() {
-        // 底idx0 → 顶idx4 → 底idx8：两笔 Up, Down，共用端点（笔尾=下笔笔头）。
-        let fs = vec![
-            frac(FractalKind::Bottom, 0, 5),
-            frac(FractalKind::Top, 4, 15),
-            frac(FractalKind::Bottom, 8, 3),
-        ];
-        let s = build_strokes(&fs, &cfg(3));
-        assert_eq!(s.len(), 2);
-        assert_eq!(s[0].direction, Direction::Up);
-        assert_eq!(s[1].direction, Direction::Down);
-        assert_eq!(s[0].end_index, s[1].start_index); // 共用端点
-    }
-
-    /// property：相邻笔方向严格交替（new 笔顶底交替的必然结果）。
-    #[test]
-    fn property_adjacent_strokes_alternate_direction() {
-        let fs = vec![
-            frac(FractalKind::Bottom, 0, 5),
-            frac(FractalKind::Top, 4, 15),
-            frac(FractalKind::Bottom, 8, 3),
-            frac(FractalKind::Top, 12, 18),
-        ];
-        let s = build_strokes(&fs, &cfg(3));
-        for w in s.windows(2) {
-            assert_ne!(w[0].direction, w[1].direction);
-        }
-    }
-
-    /// ★bit-exact：增量 IncrStrokes::append 链 == 全量 build_strokes（逐 fractals 长度）。
-    #[test]
-    fn bit_exact_incr_strokes_per_bar() {
-        // 合成分型序列：顶底交替 + 同类连续（触发 collapse）+ 间隔不足（触发 skip）。
-        let fractals: Vec<Fractal> = (0..150usize)
-            .flat_map(|i| {
-                let base = i * 10;
-                vec![
-                    frac(FractalKind::Bottom, base, 100 + i as i64),
-                    frac(FractalKind::Top, base + 4, 200 + i as i64),
-                    frac(FractalKind::Top, base + 6, 210 + i as i64), // 同类连续（测 collapse）
-                    frac(FractalKind::Bottom, base + 8, 90 + i as i64),
-                ]
+    fn tb02b_checkpoint_many_prefixes_linear_endpoint_work() {
+        // 明确无包含的长锯齿：每个波段五根，产生大量真实笔和确认，非 blocked 空结果。
+        let hl: Vec<_> = (0..1200)
+            .map(|i| {
+                let phase = i % 10;
+                let p = if phase <= 5 { phase } else { 10 - phase };
+                (100 + p * 10, 95 + p * 10)
             })
             .collect();
+        let incr = check_incremental_prefixes(&hl_bars(&hl, 13), "long_wave");
+        assert!(incr.to_result().len() > 200);
+        assert!(incr.endpoint_transitions <= 2 * hl.len());
+        assert!(incr.scanned_mids <= 2 * hl.len());
+        eprintln!(
+            "checkpoint bars={} scanned_mids={} endpoint_transitions={} strokes={}",
+            hl.len(),
+            incr.scanned_mids,
+            incr.endpoint_transitions,
+            incr.to_result().len()
+        );
+    }
 
-        let cfg = cfg(3);
-        let mut incr = IncrStrokes::empty();
-        for end in 1..=fractals.len() {
-            incr = incr.append(&fractals[..end], &cfg);
-            let full = build_strokes(&fractals[..end], &cfg);
-            assert_eq!(
-                incr.to_result(),
-                full.as_slice(),
-                "fractals len {end}: 增量 stroke != 全量（bit-exact 破裂）"
-            );
+    #[test]
+    fn tb02b_frozen_raw_ledger_and_sparse_source_coordinates() {
+        let theta = super::super::super::config::ThetaConfig::default();
+        for stride in [1, 7] {
+            for c in ledger()["cases"].as_array().unwrap() {
+                let id = c["case_id"].as_str().unwrap();
+                let expected = &oracle()["cases"][id];
+                let (layer, inclusion) =
+                    super::super::parse_layer_with_inclusion_facts(&bars(c, stride), &theta);
+                let facts = inclusion.stroke_facts.as_ref().unwrap();
+                if let Some(pair) = expected["pair"].as_array() {
+                    let p = facts
+                        .pairs
+                        .iter()
+                        .find(|p| {
+                            p.old.group_anchor == pair[0].as_u64().unwrap() as usize * stride
+                                && p.new.group_anchor == pair[1].as_u64().unwrap() as usize * stride
+                        })
+                        .unwrap();
+                    let conditions = p.conditions.as_ref().unwrap();
+                    assert_eq!(
+                        serde_json::to_value(conditions.vector).unwrap(),
+                        expected["vector"],
+                        "{id}"
+                    );
+                    assert_eq!(
+                        conditions.merged_gap as u64,
+                        expected["merged_gap"].as_u64().unwrap(),
+                        "{id}"
+                    );
+                    assert_eq!(
+                        conditions.raw_between_actual_extrema.unwrap() as u64,
+                        expected["raw_between"].as_u64().unwrap(),
+                        "{id}"
+                    );
+                }
+                if let Some(strokes) = expected["strokes"].as_array() {
+                    // 账簿（ORACLE.md）的笔端点记的是「实际极值根」（底根/顶根），不是组锚——
+                    // `internal_root` 底组锚 1、底根 2 即此例。几何事实仍按实际极值根逐位对拍。
+                    let roots: Vec<_> = facts
+                        .strokes
+                        .iter()
+                        .map(|s| {
+                            serde_json::json!([
+                                s.start.extreme_roots[0] / stride,
+                                s.end.extreme_roots[0] / stride
+                            ])
+                        })
+                        .collect();
+                    assert_eq!(&roots, strokes, "{id}");
+                    // #1392 坐标契约：同一批笔的公开坐标 = 分型坐标（组锚），
+                    // 必须经现役 anchor_resolver 闭合，实际极值根不得冒充笔端点坐标。
+                    let resolve = crate::theta_v0::classifier::projection::anchor_resolver(
+                        &layer.fractals,
+                        &layer.merged_bars,
+                    );
+                    for s in facts.production_strokes() {
+                        for (x, price) in
+                            [(s.start_index, s.start_price), (s.end_index, s.end_price)]
+                        {
+                            let (resolved, anchor) = resolve(x).unwrap_or_else(|| {
+                                panic!("{id}：笔端点 {x} 经 anchor_resolver 不可解")
+                            });
+                            assert_eq!(anchor, x, "{id}");
+                            assert_eq!(resolved, price, "{id}");
+                        }
+                    }
+                }
+                if let Some(pair) = expected["same_pair"].as_array() {
+                    let p = facts
+                        .pairs
+                        .iter()
+                        .find(|p| {
+                            p.old.group_anchor == pair[0].as_u64().unwrap() as usize * stride
+                                && p.new.group_anchor == pair[1].as_u64().unwrap() as usize * stride
+                        })
+                        .unwrap();
+                    assert!(p.conditions.is_none());
+                    assert_eq!(
+                        p.selection.unwrap(),
+                        expected["selection"].as_str().unwrap(),
+                        "{id}"
+                    );
+                    if p.selection == Some("UNDETERMINED") {
+                        assert_eq!(p.retained_anchors, vec![5 * stride, 7 * stride]);
+                        assert!(p
+                            .waiting_reasons
+                            .contains(&"same_kind_endpoint_identity_tie"));
+                    }
+                }
+                if let Some(anchor) = expected["ambiguous_root_anchor"].as_u64() {
+                    let endpoint = facts
+                        .endpoints
+                        .iter()
+                        .find(|e| e.group_anchor == anchor as usize * stride)
+                        .unwrap();
+                    assert_eq!(endpoint.extreme_roots, vec![stride, 2 * stride]);
+                    assert!(endpoint.raw_position.is_none());
+                    assert!(endpoint
+                        .waiting_reasons
+                        .contains(&"raw_extreme_identity_tie"));
+                }
+                if let Some(confirmed) = expected["confirmed"].as_array() {
+                    let actual: Vec<_> = facts
+                        .strokes
+                        .iter()
+                        .map(|s| Value::Bool(s.confirmation.is_some()))
+                        .collect();
+                    assert_eq!(&actual, confirmed, "{id}");
+                }
+            }
+        }
+    }
+    /// #1392 缺陷一回归：独立 oracle trace D / D_REFLECTED（逐根 H/L 由 ORACLE.json 抄录，
+    /// 不取自产品 fixtures）。
+    ///
+    /// D 的顶组是合并组 `[raw5, raw6]`：组锚 5、达到 17 的实际极值根 6 —— 两者不同。
+    /// 现役 `ParseLayer.fractals` = `detect_fractals(merged)` 的分型坐标（组锚），
+    /// `classifier::projection::anchor_resolver` 也只按该坐标查。
+    /// 生产笔端点必须落在同一坐标上才能闭合；实际极值根仍独立留在事实里算 raw 间隔。
+    #[test]
+    fn tb02b_d_fixture_production_endpoints_close_through_anchor_resolver() {
+        // 独立 oracle：trace D / D_REFLECTED（H′ = 30 − L，L′ = 30 − H）。
+        let cases: [[(i64, i64); 8]; 2] = [
+            [
+                (12, 9),
+                (8, 5),
+                (7, 6),
+                (10, 8),
+                (13, 10),
+                (16, 14),
+                (17, 13),
+                (15, 12),
+            ],
+            [
+                (21, 18),
+                (25, 22),
+                (24, 23),
+                (22, 20),
+                (20, 17),
+                (16, 14),
+                (17, 13),
+                (18, 15),
+            ],
+        ];
+        let cfg = super::super::super::config::ThetaConfig::default();
+        for (case, hl) in cases.iter().enumerate() {
+            for stride in [1usize, 7] {
+                let raw: Vec<Bar> = hl
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (high, low))| Bar {
+                        source_index: i * stride,
+                        timestamp: i as i64,
+                        open: (high + low) / 2,
+                        high: *high,
+                        low: *low,
+                        close: (high + low) / 2,
+                        volume: 1.0,
+                        untradable: false,
+                    })
+                    .collect();
+                let (layer, facts) = super::super::parse_layer_with_inclusion_facts(&raw, &cfg);
+                let sf = facts.stroke_facts.as_ref().unwrap();
+                // 分型账本坐标 = 组锚：底@1、顶@5（镜像为顶@1、底@5）。
+                assert_eq!(
+                    layer
+                        .fractals
+                        .iter()
+                        .map(|f| f.source_index)
+                        .collect::<Vec<_>>(),
+                    vec![stride, 5 * stride],
+                    "case {case} stride {stride}"
+                );
+                // 真实 production_strokes 端点必须经现役 anchor_resolver 闭合。
+                let strokes = sf.production_strokes();
+                assert_eq!(strokes.len(), 1, "case {case} stride {stride}");
+                let s = strokes[0];
+                let resolve = crate::theta_v0::classifier::projection::anchor_resolver(
+                    &layer.fractals,
+                    &layer.merged_bars,
+                );
+                for (x, price) in [(s.start_index, s.start_price), (s.end_index, s.end_price)] {
+                    let (resolved, anchor) = resolve(x).unwrap_or_else(|| {
+                        panic!("case {case} stride {stride}：端点 {x} 经 anchor_resolver 不可解")
+                    });
+                    assert_eq!(anchor, x);
+                    assert_eq!(resolved, price);
+                }
+                // 实际极值根（非组锚）不能充当 Stroke 坐标：它不在分型账本上。
+                assert!(
+                    resolve(6 * stride).is_none(),
+                    "case {case} stride {stride}：实际极值根不是分型坐标，不得当笔端点"
+                );
+                // 实际极值根仍独立保留在事实上（组锚 5、根 6）。
+                let endpoint = sf
+                    .endpoints
+                    .iter()
+                    .find(|e| e.group_anchor == 5 * stride)
+                    .unwrap();
+                assert_eq!(endpoint.extreme_roots, vec![6 * stride]);
+                assert_eq!(endpoint.raw_position, Some(6));
+                // raw 间隔按实际极值根算：oracle D = m3 / raw4 / 111。
+                let p = sf.pairs.iter().find(|p| p.conditions.is_some()).unwrap();
+                let conditions = p.conditions.as_ref().unwrap();
+                assert_eq!(conditions.merged_gap, 3, "case {case} stride {stride}");
+                assert_eq!(
+                    conditions.raw_between_actual_extrema,
+                    Some(4),
+                    "case {case} stride {stride}"
+                );
+                assert_eq!(conditions.vector, [Some(true); 3]);
+            }
         }
     }
 
-    /// property：重复 append 同一输入幂等（相同输入早退路径）——第二次 append 同 fractals ⟹
-    /// strokes 与第一次逐字段等，且仍与全量 build_strokes bit-exact。
     #[test]
-    fn idempotent_repeat_append_same_input() {
-        let fractals: Vec<Fractal> = (0..150usize)
-            .flat_map(|i| {
-                let base = i * 10;
-                vec![
-                    frac(FractalKind::Bottom, base, 100 + i as i64),
-                    frac(FractalKind::Top, base + 4, 200 + i as i64),
-                    frac(FractalKind::Top, base + 6, 210 + i as i64),
-                    frac(FractalKind::Bottom, base + 8, 90 + i as i64),
-                ]
+    fn tb02b_confirmed_prefix_survives_successor_tail_extension() {
+        // 独立 RIGHT_GROUP_SEALED_COMPONENT 的 14 根前缀，再追加更低的后继底。
+        let hl = [
+            (10, 7),
+            (8, 5),
+            (12, 8),
+            (11, 9),
+            (14, 11),
+            (17, 14),
+            (15, 12),
+            (19, 16),
+            (16, 13),
+            (14, 10),
+            (12, 8),
+            (10, 6),
+            (13, 9),
+            (15, 11),
+            (11, 7),
+            (7, 3),
+            (9, 5),
+            (12, 8),
+        ];
+        let raw: Vec<Bar> = hl
+            .iter()
+            .enumerate()
+            .map(|(i, &(high, low))| Bar {
+                source_index: i,
+                timestamp: i as i64,
+                open: (high + low) / 2,
+                high,
+                low,
+                close: (high + low) / 2,
+                volume: 1.0,
+                untradable: false,
             })
             .collect();
-
-        let cfg = cfg(3);
-        let mut incr = IncrStrokes::empty();
-        for end in 1..=fractals.len() {
-            incr = incr.append(&fractals[..end], &cfg);
-            let first = incr.to_result().to_vec();
-            // 第二次 append 同输入——走相同输入早退，返回 self 不变。
-            incr = incr.append(&fractals[..end], &cfg);
+        let cfg = super::super::super::config::ThetaConfig::default();
+        let frozen = build_stroke_facts(&process_inclusion_with_facts(&raw[..14]), &cfg.parse);
+        let certificate = frozen.strokes[0].confirmation.clone().unwrap();
+        assert_eq!(certificate.successor_end, 11);
+        assert_eq!(certificate.right_group_sealed_at, 13);
+        for n in 15..=raw.len() {
+            let full = build_stroke_facts(&process_inclusion_with_facts(&raw[..n]), &cfg.parse);
+            assert_eq!(full.strokes[0].end.group_anchor, 7);
             assert_eq!(
-                incr.to_result(),
-                first.as_slice(),
-                "fractals len {end}: 重复 append 同输入改变了结果（幂等破裂）"
+                full.strokes[0].confirmation.as_ref(),
+                Some(&certificate),
+                "prefix {n}"
             );
-            let full = build_strokes(&fractals[..end], &cfg);
-            assert_eq!(incr.to_result(), full.as_slice());
+            if n >= 17 {
+                assert_eq!(full.strokes[1].end.group_anchor, 15);
+            }
+        }
+    }
+
+    #[test]
+    fn tb02b_raw_prefix_formation_confirmation_and_parser_parity() {
+        let cfg = super::super::super::config::ThetaConfig::default();
+        for c in ledger()["cases"].as_array().unwrap() {
+            let raw = bars(c, 1);
+            let mut incr = super::super::ParseLayerIncr::new(&cfg);
+            for (index, bar) in raw.iter().enumerate() {
+                let (full, facts) =
+                    super::super::parse_layer_with_inclusion_facts(&raw[..=index], &cfg);
+                assert_eq!(
+                    incr.append(*bar),
+                    full,
+                    "{} prefix {}",
+                    c["case_id"],
+                    index + 1
+                );
+                assert_eq!(
+                    *full.strokes,
+                    facts.stroke_facts.as_ref().unwrap().production_strokes()
+                );
+                if c["case_id"] == "lifecycle" && index >= 6 {
+                    let bi = &facts.stroke_facts.as_ref().unwrap().strokes[0];
+                    assert_eq!(bi.identity_anchor, 1);
+                    assert_eq!(bi.confirmation.is_some(), index >= 11);
+                    if let Some(w) = &bi.confirmation {
+                        assert_eq!(w.right_group_sealed_at, 11);
+                    }
+                }
+            }
         }
     }
 }

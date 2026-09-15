@@ -1,0 +1,87 @@
+{
+  "schema": "tb02b-baseline-archive/1",
+  "ticket": 1392,
+  "baseline_head": "5eeaba4ae19ee6cfe038ee4e25eb61fa41779a0f",
+  "status": "FUNCTIONAL_BASELINE_ONLY_PERFORMANCE_REPAIR_PENDING",
+  "files": [
+    {
+      "path": "baseline/ACCEPTANCE-NOTES.md",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/TB02B-ACCEPTANCE-NOTES.md",
+      "bytes": 6071,
+      "sha256": "3792f8510774b2d25def43163fd9e488f093976616972bf73f97af79dd1f1426"
+    },
+    {
+      "path": "baseline/VERIFIED-BUNDLE.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/TB02B-VERIFIED-BUNDLE.json",
+      "bytes": 5151,
+      "sha256": "cb732c4763f9011ec7ccb630cbd6e56eea8261951f25dbe29985ac606deee5bb"
+    },
+    {
+      "path": "baseline/INDEPENDENT-COMPARISON.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/independent-suite-r2/INDEPENDENT-COMPARISON.json",
+      "bytes": 51182,
+      "sha256": "e51fb2df9bb9cdd37eb7581e0586ed2752a2c0283d3033ceadc935f29ff7bed2"
+    },
+    {
+      "path": "baseline/NORMAL-CAPTURE-RESULT.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/independent-suite-r2/RESULT.json",
+      "bytes": 13441,
+      "sha256": "daf283eea4f9fb965d70eedda14b5289281bd174e4d7d269e7bed7cc45330517"
+    },
+    {
+      "path": "baseline/FAULT-RESULT.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/issue1392-tb02b/runtime/release-r3-faults-20260914/RESULT.json",
+      "bytes": 2216,
+      "sha256": "9b6636194528b359abd89e26d18db677edc45eab335b8897964edd1e23da55b1"
+    },
+    {
+      "path": "baseline/RELEASE-BUILD.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-release-build-r2.json",
+      "bytes": 51148,
+      "sha256": "02c753c7b86517ed9406f46476ef4f6658040e44cea60085744880300183b4fe"
+    },
+    {
+      "path": "baseline/ORACLE-INPUT-COMPARISON.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-ORACLE-INPUT-COMPARISON.json",
+      "bytes": 2100,
+      "sha256": "1453b97197cbd7802ba332c0095d01e92eff047b251b8ac59caac4d2daf41adb"
+    },
+    {
+      "path": "baseline/BROWSER-SLOT-TESTS.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/browser-slot-tests-final.json",
+      "bytes": 3884,
+      "sha256": "645f6c4a5daf383107c63e04466b65102e8168ccf8e31884742ac739d802e742"
+    },
+    {
+      "path": "baseline/APPEND-SCALING.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/append-scaling/RESULT.json",
+      "bytes": 1090,
+      "sha256": "73a4adadc78d5236e31bfba1010bf6562f4b60ff20b03c51b64ba33c2a44e34d"
+    },
+    {
+      "path": "review/REVIEW-RAW.txt",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-leaf-final-review/REVIEW-RAW.txt",
+      "bytes": 10236,
+      "sha256": "3b288630881a973e1b085733d666c8e0f3e8cb9615b28a2fe748e7f96e73572d"
+    },
+    {
+      "path": "review/REVIEW-NORMALIZED.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-leaf-final-review/REVIEW-NORMALIZED.json",
+      "bytes": 11096,
+      "sha256": "ce2b7745e3706a97993cb18f9a21d4e5899b1f3570c563c99a10a3ccc421038f"
+    },
+    {
+      "path": "review/WORKER-RESULT.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-leaf-final-review/result.json",
+      "bytes": 2550,
+      "sha256": "74223f835760ebdf86937d3f34c9092a944cbf6c7c7e832928c8a3b9d797ada1"
+    },
+    {
+      "path": "tools/run-faults-r2-original.py",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/run-faults-r2.py",
+      "bytes": 4424,
+      "sha256": "702d26dcfabae71a4d3f0ca5782b3d80c2e17b6231d4094758db486e21ec7106"
+    }
+  ],
+  "parent_goal_complete": false
+}

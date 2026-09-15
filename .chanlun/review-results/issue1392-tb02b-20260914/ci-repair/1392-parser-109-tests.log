@@ -1,0 +1,12 @@
+Command: /bin/zsh -lc 'cd /Users/silencehan/Projects/NewChanlun-1392-parse-layer-cost/rust && time cargo test --lib theta_v0::parser:: 2>&1 | tail -8'
+Recorded process exit: 0
+test theta_v0::parser::segment::tests::cascade_revival_bit_exact_incr_vs_full ... ok
+test theta_v0::parser::segment::tests::advancing_euf_resolves_and_reflags ... ok
+test theta_v0::parser::tests::issue1392_parse_layer_compact_matches_full_facts_on_every_prefix ... ok
+test theta_v0::parser::profile::bit_exact_parse_layer_incr_per_bar_synthetic ... ok
+test theta_v0::parser::stroke::tests::tb02b_checkpoint_many_prefixes_linear_endpoint_work ... ok
+
+test result: ok. 109 passed; 0 failed; 8 ignored; 0 measured; 2985 filtered out; finished in 14.45s
+
+cargo test --lib theta_v0::parser:: 2>&1  15.57s user 0.06s system 107% cpu 14.516 total
+tail -8  0.00s user 0.00s system 0% cpu 14.516 total

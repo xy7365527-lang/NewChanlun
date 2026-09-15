@@ -1,0 +1,46 @@
+{
+  "status": "BASELINE_MEASUREMENT_ONLY",
+  "source_sha256": "795d5000f7c9965ad0f3d9bcea3fdc50ef26ef9b69f7ccce3266015473b56f09",
+  "binary_sha256": "1210638bf190482abb58054f6a24dee0edc02d3a9b0e1368b941bab9fd6606a3",
+  "entry": "OwnedIncrementalClassifier::append_bar",
+  "rows": [
+    {
+      "count": 512,
+      "exit": 0,
+      "wall_seconds": 0.8853392089949921,
+      "result": {
+        "bar_count": 512,
+        "bars": 512,
+        "elapsed_seconds": 0.360724917,
+        "final_levels": 0
+      }
+    },
+    {
+      "count": 1024,
+      "exit": 0,
+      "wall_seconds": 2.8807185839978047,
+      "result": {
+        "bar_count": 1024,
+        "bars": 1024,
+        "elapsed_seconds": 2.843822958,
+        "final_levels": 1
+      }
+    },
+    {
+      "count": 2048,
+      "exit": 0,
+      "wall_seconds": 23.321573874971364,
+      "result": {
+        "bar_count": 2048,
+        "bars": 2048,
+        "elapsed_seconds": 23.281852333,
+        "final_levels": 1
+      }
+    },
+    {
+      "count": 4096,
+      "timeout_seconds": 60,
+      "wall_seconds": 60.00861470901873
+    }
+  ]
+}
