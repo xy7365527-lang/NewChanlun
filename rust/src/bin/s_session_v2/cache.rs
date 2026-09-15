@@ -524,6 +524,7 @@ pub(super) struct EvidenceCounters {
     pub batch_header_admission_rejected: usize,
     pub batch_header_capacity_evictions: usize,
     pub batch_full_reads: usize,
+    /// PendingFull 在逐代阶段被实际全文解决的次数；捕获时不计成全文读取。
     pub batch_header_full_fallbacks: usize,
     pub batch_suffix_full_reads: usize,
     /// 批次：命中已核句柄 vs 本次完整展开（历史 batch 展开数）。
@@ -666,6 +667,10 @@ pub(super) fn batch_header_bytes() -> usize {
 #[cfg(test)]
 pub(super) fn evict_full_handles_for_test() {
     MEMO.with(|m| m.borrow_mut().trim_handles(0));
+}
+#[cfg(test)]
+pub(super) fn evict_batch_headers_for_test() {
+    MEMO.with(|m| m.borrow_mut().trim_batch_headers(0));
 }
 
 // ───────────────────────── 临时读集（本次捕获） ─────────────────────────

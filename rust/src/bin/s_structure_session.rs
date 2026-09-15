@@ -451,11 +451,18 @@ fn verify_batch_root_binding(
     Ok(())
 }
 
-fn load_batch_header_with(
+/// 捕获状态不冒充已验控制头；PendingFull 必须在本次完整根审计中解决。
+#[derive(Clone)]
+enum BatchRef {
+    CertifiedHeader(BatchControlHeader),
+    PendingFull,
+}
+
+fn capture_batch_ref_with(
     conn: &Connection,
     reader: &mut evidence_store::Reader<'_>,
     batch_id: &str,
-) -> Result<(BatchControlHeader, Option<std::sync::Arc<cache::RootCert>>), String> {
+) -> Result<(BatchRef, Option<std::sync::Arc<cache::RootCert>>), String> {
     if evidence_store::format(conn)?.graph() {
         let (blob, byte_len) = read_batch_row(conn, batch_id)?;
         if !blob.is_empty() {
@@ -472,15 +479,13 @@ fn load_batch_header_with(
             if let Some(header) =
                 cache::batch_header_get(&key, batch_id, byte_len, &proof.root_cert, &proof.closure)
             {
-                return Ok((header, Some(proof.root_cert)));
+                return Ok((BatchRef::CertifiedHeader(header), Some(proof.root_cert)));
             }
+            return Ok((BatchRef::PendingFull, Some(proof.root_cert)));
         }
     }
-    // 缺证明或缺小头仅失去复用。仍完整读取/严格解析/核公开身份，不用弱判据替代。
-    #[cfg(test)]
-    cache::counter(|c| c.batch_header_full_fallbacks += 1);
-    let (value, root_cert) = load_batch_value_with(conn, reader, batch_id)?;
-    Ok((BatchControlHeader::from_verified_batch(&value), root_cert))
+    // 缺缓存不等于核验成功；只延后全文到逐代控制/结构共用的同一份读取。
+    Ok((BatchRef::PendingFull, None))
 }
 
 /// 批次规范字节的**唯一**读取内核：整块域取行内字节，图域由私有根无损展开（可带解码值）。
@@ -1052,7 +1057,7 @@ fn profile_at_cut(conn: &Connection, generation: i64) -> Result<(String, String)
 /// 捕获作用域（`_capture`）**活到调用方释放为止**：同一次根审计里批次、Delta 原件与结构事实
 /// 共用同一份节点读集，任一唯一节点原行只读一次。
 struct Reachable {
-    batches: BTreeMap<String, BatchControlHeader>,
+    batches: BTreeMap<String, BatchRef>,
     /// 私有根 key → 本次新鲜行算出的闭包指纹（节点/根/槽任一变化都改它）。
     roots: BTreeMap<String, [u8; 32]>,
     /// 私有根 key → 该根**当前保留的原件证书**（本次新鲜行已逐字节比较过）。
@@ -1083,11 +1088,11 @@ fn capture_reachable_batches(conn: &Connection) -> Result<Reachable, String> {
     let mut batches = BTreeMap::new();
     let mut originals = cache::Originals::new();
     for id in ids {
-        let (header, root_cert) = load_batch_header_with(conn, &mut reader, &id)?;
+        let (reference, root_cert) = capture_batch_ref_with(conn, &mut reader, &id)?;
         if format.graph() {
             originals.insert(evidence_store::batch_root_key(&id), root_cert);
         }
-        batches.insert(id, header);
+        batches.insert(id, reference);
     }
     let mut roots: BTreeMap<String, [u8; 32]> = BTreeMap::new();
     // 不可达残留不得发布：每个私有根都必须有**唯一对应逻辑记录**（批次行 / Delta 行 / 结构事实行）、
@@ -1220,8 +1225,8 @@ fn verified_root_raw_events_inner(conn: &Connection) -> Result<Vec<Value>, Strin
         return Ok(raw);
     }
     let reachable = capture_reachable_batches(conn)?;
-    v2::verify_control(conn, &reachable.batches)?;
-    verify_reachable_root_in_tx(conn, &reachable)
+    let control = v2::prepare_control(conn)?;
+    verify_reachable_root_in_tx(conn, &reachable, control)
         .map_err(|e| format!("StorageUnavailable：{e}"))
 }
 
@@ -1248,6 +1253,7 @@ fn verify_published_index_generations(conn: &Connection, generation: i64) -> Res
 fn verify_reachable_root_in_tx(
     conn: &Connection,
     reachable: &Reachable,
+    mut control: v2::ExpectedControl,
 ) -> Result<Vec<Value>, String> {
     let batches = &reachable.batches;
     // #1394：库的 Delta 域（旧 full / changes-only）由私有登记表唯一决定；模式损坏在读取与
@@ -1320,6 +1326,7 @@ fn verify_reachable_root_in_tx(
                 "StorageUnavailable：初态 generation=0 却存在持久 Delta（不一致）".to_string(),
             );
         }
+        control.finish()?;
         return Ok(raw_events);
     }
 
@@ -1348,7 +1355,8 @@ fn verify_reachable_root_in_tx(
         format.tag().to_string(),
     );
     // 同一次捕获的全部私有根原件共同绑定前缀；行内原件仍由 rows/AuditWalk 逐字节核对。
-    let resume = cache::resume(&rows, &identity, &mut audit, &reachable.originals);
+    let mut originals = reachable.originals.clone();
+    let resume = cache::resume(&rows, &identity, &mut audit, &originals);
     let mut prev_frontier: i64 = if resume == 0 { -1 } else { rows[resume - 1].7 };
     // 后缀核验共用一个读取器：与批次/事实共用本次捕获的节点读集与已核句柄。
     let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
@@ -1368,8 +1376,34 @@ fn verify_reachable_root_in_tx(
             delta_json,
             _delta_root_digest,
         ),
-    ) in rows.iter().enumerate().skip(resume)
+    ) in rows.iter().enumerate()
     {
+        let reference = batches.get(idx).ok_or("StorageUnavailable：缺可达批次")?;
+        if i < resume {
+            if let BatchRef::CertifiedHeader(header) = reference {
+                control.verify_header(*g, idx, header)?;
+                continue;
+            }
+        }
+        // 每代至多一份完整 Value：先核控制头，再将同一 Value 交给原结构判据。
+        // 前缀 PendingFull 也不能省略控制核验；原定 resume 在本轮内不得重新提升。
+        #[cfg(test)]
+        cache::counter(|c| {
+            if matches!(reference, BatchRef::PendingFull) {
+                c.batch_header_full_fallbacks += 1;
+            }
+            if i >= resume {
+                c.batch_suffix_full_reads += 1;
+            }
+        });
+        let (batch, root_cert) = load_batch_value_with(conn, &mut reader, idx)?;
+        if format.graph() {
+            originals.insert(evidence_store::batch_root_key(idx), root_cert);
+        }
+        control.verify_header(*g, idx, &BatchControlHeader::from_verified_batch(&batch))?;
+        if i < resume {
+            continue;
+        }
         // Delta 原件：图域由 `delta/<generation>` 私有根无损展开（列必须是空占位），整块域取列。
         let delta_json = read_record_original_text(
             conn,
@@ -1418,12 +1452,6 @@ fn verify_reachable_root_in_tx(
                 "StorageUnavailable：delta[{g}].index_frontier 为空（已发布 cut 缺批次引用）"
             ));
         }
-        if !batches.contains_key(idx) {
-            return Err("StorageUnavailable：缺可达批次".into());
-        }
-        #[cfg(test)]
-        cache::counter(|c| c.batch_suffix_full_reads += 1);
-        let (batch, _) = load_batch_value_with(conn, &mut reader, idx)?;
         verify_batch_coordinates(&batch, idx, *g, next, *frontier, cat)?;
         // seq_range 连续：from = 上一已发布 frontier + 1，to = 本代 frontier。
         let sr: Value = json_shape(seq_range_json, JsonShape::Object)?;
@@ -1473,6 +1501,7 @@ fn verify_reachable_root_in_tx(
         verify_batch_profile(&batch, &profile_binding)?;
         audit.verify(&dj, *g, &batch, mode)?;
     }
+    control.finish()?;
     audit.finish()?;
     // meta 与最末已发布 Delta 的根元组对应关系。
     let last = rows.last().unwrap();
@@ -1515,7 +1544,7 @@ fn verify_reachable_root_in_tx(
             last.4
         ));
     }
-    cache::store_root(rows, identity, audit, &reachable.originals);
+    cache::store_root(rows, identity, audit, &originals);
     Ok(raw_events)
 }
 
@@ -9812,6 +9841,45 @@ mod staged_graph_audit_regressions {
     }
 
     #[test]
+    fn graph_cold_audit_reads_each_published_batch_once() {
+        let files = TestFiles::new();
+        build_oracle(&files, 3);
+        let conn = open_db(&files.db()).unwrap();
+        for limit in [0, 268435456] {
+            cache::configure(limit);
+            cache::counters_reset();
+            verify_reachable_root(&conn).unwrap();
+            assert_eq!(
+                cache::counters_snapshot().batch_full_reads,
+                3,
+                "cold limit={limit}: 每已发布代只处理一份完整批次"
+            );
+            assert_eq!(cache::counters_snapshot().batch_suffix_full_reads, 3);
+            assert_eq!(cache::last_resumed(), 0);
+            if limit != 0 {
+                cache::evict_full_handles_for_test();
+                cache::counters_reset();
+                verify_reachable_root(&conn).unwrap();
+                assert_eq!(
+                    cache::last_resumed(),
+                    3,
+                    "冷核得到的新证明须进入最终审计前缀"
+                );
+                assert_eq!(cache::counters_snapshot().batch_full_reads, 0);
+                // 小头单独丢失时，原前缀证明仍可成立，但不能跳过这些 PendingFull 的控制核。
+                cache::evict_batch_headers_for_test();
+                cache::counters_reset();
+                verify_reachable_root(&conn).unwrap();
+                assert_eq!(cache::last_resumed(), 3);
+                assert_eq!(cache::counters_snapshot().batch_full_reads, 3);
+                assert_eq!(cache::counters_snapshot().batch_suffix_full_reads, 0);
+                assert_eq!(cache::counters_snapshot().batch_header_full_fallbacks, 3);
+            }
+        }
+        cache::configure(0);
+    }
+
+    #[test]
     fn batch_header_preserves_legacy_fields_and_strict_full_parse() {
         cache::configure(0);
         let conn = Connection::open_in_memory().unwrap();
@@ -9832,13 +9900,13 @@ mod staged_graph_audit_regressions {
                 params![id, bytes, bytes.len() as i64],
             )
             .unwrap();
-            let header = load_batch_header_with(
+            let (batch, _) = load_batch_value_with(
                 &conn,
                 &mut evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET),
                 &id,
             )
-            .unwrap()
-            .0;
+            .unwrap();
+            let header = BatchControlHeader::from_verified_batch(&batch);
             assert_eq!(header.protocol_revision.as_deref(), field.as_str());
             assert_eq!(load_batch_bytes(&conn, &id).unwrap().as_ref(), bytes);
         }
@@ -9849,7 +9917,7 @@ mod staged_graph_audit_regressions {
             params![id, duplicate.as_slice(), duplicate.len() as i64],
         )
         .unwrap();
-        assert!(load_batch_header_with(
+        assert!(load_batch_value_with(
             &conn,
             &mut evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET),
             &id
@@ -9876,7 +9944,7 @@ mod staged_graph_audit_regressions {
         )
         .unwrap();
         for _ in 0..2 {
-            assert!(load_batch_header_with(
+            assert!(load_batch_value_with(
                 &conn,
                 &mut evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET),
                 &wrong_id

@@ -1550,16 +1550,23 @@ impl<'a> Reader<'a> {
             cache::counter(|c| c.node_reused_in_capture += 1);
             return Ok(node);
         }
-        let (kind, payload, len): (i64, Vec<u8>, i64) = self
+        // #1394：只复用固定 SQL 的执行计划；每次仍重新绑定 id、执行查询并核当前原行。
+        // 不保存查询结果或原件，不改变零预算下的原件禁留与新鲜读集判据。
+        let mut statement = self
             .conn
-            .query_row(
+            .prepare_cached(
                 "SELECT node_kind,payload,expanded_length FROM s_evidence_nodes WHERE node_id=?1",
+            )
+            .map_err(|e| format!("StorageUnavailable：读私有节点失败：{e}"))?;
+        let (kind, payload, len): (i64, Vec<u8>, i64) = statement
+            .query_row(
                 params![&id[..]],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
             .optional()
             .map_err(|e| format!("StorageUnavailable：读私有节点失败：{e}"))?
             .ok_or_else(|| format!("StorageUnavailable：私有节点 {} 缺失", hex(id)))?;
+        drop(statement);
         if kind != KIND_LEAF && kind != KIND_SEQ {
             return Err(format!(
                 "StorageUnavailable：私有节点 {} 种类 `{kind}` 未声明",
@@ -1829,6 +1836,47 @@ pub(super) fn describe(conn: &Connection, root_key: &str) -> Result<Value, Strin
 #[cfg(test)]
 mod metadata_regressions {
     use super::*;
+
+    #[test]
+    fn prepared_node_query_rebinds_and_reads_current_rows_with_zero_retention() {
+        cache::configure(0);
+        let conn = Connection::open_in_memory().unwrap();
+        declare_new(&conn).unwrap();
+        let a = stage_complete(&json!({"value": "first"}), &[]).unwrap();
+        let b = stage_complete(&json!({"value": "second"}), &[]).unwrap();
+        publish_refs(&conn, "batch/first", &a).unwrap();
+        publish_refs(&conn, "batch/second", &b).unwrap();
+        assert_ne!(a.root, b.root);
+        let mut reader = Reader::new(&conn, 0);
+        let first = reader.load(&a.root).unwrap();
+        let second = reader.load(&b.root).unwrap();
+        assert_eq!(first.id, a.root);
+        assert_eq!(second.id, b.root);
+        assert_ne!(first.payload, second.payload);
+        assert_eq!(reader.load(&a.root).unwrap().payload, first.payload);
+        assert_eq!(cache::retained_bytes(), 0);
+        assert_eq!(cache::capture_bytes_now(), 0);
+
+        // 同一连接、同一 SQL 计划也必须看到当前行；不得把上次的正确结果当新鲜原件。
+        let mut damaged = first.payload.to_vec();
+        damaged.push(0);
+        conn.execute(
+            "UPDATE s_evidence_nodes SET payload=?1 WHERE node_id=?2",
+            params![damaged, &a.root[..]],
+        )
+        .unwrap();
+        let error = reader.load(&a.root).err().unwrap();
+        assert!(error.contains("同 ID 异内容"), "{error}");
+        conn.execute(
+            "DELETE FROM s_evidence_nodes WHERE node_id=?1",
+            params![&b.root[..]],
+        )
+        .unwrap();
+        let error = reader.load(&b.root).err().unwrap();
+        assert!(error.contains("缺失"), "{error}");
+        assert_eq!(cache::retained_bytes(), 0);
+        assert_eq!(cache::capture_bytes_now(), 0);
+    }
 
     #[test]
     fn evidence_graph_parameter_lengths_are_verified_and_conflicts_refused() {

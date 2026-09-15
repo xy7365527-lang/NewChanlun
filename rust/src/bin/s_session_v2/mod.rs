@@ -611,16 +611,64 @@ fn verify_epoch_history(conn: &Connection, v2: bool) -> Result<Vec<(String, i64)
     Ok(facts)
 }
 
-/// 所有当前控制行都新鲜检查，不能按generation过滤未来/同代损坏或信任自报摘要。
-pub(super) fn verify_control(
-    conn: &Connection,
-    batches: &BTreeMap<String, BatchControlHeader>,
-) -> Result<(), String> {
+/// 全局控制行通过后留下的逐代期望；结构核验必须逐项消费并检查闭合。
+pub(super) enum ExpectedControl {
+    Legacy,
+    V2 {
+        session_generation: String,
+        clock_plan_hash: String,
+        remaining: BTreeMap<(i64, String), String>,
+    },
+}
+
+impl ExpectedControl {
+    pub(super) fn verify_header(
+        &mut self,
+        generation: i64,
+        batch_id: &str,
+        header: &BatchControlHeader,
+    ) -> Result<(), String> {
+        let Self::V2 {
+            session_generation,
+            clock_plan_hash,
+            remaining,
+        } = self
+        else {
+            return Ok(());
+        };
+        let key = (generation, batch_id.to_owned());
+        let commit_ns = remaining
+            .get(&key)
+            .ok_or_else(|| err("v2批次控制头缺待验证期望或重复消费"))?;
+        if header.protocol_revision.as_deref() != Some("s-session/2")
+            || header.session_generation.as_deref() != Some(session_generation.as_str())
+            || header.clock_plan_hash.as_deref() != Some(clock_plan_hash.as_str())
+            || header.semantic_commit_ns.as_deref() != Some(commit_ns.as_str())
+        {
+            return Err(err("发布batch与真实语义clock/session不一致"));
+        }
+        remaining.remove(&key);
+        Ok(())
+    }
+
+    pub(super) fn finish(self) -> Result<(), String> {
+        if let Self::V2 { remaining, .. } = self {
+            if !remaining.is_empty() {
+                return Err(err("v2发布批次控制头未全部验证"));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// 新鲜检查所有全局控制行，再准备逐代控制头期望；返回不代表批次控制审计通过。
+/// 不能按generation过滤未来/同代损坏或信任自报摘要。
+pub(super) fn prepare_control(conn: &Connection) -> Result<ExpectedControl, String> {
     let enabled = active(conn)?;
     verify_schema(conn, enabled)?;
     let mut epoch_facts = verify_epoch_history(conn, enabled)?;
     if !enabled {
-        return Ok(());
+        return Ok(ExpectedControl::Legacy);
     }
     for table in ["s_protocol_meta", "s_delivery_policy"] {
         let count: i64 = conn
@@ -970,23 +1018,23 @@ pub(super) fn verify_control(
         .prepare("SELECT generation,index_frontier FROM structure_deltas ORDER BY generation")
         .map_err(err)?;
     let mut rows = q.query([]).map_err(err)?;
+    let mut remaining = BTreeMap::new();
     while let Some(r) = rows.next().map_err(err)? {
         let g: i64 = r.get(0).map_err(err)?;
-        let id: String = r.get(1).map_err(err)?;
-        let batch = batches.get(&id).ok_or_else(|| err("v2缺可达批次"))?;
+        let batch_id: String = r.get(1).map_err(err)?;
         let (id, index) = commits_by_generation
             .get(&g)
             .ok_or_else(|| err("v2发布缺真实Commit phase"))?;
-        if batch.protocol_revision.as_deref() != Some("s-session/2")
-            || batch.session_generation.as_deref() != Some(inc.as_str())
-            || batch.clock_plan_hash.as_deref() != Some(clock.hash.as_str())
-            || batch.semantic_commit_ns.as_deref()
-                != Some(clock.phase(id, "commit", *index).map_err(err)?.as_str())
-        {
-            return Err(err("发布batch与真实语义clock/session不一致"));
-        }
+        remaining.insert(
+            (g, batch_id),
+            clock.phase(id, "commit", *index).map_err(err)?,
+        );
     }
-    Ok(())
+    Ok(ExpectedControl::V2 {
+        session_generation: inc,
+        clock_plan_hash: clock.hash,
+        remaining,
+    })
 }
 
 fn process_lock(db: &Path) -> Result<File, String> {
@@ -1436,6 +1484,85 @@ pub fn retained_watch(conn: &Connection, after: i64) -> Result<Option<Value>, St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn expected_control_test_state(publications: &[(i64, &str, &str)]) -> ExpectedControl {
+        ExpectedControl::V2 {
+            session_generation: "1".into(),
+            clock_plan_hash: "test-clock-hash".into(),
+            remaining: publications
+                .iter()
+                .map(|(generation, batch_id, commit_ns)| {
+                    ((*generation, (*batch_id).into()), (*commit_ns).into())
+                })
+                .collect(),
+        }
+    }
+
+    fn expected_control_test_header(commit_ns: &str) -> BatchControlHeader {
+        BatchControlHeader {
+            protocol_revision: Some("s-session/2".into()),
+            session_generation: Some("1".into()),
+            clock_plan_hash: Some("test-clock-hash".into()),
+            semantic_commit_ns: Some(commit_ns.into()),
+        }
+    }
+
+    #[test]
+    fn expected_control_requires_every_publication_before_finish() {
+        let mut expected =
+            expected_control_test_state(&[(1, "batch-a", "1020"), (2, "batch-b", "2020")]);
+        expected
+            .verify_header(1, "batch-a", &expected_control_test_header("1020"))
+            .unwrap();
+        assert!(
+            expected.finish().is_err(),
+            "仍有未消费发布时不得完成控制审计"
+        );
+    }
+
+    #[test]
+    fn expected_control_rejects_missing_and_repeated_consumption() {
+        let mut expected = expected_control_test_state(&[(1, "batch-a", "1020")]);
+        let header = expected_control_test_header("1020");
+        assert!(expected.verify_header(2, "batch-a", &header).is_err());
+        assert!(expected.verify_header(1, "batch-other", &header).is_err());
+        expected.verify_header(1, "batch-a", &header).unwrap();
+        assert!(expected.verify_header(1, "batch-a", &header).is_err());
+        expected.finish().unwrap();
+    }
+
+    #[test]
+    fn expected_control_consumes_reused_batch_id_by_generation() {
+        let mut expected =
+            expected_control_test_state(&[(1, "batch-a", "1020"), (2, "batch-a", "2020")]);
+        expected
+            .verify_header(1, "batch-a", &expected_control_test_header("1020"))
+            .unwrap();
+        expected
+            .verify_header(2, "batch-a", &expected_control_test_header("2020"))
+            .unwrap();
+        expected.finish().unwrap();
+    }
+
+    #[test]
+    fn expected_control_rejects_missing_fields_and_changed_clock_without_consuming() {
+        for field in 0..6 {
+            let mut expected = expected_control_test_state(&[(1, "batch-a", "1020")]);
+            let correct = expected_control_test_header("1020");
+            let mut bad = correct.clone();
+            match field {
+                0 => bad.protocol_revision = None,
+                1 => bad.session_generation = None,
+                2 => bad.clock_plan_hash = None,
+                3 => bad.semantic_commit_ns = None,
+                4 => bad.clock_plan_hash = Some("other-clock-hash".into()),
+                _ => bad.semantic_commit_ns = Some("01020".into()),
+            }
+            assert!(expected.verify_header(1, "batch-a", &bad).is_err());
+            expected.verify_header(1, "batch-a", &correct).unwrap();
+            expected.finish().unwrap();
+        }
+    }
 
     /// #1394 第二段成本测量：用**冻结 9011 根来源**的前 N 根、与基线同一时钟计划
     /// （`ns = 100 + 3*i`、`long-s-%05d`、一源一代）跑真实 v2 会话，逐代记时并收集库统计。
@@ -1939,12 +2066,13 @@ mod tests {
         cache::counters_reset();
         verify_reachable_root(&conn).unwrap();
         assert_eq!(cache::counters_snapshot().batch_header_full_fallbacks, 4);
+        assert_eq!(cache::counters_snapshot().batch_full_reads, 4);
         assert_eq!(cache::counters_snapshot().batch_suffix_full_reads, 4);
         cache::evict_full_handles_for_test();
         cache::counters_reset();
         let tx = conn.unchecked_transaction().unwrap();
-        let reachable = capture_reachable_batches(&tx).unwrap();
-        verify_control(&tx, &reachable.batches).unwrap();
+        let mut reachable = capture_reachable_batches(&tx).unwrap();
+        let expected = prepare_control(&tx).unwrap();
         assert_eq!(cache::counters_snapshot().batch_header_hits, 4);
         assert_eq!(cache::counters_snapshot().batch_full_reads, 0);
         assert_eq!(
@@ -1952,22 +2080,27 @@ mod tests {
             0,
             "完整原件证明尚存时，控制头捕获不得因大句柄驱逐而展开历史batch"
         );
-        verify_reachable_root_in_tx(&tx, &reachable).unwrap();
+        verify_reachable_root_in_tx(&tx, &reachable, expected).unwrap();
         assert_eq!(cache::last_resumed(), 4);
         assert_eq!(cache::counters_snapshot().batch_suffix_full_reads, 0);
         for field in 0..4 {
             let mut bad = reachable.batches.clone();
-            let header = bad.values_mut().next().unwrap();
+            let BatchRef::CertifiedHeader(header) = bad.values_mut().next().unwrap() else {
+                panic!("暖缓存应捕获已认证控制头");
+            };
             match field {
                 0 => header.protocol_revision = None,
                 1 => header.session_generation = None,
                 2 => header.clock_plan_hash = None,
                 _ => header.semantic_commit_ns = Some("01020".into()),
             }
+            std::mem::swap(&mut reachable.batches, &mut bad);
+            let expected = prepare_control(&tx).unwrap();
             assert!(
-                verify_control(&tx, &bad).is_err(),
+                verify_reachable_root_in_tx(&tx, &reachable, expected).is_err(),
                 "控制头不得暗补或数字归一化"
             );
+            std::mem::swap(&mut reachable.batches, &mut bad);
         }
         cache::configure(0);
     }
@@ -2003,6 +2136,7 @@ mod tests {
         assert_eq!(cache::last_resumed(), 0);
         assert_eq!(cache::counters_snapshot().batch_header_hits, 0);
         assert!(cache::counters_snapshot().batch_header_full_fallbacks >= 5);
+        assert!(cache::counters_snapshot().batch_full_reads >= 5);
         assert!(cache::counters_snapshot().batch_suffix_full_reads >= 5);
         verify_reachable_root(&conn).unwrap();
         assert_eq!(cache::last_resumed(), 0);
@@ -2550,10 +2684,10 @@ fn testonly_audit_cost_breakdown() {
         let b = t.elapsed();
         let captured = retained_sample();
         let capture_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
-        verify_control(&tx, &batches.batches).unwrap();
+        let expected = prepare_control(&tx).unwrap();
         let c = t.elapsed();
         let control_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
-        verify_reachable_root_in_tx(&tx, &batches).unwrap();
+        verify_reachable_root_in_tx(&tx, &batches, expected).unwrap();
         let r = t.elapsed();
         let verified = retained_sample();
         let last_resumed = cache::last_resumed();
@@ -2579,7 +2713,7 @@ fn testonly_audit_cost_breakdown() {
                     "structure":counter_delta(&verified_counters, &control_counters),"total":total_counters},
                 "batches_ms":b.as_secs_f64()*1000.0,"control_ms":(c-b).as_secs_f64()*1000.0,
                 "structure_ms":(r-c).as_secs_f64()*1000.0,"total_ms":r.as_secs_f64()*1000.0,
-                "timing_note":"沿原累积 Instant 分段；测试采样开销含在墙钟内。内部 audit_ns 与墙钟重叠，不相加。",
+                "timing_note":"control_ms 仅含全局控制检查与逐代期望准备，逐批控制头核对计入 structure_ms。沿原累积 Instant 分段；测试采样开销含在墙钟内。内部 audit_ns 与墙钟重叠，不相加。",
                 "storage_note":"保留量是源字节账，非 RSS；只验证显式实际代号，不代表目标前缀已全部完成。"
             })
         );
