@@ -2467,22 +2467,34 @@ fn advance_core(
             layer = Some(incr.append(bar));
         }
     }
-    let (layer, inclusion_facts) = if is_ohlc {
+    let mut oracle_facts = None;
+    let (layer, group_evidence) = if is_ohlc {
         if s_fact_cache::oracle_enabled() {
             // 测试开关：全量 oracle（与增量路径逐代对拍用）。
             let started = s_fact_cache::phase::begin();
             let (layer, facts) = parser::parse_layer_with_inclusion_facts(&raw_bars, &config);
             s_fact_cache::phase::record("parse_oracle", started.elapsed().as_nanos());
-            (layer, Some(facts))
+            let groups = parser::GroupParseEvidence {
+                groups: facts.groups.clone(),
+                stroke_facts: facts
+                    .stroke_facts
+                    .as_ref()
+                    .expect("完整解析附带新笔事实")
+                    .clone(),
+            };
+            oracle_facts = Some(facts);
+            (layer, Some(groups))
         } else {
-        // 从**真实生效输入**的已证稳定前缀追加；前缀内变化即从最早受影响坐标失效并保守重放。
-        let started = s_fact_cache::phase::begin();
-        let outcome = lane_guard.lane(&lane_key).advance(&raw_bars);
-        let facts = lane_guard.lane(&lane_key).state().materialize_facts();
-        let (layer, facts) = parser::parse_layer_from_inclusion_facts(facts, &config);
-        s_fact_cache::phase::record("parse", started.elapsed().as_nanos());
-        let _ = outcome;
-        (layer, Some(facts))
+            // 从**真实生效输入**的已证稳定前缀追加；前缀内变化即从最早受影响坐标失效并保守重放。
+            let started = s_fact_cache::phase::begin();
+            let outcome = lane_guard.lane(&lane_key).advance(&raw_bars);
+            let (layer, facts) = parser::parse_layer_with_group_evidence(
+                lane_guard.lane(&lane_key).state(),
+                &config,
+            );
+            s_fact_cache::phase::record("parse", started.elapsed().as_nanos());
+            let _ = outcome;
+            (layer, Some(facts))
         }
     } else {
         (
@@ -2497,7 +2509,7 @@ fn advance_core(
 
     // 同次包含 trace 提供完整成员；旧 tick 保留原映射。
     let mut merged_raws: Vec<Vec<i64>> = vec![Vec::new(); merged.len()];
-    if let Some(facts) = &inclusion_facts {
+    if let Some(facts) = &group_evidence {
         for (i, group) in facts.groups.iter().enumerate() {
             merged_raws[i] = group.members.iter().map(|x| *x as i64).collect();
         }
@@ -2559,7 +2571,7 @@ fn advance_core(
     for (start, shape) in &wins {
         let start = *start;
         // #1373 同角色极值身份仍有竞争时，不给依赖该组的分型选根。
-        if inclusion_facts.as_ref().is_some_and(|f| {
+        if group_evidence.as_ref().is_some_and(|f| {
             f.groups[start..start + 3]
                 .iter()
                 .any(|g| g.high_sources.len() != 1 || g.low_sources.len() != 1)
@@ -2608,7 +2620,7 @@ fn advance_core(
                             })
                             .collect();
                         let mut group_refs=json!({ "merged_index": mi, "raw_refs": refs });
-                        if let Some(facts)=&inclusion_facts {
+                        if let Some(facts)=&group_evidence {
                             let group=&facts.groups[*mi];
                             let mut dependency_coords=group.direction_evidence.as_ref().map(|e|e.source_coords.clone()).unwrap_or_default();
                             // #1373：三组当前划分还依赖关闭边界的真实后继，不能只绑定价格算式。
@@ -2669,20 +2681,13 @@ fn advance_core(
     }
 
     let structure_cut = format!("cut-{gen}");
-    if let Some(facts) = &inclusion_facts {
+    if let Some(facts) = &group_evidence {
         // #1394 2A-S/2C：同代增量状态 + 稳定对象原件复用 + 比较单元缓存（与全量路径逐字段相同）。
         let started = s_fact_cache::phase::begin();
-        let (typed, waiting) = if is_ohlc && !s_fact_cache::oracle_enabled() {
-            lane_guard.lane(&lane_key).build_typed(
-                &raw_by_coord,
-                &objects,
-                gen,
-                &structure_cut,
-                frontier,
-            )
+        let (typed, waiting) = if let Some(full) = &oracle_facts {
+            tb02a_facts::build(full, &raw_by_coord, &objects, gen, &structure_cut, frontier)
         } else {
-            tb02a_facts::build(
-                facts,
+            lane_guard.lane(&lane_key).build_typed(
                 &raw_by_coord,
                 &objects,
                 gen,
@@ -2694,10 +2699,7 @@ fn advance_core(
         objects.extend(typed);
         observations.extend(waiting);
         let (new_bi, edges) = tb02b::build(
-            facts
-                .stroke_facts
-                .as_ref()
-                .expect("同次 parser 必须携生产新笔事实"),
+            &facts.stroke_facts,
             &raw_by_coord,
             &all_events,
             &read_active_objects(&conn)?,
@@ -8538,13 +8540,20 @@ mod tests {
                 cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
                 let conn = open_db(&files.db()).unwrap();
                 verify_reachable_root(&conn).unwrap();
-                let batch_id: String = conn.query_row(
-                    "SELECT index_frontier FROM structure_deltas WHERE generation=?1",
-                    params![revision], |row| row.get(0)).unwrap();
+                let batch_id: String = conn
+                    .query_row(
+                        "SELECT index_frontier FROM structure_deltas WHERE generation=?1",
+                        params![revision],
+                        |row| row.get(0),
+                    )
+                    .unwrap();
                 let bytes = load_batch_bytes(&conn, &batch_id).unwrap();
                 for (old, (_, snapshot)) in published.iter().enumerate() {
-                    assert!(&snapshot_of(&files, Some(old as i64 + 1)) == snapshot,
-                        "真实 revision 后旧 cut {} 改变", old + 1);
+                    assert!(
+                        &snapshot_of(&files, Some(old as i64 + 1)) == snapshot,
+                        "真实 revision 后旧 cut {} 改变",
+                        old + 1
+                    );
                 }
                 published.push((bytes, snapshot_of(&files, Some(revision))));
             }
@@ -8555,9 +8564,13 @@ mod tests {
         let oracle = run(true);
         assert_ne!(oracle[0].0, oracle[1].0, "真实 revision 必须改变原件身份");
         for (index, (actual, expected)) in warm.iter().zip(&oracle).enumerate() {
-            assert!(actual == expected,
+            assert!(
+                actual == expected,
                 "同价 revision 第 {} 代的完整 batch 字节/快照不一致：warm={} oracle={}",
-                index + 1, sha256_hex(&actual.0), sha256_hex(&expected.0));
+                index + 1,
+                sha256_hex(&actual.0),
+                sha256_hex(&expected.0)
+            );
         }
     }
 
@@ -8623,7 +8636,6 @@ mod tests {
         );
         assert_eq!(warm_ids.len(), bars.len() + 2);
     }
-
 }
 
 #[cfg(test)]

@@ -1,15 +1,15 @@
 //! #1394：完整包含证据的**内部共享表示**（不变换判据，只换表示）。
 //!
 //! 本模块只服务 parser 内部：把「逐 bar 追加的完整证据」表示成**不可变、结构共享**的
-//! 节点，使增量状态每追加 1 根只产生 O(1) 个新节点，而展开（materialize）仍与
+//! 节点，使坐标前缀每次追加只产生 O(log n) 个平衡树节点，而展开（materialize）仍与
 //! [`super::inclusion::process_inclusion_with_facts`] 的全部字段逐位相同。
 //!
 //! 三条约束（#1394 已授权工程命题）：
 //!
 //! 1. **不丢来源**：坐标集合保留**排序 + 去重**，非连续 source 坐标原样保留；不得把
 //!    坐标区间当稠密索引（区间化会丢掉「哪些原始 K 真的在里面」）。
-//! 2. **不逐追加全复制**：每次追加只新建 O(1) 个节点；旧节点被后续步骤共享，不重写。
-//! 3. **不深递归**：9011 层量级的右倾链只能**迭代**遍历（显式栈），不得用递归下降。
+//! 2. **不逐追加全复制**：追加沿 O(log n) 路径创建节点；未变子树共享，不重写。
+//! 3. **不深递归**：坐标树保持 AVL 平衡，构造和析构深度为 O(log n)；展开用显式栈。
 //!
 //! ## 两类表示
 //!
@@ -17,7 +17,7 @@
 //!   O(1)；遍历是块的顺序迭代。
 //! - [`CoordsRef`]：升序去重坐标集合的共享句柄（`None` = 空集）。
 //!   [`CoordsRef::concat`] 要求左段最大坐标 < 右段最小坐标——这是包含证据的实际形状
-//!   （方向证据集的最大值 = 当前组锚，组成员都 ≥ 组锚），故拼接为 O(1) 且天然升序去重。
+//!   （方向证据集的最大值 = 当前组锚，组成员都 ≥ 组锚），拼接保留原顺序并维持平衡。
 
 use std::rc::Rc;
 
@@ -85,8 +85,7 @@ impl<T: Clone> ChunkedSeq<T> {
             chunk.push(value);
             self.chunks.push(Rc::new(chunk));
         } else {
-            Rc::make_mut(self.chunks.last_mut().expect("刚判过非空"))
-                .push(value);
+            Rc::make_mut(self.chunks.last_mut().expect("刚判过非空")).push(value);
         }
         self.len += 1;
     }
@@ -106,7 +105,64 @@ impl<T: Clone> ChunkedSeq<T> {
 #[derive(Debug)]
 pub enum CoordNode {
     Leaf(usize),
-    Concat(Rc<CoordNode>, Rc<CoordNode>),
+    Concat(Rc<CoordNode>, Rc<CoordNode>, u32),
+}
+
+fn height(node: &Rc<CoordNode>) -> u32 {
+    match node.as_ref() {
+        CoordNode::Leaf(_) => 1,
+        CoordNode::Concat(_, _, height) => *height,
+    }
+}
+
+fn branch(left: Rc<CoordNode>, right: Rc<CoordNode>) -> Rc<CoordNode> {
+    let level = 1 + height(&left).max(height(&right));
+    Rc::new(CoordNode::Concat(left, right, level))
+}
+
+/// 旋转只改变共享树形状，叶的顺序和旧版本原件保持。
+fn balance(left: Rc<CoordNode>, right: Rc<CoordNode>) -> Rc<CoordNode> {
+    if height(&left) > height(&right) + 1 {
+        let CoordNode::Concat(a, b, _) = left.as_ref() else {
+            unreachable!()
+        };
+        if height(a) >= height(b) {
+            return branch(a.clone(), branch(b.clone(), right));
+        }
+        let CoordNode::Concat(c, d, _) = b.as_ref() else {
+            unreachable!()
+        };
+        return branch(branch(a.clone(), c.clone()), branch(d.clone(), right));
+    }
+    if height(&right) > height(&left) + 1 {
+        let CoordNode::Concat(a, b, _) = right.as_ref() else {
+            unreachable!()
+        };
+        if height(b) >= height(a) {
+            return branch(branch(left, a.clone()), b.clone());
+        }
+        let CoordNode::Concat(c, d, _) = a.as_ref() else {
+            unreachable!()
+        };
+        return branch(branch(left, c.clone()), branch(d.clone(), b.clone()));
+    }
+    branch(left, right)
+}
+
+fn join(left: Rc<CoordNode>, right: Rc<CoordNode>) -> Rc<CoordNode> {
+    if height(&left) > height(&right) + 1 {
+        let CoordNode::Concat(a, b, _) = left.as_ref() else {
+            unreachable!()
+        };
+        return balance(a.clone(), join(b.clone(), right));
+    }
+    if height(&right) > height(&left) + 1 {
+        let CoordNode::Concat(a, b, _) = right.as_ref() else {
+            unreachable!()
+        };
+        return balance(join(left, a.clone()), b.clone());
+    }
+    branch(left, right)
 }
 
 /// 坐标集合句柄（`None` = 空集），O(1) clone。
@@ -134,7 +190,7 @@ impl CoordsRef {
         match (&left.0, &right.0) {
             (None, _) => right.clone(),
             (_, None) => left.clone(),
-            (Some(l), Some(r)) => CoordsRef(Some(Rc::new(CoordNode::Concat(l.clone(), r.clone())))),
+            (Some(l), Some(r)) => CoordsRef(Some(join(l.clone(), r.clone()))),
         }
     }
 
@@ -154,7 +210,7 @@ impl CoordsRef {
             match node.as_ref() {
                 CoordNode::Leaf(coord) => out.push(*coord),
                 // 先压右后压左：左子树整体先于右子树展开（LIFO）。
-                CoordNode::Concat(left, right) => {
+                CoordNode::Concat(left, right, _) => {
                     stack.push(right);
                     stack.push(left);
                 }
@@ -169,7 +225,7 @@ impl CoordsRef {
         loop {
             match node.as_ref() {
                 CoordNode::Leaf(coord) => return Some(*coord),
-                CoordNode::Concat(_, right) => node = right,
+                CoordNode::Concat(_, right, _) => node = right,
             }
         }
     }
@@ -184,7 +240,7 @@ impl CoordsRef {
         while let Some(node) = stack.pop() {
             match node.as_ref() {
                 CoordNode::Leaf(_) => total += 1,
-                CoordNode::Concat(left, right) => {
+                CoordNode::Concat(left, right, _) => {
                     stack.push(right);
                     stack.push(left);
                 }
@@ -199,6 +255,36 @@ mod tests {
     use super::*;
 
     #[test]
+    fn coords_ref_balances_persistent_prefixes() {
+        let mut all = CoordsRef::empty();
+        let mut prefix = CoordsRef::empty();
+        for i in 0..4096 {
+            all = all.append_greater(i * 3);
+            if i == 511 {
+                prefix = all.clone();
+            }
+        }
+        assert_eq!(
+            prefix.materialize(),
+            (0..512).map(|i| i * 3).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            all.materialize(),
+            (0..4096).map(|i| i * 3).collect::<Vec<_>>()
+        );
+        let mut depth = 0;
+        let mut pending = vec![(all.0.as_ref().unwrap(), 1)];
+        while let Some((node, level)) = pending.pop() {
+            depth = depth.max(level);
+            if let CoordNode::Concat(left, right, ..) = node.as_ref() {
+                pending.push((left, level + 1));
+                pending.push((right, level + 1));
+            }
+        }
+        assert!(depth <= 25, "4096 次持续追加仍形成深链：depth={depth}");
+    }
+
+    #[test]
     fn chunked_seq_appends_and_reads_in_order() {
         let mut seq = ChunkedSeq::new();
         for i in 0..(ChunkedSeq::<usize>::CHUNK * 3 + 7) {
@@ -208,13 +294,16 @@ mod tests {
         assert_eq!(flat.len(), ChunkedSeq::<usize>::CHUNK * 3 + 7);
         assert_eq!(flat, (0..flat.len()).collect::<Vec<_>>());
         assert_eq!(seq.get(0), Some(&0));
-        assert_eq!(seq.get(ChunkedSeq::<usize>::CHUNK), Some(&ChunkedSeq::<usize>::CHUNK));
+        assert_eq!(
+            seq.get(ChunkedSeq::<usize>::CHUNK),
+            Some(&ChunkedSeq::<usize>::CHUNK)
+        );
         assert_eq!(seq.get(ChunkedSeq::<usize>::CHUNK * 3 + 7), None);
     }
 
     #[test]
     fn coords_ref_materializes_sorted_unique_without_recursion() {
-        // 模拟包含证据的形状：方向证据集（共享前缀）+ 组成员尾链，深 5000 层右倾。
+        // 方向证据集（共享前缀）+ 组成员尾链，持续追加 5000 次。
         let mut deep = CoordsRef::empty();
         for i in 0..5000usize {
             deep = deep.append_greater(i);

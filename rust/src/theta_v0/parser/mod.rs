@@ -156,14 +156,48 @@ pub fn parse_layer_with_inclusion_facts(
     (layer, facts)
 }
 
-/// #1394：从**已有**完整事实构造单层解析——与 [`parse_layer_with_inclusion_facts`] 共用
-/// 同一条下游（分型/新笔/段/tail 与 tail 同源），供 S 的同代增量状态复用，不另立判据。
-pub fn parse_layer_from_inclusion_facts(
-    mut facts: inclusion::InclusionFacts,
+/// S 的解析消费面：完整组来源与完整新笔事实，不冒充包含全部步骤的 InclusionFacts。
+pub struct GroupParseEvidence {
+    pub groups: Vec<inclusion::InclusionGroupFact>,
+    pub stroke_facts: stroke::StrokeFacts,
+}
+
+/// #1394：从当前完整共享证据读取 S 实际需要的组与新笔事实；不展开历史步骤。
+pub fn parse_layer_with_group_evidence(
+    state: &inclusion::IncrFactsState,
     config: &ThetaConfig,
-) -> (ParseLayer, inclusion::InclusionFacts) {
-    let layer = parse_layer_from_facts(&mut facts, &config.parse);
-    (layer, facts)
+) -> (ParseLayer, GroupParseEvidence) {
+    if state.degraded() {
+        let raw: Vec<_> = state.raw_iter().copied().collect();
+        let (layer, facts) = parse_layer_with_inclusion_facts(&raw, config);
+        return (
+            layer,
+            GroupParseEvidence {
+                groups: facts.groups,
+                stroke_facts: facts.stroke_facts.expect("完整解析附带新笔事实"),
+            },
+        );
+    }
+    let groups = state.materialize_groups();
+    let stroke_facts = stroke::build_stroke_facts_with_positions(
+        state.merged_slice(),
+        &groups,
+        state.unsettled(),
+        state.positions(),
+        &config.parse,
+    );
+    let layer = parse_layer_from_strokes(
+        state.merged_slice(),
+        stroke_facts.production_strokes(),
+        &config.parse,
+    );
+    (
+        layer,
+        GroupParseEvidence {
+            groups,
+            stroke_facts,
+        },
+    )
 }
 
 // #1392：包含状态、新笔扫描 checkpoint 和分型尾部缓存共同推进。
@@ -292,11 +326,18 @@ fn parse_layer_from_facts(
     facts: &mut inclusion::InclusionFacts,
     config: &super::config::ParseConfig,
 ) -> ParseLayer {
-    let merged = &facts.merged;
-    let fractals = fractal::detect_fractals(merged);
     let stroke_facts = stroke::build_stroke_facts(facts, config);
-    let strokes = stroke_facts.production_strokes();
+    let layer = parse_layer_from_strokes(&facts.merged, stroke_facts.production_strokes(), config);
     facts.stroke_facts = Some(stroke_facts);
+    layer
+}
+
+fn parse_layer_from_strokes(
+    merged: &[Bar],
+    strokes: Vec<Stroke>,
+    config: &super::config::ParseConfig,
+) -> ParseLayer {
+    let fractals = fractal::detect_fractals(merged);
     let (segments, pending_start) = segment::divide_segments_with_tail(&strokes, config);
     let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
     ParseLayer {
@@ -314,6 +355,48 @@ fn parse_layer_from_facts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn group_evidence_matches_complete_facts_for_every_prefix() {
+        let cases = [
+            vec![(0, 0, 1), (10, 4, 8), (20, 5, 7), (30, 2, 4), (40, 6, 9)],
+            vec![(0, 1, 4), (2, 2, 6), (9, 3, 6), (15, 7, 9)],
+            vec![(0, 0, 10), (3, 2, 8), (7, 12, 15)],
+            vec![(20, 0, 1), (10, 4, 8), (30, 2, 4)],
+            vec![(0, 0, 1), (0, 4, 8), (2, 2, 4)],
+        ];
+        let config = ThetaConfig::default();
+        for source in cases {
+            let mut state = inclusion::IncrFactsState::empty();
+            let mut bars = Vec::new();
+            for (coord, low, high) in source {
+                let bar = Bar {
+                    source_index: coord,
+                    timestamp: bars.len() as i64,
+                    open: low,
+                    high,
+                    low,
+                    close: high,
+                    volume: 1.0,
+                    untradable: false,
+                };
+                bars.push(bar);
+                state.append(bar);
+                let (expected, complete) = parse_layer_with_inclusion_facts(&bars, &config);
+                let (actual, evidence) = parse_layer_with_group_evidence(&state, &config);
+                assert_eq!(actual, expected, "prefix={}", bars.len());
+                assert_eq!(evidence.groups, complete.groups, "完整组成员/方向/确认来源");
+                assert_eq!(
+                    Some(evidence.stroke_facts),
+                    complete.stroke_facts,
+                    "完整新笔事实"
+                );
+                assert_eq!(actual.merged_confirmed_len, 0);
+                assert_eq!(actual.segments_confirmed_len, 0);
+                assert_eq!(actual.segments_earliest_unsealed, None);
+            }
+        }
+    }
 
     /// 临时交叉验证导出（#84 验证门点3）：导出 Rust OKLO 笔序列 + 线段到 JSON，
     /// 供 Python a_segment_v1.py 用**同一笔序列**跑 segments_from_strokes_v1 对比（隔离笔层）。

@@ -882,7 +882,7 @@ impl IncrFactsState {
     /// 追加 1 根 raw bar——`process_inclusion_with_facts` 循环体的状态化版本（逐句对应）。
     ///
     /// #1394：同一次调用同时写完整证据的共享节点（步骤日志、证据坐标链、组尾链、极值快照）；
-    /// 每根只新建 O(1) 个节点，展开留给 [`IncrFactsState::materialize_facts`]。
+    /// 坐标前缀沿 O(log n) 平衡路径共享，展开留给 [`IncrFactsState::materialize_facts`]。
     pub fn append(&mut self, incoming: Bar) {
         self.positions.insert(incoming.source_index, self.ordinal);
         self.ordinal += 1;
@@ -976,11 +976,7 @@ impl IncrFactsState {
             .or_else(|| strict_dir(&acc, &incoming))
             .expect("合法非包含区间必有严格方向");
         let was_established = self.evidence.is_some();
-        let previous_tail = self
-            .group_tail
-            .last()
-            .cloned()
-            .expect("有 acc ⟹ 至少一组");
+        let previous_tail = self.group_tail.last().cloned().expect("有 acc ⟹ 至少一组");
         let previous_coords = self.current_evidence.clone();
         let previous_high = Rc::clone(self.group_high.last().expect("有 acc ⟹ 至少一组"));
         let previous_low = Rc::clone(self.group_low.last().expect("有 acc ⟹ 至少一组"));
@@ -1000,10 +996,9 @@ impl IncrFactsState {
             // 尚未建立方向证据时（首次 establish_direction），前缀没有旧证据可依赖——
             // 取本组自身的成员链（锚 ++ 组尾），与前组成员的来源集合逐位相同。
             let base = match &previous_coords {
-                Some(evidence) => super::evidence::CoordsRef::concat(
-                    &evidence.coords,
-                    &previous_tail,
-                ),
+                Some(evidence) => {
+                    super::evidence::CoordsRef::concat(&evidence.coords, &previous_tail)
+                }
                 None => super::evidence::CoordsRef::concat(
                     &super::evidence::CoordsRef::single(acc.source_index),
                     &previous_tail,
@@ -1198,7 +1193,9 @@ impl IncrFactsState {
 
     /// 步骤 `index` 的 `waiting_reasons`（廉价读取：S 侧汇总知识状态不物化该步来源集合）。
     pub fn step_waiting_reasons(&self, index: usize) -> Option<&[&'static str]> {
-        self.steps.get(index).map(|step| step.waiting_reasons.as_slice())
+        self.steps
+            .get(index)
+            .map(|step| step.waiting_reasons.as_slice())
     }
 
     /// 是否已建立方向证据（= 全量入口 `steps.iter().any(|s| s.direction_evidence.is_some())`）。
@@ -1309,25 +1306,20 @@ impl IncrFactsState {
             .unwrap_or_default()
     }
 
-    /// 展开完整 facts——与 [`process_inclusion_with_facts`] **全部字段逐位相同**。
-    ///
-    /// 这是「公开兼容导出」的剩余成本：按集合大小线性展开，不复制额外历史。
-    pub fn materialize_facts(&self) -> InclusionFacts {
+    /// 完整组证据投影；成员仍由同一 dense_annotation 判定，一次按组分桶。
+    /// 本入口不展开步骤历史，不能当成完整 InclusionFacts 使用。
+    pub fn materialize_groups(&self) -> Vec<InclusionGroupFact> {
         if self.degraded {
-            return process_inclusion_with_facts(&self.raw.to_vec());
+            return process_inclusion_with_facts(&self.raw.to_vec()).groups;
         }
-        let merged = self.merged.to_vec();
         let annotations = self.dense_annotations();
+        let mut members_by_group = vec![Vec::new(); self.groups.len()];
+        for (bar, annotation) in self.raw.iter().take(self.processed).zip(&annotations) {
+            members_by_group[annotation.group].push(bar.source_index);
+        }
         let mut groups: Vec<InclusionGroupFact> = Vec::with_capacity(self.groups.len());
         for (index, base) in self.groups.iter().enumerate() {
-            let members = self
-                .raw
-                .iter()
-                .take(self.processed)
-                .zip(&annotations)
-                .filter(|(_, a)| a.group == index)
-                .map(|(b, _)| b.source_index)
-                .collect();
+            let members = std::mem::take(&mut members_by_group[index]);
             groups.push(InclusionGroupFact {
                 bar: base.bar,
                 members,
@@ -1346,6 +1338,16 @@ impl IncrFactsState {
                     .map(expand_evidence),
             });
         }
+        groups
+    }
+
+    /// 展开完整 facts——与 [`process_inclusion_with_facts`] 全部字段逐位相同。
+    pub fn materialize_facts(&self) -> InclusionFacts {
+        if self.degraded {
+            return process_inclusion_with_facts(&self.raw.to_vec());
+        }
+        let merged = self.merged.to_vec();
+        let groups = self.materialize_groups();
         let steps = (0..self.steps.len())
             .filter_map(|index| self.step_fact(index))
             .collect();
@@ -1993,27 +1995,30 @@ mod tests {
         ];
         assert_per_prefix_bit_exact(&bars, "sparse-coords");
         let facts = process_inclusion_with_facts(&bars);
-        assert!(facts.steps.iter().all(|s| s
-            .source_coords
+        assert!(facts
+            .steps
             .iter()
-            .all(|c| *c == 10 || *c == 11 || *c == 37 || *c == 9000 || *c == 9001 || *c == 12345)));
+            .all(|s| s.source_coords.iter().all(|c| *c == 10
+                || *c == 11
+                || *c == 37
+                || *c == 9000
+                || *c == 9001
+                || *c == 12345)));
     }
 
     #[test]
     fn completeness_falls_back_on_non_monotonic_coords() {
         // 裸调用方给出非单调坐标：共享表示失效，展开回落全量入口（不得近似）。
-        let bars = vec![
-            bar(5, 10, 5),
-            bar(3, 15, 8),
-            bar(9, 14, 9),
-            bar(1, 9, 4),
-        ];
+        let bars = vec![bar(5, 10, 5), bar(3, 15, 8), bar(9, 14, 9), bar(1, 9, 4)];
         let mut state = IncrFactsState::empty();
         for b in &bars {
             state.append(*b);
         }
         assert!(state.degraded());
-        assert_eq!(state.materialize_facts(), process_inclusion_with_facts(&bars));
+        assert_eq!(
+            state.materialize_facts(),
+            process_inclusion_with_facts(&bars)
+        );
     }
 
     #[test]
@@ -2021,7 +2026,9 @@ mod tests {
         // 确定性 LCG 合成 600 根，混合包含/严格/方向翻转/同价；逐前缀全字段对拍。
         let mut lcg: u64 = 0x2545_F491_4F6C_DD1D;
         let mut rand = move || {
-            lcg = lcg.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            lcg = lcg
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             (lcg >> 33) as i64
         };
         let mut high = 100i64;
