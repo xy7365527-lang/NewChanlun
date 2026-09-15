@@ -40,6 +40,9 @@ mod cache;
 // #1394：新库的显式私有存储格式登记（changes-only/1）；旧库无该表即旧 full 域。
 #[path = "s_session_v2/delta_storage.rs"]
 mod delta_storage;
+// #1394 第二段：完整证据的私有内容寻址共享表示（evidence-graph/1）；旧库无该表即旧整块域。
+#[path = "s_session_v2/evidence_store.rs"]
+mod evidence_store;
 #[path = "s_session_v2/tb02a.rs"]
 mod tb02a;
 #[path = "s_session_v2/tb02a_facts.rs"]
@@ -339,6 +342,26 @@ fn verify_writer_epoch(conn: &Connection, configured: &str) -> Result<(), String
 /// 核单个不可变 batch 的规范内容寻址完整性：batch_id = "batch-" + sha256(canonical_bytes)，
 /// byte_len == canonical_bytes.len()。缺失/坏字节/坏长度均 StorageUnavailable。
 fn verify_stored_batch(conn: &Connection, batch_id: &str) -> Result<(), String> {
+    load_batch_bytes(conn, batch_id).map(|_| ())
+}
+
+/// 单次读取的私有节点缓存预算（与 S 启动器的审计缓存同档；容量满只失去复用，不改判据）。
+const EVIDENCE_READ_BUDGET: usize = 268_435_456;
+
+/// #1394：批次规范字节的**唯一**读取入口。
+///
+/// 物理域由私有登记表唯一决定（旧整块 / 新节点图），两者都按同一内容寻址判据核验；
+/// 不提供「一种失败再试另一种」的降级通道：图域见到整块字节即拒绝，整块域见不到字节即拒绝。
+fn load_batch_bytes(conn: &Connection, batch_id: &str) -> Result<Vec<u8>, String> {
+    let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
+    load_batch_bytes_with(conn, &mut reader, batch_id)
+}
+
+fn load_batch_bytes_with(
+    conn: &Connection,
+    reader: &mut evidence_store::Reader<'_>,
+    batch_id: &str,
+) -> Result<Vec<u8>, String> {
     let row: Option<(Vec<u8>, i64)> = conn
         .query_row(
             "SELECT canonical_bytes, byte_len FROM batches WHERE batch_id=?1",
@@ -347,7 +370,7 @@ fn verify_stored_batch(conn: &Connection, batch_id: &str) -> Result<(), String> 
         )
         .optional()
         .map_err(|e| format!("读 batch {batch_id} 失败：{e}"))?;
-    let (bytes, byte_len) = row.ok_or_else(|| {
+    let (blob, byte_len) = row.ok_or_else(|| {
         format!("StorageUnavailable：可达 batch `{batch_id}` 不存在（引用不完整，拒绝写入）")
     })?;
     let expect_hash = match batch_id.strip_prefix("batch-") {
@@ -358,13 +381,40 @@ fn verify_stored_batch(conn: &Connection, batch_id: &str) -> Result<(), String> 
             ))
         }
     };
-    let actual_hash = sha256_hex(&bytes);
-    if actual_hash != expect_hash || usize::try_from(byte_len).ok() != Some(bytes.len()) {
+    let byte_len = usize::try_from(byte_len).map_err(|_| {
+        format!("StorageUnavailable：batch `{batch_id}` byte_len 非负越界")
+    })?;
+    if !evidence_store::read_format(conn)?.graph() {
+        // 旧整块域：完整规范字节就在这一行。
+        if blob.is_empty() || blob.len() != byte_len || sha256_hex(&blob) != expect_hash {
+            return Err(format!(
+                "StorageUnavailable：batch `{batch_id}` 规范字节/长度与内容寻址不符（坏 bytes/byte_len），拒绝写入"
+            ));
+        }
+        return Ok(blob);
+    }
+    // 图域：批次行只留长度占位；完整字节必须由私有根无损展开，且根闭包必须完整。
+    if !blob.is_empty() {
         return Err(format!(
-            "StorageUnavailable：batch `{batch_id}` 规范字节/长度与内容寻址不符（坏 bytes/byte_len），拒绝写入"
+            "StorageUnavailable：图域 batch `{batch_id}` 仍带整块字节（与私有根混写），拒绝写入"
         ));
     }
-    Ok(())
+    let root_key = evidence_store::batch_root_key(batch_id);
+    let (_, _, expanded, _) = evidence_store::Reader::root_row(conn, &root_key)?.ok_or_else(|| {
+        format!("StorageUnavailable：图域 batch `{batch_id}` 缺私有根，拒绝写入")
+    })?;
+    if expanded as usize != byte_len {
+        return Err(format!(
+            "StorageUnavailable：图域 batch `{batch_id}` 根展开长度与 byte_len 不符"
+        ));
+    }
+    let bytes = reader.read_fixed_cut(&root_key)?;
+    if bytes.len() != byte_len || sha256_hex(&bytes) != expect_hash {
+        return Err(format!(
+            "StorageUnavailable：batch `{batch_id}` 展开字节/长度与内容寻址不符，拒绝写入"
+        ));
+    }
+    Ok(bytes)
 }
 
 /// 核已发布可达根与全部历史可达引用（ROOT-B-R2-01）：
@@ -708,18 +758,27 @@ fn verify_profile_binding(conn: &Connection) -> Result<(String, String), String>
     } else {
         // 旧版本没有profile_definition：只接受独立已封存来源；没有批次的旧TestOnly接纳
         // 以同一声明档案核规范hash。这是旧格式取证，不在失败后换宽松判据。
-        let sealed: Option<(String,Vec<u8>)> = conn.query_row(
-            "SELECT b.batch_id,b.canonical_bytes FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE json_extract(b.canonical_bytes,'$.profile_id')<>'' ORDER BY d.generation LIMIT 1",
-            [],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(|e|e.to_string())?;
-        if let Some((batch_id, bytes)) = sealed {
-            verify_stored_batch(conn, &batch_id)?;
+        // #1394：物理域可能是旧整块也可能是新节点图，故按已发布代序逐代展开选取首个带
+        // profile 的可达批次；不再用 SQL 直接读整块列（图域该列为长度占位）。
+        let mut stmt=conn.prepare("SELECT b.batch_id FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id ORDER BY d.generation ASC").map_err(|e|e.to_string())?;
+        let sealed_ids=stmt.query_map([],|r|r.get::<_,String>(0)).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+        let mut sealed_found=false;
+        let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
+        for batch_id in &sealed_ids {
+            let bytes = load_batch_bytes_with(conn, &mut reader, batch_id)?;
             let batch: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+            if batch["profile_id"].as_str().unwrap_or("").is_empty() {
+                continue;
+            }
             if batch["profile_id"].as_str() != Some(id.as_str())
                 || batch["profile_hash"].as_str() != Some(hash.as_str())
             {
                 return Err("StorageUnavailable：旧profile绑定与可达封存批次不一致".to_string());
             }
-        } else {
+            sealed_found=true;
+            break;
+        }
+        if !sealed_found {
             let declared: Value = serde_json::from_str(include_str!(
                 "../../../s_session/profiles/testonly_tick_1_1_ohlc.json"
             ))
@@ -755,7 +814,8 @@ fn profile_at_cut(conn: &Connection, generation: i64) -> Result<(String, String)
     if generation == 0 {
         return Ok((String::new(), String::new()));
     }
-    let bytes: Vec<u8>=conn.query_row("SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE d.generation=?1",params![generation],|r|r.get(0)).map_err(|e|format!("StorageUnavailable：cut来源不存在：{e}"))?;
+    let batch_id:String=conn.query_row("SELECT b.batch_id FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE d.generation=?1",params![generation],|r|r.get(0)).map_err(|e|format!("StorageUnavailable：cut来源不存在：{e}"))?;
+    let bytes = load_batch_bytes(conn, &batch_id)?;
     let batch: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
     Ok((
         batch["profile_id"]
@@ -773,40 +833,71 @@ fn profile_at_cut(conn: &Connection, generation: i64) -> Result<(String, String)
 fn capture_reachable_batches(
     conn: &Connection,
 ) -> Result<BTreeMap<String, std::sync::Arc<Value>>, String> {
-    let mut q=conn.prepare("SELECT d.index_frontier,b.canonical_bytes,b.byte_len FROM structure_deltas d LEFT JOIN batches b ON b.batch_id=d.index_frontier").map_err(|e|e.to_string())?;
-    let mut rows = q.query([]).map_err(|e| e.to_string())?;
+    // #1394 第二段（2D）：每次仍在当前一致性读集中取得全部可达根与各唯一依赖节点；
+    // 同一次审计里同一个私有节点只读/解码一次，多个历史批次不必各自展开一遍。
+    // 容量有限只失去复用，不改变合法性判据。
+    let ids = {
+        let mut q = conn
+            .prepare("SELECT d.index_frontier FROM structure_deltas d")
+            .map_err(|e| e.to_string())?;
+        let rows = q
+            .query_map([], |r| r.get::<_, String>(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        rows
+    };
+    let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
     let mut batches = BTreeMap::new();
     let mut captured = BTreeMap::new();
-    while let Some(r) = rows.next().map_err(|e| e.to_string())? {
-        let id: String = r.get(0).map_err(|e| e.to_string())?;
-        let bytes = r
-            .get_ref(1)
-            .map_err(|e| e.to_string())?
-            .as_blob()
-            .map_err(|e| format!("StorageUnavailable：可达批次缺失/非BLOB：{e}"))?;
-        let len: i64 = r.get(2).map_err(|e| e.to_string())?;
-        if usize::try_from(len).ok() != Some(bytes.len()) {
-            return Err("StorageUnavailable：可达 batch 长度不符".into());
-        }
-        let (original, value) = match cache::decoded(&id, bytes) {
+    for id in ids {
+        let bytes = load_batch_bytes_with(conn, &mut reader, &id)?;
+        let (original, value) = match cache::decoded(&id, &bytes) {
             Some(value) => value,
             None => {
-                if id != format!("batch-{}", sha256_hex(&bytes)) {
-                    return Err("StorageUnavailable：可达 batch 内容寻址不符".into());
-                }
                 let value = v2::strict_json(&bytes)
                     .map_err(|e| format!("StorageUnavailable：batch JSON：{e}"))?;
                 if !value.is_object() {
                     return Err("StorageUnavailable：batch 非对象".into());
                 }
                 (
-                    std::sync::Arc::<[u8]>::from(bytes),
+                    std::sync::Arc::<[u8]>::from(bytes.as_slice()),
                     std::sync::Arc::new(value),
                 )
             }
         };
         captured.insert(id.clone(), (original, value.clone()));
         batches.insert(id, value);
+    }
+    // 不可达残留不得发布：每个私有根都必须有对应批次行、闭包完整（缺节点/坏字节/坏长度、
+    // 未 Commit 的 after_batch 批次都在此展开核验），且库内每个节点都落在某个根的闭包内。
+    if evidence_store::read_format(conn)?.graph() {
+        for key in evidence_store::root_keys(conn)? {
+            let batch_id = key.strip_prefix("batch/").ok_or_else(|| {
+                format!("StorageUnavailable：私有根 `{key}` 不是批次根（未知根命名）")
+            })?;
+            let present: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM batches WHERE batch_id=?1",
+                    params![batch_id],
+                    |r| r.get(0),
+                )
+                .map_err(|e| format!("StorageUnavailable：核私有根批次行失败：{e}"))?;
+            if present != 1 {
+                return Err(format!(
+                    "StorageUnavailable：私有根 `{key}` 没有对应批次行（不可达残留），拒绝写入"
+                ));
+            }
+            reader.read_fixed_cut(&key)?;
+        }
+        let orphan = evidence_store::unreachable_nodes(conn, reader.touched())?;
+        if !orphan.is_empty() {
+            return Err(format!(
+                "StorageUnavailable：私有证据图存在不可达节点 {} 个（首例 {}），拒绝写入",
+                orphan.len(),
+                evidence_store::hex_bytes(&orphan[0])
+            ));
+        }
     }
     cache::store_batches(captured);
     Ok(batches)
@@ -1185,6 +1276,8 @@ fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, Str
         .map_err(|e| format!("建 schema 失败：{e}"))?;
     // #1394：新库固定私有 changes-only/1 登记（显式单行）。旧库无此表，继续旧 full 域，不迁移。
     delta_storage::declare_new(&conn)?;
+    // #1394 第二段：新库固定私有 evidence-graph/1 登记（显式单行）。旧库无此表，继续旧整块域，不迁移。
+    evidence_store::declare_new(&conn)?;
     let sqlite_version: String = conn
         .query_row("SELECT sqlite_version()", [], |r| r.get(0))
         .map_err(|e| format!("读 sqlite_version 失败：{e}"))?;
@@ -2158,14 +2251,9 @@ fn verify_begin_owner(
 }
 
 fn verify_batch_bytes(conn: &Connection, batch_id: &str, bytes: &[u8]) -> Result<(), String> {
-    let (stored, byte_len): (Vec<u8>, i64) = conn
-        .query_row(
-            "SELECT canonical_bytes, byte_len FROM batches WHERE batch_id=?1",
-            params![batch_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
+    let stored = load_batch_bytes(conn, batch_id)
         .map_err(|e| format!("完整不可变批次不可读：{e}"))?;
-    if stored != bytes || usize::try_from(byte_len).ok() != Some(bytes.len()) {
+    if stored != bytes {
         return Err(
             "IdentityConflict：不可变 batch 的规范字节或长度不符，拒绝覆写和发布".to_string(),
         );
@@ -2174,6 +2262,7 @@ fn verify_batch_bytes(conn: &Connection, batch_id: &str, bytes: &[u8]) -> Result
 }
 
 /// C09.4 / AC4：完整对象先独立持久；此事务不发布任何对象表或结构根。
+#[allow(clippy::too_many_arguments)]
 fn persist_batch_before_publish(
     conn: &mut Connection,
     token: &str,
@@ -2181,6 +2270,8 @@ fn persist_batch_before_publish(
     frontier: i64,
     batch_id: &str,
     bytes: &[u8],
+    batch_value: &Value,
+    slots: &[evidence_store::SlotSpec],
     configured_epoch: &str,
 ) -> Result<(), String> {
     if batch_id != format!("batch-{}", sha256_hex(bytes)) {
@@ -2191,9 +2282,18 @@ fn persist_batch_before_publish(
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开批次持久事务失败：{e}"))?;
     verify_begin_owner(&tx, token, gen, frontier, configured_epoch)?;
+    // #1394：物理域由登记表唯一决定；图域在**同一事务**内先落不可变节点与根，再落批次行。
+    let graph = evidence_store::read_format(&tx)?.graph();
+    let stored_blob: Vec<u8> = if graph {
+        let staged = evidence_store::stage_complete(batch_value, slots)?;
+        evidence_store::publish_refs(&tx, &evidence_store::batch_root_key(batch_id), &staged)?;
+        Vec::new()
+    } else {
+        bytes.to_vec()
+    };
     tx.execute(
         "INSERT OR IGNORE INTO batches(batch_id, canonical_bytes, byte_len) VALUES(?1, ?2, ?3)",
-        params![batch_id, bytes, byte_len],
+        params![batch_id, stored_blob, byte_len],
     )
     .map_err(|e| format!("持久 batch 失败：{e}"))?;
     verify_batch_bytes(&tx, batch_id, bytes)?;
@@ -2613,6 +2713,17 @@ fn advance_core(
         o["batch_id"] = json!(batch_id);
     }
 
+    // #1394 第二段：代际参数槽只含**本代生成态**标量（数值按规范十进制、字符串按同一
+    // serializer 的带引号字节双匹配）。同代全部对象共用同一批槽值，故同一模板跨代共享。
+    let mut evidence_slots = vec![
+        evidence_store::SlotSpec::number(&gen.to_string()),
+        evidence_store::SlotSpec::number(&frontier.to_string()),
+        evidence_store::SlotSpec::string(&structure_cut),
+    ];
+    if let Some(ns) = batch_json["semantic_commit_ns"].as_str() {
+        evidence_slots.push(evidence_store::SlotSpec::string(ns));
+    }
+
     persist_batch_before_publish(
         &mut conn,
         &token,
@@ -2620,6 +2731,8 @@ fn advance_core(
         frontier,
         &batch_id,
         &batch_bytes,
+        &batch_json,
+        &evidence_slots,
         configured_epoch,
     )?;
 
@@ -5438,8 +5551,21 @@ mod tests {
         set_test_begin(&conn);
         let bytes = br#"{"objects":[],"raw_events":[],"scope":"test-phase-boundary"}"#;
         let id = format!("batch-{}", sha256_hex(bytes));
-        persist_batch_before_publish(&mut conn, "owned", 1, 6, &id, bytes, DEFAULT_WRITER_EPOCH)
-            .unwrap();
+        let value: Value =
+            serde_json::from_slice(bytes).expect("测试批次是可解析 JSON");
+        assert_eq!(canonical_bytes_of_value(&value), bytes.as_slice());
+        persist_batch_before_publish(
+            &mut conn,
+            "owned",
+            1,
+            6,
+            &id,
+            bytes,
+            &value,
+            &[],
+            DEFAULT_WRITER_EPOCH,
+        )
+        .unwrap();
         let reader =
             Connection::open_with_flags(&files.db(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
                 .unwrap();
@@ -5463,6 +5589,8 @@ mod tests {
             6,
             &id,
             b"changed",
+            &value,
+            &[],
             DEFAULT_WRITER_EPOCH
         )
         .is_err());
@@ -5479,6 +5607,8 @@ mod tests {
             6,
             &id,
             bytes,
+            &value,
+            &[],
             DEFAULT_WRITER_EPOCH
         )
         .is_err());
@@ -7940,6 +8070,234 @@ mod tests {
     }
 
     /// #1394：封存 batch 的字节/内容寻址 hash 不得随 Delta 域变化。
+    /// #1394 第二段：图域每一代仍按**完整展开字节**核公开身份，且跨代共享必须真实发生。
+    #[test]
+    fn evidence_graph_is_lossless_public_identical_and_shared() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let rows = tb02b_oracle_rows();
+        for n in 1..=rows.len() {
+            accept_ohlc(&files, &located_ohlc_input(&rows[..n]));
+            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        }
+        let conn = open_db(&files.db()).unwrap();
+        let format: String = conn
+            .query_row("SELECT graph_format FROM s_evidence_format", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(format, evidence_store::GRAPH_FORMAT);
+        let mut total = 0i64;
+        let mut count = 0i64;
+        {
+            let mut stmt = conn
+                .prepare("SELECT batch_id,canonical_bytes,byte_len FROM batches ORDER BY batch_id")
+                .unwrap();
+            let mut q = stmt.query([]).unwrap();
+            while let Some(r) = q.next().unwrap() {
+                let id: String = r.get(0).unwrap();
+                let blob: Vec<u8> = r.get(1).unwrap();
+                let len: i64 = r.get(2).unwrap();
+                // 图域批次行只留长度占位；完整字节必须由私有根无损展开。
+                assert!(blob.is_empty(), "图域不得再存整块字节：{id}");
+                let bytes = load_batch_bytes(&conn, &id).unwrap();
+                assert_eq!(bytes.len() as i64, len, "展开长度必须等于 byte_len");
+                assert_eq!(format!("batch-{}", sha256_hex(&bytes)), id, "公开身份不变");
+                total += len;
+                count += 1;
+            }
+        }
+        assert_eq!(count, rows.len() as i64);
+        let (_, payload) = evidence_store::stats(&conn).unwrap();
+        assert!(
+            payload * 2 < total,
+            "跨代共享必须真实发生：节点负载 {payload} 字节 vs 批次累计 {total} 字节"
+        );
+        // 公开读取路径（固定 cut 快照/根审计）在图上必须照常成立。
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(snapshot_of(&files, None)["generation"], json!(rows.len().to_string()));
+    }
+
+    /// #1394 第二段：当前读集下改历史叶/长度/引用/根/登记，任何写入之前一律拒绝且不留痕。
+    #[test]
+    fn evidence_graph_damage_blocks_every_write_before_it_happens() {
+        for sql in [
+            // 改叶字节但保 node ID（内容寻址不符）。
+            "UPDATE s_evidence_nodes SET payload=x'00' WHERE node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_kind=0 AND length(payload)>8 LIMIT 1)",
+            // 改拼接节点声明长度。
+            "UPDATE s_evidence_nodes SET expanded_length=0 WHERE node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_kind=1 LIMIT 1)",
+            // 改叶声明长度。
+            "UPDATE s_evidence_nodes SET expanded_length=expanded_length+3 WHERE node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_kind=0 LIMIT 1)",
+            // 删中间节点（闭包缺项）。
+            "DELETE FROM s_evidence_nodes WHERE node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_kind=1 LIMIT 1)",
+            // 换根指针（指向另一个存在的叶）。
+            "UPDATE s_evidence_roots SET node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_kind=0 LIMIT 1)",
+            // 改根长度 / 摘要 / 参数槽。
+            "UPDATE s_evidence_roots SET expanded_length=expanded_length+1",
+            "UPDATE s_evidence_roots SET content_sha256='0'||substr(content_sha256,2)",
+            "UPDATE s_evidence_roots SET slot_ids=x''",
+            // 删根 / 删批次行（不可达根与悬空根）。
+            "DELETE FROM s_evidence_roots WHERE root_key=(SELECT root_key FROM s_evidence_roots ORDER BY root_key LIMIT 1)",
+            "DELETE FROM batches WHERE batch_id=(SELECT batch_id FROM batches ORDER BY batch_id LIMIT 1)",
+            // 伪造不可达残留节点 / 未声明种类 / 未声明格式。
+            "INSERT INTO s_evidence_nodes(node_id,node_kind,payload,expanded_length) VALUES(zeroblob(32),0,x'00',1)",
+            "UPDATE s_evidence_nodes SET node_kind=7 WHERE node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_kind=0 LIMIT 1)",
+            "UPDATE s_evidence_format SET graph_format='evidence-graph/9'",
+            // 图域批次行仍带整块字节（与私有根混写）。
+            "UPDATE batches SET canonical_bytes=x'7b7d' WHERE batch_id=(SELECT batch_id FROM batches ORDER BY batch_id LIMIT 1)",
+        ] {
+            cache::configure(268435456);
+            let files = TestFiles::new();
+            init_test_db(&files);
+            // 4 代足以覆盖「同一节点跨代被复用后受损」的冷/暖两条读集，避免逐例跑满全链。
+            let oracle = tb02b_oracle_rows();
+            let rows = &oracle[..4];
+            for n in 1..=rows.len() {
+                accept_ohlc(&files, &located_ohlc_input(&rows[..n]));
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            }
+            // 先暖一次当前读集，确保损坏不被旧证书掩盖。
+            let healthy = open_db(&files.db()).unwrap();
+            verify_reachable_root(&healthy).unwrap();
+            verify_reachable_root(&healthy).unwrap();
+            assert_eq!(cache::last_resumed(), rows.len());
+            let other = open_db(&files.db()).unwrap();
+            other.execute_batch(sql).unwrap();
+            drop(other);
+            let before = graph_digest(&healthy);
+            assert!(verify_reachable_root(&healthy).is_err(), "{sql}");
+            for refused in [
+                cmd_snapshot(&files.db(), None),
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
+                cmd_recover(&files.db(), "2"),
+            ] {
+                assert!(refused.is_err(), "{sql}");
+            }
+            assert_eq!(graph_digest(&healthy), before, "拒绝前不得留下任何写入：{sql}");
+            cache::configure(0);
+        }
+    }
+
+    /// #1394 第二段：同 ID 异内容必须在**发布入口**拒绝，不能吞掉等将来读审计发现。
+    #[test]
+    fn evidence_graph_publish_rejects_same_id_different_content() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let conn = open_db(&files.db()).unwrap();
+        let value = json!({"a":[1,2,3,4],"b":"x","c":{"d":"y"}});
+        assert_eq!(
+            canonical_bytes_of_value(&value),
+            br#"{"a":[1,2,3,4],"b":"x","c":{"d":"y"}}"#
+        );
+        let staged = evidence_store::stage_complete(&value, &[]).unwrap();
+        let key = evidence_store::batch_root_key("batch-unit-test");
+        evidence_store::publish_refs(&conn, &key, &staged).unwrap();
+        // 节点同 ID 异内容：保留 node_id 改负载，再发布同一份 staging。
+        conn.execute(
+            "UPDATE s_evidence_nodes SET payload=x'00' WHERE node_id=(SELECT node_id FROM s_evidence_nodes WHERE length(payload)>1 LIMIT 1)",
+            [],
+        )
+        .unwrap();
+        let err = evidence_store::publish_refs(&conn, &key, &staged).unwrap_err();
+        assert!(err.contains("IdentityConflict"), "{err}");
+        // 根同 key 异内容：换根指针后重新发布必须拒绝覆写。
+        conn.execute(
+            "UPDATE s_evidence_roots SET node_id=(SELECT node_id FROM s_evidence_nodes WHERE node_id<>s_evidence_roots.node_id LIMIT 1)",
+            [],
+        )
+        .unwrap();
+        let err = evidence_store::publish_refs(&conn, &key, &staged).unwrap_err();
+        assert!(err.contains("IdentityConflict"), "{err}");
+    }
+
+    /// #1394 第二段：旧库整块域继续严格可读；半降级/混写一律拒绝，不提供降级通道。
+    #[test]
+    fn evidence_graph_downgrade_is_strict() {
+        let build = |files: &TestFiles| {
+            init_test_db(files);
+            let rows = tb02b_oracle_rows();
+            for n in 1..=rows.len() {
+                accept_ohlc(files, &located_ohlc_input(&rows[..n]));
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            }
+        };
+        // ① 完整降级为旧库：整块字节写回批次行并撤掉三表 → 旧整块判据仍必须严格可读。
+        let legacy = TestFiles::new();
+        build(&legacy);
+        {
+            let conn = open_db(&legacy.db()).unwrap();
+            let ids: Vec<String> = {
+                let mut stmt = conn.prepare("SELECT batch_id FROM batches ORDER BY batch_id").unwrap();
+                stmt.query_map([], |r| r.get::<_, String>(0))
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap()
+            };
+            for id in ids {
+                let bytes = load_batch_bytes(&conn, &id).unwrap();
+                conn.execute(
+                    "UPDATE batches SET canonical_bytes=?1 WHERE batch_id=?2",
+                    params![bytes, id],
+                )
+                .unwrap();
+            }
+            conn.execute_batch("DROP TABLE s_evidence_roots; DROP TABLE s_evidence_nodes; DROP TABLE s_evidence_format;")
+                .unwrap();
+        }
+        let conn = open_db(&legacy.db()).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        cmd_snapshot(&legacy.db(), None).unwrap();
+        drop(conn);
+        // ② 半降级（缺一张表）仍按已知协议模式拒绝。
+        for drop_sql in [
+            "DROP TABLE s_evidence_roots",
+            "DROP TABLE s_evidence_nodes",
+            "DROP TABLE s_evidence_format",
+        ] {
+            let half = TestFiles::new();
+            build(&half);
+            let conn = open_db(&half.db()).unwrap();
+            conn.execute(drop_sql, []).unwrap();
+            drop(conn);
+            assert!(cmd_snapshot(&half.db(), None).is_err(), "{drop_sql}");
+            assert!(cmd_advance(&half.db(), DEFAULT_WRITER_EPOCH).is_err(), "{drop_sql}");
+        }
+        // ③ 三表齐全但未声明/坏声明：与模式损坏同门。
+        for sql in [
+            "DELETE FROM s_evidence_format",
+            "UPDATE s_evidence_format SET graph_format='evidence-graph/2'",
+        ] {
+            let bad = TestFiles::new();
+            build(&bad);
+            let conn = open_db(&bad.db()).unwrap();
+            conn.execute(sql, []).unwrap();
+            drop(conn);
+            assert!(cmd_snapshot(&bad.db(), None).is_err(), "{sql}");
+        }
+    }
+
+    /// 库的持久摘要：拒绝路径必须逐字节原地不动（含 meta 与图三表）。
+    #[cfg(test)]
+    fn graph_digest(conn: &Connection) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        for sql in [
+            "SELECT key||'='||value FROM meta ORDER BY key",
+            "SELECT batch_id||':'||byte_len||':'||hex(canonical_bytes) FROM batches ORDER BY batch_id",
+            "SELECT hex(node_id)||':'||node_kind||':'||expanded_length||':'||hex(payload) FROM s_evidence_nodes ORDER BY node_id",
+            "SELECT root_key||':'||hex(node_id)||':'||hex(slot_ids)||':'||expanded_length||':'||content_sha256 FROM s_evidence_roots ORDER BY root_key",
+            "SELECT graph_format FROM s_evidence_format ORDER BY singleton",
+        ] {
+            let mut stmt = conn.prepare(sql).unwrap();
+            let rows = stmt
+                .query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            parts.extend(rows);
+        }
+        sha256_hex(parts.join("|").as_bytes())
+    }
+
     /// 同一条输入链分别只改「有没有私有登记表」，逐代 batch_id 与 byte_len 必须完全相同；
     /// 变化只能落在 Delta 的 upserts 上（新域少发未变对象）。
     #[test]

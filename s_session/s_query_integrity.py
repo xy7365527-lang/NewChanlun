@@ -204,14 +204,42 @@ CREATE TABLE s_storage_format (
 STORAGE_FORMAT_TABLE = "s_storage_format"
 STORAGE_FORMAT_CHANGES_ONLY = "changes-only/1"
 STORAGE_FORMAT_LEGACY = "legacy-full/0"
+
+# #1394 第二段：新库固定私有 evidence-graph/1 的三表（登记 + 不可变节点 + 根映射）。
+# 无此三表 = 旧库整块域（`batches.canonical_bytes` 存完整规范字节）；有此三表 = 图域。
+# 三表同生同灭，缺一即模式门拒绝；未知 graph_format 亦然。两域都是已知协议模式，无第三种。
+EVIDENCE_GRAPH_SCHEMA = """
+CREATE TABLE s_evidence_format (
+ singleton INTEGER PRIMARY KEY CHECK(singleton=1), graph_format TEXT NOT NULL);
+CREATE TABLE s_evidence_nodes (
+ node_id BLOB PRIMARY KEY, node_kind INTEGER NOT NULL, payload BLOB NOT NULL,
+ expanded_length INTEGER NOT NULL);
+CREATE TABLE s_evidence_roots (
+ root_key TEXT PRIMARY KEY, node_id BLOB NOT NULL, slot_ids BLOB NOT NULL,
+ expanded_length INTEGER NOT NULL, content_sha256 TEXT NOT NULL);
+"""
+EVIDENCE_GRAPH_TABLES = ("s_evidence_format", "s_evidence_nodes", "s_evidence_roots")
+EVIDENCE_GRAPH_FORMAT = "evidence-graph/1"
+EVIDENCE_ROOT_PREFIX = "batch/"
+EVIDENCE_NODE_LEAF = 0
+EVIDENCE_NODE_SEQ = 1
+
+# 组合枚举：核心（legacy / v2 控制面）× 结构事实表 × Delta 域登记 × 证据图登记。
+_CORE_SCHEMAS = (LEGACY_SCHEMA, LEGACY_SCHEMA + CONTROL_SCHEMA)
+_FACT_SCHEMAS = ("", tb02.SCHEMA)
+_FORMAT_SCHEMAS = ("", STORAGE_FORMAT_SCHEMA)
+_GRAPH_SCHEMAS = ("", EVIDENCE_GRAPH_SCHEMA)
+EXPECTED_SCHEMAS = tuple(
+    _expected_schema(core + facts + fmt + graph)
+    for core in _CORE_SCHEMAS
+    for facts in _FACT_SCHEMAS
+    for fmt in _FORMAT_SCHEMAS
+    for graph in _GRAPH_SCHEMAS)
 EXPECTED_LEGACY_FORMAT = _expected_schema(LEGACY_SCHEMA + STORAGE_FORMAT_SCHEMA)
-EXPECTED_V2_FORMAT = _expected_schema(LEGACY_SCHEMA + CONTROL_SCHEMA + STORAGE_FORMAT_SCHEMA)
-EXPECTED_OHLC_FORMAT = _expected_schema(LEGACY_SCHEMA + tb02.SCHEMA + STORAGE_FORMAT_SCHEMA)
 EXPECTED_V2_OHLC_FORMAT = _expected_schema(
     LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA + STORAGE_FORMAT_SCHEMA)
-EXPECTED_SCHEMAS = (EXPECTED_LEGACY, EXPECTED_LEGACY_FORMAT, EXPECTED_V2, EXPECTED_V2_FORMAT,
-                    EXPECTED_OHLC, EXPECTED_OHLC_FORMAT, EXPECTED_V2_OHLC, EXPECTED_V2_OHLC_FORMAT)
-EXPECTED_SQL = _expected_sql(LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA + STORAGE_FORMAT_SCHEMA)
+EXPECTED_SQL = _expected_sql(
+    LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA + STORAGE_FORMAT_SCHEMA + EVIDENCE_GRAPH_SCHEMA)
 
 
 def _validate_schema(rows, tables):
@@ -240,6 +268,117 @@ def storage_mode(tables):
     if row["singleton"] != 1 or row["storage_format"] != STORAGE_FORMAT_CHANGES_ONLY:
         raise ValueError("未知/损坏的 S 私有存储模式（只认旧 full 域与 changes-only/1）")
     return STORAGE_FORMAT_CHANGES_ONLY
+
+
+def evidence_mode(tables):
+    """证据图物理域的唯一入口：三表齐 = 出 graph_format 值；三表缺 = 旧整块域。
+
+    与 Delta 域同纪律：不二次尝试，模式读不出来就拒绝；表不齐/多行/未知值一律拒绝。
+    """
+    present = tuple(name for name in EVIDENCE_GRAPH_TABLES if name in tables)
+    if not present:
+        return None
+    if len(present) != len(EVIDENCE_GRAPH_TABLES):
+        raise ValueError("私有证据图表不齐全（三表必须同生）")
+    rows = tables[EVIDENCE_GRAPH_TABLES[0]]
+    if len(rows) != 1:
+        raise ValueError("私有图格式登记必须恰一行（缺行/多行一律拒绝）")
+    row = rows[0]
+    if row["singleton"] != 1 or row["graph_format"] != EVIDENCE_GRAPH_FORMAT:
+        raise ValueError("未知/损坏的 S 私有证据图格式（只认 evidence-graph/1）")
+    return EVIDENCE_GRAPH_FORMAT
+
+
+def evidence_batch_sources(tables, deadline=None):
+    """图域的独立还原：逐批次给出**完整规范字节**，并核节点内容寻址、根闭包、公开身份。
+
+    不复用 Rust 侧结论：节点 id = sha256(kind || payload)、根展开逐字节重算，再核
+    `expanded_length`、`content_sha256` 与 `batch-<sha256(展开字节)>`。旧整块域返回 None。
+    """
+    if evidence_mode(tables) is None:
+        return None
+    nodes = {}
+    for row in tables["s_evidence_nodes"]:
+        _deadline(deadline)
+        node_id, payload, kind = row["node_id"], row["payload"], row["node_kind"]
+        if type(node_id) is not bytes or len(node_id) != 32:
+            raise ValueError("证据图节点 id 必须是 32 字节")
+        if kind not in (EVIDENCE_NODE_LEAF, EVIDENCE_NODE_SEQ):
+            raise ValueError("证据图节点种类未声明")
+        if type(payload) is not bytes:
+            raise ValueError("证据图节点负载必须是 BLOB")
+        if kind == EVIDENCE_NODE_LEAF and row["expanded_length"] != len(payload):
+            raise ValueError("证据图叶声明长度与实际不符")
+        if hashlib.sha256(bytes([kind]) + payload).digest() != node_id:
+            raise ValueError("证据图节点同 ID 异内容（内容寻址不符）")
+        nodes[node_id] = (kind, payload)
+    by_batch, seen = {}, set()
+    for row in tables["s_evidence_roots"]:
+        _deadline(deadline)
+        key = row["root_key"]
+        if type(key) is not str or not key.startswith(EVIDENCE_ROOT_PREFIX) or key in seen:
+            raise ValueError("证据图根 key 未声明或重复")
+        seen.add(key)
+        batch_id = key[len(EVIDENCE_ROOT_PREFIX):]
+        if row["node_id"] not in nodes:
+            raise ValueError("证据图根引用了不存在的节点")
+        slots_raw = row["slot_ids"]
+        if type(slots_raw) is not bytes or len(slots_raw) % 32:
+            raise ValueError("证据图根参数槽列非 32 字节倍数")
+        slots = []
+        for offset in range(0, len(slots_raw), 32):
+            slot = nodes.get(slots_raw[offset:offset + 32])
+            if slot is None or slot[0] != EVIDENCE_NODE_LEAF:
+                raise ValueError("证据图根参数槽必须指向存在的叶节点")
+            slots.append(slot[1])
+        expanded = _evidence_expand(nodes, row["node_id"], slots)
+        if len(expanded) != row["expanded_length"]:
+            raise ValueError("证据图根展开长度与登记不符")
+        if hashlib.sha256(expanded).hexdigest() != row["content_sha256"]:
+            raise ValueError("证据图根展开字节与登记摘要不符")
+        if "batch-" + hashlib.sha256(expanded).hexdigest() != batch_id:
+            raise ValueError("证据图根展开字节与公开批次身份不符")
+        by_batch[batch_id] = expanded
+    return by_batch
+
+
+def _evidence_expand(nodes, root, slots):
+    """按规范字节拼接迭代展开；分量标签与 Rust 侧一致（0 字面 / 1 引用 / 2 参数槽）。"""
+    out = bytearray()
+    stack = [("node", root)]
+    while stack:
+        tag, value = stack.pop()
+        if tag == "lit":
+            out += value
+        elif tag == "slot":
+            if value >= len(slots):
+                raise ValueError("证据图参数槽越界")
+            out += slots[value]
+        else:
+            node = nodes.get(value)
+            if node is None:
+                raise ValueError("证据图节点缺失")
+            kind, payload = node
+            if kind == EVIDENCE_NODE_LEAF:
+                out += payload
+                continue
+            frames, index = [], 0
+            while index < len(payload):
+                marker = payload[index]
+                if marker == 0:
+                    size = int.from_bytes(payload[index + 1:index + 5], "big")
+                    frames.append(("lit", payload[index + 5:index + 5 + size]))
+                    index += 5 + size
+                elif marker == 1:
+                    frames.append(("node", payload[index + 1:index + 33]))
+                    index += 33
+                elif marker == 2:
+                    frames.append(("slot", int.from_bytes(payload[index + 1:index + 3], "big")))
+                    index += 3
+                else:
+                    raise ValueError("证据图分量标签未声明")
+            stack.extend(reversed(frames))
+    return bytes(out)
 
 
 def capture(conn, max_bytes=None, deadline=None):
@@ -581,7 +720,9 @@ def project_delta(proof, index):
 
 def _verify_control(tables, meta, raw, deltas, batches, deadline=None):
     # 私有格式登记不是控制表：它不参与协议标记判定，也不得被读成 v2 控制面。
-    names = set(tables) - set(EXPECTED_LEGACY) - {STORAGE_FORMAT_TABLE, "raw_ohlc", "structure_facts"}
+    # #1394 第二段：证据图三表同属私有物理层，同样不参与协议标记判定。
+    names = (set(tables) - set(EXPECTED_LEGACY)
+             - {STORAGE_FORMAT_TABLE, "raw_ohlc", "structure_facts"} - set(EVIDENCE_GRAPH_TABLES))
     if not names:
         if "protocol_revision" in meta:
             raise ValueError("协议标记存在但控制表缺失")
@@ -826,7 +967,26 @@ def verify(image, h, deadline=None, memo=None):
     raw_rows = _raw_rows(tables, meta)
     _verify_raw(raw_rows, deadline)
     raw = [_raw_wire(row) for row in raw_rows]
-    batches = {r["batch_id"]: r for r in tables["batches"]}
+    # #1394 第二段：图域批次的完整规范字节只能由私有根无损展开；此处把还原字节放回同一
+    # 入口（`canonical_bytes`），下游全部既有判据（长度/哈希/profile/对象对照）逐字不变。
+    graph_sources = evidence_batch_sources(tables, deadline)
+    batches = {}
+    for row in tables["batches"]:
+        entry = dict(row)
+        if graph_sources is not None:
+            if entry["canonical_bytes"]:
+                raise ValueError("图域批次仍带整块字节（与私有根混写），拒绝读取")
+            source = graph_sources.get(entry["batch_id"])
+            if source is None:
+                raise ValueError("图域批次缺私有根（引用不完整）")
+            if entry["byte_len"] != len(source):
+                raise ValueError("图域批次 byte_len 与私有根展开长度不符")
+            entry["canonical_bytes"] = source
+        batches[entry["batch_id"]] = entry
+    if graph_sources is not None:
+        for batch_id in graph_sources:
+            if batch_id not in batches:
+                raise ValueError("证据图根没有对应批次行（不可达残留）")
     deltas = tables["structure_deltas"]
     if len(deltas) != generation:
         raise ValueError("已发布代链断裂或存在未来 Delta")

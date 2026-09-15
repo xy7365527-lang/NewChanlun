@@ -472,6 +472,40 @@ fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
             normalize_schema(delta_storage::DDL),
         );
     }
+    // #1394 第二段：存在私有证据图表时严格核其三表结构；无表则按旧库整块域验证。
+    // 三表同生同灭（由 `evidence_store::DDL` 一次建出），缺一即模式门拒绝。
+    let has_evidence_tables: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name IN (?1,?2,?3)",
+            params![
+                evidence_store::FORMAT_TABLE,
+                evidence_store::NODES_TABLE,
+                evidence_store::ROOTS_TABLE
+            ],
+            |r| r.get(0),
+        )
+        .map_err(err)?;
+    if has_evidence_tables != 0 {
+        if has_evidence_tables != 3 {
+            return Err(err("私有证据图表不齐全（三表必须同生）"));
+        }
+        for stmt in evidence_store::DDL
+            .split(';')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            let rest = stmt
+                .strip_prefix("CREATE TABLE ")
+                .ok_or("证据图 DDL 不是建表")?
+                .strip_prefix("IF NOT EXISTS ")
+                .unwrap_or_else(|| stmt.strip_prefix("CREATE TABLE ").unwrap());
+            let name = rest
+                .split(|c: char| c == '(' || c.is_whitespace())
+                .next()
+                .unwrap();
+            expected.insert(name.to_string(), normalize_schema(stmt));
+        }
+    }
     let mut q = conn
         .prepare(
             "SELECT type,name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name",
@@ -531,6 +565,7 @@ fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
     }
     // 表在而登记行缺/多/未声明值：与模式损坏同门，读取与写入前一律拒绝。
     delta_storage::read_mode(conn)?;
+    evidence_store::read_format(conn)?;
     Ok(())
 }
 
@@ -1395,6 +1430,202 @@ pub fn retained_watch(conn: &Connection, after: i64) -> Result<Option<Value>, St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1394 第二段成本测量：用**冻结 9011 根来源**的前 N 根、与基线同一时钟计划
+    /// （`ns = 100 + 3*i`、`long-s-%05d`、一源一代）跑真实 v2 会话，逐代记时并收集库统计。
+    ///
+    /// 默认不跑（`S_EVIDENCE_MEASURE=<N>` 显式驱动），因为它按定义是长跑而不是单测；
+    /// 但它走的是与生产完全相同的 `handle/advance_core` 入口与真实 context，不另写旁路。
+    #[test]
+    fn issue1394_prefix_cost_measurement() {
+        let Ok(spec) = std::env::var("S_EVIDENCE_MEASURE") else {
+            return;
+        };
+        let prefix: usize = spec.trim().parse().expect("S_EVIDENCE_MEASURE=<N>");
+        // 与正式启动器同档：`s_resources.audit_cache_source_bytes` 默认 268435456；
+        // 不设这一段就等于关掉审计前缀复用，会污染可比成本。
+        cache::configure(268_435_456);
+        const BAR_PATH: &str = "/Users/silencehan/Projects/NewChanlun-1394-tb03b/.scratch/issue1394-long-source-search/runs/RW05_u57_l12_40_a400_2000_r25_70_d2.bars.json";
+        let text = std::fs::read_to_string(BAR_PATH).expect("冻结来源可读");
+        assert_eq!(
+            sha256_hex(text.as_bytes()),
+            "76472995cbf0825ceeeaa94e89bd60d1b1416d6c7e0a7ec3a1b0ec5a90c60087"
+        );
+        let bars: Vec<Value> = serde_json::from_str(&text).expect("冻结来源是 JSON");
+        assert_eq!(bars.len(), 9011);
+        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("s_session");
+        let dir = std::env::temp_dir().join(format!(
+            "issue1394-measure-{}-{}-{prefix}",
+            std::process::id(),
+            now_nanos()
+        ));
+        std::fs::create_dir(&dir).unwrap();
+        let db = dir.join("s.sqlite");
+        let profile = base.join("profiles/ohlc_integer_tb02a_v1.json");
+        let mut events = serde_json::Map::new();
+        for i in 0..prefix {
+            let ns = 100 + 3 * i as i64;
+            events.insert(
+                format!("long-s-{i:05}"),
+                json!({"accept_ns": ns.to_string(),
+                       "attempts": [{"begin_ns": (ns + 1).to_string(), "commit_ns": (ns + 2).to_string()}]}),
+            );
+        }
+        let clock = ClockPlan::parse(json!({
+            "schema_revision": "s-clock-plan/1",
+            "clock_plan_id": "tb03b-long-s-full-source-v1",
+            "origin_utc": "2026-09-14T00:00:00Z",
+            "unit": "ns",
+            "events": events,
+        }))
+        .unwrap();
+        let clock_path = dir.join("clock.json");
+        std::fs::write(&clock_path, canonical_json(&clock.value)).unwrap();
+        const SID: &str = "tb03b-long-financial-v1";
+        const SOURCE: &str = "testonly.ohlc.tb03b-long-financial-v1";
+        init_v2(&db, SID, &base.join("catalog/signed-catalog.json"), &profile, "1", &clock_path, 4)
+            .unwrap();
+        let mut per_generation = Vec::with_capacity(prefix);
+        let mut total = std::time::Duration::ZERO;
+        for (i, bar) in bars[..prefix].iter().enumerate() {
+            let ns = 100 + 3 * i as i64;
+            let op = format!("long-s-{i:05}");
+            let event = json!({
+                "event_id": format!("long-raw-{i}"),
+                "revision": "1",
+                "seq": bar["source_index"].to_string(),
+                "received_at": "2026-09-14T00:00:00Z",
+                "raw_text": canonical_json(bar),
+                "open": bar["open"].to_string(),
+                "high": bar["high"].to_string(),
+                "low": bar["low"].to_string(),
+                "close": bar["close"].to_string(),
+                "timestamp": bar["timestamp"].to_string(),
+                "volume": "1",
+            });
+            let payload = json!({
+                "op": "ingest",
+                "target_session_id": SID,
+                "target_session_generation": "1",
+                "writer_epoch": "1",
+                "clock_event_id": op,
+                "raw_input": {"schema_revision": "s-ohlc/1", "session_id": SID,
+                              "source_namespace": SOURCE, "source_epoch": "1",
+                              "instrument": "TEST.LONG.TB03B", "profile": "ohlc_integer_tb02a_v1",
+                              "events": [event]},
+            });
+            let message = json!({
+                "schema_revision": "s-session/2", "session_id": SID, "session_generation": "1",
+                "source_namespace": SOURCE, "source_epoch": "1",
+                "producer_id": "tb03b-long-input", "producer_epoch": "1",
+                "message_id": format!("long-s-{i:05}"), "causal_refs": [],
+                "payload_hash": sha256_hex(canonical_json(&payload).as_bytes()),
+                "payload": payload,
+            });
+            let started = Instant::now();
+            handle(&db, &profile, "1", &clock, &envelope(message).unwrap()).unwrap();
+            let spent = started.elapsed();
+            total += spent;
+            per_generation.push(spent.as_secs_f64());
+            let _ = ns;
+        }
+        let conn = open_db(&db).unwrap();
+        let page_count: i64 = conn.query_row("PRAGMA page_count", [], |r| r.get(0)).unwrap();
+        let page_size: i64 = conn.query_row("PRAGMA page_size", [], |r| r.get(0)).unwrap();
+        let (nodes, node_payload) = evidence_store::stats(&conn).unwrap();
+        let node_rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM s_evidence_nodes", [], |r| r.get(0))
+            .unwrap();
+        let roots: i64 = conn
+            .query_row("SELECT COUNT(*) FROM s_evidence_roots", [], |r| r.get(0))
+            .unwrap();
+        let batch_sum: i64 = conn
+            .query_row("SELECT COALESCE(SUM(byte_len),0) FROM batches", [], |r| r.get(0))
+            .unwrap();
+        let blob_sum: i64 = conn
+            .query_row("SELECT COALESCE(SUM(length(canonical_bytes)),0) FROM batches", [], |r| r.get(0))
+            .unwrap();
+        let delta_sum: i64 = conn
+            .query_row("SELECT COALESCE(SUM(length(delta_json)),0) FROM structure_deltas", [], |r| r.get(0))
+            .unwrap();
+        // 公开读路径的完整展开成本（每代展开一次，逐字节核内容寻址）。
+        let read_started = Instant::now();
+        let mut expanded = 0u64;
+        {
+            let mut stmt = conn.prepare("SELECT batch_id FROM batches ORDER BY batch_id").unwrap();
+            let ids = stmt
+                .query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            for id in ids {
+                expanded += load_batch_bytes(&conn, &id).unwrap().len() as u64;
+            }
+        }
+        let read_seconds = read_started.elapsed().as_secs_f64();
+        // 与基线逐代对拍（同一时钟计划 → 逐代 batch_id 必须逐字节相同）。
+        let mut comparison = Value::Null;
+        if let Ok(baseline) = Connection::open_with_flags(
+            "/private/tmp/tb1394-s-prefix64-20260915/s.db",
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        ) {
+            let base_hash: String = baseline
+                .query_row("SELECT clock_plan_hash FROM s_protocol_meta", [], |r| r.get(0))
+                .unwrap();
+            let mine: String = conn
+                .query_row("SELECT clock_plan_hash FROM s_protocol_meta", [], |r| r.get(0))
+                .unwrap();
+            let mut same = mine == base_hash;
+            let mut checked = 0i64;
+            if same {
+                let mut stmt = conn
+                    .prepare("SELECT d.generation,b.batch_id,b.byte_len FROM structure_deltas d JOIN batches b ON b.batch_id=d.index_frontier ORDER BY d.generation")
+                    .unwrap();
+                let mine_rows = stmt
+                    .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?)))
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                let mut stmt = baseline
+                    .prepare("SELECT d.generation,b.batch_id,b.byte_len FROM structure_deltas d JOIN batches b ON b.batch_id=d.index_frontier ORDER BY d.generation")
+                    .unwrap();
+                let base_rows = stmt
+                    .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?)))
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                same = mine_rows.len() <= base_rows.len()
+                    && mine_rows.iter().zip(base_rows.iter()).all(|(a, b)| a == b);
+                checked = mine_rows.len().min(base_rows.len()) as i64;
+            }
+            comparison = json!({"same_clock_plan": mine == base_hash,
+                                "identical_generations": same, "checked": checked.to_string(),
+                                "baseline_db": "/private/tmp/tb1394-s-prefix64-20260915/s.db"});
+        }
+        println!("{}", json!({
+            "schema": "issue1394-prefix-cost/1",
+            "prefix": prefix.to_string(),
+            "clock_plan_hash": conn.query_row("SELECT clock_plan_hash FROM s_protocol_meta", [], |r| r.get::<_, String>(0)).unwrap(),
+            "wall_seconds_total": format!("{:.3}", total.as_secs_f64()),
+            "wall_seconds_per_generation": per_generation.iter().map(|v| format!("{v:.4}")).collect::<Vec<_>>(),
+            "db_files": {"sqlite_pages": page_count.to_string(), "page_size": page_size.to_string(),
+                          "sqlite_bytes": (page_count * page_size).to_string()},
+            "batches": {"rows": roots.to_string(), "expanded_bytes_total": batch_sum.to_string(),
+                         "stored_blob_bytes": blob_sum.to_string()},
+            "graph": {"nodes": nodes.to_string(), "node_rows": node_rows.to_string(),
+                       "node_payload_bytes": node_payload.to_string(),
+                       "roots": roots.to_string()},
+            "delta_json_bytes_total": delta_sum.to_string(),
+            "full_expansion_seconds": format!("{read_seconds:.3}"),
+            "full_expansion_bytes": expanded.to_string(),
+            "baseline_comparison": comparison,
+            "db_dir": dir.display().to_string(),
+        }));
+    }
+
     use newchan_rust::session_transport::{
         enqueue_before_deadline, io_connection, read_frame, Job,
     };
