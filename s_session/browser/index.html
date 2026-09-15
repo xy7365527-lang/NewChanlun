@@ -502,7 +502,9 @@ function validateDelta(d) {
     if (Object.hasOwn(d, k) && !exactJson(d[k], dd[k])) throw new Error(`Delta 内外 ${k} 不一致`);
   validateExactRecords([dd.upserts, dd.withdrawals, dd.witnesses, dd.observations, dd.raw_history_added]);
   if (dd.catalog_evidence.profile_id === "ohlc_integer_tb02a_v1") {
-    TB01C.validateTB02Axes(dd.catalog_evidence.axes, dd.upserts);
+    // #1394：Delta 只带本代变化（changes-only/1），轴引用的是本代完整活动集而非本代 upserts；
+    // 此处只核轴形状/重复，引用集在该代完整活动对象上核（见客户端 applyBatch 与本文件旧 Watch 的逐代核）。
+    TB01C.validateTB02Axes(dd.catalog_evidence.axes);
     dd.upserts.forEach(o => typedKinds.includes(o.kind) ? TB01C.validateTyped(o) : TB01C.validateTB02ShapeRefs(o));
     dd.raw_history_added.forEach(TB01C.validateTB02Raw);
     for (const withdrawal of dd.withdrawals) if (Object.hasOwn(withdrawal, "fact_key")) {
@@ -726,6 +728,9 @@ async function applyStream() {
         }
       }
       for (const u of (dd.upserts || [])) { const o = deepClone(u); o.lifecycle = "active"; tmpObjects.set(o.object_id, o); tmpWithdrawn.delete(o.object_id); }
+      // #1394：逐代核轴引用（对本代 withdrawals/upserts 之后的完整活动对象集），不等到最后 cut 才核。
+      if (dd.catalog_evidence.profile_id === "ohlc_integer_tb02a_v1")
+        TB01C.validateTB02Axes(dd.catalog_evidence.axes, [...tmpObjects.values()]);
       for (const w of (dd.witnesses || [])) tmpWitnesses.set(w.witness_id, w);
       for (const r of (dd.relations || [])) tmpRelations.set(JSON.stringify([r.subject, r.relation_type, r.object]), r);
       for (const o of (dd.observations || [])) tmpObservations.set(o.observation_id, o);

@@ -102,6 +102,80 @@ function fixtures() {
   const a3 = get('a3'), a4 = get('a4'), b1 = get('b1');
   return {a3, a4, b1, delta: get('watch3').deltas.find(d => d.generation === '4'), fixtureHash: hashBytes(bytes)};
 }
+// —— #1394：真实 S64 前缀的 changes-only/1 稀疏增量（浏览器 red 反例的入仓最小副本） ——
+// 传输替身用真实 Q read_state/read_delta 导出字节构造 v2 帧，非真正 HTTP/GUI 验收；
+// 整包来源与 SHA-256 记在 fixture.provenance，仓内测试不引用仓外路径。
+const SPARSE_FIXTURE = 's_session/tests/fixtures/tb03b-changes-only-browser.json';
+const SPARSE_SOURCE_SHA256 = 'b3bc365ff328689888ae477769d76bdd3272bf0b717bdd387ba779b3cab72a21';
+function sparseFixture() {
+  const bytes = fs.readFileSync(path.join(root, SPARSE_FIXTURE));
+  const bundle = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(bytes));
+  assert.equal(bundle.provenance.source_sha256, SPARSE_SOURCE_SHA256);
+  assert.equal(bundle.provenance.source_bytes, 587962);
+  assert.deepEqual(Object.keys(bundle.states), ['3', '4', '5']);
+  assert.deepEqual(bundle.deltas.map(d => d.generation), ['4', '5']);
+  return {bundle, fixtureHash: hashBytes(bytes)};
+}
+function sparseState(sp, gen) { const state = sp.states[gen]; assert(state, '真实前缀缺状态 ' + gen); return state; }
+function sparseDelta(sp, gen) { const delta = sp.deltas.find(d => d.generation === gen); assert(delta, '真实前缀缺增量 ' + gen); return delta; }
+function sparseDiscovery(sp) {
+  return {cut: {session_id: sparseState(sp, '3').snapshot.session_id, session_generation: '1'},
+    snapshot: {profile_id: sparseState(sp, '3').snapshot.profile_id}};
+}
+// profile=ohlc_integer_tb02a_v1 ⇒ s-record-order/2；与旧档默认 order/1 分开写，不做一档兼容。
+function sparseCursor(fixed) {
+  return {session_id: fixed.session_id, session_generation: fixed.session_generation, catalog_revision: fixed.catalog_revision,
+    scope: copy(fixed.scope), after_generation: fixed.cut_generation, base_cut: fixed.structure_cut,
+    index_frontier: fixed.index_frontier, last_seq: fixed.input_frontier, order_version: 's-record-order/2'};
+}
+function sparseServer(sp) {
+  const server = {mutate: null, requests: []};
+  server.fetch = async (url, options) => {
+    const request = JSON.parse(options.body), payload = request.payload;
+    assert.equal(url, '/api/v2/' + payload.op); assert.equal(request.payload_hash, hash(payload));
+    server.requests.push({url, request});
+    let response, fixed;
+    if (payload.op === 'snapshot') {
+      const t = payload.snapshot_token, gen = t ? t.cut_generation : (payload.as_of_generation || '3');
+      const p = projection(sparseState(sp, gen), t ? t.history_mode : payload.history_mode), offset = t ? Number(t.offset) : 0;
+      const pageSize = Number(t ? t.page_size : payload.page_size);
+      if (t) assert.deepEqual(t, token(p, offset, pageSize));
+      response = page(p, offset, pageSize); fixed = p.fixed_cut;
+    } else {
+      assert.equal(payload.op, 'watch');
+      const head = projection(sparseState(sp, '5'), 'RecomputedWithRevision').fixed_cut;
+      response = {deltas: [copy(sparseDelta(sp, '4')), copy(sparseDelta(sp, '5'))], next_cursor: sparseCursor(head), observed_head: head,
+        delivery_frontier: {policy_revision: 's-delivery/1', retain_generations: '8', first_available_generation: '3', head_generation: '5'},
+        has_more: false, gap: null, validated_capture_digest: 'a'.repeat(64), ok: true};
+      fixed = head;
+    }
+    if (server.mutate) server.mutate(response, request);
+    return new Response(canonical(seal(request, response, fixed)), {status: 200, headers: {'Content-Type': 'application/json'}});
+  };
+  return server;
+}
+// 旧 Watch（非 v2 客户端）走 /api/state + /api/delta；Gap 分支先按 cut-3 重建缓存，再续接稀疏 4/5。
+function sparseLegacy(sp, deltaHook = null) {
+  const sessionId = sparseState(sp, '3').snapshot.session_id;
+  const json = body => ({ok: true, status: 200, json: async () => copy(body)});
+  const fetchImpl = async url => {
+    if (url === '/api/state' || url === '/api/state?as_of=3') return json(sparseState(sp, '3'));
+    if (url === '/api/state?as_of=5') return json(sparseState(sp, '5'));
+    if (url === '/api/delta?after_generation=0')
+      return json({session_id: sessionId, gap: {reason: 'delivery_retention_gap', rebuild_cut: 'cut-3'}});
+    if (url === '/api/delta?after_generation=3') {
+      const payload = {session_id: sessionId, deltas: [copy(sparseDelta(sp, '4')), copy(sparseDelta(sp, '4')), copy(sparseDelta(sp, '5'))]};
+      if (deltaHook) deltaHook(payload);
+      return json(payload);
+    }
+    throw new Error('旧 Watch 请求了未声明的地址：' + url);
+  };
+  return htmlContext({TB01C: API, fetch: fetchImpl});
+}
+function stubClient() {
+  return new API.Client({fetch: async () => { throw new Error('本用例不应发起网络读取'); },
+    hooks: {validateState() {}, validateDelta() {}, comparePublication() {}}});
+}
 function fakeServer(f) {
   const server = {mutate: null, wire: null, gap: false, requests: [], beforeReply: null};
   server.fetch = async (url, options) => {
@@ -157,6 +231,9 @@ async function run() {
   const f = fixtures(), result = {scope: 'TestOnly：真实B原件构造v2响应替身；非真实C/HTTP/GUI验收',
     test_page_size: TEST_PAGE_SIZE, production_page_size: API.DEFAULTS.pageSize,
     html_sha256: hashBytes(fs.readFileSync(htmlPath)), client_sha256: hashBytes(fs.readFileSync(clientPath)), fixture_sha256: f.fixtureHash, cases: []};
+  const sparse = sparseFixture(), sp = sparse.bundle;
+  result.sparse_fixture = {path: SPARSE_FIXTURE, fixture_sha256: sparse.fixtureHash, source_sha256: sp.provenance.source_sha256,
+    source_bytes: sp.provenance.source_bytes, states: Object.keys(sp.states), deltas: sp.deltas.map(d => d.generation)};
   const discovery = {cut: {session_id: f.a3.snapshot.session_id, session_generation: '1'}};
   async function test(name, fn) { try { await fn(); result.cases.push({name, passed: true}); }
     catch (error) { result.cases.push({name, passed: false, error: error.stack}); } }
@@ -326,6 +403,119 @@ async function run() {
     assert.equal(vm.runInContext('v2Client.committed.pages > 1', context), true);
     await vm.runInContext('applyStream()', context); assert.equal(vm.runInContext('lastAppliedGen', context), '4');
     assert.equal(legacyReads, 1);
+  });
+  // —— #1394：浏览器 red 反例的修复回归（真实 S 前缀 + changes-only/1 稀疏增量） ——
+  await test('真实稀疏反例：原版按本代upserts核轴引用必红，改按本代完整活动集成立', async () => {
+    const {context} = htmlContext({TB01C: API});
+    for (const gen of ['4', '5']) {
+      const dd = sparseDelta(sp, gen).delta;
+      const referenced = Object.values(dd.catalog_evidence.axes).flatMap(a => a.evidence.object_ids);
+      const resent = new Set(dd.upserts.map(o => o.object_id));
+      assert(referenced.some(id => !resent.has(id)), '真实批次应为稀疏：轴引用的历史对象不在本代 upserts');
+      // 原版判据（把本代 upserts 当完整活动集）在真实稀疏批次上就是这几条拒绝。
+      assert.throws(() => context.TB01C.validateTB02Axes(dd.catalog_evidence.axes, dd.upserts), /目录引用缺失\/重复/);
+      // 修复后的引用集是本代完整活动对象；形状/重复判据未放宽。
+      assert.doesNotThrow(() => API.validateTB02Axes(dd.catalog_evidence.axes, sparseState(sp, gen).snapshot.objects));
+    }
+  });
+  await test('真实第4/5代稀疏增量经v2客户端逐代核引用后提交', async () => {
+    const server = sparseServer(sp), commits = [];
+    const client = new API.Client({fetch: server.fetch, hooks: makeHooks(), limits: {pageSize: TEST_PAGE_SIZE},
+      onCommit: (c, e) => commits.push({c, e})});
+    await client.load(sparseDiscovery(sp));
+    assert.equal(client.committed.cursor.after_generation, '3');
+    assert.equal(client.committed.state.snapshot.objects.length, 9);
+    await client.watch();
+    assert.equal(commits.at(-1).e.kind, 'watch'); assert.equal(commits.at(-1).e.batches, 2);
+    assert.equal(client.committed.cursor.after_generation, '5'); assert.equal(client.committed.cursor.base_cut, 'cut-5');
+    assert.equal(client.committed.state.snapshot.objects.length, 15);
+    assert.deepEqual(copy(client.committed.projection), projection(sparseState(sp, '5'), 'RecomputedWithRevision'));
+    assert(server.requests.some(({url}) => url === '/api/v2/watch'));
+  });
+  await test('合法稀疏批次：目录引用已提交对象A与本批新增B均放行，无变化批次同样通过', async () => {
+    const client = stubClient();
+    const base = copy(sparseState(sp, '4').snapshot), delta = copy(sparseDelta(sp, '5'));
+    const referenced = [...new Set(Object.values(delta.delta.catalog_evidence.axes).flatMap(a => a.evidence.object_ids))];
+    const resent = new Set(delta.delta.upserts.map(o => o.object_id));
+    const inherited = referenced.filter(id => !resent.has(id));
+    assert(inherited.length > 0, '真实稀疏批次应含未重发但被目录引用的历史对象A');
+    assert(inherited.every(id => base.objects.some(o => o.object_id === id)), '未重发对象A应已在已提交活动集');
+    assert(delta.delta.upserts.some(o => referenced.includes(o.object_id)), '本批新增B应被目录引用');
+    // clone 走客户端 parse（原型为 null），对拍前按测试侧 copy 归一，语义门仍是六族全字段/全序。
+    assert.deepEqual(API.rowsOf(copy(client.applyBatch(base, delta))), API.rowsOf(copy(sparseState(sp, '5').snapshot)));
+    const idle = copy(sparseDelta(sp, '5'));
+    for (const field of ['upserts', 'withdrawals', 'replaces', 'witnesses', 'relations', 'observations', 'raw_history_added']) idle.delta[field] = [];
+    assert.deepEqual(API.rowsOf(copy(client.applyBatch(copy(sparseState(sp, '5').snapshot), idle))), API.rowsOf(copy(sparseState(sp, '5').snapshot)));
+  });
+  await test('真正缺失引用、撤回后仍引用旧对象、同轴重复引用均拒绝', async () => {
+    const client = stubClient(), base = copy(sparseState(sp, '4').snapshot);
+    const axisIds = delta => delta.delta.catalog_evidence.axes['CC-006'].evidence.object_ids;
+    const absent = copy(sparseDelta(sp, '5'));
+    axisIds(absent).push('obj-1394-not-present');
+    assert.throws(() => client.applyBatch(base, absent), /目录引用缺失\/重复/);
+    const gone = base.withdrawn_objects[0].object_id;
+    assert(!base.objects.some(o => o.object_id === gone), '撤回对象不应仍在活动集');
+    const withdrawn = copy(sparseDelta(sp, '5'));
+    axisIds(withdrawn).push(gone);
+    assert.throws(() => client.applyBatch(base, withdrawn), /目录引用缺失\/重复/);
+    const duplicated = copy(sparseDelta(sp, '5'));
+    axisIds(duplicated).push(axisIds(duplicated)[0]);
+    assert.throws(() => client.applyBatch(base, duplicated), /目录引用缺失\/重复/);
+  });
+  await test('传统全量批次（legacy profile）不触发TB02轴判据且六族结果不变', async () => {
+    const client = stubClient();
+    const applied = client.applyBatch(copy(f.a3.snapshot), copy(f.delta));
+    assert.deepEqual(API.rowsOf(copy(applied)), API.rowsOf(copy(f.a4.snapshot)));
+    assert.equal(f.delta.delta.catalog_evidence.profile_id, f.a3.snapshot.profile_id);
+    assert(!Object.hasOwn(f.delta.delta.catalog_evidence, 'axes'), '旧档证据不含TB02逐轴结构');
+  });
+  await test('中间代轴引用非法即使末代补齐仍拒绝且不提交，健康重试可续', async () => {
+    const server = sparseServer(sp), client = new API.Client({fetch: server.fetch, hooks: makeHooks(), limits: {pageSize: TEST_PAGE_SIZE}});
+    await client.load(sparseDiscovery(sp));
+    const before = canonical(client.committed);
+    const cc6 = gen => sparseState(sp, gen).snapshot.catalog_evidence.axes['CC-006'].evidence.object_ids;
+    const only5 = sparseState(sp, '5').snapshot.objects.map(o => o.object_id)
+      .filter(id => !sparseState(sp, '4').snapshot.objects.some(o => o.object_id === id))
+      .filter(id => !cc6('4').includes(id) && !cc6('5').includes(id));
+    assert(only5.length > 0, '第5代应存在第4代尚不存在、且两侧轴都未引用过的对象');
+    server.mutate = (p, r) => { if (r.payload.op === 'watch') {
+      const d4 = p.deltas[0];
+      d4.delta.catalog_evidence.axes['CC-006'].evidence.object_ids.push(only5[0]);
+      d4.catalog_evidence = copy(d4.delta.catalog_evidence);
+    } };
+    await assert.rejects(client.watch(), /目录引用缺失\/重复/);
+    assert.equal(canonical(client.committed), before, '拒绝后不得提交游标/状态');
+    const late = copy(sparseDelta(sp, '5')).delta.catalog_evidence.axes;
+    late['CC-006'].evidence.object_ids.push(only5[0]);
+    assert.doesNotThrow(() => API.validateTB02Axes(late, sparseState(sp, '5').snapshot.objects), '末代完整集确有该对象：只按末代核会漏放');
+    server.mutate = null;
+    await client.watch();
+    assert.equal(client.committed.cursor.after_generation, '5');
+  });
+  await test('旧Watch真实稀疏4/5逐代核引用后与同cut快照对拍提交，重复投递不重复生效', async () => {
+    const legacy = sparseLegacy(sp);
+    await vm.runInContext('load("current")', legacy.context);
+    await vm.runInContext('applyStream()', legacy.context); // Gap → 按 cut-3 重建缓存
+    assert.equal(vm.runInContext('lastAppliedGen', legacy.context), '3');
+    await vm.runInContext('applyStream()', legacy.context); // 稀疏 4/5（含一条重复投递）
+    assert.equal(vm.runInContext('lastAppliedGen', legacy.context), '5');
+    assert.equal(vm.runInContext('appliedObjects.size', legacy.context), 15);
+    assert.equal(vm.runInContext('appliedWithdrawn.size', legacy.context), 14);
+    assert.match(legacy.elements.get('stream-result').innerHTML, /重复投递，不重复生效/);
+    assert.match(legacy.elements.get('stream-cursor').textContent, /cut-5/);
+  });
+  await test('旧Watch中间代缺引用拒绝且游标/缓存不变', async () => {
+    const legacy = sparseLegacy(sp, payload => {
+      const d4 = payload.deltas[0];
+      d4.delta.catalog_evidence.axes['CC-006'].evidence.object_ids.push('obj-1394-not-present');
+      d4.catalog_evidence = copy(d4.delta.catalog_evidence);
+    });
+    await vm.runInContext('load("current")', legacy.context);
+    await vm.runInContext('applyStream()', legacy.context); // Gap 重建 → gen 3
+    await vm.runInContext('applyStream()', legacy.context); // 非法第4代：逐代核引用必须拦下
+    assert.equal(vm.runInContext('lastAppliedGen', legacy.context), '3');
+    assert.equal(vm.runInContext('appliedObjects.size', legacy.context), 9);
+    assert.match(legacy.elements.get('stream-result').innerHTML, /目录引用缺失\/重复/);
   });
   if (tb02States !== null) {
     result.tb02_fixture = {path:path.resolve(argv[1]), sha256:hashBytes(tb02Bytes), states:tb02States.length,

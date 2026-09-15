@@ -592,6 +592,8 @@
       for (const [field, family] of [["witnesses", "witnesses"], ["relations", "relations"], ["observations", "observations"], ["raw_history_added", "raw_history"]])
         for (const record of dd[field]) maps[family].set(canonical(rowKey(family, record)), clone(record));
       for (const family of FAMILIES) result[family] = [...maps[family].values()];
+      // #1394：changes-only/1 的 Delta 只带本代变化，轴引用本代完整活动集；按应用后的活动对象核引用（与整份态同一份判据）。
+      if (dd.catalog_evidence.profile_id === "ohlc_integer_tb02a_v1") validateTB02Axes(dd.catalog_evidence.axes, result.objects);
       return result;
     }
     async watch() {
