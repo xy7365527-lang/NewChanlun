@@ -1401,6 +1401,8 @@ pub fn legacy_write_lock(args: &[String]) -> Result<Option<File>, String> {
 
 /// v2普通Watch只能走独立保留引用；旧v1数据仍由原命令实现读取。
 pub fn retained_watch(conn: &Connection, after: i64) -> Result<Option<Value>, String> {
+    // #1394 第二段（2D）：一次投递读取共享一个捕获作用域（Delta 原件同次只读一次）。
+    let _capture = cache::begin_capture(crate::EVIDENCE_READ_BUDGET);
     if !active(conn)? {
         return Ok(None);
     }
@@ -1415,13 +1417,13 @@ pub fn retained_watch(conn: &Connection, after: i64) -> Result<Option<Value>, St
         Value::Null
     };
     let deltas = if gap.is_null() {
-        let mut q=conn.prepare("SELECT d.generation,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.delta_json FROM s_delivery_refs r JOIN structure_deltas d ON d.generation=r.generation WHERE d.generation>?1 ORDER BY d.generation").map_err(err)?;
-        let values = q
-            .query_map(params![after], project_delta_row)
-            .map_err(err)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(err)?;
-        values
+        // #1394 第二段：Delta 原件在图域由 `delta/<generation>` 私有根承载，读取必须走同一入口。
+        crate::delta_wire_rows(
+            conn,
+            "SELECT d.generation,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.delta_json FROM s_delivery_refs r JOIN structure_deltas d ON d.generation=r.generation WHERE d.generation>?1 ORDER BY d.generation",
+            after,
+        )
+        .map_err(err)?
     } else {
         Vec::new()
     };
@@ -1500,7 +1502,15 @@ mod tests {
         )
         .unwrap();
         let mut per_generation = Vec::with_capacity(prefix);
+        // #1394 第二段：逐代记录阶段计数增量（唯一节点读、历史 batch 展开/复用、根审计/stage/commit）。
+        let mut per_generation_audit_ms = Vec::with_capacity(prefix);
+        let mut per_generation_stage_ms = Vec::with_capacity(prefix);
+        let mut per_generation_commit_ms = Vec::with_capacity(prefix);
+        let mut per_generation_node_rows = Vec::with_capacity(prefix);
+        let mut per_generation_batch_expansions = Vec::with_capacity(prefix);
+        let mut per_generation_batch_hits = Vec::with_capacity(prefix);
         let mut total = std::time::Duration::ZERO;
+        cache::counters_reset();
         for (i, bar) in bars[..prefix].iter().enumerate() {
             let ns = 100 + 3 * i as i64;
             let op = format!("long-s-{i:05}");
@@ -1537,12 +1547,32 @@ mod tests {
                 "payload": payload,
             });
             let started = Instant::now();
+            let before = cache::counters_snapshot();
             handle(&db, &profile, "1", &clock, &envelope(message).unwrap()).unwrap();
             let spent = started.elapsed();
+            let after = cache::counters_snapshot();
+            per_generation_audit_ms.push(format!(
+                "{:.3}",
+                (after.audit_ns - before.audit_ns) as f64 / 1e6
+            ));
+            per_generation_stage_ms.push(format!(
+                "{:.3}",
+                (after.stage_ns - before.stage_ns) as f64 / 1e6
+            ));
+            per_generation_commit_ms.push(format!(
+                "{:.3}",
+                (after.commit_ns - before.commit_ns) as f64 / 1e6
+            ));
+            per_generation_node_rows.push((after.node_rows_read - before.node_rows_read).to_string());
+            per_generation_batch_expansions
+                .push((after.batch_expansions - before.batch_expansions).to_string());
+            per_generation_batch_hits
+                .push((after.batch_handle_hits - before.batch_handle_hits).to_string());
             total += spent;
             per_generation.push(spent.as_secs_f64());
             let _ = ns;
         }
+        let write_phase = cache::counters_snapshot();
         let conn = open_db(&db).unwrap();
         let page_count: i64 = conn
             .query_row("PRAGMA page_count", [], |r| r.get(0))
@@ -1576,7 +1606,38 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        // 公开读路径的完整展开成本（每代展开一次，逐字节核内容寻址）。
+        // 图域里 delta_json 列是空占位，故另按私有根展开计 Delta 逻辑原件字节。
+        let delta_origin_total: i64 = {
+            let format = evidence_store::format(&conn).unwrap();
+            let mut reader = evidence_store::Reader::new(&conn, crate::EVIDENCE_READ_BUDGET);
+            let mut stmt = conn
+                .prepare("SELECT generation, delta_json FROM structure_deltas ORDER BY generation")
+                .unwrap();
+            let rows = stmt
+                .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            let mut total = 0i64;
+            for (generation, column) in rows {
+                let text = crate::read_record_original_text(
+                    &conn,
+                    &mut reader,
+                    format,
+                    &evidence_store::delta_root_key(generation),
+                    &column,
+                    &format!("delta[{generation}]"),
+                )
+                .unwrap();
+                total += text.len() as i64;
+            }
+            total
+        };
+        // 公开读路径的完整展开成本：先丢弃跨请求持久句柄（真正的冷读集），再逐代展开，
+        // 逐字节核内容寻址与公开批次身份。
+        cache::clear_handles();
+        cache::counters_reset();
+        let read_counters_before = cache::counters_snapshot();
         let read_started = Instant::now();
         let mut expanded = 0u64;
         {
@@ -1593,6 +1654,7 @@ mod tests {
             }
         }
         let read_seconds = read_started.elapsed().as_secs_f64();
+        let read_counters_after = cache::counters_snapshot();
         // 与基线逐代对拍（同一时钟计划 → 逐代 batch_id 必须逐字节相同）。
         let mut comparison = Value::Null;
         if let Ok(baseline) = Connection::open_with_flags(
@@ -1666,6 +1728,39 @@ mod tests {
                 "delta_json_bytes_total": delta_sum.to_string(),
                 "full_expansion_seconds": format!("{read_seconds:.3}"),
                 "full_expansion_bytes": expanded.to_string(),
+                "delta_origin_bytes_total": delta_origin_total.to_string(),
+                "stages": {
+                    "units": "毫秒与计数均为逐代增量；cache 命中/失效为同一捕获内的句柄/节点粒度",
+                    "wall_ms_per_generation": per_generation.iter().map(|v| format!("{:.3}", v * 1000.0)).collect::<Vec<_>>(),
+                    "audit_ms_per_generation": per_generation_audit_ms,
+                    "stage_ms_per_generation": per_generation_stage_ms,
+                    "commit_ms_per_generation": per_generation_commit_ms,
+                    "unique_node_rows_read_per_generation": per_generation_node_rows,
+                    "historical_batch_expansions_per_generation": per_generation_batch_expansions,
+                    "historical_batch_handle_hits_per_generation": per_generation_batch_hits,
+                    "write_phase_totals": {
+                        "node_rows_read": write_phase.node_rows_read.to_string(),
+                        "node_payload_bytes_read": write_phase.node_payload_bytes_read.to_string(),
+                        "node_reused_in_capture": write_phase.node_reused_in_capture.to_string(),
+                        "root_reads": write_phase.root_reads.to_string(),
+                        "root_handle_hits": write_phase.root_handle_hits.to_string(),
+                        "root_expansions": write_phase.root_expansions.to_string(),
+                        "root_parses": write_phase.root_parses.to_string(),
+                        "batch_handle_hits": write_phase.batch_handle_hits.to_string(),
+                        "batch_expansions": write_phase.batch_expansions.to_string(),
+                        "audit_ms_total": format!("{:.3}", write_phase.audit_ns as f64 / 1e6),
+                        "stage_ms_total": format!("{:.3}", write_phase.stage_ns as f64 / 1e6),
+                        "commit_ms_total": format!("{:.3}", write_phase.commit_ns as f64 / 1e6),
+                    },
+                    "cold_public_read_phase": {
+                        "seconds": format!("{read_seconds:.3}"),
+                        "bytes": expanded.to_string(),
+                        "node_rows_read": (read_counters_after.node_rows_read - read_counters_before.node_rows_read).to_string(),
+                        "root_expansions": (read_counters_after.root_expansions - read_counters_before.root_expansions).to_string(),
+                        "root_handle_hits": (read_counters_after.root_handle_hits - read_counters_before.root_handle_hits).to_string(),
+                        "cache_budget_bytes": "268435456",
+                    },
+                },
                 "baseline_comparison": comparison,
                 "db_dir": dir.display().to_string(),
             })
@@ -2358,7 +2453,7 @@ fn testonly_audit_cost_breakdown() {
         let t = Instant::now();
         let batches = capture_reachable_batches(&tx).unwrap();
         let b = t.elapsed();
-        verify_control(&tx, &batches).unwrap();
+        verify_control(&tx, &batches.batches).unwrap();
         let c = t.elapsed();
         verify_reachable_root_in_tx(&tx, &batches).unwrap();
         let r = t.elapsed();

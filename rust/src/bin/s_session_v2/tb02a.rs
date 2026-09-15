@@ -273,9 +273,110 @@ pub(super) fn project(o: &Value) -> Result<Value, String> {
     }
     Ok(result)
 }
+/// 结构事实的**唯一**写入入口。
+///
+/// - 同 ID 重复写只有**不可变内容逐字节一致**才算幂等；否则 `IdentityConflict`——不得用
+///   `ON CONFLICT DO NOTHING` 把同 ID 异内容吞掉、留待将来的读审计发现。
+/// - `evidence-graph/3`：三列大原件先进同一私有节点图（同一事务），行内三列只留空占位；
+///   旧整块域与 `graph/2` 域照旧写行内原文。
 pub(super) fn save_fact(conn: &Connection, o: &Value, batch: &str) -> Result<(), String> {
-    conn.execute("INSERT INTO structure_facts(object_id,object_revision,kind,batch_id,fact_key,payload_json,input_refs_json,source_coords_json,first_known_generation,first_known_cut,published_generation) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11) ON CONFLICT(object_id) DO NOTHING",
-        params![o["object_id"].as_str(),o["object_revision"].as_i64(),o["kind"].as_str(),batch,o["fact_key"].as_str(),o["payload_json"].as_str(),o["input_refs_json"].as_str(),o["source_coords_json"].as_str(),o["first_known_generation"].as_i64(),o["first_known_cut"].as_str(),o["published_generation"].as_i64()]).map_err(|e|format!("持久结构事实失败：{e}"))?;
+    let object_id = o["object_id"]
+        .as_str()
+        .ok_or("StorageUnavailable：事实身份缺失")?;
+    let revision = o["object_revision"]
+        .as_i64()
+        .ok_or("StorageUnavailable：事实版本非精确整数")?;
+    let kind = o["kind"].as_str().ok_or("StorageUnavailable：事实kind缺失")?;
+    let fact_key = o["fact_key"]
+        .as_str()
+        .ok_or("StorageUnavailable：事实fact_key缺失")?;
+    let payload = o["payload_json"]
+        .as_str()
+        .ok_or("StorageUnavailable：事实payload缺失")?;
+    let refs = o["input_refs_json"]
+        .as_str()
+        .ok_or("StorageUnavailable：事实来源缺失")?;
+    let coords = o["source_coords_json"]
+        .as_str()
+        .ok_or("StorageUnavailable：事实坐标缺失")?;
+    let format = evidence_store::format(conn)?;
+    format.writable()?;
+    let root_key = evidence_store::fact_root_key(object_id);
+    let staged = if format.records_in_graph() {
+        Some(evidence_store::stage_complete(
+            &evidence_store::fact_root_value(payload, refs, coords),
+            &[],
+        )?)
+    } else {
+        None
+    };
+    // 同 ID 已存在：只有不可变内容完全一致才幂等。
+    let existing: Option<(i64, String, String, String, String, String)> = conn
+        .query_row(
+            "SELECT object_revision,kind,fact_key,payload_json,input_refs_json,source_coords_json
+               FROM structure_facts WHERE object_id=?1",
+            params![object_id],
+            |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|e| format!("读既有结构事实失败：{e}"))?;
+    if let Some((old_revision, old_kind, old_key, old_payload, old_refs, old_coords)) = existing {
+        if old_revision != revision || old_kind != kind || old_key != fact_key {
+            return Err(format!(
+                "IdentityConflict：结构事实 `{object_id}` 同 ID 异身份（既有 {old_revision}/{old_kind}/{old_key}，本次 {revision}/{kind}/{fact_key}），拒绝写入"
+            ));
+        }
+        let identical = match &staged {
+            // 图域：三列原件由同名私有根承载，比较根的内容寻址身份（节点 id/槽/长度/摘要）。
+            Some(staged) => match evidence_store::Reader::root_row(conn, &root_key)? {
+                Some((node, slots, len, hash)) => {
+                    node == staged.root
+                        && slots == staged.slot_ids
+                        && len == staged.expanded_length
+                        && hash == staged.content_sha256
+                }
+                None => false,
+            },
+            // 整块域：行内原文逐字节比较。
+            None => old_payload == payload && old_refs == refs && old_coords == coords,
+        };
+        if !identical {
+            return Err(format!(
+                "IdentityConflict：结构事实 `{object_id}` 同 ID 异内容，拒绝写入（不吞差异）"
+            ));
+        }
+        return Ok(());
+    }
+    // 新事实：图域先落不可变节点与根（同一事务），再落行；行内三列留空占位。
+    let (stored_payload, stored_refs, stored_coords) = match &staged {
+        Some(staged) => {
+            evidence_store::publish_refs(conn, &root_key, staged)?;
+            (String::new(), String::new(), String::new())
+        }
+        None => (payload.to_string(), refs.to_string(), coords.to_string()),
+    };
+    conn.execute("INSERT INTO structure_facts(object_id,object_revision,kind,batch_id,fact_key,payload_json,input_refs_json,source_coords_json,first_known_generation,first_known_cut,published_generation) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+        params![object_id,revision,kind,batch,fact_key,stored_payload,stored_refs,stored_coords,o["first_known_generation"].as_i64(),o["first_known_cut"].as_str(),o["published_generation"].as_i64()]).map_err(|e|format!("持久结构事实失败：{e}"))?;
+    if staged.is_some() {
+        // 写后立刻重读核：行内必须是空占位，且私有根可无损展开成同一份原件。
+        let mut reader = evidence_store::Reader::new(conn, crate::EVIDENCE_READ_BUDGET);
+        let bytes = reader.read_fixed_cut(&root_key)?;
+        let (p, r, c) = evidence_store::split_fact_root(&bytes, &format!("事实 `{object_id}`"))?;
+        if p != payload || r != refs || c != coords {
+            return Err(format!(
+                "IdentityConflict：结构事实 `{object_id}` 私有根展开与本次原件不符，拒绝发布"
+            ));
+        }
+    }
     Ok(())
 }
 pub(super) fn read_facts(
@@ -285,8 +386,37 @@ pub(super) fn read_facts(
     if !enabled(conn)? {
         return Ok((vec![], vec![]));
     }
+    // #1394 第二段：三列大原件由该事实的私有根承载（graph/3）；整块域取行内原文。
+    // 同一次读取共用一个捕获作用域与读取器，唯一节点原行只读一次。
+    let format = evidence_store::format(conn)?;
+    let mut reader = evidence_store::Reader::new(conn, crate::EVIDENCE_READ_BUDGET);
     let mut stmt=conn.prepare("SELECT object_id,object_revision,kind,batch_id,fact_key,payload_json,input_refs_json,source_coords_json,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM structure_facts ORDER BY kind,fact_key,object_id,object_revision").map_err(|e|e.to_string())?;
     let rows=stmt.query_map([],|r|Ok(json!({"object_id":r.get::<_,String>(0)?,"object_revision":r.get::<_,i64>(1)?,"kind":r.get::<_,String>(2)?,"batch_id":r.get::<_,String>(3)?,"fact_key":r.get::<_,String>(4)?,"payload_json":r.get::<_,String>(5)?,"input_refs_json":r.get::<_,String>(6)?,"source_coords_json":r.get::<_,String>(7)?,"first_known_generation":r.get::<_,i64>(8)?,"first_known_cut":r.get::<_,String>(9)?,"published_generation":r.get::<_,i64>(10)?,"withdrawn_generation":r.get::<_,Option<i64>>(11)?,"withdrawal_reason":r.get::<_,Option<String>>(12)?,"superseded_by":r.get::<_,Option<String>>(13)?}))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    let mut rows = rows;
+    for o in &mut rows {
+        let object_id = o["object_id"].as_str().unwrap_or("").to_string();
+        if !format.records_in_graph() {
+            continue;
+        }
+        for (column, label) in [
+            ("payload_json", "payload"),
+            ("input_refs_json", "input_refs"),
+            ("source_coords_json", "source_coords"),
+        ] {
+            let text = o[column].as_str().unwrap_or("").to_string();
+            if !text.is_empty() {
+                return Err(format!(
+                    "StorageUnavailable：图域结构事实 `{object_id}` 行内 {label} 仍带整块原文，拒绝"
+                ));
+            }
+        }
+        let bytes = reader.read_fixed_cut(&evidence_store::fact_root_key(&object_id))?;
+        let (payload, refs, coords) =
+            evidence_store::split_fact_root(&bytes, &format!("事实 `{object_id}`"))?;
+        o["payload_json"] = json!(payload);
+        o["input_refs_json"] = json!(refs);
+        o["source_coords_json"] = json!(coords);
+    }
     let mut active = vec![];
     let mut withdrawn = vec![];
     for mut o in rows {

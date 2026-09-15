@@ -32,61 +32,106 @@ struct Family {
     seen: BTreeSet<String>,
 }
 impl Family {
-    fn capture(conn: &Connection, snapshot: &Value, name: &'static str) -> Result<Self, String> {
-        let sql = match name {
-            "witnesses" => "SELECT witness_id,published_generation FROM witnesses",
-            "observations" => "SELECT observation_id,published_generation FROM observations",
-            "relations" => {
-                "SELECT subject,relation_type,object,published_generation FROM relations"
-            }
+    /// 从**独立索引行**直接读该族的完整记录与出生代。
+    ///
+    /// 不复用公开快照作为必经中间件：快照会把全库（含原始历史与目录）一并物化，而审计只需要
+    /// 这三族索引行本身。记录形状与同 cut 快照逐字段一致（同一组列、同一投影规则）。
+    fn capture(conn: &Connection, name: &'static str) -> Result<Self, String> {
+        let (sql, project): (
+            &str,
+            fn(&rusqlite::Row<'_>) -> rusqlite::Result<(String, Option<i64>, Value)>,
+        ) = match name {
+            "witnesses" => (
+                "SELECT witness_id,published_generation,object_id,slot,merged_source_index,
+                        merged_high,merged_low,merged_open,merged_close,raw_json FROM witnesses",
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        Some(r.get::<_, i64>(1)?),
+                        json!({
+                            "witness_id": r.get::<_, String>(0)?,
+                            "object_id": r.get::<_, String>(2)?,
+                            "slot": r.get::<_, i64>(3)?.to_string(),
+                            "merged_source_index": r.get::<_, i64>(4)?.to_string(),
+                            "merged_high": r.get::<_, String>(5)?,
+                            "merged_low": r.get::<_, String>(6)?,
+                            "merged_open": r.get::<_, String>(7)?,
+                            "merged_close": r.get::<_, String>(8)?,
+                            "raw_bars": project_raw_bars(&json_column(r, 9, JsonShape::Array)?)
+                                .map_err(|e| json_column_error(9, e))?,
+                        }),
+                    ))
+                },
+            ),
+            "observations" => (
+                "SELECT observation_id,published_generation,batch_id,kind,window_start,window_mid,
+                        window_end,reason,detail_json FROM observations",
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        Some(r.get::<_, i64>(1)?),
+                        json!({
+                            "observation_id": r.get::<_, String>(0)?,
+                            "batch_id": r.get::<_, String>(2)?,
+                            "kind": r.get::<_, String>(3)?,
+                            "window_start": r.get::<_, Option<i64>>(4)?,
+                            "window_mid": r.get::<_, Option<i64>>(5)?,
+                            "window_end": r.get::<_, Option<i64>>(6)?,
+                            "reason": r.get::<_, String>(7)?,
+                            "detail": json_column(r, 8, JsonShape::Object)?,
+                        }),
+                    ))
+                },
+            ),
+            "relations" => (
+                "SELECT subject,relation_type,object,published_generation FROM relations",
+                |r| {
+                    let subject: String = r.get(0)?;
+                    let relation_type: String = r.get(1)?;
+                    let object: String = r.get(2)?;
+                    Ok((
+                        canonical_json(&json!({
+                            "subject": subject,
+                            "relation_type": relation_type,
+                            "object": object,
+                        })),
+                        Some(r.get::<_, i64>(3)?),
+                        json!({
+                            "subject": subject,
+                            "relation_type": relation_type,
+                            "object": object,
+                        }),
+                    ))
+                },
+            ),
             _ => return Err("StorageUnavailable：未知索引族".into()),
         };
-        let mut generations = BTreeMap::new();
-        let mut q = conn.prepare(sql).map_err(|e| e.to_string())?;
-        let mut rows = q.query([]).map_err(|e| e.to_string())?;
-        while let Some(r) = rows.next().map_err(|e| e.to_string())? {
-            let (id, g): (String, i64) = if name == "relations" {
-                (
-                    canonical_json(
-                        &json!({"subject":r.get::<_,String>(0).map_err(|e|e.to_string())?,
-                    "relation_type":r.get::<_,String>(1).map_err(|e|e.to_string())?,
-                    "object":r.get::<_,String>(2).map_err(|e|e.to_string())?}),
-                    ),
-                    r.get(3).map_err(|e| e.to_string())?,
-                )
-            } else {
-                (
-                    r.get(0).map_err(|e| e.to_string())?,
-                    r.get(1).map_err(|e| e.to_string())?,
-                )
-            };
-            if generations.insert(id, g).is_some() {
-                return Err(format!("StorageUnavailable：{name} 重复身份"));
-            }
-        }
         let mut result = Self {
             name,
             records: BTreeMap::new(),
             born: BTreeMap::new(),
             seen: BTreeSet::new(),
         };
-        for record in required_array(snapshot, name)? {
-            let id = identity(record, name)?;
-            let g = generations
-                .remove(&id)
-                .ok_or("StorageUnavailable：索引缺出生代")?;
+        let mut q = conn.prepare(sql).map_err(|e| e.to_string())?;
+        let mut rows = q.query([]).map_err(|e| e.to_string())?;
+        while let Some(r) = rows.next().map_err(|e| e.to_string())? {
+            let (id, generation, record) = project(r).map_err(|e| e.to_string())?;
+            let g = generation.ok_or("StorageUnavailable：索引缺出生代")?;
+            if identity(&record, name)? != id {
+                return Err(format!("StorageUnavailable：{name} 独立索引身份与其记录不一致"));
+            }
+            if result.records.contains_key(&id) {
+                return Err(format!("StorageUnavailable：{name} 重复身份"));
+            }
             result.born.entry(g).or_default().insert(id.clone());
             result.records.insert(
                 id,
                 (
                     record.clone(),
-                    canonical_json(&legacy_payload_projection(record)),
+                    canonical_json(&legacy_payload_projection(&record)),
                     g,
                 ),
             );
-        }
-        if !generations.is_empty() {
-            return Err("StorageUnavailable：索引捕获成员不完整".into());
         }
         Ok(result)
     }
@@ -191,24 +236,25 @@ pub(super) struct AuditWalk {
     objects: BTreeMap<String, Value>,
 }
 impl AuditWalk {
-    pub(super) fn capture(conn: &Connection) -> Result<Self, String> {
-        let snapshot = read_snapshot_in_tx(conn, None)?;
+    /// 一次新鲜捕获：对象与三族独立索引直接读各自的行，原始历史由调用方在同一次读集中读入。
+    ///
+    /// **不经 `read_snapshot_in_tx`**：公开快照会把全库（含 raw_history、catalog、发布头）整体
+    /// 物化，而审计只需要对象/见证/关系/观察四族。这里也没有第二次复制：记录直接取自索引行。
+    pub(super) fn capture(conn: &Connection, raw: &[Value]) -> Result<Self, String> {
+        let (objects, withdrawn) = read_objects_view(conn, None)?;
         let mut result = Self {
             active: BTreeMap::new(),
             births: BTreeMap::new(),
             deaths: BTreeMap::new(),
-            witnesses: Family::capture(conn, &snapshot, "witnesses")?,
-            relations: Family::capture(conn, &snapshot, "relations")?,
-            observations: Family::capture(conn, &snapshot, "observations")?,
+            witnesses: Family::capture(conn, "witnesses")?,
+            relations: Family::capture(conn, "relations")?,
+            observations: Family::capture(conn, "observations")?,
             original_observations: BTreeMap::new(),
-            raw: required_array(&snapshot, "raw_history")?.clone(),
+            raw: raw.to_vec(),
             objects: BTreeMap::new(),
         };
         let mut object_ids = BTreeSet::new();
-        for o in required_array(&snapshot, "objects")?
-            .iter()
-            .chain(required_array(&snapshot, "withdrawn_objects")?)
-        {
+        for o in objects.iter().chain(withdrawn.iter()) {
             if !object_ids.insert(identity(o, "objects")?) {
                 return Err("StorageUnavailable：对象重复身份".into());
             }

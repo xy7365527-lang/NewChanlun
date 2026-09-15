@@ -219,8 +219,13 @@ CREATE TABLE s_evidence_roots (
  expanded_length INTEGER NOT NULL, content_sha256 TEXT NOT NULL);
 """
 EVIDENCE_GRAPH_TABLES = ("s_evidence_format", "s_evidence_nodes", "s_evidence_roots")
-EVIDENCE_GRAPH_FORMAT = "evidence-graph/2"
+# 当前物理表示：批次 + Delta 原件 + 结构事实三列原件同图（#1394 第二段）。
+EVIDENCE_GRAPH_FORMAT = "evidence-graph/3"
+# 上一版（只有 batch 走私有图，Delta/事实仍在行内整块列）：**只读**兼容，不混代、不迁移。
+EVIDENCE_GRAPH_FORMAT_V2 = "evidence-graph/2"
 EVIDENCE_ROOT_PREFIX = "batch/"
+EVIDENCE_DELTA_ROOT_PREFIX = "delta/"
+EVIDENCE_FACT_ROOT_PREFIX = "fact/"
 EVIDENCE_NODE_LEAF = 0
 EVIDENCE_NODE_SEQ = 1
 
@@ -274,6 +279,8 @@ def evidence_mode(tables):
     """证据图物理域的唯一入口：三表齐 = 出 graph_format 值；三表缺 = 旧整块域。
 
     与 Delta 域同纪律：不二次尝试，模式读不出来就拒绝；表不齐/多行/未知值一律拒绝。
+    两个已知版本都返回：`evidence-graph/3`（批次+Delta+事实同图）与只读兼容的
+    `evidence-graph/2`（只有批次走图）。同一个名字下不得换存储含义，故版本是显式值。
     """
     present = tuple(name for name in EVIDENCE_GRAPH_TABLES if name in tables)
     if not present:
@@ -284,18 +291,21 @@ def evidence_mode(tables):
     if len(rows) != 1:
         raise ValueError("私有图格式登记必须恰一行（缺行/多行一律拒绝）")
     row = rows[0]
-    if row["singleton"] != 1 or row["graph_format"] != EVIDENCE_GRAPH_FORMAT:
-        raise ValueError("未知/损坏的 S 私有证据图格式（只认 evidence-graph/2）")
-    return EVIDENCE_GRAPH_FORMAT
+    if row["singleton"] != 1 or row["graph_format"] not in (
+            EVIDENCE_GRAPH_FORMAT, EVIDENCE_GRAPH_FORMAT_V2):
+        raise ValueError(
+            "未知/损坏的 S 私有证据图格式（只认 evidence-graph/2 与 evidence-graph/3）")
+    return row["graph_format"]
 
 
-def evidence_batch_sources(tables, deadline=None):
-    """图域的独立还原：逐批次给出**完整规范字节**，并核节点内容寻址、根闭包、公开身份。
+def evidence_sources(tables, mode, deadline=None):
+    """图域的独立还原：逐根给出**完整展开字节**，并核节点内容寻址、根闭包与命名空间一致性。
 
     不复用 Rust 侧结论：节点 id = sha256(kind || payload)、根展开逐字节重算，再核
-    `expanded_length`、`content_sha256` 与 `batch-<sha256(展开字节)>`。旧整块域返回 None。
+    `expanded_length` 与 `content_sha256`。批次根另核公开身份 `batch-<sha256(展开字节)>`；
+    Delta/事实根另核「恰有一条对应逻辑记录」。旧整块域（mode=None）返回 None。
     """
-    if evidence_mode(tables) is None:
+    if mode is None:
         return None
     nodes = {}
     for row in tables["s_evidence_nodes"]:
@@ -314,14 +324,34 @@ def evidence_batch_sources(tables, deadline=None):
         if hashlib.sha256(bytes([kind]) + payload).digest() != node_id:
             raise ValueError("证据图节点同 ID 异内容（内容寻址不符）")
         nodes[node_id] = (kind, payload, row["expanded_length"])
-    by_batch, seen, touched = {}, set(), set()
+    by_key, seen, touched = {}, set(), set()
+    delta_generations = set()
+    if mode == EVIDENCE_GRAPH_FORMAT:
+        delta_generations = {row["generation"] for row in tables.get("structure_deltas", ())}
+    fact_objects = {row["object_id"] for row in tables.get("structure_facts", ())} \
+        if mode == EVIDENCE_GRAPH_FORMAT else set()
     for row in tables["s_evidence_roots"]:
         _deadline(deadline)
         key = row["root_key"]
-        if type(key) is not str or not key.startswith(EVIDENCE_ROOT_PREFIX) or key in seen:
+        if type(key) is not str or key in seen:
             raise ValueError("证据图根 key 未声明或重复")
         seen.add(key)
-        batch_id = key[len(EVIDENCE_ROOT_PREFIX):]
+        if mode == EVIDENCE_GRAPH_FORMAT_V2 and not key.startswith(EVIDENCE_ROOT_PREFIX):
+            raise ValueError("evidence-graph/2 未声明该根命名空间（只有 batch 走私有图）")
+        if key.startswith(EVIDENCE_ROOT_PREFIX):
+            record = key[len(EVIDENCE_ROOT_PREFIX):]
+            if not record:
+                raise ValueError("证据图根缺逻辑记录标识")
+        elif key.startswith(EVIDENCE_DELTA_ROOT_PREFIX):
+            record = key[len(EVIDENCE_DELTA_ROOT_PREFIX):]
+            if not record.isdigit() or int(record) not in delta_generations:
+                raise ValueError("Delta 私有根没有对应 Delta 行（不可达残留）")
+        elif key.startswith(EVIDENCE_FACT_ROOT_PREFIX):
+            record = key[len(EVIDENCE_FACT_ROOT_PREFIX):]
+            if record not in fact_objects:
+                raise ValueError("事实私有根没有对应结构事实行（不可达残留）")
+        else:
+            raise ValueError("证据图根不在已声明命名空间（batch/delta/fact）")
         if row["node_id"] not in nodes:
             raise ValueError("证据图根引用了不存在的节点")
         slots_raw = row["slot_ids"]
@@ -340,12 +370,54 @@ def evidence_batch_sources(tables, deadline=None):
             raise ValueError("证据图根展开长度与登记不符")
         if hashlib.sha256(expanded).hexdigest() != row["content_sha256"]:
             raise ValueError("证据图根展开字节与登记摘要不符")
-        if "batch-" + hashlib.sha256(expanded).hexdigest() != batch_id:
-            raise ValueError("证据图根展开字节与公开批次身份不符")
-        by_batch[batch_id] = expanded
+        if key.startswith(EVIDENCE_ROOT_PREFIX):
+            if "batch-" + hashlib.sha256(expanded).hexdigest() != record:
+                raise ValueError("证据图根展开字节与公开批次身份不符")
+        by_key[key] = expanded
     if touched != nodes.keys():
         raise ValueError("证据图存在不可达节点")
-    return by_batch
+    return by_key
+
+
+def evidence_batch_sources(tables, deadline=None):
+    """批次根的独立还原（公开批次身份 → 完整规范字节）；旧整块域返回 None。"""
+    sources = evidence_sources(tables, evidence_mode(tables), deadline)
+    if sources is None:
+        return None
+    return {key[len(EVIDENCE_ROOT_PREFIX):]: value for key, value in sources.items()
+            if key.startswith(EVIDENCE_ROOT_PREFIX)}
+
+
+def materialize_graph_originals(tables, mode, sources, delimiter=""):
+    """把 Delta 原件与结构事实三列原件从私有根放回同一入口（行内列必须是空占位）。
+
+    还原后下游全部既有判据（内层头与外层列一致、逐代目录证据、封存批次对拍）逐字不变。
+    只改本次捕获的 typed 行副本；不修改物理行，也不改动公开字段名。
+    """
+    if mode != EVIDENCE_GRAPH_FORMAT:
+        return
+    for row in tables["structure_deltas"]:
+        key = EVIDENCE_DELTA_ROOT_PREFIX + str(row["generation"])
+        expanded = sources.get(key)
+        if expanded is None:
+            raise ValueError(f"Delta 私有根缺失：{key}")
+        if row["delta_json"] != delimiter:
+            raise ValueError("图域 delta 行仍带整块原文（与私有根混写）")
+        row["delta_json"] = expanded.decode("utf-8")
+    for row in tables.get("structure_facts", ()):
+        key = EVIDENCE_FACT_ROOT_PREFIX + row["object_id"]
+        expanded = sources.get(key)
+        if expanded is None:
+            raise ValueError(f"事实私有根缺失：{key}")
+        for column in ("payload_json", "input_refs_json", "source_coords_json"):
+            if row[column] != delimiter:
+                raise ValueError("图域结构事实行仍带整块原文（与私有根混写）")
+        payload, refs, coords = parse_json(expanded.decode("utf-8"), list)
+        if len((payload, refs, coords)) != 3 or not all(
+                type(item) is str for item in (payload, refs, coords)):
+            raise ValueError("事实私有根展开必须是三列精确文本")
+        row["payload_json"], row["input_refs_json"], row["source_coords_json"] = \
+            payload, refs, coords
 
 
 def _evidence_expand(nodes, root, slots, touched, deadline=None):
@@ -990,24 +1062,32 @@ def verify(image, h, deadline=None, memo=None):
     raw_rows = _raw_rows(tables, meta)
     _verify_raw(raw_rows, deadline)
     raw = [_raw_wire(row) for row in raw_rows]
-    # #1394 第二段：图域批次的完整规范字节只能由私有根无损展开；此处把还原字节放回同一
-    # 入口（`canonical_bytes`），下游全部既有判据（长度/哈希/profile/对象对照）逐字不变。
-    graph_sources = evidence_batch_sources(tables, deadline)
+    # #1394 第二段：图域三类大原件（批次、Delta、结构事实）都只能由私有根无损展开；此处把
+    # 还原字节放回同一入口（`canonical_bytes` 与三列原文），下游全部既有判据逐字不变。
+    evidence_version = evidence_mode(tables)
+    graph_sources = evidence_sources(tables, evidence_version, deadline)
+    if graph_sources is not None:
+        materialize_graph_originals(tables, evidence_version, graph_sources)
+        batch_sources = {key[len(EVIDENCE_ROOT_PREFIX):]: value
+                         for key, value in graph_sources.items()
+                         if key.startswith(EVIDENCE_ROOT_PREFIX)}
+    else:
+        batch_sources = None
     batches = {}
     for row in tables["batches"]:
         entry = dict(row)
-        if graph_sources is not None:
+        if batch_sources is not None:
             if entry["canonical_bytes"]:
                 raise ValueError("图域批次仍带整块字节（与私有根混写），拒绝读取")
-            source = graph_sources.get(entry["batch_id"])
+            source = batch_sources.get(entry["batch_id"])
             if source is None:
                 raise ValueError("图域批次缺私有根（引用不完整）")
             if entry["byte_len"] != len(source):
                 raise ValueError("图域批次 byte_len 与私有根展开长度不符")
             entry["canonical_bytes"] = source
         batches[entry["batch_id"]] = entry
-    if graph_sources is not None:
-        for batch_id in graph_sources:
+    if batch_sources is not None:
+        for batch_id in batch_sources:
             if batch_id not in batches:
                 raise ValueError("证据图根没有对应批次行（不可达残留）")
     deltas = tables["structure_deltas"]

@@ -68,5 +68,73 @@ class EvidenceGraphIntegrityTests(unittest.TestCase):
             graph.evidence_batch_sources(tables, deadline=0)
 
 
+def graph3_fixture():
+    """#1394 第二段：批次 + Delta 原件 + 结构事实三列原件同图（evidence-graph/3）。"""
+    parts = [b'[', b'"9"', b',', b'"9"', b',', b'"9"', b']']
+    payload = b''.join(b'\x00' + len(part).to_bytes(4, 'big') + part for part in parts)
+    expanded = b'["9","9","9"]'
+    seq = node(1, payload, len(expanded))
+    digest = hashlib.sha256(expanded).hexdigest()
+    tables = {
+        "s_evidence_format": [{"singleton": 1, "graph_format": graph.EVIDENCE_GRAPH_FORMAT}],
+        "s_evidence_nodes": [seq],
+        "s_evidence_roots": [
+            {"root_key": "batch/batch-" + digest, "node_id": seq["node_id"],
+             "slot_ids": b"", "expanded_length": len(expanded),
+             "content_sha256": digest},
+            {"root_key": "delta/1", "node_id": seq["node_id"],
+             "slot_ids": b"", "expanded_length": len(expanded),
+             "content_sha256": digest},
+            {"root_key": "fact/obj-1", "node_id": seq["node_id"],
+             "slot_ids": b"", "expanded_length": len(expanded),
+             "content_sha256": digest},
+        ],
+        "structure_deltas": [{"generation": 1, "delta_json": ""}],
+        "structure_facts": [{"object_id": "obj-1", "payload_json": "",
+                             "input_refs_json": "", "source_coords_json": ""}],
+    }
+    return tables, "batch-" + digest, expanded
+
+
+class EvidenceGraph3IntegrityTests(unittest.TestCase):
+    def test_delta_and_fact_roots_are_expanded_into_the_same_rows(self):
+        tables, key, expanded = graph3_fixture()
+        sources = graph.evidence_sources(tables, graph.EVIDENCE_GRAPH_FORMAT)
+        self.assertEqual(set(sources), {"batch/" + key, "delta/1", "fact/obj-1"})
+        self.assertEqual(sources["batch/" + key], expanded)
+        graph.materialize_graph_originals(tables, graph.EVIDENCE_GRAPH_FORMAT, sources)
+        self.assertEqual(tables["structure_deltas"][0]["delta_json"], expanded.decode())
+        self.assertEqual(
+            [tables["structure_facts"][0][column] for column in
+             ("payload_json", "input_refs_json", "source_coords_json")], ["9", "9", "9"])
+
+    def test_row_columns_must_stay_empty_in_graph3(self):
+        tables, _, _ = graph3_fixture()
+        tables["structure_deltas"][0]["delta_json"] = "{}"
+        sources = graph.evidence_sources(tables, graph.EVIDENCE_GRAPH_FORMAT)
+        with self.assertRaisesRegex(ValueError, "仍带整块原文"):
+            graph.materialize_graph_originals(tables, graph.EVIDENCE_GRAPH_FORMAT, sources)
+
+    def test_delta_root_without_row_is_rejected(self):
+        tables, _, _ = graph3_fixture()
+        tables["structure_deltas"] = []
+        with self.assertRaisesRegex(ValueError, "没有对应 Delta 行"):
+            graph.evidence_sources(tables, graph.EVIDENCE_GRAPH_FORMAT)
+
+    def test_missing_delta_root_is_rejected(self):
+        tables, _, _ = graph3_fixture()
+        tables["s_evidence_roots"] = [
+            row for row in tables["s_evidence_roots"] if not row["root_key"].startswith("delta/")]
+        sources = graph.evidence_sources(tables, graph.EVIDENCE_GRAPH_FORMAT)
+        with self.assertRaisesRegex(ValueError, "Delta 私有根缺失"):
+            graph.materialize_graph_originals(tables, graph.EVIDENCE_GRAPH_FORMAT, sources)
+
+    def test_graph2_domain_rejects_delta_and_fact_roots(self):
+        tables, _, _ = graph3_fixture()
+        tables["s_evidence_format"][0]["graph_format"] = graph.EVIDENCE_GRAPH_FORMAT_V2
+        with self.assertRaisesRegex(ValueError, "未声明该根命名空间"):
+            graph.evidence_sources(tables, graph.EVIDENCE_GRAPH_FORMAT_V2)
+
+
 if __name__ == '__main__':
     unittest.main()
