@@ -66,6 +66,8 @@ pub(super) struct Lane {
     fps: Vec<InputFp>,
     state: IncrFactsState,
     facts: tb02a_facts::FactCache,
+    /// 事实依赖精确原始引用；OHLC 未变的 revision 也必须使相关原件失效。
+    source_refs: Vec<(i64, Value)>,
     /// 最近一次推进的结果（测量面读取；不参与任何判据）。
     last: AdvanceOutcome,
 }
@@ -77,6 +79,7 @@ impl Lane {
             fps: Vec::new(),
             state: IncrFactsState::empty(),
             facts: tb02a_facts::FactCache::new(),
+            source_refs: Vec::new(),
             last: AdvanceOutcome::default(),
         }
     }
@@ -139,6 +142,19 @@ impl Lane {
         cut: &str,
         frontier: i64,
     ) -> (Vec<Value>, Vec<Value>) {
+        let current_refs: Vec<_> = raw.iter()
+            .map(|(coord, event)| (*coord, tb02a_facts::raw_ref(event)))
+            .collect();
+        let common = self.source_refs.iter().zip(&current_refs)
+            .take_while(|(old, current)| old == current).count();
+        if common < self.source_refs.len() {
+            let mut from = self.source_refs[common].0;
+            if let Some((coord, _)) = current_refs.get(common) {
+                from = from.min(*coord);
+            }
+            self.facts.invalidate_from(from);
+        }
+        self.source_refs = current_refs;
         tb02a_facts::build_incremental(
             &self.state,
             raw,
@@ -165,6 +181,7 @@ impl Lane {
     #[cfg(test)]
     pub(super) fn clear_reuse(&mut self) {
         self.facts.clear();
+        self.source_refs.clear();
         self.fps.clear();
         self.state = IncrFactsState::empty();
         self.last = AdvanceOutcome::default();

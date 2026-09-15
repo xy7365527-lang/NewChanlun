@@ -8522,6 +8522,45 @@ mod tests {
     }
 
     #[test]
+    fn issue1394_same_price_revision_preserves_exact_current_source() {
+        let bars = [(0, 1), (4, 8), (5, 7), (2, 4), (6, 9)];
+        let run = |oracle: bool| {
+            s_fact_cache::warm_lane_reset();
+            s_fact_cache::set_oracle(oracle);
+            let files = TestFiles::new();
+            init_test_db(&files);
+            let mut published = Vec::new();
+            for revision in 1..=3 {
+                let mut input = ohlc_input(&bars, false);
+                // 价格与坐标均不变，只有真实事件版本变更；来源原件仍须更换。
+                input["events"][0]["revision"] = json!(revision.to_string());
+                accept_ohlc(&files, &input);
+                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                let conn = open_db(&files.db()).unwrap();
+                verify_reachable_root(&conn).unwrap();
+                let bytes: Vec<u8> = conn.query_row(
+                    "SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id WHERE d.generation=?1",
+                    params![revision], |row| row.get(0)).unwrap();
+                for (old, (_, snapshot)) in published.iter().enumerate() {
+                    assert!(&snapshot_of(&files, Some(old as i64 + 1)) == snapshot,
+                        "真实 revision 后旧 cut {} 改变", old + 1);
+                }
+                published.push((bytes, snapshot_of(&files, Some(revision))));
+            }
+            s_fact_cache::set_oracle(false);
+            published
+        };
+        let warm = run(false);
+        let oracle = run(true);
+        assert_ne!(oracle[0].0, oracle[1].0, "真实 revision 必须改变原件身份");
+        for (index, (actual, expected)) in warm.iter().zip(&oracle).enumerate() {
+            assert!(actual == expected,
+                "同价 revision 第 {} 代的完整 batch 字节/快照不一致：warm={} oracle={}",
+                index + 1, sha256_hex(&actual.0), sha256_hex(&expected.0));
+        }
+    }
+
+    #[test]
     fn issue1394_incremental_matches_oracle_on_revision_return() {
         // 真实修订（消失/返回）+ 追加：增量路径与 oracle 逐代 batch_id 必须相同。
         let bars = incremental_bars(12);
