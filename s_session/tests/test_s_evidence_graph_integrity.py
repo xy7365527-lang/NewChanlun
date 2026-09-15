@@ -121,6 +121,15 @@ class EvidenceGraph3IntegrityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "没有对应 Delta 行"):
             graph.evidence_sources(tables, graph.EVIDENCE_GRAPH_FORMAT)
 
+    def test_extra_delta_root_aliases_are_rejected(self):
+        for alias in ("delta/01", "delta/+1", "delta/١"):
+            with self.subTest(alias=alias):
+                tables, _, _ = graph3_fixture()
+                tables["s_evidence_roots"].append(
+                    dict(tables["s_evidence_roots"][1], root_key=alias))
+                with self.assertRaisesRegex(ValueError, "Delta 私有根"):
+                    graph.evidence_sources(tables, graph.EVIDENCE_GRAPH_FORMAT)
+
     def test_missing_delta_root_is_rejected(self):
         tables, _, _ = graph3_fixture()
         tables["s_evidence_roots"] = [

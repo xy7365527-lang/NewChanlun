@@ -232,6 +232,15 @@ pub(super) fn root_kind(root_key: &str) -> Result<(RootKind, &str), String> {
             if rest.is_empty() {
                 return Err(format!("StorageUnavailable：私有根 `{root_key}` 缺逻辑记录标识"));
             }
+            if kind == RootKind::Delta {
+                let generation = parse_canonical_i64(rest, "Delta 私有根代数")
+                    .map_err(|e| format!("StorageUnavailable：{e}"))?;
+                if generation < 1 {
+                    return Err(format!(
+                        "StorageUnavailable：Delta 私有根 `{root_key}` 代数必须为正整数"
+                    ));
+                }
+            }
             return Ok((kind, rest));
         }
     }

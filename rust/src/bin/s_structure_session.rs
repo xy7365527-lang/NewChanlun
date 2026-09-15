@@ -9235,6 +9235,14 @@ mod staged_graph_audit_regressions {
     #[test]
     fn graph3_delta_and_fact_damage_blocks_every_write_before_it_happens() {
         for (sql, warm) in [
+            (
+                "INSERT INTO s_evidence_roots SELECT 'delta/01',node_id,slot_ids,expanded_length,content_sha256 FROM s_evidence_roots WHERE root_key='delta/1'",
+                true,
+            ),
+            (
+                "INSERT INTO s_evidence_roots SELECT 'delta/+1',node_id,slot_ids,expanded_length,content_sha256 FROM s_evidence_roots WHERE root_key='delta/1'",
+                false,
+            ),
             ("UPDATE structure_deltas SET delta_json='{}' WHERE generation=1", true),
             ("DELETE FROM structure_deltas WHERE generation=1", true),
             ("UPDATE structure_deltas SET catalog_evidence_json='{}' WHERE generation=1", true),

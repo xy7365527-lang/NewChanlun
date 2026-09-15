@@ -344,7 +344,8 @@ def evidence_sources(tables, mode, deadline=None):
                 raise ValueError("证据图根缺逻辑记录标识")
         elif key.startswith(EVIDENCE_DELTA_ROOT_PREFIX):
             record = key[len(EVIDENCE_DELTA_ROOT_PREFIX):]
-            if not record.isdigit() or int(record) not in delta_generations:
+            generation = _int_text(record, "Delta 私有根代数", minimum=1)
+            if generation not in delta_generations:
                 raise ValueError("Delta 私有根没有对应 Delta 行（不可达残留）")
         elif key.startswith(EVIDENCE_FACT_ROOT_PREFIX):
             record = key[len(EVIDENCE_FACT_ROOT_PREFIX):]
