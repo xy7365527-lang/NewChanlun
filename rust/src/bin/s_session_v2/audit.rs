@@ -25,9 +25,18 @@ fn identity(v: &Value, field: &str) -> Result<String, String> {
         .to_string())
 }
 
+/// 共享不可变投影的**唯一保留量**记账：同一份原件（同一个 `Arc`）只算一次规范源字节，
+/// 不按持有视图的个数重复计费。
+fn account_unique(seen: &mut BTreeSet<usize>, total: &mut usize, value: &std::sync::Arc<Value>) {
+    if seen.insert(std::sync::Arc::as_ptr(value) as usize) {
+        *total = total.saturating_add(canonical_json(value).len());
+    }
+}
+
 struct Family {
     name: &'static str,
-    records: BTreeMap<String, (Value, String, i64)>,
+    /// 独立索引行的**不可变原件投影**：一份记录只保留一份，按唯一保留量记账。
+    records: BTreeMap<String, (std::sync::Arc<Value>, String, i64)>,
     born: BTreeMap<i64, BTreeSet<String>>,
     seen: BTreeSet<String>,
 }
@@ -124,14 +133,11 @@ impl Family {
                 return Err(format!("StorageUnavailable：{name} 重复身份"));
             }
             result.born.entry(g).or_default().insert(id.clone());
-            result.records.insert(
-                id,
-                (
-                    record.clone(),
-                    canonical_json(&legacy_payload_projection(&record)),
-                    g,
-                ),
-            );
+            // 记录只保留一份不可变投影（`Arc`），不再按视图重复深拷贝整条 payload。
+            let canonical = canonical_json(&legacy_payload_projection(&record));
+            result
+                .records
+                .insert(id, (std::sync::Arc::new(record), canonical, g));
         }
         Ok(result)
     }
@@ -146,7 +152,7 @@ impl Family {
         delta: &Value,
         g: i64,
         mode: delta_storage::Mode,
-        batch_records: &[Value],
+        batch_records: &[std::sync::Arc<Value>],
     ) -> Result<(), String> {
         let mut present = BTreeSet::new();
         for record in required_array(delta, self.name)? {
@@ -225,15 +231,17 @@ impl Family {
 }
 
 pub(super) struct AuditWalk {
-    active: BTreeMap<String, Value>,
-    births: BTreeMap<i64, Vec<Value>>,
-    deaths: BTreeMap<i64, Vec<Value>>,
+    /// 活动集 / 出生 / 撤回三视图共享同一份不可变对象投影（`Arc`），
+    /// 一个对象在内存里只留一份；#1394 之前每个视图各持一份深拷贝。
+    active: BTreeMap<String, std::sync::Arc<Value>>,
+    births: BTreeMap<i64, Vec<std::sync::Arc<Value>>>,
+    deaths: BTreeMap<i64, Vec<std::sync::Arc<Value>>>,
     witnesses: Family,
     relations: Family,
     observations: Family,
-    original_observations: BTreeMap<String, Value>,
+    original_observations: BTreeMap<String, std::sync::Arc<Value>>,
     raw: Vec<Value>,
-    objects: BTreeMap<String, Value>,
+    objects: BTreeMap<String, std::sync::Arc<Value>>,
 }
 impl AuditWalk {
     /// 一次新鲜捕获：对象与三族独立索引直接读各自的行，原始历史由调用方在同一次读集中读入。
@@ -258,18 +266,22 @@ impl AuditWalk {
             if !object_ids.insert(identity(o, "objects")?) {
                 return Err("StorageUnavailable：对象重复身份".into());
             }
-            result.objects.insert(identity(o, "objects")?, o.clone());
+            // 三个视图共享同一份不可变投影：每个对象只深拷贝一次。
+            let shared = std::sync::Arc::new(o.clone());
+            result
+                .objects
+                .insert(identity(o, "objects")?, shared.clone());
             result
                 .births
                 .entry(number(o, "first_known_generation")?)
                 .or_default()
-                .push(o.clone());
+                .push(shared.clone());
             if !o["withdrawn_generation"].is_null() {
                 result
                     .deaths
                     .entry(number(o, "withdrawn_generation")?)
                     .or_default()
-                    .push(o.clone());
+                    .push(shared);
             }
         }
         Ok(result)
@@ -305,19 +317,30 @@ impl AuditWalk {
             if born > generation {
                 continue;
             }
-            let mut at_previous = record.clone();
-            if !record["withdrawn_generation"].is_null() {
+            // 未发生撤回的对象不做任何深拷贝：直接借共享投影比对。
+            let at_previous: std::borrow::Cow<'_, Value> = if record["withdrawn_generation"].is_null()
+            {
+                std::borrow::Cow::Borrowed(record.as_ref())
+            } else {
                 let Ok(withdrawn) = number(record, "withdrawn_generation") else {
                     return false;
                 };
-                if withdrawn > generation {
+                if withdrawn <= generation {
+                    std::borrow::Cow::Borrowed(record.as_ref())
+                } else {
+                    let mut projected = record.as_ref().clone();
                     for key in ["withdrawn_generation", "withdrawal_reason", "superseded_by"] {
-                        at_previous[key] = Value::Null;
+                        projected[key] = Value::Null;
                     }
-                    at_previous["lifecycle"] = json!("active");
+                    projected["lifecycle"] = json!("active");
+                    std::borrow::Cow::Owned(projected)
                 }
-            }
-            if old.objects.get(id) != Some(&at_previous) {
+            };
+            let same = old
+                .objects
+                .get(id)
+                .is_some_and(|prev| prev.as_ref() == at_previous.as_ref());
+            if !same {
                 return false;
             }
             matched += 1;
@@ -336,22 +359,29 @@ impl AuditWalk {
         true
     }
     pub(super) fn source_bytes(&self) -> usize {
-        // 对每个持久缓存投影按规范源字节记账（含重复持有的投影）；不是 RSS 估算。
+        // 对每个持久缓存投影按规范源字节记账；**共享原件按唯一保留量记账**——同一份不可变投影
+        // 被多个视图（objects / births / deaths / active / original_observations）引用时只算一次，
+        // 不按持有处重复计费。这是记账口径，不是 RSS 估算。
         let mut n = 0usize;
+        let mut seen: BTreeSet<usize> = BTreeSet::new();
         for v in self
             .active
             .values()
             .chain(self.objects.values())
             .chain(self.original_observations.values())
-            .chain(self.raw.iter())
             .chain(self.births.values().flatten())
             .chain(self.deaths.values().flatten())
         {
+            account_unique(&mut seen, &mut n, v);
+        }
+        // 原始历史是逐条独立投影（不与其它视图共享），按条记账。
+        for v in &self.raw {
             n = n.saturating_add(canonical_json(v).len());
         }
         for f in [&self.witnesses, &self.relations, &self.observations] {
             for (id, (v, c, _)) in &f.records {
-                n = n.saturating_add(id.len() + canonical_json(v).len() + c.len() + 8);
+                account_unique(&mut seen, &mut n, v);
+                n = n.saturating_add(id.len() + c.len() + 8);
             }
             for id in &f.seen {
                 n = n.saturating_add(id.len());
@@ -399,13 +429,18 @@ impl AuditWalk {
 
         // ② 新鲜独立索引的 born/death：完整 next active + 本代首次成员原记录。
         let mut index_next = self.active.clone();
-        let mut index_born: Vec<Value> = Vec::new();
+        let mut index_born: Vec<std::sync::Arc<Value>> = Vec::new();
         if let Some(births) = self.births.remove(&g) {
             for mut o in births {
-                for key in ["withdrawn_generation", "withdrawal_reason", "superseded_by"] {
-                    o[key] = Value::Null;
+                // 本代投影的**独占副本**：`make_mut` 只在共享时深拷贝，
+                // 绝不改动仍被 objects/births 视图持有的那份原件。
+                {
+                    let value = std::sync::Arc::make_mut(&mut o);
+                    for key in ["withdrawn_generation", "withdrawal_reason", "superseded_by"] {
+                        value[key] = Value::Null;
+                    }
+                    value["lifecycle"] = json!("active");
                 }
-                o["lifecycle"] = json!("active");
                 index_born.push(o.clone());
                 if index_next.insert(identity(&o, "objects")?, o).is_some() {
                     return Err("StorageUnavailable：重复对象出生".into());
@@ -446,7 +481,7 @@ impl AuditWalk {
             let id = identity(o, "objects")?;
             match delta_next.get(&id) {
                 None => {
-                    delta_next.insert(id, o.clone());
+                    delta_next.insert(id, std::sync::Arc::new(o.clone()));
                 }
                 Some(old) if !mode.changes_only() => {
                     // 旧 full 域：完整活动集重发，既有身份必须逐字段一致（同 ID 异内容不得吞掉）。
@@ -478,12 +513,18 @@ impl AuditWalk {
 
         // 三方逐字段相等（不能只核其中两方，也不能只核活动集大小）。
         same_records(
-            &json!(index_next.values().collect::<Vec<_>>()),
+            &json!(index_next
+                .values()
+                .map(|v| &**v)
+                .collect::<Vec<&Value>>()),
             &json!(batch_next),
             "objects/独立索引活动集",
         )?;
         same_records(
-            &json!(delta_next.values().collect::<Vec<_>>()),
+            &json!(delta_next
+                .values()
+                .map(|v| &**v)
+                .collect::<Vec<&Value>>()),
             &json!(batch_next),
             "objects/Delta活动集",
         )?;
@@ -491,24 +532,34 @@ impl AuditWalk {
         same_records(&delta["replaces"], &json!(replaces), "replaces")?;
         if mode.changes_only() {
             // 本代新生/替代精确等于 Delta upserts：漏 birth 与伪旧 member 都拒绝。
-            same_records(&delta["upserts"], &json!(index_born), "upserts/本代首次")?;
+            same_records(
+                &delta["upserts"],
+                &json!(index_born.iter().map(|v| &**v).collect::<Vec<&Value>>()),
+                "upserts/本代首次",
+            )?;
         } else {
             // 旧 full 域保持旧判据：Delta upserts 仍是完整活动集。
             same_records(&delta["upserts"], &json!(batch_next), "upserts/batch")?;
         }
 
         // 三族：封存批次成员须有独立端点；changes-only 域另核 Delta 精确等于本代首次发布集。
+        // 三族成员同样以共享不可变投影持有（一记录一份），不按视图重复深拷贝。
         let batch_witnesses = required_array(batch, "witnesses")?
             .iter()
             .map(project_witness_wire)
+            .map(|r| r.map(std::sync::Arc::new))
             .collect::<Result<Vec<_>, _>>()?;
-        let batch_relations = required_array(batch, "relations")?.clone();
+        let batch_relations = required_array(batch, "relations")?
+            .iter()
+            .cloned()
+            .map(std::sync::Arc::new)
+            .collect::<Vec<_>>();
 
         // 关系总量（batch 生成的关系 + 替代边 + 源修订 supersedes）与 Delta 对拍：旧 full 域逐字相同；
         // changes-only 域的关系增量由上面「精确等于首次发布集」独立核定。
         let mut relations = batch_relations;
         for r in &replaces {
-            relations.push(json!({"subject":r["new_object_id"],"relation_type":"replaces","object":r["old_object_id"]}));
+            relations.push(std::sync::Arc::new(json!({"subject":r["new_object_id"],"relation_type":"replaces","object":r["old_object_id"]})));
         }
         let to = number(delta, "input_frontier")?;
         let end = usize::try_from(to.checked_add(1).ok_or("StorageUnavailable：前沿溢出")?)
@@ -531,7 +582,7 @@ impl AuditWalk {
         )?;
         for e in raw {
             if let Some(sup) = e["supersedes_revision"].as_str() {
-                relations.push(json!({"subject":format!("{}@{}",e["identity_key"].as_str().unwrap_or(""),e["revision"].as_str().unwrap_or("")),"relation_type":"supersedes","object":format!("{}@{sup}",e["identity_key"].as_str().unwrap_or(""))}));
+                relations.push(std::sync::Arc::new(json!({"subject":format!("{}@{}",e["identity_key"].as_str().unwrap_or(""),e["revision"].as_str().unwrap_or("")),"relation_type":"supersedes","object":format!("{}@{sup}",e["identity_key"].as_str().unwrap_or(""))})));
             }
         }
         // changes-only 域的三族 Delta 由下面 Family::verify 的「精确等于本代首次发布集」独立核定，
@@ -539,10 +590,14 @@ impl AuditWalk {
         if !mode.changes_only() {
             same_records(
                 &delta["witnesses"],
-                &json!(batch_witnesses),
+                &json!(batch_witnesses.iter().map(|v| &**v).collect::<Vec<&Value>>()),
                 "witnesses/batch",
             )?;
-            same_records(&delta["relations"], &json!(relations), "relations/batch")?;
+            same_records(
+                &delta["relations"],
+                &json!(relations.iter().map(|v| &**v).collect::<Vec<&Value>>()),
+                "relations/batch",
+            )?;
         }
         let mut observations = Vec::new();
         let mut first_observations = Vec::new();
@@ -562,11 +617,12 @@ impl AuditWalk {
                 first["batch_id"] = delta["index_frontier"].clone();
                 let original = project_observation_wire(&first)?;
                 same_records(
-                    &json!([stored]),
+                    &json!([&**stored]),
                     &json!([original]),
                     "observation/原封存首版",
                 )?;
-                self.original_observations.insert(id.clone(), original);
+                self.original_observations
+                    .insert(id.clone(), std::sync::Arc::new(original));
             }
             let original = self.original_observations.get(&id).unwrap().clone();
             if *born == g {
@@ -577,13 +633,13 @@ impl AuditWalk {
         if mode.changes_only() {
             same_records(
                 &delta["observations"],
-                &json!(first_observations),
+                &json!(first_observations.iter().map(|v| &**v).collect::<Vec<&Value>>()),
                 "observations/本代首次",
             )?;
         } else {
             same_records(
                 &delta["observations"],
-                &json!(observations),
+                &json!(observations.iter().map(|v| &**v).collect::<Vec<&Value>>()),
                 "observations/首版",
             )?;
         }

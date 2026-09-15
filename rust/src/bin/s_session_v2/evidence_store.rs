@@ -609,7 +609,7 @@ impl Stager {
                         .nodes
                         .get(&id)
                         .ok_or("StorageUnavailable：staging 展开缺节点")?;
-                    decode_into(node, &mut stack)?;
+                    decode_into(node.kind, &node.payload, &mut stack)?;
                 }
                 Frame::Close { .. } => {
                     return Err("StorageUnavailable：staging 展开出现非法收束帧".into())
@@ -730,13 +730,13 @@ fn split_seq(payload: &[u8]) -> Result<Vec<Part<'_>>, String> {
     Ok(parts)
 }
 
-fn decode_into(node: &Node, stack: &mut Vec<Frame>) -> Result<(), String> {
-    if node.kind == KIND_LEAF {
-        stack.push(Frame::Lit(node.payload.clone()));
+fn decode_into(kind: i64, payload: &[u8], stack: &mut Vec<Frame>) -> Result<(), String> {
+    if kind == KIND_LEAF {
+        stack.push(Frame::Lit(payload.to_vec()));
         return Ok(());
     }
     let mut frames = Vec::new();
-    for part in split_seq(&node.payload)? {
+    for part in split_seq(payload)? {
         match part {
             Part::Lit(bytes) => frames.push(Frame::Lit(bytes.to_vec())),
             Part::Ref(id) => frames.push(Frame::Open(id)),
@@ -930,6 +930,21 @@ pub(super) struct VerifiedRoot {
     /// 本次是否命中已核句柄（true = 未重新展开；false = 本次完整展开并核过）。
     #[cfg_attr(not(test), allow(dead_code))]
     pub(super) reused: bool,
+    /// 本次是否把根行与闭包内**每个唯一节点**的当前原行与保留证书**逐字节**比较过且全部相同。
+    /// 这才是复用门的原件那一半；闭包指纹只作附加校验。
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(super) originals_verified: bool,
+    /// 该根当前保留的原件证书（审计前缀的原件证据；`None` = 本次无法保留）。
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(super) root_cert: Option<std::sync::Arc<cache::RootCert>>,
+}
+
+/// 一次根闭包核验的结果：根行 + 派生量 + 指纹 + 原件门 + 闭包内唯一节点集。
+struct ClosureCheck {
+    row: RootRow,
+    digest: [u8; 32],
+    /// 根行与闭包内每个唯一节点都在本捕获与保留证书逐字节相同。
+    originals_verified: bool,
 }
 
 /// 闭包指纹：把**当前新鲜行**读到的根行（根指针、有序参数槽列、声明长度、内容摘要）与闭包内
@@ -1055,14 +1070,7 @@ impl<'a> Reader<'a> {
     fn closure(
         &mut self,
         root_key: &str,
-    ) -> Result<
-        (
-            RootRow,
-            cache::NodeDerived,
-            [u8; 32],
-        ),
-        String,
-    > {
+    ) -> Result<ClosureCheck, String> {
         let (root, slots, expanded_len, hash) = Reader::root_row(self.conn, root_key)?
             .ok_or_else(|| format!("StorageUnavailable：私有根 `{root_key}` 缺失"))?;
         // 声明槽未必都被模板引用：只核每个槽叶自身可寻址；实际占用的槽字节在遍历时累计。
@@ -1102,7 +1110,23 @@ impl<'a> Reader<'a> {
             content_sha256: hash,
         };
         let digest = closure_digest(&row, &derived.digest);
-        Ok((row, derived, digest))
+        // 原件门：根行原件（根指针 + 有序槽 + 声明长度 + 内容摘要）与闭包内**每个唯一节点**的
+        // 当前原行都必须在本次捕获与保留证书逐字节相同，才允许复用展开/解析/审计。
+        // 节点那一半沿**保留证书**的有序子引用认证（同次认证去重，整次捕获 O(唯一节点)）。
+        let originals_verified = cache::root_cert_match(
+            root_key,
+            &row.node,
+            &row.slots,
+            row.expanded_length,
+            &row.content_sha256,
+        )
+        .is_some()
+            && cache::cert_is_certified(self.conn_id, root);
+        Ok(ClosureCheck {
+            row,
+            digest,
+            originals_verified,
+        })
     }
 
     /// 一个与根无关的节点派生量：`length`（不含槽）、`slot_counts`、子树摘要。
@@ -1115,23 +1139,30 @@ impl<'a> Reader<'a> {
             return Ok(found);
         }
         let mut on_path: std::collections::BTreeSet<[u8; 32]> = std::collections::BTreeSet::new();
+        // 本次遍历的即时工作集：即使捕获级 memo 因限额/写入缺失，也能就地重算，
+        // 绝不把「限额不足」判成 StorageUnavailable。
+        let mut local: std::collections::BTreeMap<[u8; 32], cache::NodeDerived> =
+            std::collections::BTreeMap::new();
         let mut stack: Vec<([u8; 32], bool)> = vec![(root, false)];
         while let Some((id, closing)) = stack.pop() {
-            if cache::derived_get(self.conn_id, &id).is_some() {
+            // 热路径只问存在性（不克隆派生量：`slot_counts` 是 Vec，克隆会为每个节点多一次分配）。
+            if local.contains_key(&id) || cache::derived_has(self.conn_id, &id) {
                 self.touched.insert(id);
                 continue;
             }
             let node = self.load(&id)?;
             if node.kind == KIND_LEAF {
-                cache::derived_put(
-                    self.conn_id,
-                    id,
-                    cache::NodeDerived {
-                        length: node.expanded_length,
-                        slot_counts: Vec::new(),
-                        digest: node_subtree_digest(KIND_LEAF, &id, node.expanded_length, &[]),
-                    },
-                );
+                let derived = cache::NodeDerived {
+                    length: node.expanded_length,
+                    slot_counts: Vec::new(),
+                    digest: node_subtree_digest(KIND_LEAF, &id, node.expanded_length, &[]),
+                };
+                local.insert(id, derived.clone());
+                cache::derived_put(self.conn_id, id, derived);
+                // 叶子没有子依赖：本次逐字节命中即可认证（认证搭在既有后序遍历上，零额外遍历）。
+                if cache::cert_marked(self.conn_id, id) {
+                    cache::cert_certify(self.conn_id, id);
+                }
                 continue;
             }
             let parts = split_seq(&node.payload)?;
@@ -1143,11 +1174,24 @@ impl<'a> Reader<'a> {
                     ));
                 }
                 stack.push((id, true));
-                for part in parts.iter().rev() {
-                    if let Part::Ref(child) = part {
-                        stack.push((*child, false));
+                for child in node.children.iter().rev() {
+                    stack.push((*child, false));
+                }
+                continue;
+            }
+            // 子节点派生量必须已结算；被逐出/未结算时重新下沉重算，不误判为存储损坏。
+            let mut missing: Option<[u8; 32]> = None;
+            for part in &parts {
+                if let Part::Ref(child) = part {
+                    if !local.contains_key(child) && !cache::derived_has(self.conn_id, child) {
+                        missing = Some(*child);
+                        break;
                     }
                 }
+            }
+            if let Some(child) = missing {
+                stack.push((id, true));
+                stack.push((child, false));
                 continue;
             }
             let mut length = 0u64;
@@ -1164,13 +1208,17 @@ impl<'a> Reader<'a> {
                         counts[index] = counts[index].saturating_add(1);
                     }
                     Part::Ref(child) => {
-                        let entry = cache::derived_get(self.conn_id, &child).ok_or_else(|| {
-                            format!(
-                                "StorageUnavailable：私有节点 {} 的子节点 {} 未在闭包内结算",
-                                hex(&id),
-                                hex(&child)
-                            )
-                        })?;
+                        let entry = local
+                            .get(&child)
+                            .cloned()
+                            .or_else(|| cache::derived_get(self.conn_id, &child))
+                            .ok_or_else(|| {
+                                format!(
+                                    "StorageUnavailable：私有节点 {} 的子节点 {} 未在闭包内结算",
+                                    hex(&id),
+                                    hex(&child)
+                                )
+                            })?;
                         length = length.saturating_add(entry.length);
                         if counts.len() < entry.slot_counts.len() {
                             counts.resize(entry.slot_counts.len(), 0);
@@ -1190,17 +1238,26 @@ impl<'a> Reader<'a> {
                 ));
             }
             on_path.remove(&id);
-            cache::derived_put(
-                self.conn_id,
-                id,
-                cache::NodeDerived {
-                    length,
-                    slot_counts: counts,
-                    digest: node_subtree_digest(KIND_SEQ, &id, length, &children),
-                },
-            );
+            let derived = cache::NodeDerived {
+                length,
+                slot_counts: counts,
+                digest: node_subtree_digest(KIND_SEQ, &id, length, &children),
+            };
+            local.insert(id, derived.clone());
+            cache::derived_put(self.conn_id, id, derived);
+            // 子节点（本帧的后序先决条件）已全部结算：只要每个直接子节点都已认证，本节点也认证。
+            if cache::cert_marked(self.conn_id, id)
+                && children
+                    .iter()
+                    .all(|child| cache::cert_is_certified(self.conn_id, *child))
+            {
+                cache::cert_certify(self.conn_id, id);
+            }
         }
-        cache::derived_get(self.conn_id, &root)
+        local
+            .get(&root)
+            .cloned()
+            .or_else(|| cache::derived_get(self.conn_id, &root))
             .ok_or_else(|| "StorageUnavailable：私有节点派生量缺失（实现缺陷）".to_string())
     }
 
@@ -1211,8 +1268,17 @@ impl<'a> Reader<'a> {
         root_key: &str,
         with_value: bool,
     ) -> Result<VerifiedRoot, String> {
-        let (row, _, digest) = self.closure(root_key)?;
-        let cached = cache::handle_get(root_key, &digest);
+        let check = self.closure(root_key)?;
+        // 复用门：闭包指纹只是**附加**校验；真正的门是 (a) 该根保留着的原件证书与本次新鲜根行
+        // 逐字节相同、(b) 闭包内每个唯一节点都在本次捕获与保留证书逐字节相同。
+        let mut retained = if check.originals_verified {
+            cache::root_cert_get(root_key)
+        } else {
+            None
+        };
+        let cached = retained
+            .as_ref()
+            .and_then(|rc| cache::handle_get_certified(root_key, rc, &check.digest));
         let reused = cached.is_some();
         #[cfg(test)]
         cache::counter(|c| {
@@ -1226,10 +1292,34 @@ impl<'a> Reader<'a> {
         let (bytes, mut value) = match cached {
             Some((bytes, value)) => (bytes, value),
             None => {
-                let expanded = self.expand(root_key, &row)?;
-                let bytes: std::sync::Arc<[u8]> =
-                    std::sync::Arc::from(expanded.as_slice());
-                cache::handle_put(root_key, digest, bytes.clone(), None);
+                let expanded = self.expand(root_key, &check.row)?;
+                let bytes: std::sync::Arc<[u8]> = std::sync::Arc::from(expanded.as_slice());
+                // 已核闭包：把本次读到的**原件证书**保留下来（共享同一份原节点，按唯一保留量
+                // 记账），供后续捕获逐字节比较。只在成功核过长度/摘要之后才保留。
+                let mut ids: std::collections::BTreeSet<[u8; 32]> =
+                    std::collections::BTreeSet::new();
+                let mut frontier: Vec<[u8; 32]> = vec![check.row.node];
+                while let Some(id) = frontier.pop() {
+                    if !ids.insert(id) {
+                        continue;
+                    }
+                    // 命中本捕获读集时不再读 SQLite；读集被逐出时按新鲜行重读。
+                    frontier.extend(self.load(&id)?.children.iter().copied());
+                }
+                cache::cert_commit(self.conn_id, &ids);
+                let cert = cache::RootCert {
+                    node: check.row.node,
+                    slots: check.row.slots.clone(),
+                    expanded_length: check.row.expanded_length,
+                    content_sha256: check.row.content_sha256.clone(),
+                };
+                retained = cache::handle_put_certified(
+                    root_key,
+                    &cert,
+                    check.digest,
+                    bytes.clone(),
+                    None,
+                );
                 (bytes, None)
             }
         };
@@ -1242,18 +1332,28 @@ impl<'a> Reader<'a> {
                 ));
             }
             let parsed = std::sync::Arc::new(parsed);
-            cache::handle_put(root_key, digest, bytes.clone(), Some(parsed.clone()));
+            if let Some(cert) = retained.clone() {
+                retained = cache::handle_put_certified(
+                    root_key,
+                    &cert,
+                    check.digest,
+                    bytes.clone(),
+                    Some(parsed.clone()),
+                );
+            }
             value = Some(parsed);
             #[cfg(test)]
             cache::counter(|c| c.root_parses += 1);
         }
         Ok(VerifiedRoot {
             bytes,
-            declared_length: row.expanded_length,
-            content_sha256: row.content_sha256,
+            declared_length: check.row.expanded_length,
+            content_sha256: check.row.content_sha256,
             value,
-            closure: digest,
+            closure: check.digest,
             reused,
+            originals_verified: check.originals_verified,
+            root_cert: retained,
         })
     }
 
@@ -1287,7 +1387,7 @@ impl<'a> Reader<'a> {
                     "StorageUnavailable：私有根 `{root_key}` 参数槽引用了非叶节点"
                 ));
             }
-            param_bytes.push(node.payload.clone());
+            param_bytes.push(node.payload.to_vec());
         }
         // 声明长度来自数据库，不能用它直接请求任意大的分配；实际输出逐段增长。
         let mut out: Vec<u8> = Vec::new();
@@ -1310,7 +1410,7 @@ impl<'a> Reader<'a> {
                         start: out.len(),
                         slot_bytes_at_open: slot_bytes,
                     });
-                    decode_into(&node, &mut stack)?;
+                    decode_into(node.kind, &node.payload, &mut stack)?;
                 }
                 Frame::Close {
                     id,
@@ -1344,9 +1444,10 @@ impl<'a> Reader<'a> {
         Ok(out)
     }
 
-    /// 按 id 取节点：本次捕获已读过就直接复用；否则从**新鲜行**读入，先核内容寻址与长度自洽，
-    /// 再记入本次捕获的临时读集（超预算只失去复用，当次读照常返回）。
-    fn load(&mut self, id: &[u8; 32]) -> Result<std::sync::Arc<Node>, String> {
+    /// 按 id 取节点**原件证书**：本次捕获已读过就直接复用；否则从**新鲜行**读入，先核内容寻址与
+    /// 长度自洽，再与保留证书**逐字节**比较（命中才打上原件门标记），最后记入本次捕获的临时读集
+    /// （超预算只失去复用，当次读照常返回）。
+    fn load(&mut self, id: &[u8; 32]) -> Result<std::sync::Arc<cache::Cert>, String> {
         self.touched.insert(*id);
         cache::mark_reachable(self.conn_id, *id);
         if let Some(node) = cache::node_get(self.conn_id, id) {
@@ -1388,18 +1489,55 @@ impl<'a> Reader<'a> {
         }
         // 拼接节点的分量语法在每次展开的 `decode_into` 里逐项核；其声明长度由展开时的
         // `Frame::Close` 与 `Reader::read_fixed_cut` 的根长度/摘要共同核对。
-        let node = std::sync::Arc::new(Node {
-            kind,
-            payload,
-            expanded_length: declared,
-        });
-        cache::node_put(self.conn_id, *id, node.clone(), node.payload.len() + 64);
+        // 证书按内容寻址键**引用**直接子证书（叶子为空）；标签未声明/截断一律拒绝，不猜。
+        let children = if kind == KIND_LEAF {
+            Vec::new()
+        } else {
+            let mut children = Vec::new();
+            for part in split_seq(&payload)? {
+                if let Part::Ref(child) = part {
+                    children.push(child);
+                }
+            }
+            children
+        };
         #[cfg(test)]
         cache::counter(|c| {
             c.node_rows_read += 1;
-            c.node_payload_bytes_read += node.payload.len();
+            c.node_payload_bytes_read += payload.len();
         });
-        Ok(node)
+        // 精确原件门：与保留证书**逐字节**比较（不是比较摘要）。命中才允许复用展开/解析/审计；
+        // 没有证书或原件不符时只失去复用——判据仍由各读取路径自己的完整核验承担。
+        let (cert, owned) = match cache::cert_get(id) {
+            Some(retained) if retained.same_originals(kind, &payload, declared) => {
+                #[cfg(test)]
+                cache::counter(|c| c.cert_compared += 1);
+                cache::cert_matched_mark(self.conn_id, *id);
+                (retained, false)
+            }
+            candidate => {
+                let _ = &candidate;
+                #[cfg(test)]
+                cache::counter(|c| {
+                    if candidate.is_some() {
+                        c.cert_compared += 1;
+                        c.cert_mismatched += 1;
+                    }
+                });
+                (
+                    std::sync::Arc::new(cache::Cert {
+                        id: *id,
+                        kind,
+                        payload: std::sync::Arc::from(payload),
+                        expanded_length: declared,
+                        children,
+                    }),
+                    true,
+                )
+            }
+        };
+        cache::node_put(self.conn_id, cert.clone(), owned);
+        Ok(cert)
     }
 }
 

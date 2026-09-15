@@ -416,16 +416,16 @@ fn load_batch_with(
         // 整块域也走同一句柄缓存：命中要求当前行内字节与此前核过的完全一致。
         let key = evidence_store::batch_root_key(batch_id);
         let value = if with_value {
-            match cache::handle_get(&key, &digest).and_then(|(_, v)| v) {
+            match cache::handle_get_blob(&key, &blob, &digest).and_then(|(_, v)| v) {
                 Some(value) => Some(value),
                 None => {
                     let parsed = parse_batch_value(&bytes, batch_id)?;
-                    cache::handle_put(&key, digest, bytes.clone(), Some(parsed.clone()));
+                    cache::handle_put_blob(&key, digest, bytes.clone(), Some(parsed.clone()));
                     Some(parsed)
                 }
             }
         } else {
-            cache::handle_put(&key, digest, bytes.clone(), None);
+            cache::handle_put_blob(&key, digest, bytes.clone(), None);
             None
         };
         return Ok((bytes, value));
@@ -941,6 +941,9 @@ struct Reachable {
     batches: BTreeMap<String, std::sync::Arc<Value>>,
     /// 私有根 key → 本次新鲜行算出的闭包指纹（节点/根/槽任一变化都改它）。
     roots: BTreeMap<String, [u8; 32]>,
+    /// 私有根 key → 该根**当前保留的原件证书**（本次新鲜行已逐字节比较过）。
+    /// 这是审计前缀复用门的原件证据：摘要不是唯一证书。
+    originals: BTreeMap<String, std::sync::Arc<cache::RootCert>>,
     _capture: cache::CaptureGuard,
 }
 
@@ -969,6 +972,7 @@ fn capture_reachable_batches(conn: &Connection) -> Result<Reachable, String> {
         batches.insert(id, value);
     }
     let mut roots: BTreeMap<String, [u8; 32]> = BTreeMap::new();
+    let mut originals: BTreeMap<String, std::sync::Arc<cache::RootCert>> = BTreeMap::new();
     // 不可达残留不得发布：每个私有根都必须有**唯一对应逻辑记录**（批次行 / Delta 行 / 结构事实行）、
     // 闭包完整（缺节点/坏字节/坏长度、未 Commit 的 after_batch 批次都在此核验），且库内每个节点
     // 都落在某个根的闭包内。命名空间与物理域必须一致：graph/2 只声明 batch 域。
@@ -1018,6 +1022,9 @@ fn capture_reachable_batches(conn: &Connection) -> Result<Reachable, String> {
                     }
                     let verified = reader.read_root(&key, false)?;
                     roots.insert(key.clone(), verified.closure);
+                    if let Some(cert) = verified.root_cert.clone() {
+                        originals.insert(key.clone(), cert);
+                    }
                 }
                 evidence_store::RootKind::Fact => {
                     if !format.records_in_graph() {
@@ -1062,6 +1069,7 @@ fn capture_reachable_batches(conn: &Connection) -> Result<Reachable, String> {
     Ok(Reachable {
         batches,
         roots,
+        originals,
         _capture: reader.into_capture(),
     })
 }
@@ -1222,7 +1230,17 @@ fn verify_reachable_root_in_tx(
         mode.tag().to_string(),
         format.tag().to_string(),
     );
-    let resume = cache::resume(&rows, &identity, &mut audit);
+    // 审计前缀的原件证据：图域每代 Delta 原件一份**已核原件证书**（指针同一才算同一个原件）；
+    // 整块域为 `None`——那里原件就在行内列里，已由 `rows` 的逐字节比较钉死。
+    let rows_delta_certs: Vec<Option<std::sync::Arc<cache::RootCert>>> = if format.records_in_graph()
+    {
+        (1..=generation)
+            .map(|g| reachable.originals.get(&evidence_store::delta_root_key(g)).cloned())
+            .collect()
+    } else {
+        (0..rows.len()).map(|_| None).collect()
+    };
+    let resume = cache::resume(&rows, &identity, &mut audit, &rows_delta_certs);
     let mut prev_frontier: i64 = if resume == 0 { -1 } else { rows[resume - 1].7 };
     // 后缀核验共用一个读取器：与批次/事实共用本次捕获的节点读集与已核句柄。
     let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
@@ -1384,7 +1402,7 @@ fn verify_reachable_root_in_tx(
             last.4
         ));
     }
-    cache::store_root(rows, identity, audit);
+    cache::store_root(rows, identity, audit, rows_delta_certs);
     Ok(raw_events)
 }
 
@@ -9169,6 +9187,227 @@ mod staged_graph_audit_regressions {
             accept_ohlc(files, &located_ohlc_input(&rows[..n]));
             cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         }
+    }
+
+    fn all_batch_ids(conn: &Connection) -> Vec<String> {
+        let mut stmt = conn
+            .prepare("SELECT batch_id FROM batches ORDER BY batch_id")
+            .unwrap();
+        stmt.query_map([], |r| r.get::<_, String>(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+    }
+
+    fn read_all_batches(conn: &Connection) -> Vec<(String, Vec<u8>)> {
+        all_batch_ids(conn)
+            .into_iter()
+            .map(|id| {
+                let bytes = load_batch_bytes(conn, &id).unwrap();
+                (id, bytes.to_vec())
+            })
+            .collect()
+    }
+
+    /// 同 cut 快照（用于「缓存不得改变查询结果」的逐字段对拍）。
+    fn snapshot_here(files: &TestFiles) -> Value {
+        let conn = open_db(&files.db()).unwrap();
+        let tx = conn.unchecked_transaction().unwrap();
+        read_snapshot_in_tx(&tx, None).unwrap()
+    }
+
+    /// 图域读路径的「查询结果」：逐代 Delta 原件 + 每条结构事实三列原件。
+    /// （批次原件由 `read_all_batches` 单独对拍。）
+    fn graph_record_texts(conn: &Connection) -> Vec<(String, Vec<u8>)> {
+        let mut out: Vec<(String, Vec<u8>)> = Vec::new();
+        let generations: Vec<i64> = {
+            let mut stmt = conn
+                .prepare("SELECT generation FROM structure_deltas ORDER BY generation")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, i64>(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        for g in generations {
+            out.push((
+                format!("delta/{g}"),
+                delta_text_of_test(conn, g).into_bytes(),
+            ));
+        }
+        let fact_ids: Vec<String> = {
+            let mut stmt = conn
+                .prepare("SELECT object_id FROM structure_facts ORDER BY object_id")
+                .unwrap();
+            stmt.query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
+        for id in fact_ids {
+            let bytes = reader
+                .read_fixed_cut(&evidence_store::fact_root_key(&id))
+                .unwrap();
+            out.push((format!("fact/{id}"), bytes.to_vec()));
+        }
+        out
+    }
+
+    /// #1394 第三段（exact-originals）：同一数据下**冷 / 暖 / 零预算 / 不足预算 / 足预算**读出的
+    /// 完整原始 bytes 必须逐字节一致；单一 source-byte 预算（保留量 + 本次捕获瞬时读集）在每一处
+    /// 都实际满足。暖读必须真的命中已核句柄——原件逐字节比较通过才复用，不是摘要相等。
+    #[test]
+    fn graph3_cold_warm_and_budgeted_reads_are_byte_identical_and_budget_bounded() {
+        let files = TestFiles::new();
+        build_oracle(&files, 3);
+        let conn = open_db(&files.db()).unwrap();
+        let ample = 1usize << 30;
+
+        // ① 冷（丢掉跨请求持有）：真的完整展开，且不留任何命中。
+        cache::configure(ample);
+        cache::clear_handles();
+        cache::counters_reset();
+        let cold = read_all_batches(&conn);
+        let counters = cache::counters_snapshot();
+        assert!(counters.batch_expansions > 0, "冷读必须真的展开");
+        assert_eq!(counters.batch_handle_hits, 0, "冷读不得命中句柄");
+        let cold_records = graph_record_texts(&conn);
+        let cold_snapshot = snapshot_here(&files);
+        assert!(cache::retained_bytes() <= ample);
+        assert_eq!(cache::capture_bytes_now(), 0, "捕获结束必须释放瞬时读集");
+
+        // ② 暖（同一配置）：逐字节一致，且真的复用（命中 > 0、重新展开 == 0）。
+        cache::counters_reset();
+        let warm = read_all_batches(&conn);
+        let counters = cache::counters_snapshot();
+        assert_eq!(cold, warm, "冷/暖完整原始 bytes 必须逐字节一致");
+        assert_eq!(cold_records, graph_record_texts(&conn), "冷/暖查询结果必须一致");
+        assert_eq!(cold_snapshot, snapshot_here(&files), "冷/暖快照必须一致");
+        assert!(counters.batch_handle_hits > 0, "暖读必须复用已核句柄");
+        assert_eq!(counters.batch_expansions, 0, "暖读不得重新展开");
+        assert!(counters.cert_compared > 0, "暖读必须逐字节比较原件证书");
+        assert!(cache::retained_bytes() <= ample);
+
+        // ③ 零预算：不留任何跨请求持有，结果仍必须逐字节一致。
+        cache::configure(0);
+        let zero = read_all_batches(&conn);
+        assert_eq!(cold, zero, "零预算读出的 bytes 必须一致");
+        assert_eq!(cold_records, graph_record_texts(&conn), "零预算查询结果必须一致");
+        assert_eq!(cache::retained_bytes(), 0, "零预算不得保留任何跨请求持有");
+
+        // ④ 不足预算：装不下的只失去复用，bytes 与自有预算仍必须成立。
+        let tight = 64 * 1024;
+        cache::configure(tight);
+        cache::clear_handles();
+        let limited = read_all_batches(&conn);
+        assert_eq!(cold, limited, "不足预算读出的 bytes 必须一致");
+        assert_eq!(
+            cold_records,
+            graph_record_texts(&conn),
+            "不足预算查询结果必须一致"
+        );
+        assert!(
+            cache::retained_bytes() <= tight,
+            "不足预算下保留量必须在预算内：{}",
+            cache::retained_bytes()
+        );
+
+        // ⑤ 预算重回足额：仍必须逐字节一致，并重新出现复用。
+        cache::configure(ample);
+        cache::clear_handles();
+        let _ = read_all_batches(&conn);
+        cache::counters_reset();
+        let amply = read_all_batches(&conn);
+        assert_eq!(cold, amply, "足预算读出的 bytes 必须一致");
+        assert_eq!(cold_records, graph_record_texts(&conn), "足预算查询结果必须一致");
+        assert_eq!(cold_snapshot, snapshot_here(&files), "足预算快照必须一致");
+        assert!(cache::counters_snapshot().batch_handle_hits > 0);
+        cache::configure(268_435_456);
+    }
+
+    /// #1394 第三段：单一 source-byte 预算在**捕获进行中**（节点加入 / 句柄加入）、捕获结束、
+    /// 以及 root 替换（前缀变长）之后都实际满足；超限只失去复用。
+    #[test]
+    fn graph3_source_byte_budget_holds_inside_and_after_captures() {
+        let files = TestFiles::new();
+        build_oracle(&files, 2);
+        let conn = open_db(&files.db()).unwrap();
+        for limit in [1usize << 30, 1 << 20, 4096] {
+            cache::configure(limit);
+            {
+                // 捕获进行中：每读一个根，保留量 + 瞬时读集都必须在同一上限内。
+                let mut reader = evidence_store::Reader::new(&conn, EVIDENCE_READ_BUDGET);
+                for id in all_batch_ids(&conn) {
+                    let _ = reader.read_fixed_cut(&evidence_store::batch_root_key(&id)).unwrap();
+                    assert!(
+                        cache::retained_bytes().saturating_add(cache::capture_bytes_now()) <= limit,
+                        "捕获中预算必须满足（limit={limit}）"
+                    );
+                }
+            }
+            // 捕获结束：瞬时读集释放；保留量仍在预算内。
+            assert_eq!(cache::capture_bytes_now(), 0, "捕获结束必须释放瞬时读集");
+            assert!(
+                cache::retained_bytes() <= limit,
+                "捕获结束后保留量必须在预算内（limit={limit}）"
+            );
+            // 暖读与完整根审计在不足预算下同样必须通过（超限只失去复用，不改判据）。
+            verify_reachable_root(&conn).unwrap();
+            assert!(
+                cache::retained_bytes() <= limit,
+                "根审计后保留量必须在预算内（limit={limit}）"
+            );
+        }
+        drop(conn);
+        // root 替换（新增一代 → 前缀变长）：新 root 装入并驱逐后仍必须在同一预算内。
+        let tight = 64 * 1024;
+        cache::configure(tight);
+        let rows = tb02b_oracle_rows();
+        accept_ohlc(&files, &located_ohlc_input(&rows[..3]));
+        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        assert!(
+            cache::retained_bytes() <= tight,
+            "root 替换后保留量必须在预算内：{} 分解(root,handles,certs)={:?}",
+            cache::retained_bytes(),
+            cache::retained_breakdown()
+        );
+        cache::configure(268_435_456);
+    }
+
+    /// #1394 第三段：审计前缀复用必须是「同一份已核 Delta 原件」——末列摘要逐字节相同也不够。
+    /// 丢掉原件证书后（同一个摘要、另一份证书对象）不得复用前缀，而查询结果必须完全一致。
+    #[test]
+    fn graph3_audit_prefix_reuse_requires_same_originals_and_keeps_results_identical() {
+        let files = TestFiles::new();
+        build_oracle(&files, 3);
+        cache::configure(1 << 30);
+        cache::clear_handles();
+        let conn = open_db(&files.db()).unwrap();
+        let cold_snapshot = snapshot_here(&files);
+        // 冷：完整核验一次，保留已核原件证书与审计前缀。
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 0, "冷捕获不得复用前缀");
+        let digest = graph_digest(&conn);
+        // 暖：前缀行逐字节相同 **且**每代 Delta 原件是同一份已核证书 ⟹ 前缀复用。
+        cache::counters_reset();
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 3, "暖捕获必须复用已核前缀（3 代）");
+        assert!(
+            cache::counters_snapshot().cert_compared > 0,
+            "复用前必须逐字节比较原件证书"
+        );
+        assert_eq!(graph_digest(&conn), digest, "缓存不得改变任何持久事实");
+        assert_eq!(snapshot_here(&files), cold_snapshot, "查询结果必须一致");
+
+        // 丢掉跨请求持有：末列摘要逐字节不变，但原件证书是**另一份**对象（指针不同）
+        // ⟹ 不得冒充同一原件、不得复用前缀。
+        cache::clear_handles();
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(cache::last_resumed(), 0, "另一份证书对象不得冒充同一原件");
+        assert_eq!(graph_digest(&conn), digest);
+        assert_eq!(snapshot_here(&files), cold_snapshot, "查询结果必须一致");
+        cache::configure(268_435_456);
     }
 
     /// #1394 第二段：`evidence-graph/2`（只有 batch 走私有图）继续**只读**兼容；本 writer 明确
