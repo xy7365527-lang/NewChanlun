@@ -15,7 +15,7 @@
 //! 丢弃旧车道——不跨库、不跨规则、不跨档案复用。
 
 use super::*;
-use newchan_rust::theta_v0::parser::inclusion::IncrFactsState;
+use newchan_rust::theta_v0::parser::inclusion::{IncrFactsState, InclusionGroupFact};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 use std::cell::RefCell;
@@ -136,6 +136,7 @@ impl Lane {
     /// 用同代增量状态构造 CC-004/CC-005/CC-007/CC-054（与全量路径逐字段相同）。
     pub(super) fn build_typed(
         &mut self,
+        group_facts: &[InclusionGroupFact],
         raw: &BTreeMap<i64, Value>,
         shapes: &[Value],
         gen: i64,
@@ -157,6 +158,7 @@ impl Lane {
         self.source_refs = current_refs;
         tb02a_facts::build_incremental(
             &self.state,
+            group_facts,
             raw,
             shapes,
             gen,

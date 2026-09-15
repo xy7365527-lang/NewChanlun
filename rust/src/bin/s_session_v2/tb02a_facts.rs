@@ -695,8 +695,10 @@ fn project_object(cached: &Value, gen: i64, cut: &str) -> Value {
 ///
 /// 只物化「本代新步」与「变版组」的事实；其余步骤/组直接复用缓存完整原件（不重新展开
 /// 来源集合、不重算规范字节、不重算 ID）。缓存未命中一律回退到同一内容构造函数。
+/// `group_facts` 复用同次 parser 已生成的完整组投影，避免每个分型窗口重新做全域稠密标注。
 pub(super) fn build_incremental(
     state: &newchan_rust::theta_v0::parser::inclusion::IncrFactsState,
+    group_facts: &[InclusionGroupFact],
     raw: &BTreeMap<i64, Value>,
     shapes: &[Value],
     gen: i64,
@@ -779,12 +781,12 @@ pub(super) fn build_incremental(
             continue;
         }
         cache.misses += 1;
-        let fact = state.group_fact(index).expect("组索引在域内");
-        let sources = group_sources(&fact);
+        let fact = &group_facts[index];
+        let sources = group_sources(fact);
         let object = b.build_object(
             "CC-005.inclusion_group",
             slot.clone(),
-            group_payload(index, &fact, &reasons),
+            group_payload(index, fact, &reasons),
             sources.clone(),
         );
         let request = request(slot, object["object_id"].clone(), reasons, sources);
@@ -814,9 +816,7 @@ pub(super) fn build_incremental(
             let anchors: Vec<usize> = window.iter().map(|g| g.bar.source_index).collect();
             let mut sources = Vec::new();
             for group in window {
-                let fact = state
-                    .group_fact(anchor_index[&group.bar.source_index])
-                    .expect("组索引在域内");
+                let fact = &group_facts[anchor_index[&group.bar.source_index]];
                 sources.extend(&fact.members);
                 if let Some(e) = &fact.direction_evidence {
                     sources.extend(&e.source_coords);
@@ -857,14 +857,14 @@ pub(super) fn build_incremental(
         if !matches!(branch, "TOP" | "BOTTOM") {
             continue;
         }
-        let window_groups: Vec<InclusionGroupFact> = window
+        let window_groups: Vec<&InclusionGroupFact> = window
             .iter()
             .map(|anchor| {
                 let index = anchor_index
                     .get(anchor)
                     .copied()
                     .unwrap_or_else(|| panic!("形状窗口锚 {anchor} 不在当前组合集内"));
-                state.group_fact(index).expect("组索引在域内")
+                &group_facts[index]
             })
             .collect();
         let (cc007_requests, reasons) = cc007_add(
@@ -872,7 +872,7 @@ pub(super) fn build_incremental(
             raw,
             shape,
             [window[0], window[1], window[2]],
-            [&window_groups[0], &window_groups[1], &window_groups[2]],
+            [window_groups[0], window_groups[1], window_groups[2]],
             sources.clone(),
             &mut cache.units,
         );

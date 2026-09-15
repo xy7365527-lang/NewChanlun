@@ -2948,6 +2948,7 @@ fn advance_core(
             tb02a_facts::build(full, &raw_by_coord, &objects, gen, &structure_cut, frontier)
         } else {
             lane_guard.lane(&lane_key).build_typed(
+                &facts.groups,
                 &raw_by_coord,
                 &objects,
                 gen,
