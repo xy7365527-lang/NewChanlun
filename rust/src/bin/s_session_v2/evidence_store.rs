@@ -1502,6 +1502,7 @@ impl<'a> Reader<'a> {
                     let node = self.load(&id)?;
                     stack.push(Frame::Close {
                         id,
+                        declared_length: node.expanded_length,
                         start: out.len(),
                         slot_bytes_at_open: slot_bytes,
                     });
@@ -1509,17 +1510,17 @@ impl<'a> Reader<'a> {
                 }
                 Frame::Close {
                     id,
+                    declared_length,
                     start,
                     slot_bytes_at_open,
                 } => {
-                    let node = self.load(&id)?;
                     let actual = (out.len() - start) as u64;
                     let without_slots = actual - (slot_bytes - slot_bytes_at_open);
-                    if without_slots != node.expanded_length {
+                    if without_slots != declared_length {
                         return Err(format!(
                             "StorageUnavailable：私有节点 {} 声明长度 {} 与实际展开 {without_slots} 不符",
                             hex(&id),
-                            node.expanded_length
+                            declared_length
                         ));
                     }
                 }
@@ -1662,6 +1663,8 @@ enum Frame {
     Open([u8; 32]),
     Close {
         id: [u8; 32],
+        /// 来自本次 Open 已核节点的标量；不延长节点/负载持有，不再为同一帧读第二遍。
+        declared_length: u64,
         start: usize,
         /// 打开该节点时已消耗的槽字节数：节点声明长度不含槽字节，故核对时要把它减掉。
         slot_bytes_at_open: u64,
@@ -1836,6 +1839,74 @@ pub(super) fn describe(conn: &Connection, root_key: &str) -> Result<Value, Strin
 #[cfg(test)]
 mod metadata_regressions {
     use super::*;
+
+    fn slotted_frame_fixture() -> (Connection, RootRow, Vec<u8>) {
+        let conn = Connection::open_in_memory().unwrap();
+        declare_new(&conn).unwrap();
+        let value = json!({"v": 9});
+        let staged = stage_complete(&value, &[SlotSpec::number("9")]).unwrap();
+        publish_refs(&conn, "batch/frame", &staged).unwrap();
+        let (node, slots, expanded_length, content_sha256) =
+            Reader::root_row(&conn, "batch/frame").unwrap().unwrap();
+        assert_eq!(slots.len(), 1);
+        (
+            conn,
+            RootRow {
+                node,
+                slots,
+                expanded_length,
+                content_sha256,
+            },
+            canonical_bytes_of_value(&value),
+        )
+    }
+
+    #[test]
+    fn frame_close_uses_open_length_without_another_zero_cache_sql_read() {
+        cache::configure(0);
+        let (conn, row, expected) = slotted_frame_fixture();
+        let mut reader = Reader::new(&conn, 0);
+        for _ in 0..2 {
+            cache::counters_reset();
+            assert_eq!(reader.expand("batch/frame", &row).unwrap(), expected);
+            // 此真实小图只有一个根帧和一个参数叶：各读一次；下一次展开仍重新读两行。
+            assert_eq!(cache::counters_snapshot().node_rows_read, 2);
+            assert_eq!(cache::retained_bytes(), 0);
+            assert_eq!(cache::capture_bytes_now(), 0);
+        }
+        assert_eq!(
+            reader
+                .read_root("batch/frame", true)
+                .unwrap()
+                .bytes
+                .as_ref(),
+            expected
+        );
+        cache::configure(0);
+    }
+
+    #[test]
+    fn frame_close_still_rejects_bad_declared_length_after_slot_subtraction() {
+        cache::configure(0);
+        let (conn, row, _) = slotted_frame_fixture();
+        conn.execute(
+            "UPDATE s_evidence_nodes SET expanded_length=expanded_length+1 WHERE node_id=?1",
+            params![&row.node[..]],
+        )
+        .unwrap();
+        let error = Reader::new(&conn, 0)
+            .expand("batch/frame", &row)
+            .unwrap_err();
+        assert!(error.contains("声明长度 7 与实际展开 6 不符"), "{error}");
+        let error = Reader::new(&conn, 0)
+            .read_root("batch/frame", true)
+            .err()
+            .unwrap();
+        assert!(error.contains("声明长度 7 与实际展开 6 不符"), "{error}");
+        assert_eq!(cache::retained_bytes(), 0);
+        assert_eq!(cache::capture_bytes_now(), 0);
+        cache::configure(0);
+    }
 
     #[test]
     fn prepared_node_query_rebinds_and_reads_current_rows_with_zero_retention() {
