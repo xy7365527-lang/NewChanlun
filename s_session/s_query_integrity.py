@@ -329,6 +329,7 @@ def evidence_sources(tables, mode, deadline=None):
             raise ValueError("证据图节点同 ID 异内容（内容寻址不符）")
         nodes[node_id] = (kind, payload, row["expanded_length"])
     by_key, seen, touched = {}, set(), set()
+    frame_cache = _EvidenceFrames()
     delta_generations = set()
     if mode == EVIDENCE_GRAPH_FORMAT:
         delta_generations = {row["generation"] for row in tables.get("structure_deltas", ())}
@@ -370,13 +371,14 @@ def evidence_sources(tables, mode, deadline=None):
                 raise ValueError("证据图根参数槽必须指向存在的叶节点")
             slots.append(slot[1])
             touched.add(slot_id)
-        expanded = _evidence_expand(nodes, row["node_id"], slots, touched, deadline)
+        expanded = _evidence_expand(nodes, row["node_id"], slots, touched, deadline, frame_cache)
         if len(expanded) != row["expanded_length"]:
             raise ValueError("证据图根展开长度与登记不符")
-        if hashlib.sha256(expanded).hexdigest() != row["content_sha256"]:
+        digest = hashlib.sha256(expanded).hexdigest()
+        if digest != row["content_sha256"]:
             raise ValueError("证据图根展开字节与登记摘要不符")
         if key.startswith(EVIDENCE_ROOT_PREFIX):
-            if "batch-" + hashlib.sha256(expanded).hexdigest() != record:
+            if "batch-" + digest != record:
                 raise ValueError("证据图根展开字节与公开批次身份不符")
         by_key[key] = expanded
     if touched != nodes.keys():
@@ -425,9 +427,69 @@ def materialize_graph_originals(tables, mode, sources, delimiter=""):
             payload, refs, coords
 
 
-def _evidence_expand(nodes, root, slots, touched, deadline=None):
+# #1394：仅本次捕获内复用分量；这是可放弃的私有暂存，不改变 Q 资源配置或准入预算。
+_EVIDENCE_FRAMES_MAX_BYTES = 8 * 1024 * 1024
+
+
+class _EvidenceFrames:
+    """已逐行验证节点原件后，复用不依赖槽值的 SEQ 分量。
+
+    容量包含 helper、字典、key、分量容器及每个 tag/value 的 Python 对象开销。
+    每项另按一整个单项字典收费，保守覆盖字典扩容空槽；共享对象重复计量。
+    放不下就只返回本次分量，不保留；不会改变该节点及后续根的合法性。
+    """
+    __slots__ = ("frames", "remaining")
+
+    def __init__(self):
+        self.frames = {}
+        self.remaining = max(0, _EVIDENCE_FRAMES_MAX_BYTES - sys.getsizeof(self)
+                             - sys.getsizeof(self.frames)
+                             - sys.getsizeof(_EVIDENCE_FRAMES_MAX_BYTES))
+
+    def decode(self, node_id, payload, deadline):
+        cached = self.frames.get(node_id)
+        if cached is not None:
+            return cached
+        frames, index = [], 0
+        charge = sys.getsizeof({None: None}) + sys.getsizeof(node_id)
+        while index < len(payload):
+            _deadline(deadline)
+            marker = payload[index]
+            if marker == 0:
+                if index + 5 > len(payload):
+                    raise ValueError("证据图字面分量长度字段截断")
+                size = int.from_bytes(payload[index + 1:index + 5], "big")
+                if index + 5 + size > len(payload):
+                    raise ValueError("证据图字面分量内容截断")
+                frame = ("lit", payload[index + 5:index + 5 + size])
+                index += 5 + size
+            elif marker == 1:
+                if index + 33 > len(payload):
+                    raise ValueError("证据图引用分量截断")
+                frame = ("node", payload[index + 1:index + 33])
+                index += 33
+            elif marker == 2:
+                if index + 3 > len(payload):
+                    raise ValueError("证据图参数槽分量截断")
+                frame = ("slot", int.from_bytes(payload[index + 1:index + 3], "big"))
+                index += 3
+            else:
+                raise ValueError("证据图分量标签未声明")
+            frames.append(frame)
+            if charge <= self.remaining:
+                charge += sys.getsizeof(frame) + sys.getsizeof(frame[0]) + sys.getsizeof(frame[1])
+        charge += sys.getsizeof(frames)
+        if charge <= self.remaining:
+            self.frames[node_id] = frames
+            self.remaining -= charge
+        return frames
+
+
+def _evidence_expand(nodes, root, slots, touched, deadline=None, frame_cache=None):
     """逐节点核不含参数槽的长度；实际根字节另按当前槽值核完整长度和 Hash。"""
     out, slot_bytes = bytearray(), 0
+    if frame_cache is None:
+        frame_cache = _EvidenceFrames()
     stack = [("node", root)]
     while stack:
         _deadline(deadline)
@@ -453,29 +515,7 @@ def _evidence_expand(nodes, root, slots, touched, deadline=None):
             if kind == EVIDENCE_NODE_LEAF:
                 out += payload
                 continue
-            frames, index = [], 0
-            while index < len(payload):
-                marker = payload[index]
-                if marker == 0:
-                    if index + 5 > len(payload):
-                        raise ValueError("证据图字面分量长度字段截断")
-                    size = int.from_bytes(payload[index + 1:index + 5], "big")
-                    if index + 5 + size > len(payload):
-                        raise ValueError("证据图字面分量内容截断")
-                    frames.append(("lit", payload[index + 5:index + 5 + size]))
-                    index += 5 + size
-                elif marker == 1:
-                    if index + 33 > len(payload):
-                        raise ValueError("证据图引用分量截断")
-                    frames.append(("node", payload[index + 1:index + 33]))
-                    index += 33
-                elif marker == 2:
-                    if index + 3 > len(payload):
-                        raise ValueError("证据图参数槽分量截断")
-                    frames.append(("slot", int.from_bytes(payload[index + 1:index + 3], "big")))
-                    index += 3
-                else:
-                    raise ValueError("证据图分量标签未声明")
+            frames = frame_cache.decode(value, payload, deadline)
             stack.append(("close", (value, len(out), slot_bytes)))
             stack.extend(reversed(frames))
     return bytes(out)
