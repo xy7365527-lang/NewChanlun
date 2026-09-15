@@ -1,4 +1,4 @@
-//! #1394 第二段：完整证据的私有内容寻址共享表示（`evidence-graph/1`）。
+//! #1394 第二段：完整证据的私有内容寻址共享表示（`evidence-graph/2`）。
 //!
 //! 本模块只解决**物理表示**：把 S 已经算出的完整规范 JSON（批次、结构事实等）换成一棵
 //! 内容寻址的**无损**节点图，使跨代重复的原件只落一次盘，同时保证：
@@ -10,7 +10,7 @@
 //! - **字节精确**：叶保存现有规范字节；JSON 字符串内部嵌套的另一层 JSON 只有在
 //!   「解析→按同一 serializer 回写→与该字符串内容逐字节相同」时才拆开共享，否则整段作叶。
 //!   转义序列按字符处理，不会把 `\"` 拆到两个叶之间。
-//! - **显式版本化**：新库在 `s_evidence_format` 落唯一一行 `evidence-graph/1`；表缺 = 旧库
+//! - **显式版本化**：新库在 `s_evidence_format` 落唯一一行 `evidence-graph/2`；表缺 = 旧库
 //!   （整块 BLOB），表在而值未知/缺行/多行一律拒绝。不提供「严格失败再试宽松」的降级通道。
 //! - **不原地迁移**：只在新建库声明；旧库只读兼容，旧 writer 见到多出的表即被 schema 门拒绝。
 //! - **迭代展开**：展开用显式栈，图深与输入长度无关，避免 9011 层递归。
@@ -25,7 +25,7 @@ pub(super) const NODES_TABLE: &str = "s_evidence_nodes";
 /// 公开身份 → 私有根的映射表。
 pub(super) const ROOTS_TABLE: &str = "s_evidence_roots";
 /// 本 reader/writer 唯一声明的图格式。
-pub(super) const GRAPH_FORMAT: &str = "evidence-graph/1";
+pub(super) const GRAPH_FORMAT: &str = "evidence-graph/2";
 
 /// 数组分块宽度：同一数组在相邻代际之间只要块内容相同就整块复用。
 const BLOCK: usize = 16;
@@ -59,7 +59,7 @@ const TAG_LIT: u8 = 0;
 const TAG_REF: u8 = 1;
 const TAG_SLOT: u8 = 2;
 
-/// 库的批次物理域：无登记表的旧库（整块 BLOB），或显式 `evidence-graph/1`。
+/// 库的批次物理域：无登记表的旧库（整块 BLOB），或显式 `evidence-graph/2`。
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum Format {
     /// 旧库：`batches.canonical_bytes` 存完整规范字节，读取直接取 BLOB。
@@ -422,11 +422,9 @@ impl Stager {
             let mut it = blocks.into_iter();
             while let Some(left) = it.next() {
                 match it.next() {
-                    Some(right) => next.push(self.seq(vec![
-                        left,
-                        Child::Lit(esc(escape, ",")),
-                        right,
-                    ])),
+                    Some(right) => {
+                        next.push(self.seq(vec![left, Child::Lit(esc(escape, ",")), right]))
+                    }
                     None => next.push(left),
                 }
             }
@@ -440,9 +438,7 @@ impl Stager {
     }
 
     fn match_slot(&self, tag: u8, bytes: &[u8]) -> Option<u16> {
-        self.index
-            .get(&(tag, bytes.to_vec()))
-            .copied()
+        self.index.get(&(tag, bytes.to_vec())).copied()
     }
 
     /// staging 内部展开（自核对用；同一次 staging 的节点都在内存里）。
@@ -603,14 +599,11 @@ pub(super) fn stage_complete(value: &Value, slots: &[SlotSpec]) -> Result<Staged
     for i in 0..stager.params.len() {
         let bytes = stager.params[i].clone();
         let id = node_id(KIND_LEAF, &bytes);
-        stager
-            .nodes
-            .entry(id)
-            .or_insert(Node {
-                kind: KIND_LEAF,
-                payload: bytes,
-                expanded_length: 0,
-            });
+        stager.nodes.entry(id).or_insert(Node {
+            kind: KIND_LEAF,
+            payload: bytes,
+            expanded_length: 0,
+        });
         // 参数叶的展开长度必须与其字节一致（上面 or_insert 分支补正）。
         if let Some(n) = stager.nodes.get_mut(&id) {
             n.expanded_length = n.payload.len() as u64;
@@ -622,10 +615,7 @@ pub(super) fn stage_complete(value: &Value, slots: &[SlotSpec]) -> Result<Staged
         _ => return Err("SchemaUnsupported：根必须是节点引用".into()),
     };
     let nodes: Vec<([u8; 32], Node)> = stager.nodes.into_iter().collect();
-    let staged_bytes: u64 = nodes
-        .iter()
-        .map(|(_, n)| n.payload.len() as u64 + 40)
-        .sum();
+    let staged_bytes: u64 = nodes.iter().map(|(_, n)| n.payload.len() as u64 + 40).sum();
     let staged_nodes = nodes.len();
     Ok(Staged {
         nodes,
@@ -654,7 +644,9 @@ pub(super) fn publish_refs(
             .prepare("INSERT OR IGNORE INTO s_evidence_nodes(node_id,node_kind,payload,expanded_length) VALUES(?1,?2,?3,?4)")
             .map_err(|e| format!("prepare 私有节点失败：{e}"))?;
         let mut read = tx
-            .prepare("SELECT node_kind,payload FROM s_evidence_nodes WHERE node_id=?1")
+            .prepare(
+                "SELECT node_kind,payload,expanded_length FROM s_evidence_nodes WHERE node_id=?1",
+            )
             .map_err(|e| format!("prepare 私有节点读取失败：{e}"))?;
         for (id, node) in &staged.nodes {
             let changed = insert
@@ -672,10 +664,13 @@ pub(super) fn publish_refs(
                 continue;
             }
             // 同 ID 必须同内容：逐字节比对，不符即拒绝发布。
-            let (kind, payload): (i64, Vec<u8>) = read
-                .query_row(params![&id[..]], |r| Ok((r.get(0)?, r.get(1)?)))
+            let (kind, payload, length): (i64, Vec<u8>, i64) = read
+                .query_row(params![&id[..]], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
                 .map_err(|e| format!("读既有私有节点失败：{e}"))?;
-            if kind != node.kind || payload != node.payload {
+            if kind != node.kind
+                || payload != node.payload
+                || u64::try_from(length).ok() != Some(node.expanded_length)
+            {
                 return Err(format!(
                     "IdentityConflict：私有节点 {} 同 ID 异内容（既有 {} 字节 / 本次 {} 字节），拒绝发布",
                     hex(id),
@@ -724,7 +719,9 @@ pub(super) fn publish_refs(
         )
         .map_err(|e| format!("核私有根唯一性失败：{e}"))?;
     if replaced != 0 {
-        return Err(format!("IdentityConflict：私有根 `{root_key}` 出现同 key 多根"));
+        return Err(format!(
+            "IdentityConflict：私有根 `{root_key}` 出现同 key 多根"
+        ));
     }
     Ok((inserted, inserted_bytes))
 }
@@ -809,17 +806,18 @@ impl<'a> Reader<'a> {
             }
             param_bytes.push(node.payload.clone());
         }
-        let mut out: Vec<u8> = Vec::with_capacity(expanded_len as usize);
+        // 声明长度来自数据库，不能用它直接请求任意大的分配；实际输出逐段增长。
+        let mut out: Vec<u8> = Vec::new();
         let mut stack: Vec<Frame> = vec![Frame::Open(root)];
         let mut slot_bytes = 0u64;
         while let Some(item) = stack.pop() {
             match item {
-                Frame::Lit(bytes) => out.extend_from_slice(&bytes),
+                Frame::Lit(bytes) => append_checked(&mut out, &bytes, expanded_len)?,
                 Frame::Slot(i) => {
                     let bytes = param_bytes.get(i as usize).ok_or_else(|| {
                         format!("StorageUnavailable：私有根 `{root_key}` 参数槽 {i} 越界")
                     })?;
-                    out.extend_from_slice(bytes);
+                    append_checked(&mut out, bytes, expanded_len)?;
                     slot_bytes += bytes.len() as u64;
                 }
                 Frame::Open(id) => {
@@ -919,6 +917,20 @@ impl<'a> Reader<'a> {
     }
 }
 
+fn append_checked(out: &mut Vec<u8>, bytes: &[u8], declared: u64) -> Result<(), String> {
+    let next = out
+        .len()
+        .checked_add(bytes.len())
+        .ok_or("StorageUnavailable：证据图展开长度溢出")?;
+    if next as u64 > declared {
+        return Err("StorageUnavailable：证据图实际展开超过根声明长度".into());
+    }
+    out.try_reserve(bytes.len())
+        .map_err(|_| "StorageUnavailable：证据图展开内存不足")?;
+    out.extend_from_slice(bytes);
+    Ok(())
+}
+
 /// 展开栈帧：`Open` 进入一个节点、`Close` 收束并核该节点的声明长度（DFS 输出连续）。
 enum Frame {
     Open([u8; 32]),
@@ -1007,4 +1019,74 @@ pub(super) fn describe(conn: &Connection, root_key: &str) -> Result<Value, Strin
         "expanded_length": len.to_string(),
         "content_sha256": hash,
     }))
+}
+
+#[cfg(test)]
+mod metadata_regressions {
+    use super::*;
+
+    #[test]
+    fn evidence_graph_parameter_lengths_are_verified_and_conflicts_refused() {
+        let conn = Connection::open_in_memory().unwrap();
+        declare_new(&conn).unwrap();
+        for value in [9, 1000] {
+            let json = json!({"v": value});
+            let staged = stage_complete(&json, &[SlotSpec::number(&value.to_string())]).unwrap();
+            let key = format!("batch/test-{value}");
+            publish_refs(&conn, &key, &staged).unwrap();
+            assert_eq!(
+                Reader::new(&conn, 0).read_fixed_cut(&key).unwrap(),
+                canonical_bytes_of_value(&json)
+            );
+            assert_eq!(
+                Reader::new(&conn, 1024 * 1024)
+                    .read_fixed_cut(&key)
+                    .unwrap(),
+                canonical_bytes_of_value(&json)
+            );
+        }
+        let staged = stage_complete(&json!({"v": 9}), &[SlotSpec::number("9")]).unwrap();
+        conn.execute(
+            "UPDATE s_evidence_nodes SET expanded_length=expanded_length+1 WHERE node_id=?1",
+            params![&staged.root[..]],
+        )
+        .unwrap();
+        let error = Reader::new(&conn, 1024 * 1024)
+            .read_fixed_cut("batch/test-9")
+            .unwrap_err();
+        assert!(error.contains("声明长度"), "{error}");
+        let error = publish_refs(&conn, "batch/test-9", &staged).unwrap_err();
+        assert!(error.contains("IdentityConflict"), "{error}");
+    }
+
+    #[test]
+    fn evidence_graph_previous_candidate_format_is_explicitly_rejected() {
+        let conn = Connection::open_in_memory().unwrap();
+        declare_new(&conn).unwrap();
+        conn.execute(
+            "UPDATE s_evidence_format SET graph_format='evidence-graph/1'",
+            [],
+        )
+        .unwrap();
+        assert!(read_format(&conn)
+            .unwrap_err()
+            .contains("SchemaUnsupported"));
+    }
+
+    #[test]
+    fn evidence_graph_forged_root_length_is_rejected_without_large_allocation() {
+        let conn = Connection::open_in_memory().unwrap();
+        declare_new(&conn).unwrap();
+        let staged = stage_complete(&json!({"v": 9}), &[]).unwrap();
+        publish_refs(&conn, "batch/test", &staged).unwrap();
+        conn.execute(
+            "UPDATE s_evidence_roots SET expanded_length=?1",
+            params![i64::MAX],
+        )
+        .unwrap();
+        let error = Reader::new(&conn, 0)
+            .read_fixed_cut("batch/test")
+            .unwrap_err();
+        assert!(error.contains("根 `batch/test` 展开长度不符"), "{error}");
+    }
 }

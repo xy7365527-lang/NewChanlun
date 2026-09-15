@@ -40,7 +40,7 @@ mod cache;
 // #1394：新库的显式私有存储格式登记（changes-only/1）；旧库无该表即旧 full 域。
 #[path = "s_session_v2/delta_storage.rs"]
 mod delta_storage;
-// #1394 第二段：完整证据的私有内容寻址共享表示（evidence-graph/1）；旧库无该表即旧整块域。
+// #1394 第二段：完整证据的私有内容寻址共享表示（evidence-graph/2）；旧库无该表即旧整块域。
 #[path = "s_session_v2/evidence_store.rs"]
 mod evidence_store;
 #[path = "s_session_v2/tb02a.rs"]
@@ -381,9 +381,8 @@ fn load_batch_bytes_with(
             ))
         }
     };
-    let byte_len = usize::try_from(byte_len).map_err(|_| {
-        format!("StorageUnavailable：batch `{batch_id}` byte_len 非负越界")
-    })?;
+    let byte_len = usize::try_from(byte_len)
+        .map_err(|_| format!("StorageUnavailable：batch `{batch_id}` byte_len 非负越界"))?;
     if !evidence_store::read_format(conn)?.graph() {
         // 旧整块域：完整规范字节就在这一行。
         if blob.is_empty() || blob.len() != byte_len || sha256_hex(&blob) != expect_hash {
@@ -400,9 +399,8 @@ fn load_batch_bytes_with(
         ));
     }
     let root_key = evidence_store::batch_root_key(batch_id);
-    let (_, _, expanded, _) = evidence_store::Reader::root_row(conn, &root_key)?.ok_or_else(|| {
-        format!("StorageUnavailable：图域 batch `{batch_id}` 缺私有根，拒绝写入")
-    })?;
+    let (_, _, expanded, _) = evidence_store::Reader::root_row(conn, &root_key)?
+        .ok_or_else(|| format!("StorageUnavailable：图域 batch `{batch_id}` 缺私有根，拒绝写入"))?;
     if expanded as usize != byte_len {
         return Err(format!(
             "StorageUnavailable：图域 batch `{batch_id}` 根展开长度与 byte_len 不符"
@@ -761,8 +759,12 @@ fn verify_profile_binding(conn: &Connection) -> Result<(String, String), String>
         // #1394：物理域可能是旧整块也可能是新节点图，故按已发布代序逐代展开选取首个带
         // profile 的可达批次；不再用 SQL 直接读整块列（图域该列为长度占位）。
         let mut stmt=conn.prepare("SELECT b.batch_id FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id ORDER BY d.generation ASC").map_err(|e|e.to_string())?;
-        let sealed_ids=stmt.query_map([],|r|r.get::<_,String>(0)).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
-        let mut sealed_found=false;
+        let sealed_ids = stmt
+            .query_map([], |r| r.get::<_, String>(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        let mut sealed_found = false;
         let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
         for batch_id in &sealed_ids {
             let bytes = load_batch_bytes_with(conn, &mut reader, batch_id)?;
@@ -775,7 +777,7 @@ fn verify_profile_binding(conn: &Connection) -> Result<(String, String), String>
             {
                 return Err("StorageUnavailable：旧profile绑定与可达封存批次不一致".to_string());
             }
-            sealed_found=true;
+            sealed_found = true;
             break;
         }
         if !sealed_found {
@@ -1276,7 +1278,7 @@ fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, Str
         .map_err(|e| format!("建 schema 失败：{e}"))?;
     // #1394：新库固定私有 changes-only/1 登记（显式单行）。旧库无此表，继续旧 full 域，不迁移。
     delta_storage::declare_new(&conn)?;
-    // #1394 第二段：新库固定私有 evidence-graph/1 登记（显式单行）。旧库无此表，继续旧整块域，不迁移。
+    // #1394 第二段：新库固定私有 evidence-graph/2 登记（显式单行）。旧库无此表，继续旧整块域，不迁移。
     evidence_store::declare_new(&conn)?;
     let sqlite_version: String = conn
         .query_row("SELECT sqlite_version()", [], |r| r.get(0))
@@ -2251,8 +2253,8 @@ fn verify_begin_owner(
 }
 
 fn verify_batch_bytes(conn: &Connection, batch_id: &str, bytes: &[u8]) -> Result<(), String> {
-    let stored = load_batch_bytes(conn, batch_id)
-        .map_err(|e| format!("完整不可变批次不可读：{e}"))?;
+    let stored =
+        load_batch_bytes(conn, batch_id).map_err(|e| format!("完整不可变批次不可读：{e}"))?;
     if stored != bytes {
         return Err(
             "IdentityConflict：不可变 batch 的规范字节或长度不符，拒绝覆写和发布".to_string(),
@@ -5551,8 +5553,7 @@ mod tests {
         set_test_begin(&conn);
         let bytes = br#"{"objects":[],"raw_events":[],"scope":"test-phase-boundary"}"#;
         let id = format!("batch-{}", sha256_hex(bytes));
-        let value: Value =
-            serde_json::from_slice(bytes).expect("测试批次是可解析 JSON");
+        let value: Value = serde_json::from_slice(bytes).expect("测试批次是可解析 JSON");
         assert_eq!(canonical_bytes_of_value(&value), bytes.as_slice());
         persist_batch_before_publish(
             &mut conn,
@@ -8115,7 +8116,10 @@ mod tests {
         );
         // 公开读取路径（固定 cut 快照/根审计）在图上必须照常成立。
         verify_reachable_root(&conn).unwrap();
-        assert_eq!(snapshot_of(&files, None)["generation"], json!(rows.len().to_string()));
+        assert_eq!(
+            snapshot_of(&files, None)["generation"],
+            json!(rows.len().to_string())
+        );
     }
 
     /// #1394 第二段：当前读集下改历史叶/长度/引用/根/登记，任何写入之前一律拒绝且不留痕。
@@ -8227,7 +8231,9 @@ mod tests {
         {
             let conn = open_db(&legacy.db()).unwrap();
             let ids: Vec<String> = {
-                let mut stmt = conn.prepare("SELECT batch_id FROM batches ORDER BY batch_id").unwrap();
+                let mut stmt = conn
+                    .prepare("SELECT batch_id FROM batches ORDER BY batch_id")
+                    .unwrap();
                 stmt.query_map([], |r| r.get::<_, String>(0))
                     .unwrap()
                     .collect::<Result<Vec<_>, _>>()
@@ -8260,12 +8266,15 @@ mod tests {
             conn.execute(drop_sql, []).unwrap();
             drop(conn);
             assert!(cmd_snapshot(&half.db(), None).is_err(), "{drop_sql}");
-            assert!(cmd_advance(&half.db(), DEFAULT_WRITER_EPOCH).is_err(), "{drop_sql}");
+            assert!(
+                cmd_advance(&half.db(), DEFAULT_WRITER_EPOCH).is_err(),
+                "{drop_sql}"
+            );
         }
         // ③ 三表齐全但未声明/坏声明：与模式损坏同门。
         for sql in [
             "DELETE FROM s_evidence_format",
-            "UPDATE s_evidence_format SET graph_format='evidence-graph/2'",
+            "UPDATE s_evidence_format SET graph_format='evidence-graph/3'",
         ] {
             let bad = TestFiles::new();
             build(&bad);

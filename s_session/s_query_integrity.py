@@ -205,7 +205,7 @@ STORAGE_FORMAT_TABLE = "s_storage_format"
 STORAGE_FORMAT_CHANGES_ONLY = "changes-only/1"
 STORAGE_FORMAT_LEGACY = "legacy-full/0"
 
-# #1394 第二段：新库固定私有 evidence-graph/1 的三表（登记 + 不可变节点 + 根映射）。
+# #1394 第二段：新库固定私有 evidence-graph/2 的三表（登记 + 不可变节点 + 根映射）。
 # 无此三表 = 旧库整块域（`batches.canonical_bytes` 存完整规范字节）；有此三表 = 图域。
 # 三表同生同灭，缺一即模式门拒绝；未知 graph_format 亦然。两域都是已知协议模式，无第三种。
 EVIDENCE_GRAPH_SCHEMA = """
@@ -219,7 +219,7 @@ CREATE TABLE s_evidence_roots (
  expanded_length INTEGER NOT NULL, content_sha256 TEXT NOT NULL);
 """
 EVIDENCE_GRAPH_TABLES = ("s_evidence_format", "s_evidence_nodes", "s_evidence_roots")
-EVIDENCE_GRAPH_FORMAT = "evidence-graph/1"
+EVIDENCE_GRAPH_FORMAT = "evidence-graph/2"
 EVIDENCE_ROOT_PREFIX = "batch/"
 EVIDENCE_NODE_LEAF = 0
 EVIDENCE_NODE_SEQ = 1
@@ -285,7 +285,7 @@ def evidence_mode(tables):
         raise ValueError("私有图格式登记必须恰一行（缺行/多行一律拒绝）")
     row = rows[0]
     if row["singleton"] != 1 or row["graph_format"] != EVIDENCE_GRAPH_FORMAT:
-        raise ValueError("未知/损坏的 S 私有证据图格式（只认 evidence-graph/1）")
+        raise ValueError("未知/损坏的 S 私有证据图格式（只认 evidence-graph/2）")
     return EVIDENCE_GRAPH_FORMAT
 
 
@@ -307,12 +307,14 @@ def evidence_batch_sources(tables, deadline=None):
             raise ValueError("证据图节点种类未声明")
         if type(payload) is not bytes:
             raise ValueError("证据图节点负载必须是 BLOB")
+        if type(row["expanded_length"]) is not int or row["expanded_length"] < 0:
+            raise ValueError("证据图节点长度必须是非负整数")
         if kind == EVIDENCE_NODE_LEAF and row["expanded_length"] != len(payload):
             raise ValueError("证据图叶声明长度与实际不符")
         if hashlib.sha256(bytes([kind]) + payload).digest() != node_id:
             raise ValueError("证据图节点同 ID 异内容（内容寻址不符）")
-        nodes[node_id] = (kind, payload)
-    by_batch, seen = {}, set()
+        nodes[node_id] = (kind, payload, row["expanded_length"])
+    by_batch, seen, touched = {}, set(), set()
     for row in tables["s_evidence_roots"]:
         _deadline(deadline)
         key = row["root_key"]
@@ -327,11 +329,13 @@ def evidence_batch_sources(tables, deadline=None):
             raise ValueError("证据图根参数槽列非 32 字节倍数")
         slots = []
         for offset in range(0, len(slots_raw), 32):
-            slot = nodes.get(slots_raw[offset:offset + 32])
+            slot_id = slots_raw[offset:offset + 32]
+            slot = nodes.get(slot_id)
             if slot is None or slot[0] != EVIDENCE_NODE_LEAF:
                 raise ValueError("证据图根参数槽必须指向存在的叶节点")
             slots.append(slot[1])
-        expanded = _evidence_expand(nodes, row["node_id"], slots)
+            touched.add(slot_id)
+        expanded = _evidence_expand(nodes, row["node_id"], slots, touched, deadline)
         if len(expanded) != row["expanded_length"]:
             raise ValueError("证据图根展开长度与登记不符")
         if hashlib.sha256(expanded).hexdigest() != row["content_sha256"]:
@@ -339,14 +343,17 @@ def evidence_batch_sources(tables, deadline=None):
         if "batch-" + hashlib.sha256(expanded).hexdigest() != batch_id:
             raise ValueError("证据图根展开字节与公开批次身份不符")
         by_batch[batch_id] = expanded
+    if touched != nodes.keys():
+        raise ValueError("证据图存在不可达节点")
     return by_batch
 
 
-def _evidence_expand(nodes, root, slots):
-    """按规范字节拼接迭代展开；分量标签与 Rust 侧一致（0 字面 / 1 引用 / 2 参数槽）。"""
-    out = bytearray()
+def _evidence_expand(nodes, root, slots, touched, deadline=None):
+    """逐节点核不含参数槽的长度；实际根字节另按当前槽值核完整长度和 Hash。"""
+    out, slot_bytes = bytearray(), 0
     stack = [("node", root)]
     while stack:
+        _deadline(deadline)
         tag, value = stack.pop()
         if tag == "lit":
             out += value
@@ -354,11 +361,18 @@ def _evidence_expand(nodes, root, slots):
             if value >= len(slots):
                 raise ValueError("证据图参数槽越界")
             out += slots[value]
+            slot_bytes += len(slots[value])
+        elif tag == "close":
+            node_id, start, slots_at_open = value
+            without_slots = len(out) - start - (slot_bytes - slots_at_open)
+            if without_slots != nodes[node_id][2]:
+                raise ValueError("证据图节点声明长度与不含参数槽的实际展开不符")
         else:
             node = nodes.get(value)
             if node is None:
                 raise ValueError("证据图节点缺失")
-            kind, payload = node
+            touched.add(value)
+            kind, payload, _length = node
             if kind == EVIDENCE_NODE_LEAF:
                 out += payload
                 continue
@@ -366,17 +380,26 @@ def _evidence_expand(nodes, root, slots):
             while index < len(payload):
                 marker = payload[index]
                 if marker == 0:
+                    if index + 5 > len(payload):
+                        raise ValueError("证据图字面分量长度字段截断")
                     size = int.from_bytes(payload[index + 1:index + 5], "big")
+                    if index + 5 + size > len(payload):
+                        raise ValueError("证据图字面分量内容截断")
                     frames.append(("lit", payload[index + 5:index + 5 + size]))
                     index += 5 + size
                 elif marker == 1:
+                    if index + 33 > len(payload):
+                        raise ValueError("证据图引用分量截断")
                     frames.append(("node", payload[index + 1:index + 33]))
                     index += 33
                 elif marker == 2:
+                    if index + 3 > len(payload):
+                        raise ValueError("证据图参数槽分量截断")
                     frames.append(("slot", int.from_bytes(payload[index + 1:index + 3], "big")))
                     index += 3
                 else:
                     raise ValueError("证据图分量标签未声明")
+            stack.append(("close", (value, len(out), slot_bytes)))
             stack.extend(reversed(frames))
     return bytes(out)
 

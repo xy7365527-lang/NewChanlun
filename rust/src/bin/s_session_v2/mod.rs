@@ -1437,10 +1437,10 @@ mod tests {
     /// 默认不跑（`S_EVIDENCE_MEASURE=<N>` 显式驱动），因为它按定义是长跑而不是单测；
     /// 但它走的是与生产完全相同的 `handle/advance_core` 入口与真实 context，不另写旁路。
     #[test]
+    #[ignore = "#1394 显式同源成本测量；须设置 S_EVIDENCE_MEASURE 并提供冻结原件"]
     fn issue1394_prefix_cost_measurement() {
-        let Ok(spec) = std::env::var("S_EVIDENCE_MEASURE") else {
-            return;
-        };
+        let spec =
+            std::env::var("S_EVIDENCE_MEASURE").expect("显式成本测量须设置 S_EVIDENCE_MEASURE");
         let prefix: usize = spec.trim().parse().expect("S_EVIDENCE_MEASURE=<N>");
         // 与正式启动器同档：`s_resources.audit_cache_source_bytes` 默认 268435456；
         // 不设这一段就等于关掉审计前缀复用，会污染可比成本。
@@ -1486,8 +1486,16 @@ mod tests {
         std::fs::write(&clock_path, canonical_json(&clock.value)).unwrap();
         const SID: &str = "tb03b-long-financial-v1";
         const SOURCE: &str = "testonly.ohlc.tb03b-long-financial-v1";
-        init_v2(&db, SID, &base.join("catalog/signed-catalog.json"), &profile, "1", &clock_path, 4)
-            .unwrap();
+        init_v2(
+            &db,
+            SID,
+            &base.join("catalog/signed-catalog.json"),
+            &profile,
+            "1",
+            &clock_path,
+            4,
+        )
+        .unwrap();
         let mut per_generation = Vec::with_capacity(prefix);
         let mut total = std::time::Duration::ZERO;
         for (i, bar) in bars[..prefix].iter().enumerate() {
@@ -1533,8 +1541,12 @@ mod tests {
             let _ = ns;
         }
         let conn = open_db(&db).unwrap();
-        let page_count: i64 = conn.query_row("PRAGMA page_count", [], |r| r.get(0)).unwrap();
-        let page_size: i64 = conn.query_row("PRAGMA page_size", [], |r| r.get(0)).unwrap();
+        let page_count: i64 = conn
+            .query_row("PRAGMA page_count", [], |r| r.get(0))
+            .unwrap();
+        let page_size: i64 = conn
+            .query_row("PRAGMA page_size", [], |r| r.get(0))
+            .unwrap();
         let (nodes, node_payload) = evidence_store::stats(&conn).unwrap();
         let node_rows: i64 = conn
             .query_row("SELECT COUNT(*) FROM s_evidence_nodes", [], |r| r.get(0))
@@ -1543,19 +1555,31 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM s_evidence_roots", [], |r| r.get(0))
             .unwrap();
         let batch_sum: i64 = conn
-            .query_row("SELECT COALESCE(SUM(byte_len),0) FROM batches", [], |r| r.get(0))
+            .query_row("SELECT COALESCE(SUM(byte_len),0) FROM batches", [], |r| {
+                r.get(0)
+            })
             .unwrap();
         let blob_sum: i64 = conn
-            .query_row("SELECT COALESCE(SUM(length(canonical_bytes)),0) FROM batches", [], |r| r.get(0))
+            .query_row(
+                "SELECT COALESCE(SUM(length(canonical_bytes)),0) FROM batches",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         let delta_sum: i64 = conn
-            .query_row("SELECT COALESCE(SUM(length(delta_json)),0) FROM structure_deltas", [], |r| r.get(0))
+            .query_row(
+                "SELECT COALESCE(SUM(length(delta_json)),0) FROM structure_deltas",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         // 公开读路径的完整展开成本（每代展开一次，逐字节核内容寻址）。
         let read_started = Instant::now();
         let mut expanded = 0u64;
         {
-            let mut stmt = conn.prepare("SELECT batch_id FROM batches ORDER BY batch_id").unwrap();
+            let mut stmt = conn
+                .prepare("SELECT batch_id FROM batches ORDER BY batch_id")
+                .unwrap();
             let ids = stmt
                 .query_map([], |r| r.get::<_, String>(0))
                 .unwrap()
@@ -1573,10 +1597,14 @@ mod tests {
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
         ) {
             let base_hash: String = baseline
-                .query_row("SELECT clock_plan_hash FROM s_protocol_meta", [], |r| r.get(0))
+                .query_row("SELECT clock_plan_hash FROM s_protocol_meta", [], |r| {
+                    r.get(0)
+                })
                 .unwrap();
             let mine: String = conn
-                .query_row("SELECT clock_plan_hash FROM s_protocol_meta", [], |r| r.get(0))
+                .query_row("SELECT clock_plan_hash FROM s_protocol_meta", [], |r| {
+                    r.get(0)
+                })
                 .unwrap();
             let mut same = mine == base_hash;
             let mut checked = 0i64;
@@ -1585,7 +1613,13 @@ mod tests {
                     .prepare("SELECT d.generation,b.batch_id,b.byte_len FROM structure_deltas d JOIN batches b ON b.batch_id=d.index_frontier ORDER BY d.generation")
                     .unwrap();
                 let mine_rows = stmt
-                    .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?)))
+                    .query_map([], |r| {
+                        Ok((
+                            r.get::<_, i64>(0)?,
+                            r.get::<_, String>(1)?,
+                            r.get::<_, i64>(2)?,
+                        ))
+                    })
                     .unwrap()
                     .collect::<Result<Vec<_>, _>>()
                     .unwrap();
@@ -1593,7 +1627,13 @@ mod tests {
                     .prepare("SELECT d.generation,b.batch_id,b.byte_len FROM structure_deltas d JOIN batches b ON b.batch_id=d.index_frontier ORDER BY d.generation")
                     .unwrap();
                 let base_rows = stmt
-                    .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?)))
+                    .query_map([], |r| {
+                        Ok((
+                            r.get::<_, i64>(0)?,
+                            r.get::<_, String>(1)?,
+                            r.get::<_, i64>(2)?,
+                        ))
+                    })
                     .unwrap()
                     .collect::<Result<Vec<_>, _>>()
                     .unwrap();
@@ -1605,25 +1645,28 @@ mod tests {
                                 "identical_generations": same, "checked": checked.to_string(),
                                 "baseline_db": "/private/tmp/tb1394-s-prefix64-20260915/s.db"});
         }
-        println!("{}", json!({
-            "schema": "issue1394-prefix-cost/1",
-            "prefix": prefix.to_string(),
-            "clock_plan_hash": conn.query_row("SELECT clock_plan_hash FROM s_protocol_meta", [], |r| r.get::<_, String>(0)).unwrap(),
-            "wall_seconds_total": format!("{:.3}", total.as_secs_f64()),
-            "wall_seconds_per_generation": per_generation.iter().map(|v| format!("{v:.4}")).collect::<Vec<_>>(),
-            "db_files": {"sqlite_pages": page_count.to_string(), "page_size": page_size.to_string(),
-                          "sqlite_bytes": (page_count * page_size).to_string()},
-            "batches": {"rows": roots.to_string(), "expanded_bytes_total": batch_sum.to_string(),
-                         "stored_blob_bytes": blob_sum.to_string()},
-            "graph": {"nodes": nodes.to_string(), "node_rows": node_rows.to_string(),
-                       "node_payload_bytes": node_payload.to_string(),
-                       "roots": roots.to_string()},
-            "delta_json_bytes_total": delta_sum.to_string(),
-            "full_expansion_seconds": format!("{read_seconds:.3}"),
-            "full_expansion_bytes": expanded.to_string(),
-            "baseline_comparison": comparison,
-            "db_dir": dir.display().to_string(),
-        }));
+        println!(
+            "{}",
+            json!({
+                "schema": "issue1394-prefix-cost/1",
+                "prefix": prefix.to_string(),
+                "clock_plan_hash": conn.query_row("SELECT clock_plan_hash FROM s_protocol_meta", [], |r| r.get::<_, String>(0)).unwrap(),
+                "wall_seconds_total": format!("{:.3}", total.as_secs_f64()),
+                "wall_seconds_per_generation": per_generation.iter().map(|v| format!("{v:.4}")).collect::<Vec<_>>(),
+                "db_files": {"sqlite_pages": page_count.to_string(), "page_size": page_size.to_string(),
+                              "sqlite_bytes": (page_count * page_size).to_string()},
+                "batches": {"rows": roots.to_string(), "expanded_bytes_total": batch_sum.to_string(),
+                             "stored_blob_bytes": blob_sum.to_string()},
+                "graph": {"nodes": nodes.to_string(), "node_rows": node_rows.to_string(),
+                           "node_payload_bytes": node_payload.to_string(),
+                           "roots": roots.to_string()},
+                "delta_json_bytes_total": delta_sum.to_string(),
+                "full_expansion_seconds": format!("{read_seconds:.3}"),
+                "full_expansion_bytes": expanded.to_string(),
+                "baseline_comparison": comparison,
+                "db_dir": dir.display().to_string(),
+            })
+        );
     }
 
     use newchan_rust::session_transport::{
