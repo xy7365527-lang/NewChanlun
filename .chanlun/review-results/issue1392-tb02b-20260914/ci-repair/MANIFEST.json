@@ -1,0 +1,98 @@
+{
+  "issue": 1392,
+  "product_commit": "10be313b04aa24e67ea0f08d7a019a18f5f238a3",
+  "author_commit": "12941dc7b023f031b693ed74095b99089255e0d8",
+  "same_sources_verified": [
+    "rust/src/theta_v0/parser/mod.rs",
+    "rust/src/theta_v0/backtest/incremental.rs",
+    "rust/src/theta_v0/classifier/tests/rebase_txn.rs",
+    "rust/src/theta_v0/classifier/bsp.rs"
+  ],
+  "items": [
+    {
+      "path": "1392-CI-REPAIR-CHECKS.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-CI-REPAIR-CHECKS.json",
+      "sha256": "6ba52eabae4cfa44358d6dcf8cf669737538fde3615e64d100f024d6ff0ff378",
+      "bytes": 2976
+    },
+    {
+      "path": "1392-REMAINING-FIXTURE-DIAGNOSIS.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-REMAINING-FIXTURE-DIAGNOSIS.json",
+      "sha256": "a339e069fef63d18235c7698fb0eea94b43026077a2c1724c46a2e100d88de48",
+      "bytes": 9325
+    },
+    {
+      "path": "1392-a3-refined-fixtures-r2.log",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-a3-refined-fixtures-r2.log",
+      "sha256": "984f0e9d96f9ba71d3a76a60b1666382dd87a3823ca42db2d0e6a0871afa8ce7",
+      "bytes": 21808
+    },
+    {
+      "path": "1392-owned-fixture-repair.log",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-owned-fixture-repair.log",
+      "sha256": "a28282f379c9715a1a14a1c549bce2c21efeeecd5dfbdbdd671f3d9789ad40c3",
+      "bytes": 21326
+    },
+    {
+      "path": "1392-rebase-fixture-repair.log",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-rebase-fixture-repair.log",
+      "sha256": "fe74cad76757e9cd433f774941dab9167ac6784a101d7ccf184825a962aa6230",
+      "bytes": 21484
+    },
+    {
+      "path": "1392-bsp-line-drift-repair.log",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-bsp-line-drift-repair.log",
+      "sha256": "7501b471f5e3bb43d5354df95d2d54493f044ef296b889d18852e25cb31a1527",
+      "bytes": 21268
+    },
+    {
+      "path": "1392-parser-109-tests.log",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/1392-parser-109-tests.log",
+      "sha256": "6af2b5ba277e248d4d1b9788cb513e407cead0def19632effe83ded626fd2380",
+      "bytes": 869
+    },
+    {
+      "path": "1392-CONSOLIDATED-INDEPENDENT-REVIEW.json",
+      "original_path": "/Users/silencehan/Documents/Codex/2026-09-12/newchanlun-1371-recovery-20260912T0920Z/work/issue1374-tb03a-implementation-20260913/evidence/frontier-resume-flash-20260914/frontier-consolidated-review-sandcastle-run/result.json",
+      "sha256": "51109715caed278e35a48e3f9f73d3efd1a8c7ed069a81c7028b98940e98084c",
+      "bytes": 2869,
+      "kind": "verbatim T1/T2 findings excerpt with source hash"
+    }
+  ],
+  "native_review": {
+    "agent": "/root/pr1458_bsp_scan_diagnosis",
+    "model": "deepseek/deepseek-v4.1-flash",
+    "effort": "max",
+    "verdict": "approve_bounded: scanner4 original exemptions line drift and A3 fixture updates",
+    "evidence": "Agent actual source/type/historical-hit comparison; observed existing test logs, did not rerun cargo. No removed assertions; no production predicate changes in fixtures.",
+    "not_yet_reviewed": "none within this bounded repair: followup completed by consolidated Sandcastle review"
+  },
+  "ci_run_before_fix": 34851673814,
+  "ci_before_fix": {
+    "passed": 2931,
+    "failed": 9,
+    "ignored": 161
+  },
+  "targeted_fixed": 6,
+  "remaining_domain_tests": 3,
+  "remaining_domain_issues": [
+    1343,
+    1405
+  ],
+  "main_merged": false,
+  "fresh_full_ci": "NOT_RUN",
+  "parser_test_evidence": {
+    "passed": 109,
+    "failed": 0,
+    "ignored": 8,
+    "scope": "original author actual test summary; piped tail command exit alone is not used as pass proof; test summary extracted verbatim",
+    "independent_review": "approve_bounded; consolidated T1 at fixed10be313"
+  },
+  "consolidated_review": {
+    "path": "1392-CONSOLIDATED-INDEPENDENT-REVIEW.json",
+    "verdict": "approve_bounded",
+    "run_id": "45d47aa6-e181-4acd-b796-8c7cb6e6f88f",
+    "model": "deepseek/deepseek-v4.1-flash",
+    "effort": "max"
+  }
+}
