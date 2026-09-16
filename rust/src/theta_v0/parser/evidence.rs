@@ -199,6 +199,18 @@ impl CoordsRef {
         CoordsRef::concat(self, &CoordsRef::single(coord))
     }
 
+    /// #1394 5.3：只读借出共享坐标树的根节点（空集 = `None`）。
+    ///
+    /// 供下游转换按**自身**唯一分解遍历（如 s-content/1 的 `M(...)` 按元素计数的二分）：
+    /// 本树是 AVL 平衡后的**物理**形状——旋转只改形状、不改叶序——**不是**规范 M 结构，
+    /// 也不决定任何公开内容身份（内容 Hash 只看逻辑元素序列）。
+    ///
+    /// 访问器提供不可变借用；调用方可以克隆 Rc 保留快照。持有返回句柄不影响本句柄后续
+    /// 拼接（拼接新建节点，旧树保持原内容）。
+    pub fn root_node(&self) -> Option<&Rc<CoordNode>> {
+        self.0.as_ref()
+    }
+
     /// 展开为升序去重 `Vec<usize>`——显式栈迭代中序，无递归。
     pub fn materialize(&self) -> Vec<usize> {
         let Some(root) = &self.0 else {
@@ -328,5 +340,45 @@ mod tests {
         let one = CoordsRef::single(7);
         assert_eq!(CoordsRef::concat(&empty, &one).materialize(), vec![7]);
         assert_eq!(CoordsRef::concat(&one, &empty).materialize(), vec![7]);
+    }
+
+    /// 手工遍历共享坐标树（借用口暴露的物理形状）：叶序 = 升序去重集合。
+    fn collect_leaves(node: &CoordNode) -> Vec<usize> {
+        let mut out = Vec::new();
+        let mut stack = vec![node];
+        while let Some(current) = stack.pop() {
+            match current {
+                CoordNode::Leaf(coord) => out.push(*coord),
+                CoordNode::Concat(left, right, _) => {
+                    stack.push(right);
+                    stack.push(left);
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn coords_ref_root_node_exposes_shared_tree_without_changing_materialize() {
+        let mut coords = CoordsRef::empty();
+        assert!(coords.root_node().is_none(), "空集无根节点");
+        for i in 0..300usize {
+            coords = coords.append_greater(i * 3 + 1);
+        }
+        let want = coords.materialize();
+        let root = Rc::clone(coords.root_node().expect("非空集合必有根节点"));
+        let leaves = collect_leaves(&root);
+        assert_eq!(leaves, want, "共享树中序叶序 = 升序去重内容");
+        assert_eq!(leaves.len(), coords.count(), "叶数 = 集合大小");
+        assert_eq!(leaves.last().copied(), coords.max(), "最右叶 = 最大坐标");
+        // 只读借出不改变原展开。
+        assert_eq!(coords.materialize(), want, "借出根节点后展开结果变化");
+        // 持有旧根句柄继续拼接：旧根内容保持（持久化共享，不就地改写）。
+        let extended = coords.append_greater(100_000);
+        assert_eq!(collect_leaves(&root), want, "旧根内容被后续拼接改写");
+        assert_eq!(coords.materialize(), want, "原句柄内容被后续拼接改写");
+        let extended_flat = extended.materialize();
+        assert_eq!(extended_flat.len(), want.len() + 1);
+        assert_eq!(&extended_flat[..want.len()], want.as_slice());
     }
 }

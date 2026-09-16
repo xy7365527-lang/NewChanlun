@@ -874,6 +874,49 @@ struct StepRecord {
     waiting_reasons: Vec<&'static str>,
 }
 
+/// #1394 5.3：单步完整证据的**只读借用视图**——同核共享证据直接成值边的入口。
+///
+/// 集合字段借自同一 [`IncrFactsState`] 的共享句柄或切片；固定大小的 Bar 与标量按值复制。
+/// **不复制**坐标集合与价格来源集合，也不把方向证据展开成
+/// [`InclusionDirectionEvidence`]（后者会物化 `source_coords`）。
+/// 视图不可变：不导出可变借用；取用视图不改变状态，也不改变既有 `step_fact` 的读数。
+///
+/// 字段与 [`InclusionStepFact`] 逐位对应：
+/// - `coords` / `evidence.coords`：本步来源坐标的**共享**集合（升序去重、保留稀疏坐标）；
+/// - `evidence`：方向证据共享节点（`direction` / `previous_acc` / `incoming` / `coords`）；
+/// - `high` / `low`：极值实际来源集合快照（无快照时为空切片，与全量展开的空 `Vec` 同形）；
+/// - 坐标集合的**物理**树形状不参与公开内容身份，下游须按自身唯一分解遍历
+///   （见 [`super::evidence::CoordsRef::root_node`]）。
+#[derive(Debug, Clone, Copy)]
+pub struct StepEvidenceView<'a> {
+    pub action: &'static str,
+    pub incoming: Bar,
+    pub acc_before: Option<Bar>,
+    pub acc_after: Option<Bar>,
+    pub contains: Option<bool>,
+    pub evidence: Option<&'a Rc<EvidenceNode>>,
+    pub coords: &'a super::evidence::CoordsRef,
+    pub high: &'a [usize],
+    pub low: &'a [usize],
+    pub waiting_reasons: &'a [&'static str],
+}
+
+/// #1394 5.3：共享证据不可用——显式错误，与「索引不存在」严格分开。
+///
+/// 与 `Ok(None)`（该索引没有步骤）不同：本错误表示**整个共享态失效**（当前唯一成因：
+/// source 坐标非严格递增，共享拼接前提被破坏）。此时不静默回落成另一套判据，也不无声
+/// 返回缺对象；需要完整事实的调用方走既有 `step_fact` 的全量回落路径。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SharedEvidenceUnavailable {
+    /// 失效成因（固定文本，供调用方区分错误种类）。
+    pub reason: &'static str,
+}
+
+/// #1394 5.3：借用接口返回的共享坐标类型定义在 `evidence`（crate 内模块）。此再导出
+/// 给出它们的公开路径，使 crate 外的消费方（如 S 生产侧 `bin`）也能命名遍历用的节点
+/// 类型；不得据此把物理树形状当成规范 M 结构（见 `CoordsRef::root_node` 文档）。
+pub use super::evidence::{CoordNode, CoordsRef};
+
 impl IncrFactsState {
     pub fn empty() -> Self {
         Self::default()
@@ -1221,6 +1264,40 @@ impl IncrFactsState {
     /// 已处理 raw（按到达序）——供成员读取；O(1) 借出迭代器。
     pub fn raw_iter(&self) -> impl Iterator<Item = &Bar> {
         self.raw.iter()
+    }
+
+    /// #1394 5.3：借出单步完整证据的只读视图（不展开旧 Value/坐标集合）。
+    ///
+    /// - `Ok(Some(view))`：该步存在，视图借自本状态；
+    /// - `Ok(None)`：该索引没有步骤（`index >= step_count()`）；
+    /// - `Err(SharedEvidenceUnavailable)`：共享态退化，**先于索引判定**——不返回任何
+    ///   视图，也不静默改用全量入口的判据。
+    ///
+    /// 取用视图不改变本状态；既有 [`IncrFactsState::step_fact`] 的读数与回落行为不变。
+    pub fn shared_step(
+        &self,
+        index: usize,
+    ) -> Result<Option<StepEvidenceView<'_>>, SharedEvidenceUnavailable> {
+        if self.degraded {
+            return Err(SharedEvidenceUnavailable {
+                reason: "source 坐标非严格递增：共享证据不可用",
+            });
+        }
+        let Some(step) = self.steps.get(index) else {
+            return Ok(None);
+        };
+        Ok(Some(StepEvidenceView {
+            action: step.action,
+            incoming: step.incoming,
+            acc_before: step.acc_before,
+            acc_after: step.acc_after,
+            contains: step.contains,
+            evidence: step.evidence.as_ref(),
+            coords: &step.coords,
+            high: step.high.as_deref().map(Vec::as_slice).unwrap_or_default(),
+            low: step.low.as_deref().map(Vec::as_slice).unwrap_or_default(),
+            waiting_reasons: step.waiting_reasons.as_slice(),
+        }))
     }
 
     /// 展开单步完整事实（与全量入口同字段、同顺序）。
@@ -2069,6 +2146,264 @@ mod tests {
         assert!(
             append_elapsed.as_secs_f64() < 20.0,
             "9011 根增量追加耗时 {append_elapsed:?}（量级回归）"
+        );
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // #1394 5.3：同核共享证据的**只读借用口**（直接成值边，不展开旧 Value/坐标）。
+    //
+    // 契约：`shared_step(index)` 借出单步完整证据视图——字段借用共享句柄与切片，
+    // 不物化坐标/来源集合；索引不存在 = `Ok(None)`；共享态退化 = 显式 `Err`，
+    // 不静默回落成另一套判据，也不无声返回缺对象。
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// 手工遍历共享坐标树（借用口暴露的物理形状）：叶序 = 升序去重集合。
+    fn collect_shared_coords(node: &super::super::evidence::CoordNode) -> Vec<usize> {
+        use super::super::evidence::CoordNode;
+        let mut out = Vec::new();
+        let mut stack = vec![node];
+        while let Some(current) = stack.pop() {
+            match current {
+                CoordNode::Leaf(coord) => out.push(*coord),
+                CoordNode::Concat(left, right, _) => {
+                    stack.push(right);
+                    stack.push(left);
+                }
+            }
+        }
+        out
+    }
+
+    /// 逐字段对拍：借用视图 ≡ 同一状态 `step_fact` 的完整展开。
+    fn assert_shared_views_match_step_facts(bars: &[Bar], label: &str) {
+        let mut state = IncrFactsState::empty();
+        for bar in bars {
+            state.append(*bar);
+        }
+        assert!(!state.degraded(), "{label}：夹具不应退化");
+        let want = process_inclusion_with_facts(bars);
+        assert!(!want.steps.is_empty(), "{label}：夹具不应为空");
+        assert_eq!(state.step_count(), want.steps.len(), "{label}：步数");
+        for (index, want_step) in want.steps.iter().enumerate() {
+            let fact = state.step_fact(index).expect("步骤在域内");
+            assert_eq!(
+                &fact, want_step,
+                "{label}：步 {index} 既有 step_fact 与全量入口不一致"
+            );
+            let view = match state.shared_step(index) {
+                Ok(Some(view)) => view,
+                Ok(None) => panic!("{label}：步 {index} 在域内，借用口却报缺失"),
+                Err(error) => panic!("{label}：步 {index} 借用口显式不可用：{error:?}"),
+            };
+            // 借用视图逐字段 ≡ 既有完整输出（`step_fact`）。
+            assert_eq!(view.action, fact.action, "{label}：步 {index} action");
+            assert_eq!(
+                view.incoming, fact.incoming,
+                "{label}：步 {index} incoming"
+            );
+            assert_eq!(
+                view.acc_before, fact.acc_before,
+                "{label}：步 {index} acc_before"
+            );
+            assert_eq!(
+                view.acc_after, fact.acc_after,
+                "{label}：步 {index} acc_after"
+            );
+            assert_eq!(
+                view.contains, fact.contains,
+                "{label}：步 {index} contains"
+            );
+            match (view.evidence, fact.direction_evidence.as_ref()) {
+                (None, None) => {}
+                (Some(shared), Some(full)) => {
+                    assert_eq!(
+                        shared.direction, full.direction,
+                        "{label}：步 {index} 证据方向"
+                    );
+                    assert_eq!(
+                        shared.previous_acc, full.previous_acc,
+                        "{label}：步 {index} 证据前驱"
+                    );
+                    assert_eq!(
+                        shared.incoming, full.incoming,
+                        "{label}：步 {index} 证据 incoming"
+                    );
+                    assert_eq!(
+                        shared.coords.materialize(),
+                        full.source_coords,
+                        "{label}：步 {index} 证据来源坐标"
+                    );
+                }
+                (shared, full) => panic!(
+                    "{label}：步 {index} 方向证据有无不一致（借用 {shared:?} / 全量 {full:?}）"
+                ),
+            }
+            assert_eq!(
+                view.coords.materialize(),
+                fact.source_coords,
+                "{label}：步 {index} 来源坐标"
+            );
+            assert_eq!(
+                view.high,
+                fact.high_sources.as_slice(),
+                "{label}：步 {index} high 来源"
+            );
+            assert_eq!(
+                view.low,
+                fact.low_sources.as_slice(),
+                "{label}：步 {index} low 来源"
+            );
+            assert_eq!(
+                view.waiting_reasons,
+                fact.waiting_reasons.as_slice(),
+                "{label}：步 {index} 等待原因"
+            );
+        }
+        // 只读借用不改变状态：同一状态的全量展开与借用前逐位相同。
+        assert_eq!(
+            state.materialize_facts(),
+            want,
+            "{label}：借用读取改动了状态"
+        );
+    }
+
+    #[test]
+    fn shared_step_matches_full_facts_for_every_step() {
+        // 合并 / 定方向 / 换组（方向翻转）：含方向证据与共享坐标前缀。
+        assert_shared_views_match_step_facts(
+            &[
+                bar(0, 10, 5),
+                bar(1, 15, 8),
+                bar(2, 12, 9),
+                bar(3, 8, 4),
+                bar(4, 9, 5),
+                bar(5, 14, 10),
+                bar(6, 13, 11),
+            ],
+            "merge/new-group",
+        );
+        // 初始方向永久未定：后续步骤全部 waiting（无证据、无极值快照）。
+        assert_shared_views_match_step_facts(
+            &[bar(0, 10, 5), bar(1, 9, 6), bar(2, 12, 7), bar(3, 13, 8)],
+            "initial-unsettled",
+        );
+        // 非连续源坐标（不得区间化）+ 同价极值身份竞争。
+        assert_shared_views_match_step_facts(
+            &[
+                sparse_bar(10, 10, 5),
+                sparse_bar(11, 15, 8),
+                sparse_bar(37, 15, 6),
+                sparse_bar(9000, 12, 6),
+                sparse_bar(9001, 9, 4),
+                sparse_bar(12345, 9, 3),
+            ],
+            "sparse/equal-extremes",
+        );
+    }
+
+    #[test]
+    fn shared_step_handles_survive_later_appends() {
+        let mut state = IncrFactsState::empty();
+        for bar in [bar(0, 20, 10), bar(1, 24, 14), bar(2, 22, 16), bar(3, 23, 15)] {
+            state.append(bar);
+        }
+        assert!(!state.degraded());
+        let index = state.step_count() - 1;
+        let before = state.step_fact(index).expect("末步在域内");
+        // 只从借用口取 O(1) 共享句柄（不展开历史前缀）。
+        let (coords_handle, root, evidence_handle) = {
+            let view = state
+                .shared_step(index)
+                .expect("共享态可用")
+                .expect("步在域内");
+            (
+                view.coords.clone(),
+                view.coords.root_node().map(Rc::clone),
+                view.evidence.map(Rc::clone),
+            )
+        };
+        let root = root.expect("本步来源集合非空");
+        let coords_before = coords_handle.materialize();
+        let root_leaves_before = collect_shared_coords(&root);
+        assert_eq!(root_leaves_before, coords_before);
+        let evidence_handle = evidence_handle.expect("本步应带方向证据");
+        let evidence_before = evidence_handle.coords.materialize();
+
+        // 实际追加：后续步骤继续推进合并与证据链。
+        for bar in [bar(4, 26, 18), bar(5, 28, 20), bar(6, 27, 21)] {
+            state.append(bar);
+        }
+        assert!(!state.degraded());
+        assert!(state.step_count() > index + 1);
+
+        // 旧句柄保持旧内容：共享前缀不被后续追加改写。
+        assert_eq!(
+            coords_handle.materialize(),
+            coords_before,
+            "旧坐标句柄被后续追加改写"
+        );
+        assert_eq!(
+            collect_shared_coords(&root),
+            root_leaves_before,
+            "旧根节点被后续追加改写"
+        );
+        assert_eq!(
+            evidence_handle.coords.materialize(),
+            evidence_before,
+            "旧证据节点被后续追加改写"
+        );
+        // 旧步的完整展开与追加前逐位相同。
+        assert_eq!(state.step_fact(index), Some(before));
+        // 重新借出的同一步与旧句柄同内容。
+        let again = state
+            .shared_step(index)
+            .expect("共享态可用")
+            .expect("步在域内");
+        assert_eq!(again.coords.materialize(), coords_before);
+        assert_eq!(
+            collect_shared_coords(again.coords.root_node().expect("非空")),
+            root_leaves_before
+        );
+    }
+
+    #[test]
+    fn shared_step_contract_distinguishes_absent_and_degraded() {
+        let bars = vec![bar(0, 10, 5), bar(1, 15, 8), bar(2, 14, 9)];
+        let mut state = IncrFactsState::empty();
+        for bar in &bars {
+            state.append(*bar);
+        }
+        assert!(!state.degraded());
+        assert!(matches!(state.shared_step(0), Ok(Some(_))), "在域内必须借出视图");
+        assert!(
+            matches!(state.shared_step(state.step_count()), Ok(None)),
+            "索引不存在 = Ok(None)"
+        );
+        assert!(matches!(state.shared_step(usize::MAX), Ok(None)));
+
+        // 共享态退化（source 坐标非严格递增）= 显式错误：不静默回落、不无声缺对象。
+        let degraded_bars = vec![bar(5, 10, 5), bar(3, 15, 8), bar(9, 14, 9), bar(1, 9, 4)];
+        let mut degraded = IncrFactsState::empty();
+        for bar in &degraded_bars {
+            degraded.append(*bar);
+        }
+        assert!(degraded.degraded());
+        let error = degraded
+            .shared_step(0)
+            .expect_err("退化态必须显式报错，不得静默降级");
+        assert!(
+            error.reason.contains("严格递增"),
+            "错误须点名成因，实际：{}",
+            error.reason
+        );
+        assert!(
+            degraded.shared_step(usize::MAX).is_err(),
+            "退化态先于索引判定"
+        );
+        // 既有展开入口不受新接口影响：仍按既定契约回落全量入口。
+        assert_eq!(
+            degraded.step_fact(0),
+            process_inclusion_with_facts(&degraded_bars).steps.first().cloned()
         );
     }
 }
