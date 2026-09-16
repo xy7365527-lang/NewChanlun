@@ -86,6 +86,8 @@ pub mod lav_seal;
 /// #1374：S/E/B 实例共用的规范消息机械件；业务 owner 各自保持独立。
 #[cfg(feature = "s_session")]
 pub mod session_protocol;
+#[cfg(feature = "s_session")]
+pub mod s_content;
 #[cfg(all(feature = "s_session", unix))]
 pub mod session_transport;
 

@@ -253,6 +253,13 @@ jobs:
       - name: cargo test — s_session 正式结构会话（#1370）
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --bin s_structure_session --jobs 1
 
+      # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
+      - name: cargo test — 完整内容编码与共享图校验（#1394）
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 s_content
+
+      - name: cargo test — 独立内容格式向量（#1394）
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --test s_content_contract --jobs 1
+
       - name: cargo test — backtest_bin feature（econ_oddeven_diagnosis.rs 仅在此 feature 下编译）
         # 2026-08-16 磁盘实撞（#993 收口轮）：三轮 runner 爆盘（No space left on device）——
         # --all-targets 在 feature 下额外编 56 个探针 bin 的 test 目标（各链 nautilus 套件，
