@@ -257,8 +257,8 @@ jobs:
       - name: cargo test — 完整内容编码与共享图校验（#1394）
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --lib --jobs 1 s_content
 
-      - name: cargo test — 独立内容格式向量（#1394）
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --test s_content_contract --jobs 1
+      - name: cargo test — 内容向量、持久序列与累计资源（#1394）
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session --test s_content_contract --test s_content_sequence --test s_content_job --jobs 1
 
       - name: cargo test — backtest_bin feature（econ_oddeven_diagnosis.rs 仅在此 feature 下编译）
         # 2026-08-16 磁盘实撞（#993 收口轮）：三轮 runner 爆盘（No space left on device）——

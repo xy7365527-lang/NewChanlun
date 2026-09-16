@@ -43,6 +43,12 @@ mod delta_storage;
 // #1394 第二段：完整证据的私有内容寻址共享表示（evidence-graph/2）；旧库无该表即旧整块域。
 #[path = "s_session_v2/evidence_store.rs"]
 mod evidence_store;
+#[path = "s_session_v2/content_store.rs"]
+mod content_store;
+// #1394 采纳 C §5.2/5.3：S 生产侧从同核共享证据直接构造 CC-004 内容对象（生产构造器，
+// 供正式 S3 入口调用；本文件不接 S3Commit）。
+#[path = "s_session_v2/content_producer.rs"]
+mod content_producer;
 // #1394 2A-S：正式 S 的同代增量状态与稳定对象复用（进程内缓存；性能结构，不充任准入权威）。
 #[path = "s_session_v2/s_fact_cache.rs"]
 mod s_fact_cache;
