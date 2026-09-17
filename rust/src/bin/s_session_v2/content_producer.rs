@@ -252,7 +252,8 @@ pub(super) struct Cc004Object {
     pub identity: NodeDigest,
     /// 槽位规范文本（与全量配方同一条：`canonical_json([kind, coord])`）。
     pub fact_key: String,
-    /// 面向 Q 的记录值根：十项旧逻辑字段 + 三条公开内容边。
+    /// 内部辅助记录：十项旧生成态字段 + 三条内部值边。
+    /// 它不是 Q wire 或实际首获知发布记录；接线时须按各自 exact schema 组装。
     pub record: Built,
     /// 公开边：载荷值根（`payload_json` 的内部值）。
     pub payload: Built,
@@ -266,9 +267,9 @@ pub(super) struct Cc004Object {
     pub input_refs_json: Built,
     /// 0x07 文本视图根（内部值 = `source_coords`）。
     pub source_coords_json: Built,
-    /// 本对象生成 metadata：首获知代。
+    /// 本次生成态投射的代号；实际首获知代仍由独立索引核定。
     pub generation: i64,
-    /// 本对象生成 metadata：首获知 cut。
+    /// 本次生成态投射的 cut；实际首获知 cut 仍由独立索引核定。
     pub cut: String,
 }
 
