@@ -34,8 +34,9 @@ use newchan_rust::s_content::{
     self as sc, Built, CodecError, Kind, NodeDigest, NodeSink, NodeStore, NumberToken, SequenceRef,
     Value as CValue,
 };
+use newchan_rust::theta_v0::classifier::local_shape::{classify_local_shape, Cc006LocalShape};
 use newchan_rust::theta_v0::parser::inclusion::{
-    CoordNode, CoordsRef, IncrFactsState, StepEvidenceView,
+    CoordNode, CoordsRef, EvidenceNode, GroupEvidenceView, IncrFactsState, StepEvidenceView,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -43,6 +44,14 @@ use std::rc::Rc;
 
 /// CC-004 步骤对象的 kind（与全量配方同名）。
 pub(super) const CC004_STEP_KIND: &str = "CC-004.inclusion_step";
+/// CC-005 组对象的 kind（与全量配方同名）。
+pub(super) const CC005_GROUP_KIND: &str = "CC-005.inclusion_group";
+/// CC-006 局部形态的 kind（与全量配方同名；身份走 §5.3 的**独立十二字段**配方）。
+pub(super) const CC006_SHAPE_KIND: &str = "CC-006.local_shape";
+/// CC-007 分型描述的 kind（与全量配方同名；身份走泛型六字段配方）。
+pub(super) const CC007_FRACTAL_KIND: &str = "CC-007.fractal_description";
+/// CC-054 知识状态的 kind（与全量配方同名；身份走泛型六字段配方）。
+pub(super) const CC054_KNOWLEDGE_KIND: &str = "CC-054.knowledge_state";
 /// 对象发布修订。内容身份不含修订，修订只进记录（与全量配方同值）。
 const OBJECT_REVISION: i64 = 1;
 /// §5.3 的类型化对象身份帧：`F(0x20, V)`。
@@ -60,6 +69,8 @@ pub(super) enum ProducerError {
     Type { what: &'static str, detail: String },
     /// 长度超出规范表达域（叶数/坐标域）。
     Overflow(String),
+    /// CC-006 窗口不在可判域内（域前件不满足）：旧路径同样不造第五分型、不静默旁路。
+    WindowNotClassified(&'static str),
     /// 内容层编解码错误（节点形状、摘要、长度、序列分解）。
     Codec(CodecError),
 }
@@ -79,6 +90,9 @@ impl fmt::Display for ProducerError {
             }
             ProducerError::Type { what, detail } => write!(f, "{what} 身份/类型不符：{detail}"),
             ProducerError::Overflow(detail) => write!(f, "长度溢出：{detail}"),
+            ProducerError::WindowNotClassified(reason) => {
+                write!(f, "CC-006 窗口不在可判域内：{reason}")
+            }
             ProducerError::Codec(error) => write!(f, "内容编码错误：{error}"),
         }
     }
@@ -168,6 +182,50 @@ struct ArrayEntry {
     max: i64,
 }
 
+/// CC-007 一条后续历史的**共享序列** memo（性能结构，不充任准入/证据权威）。
+///
+/// - 键：参考集指纹（6 个精确参考价/源身份/名字）；`end` 变化（右组末成员变了）即整条重建；
+/// - `sequence` 是已写出的单元值序列（每元素 = `{bar, relations[24]}` 的值根，按 raw 坐标升序），
+///   追加新 bar 只 `sequence_append` 新尾（O(log n) 节点），不重写已覆盖前缀；
+/// - 精确内容键仅在 prepare 处与上一份 raw 账本比较一次；实际变化的最早坐标传入
+///   每个窗口的 `floor`。窗口内二分定位截断点再续接，不逐窗扫描或保存整份历史键；
+/// - `union_tail` 是 tail 坐标的**并集增量**链（只 `append_greater` 续接）：右组被下一组
+///   封口时其 `conf.coords` 末项已是 tail 首坐标，故并集增量跳过该项——原配方
+///   `sources.sort/dedup` 的同一条语义，供 CC-007 的 `input_refs`/`source_coords` 与请求共享；
+/// - 跨事务/换库必须 [`Cc004Producer::discard_runtime_state`]（序列里的根不再属于当前域）。
+struct FractalHistory {
+    /// 本窗口右组末成员坐标（end 变化 ⟹ 内容变了，整条重建）。
+    end: usize,
+    /// 序列首元素在当次 raw 表里的下标（截断/续接定位用）。
+    tail_start: usize,
+    /// 已覆盖单元数（= `sequence.count()`）。
+    count: usize,
+    /// 源修订水位：`bind_source` 报告的**实际变化坐标**的最小值；续接时坐标 ≥ 该水位的
+    /// 已覆盖单元整段截断重建（保守口径：源修订必使该点起的 memo 失效）。
+    floor: Option<i64>,
+    /// 已覆盖 tail 的并集增量坐标链（跳过被 `conf.coords` 覆盖的 tail 首项后，与 units 同序）。
+    union_tail: CoordsRef,
+    /// 单元值序列（0x11/0x12/0x13 规范 M 树）。
+    sequence: SequenceRef,
+}
+
+/// 一代 raw 账本的一次**受控准备**结果（owner/epoch 见证）。
+///
+/// 只能经 [`Cc004Producer::prepare_raw_history`] 构造，字段私有：调用方既拿不到伪造入口，
+/// 也省不掉排序 / source 存在 / 精确内容键三种核（一次遍历核完，见该方法文档）。
+///
+/// - `raw` 借用调用方的 raw 切片：借用在 ⟹ 本视图存活期内 raw 不被改写（Rust 借用保证）；
+/// - 当前准备版本由独立 Rc 见证；成功重新 prepare 后旧视图即失效，即使 source_ref 未换。
+///   精确内容键由 producer 保存一份，变更在 prepare 中比较并传入所有窗口的失效水位；
+/// - `owner` / `epoch` 在 [`Cc004Producer::build_fractal`] 消费口校验：换 producer 或
+///   source 修订推进后，旧视图被显式拒绝（陈旧视图不得静默复用）。
+pub(super) struct PreparedRawHistory<'a> {
+    owner: Rc<()>,
+    epoch: u64,
+    snapshot: Rc<()>,
+    raw: &'a [Bar],
+}
+
 /// coords 子树的构造 memo（性能结构，不充任准入/证据权威）。
 #[derive(Default)]
 struct ArrayCache {
@@ -240,12 +298,14 @@ impl Leaves<'_> {
     }
 }
 
-/// 一个 CC-004 步骤对象的构造结果（各根都已按**同一次调用所用的 store** 写出）。
+/// 一个**泛型 typed 对象**（§5.3 六字段身份家族：CC-004/005/007/054）的构造结果。
+///
+/// 各根都已按**同一次调用所用的 store** 写出。
 ///
 /// 写 ≠ publish-valid：构造器返回不是发布证明。发布前必须用同一读集过 `verify`（全闭包），
 /// 因为 `Value::Edge` 指向的子根不在本次写入的核验范围内。
 #[derive(Debug, Clone)]
-pub(super) struct Cc004Object {
+pub(super) struct TypedObject {
     /// `obj3-` + 小写十六进制 `F(0x20, V)`。
     pub object_id: String,
     /// 六字段身份对象的值摘要 `V`（obj3 配方的输入，供独立复算）。
@@ -271,9 +331,104 @@ pub(super) struct Cc004Object {
     pub generation: i64,
     /// 本次生成态投射的 cut；实际首获知 cut 仍由独立索引核定。
     pub cut: String,
+    /// 该事实的知识请求值边（`subject_id` = 本对象 `obj3` 身份）。
+    ///
+    /// `None` 只出现在**旧配方本就没有对应请求**的 kind（CC-054）；不造默认请求。
+    pub request: Option<Built>,
 }
 
-impl Cc004Object {
+/// 旧名保留：CC-004 步骤对象就是泛型 typed 对象。
+pub(super) type Cc004Object = TypedObject;
+
+/// 一个 CC-006 局部形态对象的构造结果。
+///
+/// **独立身份配方**（§5.3）：`obj3` = `"obj3-"+hex(F(0x20, V(十二字段)))`，不套泛型六字段；
+/// 十二字段 = `{branch,dir_ab,dir_bc,window_start,window_mid,window_end,merged_highs,
+/// merged_lows,comparisons,input_refs,rule_revision,profile_id}`，字段类型与值取旧配方。
+#[derive(Debug, Clone)]
+pub(super) struct Cc006Object {
+    /// `obj3-` + 小写十六进制 `F(0x20, V)`。
+    pub object_id: String,
+    /// 十二字段身份对象的值摘要 `V`（供独立复算）。
+    pub identity: NodeDigest,
+    /// 内部辅助记录：旧 CC-006 行字段 + 三条内容边（`comparisons` 无对应文本列，只成值边）。
+    pub record: Built,
+    /// 四个严格比较的数组值根（旧 `comparisons_json` 的内部值）。
+    pub comparisons: Built,
+    /// 三组 `{merged_index,raw_refs,dependency_refs}` 的数组值根（旧 `input_refs_json` 的内部值）。
+    pub input_refs: Built,
+    /// 来源坐标文本数组根（旧 `source_coords_json` 的内部值）。
+    pub source_coords: Built,
+    /// 0x07 文本视图根（内部值 = `input_refs`）。
+    pub input_refs_json: Built,
+    /// 0x07 文本视图根（内部值 = `source_coords`）。
+    pub source_coords_json: Built,
+    /// 该形态的来源坐标**共享链**（右组 `group_sources_coords`）= CC-007 的 `base_sources`。
+    ///
+    /// 依据：三个连续同 kernel 组的来源链逐级嵌套（`sources_i ⊆ sources_{i+1}`，见
+    /// [`group_sources_coords`] 的归纳），故并集 = 右组来源链——不是「挑最大链」，
+    /// 而是归纳包含关系；由 `derived_coords_match_materialized_union_for_every_prefix`
+    /// 的「三连窗并集 == 右组 sources」逐前缀对拍锁定。
+    pub sources: CoordsRef,
+    /// 三组锚坐标（升序）。
+    pub window: [usize; 3],
+    /// 知识请求值边（槽位 `["CC-006.local_shape", [三锚坐标]]`，主体 = 本对象）。
+    pub request: Built,
+    /// 四分支名（`RISING`/`TOP`/`BOTTOM`/`FALLING`）：CC-007 只对 `TOP`/`BOTTOM` 建对象。
+    pub branch: &'static str,
+    /// 本次生成态投射的代号；实际首获知代仍由独立索引核定。
+    pub generation: i64,
+    /// 本次生成态投射的 cut；实际首获知 cut 仍由独立索引核定。
+    pub cut: String,
+}
+
+/// 一个 CC-054 知识状态对象连同本代观察（`awaiting_scope`，每个去重原因一条）。
+#[derive(Debug, Clone)]
+pub(super) struct Cc054Assembly {
+    /// 知识状态对象（泛型六字段身份；旧配方里它没有对应请求，故 `request` 为 `None`）。
+    pub object: TypedObject,
+    /// 观察值边（顺序 = 排序去重后的原因序，与全量配方同序）。
+    pub observations: Vec<Built>,
+}
+
+/// 一个 CC-007 分型描述对象的构造结果（含三条知识请求）。
+#[derive(Debug, Clone)]
+pub(super) struct Cc007Object {
+    /// `obj3-` + 小写十六进制 `F(0x20, V)`（泛型六字段配方）。
+    pub object_id: String,
+    /// 六字段身份对象的值摘要 `V`。
+    pub identity: NodeDigest,
+    /// 槽位规范文本（`canonical_json([kind, [三个锚坐标]])`）。
+    pub fact_key: String,
+    /// 内部辅助记录：旧十项字段 + 三条内部值边。
+    pub record: Built,
+    /// 公开边：载荷值根。
+    pub payload: Built,
+    /// 公开边：源引用数组根。
+    pub input_refs: Built,
+    /// 公开边：源坐标数组根。
+    pub source_coords: Built,
+    /// 0x07 文本视图根（内部值 = `payload`）。
+    pub payload_json: Built,
+    /// 0x07 文本视图根（内部值 = `input_refs`）。
+    pub input_refs_json: Built,
+    /// 0x07 文本视图根（内部值 = `source_coords`）。
+    pub source_coords_json: Built,
+    /// 三条知识请求值边，顺序 = `shape_description` / `descriptive_labels` /
+    /// `subsequent_development`（与全量配方同序）。
+    pub requests: Vec<Built>,
+    /// `subsequent_development` 请求的原因（`no_subsequent_bar` 或空）。
+    pub request_reasons: Vec<&'static str>,
+    /// 进 CC-054 `waiting_reasons` 的原因（本对象贡献：`request_reasons` +
+    /// `no_settled_numeric_rule`，与全量配方同一条）。
+    pub knowledge_reasons: Vec<&'static str>,
+    /// 本次生成态投射的代号；实际首获知代仍由独立索引核定。
+    pub generation: i64,
+    /// 本次生成态投射的 cut；实际首获知 cut 仍由独立索引核定。
+    pub cut: String,
+}
+
+impl TypedObject {
     /// 旧逻辑字段名到新内容边的对应（供调用方/测试核对，不参与身份）。
     pub fn content_edges(&self) -> [(&'static str, &Built); 3] {
         [
@@ -299,6 +454,24 @@ pub(super) struct Cc004Producer {
     text_arrays: ArrayCache,
     /// 源引用数组 memo：依赖当前源绑定，源修订按坐标失效。
     ref_arrays: ArrayCache,
+    /// CC-007 后续历史 memo：按 `(参考集指纹, end)` **保留**（交错窗口互不驱逐）。
+    fractal_histories: HashMap<(String, usize), FractalHistory>,
+    /// CC-007 测量面计数（不参与判据）：新求值单元 / 续接复用单元 / 源修订失效单元。
+    history_computed: usize,
+    history_reused: usize,
+    history_invalidated: usize,
+    /// source 修订代号：`bind_source` 实际变化即 +1（`discard_runtime_state` 也 +1）；
+    /// `prepare_raw_history` 的视图按它做陈旧判定。
+    source_epoch: u64,
+    /// 自上次 `prepare_raw_history` 以来实际变化的**最早源坐标**：prepare 时一次并入
+    /// 全部已保留窗口的失效水位（登记面 O(1)，不逐窗口扫描）。
+    unprepared_floor: Option<i64>,
+    /// 本 producer 的 raw 账本身份 token：`PreparedRawHistory` 的 owner 防伪用。
+    raw_token: Rc<()>,
+    /// 当前 prepare 的独立见证，防止两份 raw 值在同一 source epoch 内交错消费。
+    prepared_snapshot: Rc<()>,
+    /// 上次准备的实际坐标和精确内容键；全 producer 仅一份，不按窗口重复存储。
+    prepared_raw_keys: Vec<(usize, String)>,
 }
 
 #[cfg(test)]
@@ -313,6 +486,12 @@ pub(super) struct MemoCounts {
     pub invalidated: usize,
     /// 新坐标大于 memo 上界而跳过的整表遍历次数。
     pub skipped_scans: usize,
+    /// CC-007 比较单元：实际求值次数。
+    pub unit_computed: usize,
+    /// CC-007 比较单元：精确内容键命中复用次数。
+    pub unit_reused: usize,
+    /// CC-007 比较单元：因源修订失效丢弃的条目数。
+    pub unit_invalidated: usize,
 }
 
 impl Cc004Producer {
@@ -325,6 +504,15 @@ impl Cc004Producer {
             coord_text: HashMap::new(),
             text_arrays: ArrayCache::default(),
             ref_arrays: ArrayCache::default(),
+            fractal_histories: HashMap::new(),
+            history_computed: 0,
+            history_reused: 0,
+            history_invalidated: 0,
+            source_epoch: 0,
+            unprepared_floor: None,
+            raw_token: Rc::new(()),
+            prepared_snapshot: Rc::new(()),
+            prepared_raw_keys: Vec::new(),
         }
     }
 
@@ -363,6 +551,14 @@ impl Cc004Producer {
         self.sources.insert(coord, (spec, built.digest));
         if changed {
             self.ref_arrays.invalidate(coord);
+            // 历史 memo 不在此处整条丢弃，只记**实际变化坐标**的水位：prepare 时一次并入
+            // 全部已保留窗口（见 `prepare_raw_history`），续接时坐标 ≥ 该水位的已覆盖单元
+            // 整段 `sequence_split` 截断重建；prepare 中的精确内容键比较另核 raw 内容漂移。
+            self.source_epoch += 1;
+            self.unprepared_floor = Some(
+                self.unprepared_floor
+                    .map_or(coord, |floor| floor.min(coord)),
+            );
         }
         Ok(changed)
     }
@@ -381,12 +577,13 @@ impl Cc004Producer {
         let Some(root) = coords.root_node() else {
             return empty_array(store);
         };
-        array_from_node(
+        let entry = array_from_node(
             &mut *store,
             root,
             &mut self.text_arrays,
             &mut Leaves::CoordText(&mut self.coord_text),
-        )
+        )?;
+        Ok(array_built(&entry))
     }
 
     /// 共享树直接入口（`coords_array` 的底层）：同一逻辑叶序的不同物理树形必须同根。
@@ -395,12 +592,13 @@ impl Cc004Producer {
         store: &mut dyn NodeStore,
         node: &Rc<CoordNode>,
     ) -> Result<Built, ProducerError> {
-        array_from_node(
+        let entry = array_from_node(
             &mut *store,
             node,
             &mut self.text_arrays,
             &mut Leaves::CoordText(&mut self.coord_text),
-        )
+        )?;
+        Ok(array_built(&entry))
     }
 
     /// `input_refs`：坐标集合 → 当前源绑定下的八字段源引用数组（0x05）。
@@ -415,12 +613,13 @@ impl Cc004Producer {
         let Some(root) = coords.root_node() else {
             return empty_array(store);
         };
-        array_from_node(
+        let entry = array_from_node(
             &mut *store,
             root,
             &mut self.ref_arrays,
             &mut Leaves::SourceRef(&self.sources),
-        )
+        )?;
+        Ok(array_built(&entry))
     }
 
     /// 从同次 parser 的共享态借出单步证据并构造 CC-004 对象。
@@ -462,20 +661,75 @@ impl Cc004Producer {
             view.incoming.source_index.to_string()
         ]));
         let payload_value = self.step_payload_value(store, view)?;
-        let payload = sc::write_value(&mut *store, &payload_value)?;
-        let payload_json = put_json_text_node(&mut *store, &payload.digest)?;
         let input_refs = self.source_refs_array(&mut *store, view.coords)?;
-        let input_refs_json = put_json_text_node(&mut *store, &input_refs.digest)?;
         let source_coords = self.coords_array(&mut *store, view.coords)?;
-        let source_coords_json = put_json_text_node(&mut *store, &source_coords.digest)?;
-        let (object_id, identity) = self.object_identity(&fact_key, &payload, &input_refs)?;
+        let mut object = self.typed_object(
+            store,
+            CC004_STEP_KIND,
+            fact_key,
+            payload_value,
+            input_refs,
+            source_coords,
+            generation,
+            cut,
+        )?;
+        let mut reasons: Vec<&'static str> = view.waiting_reasons.to_vec();
+        if view.evidence.is_none() && reasons.is_empty() {
+            reasons.push("direction_not_yet_established");
+        }
+        let key = CValue::Array(vec![
+            CValue::String(CC004_STEP_KIND.to_string()),
+            CValue::String(view.incoming.source_index.to_string()),
+        ]);
+        let request = self.request_value(
+            key,
+            Some(&object.object_id),
+            &reasons,
+            &object.source_coords,
+        )?;
+        object.request = Some(sc::write_value(&mut *store, &request)?);
+        Ok(object)
+    }
+
+    /// §5.3 泛型六字段身份对象的唯一实现（CC-004/005/007/054 共用）。
+    ///
+    /// `payload` / `input_refs` / `source_coords` 是三条**公开内容边**（值根），
+    /// 记录里的三个 `*_json` 字段是 §5.2 的 0x07 文本视图（内部值根 = 同一值根）——
+    /// 渲染为规范 JSON 文本字符串，与全量配方存下来的文本列逐字同值。
+    #[allow(clippy::too_many_arguments)]
+    fn typed_object(
+        &self,
+        store: &mut dyn NodeStore,
+        kind: &str,
+        fact_key: String,
+        payload_value: CValue,
+        input_refs: Built,
+        source_coords: Built,
+        generation: i64,
+        cut: &str,
+    ) -> Result<TypedObject, ProducerError> {
+        let payload = sc::write_value(&mut *store, &payload_value)?;
+        let payload_json = Built {
+            digest: put_json_text_node(&mut *store, &payload.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let input_refs_json = Built {
+            digest: put_json_text_node(&mut *store, &input_refs.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let source_coords_json = Built {
+            digest: put_json_text_node(&mut *store, &source_coords.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let identity = self.typed_identity(kind, &fact_key, &payload, &input_refs)?;
+        let object_id = format!("obj3-{}", lower_hex(&sc::frame(OBJECT_ID_TAG, &identity)));
         let record_value = CValue::Object(vec![
             ("object_id".to_string(), CValue::String(object_id.clone())),
             ("object_revision".to_string(), number(OBJECT_REVISION)?),
-            (
-                "kind".to_string(),
-                CValue::String(CC004_STEP_KIND.to_string()),
-            ),
+            ("kind".to_string(), CValue::String(kind.to_string())),
             ("fact_key".to_string(), CValue::String(fact_key.clone())),
             ("payload".to_string(), CValue::Edge(payload.digest)),
             ("input_refs".to_string(), CValue::Edge(input_refs.digest)),
@@ -483,11 +737,17 @@ impl Cc004Producer {
                 "source_coords".to_string(),
                 CValue::Edge(source_coords.digest),
             ),
-            ("payload_json".to_string(), CValue::Edge(payload_json)),
-            ("input_refs_json".to_string(), CValue::Edge(input_refs_json)),
+            (
+                "payload_json".to_string(),
+                CValue::Edge(payload_json.digest),
+            ),
+            (
+                "input_refs_json".to_string(),
+                CValue::Edge(input_refs_json.digest),
+            ),
             (
                 "source_coords_json".to_string(),
-                CValue::Edge(source_coords_json),
+                CValue::Edge(source_coords_json.digest),
             ),
             ("first_known_generation".to_string(), number(generation)?),
             (
@@ -497,7 +757,7 @@ impl Cc004Producer {
             ("published_generation".to_string(), number(generation)?),
         ]);
         let record = sc::write_value(&mut *store, &record_value)?;
-        Ok(Cc004Object {
+        Ok(TypedObject {
             object_id,
             identity,
             fact_key,
@@ -505,38 +765,25 @@ impl Cc004Producer {
             payload,
             input_refs,
             source_coords,
-            payload_json: Built {
-                digest: payload_json,
-                kind: Kind::JsonText,
-                extent: None,
-            },
-            input_refs_json: Built {
-                digest: input_refs_json,
-                kind: Kind::JsonText,
-                extent: None,
-            },
-            source_coords_json: Built {
-                digest: source_coords_json,
-                kind: Kind::JsonText,
-                extent: None,
-            },
+            payload_json,
+            input_refs_json,
+            source_coords_json,
             generation,
             cut: cut.to_string(),
+            request: None,
         })
     }
 
-    /// §5.3：`obj3` = `"obj3-"+hex(F(0x20, V))`，`V` 严格六字段。
-    fn object_identity(
+    /// §5.3：泛型身份的 `V({kind,fact_key,payload,input_refs,profile_id,rule_revision})`。
+    fn typed_identity(
         &self,
+        kind: &str,
         fact_key: &str,
         payload: &Built,
         input_refs: &Built,
-    ) -> Result<(String, NodeDigest), ProducerError> {
+    ) -> Result<NodeDigest, ProducerError> {
         let identity = CValue::Object(vec![
-            (
-                "kind".to_string(),
-                CValue::String(CC004_STEP_KIND.to_string()),
-            ),
+            ("kind".to_string(), CValue::String(kind.to_string())),
             ("fact_key".to_string(), CValue::String(fact_key.to_string())),
             ("payload".to_string(), CValue::Edge(payload.digest)),
             ("input_refs".to_string(), CValue::Edge(input_refs.digest)),
@@ -549,10 +796,1129 @@ impl Cc004Producer {
                 CValue::String(self.rule_revision.clone()),
             ),
         ]);
+        Ok(self.identity_summary(&identity)?)
+    }
+
+    /// 只求身份对象的值摘要（不落节点表：身份对象是派生输入，不是要发布的节点）。
+    fn identity_summary(&self, identity: &CValue) -> Result<NodeDigest, ProducerError> {
         let mut derived = DigestOnly;
-        let identity_digest = sc::write_value(&mut derived, &identity)?.digest;
-        let id = sc::frame(OBJECT_ID_TAG, &identity_digest);
-        Ok((format!("obj3-{}", lower_hex(&id)), identity_digest))
+        Ok(sc::write_value(&mut derived, identity)?.digest)
+    }
+
+    /// 一条知识请求值（与全量配方 `request` 逐字段同值）：主体身份 + 四轴 + 原因 + 源坐标。
+    ///
+    /// `source_coords` 传已写出的坐标文本数组值根（同一数组可被多条请求复用）；
+    /// `request_id` 是请求键的**规范 JSON 文本**，由同一规范渲染器给出，不另写一套转义。
+    fn request_value(
+        &self,
+        key: CValue,
+        subject_id: Option<&str>,
+        reasons: &[&str],
+        source_coords: &Built,
+    ) -> Result<CValue, ProducerError> {
+        let request_id = canonical_text(&key)?;
+        let insufficient = reasons.iter().any(|reason| {
+            matches!(
+                *reason,
+                "fewer_than_three_merged_bars"
+                    | "no_subsequent_bar"
+                    | "direction_not_yet_established"
+            )
+        });
+        let axes = CValue::Object(vec![
+            (
+                "input_quality".to_string(),
+                CValue::String(
+                    if insufficient {
+                        "INSUFFICIENT"
+                    } else {
+                        "SUFFICIENT"
+                    }
+                    .to_string(),
+                ),
+            ),
+            (
+                "applicability".to_string(),
+                CValue::String(
+                    if reasons.is_empty() {
+                        "IN_DOMAIN"
+                    } else {
+                        "DOMAIN_PROOF_MISSING"
+                    }
+                    .to_string(),
+                ),
+            ),
+            (
+                "computation".to_string(),
+                CValue::String(
+                    if reasons.is_empty() {
+                        "COMPLETE"
+                    } else {
+                        "INCOMPLETE"
+                    }
+                    .to_string(),
+                ),
+            ),
+            (
+                "validity".to_string(),
+                CValue::String("CURRENT".to_string()),
+            ),
+        ]);
+        Ok(CValue::Object(vec![
+            ("request_id".to_string(), CValue::String(request_id)),
+            (
+                "subject_id".to_string(),
+                match subject_id {
+                    Some(id) => CValue::String(id.to_string()),
+                    None => CValue::Null,
+                },
+            ),
+            ("axes".to_string(), axes),
+            (
+                "reasons".to_string(),
+                CValue::Array(
+                    reasons
+                        .iter()
+                        .map(|reason| CValue::String((*reason).to_string()))
+                        .collect(),
+                ),
+            ),
+            (
+                "source_coords".to_string(),
+                CValue::Edge(source_coords.digest),
+            ),
+        ]))
+    }
+
+    /// 待决请求（主体为空）：键与原因由调用方按全量配方给出，本口不造默认值。
+    ///
+    /// 两类待决形态都用本口：竞争极值窗（键尾 = 三锚坐标数组）与不足三根的
+    /// `pending`（键尾 = 字符串 `"pending"`）。
+    pub(super) fn pending_request(
+        &mut self,
+        store: &mut dyn NodeStore,
+        key: CValue,
+        reasons: &[&'static str],
+        sources: &CoordsRef,
+    ) -> Result<Built, ProducerError> {
+        let coords = self.coords_array(&mut *store, sources)?;
+        let request = self.request_value(key, None, reasons, &coords)?;
+        Ok(sc::write_value(&mut *store, &request)?)
+    }
+
+    /// 构造 CC-054 知识状态对象与观察（供正式 S3 生成态接线）。
+    ///
+    /// - `requests`：本代全部知识请求值边，**按线序**（步骤 → 组 → 待决形态 → 每个形态的
+    ///   CC-006 请求与 CC-007 三条请求 → 不足三根的待决请求）。顺序进载荷内容，本口不重排；
+    /// - `reasons`：本代全部等待原因（未排序、可有重复）——本口按与全量配方**同一条**
+    ///   排序去重后再进载荷与观察；
+    /// - `raw_coords`：本代全部原始坐标的**共享链**（生产入口用 [`raw_prefix_coords`] 借出；
+    ///   观察的 `source_coords` 直接复用本对象的同一条边）；
+    /// - `frontier`：`input_frontier`，规范十进制文本进载荷与观察。
+    pub(super) fn build_knowledge_state(
+        &mut self,
+        store: &mut dyn NodeStore,
+        raw_coords: &CoordsRef,
+        frontier: i64,
+        requests: &[Built],
+        reasons: &[&'static str],
+        generation: i64,
+        cut: &str,
+    ) -> Result<Cc054Assembly, ProducerError> {
+        let mut waiting_reasons: Vec<&'static str> = reasons.to_vec();
+        waiting_reasons.sort_unstable();
+        waiting_reasons.dedup();
+        let reasons_value = || {
+            CValue::Array(
+                waiting_reasons
+                    .iter()
+                    .map(|reason| CValue::String((*reason).to_string()))
+                    .collect(),
+            )
+        };
+        let payload_value = CValue::Object(vec![
+            ("scope".to_string(), CValue::String("TB-02-A".to_string())),
+            (
+                "input_frontier".to_string(),
+                CValue::String(frontier.to_string()),
+            ),
+            (
+                "known_facts".to_string(),
+                CValue::Array(vec![
+                    CValue::String("raw_ohlc".to_string()),
+                    CValue::String("inclusion_trace".to_string()),
+                    CValue::String("group_provenance".to_string()),
+                ]),
+            ),
+            ("waiting_reasons".to_string(), reasons_value()),
+            (
+                "domain".to_string(),
+                CValue::String(
+                    "established_direction_without_extreme_identity_competition".to_string(),
+                ),
+            ),
+            (
+                "requests".to_string(),
+                CValue::Array(
+                    requests
+                        .iter()
+                        .map(|request| CValue::Edge(request.digest))
+                        .collect(),
+                ),
+            ),
+        ]);
+        let fact_key = canonical_json(&json!([CC054_KNOWLEDGE_KIND, "TB-02-A"]));
+        let input_refs = self.source_refs_array(&mut *store, raw_coords)?;
+        let source_coords = self.coords_array(&mut *store, raw_coords)?;
+        let object = self.typed_object(
+            store,
+            CC054_KNOWLEDGE_KIND,
+            fact_key,
+            payload_value,
+            input_refs,
+            source_coords,
+            generation,
+            cut,
+        )?;
+        let mut observations: Vec<Built> = Vec::with_capacity(waiting_reasons.len());
+        for reason in &waiting_reasons {
+            let observation = CValue::Object(vec![
+                (
+                    "kind".to_string(),
+                    CValue::String("awaiting_scope".to_string()),
+                ),
+                ("reason".to_string(), CValue::String((*reason).to_string())),
+                ("window_start".to_string(), CValue::Null),
+                ("window_mid".to_string(), CValue::Null),
+                ("window_end".to_string(), CValue::Null),
+                (
+                    "detail".to_string(),
+                    CValue::Object(vec![
+                        ("tb02a".to_string(), CValue::Bool(true)),
+                        (
+                            "source_coords".to_string(),
+                            CValue::Edge(object.source_coords.digest),
+                        ),
+                        (
+                            "input_frontier".to_string(),
+                            CValue::String(frontier.to_string()),
+                        ),
+                        ("waiting_reasons".to_string(), reasons_value()),
+                    ]),
+                ),
+            ]);
+            observations.push(sc::write_value(&mut *store, &observation)?);
+        }
+        Ok(Cc054Assembly {
+            object,
+            observations,
+        })
+    }
+
+    /// 一代 raw 账本的一次**受控准备**：排序、source 存在与每根 bar 的精确单元内容键
+    /// 全在一次遍历里核完，并把自上次准备以来的源修订水位一次并入全部已保留窗口。
+    ///
+    /// - `Ok(view)`：视图借用 `raw_bars`（Rust 借用保证其存活期内 raw 不被改写）；
+    ///   逐窗口 [`Cc004Producer::build_fractal`] 只做「按 dirty 二分截断 + append」，
+    ///   不逐窗口重扫全 raw、不重算规范文本；
+    /// - `Err(Type)`：`source_index` 非严格递增（与全量入口同一条拒绝，不近似定位）；
+    /// - `Err(MissingSource)`：某根 raw 尚无当前源版本（不拿旧 `Value` 或空数组兜底）。
+    ///
+    /// 视图带 owner/epoch 见证：换 producer、或 prepare 之后 [`Cc004Producer::bind_source`]
+    /// 实际改变任一源版本，旧视图在消费口**显式拒绝**（必须先重新 prepare）；
+    /// 绕过 `bind_source` 的 raw 内容漂移在 prepare 中与上一份账本比较一次，按实际坐标
+    /// 向全部保留窗口传播；成功重新 prepare 也使上一份视图失效。
+    pub(super) fn prepare_raw_history<'a>(
+        &mut self,
+        raw_bars: &'a [Bar],
+    ) -> Result<PreparedRawHistory<'a>, ProducerError> {
+        for pair in raw_bars.windows(2) {
+            if pair[0].source_index >= pair[1].source_index {
+                return Err(ProducerError::Type {
+                    what: "原始账顺序",
+                    detail: format!(
+                        "source_index 必须严格递增：{} 与 {}",
+                        pair[0].source_index, pair[1].source_index
+                    ),
+                });
+            }
+        }
+        let mut keys = Vec::with_capacity(raw_bars.len());
+        let mut changed_floor = self.unprepared_floor;
+        let mut first_difference = None;
+        for (index, bar) in raw_bars.iter().enumerate() {
+            let coord = i64::try_from(bar.source_index).map_err(|_| {
+                ProducerError::Overflow(format!("源坐标 {} 超出 i64", bar.source_index))
+            })?;
+            let (revision, input_revision) = match self.sources.get(&coord) {
+                Some((spec, _)) => (spec.revision, spec.input_revision.as_str()),
+                None => return Err(ProducerError::MissingSource(coord)),
+            };
+            let key = fractal_unit_key(coord, revision, input_revision, bar)?;
+            if first_difference.is_none() {
+                match self.prepared_raw_keys.get(index) {
+                    Some((old_coord, old_key))
+                        if *old_coord == bar.source_index && old_key == &key => {}
+                    previous => {
+                        // 插入/替换同时取旧新坐标较小值，坐标稀疏时也不漏失效窗口。
+                        first_difference =
+                            Some(previous.map_or(coord, |(old, _)| coord.min(*old as i64)));
+                    }
+                }
+            }
+            keys.push((bar.source_index, key));
+        }
+        if first_difference.is_none() && self.prepared_raw_keys.len() > raw_bars.len() {
+            first_difference = Some(self.prepared_raw_keys[raw_bars.len()].0 as i64);
+        }
+        if let Some(changed) = first_difference {
+            changed_floor = Some(changed_floor.map_or(changed, |floor| floor.min(changed)));
+        }
+        // 完整检查成功之后才修改准备态；失败不会消耗旧水位或伪造新见证。
+        if let Some(floor) = changed_floor {
+            for history in self.fractal_histories.values_mut() {
+                history.floor = Some(history.floor.map_or(floor, |old| old.min(floor)));
+            }
+        }
+        self.prepared_raw_keys = keys;
+        self.unprepared_floor = None;
+        self.prepared_snapshot = Rc::new(());
+        Ok(PreparedRawHistory {
+            owner: Rc::clone(&self.raw_token),
+            epoch: self.source_epoch,
+            snapshot: Rc::clone(&self.prepared_snapshot),
+            raw: raw_bars,
+        })
+    }
+
+    /// 逐窗口便利口（测试/单窗调用）：内部 prepare 后立即构造。
+    ///
+    /// 正式生成入口应「一代一次 [`Cc004Producer::prepare_raw_history`] + 逐窗口
+    /// [`Cc004Producer::build_fractal`]」，否则每个窗口都要重扫一遍全 raw。
+    pub(super) fn build_fractal_raw(
+        &mut self,
+        store: &mut dyn NodeStore,
+        raw_bars: &[Bar],
+        shape: &Cc006Object,
+        views: [&GroupEvidenceView<'_>; 3],
+        generation: i64,
+        cut: &str,
+    ) -> Result<Option<Cc007Object>, ProducerError> {
+        let prepared = self.prepare_raw_history(raw_bars)?;
+        self.build_fractal(store, &prepared, shape, views, generation, cut)
+    }
+
+    /// 构造 CC-007 分型描述对象（三条知识请求一并给出）。
+    ///
+    /// - `prepared`：本代 raw 账本的准备态（见 [`Cc004Producer::prepare_raw_history`]）；
+    ///   后续历史 = 全部坐标 > 右组末成员的原始 bar（与全量配方 `raw.range(Excluded(end),..)`
+    ///   同一条），未分组的 pending raw 也算在内；
+    /// - 后续历史按参考集指纹 + 源坐标 + **精确内容键**（revision/四价）续接：新 bar 只
+    ///   `sequence_append`，源修订/raw 漂移按实际坐标 `sequence_split` 截断重建；
+    /// - `Ok(None)`：四分支不是 `TOP`/`BOTTOM`（旧路径对这些分支不产 CC-007 对象）。
+    pub(super) fn build_fractal(
+        &mut self,
+        store: &mut dyn NodeStore,
+        prepared: &PreparedRawHistory<'_>,
+        shape: &Cc006Object,
+        views: [&GroupEvidenceView<'_>; 3],
+        generation: i64,
+        cut: &str,
+    ) -> Result<Option<Cc007Object>, ProducerError> {
+        if !Rc::ptr_eq(&prepared.owner, &self.raw_token) {
+            return Err(ProducerError::Type {
+                what: "raw 账本准备态",
+                detail: "owner 不符：该视图不属于本 producer".to_string(),
+            });
+        }
+        if prepared.epoch != self.source_epoch {
+            return Err(ProducerError::Type {
+                what: "raw 账本准备态",
+                detail: format!(
+                    "source 修订已推进（prepare epoch {} ≠ 当前 {}）：陈旧视图必须重新 prepare",
+                    prepared.epoch, self.source_epoch
+                ),
+            });
+        }
+        if !Rc::ptr_eq(&prepared.snapshot, &self.prepared_snapshot) {
+            return Err(ProducerError::Type {
+                what: "raw 账本准备态",
+                detail: "raw 账本已重新准备：旧视图必须重取".to_string(),
+            });
+        }
+        let raw_bars = prepared.raw;
+        if !matches!(shape.branch, "TOP" | "BOTTOM") {
+            return Ok(None);
+        }
+        let [left, mid, right] = views;
+        let end = right.members.last().copied().ok_or(ProducerError::Type {
+            what: "CC-007 右组",
+            detail: "组成员为空：不接受无来源的分型窗口".to_string(),
+        })?;
+        // 严格递增序与 source 存在已由 `prepare_raw_history` 一次核完（不在此逐窗口重扫）。
+        // 六个参考价（三组 × 高/低；名字/轴与全量配方逐字相同）。
+        let mut references: Vec<CValue> = Vec::with_capacity(6);
+        let mut reference_meta: Vec<(String, i64)> = Vec::with_capacity(6);
+        for (label, view) in [("left", left), ("mid", mid), ("right", right)] {
+            for (axis, price) in [("high", view.bar.high), ("low", view.bar.low)] {
+                let name = format!("{label}.{axis}");
+                references.push(CValue::Object(vec![
+                    ("name".to_string(), CValue::String(name.clone())),
+                    (
+                        "source_coord".to_string(),
+                        CValue::String(view.bar.source_index.to_string()),
+                    ),
+                    ("axis".to_string(), CValue::String(axis.to_string())),
+                    ("value".to_string(), CValue::String(price.to_string())),
+                ]));
+                reference_meta.push((name, price));
+            }
+        }
+        let references_value = CValue::Array(references);
+        let refs_key = canonical_text(&references_value)?;
+        // 后续历史：坐标 > 右组末成员的全部原始 bar（升序表上做分区定位）。
+        let tail_start = raw_bars.partition_point(|bar| bar.source_index <= end);
+        let tail_len = raw_bars.len() - tail_start;
+        // 右组可能已被下一组封口：`conf.coords` 的末项就是下一组锚 = tail 首坐标（tail 的
+        // 其余坐标都严格更大）⟹ 并集增量跳掉这一项，等价原配方 `sources` 的排序去重；
+        // 不能拿「取最大链」替代，也不能把重复坐标发进源引用/坐标数组。
+        let tail_first = raw_bars.get(tail_start).map(|bar| bar.source_index);
+        let union_skip_first = tail_first.is_some() && shape.sources.max() == tail_first;
+        // prepare 已把实际 source/raw 变化一次传播到每个窗口；这里仅按坐标二分截断。
+        let cached = self.fractal_histories.remove(&(refs_key.clone(), end));
+        let (mut sequence, mut covered, mut union_tail) = match cached {
+            Some(history) if history.tail_start == tail_start && history.count <= tail_len => {
+                let count = history.count;
+                let keep = history.floor.map_or(count, |floor| {
+                    raw_bars[tail_start..tail_start + count].partition_point(|bar| {
+                        // prepare 已核每个实际坐标可表达为 i64，借用期内 raw 不变。
+                        (bar.source_index as i64) < floor
+                    })
+                });
+                let mut sequence = history.sequence;
+                let mut union_tail = history.union_tail;
+                if keep < count {
+                    (sequence, _) = sc::sequence_split(&mut *store, &sequence, keep as u64)?;
+                    self.history_invalidated += count - keep;
+                    // 只在实际修订时重建保留的坐标尾；普通追加保留共享链。
+                    let mut kept: Vec<usize> = raw_bars[tail_start..tail_start + keep]
+                        .iter()
+                        .map(|bar| bar.source_index)
+                        .collect();
+                    if union_skip_first && !kept.is_empty() {
+                        kept.remove(0);
+                    }
+                    union_tail = coords_ref_from_slice(&kept);
+                }
+                self.history_reused += keep;
+                (sequence, keep, union_tail)
+            }
+            Some(history) => {
+                self.history_invalidated += history.count;
+                (SequenceRef::empty(), 0, CoordsRef::empty())
+            }
+            None => (SequenceRef::empty(), 0, CoordsRef::empty()),
+        };
+        let appended_from = covered;
+        for (offset, bar) in raw_bars[tail_start + appended_from..].iter().enumerate() {
+            let relations = fractal_relations(bar, &reference_meta);
+            let relations = sc::write_value(&mut *store, &CValue::Array(relations))?;
+            let unit = CValue::Object(vec![
+                ("bar".to_string(), bar_value(bar)),
+                ("relations".to_string(), CValue::Edge(relations.digest)),
+            ]);
+            let leaf = sc::write_value(&mut *store, &unit)?.digest;
+            sequence = sc::sequence_append(&mut *store, &sequence, &leaf)?;
+            let coord_index = tail_start + appended_from + offset;
+            if !(union_skip_first && coord_index == tail_start) {
+                union_tail = union_tail.append_greater(bar.source_index);
+            }
+            covered += 1;
+        }
+        self.history_computed += covered - appended_from;
+        let units_count = u64::try_from(covered)
+            .map_err(|_| ProducerError::Overflow(format!("后续单元数 {covered} 超出 u64")))?;
+        let units_array = Built {
+            digest: put_array_node(&mut *store, units_count, &sequence.root())?,
+            kind: Kind::Array,
+            extent: Some(units_count),
+        };
+        let no_future = covered == 0;
+        self.fractal_histories.insert(
+            (refs_key, end),
+            FractalHistory {
+                end,
+                tail_start,
+                count: covered,
+                floor: None,
+                union_tail: union_tail.clone(),
+                sequence,
+            },
+        );
+        // 本对象的来源 = CC-006 窗来源链 ++ 后续 tail 的**去重增量**（首项若已由封口链
+        // 覆盖即跳过；两段严格升序且不交叠）。
+        let all_sources = CoordsRef::concat(&shape.sources, &union_tail);
+        // `descriptive_labels.raw_ohlc`：三组全部成员的原始 bar（按 左→中→右、组内升序）。
+        let mut label_sources: Vec<usize> = Vec::new();
+        let mut raw_ohlc: Vec<CValue> = Vec::new();
+        for view in [left, mid, right] {
+            for coord in view.members {
+                let bar = raw_bar_at(raw_bars, *coord)?;
+                label_sources.push(*coord);
+                raw_ohlc.push(bar_value(bar));
+            }
+        }
+        let raw_ohlc = sc::write_value(&mut *store, &CValue::Array(raw_ohlc))?;
+        let branch = shape.branch;
+        let payload_value = CValue::Object(vec![
+            (
+                "shape_object_id".to_string(),
+                CValue::String(shape.object_id.clone()),
+            ),
+            ("branch".to_string(), CValue::String(branch.to_string())),
+            (
+                "window".to_string(),
+                CValue::Array(
+                    shape
+                        .window
+                        .iter()
+                        .map(|coord| CValue::String(coord.to_string()))
+                        .collect(),
+                ),
+            ),
+            (
+                "description".to_string(),
+                CValue::String(
+                    if branch == "TOP" {
+                        "中组高点和低点均严格高于相邻两组"
+                    } else {
+                        "中组高点和低点均严格低于相邻两组"
+                    }
+                    .to_string(),
+                ),
+            ),
+            ("reference_prices".to_string(), references_value),
+            (
+                "descriptive_labels".to_string(),
+                CValue::Object(vec![
+                    (
+                        "status".to_string(),
+                        CValue::String("not_determined".to_string()),
+                    ),
+                    (
+                        "reason".to_string(),
+                        CValue::String("no_settled_numeric_rule".to_string()),
+                    ),
+                    ("labels".to_string(), CValue::Array(Vec::new())),
+                    (
+                        "source".to_string(),
+                        CValue::String("fenxing.md:64-74".to_string()),
+                    ),
+                    ("raw_ohlc".to_string(), CValue::Edge(raw_ohlc.digest)),
+                ]),
+            ),
+            (
+                "subsequent_development".to_string(),
+                CValue::Object(vec![
+                    (
+                        "status".to_string(),
+                        CValue::String(
+                            if no_future {
+                                "insufficient_knowledge"
+                            } else {
+                                "observed"
+                            }
+                            .to_string(),
+                        ),
+                    ),
+                    (
+                        "reason".to_string(),
+                        if no_future {
+                            CValue::String("no_subsequent_bar".to_string())
+                        } else {
+                            CValue::Null
+                        },
+                    ),
+                    ("bars".to_string(), CValue::Edge(units_array.digest)),
+                ]),
+            ),
+        ]);
+        let window_text: Vec<String> = shape.window.iter().map(ToString::to_string).collect();
+        let fact_key = canonical_json(&json!([CC007_FRACTAL_KIND, window_text.clone()]));
+        let input_refs = self.source_refs_array(&mut *store, &all_sources)?;
+        let source_coords = self.coords_array(&mut *store, &all_sources)?;
+        let object = self.typed_object(
+            store,
+            CC007_FRACTAL_KIND,
+            fact_key,
+            payload_value,
+            input_refs,
+            source_coords,
+            generation,
+            cut,
+        )?;
+        let request_reasons: Vec<&'static str> = if no_future {
+            vec!["no_subsequent_bar"]
+        } else {
+            Vec::new()
+        };
+        let slot_key = || {
+            CValue::Array(vec![
+                CValue::String(CC007_FRACTAL_KIND.to_string()),
+                CValue::Array(
+                    window_text
+                        .iter()
+                        .map(|coord| CValue::String(coord.clone()))
+                        .collect(),
+                ),
+            ])
+        };
+        let mut requests: Vec<Built> = Vec::with_capacity(3);
+        let label_coords = coords_ref_from_slice(&label_sources);
+        for (label, reasons, sources) in [
+            ("shape_description", Vec::new(), shape.sources.clone()),
+            (
+                "descriptive_labels",
+                vec!["no_settled_numeric_rule"],
+                label_coords,
+            ),
+            (
+                "subsequent_development",
+                request_reasons.clone(),
+                all_sources.clone(),
+            ),
+        ] {
+            let key = CValue::Array(vec![slot_key(), CValue::String(label.to_string())]);
+            let coords = self.coords_array(&mut *store, &sources)?;
+            let request = self.request_value(key, Some(&object.object_id), &reasons, &coords)?;
+            requests.push(sc::write_value(&mut *store, &request)?);
+        }
+        let mut knowledge_reasons = request_reasons.clone();
+        knowledge_reasons.push("no_settled_numeric_rule");
+        Ok(Some(Cc007Object {
+            object_id: object.object_id.clone(),
+            identity: object.identity,
+            fact_key: object.fact_key.clone(),
+            record: object.record.clone(),
+            payload: object.payload.clone(),
+            input_refs: object.input_refs.clone(),
+            source_coords: object.source_coords.clone(),
+            payload_json: object.payload_json.clone(),
+            input_refs_json: object.input_refs_json.clone(),
+            source_coords_json: object.source_coords_json.clone(),
+            requests,
+            request_reasons,
+            knowledge_reasons,
+            generation,
+            cut: cut.to_string(),
+        }))
+    }
+
+    /// 从同次 parser 的共享态借出三组窗口并构造 CC-006 形态对象。
+    ///
+    /// - `Ok(None)`：`start + 2` 越界（没有该窗口），或窗口内任一组的同角色极值身份仍有竞争
+    ///   （旧生成路径同样不给依赖该组的分型选根，只留待决请求）；
+    /// - `Err(Degraded)`：共享态退化，**先于索引判定**；
+    /// - `Err(WindowNotClassified)`：窗口不在 CC-006 可判域内（不造第五分型、不回落旧 Value）。
+    pub(super) fn build_shape(
+        &mut self,
+        store: &mut dyn NodeStore,
+        state: &IncrFactsState,
+        start: usize,
+        generation: i64,
+        cut: &str,
+    ) -> Result<Option<Cc006Object>, ProducerError> {
+        let left = state
+            .shared_group(start)
+            .map_err(|error| ProducerError::Degraded(error.reason))?;
+        let mid = state
+            .shared_group(start + 1)
+            .map_err(|error| ProducerError::Degraded(error.reason))?;
+        let right = state
+            .shared_group(start + 2)
+            .map_err(|error| ProducerError::Degraded(error.reason))?;
+        let (Some(left), Some(mid), Some(right)) = (left, mid, right) else {
+            return Ok(None);
+        };
+        let views = [left, mid, right];
+        if shape_window_has_competing_extremes(&views) {
+            return Ok(None);
+        }
+        self.build_shape_object(
+            store,
+            [start, start + 1, start + 2],
+            [&views[0], &views[1], &views[2]],
+            generation,
+            cut,
+        )
+        .map(Some)
+    }
+
+    /// 从三组借用视图构造 CC-006 形态对象（`build_shape` 的视图面）。
+    ///
+    /// 四分支与四个严格比较**直接调用** [`classify_local_shape`]（同一判据，不另写一套）；
+    /// 三组窗口分类的前提与旧生成路径逐条相同（组 bar 即 merged K、组下标即 merged 下标）。
+    pub(super) fn build_shape_object(
+        &mut self,
+        store: &mut dyn NodeStore,
+        indices: [usize; 3],
+        views: [&GroupEvidenceView<'_>; 3],
+        generation: i64,
+        cut: &str,
+    ) -> Result<Cc006Object, ProducerError> {
+        let [left, mid, right] = views;
+        let window = [
+            left.bar.source_index,
+            mid.bar.source_index,
+            right.bar.source_index,
+        ];
+        let classified = classify_local_shape(&left.bar, &mid.bar, &right.bar);
+        let Cc006LocalShape::Classified {
+            branch,
+            dir_ab,
+            dir_bc,
+            comparisons,
+        } = classified
+        else {
+            let reason = match classified {
+                Cc006LocalShape::DomainNotSatisfied { reason } => reason.as_str(),
+                Cc006LocalShape::InsufficientKnowledge => "insufficient_knowledge",
+                Cc006LocalShape::Classified { .. } => unreachable!("刚判过非 Classified"),
+            };
+            return Err(ProducerError::WindowNotClassified(reason));
+        };
+        let comparisons_value = CValue::Array(
+            comparisons
+                .iter()
+                .map(|comparison| {
+                    CValue::Object(vec![
+                        (
+                            "axis".to_string(),
+                            CValue::String(comparison.axis.as_str().to_string()),
+                        ),
+                        (
+                            "pair".to_string(),
+                            CValue::String(comparison.pair.as_str().to_string()),
+                        ),
+                        (
+                            "prev".to_string(),
+                            CValue::String(comparison.prev.to_string()),
+                        ),
+                        (
+                            "cur".to_string(),
+                            CValue::String(comparison.cur.to_string()),
+                        ),
+                        ("strict_up".to_string(), CValue::Bool(comparison.strict_up)),
+                        ("held".to_string(), CValue::Bool(comparison.held)),
+                    ])
+                })
+                .collect(),
+        );
+        let comparisons = sc::write_value(&mut *store, &comparisons_value)?;
+        let mut groups: Vec<CValue> = Vec::with_capacity(3);
+        // 三组来源并集 = 右组来源链（归纳嵌套前缀性；逐前缀对拍见测试）。
+        let sources = group_sources_coords(right);
+        for (offset, view) in [left, mid, right].iter().enumerate() {
+            let raw_refs = self.source_refs_array(&mut *store, &group_members_coords(view))?;
+            let dependency_refs = self.group_dependency_array(&mut *store, view)?;
+            groups.push(CValue::Object(vec![
+                (
+                    "merged_index".to_string(),
+                    number(i64::try_from(indices[offset]).map_err(|_| {
+                        ProducerError::Overflow(format!("组下标 {} 超出 i64", indices[offset]))
+                    })?)?,
+                ),
+                ("raw_refs".to_string(), CValue::Edge(raw_refs.digest)),
+                (
+                    "dependency_refs".to_string(),
+                    CValue::Edge(dependency_refs.digest),
+                ),
+            ]));
+        }
+        let input_refs = sc::write_value(&mut *store, &CValue::Array(groups))?;
+        let input_refs_json = Built {
+            digest: put_json_text_node(&mut *store, &input_refs.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let source_coords = self.coords_array(&mut *store, &sources)?;
+        let source_coords_json = Built {
+            digest: put_json_text_node(&mut *store, &source_coords.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let window_text = [
+            window[0].to_string(),
+            window[1].to_string(),
+            window[2].to_string(),
+        ];
+        let identity = CValue::Object(vec![
+            (
+                "branch".to_string(),
+                CValue::String(branch.as_str().to_string()),
+            ),
+            (
+                "dir_ab".to_string(),
+                CValue::String(dir_str(dir_ab).to_string()),
+            ),
+            (
+                "dir_bc".to_string(),
+                CValue::String(dir_str(dir_bc).to_string()),
+            ),
+            (
+                "window_start".to_string(),
+                CValue::String(window_text[0].clone()),
+            ),
+            (
+                "window_mid".to_string(),
+                CValue::String(window_text[1].clone()),
+            ),
+            (
+                "window_end".to_string(),
+                CValue::String(window_text[2].clone()),
+            ),
+            (
+                "merged_highs".to_string(),
+                CValue::Array(
+                    [left.bar.high, mid.bar.high, right.bar.high]
+                        .iter()
+                        .map(|price| CValue::String(price.to_string()))
+                        .collect(),
+                ),
+            ),
+            (
+                "merged_lows".to_string(),
+                CValue::Array(
+                    [left.bar.low, mid.bar.low, right.bar.low]
+                        .iter()
+                        .map(|price| CValue::String(price.to_string()))
+                        .collect(),
+                ),
+            ),
+            ("comparisons".to_string(), CValue::Edge(comparisons.digest)),
+            ("input_refs".to_string(), CValue::Edge(input_refs.digest)),
+            (
+                "rule_revision".to_string(),
+                CValue::String(self.rule_revision.clone()),
+            ),
+            (
+                "profile_id".to_string(),
+                CValue::String(self.profile_id.clone()),
+            ),
+        ]);
+        let identity = self.identity_summary(&identity)?;
+        let object_id = format!("obj3-{}", lower_hex(&sc::frame(OBJECT_ID_TAG, &identity)));
+        let record_value = CValue::Object(vec![
+            ("object_id".to_string(), CValue::String(object_id.clone())),
+            ("object_revision".to_string(), number(OBJECT_REVISION)?),
+            (
+                "kind".to_string(),
+                CValue::String(CC006_SHAPE_KIND.to_string()),
+            ),
+            (
+                "branch".to_string(),
+                CValue::String(branch.as_str().to_string()),
+            ),
+            (
+                "window_start".to_string(),
+                number(i64::try_from(window[0]).map_err(|_| {
+                    ProducerError::Overflow(format!("源坐标 {} 超出 i64", window[0]))
+                })?)?,
+            ),
+            (
+                "window_mid".to_string(),
+                number(i64::try_from(window[1]).map_err(|_| {
+                    ProducerError::Overflow(format!("源坐标 {} 超出 i64", window[1]))
+                })?)?,
+            ),
+            (
+                "window_end".to_string(),
+                number(i64::try_from(window[2]).map_err(|_| {
+                    ProducerError::Overflow(format!("源坐标 {} 超出 i64", window[2]))
+                })?)?,
+            ),
+            (
+                "dir_ab".to_string(),
+                CValue::String(dir_str(dir_ab).to_string()),
+            ),
+            (
+                "dir_bc".to_string(),
+                CValue::String(dir_str(dir_bc).to_string()),
+            ),
+            ("comparisons".to_string(), CValue::Edge(comparisons.digest)),
+            ("input_refs".to_string(), CValue::Edge(input_refs.digest)),
+            (
+                "source_coords".to_string(),
+                CValue::Edge(source_coords.digest),
+            ),
+            (
+                "input_refs_json".to_string(),
+                CValue::Edge(input_refs_json.digest),
+            ),
+            (
+                "source_coords_json".to_string(),
+                CValue::Edge(source_coords_json.digest),
+            ),
+            ("first_known_generation".to_string(), number(generation)?),
+            (
+                "first_known_cut".to_string(),
+                CValue::String(cut.to_string()),
+            ),
+            ("published_generation".to_string(), number(generation)?),
+        ]);
+        let record = sc::write_value(&mut *store, &record_value)?;
+        let key = CValue::Array(vec![
+            CValue::String(CC006_SHAPE_KIND.to_string()),
+            CValue::Array(
+                window
+                    .iter()
+                    .map(|coord| CValue::String(coord.to_string()))
+                    .collect(),
+            ),
+        ]);
+        let request = self.request_value(key, Some(&object_id), &[], &source_coords)?;
+        let request = sc::write_value(&mut *store, &request)?;
+        Ok(Cc006Object {
+            object_id,
+            identity,
+            record,
+            comparisons,
+            input_refs,
+            source_coords,
+            input_refs_json,
+            source_coords_json,
+            sources,
+            window,
+            request,
+            branch: branch.as_str(),
+            generation,
+            cut: cut.to_string(),
+        })
+    }
+
+    /// 证据对象（方向/封口共用同一形状）：与全量配方 `direction` 逐字段同值，
+    /// `source_coords` 只以共享 `CoordsRef` 成边，不展开成 `InclusionDirectionEvidence`。
+    fn evidence_value(
+        &mut self,
+        store: &mut dyn NodeStore,
+        node: &Rc<EvidenceNode>,
+    ) -> Result<CValue, ProducerError> {
+        let coords = self.coords_array(&mut *store, &node.coords)?;
+        Ok(CValue::Object(vec![
+            (
+                "direction".to_string(),
+                CValue::String(dir_str(node.direction).to_string()),
+            ),
+            (
+                "established_at".to_string(),
+                CValue::String(node.incoming.source_index.to_string()),
+            ),
+            ("previous_acc".to_string(), bar_value(&node.previous_acc)),
+            ("incoming".to_string(), bar_value(&node.incoming)),
+            ("source_coords".to_string(), CValue::Edge(coords.digest)),
+        ]))
+    }
+
+    /// 从同次 parser 的共享态借出单组证据并构造 CC-005 组对象。
+    ///
+    /// 契约与 [`Cc004Producer::build_step`] 一致：`Ok(None)` = 该索引没有组；
+    /// `Err(Degraded)` = 共享态退化，**先于索引判定**。
+    pub(super) fn build_group(
+        &mut self,
+        store: &mut dyn NodeStore,
+        state: &IncrFactsState,
+        index: usize,
+        generation: i64,
+        cut: &str,
+    ) -> Result<Option<TypedObject>, ProducerError> {
+        let view = state
+            .shared_group(index)
+            .map_err(|error| ProducerError::Degraded(error.reason))?;
+        match view {
+            Some(view) => self
+                .build_group_object(store, index, &view, generation, cut)
+                .map(Some),
+            None => Ok(None),
+        }
+    }
+
+    /// 从借用视图构造 CC-005 组对象（`build_group` 的视图面）。
+    pub(super) fn build_group_object(
+        &mut self,
+        store: &mut dyn NodeStore,
+        index: usize,
+        view: &GroupEvidenceView<'_>,
+        generation: i64,
+        cut: &str,
+    ) -> Result<TypedObject, ProducerError> {
+        let anchor = view.bar.source_index;
+        let reasons = group_reasons(view);
+        // 来源集合与全量配方 `group_sources` 同值：共享链拼接，不展开证据前缀。
+        let sources = group_sources_coords(view);
+        let fact_key = canonical_json(&json!([CC005_GROUP_KIND, anchor.to_string()]));
+        let payload_value = self.group_payload_value(store, index, view, &reasons)?;
+        let input_refs = self.source_refs_array(&mut *store, &sources)?;
+        let source_coords = self.coords_array(&mut *store, &sources)?;
+        let mut object = self.typed_object(
+            store,
+            CC005_GROUP_KIND,
+            fact_key,
+            payload_value,
+            input_refs,
+            source_coords,
+            generation,
+            cut,
+        )?;
+        let key = CValue::Array(vec![
+            CValue::String(CC005_GROUP_KIND.to_string()),
+            CValue::String(anchor.to_string()),
+        ]);
+        let request = self.request_value(
+            key,
+            Some(&object.object_id),
+            &reasons,
+            &object.source_coords,
+        )?;
+        object.request = Some(sc::write_value(&mut *store, &request)?);
+        Ok(object)
+    }
+
+    /// CC-005 载荷：字段与全量配方 `group_payload` 逐字段同型（集合只以值边接入）。
+    /// 单元素源引用数组（0x05）。
+    fn source_refs_single(
+        &self,
+        store: &mut dyn NodeStore,
+        coord: i64,
+    ) -> Result<Built, ProducerError> {
+        let leaf = self
+            .sources
+            .get(&coord)
+            .map(|(_, root)| *root)
+            .ok_or(ProducerError::MissingSource(coord))?;
+        let seq = single_leaf_sequence(&mut *store, &leaf)?;
+        let root = put_array_node(&mut *store, 1, &seq.root())?;
+        Ok(Built {
+            digest: root,
+            kind: Kind::Array,
+            extent: Some(1),
+        })
+    }
+
+    /// CC-006 的 `dependency_refs`：`(dir ∪ conf) \ members` 的源引用数组（续接构造）。
+    ///
+    /// 与全量配方 `dependency_coords`（dir ∪ conf 去掉 members 后排序去重）同值。依据同一
+    /// 归纳：`conf \ members = (dir \ {锚}) ∪ {conf.incoming}`——dir 的末元素就是本组锚，
+    /// conf.incoming 是关闭边界（严格大于全部成员，且不在 dir 里）。故本口只做
+    /// `sequence_split(count-1)` 取 dir 左段，必要时 `sequence_append` 单叶，不重写整段。
+    ///
+    /// 有效域与非退化域同 [`group_sources_coords`]；逐前缀等价性由
+    /// `derived_coords_match_materialized_union_for_every_prefix` 对拍锁定。
+    fn group_dependency_array(
+        &mut self,
+        store: &mut dyn NodeStore,
+        view: &GroupEvidenceView<'_>,
+    ) -> Result<Built, ProducerError> {
+        let boundary = match view.confirmation_evidence {
+            Some(node) => Some(i64::try_from(node.incoming.source_index).map_err(|_| {
+                ProducerError::Overflow(format!("源坐标 {} 超出 i64", node.incoming.source_index))
+            })?),
+            None => None,
+        };
+        let Some(dir) = view.direction_evidence else {
+            return match boundary {
+                Some(coord) => self.source_refs_single(&mut *store, coord),
+                None => empty_array(store),
+            };
+        };
+        let entry = array_from_node(
+            &mut *store,
+            dir.coords.root_node().expect("方向证据链非空"),
+            &mut self.ref_arrays,
+            &mut Leaves::SourceRef(&self.sources),
+        )?;
+        let keep = entry.len.saturating_sub(1);
+        let (left, _tail) = sc::sequence_split(&mut *store, &entry.seq, keep)?;
+        let (seq, len) = match boundary {
+            Some(coord) => {
+                let leaf = self
+                    .sources
+                    .get(&coord)
+                    .map(|(_, root)| *root)
+                    .ok_or(ProducerError::MissingSource(coord))?;
+                (sc::sequence_append(&mut *store, &left, &leaf)?, keep + 1)
+            }
+            None => (left, keep),
+        };
+        let root = put_array_node(&mut *store, len, &seq.root())?;
+        Ok(Built {
+            digest: root,
+            kind: Kind::Array,
+            extent: Some(len),
+        })
+    }
+
+    /// CC-005 载荷：字段与全量配方 `group_payload` 逐字段同型（集合只以值边接入）。
+    fn group_payload_value(
+        &mut self,
+        store: &mut dyn NodeStore,
+        index: usize,
+        view: &GroupEvidenceView<'_>,
+        reasons: &[&'static str],
+    ) -> Result<CValue, ProducerError> {
+        let members = self.coords_array(&mut *store, &group_members_coords(view))?;
+        let high_sources = self.coord_texts_slice(&mut *store, view.high_sources)?;
+        let low_sources = self.coord_texts_slice(&mut *store, view.low_sources)?;
+        let direction_evidence = match view.direction_evidence {
+            Some(node) => self.evidence_value(&mut *store, node)?,
+            None => CValue::Null,
+        };
+        let confirmation_evidence = match view.confirmation_evidence {
+            Some(node) => self.evidence_value(&mut *store, node)?,
+            None => CValue::Null,
+        };
+        let direction = match view.direction_evidence {
+            Some(node) => CValue::String(dir_str(node.direction).to_string()),
+            None => CValue::Null,
+        };
+        Ok(CValue::Object(vec![
+            ("group_index".to_string(), CValue::String(index.to_string())),
+            (
+                "group_anchor".to_string(),
+                CValue::String(view.bar.source_index.to_string()),
+            ),
+            ("members".to_string(), CValue::Edge(members.digest)),
+            (
+                "open".to_string(),
+                CValue::String(view.bar.open.to_string()),
+            ),
+            (
+                "high".to_string(),
+                CValue::String(view.bar.high.to_string()),
+            ),
+            ("low".to_string(), CValue::String(view.bar.low.to_string())),
+            (
+                "close".to_string(),
+                CValue::String(view.bar.close.to_string()),
+            ),
+            (
+                "high_sources".to_string(),
+                CValue::Edge(high_sources.digest),
+            ),
+            ("low_sources".to_string(), CValue::Edge(low_sources.digest)),
+            ("confirmed".to_string(), CValue::Bool(view.confirmed)),
+            ("confirmation_evidence".to_string(), confirmation_evidence),
+            ("direction".to_string(), direction),
+            ("direction_evidence".to_string(), direction_evidence),
+            (
+                "waiting_reasons".to_string(),
+                CValue::Array(
+                    reasons
+                        .iter()
+                        .map(|reason| CValue::String((*reason).to_string()))
+                        .collect(),
+                ),
+            ),
+        ]))
     }
 
     /// CC-004 载荷：全部字段都是固定小对象 + 值边（坐标集合只以边接入）。
@@ -571,29 +1937,11 @@ impl Cc004Producer {
             None => CValue::Null,
         };
         let direction_evidence = match view.evidence {
-            Some(evidence) => {
-                let coords = self.coords_array(&mut *store, &evidence.coords)?;
-                CValue::Object(vec![
-                    (
-                        "direction".to_string(),
-                        CValue::String(dir_str(evidence.direction).to_string()),
-                    ),
-                    (
-                        "established_at".to_string(),
-                        CValue::String(evidence.incoming.source_index.to_string()),
-                    ),
-                    (
-                        "previous_acc".to_string(),
-                        bar_value(&evidence.previous_acc),
-                    ),
-                    ("incoming".to_string(), bar_value(&evidence.incoming)),
-                    ("source_coords".to_string(), CValue::Edge(coords.digest)),
-                ])
-            }
+            Some(evidence) => self.evidence_value(&mut *store, evidence)?,
             None => CValue::Null,
         };
-        let high_sources = self.slice_array(&mut *store, view.high)?;
-        let low_sources = self.slice_array(&mut *store, view.low)?;
+        let high_sources = self.coord_texts_slice(&mut *store, view.high)?;
+        let low_sources = self.coord_texts_slice(&mut *store, view.low)?;
         Ok(CValue::Object(vec![
             (
                 "action".to_string(),
@@ -639,8 +1987,8 @@ impl Cc004Producer {
         ]))
     }
 
-    /// slice 形态的坐标数组（当前值，不物化坐标集合、不做地址 memo）。
-    fn slice_array(
+    /// slice 形态的坐标文本数组（当前值，不物化坐标集合、不做地址 memo）。
+    fn coord_texts_slice(
         &mut self,
         store: &mut dyn NodeStore,
         coords: &[usize],
@@ -651,15 +1999,7 @@ impl Cc004Producer {
                 .map_err(|_| ProducerError::Overflow(format!("源坐标 {coord} 超出 i64 表达")))?;
             leaves.push(coord_text_root(&mut *store, &mut self.coord_text, value)?);
         }
-        let count = u64::try_from(coords.len())
-            .map_err(|_| ProducerError::Overflow(format!("坐标数 {} 超出 u64", coords.len())))?;
-        let seq_root = sc::write_sequence(&mut *store, &leaves)?;
-        let root = put_array_node(&mut *store, count, &seq_root)?;
-        Ok(Built {
-            digest: root,
-            kind: Kind::Array,
-            extent: Some(count),
-        })
+        array_of_leaves(&mut *store, leaves)
     }
 
     /// 清空三张 memo（纯缓存：清空后重建的根逐字节相同）。
@@ -671,6 +2011,7 @@ impl Cc004Producer {
         self.coord_text.clear();
         self.text_arrays.clear();
         self.ref_arrays.clear();
+        self.fractal_histories.clear();
     }
 
     /// 整份运行态丢弃/重建口：清空源版本注册表与全部 memo，保留冻结的
@@ -684,6 +2025,11 @@ impl Cc004Producer {
     /// **不得**在普通 append 上调用：追加只登记新的最大坐标，旧 prefix 的内容与 memo 全部有效。
     pub(super) fn discard_runtime_state(&mut self) {
         self.sources.clear();
+        // 视图见证同步作废：旧的 `PreparedRawHistory` 不得跨事务/换库继续消费。
+        self.source_epoch += 1;
+        self.unprepared_floor = None;
+        self.prepared_raw_keys.clear();
+        self.prepared_snapshot = Rc::new(());
         self.clear_memos();
     }
 
@@ -697,6 +2043,9 @@ impl Cc004Producer {
             ref_misses: self.ref_arrays.misses,
             invalidated: self.ref_arrays.invalidated,
             skipped_scans: self.ref_arrays.skipped_scans,
+            unit_computed: self.history_computed,
+            unit_reused: self.history_reused,
+            unit_invalidated: self.history_invalidated,
         }
     }
 }
@@ -708,12 +2057,15 @@ impl Cc004Producer {
 ///   接元素序列再写 0x05 节点。
 ///
 /// 全程不展开逻辑叶、不 materialize 坐标集合、不依赖 AVL 的高度/分组形状。
+///
+/// 返回内部条目（根 + 元素 `SequenceRef` + 叶数）：`sequence_split`/`sequence_append`
+/// 之类的续接操作要用元素序列，而不是只拿数组根。
 fn array_from_node(
     store: &mut dyn NodeStore,
     root: &Rc<CoordNode>,
     cache: &mut ArrayCache,
     leaves: &mut Leaves<'_>,
-) -> Result<Built, ProducerError> {
+) -> Result<ArrayEntry, ProducerError> {
     enum Step {
         Enter(Rc<CoordNode>),
         Exit(Rc<CoordNode>),
@@ -787,12 +2139,16 @@ fn array_from_node(
             detail: format!("后序遍历记账异常：{} 个结果", done.len()),
         });
     }
-    let entry = done.pop().expect("刚核过恰 1 个结果");
-    Ok(Built {
+    Ok(done.pop().expect("刚核过恰 1 个结果"))
+}
+
+/// 条目 → 公开 `Built`（数组根 + 叶数；不复制任何子树）。
+fn array_built(entry: &ArrayEntry) -> Built {
+    Built {
         digest: entry.root,
         kind: Kind::Array,
         extent: Some(entry.len),
-    })
+    }
 }
 
 /// 单叶序列 `M([h]) = F(0x12, h)`：节点必须落盘，父节点的 `sequence_concat` 会读它。
@@ -817,6 +2173,39 @@ fn put_array_node(
     let digest = sc::frame(sc::tag::ARRAY, &body);
     store.put(digest, sc::tag::ARRAY, &body)?;
     Ok(digest)
+}
+
+/// 由已写出的元素值根列表构造规范数组（0x05）：`U64(n) || M([h…])`。
+///
+/// 叶序即元素序；同一逻辑序列的任意物理树形都会得到同一个根（`M` 按元素数唯一分解）。
+fn array_of_leaves(
+    store: &mut dyn NodeStore,
+    leaves: Vec<NodeDigest>,
+) -> Result<Built, ProducerError> {
+    let count = u64::try_from(leaves.len())
+        .map_err(|_| ProducerError::Overflow(format!("数组元素数 {} 超出 u64", leaves.len())))?;
+    let seq_root = sc::write_sequence(&mut *store, &leaves)?;
+    let root = put_array_node(&mut *store, count, &seq_root)?;
+    Ok(Built {
+        digest: root,
+        kind: Kind::Array,
+        extent: Some(count),
+    })
+}
+
+/// 一个逻辑值的规范 JSON 文本（§5.1/§5.2 的同一渲染器给出的文本）。
+///
+/// 在**私有草稿表**里落节点再渲染，不污染调用方节点表：该文本只进请求键
+/// （`request_id`），请求键值本身不是要发布的内容节点。
+fn canonical_text(value: &CValue) -> Result<String, ProducerError> {
+    let mut scratch = sc::MemoryNodes::default();
+    let built = sc::write_value(&mut scratch, value)?;
+    let mut out: Vec<u8> = Vec::new();
+    sc::render_canonical(&mut scratch, &built.content_ref(), &mut out)?;
+    String::from_utf8(out).map_err(|error| ProducerError::Type {
+        what: "规范 JSON 文本",
+        detail: error.to_string(),
+    })
 }
 
 /// 空数组：`M([])` 由规范唯一确定，节点仍按「写下即核」口径落盘。
@@ -867,6 +2256,163 @@ fn bar_value(bar: &Bar) -> CValue {
         ("low".to_string(), CValue::String(bar.low.to_string())),
         ("close".to_string(), CValue::String(bar.close.to_string())),
     ])
+}
+
+/// 当前 raw 链的共享前缀句柄（继续拼接只新建 O(log n) 脊，子树沿用）。
+///
+/// 依据（inclusion.rs seed / new_group / merge 三处 `coords` 构造）：每个 StepRecord 的
+/// `coords` 恰是「append 到该步 incoming 为止的完整 raw 前缀」——seed = single(incoming)；
+/// new_group = concat(前证据或 single(前锚), 前组 tail) 再接 incoming；merge 同形；
+/// waiting 步直接取 `raw_prefix`。故末步（step_count-1）的 `coords` 即当前前缀。
+///
+/// 有效域：非退化共享态（degraded 显式 `Err`，回落全量入口）；空态返回空集。
+/// 逐前缀等价性由测试 `raw_prefix_chain_is_last_step_coords_for_every_prefix` 对拍锁定。
+pub(super) fn raw_prefix_coords(state: &IncrFactsState) -> Result<CoordsRef, ProducerError> {
+    if state.step_count() == 0 {
+        return Ok(CoordsRef::empty());
+    }
+    let view = state
+        .shared_step(state.step_count() - 1)
+        .map_err(|error| ProducerError::Degraded(error.reason))?;
+    match view {
+        Some(view) => Ok(view.coords.clone()),
+        None => Err(ProducerError::Type {
+            what: "raw 前缀链",
+            detail: "末步索引在域内却借不出视图".to_string(),
+        }),
+    }
+}
+
+/// 升序去重坐标切片 → 共享链（逐项 `append_greater`：只新增 O(log n) 脊，旧前缀继续共享）。
+///
+/// 有效域：调用方保证切片严格升序（本口的输入都是 raw 到达序的升序子序列；违反即
+/// `append_greater` 的既有前提被破坏，属调用方 bug，不在此静默重排）。
+pub(super) fn coords_ref_from_slice(coords: &[usize]) -> CoordsRef {
+    let mut out = CoordsRef::empty();
+    for coord in coords {
+        out = out.append_greater(*coord);
+    }
+    out
+}
+
+/// 组对象的等待原因（与全量配方 `group_reasons` 同序同值）。
+fn group_reasons(view: &GroupEvidenceView<'_>) -> Vec<&'static str> {
+    let mut reasons = Vec::new();
+    if view.direction_evidence.is_none() {
+        reasons.push("direction_not_yet_established");
+    }
+    if view.high_sources.len() > 1 || view.low_sources.len() > 1 {
+        reasons.push("equal_extreme_identity");
+    }
+    reasons
+}
+
+/// 竞争窗口的待决请求来源：三组来源链的并集 = **右组来源链**（归纳嵌套前缀性，见
+/// [`group_sources_coords`]；逐前缀对拍锁定「三连窗并集 == 右组 sources」）。
+pub(super) fn group_window_sources(views: &[GroupEvidenceView<'_>; 3]) -> CoordsRef {
+    group_sources_coords(&views[2])
+}
+
+/// 原始账里按坐标取 bar（升序表二分；找不到即拒绝，不近似回落）。
+fn raw_bar_at(raw_bars: &[Bar], coord: usize) -> Result<&Bar, ProducerError> {
+    let index = raw_bars
+        .binary_search_by_key(&coord, |bar| bar.source_index)
+        .map_err(|_| ProducerError::MissingSource(coord as i64))?;
+    Ok(&raw_bars[index])
+}
+
+/// CC-007 比较单元的精确内容键（与全量配方 `unit_content_key` 同字段同型）。
+///
+/// 源坐标/四价是十进制文本，`revision` 是精确整数 token，`input_revision` 是文本。
+fn fractal_unit_key(
+    coord: i64,
+    revision: i64,
+    input_revision: &str,
+    bar: &Bar,
+) -> Result<String, ProducerError> {
+    canonical_text(&CValue::Object(vec![
+        (
+            "source_coord".to_string(),
+            CValue::String(coord.to_string()),
+        ),
+        ("revision".to_string(), number(revision)?),
+        (
+            "input_revision".to_string(),
+            CValue::String(input_revision.to_string()),
+        ),
+        ("open".to_string(), CValue::String(bar.open.to_string())),
+        ("high".to_string(), CValue::String(bar.high.to_string())),
+        ("low".to_string(), CValue::String(bar.low.to_string())),
+        ("close".to_string(), CValue::String(bar.close.to_string())),
+    ]))
+}
+
+/// 一根后续 bar 的 4 轴 × 6 参考价 = 24 个比较单元（顺序与全量入口相同）。
+fn fractal_relations(bar: &Bar, references: &[(String, i64)]) -> Vec<CValue> {
+    let mut relations: Vec<CValue> = Vec::with_capacity(24);
+    for (axis, price) in [
+        ("open", bar.open),
+        ("high", bar.high),
+        ("low", bar.low),
+        ("close", bar.close),
+    ] {
+        for (name, target) in references {
+            relations.push(CValue::Object(vec![
+                ("axis".to_string(), CValue::String(axis.to_string())),
+                ("value".to_string(), CValue::String(price.to_string())),
+                ("reference".to_string(), CValue::String(name.clone())),
+                (
+                    "reference_value".to_string(),
+                    CValue::String(target.to_string()),
+                ),
+                (
+                    "order".to_string(),
+                    CValue::String(order_of(price, *target).to_string()),
+                ),
+            ]));
+        }
+    }
+    relations
+}
+
+/// CC-006 三组窗口里是否还有同角色极值身份竞争（旧生成路径据此不给分型选根）。
+fn shape_window_has_competing_extremes(views: &[GroupEvidenceView<'_>; 3]) -> bool {
+    views
+        .iter()
+        .any(|view| view.high_sources.len() != 1 || view.low_sources.len() != 1)
+}
+
+/// 组对象的来源集合（与全量配方 `group_sources` 同一条）：成员 ∪ 方向证据 ∪ 封口证据。
+///
+/// 这里给出**共享链**构造（不展开方向/封口证据前缀），与全量配方 `group_sources`
+/// （members ∪ dir ∪ conf，排序去重）同值。依据（inclusion.rs:1057–1110 的新证据组合 +
+/// merge 分支的 `coords` 构造归纳）：
+///
+/// - `dir.coords` = 处理到本组锚为止的完整前缀（new_group 的证据 = concat(前证据, 前组
+///   tail) 再接 incoming）；`members` = `single(锚) ++ tail`，锚 ∈ dir、tail 全大于锚；
+/// - `conf.coords` = 本组关闭时的同一条归纳链（= dir ∪ tail ∪ {关闭边界}）⟹ 有 confirm 时
+///   它已包含 members 与 dir，并集即 conf.coords；
+/// - 仅 dir ⟹ 并集 = dir ∪ tail = `concat(dir.coords, member_tail)`（两段严格升序、不交叠）；
+/// - 两者皆无 ⟹ 并集 = members。
+///
+/// 有效域：非退化域的已分组 raw（每根 raw 恰属一组）。逐前缀等价性由测试
+/// `derived_coords_match_materialized_union_for_every_prefix` 对拍锁定，不凭推导免测。
+pub(super) fn group_sources_coords(view: &GroupEvidenceView<'_>) -> CoordsRef {
+    if let Some(node) = view.confirmation_evidence {
+        return node.coords.clone();
+    }
+    match view.direction_evidence {
+        Some(node) => CoordsRef::concat(&node.coords, view.member_tail),
+        None => group_members_coords(view),
+    }
+}
+
+/// 组成员坐标链：`single(anchor) ++ member_tail`（与 `members` 同值，共享拼接）。
+///
+/// 依据：组锚 = 组内首成员（`shared_group` 契约），`member_tail` = `members[1..]` 的既有
+/// 共享尾链（提交 90901b9809 的逐前缀对拍已钉）。
+pub(super) fn group_members_coords(view: &GroupEvidenceView<'_>) -> CoordsRef {
+    CoordsRef::concat(&CoordsRef::single(view.bar.source_index), view.member_tail)
 }
 
 /// 与全量配方 `comparisons` 同一判据：高/低两轴比较 + 端点等价类。
@@ -972,6 +2518,18 @@ mod tests {
     ];
     /// 初始方向永久未定：首步 seed 之后全部 waiting（无方向证据、无极值快照）。
     const CASE_WAITING: &[(usize, i64, i64)] = &[(0, 10, 5), (1, 9, 6), (2, 12, 7)];
+    /// 不足三根 merged：覆盖「已建方向前知识不足」的待决请求与原因。
+    const CASE_TWO: &[(usize, i64, i64)] = &[(10, 10, 5), (20, 15, 8)];
+    /// 无同价极值竞争的规则折线：三组窗口可判 CC-006（供形态/分型对拍）。
+    const CASE_SHAPE: &[(usize, i64, i64)] = &[
+        (10, 10, 5),
+        (20, 20, 15),
+        (30, 14, 7),
+        (40, 25, 18),
+        (50, 19, 10),
+        (60, 30, 22),
+        (70, 24, 14),
+    ];
 
     /// 同一事务内可读写（读自己刚写的节点）、另记读写次数的节点表。
     #[derive(Default)]
@@ -1024,6 +2582,8 @@ mod tests {
         coord: i64,
         revision: i64,
         receipt: String,
+        /// OHLC（生产 raw 行同字段）：`None` = 该夹具行不投影价格列。
+        prices: Option<(i64, i64, i64, i64)>,
     }
 
     impl Row {
@@ -1032,11 +2592,18 @@ mod tests {
                 coord,
                 revision,
                 receipt: receipt.to_string(),
+                prices: None,
             }
         }
 
+        /// 补上原始价格列（`open/high/low/close`；生产 raw 行同字段）。
+        fn with_prices(mut self, open: i64, high: i64, low: i64, close: i64) -> Self {
+            self.prices = Some((open, high, low, close));
+            self
+        }
+
         fn raw_json(&self) -> Value {
-            json!({
+            let mut row = json!({
                 "identity_key": format!("id-{}", self.coord),
                 "revision": self.revision,
                 "input_revision": self.revision.to_string(),
@@ -1045,7 +2612,14 @@ mod tests {
                 "seq": self.coord + 100,
                 "source_coord": self.coord.to_string(),
                 "event_id": format!("ev-{}", self.coord),
-            })
+            });
+            if let Some((open, high, low, close)) = self.prices {
+                row["open"] = json!(open.to_string());
+                row["high"] = json!(high.to_string());
+                row["low"] = json!(low.to_string());
+                row["close"] = json!(close.to_string());
+            }
+            row
         }
 
         fn spec(&self) -> RawRefSpec {
@@ -1077,7 +2651,8 @@ mod tests {
         let mut raw = BTreeMap::new();
         let mut rows = Vec::new();
         for (coord, high, low) in bars {
-            let row = Row::new(*coord as i64, 1, "r1");
+            // 与 `bar()` 同形：open = low、close = high（原始行的四价列）。
+            let row = Row::new(*coord as i64, 1, "r1").with_prices(*low, *high, *low, *high);
             raw.insert(row.coord, row.raw_json());
             rows.push(row);
             state.append(bar(*coord, *high, *low));
@@ -1093,7 +2668,13 @@ mod tests {
 
     /// 内存表夹具：源版本登记在同一张可读写表里。
     fn fixture(bars: &[(usize, i64, i64)]) -> Fixture {
+        fixture_with_profile(bars, PROFILE)
+    }
+
+    /// 同款夹具，可换会话冻结档案（进 §5.3 身份配方）。
+    fn fixture_with_profile(bars: &[(usize, i64, i64)], profile: &str) -> Fixture {
         let mut fixture = unbound_fixture(bars);
+        fixture.producer = Cc004Producer::new(profile, RULE);
         for row in &fixture.rows {
             assert!(fixture
                 .producer
@@ -1127,6 +2708,98 @@ mod tests {
                     .expect("步骤索引在域内")
             })
             .collect()
+    }
+
+    /// 生产构造器与旧 `Builder` 的完整对拍：三条 `*_json` 的**规范渲染字节**逐字相同，
+    /// 共用对拍面：三条公开边的规范渲染字节 + 记录全部逻辑字段 + 全闭包可核。
+    ///
+    /// `object_id` 是 §5.3 的新配方（`obj3-`），与旧 `obj-` 不求逐字节相等——调用方须
+    /// 另有独立配方测试；本函数只把该字段对齐后逐项对拍其余字段。
+    fn assert_object_matches_oracle(
+        fixture: &mut Fixture,
+        object: &TypedObject,
+        want: &Value,
+        label: &str,
+    ) {
+        for (built, field) in [
+            (&object.payload, "payload_json"),
+            (&object.input_refs, "input_refs_json"),
+            (&object.source_coords, "source_coords_json"),
+        ] {
+            assert_eq!(
+                render(&mut fixture.store, built),
+                want[field].as_str().expect("oracle 字段是文本"),
+                "{label} {field} 规范字节"
+            );
+        }
+        let mut expected = want.clone();
+        expected["object_id"] = Value::String(object.object_id.clone());
+        for (edge, field) in [
+            ("payload", "payload_json"),
+            ("input_refs", "input_refs_json"),
+            ("source_coords", "source_coords_json"),
+        ] {
+            expected[edge] = serde_json::from_str(want[field].as_str().expect("oracle 字段是文本"))
+                .expect("oracle 字段是合法 JSON");
+        }
+        let rendered = render(&mut fixture.store, &object.record);
+        assert_eq!(
+            serde_json::from_str::<Value>(&rendered).expect("记录渲染是合法 JSON"),
+            expected,
+            "{label} 记录字段"
+        );
+        verify(&mut fixture.store, &object.record.content_ref()).expect("记录闭包可核");
+        for (_, edge) in object.content_edges() {
+            verify(&mut fixture.store, &edge.content_ref()).expect("公开边闭包可核");
+        }
+    }
+
+    /// oracle 里按 kind + 槽位找一条事实（找不到即失败，不静默回退）。
+    fn oracle_fact<'a>(oracle: &'a [Value], kind: &str, fact_key: &str) -> &'a Value {
+        oracle
+            .iter()
+            .find(|candidate| {
+                candidate["kind"] == kind && candidate["fact_key"].as_str() == Some(fact_key)
+            })
+            .unwrap_or_else(|| panic!("oracle 缺 {kind} 槽位 {fact_key}"))
+    }
+
+    /// oracle CC-054 载荷里的全部知识请求（本代请求的唯一 oracle 面）。
+    fn oracle_requests(oracle: &[Value]) -> Vec<Value> {
+        let payload: Value = serde_json::from_str(
+            oracle
+                .iter()
+                .find(|object| object["kind"] == "CC-054.knowledge_state")
+                .expect("oracle 缺 CC-054")["payload_json"]
+                .as_str()
+                .expect("CC-054 载荷是文本"),
+        )
+        .expect("CC-054 载荷是合法 JSON");
+        payload["requests"].as_array().expect("请求数组").clone()
+    }
+
+    /// 单条请求的对拍：按 `request_id` 对齐 oracle（键相同 ⟹ 同一条请求）。
+    ///
+    /// `subject_id` 是**本对象的身份**：§5.3 换配方后按新 `obj3` 对齐，其余字段逐字对拍。
+    fn assert_request_matches_oracle(
+        fixture: &mut Fixture,
+        request: &Built,
+        subject_id: &str,
+        wants: &[Value],
+        label: &str,
+    ) {
+        let rendered: Value = serde_json::from_str(&render(&mut fixture.store, request))
+            .expect("请求渲染是合法 JSON");
+        let request_id = rendered["request_id"].as_str().expect("请求键是文本");
+        let mut want = wants
+            .iter()
+            .find(|candidate| candidate["request_id"].as_str() == Some(request_id))
+            .unwrap_or_else(|| panic!("{label}: oracle 缺请求 {request_id}"))
+            .clone();
+        if !want["subject_id"].is_null() {
+            want["subject_id"] = Value::String(subject_id.to_string());
+        }
+        assert_eq!(&rendered, &want, "{label} 请求字段");
     }
 
     /// 生产构造器与旧 `Builder` 的完整对拍：三条 `*_json` 的**规范渲染字节**逐字相同，
@@ -1205,6 +2878,1286 @@ mod tests {
         }
     }
 
+    /// CC-005 组对象与旧 `Builder` 的完整对拍（同价极值 / 方向未定 / 稀疏坐标在域内），
+    /// 并证明请求与 oracle 逐字段同值、索引越界不是错误。
+    #[test]
+    fn cc005_group_matches_full_oracle_bytes() {
+        for (case, bars, want_equal_extreme, want_any_direction) in [
+            ("merge/new-group/direction", CASE_MERGE, true, true),
+            ("initial-unsettled/waiting", CASE_WAITING, false, false),
+        ] {
+            let mut fixture = fixture(bars);
+            let facts = fixture.state.materialize_facts();
+            let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &[], GENERATION, CUT, 0);
+            let wants = oracle_requests(&oracle);
+            assert_eq!(fixture.state.group_count(), facts.groups.len());
+            assert!(
+                facts
+                    .groups
+                    .iter()
+                    .any(|group| group.high_sources.len() > 1 || group.low_sources.len() > 1)
+                    == want_equal_extreme,
+                "{case}: 同价极值覆盖口径不符"
+            );
+            assert!(
+                facts
+                    .groups
+                    .iter()
+                    .any(|group| group.direction_evidence.is_some())
+                    == want_any_direction,
+                "{case}: 方向证据覆盖口径不符"
+            );
+            if !want_any_direction {
+                assert!(
+                    facts
+                        .groups
+                        .iter()
+                        .all(|group| group.direction_evidence.is_none()),
+                    "{case}: 初始方向永久未定时不得有方向证据"
+                );
+            }
+            for index in 0..fixture.state.group_count() {
+                let object = fixture
+                    .producer
+                    .build_group(&mut fixture.store, &fixture.state, index, GENERATION, CUT)
+                    .expect("构造 CC-005")
+                    .expect("组索引在域内");
+                let anchor = facts.groups[index].bar.source_index.to_string();
+                let want_fact_key = canonical_json(&json!([CC005_GROUP_KIND, anchor]));
+                let want = oracle_fact(&oracle, CC005_GROUP_KIND, &want_fact_key);
+                let label = format!("{case} 组{index}");
+                assert_eq!(object.fact_key, want_fact_key, "{label} 槽位");
+                assert_object_matches_oracle(&mut fixture, &object, want, &label);
+                assert_request_matches_oracle(
+                    &mut fixture,
+                    object.request.as_ref().expect("组对象必须带请求"),
+                    &object.object_id,
+                    &wants,
+                    &label,
+                );
+            }
+            let past_end = fixture.state.group_count();
+            assert!(fixture
+                .producer
+                .build_group(
+                    &mut fixture.store,
+                    &fixture.state,
+                    past_end,
+                    GENERATION,
+                    CUT
+                )
+                .expect("越界索引不是错误")
+                .is_none());
+        }
+    }
+
+    /// 旧生成路径的同一条件：三组里任一组的同角色极值身份有竞争就不给分型选根。
+    fn group_facts_competing(
+        facts: &newchan_rust::theta_v0::parser::inclusion::InclusionFacts,
+        start: usize,
+    ) -> bool {
+        facts.groups[start..start + 3]
+            .iter()
+            .any(|group| group.high_sources.len() != 1 || group.low_sources.len() != 1)
+    }
+
+    /// 测试侧 oracle：旧生成路径对每个可判窗口的 CC-006 旧行（`(窗口起点, 旧行)`）。
+    ///
+    /// 旧行同时是 `tb02a_facts::build` 的 `shapes` 入参（CC-007 与 CC-006 请求的 oracle 面）。
+    fn oracle_shape_records(
+        fixture: &mut Fixture,
+        facts: &newchan_rust::theta_v0::parser::inclusion::InclusionFacts,
+    ) -> Vec<(usize, Value)> {
+        let merged_raws: Vec<Vec<i64>> = facts
+            .groups
+            .iter()
+            .map(|group| group.members.iter().map(|coord| *coord as i64).collect())
+            .collect();
+        let mut records = Vec::new();
+        for start in 0..facts.groups.len().saturating_sub(2) {
+            if group_facts_competing(facts, start) {
+                continue;
+            }
+            let input_refs = oracle_shape_input_refs(facts, &fixture.raw, start);
+            let (branch, dir_ab, dir_bc, comparisons_json) = oracle_shape_parts(
+                &facts.merged[start],
+                &facts.merged[start + 1],
+                &facts.merged[start + 2],
+            );
+            let (want, _, _) = crate::build_object_and_witnesses(
+                &facts.merged,
+                &fixture.raw,
+                &merged_raws,
+                start,
+                &branch,
+                &dir_ab,
+                &dir_bc,
+                &comparisons_json,
+                &input_refs,
+                tb02a::PROFILE,
+                GENERATION,
+                CUT,
+            );
+            records.push((start, want));
+        }
+        records
+    }
+
+    /// 旧生成路径的 CC-006 三组 `input_refs`（测试侧 oracle：与
+    /// `s_structure_session` 调用 `build_object_and_witnesses` 的构造逐字段相同）。
+    fn oracle_shape_input_refs(
+        facts: &newchan_rust::theta_v0::parser::inclusion::InclusionFacts,
+        raw: &BTreeMap<i64, Value>,
+        start: usize,
+    ) -> Vec<Value> {
+        (start..start + 3)
+            .map(|mi| {
+                let group = &facts.groups[mi];
+                let raw_refs: Vec<Value> = group
+                    .members
+                    .iter()
+                    .map(|coord| tb02a_facts::raw_ref(&raw[&(*coord as i64)]))
+                    .collect();
+                let mut dependency_coords = group
+                    .direction_evidence
+                    .as_ref()
+                    .map(|evidence| evidence.source_coords.clone())
+                    .unwrap_or_default();
+                if let Some(boundary) = &group.confirmation_evidence {
+                    dependency_coords.extend(&boundary.source_coords);
+                }
+                dependency_coords.retain(|coord| !group.members.contains(coord));
+                dependency_coords.sort_unstable();
+                dependency_coords.dedup();
+                let dependencies: Vec<Value> = dependency_coords
+                    .iter()
+                    .map(|coord| tb02a_facts::raw_ref(&raw[&(*coord as i64)]))
+                    .collect();
+                json!({"merged_index": mi, "raw_refs": raw_refs, "dependency_refs": dependencies})
+            })
+            .collect()
+    }
+
+    /// 旧生成路径的 CC-006 分支/方向/比较文本（同一 `classify_local_shape` 判据与同一字段序）。
+    fn oracle_shape_parts(left: &Bar, mid: &Bar, right: &Bar) -> (String, String, String, String) {
+        match classify_local_shape(left, mid, right) {
+            Cc006LocalShape::Classified {
+                branch,
+                dir_ab,
+                dir_bc,
+                comparisons,
+            } => (
+                branch.as_str().to_string(),
+                dir_str(dir_ab).to_string(),
+                dir_str(dir_bc).to_string(),
+                json!(comparisons
+                    .iter()
+                    .map(|c| {
+                        json!({
+                            "axis": c.axis.as_str(),
+                            "pair": c.pair.as_str(),
+                            "prev": c.prev.to_string(),
+                            "cur": c.cur.to_string(),
+                            "strict_up": c.strict_up,
+                            "held": c.held,
+                        })
+                    })
+                    .collect::<Vec<_>>())
+                .to_string(),
+            ),
+            other => panic!("测试窗口必须在可判域内：{other:?}"),
+        }
+    }
+
+    /// CC-006 与**旧生成路径函数**（`build_object_and_witnesses`）对拍：
+    /// `comparisons` / `input_refs` / `source_coords` 的规范渲染字节逐字相同，
+    /// 身份按 §5.3 的独立十二字段配方重算并与旧 `obj-` 配方区分。
+    #[test]
+    fn cc006_shape_matches_generation_path_bytes() {
+        // 旧生成路径的 `all_source_coords` 有一段按 `profile_id == tb02a::PROFILE` 分派；
+        // 用同一档案跑两侧，才能对拍同一分支（档案本身也进身份配方）。
+        let mut fixture = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
+        let facts = fixture.state.materialize_facts();
+        assert!(facts.groups.len() >= 3, "本用例需要至少三组");
+        let merged_raws: Vec<Vec<i64>> = facts
+            .groups
+            .iter()
+            .map(|group| group.members.iter().map(|coord| *coord as i64).collect())
+            .collect();
+        let mut classified = 0usize;
+        for start in 0..facts.groups.len() - 2 {
+            if group_facts_competing(&facts, start) {
+                continue;
+            }
+            let input_refs = oracle_shape_input_refs(&facts, &fixture.raw, start);
+            let (branch, dir_ab, dir_bc, comparisons_json) = oracle_shape_parts(
+                &facts.merged[start],
+                &facts.merged[start + 1],
+                &facts.merged[start + 2],
+            );
+            let (want, _, _) = crate::build_object_and_witnesses(
+                &facts.merged,
+                &fixture.raw,
+                &merged_raws,
+                start,
+                &branch,
+                &dir_ab,
+                &dir_bc,
+                &comparisons_json,
+                &input_refs,
+                tb02a::PROFILE,
+                GENERATION,
+                CUT,
+            );
+            let object = fixture
+                .producer
+                .build_shape(&mut fixture.store, &fixture.state, start, GENERATION, CUT)
+                .expect("构造 CC-006")
+                .expect("该窗口应可判");
+            classified += 1;
+            let label = format!("CC-006 窗口{start}");
+            for (built, field) in [
+                (&object.comparisons, "comparisons_json"),
+                (&object.input_refs, "input_refs_json"),
+                (&object.source_coords, "source_coords_json"),
+            ] {
+                assert_eq!(
+                    render(&mut fixture.store, built),
+                    want[field].as_str().expect("旧行是文本"),
+                    "{label} {field} 规范字节"
+                );
+            }
+            // 记录：旧行全部字段 + 三条内容边（object_id 按 §5.3 新配方对齐后逐项对拍）。
+            let mut expected = want.clone();
+            expected["object_id"] = Value::String(object.object_id.clone());
+            expected["comparisons"] =
+                serde_json::from_str(want["comparisons_json"].as_str().expect("旧行是文本"))
+                    .expect("比较文本是合法 JSON");
+            expected["input_refs"] =
+                serde_json::from_str(want["input_refs_json"].as_str().expect("旧行是文本"))
+                    .expect("来源文本是合法 JSON");
+            expected["source_coords"] =
+                serde_json::from_str(want["source_coords_json"].as_str().expect("旧行是文本"))
+                    .expect("坐标文本是合法 JSON");
+            expected
+                .as_object_mut()
+                .expect("旧行是对象")
+                .remove("comparisons_json");
+            let rendered = render(&mut fixture.store, &object.record);
+            assert_eq!(
+                serde_json::from_str::<Value>(&rendered).expect("记录渲染是合法 JSON"),
+                expected,
+                "{label} 记录字段"
+            );
+            verify(&mut fixture.store, &object.record.content_ref()).expect("记录闭包可核");
+            for edge in [
+                &object.comparisons,
+                &object.input_refs,
+                &object.source_coords,
+            ] {
+                verify(&mut fixture.store, &edge.content_ref()).expect("内容边闭包可核");
+            }
+            // 独立复算十二字段身份：不借构造器内部，按 §5.1 的 F 定义直接算。
+            let mut identity_store = MemoryNodes::new();
+            let identity = CValue::Object(vec![
+                (
+                    "branch".to_string(),
+                    CValue::String(want["branch"].as_str().expect("分支").to_string()),
+                ),
+                (
+                    "dir_ab".to_string(),
+                    CValue::String(want["dir_ab"].as_str().expect("方向").to_string()),
+                ),
+                (
+                    "dir_bc".to_string(),
+                    CValue::String(want["dir_bc"].as_str().expect("方向").to_string()),
+                ),
+                (
+                    "window_start".to_string(),
+                    CValue::String(object.window[0].to_string()),
+                ),
+                (
+                    "window_mid".to_string(),
+                    CValue::String(object.window[1].to_string()),
+                ),
+                (
+                    "window_end".to_string(),
+                    CValue::String(object.window[2].to_string()),
+                ),
+                (
+                    "merged_highs".to_string(),
+                    CValue::Array(
+                        (0..3)
+                            .map(|offset| {
+                                CValue::String(facts.merged[start + offset].high.to_string())
+                            })
+                            .collect(),
+                    ),
+                ),
+                (
+                    "merged_lows".to_string(),
+                    CValue::Array(
+                        (0..3)
+                            .map(|offset| {
+                                CValue::String(facts.merged[start + offset].low.to_string())
+                            })
+                            .collect(),
+                    ),
+                ),
+                (
+                    "comparisons".to_string(),
+                    CValue::Edge(object.comparisons.digest),
+                ),
+                (
+                    "input_refs".to_string(),
+                    CValue::Edge(object.input_refs.digest),
+                ),
+                (
+                    "rule_revision".to_string(),
+                    CValue::String(RULE.to_string()),
+                ),
+                (
+                    "profile_id".to_string(),
+                    CValue::String(tb02a::PROFILE.to_string()),
+                ),
+            ]);
+            let v = sc::write_value(&mut identity_store, &identity)
+                .expect("十二字段身份对象")
+                .digest;
+            if std::env::var("DEBUG_SHAPE").is_ok() {
+                let probe = sc::write_value(&mut fixture.store, &identity).expect("身份对象");
+                println!("test identity text: {}", render(&mut fixture.store, &probe));
+            }
+            let mut hasher = Sha256::new();
+            hasher.update(sc::DOMAIN_SEPARATOR);
+            hasher.update([OBJECT_ID_TAG]);
+            hasher.update(32u64.to_be_bytes());
+            hasher.update(v);
+            assert_eq!(object.identity, v, "{label} 暴露的 V 必须是配方输入");
+            assert_eq!(
+                object.object_id,
+                format!("obj3-{}", lower_hex(&hasher.finalize())),
+                "{label}: obj3 独立配方"
+            );
+            let legacy = sha256_hex(
+                canonical_json(&json!({
+                    "branch": want["branch"],
+                    "dir_ab": want["dir_ab"],
+                    "dir_bc": want["dir_bc"],
+                    "window_start": object.window[0].to_string(),
+                    "window_mid": object.window[1].to_string(),
+                    "window_end": object.window[2].to_string(),
+                    "merged_highs": (0..3)
+                        .map(|offset| facts.merged[start + offset].high.to_string())
+                        .collect::<Vec<_>>(),
+                    "merged_lows": (0..3)
+                        .map(|offset| facts.merged[start + offset].low.to_string())
+                        .collect::<Vec<_>>(),
+                    "comparisons": serde_json::from_str::<Value>(&comparisons_json)
+                        .expect("比较文本"),
+                    "input_refs": serde_json::from_str::<Value>(
+                        want["input_refs_json"].as_str().expect("旧行是文本"),
+                    )
+                    .expect("来源文本"),
+                    "rule_revision": RULE,
+                    "profile_id": tb02a::PROFILE,
+                }))
+                .as_bytes(),
+            );
+            assert_ne!(
+                object.object_id.trim_start_matches("obj3-"),
+                legacy,
+                "{label}: obj3 不是旧配方的换前缀"
+            );
+        }
+        assert!(classified > 0, "本用例必须覆盖至少一个可判窗口");
+        assert!(
+            fixture
+                .producer
+                .build_shape(
+                    &mut fixture.store,
+                    &fixture.state,
+                    facts.groups.len().saturating_sub(1),
+                    GENERATION,
+                    CUT,
+                )
+                .expect("越界窗口不是错误")
+                .is_none(),
+            "越界窗口必须返回 None"
+        );
+    }
+
+    /// oracle 载荷里的旧 `obj-` 身份换成本次构造的新 `obj3-` 身份（身份配方差异，非内容差异）。
+    fn rewrite_legacy_ids(value: &mut Value, map: &BTreeMap<String, String>) {
+        match value {
+            Value::String(text) => {
+                if let Some(new_id) = map.get(text) {
+                    *text = new_id.clone();
+                }
+            }
+            Value::Array(items) => items
+                .iter_mut()
+                .for_each(|item| rewrite_legacy_ids(item, map)),
+            Value::Object(fields) => fields
+                .values_mut()
+                .for_each(|field| rewrite_legacy_ids(field, map)),
+            _ => {}
+        }
+    }
+
+    /// CC-054 与全量 oracle 的完整对拍：知识请求线序（步骤 → 组 → 待决形态 → 形态请求 +
+    /// 三条 CC-007 请求 → 不足三根）、载荷/源引用/坐标三条文本列、记录与观察逐字段相同。
+    ///
+    /// 身份差异按 §5.3 对齐：请求主体与 `shape_object_id` 换成本次新 `obj3` 身份后再对拍。
+    #[test]
+    fn cc054_knowledge_matches_full_oracle_bytes() {
+        for (case, bars, want_competing, want_two) in [
+            ("shape/top-bottom", CASE_SHAPE, false, false),
+            ("merge/equal-extremes", CASE_MERGE, true, false),
+            ("two-merged/fewer-than-three", CASE_TWO, false, true),
+        ] {
+            let mut fixture = fixture_with_profile(bars, tb02a::PROFILE);
+            let facts = fixture.state.materialize_facts();
+            let records = oracle_shape_records(&mut fixture, &facts);
+            let shapes_json: Vec<Value> = records.iter().map(|(_, want)| want.clone()).collect();
+            let frontier = 0i64;
+            // 旧行 oracle 先备好：下面构造 CC-007 时要用它的旧身份做映射。
+            let (oracle, oracle_observations) = tb02a_facts::build(
+                &facts,
+                &fixture.raw,
+                &shapes_json,
+                GENERATION,
+                CUT,
+                frontier,
+            );
+            let mut requests: Vec<Built> = Vec::new();
+            let mut reasons: Vec<&'static str> = Vec::new();
+            let mut id_map: BTreeMap<String, String> = BTreeMap::new();
+            // 1) 步骤
+            for index in 0..fixture.state.step_count() {
+                let object = fixture
+                    .producer
+                    .build_step(&mut fixture.store, &fixture.state, index, GENERATION, CUT)
+                    .expect("构造 CC-004")
+                    .expect("步骤索引在域内");
+                // 请求主体 = 对象自身：旧身份一并换成本代新 `obj3`。
+                id_map.insert(
+                    oracle_fact(&oracle, CC004_STEP_KIND, &object.fact_key)["object_id"]
+                        .as_str()
+                        .expect("旧身份")
+                        .to_string(),
+                    object.object_id.clone(),
+                );
+                requests.push(object.request.clone().expect("步骤请求"));
+                reasons.extend(facts.steps[index].waiting_reasons.iter().copied());
+            }
+            // 2) 组
+            for index in 0..fixture.state.group_count() {
+                let object = fixture
+                    .producer
+                    .build_group(&mut fixture.store, &fixture.state, index, GENERATION, CUT)
+                    .expect("构造 CC-005")
+                    .expect("组索引在域内");
+                id_map.insert(
+                    oracle_fact(&oracle, CC005_GROUP_KIND, &object.fact_key)["object_id"]
+                        .as_str()
+                        .expect("旧身份")
+                        .to_string(),
+                    object.object_id.clone(),
+                );
+                let view = fixture
+                    .state
+                    .shared_group(index)
+                    .expect("共享态可用")
+                    .expect("组在域内");
+                reasons.extend(group_reasons(&view));
+                requests.push(object.request.clone().expect("组请求"));
+            }
+            // 3) 竞争极值窗的待决请求（与全量配方同序：按窗口起点）
+            let mut competing = 0usize;
+            for start in 0..facts.groups.len().saturating_sub(2) {
+                if !group_facts_competing(&facts, start) {
+                    continue;
+                }
+                competing += 1;
+                let views = [start, start + 1, start + 2].map(|index| {
+                    fixture
+                        .state
+                        .shared_group(index)
+                        .expect("共享态可用")
+                        .expect("组在域内")
+                });
+                let anchors: Vec<usize> = views.iter().map(|view| view.bar.source_index).collect();
+                let key = CValue::Array(vec![
+                    CValue::String(CC006_SHAPE_KIND.to_string()),
+                    CValue::Array(
+                        anchors
+                            .iter()
+                            .map(|anchor| CValue::String(anchor.to_string()))
+                            .collect(),
+                    ),
+                ]);
+                let sources = group_window_sources(&views);
+                requests.push(
+                    fixture
+                        .producer
+                        .pending_request(
+                            &mut fixture.store,
+                            key,
+                            &["equal_extreme_identity"],
+                            &sources,
+                        )
+                        .expect("待决形态请求"),
+                );
+                reasons.push("equal_extreme_identity");
+            }
+            assert_eq!(competing > 0, want_competing, "{case}: 竞争窗覆盖口径不符");
+            // 4) 形态请求 + 三条 CC-007 请求（同序，逐个窗口）
+            for (start, shape_record) in &records {
+                let shape = fixture
+                    .producer
+                    .build_shape(&mut fixture.store, &fixture.state, *start, GENERATION, CUT)
+                    .expect("构造 CC-006")
+                    .expect("该窗口应可判");
+                id_map.insert(
+                    shape_record["object_id"]
+                        .as_str()
+                        .expect("旧身份")
+                        .to_string(),
+                    shape.object_id.clone(),
+                );
+                requests.push(shape.request.clone());
+                let window = shape.window;
+                let views = [start + 0, start + 1, start + 2].map(|index| {
+                    fixture
+                        .state
+                        .shared_group(index)
+                        .expect("共享态可用")
+                        .expect("组在域内")
+                });
+                let raw_bars: Vec<Bar> = fixture.state.raw_iter().copied().collect();
+                let Some(fractal) = fixture
+                    .producer
+                    .build_fractal_raw(
+                        &mut fixture.store,
+                        &raw_bars,
+                        &shape,
+                        [&views[0], &views[1], &views[2]],
+                        GENERATION,
+                        CUT,
+                    )
+                    .expect("构造 CC-007")
+                else {
+                    assert_eq!(
+                        window.len(),
+                        3,
+                        "{case}: 非 TOP/BOTTOM 形态仍应有 CC-006 请求"
+                    );
+                    continue;
+                };
+                // CC-007 三条请求的主体是**本对象自身**的旧身份：一并换成本代新 `obj3`。
+                let fractal_fact_key = canonical_json(&json!([
+                    CC007_FRACTAL_KIND,
+                    window.iter().map(ToString::to_string).collect::<Vec<_>>()
+                ]));
+                id_map.insert(
+                    oracle_fact(&oracle, CC007_FRACTAL_KIND, &fractal_fact_key)["object_id"]
+                        .as_str()
+                        .expect("旧身份")
+                        .to_string(),
+                    fractal.object_id.clone(),
+                );
+                requests.extend(fractal.requests.iter().cloned());
+                reasons.extend(fractal.knowledge_reasons.iter().copied());
+            }
+            // 5) 不足三根 merged 的待决请求
+            if facts.merged.len() < 3 {
+                let all = raw_prefix_coords(&fixture.state).expect("raw 前缀链可用");
+                requests.push(
+                    fixture
+                        .producer
+                        .pending_request(
+                            &mut fixture.store,
+                            CValue::Array(vec![
+                                CValue::String(CC006_SHAPE_KIND.to_string()),
+                                CValue::String("pending".to_string()),
+                            ]),
+                            &["fewer_than_three_merged_bars"],
+                            &all,
+                        )
+                        .expect("不足三根请求"),
+                );
+                reasons.push("fewer_than_three_merged_bars");
+                assert!(want_two, "{case}: 不足三根覆盖口径不符");
+            }
+            if !facts
+                .steps
+                .iter()
+                .any(|step| step.direction_evidence.is_some())
+            {
+                reasons.push("direction_not_yet_established");
+            }
+            if facts.initial_direction_unsettled {
+                reasons.push("initial_direction_unsettled");
+            }
+            let raw_coords = raw_prefix_coords(&fixture.state).expect("raw 前缀链可用");
+            let assembly = fixture
+                .producer
+                .build_knowledge_state(
+                    &mut fixture.store,
+                    &raw_coords,
+                    frontier,
+                    &requests,
+                    &reasons,
+                    GENERATION,
+                    CUT,
+                )
+                .expect("构造 CC-054");
+            let fact_key = canonical_json(&json!([CC054_KNOWLEDGE_KIND, "TB-02-A"]));
+            let want = oracle_fact(&oracle, CC054_KNOWLEDGE_KIND, &fact_key);
+            let label = format!("{case} CC-054");
+            for (built, field) in [
+                (&assembly.object.input_refs, "input_refs_json"),
+                (&assembly.object.source_coords, "source_coords_json"),
+            ] {
+                assert_eq!(
+                    render(&mut fixture.store, built),
+                    want[field].as_str().expect("oracle 字段是文本"),
+                    "{label} {field} 规范字节"
+                );
+            }
+            let mut want_payload: Value =
+                serde_json::from_str(want["payload_json"].as_str().expect("oracle 载荷是文本"))
+                    .expect("载荷是合法 JSON");
+            rewrite_legacy_ids(&mut want_payload, &id_map);
+            let got_payload: Value =
+                serde_json::from_str(&render(&mut fixture.store, &assembly.object.payload))
+                    .expect("载荷渲染是合法 JSON");
+            assert_eq!(got_payload, want_payload, "{label} 载荷（身份对齐后）");
+            let mut expected = want.clone();
+            expected["object_id"] = Value::String(assembly.object.object_id.clone());
+            expected["payload"] = got_payload;
+            // 文本列 = 对应内容边在本代新身份下的规范文本（旧行的文本里还嵌着 `obj-` 身份）。
+            expected["payload_json"] =
+                Value::String(render(&mut fixture.store, &assembly.object.payload));
+            for (edge, field) in [
+                ("input_refs", "input_refs_json"),
+                ("source_coords", "source_coords_json"),
+            ] {
+                expected[edge] =
+                    serde_json::from_str(want[field].as_str().expect("oracle 字段是文本"))
+                        .expect("oracle 字段是合法 JSON");
+                expected[field] = Value::String(render(
+                    &mut fixture.store,
+                    if edge == "input_refs" {
+                        &assembly.object.input_refs
+                    } else {
+                        &assembly.object.source_coords
+                    },
+                ));
+            }
+            let rendered = render(&mut fixture.store, &assembly.object.record);
+            assert_eq!(
+                serde_json::from_str::<Value>(&rendered).expect("记录渲染是合法 JSON"),
+                expected,
+                "{label} 记录字段"
+            );
+            verify(&mut fixture.store, &assembly.object.record.content_ref())
+                .expect("记录闭包可核");
+            assert_eq!(
+                assembly.observations.len(),
+                oracle_observations.len(),
+                "{label} 观察条数"
+            );
+            for (index, observation) in assembly.observations.iter().enumerate() {
+                assert_eq!(
+                    serde_json::from_str::<Value>(&render(&mut fixture.store, observation))
+                        .expect("观察渲染是合法 JSON"),
+                    oracle_observations[index],
+                    "{label} 观察{index}"
+                );
+                verify(&mut fixture.store, &observation.content_ref()).expect("观察闭包可核");
+            }
+            assert!(
+                assembly.object.request.is_none(),
+                "{label}: CC-054 旧配方无请求"
+            );
+        }
+    }
+
+    /// CC-007 与全量 oracle 的对拍：源引用/坐标两条文本列逐字节相同，载荷与三条请求逐字段
+    /// 同值（载荷内嵌与请求 `subject_id` 的旧身份按新 `obj3` 对齐），并覆盖「有后续历史」
+    /// 与「无后续 bar」两态。
+    #[test]
+    fn cc007_fractal_matches_full_oracle_bytes() {
+        let mut fixture = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
+        let facts = fixture.state.materialize_facts();
+        let records = oracle_shape_records(&mut fixture, &facts);
+        assert!(
+            records.len() >= 3,
+            "本用例需要至少三个可判窗口，实得 {}",
+            records.len()
+        );
+        let shapes: Vec<Value> = records.iter().map(|(_, want)| want.clone()).collect();
+        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &shapes, GENERATION, CUT, 0);
+        let wants = oracle_requests(&oracle);
+        let raw_bars: Vec<Bar> = fixture.state.raw_iter().copied().collect();
+        let mut saw_future = false;
+        let mut saw_insufficient = false;
+        for (start, shape_record) in &records {
+            let shape = fixture
+                .producer
+                .build_shape(&mut fixture.store, &fixture.state, *start, GENERATION, CUT)
+                .expect("构造 CC-006")
+                .expect("该窗口应可判");
+            // 身份配方不同（§5.3）：CC-006 的十二字段 `obj3-` 身份由 CC-006 测试独立复算锁定；
+            // 此处只锁形状与「不是旧配方换前缀」，不要求与旧行 `obj-` 逐字相等。
+            assert!(
+                shape.object_id.starts_with("obj3-") && shape.object_id.len() == 5 + 64,
+                "窗口{start}: 形态身份形状"
+            );
+            assert_ne!(
+                shape.object_id.trim_start_matches("obj3-"),
+                shape_record["object_id"]
+                    .as_str()
+                    .expect("旧身份")
+                    .trim_start_matches("obj-"),
+                "窗口{start}: 新身份不得退化成旧配方换前缀"
+            );
+            let window: Vec<usize> = ["window_start", "window_mid", "window_end"]
+                .iter()
+                .map(|key| shape_record[*key].as_i64().expect("窗口坐标") as usize)
+                .collect();
+            let views = [window[0], window[1], window[2]].map(|anchor| {
+                let index = facts
+                    .groups
+                    .iter()
+                    .position(|group| group.bar.source_index == anchor)
+                    .expect("锚在组表里");
+                fixture
+                    .state
+                    .shared_group(index)
+                    .expect("共享态可用")
+                    .expect("组在域内")
+            });
+            let object = fixture
+                .producer
+                .build_fractal_raw(
+                    &mut fixture.store,
+                    &raw_bars,
+                    &shape,
+                    [&views[0], &views[1], &views[2]],
+                    GENERATION,
+                    CUT,
+                )
+                .expect("构造 CC-007")
+                .expect("TOP/BOTTOM 窗口应产对象");
+            let window_text: Vec<String> = window.iter().map(ToString::to_string).collect();
+            let want_fact_key = canonical_json(&json!([CC007_FRACTAL_KIND, window_text]));
+            assert_eq!(object.fact_key, want_fact_key, "窗口{start} 槽位");
+            let want = oracle_fact(&oracle, CC007_FRACTAL_KIND, &want_fact_key);
+            let label = format!("CC-007 窗口{start}");
+            for (built, field) in [
+                (&object.input_refs, "input_refs_json"),
+                (&object.source_coords, "source_coords_json"),
+            ] {
+                assert_eq!(
+                    render(&mut fixture.store, built),
+                    want[field].as_str().expect("oracle 字段是文本"),
+                    "{label} {field} 规范字节"
+                );
+            }
+            // 载荷只差身份配方（§5.3）：载荷内嵌 `shape_object_id`，把旧行身份换成本次
+            // 新 `obj3` 后逐字段对拍（新身份本身已由独立复算锁）。
+            let mut want_payload: Value =
+                serde_json::from_str(want["payload_json"].as_str().expect("oracle 载荷是文本"))
+                    .expect("载荷是合法 JSON");
+            let mut id_map: BTreeMap<String, String> = BTreeMap::new();
+            id_map.insert(
+                shape_record["object_id"]
+                    .as_str()
+                    .expect("旧身份")
+                    .to_string(),
+                shape.object_id.clone(),
+            );
+            rewrite_legacy_ids(&mut want_payload, &id_map);
+            let got_payload: Value =
+                serde_json::from_str(&render(&mut fixture.store, &object.payload))
+                    .expect("载荷渲染是合法 JSON");
+            assert_eq!(got_payload, want_payload, "{label} 载荷（身份对齐后）");
+            let mut expected = want.clone();
+            expected["object_id"] = Value::String(object.object_id.clone());
+            expected["payload"] = got_payload;
+            // 文本列 = 对应内容边在本代新身份下的规范文本（旧行文本里嵌着旧 `obj-` 身份）。
+            expected["payload_json"] = Value::String(render(&mut fixture.store, &object.payload));
+            expected["input_refs_json"] =
+                Value::String(render(&mut fixture.store, &object.input_refs));
+            expected["source_coords_json"] =
+                Value::String(render(&mut fixture.store, &object.source_coords));
+            for (edge, field) in [
+                ("input_refs", "input_refs_json"),
+                ("source_coords", "source_coords_json"),
+            ] {
+                expected[edge] =
+                    serde_json::from_str(want[field].as_str().expect("oracle 字段是文本"))
+                        .expect("oracle 字段是合法 JSON");
+            }
+            let rendered = render(&mut fixture.store, &object.record);
+            assert_eq!(
+                serde_json::from_str::<Value>(&rendered).expect("记录渲染是合法 JSON"),
+                expected,
+                "{label} 记录字段"
+            );
+            verify(&mut fixture.store, &object.record.content_ref()).expect("记录闭包可核");
+            // 独立复算泛型六字段身份（不借构造器的 `identity_summary`）。
+            let mut identity_store = MemoryNodes::new();
+            let identity_value = CValue::Object(vec![
+                (
+                    "kind".to_string(),
+                    CValue::String(CC007_FRACTAL_KIND.to_string()),
+                ),
+                (
+                    "fact_key".to_string(),
+                    CValue::String(object.fact_key.clone()),
+                ),
+                ("payload".to_string(), CValue::Edge(object.payload.digest)),
+                (
+                    "input_refs".to_string(),
+                    CValue::Edge(object.input_refs.digest),
+                ),
+                (
+                    "profile_id".to_string(),
+                    CValue::String(tb02a::PROFILE.to_string()),
+                ),
+                (
+                    "rule_revision".to_string(),
+                    CValue::String(RULE.to_string()),
+                ),
+            ]);
+            let want_identity = sc::write_value(&mut identity_store, &identity_value)
+                .expect("身份对象可写")
+                .digest;
+            assert_eq!(object.identity, want_identity, "{label}: 泛型身份 V");
+            assert_eq!(
+                object.object_id,
+                format!(
+                    "obj3-{}",
+                    lower_hex(&sc::frame(OBJECT_ID_TAG, &want_identity))
+                ),
+                "{label}: obj3 配方"
+            );
+            let status = serde_json::from_str::<Value>(
+                want["payload_json"].as_str().expect("oracle 字段是文本"),
+            )
+            .expect("载荷是合法 JSON")["subsequent_development"]["status"]
+                .as_str()
+                .expect("状态是文本")
+                .to_string();
+            match status.as_str() {
+                "observed" => saw_future = true,
+                "insufficient_knowledge" => saw_insufficient = true,
+                other => panic!("{label}: 未知后续状态 {other}"),
+            }
+            assert_eq!(object.requests.len(), 3, "{label}: 恰三条请求");
+            for request in &object.requests {
+                assert_request_matches_oracle(
+                    &mut fixture,
+                    request,
+                    &object.object_id,
+                    &wants,
+                    &label,
+                );
+            }
+        }
+        assert!(saw_future, "必须覆盖有后续历史的窗口");
+        assert!(saw_insufficient, "必须覆盖无后续 bar 的窗口");
+    }
+
+    /// CC-007 比较单元 memo：同参考集重复构造全命中（零重算），源修订按坐标失效并重算；
+    /// OHLC 未变时载荷同根、源引用与 obj3 必变。
+    #[test]
+    fn cc007_unit_memo_reuses_and_invalidates_by_source_revision() {
+        let mut fixture = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
+        let facts = fixture.state.materialize_facts();
+        let start = 0usize;
+        let raw_bars: Vec<Bar> = fixture.state.raw_iter().copied().collect();
+        let build = |fixture: &mut Fixture| -> Cc007Object {
+            let shape = fixture
+                .producer
+                .build_shape(&mut fixture.store, &fixture.state, start, GENERATION, CUT)
+                .expect("构造 CC-006")
+                .expect("该窗口应可判");
+            let views = [0usize, 1, 2].map(|index| {
+                fixture
+                    .state
+                    .shared_group(index)
+                    .expect("共享态可用")
+                    .expect("组在域内")
+            });
+            fixture
+                .producer
+                .build_fractal_raw(
+                    &mut fixture.store,
+                    &raw_bars,
+                    &shape,
+                    [&views[0], &views[1], &views[2]],
+                    GENERATION,
+                    CUT,
+                )
+                .expect("构造 CC-007")
+                .expect("TOP/BOTTOM 窗口应产对象")
+        };
+        let before = build(&mut fixture);
+        let counts_before = fixture.producer.memo_counts();
+        assert!(counts_before.unit_computed > 0, "首轮必须真的求过比较单元");
+        let again = build(&mut fixture);
+        let counts_after = fixture.producer.memo_counts();
+        assert_eq!(before.object_id, again.object_id, "重复构造身份必须相同");
+        assert_eq!(before.payload.digest, again.payload.digest);
+        assert_eq!(
+            counts_after.unit_computed, counts_before.unit_computed,
+            "同参考集重复构造不得重算比较单元"
+        );
+        assert!(
+            counts_after.unit_reused > counts_before.unit_reused,
+            "重复构造必须命中单元 memo"
+        );
+
+        // 真实修订：同坐标换 revision（OHLC 不变）⟹ 该坐标起的单元失效并重算。
+        let row = Row::new(50, 2, "r2").with_prices(10, 19, 10, 19);
+        assert!(fixture
+            .producer
+            .bind_source(&mut fixture.store, row.coord, row.spec())
+            .expect("真实修订"));
+        fixture.raw.insert(row.coord, row.raw_json());
+        let revised = build(&mut fixture);
+        let counts_revised = fixture.producer.memo_counts();
+        assert!(
+            counts_revised.unit_invalidated > counts_after.unit_invalidated,
+            "源修订必须按坐标失效单元 memo"
+        );
+        assert!(
+            counts_revised.unit_computed > counts_after.unit_computed,
+            "失效的单元必须重算"
+        );
+        assert_eq!(
+            before.payload.digest, revised.payload.digest,
+            "OHLC 未变：载荷同根"
+        );
+        assert_ne!(
+            before.input_refs.digest, revised.input_refs.digest,
+            "源引用变化必须改根"
+        );
+        assert_ne!(before.object_id, revised.object_id, "源引用变化必须改 obj3");
+        // 非 TOP/BOTTOM 分支不产 CC-007（旧路径对这些分支同样不建对象）。
+        let last = facts.groups.len() - 3;
+        let mut rising = fixture
+            .producer
+            .build_shape(&mut fixture.store, &fixture.state, last, GENERATION, CUT)
+            .expect("构造 CC-006")
+            .expect("末窗口应可判");
+        rising.branch = "RISING";
+        let views = [last, last + 1, last + 2].map(|index| {
+            fixture
+                .state
+                .shared_group(index)
+                .expect("共享态可用")
+                .expect("组在域内")
+        });
+        assert!(fixture
+            .producer
+            .build_fractal_raw(
+                &mut fixture.store,
+                &raw_bars,
+                &rising,
+                [&views[0], &views[1], &views[2]],
+                GENERATION,
+                CUT,
+            )
+            .expect("分支判定不是错误")
+            .is_none());
+    }
+
+    /// 交错窗口的保留与失效：两个窗口在同一代内反复交错构造必须零重算（单槽 memo 会被对方
+    /// 驱逐、逐代全量重建），源修订后**所有受影响窗口**都按实际坐标截断重算，重算后再次零重算。
+    #[test]
+    fn fractal_history_keeps_interleaved_windows_and_invalidates_every_window() {
+        let mut fixture = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
+        let raw_bars: Vec<Bar> = fixture.state.raw_iter().copied().collect();
+        let build = |fixture: &mut Fixture,
+                     prepared: &PreparedRawHistory<'_>,
+                     start: usize|
+         -> Cc007Object {
+            let shape = fixture
+                .producer
+                .build_shape(&mut fixture.store, &fixture.state, start, GENERATION, CUT)
+                .expect("构造 CC-006")
+                .expect("该窗口应可判");
+            let views = [start, start + 1, start + 2].map(|index| {
+                fixture
+                    .state
+                    .shared_group(index)
+                    .expect("共享态可用")
+                    .expect("组在域内")
+            });
+            fixture
+                .producer
+                .build_fractal(
+                    &mut fixture.store,
+                    prepared,
+                    &shape,
+                    [&views[0], &views[1], &views[2]],
+                    GENERATION,
+                    CUT,
+                )
+                .expect("构造 CC-007")
+                .expect("TOP/BOTTOM 窗口应产对象")
+        };
+        // 一代一次 prepare，两个窗口共用同一视图（正式生成入口的用法）。
+        let prepared = fixture
+            .producer
+            .prepare_raw_history(&raw_bars)
+            .expect("准备 raw 账本");
+        let a1 = build(&mut fixture, &prepared, 0);
+        let b1 = build(&mut fixture, &prepared, 2);
+        let counts_first = fixture.producer.memo_counts();
+        let a2 = build(&mut fixture, &prepared, 0);
+        let b2 = build(&mut fixture, &prepared, 2);
+        let counts_second = fixture.producer.memo_counts();
+        assert_eq!(a1.object_id, a2.object_id, "窗口0 身份必须稳定");
+        assert_eq!(a1.record.digest, a2.record.digest, "窗口0 记录根必须稳定");
+        assert_eq!(b1.object_id, b2.object_id, "窗口2 身份必须稳定");
+        assert_eq!(b1.record.digest, b2.record.digest, "窗口2 记录根必须稳定");
+        assert_eq!(
+            counts_second.unit_computed, counts_first.unit_computed,
+            "交错窗口第二次构造必须零重算（单槽 memo 会被对方驱逐）"
+        );
+        assert!(
+            counts_second.unit_reused > counts_first.unit_reused,
+            "两窗必须各自命中自己的 memo"
+        );
+
+        // 源修订坐标 60 同时落在窗口0 与窗口2 的覆盖区内：两窗都必须按实际坐标截断重算。
+        let row = Row::new(60, 2, "r2").with_prices(22, 30, 22, 30);
+        assert!(fixture
+            .producer
+            .bind_source(&mut fixture.store, row.coord, row.spec())
+            .expect("真实修订"));
+        let prepared = fixture
+            .producer
+            .prepare_raw_history(&raw_bars)
+            .expect("修订后重新准备");
+        let _ = build(&mut fixture, &prepared, 0);
+        let after_a = fixture.producer.memo_counts();
+        assert!(
+            after_a.unit_computed > counts_second.unit_computed,
+            "窗口0 必须重算被修订的 suffix"
+        );
+        let _ = build(&mut fixture, &prepared, 2);
+        let after_b = fixture.producer.memo_counts();
+        assert!(
+            after_b.unit_computed > after_a.unit_computed,
+            "窗口2 同样必须重算"
+        );
+        assert!(
+            after_b.unit_invalidated > counts_second.unit_invalidated,
+            "两窗都要按实际坐标记失效"
+        );
+        let _ = build(&mut fixture, &prepared, 0);
+        let _ = build(&mut fixture, &prepared, 2);
+        let settled = fixture.producer.memo_counts();
+        assert_eq!(
+            settled.unit_computed, after_b.unit_computed,
+            "重算后必须回到零重算"
+        );
+        assert!(settled.unit_reused > after_b.unit_reused);
+    }
+
+    #[test]
+    fn replacing_prepared_raw_content_invalidates_the_previous_view() {
+        let mut fixture = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
+        let raw: Vec<Bar> = fixture.state.raw_iter().copied().collect();
+        let shape = fixture
+            .producer
+            .build_shape(&mut fixture.store, &fixture.state, 0, GENERATION, CUT)
+            .unwrap()
+            .unwrap();
+        let views = [0usize, 1, 2].map(|index| fixture.state.shared_group(index).unwrap().unwrap());
+        let previous = fixture.producer.prepare_raw_history(&raw).unwrap();
+        let mut changed = raw.clone();
+        changed.last_mut().unwrap().high += 1;
+        // source_ref 未换也可能收到不同 raw 值；新准备态必须封闭旧视图的消费口。
+        let current = fixture.producer.prepare_raw_history(&changed).unwrap();
+        let error = fixture
+            .producer
+            .build_fractal(
+                &mut fixture.store,
+                &previous,
+                &shape,
+                [&views[0], &views[1], &views[2]],
+                GENERATION,
+                CUT,
+            )
+            .expect_err("重新准备不同 raw 后，旧视图必须失效");
+        assert!(matches!(
+            error,
+            ProducerError::Type {
+                what: "raw 账本准备态",
+                ..
+            }
+        ));
+        fixture
+            .producer
+            .build_fractal(
+                &mut fixture.store,
+                &current,
+                &shape,
+                [&views[0], &views[1], &views[2]],
+                GENERATION,
+                CUT,
+            )
+            .unwrap()
+            .unwrap();
+    }
+
+    /// 陈旧 raw 账本视图必须显式拒绝：source 修订推进、换 producer、rollback 后都不许继续消费
+    /// （不靠调用方承诺，也不留绕过 `bind_source` 的旁路）。
+    #[test]
+    fn stale_prepared_raw_history_is_rejected() {
+        let mut fixture = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
+        let raw_bars: Vec<Bar> = fixture.state.raw_iter().copied().collect();
+        let shape = fixture
+            .producer
+            .build_shape(&mut fixture.store, &fixture.state, 0, GENERATION, CUT)
+            .expect("构造 CC-006")
+            .expect("该窗口应可判");
+        let views = [0usize, 1, 2].map(|index| {
+            fixture
+                .state
+                .shared_group(index)
+                .expect("共享态可用")
+                .expect("组在域内")
+        });
+        let prepared = fixture
+            .producer
+            .prepare_raw_history(&raw_bars)
+            .expect("准备 raw 账本");
+        fixture
+            .producer
+            .build_fractal(
+                &mut fixture.store,
+                &prepared,
+                &shape,
+                [&views[0], &views[1], &views[2]],
+                GENERATION,
+                CUT,
+            )
+            .expect("见证期内构造")
+            .expect("TOP 窗口应产对象");
+        // ① 源修订推进 epoch：旧视图必须拒绝，而不是静默复用旧 keys。
+        let row = Row::new(40, 2, "r2").with_prices(18, 25, 18, 25);
+        assert!(fixture
+            .producer
+            .bind_source(&mut fixture.store, row.coord, row.spec())
+            .expect("真实修订"));
+        let error = fixture
+            .producer
+            .build_fractal(
+                &mut fixture.store,
+                &prepared,
+                &shape,
+                [&views[0], &views[1], &views[2]],
+                GENERATION,
+                CUT,
+            )
+            .expect_err("修订后的陈旧视图必须拒绝");
+        assert!(
+            matches!(
+                error,
+                ProducerError::Type {
+                    what: "raw 账本准备态",
+                    ..
+                }
+            ),
+            "{error:?}"
+        );
+        // ② 换 producer 的视图不认（owner 防伪）。
+        let mut other_fixture = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
+        let other_raw: Vec<Bar> = other_fixture.state.raw_iter().copied().collect();
+        let foreign = other_fixture
+            .producer
+            .prepare_raw_history(&other_raw)
+            .expect("另一方准备 raw 账本");
+        let error = fixture
+            .producer
+            .build_fractal(
+                &mut fixture.store,
+                &foreign,
+                &shape,
+                [&views[0], &views[1], &views[2]],
+                GENERATION,
+                CUT,
+            )
+            .expect_err("外 producer 的视图必须拒绝");
+        assert!(
+            matches!(
+                error,
+                ProducerError::Type {
+                    what: "raw 账本准备态",
+                    ..
+                }
+            ),
+            "{error:?}"
+        );
+        // ③ rollback 口（discard_runtime_state）同样使视图陈旧。
+        fixture.producer.discard_runtime_state();
+        let error = fixture
+            .producer
+            .build_fractal(
+                &mut fixture.store,
+                &foreign,
+                &shape,
+                [&views[0], &views[1], &views[2]],
+                GENERATION,
+                CUT,
+            )
+            .expect_err("rollback 后视图仍必须拒绝");
+        assert!(
+            matches!(
+                error,
+                ProducerError::Type {
+                    what: "raw 账本准备态",
+                    ..
+                }
+            ),
+            "{error:?}"
+        );
+    }
+
+    /// CC-005 拒绝面：源坐标未登记当前版本、共享态退化都显式 `Err`，不落空数组。
+    #[test]
+    fn cc005_missing_source_and_degraded_are_rejected() {
+        let mut fixture = unbound_fixture(CASE_MERGE);
+        let error = fixture
+            .producer
+            .build_group(&mut fixture.store, &fixture.state, 0, GENERATION, CUT)
+            .expect_err("未登记源版本必须拒绝");
+        assert!(
+            matches!(error, ProducerError::MissingSource(_)),
+            "{error:?}"
+        );
+
+        let mut degraded = IncrFactsState::empty();
+        degraded.append(bar(5, 10, 5));
+        degraded.append(bar(5, 12, 6));
+        assert!(degraded.degraded());
+        let error = fixture
+            .producer
+            .build_group(&mut fixture.store, &degraded, 0, GENERATION, CUT)
+            .expect_err("共享态退化必须拒绝");
+        assert!(matches!(error, ProducerError::Degraded(_)), "{error:?}");
+    }
+
     /// 覆盖口径：等待 / 合并 / 方向变化 / 同价极值 / 稀疏坐标确实在本用例的输入里出现。
     #[test]
     fn coverage_waiting_merge_direction_and_equal_extremes() {
@@ -1248,6 +4201,106 @@ mod tests {
         // 未建方向的 waiting 步绑定的是**全部已见 raw 前缀**（与全量入口同形）。
         assert_eq!(waiting_facts.steps[2].source_coords, vec![0, 1, 2]);
         assert_eq!(waiting_objects.len(), waiting_facts.steps.len());
+    }
+
+    /// 派生链逐前缀对拍 ①：任一前缀状态下，末步（刚追加的那一步）的 `coords` 就是该前缀的
+    /// 完整 raw 坐标链，`raw_prefix_coords` 对同一前缀返回同一集合——共享链不是近似前缀，
+    /// 也不是「最新一段」。
+    #[test]
+    fn raw_prefix_chain_is_last_step_coords_for_every_prefix() {
+        for (case, bars) in [
+            ("merge/new-group/direction", CASE_MERGE),
+            ("waiting", CASE_WAITING),
+            ("shape/top-bottom", CASE_SHAPE),
+        ] {
+            for prefix in 1..=bars.len() {
+                let mut state = IncrFactsState::empty();
+                for (coord, high, low) in &bars[..prefix] {
+                    state.append(bar(*coord, *high, *low));
+                }
+                let expect: Vec<usize> =
+                    bars[..prefix].iter().map(|(coord, _, _)| *coord).collect();
+                let chain = raw_prefix_coords(&state).expect("raw 前缀链可用");
+                assert_eq!(chain.materialize(), expect, "{case} 前缀{prefix}: 前缀链");
+                let last = state.step_count() - 1;
+                let view = state
+                    .shared_step(last)
+                    .expect("共享态可用")
+                    .expect("末步在域内");
+                assert_eq!(
+                    view.coords.materialize(),
+                    expect,
+                    "{case} 前缀{prefix}: 末步 coords"
+                );
+            }
+        }
+    }
+
+    /// 派生链逐前缀对拍 ②：`group_sources_coords`（共享拼接）与「members ∪ 方向证据 ∪
+    /// 封口证据」的排序去重集逐前缀逐组同值；`group_members_coords` 与 `members` 同值；
+    /// 三个连续组的来源并集 == 右组来源（CC-006 取右组 sources 的前提，含竞争窗）。
+    #[test]
+    fn derived_coords_match_materialized_union_for_every_prefix() {
+        for (case, bars) in [
+            ("merge/new-group/direction", CASE_MERGE),
+            ("shape/top-bottom", CASE_SHAPE),
+        ] {
+            for prefix in 1..=bars.len() {
+                let mut state = IncrFactsState::empty();
+                for (coord, high, low) in &bars[..prefix] {
+                    state.append(bar(*coord, *high, *low));
+                }
+                for index in 0..state.group_count() {
+                    let view = state
+                        .shared_group(index)
+                        .expect("共享态可用")
+                        .expect("组在域内");
+                    let mut union: Vec<usize> = view.members.to_vec();
+                    if let Some(node) = view.direction_evidence {
+                        union.extend(node.coords.materialize());
+                    }
+                    if let Some(node) = view.confirmation_evidence {
+                        union.extend(node.coords.materialize());
+                    }
+                    union.sort_unstable();
+                    union.dedup();
+                    assert_eq!(
+                        group_members_coords(&view).materialize(),
+                        view.members.to_vec(),
+                        "{case} 前缀{prefix} 组{index}: members"
+                    );
+                    assert_eq!(
+                        group_sources_coords(&view).materialize(),
+                        union,
+                        "{case} 前缀{prefix} 组{index}: sources 三集并集"
+                    );
+                }
+                for index in 0..state.group_count().saturating_sub(2) {
+                    let views = [index, index + 1, index + 2].map(|slot| {
+                        state
+                            .shared_group(slot)
+                            .expect("共享态可用")
+                            .expect("组在域内")
+                    });
+                    let mut window: Vec<usize> = views
+                        .iter()
+                        .flat_map(|view| group_sources_coords(view).materialize())
+                        .collect();
+                    window.sort_unstable();
+                    window.dedup();
+                    assert_eq!(
+                        window,
+                        group_sources_coords(&views[2]).materialize(),
+                        "{case} 前缀{prefix} 窗{index}: 三连窗并集 == 右组 sources"
+                    );
+                    assert_eq!(
+                        window,
+                        group_window_sources(&views).materialize(),
+                        "{case} 前缀{prefix} 窗{index}: 窗口来源口"
+                    );
+                }
+            }
+        }
     }
 
     /// 独立复算 obj3 配方：不借构造器的 `F`/十六进制，按 §5.1 的 `F` 定义直接算 SHA-256；
