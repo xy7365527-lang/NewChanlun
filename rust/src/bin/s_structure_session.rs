@@ -49,6 +49,8 @@ mod content_store;
 // 供正式 S3 入口调用；本文件不接 S3Commit）。
 #[path = "s_session_v2/content_producer.rs"]
 mod content_producer;
+#[path = "s_session_v2/content_manifest.rs"]
+mod content_manifest;
 // #1394 2A-S：正式 S 的同代增量状态与稳定对象复用（进程内缓存；性能结构，不充任准入权威）。
 #[path = "s_session_v2/s_fact_cache.rs"]
 mod s_fact_cache;

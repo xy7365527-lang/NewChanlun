@@ -37,6 +37,9 @@ pub mod job;
 pub mod sequence;
 pub use sequence::{sequence_append, sequence_concat, sequence_split, NodeStore, SequenceRef};
 
+/// §5.4/§5.6 的路径定位与本批占位（0x08）定点替换（#1394 采纳 C）。
+pub mod path;
+
 /// 节点标签表（§5.2）。
 pub mod tag {
     pub const NULL: u8 = 0x00;
