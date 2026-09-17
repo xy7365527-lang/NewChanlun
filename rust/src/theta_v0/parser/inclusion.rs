@@ -901,6 +901,36 @@ pub struct StepEvidenceView<'a> {
     pub waiting_reasons: &'a [&'static str],
 }
 
+/// #1394 5.3：单组完整证据的**只读借用视图**——同核共享组证据直接成值边的入口
+/// （CC005/006/007 的输入源集合、极值来源与方向/封口证据不必展开历史前缀）。
+///
+/// 与 [`StepEvidenceView`] 同契约：集合字段全部借自同一 [`IncrFactsState`] 的既有存储
+/// （成员切片、组尾坐标链、极值来源集合、方向/封口证据节点句柄），固定大小的 `Bar` 与
+/// 标量按值复制；**不复制**集合，也不把证据展开成 [`InclusionDirectionEvidence`]。
+/// 视图不可变：不导出可变借用；取用视图不改变状态，也不改变既有
+/// [`IncrFactsState::group_fact`] / [`IncrFactsState::materialize_groups`] 的读数。
+///
+/// 字段与 [`InclusionGroupFact`] 逐位对应：
+/// - `members`：该组全部成员源坐标（升序；与 `dense_annotation` 映射同值，依据见
+///   [`IncrFactsState::shared_group`]）；
+/// - `member_tail`：同一序列**去掉首锚**后的共享坐标链（= `members[1..]`，组锚 =
+///   `bar.source_index`）——供下游 O(1) 取尾部句柄拼接输入源集合；
+/// - `high_sources` / `low_sources`：极值实际来源集合快照；
+/// - `direction_evidence` / `confirmation_evidence`：共享 [`EvidenceNode`] 句柄，
+///   `coords` 的物理树形状不参与公开内容身份（见
+///   [`super::evidence::CoordsRef::root_node`]）。
+#[derive(Debug, Clone, Copy)]
+pub struct GroupEvidenceView<'a> {
+    pub bar: Bar,
+    pub members: &'a [usize],
+    pub member_tail: &'a super::evidence::CoordsRef,
+    pub high_sources: &'a [usize],
+    pub low_sources: &'a [usize],
+    pub confirmed: bool,
+    pub direction_evidence: Option<&'a Rc<EvidenceNode>>,
+    pub confirmation_evidence: Option<&'a Rc<EvidenceNode>>,
+}
+
 /// #1394 5.3：共享证据不可用——显式错误，与「索引不存在」严格分开。
 ///
 /// 与 `Ok(None)`（该索引没有步骤）不同：本错误表示**整个共享态失效**（当前唯一成因：
@@ -1297,6 +1327,63 @@ impl IncrFactsState {
             high: step.high.as_deref().map(Vec::as_slice).unwrap_or_default(),
             low: step.low.as_deref().map(Vec::as_slice).unwrap_or_default(),
             waiting_reasons: step.waiting_reasons.as_slice(),
+        }))
+    }
+
+    /// #1394 5.3：借出单组完整证据的只读视图（不展开方向/封口证据的完整来源前缀）。
+    ///
+    /// 契约与 [`IncrFactsState::shared_step`] 一致：
+    /// - `Ok(Some(view))`：该组存在，视图借自本状态；
+    /// - `Ok(None)`：该索引没有组（`index >= group_count()`）；
+    /// - `Err(SharedEvidenceUnavailable)`：共享态退化，**先于索引判定**——不返回任何视图，
+    ///   也不静默改用全量入口的判据。
+    ///
+    /// 取用视图不改变本状态；既有 [`IncrFactsState::group_fact`] /
+    /// [`IncrFactsState::materialize_groups`] 的读数与回落行为不变。
+    ///
+    /// ## 成员字段的等价性（不另立成员判据）
+    ///
+    /// `members` 借自增量成员表（`seed`/`new_group` 以 incoming 起表、`merge` 追加），
+    /// 与 `group_fact`/`materialize_groups` 现用的 `dense_annotation` 分组**同输入同值**：
+    ///
+    /// 1. `merge` 保留 `acc.source_index`，而 `merged` 按源坐标严格递增 ⟹ 组锚 = 组内首根
+    ///    序号，`merged_group_index` 的「最后一个 ≤ 该坐标的锚」= 落入区间
+    ///    `[merged[g].source_index, merged[g+1].source_index)` 的那一组；
+    /// 2. 非退化域里每根 raw 恰折叠进一个组（组只在 `new_group` 处前进，成员只增不改），
+    ///    故增量成员表与上述区间成员同值；
+    /// 3. 全量入口同样只用 `bars[..processed]` 的稠密标注（方向未定前缀之后的 raw 不冒充
+    ///    已分组），两边截断口径一致。
+    ///
+    /// 退化域（源坐标非严格递增）上述前提失效，故直接 `Err`，不用近似映射冒充。
+    /// `member_tail` 是同一成员序列去掉首锚后的既有共享尾链（= `members[1..]`），
+    /// 不新算成员判据；等价性由逐前缀逐组对拍锁定
+    /// （测试 `shared_group_matches_full_facts_for_every_prefix`）。
+    pub fn shared_group(
+        &self,
+        index: usize,
+    ) -> Result<Option<GroupEvidenceView<'_>>, SharedEvidenceUnavailable> {
+        if self.degraded {
+            return Err(SharedEvidenceUnavailable {
+                reason: "source 坐标非严格递增：共享证据不可用",
+            });
+        }
+        let Some(group) = self.groups.get(index) else {
+            return Ok(None);
+        };
+        // 组尾链与组在同一分支成对推入（`seed` / `new_group`），长度恒等。
+        let member_tail = self
+            .group_tail
+            .get(index)
+            .expect("组尾链与组按序成对维护（seed / new_group 同点推入）");
+        Ok(Some(GroupEvidenceView {
+            bar: group.bar,
+            members: group.members.as_slice(),
+            member_tail,
+            high_sources: group.high_sources.as_slice(),
+            low_sources: group.low_sources.as_slice(),
+            confirmed: self.evidence.is_some() && index + 1 < self.groups.len(),
+            direction_evidence: self.group_direction.get(index).and_then(|h| h.as_ref()),
+            confirmation_evidence: self.group_confirmation.get(index).and_then(|h| h.as_ref()),
         }))
     }
 
@@ -2404,6 +2491,348 @@ mod tests {
         assert_eq!(
             degraded.step_fact(0),
             process_inclusion_with_facts(&degraded_bars).steps.first().cloned()
+        );
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // #1394 5.3：同核共享**组**证据的只读借用口（CC005/006/007 直接内容构造的值边）。
+    //
+    // 契约：`shared_group(index)` 借出单组完整证据视图——`bar`/成员/极值来源借用既有集合
+    // 切片，方向与封口证据借出共享 `EvidenceNode` 句柄（坐标树不展开历史前缀）；索引不存在
+    // = `Ok(None)`；共享态退化 = 显式 `Err` 且**先于索引判定**（与 `shared_step` 同款），
+    // 不静默回落成另一套判据，也不无声返回缺对象。
+    //
+    // 成员**不另立判据**：视图借的是增量成员表，等价性依据见 `IncrFactsState::shared_group`
+    // 文档；下面逐前缀同时与 `group_fact`（dense_annotation 映射）和全量入口对拍。
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// 逐字段对拍：组借用视图 ≡ 全量入口 `groups[g]` ≡ 同一状态 `group_fact(g)`。
+    fn assert_shared_group_views_match_facts(bars: &[Bar], label: &str) {
+        let mut state = IncrFactsState::empty();
+        for i in 0..bars.len() {
+            state.append(bars[i]);
+            assert!(!state.degraded(), "{label} 前缀 {i}：夹具不应退化");
+            let want = process_inclusion_with_facts(&bars[..=i]);
+            assert_eq!(
+                state.group_count(),
+                want.groups.len(),
+                "{label} 前缀 {i}：组数"
+            );
+            for (index, want_group) in want.groups.iter().enumerate() {
+                let fact = state.group_fact(index).expect("组在域内");
+                assert_eq!(
+                    &fact, want_group,
+                    "{label} 前缀 {i} 组 {index}：既有 group_fact 与全量入口不一致"
+                );
+                let view = match state.shared_group(index) {
+                    Ok(Some(view)) => view,
+                    Ok(None) => panic!("{label} 前缀 {i} 组 {index}：在域内，借用口却报缺失"),
+                    Err(error) => {
+                        panic!("{label} 前缀 {i} 组 {index}：借用口显式不可用 {error:?}")
+                    }
+                };
+                // 借用视图逐字段 ≡ 既有完整输出（`group_fact`）。其中 `members` 一栏即
+                // 「借用增量成员表 ≡ dense_annotation 映射」的逐前缀证据。
+                assert_eq!(view.bar, fact.bar, "{label} 前缀 {i} 组 {index}：bar");
+                assert_eq!(
+                    view.members,
+                    fact.members.as_slice(),
+                    "{label} 前缀 {i} 组 {index}：members（借用成员表 vs dense 映射）"
+                );
+                // `member_tail` 是同一成员序列去掉首锚（组锚 = `bar.source_index`）后的尾链：
+                // 现存数据借用，不新算成员判据。
+                assert_eq!(
+                    view.member_tail.materialize(),
+                    fact.members[1..].to_vec(),
+                    "{label} 前缀 {i} 组 {index}：member_tail 尾链 vs members 去掉首锚"
+                );
+                assert_eq!(
+                    view.high_sources,
+                    fact.high_sources.as_slice(),
+                    "{label} 前缀 {i} 组 {index}：high 来源"
+                );
+                assert_eq!(
+                    view.low_sources,
+                    fact.low_sources.as_slice(),
+                    "{label} 前缀 {i} 组 {index}：low 来源"
+                );
+                assert_eq!(
+                    view.confirmed, fact.confirmed,
+                    "{label} 前缀 {i} 组 {index}：确认状态"
+                );
+                match (view.direction_evidence, fact.direction_evidence.as_ref()) {
+                    (None, None) => {}
+                    (Some(shared), Some(full)) => {
+                        assert_eq!(
+                            shared.direction, full.direction,
+                            "{label} 前缀 {i} 组 {index}：方向证据方向"
+                        );
+                        assert_eq!(
+                            shared.previous_acc, full.previous_acc,
+                            "{label} 前缀 {i} 组 {index}：方向证据前驱"
+                        );
+                        assert_eq!(
+                            shared.incoming, full.incoming,
+                            "{label} 前缀 {i} 组 {index}：方向证据 incoming"
+                        );
+                        assert_eq!(
+                            shared.coords.materialize(),
+                            full.source_coords,
+                            "{label} 前缀 {i} 组 {index}：方向证据来源坐标"
+                        );
+                    }
+                    (shared, full) => panic!(
+                        "{label} 前缀 {i} 组 {index}：方向证据有无不一致（借用 {shared:?} / 全量 {full:?}）"
+                    ),
+                }
+                match (
+                    view.confirmation_evidence,
+                    fact.confirmation_evidence.as_ref(),
+                ) {
+                    (None, None) => {}
+                    (Some(shared), Some(full)) => {
+                        assert_eq!(
+                            shared.direction, full.direction,
+                            "{label} 前缀 {i} 组 {index}：封口证据方向"
+                        );
+                        assert_eq!(
+                            shared.previous_acc, full.previous_acc,
+                            "{label} 前缀 {i} 组 {index}：封口证据前驱"
+                        );
+                        assert_eq!(
+                            shared.incoming, full.incoming,
+                            "{label} 前缀 {i} 组 {index}：封口证据 incoming"
+                        );
+                        assert_eq!(
+                            shared.coords.materialize(),
+                            full.source_coords,
+                            "{label} 前缀 {i} 组 {index}：封口证据来源坐标"
+                        );
+                    }
+                    (shared, full) => panic!(
+                        "{label} 前缀 {i} 组 {index}：封口证据有无不一致（借用 {shared:?} / 全量 {full:?}）"
+                    ),
+                }
+            }
+            assert!(
+                matches!(state.shared_group(state.group_count()), Ok(None)),
+                "{label} 前缀 {i}：索引不存在 = Ok(None)"
+            );
+        }
+    }
+
+    #[test]
+    fn shared_group_matches_full_facts_for_every_prefix() {
+        // 合并 / 定方向 / 换组（方向翻转）：方向证据与封口证据同时出现。
+        assert_shared_group_views_match_facts(
+            &[
+                bar(0, 10, 5),
+                bar(1, 15, 8),
+                bar(2, 12, 9),
+                bar(3, 8, 4),
+                bar(4, 9, 5),
+                bar(5, 14, 10),
+                bar(6, 13, 11),
+            ],
+            "merge/new-group",
+        );
+        // 初始方向永久未定：组 0 只含种子成员，后续 raw 不冒充已分组。
+        assert_shared_group_views_match_facts(
+            &[bar(0, 10, 5), bar(1, 9, 6), bar(2, 12, 7), bar(3, 13, 8)],
+            "initial-unsettled",
+        );
+        // 非连续源坐标（不得区间化）+ 同价极值身份竞争。
+        assert_shared_group_views_match_facts(
+            &[
+                sparse_bar(10, 10, 5),
+                sparse_bar(11, 15, 8),
+                sparse_bar(37, 15, 6),
+                sparse_bar(9000, 12, 6),
+                sparse_bar(9001, 9, 4),
+                sparse_bar(12345, 9, 3),
+            ],
+            "sparse/equal-extremes",
+        );
+        // 确定性随机多形态（包含/严格/方向翻转/同价 + 稀疏坐标）：逐前缀全字段对拍。
+        let mut lcg: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut rand = move || {
+            lcg = lcg
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (lcg >> 33) as i64
+        };
+        let mut high = 80i64;
+        let bars: Vec<Bar> = (0..240usize)
+            .map(|i| {
+                let step = rand() % 21 - 10;
+                high = (high + step).clamp(10, 300);
+                let span = 1 + rand() % 7;
+                let tie = rand() % 5 == 0;
+                let h = if tie { high } else { high + rand() % 3 };
+                sparse_bar(i * 3 + 7, h, h - span)
+            })
+            .collect();
+        assert_shared_group_views_match_facts(&bars, "randomized");
+    }
+
+    #[test]
+    fn shared_group_handles_survive_later_appends() {
+        let mut state = IncrFactsState::empty();
+        for bar in [bar(0, 20, 10), bar(1, 24, 14), bar(2, 22, 16), bar(3, 23, 15)] {
+            state.append(bar);
+        }
+        assert!(!state.degraded());
+        assert!(state.group_count() >= 2, "夹具应已建立方向并换组");
+        // 组 0 带封口证据（无方向证据）、组 1 带方向证据——两侧都只取 O(1) 共享句柄
+        // （不展开历史前缀）；末组尚未封口，单独核其封口位为空。
+        let sealed = state.group_fact(0).expect("组 0 在域内");
+        let directed = state.group_fact(1).expect("组 1 在域内");
+        let (seal_handle, members_0, tail_0) = {
+            let view = state
+                .shared_group(0)
+                .expect("共享态可用")
+                .expect("组 0 在域内");
+            assert!(view.confirmation_evidence.is_some(), "组 0 应带封口证据");
+            assert!(view.direction_evidence.is_none(), "组 0 尚无方向证据");
+            (
+                view.confirmation_evidence.map(Rc::clone),
+                view.members.to_vec(),
+                view.member_tail.clone(),
+            )
+        };
+        let (dir_handle, members_1, tail_1) = {
+            let view = state
+                .shared_group(1)
+                .expect("共享态可用")
+                .expect("组 1 在域内");
+            assert!(view.direction_evidence.is_some(), "组 1 应带方向证据");
+            assert!(
+                view.confirmation_evidence.is_some(),
+                "组 1 已被后组封口"
+            );
+            (
+                view.direction_evidence.map(Rc::clone),
+                view.members.to_vec(),
+                view.member_tail.clone(),
+            )
+        };
+        let last = state.group_count() - 1;
+        let tail_view = state
+            .shared_group(last)
+            .expect("共享态可用")
+            .expect("末组在域内");
+        assert!(
+            tail_view.direction_evidence.is_some(),
+            "末组应带方向证据"
+        );
+        assert!(
+            tail_view.confirmation_evidence.is_none(),
+            "末组尚未封口"
+        );
+        // 尾链句柄与成员表同源：首锚在 `bar.source_index`，尾链 = members[1..]。
+        assert_eq!(tail_0.materialize(), members_0[1..].to_vec());
+        assert_eq!(tail_1.materialize(), members_1[1..].to_vec());
+        let seal_before = seal_handle
+            .as_ref()
+            .map(|node| node.coords.materialize())
+            .expect("封口证据非空");
+        let dir_before = dir_handle
+            .as_ref()
+            .map(|node| node.coords.materialize())
+            .expect("方向证据非空");
+
+        // 实际追加：继续推进成员、封口与证据链。
+        for bar in [bar(4, 26, 18), bar(5, 28, 20), bar(6, 27, 21)] {
+            state.append(bar);
+        }
+        assert!(!state.degraded());
+        // 旧句柄保持旧内容：共享前缀不被后续追加改写。
+        assert_eq!(
+            seal_handle.as_ref().map(|node| node.coords.materialize()),
+            Some(seal_before.clone()),
+            "旧封口证据句柄被后续追加改写"
+        );
+        assert_eq!(
+            dir_handle.as_ref().map(|node| node.coords.materialize()),
+            Some(dir_before.clone()),
+            "旧方向证据句柄被后续追加改写"
+        );
+        // 旧组完整事实与追加前逐位相同；重新借出的同组与旧内容一致。
+        assert_eq!(state.group_fact(0), Some(sealed));
+        assert_eq!(state.group_fact(1), Some(directed));
+        let again0 = state
+            .shared_group(0)
+            .expect("共享态可用")
+            .expect("组 0 在域内");
+        let again1 = state
+            .shared_group(1)
+            .expect("共享态可用")
+            .expect("组 1 在域内");
+        assert_eq!(again0.members, members_0.as_slice());
+        assert_eq!(again1.members, members_1.as_slice());
+        // 旧尾链句柄与重新借出的尾链都保持旧内容（共享前缀不被后续追加改写）。
+        assert_eq!(tail_0.materialize(), members_0[1..].to_vec());
+        assert_eq!(tail_1.materialize(), members_1[1..].to_vec());
+        assert_eq!(again0.member_tail.materialize(), members_0[1..].to_vec());
+        assert_eq!(again1.member_tail.materialize(), members_1[1..].to_vec());
+        assert_eq!(
+            again0
+                .confirmation_evidence
+                .map(|node| node.coords.materialize()),
+            Some(seal_before)
+        );
+        assert_eq!(
+            again1
+                .direction_evidence
+                .map(|node| node.coords.materialize()),
+            Some(dir_before)
+        );
+    }
+
+    #[test]
+    fn shared_group_contract_distinguishes_absent_and_degraded() {
+        let bars = vec![bar(0, 10, 5), bar(1, 15, 8), bar(2, 14, 9)];
+        let mut state = IncrFactsState::empty();
+        for bar in &bars {
+            state.append(*bar);
+        }
+        assert!(!state.degraded());
+        assert!(
+            matches!(state.shared_group(0), Ok(Some(_))),
+            "在域内必须借出视图"
+        );
+        assert!(
+            matches!(state.shared_group(state.group_count()), Ok(None)),
+            "索引不存在 = Ok(None)"
+        );
+        assert!(matches!(state.shared_group(usize::MAX), Ok(None)));
+
+        // 共享态退化（source 坐标非严格递增）= 显式错误，且先于索引判定。
+        let degraded_bars = vec![bar(5, 10, 5), bar(3, 15, 8), bar(9, 14, 9), bar(1, 9, 4)];
+        let mut degraded = IncrFactsState::empty();
+        for bar in &degraded_bars {
+            degraded.append(*bar);
+        }
+        assert!(degraded.degraded());
+        let error = degraded
+            .shared_group(0)
+            .expect_err("退化态必须显式报错，不得静默降级");
+        assert!(
+            error.reason.contains("严格递增"),
+            "错误须点名成因，实际：{}",
+            error.reason
+        );
+        assert!(
+            degraded.shared_group(usize::MAX).is_err(),
+            "退化态先于索引判定"
+        );
+        // 既有展开入口不受新接口影响：仍按既定契约回落全量入口。
+        assert_eq!(
+            degraded.group_fact(0),
+            process_inclusion_with_facts(&degraded_bars)
+                .groups
+                .first()
+                .cloned()
         );
     }
 }
