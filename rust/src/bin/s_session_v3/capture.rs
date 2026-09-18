@@ -109,6 +109,43 @@ pub(super) struct DeltaReferences {
     pub validated_capture_digest: String,
 }
 impl ConfiguredCapture<'_> {
+    pub(super) fn watch(
+        &mut self,
+        request: &q_watch::Request,
+        leases: &q_lease::ClientLeases,
+        epoch: &str,
+        job: &mut newchan_rust::s_content::job::Job,
+    ) -> Result<q_watch::Reply, String> {
+        request.validate_resources(self.resources)?;
+        let current = self.projection(
+            self.capture.generation(),
+            projection::HistoryMode::RecomputedWithRevision,
+            job,
+        )?;
+        let deadline = job.first_read_deadline().map_err(err)?;
+        let tx = self.capture.db.transaction().map_err(err)?;
+        let policy=tx.query_row("SELECT policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1",[],|row|Ok(q_watch::Policy{
+            revision:row.get(0)?,retain:row.get(1)?,first:row.get(2)?,head:row.get(3)?,
+        })).map_err(err)?;
+        let mut source = content_store::ReadStore::new(&tx).map_err(err)?;
+        let mut graph = history::HashReader::bounded(
+            &mut source,
+            Some(deadline),
+            Some(self.resources.limit(q_resources::Limit::CaptureBytes)),
+        );
+        q_watch::prepare(
+            request,
+            current,
+            &self.capture.audited.cuts,
+            &mut graph,
+            policy,
+            &self.capture.digest,
+            self.resources,
+            leases,
+            epoch,
+            job,
+        )
+    }
     pub(super) fn content(
         &mut self,
         request: &q_content::Request,

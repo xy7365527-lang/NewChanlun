@@ -51,6 +51,8 @@ mod q_delta;
 mod q_snapshot;
 mod q_wire;
 mod q_content;
+mod q_watch;
+mod q_lease;
 #[cfg(unix)]
 mod capture;
 pub(super) mod aux_index;

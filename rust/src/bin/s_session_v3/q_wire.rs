@@ -23,8 +23,31 @@ pub(super) fn reply(
     resources: &QResources,
     job: &mut Job,
 ) -> Result<Vec<u8>, String> {
+    try_reply(
+        request,
+        payload,
+        session,
+        incarnation,
+        epoch,
+        resources,
+        job,
+    )?
+    .ok_or_else(|| err("Incomplete：完整Q消息体超过max_reply_bytes"))
+}
+/// None只表示完整消息字节装不下；期限/身份/编码等错误不得借此降级为截短成功。
+pub(super) fn try_reply(
+    request: &Value,
+    payload: Value,
+    session: &str,
+    incarnation: &str,
+    epoch: &str,
+    resources: &QResources,
+    job: &mut Job,
+) -> Result<Option<Vec<u8>>, String> {
     positive(epoch, "Q producer_epoch")?;
-    encode(&payload, resources.limit(Limit::ReplyBytes), job)?;
+    if encode(&payload, resources.limit(Limit::ReplyBytes), job)?.is_none() {
+        return Ok(None);
+    }
     let envelope = reply_envelope(
         request,
         payload,
@@ -41,16 +64,18 @@ fn err(e: impl std::fmt::Display) -> String {
     format!("QReplyInvalid：{e}")
 }
 
-fn encode(value: &Value, limit: u64, job: &mut Job) -> Result<Vec<u8>, String> {
+fn encode(value: &Value, limit: u64, job: &mut Job) -> Result<Option<Vec<u8>>, String> {
     struct Buffer<'a> {
         bytes: Vec<u8>,
         limit: u64,
         job: &'a mut Job,
+        exceeded: bool,
     }
     impl Write for Buffer<'_> {
         fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
             self.job.pre_io_check().map_err(io::Error::other)?;
             if self.bytes.len() as u128 + bytes.len() as u128 > u128::from(self.limit) {
+                self.exceeded = true;
                 return Err(io::Error::other(
                     "Incomplete：完整Q消息体超过max_reply_bytes",
                 ));
@@ -96,8 +121,13 @@ fn encode(value: &Value, limit: u64, job: &mut Job) -> Result<Vec<u8>, String> {
         bytes: Vec::new(),
         limit,
         job,
+        exceeded: false,
     };
-    write(value, &mut out).map_err(err)?;
+    let result = write(value, &mut out);
     out.job.pre_io_check().map_err(err)?;
-    Ok(out.bytes)
+    if out.exceeded {
+        return Ok(None);
+    }
+    result.map_err(err)?;
+    Ok(Some(out.bytes))
 }

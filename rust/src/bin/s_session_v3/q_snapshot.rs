@@ -155,7 +155,7 @@ fn err(e: impl std::fmt::Display) -> String {
 }
 
 /// 校验和重建采用原Q配方；page_size/offset不是签名授权，客户端另核连续性。
-fn token(projection: &Projection, issued: &str, page_size: u64, offset: u64) -> Value {
+pub(super) fn token(projection: &Projection, issued: &str, page_size: u64, offset: u64) -> Value {
     let fixed = &projection.wire["fixed_cut"];
     let mut result = json!({});
     for key in [
