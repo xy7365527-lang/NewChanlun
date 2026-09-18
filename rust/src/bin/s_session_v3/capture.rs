@@ -109,6 +109,24 @@ pub(super) struct DeltaReferences {
     pub validated_capture_digest: String,
 }
 impl ConfiguredCapture<'_> {
+    pub(super) fn snapshot(
+        &mut self,
+        request: &q_snapshot::Request,
+        producer_epoch: &str,
+        job: &mut newchan_rust::s_content::job::Job,
+    ) -> Result<Vec<u8>, String> {
+        request.validate_resources(self.resources)?;
+        let generation = request.generation(self.capture.generation());
+        let projection = self.projection(generation, request.history_mode(), job)?;
+        q_snapshot::reply(
+            request,
+            projection,
+            self.capture.digest(),
+            self.resources,
+            producer_epoch,
+            job,
+        )
+    }
     pub(super) fn projection(
         &mut self,
         generation: i64,

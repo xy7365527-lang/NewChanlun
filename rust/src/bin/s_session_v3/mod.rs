@@ -48,6 +48,7 @@ mod reader;
 mod projection;
 mod q_resources;
 mod q_delta;
+mod q_snapshot;
 #[cfg(unix)]
 mod capture;
 pub(super) mod aux_index;
