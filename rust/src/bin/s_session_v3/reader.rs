@@ -88,6 +88,71 @@ fn err(e: impl std::fmt::Display) -> String {
     format!("S3ContentReadInvalid：{e}")
 }
 
+/// 每次在当前一致事务重建指定完整Q根；旧cut不受Delta交付窗口淘汰影响。
+pub(super) fn projection_fragment(
+    tx: &Transaction<'_>,
+    anchor: &Value,
+    path: &[PathStep],
+    unit: Unit,
+    offset: u64,
+    limit: u64,
+    max_reply_bytes: u64,
+    max_metadata_bytes: u64,
+    job: &mut Job,
+) -> Result<Fragment, String> {
+    const FIELDS: [&str; 4] = [
+        "kind",
+        "fixed_cut",
+        "cut_projection_digest",
+        "projection_ref",
+    ];
+    if !anchor
+        .as_object()
+        .is_some_and(|o| o.len() == FIELDS.len() && o.keys().all(|k| FIELDS.contains(&k.as_str())))
+        || anchor["kind"] != "projection"
+    {
+        return Err("SchemaUnsupported：projection anchor必须是exact四字段".into());
+    }
+    let generation = newchan_rust::session_protocol::nonnegative(
+        required(&anchor["fixed_cut"], "cut_generation")?,
+        "cut_generation",
+    )?;
+    let mode = match required(&anchor["fixed_cut"], "history_mode")? {
+        "AsKnown" => projection::HistoryMode::AsKnown,
+        "RecomputedWithRevision" => projection::HistoryMode::RecomputedWithRevision,
+        _ => return Err("SchemaUnsupported：history_mode不符".into()),
+    };
+    let claimed = ContentRef::from_transport_json(&anchor["projection_ref"]).map_err(err)?;
+    job.begin_first_read().map_err(err)?;
+    let audited = state::audit(tx)?;
+    job.pre_io_check().map_err(err)?;
+    let mut source = content_store::ReadStore::new(tx).map_err(err)?;
+    let mut graph = history::HashReader::new(&mut source);
+    let actual = projection::build(
+        tx,
+        &audited,
+        &mut graph,
+        generation,
+        mode,
+        max_metadata_bytes,
+        job,
+    )?;
+    if claimed != actual.root || *anchor != actual.anchor() {
+        return Err("IdentityConflict：projection anchor与同一读集的完整投影不同".into());
+    }
+    fragment::read(
+        &mut graph,
+        &actual.root,
+        path,
+        unit,
+        offset,
+        limit,
+        max_reply_bytes,
+        job,
+    )
+    .map_err(err)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
