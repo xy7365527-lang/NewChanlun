@@ -332,6 +332,41 @@ pub enum NodeAcceptance {
     AlreadyAccepted,
 }
 
+/// 已由本次真实 `F(tag, body)` 核出的不可变节点计费信息。
+///
+/// 字段保持私有；除 [`CheckedNodeUsage::checked`] 外没有构造入口，因此它只能来自
+/// 当前字节原件的摘要核对。这个值可以由内部审计 receipt 重放到另一个 Job，但不
+/// 代替该 Job 对内容、上下文或可达性的核验。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CheckedNodeUsage {
+    digest: NodeDigest,
+    framed_bytes: u64,
+}
+
+impl CheckedNodeUsage {
+    pub fn checked(digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<Self, CodecError> {
+        let actual = frame(tag, body);
+        if actual != *digest {
+            return Err(CodecError::new(
+                code::NODE_DIGEST,
+                format!(
+                    "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不计入",
+                    root_string(digest),
+                    root_string(&actual)
+                ),
+            ));
+        }
+        Ok(Self {
+            digest: *digest,
+            framed_bytes: framed_bytes(body.len()),
+        })
+    }
+
+    pub fn digest(&self) -> &NodeDigest {
+        &self.digest
+    }
+}
+
 static JOB_IDS: AtomicU64 = AtomicU64::new(0);
 
 /// 一个 job 的资源累计核心。
@@ -565,21 +600,32 @@ impl Job {
         self.begin_first_read()?;
         // 先核 F(tag, body) 再动任何账：未核摘要绝不进入已计费集合，
         // 否则坏节点重复出现会靠「已计过」绕开计费与校验。
-        let actual = frame(tag, body);
-        if actual != *digest {
-            return Err(CodecError::new(
-                code::NODE_DIGEST,
-                format!(
-                    "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不计入",
-                    root_string(digest),
-                    root_string(&actual)
-                ),
-            ));
-        }
-        if self.accepted.contains(digest) {
+        let usage = CheckedNodeUsage::checked(digest, tag, body)?;
+        self.accept_checked_usage_inner(&usage)
+    }
+
+    /// 重放一个已经由 [`CheckedNodeUsage::checked`] 从真实原件核出的不可变计费值。
+    ///
+    /// 这里仍执行本 Job 的期限、停止状态、去重和节点预算门；它不重新声称核验了
+    /// 当前内容图；它不接收或核对本次节点字节。调用方必须另外证明复用原件及判据上下文
+    /// 未变；有新字节时仍须调用 `accept_node`，不能拿旧用量票据替代当前摘要核对。
+    pub fn accept_checked_usage(
+        &mut self,
+        usage: &CheckedNodeUsage,
+    ) -> Result<NodeAcceptance, CodecError> {
+        self.begin_first_read()?;
+        self.accept_checked_usage_inner(usage)
+    }
+
+    fn accept_checked_usage_inner(
+        &mut self,
+        usage: &CheckedNodeUsage,
+    ) -> Result<NodeAcceptance, CodecError> {
+        let digest = usage.digest;
+        if self.accepted.contains(&digest) {
             return Ok(NodeAcceptance::AlreadyAccepted);
         }
-        let framed = framed_bytes(body.len());
+        let framed = usage.framed_bytes;
         let projected_bytes = match self.node_bytes.checked_add(framed) {
             Some(n) => n,
             None => {
@@ -612,7 +658,7 @@ impl Job {
         }
         self.node_bytes = projected_bytes;
         self.nodes = projected_nodes;
-        self.accepted.insert(*digest);
+        self.accepted.insert(digest);
         Ok(NodeAcceptance::FirstAccept)
     }
 
@@ -984,7 +1030,9 @@ impl<'a> JobNodeSource<'a> {
 }
 
 impl NodeSource for JobNodeSource<'_> {
-    fn max_render_bytes(&self) -> Option<u64> { self.inner.max_render_bytes() }
+    fn max_render_bytes(&self) -> Option<u64> {
+        self.inner.max_render_bytes()
+    }
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
         self.job.begin_first_read()?;
         let read = self.inner.read(digest)?;

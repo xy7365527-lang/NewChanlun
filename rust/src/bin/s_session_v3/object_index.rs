@@ -281,6 +281,14 @@ pub(super) fn at_cut(
     index: &[Entry],
     g: i64,
 ) -> Result<(Built, Built, Built), String> {
+    at_cut_metered(s, index, g, None)
+}
+pub(super) fn at_cut_metered(
+    s: &mut dyn NodeStore,
+    index: &[Entry],
+    g: i64,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<(Built, Built, Built), String> {
     let mut active = index
         .iter()
         .filter(|e| {
@@ -300,7 +308,12 @@ pub(super) fn at_cut(
     let mut collect = |items: Vec<&Entry>| -> Result<Built, String> {
         let refs = items
             .into_iter()
-            .map(|e| wire_at(s, e, g))
+            .map(|e| {
+                if let Some(b) = budget {
+                    b.record().map_err(err)?;
+                }
+                wire_at(s, e, g)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         array(s, &refs)
     };

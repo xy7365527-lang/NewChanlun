@@ -42,9 +42,19 @@ pub(super) fn read_history_until(
 pub(super) fn read_history_bounded(
     tx: &Transaction<'_>,
     raw: &[Value],
+    control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+) -> Result<Vec<PublishedCut>, String> {
+    read_history_metered(tx, raw, control, deadline, max_render_bytes, None)
+}
+pub(super) fn read_history_metered(
+    tx: &Transaction<'_>,
+    raw: &[Value],
     mut control: v2::ControlHistory,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
+    budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<Vec<PublishedCut>, String> {
     check_deadline(deadline)?;
     verify_required_meta(tx)?;
@@ -54,19 +64,20 @@ pub(super) fn read_history_bounded(
         overlay: BTreeMap::new(),
         deadline,
         max_render_bytes,
+        budget,
     };
     let auxiliary = aux_index::load(tx, &mut store, meta_i64(tx, "generation")?)?;
     let objects = object_index::load(tx, &mut store, meta_i64(tx, "generation")?)?;
     store.overlay.clear();
     let raw_nodes = raw
         .iter()
-        .map(|v| hash_json_until(v, deadline))
+        .map(|v| hash_json_metered(v, deadline, budget))
         .collect::<Result<Vec<_>, _>>()?;
     let raw_wire_nodes = raw
         .iter()
         .map(|event| {
             check_deadline(deadline)?;
-            hash_json_until(&project_raw_event_wire(event)?, deadline)
+            hash_json_metered(&project_raw_event_wire(event)?, deadline, budget)
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut effective = BTreeMap::<i64, NodeDigest>::new();
@@ -106,7 +117,8 @@ pub(super) fn read_history_bounded(
             &roots.generated_state,
             generation,
         )?;
-        let (active, withdrawn, upserts) = object_index::at_cut(&mut store, &objects, generation)?;
+        let (active, withdrawn, upserts) =
+            object_index::at_cut_metered(&mut store, &objects, generation, budget)?;
         for (public, key, expected) in [
             (&snapshot, "objects", active.digest),
             (&snapshot, "withdrawn_objects", withdrawn.digest),
@@ -117,12 +129,22 @@ pub(super) fn read_history_bounded(
         let (withdrawals, replaces) = object_index::changes_at(&objects, generation)?;
         let wire_withdrawals = withdrawals
             .iter()
-            .map(project_withdrawal_wire)
+            .map(|v| {
+                if let Some(b) = budget {
+                    b.record().map_err(err)?;
+                }
+                project_withdrawal_wire(v)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         same_json(&mut store, &delta, "withdrawals", json!(wire_withdrawals))?;
+        for _ in &replaces {
+            if let Some(b) = budget {
+                b.record().map_err(err)?;
+            }
+        }
         same_json(&mut store, &delta, "replaces", json!(replaces))?;
         for (public, is_delta) in [(&snapshot, false), (&delta, true)] {
-            let members = aux_index::cut_members(&auxiliary, generation, is_delta)?;
+            let members = aux_index::cut_members_metered(&auxiliary, generation, is_delta, budget)?;
             for (name, nodes) in ["witnesses", "relations", "observations"]
                 .into_iter()
                 .zip(members)
@@ -131,7 +153,7 @@ pub(super) fn read_history_bounded(
                     &mut store,
                     public,
                     name,
-                    hash_array_until(&nodes, deadline)?,
+                    hash_array_metered(&nodes, deadline, budget, false)?,
                 )?;
             }
         }
@@ -151,7 +173,7 @@ pub(super) fn read_history_bounded(
                 .ok_or_else(|| err("缺scope"))?
                 .as_bytes(),
         )?;
-        if m.scope.digest().map_err(err)? != hash_json(&scope)? {
+        if m.scope.digest().map_err(err)? != hash_json_metered(&scope, deadline, budget)? {
             return Err(err("manifest.scope 与冻结域不符"));
         }
         verify_source(tx, &m)?;
@@ -191,27 +213,39 @@ pub(super) fn read_history_bounded(
             &mut store,
             &roots.generated_state,
             "raw_events",
-            hash_array_until(&raw_nodes[..=frontier as usize], deadline)?,
+            hash_array_metered(&raw_nodes[..=frontier as usize], deadline, budget, false)?,
         )?;
         same_digest(
             &mut store,
             &roots.generated_state,
             "effective_events",
-            hash_array_until(&effective.values().copied().collect::<Vec<_>>(), deadline)?,
+            hash_array_metered(
+                &effective.values().copied().collect::<Vec<_>>(),
+                deadline,
+                budget,
+                false,
+            )?,
         )?;
         same_digest(
             &mut store,
             &snapshot,
             "raw_history",
-            hash_array_until(&raw_wire_nodes[..=frontier as usize], deadline)?,
+            hash_array_metered(
+                &raw_wire_nodes[..=frontier as usize],
+                deadline,
+                budget,
+                true,
+            )?,
         )?;
         same_digest(
             &mut store,
             &delta,
             "raw_history_added",
-            hash_array_until(
+            hash_array_metered(
                 &raw_wire_nodes[(previous + 1) as usize..=frontier as usize],
                 deadline,
+                budget,
+                true,
             )?,
         )?;
         let seq_range = json!({"from":(previous+1).to_string(),"to":frontier.to_string()});
@@ -480,7 +514,7 @@ fn same_digest(
     }
 }
 fn same_json(s: &mut HashReader<'_>, r: &ContentRef, k: &str, v: Value) -> Result<(), String> {
-    let expected = hash_json_until(&v, s.deadline)?;
+    let expected = hash_json_metered(&v, s.deadline, s.budget)?;
     same_digest(s, r, k, expected)
 }
 fn cv(v: &Value) -> Result<V, String> {
@@ -505,10 +539,17 @@ fn cv_until(v: &Value, deadline: Option<std::time::Instant>) -> Result<V, String
         ),
     })
 }
-struct Discard(Option<std::time::Instant>);
-impl NodeSink for Discard {
-    fn put(&mut self, _: NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
-        check_deadline(self.0).map_err(|e| sc::CodecError::new("verify_deadline", e))
+struct Discard<'a>(
+    Option<std::time::Instant>,
+    Option<&'a dyn super::audit_budget::Budget>,
+);
+impl NodeSink for Discard<'_> {
+    fn put(&mut self, d: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+        check_deadline(self.0).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
+        if let Some(b) = self.1 {
+            b.node(&d, tag, body)?;
+        }
+        Ok(())
     }
 }
 fn hash_json(v: &Value) -> Result<NodeDigest, String> {
@@ -518,8 +559,15 @@ pub(super) fn hash_json_until(
     v: &Value,
     deadline: Option<std::time::Instant>,
 ) -> Result<NodeDigest, String> {
+    hash_json_metered(v, deadline, None)
+}
+pub(super) fn hash_json_metered(
+    v: &Value,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<NodeDigest, String> {
     let value = cv_until(v, deadline)?;
-    sc::write_value(&mut Discard(deadline), &value)
+    sc::write_value(&mut Discard(deadline, budget), &value)
         .map(|b| b.digest)
         .map_err(err)
 }
@@ -530,14 +578,27 @@ fn hash_array_until(
     nodes: &[NodeDigest],
     deadline: Option<std::time::Instant>,
 ) -> Result<NodeDigest, String> {
+    hash_array_metered(nodes, deadline, None, false)
+}
+fn hash_array_metered(
+    nodes: &[NodeDigest],
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    records: bool,
+) -> Result<NodeDigest, String> {
     let edges = nodes
         .iter()
         .map(|d| {
             check_deadline(deadline)?;
+            if records {
+                if let Some(b) = budget {
+                    b.record().map_err(err)?;
+                }
+            }
             Ok(V::Edge(*d))
         })
         .collect::<Result<Vec<_>, String>>()?;
-    sc::write_value(&mut Discard(deadline), &V::Array(edges))
+    sc::write_value(&mut Discard(deadline, budget), &V::Array(edges))
         .map(|b| b.digest)
         .map_err(err)
 }
@@ -546,6 +607,7 @@ pub(super) struct HashReader<'a> {
     overlay: BTreeMap<NodeDigest, (u8, Vec<u8>)>,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
+    budget: Option<&'a dyn super::audit_budget::Budget>,
 }
 impl<'a> HashReader<'a> {
     /// 派生节点只留在内存，用于写入前审计，绝不通过 NodeSink 改 SQLite。
@@ -555,6 +617,7 @@ impl<'a> HashReader<'a> {
             overlay: BTreeMap::new(),
             deadline: None,
             max_render_bytes: None,
+            budget: None,
         }
     }
     pub(super) fn until(
@@ -566,6 +629,7 @@ impl<'a> HashReader<'a> {
             overlay: BTreeMap::new(),
             deadline,
             max_render_bytes: None,
+            budget: None,
         }
     }
     pub(super) fn bounded(
@@ -578,6 +642,21 @@ impl<'a> HashReader<'a> {
             overlay: BTreeMap::new(),
             deadline,
             max_render_bytes,
+            budget: None,
+        }
+    }
+    pub(super) fn metered(
+        source: &'a mut dyn NodeSource,
+        deadline: Option<std::time::Instant>,
+        max_render_bytes: Option<u64>,
+        budget: Option<&'a dyn super::audit_budget::Budget>,
+    ) -> Self {
+        Self {
+            source,
+            overlay: BTreeMap::new(),
+            deadline,
+            max_render_bytes,
+            budget,
         }
     }
 }
@@ -594,19 +673,32 @@ impl NodeSource for HashReader<'_> {
     }
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
         check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
-        if let Some((tag, body)) = self.overlay.get(d) {
-            Ok(NodeRead::Found {
+        if let Some(b) = self.budget {
+            b.precheck()?;
+        }
+        let value = if let Some((tag, body)) = self.overlay.get(d) {
+            NodeRead::Found {
                 tag: *tag,
                 body: body.clone(),
-            })
+            }
         } else {
-            self.source.read(d)
+            self.source.read(d)?
+        };
+        if let Some(b) = self.budget {
+            if let NodeRead::Found { tag, body } = &value {
+                b.node(d, *tag, body)?;
+            }
+            b.precheck()?;
         }
+        Ok(value)
     }
 }
 impl NodeSink for HashReader<'_> {
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
         check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
+        if let Some(b) = self.budget {
+            b.node(&digest, tag, body)?;
+        }
         self.overlay.insert(digest, (tag, body.to_vec()));
         Ok(())
     }

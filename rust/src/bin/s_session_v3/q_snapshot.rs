@@ -318,9 +318,14 @@ mod tests {
         loop {
             // 每一页新捕获；前一个实例销毁，模拟Q重启，不靠服务端token缓存。
             let mut capture = capture_configured(&f.db_path(), &resources, &mut job).unwrap();
+            let before_projection = job.snapshot().records;
             let bytes = capture
                 .snapshot(&request(&incoming, &resources), "7", &mut job)
                 .unwrap();
+            assert_eq!(
+                job.snapshot().records - before_projection,
+                wanted.len() as u64
+            );
             let response = strict_json(&bytes).unwrap();
             assert_eq!(bytes, canonical_json(&response).as_bytes());
             assert_eq!(response.as_object().unwrap().len(), 11);
@@ -370,7 +375,8 @@ mod tests {
             assert!(pages <= wanted.len());
         }
         assert_eq!(&rows, wanted);
-        assert_eq!(job.snapshot().records, (pages * wanted.len()) as u64);
+        // 每页投影仍访问完整六族一次；同一job还累计每次当前完整历史审计的访问。
+        assert!(job.snapshot().records > (pages * wanted.len()) as u64);
         assert_eq!(job.snapshot().requests, pages as u64);
         assert_eq!(job.snapshot().wire_bytes, 0, "编码不冒充真实发送");
     }

@@ -184,7 +184,7 @@ pub(super) fn audit_generated(
     profile: &str,
     rule: &str,
 ) -> Result<Counts, String> {
-    audit_generated_until(s, state, raw_prefix, profile, rule, None)
+    audit_generated_metered(s, state, raw_prefix, profile, rule, None, None)
 }
 pub(super) fn audit_generated_until(
     s: &mut dyn NodeStore,
@@ -193,6 +193,17 @@ pub(super) fn audit_generated_until(
     profile: &str,
     rule: &str,
     deadline: Option<std::time::Instant>,
+) -> Result<Counts, String> {
+    audit_generated_metered(s, state, raw_prefix, profile, rule, deadline, None)
+}
+pub(super) fn audit_generated_metered(
+    s: &mut dyn NodeStore,
+    state: &ContentRef,
+    raw_prefix: &[Value],
+    profile: &str,
+    rule: &str,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<Counts, String> {
     super::history::check_deadline(deadline)?;
     sc::verify(s, state).map_err(err)?;
@@ -214,9 +225,9 @@ pub(super) fn audit_generated_until(
         raw.insert(
             coord,
             Source {
-                wire: super::history::hash_json_until(&wire, deadline)?,
-                numeric: super::history::hash_json_until(&numeric, deadline)?,
-                raw: super::history::hash_json_until(event, deadline)?,
+                wire: super::history::hash_json_metered(&wire, deadline, budget)?,
+                numeric: super::history::hash_json_metered(&numeric, deadline, budget)?,
+                raw: super::history::hash_json_metered(event, deadline, budget)?,
             },
         );
     }
@@ -285,7 +296,7 @@ pub(super) fn audit_generated_until(
                     }
                 }
                 if digest(&field(s, &payload, "slot")?)?
-                    != super::history::hash_json_until(&parsed[1], deadline)?
+                    != super::history::hash_json_metered(&parsed[1], deadline, budget)?
                 {
                     return Err(err("新笔payload槽位与fact_key不同"));
                 }
@@ -419,7 +430,7 @@ pub(super) fn audit_generated_until(
             return Err(err("形态比较不是规范四项"));
         }
         let comparisons = Built {
-            digest: super::history::hash_json_until(&comparisons, deadline)?,
+            digest: super::history::hash_json_metered(&comparisons, deadline, budget)?,
             kind: Kind::Array,
             extent: Some(4),
         };

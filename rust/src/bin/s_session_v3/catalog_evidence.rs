@@ -343,7 +343,7 @@ pub(super) fn verify_cut(
     withdrawals: &[Value],
     replaces: &[Value],
 ) -> Result<(), String> {
-    verify_cut_until(
+    verify_cut_metered(
         store,
         metadata,
         generated_state,
@@ -353,6 +353,7 @@ pub(super) fn verify_cut(
         counts,
         withdrawals,
         replaces,
+        None,
         None,
     )
 }
@@ -368,6 +369,34 @@ pub(super) fn verify_cut_until(
     withdrawals: &[Value],
     replaces: &[Value],
     deadline: Option<std::time::Instant>,
+) -> Result<(), String> {
+    verify_cut_metered(
+        store,
+        metadata,
+        generated_state,
+        delta,
+        raw_prefix,
+        previous_frontier,
+        counts,
+        withdrawals,
+        replaces,
+        deadline,
+        None,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+pub(super) fn verify_cut_metered(
+    store: &mut dyn NodeStore,
+    metadata: &ManifestMetadata,
+    generated_state: &ContentRef,
+    delta: &ContentRef,
+    raw_prefix: &[Value],
+    previous_frontier: i64,
+    counts: &super::source_audit::Counts,
+    withdrawals: &[Value],
+    replaces: &[Value],
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<(), String> {
     super::history::check_deadline(deadline)?;
     require_ohlc(&metadata.profile_id)?;
@@ -482,7 +511,8 @@ pub(super) fn verify_cut_until(
         ("replaces", Value::Array(replaces.to_vec())),
     ] {
         let got = array_field(store, &cc056.evidence, key)?;
-        if got.digest().map_err(err)? != super::history::hash_json_until(&want, deadline)? {
+        if got.digest().map_err(err)? != super::history::hash_json_metered(&want, deadline, budget)?
+        {
             return Err(err(format!("CC-056 {key} 与本代独立依据不同")));
         }
     }

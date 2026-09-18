@@ -1,0 +1,255 @@
+//! #1394 S3 审计计费桥：把真实节点 F 核验与逻辑记录访问接入同一个 Job。
+//!
+//! `Receipt` 只保存不可变的已核节点计费值和记录次数；它不是内容图证明、上下文证明
+//! 或访问授权。只有真实 `CheckedNodeUsage` 能进入 receipt，重放仍经过目标 Job 的
+//! 期限、停止、节点额度和记录额度门。
+
+use newchan_rust::s_content as sc;
+use newchan_rust::s_content::{
+    job::{CheckedNodeUsage, Job},
+    NodeDigest,
+};
+use std::{cell::RefCell, collections::BTreeMap, mem::size_of};
+
+pub(super) trait Budget {
+    fn precheck(&self) -> Result<(), sc::CodecError>;
+    fn node(&self, digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError>;
+    fn record(&self) -> Result<(), sc::CodecError>;
+}
+
+pub(super) struct AuditJob<'j> {
+    job: RefCell<&'j mut Job>,
+    nodes: RefCell<BTreeMap<NodeDigest, CheckedNodeUsage>>,
+    records: RefCell<u64>,
+}
+
+impl<'j> AuditJob<'j> {
+    pub(super) fn new(job: &'j mut Job) -> Self {
+        Self {
+            job: RefCell::new(job),
+            nodes: RefCell::new(BTreeMap::new()),
+            records: RefCell::new(0),
+        }
+    }
+
+    pub(super) fn finish(self) -> Receipt {
+        let nodes = self.nodes.into_inner().into_values().collect();
+        Receipt {
+            nodes,
+            records: self.records.into_inner(),
+        }
+    }
+}
+
+impl Budget for AuditJob<'_> {
+    fn precheck(&self) -> Result<(), sc::CodecError> {
+        self.job.borrow_mut().pre_io_check().map_err(codec)
+    }
+
+    fn node(&self, digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+        // 期限门先于摘要计算，保持 accept_node 的旧顺序；RefCell 借用不跨 F 核或 Job 调用。
+        self.precheck()?;
+        self.job.borrow_mut().begin_first_read()?;
+        let usage = CheckedNodeUsage::checked(digest, tag, body)?;
+        self.job.borrow_mut().accept_checked_usage(&usage)?;
+        let mut nodes = self.nodes.borrow_mut();
+        if let Some(previous) = nodes.get(digest) {
+            if previous != &usage {
+                return Err(sc::CodecError::new(
+                    "audit_budget",
+                    "同一摘要对应的分帧计费值不一致",
+                ));
+            }
+        } else {
+            nodes.insert(*digest, usage);
+        }
+        Ok(())
+    }
+
+    fn record(&self) -> Result<(), sc::CodecError> {
+        self.job.borrow_mut().charge_records(1)?;
+        let mut records = self.records.borrow_mut();
+        *records = records
+            .checked_add(1)
+            .ok_or_else(|| sc::CodecError::new("audit_budget", "审计记录计数溢出"))?;
+        Ok(())
+    }
+}
+
+/// 只能由 `AuditJob::finish` 产生；不实现序列化，也不提供 unchecked 构造。
+pub(super) struct Receipt {
+    nodes: Vec<CheckedNodeUsage>,
+    records: u64,
+}
+
+impl Receipt {
+    pub(super) fn replay(&self, job: &mut Job) -> Result<(), String> {
+        job.pre_io_check().map_err(codec_string)?;
+        for usage in &self.nodes {
+            job.accept_checked_usage(usage).map_err(codec_string)?;
+        }
+        for _ in 0..self.records {
+            job.charge_records(1).map_err(codec_string)?;
+        }
+        job.pre_io_check().map_err(codec_string)?;
+        Ok(())
+    }
+
+    pub(super) fn retained_heap_bytes(&self) -> Result<u64, String> {
+        let nodes = self
+            .nodes
+            .capacity()
+            .checked_mul(size_of::<CheckedNodeUsage>())
+            .ok_or_else(|| "审计receipt容量溢出".to_string())?;
+        u64::try_from(nodes).map_err(|_| "审计receipt容量超出u64".to_string())
+    }
+}
+
+fn codec(error: sc::CodecError) -> sc::CodecError {
+    error
+}
+
+fn codec_string(error: sc::CodecError) -> String {
+    error.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use newchan_rust::s_content::job::{Existing, JobLimits};
+    use serde_json::json;
+    use std::time::{Duration, Instant};
+
+    fn job_limits(node_bytes: u64, nodes: u64, records: u64, elapsed: u64) -> JobLimits {
+        JobLimits::from_canonical_json(&json!({
+            "max_total_wire_bytes":"1048576",
+            "max_total_node_bytes":node_bytes.to_string(),
+            "max_total_nodes":nodes.to_string(),
+            "max_total_records":records.to_string(),
+            "max_total_requests":"20",
+            "max_elapsed_ms":elapsed.to_string(),
+            "max_staged_bytes":"1048576",
+            "max_store_bytes":"33554432"
+        }))
+        .unwrap()
+    }
+
+    fn make_job(node_bytes: u64, nodes: u64, records: u64) -> Job {
+        Job::new(
+            job_limits(node_bytes, nodes, records, 10_000),
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(Instant::now),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn real_node_usage_is_checked_and_revisits_dedupe_nodes_but_count_records() {
+        let body = b"audit-node";
+        let digest = sc::frame(sc::tag::BYTES_CHUNK, body);
+        let mut job = make_job(1024, 8, 8);
+        let receipt = {
+            let audit = AuditJob::new(&mut job);
+            audit.node(&digest, sc::tag::BYTES_CHUNK, body).unwrap();
+            audit.node(&digest, sc::tag::BYTES_CHUNK, body).unwrap();
+            audit.record().unwrap();
+            audit.record().unwrap();
+            audit.finish()
+        };
+        assert_eq!(job.snapshot().nodes, 1);
+        assert_eq!(job.snapshot().records, 2);
+        assert!(receipt.retained_heap_bytes().unwrap() >= size_of::<CheckedNodeUsage>() as u64);
+    }
+
+    #[test]
+    fn bad_frame_cannot_mint_usage_or_charge_job() {
+        let body = b"bad-node";
+        let wrong = [7_u8; 32];
+        let mut job = make_job(1024, 8, 8);
+        let audit = AuditJob::new(&mut job);
+        assert!(audit.node(&wrong, sc::tag::BYTES_CHUNK, body).is_err());
+        assert_eq!(job.snapshot().nodes, 0);
+        assert_eq!(job.snapshot().node_bytes, 0);
+    }
+
+    #[test]
+    fn receipt_replay_dedupes_nodes_per_job_but_recharges_records() {
+        let body = b"receipt-node";
+        let digest = sc::frame(sc::tag::BYTES_CHUNK, body);
+        let mut cold = make_job(1024, 8, 8);
+        let receipt = {
+            let audit = AuditJob::new(&mut cold);
+            audit.node(&digest, sc::tag::BYTES_CHUNK, body).unwrap();
+            audit.record().unwrap();
+            audit.record().unwrap();
+            audit.finish()
+        };
+        let mut warm = make_job(1024, 8, 8);
+        receipt.replay(&mut warm).unwrap();
+        receipt.replay(&mut warm).unwrap();
+        assert_eq!(warm.snapshot().nodes, 1);
+        assert_eq!(warm.snapshot().records, 4);
+    }
+
+    #[test]
+    fn replay_respects_node_record_and_deadline_limits() {
+        let body = b"limited-node";
+        let digest = sc::frame(sc::tag::BYTES_CHUNK, body);
+        let mut source = make_job(1024, 8, 8);
+        let receipt = {
+            let audit = AuditJob::new(&mut source);
+            audit.node(&digest, sc::tag::BYTES_CHUNK, body).unwrap();
+            audit
+                .node(
+                    &sc::frame(sc::tag::BYTES_CHUNK, b"second"),
+                    sc::tag::BYTES_CHUNK,
+                    b"second",
+                )
+                .unwrap();
+            audit.record().unwrap();
+            audit.finish()
+        };
+        let mut tiny_bytes = make_job(1, 8, 8);
+        assert!(receipt
+            .replay(&mut tiny_bytes)
+            .unwrap_err()
+            .contains("max_total_node_bytes"));
+        let mut tiny_nodes = make_job(1024, 1, 8);
+        assert!(receipt
+            .replay(&mut tiny_nodes)
+            .unwrap_err()
+            .contains("max_total_nodes"));
+        let mut tiny_records = make_job(1024, 8, 1);
+        receipt.replay(&mut tiny_records).unwrap();
+        assert!(receipt.replay(&mut tiny_records).is_err());
+
+        use std::sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        };
+        let now = Instant::now();
+        let clock = Arc::new(AtomicBool::new(false));
+        let copy = Arc::clone(&clock);
+        let mut expired = Job::new(
+            job_limits(1024, 8, 8, 1),
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(move || {
+                now + Duration::from_millis(if copy.load(Ordering::SeqCst) { 2 } else { 0 })
+            }),
+        )
+        .unwrap();
+        expired.begin_first_read().unwrap();
+        clock.store(true, Ordering::SeqCst);
+        assert!(receipt
+            .replay(&mut expired)
+            .unwrap_err()
+            .contains("job_deadline"));
+        assert_eq!(expired.snapshot().nodes, 0);
+    }
+}

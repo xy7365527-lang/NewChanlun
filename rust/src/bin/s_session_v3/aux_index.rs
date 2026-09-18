@@ -908,6 +908,14 @@ pub(super) fn cut_members(
     generation: i64,
     delta: bool,
 ) -> Result<[Vec<NodeDigest>; 3], String> {
+    cut_members_metered(index, generation, delta, None)
+}
+pub(super) fn cut_members_metered(
+    index: &Index,
+    generation: i64,
+    delta: bool,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<[Vec<NodeDigest>; 3], String> {
     let member = |first| {
         if delta {
             first == generation
@@ -943,13 +951,28 @@ pub(super) fn cut_members(
     }
     Ok([
         w.iter()
-            .map(|v| digest(&v.wire))
+            .map(|v| {
+                if let Some(b) = budget {
+                    b.record().map_err(err)?;
+                }
+                digest(&v.wire)
+            })
             .collect::<Result<_, _>>()?,
         r.iter()
-            .map(|v| digest(&v.generated))
+            .map(|v| {
+                if let Some(b) = budget {
+                    b.record().map_err(err)?;
+                }
+                digest(&v.generated)
+            })
             .collect::<Result<_, _>>()?,
         o.iter()
-            .map(|v| digest(&v.wire))
+            .map(|v| {
+                if let Some(b) = budget {
+                    b.record().map_err(err)?;
+                }
+                digest(&v.wire)
+            })
             .collect::<Result<_, _>>()?,
     ])
 }

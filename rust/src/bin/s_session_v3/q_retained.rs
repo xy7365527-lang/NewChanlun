@@ -12,6 +12,7 @@ pub(super) struct Packed {
     captured_bytes: u64,
     versions: [i64; 3],
     pub(super) retained_bytes: u64,
+    receipt: Option<audit_budget::Receipt>,
 }
 impl Packed {
     pub(super) fn new(
@@ -46,6 +47,7 @@ impl Packed {
             captured_bytes: proof.captured_bytes,
             versions: proof.source_versions,
             retained_bytes: 0,
+            receipt: proof.audit_receipt,
         };
         // 审计后的完整原始账逐条保留规范JSON字节；所有类型/字段/原文均保留。
         let decoded = std::mem::take(&mut proof.audited.raw);
@@ -93,7 +95,15 @@ impl Packed {
             captured_bytes: self.captured_bytes,
             source_versions: self.versions,
             verify_deadline: deadline,
+            // 用量收据仍由Packed持有，不能通过借出方法复制成第二份授权。
+            audit_receipt: None,
         })
+    }
+    pub(super) fn replay(&self, job: &mut newchan_rust::s_content::job::Job) -> Result<(), String> {
+        self.receipt
+            .as_ref()
+            .ok_or_else(|| err("未计费的legacy捕获不得注册job缓存"))?
+            .replay(job)
     }
     pub(super) fn restore(&mut self, mut proof: VerifiedCapture) {
         // 此模块的调用口不开放db写入或审计元数据修改；仅释放本次临时解码和私有句柄。
@@ -108,6 +118,9 @@ impl Packed {
             deadline,
         };
         m.add(size_of::<Self>())?;
+        if let Some(receipt) = &self.receipt {
+            m.add(usize::try_from(receipt.retained_heap_bytes()?).map_err(err)?)?;
+        }
         m.add(self.bytes.capacity())?;
         m.add(self.digest.capacity())?;
         m.vec(&self.raw)?;

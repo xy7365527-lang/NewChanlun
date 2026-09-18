@@ -62,6 +62,7 @@ pub(super) struct VerifiedCapture {
     pub captured_bytes: u64,
     pub source_versions: [i64; 3],
     verify_deadline: Instant,
+    audit_receipt: Option<audit_budget::Receipt>,
 }
 impl VerifiedCapture {
     pub(super) fn digest(&self) -> &str {
@@ -302,7 +303,13 @@ pub(super) fn capture_configured<'a>(
 ) -> Result<ConfiguredCapture<'a>, String> {
     let deadline = job.first_read_deadline().map_err(err)?;
     job.charge_requests(1).map_err(err)?;
-    let result = capture_with_deadline(path, resources.capture_limits(), Some(deadline), |_| {});
+    let result = capture_with_deadline_and_job(
+        path,
+        resources.capture_limits(),
+        Some(deadline),
+        |_| {},
+        Some(job),
+    );
     // 失败也复查整job绝对钟，不能通过开始下一捕获重置期限。
     job.pre_io_check().map_err(err)?;
     let capture = result?;
@@ -327,7 +334,16 @@ fn capture_with_deadline(
     path: &Path,
     limits: Limits,
     hard_deadline: Option<Instant>,
+    seam: impl FnMut(&str),
+) -> Result<VerifiedCapture, String> {
+    capture_with_deadline_and_job(path, limits, hard_deadline, seam, None)
+}
+fn capture_with_deadline_and_job(
+    path: &Path,
+    limits: Limits,
+    hard_deadline: Option<Instant>,
     mut seam: impl FnMut(&str),
+    job: Option<&mut newchan_rust::s_content::job::Job>,
 ) -> Result<VerifiedCapture, String> {
     limits.validate()?;
     let capture_deadline = until(limits.capture_deadline_ms)?;
@@ -404,7 +420,7 @@ fn capture_with_deadline(
     drop(source);
     let verify_limit = until(limits.verify_deadline_ms)?;
     let verify_deadline = hard_deadline.map_or(verify_limit, |d| d.min(verify_limit));
-    let mut result = verify_image(image, verify_deadline, limits.max_capture_bytes)
+    let mut result = verify_image_metered(image, verify_deadline, limits.max_capture_bytes, job)
         .map_err(|e| phase_error(e, verify_deadline, "Verify"))?;
     result.source_versions = versions;
     Ok(result)
@@ -828,6 +844,14 @@ fn verify_image(
     deadline: Instant,
     max_capture_bytes: u64,
 ) -> Result<VerifiedCapture, String> {
+    verify_image_metered(image, deadline, max_capture_bytes, None)
+}
+fn verify_image_metered(
+    image: Image,
+    deadline: Instant,
+    max_capture_bytes: u64,
+    job: Option<&mut newchan_rust::s_content::job::Job>,
+) -> Result<VerifiedCapture, String> {
     check(deadline, "Verify")?;
     let mut db = Connection::open_in_memory().map_err(sql_err)?;
     db.pragma_update(None, "foreign_keys", false)
@@ -884,9 +908,18 @@ fn verify_image(
     drop(image);
     db.pragma_update(None, "query_only", true)
         .map_err(sql_err)?;
-    let audited = {
+    let (audited, audit_receipt) = {
         let tx = db.transaction().map_err(sql_err)?;
-        state::audit_bounded(&tx, Some(deadline), Some(max_capture_bytes))?
+        if let Some(job) = job {
+            let (state, receipt) =
+                state::audit_with_job(&tx, Some(deadline), Some(max_capture_bytes), job)?;
+            (state, Some(receipt))
+        } else {
+            (
+                state::audit_bounded(&tx, Some(deadline), Some(max_capture_bytes))?,
+                None,
+            )
+        }
     };
     check(deadline, "Verify")?;
     db.progress_handler(0, None::<fn() -> bool>)
@@ -898,6 +931,7 @@ fn verify_image(
         captured_bytes,
         source_versions: [0; 3],
         verify_deadline: deadline,
+        audit_receipt,
     })
 }
 
@@ -985,6 +1019,9 @@ impl AuditReader {
         };
         let output = action(&mut capture, job);
         packed.restore(capture.capture);
+        // 缓存是action之前已独立核完的不可变捕获，不是查询结果/安装提交；
+        // 沿旧AuditReader语义，查询错误或其后job停止不撤销此前有效proof。
+        // 下一请求仍先夹持当前源，再按其自己的job余额重放receipt。
         if let Some(version) = cache_version {
             self.stats.cached_bytes = packed.retained_bytes;
             self.cached = Some((version, packed));
@@ -1058,6 +1095,7 @@ impl AuditReader {
             if candidate && versions.iter().all(|v| *v == versions[0]) {
                 let (_, packed) = self.cached.take().ok_or_else(|| err("缓存候选消失"))?;
                 self.stats.cached_bytes = 0;
+                packed.replay(job)?;
                 self.stats.cache_hits += 1;
                 job.pre_io_check().map_err(err)?;
                 return Ok((packed, Some(versions[2]), verify_deadline));
@@ -1072,10 +1110,11 @@ impl AuditReader {
                 continue;
             }
             self.stats.captures += 1;
-            let mut proof = verify_image(
+            let mut proof = verify_image_metered(
                 image.ok_or_else(|| err("缺完整捕获"))?,
                 verify_deadline,
                 limits.max_capture_bytes,
+                Some(job),
             )?;
             proof.source_versions = versions;
             let packed = retained::Packed::new(proof, limits.max_capture_bytes, verify_deadline)?;
@@ -1716,7 +1755,10 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
         assert_eq!(reader.stats().cached_bytes, 0);
         let mut input = q_resources::tests::input();
         input["limits"]["max_query_workers"] = json!("1");
-        input["limits"]["max_cache_bytes"] = json!(retained.to_string());
+        let baseline_resources = q_resources::tests::resources();
+        let mut metered = AuditReader::new(f.db_path(), &baseline_resources);
+        inspect_cached(&mut metered, &baseline_resources, &mut job()).unwrap();
+        input["limits"]["max_cache_bytes"] = json!(metered.stats().cached_bytes.to_string());
         let r = q_resources::QResources::parse(&serde_json::to_vec(&input).unwrap()).unwrap();
         let mut reader = AuditReader::new(f.db_path(), &r);
         inspect_cached(&mut reader, &r, &mut job()).unwrap();
@@ -1751,5 +1793,215 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
         publish(&mut f, 2);
         assert_eq!(read().0 .0, 2);
         drop(pool);
+    }
+    fn public_history_records(proof: &mut VerifiedCapture) -> u64 {
+        // 独立从已发布实际根的13个公共集合读取extent；不复用审计计费回调或内部索引计数。
+        use sc::path::{lookup_path, PathStep};
+        let tx = proof.db.transaction().unwrap();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut count = 0;
+        for cut in &proof.audited.cuts {
+            for (root, fields) in [
+                (
+                    &cut.snapshot,
+                    &[
+                        "objects",
+                        "withdrawn_objects",
+                        "witnesses",
+                        "relations",
+                        "observations",
+                        "raw_history",
+                    ][..],
+                ),
+                (
+                    &cut.delta,
+                    &[
+                        "upserts",
+                        "withdrawals",
+                        "replaces",
+                        "witnesses",
+                        "relations",
+                        "observations",
+                        "raw_history_added",
+                    ][..],
+                ),
+            ] {
+                for field in fields {
+                    let array = lookup_path(&mut source, root, &[PathStep::Field((*field).into())])
+                        .unwrap();
+                    assert_eq!(array.kind, sc::Kind::Array);
+                    count += array.extent.unwrap();
+                }
+            }
+        }
+        count
+    }
+    #[test]
+    fn full_audit_job_matches_public_record_extents_and_warm_reuse_keeps_cumulative_limits() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        publish(&mut f, 2);
+        let (revision, token) = f.accept_begin(3, ("raw-1", 10, 7, 13, 4, 9), 2);
+        f.publish(&revision, &token).unwrap();
+        let r = q_resources::tests::resources();
+        let expected =
+            public_history_records(&mut capture_verified(&f.db_path(), limits()).unwrap());
+        assert!(expected > 0);
+        let mut reader = AuditReader::new(f.db_path(), &r);
+        let mut first = job();
+        reader
+            .with_capture(&r, &mut first, |c, _| {
+                assert_eq!(c.capture.generation(), 3);
+                Ok(())
+            })
+            .unwrap();
+        let cold = first.snapshot();
+        assert_eq!(cold.records, expected);
+        assert!(cold.nodes > 0 && cold.node_bytes > 0);
+        reader.with_capture(&r, &mut first, |_, _| Ok(())).unwrap();
+        let same = first.snapshot();
+        assert_eq!(same.nodes, cold.nodes);
+        assert_eq!(same.node_bytes, cold.node_bytes);
+        assert_eq!(same.records, 2 * expected);
+        assert_eq!(same.requests, 2);
+        let mut next = job();
+        reader.with_capture(&r, &mut next, |_, _| Ok(())).unwrap();
+        assert_eq!(
+            (
+                next.snapshot().nodes,
+                next.snapshot().node_bytes,
+                next.snapshot().records
+            ),
+            (cold.nodes, cold.node_bytes, cold.records)
+        );
+        assert_eq!(reader.stats().captures, 1);
+        assert_eq!(reader.stats().cache_hits, 2);
+        let mut direct = job();
+        capture_configured(&f.db_path(), &r, &mut direct).unwrap();
+        assert_eq!(
+            (direct.snapshot().nodes, direct.snapshot().records),
+            (cold.nodes, expected)
+        );
+        // 从既有实际用量冻结较小测试job；缓存命中也必须拒绝，不能发出旧结果。
+        for which in ["nodes", "bytes", "records"] {
+            // 每次失败会清cache，下一项先用新正常job暖起相同原件。
+            reader.with_capture(&r, &mut job(), |_, _| Ok(())).unwrap();
+            let mut caps = cold.limits;
+            match which {
+                "nodes" => caps.max_total_nodes = cold.nodes - 1,
+                "bytes" => caps.max_total_node_bytes = cold.node_bytes - 1,
+                _ => caps.max_total_records = expected - 1,
+            }
+            let mut small = Job::new(
+                caps,
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(Instant::now),
+            )
+            .unwrap();
+            let mut delivered = false;
+            let failure = reader
+                .with_capture(&r, &mut small, |_, _| {
+                    delivered = true;
+                    Ok(())
+                })
+                .unwrap_err();
+            assert!(failure.contains("job_limit_exceeded"), "{which}: {failure}");
+            assert!(!delivered);
+            assert!(reader.cached.is_none());
+            assert!(small.snapshot().stopped.is_some());
+        }
+    }
+    #[test]
+    fn cold_audit_limits_stop_before_verified_capture_and_failed_retries_do_not_clear_ledger() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let r = q_resources::tests::resources();
+        let mut caps = job().snapshot().limits;
+        caps.max_total_nodes = 1;
+        let mut limited = Job::new(
+            caps,
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(Instant::now),
+        )
+        .unwrap();
+        let error = capture_configured(&f.db_path(), &r, &mut limited)
+            .err()
+            .unwrap();
+        assert!(error.contains("max_total_nodes"), "{error}");
+        assert_eq!(limited.snapshot().nodes, 1);
+        assert_eq!(limited.snapshot().requests, 1);
+        assert!(capture_configured(&f.db_path(), &r, &mut limited).is_err());
+        assert_eq!(limited.snapshot().nodes, 1);
+        assert_eq!(limited.snapshot().requests, 1);
+        // 完整框架坏原件仍被原判据拒绝，不存在receipt放行通道。
+        f.conn
+            .execute(
+                "UPDATE catalog SET title='changed' WHERE catalog_id='CC-001'",
+                [],
+            )
+            .unwrap();
+        assert!(capture_configured(&f.db_path(), &r, &mut job()).is_err());
+    }
+    #[test]
+    fn failed_query_can_keep_verified_cache_but_never_bypasses_next_job_budget() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let r = q_resources::tests::resources();
+        for after_budget_failure in [false, true] {
+            let mut reader = AuditReader::new(f.db_path(), &r);
+            let mut first = job();
+            let failure = reader
+                .with_capture(&r, &mut first, |_, j| -> Result<(), String> {
+                    if after_budget_failure {
+                        j.charge_records(u64::MAX).map_err(err)?;
+                    }
+                    Err("test-only-invalid-query".into())
+                })
+                .unwrap_err();
+            assert!(failure.contains(if after_budget_failure {
+                "job_limit_exceeded"
+            } else {
+                "invalid-query"
+            }));
+            // 与旧AuditReader一样：查询失败不改变此前已核的副本，不是客户端安装/发布。
+            assert!(reader.cached.is_some());
+            assert_eq!(reader.stats().captures, 1);
+            let mut next = job();
+            reader
+                .with_capture(&r, &mut next, |c, _| {
+                    assert_eq!(c.capture.generation(), 1);
+                    Ok(())
+                })
+                .unwrap();
+            assert_eq!(reader.stats().cache_hits, 1);
+            assert!(next.snapshot().nodes > 1 && next.snapshot().records > 0);
+            let mut caps = next.snapshot().limits;
+            caps.max_total_nodes = 1;
+            let mut small = Job::new(
+                caps,
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(Instant::now),
+            )
+            .unwrap();
+            let mut action_called = false;
+            assert!(reader
+                .with_capture(&r, &mut small, |_, _| {
+                    action_called = true;
+                    Ok(())
+                })
+                .unwrap_err()
+                .contains("max_total_nodes"));
+            assert!(!action_called);
+            assert!(reader.cached.is_none());
+        }
     }
 }

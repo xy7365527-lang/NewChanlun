@@ -53,6 +53,7 @@ mod q_wire;
 mod q_content;
 mod q_watch;
 mod q_lease;
+mod audit_budget;
 #[cfg(unix)]
 mod q_executor;
 #[cfg(unix)]
