@@ -818,7 +818,7 @@ fn emit_state(
 
 /// 跨代共享序列记忆：未变前缀不重写，真变化处 `sequence_split` + 尾部续接。
 #[derive(Default)]
-struct SequenceMemo {
+pub(super) struct SequenceMemo {
     keys: Vec<NodeDigest>,
     seq: Option<SequenceRef>,
 }
@@ -829,7 +829,7 @@ impl SequenceMemo {
         self.seq = None;
     }
 
-    fn sync(
+    pub(super) fn sync(
         &mut self,
         store: &mut dyn NodeStore,
         elements: &[NodeDigest],

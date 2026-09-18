@@ -38,6 +38,8 @@ mod object_records;
 mod commit;
 mod generation;
 mod control_audit;
+mod history;
+pub(super) mod aux_index;
 
 /// 本模块唯一负责的协议版本。
 pub(super) const PROTOCOL_REVISION: &str = "s-session/3";
@@ -385,6 +387,7 @@ pub(super) fn init_v3(
     .map_err(|e| format!("写 s_delivery_policy 失败：{e}"))?;
     content_store::init_schema(&tx).map_err(|e| format!("建 s-content/1 节点存储失败：{e}"))?;
     commit::init_schema(&tx)?;
+    aux_index::init_schema(&tx)?;
     {
         let items = catalog_def
             .get("items")
@@ -600,7 +603,14 @@ pub(super) fn refuse_reset_of_new_domain(db: &Path) -> Result<(), String> {
             "缺 meta 表（空文件/半建库/外来库，域不可判定）",
         ));
     }
-    let content_tables: Vec<&str> = ["s_content_meta", "s_content_nodes", "s_content_publications"]
+    let content_tables: Vec<&str> = [
+        "s_content_meta",
+        "s_content_nodes",
+        "s_content_publications",
+        "s_content_witnesses",
+        "s_content_relations",
+        "s_content_observations",
+    ]
         .into_iter()
         .filter(|name| tables.contains(*name))
         .collect();
@@ -863,6 +873,9 @@ mod tests {
             "s_content_meta",
             "s_content_nodes",
             "s_content_publications",
+            "s_content_witnesses",
+            "s_content_relations",
+            "s_content_observations",
             "raw_ohlc",
             "structure_facts",
         ] {
@@ -885,6 +898,9 @@ mod tests {
         }
         for empty in [
             "s_content_publications",
+            "s_content_witnesses",
+            "s_content_relations",
+            "s_content_observations",
             "raw_events",
             "batches",
             "objects",

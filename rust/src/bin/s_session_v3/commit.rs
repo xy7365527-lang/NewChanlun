@@ -278,6 +278,11 @@ pub(crate) mod tests {
     ) -> (ManifestMetadata, ManifestRoots, UnpublishedManifest) {
         let text = |key| meta_get_opt(tx, key).unwrap().unwrap();
         let raw = read_raw_events(tx).unwrap();
+        let raw_wire = raw
+            .iter()
+            .map(project_raw_event_wire)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
         let scope = strict_json(text("scope").as_bytes()).unwrap();
         let mut store = content_store::TxStore::new(tx).unwrap();
         let m = ManifestMetadata {
@@ -310,6 +315,7 @@ pub(crate) mod tests {
         };
         let observation = json!({"kind":"insufficient_knowledge","window_start":null,"window_mid":null,"window_end":null,"reason":"fewer_than_three_bars","detail":{"raw_events":1}});
         let id = observation_id(&observation);
+        let observation_root = sc::write_value(&mut store, &value(&observation)).unwrap();
         let mut ob = value(&observation);
         let V::Object(fields) = &mut ob else {
             unreachable!()
@@ -320,10 +326,10 @@ pub(crate) mod tests {
             &json!({"generation":1,"structure_cut":"cut-1","input_frontier":0,"catalog_revision":m.catalog_revision,"profile_id":m.profile_id,"profile_hash":m.profile_hash,"rule_revision":m.rule_revision,"raw_events":raw,"effective_events":raw,"objects":[],"witnesses":[],"relations":[],"observations":[observation],"scope":scope}),
         );
         let mut snapshot = value(
-            &json!({"session_id":m.session_id,"generation":"1","structure_cut":"cut-1","catalog_revision":m.catalog_revision,"scope":scope,"index_frontier":null,"profile_id":m.profile_id,"profile_hash":m.profile_hash,"history_mode":"RecomputedWithRevision","as_of_generation":null,"objects":[],"withdrawn_objects":[],"witnesses":[],"relations":[],"observations":[],"raw_history":raw,"input_frontier":"0","seq_range":{"from":"0","to":"0"},"catalog_run_status":"not_run","catalog_evidence":null}),
+            &json!({"session_id":m.session_id,"generation":"1","structure_cut":"cut-1","catalog_revision":m.catalog_revision,"scope":scope,"index_frontier":null,"profile_id":m.profile_id,"profile_hash":m.profile_hash,"history_mode":"RecomputedWithRevision","as_of_generation":null,"objects":[],"withdrawn_objects":[],"witnesses":[],"relations":[],"observations":[],"raw_history":raw_wire,"input_frontier":"0","seq_range":{"from":"0","to":"0"},"catalog_run_status":"not_run","catalog_evidence":null}),
         );
         let mut delta = value(
-            &json!({"generation":"1","session_id":m.session_id,"catalog_revision":m.catalog_revision,"base_cut":"cut-0","next_cut":"cut-1","seq_range":{"from":"0","to":"0"},"index_frontier":null,"input_frontier":"0","catalog_run_status":"not_run","catalog_evidence":null,"upserts":[],"withdrawals":[],"replaces":[],"witnesses":[],"relations":[],"observations":[],"raw_history_added":raw}),
+            &json!({"generation":"1","session_id":m.session_id,"catalog_revision":m.catalog_revision,"base_cut":"cut-0","next_cut":"cut-1","seq_range":{"from":"0","to":"0"},"index_frontier":null,"input_frontier":"0","catalog_run_status":"not_run","catalog_evidence":null,"upserts":[],"withdrawals":[],"replaces":[],"witnesses":[],"relations":[],"observations":[],"raw_history_added":raw_wire}),
         );
         for root in [&mut snapshot, &mut delta] {
             set(root, "index_frontier", V::BatchSelf);
@@ -346,7 +352,23 @@ pub(crate) mod tests {
                 .content_ref(),
         };
         let manifest = content_manifest::assemble_unpublished(&mut store, &m, &roots).unwrap();
-        tx.execute("INSERT INTO observations VALUES(?1,?2,'insufficient_knowledge',NULL,NULL,NULL,'fewer_than_three_bars','{\"raw_events\":1}',1)",params![id,manifest.batch_id]).unwrap();
+        let template = sc::path::lookup_path(
+            &mut store,
+            &roots.publication_template,
+            &[
+                sc::path::PathStep::Field("observations".into()),
+                sc::path::PathStep::Index(0),
+            ],
+        )
+        .unwrap();
+        let wire = sc::path::replace_batch_placeholder(
+            &mut store,
+            &template,
+            &[sc::path::PathStep::Field("batch_id".into())],
+            &manifest.batch_id,
+        )
+        .unwrap();
+        tx.execute("INSERT INTO s_content_observations VALUES(?1,'insufficient_knowledge',NULL,?2,?3,?4,1)",params![id,manifest.batch_id,observation_root.digest.as_slice(),wire.digest().unwrap().as_slice()]).unwrap();
         (m, roots, manifest)
     }
 
@@ -407,7 +429,7 @@ pub(crate) mod tests {
             "structure_deltas",
             "s_delivery_refs",
             "s_content_nodes",
-            "observations",
+            "s_content_observations",
         ] {
             assert_eq!(count(&f.conn, table), 0, "{table}");
         }
@@ -447,7 +469,7 @@ pub(crate) mod tests {
             "structure_deltas",
             "s_delivery_refs",
             "s_content_nodes",
-            "observations",
+            "s_content_observations",
         ] {
             assert_eq!(count(&f.conn, table), 0, "{table}");
         }
@@ -472,7 +494,7 @@ pub(crate) mod tests {
             .unwrap();
         let (m, roots, manifest) = prepare(&tx, &f.envelope);
         assert!(publish_prepared(tx, "wrong-begin", &m, &roots, &manifest).is_err());
-        assert_eq!(count(&f.conn, "observations"), 0);
+        assert_eq!(count(&f.conn, "s_content_observations"), 0);
         assert_eq!(count(&f.conn, "s_content_nodes"), 0);
         assert_eq!(count(&f.conn, "s_content_publications"), 0);
     }

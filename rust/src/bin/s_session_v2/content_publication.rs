@@ -33,8 +33,6 @@ pub(super) fn resolve_current_births(
     manifest: &UnpublishedManifest,
 ) -> Result<ResolvedTemplates, String> {
     verify_current_begin(tx, begin_token, metadata)?;
-    let objects = object_births(tx, metadata)?;
-    let observations = observation_births(tx, metadata)?;
     let mut store = content_store::TxStore::new(tx).map_err(err)?;
     let computed =
         content_manifest::assemble_unpublished(&mut store, metadata, roots).map_err(err)?;
@@ -43,17 +41,39 @@ pub(super) fn resolve_current_births(
     {
         return Err("IdentityConflict：manifest 与当前三个根/上下文不符".into());
     }
+    let previous_frontier =
+        parse_canonical_i64(&meta(tx, "last_advance_frontier")?, "last_advance_frontier")?;
+    resolve_indexed_templates(
+        tx,
+        &mut store,
+        metadata,
+        roots,
+        &manifest.batch_id,
+        previous_frontier,
+    )
+}
+
+/// 发布和历史回读共用同一占位许可规则。历史调用方提供只读节点源及内存写层；
+/// 独立索引按目标代投影，未来出生/撤回不得改变旧 cut。此口不授予新的 Commit 权限。
+pub(super) fn resolve_indexed_templates(
+    tx: &Transaction<'_>,
+    store: &mut dyn NodeStore,
+    metadata: &ManifestMetadata,
+    roots: &ManifestRoots,
+    batch_id: &str,
+    previous_frontier: i64,
+) -> Result<ResolvedTemplates, String> {
+    let objects = object_births(tx, metadata)?;
+    let observations = observation_births(tx, metadata)?;
     let mut snapshot = roots.publication_template.clone();
     let mut delta = roots.delta_template.clone();
     match_field(
-        &mut store,
+        store,
         &snapshot,
         "history_mode",
         text("RecomputedWithRevision"),
     )?;
-    match_field(&mut store, &snapshot, "as_of_generation", V::Null)?;
-    let previous_frontier =
-        parse_canonical_i64(&meta(tx, "last_advance_frontier")?, "last_advance_frontier")?;
+    match_field(store, &snapshot, "as_of_generation", V::Null)?;
     let from = previous_frontier
         .checked_add(1)
         .ok_or_else(|| err("seq_range 起点溢出"))?;
@@ -62,7 +82,7 @@ pub(super) fn resolve_current_births(
     }
     for root in [&snapshot, &delta] {
         match_field(
-            &mut store,
+            store,
             root,
             "seq_range",
             V::Object(vec![
@@ -72,58 +92,50 @@ pub(super) fn resolve_current_births(
         )?;
     }
     resolve_objects(
-        &mut store,
+        store,
         &mut snapshot,
         "objects",
         &objects,
         metadata,
-        &manifest.batch_id,
+        batch_id,
         ObjectFamily::Active,
     )?;
     resolve_objects(
-        &mut store,
+        store,
         &mut snapshot,
         "withdrawn_objects",
         &objects,
         metadata,
-        &manifest.batch_id,
+        batch_id,
         ObjectFamily::Withdrawn,
     )?;
     resolve_objects(
-        &mut store,
+        store,
         &mut delta,
         "upserts",
         &objects,
         metadata,
-        &manifest.batch_id,
+        batch_id,
         ObjectFamily::Born,
     )?;
     resolve_observations(
-        &mut store,
+        store,
         &mut snapshot,
         &observations,
         metadata,
-        &manifest.batch_id,
+        batch_id,
         false,
     )?;
-    resolve_observations(
-        &mut store,
-        &mut delta,
-        &observations,
-        metadata,
-        &manifest.batch_id,
-        true,
-    )?;
+    resolve_observations(store, &mut delta, &observations, metadata, batch_id, true)?;
     for root in [&mut snapshot, &mut delta] {
         for path in [
             vec![field("index_frontier")],
             vec![field("catalog_evidence"), field("batch_id")],
         ] {
-            *root = replace_batch_placeholder(&mut store, root, &path, &manifest.batch_id)
-                .map_err(err)?;
+            *root = replace_batch_placeholder(store, root, &path, batch_id).map_err(err)?;
         }
         // 未列入 schema 的任意嵌套占位到这里仍存在，Public 核验必须拒绝。
-        sc::verify(&mut store, root).map_err(err)?;
+        sc::verify(store, root).map_err(err)?;
     }
     Ok(ResolvedTemplates { snapshot, delta })
 }
@@ -336,6 +348,7 @@ fn object_births(
     m: &ManifestMetadata,
 ) -> Result<BTreeMap<NodeDigest, ObjectBirth>, String> {
     let mut out = BTreeMap::new();
+    let latest = super::meta_i64(tx, "generation")?.max(m.generation);
     for table in ["objects", "structure_facts"] {
         if table == "structure_facts" {
             let exists:i64=tx.query_row("SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='structure_facts'",[],|r|r.get(0)).map_err(err)?;
@@ -348,7 +361,7 @@ fn object_births(
         let mut rows = stmt.query([]).map_err(err)?;
         while let Some(r) = rows.next().map_err(err)? {
             let id: String = r.get(0).map_err(err)?;
-            let b = ObjectBirth {
+            let mut b = ObjectBirth {
                 revision: r.get(1).map_err(err)?,
                 kind: r.get(2).map_err(err)?,
                 batch: r.get(3).map_err(err)?,
@@ -360,14 +373,24 @@ fn object_births(
                 superseded: r.get(9).map_err(err)?,
             };
             if b.first < 1
-                || b.first > m.generation
+                || b.first > latest
                 || b.published < b.first
-                || b.published > m.generation
+                || b.published > latest
                 || b.cut != format!("cut-{}", b.first)
-                || b.withdrawn
-                    .is_some_and(|g| g <= b.first || g > m.generation)
+                || b.withdrawn.is_some_and(|g| g <= b.first || g > latest)
             {
                 return Err(err("独立对象出生/生命周期代号非法"));
+            }
+            if b.first > m.generation {
+                continue;
+            }
+            if b.published > m.generation {
+                return Err(err("对象出生后发布代号被改写"));
+            }
+            if b.withdrawn.is_some_and(|g| g > m.generation) {
+                b.withdrawn = None;
+                b.reason = None;
+                b.superseded = None;
             }
             if out.insert(hash(text(id))?, b).is_some() {
                 return Err(err("对象身份同时存在两个独立表"));
@@ -386,8 +409,11 @@ fn observation_births(
     m: &ManifestMetadata,
 ) -> Result<BTreeMap<NodeDigest, ObservationBirth>, String> {
     let mut out = BTreeMap::new();
+    let latest = super::meta_i64(tx, "generation")?.max(m.generation);
     let mut stmt = tx
-        .prepare("SELECT observation_id,kind,batch_id,published_generation FROM observations")
+        .prepare(
+            "SELECT observation_id,kind,batch_id,published_generation FROM s_content_observations",
+        )
         .map_err(err)?;
     let mut rows = stmt.query([]).map_err(err)?;
     while let Some(r) = rows.next().map_err(err)? {
@@ -397,8 +423,11 @@ fn observation_births(
             batch: r.get(2).map_err(err)?,
             first: r.get(3).map_err(err)?,
         };
-        if b.first < 1 || b.first > m.generation {
+        if b.first < 1 || b.first > latest {
             return Err(err("独立观察首次发布代号非法"));
+        }
+        if b.first > m.generation {
+            continue;
         }
         out.insert(hash(text(id))?, b);
     }
@@ -656,6 +685,7 @@ mod tests {
         .unwrap();
         tx.execute("INSERT INTO raw_events VALUES('raw-2',1,'1','hash','receipt-2',1,'feed','epoch','fixture','event-2','now','original','1','1','1','1',NULL)",[]).unwrap();
         content_store::init_schema(tx).unwrap();
+        crate::v3::aux_index::init_schema(tx).unwrap();
         let mut store = content_store::TxStore::new(tx).unwrap();
         let m = ManifestMetadata {
             session_id: "birth-test".into(),
@@ -799,7 +829,9 @@ mod tests {
                 ("ob-old", 1, format!("batch3-{}", "e".repeat(64))),
                 ("ob-new", 2, manifest.batch_id.clone()),
             ] {
-                tx.execute("INSERT INTO observations VALUES(?1,?2,'insufficient_knowledge',NULL,NULL,NULL,'waiting','{}',?3)",params![id,batch,g]).unwrap();
+                // 本夹具只核出生许可，值根的原件语义在辅助索引测试单独核。
+                let root = sc::write_value(&mut store, &V::Null).unwrap();
+                tx.execute("INSERT INTO s_content_observations VALUES(?1,'insufficient_knowledge',NULL,?2,?3,?3,?4)",params![id,batch,root.digest.as_slice(),g]).unwrap();
             }
         }
         (m, roots, manifest)
@@ -808,6 +840,24 @@ mod tests {
         let mut out = Vec::new();
         sc::render_canonical(store, r, &mut out).unwrap();
         serde_json::from_slice(&out).unwrap()
+    }
+    #[test]
+    fn historical_template_resolution_ignores_future_births_and_withdrawals() {
+        let mut db = Connection::open_in_memory().unwrap();
+        let tx = db.transaction().unwrap();
+        let (m, roots, manifest) = fixtures(&tx);
+        let mut store = content_store::TxStore::new(&tx).unwrap();
+        let before =
+            resolve_indexed_templates(&tx, &mut store, &m, &roots, &manifest.batch_id, 0).unwrap();
+        meta_set(&tx, "generation", "3").unwrap();
+        tx.execute("UPDATE structure_facts SET withdrawn_generation=3,withdrawal_reason='superseded',superseded_by='future-object' WHERE object_id='obj3-old'",[]).unwrap();
+        tx.execute("INSERT INTO structure_facts VALUES('future-object',1,'CC-010.bi','future-batch','future-key','{}','[]','[]',3,'cut-3',3,NULL,NULL,NULL)",[]).unwrap();
+        let node = sc::write_value(&mut store, &V::Null).unwrap();
+        tx.execute("INSERT INTO s_content_observations VALUES('future-observation','insufficient_knowledge',NULL,'future-batch',?1,?1,3)",params![node.digest.as_slice()]).unwrap();
+        let after =
+            resolve_indexed_templates(&tx, &mut store, &m, &roots, &manifest.batch_id, 0).unwrap();
+        assert_eq!(before.snapshot, after.snapshot);
+        assert_eq!(before.delta, after.delta);
     }
     #[test]
     fn content_publication_resolves_new_birth_and_preserves_old_batch_and_payload() {
@@ -923,7 +973,7 @@ mod tests {
             "原样保留"
         );
         tx.execute(
-            "UPDATE observations SET published_generation=1 WHERE observation_id='ob-new'",
+            "UPDATE s_content_observations SET published_generation=1 WHERE observation_id='ob-new'",
             [],
         )
         .unwrap();
