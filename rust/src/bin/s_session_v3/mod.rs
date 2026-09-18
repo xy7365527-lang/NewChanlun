@@ -40,6 +40,7 @@ mod generation;
 mod control_audit;
 mod history;
 pub(super) mod aux_index;
+pub(super) mod object_index;
 
 /// 本模块唯一负责的协议版本。
 pub(super) const PROTOCOL_REVISION: &str = "s-session/3";
@@ -388,6 +389,7 @@ pub(super) fn init_v3(
     content_store::init_schema(&tx).map_err(|e| format!("建 s-content/1 节点存储失败：{e}"))?;
     commit::init_schema(&tx)?;
     aux_index::init_schema(&tx)?;
+    object_index::init_schema(&tx)?;
     {
         let items = catalog_def
             .get("items")
@@ -610,6 +612,7 @@ pub(super) fn refuse_reset_of_new_domain(db: &Path) -> Result<(), String> {
         "s_content_witnesses",
         "s_content_relations",
         "s_content_observations",
+        "s_content_objects",
     ]
         .into_iter()
         .filter(|name| tables.contains(*name))

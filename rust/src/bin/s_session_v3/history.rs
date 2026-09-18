@@ -1,7 +1,8 @@
 //! #1394 C：在同一只读事务中回读每代 manifest、实际根与真实原始输入前沿。
 //!
-//! 本层核全部内容闭包、manifest 配方、控制来源和原始/生效账绑定。对象语义来源、独立
-//! 生命周期索引和 Snapshot+Delta 方程由上层继续核验；返回本结构不等于全历史验收。
+//! 本层核内容闭包、manifest 配方、控制来源、原始/生效账、独立出生/撤回与公开变化集合。
+//! 对象及见证是否由真实来源按正确业务规则生成、完整目录语义仍由来源审计核验；
+//! 返回本结构不等于完整业务历史验收。
 
 use super::*;
 use content_manifest::{ManifestMetadata, ManifestRoots, SourceCommit};
@@ -32,6 +33,7 @@ pub(super) fn read_history(
         overlay: BTreeMap::new(),
     };
     let auxiliary = aux_index::load(tx, &mut store, meta_i64(tx, "generation")?)?;
+    let objects = object_index::load(tx, &mut store, meta_i64(tx, "generation")?)?;
     store.overlay.clear();
     let raw_nodes = raw.iter().map(hash_json).collect::<Result<Vec<_>, _>>()?;
     let raw_wire_nodes = raw
@@ -68,6 +70,27 @@ pub(super) fn read_history(
         if resolved.snapshot != snapshot || resolved.delta != delta {
             return Err(err("实际发布根不是 manifest 模板按独立出生索引解析的结果"));
         }
+        object_index::verify_generated_members(
+            &mut store,
+            &objects,
+            &roots.generated_state,
+            generation,
+        )?;
+        let (active, withdrawn, upserts) = object_index::at_cut(&mut store, &objects, generation)?;
+        for (public, key, expected) in [
+            (&snapshot, "objects", active.digest),
+            (&snapshot, "withdrawn_objects", withdrawn.digest),
+            (&delta, "upserts", upserts.digest),
+        ] {
+            same_digest(&mut store, public, key, expected)?;
+        }
+        let (withdrawals, replaces) = object_index::changes_at(&objects, generation)?;
+        let wire_withdrawals = withdrawals
+            .iter()
+            .map(project_withdrawal_wire)
+            .collect::<Result<Vec<_>, _>>()?;
+        same_json(&mut store, &delta, "withdrawals", json!(wire_withdrawals))?;
+        same_json(&mut store, &delta, "replaces", json!(replaces))?;
         for (public, is_delta) in [(&snapshot, false), (&delta, true)] {
             let members = aux_index::cut_members(&auxiliary, generation, is_delta)?;
             for (name, nodes) in ["witnesses", "relations", "observations"]

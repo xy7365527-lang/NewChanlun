@@ -821,6 +821,38 @@ fn life_fields(life: &PublicationLife) -> Vec<(String, CValue)> {
     ]
 }
 
+/// 已持久出生 wire 的历史/当前生命周期投影。只更换小元数据，所有大字段继续借原值边。
+/// 出生根与生成原件的完整绑定由对象索引核验；生命周期规则仍复用本模块唯一判据。
+pub(super) fn reproject_stored_wire(
+    store: &mut dyn NodeStore,
+    birth: &ContentRef,
+    life: &PublicationLife,
+    current_generation: i64,
+) -> Result<Built, RecordError> {
+    let what = "持久对象 wire";
+    let id = read_text(store, birth, "object_id", what)?;
+    let kind = read_text(store, birth, "kind", what)?;
+    validate_life(life, current_generation, &id)?;
+    let names: &[&str] = if kind == CC006_SHAPE_KIND {
+        &SHAPE_WIRE_FIELDS
+    } else {
+        &TYPED_WIRE_FIELDS
+    };
+    expect_object_shape(store, birth, what, names)?;
+    let lifecycle = life_fields(life);
+    let mut fields = Vec::new();
+    for name in names {
+        if *name == "batch_id" || lifecycle.iter().any(|(key, _)| key == name) {
+            continue;
+        }
+        let value = lookup_path(store, birth, &[PathStep::Field((*name).into())])?;
+        fields.push(((*name).into(), CValue::Edge(value.digest()?)));
+    }
+    fields.push(("batch_id".into(), batch_value(&life.batch)));
+    fields.extend(lifecycle);
+    Ok(sc::write_template(store, &CValue::Object(fields))?)
+}
+
 /// producer 同次构造的公开 `input_refs`（原 generic 字符串源叶 + 共享序列，`merged_index`
 /// 字符串）：只核有界外壳后原样借根。
 ///

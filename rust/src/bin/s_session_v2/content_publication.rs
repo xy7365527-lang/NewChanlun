@@ -8,7 +8,7 @@
 //! 不从旧私有格式表推断协议。未接线的 S3 writer 必须生成此合同，不能复用 legacy-full 集合。
 #![allow(dead_code)]
 
-use super::{canonical_json, content_manifest, content_store, meta_get_opt, sha256_hex, tb02a, v2};
+use super::{canonical_json, content_manifest, content_store, meta_get_opt, sha256_hex, v2};
 use content_manifest::{ManifestMetadata, ManifestRoots, UnpublishedManifest};
 use newchan_rust::s_content::{
     self as sc,
@@ -349,14 +349,8 @@ fn object_births(
 ) -> Result<BTreeMap<NodeDigest, ObjectBirth>, String> {
     let mut out = BTreeMap::new();
     let latest = super::meta_i64(tx, "generation")?.max(m.generation);
-    for table in ["objects", "structure_facts"] {
-        if table == "structure_facts" {
-            let exists:i64=tx.query_row("SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='structure_facts'",[],|r|r.get(0)).map_err(err)?;
-            if exists == 0 && m.profile_id != tb02a::PROFILE {
-                continue;
-            }
-        }
-        let sql=format!("SELECT object_id,object_revision,kind,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM {table}");
+    {
+        let sql="SELECT object_id,object_revision,kind,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects";
         let mut stmt = tx.prepare(&sql).map_err(err)?;
         let mut rows = stmt.query([]).map_err(err)?;
         while let Some(r) = rows.next().map_err(err)? {
@@ -686,6 +680,7 @@ mod tests {
         tx.execute("INSERT INTO raw_events VALUES('raw-2',1,'1','hash','receipt-2',1,'feed','epoch','fixture','event-2','now','original','1','1','1','1',NULL)",[]).unwrap();
         content_store::init_schema(tx).unwrap();
         crate::v3::aux_index::init_schema(tx).unwrap();
+        crate::v3::object_index::init_schema(tx).unwrap();
         let mut store = content_store::TxStore::new(tx).unwrap();
         let m = ManifestMetadata {
             session_id: "birth-test".into(),
@@ -822,7 +817,8 @@ mod tests {
             ("obj3-old", 1, format!("batch3-{}", "d".repeat(64))),
             ("obj3-new", 2, manifest.batch_id.clone()),
         ] {
-            tx.execute("INSERT INTO structure_facts VALUES(?1,1,'CC-010.bi',?2,'key','{}','[]','[]',?3,?4,?3,NULL,NULL,NULL)",params![id,batch,g,format!("cut-{g}")]).unwrap();
+            let node = sc::write_value(&mut store, &V::Null).unwrap();
+            tx.execute("INSERT INTO s_content_objects VALUES(?1,1,'CC-010.bi','key',NULL,NULL,NULL,?5,?5,?5,?5,?2,?3,?4,?3,NULL,NULL,NULL)",params![id,batch,g,format!("cut-{g}"),node.digest.as_slice()]).unwrap();
         }
         if has_observations {
             for (id, g, batch) in [
@@ -850,8 +846,9 @@ mod tests {
         let before =
             resolve_indexed_templates(&tx, &mut store, &m, &roots, &manifest.batch_id, 0).unwrap();
         meta_set(&tx, "generation", "3").unwrap();
-        tx.execute("UPDATE structure_facts SET withdrawn_generation=3,withdrawal_reason='superseded',superseded_by='future-object' WHERE object_id='obj3-old'",[]).unwrap();
-        tx.execute("INSERT INTO structure_facts VALUES('future-object',1,'CC-010.bi','future-batch','future-key','{}','[]','[]',3,'cut-3',3,NULL,NULL,NULL)",[]).unwrap();
+        tx.execute("UPDATE s_content_objects SET withdrawn_generation=3,withdrawal_reason='superseded',superseded_by='future-object' WHERE object_id='obj3-old'",[]).unwrap();
+        let future = sc::write_value(&mut store, &V::Null).unwrap();
+        tx.execute("INSERT INTO s_content_objects VALUES('future-object',1,'CC-010.bi','future-key',NULL,NULL,NULL,?1,?1,?1,?1,'future-batch',3,'cut-3',3,NULL,NULL,NULL)",params![future.digest.as_slice()]).unwrap();
         let node = sc::write_value(&mut store, &V::Null).unwrap();
         tx.execute("INSERT INTO s_content_observations VALUES('future-observation','insufficient_knowledge',NULL,'future-batch',?1,?1,3)",params![node.digest.as_slice()]).unwrap();
         let after =
@@ -892,12 +889,12 @@ mod tests {
     #[test]
     fn content_publication_refuses_missing_or_changed_independent_authority() {
         for sql in [
-            "DELETE FROM structure_facts WHERE object_id='obj3-new'",
-            "UPDATE structure_facts SET first_known_generation=1 WHERE object_id='obj3-new'",
-            "UPDATE structure_facts SET first_known_cut='cut-1' WHERE object_id='obj3-new'",
-            "UPDATE structure_facts SET batch_id='other' WHERE object_id='obj3-new'",
-            "UPDATE structure_facts SET kind='CC-056.version' WHERE object_id='obj3-new'",
-            "UPDATE structure_facts SET published_generation=2 WHERE object_id='obj3-old'",
+            "DELETE FROM s_content_objects WHERE object_id='obj3-new'",
+            "UPDATE s_content_objects SET first_known_generation=1 WHERE object_id='obj3-new'",
+            "UPDATE s_content_objects SET first_known_cut='cut-1' WHERE object_id='obj3-new'",
+            "UPDATE s_content_objects SET batch_id='other' WHERE object_id='obj3-new'",
+            "UPDATE s_content_objects SET kind='CC-056.version' WHERE object_id='obj3-new'",
+            "UPDATE s_content_objects SET published_generation=2 WHERE object_id='obj3-old'",
             "UPDATE meta SET value='3' WHERE key='writer_epoch'",
             "UPDATE meta SET value='other-token' WHERE key='begin_token'",
             "UPDATE s_protocol_meta SET next_attempt_ordinal=3",

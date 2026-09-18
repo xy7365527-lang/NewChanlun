@@ -13,7 +13,7 @@
 //!    `s-session/3`。混合域、旧域、未知版本都在任何读取复用之前拒绝（§5.8 拒绝边界），不回落
 //!    到 v2 语义，也不允许旧 validator 解释新域。
 //! 2. **唯一已认可 schema**：root `SCHEMA` + `v2::SCHEMA_V2` + 按 profile 的 `tb02a::SCHEMA` +
-//!    `content_store` 两表 + `s_content_publications` + 三张内容辅助索引表。
+//!    `content_store` 两表 + `s_content_publications` + 三张辅助索引及对象生命周期索引。
 //!    缺表、结构不符、**任何未知表**一律拒绝：
 //!    这里不调用旧 `verify_schema` 的白名单冒充支持 3，也不用「先按旧表核一遍、新表另算」的
 //!    降级通道。S3 域不含旧私有格式登记表（changes-only/1、证据图三表），它们出现即未知表。
@@ -80,6 +80,7 @@ fn verify_s3_schema(conn: &Connection) -> Result<(), String> {
     v2::expect_ddl_tables("内容节点表 DDL", content_store::SCHEMA, &mut expected)?;
     v2::expect_ddl_tables("S3发布索引 DDL", commit::SCHEMA, &mut expected)?;
     v2::expect_ddl_tables("S3辅助索引 DDL", aux_index::SCHEMA, &mut expected)?;
+    v2::expect_ddl_tables("S3对象索引 DDL", object_index::SCHEMA, &mut expected)?;
     v2::verify_expected_schema(conn, &expected)?;
     // 模式声明不证明登记值：`s-content/1` 的格式登记必须存在且逐字相符（唯一判据在 content_store）。
     content_store::ensure_format(conn).map_err(|e| format!("StorageUnavailable：{e}"))?;
