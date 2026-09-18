@@ -65,9 +65,7 @@ pub(super) fn delta_fragment(
                 .into(),
         );
     }
-    let expected = json!({"kind":"delta","session_id":cut.metadata.session_id,"session_generation":cut.metadata.session_generation,
-        "generation":generation.to_string(),"base_cut":cut.metadata.base_cut,"next_cut":cut.metadata.structure_cut,
-        "index_frontier":cut.batch_id,"delta_ref":cut.delta.to_transport_json()});
+    let expected = delta_anchor(cut);
     if claimed != cut.delta || *anchor != expected {
         return Err("IdentityConflict：anchor与当前完整核验所得的同会话已发布Delta不同".into());
     }
@@ -83,6 +81,11 @@ pub(super) fn delta_fragment(
         job,
     )
     .map_err(err)
+}
+pub(super) fn delta_anchor(cut: &history::PublishedCut) -> Value {
+    json!({"kind":"delta","session_id":cut.metadata.session_id,"session_generation":cut.metadata.session_generation,
+        "generation":cut.metadata.generation.to_string(),"base_cut":cut.metadata.base_cut,"next_cut":cut.metadata.structure_cut,
+        "index_frontier":cut.batch_id,"delta_ref":cut.delta.to_transport_json()})
 }
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3ContentReadInvalid：{e}")

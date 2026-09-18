@@ -46,6 +46,8 @@ mod state;
 mod driver;
 mod reader;
 mod projection;
+mod q_resources;
+mod q_delta;
 #[cfg(unix)]
 mod capture;
 pub(super) mod aux_index;

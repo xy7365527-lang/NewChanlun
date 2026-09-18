@@ -1,6 +1,6 @@
 //! #1394：S3一致typed捕获与原Q capture_digest；离开源事务后复用完整S3审计。
 //! 只重建项目固定DDL，摘要保留源schema原文；不执行来源SQL、不持有跨请求S读锁。
-//! 尚未注册Q服务/缓存/完整资源文件；此处三项均为调用方显式传入的原Q限制。
+//! 配置读取入口绑定Q v3资源文件；尚未注册Q服务/缓存，worker/queue/cache执行器仍待接线。
 use super::*;
 use rusqlite::{
     limits::Limit,
@@ -95,13 +95,129 @@ impl VerifiedCapture {
 pub(super) fn capture_verified(path: &Path, limits: Limits) -> Result<VerifiedCapture, String> {
     capture_with(path, limits, |_| {})
 }
+/// 当前一次捕获绑定同一份冻结资源，后续投影/Delta读取不能随请求改限额。
+pub(super) struct ConfiguredCapture<'a> {
+    capture: VerifiedCapture,
+    resources: &'a q_resources::QResources,
+}
+#[derive(Debug)]
+pub(super) struct DeltaReferences {
+    pub anchors: Vec<Value>,
+    pub usage: Vec<q_delta::Usage>,
+    pub through_generation: i64,
+    pub has_more: bool,
+    pub validated_capture_digest: String,
+}
+impl ConfiguredCapture<'_> {
+    pub(super) fn projection(
+        &mut self,
+        generation: i64,
+        mode: projection::HistoryMode,
+        job: &mut newchan_rust::s_content::job::Job,
+    ) -> Result<projection::Projection, String> {
+        self.capture.projection(
+            generation,
+            mode,
+            self.resources.limit(q_resources::Limit::CaptureBytes),
+            job,
+        )
+    }
+    /// 为Watch组装准备一段连续候选；任一完整Delta超限则整个调用失败，没有可交付前缀。
+    /// 不是Watch wire响应：实际回复字节、cursor身份、lease和发送后推进仍由服务层承担。
+    pub(super) fn delta_references(
+        &mut self,
+        after: i64,
+        max_batches: u64,
+        job: &mut newchan_rust::s_content::job::Job,
+    ) -> Result<DeltaReferences, String> {
+        use q_resources::Limit;
+        let head = self.capture.generation();
+        if after < 0 || after > head {
+            return Err(err("cursor代号越过已核永久发布历史"));
+        }
+        if max_batches == 0 || max_batches > self.resources.limit(Limit::WatchBatches) {
+            return Err(err("Incomplete：Watch批数越过冻结上限"));
+        }
+        job.begin_first_read().map_err(err)?;
+        let tx = self.capture.db.transaction().map_err(sql_err)?;
+        let first: i64 = tx
+            .query_row(
+                "SELECT first_available_generation FROM s_delivery_policy WHERE singleton=1",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(sql_err)?;
+        if after < first - 1 {
+            return Err(err(
+                "Incomplete/ContentAnchorUnavailable：Delta已退出保留窗口，须沿Watch Gap重建",
+            ));
+        }
+        let mut source = content_store::ReadStore::new(&tx).map_err(err)?;
+        let mut anchors = Vec::new();
+        let mut usage = Vec::new();
+        let mut through = after;
+        for cut in self
+            .capture
+            .audited
+            .cuts
+            .iter()
+            .filter(|c| c.metadata.generation > after)
+        {
+            if anchors.len() as u64 >= max_batches {
+                break;
+            }
+            usage.push(q_delta::measure(
+                &mut source,
+                &cut.delta,
+                self.resources,
+                job,
+            )?);
+            anchors.push(reader::delta_anchor(cut));
+            through = cut.metadata.generation;
+        }
+        job.pre_io_check().map_err(err)?;
+        Ok(DeltaReferences {
+            anchors,
+            usage,
+            through_generation: through,
+            has_more: through < head,
+            validated_capture_digest: self.capture.digest.clone(),
+        })
+    }
+}
+
+pub(super) fn capture_configured<'a>(
+    path: &Path,
+    resources: &'a q_resources::QResources,
+    job: &mut newchan_rust::s_content::job::Job,
+) -> Result<ConfiguredCapture<'a>, String> {
+    let deadline = job.first_read_deadline().map_err(err)?;
+    job.charge_requests(1).map_err(err)?;
+    let result = capture_with_deadline(path, resources.capture_limits(), Some(deadline), |_| {});
+    // 失败也复查整job绝对钟，不能通过开始下一捕获重置期限。
+    job.pre_io_check().map_err(err)?;
+    Ok(ConfiguredCapture {
+        capture: result?,
+        resources,
+    })
+}
 fn capture_with(
     path: &Path,
     limits: Limits,
+    seam: impl FnMut(&str),
+) -> Result<VerifiedCapture, String> {
+    capture_with_deadline(path, limits, None, seam)
+}
+fn capture_with_deadline(
+    path: &Path,
+    limits: Limits,
+    hard_deadline: Option<Instant>,
     mut seam: impl FnMut(&str),
 ) -> Result<VerifiedCapture, String> {
     limits.validate()?;
-    let deadline = until(limits.capture_deadline_ms)?;
+    let capture_deadline = until(limits.capture_deadline_ms)?;
+    let deadline = hard_deadline.map_or(capture_deadline, |d| d.min(capture_deadline));
+    check(deadline, "Capture")?;
     let identity = file_identity(path)?;
     let mut source = Connection::open_with_flags(
         path,
@@ -171,7 +287,8 @@ fn capture_with(
     let (image, versions) = captured.map_err(|e| phase_error(e, deadline, "Capture"))?;
     // 不保留源连接或源读事务；副本的所有输入均来自同一已结束的读事务。
     drop(source);
-    let verify_deadline = until(limits.verify_deadline_ms)?;
+    let verify_limit = until(limits.verify_deadline_ms)?;
+    let verify_deadline = hard_deadline.map_or(verify_limit, |d| d.min(verify_limit));
     let mut result = verify_image(image, verify_deadline, limits.max_capture_bytes)
         .map_err(|e| phase_error(e, verify_deadline, "Verify"))?;
     result.source_versions = versions;
@@ -750,6 +867,118 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
         assert_eq!(new.generation(), 2);
         assert_eq!(new.digest(), python_digest(&f.db_path()));
         assert_ne!(new.digest(), capture.digest());
+    }
+    #[test]
+    fn configured_capture_binds_projection_and_full_delta_to_immutable_actual_snapshot() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let resources = q_resources::tests::resources();
+        let mut job = job();
+        let mut captured = capture_configured(&f.db_path(), &resources, &mut job).unwrap();
+        let digest = captured.capture.digest().to_string();
+        let projection = captured
+            .projection(1, projection::HistoryMode::AsKnown, &mut job)
+            .unwrap();
+        assert_eq!(projection.wire["fixed_cut"]["cut_generation"], "1");
+        publish(&mut f, 2);
+        let one = captured.delta_references(0, 2, &mut job).unwrap();
+        assert_eq!(one.anchors.len(), 1);
+        assert_eq!(one.through_generation, 1);
+        assert!(!one.has_more);
+        assert_eq!(one.validated_capture_digest, digest);
+        assert_eq!(one.anchors[0]["generation"], "1");
+        assert!(one.usage[0].nodes > 0 && one.usage[0].records > 0);
+        let mut fresh = capture_configured(&f.db_path(), &resources, &mut job).unwrap();
+        let first = fresh.delta_references(0, 1, &mut job).unwrap();
+        assert_eq!(first.anchors, one.anchors);
+        assert!(first.has_more);
+        assert_ne!(first.validated_capture_digest, digest);
+        let next = fresh.delta_references(1, 1, &mut job).unwrap();
+        assert_eq!(next.through_generation, 2);
+        assert!(!next.has_more);
+        assert_eq!(next.anchors[0]["base_cut"], first.anchors[0]["next_cut"]);
+        assert_eq!(job.snapshot().requests, 2);
+        assert!(fresh
+            .delta_references(0, 5, &mut job)
+            .unwrap_err()
+            .contains("Watch批数"));
+        assert!(fresh
+            .delta_references(3, 1, &mut job)
+            .unwrap_err()
+            .contains("永久发布历史"));
+    }
+    #[test]
+    fn later_oversized_delta_refuses_entire_candidate_without_modifying_source_or_cursor() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        publish(&mut f, 2);
+        let resources = q_resources::tests::resources();
+        let mut captured = capture_configured(&f.db_path(), &resources, &mut job()).unwrap();
+        let all = captured.delta_references(0, 2, &mut job()).unwrap();
+        assert!(all.usage[1].nodes > all.usage[0].nodes);
+        let mut input = q_resources::tests::input();
+        input["limits"]["max_atomic_delta_nodes"] = json!(all.usage[0].nodes.to_string());
+        let limited = q_resources::QResources::parse(&serde_json::to_vec(&input).unwrap()).unwrap();
+        let mut captured = capture_configured(&f.db_path(), &limited, &mut job()).unwrap();
+        let mut job = job();
+        let before = f.conn.total_changes();
+        let failure = captured.delta_references(0, 2, &mut job).unwrap_err();
+        assert!(failure.contains("max_atomic_delta_nodes"), "{failure}");
+        let used = job.snapshot().records;
+        // 重试仍带原after及同一job：此前核过的第一批不能暗自推进或清账。
+        let first = captured.delta_references(0, 1, &mut job).unwrap();
+        assert_eq!(first.through_generation, 1);
+        assert!(first.has_more);
+        assert_eq!(first.anchors[0], all.anchors[0]);
+        assert_eq!(job.snapshot().records, used + first.usage[0].records);
+        assert_eq!(f.conn.total_changes(), before);
+    }
+    #[test]
+    fn configured_capture_retries_count_and_absolute_job_deadline_precedes_io() {
+        use std::sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        };
+        let resources = q_resources::tests::resources();
+        let clock = Arc::new(AtomicBool::new(false));
+        let clock_ref = clock.clone();
+        let now = Instant::now();
+        let limits = JobLimits::from_canonical_json(&json!({"max_total_wire_bytes":"1","max_total_node_bytes":"1","max_total_nodes":"1","max_total_records":"1","max_total_requests":"2","max_elapsed_ms":"1000","max_staged_bytes":"1","max_store_bytes":"1"})).unwrap();
+        let mut job = Job::new(
+            limits,
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(move || {
+                now + Duration::from_millis(if clock_ref.load(Ordering::SeqCst) {
+                    1000
+                } else {
+                    0
+                })
+            }),
+        )
+        .unwrap();
+        let missing = Path::new("/deliberately-absent-q3-source.sqlite");
+        assert!(capture_configured(missing, &resources, &mut job).is_err());
+        assert_eq!(job.snapshot().requests, 1);
+        assert!(capture_configured(missing, &resources, &mut job).is_err());
+        assert_eq!(job.snapshot().requests, 2);
+        clock.store(true, Ordering::SeqCst);
+        let error = capture_configured(missing, &resources, &mut job)
+            .err()
+            .unwrap();
+        assert!(error.contains("job_deadline"), "{error}");
+        assert_eq!(job.snapshot().requests, 2);
+        assert!(capture_with_deadline(
+            missing,
+            super::tests::limits(),
+            Some(Instant::now()),
+            |_| {}
+        )
+        .err()
+        .unwrap()
+        .contains("CaptureDeadline"));
     }
     #[test]
     fn concurrent_commits_before_and_after_snapshot_pin_do_not_mix_generations() {
