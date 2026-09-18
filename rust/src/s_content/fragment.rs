@@ -227,7 +227,8 @@ pub fn read(
         Kind::Object => {
             let mut result = Vec::new();
             for i in offset..end {
-                let key = path::object_key_at(&mut source, &target, i)?;
+                let key_ref = path::object_key_at(&mut source, &target, i)?;
+                let key = source.read_key(&key_ref)?;
                 let mut steps = path.to_vec();
                 steps.push(PathStep::Field(key.clone()));
                 let child = path::lookup_path(&mut source, root, &steps)?;
@@ -341,6 +342,49 @@ struct Recorder<'a> {
     max_reply_bytes: u64,
 }
 impl Recorder<'_> {
+    fn read_key(&mut self, reference: &ContentRef) -> Result<String, CodecError> {
+        let remaining = self.max_reply_bytes - self.reply_bytes;
+        // JSON引号以外至少需要原UTF-8字节数；声明已超限时不展开共享DAG。
+        if reference.extent.unwrap_or(MAX_FRAME_LEN).saturating_add(2) > remaining {
+            return Err(CodecError::new(REPLY_LIMIT, "对象键超过剩余回复上界"));
+        }
+        struct KeyBuffer {
+            bytes: Vec<u8>,
+            limit: u64,
+            exceeded: bool,
+        }
+        impl std::io::Write for KeyBuffer {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                if (self.bytes.len() as u64).saturating_add(bytes.len() as u64) > self.limit {
+                    self.exceeded = true;
+                    return Err(std::io::Error::other("对象键JSON转义超过回复上界"));
+                }
+                self.bytes.extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let mut buffer = KeyBuffer {
+            bytes: vec![],
+            limit: remaining,
+            exceeded: false,
+        };
+        let result = render_canonical(self, reference, &mut buffer);
+        if buffer.exceeded {
+            return Err(CodecError::new(
+                REPLY_LIMIT,
+                "对象键JSON转义超过剩余回复上界",
+            ));
+        }
+        result?;
+        self.job.pre_io_check()?;
+        // 编码缓冲及解析后的String各受同一显式字节上界；新增证明和最终item仍统一预留。
+        serde_json::from_slice(&buffer.bytes)
+            .map_err(|e| CodecError::new(code::UTF8, e.to_string()))
+    }
+
     fn reserve_reply(&mut self, bytes: u64) -> Result<(), CodecError> {
         self.reply_bytes = self
             .reply_bytes

@@ -412,3 +412,139 @@ fn empty_end_range_at_largest_extent_checks_add_before_clamping() {
     assert_eq!(p.end, MAX_FRAME_LEN);
     assert_eq!(p.items, json!([]));
 }
+
+#[test]
+fn compact_huge_object_key_is_rejected_before_expansion() {
+    let mut s = MemoryNodes::new();
+    let block = vec![b'a'; 4096];
+    let chunk = frame(tag::BYTES_CHUNK, &block);
+    s.put(chunk, tag::BYTES_CHUNK, &block).unwrap();
+    let leaf = frame(tag::SEQ_LEAF, &chunk);
+    s.put(leaf, tag::SEQ_LEAF, &chunk).unwrap();
+    let mut seq = SequenceRef::from_parts_unchecked(leaf, 1);
+    for _ in 0..31 {
+        seq = sequence_concat(&mut s, &seq, &seq).unwrap();
+    }
+    let mut text_body = (seq.count() * 4096).to_be_bytes().to_vec();
+    text_body.extend_from_slice(&seq.root());
+    let key = frame(tag::STRING, &text_body);
+    s.put(key, tag::STRING, &text_body).unwrap();
+    let value = sc::write_value(&mut s, &Value::Null).unwrap();
+    let mut field_body = key.to_vec();
+    field_body.extend_from_slice(&value.digest);
+    let field = frame(tag::OBJECT_FIELD, &field_body);
+    s.put(field, tag::OBJECT_FIELD, &field_body).unwrap();
+    let leaf = frame(tag::SEQ_LEAF, &field);
+    s.put(leaf, tag::SEQ_LEAF, &field).unwrap();
+    let mut object_body = 1u64.to_be_bytes().to_vec();
+    object_body.extend_from_slice(&leaf);
+    let digest = frame(tag::OBJECT, &object_body);
+    s.put(digest, tag::OBJECT, &object_body).unwrap();
+    let root = ContentRef::new(Kind::Object, &digest, Some(1));
+    // 保证旧实现负例也只读取有限次，不真的展开8TiB或依赖OOM/机器速度。
+    struct Guard<'a> {
+        source: &'a mut MemoryNodes,
+        reads: usize,
+    }
+    impl NodeSource for Guard<'_> {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+            self.reads += 1;
+            if self.reads > 2000 {
+                return Err(CodecError::new(
+                    "test_expansion_guard",
+                    "对象键已在回复预算前展开",
+                ));
+            }
+            self.source.read(digest)
+        }
+    }
+    let mut source = Guard {
+        source: &mut s,
+        reads: 0,
+    };
+    assert_eq!(
+        fragment::read(
+            &mut source,
+            &root,
+            &[],
+            Unit::Items,
+            0,
+            1,
+            REPLY,
+            &mut job()
+        )
+        .unwrap_err()
+        .code(),
+        fragment::REPLY_LIMIT
+    );
+    assert!(source.reads < 2000);
+}
+
+#[test]
+fn object_key_escaping_uses_serialized_reply_budget() {
+    let mut source = MemoryNodes::new();
+    let key = "\0".repeat(50_000);
+    let root = sc::write_value(
+        &mut source,
+        &Value::Object(vec![(key.clone(), Value::Null)]),
+    )
+    .unwrap()
+    .content_ref();
+    // raw key 小于限额，但JSON中的每个NUL需要六字节，须在输出时限额。
+    assert!(key.len() < REPLY as usize);
+    assert_eq!(
+        fragment::read(
+            &mut source,
+            &root,
+            &[],
+            Unit::Items,
+            0,
+            1,
+            REPLY,
+            &mut job()
+        )
+        .unwrap_err()
+        .code(),
+        fragment::REPLY_LIMIT
+    );
+    let part = fragment::read(
+        &mut source,
+        &root,
+        &[],
+        Unit::Items,
+        0,
+        1,
+        1_048_576,
+        &mut job(),
+    )
+    .unwrap();
+    assert_eq!(part.items[0]["key"], key);
+    let exact = serde_json::to_vec(&J::Object(part.fields())).unwrap().len() as u64;
+    assert!(fragment::read(
+        &mut source,
+        &root,
+        &[],
+        Unit::Items,
+        0,
+        1,
+        exact,
+        &mut job()
+    )
+    .is_ok());
+    assert_eq!(
+        fragment::read(
+            &mut source,
+            &root,
+            &[],
+            Unit::Items,
+            0,
+            1,
+            exact - 1,
+            &mut job()
+        )
+        .unwrap_err()
+        .code(),
+        fragment::REPLY_LIMIT
+    );
+    fragment::verify(&root, &[], Unit::Items, 0, 1, &part, exact, &mut job()).unwrap();
+}

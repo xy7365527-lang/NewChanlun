@@ -115,12 +115,12 @@ pub(super) fn check_range_root(
     Ok(())
 }
 
-/// 按原规范序列位置读取对象键；值仍由原 lookup_path 按完整路径核上下文。
+/// 按原规范序列位置定位对象键；调用方须有界展开键，值仍按完整路径核上下文。
 pub(super) fn object_key_at(
     source: &mut dyn NodeSource,
     reference: &ContentRef,
     index: u64,
-) -> Result<String, CodecError> {
+) -> Result<ContentRef, CodecError> {
     let node = navigate(source, reference, &[], false)?;
     if node.tag != tag::OBJECT {
         return Err(step_kind_error("对象位置", "0x06 对象", node.tag));
@@ -153,9 +153,7 @@ pub(super) fn object_key_at(
     if reference.kind != Kind::String {
         return Err(step_kind_error("对象键", "0x03 字符串", node.tag));
     }
-    let mut encoded = Vec::new();
-    super::render_canonical(source, &reference, &mut encoded)?;
-    serde_json::from_slice(&encoded).map_err(|e| CodecError::new(code::UTF8, e.to_string()))
+    Ok(reference)
 }
 
 /// 只读取覆盖所求区间的规范字节块；不会线性扫描 offset 之前的叶。
