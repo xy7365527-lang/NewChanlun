@@ -52,6 +52,8 @@ mod content_store;
 // 供正式 S3 入口调用；本文件不接 S3Commit）。
 #[path = "s_session_v2/content_producer.rs"]
 mod content_producer;
+#[path = "s_session_v2/content_bi.rs"]
+mod content_bi;
 #[path = "s_session_v2/content_manifest.rs"]
 mod content_manifest;
 #[path = "s_session_v2/content_publication.rs"]

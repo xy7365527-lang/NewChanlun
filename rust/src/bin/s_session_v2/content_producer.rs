@@ -601,6 +601,19 @@ impl Cc004Producer {
         Ok(array_built(&entry))
     }
 
+    /// #1394 C §5.3：坐标的十进制文本**值叶**（与 `coords_array` 用**同一张** coords 叶图与
+    /// **同一份** memo）。
+    ///
+    /// 供按增量内容序列续接坐标数组的调用方（TB-02-B 的区间依赖面）直接取叶：不另写一套文本
+    /// 编码，也不复制叶图；坐标文本与源版本无关，这份 memo 永不失效。
+    pub(super) fn coord_text_leaf(
+        &mut self,
+        store: &mut dyn NodeStore,
+        coord: i64,
+    ) -> Result<NodeDigest, ProducerError> {
+        coord_text_root(&mut *store, &mut self.coord_text, coord)
+    }
+
     /// `input_refs`：坐标集合 → 当前源绑定下的八字段源引用数组（0x05）。
     ///
     /// 与 [`Cc004Producer::coords_array`] 用**同一张 coords 叶图**，只是叶按当前源版本
@@ -725,7 +738,7 @@ impl Cc004Producer {
             extent: None,
         };
         let identity = self.typed_identity(kind, &fact_key, &payload, &input_refs)?;
-        let object_id = format!("obj3-{}", lower_hex(&sc::frame(OBJECT_ID_TAG, &identity)));
+        let object_id = object_id_of(&identity);
         let record_value = CValue::Object(vec![
             ("object_id".to_string(), CValue::String(object_id.clone())),
             ("object_revision".to_string(), number(OBJECT_REVISION)?),
@@ -772,6 +785,52 @@ impl Cc004Producer {
             cut: cut.to_string(),
             request: None,
         })
+    }
+
+    /// #1394 C §5.3：泛型六字段 `obj3` 对象的**共享构造口**。
+    ///
+    /// 与 `build_step_object` 等入口走同一条 `typed_object` 实现（同一份身份配方、同一份记录
+    /// 字段），供同样只从同核共享证据直接成值边的兄弟构造器（TB-02-B 的 CC-008/009/010/055/056）
+    /// 复用。本口不接受预渲染的 JSON 文本，也不新增第二种身份配方。
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn build_object(
+        &self,
+        store: &mut dyn NodeStore,
+        kind: &str,
+        fact_key: String,
+        payload: CValue,
+        input_refs: Built,
+        source_coords: Built,
+        generation: i64,
+        cut: &str,
+    ) -> Result<TypedObject, ProducerError> {
+        self.typed_object(
+            store,
+            kind,
+            fact_key,
+            payload,
+            input_refs,
+            source_coords,
+            generation,
+            cut,
+        )
+    }
+
+    /// #1394 C §5.3：按本构造器**当前档案 / 规则修订**重导一个泛型六字段 `obj3` 对象 id。
+    ///
+    /// 与 [`Cc004Producer::typed_object`] 共用同一份 [`Cc004Producer::typed_identity`] 与同一个
+    /// [`object_id_of`]：审阅上一代记录时用它按**同一配方**重导 id，不在调用方抄第二份配方。
+    /// 返回的只是 id 文本；对象是否自洽、载荷与输入引用是否可信由调用方按各自契约核。
+    pub(super) fn typed_object_id(
+        &self,
+        kind: &str,
+        fact_key: &str,
+        payload: &Built,
+        input_refs: &Built,
+    ) -> Result<String, ProducerError> {
+        Ok(object_id_of(
+            &self.typed_identity(kind, fact_key, payload, input_refs)?,
+        ))
     }
 
     /// §5.3：泛型身份的 `V({kind,fact_key,payload,input_refs,profile_id,rule_revision})`。
@@ -1607,7 +1666,7 @@ impl Cc004Producer {
             ),
         ]);
         let identity = self.identity_summary(&identity)?;
-        let object_id = format!("obj3-{}", lower_hex(&sc::frame(OBJECT_ID_TAG, &identity)));
+        let object_id = object_id_of(&identity);
         let record_value = CValue::Object(vec![
             ("object_id".to_string(), CValue::String(object_id.clone())),
             ("object_revision".to_string(), number(OBJECT_REVISION)?),
@@ -2193,6 +2252,32 @@ fn array_of_leaves(
     })
 }
 
+/// #1394 C §5.3：由**已写出的规范序列**（`0x11/0x12/0x13` 的 M 树）生成 `0x05` 数组值。
+///
+/// body = `U64(叶数) || M 根`，与 `write_value` 的数组分支是同一个帧配方；同一逻辑叶序的不同
+/// 物理树形都得到同一个根（`M` 按元素数唯一分解）。空序列按 `empty_array` 同口径落 `0x11` 节点。
+/// 本口只写一次数组节点，不展开序列逻辑叶；切片成本由调用方的序列操作决定，
+/// 不能由本口的固定写入成本推出任意切片的最坏复杂度。
+pub(super) fn array_from_sequence(
+    store: &mut dyn NodeStore,
+    seq: &SequenceRef,
+) -> Result<Built, ProducerError> {
+    let count = seq.count();
+    let seq_root = if count == 0 {
+        let empty = SequenceRef::empty();
+        store.put(empty.root(), sc::tag::SEQ_EMPTY, &[])?;
+        empty.root()
+    } else {
+        seq.root()
+    };
+    let root = put_array_node(&mut *store, count, &seq_root)?;
+    Ok(Built {
+        digest: root,
+        kind: Kind::Array,
+        extent: Some(count),
+    })
+}
+
 /// 一个逻辑值的规范 JSON 文本（§5.1/§5.2 的同一渲染器给出的文本）。
 ///
 /// 在**私有草稿表**里落节点再渲染，不污染调用方节点表：该文本只进请求键
@@ -2489,6 +2574,15 @@ fn number(value: i64) -> Result<CValue, ProducerError> {
 
 fn lower_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// §5.3：`obj3-` + `F(0x20, V)` 的小写十六进制文本；全模块唯一的对象 id 文本构造口。
+///
+/// `V` 是对应身份配方的值摘要（泛型六字段或 CC-006 十二字段）。该文本只是 id **视图**：
+/// `V` 本身不必落成内容节点
+/// （见 [`DigestOnly`]），故这里只做帧摘要与十六进制渲染，不写节点表。
+pub(super) fn object_id_of(identity: &NodeDigest) -> String {
+    format!("obj3-{}", lower_hex(&sc::frame(OBJECT_ID_TAG, identity)))
 }
 
 // ────────────────────────────────────────────────────────────────────────────
