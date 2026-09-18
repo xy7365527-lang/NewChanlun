@@ -113,6 +113,13 @@ pub(super) struct DeltaReferences {
     pub validated_capture_digest: String,
 }
 impl ConfiguredCapture<'_> {
+    /// 只从本次完整已核副本取错误回复的身份，不借请求自称已核。
+    pub(super) fn identity(&self) -> Result<(String, String), String> {
+        let session = meta_get_opt(&self.capture.db, "session_id")?
+            .ok_or_else(|| err("已核捕获缺会话身份"))?;
+        let (_, incarnation, _) = v2::protocol_identity(&self.capture.db)?;
+        Ok((session, incarnation))
+    }
     pub(super) fn watch(
         &mut self,
         request: &q_watch::Request,

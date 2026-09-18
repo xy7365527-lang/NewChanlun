@@ -62,7 +62,11 @@ fn err(e: impl std::fmt::Display) -> String {
     format!("QReplyInvalid：{e}")
 }
 
-fn encode(value: &Value, limit: u64, job: &mut dyn Access) -> Result<Option<Vec<u8>>, String> {
+pub(super) fn encode(
+    value: &Value,
+    limit: u64,
+    job: &mut dyn Access,
+) -> Result<Option<Vec<u8>>, String> {
     struct Buffer<'a> {
         bytes: Vec<u8>,
         limit: u64,

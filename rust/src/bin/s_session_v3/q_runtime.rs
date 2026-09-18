@@ -1,21 +1,29 @@
 //! #1394 C §5.5/5.6.1：仅由Q21配置构造的查询运行时。
 //! 三条v3路由共用现有审计/分页/内容/Watch判据；不创建八字段消费者Job。
-//! 本模块不监听HTTP、不接收客户端资源凭据；正式网络入口和有界错误发送另接。
+//! 已接受的TCP连接先占槽，再读有界HTTP请求；本模块不自行bind/监听或加载部署默认值。
 // #1394 新生入口待驱动：本票后续HTTP/CLI接线完成后移除此豁免。
 #![allow(dead_code)]
 use super::{
-    capture::AuditReader,
+    capture::{AuditReader, ConfiguredCapture},
     q_content,
     q_executor::{Executor, Pending},
+    q_http_input,
     q_lease::ClientLeases,
     q_resources::{Limit, QResources},
-    q_snapshot, q_watch,
+    q_snapshot, q_watch, q_wire,
 };
 use newchan_rust::{
     s_content::{access::Access, job::Job},
     session_protocol::positive,
 };
-use std::{path::PathBuf, sync::Arc};
+use serde_json::{json, Value};
+use std::{
+    io,
+    net::TcpStream,
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 /// 可信Q调用层没有消费者累计账。Q的各phase、单包、Delta、worker/cache/lease门
 /// 仍由冻结resources及各实际调用点执行；不能把None称作无限Job。
@@ -58,6 +66,38 @@ impl Runtime {
     }
     pub(super) fn resource_digest(&self) -> &str {
         self.executor.resources().digest()
+    }
+    /// 连接尚未读取时即交给固定worker；接纳失败仍由本调用发送有界503并关闭连接。
+    /// 本口消费连接所有权；返回Err只供记录，调用者不得再发送第二份HTTP响应。
+    pub(super) fn accept_http(&self, connection: TcpStream) -> Result<Pending<()>, String> {
+        let epoch = self.epoch.clone();
+        match self.executor.try_submit_owned(
+            connection,
+            move |mut connection, reader, resources, leases, _queued_at| {
+                serve_http(&mut connection, reader, resources, leases, &epoch)
+            },
+        ) {
+            Ok(pending) => Ok(pending),
+            Err((reason, mut connection)) => {
+                let resources = self.executor.resources();
+                let body = error_body(
+                    resources,
+                    &self.epoch,
+                    None,
+                    None,
+                    json!({"ok":false,"status":"Incomplete","error":"QueryBudgetExceeded"}),
+                )?;
+                let reply = q_watch::Reply::plain(body, resources)?;
+                send_http(
+                    &mut connection,
+                    reply,
+                    503,
+                    resources,
+                    self.executor.leases(),
+                )?;
+                Err(reason)
+            }
+        }
     }
     pub(super) fn dispatch(
         &self,
@@ -122,16 +162,236 @@ fn execute(
     reader.with_capture(
         resources,
         &mut ServerAccess::new(resources),
-        |capture, access| match request {
-            Request::Snapshot(request) => {
-                q_watch::Reply::plain(capture.snapshot(&request, epoch, access)?, resources)
-            }
-            Request::Content(request) => {
-                q_watch::Reply::plain(capture.content(&request, epoch, access)?, resources)
-            }
-            Request::Watch(request) => capture.watch(&request, leases, epoch, access),
-        },
+        |capture, access| execute_captured(capture, resources, leases, epoch, request, access),
     )
+}
+fn execute_captured(
+    capture: &mut ConfiguredCapture<'_>,
+    resources: &QResources,
+    leases: &ClientLeases,
+    epoch: &str,
+    request: Request,
+    access: &mut dyn Access,
+) -> Result<q_watch::Reply, String> {
+    match request {
+        Request::Snapshot(request) => {
+            q_watch::Reply::plain(capture.snapshot(&request, epoch, access)?, resources)
+        }
+        Request::Content(request) => {
+            q_watch::Reply::plain(capture.content(&request, epoch, access)?, resources)
+        }
+        Request::Watch(request) => capture.watch(&request, leases, epoch, access),
+    }
+}
+
+fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
+    stream: &mut S,
+    reader: &mut AuditReader,
+    resources: &QResources,
+    leases: &ClientLeases,
+    epoch: &str,
+) -> Result<(), String> {
+    let received = (|| {
+        let mut input = q_http_input::Input::new(stream, resources)?;
+        let head = input.head()?;
+        if head.method != "POST" {
+            return Err(q_http_input::Failure {
+                status: 501,
+                error: "UnsupportedMethod",
+                detail: "v3查询要求POST".into(),
+            });
+        }
+        if !["/api/v3/snapshot", "/api/v3/content", "/api/v3/watch"].contains(&head.path.as_str()) {
+            return Err(q_http_input::Failure {
+                status: 404,
+                error: "not found",
+                detail: "未知查询路径".into(),
+            });
+        }
+        let body = input.body(&head)?;
+        Ok((head.path, body))
+    })();
+    let (path, body) = match received {
+        Ok(request) => request,
+        Err(failure) => return send_failure(stream, resources, leases, epoch, None, None, failure),
+    };
+    let envelope = match q_wire::parse(&body, resources) {
+        Ok(envelope) => envelope,
+        Err(detail) => {
+            return send_failure(
+                stream,
+                resources,
+                leases,
+                epoch,
+                None,
+                None,
+                failure(detail, false),
+            )
+        }
+    };
+    let request = match parse_request(&path, &body, resources) {
+        Ok(request) => request,
+        Err(detail) => {
+            return send_failure(
+                stream,
+                resources,
+                leases,
+                epoch,
+                Some(&envelope),
+                None,
+                failure(detail, false),
+            )
+        }
+    };
+    let mut identity = None;
+    let result = reader.with_capture(
+        resources,
+        &mut ServerAccess::new(resources),
+        |capture, access| {
+            identity = Some(capture.identity()?);
+            execute_captured(capture, resources, leases, epoch, request, access)
+        },
+    );
+    match result {
+        Ok(reply) => send_http(stream, reply, 200, resources, leases),
+        Err(detail) => send_failure(
+            stream,
+            resources,
+            leases,
+            epoch,
+            Some(&envelope),
+            identity.as_ref(),
+            failure(detail, identity.is_none()),
+        ),
+    }
+}
+
+/// 这里只选择HTTP错误表示；成功/拒绝的业务判据仍全部由原Q层执行。
+fn failure(detail: String, capture_failed: bool) -> q_http_input::Failure {
+    let budget = [
+        "Incomplete",
+        "CaptureDeadline",
+        "VerifyDeadline",
+        "CaptureBytes",
+        "atomic_delta_limit",
+    ]
+    .iter()
+    .any(|code| detail.contains(code));
+    let (status, error) = if budget {
+        (503, "QueryBudgetExceeded")
+    } else if capture_failed {
+        (503, "StorageUnavailable")
+    } else {
+        (400, "InvalidQuery")
+    };
+    q_http_input::Failure {
+        status,
+        error,
+        detail,
+    }
+}
+
+fn send_failure<S: q_watch::TimedWrite>(
+    stream: &mut S,
+    resources: &QResources,
+    leases: &ClientLeases,
+    epoch: &str,
+    request: Option<&Value>,
+    identity: Option<&(String, String)>,
+    failure: q_http_input::Failure,
+) -> Result<(), String> {
+    let mut payload = json!({"ok":false,"error":failure.error,"detail":failure.detail});
+    if failure.error == "QueryBudgetExceeded" {
+        payload["status"] = json!("Incomplete");
+    }
+    let body = error_body(resources, epoch, request, identity, payload)?;
+    send_http(
+        stream,
+        q_watch::Reply::plain(body, resources)?,
+        failure.status,
+        resources,
+        leases,
+    )
+}
+
+fn error_body(
+    resources: &QResources,
+    epoch: &str,
+    request: Option<&Value>,
+    identity: Option<&(String, String)>,
+    mut payload: Value,
+) -> Result<Vec<u8>, String> {
+    let mut access = ServerAccess::new(resources);
+    if let Some(request) = request {
+        payload["identity_binding"] = json!(if identity.is_some() {
+            "verified_current_capture"
+        } else {
+            "request_echo_unverified"
+        });
+        let (session, incarnation) = identity
+            .map(|(session, incarnation)| (session.as_str(), incarnation.as_str()))
+            .unwrap_or((
+                request["session_id"].as_str().ok_or("已核请求缺session")?,
+                request["session_generation"]
+                    .as_str()
+                    .ok_or("已核请求缺化身")?,
+            ));
+        q_wire::reply(
+            request,
+            payload,
+            session,
+            incarnation,
+            epoch,
+            resources,
+            &mut access,
+        )
+    } else {
+        q_wire::encode(&payload, resources.limit(Limit::ReplyBytes), &mut access)?
+            .ok_or_else(|| "Incomplete：错误消息体超过max_reply_bytes，关闭连接".into())
+    }
+}
+
+fn send_http<W: q_watch::TimedWrite>(
+    writer: &mut W,
+    reply: q_watch::Reply,
+    status: u16,
+    resources: &QResources,
+    leases: &ClientLeases,
+) -> Result<(), String> {
+    let reason = match status {
+        200 => "OK",
+        400 => "Bad Request",
+        404 => "Not Found",
+        414 => "Request-URI Too Long",
+        431 => "Request Header Fields Too Large",
+        501 => "Not Implemented",
+        503 => "Service Unavailable",
+        _ => return Err("Q HTTP状态码未声明".into()),
+    };
+    let header = format!("HTTP/1.0 {status} {reason}\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n", reply.body().len());
+    let deadline = Instant::now()
+        .checked_add(Duration::from_millis(resources.limit(Limit::SocketWriteMs)))
+        .ok_or("Q HTTP写期限溢出")?;
+    let mut offset = 0;
+    while offset < header.len() {
+        let remaining = deadline
+            .checked_duration_since(Instant::now())
+            .filter(|d| !d.is_zero())
+            .ok_or("Incomplete：HTTP头写期限已过")?;
+        writer.set_timeout(remaining).map_err(|e| e.to_string())?;
+        match writer.write(&header.as_bytes()[offset..]) {
+            Ok(0) => return Err("HTTP头WriteZero".into()),
+            Ok(n) => offset += n,
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(format!("HTTP头写入失败：{e}")),
+        }
+    }
+    if Instant::now() >= deadline {
+        return Err("Incomplete：HTTP响应头写入超过本阶段期限".into());
+    }
+    // 原Python end_headers与body各调用一次sendall；保留各自同值超时，
+    // 不把两次写操作改成更短的共享全响应期限。
+    reply.send_body(writer, leases, &mut ServerAccess::new(resources))
 }
 
 #[cfg(test)]
@@ -406,5 +666,333 @@ mod tests {
         first.recv().unwrap();
         queued.recv().unwrap();
         call(&runtime, "/api/v3/snapshot", &snapshot(&p));
+    }
+
+    fn tcp_pair() -> (TcpStream, TcpStream) {
+        let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (server, _) = listener.accept().unwrap();
+        client
+            .set_read_timeout(Some(Duration::from_secs(30)))
+            .unwrap();
+        (client, server)
+    }
+    fn http_request(path: &str, body: &[u8]) -> Vec<u8> {
+        let mut wire = format!(
+            "POST {path} HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\n\r\n",
+            body.len()
+        )
+        .into_bytes();
+        wire.extend_from_slice(body);
+        wire
+    }
+    fn exchange(rt: &Runtime, wire: &[u8]) -> (Result<(), String>, Vec<u8>) {
+        let (mut client, server) = tcp_pair();
+        client.write_all(wire).unwrap();
+        client.shutdown(std::net::Shutdown::Write).unwrap();
+        let pending = rt.accept_http(server);
+        let mut response = Vec::new();
+        client.read_to_end(&mut response).unwrap();
+        let result = pending.and_then(|p| p.recv());
+        (result, response)
+    }
+    fn http_parts(wire: &[u8]) -> (u16, Value) {
+        let end = wire.windows(4).position(|v| v == b"\r\n\r\n").unwrap();
+        let head = std::str::from_utf8(&wire[..end]).unwrap();
+        assert!(head.contains("Cache-Control: no-store"));
+        assert!(head.contains("Connection: close"));
+        let length: usize = head
+            .lines()
+            .find_map(|s| s.strip_prefix("Content-Length: "))
+            .unwrap()
+            .parse()
+            .unwrap();
+        let body = &wire[end + 4..];
+        assert_eq!(length, body.len());
+        let status = head.split_whitespace().nth(1).unwrap().parse().unwrap();
+        (status, strict_json(body).unwrap())
+    }
+    fn error_reply_matches_original_python(request: &[u8], reply: &Value, proof: Value) {
+        let script = r#"import sys,json,types
+sys.path.insert(0,sys.argv[1]);import s_query as q
+canonical=lambda v:json.dumps(v,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False).encode()
+e=json.loads(sys.argv[2]);p=json.loads(sys.argv[3]);proof=json.loads(sys.argv[4])
+r=q.response_envelope(e,p,proof,2,types.SimpleNamespace(canonical=canonical));r['schema_revision']='s-session/3'
+sys.stdout.buffer.write(canonical(r))"#;
+        let oracle = std::process::Command::new("python3")
+            .args(["-c", script])
+            .arg(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .parent()
+                    .unwrap()
+                    .join("s_session"),
+            )
+            .arg(std::str::from_utf8(request).unwrap())
+            .arg(canonical_json(&reply["payload"]))
+            .arg(canonical_json(&proof))
+            .output()
+            .unwrap();
+        assert!(
+            oracle.status.success(),
+            "{}",
+            String::from_utf8_lossy(&oracle.stderr)
+        );
+        assert_eq!(oracle.stdout, canonical_json(reply).as_bytes());
+    }
+    #[test]
+    fn real_tcp_http_routes_share_actual_capture_and_watch_delivery() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let r = resources();
+        let p = projection(&f, &r);
+        let rt = Runtime::new(f.db_path(), r, "1").unwrap();
+        let content = envelope(
+            &p.wire["fixed_cut"],
+            json!({"op":"content","anchor":p.anchor(),"path":[{"field":"rows"}],"unit":"items","offset":"0","limit":"1"}),
+        );
+        for (path, body) in [
+            ("/api/v3/snapshot", snapshot(&p)),
+            ("/api/v3/content", content),
+            ("/api/v3/watch", watch(&p)),
+        ] {
+            let expected = call(&rt, path, &body);
+            let (result, wire) = exchange(&rt, &http_request(path, &body));
+            result.unwrap();
+            let (status, actual) = http_parts(&wire);
+            assert_eq!(status, 200);
+            assert_eq!(actual, strict_json(expected.body()).unwrap());
+        }
+        assert_eq!(
+            rt.executor.leases().delivered_generation("runtime-client"),
+            Some(1)
+        );
+    }
+    #[test]
+    fn http_plain_and_bound_errors_do_not_claim_unverified_identity() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let r = resources();
+        let p = projection(&f, &r);
+        let rt = Runtime::new(f.db_path(), Arc::clone(&r), "2").unwrap();
+        for (wire,status,error) in [
+            (b"POST /api/v3/snapshot HTTP/1.1\r\nContent-Length: 1\r\ncontent-length: 1\r\n\r\nx".to_vec(),400,"InvalidQuery"),
+            (b"POST /api/v3/snapshot HTTP/1.1\r\nContent-Length: 1\r\nTransfer-Encoding: chunked\r\n\r\nx".to_vec(),400,"InvalidQuery"),
+            (b"POST /api/v2/snapshot HTTP/1.1\r\n\r\n".to_vec(),404,"not found"),
+            (b"GET /api/v3/snapshot HTTP/1.1\r\n\r\n".to_vec(),501,"UnsupportedMethod"),
+            (http_request("/api/v3/snapshot",b"{\"x\":1,\"x\":2}"),400,"InvalidQuery"),
+        ] {
+            let (result,response)=exchange(&rt,&wire);result.unwrap();
+            let (actual,payload)=http_parts(&response);
+            assert_eq!(actual,status);assert_eq!(payload["error"],error);
+            assert!(payload.get("identity_binding").is_none());
+        }
+        let invalid = envelope(&p.wire["fixed_cut"], json!({"op":"watch"}));
+        let (result, wire) = exchange(&rt, &http_request("/api/v3/snapshot", &invalid));
+        result.unwrap();
+        let (status, reply) = http_parts(&wire);
+        assert_eq!(status, 400);
+        // 请求校验器要求payload.op，不能拿它核无op的错误响应。用原Python回复配方独立对拍。
+        error_reply_matches_original_python(&invalid, &reply, Value::Null);
+        assert_eq!(
+            reply["payload"]["identity_binding"],
+            "request_echo_unverified"
+        );
+        let mut payload = strict_json(&snapshot(&p)).unwrap()["payload"].clone();
+        payload["as_of_generation"] = json!("999");
+        let unknown_generation = envelope(&p.wire["fixed_cut"], payload);
+        let (result, wire) = exchange(&rt, &http_request("/api/v3/snapshot", &unknown_generation));
+        result.unwrap();
+        let (status, reply) = http_parts(&wire);
+        assert_eq!(status, 400);
+        assert_eq!(
+            reply["payload"]["identity_binding"],
+            "verified_current_capture"
+        );
+        error_reply_matches_original_python(
+            &unknown_generation,
+            &reply,
+            json!({"meta":{"session_id":p.wire["fixed_cut"]["session_id"]},"protocol":{"session_generation":p.wire["fixed_cut"]["session_generation"]}}),
+        );
+        let unavailable = Runtime::new(f.db_path().with_extension("absent"), r, "2").unwrap();
+        let (result, wire) = exchange(
+            &unavailable,
+            &http_request("/api/v3/snapshot", &snapshot(&p)),
+        );
+        result.unwrap();
+        let (status, reply) = http_parts(&wire);
+        assert_eq!(status, 503);
+        assert_eq!(reply["payload"]["error"], "StorageUnavailable");
+        assert_eq!(
+            reply["payload"]["identity_binding"],
+            "request_echo_unverified"
+        );
+    }
+    #[test]
+    fn http_frame_includes_headers_and_all_errors_obey_reply_bound() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let r = resources();
+        let p = projection(&f, &r);
+        let wire = http_request("/api/v3/snapshot", &snapshot(&p));
+        for (limit, status) in [(wire.len(), 200), (wire.len() - 1, 503)] {
+            let mut v = strict_json(r.canonical().as_bytes()).unwrap();
+            v["limits"]["max_frame_bytes"] = json!(limit.to_string());
+            let rt = Runtime::new(
+                f.db_path(),
+                Arc::new(QResources::parse(canonical_json(&v).as_bytes()).unwrap()),
+                "1",
+            )
+            .unwrap();
+            let (result, response) = exchange(&rt, &wire);
+            result.unwrap();
+            assert_eq!(http_parts(&response).0, status);
+        }
+        let mut v = strict_json(r.canonical().as_bytes()).unwrap();
+        v["limits"]["max_reply_bytes"] = json!("1");
+        let rt = Runtime::new(
+            f.db_path(),
+            Arc::new(QResources::parse(canonical_json(&v).as_bytes()).unwrap()),
+            "1",
+        )
+        .unwrap();
+        for request in [wire, b"POST /unknown HTTP/1.1\r\n\r\n".to_vec()] {
+            let (result, response) = exchange(&rt, &request);
+            assert!(result.is_err());
+            assert!(response.is_empty());
+        }
+    }
+    #[test]
+    fn capacity_rejection_sends_bounded_503_before_reading_socket() {
+        use std::sync::mpsc;
+        let mut v = q_resources::tests::input();
+        v["limits"]["max_query_workers"] = json!("1");
+        v["limits"]["max_query_queue"] = json!("1");
+        let rt = Runtime::new(
+            PathBuf::from("not-opened-for-rejection"),
+            Arc::new(QResources::parse(canonical_json(&v).as_bytes()).unwrap()),
+            "1",
+        )
+        .unwrap();
+        let (started_send, started) = mpsc::channel();
+        let (release, held) = mpsc::channel();
+        let first = rt
+            .executor
+            .try_submit(move |_, _, _, _| {
+                started_send.send(()).unwrap();
+                held.recv().unwrap();
+                Ok(())
+            })
+            .unwrap();
+        started.recv().unwrap();
+        let queued = rt.executor.try_submit(|_, _, _, _| Ok(())).unwrap();
+        let (mut client, server) = tcp_pair();
+        assert!(rt.accept_http(server).is_err());
+        let mut response = Vec::new();
+        client.read_to_end(&mut response).unwrap();
+        let (status, payload) = http_parts(&response);
+        assert_eq!(status, 503);
+        assert_eq!(payload["error"], "QueryBudgetExceeded");
+        release.send(()).unwrap();
+        first.recv().unwrap();
+        queued.recv().unwrap();
+        let (result, response) = exchange(&rt, b"POST /unknown HTTP/1.1\r\n\r\n");
+        result.unwrap();
+        assert_eq!(http_parts(&response).0, 404);
+    }
+    #[test]
+    fn http_header_and_body_preserve_original_separate_sendall_timeouts() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let mut v = q_resources::tests::input();
+        v["limits"]["max_query_workers"] = json!("1");
+        v["limits"]["socket_write_timeout_ms"] = json!("100");
+        let r = Arc::new(QResources::parse(canonical_json(&v).as_bytes()).unwrap());
+        let p = projection(&f, &r);
+        let rt = Runtime::new(f.db_path(), Arc::clone(&r), "1").unwrap();
+        let reply = call(&rt, "/api/v3/watch", &watch(&p));
+        struct PartialHeader(usize);
+        impl Write for PartialHeader {
+            fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+                if self.0 == 0 {
+                    self.0 = 12;
+                    Ok(12)
+                } else {
+                    Err(io::ErrorKind::BrokenPipe.into())
+                }
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                panic!("头部失败不能进入body/flush")
+            }
+        }
+        impl q_watch::TimedWrite for PartialHeader {
+            fn set_timeout(&mut self, _: Duration) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        assert!(send_http(&mut PartialHeader(0), reply, 200, &r, rt.executor.leases()).is_err());
+        assert_eq!(
+            rt.executor.leases().delivered_generation("runtime-client"),
+            Some(0)
+        );
+        let reply = call(&rt, "/api/v3/watch", &watch(&p));
+        struct SlowHeader {
+            bytes: Vec<u8>,
+            calls: usize,
+        }
+        impl Write for SlowHeader {
+            fn write(&mut self, b: &[u8]) -> io::Result<usize> {
+                self.bytes.extend_from_slice(b);
+                self.calls += 1;
+                if self.calls <= 2 {
+                    std::thread::sleep(Duration::from_millis(60));
+                }
+                Ok(b.len())
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        impl q_watch::TimedWrite for SlowHeader {
+            fn set_timeout(&mut self, _: Duration) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        let mut out = SlowHeader {
+            bytes: Vec::new(),
+            calls: 0,
+        };
+        send_http(&mut out, reply, 200, &r, rt.executor.leases()).unwrap();
+        assert_eq!(http_parts(&out.bytes).0, 200);
+        assert_eq!(
+            rt.executor.leases().delivered_generation("runtime-client"),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn actual_socket_read_timeout_sends_503_and_releases_worker() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let mut v = q_resources::tests::input();
+        v["limits"]["max_query_workers"] = json!("1");
+        v["limits"]["socket_read_timeout_ms"] = json!("20");
+        let r = Arc::new(QResources::parse(canonical_json(&v).as_bytes()).unwrap());
+        let p = projection(&f, &r);
+        let rt = Runtime::new(f.db_path(), r, "1").unwrap();
+        let (mut client, server) = tcp_pair();
+        client
+            .write_all(b"POST /api/v3/snapshot HTTP/1.1\r\nContent-Length: 8\r\n\r\n{")
+            .unwrap();
+        // 不发送EOF，迫使实际内核socket读超时，而非把截断当超时。
+        let pending = rt.accept_http(server).unwrap();
+        let mut wire = Vec::new();
+        client.read_to_end(&mut wire).unwrap();
+        pending.recv().unwrap();
+        let (status, payload) = http_parts(&wire);
+        assert_eq!(status, 503);
+        assert_eq!(payload["error"], "QueryBudgetExceeded");
+        let (result, wire) = exchange(&rt, &http_request("/api/v3/snapshot", &snapshot(&p)));
+        result.unwrap();
+        assert_eq!(http_parts(&wire).0, 200);
     }
 }

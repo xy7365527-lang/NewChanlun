@@ -154,13 +154,61 @@ impl Executor {
             + Send
             + 'static,
     {
+        self.try_submit_owned_at(queued_at, (), move |(), reader, resources, leases, at| {
+            task(reader, resources, leases, at)
+        })
+        .map_err(|(error, ())| error)
+    }
+
+    /// 在读取连接前占槽；拒绝接纳时把原连接交还调用者发送有界503。
+    pub(super) fn try_submit_owned<T, R, F>(
+        &self,
+        input: T,
+        task: F,
+    ) -> Result<Pending<R>, (String, T)>
+    where
+        T: Send + 'static,
+        R: Send + 'static,
+        F: FnOnce(T, &mut AuditReader, &QResources, &ClientLeases, Instant) -> Result<R, String>
+            + Send
+            + 'static,
+    {
+        self.try_submit_owned_at(Instant::now(), input, task)
+    }
+
+    fn try_submit_owned_at<T, R, F>(
+        &self,
+        queued_at: Instant,
+        input: T,
+        task: F,
+    ) -> Result<Pending<R>, (String, T)>
+    where
+        T: Send + 'static,
+        R: Send + 'static,
+        F: FnOnce(T, &mut AuditReader, &QResources, &ClientLeases, Instant) -> Result<R, String>
+            + Send
+            + 'static,
+    {
+        let mut state = match self.shared.state.lock() {
+            Ok(state) => state,
+            Err(_) => return Err(("Incomplete：Q executor 队列锁已中毒".into(), input)),
+        };
+        if state.closed {
+            return Err(("Incomplete：Q executor 已关闭".into(), input));
+        }
+        if state.active_queued >= self.shared.capacity {
+            return Err((
+                "Incomplete：Q executor active+queued 达到冻结上限".into(),
+                input,
+            ));
+        }
         let (sender, receiver) = mpsc::channel::<Result<R, String>>();
         let complete_sender = sender.clone();
         let panic_sender = sender.clone();
         let run: RunTask =
             Box::new(move |reader, resources, leases, queued_at| {
                 match catch_unwind(AssertUnwindSafe(|| {
-                    task(reader, resources, leases, queued_at)
+                    task(input, reader, resources, leases, queued_at)
                 })) {
                     Ok(result) => RunOutcome::Complete(Box::new(move || {
                         let _ = complete_sender.send(result);
@@ -181,17 +229,6 @@ impl Executor {
             run,
             reject,
         };
-        let mut state = self
-            .shared
-            .state
-            .lock()
-            .map_err(|_| "Incomplete：Q executor 队列锁已中毒".to_string())?;
-        if state.closed {
-            return Err("Incomplete：Q executor 已关闭".into());
-        }
-        if state.active_queued >= self.shared.capacity {
-            return Err("Incomplete：Q executor active+queued 达到冻结上限".into());
-        }
         state.active_queued += 1;
         state.queue.push_back(queued);
         drop(state);
@@ -214,7 +251,9 @@ fn worker_loop(
             None => break,
         };
         if task.queued_at.elapsed() > shared.queue_timeout {
-            let QueuedTask { reject, .. } = task;
+            let QueuedTask { reject, run, .. } = task;
+            // 被排队闭包持有的socket等输入必须先关闭，再给调用方终态。
+            drop(run);
             release_slot(&shared);
             reject("Incomplete：Q executor 请求排队超过 socket_read_timeout".into());
             continue;
@@ -442,5 +481,54 @@ mod tests {
         let result = second.recv();
         assert!(result.is_err());
         assert_eq!(ran.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn owned_input_returns_on_capacity_and_closes_before_expiry_result() {
+        struct Owned(Arc<AtomicU64>);
+        impl Drop for Owned {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+        let executor =
+            Executor::new(PathBuf::from("unopened-test-db"), resources(1, 1, 2, 1000)).unwrap();
+        let (started_send, started) = mpsc::channel();
+        let (release, held) = mpsc::channel();
+        let first = executor
+            .try_submit(move |_, _, _, _| {
+                started_send.send(()).unwrap();
+                held.recv().unwrap();
+                Ok(())
+            })
+            .unwrap();
+        started.recv().unwrap();
+        let expired_drops = Arc::new(AtomicU64::new(0));
+        let queued = executor
+            .try_submit_owned_at(
+                Instant::now() - Duration::from_secs(2),
+                Owned(expired_drops.clone()),
+                |_, _, _, _, _| -> Result<(), String> {
+                    panic!("过期连接不得被读取");
+                },
+            )
+            .ok()
+            .unwrap();
+        let returned_drops = Arc::new(AtomicU64::new(0));
+        let rejected =
+            executor.try_submit_owned(Owned(returned_drops.clone()), |_, _, _, _, _| Ok(()));
+        let (_, input) = rejected.err().expect("容量已满");
+        assert_eq!(returned_drops.load(Ordering::SeqCst), 0);
+        drop(input);
+        assert_eq!(returned_drops.load(Ordering::SeqCst), 1);
+        release.send(()).unwrap();
+        first.recv().unwrap();
+        assert!(queued.recv().unwrap_err().contains("排队"));
+        assert_eq!(expired_drops.load(Ordering::SeqCst), 1);
+        executor
+            .try_submit(|_, _, _, _| Ok(()))
+            .unwrap()
+            .recv()
+            .unwrap();
     }
 }

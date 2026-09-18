@@ -59,6 +59,8 @@ mod q_executor;
 #[cfg(unix)]
 mod q_runtime;
 #[cfg(unix)]
+mod q_http_input;
+#[cfg(unix)]
 mod capture;
 pub(super) mod aux_index;
 pub(super) mod object_index;
