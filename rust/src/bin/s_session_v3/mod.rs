@@ -41,6 +41,7 @@ mod control_audit;
 mod history;
 pub(super) mod aux_index;
 pub(super) mod object_index;
+mod source_audit;
 
 /// 本模块唯一负责的协议版本。
 pub(super) const PROTOCOL_REVISION: &str = "s-session/3";

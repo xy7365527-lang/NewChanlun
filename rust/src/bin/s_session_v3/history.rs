@@ -136,6 +136,14 @@ pub(super) fn read_history(
         {
             return Err(err("发布原始前沿无新增、越界或倒退"));
         }
+        aux_index::verify_generated_members(
+            &mut store,
+            &auxiliary,
+            &roots.generated_state,
+            &replaces,
+            &raw[..=frontier as usize],
+            generation,
+        )?;
         for n in (previous + 1)..=frontier {
             let event = &raw[n as usize];
             if event["seq"].as_i64() != Some(n) {
@@ -565,6 +573,76 @@ mod tests {
         cuts[0].metadata.source_commit.attempt_index = 1;
         let tx = f.conn.transaction().unwrap();
         assert!(verify_source(&tx, &cuts[0].metadata).is_err());
+    }
+
+    #[test]
+    fn self_consistent_publication_cannot_invent_an_observation_birth() {
+        let mut fixture = commit::tests::fixture();
+        let tx = fixture.conn.transaction().unwrap();
+        let (m, mut roots, _) = commit::tests::prepare(&tx, &fixture.envelope);
+        let mut store = content_store::TxStore::new(&tx).unwrap();
+        // 保留独立观察首版和公开观察，但从生成态去掉它。重签全部根，排除纯哈希错配。
+        let fields = [
+            "generation",
+            "structure_cut",
+            "input_frontier",
+            "catalog_revision",
+            "profile_id",
+            "profile_hash",
+            "rule_revision",
+            "raw_events",
+            "effective_events",
+            "objects",
+            "witnesses",
+            "relations",
+            "observations",
+            "scope",
+        ]
+        .into_iter()
+        .map(|name| {
+            let v = if name == "observations" {
+                V::Array(vec![])
+            } else {
+                V::Edge(
+                    field(&mut store, &roots.generated_state, name)
+                        .unwrap()
+                        .digest()
+                        .unwrap(),
+                )
+            };
+            (name.into(), v)
+        })
+        .collect();
+        roots.generated_state = sc::write_value(&mut store, &V::Object(fields))
+            .unwrap()
+            .content_ref();
+        let manifest = content_manifest::assemble_unpublished(&mut store, &m, &roots).unwrap();
+        let observation = lookup_path(
+            &mut store,
+            &roots.publication_template,
+            &[PathStep::Field("observations".into()), PathStep::Index(0)],
+        )
+        .unwrap();
+        let wire = sc::path::replace_batch_placeholder(
+            &mut store,
+            &observation,
+            &[PathStep::Field("batch_id".into())],
+            &manifest.batch_id,
+        )
+        .unwrap();
+        tx.execute(
+            "UPDATE s_content_observations SET batch_id=?1,birth_wire_root=?2",
+            params![manifest.batch_id, wire.digest().unwrap().as_slice()],
+        )
+        .unwrap();
+        commit::publish_prepared(tx, &fixture.token, &m, &roots, &manifest).unwrap();
+        let error = audit(&mut fixture.conn)
+            .err()
+            .expect("unproduced birth must fail");
+        assert!(
+            error.contains("观察出生集合或顺序与独立索引不同"),
+            "{error}"
+        );
     }
 
     #[test]

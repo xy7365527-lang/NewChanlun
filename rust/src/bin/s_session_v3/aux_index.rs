@@ -11,7 +11,7 @@ use newchan_rust::s_content::{
 use rusqlite::{params, Transaction};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS s_content_witnesses (
  witness_id TEXT PRIMARY KEY, object_id TEXT NOT NULL, slot INTEGER NOT NULL, merged_index INTEGER NOT NULL CHECK(merged_index>=0),
@@ -620,6 +620,189 @@ fn observation_id(s: &mut dyn NodeStore, r: &ContentRef) -> Result<String, Strin
     ))
 }
 
+fn state_members(
+    s: &mut dyn NodeSource,
+    state: &ContentRef,
+    name: &str,
+) -> Result<Vec<ContentRef>, String> {
+    let members = field(s, state, name)?;
+    array_elements(s, &members)
+}
+
+/// 生成态与见证/关系/观察独立索引的来源绑定核验。
+///
+/// 这里只消费调用方已核过的原始前缀；不重跑结构分类，也不展开观察 detail 或 raw_bars
+/// 的整段 JSON。生成态当前成员必须能在独立索引找到并逐根相等；本代首次成员则另核
+/// 独立索引的首次插入顺序，避免只凭索引自洽放过出生漏项、幽灵行或错绑原件。
+pub(super) fn verify_generated_members(
+    s: &mut dyn NodeStore,
+    index: &Index,
+    state: &ContentRef,
+    replaces: &[Value],
+    raw: &[Value],
+    g: i64,
+) -> Result<(), String> {
+    if g < 1 {
+        return Err(err("生成代非法"));
+    }
+
+    let mut witness_by_id = BTreeMap::<String, &Witness>::new();
+    for row in &index.witnesses {
+        if row.first <= g {
+            if witness_by_id.insert(row.id.clone(), row).is_some() {
+                return Err(err("见证独立索引重复身份"));
+            }
+        }
+    }
+    let generated_witnesses = state_members(s, state, "witnesses")?;
+    let mut seen = BTreeMap::<String, NodeDigest>::new();
+    let mut generated_births = Vec::new();
+    for generated in generated_witnesses {
+        let id = text(s, &generated, "witness_id")?;
+        let generated_digest = digest(&generated)?;
+        if seen.insert(id.clone(), generated_digest).is_some() {
+            return Err(err("生成见证重复身份"));
+        }
+        let row = witness_by_id
+            .get(&id)
+            .ok_or_else(|| err("生成见证不在独立索引内"))?;
+        if row.generated != generated {
+            return Err(err("生成见证原件与独立索引不一致"));
+        }
+        if row.first == g {
+            generated_births.push(id);
+        }
+    }
+    let indexed_births = index
+        .witnesses
+        .iter()
+        .filter(|row| row.first == g)
+        .map(|row| row.id.clone())
+        .collect::<Vec<_>>();
+    if generated_births != indexed_births {
+        return Err(err("见证出生集合或顺序与独立索引不同"));
+    }
+
+    let mut relation_by_id = BTreeMap::<String, &Relation>::new();
+    for row in &index.relations {
+        if row.first <= g {
+            if relation_by_id.insert(row.id.clone(), row).is_some() {
+                return Err(err("关系独立索引重复身份"));
+            }
+        }
+    }
+    let mut relation_candidates = state_members(s, state, "relations")?;
+    for replacement in replaces {
+        let subject = replacement["new_object_id"]
+            .as_str()
+            .ok_or_else(|| err("replaces缺new_object_id"))?;
+        let object = replacement["old_object_id"]
+            .as_str()
+            .ok_or_else(|| err("replaces缺old_object_id"))?;
+        relation_candidates.push(
+            write_json(
+                s,
+                &json!({"subject":subject,"relation_type":"replaces","object":object}),
+            )?
+            .content_ref(),
+        );
+    }
+    for event in raw {
+        let Some(supersedes) = event["supersedes_revision"].as_i64() else {
+            continue;
+        };
+        let identity = event["identity_key"]
+            .as_str()
+            .ok_or_else(|| err("源身份缺失"))?;
+        let revision = event["revision"]
+            .as_i64()
+            .ok_or_else(|| err("源版本缺失"))?;
+        relation_candidates.push(
+            write_json(
+                s,
+                &json!({
+                    "subject": format!("{identity}@{revision}"),
+                    "relation_type": "supersedes",
+                    "object": format!("{identity}@{supersedes}"),
+                }),
+            )?
+            .content_ref(),
+        );
+    }
+    let mut relation_seen = BTreeMap::<String, NodeDigest>::new();
+    let mut relation_births = Vec::new();
+    for candidate in relation_candidates {
+        let row = relation(s, candidate, g)?;
+        let row_digest = digest(&row.generated)?;
+        if let Some(previous) = relation_seen.insert(row.id.clone(), row_digest) {
+            if previous != row_digest {
+                return Err(err("同关系身份对应多个生成原件"));
+            }
+            continue;
+        }
+        let stored = relation_by_id
+            .get(&row.id)
+            .ok_or_else(|| err("生成关系不在独立索引内"))?;
+        if stored.generated != row.generated {
+            return Err(err("生成关系原件与独立索引不一致"));
+        }
+        if stored.first == g {
+            relation_births.push(row.id);
+        }
+    }
+    let indexed_relation_births = index
+        .relations
+        .iter()
+        .filter(|row| row.first == g)
+        .map(|row| row.id.clone())
+        .collect::<Vec<_>>();
+    if relation_births != indexed_relation_births {
+        return Err(err("关系出生集合或顺序与独立索引不同"));
+    }
+
+    let mut observation_by_id = BTreeMap::<String, &Observation>::new();
+    for row in &index.observations {
+        if row.first <= g {
+            if observation_by_id.insert(row.id.clone(), row).is_some() {
+                return Err(err("观察独立索引重复身份"));
+            }
+        }
+    }
+    let generated_observations = state_members(s, state, "observations")?;
+    let mut observation_seen = BTreeSet::new();
+    let mut observation_births = Vec::new();
+    for generated in generated_observations {
+        let id = observation_id(s, &generated)?;
+        if !observation_seen.insert(id.clone()) {
+            return Err(err("生成观察重复身份"));
+        }
+        let stored = observation_by_id
+            .get(&id)
+            .ok_or_else(|| err("生成观察不在独立索引内"))?;
+        if observation_identity_value(s, &stored.generated)?
+            != observation_identity_value(s, &generated)?
+        {
+            return Err(err("生成观察身份字段与独立首版不一致"));
+        }
+        if stored.first == g {
+            if stored.generated != generated {
+                return Err(err("观察出生原件与独立首版不一致"));
+            }
+            observation_births.push(id);
+        }
+    }
+    let indexed_observation_births = index
+        .observations
+        .iter()
+        .filter(|row| row.first == g)
+        .map(|row| row.id.clone())
+        .collect::<Vec<_>>();
+    if observation_births != indexed_observation_births {
+        return Err(err("观察出生集合或顺序与独立索引不同"));
+    }
+    Ok(())
+}
+
 /// 读取独立记录并验证闭包、身份、公开投影和小元数据。store 可为只读源+内存重算层。
 /// 完整生成来源/跨代成员审计仍由上层完成，索引自洽不能证明来源真实。
 pub(super) fn load(
@@ -987,6 +1170,67 @@ mod tests {
             let batch = format!("batch3-{}", g.to_string().repeat(64));
             stage(&tx, &mut s, &p, &batch).unwrap();
             let stored = load(&tx, &mut s, g).unwrap();
+            verify_generated_members(
+                &mut s,
+                &stored,
+                &generated.generated_state,
+                &[],
+                &raw[..=frontier as usize],
+                g,
+            )
+            .unwrap();
+            if g == 1 {
+                let first = stored
+                    .witnesses
+                    .iter()
+                    .position(|row| row.first == g)
+                    .unwrap();
+                let mut missing = stored.clone();
+                missing.witnesses.remove(first);
+                assert!(verify_generated_members(
+                    &mut s,
+                    &missing,
+                    &generated.generated_state,
+                    &[],
+                    &raw[..=frontier as usize],
+                    g,
+                )
+                .is_err());
+
+                let mut ghost = stored.clone();
+                ghost.witnesses.push(Witness {
+                    id: "wit-ghost".into(),
+                    ..stored.witnesses[first].clone()
+                });
+                assert!(verify_generated_members(
+                    &mut s,
+                    &ghost,
+                    &generated.generated_state,
+                    &[],
+                    &raw[..=frontier as usize],
+                    g,
+                )
+                .is_err());
+
+                let other = stored
+                    .witnesses
+                    .iter()
+                    .enumerate()
+                    .find(|(i, row)| *i != first && row.first == g)
+                    .map(|(_, row)| row.generated.clone())
+                    .unwrap();
+                let mut wrong = stored.clone();
+                wrong.witnesses[first].generated = other;
+                assert!(verify_generated_members(
+                    &mut s,
+                    &wrong,
+                    &generated.generated_state,
+                    &[],
+                    &raw[..=frontier as usize],
+                    g,
+                )
+                .is_err());
+            }
             for (is_delta, expected) in [(false, &p.snapshot), (true, &p.births)] {
                 let members = cut_members(&stored, g, is_delta).unwrap();
                 assert_eq!(

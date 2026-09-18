@@ -1131,7 +1131,7 @@ fn shape_witnesses(
 ///
 /// SHA256 的规范 JSON 输入**流式**写入哈希器：`raw_bars` 直接渲染既有数组根，
 /// 不先 materialize 成整份字符串/`Value`。
-fn witness_identity(
+pub(super) fn witness_identity(
     store: &mut dyn NodeStore,
     object_id: &str,
     slot: usize,

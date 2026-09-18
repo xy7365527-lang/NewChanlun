@@ -488,6 +488,18 @@ pub(super) struct Cc007Object {
     pub cut: String,
 }
 
+/// 已核字段的借用值；不把核对象来源的职责藏入身份哈希。
+pub(super) struct ShapeIdentity<'a> {
+    pub branch: &'a str,
+    pub dir_ab: &'a str,
+    pub dir_bc: &'a str,
+    pub window: [String; 3],
+    pub highs: [String; 3],
+    pub lows: [String; 3],
+    pub comparisons: &'a Built,
+    pub input_refs: &'a Built,
+}
+
 impl TypedObject {
     /// 旧逻辑字段名到新内容边的对应（供调用方/测试核对，不参与身份）。
     pub fn content_edges(&self) -> [(&'static str, &Built); 3] {
@@ -974,6 +986,40 @@ impl Cc004Producer {
     }
 
     /// 只求身份对象的值摘要（不落节点表：身份对象是派生输入，不是要发布的节点）。
+    /// CC-006 唯一十二字段身份配方。构造与只读审计共用；调用者分别从同核组证据/同cut组事实取价。
+    pub(super) fn shape_identity(
+        &self,
+        part: ShapeIdentity<'_>,
+    ) -> Result<NodeDigest, ProducerError> {
+        let fields = CValue::Object(vec![
+            ("branch".into(), CValue::String(part.branch.into())),
+            ("dir_ab".into(), CValue::String(part.dir_ab.into())),
+            ("dir_bc".into(), CValue::String(part.dir_bc.into())),
+            (
+                "window_start".into(),
+                CValue::String(part.window[0].clone()),
+            ),
+            ("window_mid".into(), CValue::String(part.window[1].clone())),
+            ("window_end".into(), CValue::String(part.window[2].clone())),
+            (
+                "merged_highs".into(),
+                CValue::Array(part.highs.into_iter().map(CValue::String).collect()),
+            ),
+            (
+                "merged_lows".into(),
+                CValue::Array(part.lows.into_iter().map(CValue::String).collect()),
+            ),
+            ("comparisons".into(), CValue::Edge(part.comparisons.digest)),
+            ("input_refs".into(), CValue::Edge(part.input_refs.digest)),
+            (
+                "rule_revision".into(),
+                CValue::String(self.rule_revision.clone()),
+            ),
+            ("profile_id".into(), CValue::String(self.profile_id.clone())),
+        ]);
+        self.identity_summary(&fields)
+    }
+
     fn identity_summary(&self, identity: &CValue) -> Result<NodeDigest, ProducerError> {
         let mut derived = DigestOnly;
         Ok(sc::write_value(&mut derived, identity)?.digest)
@@ -1743,66 +1789,16 @@ impl Cc004Producer {
             kind: Kind::JsonText,
             extent: None,
         };
-        let window_text = [
-            window[0].to_string(),
-            window[1].to_string(),
-            window[2].to_string(),
-        ];
-        let identity = CValue::Object(vec![
-            (
-                "branch".to_string(),
-                CValue::String(branch.as_str().to_string()),
-            ),
-            (
-                "dir_ab".to_string(),
-                CValue::String(dir_str(dir_ab).to_string()),
-            ),
-            (
-                "dir_bc".to_string(),
-                CValue::String(dir_str(dir_bc).to_string()),
-            ),
-            (
-                "window_start".to_string(),
-                CValue::String(window_text[0].clone()),
-            ),
-            (
-                "window_mid".to_string(),
-                CValue::String(window_text[1].clone()),
-            ),
-            (
-                "window_end".to_string(),
-                CValue::String(window_text[2].clone()),
-            ),
-            (
-                "merged_highs".to_string(),
-                CValue::Array(
-                    [left.bar.high, mid.bar.high, right.bar.high]
-                        .iter()
-                        .map(|price| CValue::String(price.to_string()))
-                        .collect(),
-                ),
-            ),
-            (
-                "merged_lows".to_string(),
-                CValue::Array(
-                    [left.bar.low, mid.bar.low, right.bar.low]
-                        .iter()
-                        .map(|price| CValue::String(price.to_string()))
-                        .collect(),
-                ),
-            ),
-            ("comparisons".to_string(), CValue::Edge(comparisons.digest)),
-            ("input_refs".to_string(), CValue::Edge(input_refs.digest)),
-            (
-                "rule_revision".to_string(),
-                CValue::String(self.rule_revision.clone()),
-            ),
-            (
-                "profile_id".to_string(),
-                CValue::String(self.profile_id.clone()),
-            ),
-        ]);
-        let identity = self.identity_summary(&identity)?;
+        let identity = self.shape_identity(ShapeIdentity {
+            branch: branch.as_str(),
+            dir_ab: dir_str(dir_ab),
+            dir_bc: dir_str(dir_bc),
+            window: window.map(|coord| coord.to_string()),
+            highs: [left.bar.high, mid.bar.high, right.bar.high].map(|price| price.to_string()),
+            lows: [left.bar.low, mid.bar.low, right.bar.low].map(|price| price.to_string()),
+            comparisons: &comparisons,
+            input_refs: &input_refs,
+        })?;
         let object_id = object_id_of(&identity);
         let record_value = CValue::Object(vec![
             ("object_id".to_string(), CValue::String(object_id.clone())),
