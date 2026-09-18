@@ -152,6 +152,39 @@ impl RawRefSpec {
             ),
         ])
     }
+
+    /// CC-006 旧生成态的同一八字段：`revision`/`seq` 保持 **i64 数值**（旧 raw 行原类型），
+    /// 其余六字段与 [`RawRefSpec::to_value`] 同值。字段来源只有一份（本类型），不是第二套登记。
+    fn to_shape_value(&self) -> Result<CValue, ProducerError> {
+        Ok(CValue::Object(vec![
+            (
+                "identity_key".to_string(),
+                CValue::String(self.identity_key.clone()),
+            ),
+            (
+                "payload_hash".to_string(),
+                CValue::String(self.payload_hash.clone()),
+            ),
+            (
+                "receipt_id".to_string(),
+                CValue::String(self.receipt_id.clone()),
+            ),
+            (
+                "event_id".to_string(),
+                CValue::String(self.event_id.clone()),
+            ),
+            (
+                "input_revision".to_string(),
+                CValue::String(self.input_revision.clone()),
+            ),
+            ("revision".to_string(), number(self.revision)?),
+            ("seq".to_string(), number(self.seq)?),
+            (
+                "source_coord".to_string(),
+                CValue::String(self.source_coord.clone()),
+            ),
+        ]))
+    }
 }
 
 /// 只算摘要、不落盘的写入面。
@@ -280,6 +313,8 @@ enum Leaves<'a> {
     CoordText(&'a mut HashMap<i64, NodeDigest>),
     /// 源引用数组：叶是当前源版本（八字段 `raw_ref`）值根。
     SourceRef(&'a BTreeMap<i64, (RawRefSpec, NodeDigest)>),
+    /// CC-006 旧生成态源引用数组：叶是数值型八字段值根（`revision`/`seq` 为数值）。
+    ShapeSourceRef(&'a BTreeMap<i64, NodeDigest>),
 }
 
 impl Leaves<'_> {
@@ -294,8 +329,25 @@ impl Leaves<'_> {
                 .get(&coord)
                 .map(|(_, root)| *root)
                 .ok_or(ProducerError::MissingSource(coord)),
+            Leaves::ShapeSourceRef(roots) => roots
+                .get(&coord)
+                .copied()
+                .ok_or(ProducerError::MissingSource(coord)),
         }
     }
+}
+
+/// 源引用数组的两种**叶编码**（不是两套判据）：generic typed 对象与 CC-006 公开 wire 用
+/// 十进制文本叶，CC-006 旧生成态用 raw 行原类型（`revision`/`seq` 数值）。
+///
+/// 两者共用同一份坐标集合、同一条 [`array_from_node`] 构造路径、同一份 dependency 计算，
+/// 只换叶来源与 memo；源版本变化时两者按同一坐标失效。
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RefEncoding {
+    /// `RawRefSpec::to_value`：八字段全文本（generic 与 CC-006 wire）。
+    WireText,
+    /// `RawRefSpec::to_shape_value`：`revision`/`seq` 数值（CC-006 旧生成态 / 十二字段身份）。
+    ShapeInteger,
 }
 
 /// 一个**泛型 typed 对象**（§5.3 六字段身份家族：CC-004/005/007/054）的构造结果。
@@ -355,8 +407,16 @@ pub(super) struct Cc006Object {
     pub record: Built,
     /// 四个严格比较的数组值根（旧 `comparisons_json` 的内部值）。
     pub comparisons: Built,
-    /// 三组 `{merged_index,raw_refs,dependency_refs}` 的数组值根（旧 `input_refs_json` 的内部值）。
+    /// 旧生成态的 `input_refs`：三组 `{merged_index,raw_refs,dependency_refs}` 的数组值根，
+    /// `merged_index` 与 `revision`/`seq` 保持**旧行原类型（数值）**。它同时是十二字段身份的
+    /// `input_refs`、`record` 的 `input_refs` 值边与 `input_refs_json` 的内部值。
     pub input_refs: Built,
+    /// CC-006 **公开 wire** 的 `input_refs` 数组值根：与旧 v2 投影 `project_input_refs` 同一
+    /// 结果（`merged_index` 与 `revision`/`seq` 为规范十进制文本，其余六字段文本不变），
+    /// 同次生成、与 [`Cc006Object::input_refs`] 共享坐标与 dependency 计算。
+    ///
+    /// 它**不参与**十二字段身份与生成态记录绑定；发布侧只借根，不得用生成态数值叶重渲染。
+    pub wire_input_refs: Built,
     /// 来源坐标文本数组根（旧 `source_coords_json` 的内部值）。
     pub source_coords: Built,
     /// 0x07 文本视图根（内部值 = `input_refs`）。
@@ -452,8 +512,12 @@ pub(super) struct Cc004Producer {
     coord_text: HashMap<i64, NodeDigest>,
     /// 源坐标数组 memo：只依赖坐标集合，不随源修订失效。
     text_arrays: ArrayCache,
-    /// 源引用数组 memo：依赖当前源绑定，源修订按坐标失效。
+    /// 源引用数组 memo（wire 文本叶）：依赖当前源绑定，源修订按坐标失效。
     ref_arrays: ArrayCache,
+    /// CC-006 旧生成态源引用值根（coord → 数值型八字段值根）；与 `sources` 同键、同生同死。
+    shape_sources: BTreeMap<i64, NodeDigest>,
+    /// CC-006 旧生成态源引用数组 memo（数值叶）：与 `ref_arrays` 同源绑定、同坐标失效。
+    shape_ref_arrays: ArrayCache,
     /// CC-007 后续历史 memo：按 `(参考集指纹, end)` **保留**（交错窗口互不驱逐）。
     fractal_histories: HashMap<(String, usize), FractalHistory>,
     /// CC-007 测量面计数（不参与判据）：新求值单元 / 续接复用单元 / 源修订失效单元。
@@ -484,6 +548,12 @@ pub(super) struct MemoCounts {
     pub ref_misses: usize,
     /// 因源版本变化被丢弃的 memo 条目数。
     pub invalidated: usize,
+    /// CC-006 旧生成态（数值叶）源引用 memo：命中次数。
+    pub shape_hits: usize,
+    /// CC-006 旧生成态（数值叶）源引用 memo：未命中次数。
+    pub shape_misses: usize,
+    /// CC-006 旧生成态（数值叶）源引用 memo：因源版本变化被丢弃的条目数。
+    pub shape_invalidated: usize,
     /// 新坐标大于 memo 上界而跳过的整表遍历次数。
     pub skipped_scans: usize,
     /// CC-007 比较单元：实际求值次数。
@@ -504,6 +574,8 @@ impl Cc004Producer {
             coord_text: HashMap::new(),
             text_arrays: ArrayCache::default(),
             ref_arrays: ArrayCache::default(),
+            shape_sources: BTreeMap::new(),
+            shape_ref_arrays: ArrayCache::default(),
             fractal_histories: HashMap::new(),
             history_computed: 0,
             history_reused: 0,
@@ -544,13 +616,18 @@ impl Cc004Producer {
             }
         }
         let built = sc::write_value(&mut *store, &spec.to_value())?;
+        // 同一份登记事实的第二种编码：CC-006 旧生成态（`revision`/`seq` 数值）。两叶同写同换，
+        // 任一源版本变化都不得留下旧编码的叶。
+        let shape_built = sc::write_value(&mut *store, &spec.to_shape_value()?)?;
         let changed = match self.sources.get(&coord) {
             Some((_, root)) => *root != built.digest,
             None => true,
         };
         self.sources.insert(coord, (spec, built.digest));
+        self.shape_sources.insert(coord, shape_built.digest);
         if changed {
             self.ref_arrays.invalidate(coord);
+            self.shape_ref_arrays.invalidate(coord);
             // 历史 memo 不在此处整条丢弃，只记**实际变化坐标**的水位：prepare 时一次并入
             // 全部已保留窗口（见 `prepare_raw_history`），续接时坐标 ≥ 该水位的已覆盖单元
             // 整段 `sequence_split` 截断重建；prepare 中的精确内容键比较另核 raw 内容漂移。
@@ -614,7 +691,8 @@ impl Cc004Producer {
         coord_text_root(&mut *store, &mut self.coord_text, coord)
     }
 
-    /// `input_refs`：坐标集合 → 当前源绑定下的八字段源引用数组（0x05）。
+    /// `input_refs`（generic typed 对象与 CC-006 公开 wire 的文本编码）：坐标集合 →
+    /// 当前源绑定下的八字段源引用数组（0x05）。
     ///
     /// 与 [`Cc004Producer::coords_array`] 用**同一张 coords 叶图**，只是叶按当前源版本
     /// 绑定；任一坐标的源版本变化即失效依赖它的条目。
@@ -623,16 +701,53 @@ impl Cc004Producer {
         store: &mut dyn NodeStore,
         coords: &CoordsRef,
     ) -> Result<Built, ProducerError> {
+        self.source_refs_array_in(store, coords, RefEncoding::WireText)
+    }
+
+    /// 两种源引用编码的共用入口：坐标集合 → 八字段源引用数组（0x05），只按 `encoding`
+    /// 选叶值编码与 memo；坐标集合、序列分解与构造路径完全同一份。
+    fn source_refs_array_in(
+        &mut self,
+        store: &mut dyn NodeStore,
+        coords: &CoordsRef,
+        encoding: RefEncoding,
+    ) -> Result<Built, ProducerError> {
         let Some(root) = coords.root_node() else {
             return empty_array(store);
         };
-        let entry = array_from_node(
-            &mut *store,
-            root,
-            &mut self.ref_arrays,
-            &mut Leaves::SourceRef(&self.sources),
-        )?;
+        let entry = self.ref_array_over(store, root, encoding)?;
         Ok(array_built(&entry))
+    }
+
+    /// [`array_from_node`] 的编码分派口（唯一构造规则；两个 memo/叶来源按编码二选一）。
+    fn ref_array_over(
+        &mut self,
+        store: &mut dyn NodeStore,
+        root: &Rc<CoordNode>,
+        encoding: RefEncoding,
+    ) -> Result<ArrayEntry, ProducerError> {
+        match encoding {
+            RefEncoding::WireText => array_from_node(
+                &mut *store,
+                root,
+                &mut self.ref_arrays,
+                &mut Leaves::SourceRef(&self.sources),
+            ),
+            RefEncoding::ShapeInteger => array_from_node(
+                &mut *store,
+                root,
+                &mut self.shape_ref_arrays,
+                &mut Leaves::ShapeSourceRef(&self.shape_sources),
+            ),
+        }
+    }
+
+    /// 某坐标当前登记的源引用**叶**根（按编码选文本叶或 CC-006 数值叶）。
+    fn ref_leaf_root(&self, encoding: RefEncoding, coord: i64) -> Option<NodeDigest> {
+        match encoding {
+            RefEncoding::WireText => self.sources.get(&coord).map(|(_, root)| *root),
+            RefEncoding::ShapeInteger => self.shape_sources.get(&coord).copied(),
+        }
     }
 
     /// 从同次 parser 的共享态借出单步证据并构造 CC-004 对象。
@@ -1574,27 +1689,49 @@ impl Cc004Producer {
                 .collect(),
         );
         let comparisons = sc::write_value(&mut *store, &comparisons_value)?;
+        // 两组来源引用，同一次生成、同一份坐标集合与 dependency 计算，只换叶编码与 memo：
+        // - `groups`（数值叶）：旧生成态，进十二字段身份、记录边与 `input_refs_json` 内部值；
+        // - `wire_groups`（文本叶 + 字符串 merged_index）：公开 wire 的 `input_refs`（旧
+        //   `project_input_refs` 投影结果），不参与身份。
         let mut groups: Vec<CValue> = Vec::with_capacity(3);
+        let mut wire_groups: Vec<CValue> = Vec::with_capacity(3);
         // 三组来源并集 = 右组来源链（归纳嵌套前缀性；逐前缀对拍见测试）。
         let sources = group_sources_coords(right);
         for (offset, view) in [left, mid, right].iter().enumerate() {
-            let raw_refs = self.source_refs_array(&mut *store, &group_members_coords(view))?;
-            let dependency_refs = self.group_dependency_array(&mut *store, view)?;
+            let index = i64::try_from(indices[offset]).map_err(|_| {
+                ProducerError::Overflow(format!("组下标 {} 超出 i64", indices[offset]))
+            })?;
+            let members = group_members_coords(view);
+            let shape_raw =
+                self.source_refs_array_in(&mut *store, &members, RefEncoding::ShapeInteger)?;
+            let shape_dependency =
+                self.group_dependency_array(&mut *store, view, RefEncoding::ShapeInteger)?;
             groups.push(CValue::Object(vec![
-                (
-                    "merged_index".to_string(),
-                    number(i64::try_from(indices[offset]).map_err(|_| {
-                        ProducerError::Overflow(format!("组下标 {} 超出 i64", indices[offset]))
-                    })?)?,
-                ),
-                ("raw_refs".to_string(), CValue::Edge(raw_refs.digest)),
+                ("merged_index".to_string(), number(index)?),
+                ("raw_refs".to_string(), CValue::Edge(shape_raw.digest)),
                 (
                     "dependency_refs".to_string(),
-                    CValue::Edge(dependency_refs.digest),
+                    CValue::Edge(shape_dependency.digest),
+                ),
+            ]));
+            let wire_raw =
+                self.source_refs_array_in(&mut *store, &members, RefEncoding::WireText)?;
+            let wire_dependency =
+                self.group_dependency_array(&mut *store, view, RefEncoding::WireText)?;
+            wire_groups.push(CValue::Object(vec![
+                (
+                    "merged_index".to_string(),
+                    CValue::String(index.to_string()),
+                ),
+                ("raw_refs".to_string(), CValue::Edge(wire_raw.digest)),
+                (
+                    "dependency_refs".to_string(),
+                    CValue::Edge(wire_dependency.digest),
                 ),
             ]));
         }
         let input_refs = sc::write_value(&mut *store, &CValue::Array(groups))?;
+        let wire_input_refs = sc::write_value(&mut *store, &CValue::Array(wire_groups))?;
         let input_refs_json = Built {
             digest: put_json_text_node(&mut *store, &input_refs.digest)?,
             kind: Kind::JsonText,
@@ -1743,6 +1880,7 @@ impl Cc004Producer {
             record,
             comparisons,
             input_refs,
+            wire_input_refs,
             source_coords,
             input_refs_json,
             source_coords_json,
@@ -1848,11 +1986,10 @@ impl Cc004Producer {
         &self,
         store: &mut dyn NodeStore,
         coord: i64,
+        encoding: RefEncoding,
     ) -> Result<Built, ProducerError> {
         let leaf = self
-            .sources
-            .get(&coord)
-            .map(|(_, root)| *root)
+            .ref_leaf_root(encoding, coord)
             .ok_or(ProducerError::MissingSource(coord))?;
         let seq = single_leaf_sequence(&mut *store, &leaf)?;
         let root = put_array_node(&mut *store, 1, &seq.root())?;
@@ -1876,6 +2013,7 @@ impl Cc004Producer {
         &mut self,
         store: &mut dyn NodeStore,
         view: &GroupEvidenceView<'_>,
+        encoding: RefEncoding,
     ) -> Result<Built, ProducerError> {
         let boundary = match view.confirmation_evidence {
             Some(node) => Some(i64::try_from(node.incoming.source_index).map_err(|_| {
@@ -1885,24 +2023,21 @@ impl Cc004Producer {
         };
         let Some(dir) = view.direction_evidence else {
             return match boundary {
-                Some(coord) => self.source_refs_single(&mut *store, coord),
+                Some(coord) => self.source_refs_single(&mut *store, coord, encoding),
                 None => empty_array(store),
             };
         };
-        let entry = array_from_node(
+        let entry = self.ref_array_over(
             &mut *store,
             dir.coords.root_node().expect("方向证据链非空"),
-            &mut self.ref_arrays,
-            &mut Leaves::SourceRef(&self.sources),
+            encoding,
         )?;
         let keep = entry.len.saturating_sub(1);
         let (left, _tail) = sc::sequence_split(&mut *store, &entry.seq, keep)?;
         let (seq, len) = match boundary {
             Some(coord) => {
                 let leaf = self
-                    .sources
-                    .get(&coord)
-                    .map(|(_, root)| *root)
+                    .ref_leaf_root(encoding, coord)
                     .ok_or(ProducerError::MissingSource(coord))?;
                 (sc::sequence_append(&mut *store, &left, &leaf)?, keep + 1)
             }
@@ -2070,6 +2205,7 @@ impl Cc004Producer {
         self.coord_text.clear();
         self.text_arrays.clear();
         self.ref_arrays.clear();
+        self.shape_ref_arrays.clear();
         self.fractal_histories.clear();
     }
 
@@ -2084,6 +2220,7 @@ impl Cc004Producer {
     /// **不得**在普通 append 上调用：追加只登记新的最大坐标，旧 prefix 的内容与 memo 全部有效。
     pub(super) fn discard_runtime_state(&mut self) {
         self.sources.clear();
+        self.shape_sources.clear();
         // 视图见证同步作废：旧的 `PreparedRawHistory` 不得跨事务/换库继续消费。
         self.source_epoch += 1;
         self.unprepared_floor = None;
@@ -2101,6 +2238,9 @@ impl Cc004Producer {
             ref_hits: self.ref_arrays.hits,
             ref_misses: self.ref_arrays.misses,
             invalidated: self.ref_arrays.invalidated,
+            shape_hits: self.shape_ref_arrays.hits,
+            shape_misses: self.shape_ref_arrays.misses,
+            shape_invalidated: self.shape_ref_arrays.invalidated,
             skipped_scans: self.ref_arrays.skipped_scans,
             unit_computed: self.history_computed,
             unit_reused: self.history_reused,
@@ -3097,6 +3237,23 @@ mod tests {
         records
     }
 
+    /// 旧生成路径的 CC-006 八字段源引用（`s_structure_session` CC-006 生成调用点的原样）。
+    ///
+    /// **不是** [`tb02a_facts::raw_ref`]：那个口把 `revision`/`seq` 转成十进制文本，是泛型
+    /// typed 对象（CC-004/007）的配方；CC-006 旧行直接取 raw 行原值（两者都是 i64 数值）。
+    fn oracle_shape_raw_ref(event: &Value) -> Value {
+        json!({
+            "identity_key": event["identity_key"],
+            "payload_hash": event["payload_hash"],
+            "receipt_id": event["receipt_id"],
+            "event_id": event["event_id"],
+            "input_revision": event["input_revision"],
+            "revision": event["revision"],
+            "seq": event["seq"],
+            "source_coord": event["source_coord"],
+        })
+    }
+
     /// 旧生成路径的 CC-006 三组 `input_refs`（测试侧 oracle：与
     /// `s_structure_session` 调用 `build_object_and_witnesses` 的构造逐字段相同）。
     fn oracle_shape_input_refs(
@@ -3110,7 +3267,7 @@ mod tests {
                 let raw_refs: Vec<Value> = group
                     .members
                     .iter()
-                    .map(|coord| tb02a_facts::raw_ref(&raw[&(*coord as i64)]))
+                    .map(|coord| oracle_shape_raw_ref(&raw[&(*coord as i64)]))
                     .collect();
                 let mut dependency_coords = group
                     .direction_evidence
@@ -3125,7 +3282,7 @@ mod tests {
                 dependency_coords.dedup();
                 let dependencies: Vec<Value> = dependency_coords
                     .iter()
-                    .map(|coord| tb02a_facts::raw_ref(&raw[&(*coord as i64)]))
+                    .map(|coord| oracle_shape_raw_ref(&raw[&(*coord as i64)]))
                     .collect();
                 json!({"merged_index": mi, "raw_refs": raw_refs, "dependency_refs": dependencies})
             })
@@ -3221,6 +3378,22 @@ mod tests {
                     "{label} {field} 规范字节"
                 );
             }
+            // 公开 wire 的 `input_refs`：与根 `project_input_refs` 对**同一旧行**的投影逐字节
+            // 相同（数值 → 十进制文本），且与生成态数值根是两个不同的值根（两种编码不互代）。
+            let old_row_refs: Value =
+                serde_json::from_str(want["input_refs_json"].as_str().expect("旧行是文本"))
+                    .expect("来源文本是合法 JSON");
+            let projected =
+                crate::project_input_refs(&old_row_refs).expect("旧行 input_refs 在投影域内");
+            assert_eq!(
+                render(&mut fixture.store, &object.wire_input_refs),
+                canonical_json(&projected),
+                "{label} wire input_refs 规范字节"
+            );
+            assert_ne!(
+                object.input_refs.digest, object.wire_input_refs.digest,
+                "{label} 生成态数值根与公开 wire 文本根不得同一"
+            );
             // 记录：旧行全部字段 + 三条内容边（object_id 按 §5.3 新配方对齐后逐项对拍）。
             let mut expected = want.clone();
             expected["object_id"] = Value::String(object.object_id.clone());
@@ -3247,6 +3420,7 @@ mod tests {
             for edge in [
                 &object.comparisons,
                 &object.input_refs,
+                &object.wire_input_refs,
                 &object.source_coords,
             ] {
                 verify(&mut fixture.store, &edge.content_ref()).expect("内容边闭包可核");
@@ -3379,6 +3553,108 @@ mod tests {
                 .is_none(),
             "越界窗口必须返回 None"
         );
+    }
+
+    /// 源修订与 rollback：CC-006 两种 `input_refs` 编码（旧生成态数值叶 / 公开 wire 文本叶）
+    /// 都必须随真实源版本改根；旧根在旧叶仍在同一 store 时仍完整可核；`discard_runtime_state`
+    /// 后按真实当前源在**新 store** 重建，两种闭包与记录逐字节相同。
+    #[test]
+    fn cc006_shape_revision_moves_both_ref_encodings_and_rebuilds_after_discard() {
+        let mut fixture = fixture_with_profile(CASE_SHAPE, tb02a::PROFILE);
+        let facts = fixture.state.materialize_facts();
+        let start = (0..facts.groups.len().saturating_sub(2))
+            .find(|start| !group_facts_competing(&facts, *start))
+            .expect("本夹具至少一个可判窗口");
+        let before = fixture
+            .producer
+            .build_shape(&mut fixture.store, &fixture.state, start, GENERATION, CUT)
+            .expect("构造 CC-006")
+            .expect("该窗口应可判");
+        for edge in [&before.input_refs, &before.wire_input_refs, &before.record] {
+            verify(&mut fixture.store, &edge.content_ref()).expect("修订前闭包可核");
+        }
+
+        // 真实修订：窗口内某成员坐标 revision+1（OHLC 结构不变），两种编码都必须改根。
+        let coord = i64::try_from(facts.groups[start].members[0]).expect("坐标在 i64 域内");
+        let mut revised = fixture
+            .rows
+            .iter()
+            .find(|row| row.coord == coord)
+            .expect("夹具行必须存在")
+            .spec();
+        revised.revision += 1;
+        revised.input_revision = revised.revision.to_string();
+        revised.payload_hash = format!("ph-{coord}-{}", revised.revision);
+        revised.receipt_id = "r2".to_string();
+        assert!(fixture
+            .producer
+            .bind_source(&mut fixture.store, coord, revised.clone())
+            .expect("真实修订"));
+
+        let after = fixture
+            .producer
+            .build_shape(&mut fixture.store, &fixture.state, start, GENERATION, CUT)
+            .expect("构造 CC-006")
+            .expect("该窗口应可判");
+        assert_ne!(
+            before.input_refs.digest, after.input_refs.digest,
+            "生成态数值叶数组必须随源修订改根"
+        );
+        assert_ne!(
+            before.wire_input_refs.digest, after.wire_input_refs.digest,
+            "公开 wire 文本叶数组必须随源修订改根"
+        );
+        assert_ne!(
+            before.identity, after.identity,
+            "身份嵌 input_refs，必须改根"
+        );
+        assert_ne!(before.object_id, after.object_id);
+        assert!(
+            fixture.producer.memo_counts().shape_invalidated > 0,
+            "数值叶 memo 必须按坐标失效（不只文本叶）"
+        );
+        // 修订后的两种闭包可核；旧根在旧叶仍在同一 store 时仍完整可核。
+        for edge in [
+            &after.input_refs,
+            &after.wire_input_refs,
+            &after.record,
+            &before.input_refs,
+            &before.wire_input_refs,
+        ] {
+            verify(&mut fixture.store, &edge.content_ref()).expect("闭包可核");
+        }
+
+        // rollback 口：运行态（含两种叶注册表与 memo）整份丢弃，按真实当前源在**新 store** 重建。
+        fixture.producer.discard_runtime_state();
+        let mut fresh = CountingStore::default();
+        for row in &fixture.rows {
+            let spec = if row.coord == coord {
+                revised.clone()
+            } else {
+                row.spec()
+            };
+            fixture
+                .producer
+                .bind_source(&mut fresh, row.coord, spec)
+                .expect("新域重新登记");
+        }
+        let rebuilt = fixture
+            .producer
+            .build_shape(&mut fresh, &fixture.state, start, GENERATION, CUT)
+            .expect("构造 CC-006")
+            .expect("该窗口应可判");
+        assert_eq!(rebuilt.input_refs.digest, after.input_refs.digest);
+        assert_eq!(rebuilt.wire_input_refs.digest, after.wire_input_refs.digest);
+        assert_eq!(rebuilt.identity, after.identity);
+        assert_eq!(rebuilt.object_id, after.object_id);
+        assert_eq!(rebuilt.record.digest, after.record.digest);
+        for edge in [
+            &rebuilt.input_refs,
+            &rebuilt.wire_input_refs,
+            &rebuilt.record,
+        ] {
+            verify(&mut fresh, &edge.content_ref()).expect("新 store 闭包可核");
+        }
     }
 
     /// oracle 载荷里的旧 `obj-` 身份换成本次构造的新 `obj3-` 身份（身份配方差异，非内容差异）。
