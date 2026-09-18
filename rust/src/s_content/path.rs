@@ -42,9 +42,9 @@
 use super::{
     be_u64, body_shape_error, byte_chunk_shape_error, byte_extent_error, checked_frame_len, code,
     digest_at, frame, framed_len, header_extent, is_sequence_tag, length_overflow_error,
-    read_checked, root_string, sequence_shape_error, split_index, tag,
-    unsupported_value_tag_error, write_string_node, CodecError, ContentRef, Kind, LeafIter,
-    NodeDigest, NodeSource, NodeStore, CHUNK_BYTES, CONTENT_FORMAT, MAX_FRAME_LEN,
+    read_checked, root_string, sequence_shape_error, split_index, tag, unsupported_value_tag_error,
+    write_string_node, CodecError, ContentRef, Kind, LeafIter, NodeDigest, NodeSource, NodeStore,
+    CHUNK_BYTES, CONTENT_FORMAT, MAX_FRAME_LEN,
 };
 use std::cmp::Ordering;
 
@@ -84,7 +84,8 @@ pub fn lookup_path(
     path: &[PathStep],
 ) -> Result<ContentRef, CodecError> {
     let descent = navigate(source, reference, path, false)?;
-    let kind = Kind::from_tag(descent.tag).ok_or_else(|| unsupported_value_tag_error(descent.tag))?;
+    let kind =
+        Kind::from_tag(descent.tag).ok_or_else(|| unsupported_value_tag_error(descent.tag))?;
     let extent = header_extent(descent.tag, &descent.body)?;
     Ok(ContentRef {
         format: CONTENT_FORMAT.to_string(),
@@ -92,6 +93,107 @@ pub fn lookup_path(
         kind,
         extent,
     })
+}
+
+/// 片段读取共用的序列头检查；不把未读取的子图当作已完整验证。
+pub(super) fn check_range_root(
+    source: &mut dyn NodeSource,
+    reference: &ContentRef,
+) -> Result<(), CodecError> {
+    let node = navigate(source, reference, &[], false)?;
+    let count = match reference.kind {
+        Kind::Array | Kind::Object => framed_len(&node.body, "集合")?,
+        Kind::String | Kind::Number => {
+            framed_len(&node.body, "字节值")?.div_ceil(CHUNK_BYTES as u64)
+        }
+        _ => return Ok(()),
+    };
+    let root = digest_at(&node.body, 8);
+    if let SeqNode::Branch { k, left, right } = read_seq_node(source, &root, count)? {
+        check_branch_children(source, &left, &right, count, k)?;
+    }
+    Ok(())
+}
+
+/// 按原规范序列位置读取对象键；值仍由原 lookup_path 按完整路径核上下文。
+pub(super) fn object_key_at(
+    source: &mut dyn NodeSource,
+    reference: &ContentRef,
+    index: u64,
+) -> Result<String, CodecError> {
+    let node = navigate(source, reference, &[], false)?;
+    if node.tag != tag::OBJECT {
+        return Err(step_kind_error("对象位置", "0x06 对象", node.tag));
+    }
+    let count = framed_len(&node.body, "对象")?;
+    let root = digest_at(&node.body, 8);
+    let (_, field) = descend_seq(source, &root, count, index)?;
+    let key = read_field(source, &field)?.0;
+    for (at, before) in [
+        (index.checked_sub(1), true),
+        (index.checked_add(1).filter(|i| *i < count), false),
+    ] {
+        if let Some(at) = at {
+            let (_, neighbor) = descend_seq(source, &root, count, at)?;
+            let other = read_field(source, &neighbor)?.0;
+            let order = if before {
+                cmp_key_nodes(source, &other, &key)?
+            } else {
+                cmp_key_nodes(source, &key, &other)?
+            };
+            if order != Ordering::Less {
+                return Err(CodecError::new(
+                    code::OBJECT_KEY_ORDER,
+                    "片段对象键非严格UTF-8顺序",
+                ));
+            }
+        }
+    }
+    let reference = super::content_ref_of(source, &root_string(&key))?;
+    if reference.kind != Kind::String {
+        return Err(step_kind_error("对象键", "0x03 字符串", node.tag));
+    }
+    let mut encoded = Vec::new();
+    super::render_canonical(source, &reference, &mut encoded)?;
+    serde_json::from_slice(&encoded).map_err(|e| CodecError::new(code::UTF8, e.to_string()))
+}
+
+/// 只读取覆盖所求区间的规范字节块；不会线性扫描 offset 之前的叶。
+pub(super) fn bytes_between(
+    source: &mut dyn NodeSource,
+    reference: &ContentRef,
+    offset: u64,
+    end: u64,
+) -> Result<Vec<u8>, CodecError> {
+    let node = navigate(source, reference, &[], false)?;
+    if !matches!(reference.kind, Kind::String | Kind::Number) {
+        return Err(step_kind_error("bytes", "字符串或数字", node.tag));
+    }
+    let total = framed_len(&node.body, "字节值")?;
+    if offset > end || end > total {
+        return Err(index_range_error(end, total));
+    }
+    let count = total.div_ceil(CHUNK_BYTES as u64);
+    let root = digest_at(&node.body, 8);
+    check_range_root(source, reference)?;
+    let mut output = Vec::new();
+    if offset == end {
+        return Ok(output);
+    }
+    for index in offset / CHUNK_BYTES as u64..=(end - 1) / CHUNK_BYTES as u64 {
+        let (_, leaf) = descend_seq(source, &root, count, index)?;
+        let (tag, body) = read_checked(source, &leaf)?;
+        check_chunk(tag, &body)?;
+        let start = index * CHUNK_BYTES as u64;
+        let expected = (total - start).min(CHUNK_BYTES as u64);
+        if body.len() as u64 != expected {
+            return Err(byte_extent_error(body.len() as u64, expected));
+        }
+        let lo = offset.saturating_sub(start) as usize;
+        let hi = (end - start).min(expected) as usize;
+        output.extend_from_slice(&body[lo..hi]);
+    }
+    Ok(output)
 }
 
 /// 把路径定位到的真实 0x08 空 body 占位替换为本批 `batch_id` 字符串，只重写该路径的标量
@@ -261,8 +363,7 @@ fn navigate(
                 }
                 let declared = framed_len(&cur_body, "对象")?;
                 let fields_root = digest_at(&cur_body, 8);
-                let (branches, key, value) =
-                    find_field(source, &fields_root, declared, name)?;
+                let (branches, key, value) = find_field(source, &fields_root, declared, name)?;
                 ancestors.push(Ancestor::Object {
                     declared,
                     branches,
@@ -771,7 +872,11 @@ fn cmp_key_nodes(
         let x = buf_a[pos_a];
         let y = buf_b[pos_b];
         if x != y {
-            return Ok(if x < y { Ordering::Less } else { Ordering::Greater });
+            return Ok(if x < y {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            });
         }
         pos_a += 1;
         pos_b += 1;

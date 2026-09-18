@@ -375,6 +375,9 @@ pub(crate) mod tests {
     }
     impl Fixture {
         pub(crate) fn new() -> Self {
+            Self::with_retain(4)
+        }
+        pub(crate) fn with_retain(retain: i64) -> Self {
             let path = std::env::temp_dir().join(format!(
                 "s1394-real-{}-{}-{}",
                 std::process::id(),
@@ -401,7 +404,7 @@ pub(crate) mod tests {
                 &base.join("profiles/ohlc_integer_tb02a_v1.json"),
                 "1",
                 &clock_path,
-                4,
+                retain,
             )
             .unwrap();
             let conn = open_db(&db).unwrap();

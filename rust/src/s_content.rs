@@ -46,6 +46,9 @@ pub use sequence::{sequence_append, sequence_concat, sequence_split, NodeStore, 
 /// §5.4/§5.6 的路径定位与本批占位（0x08）定点替换（#1394 采纳 C）。
 pub mod path;
 
+/// 已获准根上的有界片段与独立范围证明；不代替 anchor 授权或完整业务核验。
+pub mod fragment;
+
 /// 节点标签表（§5.2）。
 pub mod tag {
     pub const NULL: u8 = 0x00;

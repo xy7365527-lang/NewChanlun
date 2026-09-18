@@ -44,6 +44,7 @@ mod catalog_evidence;
 mod prepared;
 mod state;
 mod driver;
+mod reader;
 pub(super) mod aux_index;
 pub(super) mod object_index;
 mod source_audit;
