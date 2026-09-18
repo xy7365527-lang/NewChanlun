@@ -229,6 +229,19 @@ for (const [name, body, expected] of [
   });
 }
 
+test("后检 git 不执行工蜂写入的 core.fsmonitor，也不把管理者密钥交给它", async () => {
+  const f = fixture();
+  try {
+    const mark = join(f.dir, "fsmonitor-ran");
+    const payload = `sh -c 'echo RAN > ${mark}; echo last 0'`;
+    f.fake(`session(); cp.execFileSync('git', ['config', 'core.fsmonitor', ${JSON.stringify(payload)}]); complete();`);
+    const result = await runCodexChild({ ...f.options, mode: "execute" }, { env: { ...f.env, GH_TOKEN: "must-not-leak" } });
+    assert.equal(result.status, "completed", result.failure_reason ?? "");
+    assert.ok(!existsSync(mark), "监督器 snapshotCheckout 不得执行工蜂写入的 core.fsmonitor");
+    assert.equal(git(f.options.checkout, "config", "--local", "core.fsmonitor"), payload);
+  } finally { f.clean(); }
+});
+
 test("execute 只留独立分支差异，不做 commit/push/merge", async () => {
   const f = fixture();
   try {
