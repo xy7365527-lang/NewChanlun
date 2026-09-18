@@ -70,17 +70,25 @@ fn verify_s3_markers(conn: &Connection) -> Result<(), String> {
 }
 
 /// S3 唯一已认可 schema：逐表全等比 DDL（未知表/缺表即拒）+ 存量行类型核 + 内容格式登记值。
-fn verify_s3_schema(conn: &Connection) -> Result<(), String> {
-    let mut expected = BTreeMap::new();
-    v2::expect_ddl_tables("schema常量", SCHEMA, &mut expected)?;
-    v2::expect_ddl_tables("v2控制表 DDL", v2::SCHEMA_V2, &mut expected)?;
+pub(super) fn schema_ddls(conn: &Connection) -> Result<Vec<&'static str>, String> {
+    let mut ddls = vec![SCHEMA, v2::SCHEMA_V2];
     if tb02a::enabled(conn)? {
-        v2::expect_ddl_tables("tb02a DDL", tb02a::SCHEMA, &mut expected)?;
+        ddls.push(tb02a::SCHEMA);
     }
-    v2::expect_ddl_tables("内容节点表 DDL", content_store::SCHEMA, &mut expected)?;
-    v2::expect_ddl_tables("S3发布索引 DDL", commit::SCHEMA, &mut expected)?;
-    v2::expect_ddl_tables("S3辅助索引 DDL", aux_index::SCHEMA, &mut expected)?;
-    v2::expect_ddl_tables("S3对象索引 DDL", object_index::SCHEMA, &mut expected)?;
+    ddls.extend([
+        content_store::SCHEMA,
+        commit::SCHEMA,
+        aux_index::SCHEMA,
+        object_index::SCHEMA,
+    ]);
+    Ok(ddls)
+}
+
+pub(super) fn verify_s3_schema(conn: &Connection) -> Result<(), String> {
+    let mut expected = BTreeMap::new();
+    for ddl in schema_ddls(conn)? {
+        v2::expect_ddl_tables("S3固定DDL", ddl, &mut expected)?;
+    }
     v2::verify_expected_schema(conn, &expected)?;
     // 模式声明不证明登记值：`s-content/1` 的格式登记必须存在且逐字相符（唯一判据在 content_store）。
     content_store::ensure_format(conn).map_err(|e| format!("StorageUnavailable：{e}"))?;

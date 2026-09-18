@@ -1966,6 +1966,19 @@ fn accept_core(
 // ────────────────────────────────────────────────────────────────────────────
 
 fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
+    read_raw_events_until(conn, None)
+}
+
+fn check_read_deadline(deadline: Option<std::time::Instant>) -> Result<(), String> {
+    if deadline.is_some_and(|d| std::time::Instant::now() >= d) {
+        Err("Incomplete/VerifyDeadline：完整核验超过绝对期限".into())
+    } else {
+        Ok(())
+    }
+}
+
+fn read_raw_events_until(conn: &Connection, deadline: Option<std::time::Instant>) -> Result<Vec<Value>, String> {
+    check_read_deadline(deadline)?;
     let mut stmt = conn
         .prepare(
             "SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace,
@@ -1997,13 +2010,17 @@ fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
             }))
         })
         .map_err(|e| format!("query 失败：{e}"))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("collect 失败：{e}"))?;
-    tb02a::enrich_raw(conn, &mut rows)?;
+        .map(|row| {
+            check_read_deadline(deadline)?;
+            row.map_err(|e| format!("collect 失败：{e}"))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    tb02a::enrich_raw_until(conn, &mut rows, deadline)?;
     let mut owners = BTreeMap::new();
     let mut positions = BTreeMap::new();
     let mut prior_revisions = BTreeMap::new();
     for (expected_seq, event) in rows.iter().enumerate() {
+        check_read_deadline(deadline)?;
         let coord = stored_source_coord(event)?;
         let identity = event["identity_key"]
             .as_str()
@@ -2091,13 +2108,20 @@ fn read_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
             parse_canonical_i64(value, name).map_err(|e| format!("StorageUnavailable：{e}"))?;
         }
     }
+    check_read_deadline(deadline)?;
     Ok(rows)
 }
 
 /// 有效源位置：每个业务身份取最新 revision，按源坐标升序（晚到新版不当作追加 tick）。
 fn read_effective_events(all: &[Value]) -> Result<Vec<Value>, String> {
+    read_effective_events_until(all, None)
+}
+
+fn read_effective_events_until(all: &[Value], deadline: Option<std::time::Instant>) -> Result<Vec<Value>, String> {
+    check_read_deadline(deadline)?;
     let mut latest: BTreeMap<String, Value> = BTreeMap::new();
     for ev in all {
+        check_read_deadline(deadline)?;
         let ikey = ev["identity_key"].as_str().unwrap_or("").to_string();
         let rev = ev["revision"].as_i64().unwrap_or(0);
         match latest.get(&ikey) {
@@ -2113,6 +2137,7 @@ fn read_effective_events(all: &[Value]) -> Result<Vec<Value>, String> {
     }
     let mut ordered = BTreeMap::new();
     for event in latest.into_values() {
+        check_read_deadline(deadline)?;
         let coord = stored_source_coord(&event)?;
         if ordered.insert(coord, event).is_some() {
             return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".to_string());

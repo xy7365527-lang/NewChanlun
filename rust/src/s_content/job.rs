@@ -984,6 +984,7 @@ impl<'a> JobNodeSource<'a> {
 }
 
 impl NodeSource for JobNodeSource<'_> {
+    fn max_render_bytes(&self) -> Option<u64> { self.inner.max_render_bytes() }
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
         self.job.begin_first_read()?;
         let read = self.inner.read(digest)?;

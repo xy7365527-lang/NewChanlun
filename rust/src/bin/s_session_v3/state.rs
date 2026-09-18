@@ -49,12 +49,28 @@ pub(super) struct AuditedState {
 
 /// 只读完整状态审计：提交口与只读入口共用这一份判据。
 pub(super) fn audit(tx: &Transaction<'_>) -> Result<AuditedState, String> {
+    audit_until(tx, None)
+}
+
+pub(super) fn audit_until(
+    tx: &Transaction<'_>,
+    deadline: Option<std::time::Instant>,
+) -> Result<AuditedState, String> {
+    audit_bounded(tx, deadline, None)
+}
+
+pub(super) fn audit_bounded(
+    tx: &Transaction<'_>,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+) -> Result<AuditedState, String> {
+    history::check_deadline(deadline)?;
     // 1. 控制历史：共享 schema/profile/catalog 绑定与逐代发布索引闭合（唯一判据在 control_audit）。
     let control = control_audit::prepare_s3_control_history(tx)?;
     // 2. 真实原始账：逐序回读并做身份/修订链/内容hash/receipt 自检。
-    let raw = read_raw_events(tx)?;
+    let raw = read_raw_events_until(tx, deadline)?;
     // 3. 逐代发布闭包：消费每代控制头并核内容闭包、原始/生效账与独立变化集合（唯一判据在 history）。
-    let cuts = history::read_history(tx, &raw, control)?;
+    let cuts = history::read_history_bounded(tx, &raw, control, deadline, max_render_bytes)?;
     // 4. 从未运行的目录行：空初态（generation=0）要求全部行都仍是未运行。
     verify_unrun_catalog(tx, cuts.is_empty())?;
     // 5. 来源审计与目录证据只接线 OHLC 档；非 OHLC 明确拒绝，不跳过也不宣布永久缩小范围。
@@ -68,23 +84,25 @@ pub(super) fn audit(tx: &Transaction<'_>) -> Result<AuditedState, String> {
     let current = meta_i64(tx, "generation")?;
     // 只读源 + 内存派生层：overlay 随本函数内的 store 一起销毁，不是 SQLite 写入通道。
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
-    let mut store = history::HashReader::new(&mut reader);
+    let mut store = history::HashReader::bounded(&mut reader, deadline, max_render_bytes);
     // 7a. 当前代对象索引先加载：逐代变化集合（withdrawals/replaces）按它取。
     let objects = object_index::load(tx, &mut store, current)?;
     let mut previous = -1i64;
     for cut in &cuts {
+        history::check_deadline(deadline)?;
         let prefix = &raw[..=cut.metadata.input_frontier as usize];
         // 5'. 真实源与生成对象配方逐代对拍；本层不重跑分类。
-        let counts = source_audit::audit_generated(
+        let counts = source_audit::audit_generated_until(
             &mut store,
             &cut.roots.generated_state,
             prefix,
             &cut.metadata.profile_id,
             &cut.metadata.rule_revision,
+            deadline,
         )?;
         let (withdrawals, replaces) = object_index::changes_at(&objects, cut.metadata.generation)?;
         // 6'. Delta 目录证据与 CC-056 变化集合必须与本代真实来源、replaces 一致。
-        catalog_evidence::verify_cut(
+        catalog_evidence::verify_cut_until(
             &mut store,
             &cut.metadata,
             &cut.roots.generated_state,
@@ -94,6 +112,7 @@ pub(super) fn audit(tx: &Transaction<'_>) -> Result<AuditedState, String> {
             &counts,
             &withdrawals,
             &replaces,
+            deadline,
         )?;
         previous = cut.metadata.input_frontier;
     }
@@ -104,6 +123,7 @@ pub(super) fn audit(tx: &Transaction<'_>) -> Result<AuditedState, String> {
     }
     // 7b. 当前代辅助索引；与对象索引同属一次只读快照。
     let auxiliary = aux_index::load(tx, &mut store, current)?;
+    history::check_deadline(deadline)?;
     Ok(AuditedState {
         raw,
         cuts,

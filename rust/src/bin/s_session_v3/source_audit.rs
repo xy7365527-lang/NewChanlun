@@ -184,6 +184,17 @@ pub(super) fn audit_generated(
     profile: &str,
     rule: &str,
 ) -> Result<Counts, String> {
+    audit_generated_until(s, state, raw_prefix, profile, rule, None)
+}
+pub(super) fn audit_generated_until(
+    s: &mut dyn NodeStore,
+    state: &ContentRef,
+    raw_prefix: &[Value],
+    profile: &str,
+    rule: &str,
+    deadline: Option<std::time::Instant>,
+) -> Result<Counts, String> {
+    super::history::check_deadline(deadline)?;
     sc::verify(s, state).map_err(err)?;
     if profile != tb02a::PROFILE {
         return Err(err(
@@ -191,9 +202,10 @@ pub(super) fn audit_generated(
         ));
     }
     let producer = Cc004Producer::new(profile, rule);
-    let effective = read_effective_events(raw_prefix)?;
+    let effective = crate::read_effective_events_until(raw_prefix, deadline)?;
     let mut raw = BTreeMap::new();
     for event in &effective {
+        super::history::check_deadline(deadline)?;
         let coord = stored_source_coord(event)?;
         let wire = tb02a_facts::raw_ref(event);
         let mut numeric = wire.clone();
@@ -202,9 +214,9 @@ pub(super) fn audit_generated(
         raw.insert(
             coord,
             Source {
-                wire: hash(&wire)?,
-                numeric: hash(&numeric)?,
-                raw: hash(event)?,
+                wire: super::history::hash_json_until(&wire, deadline)?,
+                numeric: super::history::hash_json_until(&numeric, deadline)?,
+                raw: super::history::hash_json_until(event, deadline)?,
             },
         );
     }
@@ -213,6 +225,7 @@ pub(super) fn audit_generated(
     let mut ids = BTreeSet::new();
     let mut groups = BTreeMap::new();
     for record in elements(s, &object_array)? {
+        super::history::check_deadline(deadline)?;
         let id = text(s, &record, "object_id")?;
         let kind = text(s, &record, "kind")?;
         if !ids.insert(id.clone()) || number(s, &record, "object_revision")? != 1 {
@@ -271,7 +284,9 @@ pub(super) fn audit_generated(
                         return Err(err("新笔载荷语义头不同"));
                     }
                 }
-                if digest(&field(s, &payload, "slot")?)? != hash(&parsed[1])? {
+                if digest(&field(s, &payload, "slot")?)?
+                    != super::history::hash_json_until(&parsed[1], deadline)?
+                {
                     return Err(err("新笔payload槽位与fact_key不同"));
                 }
             }
@@ -289,6 +304,7 @@ pub(super) fn audit_generated(
                 }
                 let mut union = members.iter().copied().collect::<BTreeSet<_>>();
                 for key in ["direction_evidence", "confirmation_evidence"] {
+                    super::history::check_deadline(deadline)?;
                     let evidence = field(s, &payload, key)?;
                     if evidence.kind != Kind::Null {
                         let list = field(s, &evidence, "source_coords")?;
@@ -324,10 +340,12 @@ pub(super) fn audit_generated(
     }
     let mut partition = BTreeSet::new();
     for (expected, (index, group)) in groups.iter().enumerate() {
+        super::history::check_deadline(deadline)?;
         if *index != expected as i64 {
             return Err(err("组合并序号不连续"));
         }
         for c in &group.members {
+            super::history::check_deadline(deadline)?;
             if !partition.insert(*c) {
                 return Err(err("同cut组成员重叠"));
             }
@@ -338,6 +356,7 @@ pub(super) fn audit_generated(
     }
     let mut shapes = BTreeMap::new();
     for object in objects.iter().filter(|o| o.kind == CC006_SHAPE_KIND) {
+        super::history::check_deadline(deadline)?;
         exact(&object.refs, Kind::Array, 3)?;
         let mut indices = [0; 3];
         let mut highs: [String; 3] = Default::default();
@@ -345,6 +364,7 @@ pub(super) fn audit_generated(
         let mut windows: [String; 3] = Default::default();
         let mut source_union = BTreeSet::new();
         for (slot, part) in elements(s, &object.refs)?.into_iter().enumerate() {
+            super::history::check_deadline(deadline)?;
             exact(&part, Kind::Object, 3)?;
             let index = number(s, &part, "merged_index")?;
             indices[slot] = index;
@@ -398,7 +418,11 @@ pub(super) fn audit_generated(
         {
             return Err(err("形态比较不是规范四项"));
         }
-        let comparisons = sc::write_value(&mut HashOnly, &cv(&comparisons)?).map_err(err)?;
+        let comparisons = Built {
+            digest: super::history::hash_json_until(&comparisons, deadline)?,
+            kind: Kind::Array,
+            extent: Some(4),
+        };
         let input_refs = built(object.refs.clone())?;
         let identity = producer
             .shape_identity(ShapeIdentity {
@@ -420,6 +444,7 @@ pub(super) fn audit_generated(
     let witness_array = field(s, state, "witnesses")?;
     let mut seen = BTreeSet::new();
     for witness in elements(s, &witness_array)? {
+        super::history::check_deadline(deadline)?;
         exact(&witness, Kind::Object, 9)?;
         let id = text(s, &witness, "witness_id")?;
         let object_id = text(s, &witness, "object_id")?;
@@ -451,6 +476,7 @@ pub(super) fn audit_generated(
             return Err(err("见证raw_bars成员数不同"));
         }
         for (bar, coord) in items.iter().zip(&group.members) {
+            super::history::check_deadline(deadline)?;
             if digest(bar)? != raw[coord].raw {
                 return Err(err("见证raw_bars不是同cut真实原始成员"));
             }
@@ -473,6 +499,7 @@ pub(super) fn audit_generated(
     let mut insufficient = 0;
     let mut outside_domain = 0;
     for item in elements(s, &observations)? {
+        super::history::check_deadline(deadline)?;
         match text(s, &item, "kind")?.as_str() {
             "insufficient_knowledge" => insufficient += 1,
             "domain_not_satisfied" => outside_domain += 1,

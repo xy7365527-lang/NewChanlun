@@ -394,6 +394,9 @@ pub enum NodeRead {
 /// 本轮核验；`Err` 原样上抛，不会变成「部分通过」。
 pub trait NodeSource {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError>;
+
+    /// 审计源可显式限制单次渲染物化；普通流式源不擅自填默认上限。
+    fn max_render_bytes(&self) -> Option<u64> { None }
 }
 
 /// 内存节点表：缓冲/测试用。写入面按摘要校验，损坏节点用 `insert_unchecked` 注入。
@@ -2598,10 +2601,23 @@ pub fn render_canonical(
     reference: &ContentRef,
     out: &mut dyn Write,
 ) -> Result<(), CodecError> {
+    struct Bounded<'a> { inner: &'a mut dyn Write, limit: Option<u64>, written: u64 }
+    impl Write for Bounded<'_> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if self.limit.is_some_and(|limit| (self.written as u128)+(bytes.len() as u128)>limit as u128) {
+                return Err(std::io::Error::other("Incomplete/CaptureBytes：内容渲染超过显式物化上限"));
+            }
+            let n=self.inner.write(bytes)?;
+            self.written=self.written.saturating_add(n as u64);
+            Ok(n)
+        }
+        fn flush(&mut self)->std::io::Result<()> {self.inner.flush()}
+    }
+    let mut bounded=Bounded { inner:out, limit:source.max_render_bytes(), written:0 };
     let verified = verify(source, reference)?;
     let mut renderer = Renderer {
         source,
-        out,
+        out: &mut bounded,
         escaping: false,
         esc_decoder: Utf8Decoder::default(),
     };

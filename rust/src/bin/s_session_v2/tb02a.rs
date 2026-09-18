@@ -189,6 +189,11 @@ pub(super) fn save_raw(
     Ok(())
 }
 pub(super) fn enrich_raw(conn: &Connection, rows: &mut [Value]) -> Result<(), String> {
+    enrich_raw_until(conn, rows, None)
+}
+
+pub(super) fn enrich_raw_until(conn: &Connection, rows: &mut [Value], deadline: Option<std::time::Instant>) -> Result<(), String> {
+    crate::check_read_deadline(deadline)?;
     if !enabled(conn)? {
         return Ok(());
     }
@@ -202,6 +207,7 @@ pub(super) fn enrich_raw(conn: &Connection, rows: &mut [Value]) -> Result<(), St
         return Err("StorageUnavailable：raw_ohlc与原始账不一一对应".into());
     }
     for row in rows {
+        crate::check_read_deadline(deadline)?;
         let revision = match &row["revision"] {
             Value::Number(n) => n.as_i64().ok_or("StorageUnavailable：revision非i64")?,
             Value::String(s) => parse_canonical_i64(s, "revision")?,

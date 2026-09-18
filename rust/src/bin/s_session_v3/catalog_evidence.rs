@@ -343,6 +343,33 @@ pub(super) fn verify_cut(
     withdrawals: &[Value],
     replaces: &[Value],
 ) -> Result<(), String> {
+    verify_cut_until(
+        store,
+        metadata,
+        generated_state,
+        delta,
+        raw_prefix,
+        previous_frontier,
+        counts,
+        withdrawals,
+        replaces,
+        None,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+pub(super) fn verify_cut_until(
+    store: &mut dyn NodeStore,
+    metadata: &ManifestMetadata,
+    generated_state: &ContentRef,
+    delta: &ContentRef,
+    raw_prefix: &[Value],
+    previous_frontier: i64,
+    counts: &super::source_audit::Counts,
+    withdrawals: &[Value],
+    replaces: &[Value],
+    deadline: Option<std::time::Instant>,
+) -> Result<(), String> {
+    super::history::check_deadline(deadline)?;
     require_ohlc(&metadata.profile_id)?;
     sc::verify(store, generated_state).map_err(err)?;
     sc::verify(store, delta).map_err(err)?;
@@ -430,6 +457,7 @@ pub(super) fn verify_cut(
         .ok_or_else(|| err("目录轴缺 CC-056"))?;
     let mut revisions: Vec<Value> = Vec::new();
     for event in raw_prefix {
+        super::history::check_deadline(deadline)?;
         let seq = event["seq"]
             .as_i64()
             .ok_or_else(|| err("原始账事件缺整数 seq"))?;
@@ -442,7 +470,10 @@ pub(super) fn verify_cut(
     }
     let wire_withdrawals = withdrawals
         .iter()
-        .map(crate::project_withdrawal_wire)
+        .map(|v| {
+            super::history::check_deadline(deadline)?;
+            crate::project_withdrawal_wire(v)
+        })
         .collect::<Result<Vec<_>, String>>()
         .map_err(err)?;
     for (key, want) in [
@@ -451,7 +482,7 @@ pub(super) fn verify_cut(
         ("replaces", Value::Array(replaces.to_vec())),
     ] {
         let got = array_field(store, &cc056.evidence, key)?;
-        if got.digest().map_err(err)? != hash_json(&want)? {
+        if got.digest().map_err(err)? != super::history::hash_json_until(&want, deadline)? {
             return Err(err(format!("CC-056 {key} 与本代独立依据不同")));
         }
     }

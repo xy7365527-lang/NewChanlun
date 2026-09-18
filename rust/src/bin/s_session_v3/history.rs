@@ -25,21 +25,49 @@ pub(super) struct PublishedCut {
 pub(super) fn read_history(
     tx: &Transaction<'_>,
     raw: &[Value],
-    mut control: v2::ControlHistory,
+    control: v2::ControlHistory,
 ) -> Result<Vec<PublishedCut>, String> {
+    read_history_until(tx, raw, control, None)
+}
+
+pub(super) fn read_history_until(
+    tx: &Transaction<'_>,
+    raw: &[Value],
+    control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+) -> Result<Vec<PublishedCut>, String> {
+    read_history_bounded(tx, raw, control, deadline, None)
+}
+
+pub(super) fn read_history_bounded(
+    tx: &Transaction<'_>,
+    raw: &[Value],
+    mut control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+) -> Result<Vec<PublishedCut>, String> {
+    check_deadline(deadline)?;
     verify_required_meta(tx)?;
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
     let mut store = HashReader {
         source: &mut reader,
         overlay: BTreeMap::new(),
+        deadline,
+        max_render_bytes,
     };
     let auxiliary = aux_index::load(tx, &mut store, meta_i64(tx, "generation")?)?;
     let objects = object_index::load(tx, &mut store, meta_i64(tx, "generation")?)?;
     store.overlay.clear();
-    let raw_nodes = raw.iter().map(hash_json).collect::<Result<Vec<_>, _>>()?;
+    let raw_nodes = raw
+        .iter()
+        .map(|v| hash_json_until(v, deadline))
+        .collect::<Result<Vec<_>, _>>()?;
     let raw_wire_nodes = raw
         .iter()
-        .map(|event| hash_json(&project_raw_event_wire(event)?))
+        .map(|event| {
+            check_deadline(deadline)?;
+            hash_json_until(&project_raw_event_wire(event)?, deadline)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let mut effective = BTreeMap::<i64, NodeDigest>::new();
     let mut previous = -1i64;
@@ -47,6 +75,7 @@ pub(super) fn read_history(
     let mut stmt = tx.prepare("SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
     let mut rows = stmt.query([]).map_err(err)?;
     while let Some(row) = rows.next().map_err(err)? {
+        check_deadline(deadline)?;
         let generation: i64 = row.get(0).map_err(err)?;
         let batch_id: String = row.get(1).map_err(err)?;
         let manifest = root(&mut store, row.get::<_, Vec<u8>>(2).map_err(err)?)?;
@@ -98,7 +127,12 @@ pub(super) fn read_history(
                 .into_iter()
                 .zip(members)
             {
-                same_digest(&mut store, public, name, hash_array(&nodes)?)?;
+                same_digest(
+                    &mut store,
+                    public,
+                    name,
+                    hash_array_until(&nodes, deadline)?,
+                )?;
             }
         }
         for (key, actual) in [
@@ -146,6 +180,7 @@ pub(super) fn read_history(
             generation,
         )?;
         for n in (previous + 1)..=frontier {
+            check_deadline(deadline)?;
             let event = &raw[n as usize];
             if event["seq"].as_i64() != Some(n) {
                 return Err(err("真实原始账序与数组位置不符"));
@@ -156,25 +191,28 @@ pub(super) fn read_history(
             &mut store,
             &roots.generated_state,
             "raw_events",
-            hash_array(&raw_nodes[..=frontier as usize])?,
+            hash_array_until(&raw_nodes[..=frontier as usize], deadline)?,
         )?;
         same_digest(
             &mut store,
             &roots.generated_state,
             "effective_events",
-            hash_array(&effective.values().copied().collect::<Vec<_>>())?,
+            hash_array_until(&effective.values().copied().collect::<Vec<_>>(), deadline)?,
         )?;
         same_digest(
             &mut store,
             &snapshot,
             "raw_history",
-            hash_array(&raw_wire_nodes[..=frontier as usize])?,
+            hash_array_until(&raw_wire_nodes[..=frontier as usize], deadline)?,
         )?;
         same_digest(
             &mut store,
             &delta,
             "raw_history_added",
-            hash_array(&raw_wire_nodes[(previous + 1) as usize..=frontier as usize])?,
+            hash_array_until(
+                &raw_wire_nodes[(previous + 1) as usize..=frontier as usize],
+                deadline,
+            )?,
         )?;
         let seq_range = json!({"from":(previous+1).to_string(),"to":frontier.to_string()});
         for public in [&snapshot, &delta] {
@@ -441,45 +479,73 @@ fn same_digest(
         Ok(())
     }
 }
-fn same_json(s: &mut dyn NodeSource, r: &ContentRef, k: &str, v: Value) -> Result<(), String> {
-    same_digest(s, r, k, hash_json(&v)?)
+fn same_json(s: &mut HashReader<'_>, r: &ContentRef, k: &str, v: Value) -> Result<(), String> {
+    let expected = hash_json_until(&v, s.deadline)?;
+    same_digest(s, r, k, expected)
 }
 fn cv(v: &Value) -> Result<V, String> {
+    cv_until(v, None)
+}
+fn cv_until(v: &Value, deadline: Option<std::time::Instant>) -> Result<V, String> {
+    check_deadline(deadline)?;
     Ok(match v {
         Value::Null => V::Null,
         Value::Bool(x) => V::Bool(*x),
         Value::String(x) => V::String(x.clone()),
         Value::Number(x) => V::Number(sc::NumberToken::parse(&x.to_string()).map_err(err)?),
-        Value::Array(xs) => V::Array(xs.iter().map(cv).collect::<Result<_, _>>()?),
+        Value::Array(xs) => V::Array(
+            xs.iter()
+                .map(|v| cv_until(v, deadline))
+                .collect::<Result<_, _>>()?,
+        ),
         Value::Object(xs) => V::Object(
             xs.iter()
-                .map(|(k, v)| Ok((k.clone(), cv(v)?)))
+                .map(|(k, v)| Ok((k.clone(), cv_until(v, deadline)?)))
                 .collect::<Result<_, String>>()?,
         ),
     })
 }
-struct Discard;
+struct Discard(Option<std::time::Instant>);
 impl NodeSink for Discard {
     fn put(&mut self, _: NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
-        Ok(())
+        check_deadline(self.0).map_err(|e| sc::CodecError::new("verify_deadline", e))
     }
 }
 fn hash_json(v: &Value) -> Result<NodeDigest, String> {
-    sc::write_value(&mut Discard, &cv(v)?)
+    hash_json_until(v, None)
+}
+pub(super) fn hash_json_until(
+    v: &Value,
+    deadline: Option<std::time::Instant>,
+) -> Result<NodeDigest, String> {
+    let value = cv_until(v, deadline)?;
+    sc::write_value(&mut Discard(deadline), &value)
         .map(|b| b.digest)
         .map_err(err)
 }
 fn hash_array(nodes: &[NodeDigest]) -> Result<NodeDigest, String> {
-    sc::write_value(
-        &mut Discard,
-        &V::Array(nodes.iter().map(|d| V::Edge(*d)).collect()),
-    )
-    .map(|b| b.digest)
-    .map_err(err)
+    hash_array_until(nodes, None)
+}
+fn hash_array_until(
+    nodes: &[NodeDigest],
+    deadline: Option<std::time::Instant>,
+) -> Result<NodeDigest, String> {
+    let edges = nodes
+        .iter()
+        .map(|d| {
+            check_deadline(deadline)?;
+            Ok(V::Edge(*d))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    sc::write_value(&mut Discard(deadline), &V::Array(edges))
+        .map(|b| b.digest)
+        .map_err(err)
 }
 pub(super) struct HashReader<'a> {
     source: &'a mut dyn NodeSource,
     overlay: BTreeMap<NodeDigest, (u8, Vec<u8>)>,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
 }
 impl<'a> HashReader<'a> {
     /// 派生节点只留在内存，用于写入前审计，绝不通过 NodeSink 改 SQLite。
@@ -487,11 +553,47 @@ impl<'a> HashReader<'a> {
         Self {
             source,
             overlay: BTreeMap::new(),
+            deadline: None,
+            max_render_bytes: None,
+        }
+    }
+    pub(super) fn until(
+        source: &'a mut dyn NodeSource,
+        deadline: Option<std::time::Instant>,
+    ) -> Self {
+        Self {
+            source,
+            overlay: BTreeMap::new(),
+            deadline,
+            max_render_bytes: None,
+        }
+    }
+    pub(super) fn bounded(
+        source: &'a mut dyn NodeSource,
+        deadline: Option<std::time::Instant>,
+        max_render_bytes: Option<u64>,
+    ) -> Self {
+        Self {
+            source,
+            overlay: BTreeMap::new(),
+            deadline,
+            max_render_bytes,
         }
     }
 }
+pub(super) fn check_deadline(deadline: Option<std::time::Instant>) -> Result<(), String> {
+    crate::check_read_deadline(deadline)
+}
+
 impl NodeSource for HashReader<'_> {
+    fn max_render_bytes(&self) -> Option<u64> {
+        match (self.max_render_bytes, self.source.max_render_bytes()) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        }
+    }
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+        check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
         if let Some((tag, body)) = self.overlay.get(d) {
             Ok(NodeRead::Found {
                 tag: *tag,
@@ -504,6 +606,7 @@ impl NodeSource for HashReader<'_> {
 }
 impl NodeSink for HashReader<'_> {
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+        check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
         self.overlay.insert(digest, (tag, body.to_vec()));
         Ok(())
     }

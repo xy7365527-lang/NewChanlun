@@ -46,6 +46,8 @@ mod state;
 mod driver;
 mod reader;
 mod projection;
+#[cfg(unix)]
+mod capture;
 pub(super) mod aux_index;
 pub(super) mod object_index;
 mod source_audit;
