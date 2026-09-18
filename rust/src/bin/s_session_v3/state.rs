@@ -181,27 +181,93 @@ fn audit_with_budget(
 
 // #1394：仅ignored成本诊断开启的当前线程阶段记录，不进入生产代码或资源判据。
 #[cfg(test)]
+#[derive(Default, Clone, Copy, serde::Serialize)]
+struct WorkCounts {
+    source_reads: u64,
+    overlay_reads: u64,
+    overlay_puts: u64,
+    node_checks: u64,
+    unique_audit_nodes: u64,
+    checked_frame_bytes: u64,
+}
+#[cfg(test)]
+struct AuditTrace {
+    start: std::time::Instant,
+    events: Vec<Value>,
+    work: WorkCounts,
+    count_nodes: bool,
+}
+#[cfg(test)]
 thread_local! {
-    static AUDIT_TRACE: std::cell::RefCell<Option<(std::time::Instant, Vec<Value>)>> = const { std::cell::RefCell::new(None) };
+    static AUDIT_TRACE: std::cell::RefCell<Option<AuditTrace>> = const { std::cell::RefCell::new(None) };
 }
 #[cfg(test)]
 fn trace_event(phase: &'static str, generation: Option<i64>) {
     AUDIT_TRACE.with(|trace| {
-        if let Some((start, events)) = trace.borrow_mut().as_mut() {
-            events.push(json!({"phase":phase,"generation":generation,
-                "elapsed_ns":start.elapsed().as_nanos().to_string()}));
+        if let Some(trace) = trace.borrow_mut().as_mut() {
+            trace
+                .events
+                .push(json!({"phase":phase,"generation":generation,
+                "elapsed_ns":trace.start.elapsed().as_nanos().to_string(),"work":trace.work}));
         }
     });
 }
 #[cfg(test)]
-pub(super) fn traced<T>(action: impl FnOnce() -> T) -> (T, Vec<Value>) {
+pub(super) fn trace_read(overlay: bool) {
+    AUDIT_TRACE.with(|trace| {
+        if let Some(trace) = trace
+            .borrow_mut()
+            .as_mut()
+            .filter(|trace| trace.count_nodes)
+        {
+            if overlay {
+                trace.work.overlay_reads += 1;
+            } else {
+                trace.work.source_reads += 1;
+            }
+        }
+    });
+}
+#[cfg(test)]
+pub(super) fn trace_put() {
+    AUDIT_TRACE.with(|trace| {
+        if let Some(trace) = trace
+            .borrow_mut()
+            .as_mut()
+            .filter(|trace| trace.count_nodes)
+        {
+            trace.work.overlay_puts += 1;
+        }
+    });
+}
+#[cfg(test)]
+pub(super) fn trace_checked_node(unique: bool, frame_bytes: usize) {
+    AUDIT_TRACE.with(|trace| {
+        if let Some(trace) = trace
+            .borrow_mut()
+            .as_mut()
+            .filter(|trace| trace.count_nodes)
+        {
+            trace.work.node_checks += 1;
+            trace.work.unique_audit_nodes += u64::from(unique);
+            trace.work.checked_frame_bytes += frame_bytes as u64;
+        }
+    });
+}
+#[cfg(test)]
+pub(super) fn traced<T>(count_nodes: bool, action: impl FnOnce() -> T) -> (T, Vec<Value>, Value) {
     AUDIT_TRACE.with(|trace| {
         assert!(trace.borrow().is_none(), "审计诊断不得嵌套");
-        *trace.borrow_mut() = Some((std::time::Instant::now(), Vec::new()));
+        *trace.borrow_mut() = Some(AuditTrace {
+            start: std::time::Instant::now(),
+            events: Vec::new(),
+            work: WorkCounts::default(),
+            count_nodes,
+        });
     });
     let result = action();
-    let events = AUDIT_TRACE.with(|trace| trace.borrow_mut().take().unwrap().1);
-    (result, events)
+    let trace = AUDIT_TRACE.with(|trace| trace.borrow_mut().take().unwrap());
+    (result, trace.events, json!(trace.work))
 }
 
 /// 静态列/冻结原件由共享控制审计核验；本层补核从未运行的动态列。

@@ -53,6 +53,8 @@ impl Budget for AuditJob<'_> {
         let usage = CheckedNodeUsage::checked(digest, tag, body)?;
         self.job.borrow_mut().accept_checked_usage(&usage)?;
         let mut nodes = self.nodes.borrow_mut();
+        #[cfg(test)]
+        let mut unique = false;
         if let Some(previous) = nodes.get(digest) {
             if previous != &usage {
                 return Err(sc::CodecError::new(
@@ -62,7 +64,13 @@ impl Budget for AuditJob<'_> {
             }
         } else {
             nodes.insert(*digest, usage);
+            #[cfg(test)]
+            {
+                unique = true;
+            }
         }
+        #[cfg(test)]
+        super::state::trace_checked_node(unique, sc::DOMAIN_SEPARATOR.len() + 1 + 8 + body.len());
         Ok(())
     }
 

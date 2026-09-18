@@ -2037,6 +2037,39 @@ impl<'a> Verifier<'a> {
         }
     }
 
+    /// 在同一个核验器中逐根检查 ContentRef。每次都重新读取并核对根的
+    /// format/digest/kind/extent；`seen` 只负责闭包内部节点去重，不会跳过根声明。
+    fn verify_reference(
+        &mut self,
+        reference: &ContentRef,
+    ) -> Result<(NodeDigest, Kind, Option<u64>), CodecError> {
+        let digest = reference.digest()?;
+        let (t, body) = self.read_node(&digest)?;
+        let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
+        if kind != reference.kind {
+            return Err(CodecError::new(
+                code::KIND,
+                format!(
+                    "ContentRef.kind={} 与真实节点 tag={t:02x}（{}）不符",
+                    reference.kind.name(),
+                    kind.name()
+                ),
+            ));
+        }
+        let extent = header_extent(t, &body)?;
+        if extent != reference.extent {
+            return Err(CodecError::new(
+                code::EXTENT,
+                format!(
+                    "ContentRef.extent={:?} 与真实节点 header {:?} 不符",
+                    reference.extent, extent
+                ),
+            ));
+        }
+        self.run(&digest)?;
+        Ok((digest, kind, extent))
+    }
+
     /// 全闭包核验：值节点按 (摘要, 上下文) 去重，序列按摘要折叠。
     fn run(&mut self, root: &NodeDigest) -> Result<(), CodecError> {
         self.push_work(*root, Flavor::Value);
@@ -2174,31 +2207,8 @@ fn verify_with_mode(
     reference: &ContentRef,
     mode: Mode,
 ) -> Result<Verified, CodecError> {
-    let digest = reference.digest()?;
     let mut verifier = Verifier::new(source, mode);
-    let (t, body) = verifier.read_node(&digest)?;
-    let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
-    if kind != reference.kind {
-        return Err(CodecError::new(
-            code::KIND,
-            format!(
-                "ContentRef.kind={} 与真实节点 tag={t:02x}（{}）不符",
-                reference.kind.name(),
-                kind.name()
-            ),
-        ));
-    }
-    let extent = header_extent(t, &body)?;
-    if extent != reference.extent {
-        return Err(CodecError::new(
-            code::EXTENT,
-            format!(
-                "ContentRef.extent={:?} 与真实节点 header {:?} 不符",
-                reference.extent, extent
-            ),
-        ));
-    }
-    verifier.run(&digest)?;
+    let (digest, kind, extent) = verifier.verify_reference(reference)?;
     let nodes = verifier.read_digests.len();
     Ok(Verified {
         content_ref: reference.clone(),
@@ -2207,6 +2217,22 @@ fn verify_with_mode(
         extent,
         nodes,
     })
+}
+
+/// 在一次公开模式核验中检查多个根，并返回本次闭包实际读取的唯一节点数。
+///
+/// 各根的 `ContentRef` 仍逐项核对四字段；只有同一调用内的真实共享节点会去重。
+/// 与单根核验一样，来源在本次调用期间须保持一致；调用者不可在根迭代中改写节点。
+/// 该入口不提供来源语义、发布有效性或跨调用缓存证明，调用结束后核验器即丢弃。
+pub fn verify_many(
+    source: &mut dyn NodeSource,
+    references: impl IntoIterator<Item = ContentRef>,
+) -> Result<usize, CodecError> {
+    let mut verifier = Verifier::new(source, Mode::Public);
+    for reference in references {
+        verifier.verify_reference(&reference)?;
+    }
+    Ok(verifier.read_digests.len())
 }
 
 // ── 渲染：惰性叶迭代 + 规范 JSON 转义 ────────────────────────────────────────
@@ -2637,6 +2663,20 @@ mod tests {
         bytes.iter().map(|b| format!("{b:02x}")).collect()
     }
 
+    struct CountingSource<'a> {
+        inner: &'a mut MemoryNodes,
+        reads: usize,
+        unique: std::collections::HashSet<NodeDigest>,
+    }
+
+    impl NodeSource for CountingSource<'_> {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+            self.reads += 1;
+            self.unique.insert(*digest);
+            self.inner.read(digest)
+        }
+    }
+
     #[test]
     fn null_root_matches_independent_vector() {
         let mut store = MemoryNodes::new();
@@ -2737,6 +2777,134 @@ mod tests {
                 .code(),
             code::ROOT
         );
+    }
+
+    #[test]
+    fn verify_many_reuses_shared_nodes_but_rechecks_each_root_header() {
+        let mut store = MemoryNodes::new();
+        let shared = write_value(&mut store, &Value::string("shared")).unwrap();
+        let first = write_value(
+            &mut store,
+            &Value::Array(vec![Value::Edge(shared.digest), Value::Edge(shared.digest)]),
+        )
+        .unwrap();
+        let second = write_value(&mut store, &Value::Array(vec![Value::Edge(shared.digest)])).unwrap();
+
+        let mut separate_store = store.clone();
+        let mut separate = CountingSource {
+            inner: &mut separate_store,
+            reads: 0,
+            unique: std::collections::HashSet::new(),
+        };
+        verify(&mut separate, &first.content_ref()).unwrap();
+        verify(&mut separate, &second.content_ref()).unwrap();
+        let separate_reads = separate.reads;
+        drop(separate);
+
+        let mut many_store = store.clone();
+        let mut many = CountingSource {
+            inner: &mut many_store,
+            reads: 0,
+            unique: std::collections::HashSet::new(),
+        };
+        let unique = verify_many(
+            &mut many,
+            vec![first.content_ref(), second.content_ref()],
+        )
+        .unwrap();
+        assert_eq!(unique, many.unique.len());
+        assert!(many.reads < separate_reads, "共享根应减少读取：{} >= {}", many.reads, separate_reads);
+    }
+
+    #[test]
+    fn verify_many_rejects_second_root_header_and_bad_closure() {
+        let mut store = MemoryNodes::new();
+        let value = write_value(&mut store, &Value::string("x")).unwrap();
+        let mut wrong_extent = value.content_ref();
+        wrong_extent.extent = Some(999);
+        let err = verify_many(
+            &mut store,
+            vec![value.content_ref(), wrong_extent],
+        )
+        .expect_err("已见根也必须重新核对 extent");
+        assert_eq!(err.code(), code::EXTENT);
+
+        let mut wrong_kind = value.content_ref();
+        wrong_kind.kind = Kind::Number;
+        let err = verify_many(&mut store, vec![value.content_ref(), wrong_kind])
+            .expect_err("已见根也必须重新核对 kind");
+        assert_eq!(err.code(), code::KIND);
+
+        let missing = write_value(
+            &mut store,
+            &Value::Array(vec![Value::Edge(frame(tag::NULL, &[]))]),
+        )
+        .unwrap();
+        let err = verify_many(
+            &mut store,
+            vec![value.content_ref(), missing.content_ref()],
+        )
+        .expect_err("后续根缺子节点必须拒绝");
+        assert_eq!(err.code(), code::NODE_MISSING);
+
+        let bad = write_value(&mut store, &Value::string("bad")).unwrap();
+        store.insert_unchecked(bad.digest, tag::STRING, vec![0; 40]);
+        let err = verify_many(
+            &mut store,
+            vec![value.content_ref(), bad.content_ref()],
+        )
+        .expect_err("后续根摘要损坏必须拒绝");
+        assert_eq!(err.code(), code::NODE_DIGEST);
+    }
+
+    #[test]
+    fn verify_many_does_not_inherit_success_or_open_json_text_context() {
+        let mut full = MemoryNodes::new();
+        let child = write_value(&mut full, &Value::string("child")).unwrap();
+        let graph = write_value(&mut full, &Value::Array(vec![Value::Edge(child.digest)])).unwrap();
+        assert_eq!(verify_many(&mut full, vec![graph.content_ref()]).unwrap(), 5);
+
+        let (root_tag, root_body) = full
+            .get(&graph.digest)
+            .map(|(tag, body)| (tag, body.to_vec()))
+            .unwrap();
+        let mut partial = MemoryNodes::new();
+        partial.insert_unchecked(graph.digest, root_tag, root_body);
+        let err = verify_many(&mut partial, vec![graph.content_ref()]).expect_err("调用间不得继承旧闭包");
+        assert_eq!(err.code(), code::NODE_MISSING);
+
+        let placeholder = frame(tag::BATCH_SELF, &[]);
+        full.insert_unchecked(placeholder, tag::BATCH_SELF, Vec::new());
+        let leaf = frame(tag::SEQ_LEAF, &placeholder);
+        full.insert_unchecked(leaf, tag::SEQ_LEAF, placeholder.to_vec());
+        let mut array_body = Vec::new();
+        array_body.extend_from_slice(&checked_frame_len(1).unwrap());
+        array_body.extend_from_slice(&leaf);
+        let array = frame(tag::ARRAY, &array_body);
+        full.insert_unchecked(array, tag::ARRAY, array_body);
+        let json_text = frame(tag::JSON_TEXT, &array);
+        full.insert_unchecked(json_text, tag::JSON_TEXT, array.to_vec());
+        let json_ref = ContentRef::new(Kind::JsonText, &json_text, None);
+        let err = verify_many(&mut full, vec![child.content_ref(), json_ref])
+            .expect_err("json_text内部占位不得被共享上下文放行");
+        assert_eq!(err.code(), code::JSON_TEXT_INTERNAL_KIND);
+
+        // 同一 JSON_TEXT 根先作为 Value 核过，再作为另一个 JSON_TEXT 的
+        // JsonInner 出现；Flavor 不能因摘要已见而跳过内部类型判据。
+        let scalar = write_value(&mut full, &Value::string("inner")).unwrap();
+        let inner_json = frame(tag::JSON_TEXT, &scalar.digest);
+        full.insert_unchecked(inner_json, tag::JSON_TEXT, scalar.digest.to_vec());
+        let outer_json = frame(tag::JSON_TEXT, &inner_json);
+        full.insert_unchecked(outer_json, tag::JSON_TEXT, inner_json.to_vec());
+        let err = verify_many(
+            &mut full,
+            vec![
+                ContentRef::new(Kind::JsonText, &inner_json, None),
+                ContentRef::new(Kind::JsonText, &outer_json, None),
+            ],
+        )
+        .expect_err("同摘要切换到JsonInner后仍必须拒嵌套json_text");
+        assert_eq!(err.code(), code::JSON_TEXT_INTERNAL_KIND);
     }
 
     #[test]

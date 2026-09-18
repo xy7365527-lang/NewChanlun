@@ -134,9 +134,9 @@ pub(super) fn resolve_indexed_templates(
         ] {
             *root = replace_batch_placeholder(store, root, &path, batch_id).map_err(err)?;
         }
-        // 未列入 schema 的任意嵌套占位到这里仍存在，Public 核验必须拒绝。
-        sc::verify(store, root).map_err(err)?;
     }
+    // 未列入schema的嵌套占位仍由Public全闭包拒绝；两根只在本调用内共享codec记忆。
+    sc::verify_many(store, [snapshot.clone(), delta.clone()]).map_err(err)?;
     Ok(ResolvedTemplates { snapshot, delta })
 }
 

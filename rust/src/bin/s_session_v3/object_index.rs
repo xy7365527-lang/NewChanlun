@@ -68,10 +68,10 @@ fn integer(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<i64, Strin
         .as_i64()
         .ok_or_else(|| err(format!("{k}不是i64")))
 }
-fn root(s: &mut dyn NodeSource, b: Vec<u8>) -> Result<Built, String> {
+/// 本口只取真实节点头；load返回前统一验证这些根的全部闭包。
+fn root_header(s: &mut dyn NodeSource, b: Vec<u8>) -> Result<Built, String> {
     let d: NodeDigest = b.try_into().map_err(|_| err("根不是32字节"))?;
     let r = sc::content_ref_of(s, &sc::root_string(&d)).map_err(err)?;
-    sc::verify(s, &r).map_err(err)?;
     built(r)
 }
 const SHAPE: &str = "CC-006.local_shape";
@@ -628,10 +628,10 @@ pub(super) fn load(
             revision: row.get(1).map_err(err)?,
             kind,
             slot,
-            generated: root(s, row.get(7).map_err(err)?)?,
-            internal: root(s, row.get(8).map_err(err)?)?,
-            immutable: root(s, row.get(9).map_err(err)?)?,
-            birth_wire: root(s, row.get(10).map_err(err)?)?.content_ref(),
+            generated: root_header(s, row.get(7).map_err(err)?)?,
+            internal: root_header(s, row.get(8).map_err(err)?)?,
+            immutable: root_header(s, row.get(9).map_err(err)?)?,
+            birth_wire: root_header(s, row.get(10).map_err(err)?)?.content_ref(),
             life: PublicationLife {
                 batch: BatchRef::Existing(row.get(11).map_err(err)?),
                 first_known_generation: row.get(12).map_err(err)?,
@@ -647,11 +647,24 @@ pub(super) fn load(
         {
             return Err(err("出生代超过已发布代"));
         }
-        bind_originals(s, &e)?;
-        wire_at(s, &e, latest)?;
         out.push(e);
     }
+    // 一次调用复用codec既有的上下文记忆；每根声明仍核，所有来源/生命周期绑定仍逐行执行。
+    sc::verify_many(
+        s,
+        out.iter().flat_map(|e| {
+            [
+                e.generated.content_ref(),
+                e.internal.content_ref(),
+                e.immutable.content_ref(),
+                e.birth_wire.clone(),
+            ]
+        }),
+    )
+    .map_err(err)?;
     for e in &out {
+        bind_originals(s, e)?;
+        wire_at(s, e, latest)?;
         if let Some(death) = e.life.withdrawn_generation {
             match (
                 e.life.withdrawal_reason.as_deref(),

@@ -100,6 +100,20 @@ pub(super) fn read_indexed_history(
             hash_json_metered(&project_raw_event_wire(event)?, deadline, budget)
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // 同一事务、同一公开上下文下全核所有历史公开根，共享子图在这一调用内只核一次。
+    // manifest仍走Template判据；下方每代的源绑定、配方、变化集合和记录计费不变。
+    let public_roots = {
+        let mut stmt=tx.prepare("SELECT p.snapshot_root,p.delta_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
+        let mut rows = stmt.query([]).map_err(err)?;
+        let mut roots = Vec::new();
+        while let Some(row) = rows.next().map_err(err)? {
+            check_deadline(deadline)?;
+            roots.push(root(&mut store, row.get::<_, Vec<u8>>(0).map_err(err)?)?);
+            roots.push(root(&mut store, row.get::<_, Vec<u8>>(1).map_err(err)?)?);
+        }
+        roots
+    };
+    sc::verify_many(&mut store, public_roots).map_err(err)?;
     let mut effective = BTreeMap::<i64, NodeDigest>::new();
     let mut previous = -1i64;
     let mut output = Vec::new();
@@ -113,8 +127,6 @@ pub(super) fn read_indexed_history(
         let snapshot = root(&mut store, row.get::<_, Vec<u8>>(3).map_err(err)?)?;
         let delta = root(&mut store, row.get::<_, Vec<u8>>(4).map_err(err)?)?;
         sc::verify_template(&mut store, &manifest).map_err(err)?;
-        sc::verify(&mut store, &snapshot).map_err(err)?;
-        sc::verify(&mut store, &delta).map_err(err)?;
         let (m, roots) = decode_manifest(&mut store, &manifest)?;
         // 重用唯一 manifest 构造/跨根判据；写口仅计算摘要，不写 SQLite。
         let rebuilt =
@@ -701,11 +713,15 @@ impl NodeSource for HashReader<'_> {
             b.precheck()?;
         }
         let value = if let Some((tag, body)) = self.overlay.get(d) {
+            #[cfg(test)]
+            super::state::trace_read(true);
             NodeRead::Found {
                 tag: *tag,
                 body: body.clone(),
             }
         } else {
+            #[cfg(test)]
+            super::state::trace_read(false);
             self.source.read(d)?
         };
         if let Some(b) = self.budget {
@@ -723,6 +739,8 @@ impl NodeSink for HashReader<'_> {
         if let Some(b) = self.budget {
             b.node(&digest, tag, body)?;
         }
+        #[cfg(test)]
+        super::state::trace_put();
         self.overlay.insert(digest, (tag, body.to_vec()));
         Ok(())
     }

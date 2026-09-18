@@ -2061,13 +2061,19 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
         assert_eq!(sha256_hex(&fs::read(&path).unwrap()), expected);
         assert!(!output.exists(), "保留已有证据，禁止覆盖");
         let r = q_resources::QResources::load(&config).unwrap();
+        // 节点逐次计数只用于归因；扩展规模的耗时测量默认关闭，避免混入计数开销。
+        let count_nodes = match std::env::var("Q3_CONTENT_MEASURE_COUNTS").as_deref() {
+            Ok("1") => true,
+            Ok("0") | Err(std::env::VarError::NotPresent) => false,
+            _ => panic!("Q3_CONTENT_MEASURE_COUNTS只能为0/1或不设置"),
+        };
         let mut reader = AuditReader::new(path.clone(), &r);
         let mut rows = Vec::new();
         for pass in ["cold_reader", "warm_reader"] {
             let start = Instant::now();
             let mut events = Vec::new();
             let mut verified_capture = None;
-            let (result, audit_phases) = state::traced(|| {
+            let (result, audit_phases, work_counts) = state::traced(count_nodes, || {
                 reader.with_seam(&r,&mut Server,|event| {
                 events.push(json!({"phase":event,"elapsed_ns":start.elapsed().as_nanos().to_string()}));
             },|capture,access| {
@@ -2091,7 +2097,7 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
             let ok = result.is_ok();
             let stats = reader.stats();
             rows.push(json!({"pass":pass,"ok":ok,"elapsed_ns":start.elapsed().as_nanos().to_string(),"events":events,
-                "audit_phases":audit_phases,
+                "audit_phases":audit_phases,"node_counts_enabled":count_nodes,"work_counts":work_counts,
                 "verified_capture":verified_capture,"value":result.as_ref().ok(),"error":result.as_ref().err(),"reader_stats":{"captures":stats.captures,"cache_hits":stats.cache_hits,"cached_bytes":stats.cached_bytes}}));
             if !ok {
                 break;
