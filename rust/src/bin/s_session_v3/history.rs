@@ -309,16 +309,43 @@ fn verify_source(tx: &Transaction<'_>, m: &ManifestMetadata) -> Result<(), Strin
             return Err(err(format!("source_commit.{key} 不符")));
         }
     }
-    if e["payload"]["writer_epoch"].as_str() != Some(m.writer_epoch.as_str())
-        || e["payload"]["clock_event_id"].as_str() != Some(s.clock_event_id.as_str())
-    {
-        return Err(err("manifest 写者/clock 与真实消息不符"));
+    if e["payload"]["clock_event_id"].as_str() != Some(s.clock_event_id.as_str()) {
+        return Err(err("manifest clock 与真实消息不符"));
+    }
+    // 已接纳原件保留接纳时的请求epoch；真正执行本代的写者由已核换代史定位。
+    if writer_for_generation(tx, m.generation)? != m.writer_epoch {
+        return Err(err("manifest写者与本代实际换代史不同"));
     }
     let (g,ns):(i64,String)=tx.query_row("SELECT generation,semantic_ns FROM s_clock_events WHERE clock_event_id=?1 AND phase='commit' AND attempt_index=?2",params![s.clock_event_id,s.attempt_index],|r|Ok((r.get(0)?,r.get(1)?))).map_err(err)?;
     if g != m.generation || ns != m.semantic_commit_ns {
         return Err(err("manifest source attempt 不是本代真实 Commit"));
     }
     Ok(())
+}
+
+/// 调用前全局控制审计已经验证换代史接续、clock和代号。本代发布之后的换代不改旧归属。
+fn writer_for_generation(tx: &Transaction<'_>, generation: i64) -> Result<String, String> {
+    let mut stmt = tx.prepare("SELECT from_epoch,to_epoch,generation_at_transition FROM writer_epoch_history ORDER BY ordinal").map_err(err)?;
+    let mut rows = stmt.query([]).map_err(err)?;
+    let mut result = None;
+    while let Some(row) = rows.next().map_err(err)? {
+        let from: String = row.get(0).map_err(err)?;
+        let to: String = row.get(1).map_err(err)?;
+        let at: String = row.get(2).map_err(err)?;
+        if result.is_none() {
+            result = Some(from);
+        }
+        if newchan_rust::session_protocol::parse_canonical_i64(&at, "epoch generation")?
+            < generation
+        {
+            result = Some(to);
+        } else {
+            break;
+        }
+    }
+    result
+        .map(Ok)
+        .unwrap_or_else(|| meta_get_opt(tx, "writer_epoch")?.ok_or_else(|| err("缺writer_epoch")))
 }
 
 fn decode_manifest(

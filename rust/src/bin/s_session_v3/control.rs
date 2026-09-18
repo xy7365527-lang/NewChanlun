@@ -138,6 +138,48 @@ impl<'a> S3Control<'a> {
     /// 只读：不写任何控制行。同 key 同 hash 同 clock 的已持久消息按幂等视图返回（`Committed`
     /// 由调用方直接回原回执）；hash 不同或 clock 不同一律 `IdentityConflict`。
     pub(super) fn inspect_ingest(&self, envelope: Value) -> Result<IngestView, String> {
+        let envelope = self.validate_ingest_envelope(envelope)?;
+        let epoch = required(&envelope["payload"], "writer_epoch")?;
+        if epoch != self.writer_epoch {
+            return Err(format!(
+                "StaleWriter：消息 writer_epoch=`{epoch}`，非本域当前持久 `{}`（换代后旧 writer 拒绝，零写入）",
+                self.writer_epoch
+            ));
+        }
+        self.bind_ingest(envelope)
+    }
+
+    /// 内部推进只从本库取已经接纳的原件；不接收调用者可改写的旧 epoch envelope。
+    /// 与新外部请求的当前写者准入分开：监督器换代后旧原件必须保持原字节。
+    pub(super) fn load_pending(
+        &self,
+        namespace: &str,
+        source_epoch: &str,
+        message_id: &str,
+    ) -> Result<IngestView, String> {
+        let (raw,status): (String,String) = self.conn.query_row(
+            "SELECT canonical_envelope,status FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3",
+            params![namespace,source_epoch,message_id],|r|Ok((r.get(0)?,r.get(1)?)),
+        ).map_err(|e|format!("StorageUnavailable：读取已接纳原件失败：{e}"))?;
+        if status != "AcceptedPending" {
+            return Err("InvalidDomain：内部推进只接已接纳未提交原件".into());
+        }
+        let envelope = self.validate_ingest_envelope(strict_json(raw.as_bytes())?)?;
+        if canonical_json(&envelope) != raw
+            || required(&envelope, "source_namespace")? != namespace
+            || required(&envelope, "source_epoch")? != source_epoch
+            || required(&envelope, "message_id")? != message_id
+        {
+            return Err("IdentityConflict：已接纳原件与独立message行不同".into());
+        }
+        let view = self.bind_ingest(envelope)?;
+        if view.state != StoredState::AcceptedPending {
+            return Err("IdentityConflict：已接纳状态变更".into());
+        }
+        Ok(view)
+    }
+
+    fn validate_ingest_envelope(&self, envelope: Value) -> Result<Value, String> {
         let envelope = validate_envelope(envelope, PROTOCOL_REVISION)?;
         if required(&envelope["payload"], "op")? != "ingest" {
             return Err(format!(
@@ -150,14 +192,11 @@ impl<'a> S3Control<'a> {
         {
             return Err("IdentityConflict：旧session/化身请求".into());
         }
+        Ok(envelope)
+    }
+
+    fn bind_ingest(&self, envelope: Value) -> Result<IngestView, String> {
         let payload = &envelope["payload"];
-        let epoch = required(payload, "writer_epoch")?;
-        if epoch != self.writer_epoch {
-            return Err(format!(
-                "StaleWriter：消息 writer_epoch=`{epoch}`，非本域当前持久 `{}`（换代后旧 writer 拒绝，零写入）",
-                self.writer_epoch
-            ));
-        }
         let key = (
             required(&envelope, "source_namespace")?.to_string(),
             required(&envelope, "source_epoch")?.to_string(),

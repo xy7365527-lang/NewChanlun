@@ -68,11 +68,11 @@ pub(super) fn publish_prepared(
     let clock = v2::stored_clock(&tx)?;
     let control = S3Control::attach(&tx, &clock)?;
     let source = &m.source_commit;
-    let raw: String = tx.query_row(
-        "SELECT canonical_envelope FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3",
-        params![source.source_namespace,source.source_epoch,source.message_id], |r| r.get(0),
-    ).map_err(err)?;
-    let view = control.inspect_ingest(strict_json(raw.as_bytes())?)?;
+    let view = control.load_pending(
+        &source.source_namespace,
+        &source.source_epoch,
+        &source.message_id,
+    )?;
     if view.is_committed() || view.is_fresh() {
         return Err(err("本次发布消息不是已接纳未提交状态"));
     }

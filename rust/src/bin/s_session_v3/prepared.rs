@@ -1,5 +1,6 @@
 //! #1394：真实 OHLC 生成、独立变化索引与原子发布接线。
 //! 接纳和 Begin 须已持久；本模块接管 Commit 事务，任何失败回滚并清空全部运行缓存。
+//! 写前那段完整旧状态核验不在此处：它在 `state::audit`（只读入口与提交口共用同一份判据）。
 //! 目前是内部接线，尚未接 CLI/服务、资源 job 或 Q/E/B，不代表完整 S3 验收。
 
 use super::*;
@@ -68,14 +69,18 @@ impl Runtime {
         token: &str,
         envelope: &Value,
     ) -> Result<Prepared, String> {
-        // 所有审计均发生在节点、索引、目录等第一次写入之前。
-        let control_history = control_audit::prepare_s3_control_history(tx)?;
-        let raw = read_raw_events(tx)?;
-        let cuts = history::read_history(tx, &raw, control_history)?;
-        verify_unrun_catalog(tx, cuts.is_empty())?;
+        // 完整旧状态审计（读写共用同一份 state::audit）先于节点、索引、目录等第一次写入完成。
+        let audited = state::audit(tx)?;
         let clock = v2::stored_clock(tx)?;
         let control = control::S3Control::attach(tx, &clock)?;
-        let view = control.inspect_ingest(envelope.clone())?;
+        let view = control.load_pending(
+            required(envelope, "source_namespace")?,
+            required(envelope, "source_epoch")?,
+            required(envelope, "message_id")?,
+        )?;
+        if view.envelope() != envelope {
+            return Err(err("Commit原件与已接纳消息不同"));
+        }
         if view.is_fresh() || view.is_committed() {
             return Err(err("Commit只接已接纳未提交的消息"));
         }
@@ -91,7 +96,7 @@ impl Runtime {
         let generation = meta_i64(tx, "generation")?
             .checked_add(1)
             .ok_or_else(|| err("代号溢出"))?;
-        let frontier = i64::try_from(raw.len())
+        let frontier = i64::try_from(audited.raw.len())
             .map_err(err)?
             .checked_sub(1)
             .ok_or_else(|| err("原始前沿为空"))?;
@@ -138,42 +143,6 @@ impl Runtime {
             return Err(err("本次没有新增原始前沿"));
         }
 
-        let (old_objects, old_aux) = {
-            let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
-            let mut store = history::HashReader::new(&mut reader);
-            let mut cut_previous = -1;
-            let indexed = object_index::load(tx, &mut store, generation - 1)?;
-            for cut in &cuts {
-                let prefix = &raw[..=cut.metadata.input_frontier as usize];
-                let counts = source_audit::audit_generated(
-                    &mut store,
-                    &cut.roots.generated_state,
-                    prefix,
-                    &cut.metadata.profile_id,
-                    &cut.metadata.rule_revision,
-                )?;
-                let (withdrawals, replaces) =
-                    object_index::changes_at(&indexed, cut.metadata.generation)?;
-                catalog_evidence::verify_cut(
-                    &mut store,
-                    &cut.metadata,
-                    &cut.roots.generated_state,
-                    &cut.delta,
-                    prefix,
-                    cut_previous,
-                    &counts,
-                    &withdrawals,
-                    &replaces,
-                )?;
-                cut_previous = cut.metadata.input_frontier;
-            }
-            if let Some(last) = cuts.last() {
-                let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")?;
-                catalog_evidence::verify_current(tx, &mut store, &axes)?;
-            }
-            let aux = aux_index::load(tx, &mut store, generation - 1)?;
-            (indexed, aux)
-        };
         let database: String = tx
             .query_row(
                 "SELECT file FROM pragma_database_list WHERE name='main'",
@@ -210,10 +179,10 @@ impl Runtime {
             ));
             self.binding = Some(binding);
         }
-        let effective = read_effective_events(&raw)?;
-        let (prior_bi, prior_version) = object_index::prior_records(&old_objects)?;
+        let effective = read_effective_events(&audited.raw)?;
+        let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
         let input = GenerationInput {
-            all_events: &raw,
+            all_events: &audited.raw,
             effective: &effective,
             generation,
             structure_cut: &metadata.structure_cut,
@@ -236,7 +205,8 @@ impl Runtime {
             .as_mut()
             .ok_or_else(|| err("生成器未绑定"))?
             .generate(&mut store, &input)?;
-        let objects = object_index::plan(&mut store, &generated.objects, &old_objects, generation)?;
+        let objects =
+            object_index::plan(&mut store, &generated.objects, &audited.objects, generation)?;
         generated.finish_axes(
             &mut store,
             previous,
@@ -250,16 +220,16 @@ impl Runtime {
         let counts = source_audit::audit_generated(
             &mut store,
             &generated.generated_state,
-            &raw,
+            &audited.raw,
             &metadata.profile_id,
             &metadata.rule_revision,
         )?;
         let auxiliary = self.auxiliary.plan(
             &mut store,
-            &old_aux,
+            &audited.auxiliary,
             &generated,
             &objects.replaces,
-            &raw,
+            &audited.raw,
             previous,
             frontier,
             generation,
@@ -298,35 +268,6 @@ struct Prepared {
     roots: ManifestRoots,
     manifest: UnpublishedManifest,
 }
-/// 静态列/冻结原件由共享控制审计核验；本层补核从未运行的动态列。
-fn verify_unrun_catalog(tx: &Transaction<'_>, initial: bool) -> Result<(), String> {
-    let mut stmt = tx
-        .prepare("SELECT catalog_id,impl_status,proof_status,run_status,evidence_json FROM catalog")
-        .map_err(err)?;
-    let rows = stmt
-        .query_map([], |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, String>(2)?,
-                r.get::<_, String>(3)?,
-                r.get::<_, String>(4)?,
-            ))
-        })
-        .map_err(err)?;
-    for row in rows {
-        let (id, implemented, proof, run, evidence) = row.map_err(err)?;
-        if (initial || !catalog_evidence::AXIS_IDS.contains(&id.as_str()))
-            && (implemented != "not_implemented"
-                || proof != "not_proved"
-                || run != "not_run"
-                || evidence != "{}")
-        {
-            return Err(err(format!("未运行目录{id}带无来源运行状态")));
-        }
-    }
-    Ok(())
-}
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3PrepareInvalid：{e}")
 }
@@ -343,9 +284,6 @@ fn cv(v: &Value) -> Result<V, String> {
                 .collect::<Result<_, String>>()?,
         ),
     })
-}
-fn field(s: &mut dyn NodeStore, r: &ContentRef, key: &str) -> Result<ContentRef, String> {
-    sc::path::lookup_path(s, r, &[sc::path::PathStep::Field(key.into())]).map_err(err)
 }
 fn edge(r: &ContentRef) -> Result<V, String> {
     Ok(V::Edge(r.digest().map_err(err)?))
@@ -417,16 +355,17 @@ fn templates(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::tests::located_ohlc_input;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
 
-    struct Fixture {
+    /// 真实 OHLC 域夹具：init_v3 + 真实接纳/Begin + 真实提交；同域兄弟模块的测试可复用。
+    pub(crate) struct Fixture {
         path: PathBuf,
-        conn: Connection,
+        pub(crate) conn: Connection,
         runtime: Runtime,
     }
     impl Drop for Fixture {
@@ -435,7 +374,7 @@ mod tests {
         }
     }
     impl Fixture {
-        fn new() -> Self {
+        pub(crate) fn new() -> Self {
             let path = std::env::temp_dir().join(format!(
                 "s1394-real-{}-{}-{}",
                 std::process::id(),
@@ -473,7 +412,11 @@ mod tests {
                 runtime,
             }
         }
-        fn accept_begin(
+        /// 库文件路径：只读入口测试用来开第二条 `query_only=ON` 连接。
+        pub(crate) fn db_path(&self) -> PathBuf {
+            self.path.join("s.sqlite")
+        }
+        pub(crate) fn accept_begin(
             &mut self,
             n: i64,
             row: (&str, i64, i64, i64, i64, i64),
@@ -504,7 +447,7 @@ mod tests {
             tx.commit().unwrap();
             (envelope, token)
         }
-        fn publish(
+        pub(crate) fn publish(
             &mut self,
             envelope: &Value,
             token: &str,
@@ -537,53 +480,31 @@ mod tests {
             assert_eq!(receipt.message_receipt["kind"], "Committed");
             assert_eq!(receipt.generation, n);
             assert!(count(&f.conn, "s_content_objects") > 0);
-            let tx = f.conn.transaction().unwrap();
-            let control = control_audit::prepare_s3_control_history(&tx).unwrap();
-            let raw = read_raw_events(&tx).unwrap();
-            let cuts = history::read_history(&tx, &raw, control).unwrap();
-            assert_eq!(cuts.len(), n as usize);
-            if let Some(root) = &first_snapshot {
-                assert_eq!(&cuts[0].snapshot, root);
-            } else {
-                first_snapshot = Some(cuts[0].snapshot.clone());
+            // 完整状态审计只有一份判据（state::audit）；此处核它随每代真实提交后的读数。
+            let objects_rows = count(&f.conn, "s_content_objects");
+            let witness_rows = count(&f.conn, "s_content_witnesses");
+            {
+                let tx = f.conn.transaction().unwrap();
+                let audited = state::audit(&tx).unwrap();
+                assert_eq!(audited.raw.len(), n as usize);
+                assert_eq!(audited.cuts.len(), n as usize);
+                if let Some(root) = &first_snapshot {
+                    assert_eq!(&audited.cuts[0].snapshot, root);
+                } else {
+                    first_snapshot = Some(audited.cuts[0].snapshot.clone());
+                }
+                assert!(!audited.objects.is_empty(), "真实提交后对象索引必须非空");
+                assert_eq!(
+                    audited.objects.len() as i64,
+                    objects_rows,
+                    "审计返回的对象索引必须与持久行一一对应"
+                );
+                assert_eq!(
+                    audited.auxiliary.witnesses.len() as i64,
+                    witness_rows,
+                    "审计返回的辅助索引必须与持久行一一对应"
+                );
             }
-            let mut reader = content_store::ReadStore::new(&tx).unwrap();
-            let mut store = history::HashReader::new(&mut reader);
-            let objects = object_index::load(&tx, &mut store, n).unwrap();
-            let mut previous = -1;
-            for cut in &cuts {
-                let prefix = &raw[..=cut.metadata.input_frontier as usize];
-                let counts = source_audit::audit_generated(
-                    &mut store,
-                    &cut.roots.generated_state,
-                    prefix,
-                    &cut.metadata.profile_id,
-                    &cut.metadata.rule_revision,
-                )
-                .unwrap();
-                let (withdrawals, replaces) =
-                    object_index::changes_at(&objects, cut.metadata.generation).unwrap();
-                catalog_evidence::verify_cut(
-                    &mut store,
-                    &cut.metadata,
-                    &cut.roots.generated_state,
-                    &cut.delta,
-                    prefix,
-                    previous,
-                    &counts,
-                    &withdrawals,
-                    &replaces,
-                )
-                .unwrap();
-                previous = cut.metadata.input_frontier;
-            }
-            let axes = field(
-                &mut store,
-                &cuts.last().unwrap().roots.generated_state,
-                "catalog_axes",
-            )
-            .unwrap();
-            catalog_evidence::verify_current(&tx, &mut store, &axes).unwrap();
         }
         assert!(count(&f.conn, "s_content_witnesses") > 0);
         let withdrawn: i64 = f

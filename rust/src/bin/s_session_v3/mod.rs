@@ -1,6 +1,6 @@
 //! #1394 C §5.1/5.8：S3 新域（`s-session/3`）的隔离初始化与版本分派。
 //!
-//! 本模块只负责**在全新库上建立 `s-session/3` 域**：
+//! 本模块负责版本分派与**在全新库上建立 `s-session/3` 域**，子模块提供内部运行接线：
 //!
 //! - **显式选择**：只有 `--protocol-revision s-session/3` 进本域；显式 `s-session/2` 强制走既有
 //!   v2 初始化（v2 合同要求的参数必须齐全，缺参拒绝，不回落旧域）；未知/重复/变形选择器一律
@@ -14,7 +14,8 @@
 //! - **clock 共用一份规则**：`s-clock-plan/1` 的解析/校验/hash 全部复用 `v2::ClockPlan`，
 //!   本模块不复制第二份 clock 解析（同一判断不得有宽严两档）。
 //!
-//! serve/advance/reader 尚未接线：本域现在只有 init；旧命令打到本域会被既有控制行核验
+//! 公开命令当前只有 init；内部 `driver` 已贯通接纳/Begin/Commit、恢复与完整状态审计，
+//! 但资源实测和传输接线尚未完成，serve/advance/reader 仍未注册。旧命令打到本域会被既有控制行核验
 //! （`v2::prepare_control` → 协议标记/控制表不支持）在任何写入之前拒绝，不冒充可用。
 //!
 //! ⚠️ 边界如实（独评 F2）：输入预验证保证坏输入不落盘，事务保证建表/登记同成同败；但**「创建 db
@@ -41,6 +42,8 @@ mod control_audit;
 mod history;
 mod catalog_evidence;
 mod prepared;
+mod state;
+mod driver;
 pub(super) mod aux_index;
 pub(super) mod object_index;
 mod source_audit;

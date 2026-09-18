@@ -1306,11 +1306,19 @@ pub(super) fn lookup(
     )
 }
 fn ready(conn: &Connection) -> Result<Value, String> {
+    ready_for_protocol(conn, "s-session/2")
+}
+/// 控制就绪头共用机械字段；调用方已完成相应版本的完整状态核验。
+pub(super) fn ready_for_protocol(conn: &Connection, protocol: &str) -> Result<Value, String> {
+    if !matches!(protocol, "s-session/2" | "s-session/3")
+        || meta_get_opt(conn, "protocol_revision")?.as_deref() != Some(protocol) {
+        return Err("SchemaUnsupported：Ready协议与持久域不同".into());
+    }
     let (sid, inc, epoch) = protocol_identity(conn)?;
     let clock = stored_clock(conn)?;
     let (first,head,keep):(i64,i64,i64)=conn.query_row("SELECT first_available_generation,head_generation,retain_generations FROM s_delivery_policy WHERE singleton=1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).map_err(err)?;
     Ok(
-        json!({"ok":true,"kind":"Ready","schema_revision":"s-session/2","session_id":sid,"session_generation":inc,"writer_epoch":epoch,"profile_id":meta_get_opt(conn,"profile_id")?,"profile_hash":meta_get_opt(conn,"profile_hash")?,"clock_plan_hash":clock.hash,"advance_state":meta_get_opt(conn,"advance_state")?,"generation":meta_get_opt(conn,"generation")?,"structure_cut":meta_get_opt(conn,"structure_cut")?,"index_frontier":meta_get_opt(conn,"index_frontier")?,"delivery_frontier":{"first_available_generation":first.to_string(),"head_generation":head.to_string(),"min_valid_after_generation":(first-1).to_string(),"retain_generations":keep.to_string()}}),
+        json!({"ok":true,"kind":"Ready","schema_revision":protocol,"session_id":sid,"session_generation":inc,"writer_epoch":epoch,"profile_id":meta_get_opt(conn,"profile_id")?,"profile_hash":meta_get_opt(conn,"profile_hash")?,"clock_plan_hash":clock.hash,"advance_state":meta_get_opt(conn,"advance_state")?,"generation":meta_get_opt(conn,"generation")?,"structure_cut":meta_get_opt(conn,"structure_cut")?,"index_frontier":meta_get_opt(conn,"index_frontier")?,"delivery_frontier":{"first_available_generation":first.to_string(),"head_generation":head.to_string(),"min_valid_after_generation":(first-1).to_string(),"retain_generations":keep.to_string()}}),
     )
 }
 /// `ingest` payload 的业务形状（唯一判据；v2 `handle` 与 S3 域共用，不另写第二份宽/严副本）。
@@ -2802,6 +2810,9 @@ mod tests {
     #[test]
     fn v2_ready_nonce_is_only_transport_diagnostics() {
         let f = Fixture::new(8, 2);
+        assert_eq!(ready(&open_db(&f.db).unwrap()).unwrap()["schema_revision"], "s-session/2");
+        assert!(ready_for_protocol(&open_db(&f.db).unwrap(), "s-session/3").is_err());
+        assert!(ready_for_protocol(&open_db(&f.db).unwrap(), "s-session/4").is_err());
         let e = f.wrap(json!({"op":"ready"}), "ready-1");
         let identity = ("test-c".to_string(), "1".to_string(), "1".to_string());
         let a = response(
