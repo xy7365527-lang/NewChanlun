@@ -28,7 +28,7 @@ fn ensure_domain(conn: &Connection) -> Result<(), CodecError> {
     Ok(())
 }
 
-fn ensure_format(conn: &Connection) -> Result<(), CodecError> {
+pub(super) fn ensure_format(conn: &Connection) -> Result<(), CodecError> {
     ensure_domain(conn)?;
     let format: Option<String> = conn
         .query_row(
@@ -47,19 +47,18 @@ fn ensure_format(conn: &Connection) -> Result<(), CodecError> {
     Ok(())
 }
 
-/// 仅在调用者的新 S3 域事务内初始化；不会升级旧域或改写既存格式登记。
-pub(super) fn init_schema(tx: &Transaction<'_>) -> Result<(), CodecError> {
-    ensure_domain(tx)?;
-    tx.execute_batch(
-        "CREATE TABLE IF NOT EXISTS s_content_meta (
+pub(super) const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS s_content_meta (
         singleton INTEGER PRIMARY KEY CHECK(singleton=1), content_format TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS s_content_nodes (
         digest BLOB PRIMARY KEY CHECK(typeof(digest)='blob' AND length(digest)=32),
         tag INTEGER NOT NULL CHECK(tag>=0 AND tag<=255), body BLOB NOT NULL
-    ) WITHOUT ROWID;",
-    )
-    .map_err(storage_error)?;
+    ) WITHOUT ROWID;";
+
+/// 仅在调用者的新 S3 域事务内初始化；不会升级旧域或改写既存格式登记。
+pub(super) fn init_schema(tx: &Transaction<'_>) -> Result<(), CodecError> {
+    ensure_domain(tx)?;
+    tx.execute_batch(SCHEMA).map_err(storage_error)?;
     tx.execute(
         "INSERT OR IGNORE INTO s_content_meta VALUES(1, ?1)",
         params![s_content::CONTENT_FORMAT],

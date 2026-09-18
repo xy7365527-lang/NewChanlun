@@ -229,14 +229,16 @@ impl<'a> S3Control<'a> {
                     .into(),
             );
         }
-        v2::record_begin_context(
+        let token = v2::record_begin_context(
             self.conn,
             &view.context,
             gen,
             frontier,
             base_cut,
             configured_epoch,
-        )
+        )?;
+        persist_begin_state(self.conn, &token, gen, frontier)?;
+        Ok(token)
     }
 
     /// 本次已持久 Begin 对应的 Commit 时刻（同一 attempt 的 `commit_ns`）；未 Begin 即 `Err`。

@@ -2521,7 +2521,7 @@ pub(super) fn coords_ref_from_slice(coords: &[usize]) -> CoordsRef {
 }
 
 /// 组对象的等待原因（与全量配方 `group_reasons` 同序同值）。
-fn group_reasons(view: &GroupEvidenceView<'_>) -> Vec<&'static str> {
+pub(super) fn group_reasons(view: &GroupEvidenceView<'_>) -> Vec<&'static str> {
     let mut reasons = Vec::new();
     if view.direction_evidence.is_none() {
         reasons.push("direction_not_yet_established");

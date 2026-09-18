@@ -497,22 +497,17 @@ fn normalize_schema(s: &str) -> String {
         .filter(|c| !c.is_ascii_whitespace())
         .collect()
 }
-fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
-    let all = format!(
-        "{}{}{}",
-        SCHEMA,
-        if v2 { SCHEMA_V2 } else { "" },
-        if tb02a::enabled(conn)? {
-            tb02a::SCHEMA
-        } else {
-            ""
-        }
-    );
-    let mut expected = BTreeMap::new();
-    for stmt in all.split(';').map(str::trim).filter(|s| !s.is_empty()) {
+/// 把一份 DDL 常量里的全部 `CREATE TABLE` 逐表登记进期望集合（唯一解析实现）。
+/// `label` 只进错误文案；解析与规范化判据全仓一份，不为任一域另写第二份。
+pub(super) fn expect_ddl_tables(
+    label: &str,
+    ddl: &str,
+    expected: &mut BTreeMap<String, String>,
+) -> Result<(), String> {
+    for stmt in ddl.split(';').map(str::trim).filter(|s| !s.is_empty()) {
         let rest = stmt
             .strip_prefix("CREATE TABLE ")
-            .ok_or("schema常量不是建表")?
+            .ok_or_else(|| format!("{label}不是建表"))?
             .strip_prefix("IF NOT EXISTS ")
             .unwrap_or_else(|| stmt.strip_prefix("CREATE TABLE ").unwrap());
         let name = rest
@@ -521,55 +516,15 @@ fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
             .unwrap();
         expected.insert(name.to_string(), normalize_schema(stmt));
     }
-    // #1394：存在私有格式登记表时严格核其结构与声明；无表则按旧库的完整 Delta 判据验证。
-    // 删除新库登记表不在此处硬拒：若各代稀疏 Delta 恰等于完整活动集，字节上无法与旧库区分。
-    let has_format_table: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name=?1",
-            params![delta_storage::TABLE],
-            |r| r.get(0),
-        )
-        .map_err(err)?;
-    if has_format_table == 1 {
-        expected.insert(
-            delta_storage::TABLE.to_string(),
-            normalize_schema(delta_storage::DDL),
-        );
-    }
-    // #1394 第二段：存在私有证据图表时严格核其三表结构；无表则按旧库整块域验证。
-    // 三表同生同灭（由 `evidence_store::DDL` 一次建出），缺一即模式门拒绝。
-    let has_evidence_tables: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name IN (?1,?2,?3)",
-            params![
-                evidence_store::FORMAT_TABLE,
-                evidence_store::NODES_TABLE,
-                evidence_store::ROOTS_TABLE
-            ],
-            |r| r.get(0),
-        )
-        .map_err(err)?;
-    if has_evidence_tables != 0 {
-        if has_evidence_tables != 3 {
-            return Err(err("私有证据图表不齐全（三表必须同生）"));
-        }
-        for stmt in evidence_store::DDL
-            .split(';')
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-        {
-            let rest = stmt
-                .strip_prefix("CREATE TABLE ")
-                .ok_or("证据图 DDL 不是建表")?
-                .strip_prefix("IF NOT EXISTS ")
-                .unwrap_or_else(|| stmt.strip_prefix("CREATE TABLE ").unwrap());
-            let name = rest
-                .split(|c: char| c == '(' || c.is_whitespace())
-                .next()
-                .unwrap();
-            expected.insert(name.to_string(), normalize_schema(stmt));
-        }
-    }
+    Ok(())
+}
+
+/// 由期望表集合核验整库模式（唯一判据）：`sqlite_schema` 全表逐项比对（**未知表即拒绝**），
+/// 再对每张期望表的存量行逐列核实际类型与非空约束——模式声明本身不证明存量行满足声明。
+pub(super) fn verify_expected_schema(
+    conn: &Connection,
+    expected: &BTreeMap<String, String>,
+) -> Result<(), String> {
     let mut q = conn
         .prepare(
             "SELECT type,name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name",
@@ -590,7 +545,7 @@ fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
         return Err(err("缺必需表/约束"));
     }
     // SQLite 的模式声明不证明存量行满足声明：CHECK 可被另一连接关闭，TEXT PK 可为 NULL。
-    // 对当前所有表逐列核实际类型；表名来自上方固定 DDL 的精确白名单。
+    // 对当前所有表逐列核实际类型；表名来自各域固定 DDL 的精确白名单。
     for table in expected.keys() {
         let mut columns = conn
             .prepare("SELECT type,\"notnull\",pk FROM pragma_table_info(?1) ORDER BY cid")
@@ -627,13 +582,70 @@ fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
             }
         }
     }
+    Ok(())
+}
+
+fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
+    let mut expected = BTreeMap::new();
+    expect_ddl_tables(
+        "schema常量",
+        &format!(
+            "{}{}{}",
+            SCHEMA,
+            if v2 { SCHEMA_V2 } else { "" },
+            if tb02a::enabled(conn)? {
+                tb02a::SCHEMA
+            } else {
+                ""
+            }
+        ),
+        &mut expected,
+    )?;
+    // #1394：存在私有格式登记表时严格核其结构与声明；无表则按旧库的完整 Delta 判据验证。
+    // 删除新库登记表不在此处硬拒：若各代稀疏 Delta 恰等于完整活动集，字节上无法与旧库区分。
+    let has_format_table: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name=?1",
+            params![delta_storage::TABLE],
+            |r| r.get(0),
+        )
+        .map_err(err)?;
+    if has_format_table == 1 {
+        expected.insert(
+            delta_storage::TABLE.to_string(),
+            normalize_schema(delta_storage::DDL),
+        );
+    }
+    // #1394 第二段：存在私有证据图表时严格核其三表结构；无表则按旧库整块域验证。
+    // 三表同生同灭（由 `evidence_store::DDL` 一次建出），缺一即模式门拒绝。
+    let has_evidence_tables: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name IN (?1,?2,?3)",
+            params![
+                evidence_store::FORMAT_TABLE,
+                evidence_store::NODES_TABLE,
+                evidence_store::ROOTS_TABLE
+            ],
+            |r| r.get(0),
+        )
+        .map_err(err)?;
+    if has_evidence_tables != 0 {
+        if has_evidence_tables != 3 {
+            return Err(err("私有证据图表不齐全（三表必须同生）"));
+        }
+        expect_ddl_tables("证据图 DDL", evidence_store::DDL, &mut expected)?;
+    }
+    verify_expected_schema(conn, &expected)?;
     // 表在而登记行缺/多/未声明值：与模式损坏同门，读取与写入前一律拒绝。
     delta_storage::read_mode(conn)?;
     evidence_store::read_format(conn)?;
     Ok(())
 }
 
-fn verify_epoch_history(conn: &Connection, v2: bool) -> Result<Vec<(String, i64)>, String> {
+pub(super) fn verify_epoch_history(
+    conn: &Connection,
+    v2: bool,
+) -> Result<Vec<(String, i64)>, String> {
     let generation = meta_i64(conn, "generation")?;
     let current = parse_writer_epoch(
         &meta_get_opt(conn, "writer_epoch")?.ok_or_else(|| err("缺writer_epoch"))?,
@@ -675,53 +687,104 @@ fn verify_epoch_history(conn: &Connection, v2: bool) -> Result<Vec<(String, i64)
     Ok(facts)
 }
 
+/// 全局控制行核验通过后的逐代期望（v2 与 S3 共用**同一份**消费逻辑）。
+///
+/// 这一层不判协议版本：显式 `s-session/2` / `s-session/3` 由各入口在调用
+/// [`ControlHistory::consume_header`] 之前逐字核验（`ExpectedControl::observe_batch` 与
+/// S3 控制审计入口），版本不混进共用判据，也不存在「严格入口判不出来就换一档重判」。
+pub(super) struct ControlHistory {
+    session_generation: String,
+    clock_plan_hash: String,
+    remaining: BTreeMap<(i64, String), String>,
+}
+
+impl ControlHistory {
+    pub(super) fn session_generation(&self) -> &str {
+        &self.session_generation
+    }
+    pub(super) fn clock_plan_hash(&self) -> &str {
+        &self.clock_plan_hash
+    }
+    /// 逐代 `(generation, batch_id)` → 该批真实 commit 语义时刻；调用方只读不消费。
+    pub(super) fn remaining(&self) -> &BTreeMap<(i64, String), String> {
+        &self.remaining
+    }
+    /// 消费一代发布控制头：缺期望/重复消费或身份、clock、提交时刻不一致一律拒绝，且不消费。
+    pub(super) fn consume_header(
+        &mut self,
+        generation: i64,
+        batch_id: &str,
+        session_generation: Option<&str>,
+        clock_plan_hash: Option<&str>,
+        commit_ns: Option<&str>,
+    ) -> Result<(), String> {
+        let key = (generation, batch_id.to_owned());
+        let expected_commit = self
+            .remaining
+            .get(&key)
+            .ok_or_else(|| err("v2批次控制头缺待验证期望或重复消费"))?;
+        if session_generation != Some(self.session_generation.as_str())
+            || clock_plan_hash != Some(self.clock_plan_hash.as_str())
+            || commit_ns != Some(expected_commit.as_str())
+        {
+            return Err(err("发布batch与真实语义clock/session不一致"));
+        }
+        self.remaining.remove(&key);
+        Ok(())
+    }
+    pub(super) fn finish(self) -> Result<(), String> {
+        if !self.remaining.is_empty() {
+            return Err(err("v2发布批次控制头未全部验证"));
+        }
+        Ok(())
+    }
+}
+
 /// 全局控制行通过后留下的逐代期望；结构核验必须逐项消费并检查闭合。
 pub(super) enum ExpectedControl {
     Legacy,
-    V2 {
-        session_generation: String,
-        clock_plan_hash: String,
-        remaining: BTreeMap<(i64, String), String>,
-    },
+    V2 { history: ControlHistory },
 }
 
 impl ExpectedControl {
+    /// 旧 v2 发布入口：**先逐字核 `s-session/2` 标记**，再走 v2/S3 共用的消费核心。
+    /// 标记不是 `s-session/2`（例如新域 manifest 的 `s-session/3`）一律拒绝，不放宽。
+    pub(super) fn observe_batch(
+        &mut self,
+        generation: i64,
+        batch_id: &str,
+        header: &BatchControlHeader,
+    ) -> Result<(), String> {
+        let Self::V2 { history } = self else {
+            return Ok(());
+        };
+        if header.protocol_revision.as_deref() != Some("s-session/2") {
+            return Err(err("发布batch协议标记不是 s-session/2"));
+        }
+        history.consume_header(
+            generation,
+            batch_id,
+            header.session_generation.as_deref(),
+            header.clock_plan_hash.as_deref(),
+            header.semantic_commit_ns.as_deref(),
+        )
+    }
+
+    /// 既有调用点的一行别名（`s_structure_session.rs` 仍调 `verify_header`）。
     pub(super) fn verify_header(
         &mut self,
         generation: i64,
         batch_id: &str,
         header: &BatchControlHeader,
     ) -> Result<(), String> {
-        let Self::V2 {
-            session_generation,
-            clock_plan_hash,
-            remaining,
-        } = self
-        else {
-            return Ok(());
-        };
-        let key = (generation, batch_id.to_owned());
-        let commit_ns = remaining
-            .get(&key)
-            .ok_or_else(|| err("v2批次控制头缺待验证期望或重复消费"))?;
-        if header.protocol_revision.as_deref() != Some("s-session/2")
-            || header.session_generation.as_deref() != Some(session_generation.as_str())
-            || header.clock_plan_hash.as_deref() != Some(clock_plan_hash.as_str())
-            || header.semantic_commit_ns.as_deref() != Some(commit_ns.as_str())
-        {
-            return Err(err("发布batch与真实语义clock/session不一致"));
-        }
-        remaining.remove(&key);
-        Ok(())
+        self.observe_batch(generation, batch_id, header)
     }
 
     pub(super) fn finish(self) -> Result<(), String> {
-        if let Self::V2 { remaining, .. } = self {
-            if !remaining.is_empty() {
-                return Err(err("v2发布批次控制头未全部验证"));
-            }
+        match self {
+            Self::Legacy => Ok(()),
+            Self::V2 { history } => history.finish(),
         }
-        Ok(())
     }
 }
 
@@ -730,10 +793,31 @@ impl ExpectedControl {
 pub(super) fn prepare_control(conn: &Connection) -> Result<ExpectedControl, String> {
     let enabled = active(conn)?;
     verify_schema(conn, enabled)?;
-    let mut epoch_facts = verify_epoch_history(conn, enabled)?;
+    let epoch_facts = verify_epoch_history(conn, enabled)?;
     if !enabled {
         return Ok(ExpectedControl::Legacy);
     }
+    Ok(ExpectedControl::V2 {
+        history: validate_control_history(conn, "s-session/2", epoch_facts)?,
+    })
+}
+
+/// v2 与 S3 共用的**唯一一份**控制历史判断（原 `prepare_control` 主体，逐字保留）。
+///
+/// `protocol_revision` 由入口显式传 `s-session/2` 或 `s-session/3`：它同时用于
+/// `s_protocol_meta.protocol_revision` 的逐字比对与每条持久消息 `canonical_envelope` 的
+/// 公共头校验；其它取值一律拒绝，不提供默认值、不从库内自称反推。
+pub(super) fn validate_control_history(
+    conn: &Connection,
+    protocol_revision: &str,
+    epoch_facts: Vec<(String, i64)>,
+) -> Result<ControlHistory, String> {
+    if !matches!(protocol_revision, "s-session/2" | "s-session/3") {
+        return Err(err(format!(
+            "协议版本参数只允许 s-session/2 或 s-session/3，收到 `{protocol_revision}`"
+        )));
+    }
+    let mut epoch_facts = epoch_facts;
     for table in ["s_protocol_meta", "s_delivery_policy"] {
         let count: i64 = conn
             .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
@@ -764,7 +848,7 @@ pub(super) fn prepare_control(conn: &Connection) -> Result<ExpectedControl, Stri
     .map_err(err)?;
     let clock = stored_clock(conn)?;
     let (protocol,inc,next,frontier):(String,String,i64,String)=conn.query_row("SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(err)?;
-    if protocol != "s-session/2" || next < 1 {
+    if protocol != protocol_revision || next < 1 {
         return Err(err("协议版本/attempt域错误"));
     }
     positive(&inc, "session_generation").map_err(err)?;
@@ -878,7 +962,8 @@ pub(super) fn prepare_control(conn: &Connection) -> Result<ExpectedControl, Stri
             r.get(9).map_err(err)?,
             r.get(10).map_err(err)?,
         );
-        let e = envelope(strict_json(raw.as_bytes()).map_err(err)?).map_err(err)?;
+        let e = validate_envelope(strict_json(raw.as_bytes()).map_err(err)?, protocol_revision)
+            .map_err(err)?;
         if canonical_json(&e) != raw
             || e["source_namespace"] != ns
             || e["source_epoch"] != se
@@ -1094,7 +1179,7 @@ pub(super) fn prepare_control(conn: &Connection) -> Result<ExpectedControl, Stri
             clock.phase(id, "commit", *index).map_err(err)?,
         );
     }
-    Ok(ExpectedControl::V2 {
+    Ok(ControlHistory {
         session_generation: inc,
         clock_plan_hash: clock.hash,
         remaining,
@@ -1583,14 +1668,16 @@ mod tests {
 
     fn expected_control_test_state(publications: &[(i64, &str, &str)]) -> ExpectedControl {
         ExpectedControl::V2 {
-            session_generation: "1".into(),
-            clock_plan_hash: "test-clock-hash".into(),
-            remaining: publications
-                .iter()
-                .map(|(generation, batch_id, commit_ns)| {
-                    ((*generation, (*batch_id).into()), (*commit_ns).into())
-                })
-                .collect(),
+            history: ControlHistory {
+                session_generation: "1".into(),
+                clock_plan_hash: "test-clock-hash".into(),
+                remaining: publications
+                    .iter()
+                    .map(|(generation, batch_id, commit_ns)| {
+                        ((*generation, (*batch_id).into()), (*commit_ns).into())
+                    })
+                    .collect(),
+            },
         }
     }
 
@@ -1638,6 +1725,24 @@ mod tests {
             .verify_header(2, "batch-a", &expected_control_test_header("2020"))
             .unwrap();
         expected.finish().unwrap();
+    }
+
+    /// v2 入口必须只认自己的协议标记：新域 manifest（`s-session/3`）不能借共用消费核心
+    /// 混入旧域，也不能因为共用而放宽旧入口。
+    #[test]
+    fn v2_observe_batch_rejects_s3_marker_and_keeps_shared_consumption() {
+        let mut expected = expected_control_test_state(&[(1, "batch-a", "1020")]);
+        let mut s3 = expected_control_test_header("1020");
+        s3.protocol_revision = Some("s-session/3".into());
+        assert!(expected.observe_batch(1, "batch-a", &s3).is_err());
+        // 拒绝不消费：换成真实 v2 头仍必须逐字通过并闭合。
+        expected
+            .observe_batch(1, "batch-a", &expected_control_test_header("1020"))
+            .unwrap();
+        expected.finish().unwrap();
+        // Legacy 域没有逐代期望，旧行为保持。
+        let mut legacy = ExpectedControl::Legacy;
+        assert!(legacy.observe_batch(1, "batch-a", &s3).is_ok());
     }
 
     #[test]

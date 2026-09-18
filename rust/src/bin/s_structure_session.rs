@@ -35,6 +35,9 @@ mod v2;
 mod v3;
 #[path = "s_session_v3/raw_input.rs"]
 mod raw_input;
+// #1394 C：对象集对拍判据的共用纯函数（旧 S2 adapter 与 S3 新域共用一份，见 `compute_diff`）。
+#[path = "s_session_v3/object_diff.rs"]
+mod object_diff;
 
 use std::collections::BTreeMap;
 
@@ -2374,7 +2377,37 @@ fn immutable_content(o: &Value, what: &str) -> Result<String, String> {
     Ok(canonical_json(&Value::Object(out)))
 }
 
+/// 旧域取值适配：对象 → 共用键。只用 `tb02a::slot` 定槽位，不可变内容留到真正的对拍点才读
+/// （`object_diff::plan` 按同 ID 命中顺序调用 `Content::read`，与旧实现同一求值点位）。
+struct JsonContent<'a> {
+    object: &'a Value,
+    what: &'static str,
+}
+
+impl object_diff::Content for JsonContent<'_> {
+    type Value = String;
+    fn read(&self) -> Result<String, String> {
+        immutable_content(self.object, self.what)
+    }
+}
+
+fn diff_key<'a>(
+    object: &'a Value,
+    object_id: &str,
+    what: &'static str,
+) -> object_diff::Key<JsonContent<'a>> {
+    object_diff::Key {
+        object_id: object_id.to_string(),
+        slot: tb02a::slot(object),
+        immutable: JsonContent { object, what },
+    }
+}
+
 /// 新对象集与既有持久身份对拍，产出 (upserts, withdrawals, replaces)。
+///
+/// 判据主体（同 ID 不可变内容一致 / 已撤回不得复活 / 同槽位替换 / 移除 / 真实出生）已提取到
+/// `object_diff::plan`，S2 旧域与 S3 新域共用一份，不再各写一套同义判据；本函数只做旧域的取值
+/// 与落字适配：
 ///
 /// - 同一发生区间同一 ID：先核不可变内容等价 → 等价即「未变化」，不重发，元数据仍沿用既有首次值；
 ///   异内容 → `IdentityConflict`（不吞掉、不静默改内容、不借 `DO NOTHING` 掩盖）。
@@ -2386,84 +2419,86 @@ fn compute_diff(
     stored: &StoredObjects,
     mode: delta_storage::Mode,
 ) -> Result<(Vec<Value>, Vec<Value>, Vec<Value>), String> {
-    let mut withdrawals: Vec<Value> = Vec::new();
-    let mut replaces: Vec<Value> = Vec::new();
-    let mut active_by_slot: BTreeMap<String, &Value> = BTreeMap::new();
-    let mut active_by_id: BTreeMap<String, &Value> = BTreeMap::new();
+    // 既有身份：活动集按原主序在前（撤回/替代扫描主序），撤回身份在后；两者都进同 ID 对拍。
+    // 活动表同时留作旧 full 域的首次元数据沿用（不是第二套判据，只做取值）。
+    let mut active_by_id: BTreeMap<&str, &Value> = BTreeMap::new();
+    let mut old_values: Vec<&Value> = Vec::with_capacity(stored.identities.len());
+    let mut old_keys: Vec<object_diff::Existing<JsonContent<'_>>> =
+        Vec::with_capacity(stored.identities.len());
     for old in &stored.active {
         let id = old["object_id"]
             .as_str()
-            .ok_or("StorageUnavailable：活动对象缺 object_id")?
-            .to_string();
-        active_by_slot.insert(tb02a::slot(old), old);
+            .ok_or("StorageUnavailable：活动对象缺 object_id")?;
         active_by_id.insert(id, old);
+        old_values.push(old);
+        old_keys.push(object_diff::Existing {
+            key: diff_key(old, id, "已存身份"),
+            active: true,
+        });
     }
-    let new_by_slot: BTreeMap<String, &Value> =
-        new_objects.iter().map(|o| (tb02a::slot(o), o)).collect();
+    for (id, old) in &stored.identities {
+        if active_by_id.contains_key(id.as_str()) {
+            continue;
+        }
+        old_values.push(old);
+        old_keys.push(object_diff::Existing {
+            key: diff_key(old, id, "已存身份"),
+            active: false,
+        });
+    }
+    let mut new_keys: Vec<object_diff::Key<JsonContent<'_>>> =
+        Vec::with_capacity(new_objects.len());
+    for candidate in new_objects {
+        let id = candidate["object_id"]
+            .as_str()
+            .ok_or("StorageUnavailable：本次对象缺 object_id")?;
+        new_keys.push(diff_key(candidate, id, "本次对象"));
+    }
+    let changes = object_diff::plan(&new_keys, &old_keys)?;
 
-    // 1) 以既有活动集为主序（与旧实现同序）：同区间替换 = 撤旧 + 替代；旧区间消失 = 撤。
-    for old in &stored.active {
-        match new_by_slot.get(&tb02a::slot(old)) {
-            None => withdrawals.push(tb02a::withdrawal(
-                old,
+    // 落字：撤回（理由文本 + 替代指针）与替换对，顺序即 `plan` 给的索引顺序。
+    let mut withdrawals: Vec<Value> = Vec::with_capacity(changes.withdrawals.len());
+    let mut replaces: Vec<Value> = Vec::with_capacity(changes.replaces.len());
+    for w in &changes.withdrawals {
+        let old = old_values[w.old_index];
+        let (reason, superseded_by) = match w.removal {
+            object_diff::Removal::Removed => (
                 if tb02a::typed(old) {
                     "fact_removed"
                 } else {
                     "window_removed"
                 },
                 Value::Null,
-            )),
-            Some(new) if new["object_id"] != old["object_id"] => {
-                withdrawals.push(tb02a::withdrawal(
-                    old,
+            ),
+            object_diff::Removal::Superseded => match w.new_index {
+                Some(new_index) => (
                     "superseded_by_revision",
-                    new["object_id"].clone(),
-                ));
-                replaces.push(
-                    json!({"new_object_id":new["object_id"],"old_object_id":old["object_id"]}),
-                );
-            }
-            _ => {}
-        }
+                    new_objects[new_index]["object_id"].clone(),
+                ),
+                // `plan` 的替代项必带新索引；本条为不可达防御，不 panic。
+                None => {
+                    return Err(
+                        "StorageUnavailable：替代撤回缺候选索引（共用对拍不可达）".to_string(),
+                    )
+                }
+            },
+        };
+        withdrawals.push(tb02a::withdrawal(old, reason, superseded_by));
     }
-
-    // 2) 新生/替代目标：同 ID 先核不可变内容，再决定是否发布。
-    let mut births: Vec<Value> = Vec::new();
-    for candidate in new_objects {
-        let oid = candidate["object_id"]
-            .as_str()
-            .ok_or("StorageUnavailable：本次对象缺 object_id")?
-            .to_string();
-        let existing = stored.identities.get(&oid);
-        if let Some(existing) = existing {
-            if immutable_content(existing, "已存身份")? != immutable_content(candidate, "本次对象")?
-            {
-                return Err(format!(
-                    "IdentityConflict：object_id `{oid}` 已存在且不可变内容不同（同 ID 异内容不得覆盖或吞掉）"
-                ));
-            }
-        }
-        match active_by_id.get(&oid) {
-            Some(old) => {
-                if tb02a::slot(old) != tb02a::slot(candidate) {
-                    return Err(format!(
-                        "StorageUnavailable：object_id `{oid}` 的活动发生区间与本次不一致"
-                    ));
-                }
-                // 未变化：不重发（changes-only 域的 Delta 不重复完整活动集）。
-            }
-            None => {
-                if existing.is_some() {
-                    return Err(format!(
-                        "IdentityConflict：object_id `{oid}` 是已撤回历史身份，不得复活"
-                    ));
-                }
-                births.push(candidate.clone());
-            }
-        }
+    for r in &changes.replaces {
+        replaces.push(json!({
+            "new_object_id": new_objects[r.new_index]["object_id"],
+            "old_object_id": old_values[r.old_index]["object_id"],
+        }));
     }
 
     if mode.changes_only() {
+        // 真实变化：只有真实出生进 upserts（未变化对象不重发）。
+        let births: Vec<Value> = changes
+            .births
+            .iter()
+            .map(|index| new_objects[*index].clone())
+            .collect();
         return Ok((births, withdrawals, replaces));
     }
     // 旧 full 域：Delta 仍是完整活动集；既有对象沿用既有首次元数据/批次（逐字节同旧实现）。
@@ -2534,6 +2569,14 @@ fn cancel_own_begin(
 }
 
 /// 同一 attempt 的阶段写入共用同一所有权判据，不现读新 epoch 自授予权限。
+/// 两代协议共用 Begin 占用的持久元数据；调用方持有写事务并已核写者/前沿。
+fn persist_begin_state(conn: &Connection, token: &str, gen: i64, frontier: i64) -> Result<(), String> {
+    meta_set(conn, "advance_state", &format!("begun:{token}:{gen}:{frontier}"))?;
+    meta_set(conn, "begin_generation", &gen.to_string())?;
+    meta_set(conn, "begin_input_frontier", &frontier.to_string())?;
+    meta_set(conn, "begin_token", token)
+}
+
 fn verify_begin_owner(
     conn: &Connection,
     token: &str,
@@ -2710,14 +2753,7 @@ fn advance_core(
         let gen = cur_gen + 1;
         let base_cut = meta_get_opt(&tx, "structure_cut")?.unwrap_or_else(|| "cut-0".to_string());
         let token = v2::record_begin(&tx, context, gen, frontier, &base_cut, configured_epoch)?;
-        meta_set(
-            &tx,
-            "advance_state",
-            &format!("begun:{token}:{gen}:{frontier}"),
-        )?;
-        meta_set(&tx, "begin_generation", &gen.to_string())?;
-        meta_set(&tx, "begin_input_frontier", &frontier.to_string())?;
-        meta_set(&tx, "begin_token", &token)?;
+        persist_begin_state(&tx, &token, gen, frontier)?;
         tx.commit().map_err(|e| format!("Begin commit 失败：{e}"))?;
         (
             token,
