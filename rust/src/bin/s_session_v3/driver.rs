@@ -178,6 +178,12 @@ impl Driver {
             let rows = stmt.query_map([], |r| r.get::<_, String>(0)).map_err(err)?;
             rows.collect::<Result<Vec<_>, _>>().map_err(err)?
         };
+        if originals.len() > 1 {
+            return Err(
+                "InvalidDomain：存在多条待提交原件，不能用单条Begin合并发布；保留原库等待逐条处置"
+                    .into(),
+            );
+        }
         for raw in originals {
             self.advance(&strict_json(raw.as_bytes())?)?;
         }
@@ -246,14 +252,25 @@ mod tests {
         db: PathBuf,
         profile: PathBuf,
         clock: v2::ClockPlan,
+        preserve: bool,
     }
     impl Drop for Fixture {
         fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.path);
+            if !self.preserve {
+                let _ = std::fs::remove_dir_all(&self.path);
+            }
         }
     }
     impl Fixture {
         fn new() -> Self {
+            Self::with_clock(
+                json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-driver","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{
+                "input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"},{"begin_ns":"14","commit_ns":"15"}]},
+                "input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"},{"begin_ns":"24","commit_ns":"25"}]},
+                "recover-1":{"recover_ns":"13"},"recover-2":{"recover_ns":"23"}}}),
+            )
+        }
+        fn with_clock(clock_value: Value) -> Self {
             let path = std::env::temp_dir().join(format!(
                 "s1394-driver-{}-{}-{}",
                 std::process::id(),
@@ -261,10 +278,6 @@ mod tests {
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));
             std::fs::create_dir(&path).unwrap();
-            let clock_value = json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-driver","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{
-                "input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"},{"begin_ns":"14","commit_ns":"15"}]},
-                "input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"},{"begin_ns":"24","commit_ns":"25"}]},
-                "recover-1":{"recover_ns":"13"},"recover-2":{"recover_ns":"23"}}});
             let cp = path.join("clock.json");
             std::fs::write(&cp, canonical_json(&clock_value)).unwrap();
             let base = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -288,6 +301,7 @@ mod tests {
                 db,
                 profile,
                 clock: v2::ClockPlan::parse(clock_value).unwrap(),
+                preserve: false,
             }
         }
         fn open(&self, epoch: &str) -> Result<Driver, String> {
@@ -419,6 +433,115 @@ mod tests {
         assert_eq!(meta_i64(&d.conn, "generation").unwrap(), 2);
         let tx = d.conn.transaction().unwrap();
         assert_eq!(state::audit(&tx).unwrap().cuts.len(), 2);
+    }
+
+    #[test]
+    fn opening_multiple_pending_originals_refuses_without_starting_a_batch() {
+        let f = Fixture::new();
+        let mut d = f.open("1").unwrap();
+        d.stop_after = Some("accept");
+        assert!(d
+            .handle(Fixture::ingest(1))
+            .unwrap_err()
+            .contains("stop_after_accept"));
+        // 模拟内部旧调用留下的两条完整接纳原件，不绕过各条接纳/clock的核验。
+        let tx = d.conn.transaction().unwrap();
+        let e = Fixture::ingest(2);
+        let control = control::S3Control::attach(&tx, &f.clock).unwrap();
+        let view = control.inspect_ingest(e.clone()).unwrap();
+        let input = tb02a::parse_input(&e["payload"]["raw_input"]).unwrap();
+        let accepted = raw_input::accept_events(&tx, &input, Some("1")).unwrap();
+        control.accept(&view, &accepted).unwrap();
+        tx.commit().unwrap();
+        drop(d);
+        assert!(f.open("1").err().unwrap().contains("多条待提交原件"));
+        let c = open_db(&f.db).unwrap();
+        assert_eq!(count(&c, "raw_events"), 2);
+        assert_eq!(count(&c, "s_clock_events"), 2);
+        assert_eq!(count(&c, "s_input_messages"), 2);
+        assert_eq!(meta_i64(&c, "generation").unwrap(), 0);
+        assert_eq!(
+            meta_get_opt(&c, "advance_state").unwrap().as_deref(),
+            Some("idle")
+        );
+        assert_eq!(count(&c, "s_content_publications"), 0);
+    }
+
+    /// 显式诊断：冻结9011来源的有界前缀，只测内部驱动，不产生服务资源默认值。
+    /// 保留数据库/clock/逐代测量；目录分配是提交后采样，不能冒充过程峰值。
+    #[test]
+    #[ignore = "#1394 显式S3成本测量，设置S3_CONTENT_MEASURE_PREFIX"]
+    fn testonly_s3_prefix_measurement() {
+        use std::os::unix::fs::MetadataExt;
+        use std::time::Instant;
+        let prefix: usize = std::env::var("S3_CONTENT_MEASURE_PREFIX")
+            .expect("显式前缀")
+            .parse()
+            .unwrap();
+        const SOURCE: &str = "/Users/silencehan/Projects/NewChanlun-1394-tb03b/.scratch/issue1394-long-source-search/runs/RW05_u57_l12_40_a400_2000_r25_70_d2.bars.json";
+        const HASH: &str = "76472995cbf0825ceeeaa94e89bd60d1b1416d6c7e0a7ec3a1b0ec5a90c60087";
+        let raw = std::fs::read(SOURCE).unwrap();
+        assert_eq!(sha256_hex(&raw), HASH);
+        let bars: Vec<Value> = serde_json::from_slice(&raw).unwrap();
+        assert_eq!(bars.len(), 9011);
+        assert!((1..=bars.len()).contains(&prefix));
+        let events: serde_json::Map<String, Value> = (1..=prefix).map(|n| {
+            let ns = 100 + 3 * n;
+            (format!("input-{n}"), json!({"accept_ns":ns.to_string(),"attempts":[{"begin_ns":(ns+1).to_string(),"commit_ns":(ns+2).to_string()}]}))
+        }).collect();
+        let mut f = Fixture::with_clock(
+            json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-frozen-prefix-cost","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":events}),
+        );
+        f.preserve = true;
+        let mut d = f.open("1").unwrap();
+        let mut measurements = Vec::new();
+        println!(
+            "S3_MEASURE_START {}",
+            json!({"directory":f.path,"source_sha256":HASH,"prefix":prefix,"clock_hash":f.clock.hash})
+        );
+        for (i, bar) in bars[..prefix].iter().enumerate() {
+            let n = i + 1;
+            let event = json!({"event_id":format!("long-raw-{i}"),"revision":"1","seq":bar["source_index"].to_string(),
+                "received_at":"2026-09-14T00:00:00Z","raw_text":canonical_json(bar),
+                "open":bar["open"].to_string(),"high":bar["high"].to_string(),"low":bar["low"].to_string(),"close":bar["close"].to_string(),
+                "timestamp":bar["timestamp"].to_string(),"volume":"1"});
+            let message = envelope(
+                &format!("message-{n}"),
+                json!({"op":"ingest","target_session_id":"s-session-testonly-001","target_session_generation":"1","writer_epoch":"1","clock_event_id":format!("input-{n}"),
+                "raw_input":{"schema_revision":"s-ohlc/1","session_id":"s-session-testonly-001","source_namespace":"testonly.ohlc","source_epoch":"1","instrument":"TEST.LONG.TB03B","profile":tb02a::PROFILE,"events":[event]}}),
+            );
+            let message_hash = sha256_hex(canonical_json(&message).as_bytes());
+            let started = Instant::now();
+            let result = d.handle(message).unwrap();
+            let elapsed = started.elapsed();
+            assert_eq!(result["kind"], "Committed");
+            let (nodes, bodies): (i64, i64) = d
+                .conn
+                .query_row(
+                    "SELECT count(*),COALESCE(sum(length(body)),0) FROM s_content_nodes",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .unwrap();
+            let allocated: u64 = std::fs::read_dir(&f.path)
+                .unwrap()
+                .map(|p| p.unwrap().metadata().unwrap().blocks() * 512)
+                .sum();
+            let row = json!({"generation":n,"elapsed_ns":elapsed.as_nanos().to_string(),"stored_nodes":nodes,"stored_framed_bytes":(bodies as u128+nodes as u128*(newchan_rust::s_content::DOMAIN_SEPARATOR.len()+9) as u128).to_string(),"directory_allocated_after_commit":allocated,"input_envelope_sha256":message_hash});
+            println!("S3_MEASURE_ROW {row}");
+            measurements.push(row);
+            std::fs::write(f.path.join("measurements.json"), canonical_json(&json!({"source_sha256":HASH,"prefix":prefix,"rows":measurements,"resource_profile":null,"server_started":false}))).unwrap();
+        }
+        drop(d);
+        let mut c = open_db(&f.db).unwrap();
+        c.pragma_update(None, "query_only", true).unwrap();
+        let started = Instant::now();
+        let tx = c.transaction().unwrap();
+        assert_eq!(state::audit(&tx).unwrap().cuts.len(), prefix);
+        let result = json!({"directory":f.path,"source_sha256":HASH,"prefix":prefix,"rows":measurements,"cold_audit_ns":started.elapsed().as_nanos().to_string(),"clock_hash":f.clock.hash,
+            "resource_profile":null,"server_started":false,"scope":"internal S3 frozen-source prefix; directory allocation sampled after commit includes diagnostic files; not allocation peak, job limits or full9011 acceptance"});
+        std::fs::write(f.path.join("measurements.json"), canonical_json(&result)).unwrap();
+        println!("S3_MEASURE_DONE {result}");
     }
 
     #[test]

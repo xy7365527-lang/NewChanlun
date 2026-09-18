@@ -5,8 +5,9 @@
 //! 独立正负向量：同目录 `inputs/content-format-vectors.json`。
 //!
 //! 边界（照实）：
-//! - 本模块只做内容编码与节点校验。它不判业务字段语义、不决定模板占位的出生位置
-//!   （§5.4 的发布模板位置归 S）、不设资源默认值、不做存储/网络/数据库适配。
+//! - 编解码核心不判业务字段语义、不决定模板占位的出生位置（§5.4 的发布模板位置归 S）。
+//!   `job` 与 `job_wire` 另外提供资源记账和 Unix I/O 薄适配，不设资源默认值，
+//!   不代表存储、正式 S/Q/E/B 服务和其他传输已经接线。
 //! - 精确数字不以 f64 往返：`NumberToken` 只接受合法 JSON 数字 token 并逐字保存。
 //! - 读取面不递归：值遍历与序列遍历都用显式栈 + 已核集合，恶意图不会造成无界递归。
 //! - ContentRef 是带 schema 的边：构造 V 时接入其指向的值摘要，而不是对
@@ -32,6 +33,11 @@ pub const MAX_FRAME_LEN: u64 = (1u64 << 63) - 1;
 
 /// 整次操作的累计资源与期限（#1394 采纳 C §5.6.1）。
 pub mod job;
+
+/// 真实 Unix I/O（调用者提供的 `UnixStream`）接到 job 计费与绝对期限的薄适配（仅 unix）。
+/// 只覆盖该连接上的读写字节；connect／spawn／HTTP／stderr 由外层各自带期限与计费。
+#[cfg(unix)]
+pub mod job_wire;
 
 /// 规范序列（M 树）的持久操作：concat / split / append（#1394 采纳 C §5.2）。
 pub mod sequence;

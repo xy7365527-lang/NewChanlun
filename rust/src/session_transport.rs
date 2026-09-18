@@ -2,6 +2,9 @@
 //!
 //! 输送线程只解帧和排队；权威 handler 在调用线程串行执行。
 //! 本模块不打开数据库、不恢复领域状态、不分派跨域事务。调用者先核域前件并持锁。
+//!
+//! #1394 C §5.6.1：读/写暴露带观测回调的入口（[`read_frame_observed`]／[`write_frame_observed`]），
+//! 让 job 记账按**实际发生的字节**在错误判定之前回调；[`read_frame`] 的原签名与行为保持不变。
 use crate::session_protocol::{canonical_json, strict_json};
 use serde_json::{json, Value};
 use std::fmt;
@@ -286,16 +289,84 @@ fn read_chunk(
     stream.read(bytes)
 }
 
+/// 帧观测口：唯一读循环与分块写循环共用的计费与期限钩子（#1394 C §5.6.1）。
+///
+/// 调用时序（读、写一致）：
+/// 1. 每次**真正 I/O 之前** `before_io`：job 层在这里拒绝已停止或已过绝对期限的连接，避免开工；
+/// 2. 每次底层读/写成功返回 `n>0` 之后、**任何** max/JSON/schema 判断之前 `after_bytes`，
+///    按实际 `n` 字节回调。错误路径（坏 JSON、validate 拒绝、超单帧上限、EOF 或超时前的前缀、
+///    部分写后失败）不会撤回首字节——它们在错误返回之前已经逐次回调过。
+///
+/// [`NoObserver`] 什么都不做，[`read_frame`] 用它保持原有签名与行为。
+pub trait FrameObserver {
+    fn before_io(&mut self) -> Result<(), String>;
+    fn after_bytes(&mut self, bytes: &[u8]) -> Result<(), String>;
+}
+
+/// 不记账的观测口：[`read_frame`] 的默认行为。
+pub struct NoObserver;
+
+impl FrameObserver for NoObserver {
+    fn before_io(&mut self) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn after_bytes(&mut self, _bytes: &[u8]) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+/// 固定写块上界：每次真正写最多这么多字节，不把整个 body 交给一次 `write`。
+pub const WRITE_CHUNK_BYTES: usize = 4096;
+
+/// 逐块写目标：真实实现是 [`UnixStream`]；测试可注入确定复现的部分写与失败。
+/// 本 trait 只抽「一次真正写」这一块，期限、分块上界与计费口径仍在 [`write_frame_observed`] 里统一。
+pub trait FrameSink {
+    /// 一次真正写：返回实际写入字节数；`Err`/`0` 都如实返回，不得伪装成部分进度。
+    fn write_some(&mut self, chunk: &[u8]) -> std::io::Result<usize>;
+
+    /// 下一次真正写之前的等待上限（真实 socket 用它设 `SO_SNDTIMEO`）；默认不动作。
+    fn set_chunk_timeout(&mut self, remaining: Duration) -> std::io::Result<()> {
+        let _ = remaining;
+        Ok(())
+    }
+}
+
+impl FrameSink for UnixStream {
+    fn write_some(&mut self, chunk: &[u8]) -> std::io::Result<usize> {
+        self.write(chunk)
+    }
+
+    fn set_chunk_timeout(&mut self, remaining: Duration) -> std::io::Result<()> {
+        self.set_write_timeout(Some(remaining))
+    }
+}
+
 pub fn read_frame(
     stream: &mut UnixStream,
     max: usize,
     deadline: Instant,
     validate: EnvelopeValidator,
 ) -> Result<Value, String> {
+    read_frame_observed(stream, max, deadline, validate, &mut NoObserver)
+}
+
+/// 带观测回调的唯一读循环：解析、EOF、超时与单帧约束与 [`read_frame`] 完全一致。
+///
+/// 每次底层成功读到的 `n>0` 字节在 max/JSON/schema 判断之前先经 `observer.after_bytes`；
+/// 已读前缀之后的 EOF/IO 错误不会漏账（前缀在各自成功读到的那一刻已回调）。
+pub fn read_frame_observed(
+    stream: &mut UnixStream,
+    max: usize,
+    deadline: Instant,
+    validate: EnvelopeValidator,
+    observer: &mut dyn FrameObserver,
+) -> Result<Value, String> {
     let mut trace = ReadTrace::start(stream);
     let mut bytes = Vec::new();
     let mut chunk = [0u8; 4096];
     loop {
+        observer.before_io()?;
         let remaining = deadline
             .checked_duration_since(Instant::now())
             .ok_or("TransportTimeout：请求读期限")?;
@@ -324,6 +395,8 @@ pub fn read_frame(
         if n == 0 {
             break;
         }
+        // 先按实际读到的字节回调（含随后会触发 max/JSON/schema 错误的这一块），再判上限。
+        observer.after_bytes(&chunk[..n])?;
         if bytes.len() + n > max {
             return Err("SchemaUnsupported：frame字节超过已声明界限".into());
         }
@@ -338,6 +411,42 @@ pub fn read_frame(
     }
     Ok(value)
 }
+
+/// 带观测回调的分块写：每次真正写成功 `n>0` 字节后、在做任何后续判断之前按**实际 n** 回调。
+///
+/// 写入按固定小上界（[`WRITE_CHUNK_BYTES`]）分块，不一次写完整 body；部分写后失败时，
+/// 已成功写出的前缀不会被撤回（调用方必须先收起已回调的账，再处理错误）。
+pub fn write_frame_observed(
+    sink: &mut dyn FrameSink,
+    body: &[u8],
+    deadline: Instant,
+    observer: &mut dyn FrameObserver,
+) -> Result<(), String> {
+    let mut sent = 0;
+    while sent < body.len() {
+        observer.before_io()?;
+        let remaining = deadline
+            .checked_duration_since(Instant::now())
+            .filter(|left| !left.is_zero())
+            .ok_or("TransportTimeout：请求写期限")?;
+        sink.set_chunk_timeout(remaining)
+            .map_err(|e| format!("TransportUnavailable：{e}"))?;
+        let end = (sent + WRITE_CHUNK_BYTES).min(body.len());
+        let n = sink
+            .write_some(&body[sent..end])
+            .map_err(|e| format!("TransportUnavailable：{e}"))?;
+        if n == 0 {
+            return Err("TransportUnavailable：写入返回 0 字节".into());
+        }
+        if n > end - sent {
+            return Err("TransportUnavailable：写入返回数超过本次请求长度".into());
+        }
+        observer.after_bytes(&body[sent..sent + n])?;
+        sent += n;
+    }
+    Ok(())
+}
+
 pub fn enqueue_before_deadline(
     tx: &mpsc::SyncSender<Job>,
     mut job: Job,

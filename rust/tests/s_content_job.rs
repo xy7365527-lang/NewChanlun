@@ -216,7 +216,10 @@ fn wire_and_requests_count_every_retry_and_exhaust_the_aggregate() {
     let err = job.charge_wire_bytes(1).unwrap_err();
     assert_eq!(err.code(), LIMIT_EXCEEDED);
     let snap = job.snapshot();
-    assert_eq!(snap.wire_bytes, 1000, "超限这一次不留部分计费状态");
+    assert_eq!(
+        snap.wire_bytes, 1001,
+        "§5.6.1 实读后计费：越限那一次已经发生的字节照实入账，再停止"
+    );
     assert_eq!(snap.requests, 2);
     assert_eq!(snap.stopped, Some(LIMIT_EXCEEDED));
     assert_eq!(
@@ -225,6 +228,7 @@ fn wire_and_requests_count_every_retry_and_exhaust_the_aggregate() {
         "停止后不能继续借超限"
     );
     assert_eq!(job.snapshot().requests, 2);
+    assert_eq!(job.snapshot().wire_bytes, 1001, "停止后不再接纳新字节");
 }
 
 #[test]
@@ -278,14 +282,57 @@ fn deadline_is_absolute_from_first_read_and_never_renewed() {
     assert_eq!(job.snapshot().elapsed_ms, Some(6_999));
 
     ms.store(7_000, Ordering::SeqCst);
-    assert_eq!(job.begin_first_read().unwrap_err().code(), DEADLINE);
+    // §5.6.1 实读后计费：已经发生的物理字节先照实入账，再按绝对期限停止。
     assert_eq!(job.charge_wire_bytes(10).unwrap_err().code(), DEADLINE);
-    assert_eq!(job.check_deadline().unwrap_err().code(), DEADLINE);
     let snap = job.snapshot();
-    assert_eq!(snap.wire_bytes, 10, "期限失败不留部分计费状态");
+    assert_eq!(snap.wire_bytes, 20, "越期那一刻的实收字节已先入账");
     assert_eq!(snap.elapsed_ms, Some(7_000));
     assert_eq!(snap.stopped, Some(DEADLINE));
+    assert_eq!(job.begin_first_read().unwrap_err().code(), DEADLINE);
+    assert_eq!(job.check_deadline().unwrap_err().code(), DEADLINE);
+    assert_eq!(job.charge_wire_bytes(999).unwrap_err().code(), DEADLINE);
+    assert_eq!(job.snapshot().wire_bytes, 20, "停止后不再接纳新字节");
     assert_eq!(job.finish_check().unwrap_err().code(), DEADLINE);
+}
+
+/// §5.6.1 的绝对期限取用口与真正 I/O 之前的门：起钟一次、不续期、过期就地停止。
+#[test]
+fn first_read_deadline_is_fixed_and_pre_io_check_gates_before_work() {
+    let (ms, mut job) = job_with(limits_with(|l| l.max_elapsed_ms = 1_000));
+    let first = job
+        .first_read_deadline()
+        .expect("首次读取起钟并给出绝对期限");
+    assert!(job.snapshot().started, "取绝对期限即起钟");
+    ms.store(500, Ordering::SeqCst);
+    assert_eq!(
+        job.first_read_deadline().expect("重复调用不续期"),
+        first,
+        "同一 job 的绝对期限不因再次取用而续期"
+    );
+    job.pre_io_check().expect("期限内尚未停止");
+
+    // 期限走到：真正 I/O 之前的门就地停止并报 job_deadline。
+    ms.store(1_000, Ordering::SeqCst);
+    assert_eq!(job.pre_io_check().unwrap_err().code(), DEADLINE);
+    assert_eq!(job.snapshot().stopped, Some(DEADLINE));
+    assert_eq!(job.first_read_deadline().unwrap_err().code(), DEADLINE);
+    assert_eq!(
+        job.pre_io_check().unwrap_err().code(),
+        DEADLINE,
+        "已停止的 job 原样报停止原因"
+    );
+
+    // 极端 max_elapsed_ms 不 panic：要么给出期限，要么以 job_deadline 拒绝并停止。
+    let (_ms2, mut extreme) = job_with(limits_with(|l| {
+        l.max_elapsed_ms = 9_223_372_036_854_775_807
+    }));
+    match extreme.first_read_deadline() {
+        Ok(deadline) => assert!(deadline > Instant::now()),
+        Err(err) => {
+            assert_eq!(err.code(), DEADLINE);
+            assert_eq!(extreme.snapshot().stopped, Some(DEADLINE));
+        }
+    }
 }
 
 #[test]
@@ -390,7 +437,10 @@ fn after_stop_only_deallocation_paths_still_work() {
     job.reconcile(&grant, 40).expect("停止后仍可对账已开预留");
     let snap = job.snapshot();
     assert_eq!(snap.staged.committed, 40);
-    assert_eq!(snap.wire_bytes, 0, "超限那一次没有进累计账");
+    assert_eq!(
+        snap.wire_bytes, 11,
+        "越限的尾字节照实入账（停止在记录之后）"
+    );
 }
 
 #[test]

@@ -78,12 +78,11 @@ fn check_digest(digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecEr
 }
 
 fn read_node(conn: &Connection, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+    // 只复用SQL语句，不缓存节点行或核验结果；每次仍读取当前事务原件并核摘要。
     let row: Option<(i64, Vec<u8>)> = conn
-        .query_row(
-            "SELECT tag, body FROM s_content_nodes WHERE digest=?1",
-            params![&digest[..]],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
+        .prepare_cached("SELECT tag, body FROM s_content_nodes WHERE digest=?1")
+        .map_err(storage_error)?
+        .query_row(params![&digest[..]], |row| Ok((row.get(0)?, row.get(1)?)))
         .optional()
         .map_err(storage_error)?;
     let Some((stored_tag, body)) = row else {
@@ -129,10 +128,11 @@ impl NodeSink for TxStore<'_, '_> {
             }
             NodeRead::Missing => {
                 self.tx
-                    .execute(
+                    .prepare_cached(
                         "INSERT INTO s_content_nodes(digest, tag, body) VALUES(?1, ?2, ?3)",
-                        params![&digest[..], i64::from(tag), body],
                     )
+                    .map_err(storage_error)?
+                    .execute(params![&digest[..], i64::from(tag), body])
                     .map_err(storage_error)?;
             }
         }

@@ -9,6 +9,8 @@
 //!
 //! 计费口径（逐条对应 §5.6.1 表）：
 //! - `max_total_wire_bytes`：应用层实际读写字节累计。重试与证明祖先重传**全额再计**，不去重。
+//!   入账口径是**先照实记录、再核上限与期限**：失败那一次已经发生的物理字节仍进累计
+//!   （旧行为「失败不留部分计费」按 §5.6.1 的实读后计费修正）；已停止的 job 不再接纳新字节。
 //! - `max_total_node_bytes` / `max_total_nodes`：只有 `F(tag, body)` 与摘要核对通过的
 //!   不同根节点才计入，同一根只计一次（**包括**来自本地缓存的复用）；未核摘要不进已计费集合，
 //!   坏节点重复出现也不能靠「已计过」蒙混过关。
@@ -300,7 +302,9 @@ pub struct JobSnapshot {
     /// 首次读取到本次取快照的单调时长。
     pub elapsed_ms: Option<u64>,
     /// 永久累计：实际读写字节（重传全计，取消／释放／回收都不归零）。
-    pub wire_bytes: u64,
+    /// 内部记账量用 `u128`（非 wire 协议，`limits` 仍是 `u64`）：越限那一次已经发生的
+    /// 尾字节照实入账，累计可能越过 `u64`。
+    pub wire_bytes: u128,
     /// 永久累计：已核不同根节点的分帧字节。
     pub node_bytes: u64,
     /// 永久累计：已核不同根节点的数量。
@@ -340,7 +344,7 @@ pub struct Job {
     clock: Box<dyn Clock>,
     started: Option<Instant>,
     stopped: Option<(&'static str, String)>,
-    wire_bytes: u64,
+    wire_bytes: u128,
     node_bytes: u64,
     nodes: u64,
     records: u64,
@@ -453,13 +457,76 @@ impl Job {
         self.deadline_gate()
     }
 
-    /// 显式 charge：应用层实际读写字节总数（重试与祖先重传全额再计，不去重）。
+    /// 首次读取的绝对截止 `Instant`（§5.6.1 `max_elapsed_ms`）：**gate + 起钟一次**，不续期。
+    ///
+    /// adapter 用它和旧每操作期限取更早者，两个限制同时生效。拒绝语义：
+    /// 已停止的 job 原样报停止原因；期限已过就地停止并报 `job_deadline`；
+    /// `started + max_elapsed_ms` 在单调时钟域溢出（极端 `Instant`）时同样停定并拒绝，
+    /// 不用饱和值冒充可用期限。
+    pub fn first_read_deadline(&mut self) -> Result<Instant, CodecError> {
+        self.gate()?;
+        if self.started.is_none() {
+            self.started = Some(self.clock.now());
+        }
+        let started = self.started.expect("上面已保证起钟");
+        match started.checked_add(Duration::from_millis(self.limits.max_elapsed_ms)) {
+            Some(deadline) => Ok(deadline),
+            None => Err(self.stop(
+                DEADLINE,
+                format!(
+                    "起始 Instant 加上 max_elapsed_ms {} ms 溢出单调时钟域：无法给出绝对期限",
+                    self.limits.max_elapsed_ms
+                ),
+            )),
+        }
+    }
+
+    /// 每次**真正 I/O 之前**的门：已停止原样报停止原因；绝对期限已过则就地停止并报 `job_deadline`。
+    ///
+    /// 通过本口只说明「此刻尚未停止、尚未过期」，不是无限开工许可：I/O 结束后仍必须按实际字节
+    /// [`Job::charge_wire_bytes`]；停止后本口即拒绝后续 I/O。
+    pub fn pre_io_check(&mut self) -> Result<(), CodecError> {
+        self.gate()
+    }
+
+    /// 实际 wire 字节的入账口（#1394 C §5.6.1）：**先照实记录，再核上限与绝对期限**。
+    ///
+    /// 一次真实读/写已经发生的物理字节必须先进累计账，然后才判是否越限：
+    /// - 越过 `max_total_wire_bytes`：停止本 job 并报 `job_limit_exceeded`，**本次字节已入账**；
+    /// - 已过绝对期限：同样先入账，再以 `job_deadline` 停止（半开区间：必须在期限前收尾）。
+    ///
+    /// 已停止的 job 不再接纳任何新字节——本口按停止原因拒绝，**不**把入账当成重新开工的许可。
     /// 首次调用即起绝对期限的钟（等价于 [`Job::begin_first_read`]），后续调用只检查不续期。
     pub fn charge_wire_bytes(&mut self, actual_bytes: u64) -> Result<(), CodecError> {
-        self.begin_first_read()?;
-        let cap = self.limits.max_total_wire_bytes;
-        let projected = self.add_cumulative(LIMIT_FIELDS[0], cap, self.wire_bytes, actual_bytes)?;
-        self.wire_bytes = projected;
+        if let Some(err) = self.stopped_err() {
+            return Err(err);
+        }
+        if self.started.is_none() {
+            self.started = Some(self.clock.now());
+        }
+        // 物理字节已经发生：先照实入账，再核上限/期限。
+        self.wire_bytes = match self.wire_bytes.checked_add(u128::from(actual_bytes)) {
+            Some(total) => total,
+            None => {
+                self.wire_bytes = u128::MAX;
+                return Err(self.stop(
+                    LIMIT_EXCEEDED,
+                    format!("{} 累计溢出内部 u128 记账域", LIMIT_FIELDS[0]),
+                ));
+            }
+        };
+        if self.wire_bytes > u128::from(self.limits.max_total_wire_bytes) {
+            return Err(self.stop(
+                LIMIT_EXCEEDED,
+                format!(
+                    "{} 累计 {} 超过上限 {}（实际字节已先入账再停止）",
+                    LIMIT_FIELDS[0], self.wire_bytes, self.limits.max_total_wire_bytes
+                ),
+            ));
+        }
+        if let Err(err) = self.deadline_gate() {
+            return Err(self.stop(DEADLINE, err.detail().to_string()));
+        }
         Ok(())
     }
 
