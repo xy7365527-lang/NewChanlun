@@ -39,6 +39,8 @@ mod commit;
 mod generation;
 mod control_audit;
 mod history;
+mod catalog_evidence;
+mod prepared;
 pub(super) mod aux_index;
 pub(super) mod object_index;
 mod source_audit;

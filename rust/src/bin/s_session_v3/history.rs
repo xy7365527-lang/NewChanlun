@@ -27,6 +27,7 @@ pub(super) fn read_history(
     raw: &[Value],
     mut control: v2::ControlHistory,
 ) -> Result<Vec<PublishedCut>, String> {
+    verify_required_meta(tx)?;
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
     let mut store = HashReader {
         source: &mut reader,
@@ -279,6 +280,11 @@ pub(super) fn read_history(
     if meta_i64(tx, "last_advance_frontier")? != previous {
         return Err(err("根前沿与完整发布史不符"));
     }
+    if let Some(last) = output.last() {
+        if meta_get_opt(tx, "index_frontier")?.as_deref() != Some(last.batch_id.as_str()) {
+            return Err(err("根批次与完整发布史末代不符"));
+        }
+    }
     Ok(output)
 }
 
@@ -444,9 +450,18 @@ fn hash_array(nodes: &[NodeDigest]) -> Result<NodeDigest, String> {
     .map(|b| b.digest)
     .map_err(err)
 }
-struct HashReader<'a> {
+pub(super) struct HashReader<'a> {
     source: &'a mut dyn NodeSource,
     overlay: BTreeMap<NodeDigest, (u8, Vec<u8>)>,
+}
+impl<'a> HashReader<'a> {
+    /// 派生节点只留在内存，用于写入前审计，绝不通过 NodeSink 改 SQLite。
+    pub(super) fn new(source: &'a mut dyn NodeSource) -> Self {
+        Self {
+            source,
+            overlay: BTreeMap::new(),
+        }
+    }
 }
 impl NodeSource for HashReader<'_> {
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
@@ -551,6 +566,16 @@ mod tests {
             .err()
             .expect("different valid descriptor must fail");
         assert!(error.contains("持久引用与实际内容根不同"), "{error}");
+    }
+
+    #[test]
+    fn nonempty_but_wrong_root_batch_cannot_be_repaired_by_the_next_write() {
+        let mut f = published();
+        meta_set(&f.conn, "index_frontier", "batch3-wrong").unwrap();
+        let error = audit(&mut f.conn)
+            .err()
+            .expect("wrong root tuple must fail");
+        assert!(error.contains("根批次与完整发布史末代不符"), "{error}");
     }
 
     #[test]

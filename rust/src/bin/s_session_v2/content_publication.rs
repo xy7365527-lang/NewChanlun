@@ -196,7 +196,7 @@ fn json_value(v: &serde_json::Value) -> Result<V, String> {
 
 /// 冻结标量和当前 Begin 必须来自同一事务；不调用只认识 v2/旧 batch 的根审计器。
 /// 旧可达历史与全部来源审计是调用者在本事务写入前的独立义务，本函数不为它们背书。
-fn verify_current_begin(
+pub(super) fn verify_current_begin(
     tx: &Transaction<'_>,
     token: &str,
     m: &ManifestMetadata,
