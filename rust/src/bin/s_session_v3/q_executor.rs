@@ -59,6 +59,16 @@ pub(super) struct Pending<R> {
 }
 
 impl<R> Pending<R> {
+    /// 监听循环只观察终态，不在一个慢连接上阻塞接纳或收尾其他连接。
+    pub(super) fn try_result(&mut self) -> Option<Result<R, String>> {
+        match self.receiver.try_recv() {
+            Ok(result) => Some(result),
+            Err(mpsc::TryRecvError::Empty) => None,
+            Err(mpsc::TryRecvError::Disconnected) => {
+                Some(Err("Incomplete：Q executor worker 在返回结果前退出".into()))
+            }
+        }
+    }
     pub(super) fn recv(self) -> Result<R, String> {
         self.receiver
             .recv()

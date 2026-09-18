@@ -1,8 +1,6 @@
 //! #1394 C §5.5/5.6.1：仅由Q21配置构造的查询运行时。
 //! 三条v3路由共用现有审计/分页/内容/Watch判据；不创建八字段消费者Job。
 //! 已接受的TCP连接先占槽，再读有界HTTP请求；本模块不自行bind/监听或加载部署默认值。
-// #1394 新生入口待驱动：本票后续HTTP/CLI接线完成后移除此豁免。
-#![allow(dead_code)]
 use super::{
     capture::{AuditReader, ConfiguredCapture},
     q_content,
@@ -51,6 +49,7 @@ enum Request {
 pub(super) struct Runtime {
     executor: Executor,
     epoch: String,
+    control_instance_id: String,
 }
 impl Runtime {
     pub(super) fn new(
@@ -62,8 +61,14 @@ impl Runtime {
         Ok(Self {
             executor: Executor::new(path, resources)?,
             epoch: epoch.into(),
+            control_instance_id: String::new(),
         })
     }
+    pub(super) fn with_control_instance_id(mut self, id: String) -> Self {
+        self.control_instance_id = id;
+        self
+    }
+    #[cfg(test)]
     pub(super) fn resource_digest(&self) -> &str {
         self.executor.resources().digest()
     }
@@ -71,10 +76,18 @@ impl Runtime {
     /// 本口消费连接所有权；返回Err只供记录，调用者不得再发送第二份HTTP响应。
     pub(super) fn accept_http(&self, connection: TcpStream) -> Result<Pending<()>, String> {
         let epoch = self.epoch.clone();
+        let control_instance_id = self.control_instance_id.clone();
         match self.executor.try_submit_owned(
             connection,
             move |mut connection, reader, resources, leases, _queued_at| {
-                serve_http(&mut connection, reader, resources, leases, &epoch)
+                serve_http(
+                    &mut connection,
+                    reader,
+                    resources,
+                    leases,
+                    &epoch,
+                    &control_instance_id,
+                )
             },
         ) {
             Ok(pending) => Ok(pending),
@@ -99,6 +112,7 @@ impl Runtime {
             }
         }
     }
+    #[cfg(test)]
     pub(super) fn dispatch(
         &self,
         path: &str,
@@ -113,6 +127,7 @@ impl Runtime {
     }
     /// 网络适配使用本口：完整body写出或失败前一直占用该worker和active+queued槽位。
     /// 请求body的HTTP读取/头处理仍属上层；本口不创建监听器。
+    #[cfg(test)]
     pub(super) fn dispatch_to<W: q_watch::TimedWrite + Send + 'static>(
         &self,
         path: &str,
@@ -130,6 +145,7 @@ impl Runtime {
 
     /// 实际消息体写出仍取原socket_write_timeout；Watch只在完整送达后推进。
     /// HTTP头不在此接口；消费者若在本地调用并要累计自身wire，应另走其Job适配。
+    #[cfg(test)]
     pub(super) fn send<W: q_watch::TimedWrite>(
         &self,
         reply: q_watch::Reply,
@@ -152,6 +168,7 @@ fn parse_request(path: &str, body: &[u8], resources: &QResources) -> Result<Requ
         _ => return Err("QRouteInvalid：不是已声明的v3查询路由".into()),
     })
 }
+#[cfg(test)]
 fn execute(
     reader: &mut AuditReader,
     resources: &QResources,
@@ -190,31 +207,118 @@ fn serve_http<S: q_http_input::TimedRead + q_watch::TimedWrite>(
     resources: &QResources,
     leases: &ClientLeases,
     epoch: &str,
+    control_instance_id: &str,
 ) -> Result<(), String> {
-    let received = (|| {
-        let mut input = q_http_input::Input::new(stream, resources)?;
-        let head = input.head()?;
-        if head.method != "POST" {
-            return Err(q_http_input::Failure {
+    let mut input = match q_http_input::Input::new(stream, resources) {
+        Ok(input) => input,
+        Err(failure) => return send_failure(stream, resources, leases, epoch, None, None, failure),
+    };
+    let head = match input.head() {
+        Ok(head) => head,
+        Err(failure) => return send_failure(stream, resources, leases, epoch, None, None, failure),
+    };
+    let (get_path, query) = head
+        .path
+        .split_once('?')
+        .map_or((head.path.as_str(), ""), |(path, query)| (path, query));
+    if head.method == "GET" {
+        if query.split('&').any(|part| !part.is_empty()) {
+            return send_failure(
+                stream,
+                resources,
+                leases,
+                epoch,
+                None,
+                None,
+                q_http_input::Failure {
+                    status: 400,
+                    error: "InvalidQuery",
+                    detail: "就绪控制读口不接受查询参数".into(),
+                },
+            );
+        }
+        if get_path != "/api/ready" {
+            return send_failure(
+                stream,
+                resources,
+                leases,
+                epoch,
+                None,
+                None,
+                q_http_input::Failure {
+                    status: 404,
+                    error: "not found",
+                    detail: "未知查询路径".into(),
+                },
+            );
+        }
+        let result = reader.with_capture(
+            resources,
+            &mut ServerAccess::new(resources),
+            |capture, _| {
+                let payload = json!({
+                    "ok": true,
+                    "cut": capture.ready_cut()?,
+                    "producer_epoch": epoch,
+                    "control_instance_id": control_instance_id,
+                });
+                let mut access = ServerAccess::new(resources);
+                let body =
+                    q_wire::encode(&payload, resources.limit(Limit::ReplyBytes), &mut access)?
+                        .ok_or_else(|| "Incomplete：ready回复超过max_reply_bytes".to_string())?;
+                q_watch::Reply::plain(body, resources)
+            },
+        );
+        return match result {
+            Ok(reply) => send_http(stream, reply, 200, resources, leases),
+            Err(detail) => send_failure(
+                stream,
+                resources,
+                leases,
+                epoch,
+                None,
+                None,
+                failure(detail, true),
+            ),
+        };
+    }
+    if head.method != "POST" {
+        return send_failure(
+            stream,
+            resources,
+            leases,
+            epoch,
+            None,
+            None,
+            q_http_input::Failure {
                 status: 501,
                 error: "UnsupportedMethod",
                 detail: "v3查询要求POST".into(),
-            });
-        }
-        if !["/api/v3/snapshot", "/api/v3/content", "/api/v3/watch"].contains(&head.path.as_str()) {
-            return Err(q_http_input::Failure {
+            },
+        );
+    }
+    // POST沿用旧HTTP路由的完整路径匹配；查询串不能被静默剥掉后再放行。
+    let path = head.path.as_str();
+    if !["/api/v3/snapshot", "/api/v3/content", "/api/v3/watch"].contains(&path) {
+        return send_failure(
+            stream,
+            resources,
+            leases,
+            epoch,
+            None,
+            None,
+            q_http_input::Failure {
                 status: 404,
                 error: "not found",
                 detail: "未知查询路径".into(),
-            });
-        }
-        let body = input.body(&head)?;
-        Ok((head.path, body))
-    })();
-    let (path, body) = match received {
-        Ok(request) => request,
+            },
+        );
+    }
+    let body = match input.body(&head) {
+        Ok(body) => body,
         Err(failure) => return send_failure(stream, resources, leases, epoch, None, None, failure),
     };
+    let path = path.to_string();
     let envelope = match q_wire::parse(&body, resources) {
         Ok(envelope) => envelope,
         Err(detail) => {
@@ -777,8 +881,9 @@ sys.stdout.buffer.write(canonical(r))"#;
         for (wire,status,error) in [
             (b"POST /api/v3/snapshot HTTP/1.1\r\nContent-Length: 1\r\ncontent-length: 1\r\n\r\nx".to_vec(),400,"InvalidQuery"),
             (b"POST /api/v3/snapshot HTTP/1.1\r\nContent-Length: 1\r\nTransfer-Encoding: chunked\r\n\r\nx".to_vec(),400,"InvalidQuery"),
+            (http_request("/api/v3/snapshot?x=1", b""),404,"not found"),
             (b"POST /api/v2/snapshot HTTP/1.1\r\n\r\n".to_vec(),404,"not found"),
-            (b"GET /api/v3/snapshot HTTP/1.1\r\n\r\n".to_vec(),501,"UnsupportedMethod"),
+            (b"GET /api/v3/snapshot HTTP/1.1\r\n\r\n".to_vec(),404,"not found"),
             (http_request("/api/v3/snapshot",b"{\"x\":1,\"x\":2}"),400,"InvalidQuery"),
         ] {
             let (result,response)=exchange(&rt,&wire);result.unwrap();
@@ -826,6 +931,81 @@ sys.stdout.buffer.write(canonical(r))"#;
             reply["payload"]["identity_binding"],
             "request_echo_unverified"
         );
+    }
+
+    #[test]
+    fn ready_is_source_backed_bare_json_and_query_is_rejected_before_capture() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let r = resources();
+        let rt = Runtime::new(f.db_path(), Arc::clone(&r), "7")
+            .unwrap()
+            .with_control_instance_id("control-test".into());
+        let ready = b"GET /api/ready HTTP/1.1\r\nHost: localhost\r\n\r\n";
+        let (result, wire) = exchange(&rt, ready);
+        result.unwrap();
+        let (status, body) = http_parts(&wire);
+        assert_eq!(status, 200);
+        assert_eq!(body.as_object().unwrap().len(), 4);
+        assert_eq!(body["ok"], true);
+        assert_eq!(body["producer_epoch"], "7");
+        assert_eq!(body["control_instance_id"], "control-test");
+        let cut = body["cut"].as_object().unwrap();
+        assert_eq!(cut.len(), 6);
+        let p = projection(&f, &r);
+        let fixed = &p.wire["fixed_cut"];
+        assert_eq!(
+            body["cut"],
+            json!({"session_id":fixed["session_id"],
+            "session_generation":fixed["session_generation"],"generation":"1",
+            "structure_cut":"cut-1","catalog_revision":fixed["catalog_revision"],
+            "index_frontier":fixed["index_frontier"]})
+        );
+        let first_generation = cut["generation"].as_str().unwrap().to_owned();
+
+        publish(&mut f, 2);
+        let (result, wire) = exchange(&rt, ready);
+        result.unwrap();
+        let (_, body) = http_parts(&wire);
+        assert_ne!(
+            body["cut"]["generation"].as_str().unwrap(),
+            first_generation
+        );
+
+        // 查询串在数据库打开前即拒绝；即使路径不存在，也不会变成503。
+        let unavailable =
+            Runtime::new(f.db_path().with_extension("absent"), Arc::clone(&r), "7").unwrap();
+        let query = b"GET /api/ready?x=1 HTTP/1.1\r\nHost: localhost\r\n\r\n";
+        let (result, wire) = exchange(&unavailable, query);
+        result.unwrap();
+        assert_eq!(http_parts(&wire).0, 400);
+
+        let corrupt = f.db_path().with_extension("corrupt-ready");
+        std::fs::write(&corrupt, b"not sqlite").unwrap();
+        let corrupt_rt = Runtime::new(corrupt.clone(), Arc::clone(&r), "7").unwrap();
+        let (result, wire) = exchange(&corrupt_rt, ready);
+        result.unwrap();
+        assert_eq!(http_parts(&wire).0, 503);
+        let _ = std::fs::remove_file(corrupt);
+
+        let mut limited = strict_json(r.canonical().as_bytes()).unwrap();
+        limited["limits"]["max_reply_bytes"] = json!("1");
+        let limited = Arc::new(QResources::parse(canonical_json(&limited).as_bytes()).unwrap());
+        let limited_rt = Runtime::new(f.db_path(), limited, "7").unwrap();
+        let (result, wire) = exchange(&limited_rt, ready);
+        assert!(result.is_err());
+        assert!(wire.is_empty());
+
+        // 控制身份仍完好但业务目录被篡改，ready也必须重新完整核验并拒绝。
+        f.conn
+            .execute(
+                "UPDATE catalog SET title='tampered-ready' WHERE catalog_id='CC-001'",
+                [],
+            )
+            .unwrap();
+        let (result, wire) = exchange(&rt, ready);
+        result.unwrap();
+        assert_eq!(http_parts(&wire).0, 503);
     }
     #[test]
     fn http_frame_includes_headers_and_all_errors_obey_reply_bound() {

@@ -14,8 +14,8 @@
 //! - **clock 共用一份规则**：`s-clock-plan/1` 的解析/校验/hash 全部复用 `v2::ClockPlan`，
 //!   本模块不复制第二份 clock 解析（同一判断不得有宽严两档）。
 //!
-//! 公开命令当前只有 init；内部 `driver` 已贯通接纳/Begin/Commit、恢复与完整状态审计，
-//! 但资源实测和传输接线尚未完成，serve/advance/reader 仍未注册。旧命令打到本域会被既有控制行核验
+//! 公开命令有 init 和显式 query-serve；内部 `driver` 已贯通接纳/Begin/Commit、恢复与完整状态审计，
+//! 但资源实测尚未完成，S serve/advance/reader 仍未注册。旧命令打到本域会被既有控制行核验
 //! （`v2::prepare_control` → 协议标记/控制表不支持）在任何写入之前拒绝，不冒充可用。
 //!
 //! ⚠️ 边界如实（独评 F2）：输入预验证保证坏输入不落盘，事务保证建表/登记同成同败；但**「创建 db
@@ -60,6 +60,10 @@ mod q_executor;
 mod q_runtime;
 #[cfg(unix)]
 mod q_http_input;
+#[cfg(unix)]
+mod q_listener;
+#[cfg(unix)]
+mod q_serve;
 #[cfg(unix)]
 mod capture;
 pub(super) mod aux_index;
@@ -118,9 +122,18 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
         .get(positions[0] + 1)
         .filter(|v| !v.is_empty() && !v.starts_with("--"))
         .ok_or_else(|| format!("VersionUnsupported：{SELECTOR} 缺版本值"))?;
+    if cmd == "query-serve" && value == PROTOCOL_REVISION {
+        #[cfg(unix)]
+        {
+            q_serve::run(args)?;
+            return Ok(true);
+        }
+        #[cfg(not(unix))]
+        return Err("VersionUnsupported：Q3监听入口当前需要Unix平台".into());
+    }
     if cmd != "init" {
         return Err(format!(
-            "VersionUnsupported：{SELECTOR} 目前只适用于 init；`{cmd}` 尚未接线，拒绝执行"
+            "VersionUnsupported：{SELECTOR} 目前只适用于 init 或 s-session/3 query-serve；`{cmd}` 尚未接线，拒绝执行"
         ));
     }
     if value == PROTOCOL_REVISION {

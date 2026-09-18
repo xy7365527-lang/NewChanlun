@@ -120,6 +120,24 @@ impl ConfiguredCapture<'_> {
         let (_, incarnation, _) = v2::protocol_identity(&self.capture.db)?;
         Ok((session, incarnation))
     }
+    /// 沿旧控制器ready小回执；调用前已经完整审计，不展开Snapshot rows。
+    pub(super) fn ready_cut(&self) -> Result<Value, String> {
+        let (session, incarnation) = self.identity()?;
+        let generation = self.capture.generation();
+        let catalog = meta_get_opt(&self.capture.db, "catalog_revision")?
+            .ok_or_else(|| err("已核捕获缺目录版本"))?;
+        let index = self
+            .capture
+            .audited
+            .cuts
+            .last()
+            .map_or("", |cut| cut.batch_id.as_str());
+        Ok(
+            json!({"session_id":session,"session_generation":incarnation,
+            "generation":generation.to_string(),"structure_cut":format!("cut-{generation}"),
+            "catalog_revision":catalog,"index_frontier":index}),
+        )
+    }
     pub(super) fn watch(
         &mut self,
         request: &q_watch::Request,
@@ -1020,11 +1038,13 @@ impl AuditReader {
             }
         };
         job.pre_io_check().map_err(err)?;
+        seam("verify_complete");
         let mut capture = ConfiguredCapture {
             capture: proof,
             resources,
         };
         let output = action(&mut capture, job);
+        seam("action_complete");
         packed.restore(capture.capture);
         // 缓存是action之前已独立核完的不可变捕获，不是查询结果/安装提交；
         // 沿旧AuditReader语义，查询错误或其后job停止不撤销此前有效proof。
@@ -1048,6 +1068,7 @@ impl AuditReader {
         let local = until(limits.capture_deadline_ms)?;
         let deadline = hard.map_or(local, |d| d.min(local));
         for attempt in 0..2 {
+            seam("capture_start");
             job.charge_requests(1).map_err(err)?;
             check(deadline, "Capture")?;
             let identity = file_identity(&self.path)?;
@@ -1099,6 +1120,7 @@ impl AuditReader {
                 .map_err(sql_err)?;
             let (candidate, image, versions) =
                 captured.map_err(|e| phase_error(e, deadline, "Capture"))?;
+            seam("verify_start");
             let local = until(limits.verify_deadline_ms)?;
             let verify_deadline = hard.map_or(local, |d| d.min(local));
             if candidate && versions.iter().all(|v| *v == versions[0]) {
@@ -2012,5 +2034,79 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
             assert!(!action_called);
             assert!(reader.cached.is_none());
         }
+    }
+
+    #[test]
+    #[ignore = "#1394 显式冻结库Q冷读测量，需Q3_CONTENT_MEASURE_DB/RESOURCES/OUTPUT/HASH"]
+    fn testonly_q_frozen_capture_measurement() {
+        use newchan_rust::s_content::access::Access;
+        use std::fs;
+        use std::io::Write;
+        struct Server;
+        impl Access for Server {
+            fn owner_job(&mut self) -> Option<&mut Job> {
+                None
+            }
+        }
+        let path = std::path::PathBuf::from(
+            std::env::var("Q3_CONTENT_MEASURE_DB").expect("显式只读库副本"),
+        );
+        let config = std::path::PathBuf::from(
+            std::env::var("Q3_CONTENT_MEASURE_RESOURCES").expect("显式规范测试资源"),
+        );
+        let output = std::path::PathBuf::from(
+            std::env::var("Q3_CONTENT_MEASURE_OUTPUT").expect("独立测量结果"),
+        );
+        let expected = std::env::var("Q3_CONTENT_MEASURE_HASH").expect("冻结DB哈希");
+        assert_eq!(sha256_hex(&fs::read(&path).unwrap()), expected);
+        assert!(!output.exists(), "保留已有证据，禁止覆盖");
+        let r = q_resources::QResources::load(&config).unwrap();
+        let mut reader = AuditReader::new(path.clone(), &r);
+        let mut rows = Vec::new();
+        for pass in ["cold_reader", "warm_reader"] {
+            let start = Instant::now();
+            let mut events = Vec::new();
+            let mut verified_capture = None;
+            let result=reader.with_seam(&r,&mut Server,|event| {
+                events.push(json!({"phase":event,"elapsed_ns":start.elapsed().as_nanos().to_string()}));
+            },|capture,access| {
+                let head=capture.capture.generation();
+                verified_capture=Some(json!({"generation":head.to_string(),"capture_digest":capture.capture.digest(),"captured_bytes":capture.capture.captured_bytes.to_string(),"source_versions":capture.capture.source_versions}));
+                let mut deltas=Vec::new();
+                if pass=="cold_reader" {
+                    // 诊断永久历史根的成本，不调用受delivery保留窗口约束的公共reader。
+                    // 本口在cfg(test)内，不能令已过期Delta重新获得交付资格。
+                    let tx=capture.capture.db.transaction().map_err(err)?;
+                    let mut source=content_store::ReadStore::new(&tx).map_err(err)?;
+                    let mut graph=history::HashReader::new(&mut source);
+                    for cut in &capture.capture.audited.cuts {
+                        let usage=q_delta::measure(&mut graph,&cut.delta,&r,access)?;
+                        deltas.push(json!({"generation":cut.metadata.generation.to_string(),"nodes":usage.nodes.to_string(),"node_bytes":usage.node_bytes.to_string(),"records":usage.records.to_string()}));
+                    }
+                }
+                Ok(json!({"full_delta_usage":deltas}))
+            });
+            let ok = result.is_ok();
+            let stats = reader.stats();
+            rows.push(json!({"pass":pass,"ok":ok,"elapsed_ns":start.elapsed().as_nanos().to_string(),"events":events,
+                "verified_capture":verified_capture,"value":result.as_ref().ok(),"error":result.as_ref().err(),"reader_stats":{"captures":stats.captures,"cache_hits":stats.cache_hits,"cached_bytes":stats.cached_bytes}}));
+            if !ok {
+                break;
+            } // 真正超限后记录，不换更大预算重试或假造成功。
+        }
+        reader.close();
+        let after = sha256_hex(&fs::read(&path).unwrap());
+        assert_eq!(after, expected);
+        let result = json!({"schema_revision":"testonly-q-content-measurement/1","source_db":path,"source_db_sha256":expected,
+            "resource_config":strict_json(r.canonical().as_bytes()).unwrap(),"resource_config_sha256":r.digest(),"passes":rows,
+            "source_db_unchanged":true,"server_started":false,"resource_profile":null,
+            "scope":"fresh AuditReader and same-reader cache; OS page cache not cleared; phase timestamps and permanent historical Delta closures only; no delivery-retention bypass; not RSS/storage peaks, deployment resources or full9011 acceptance"});
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&output)
+            .unwrap();
+        f.write_all(canonical_json(&result).as_bytes()).unwrap();
+        println!("Q3_MEASURE_RESULT {}", canonical_json(&result));
     }
 }
