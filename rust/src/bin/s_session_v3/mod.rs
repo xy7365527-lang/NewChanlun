@@ -49,6 +49,8 @@ mod projection;
 mod q_resources;
 mod q_delta;
 mod q_snapshot;
+mod q_wire;
+mod q_content;
 #[cfg(unix)]
 mod capture;
 pub(super) mod aux_index;

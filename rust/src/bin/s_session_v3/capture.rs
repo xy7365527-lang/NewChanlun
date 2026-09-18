@@ -109,6 +109,57 @@ pub(super) struct DeltaReferences {
     pub validated_capture_digest: String,
 }
 impl ConfiguredCapture<'_> {
+    pub(super) fn content(
+        &mut self,
+        request: &q_content::Request,
+        producer_epoch: &str,
+        job: &mut newchan_rust::s_content::job::Job,
+    ) -> Result<Vec<u8>, String> {
+        use q_resources::Limit;
+        request.validate_resources(self.resources)?;
+        let deadline = job.first_read_deadline().map_err(err)?;
+        let tx = self.capture.db.transaction().map_err(sql_err)?;
+        let session = meta_get_opt(&tx, "session_id")?.ok_or_else(|| err("缺会话身份"))?;
+        let (_, incarnation, _) = v2::protocol_identity(&tx)?;
+        request.validate_identity(&session, &incarnation)?;
+        let mut source = content_store::ReadStore::new(&tx).map_err(err)?;
+        let mut graph = history::HashReader::bounded(
+            &mut source,
+            Some(deadline),
+            Some(self.resources.limit(Limit::CaptureBytes)),
+        );
+        let root = match request.anchor_kind() {
+            q_content::Anchor::Projection { generation, mode } => {
+                let actual = projection::build(
+                    &tx,
+                    &self.capture.audited,
+                    &mut graph,
+                    *generation,
+                    *mode,
+                    self.resources.limit(Limit::CaptureBytes),
+                    job,
+                )?;
+                reader::check_projection_anchor(&actual, request.anchor())?;
+                actual.root
+            }
+            q_content::Anchor::Delta => {
+                let cut = reader::validated_delta(&tx, &self.capture.audited, request.anchor())?;
+                // Content回复也包含Delta引用，不能借片段路径绕过完整闭包的三原子门。
+                q_delta::measure(&mut graph, &cut.delta, self.resources, job)?;
+                cut.delta.clone()
+            }
+        };
+        let fragment = request.read(&mut graph, &root, self.resources, job)?;
+        request.reply(
+            fragment,
+            &self.capture.digest,
+            &session,
+            &incarnation,
+            producer_epoch,
+            self.resources,
+            job,
+        )
+    }
     pub(super) fn snapshot(
         &mut self,
         request: &q_snapshot::Request,

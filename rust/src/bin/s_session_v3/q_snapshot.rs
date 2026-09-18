@@ -6,13 +6,9 @@ use super::{
 };
 use newchan_rust::{
     s_content::job::Job,
-    session_protocol::{
-        canonical_json, nonnegative, positive, reply_envelope, required, sha256_hex, strict_json,
-        validate_envelope,
-    },
+    session_protocol::{canonical_json, nonnegative, positive, required, sha256_hex, strict_json},
 };
 use serde_json::{json, Value};
-use std::io::{self, Write};
 
 const TOKEN_FIELDS: [&str; 17] = [
     "token_schema",
@@ -56,10 +52,7 @@ pub(super) struct Request {
 impl Request {
     /// 先限制完整消息体，再走共同strict envelope/hash校验；旧schema或token不进入v3。
     pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Self, String> {
-        if bytes.len() as u128 > u128::from(resources.limit(Limit::FrameBytes)) {
-            return Err(err("Incomplete：完整请求超过max_frame_bytes"));
-        }
-        let envelope = validate_envelope(strict_json(bytes)?, "s-session/3")?;
+        let envelope = super::q_wire::parse(bytes, resources)?;
         let payload = &envelope["payload"];
         if payload["op"] != "snapshot" {
             return Err(err("op必须是snapshot"));
@@ -256,79 +249,15 @@ pub(super) fn reply(
     page["ok"] = json!(true);
     // 先界住payload，随后核包含完整11字段头、因果引用和消息ID的实际消息体。
     // 无LF/HTTP头；编码失败丢弃整个缓冲，不把它记为已发送wire字节。
-    encode(&page, resources.limit(Limit::ReplyBytes), job)?;
-    let envelope = reply_envelope(
+    super::q_wire::reply(
         &request.envelope,
         page,
-        "s-session/3",
         &session,
         &incarnation,
-        "s-observe/replies",
-        &format!("Q:{session}"),
         producer_epoch,
-    );
-    encode(&envelope, resources.limit(Limit::ReplyBytes), job)
-}
-
-fn encode(value: &Value, limit: u64, job: &mut Job) -> Result<Vec<u8>, String> {
-    struct Buffer<'a> {
-        bytes: Vec<u8>,
-        limit: u64,
-        job: &'a mut Job,
-    }
-    impl Write for Buffer<'_> {
-        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-            self.job.pre_io_check().map_err(io::Error::other)?;
-            if self.bytes.len() as u128 + bytes.len() as u128 > u128::from(self.limit) {
-                return Err(io::Error::other(
-                    "Incomplete：完整Q消息体超过max_reply_bytes",
-                ));
-            }
-            self.bytes.extend_from_slice(bytes);
-            Ok(bytes.len())
-        }
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
-    // 与共同canonical_json相同的排序和标量编码，逐段写入显式上界，避免先展开整份输出。
-    fn write(value: &Value, out: &mut impl Write) -> io::Result<()> {
-        match value {
-            Value::Object(map) => {
-                out.write_all(b"{")?;
-                let mut keys: Vec<_> = map.keys().collect();
-                keys.sort();
-                for (i, key) in keys.into_iter().enumerate() {
-                    if i > 0 {
-                        out.write_all(b",")?;
-                    }
-                    serde_json::to_writer(&mut *out, key).map_err(io::Error::other)?;
-                    out.write_all(b":")?;
-                    write(&map[key], out)?;
-                }
-                out.write_all(b"}")
-            }
-            Value::Array(values) => {
-                out.write_all(b"[")?;
-                for (i, value) in values.iter().enumerate() {
-                    if i > 0 {
-                        out.write_all(b",")?;
-                    }
-                    write(value, out)?;
-                }
-                out.write_all(b"]")
-            }
-            _ => serde_json::to_writer(out, value).map_err(io::Error::other),
-        }
-    }
-    let mut out = Buffer {
-        bytes: Vec::new(),
-        limit,
+        resources,
         job,
-    };
-    write(value, &mut out).map_err(err)?;
-    out.job.pre_io_check().map_err(err)?;
-    Ok(out.bytes)
+    )
 }
 
 #[cfg(all(test, unix))]

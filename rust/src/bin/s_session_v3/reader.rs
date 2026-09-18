@@ -21,9 +21,33 @@ pub(super) fn delta_fragment(
     unit: Unit,
     offset: u64,
     limit: u64,
-    max_reply_bytes: u64,
+    resources: &q_resources::QResources,
     job: &mut Job,
 ) -> Result<Fragment, String> {
+    job.begin_first_read().map_err(err)?;
+    let audited = state::audit(tx)?;
+    job.pre_io_check().map_err(err)?;
+    let cut = validated_delta(tx, &audited, anchor)?;
+    let mut source = content_store::ReadStore::new(tx).map_err(err)?;
+    q_delta::measure(&mut source, &cut.delta, resources, job)?;
+    fragment::read(
+        &mut source,
+        &cut.delta,
+        path,
+        unit,
+        offset,
+        limit,
+        resources.limit(q_resources::Limit::ReplyBytes),
+        job,
+    )
+    .map_err(err)
+}
+/// 已核副本与直接事务读者共用同一发布/会话/保留窗口判据。
+pub(super) fn validated_delta<'a>(
+    tx: &Transaction<'_>,
+    audited: &'a state::AuditedState,
+    anchor: &Value,
+) -> Result<&'a history::PublishedCut, String> {
     const FIELDS: [&str; 8] = [
         "kind",
         "session_id",
@@ -43,10 +67,6 @@ pub(super) fn delta_fragment(
     }
     let generation = positive(required(anchor, "generation")?, "delta generation")?;
     let claimed = ContentRef::from_transport_json(&anchor["delta_ref"]).map_err(err)?;
-    job.begin_first_read().map_err(err)?;
-    // 同一判据：包含来源、manifest配方、独立索引、模板解析及当前目录，不能只验Hash。
-    let audited = state::audit(tx)?;
-    job.pre_io_check().map_err(err)?;
     let first: i64 = tx
         .query_row(
             "SELECT first_available_generation FROM s_delivery_policy WHERE singleton=1",
@@ -69,18 +89,7 @@ pub(super) fn delta_fragment(
     if claimed != cut.delta || *anchor != expected {
         return Err("IdentityConflict：anchor与当前完整核验所得的同会话已发布Delta不同".into());
     }
-    let mut source = content_store::ReadStore::new(tx).map_err(err)?;
-    fragment::read(
-        &mut source,
-        &cut.delta,
-        path,
-        unit,
-        offset,
-        limit,
-        max_reply_bytes,
-        job,
-    )
-    .map_err(err)
+    Ok(cut)
 }
 pub(super) fn delta_anchor(cut: &history::PublishedCut) -> Value {
     json!({"kind":"delta","session_id":cut.metadata.session_id,"session_generation":cut.metadata.session_generation,
@@ -125,7 +134,7 @@ pub(super) fn projection_fragment(
         "RecomputedWithRevision" => projection::HistoryMode::RecomputedWithRevision,
         _ => return Err("SchemaUnsupported：history_mode不符".into()),
     };
-    let claimed = ContentRef::from_transport_json(&anchor["projection_ref"]).map_err(err)?;
+    ContentRef::from_transport_json(&anchor["projection_ref"]).map_err(err)?;
     job.begin_first_read().map_err(err)?;
     let audited = state::audit(tx)?;
     job.pre_io_check().map_err(err)?;
@@ -140,9 +149,7 @@ pub(super) fn projection_fragment(
         max_metadata_bytes,
         job,
     )?;
-    if claimed != actual.root || *anchor != actual.anchor() {
-        return Err("IdentityConflict：projection anchor与同一读集的完整投影不同".into());
-    }
+    check_projection_anchor(&actual, anchor)?;
     fragment::read(
         &mut graph,
         &actual.root,
@@ -155,6 +162,16 @@ pub(super) fn projection_fragment(
     )
     .map_err(err)
 }
+pub(super) fn check_projection_anchor(
+    actual: &projection::Projection,
+    anchor: &Value,
+) -> Result<(), String> {
+    if *anchor != actual.anchor() {
+        Err("IdentityConflict：projection anchor与同一读集的完整投影不同".into())
+    } else {
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -165,6 +182,11 @@ mod tests {
     };
     use prepared::tests::Fixture;
     const REPLY: u64 = 262144;
+    fn resources() -> q_resources::QResources {
+        let mut config = q_resources::tests::input();
+        config["limits"]["max_reply_bytes"] = json!(REPLY.to_string());
+        q_resources::QResources::parse(&serde_json::to_vec(&config).unwrap()).unwrap()
+    }
     fn job() -> Job {
         Job::new(JobLimits::from_canonical_json(&json!({"max_total_wire_bytes":"1048576","max_total_node_bytes":"2097152","max_total_nodes":"10000","max_total_records":"10000","max_total_requests":"20","max_elapsed_ms":"10000","max_staged_bytes":"1048576","max_store_bytes":"4194304"})).unwrap(),Existing{store_bytes:0,staged_bytes:0},Box::new(std::time::Instant::now)).unwrap()
     }
@@ -187,7 +209,7 @@ mod tests {
             Unit::Items,
             0,
             1,
-            REPLY,
+            &resources(),
             &mut job(),
         )
     }
@@ -224,7 +246,7 @@ mod tests {
             Unit::Items,
             0,
             1,
-            REPLY,
+            &resources(),
             &mut job(),
         )
         .unwrap();
