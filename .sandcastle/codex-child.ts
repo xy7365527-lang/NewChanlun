@@ -106,8 +106,11 @@ function inside(path: string, root: string): boolean {
 }
 
 function git(root: string, args: string[]): string {
+  // 与 delivery-bundle 相同：覆盖工蜂可写的 core.fsmonitor，避免 snapshotCheckout 的
+  // status/ls-files 带着管理者 process.env（含 GH_TOKEN）执行仓库钩子。
   return execFileSync("git", [
-    "--no-replace-objects", "-c", "core.filemode=true", "-c", "diff.ignoreSubmodules=none",
+    "--no-replace-objects", "-c", "core.filemode=true", "-c", "core.fsmonitor=false",
+    "-c", "diff.ignoreSubmodules=none",
     "-C", root, ...args,
   ], {
     encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
