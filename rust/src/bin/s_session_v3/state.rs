@@ -89,17 +89,28 @@ fn audit_with_budget(
     max_render_bytes: Option<u64>,
     budget: Option<&dyn audit_budget::Budget>,
 ) -> Result<AuditedState, String> {
+    #[cfg(test)]
+    trace_event("control", None);
     history::check_deadline(deadline)?;
     if let Some(b) = budget {
         b.precheck().map_err(err)?;
     }
     // 1. 控制历史：共享 schema/profile/catalog 绑定与逐代发布索引闭合（唯一判据在 control_audit）。
     let control = control_audit::prepare_s3_control_history(tx)?;
+    #[cfg(test)]
+    trace_event("raw", None);
     // 2. 真实原始账：逐序回读并做身份/修订链/内容hash/receipt 自检。
     let raw = read_raw_events_until(tx, deadline)?;
+    #[cfg(test)]
+    trace_event("history", None);
     // 3. 逐代发布闭包：消费每代控制头并核内容闭包、原始/生效账与独立变化集合（唯一判据在 history）。
-    let cuts =
-        history::read_history_metered(tx, &raw, control, deadline, max_render_bytes, budget)?;
+    let history::IndexedHistory {
+        cuts,
+        objects,
+        auxiliary,
+    } = history::read_indexed_history(tx, &raw, control, deadline, max_render_bytes, budget)?;
+    #[cfg(test)]
+    trace_event("catalog_metadata", None);
     // 4. 从未运行的目录行：空初态（generation=0）要求全部行都仍是未运行。
     verify_unrun_catalog(tx, cuts.is_empty())?;
     // 5. 来源审计与目录证据只接线 OHLC 档；非 OHLC 明确拒绝，不跳过也不宣布永久缩小范围。
@@ -110,14 +121,14 @@ fn audit_with_budget(
             tb02a::PROFILE
         )));
     }
-    let current = meta_i64(tx, "generation")?;
     // 只读源 + 内存派生层：overlay 随本函数内的 store 一起销毁，不是 SQLite 写入通道。
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
     let mut store = history::HashReader::metered(&mut reader, deadline, max_render_bytes, budget);
-    // 7a. 当前代对象索引先加载：逐代变化集合（withdrawals/replaces）按它取。
-    let objects = object_index::load(tx, &mut store, current)?;
+    // 7a. 当前代对象索引已在同次history中完整加载并绑定原件；继续用它核逐代变化。
     let mut previous = -1i64;
     for cut in &cuts {
+        #[cfg(test)]
+        trace_event("generated_sources", Some(cut.metadata.generation));
         history::check_deadline(deadline)?;
         let prefix = &raw[..=cut.metadata.input_frontier as usize];
         // 5'. 真实源与生成对象配方逐代对拍；本层不重跑分类。
@@ -131,6 +142,8 @@ fn audit_with_budget(
             budget,
         )?;
         let (withdrawals, replaces) = object_index::changes_at(&objects, cut.metadata.generation)?;
+        #[cfg(test)]
+        trace_event("catalog_cut", Some(cut.metadata.generation));
         // 6'. Delta 目录证据与 CC-056 变化集合必须与本代真实来源、replaces 一致。
         catalog_evidence::verify_cut_metered(
             &mut store,
@@ -148,19 +161,47 @@ fn audit_with_budget(
         previous = cut.metadata.input_frontier;
     }
     if let Some(last) = cuts.last() {
+        #[cfg(test)]
+        trace_event("catalog_current", None);
         // 6''. 当前 13 轴 catalog 行必须与本代最终生成态同根。
         let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")?;
         catalog_evidence::verify_current(tx, &mut store, &axes)?;
     }
-    // 7b. 当前代辅助索引；与对象索引同属一次只读快照。
-    let auxiliary = aux_index::load(tx, &mut store, current)?;
+    // 7b. 辅助索引也来自同次history的完整加载，既不跨事务也不减少业务来源核验。
     history::check_deadline(deadline)?;
+    #[cfg(test)]
+    trace_event("complete", None);
     Ok(AuditedState {
         raw,
         cuts,
         objects,
         auxiliary,
     })
+}
+
+// #1394：仅ignored成本诊断开启的当前线程阶段记录，不进入生产代码或资源判据。
+#[cfg(test)]
+thread_local! {
+    static AUDIT_TRACE: std::cell::RefCell<Option<(std::time::Instant, Vec<Value>)>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(test)]
+fn trace_event(phase: &'static str, generation: Option<i64>) {
+    AUDIT_TRACE.with(|trace| {
+        if let Some((start, events)) = trace.borrow_mut().as_mut() {
+            events.push(json!({"phase":phase,"generation":generation,
+                "elapsed_ns":start.elapsed().as_nanos().to_string()}));
+        }
+    });
+}
+#[cfg(test)]
+pub(super) fn traced<T>(action: impl FnOnce() -> T) -> (T, Vec<Value>) {
+    AUDIT_TRACE.with(|trace| {
+        assert!(trace.borrow().is_none(), "审计诊断不得嵌套");
+        *trace.borrow_mut() = Some((std::time::Instant::now(), Vec::new()));
+    });
+    let result = action();
+    let events = AUDIT_TRACE.with(|trace| trace.borrow_mut().take().unwrap().1);
+    (result, events)
 }
 
 /// 静态列/冻结原件由共享控制审计核验；本层补核从未运行的动态列。

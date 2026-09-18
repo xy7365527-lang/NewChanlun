@@ -2067,7 +2067,8 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
             let start = Instant::now();
             let mut events = Vec::new();
             let mut verified_capture = None;
-            let result=reader.with_seam(&r,&mut Server,|event| {
+            let (result, audit_phases) = state::traced(|| {
+                reader.with_seam(&r,&mut Server,|event| {
                 events.push(json!({"phase":event,"elapsed_ns":start.elapsed().as_nanos().to_string()}));
             },|capture,access| {
                 let head=capture.capture.generation();
@@ -2085,10 +2086,12 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
                     }
                 }
                 Ok(json!({"full_delta_usage":deltas}))
+            })
             });
             let ok = result.is_ok();
             let stats = reader.stats();
             rows.push(json!({"pass":pass,"ok":ok,"elapsed_ns":start.elapsed().as_nanos().to_string(),"events":events,
+                "audit_phases":audit_phases,
                 "verified_capture":verified_capture,"value":result.as_ref().ok(),"error":result.as_ref().err(),"reader_stats":{"captures":stats.captures,"cache_hits":stats.cache_hits,"cached_bytes":stats.cached_bytes}}));
             if !ok {
                 break;

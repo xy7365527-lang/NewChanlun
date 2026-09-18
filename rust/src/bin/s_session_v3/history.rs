@@ -21,6 +21,13 @@ pub(super) struct PublishedCut {
     pub delta: ContentRef,
 }
 
+/// 仅本次只读事务中完成原件绑定的历史与索引，不作为跨事务/跨请求缓存。
+pub(super) struct IndexedHistory {
+    pub cuts: Vec<PublishedCut>,
+    pub objects: Vec<object_index::Entry>,
+    pub auxiliary: aux_index::Index,
+}
+
 /// 全局控制史和原始账必须先由相应正本检查取得；本口消费每代控制头并验证完整闭包。
 pub(super) fn read_history(
     tx: &Transaction<'_>,
@@ -51,11 +58,24 @@ pub(super) fn read_history_bounded(
 pub(super) fn read_history_metered(
     tx: &Transaction<'_>,
     raw: &[Value],
-    mut control: v2::ControlHistory,
+    control: v2::ControlHistory,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<Vec<PublishedCut>, String> {
+    read_indexed_history(tx, raw, control, deadline, max_render_bytes, budget)
+        .map(|history| history.cuts)
+}
+
+/// 完整状态审计复用这里已核的同代索引，避免在相同SQLite事务中第二次加载及绑定原件。
+pub(super) fn read_indexed_history(
+    tx: &Transaction<'_>,
+    raw: &[Value],
+    mut control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
     verify_required_meta(tx)?;
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
@@ -357,7 +377,11 @@ pub(super) fn read_history_metered(
             return Err(err("根批次与完整发布史末代不符"));
         }
     }
-    Ok(output)
+    Ok(IndexedHistory {
+        cuts: output,
+        objects,
+        auxiliary,
+    })
 }
 
 fn verify_source(tx: &Transaction<'_>, m: &ManifestMetadata) -> Result<(), String> {
