@@ -1,6 +1,6 @@
 //! #1394：S3一致typed捕获与原Q capture_digest；离开源事务后复用完整S3审计。
 //! 只重建项目固定DDL，摘要保留源schema原文；不执行来源SQL、不持有跨请求S读锁。
-//! 配置读取入口绑定Q v3资源文件；尚未注册Q服务/缓存，worker/queue/cache执行器仍待接线。
+//! 配置读取入口绑定Q v3资源文件；每worker长期reader在同连接版本夹持下复用完整私有缓存。
 use super::*;
 use rusqlite::{
     limits::Limit,
@@ -15,6 +15,8 @@ use std::{
     os::unix::fs::MetadataExt,
     time::{Duration, Instant},
 };
+#[path = "q_retained.rs"]
+mod retained;
 
 #[derive(Clone, Copy)]
 pub(super) struct Limits {
@@ -59,6 +61,7 @@ pub(super) struct VerifiedCapture {
     digest: String,
     pub captured_bytes: u64,
     pub source_versions: [i64; 3],
+    verify_deadline: Instant,
 }
 impl VerifiedCapture {
     pub(super) fn digest(&self) -> &str {
@@ -302,10 +305,16 @@ pub(super) fn capture_configured<'a>(
     let result = capture_with_deadline(path, resources.capture_limits(), Some(deadline), |_| {});
     // 失败也复查整job绝对钟，不能通过开始下一捕获重置期限。
     job.pre_io_check().map_err(err)?;
-    Ok(ConfiguredCapture {
-        capture: result?,
-        resources,
-    })
+    let capture = result?;
+    let verify_deadline = capture.verify_deadline;
+    let mut packed = retained::Packed::new(
+        capture,
+        resources.limit(q_resources::Limit::CaptureBytes),
+        verify_deadline,
+    )?;
+    let capture = packed.checkout(verify_deadline)?;
+    job.pre_io_check().map_err(err)?;
+    Ok(ConfiguredCapture { capture, resources })
 }
 fn capture_with(
     path: &Path,
@@ -888,7 +897,255 @@ fn verify_image(
         digest,
         captured_bytes,
         source_versions: [0; 3],
+        verify_deadline: deadline,
     })
+}
+
+/// 每个worker独占的长期连接与至多一份完整缓存；data_version不跨连接比较。
+/// 缓存无公开裸摘要入口；只有本次同连接版本/文件身份夹持成功才可借出。
+pub(super) struct AuditReader {
+    path: std::path::PathBuf,
+    resources_digest: String,
+    source: Option<Connection>,
+    identity: Option<(u64, u64)>,
+    cached: Option<(i64, retained::Packed)>,
+    stats: ReaderStats,
+}
+#[derive(Default, Clone, Copy, Debug)]
+pub(super) struct ReaderStats {
+    pub captures: u64,
+    pub cache_hits: u64,
+    pub cached_bytes: u64,
+}
+impl AuditReader {
+    pub(super) fn new(path: std::path::PathBuf, resources: &q_resources::QResources) -> Self {
+        Self {
+            path,
+            resources_digest: resources.digest().into(),
+            source: None,
+            identity: None,
+            cached: None,
+            stats: ReaderStats::default(),
+        }
+    }
+    pub(super) fn close(&mut self) {
+        self.cached = None;
+        self.source = None;
+        self.identity = None;
+        self.stats.cached_bytes = 0;
+    }
+    pub(super) fn stats(&self) -> ReaderStats {
+        self.stats
+    }
+    pub(super) fn with_capture<T>(
+        &mut self,
+        resources: &q_resources::QResources,
+        job: &mut newchan_rust::s_content::job::Job,
+        action: impl FnOnce(
+            &mut ConfiguredCapture<'_>,
+            &mut newchan_rust::s_content::job::Job,
+        ) -> Result<T, String>,
+    ) -> Result<T, String> {
+        self.with_seam(resources, job, |_| {}, action)
+    }
+    fn with_seam<T>(
+        &mut self,
+        resources: &q_resources::QResources,
+        job: &mut newchan_rust::s_content::job::Job,
+        mut seam: impl FnMut(&str),
+        action: impl FnOnce(
+            &mut ConfiguredCapture<'_>,
+            &mut newchan_rust::s_content::job::Job,
+        ) -> Result<T, String>,
+    ) -> Result<T, String> {
+        if resources.digest() != self.resources_digest {
+            self.close();
+            return Err(err("reader资源与启动冻结配置不同"));
+        }
+        let hard = job.first_read_deadline().map_err(err)?;
+        let result = self.prepare(resources, job, hard, &mut seam);
+        let (mut packed, cache_version, verify_deadline) = match result {
+            Ok(v) => v,
+            Err(e) => {
+                self.close();
+                return Err(e);
+            }
+        };
+        let proof = match packed.checkout(verify_deadline) {
+            Ok(v) => v,
+            Err(e) => {
+                self.close();
+                return Err(e);
+            }
+        };
+        job.pre_io_check().map_err(err)?;
+        let mut capture = ConfiguredCapture {
+            capture: proof,
+            resources,
+        };
+        let output = action(&mut capture, job);
+        packed.restore(capture.capture);
+        if let Some(version) = cache_version {
+            self.stats.cached_bytes = packed.retained_bytes;
+            self.cached = Some((version, packed));
+        }
+        job.pre_io_check().map_err(err)?;
+        output
+    }
+    fn prepare(
+        &mut self,
+        resources: &q_resources::QResources,
+        job: &mut newchan_rust::s_content::job::Job,
+        hard: Instant,
+        seam: &mut impl FnMut(&str),
+    ) -> Result<(retained::Packed, Option<i64>, Instant), String> {
+        use q_resources::Limit as Q;
+        let limits = resources.capture_limits();
+        let deadline = until(limits.capture_deadline_ms)?.min(hard);
+        for attempt in 0..2 {
+            job.charge_requests(1).map_err(err)?;
+            check(deadline, "Capture")?;
+            let identity = file_identity(&self.path)?;
+            if self.source.is_none() || self.identity != Some(identity) {
+                self.close();
+                self.source = Some(open_source(&self.path, limits, deadline)?);
+                self.identity = Some(identity);
+            }
+            let source = self.source.as_mut().unwrap();
+            source
+                .busy_timeout(deadline.saturating_duration_since(Instant::now()))
+                .map_err(sql_err)?;
+            source
+                .progress_handler(100, Some(move || Instant::now() >= deadline))
+                .map_err(sql_err)?;
+            let captured = (|| {
+                validate_source(source)?;
+                let v0 = version(source)?;
+                seam("after_v0");
+                let tx = source.transaction().map_err(sql_err)?;
+                tx.query_row(
+                    "SELECT key,value FROM meta ORDER BY key LIMIT 1",
+                    [],
+                    |_| Ok(()),
+                )
+                .map_err(sql_err)?;
+                seam("after_first_read");
+                let v1 = version(&tx)?;
+                let candidate = self
+                    .cached
+                    .as_ref()
+                    .is_some_and(|(v, _)| *v == v0 && v0 == v1);
+                let image = if candidate {
+                    None
+                } else {
+                    Some(capture_image(&tx, limits.max_capture_bytes, deadline)?)
+                };
+                tx.rollback().map_err(sql_err)?;
+                seam("after_transaction");
+                let v2 = version(source)?;
+                check(deadline, "Capture")?;
+                if file_identity(&self.path)? != identity {
+                    return Err(err("Incomplete：捕获期间DB文件身份改变"));
+                }
+                Ok((candidate, image, [v0, v1, v2]))
+            })();
+            source
+                .progress_handler(0, None::<fn() -> bool>)
+                .map_err(sql_err)?;
+            let (candidate, image, versions) =
+                captured.map_err(|e| phase_error(e, deadline, "Capture"))?;
+            let verify_deadline = until(limits.verify_deadline_ms)?.min(hard);
+            if candidate && versions.iter().all(|v| *v == versions[0]) {
+                let (_, packed) = self.cached.take().ok_or_else(|| err("缓存候选消失"))?;
+                self.stats.cached_bytes = 0;
+                self.stats.cache_hits += 1;
+                job.pre_io_check().map_err(err)?;
+                return Ok((packed, Some(versions[2]), verify_deadline));
+            }
+            self.cached = None;
+            self.stats.cached_bytes = 0;
+            if candidate {
+                if attempt == 1 {
+                    return Err(err("Incomplete：并发提交阻止缓存复用"));
+                }
+                // 同一capture与job期限内至多重捕获一次，不重标旧proof。
+                continue;
+            }
+            self.stats.captures += 1;
+            let mut proof = verify_image(
+                image.ok_or_else(|| err("缺完整捕获"))?,
+                verify_deadline,
+                limits.max_capture_bytes,
+            )?;
+            proof.source_versions = versions;
+            let packed = retained::Packed::new(proof, limits.max_capture_bytes, verify_deadline)?;
+            seam("before_cache_registration");
+            check(verify_deadline, "Verify")?;
+            let v3 = version(self.source.as_ref().unwrap())?;
+            let allowance = resources.limit(Q::CacheBytes) / resources.limit(Q::QueryWorkers);
+            let reusable = versions.iter().all(|v| *v == v3)
+                && file_identity(&self.path)? == identity
+                && packed.retained_bytes <= allowance;
+            job.pre_io_check().map_err(err)?;
+            return Ok((packed, reusable.then_some(v3), verify_deadline));
+        }
+        Err(err("Incomplete：捕获重试已耗尽"))
+    }
+}
+fn open_source(path: &Path, limits: Limits, deadline: Instant) -> Result<Connection, String> {
+    limits.validate()?;
+    let source = Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(sql_err)?;
+    source
+        .busy_timeout(deadline.saturating_duration_since(Instant::now()))
+        .map_err(sql_err)?;
+    source
+        .set_limit(
+            Limit::SQLITE_LIMIT_LENGTH,
+            limits.max_capture_bytes.min(i32::MAX as u64) as i32,
+        )
+        .map_err(sql_err)?;
+    source
+        .pragma_update(None, "query_only", true)
+        .map_err(sql_err)?;
+    source
+        .pragma_update(None, "read_uncommitted", false)
+        .map_err(sql_err)?;
+    Ok(source)
+}
+fn validate_source(source: &Connection) -> Result<(), String> {
+    if !source.is_autocommit() {
+        return Err(err("reader不得持有跨请求事务"));
+    }
+    let query_only: i64 = source
+        .query_row("PRAGMA query_only", [], |r| r.get(0))
+        .map_err(sql_err)?;
+    let read_uncommitted: i64 = source
+        .query_row("PRAGMA read_uncommitted", [], |r| r.get(0))
+        .map_err(sql_err)?;
+    if query_only != 1 || read_uncommitted != 0 {
+        return Err(err("只读隔离设置改变"));
+    }
+    let names = source
+        .prepare("PRAGMA database_list")
+        .map_err(sql_err)?
+        .query_map([], |r| r.get::<_, String>(1))
+        .map_err(sql_err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(sql_err)?;
+    if names != ["main"] {
+        return Err(err("源连接含附加数据库"));
+    }
+    let mode: String = source
+        .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+        .map_err(sql_err)?;
+    if mode.to_lowercase() != "wal" {
+        return Err(err("源库必须由S预先建立WAL，Q不替它改模式"));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1280,5 +1537,219 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
         .err()
         .unwrap();
         assert!(error.contains("Incomplete/CaptureBytes"), "{error}");
+    }
+    fn inspect_cached(
+        reader: &mut AuditReader,
+        r: &q_resources::QResources,
+        j: &mut Job,
+    ) -> Result<(i64, String, String), String> {
+        reader.with_capture(r, j, |c, j| {
+            let g = c.capture.generation();
+            let p = c.projection(g, projection::HistoryMode::AsKnown, j)?;
+            assert_eq!(c.capture.audited.raw.len(), g as usize);
+            assert!(c
+                .capture
+                .db
+                .execute("UPDATE meta SET value='bad' WHERE key='generation'", [])
+                .is_err());
+            Ok((g, c.capture.digest().to_string(), canonical_json(&p.wire)))
+        })
+    }
+    #[test]
+    fn worker_cache_reuses_only_same_connection_current_image_and_keeps_full_content() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let r = q_resources::tests::resources();
+        let mut reader = AuditReader::new(f.db_path(), &r);
+        let mut j = job();
+        let cold = inspect_cached(&mut reader, &r, &mut j).unwrap();
+        let bytes = reader.stats().cached_bytes;
+        assert!(bytes > 0);
+        let warm = inspect_cached(&mut reader, &r, &mut j).unwrap();
+        assert_eq!(cold, warm);
+        assert_eq!(reader.stats().captures, 1);
+        assert_eq!(reader.stats().cache_hits, 1);
+        assert_eq!(j.snapshot().requests, 2);
+        assert!(reader.source.as_ref().unwrap().is_autocommit());
+        // 查询借出私有副本期间源仍可提交；没有跨请求或跨action源读事务。
+        reader
+            .with_capture(&r, &mut j, |c, _| {
+                publish(&mut f, 2);
+                assert_eq!(c.capture.generation(), 1);
+                Ok(())
+            })
+            .unwrap();
+        let next = inspect_cached(&mut reader, &r, &mut j).unwrap();
+        assert_eq!(next.0, 2);
+        assert_ne!(next.1, cold.1);
+        assert_eq!(reader.stats().captures, 2);
+        reader.close();
+        let again = inspect_cached(&mut reader, &r, &mut j).unwrap();
+        assert_eq!(again, next);
+        assert_eq!(reader.stats().captures, 3);
+    }
+    #[test]
+    fn worker_cache_races_recapture_once_and_registration_never_relabels_old_image() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let r = q_resources::tests::resources();
+        let mut reader = AuditReader::new(f.db_path(), &r);
+        inspect_cached(&mut reader, &r, &mut job()).unwrap();
+        let mut fired = false;
+        let mut j = job();
+        let g = reader
+            .with_seam(
+                &r,
+                &mut j,
+                |seam| {
+                    if seam == "after_transaction" && !fired {
+                        fired = true;
+                        publish(&mut f, 2);
+                    }
+                },
+                |c, _| Ok(c.capture.generation()),
+            )
+            .unwrap();
+        assert_eq!(g, 2);
+        assert!(fired);
+        assert_eq!(j.snapshot().requests, 2);
+        assert_eq!(reader.stats().captures, 2);
+        reader.close();
+        let mut fired = false;
+        let old = reader
+            .with_seam(
+                &r,
+                &mut job(),
+                |seam| {
+                    if seam == "before_cache_registration" && !fired {
+                        fired = true;
+                        publish(&mut f, 3);
+                    }
+                },
+                |c, _| Ok(c.capture.generation()),
+            )
+            .unwrap();
+        assert_eq!(old, 2);
+        assert!(reader.cached.is_none());
+        assert_eq!(inspect_cached(&mut reader, &r, &mut job()).unwrap().0, 3);
+    }
+    #[test]
+    fn worker_cache_detects_corruption_file_replacement_and_isolation_changes() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let r = q_resources::tests::resources();
+        let mut reader = AuditReader::new(f.db_path(), &r);
+        inspect_cached(&mut reader, &r, &mut job()).unwrap();
+        let title: String = f
+            .conn
+            .query_row(
+                "SELECT title FROM catalog WHERE catalog_id='CC-001'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        f.conn
+            .execute(
+                "UPDATE catalog SET title='bad' WHERE catalog_id='CC-001'",
+                [],
+            )
+            .unwrap();
+        assert!(inspect_cached(&mut reader, &r, &mut job()).is_err());
+        assert!(reader.cached.is_none());
+        assert!(reader.source.is_none());
+        f.conn
+            .execute(
+                "UPDATE catalog SET title=?1 WHERE catalog_id='CC-001'",
+                [title],
+            )
+            .unwrap();
+        inspect_cached(&mut reader, &r, &mut job()).unwrap();
+        reader
+            .source
+            .as_ref()
+            .unwrap()
+            .pragma_update(None, "read_uncommitted", true)
+            .unwrap();
+        assert!(inspect_cached(&mut reader, &r, &mut job())
+            .unwrap_err()
+            .contains("隔离"));
+        inspect_cached(&mut reader, &r, &mut job()).unwrap();
+        let second = Fixture::new();
+        // 同一路径指向另一完整WAL数据库：仅替换symlink，不复制/拆散DB与WAL。
+        let link = f.db_path().with_extension("reader-link");
+        std::os::unix::fs::symlink(f.db_path(), &link).unwrap();
+        let mut linked = AuditReader::new(link.clone(), &r);
+        assert_eq!(inspect_cached(&mut linked, &r, &mut job()).unwrap().0, 1);
+        std::fs::remove_file(&link).unwrap();
+        std::os::unix::fs::symlink(second.db_path(), &link).unwrap();
+        assert_eq!(inspect_cached(&mut linked, &r, &mut job()).unwrap().0, 0);
+        assert_eq!(linked.stats().cache_hits, 0);
+        std::fs::remove_file(link).unwrap();
+    }
+    #[test]
+    fn worker_retained_capacity_rejects_whole_proof_or_skips_cache_without_losing_rows() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let proof = capture_verified(&f.db_path(), limits()).unwrap();
+        let packed =
+            retained::Packed::new(proof, limits().max_capture_bytes, until(20000).unwrap())
+                .unwrap();
+        let retained = packed.retained_bytes;
+        assert!(retained > 0);
+        assert_eq!(
+            packed.measure(retained, until(20000).unwrap()).unwrap(),
+            retained
+        );
+        assert!(packed
+            .measure(retained - 1, until(20000).unwrap())
+            .unwrap_err()
+            .contains("RetainedBytes"));
+        let mut input = q_resources::tests::input();
+        input["limits"]["max_cache_bytes"] = json!("1");
+        let r = q_resources::QResources::parse(&serde_json::to_vec(&input).unwrap()).unwrap();
+        let mut reader = AuditReader::new(f.db_path(), &r);
+        let first = inspect_cached(&mut reader, &r, &mut job()).unwrap();
+        let second = inspect_cached(&mut reader, &r, &mut job()).unwrap();
+        assert_eq!(first, second);
+        assert_eq!(reader.stats().captures, 2);
+        assert_eq!(reader.stats().cache_hits, 0);
+        assert_eq!(reader.stats().cached_bytes, 0);
+        let mut input = q_resources::tests::input();
+        input["limits"]["max_query_workers"] = json!("1");
+        input["limits"]["max_cache_bytes"] = json!(retained.to_string());
+        let r = q_resources::QResources::parse(&serde_json::to_vec(&input).unwrap()).unwrap();
+        let mut reader = AuditReader::new(f.db_path(), &r);
+        inspect_cached(&mut reader, &r, &mut job()).unwrap();
+        inspect_cached(&mut reader, &r, &mut job()).unwrap();
+        assert_eq!(reader.stats().cache_hits, 1);
+    }
+    #[test]
+    fn worker_pool_runs_actual_cached_projection_on_one_owned_reader() {
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let mut input = q_resources::tests::input();
+        input["limits"]["max_query_workers"] = json!("1");
+        let r = std::sync::Arc::new(
+            q_resources::QResources::parse(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        );
+        let pool = q_executor::Executor::new(f.db_path(), r).unwrap();
+        let read = || {
+            pool.try_submit(|reader, r, _, _queued| {
+                let answer = inspect_cached(reader, r, &mut job())?;
+                Ok((answer, reader.stats(), std::thread::current().id()))
+            })
+            .unwrap()
+            .recv()
+            .unwrap()
+        };
+        let first = read();
+        let second = read();
+        assert_eq!(first.0, second.0);
+        assert_eq!(first.2, second.2);
+        assert_eq!(second.1.captures, 1);
+        assert_eq!(second.1.cache_hits, 1);
+        publish(&mut f, 2);
+        assert_eq!(read().0 .0, 2);
+        drop(pool);
     }
 }

@@ -54,6 +54,8 @@ mod q_content;
 mod q_watch;
 mod q_lease;
 #[cfg(unix)]
+mod q_executor;
+#[cfg(unix)]
 mod capture;
 pub(super) mod aux_index;
 pub(super) mod object_index;
