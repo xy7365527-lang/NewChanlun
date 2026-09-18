@@ -61,13 +61,17 @@ CREATE TABLE s_delivery_refs (
 fn err(e: impl fmt::Display) -> String {
     format!("StorageUnavailable：{e}")
 }
+
+/// `s-clock-plan/1` 是全仓唯一的 clock 规则（严格 JSON + 非负/不倒退 attempt 校验 + 规范 JSON hash）。
+/// #1394 C：`s-session/3` 新域复用本类型，不再写第二份 clock 解析（同一判断不得有宽严两档）；
+/// 因此 `value/hash/parse/load/phase` 对同 harness 的兄弟模块开放 `pub(super)`，语义不变。
 #[derive(Clone)]
 pub struct ClockPlan {
-    value: Value,
-    hash: String,
+    pub(super) value: Value,
+    pub(super) hash: String,
 }
 impl ClockPlan {
-    fn parse(value: Value) -> Result<Self, String> {
+    pub(super) fn parse(value: Value) -> Result<Self, String> {
         let keys = [
             "schema_revision",
             "clock_plan_id",
@@ -129,10 +133,10 @@ impl ClockPlan {
         let hash = sha256_hex(canonical_json(&value).as_bytes());
         Ok(Self { value, hash })
     }
-    fn load(path: &Path) -> Result<Self, String> {
+    pub(super) fn load(path: &Path) -> Result<Self, String> {
         Self::parse(strict_json(&std::fs::read(path).map_err(err)?)?)
     }
-    fn phase(&self, id: &str, phase: &str, attempt: i64) -> Result<String, String> {
+    pub(super) fn phase(&self, id: &str, phase: &str, attempt: i64) -> Result<String, String> {
         let event = self.value["events"]
             .get(id)
             .ok_or_else(|| format!("MissingDependency：clock事件 {id}"))?;

@@ -30,6 +30,9 @@
 
 #[path = "s_session_v2/mod.rs"]
 mod v2;
+// #1394 C §5.1/5.8：S3 新域（s-session/3）的隔离初始化与版本分派；本文件只挂模块与入口选择。
+#[path = "s_session_v3/mod.rs"]
+mod v3;
 
 use std::collections::BTreeMap;
 
@@ -51,6 +54,8 @@ mod content_store;
 mod content_producer;
 #[path = "s_session_v2/content_manifest.rs"]
 mod content_manifest;
+#[path = "s_session_v2/content_publication.rs"]
+mod content_publication;
 // #1394 2A-S：正式 S 的同代增量状态与稳定对象复用（进程内缓存；性能结构，不充任准入权威）。
 #[path = "s_session_v2/s_fact_cache.rs"]
 mod s_fact_cache;
@@ -1711,6 +1716,16 @@ fn record_connection_pragmas(conn: &Connection, stage: &str) {
 fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String> {
     println!("{}", init_core(db, session, catalog_path)?);
     Ok(())
+}
+
+/// 旧 reset（先删后建 v1）语义不变；#1394 独评 F1 只加一道门：已有 `s-session/3` 域在任何删除
+/// 之前 fail closed（旧 reset 只懂 v1/v2 合同，本切片不提供新迁移/重置功能）。
+fn cmd_reset(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String> {
+    // 与新域 init / 正式 writer 同一把锁覆盖「判域 → 删除 → 重建」，避免检查后换域。
+    let _writer = newchan_rust::session_transport::process_lock(db, "S")?;
+    v3::refuse_reset_of_new_domain(db)?;
+    remove_db_files(db);
+    cmd_init(db, session, catalog_path)
 }
 
 fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, String> {
@@ -5049,6 +5064,9 @@ fn run() -> Result<(), String> {
     if args.len() < 2 {
         return Err(usage());
     }
+    if v3::dispatch(&args)? {
+        return Ok(());
+    }
     if v2::dispatch(&args)? {
         return Ok(());
     }
@@ -5084,8 +5102,7 @@ fn run() -> Result<(), String> {
         "reset" => {
             let d = db.ok_or("缺 --db".to_string())?;
             let c = catalog.ok_or("缺 --catalog".to_string())?;
-            remove_db_files(&d);
-            cmd_init(&d, &session, &c)
+            cmd_reset(&d, &session, &c)
         }
         "accept" => {
             let d = db.ok_or("缺 --db".to_string())?;
