@@ -5,10 +5,12 @@ use super::{
     q_resources::{Limit, QResources},
     q_wire,
 };
+use newchan_rust::s_content::access::Access;
+#[cfg(test)]
+use newchan_rust::s_content::job::Job;
 use newchan_rust::{
     s_content::{
         fragment::{self, Fragment, Unit},
-        job::Job,
         path::PathStep,
         ContentRef,
     },
@@ -172,7 +174,7 @@ impl Request {
         source: &mut dyn newchan_rust::s_content::NodeSource,
         root: &ContentRef,
         resources: &QResources,
-        job: &mut Job,
+        job: &mut dyn Access,
     ) -> Result<Fragment, String> {
         let fragment = fragment::read(
             source,
@@ -202,7 +204,7 @@ impl Request {
         incarnation: &str,
         epoch: &str,
         resources: &QResources,
-        job: &mut Job,
+        job: &mut dyn Access,
     ) -> Result<Vec<u8>, String> {
         self.validate_resources(resources)?;
         self.validate_identity(session, incarnation)?;
@@ -304,7 +306,7 @@ mod tests {
         capture: &mut ConfiguredCapture<'_>,
         resources: &QResources,
         incoming: &Value,
-        job: &mut Job,
+        job: &mut dyn Access,
     ) -> Result<Value, String> {
         let request = Request::parse(canonical_json(incoming).as_bytes(), resources)?;
         let bytes = capture.content(&request, "4", job)?;

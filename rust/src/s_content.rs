@@ -31,6 +31,7 @@ pub const CHUNK_BYTES: usize = 4096;
 /// U64 帧长度上限：0..=2^63-1。
 pub const MAX_FRAME_LEN: u64 = (1u64 << 63) - 1;
 
+pub mod access;
 /// 整次操作的累计资源与期限（#1394 采纳 C §5.6.1）。
 pub mod job;
 

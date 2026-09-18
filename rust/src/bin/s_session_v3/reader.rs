@@ -4,9 +4,11 @@
 //! Job计本次证明遍历的唯一节点及从开门起的期限；独立的Q capture/verify预算尚待上层贯通。
 
 use super::*;
+use newchan_rust::s_content::access::Access;
+#[cfg(test)]
+use newchan_rust::s_content::job::Job;
 use newchan_rust::s_content::{
     fragment::{self, Fragment, Unit},
-    job::Job,
     path::PathStep,
     ContentRef,
 };
@@ -22,7 +24,7 @@ pub(super) fn delta_fragment(
     offset: u64,
     limit: u64,
     resources: &q_resources::QResources,
-    job: &mut Job,
+    job: &mut dyn Access,
 ) -> Result<Fragment, String> {
     job.begin_first_read().map_err(err)?;
     let audited = state::audit(tx)?;
@@ -110,7 +112,7 @@ pub(super) fn projection_fragment(
     limit: u64,
     max_reply_bytes: u64,
     max_metadata_bytes: u64,
-    job: &mut Job,
+    job: &mut dyn Access,
 ) -> Result<Fragment, String> {
     const FIELDS: [&str; 4] = [
         "kind",

@@ -1,8 +1,10 @@
 //! #1394 C §5.6：从调用方已核 anchor 根取得片段，接收方仅凭本片证明重新核范围。
 //! 本层不授予裸根读取权限，不生成 token，不证明未读子图或业务来源。
-//! 同一 Job 计唯一接纳节点与绝对期限；wire/request/六族顶层记录及磁盘分配由实际调用层计。
+//! 消费者的同一Job计唯一接纳节点与绝对期限；服务端沿自己的资源门读取。
+//! wire/request/六族顶层记录及磁盘分配由实际调用层计；接收验证仍强制消费者Job。
 
 use super::{
+    access::Access,
     job::Job,
     path::{self, PathStep},
     *,
@@ -150,7 +152,7 @@ pub fn parse_path(value: &J) -> Result<Vec<PathStep>, CodecError> {
         .collect()
 }
 
-/// 每片重新收齐其触碰到的证明，不能因Job曾接纳过节点就省略祖先。
+/// 每片重新收齐其触碰到的证明，不能因调用方曾接纳过节点就省略祖先。
 pub fn read(
     source: &mut dyn NodeSource,
     root: &ContentRef,
@@ -159,9 +161,9 @@ pub fn read(
     offset: u64,
     limit: u64,
     max_reply_bytes: u64,
-    job: &mut Job,
+    access: &mut dyn Access,
 ) -> Result<Fragment, CodecError> {
-    job.pre_io_check()?;
+    access.begin_first_read()?;
     if limit == 0
         || offset > MAX_FRAME_LEN
         || limit > MAX_FRAME_LEN
@@ -175,7 +177,7 @@ pub fn read(
         .ok_or_else(|| err("offset+limit溢出u64"))?;
     let mut source = Recorder {
         source,
-        job,
+        access,
         nodes: BTreeMap::new(),
         reply_bytes: 0,
         max_reply_bytes,
@@ -259,7 +261,7 @@ pub fn read(
             vec![target.to_transport_json()]
         }),
     };
-    source.job.pre_io_check()?;
+    source.access.pre_io_check()?;
     let nodes = source
         .nodes
         .into_iter()
@@ -293,6 +295,7 @@ pub fn verify(
     max_reply_bytes: u64,
     job: &mut Job,
 ) -> Result<(), CodecError> {
+    job.begin_first_read()?;
     if max_reply_bytes == 0 || max_reply_bytes > MAX_FRAME_LEN {
         return Err(err("回复上界越域"));
     }
@@ -336,7 +339,7 @@ pub fn verify(
 
 struct Recorder<'a> {
     source: &'a mut dyn NodeSource,
-    job: &'a mut Job,
+    access: &'a mut dyn Access,
     nodes: BTreeMap<NodeDigest, (u8, Vec<u8>)>,
     reply_bytes: u64,
     max_reply_bytes: u64,
@@ -379,7 +382,7 @@ impl Recorder<'_> {
             ));
         }
         result?;
-        self.job.pre_io_check()?;
+        self.access.pre_io_check()?;
         // 编码缓冲及解析后的String各受同一显式字节上界；新增证明和最终item仍统一预留。
         serde_json::from_slice(&buffer.bytes)
             .map_err(|e| CodecError::new(code::UTF8, e.to_string()))
@@ -396,10 +399,10 @@ impl Recorder<'_> {
 }
 impl NodeSource for Recorder<'_> {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-        self.job.pre_io_check()?;
+        self.access.pre_io_check()?;
         let read = self.source.read(digest)?;
         if let NodeRead::Found { tag, body } = &read {
-            self.job.accept_node(digest, *tag, body)?;
+            self.access.accept_node(digest, *tag, body)?;
             if let Some(old) = self.nodes.get(digest) {
                 if old.0 != *tag || old.1 != *body {
                     return Err(err("同根不同原件"));
@@ -414,7 +417,7 @@ impl NodeSource for Recorder<'_> {
                 self.nodes.insert(*digest, (*tag, body.clone()));
             }
         }
-        self.job.pre_io_check()?;
+        self.access.pre_io_check()?;
         Ok(read)
     }
 }

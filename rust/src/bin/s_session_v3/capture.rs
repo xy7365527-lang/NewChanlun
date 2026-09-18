@@ -79,7 +79,7 @@ impl VerifiedCapture {
         generation: i64,
         mode: projection::HistoryMode,
         max_metadata_bytes: u64,
-        job: &mut newchan_rust::s_content::job::Job,
+        job: &mut dyn newchan_rust::s_content::access::Access,
     ) -> Result<projection::Projection, String> {
         let tx = self.db.transaction().map_err(err)?;
         let mut source = content_store::ReadStore::new(&tx).map_err(err)?;
@@ -118,7 +118,7 @@ impl ConfiguredCapture<'_> {
         request: &q_watch::Request,
         leases: &q_lease::ClientLeases,
         epoch: &str,
-        job: &mut newchan_rust::s_content::job::Job,
+        job: &mut dyn newchan_rust::s_content::access::Access,
     ) -> Result<q_watch::Reply, String> {
         request.validate_resources(self.resources)?;
         let current = self.projection(
@@ -126,7 +126,7 @@ impl ConfiguredCapture<'_> {
             projection::HistoryMode::RecomputedWithRevision,
             job,
         )?;
-        let deadline = job.first_read_deadline().map_err(err)?;
+        let deadline = job.read_deadline().map_err(err)?;
         let tx = self.capture.db.transaction().map_err(err)?;
         let policy=tx.query_row("SELECT policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1",[],|row|Ok(q_watch::Policy{
             revision:row.get(0)?,retain:row.get(1)?,first:row.get(2)?,head:row.get(3)?,
@@ -134,7 +134,7 @@ impl ConfiguredCapture<'_> {
         let mut source = content_store::ReadStore::new(&tx).map_err(err)?;
         let mut graph = history::HashReader::bounded(
             &mut source,
-            Some(deadline),
+            deadline,
             Some(self.resources.limit(q_resources::Limit::CaptureBytes)),
         );
         q_watch::prepare(
@@ -154,11 +154,11 @@ impl ConfiguredCapture<'_> {
         &mut self,
         request: &q_content::Request,
         producer_epoch: &str,
-        job: &mut newchan_rust::s_content::job::Job,
+        job: &mut dyn newchan_rust::s_content::access::Access,
     ) -> Result<Vec<u8>, String> {
         use q_resources::Limit;
         request.validate_resources(self.resources)?;
-        let deadline = job.first_read_deadline().map_err(err)?;
+        let deadline = job.read_deadline().map_err(err)?;
         let tx = self.capture.db.transaction().map_err(sql_err)?;
         let session = meta_get_opt(&tx, "session_id")?.ok_or_else(|| err("缺会话身份"))?;
         let (_, incarnation, _) = v2::protocol_identity(&tx)?;
@@ -166,7 +166,7 @@ impl ConfiguredCapture<'_> {
         let mut source = content_store::ReadStore::new(&tx).map_err(err)?;
         let mut graph = history::HashReader::bounded(
             &mut source,
-            Some(deadline),
+            deadline,
             Some(self.resources.limit(Limit::CaptureBytes)),
         );
         let root = match request.anchor_kind() {
@@ -205,7 +205,7 @@ impl ConfiguredCapture<'_> {
         &mut self,
         request: &q_snapshot::Request,
         producer_epoch: &str,
-        job: &mut newchan_rust::s_content::job::Job,
+        job: &mut dyn newchan_rust::s_content::access::Access,
     ) -> Result<Vec<u8>, String> {
         request.validate_resources(self.resources)?;
         let generation = request.generation(self.capture.generation());
@@ -223,7 +223,7 @@ impl ConfiguredCapture<'_> {
         &mut self,
         generation: i64,
         mode: projection::HistoryMode,
-        job: &mut newchan_rust::s_content::job::Job,
+        job: &mut dyn newchan_rust::s_content::access::Access,
     ) -> Result<projection::Projection, String> {
         self.capture.projection(
             generation,
@@ -238,7 +238,7 @@ impl ConfiguredCapture<'_> {
         &mut self,
         after: i64,
         max_batches: u64,
-        job: &mut newchan_rust::s_content::job::Job,
+        job: &mut dyn newchan_rust::s_content::access::Access,
     ) -> Result<DeltaReferences, String> {
         use q_resources::Limit;
         let head = self.capture.generation();
@@ -299,14 +299,14 @@ impl ConfiguredCapture<'_> {
 pub(super) fn capture_configured<'a>(
     path: &Path,
     resources: &'a q_resources::QResources,
-    job: &mut newchan_rust::s_content::job::Job,
+    job: &mut dyn newchan_rust::s_content::access::Access,
 ) -> Result<ConfiguredCapture<'a>, String> {
-    let deadline = job.first_read_deadline().map_err(err)?;
+    let deadline = job.read_deadline().map_err(err)?;
     job.charge_requests(1).map_err(err)?;
-    let result = capture_with_deadline_and_job(
+    let result = capture_with_deadline_and_access(
         path,
         resources.capture_limits(),
-        Some(deadline),
+        deadline,
         |_| {},
         Some(job),
     );
@@ -336,14 +336,14 @@ fn capture_with_deadline(
     hard_deadline: Option<Instant>,
     seam: impl FnMut(&str),
 ) -> Result<VerifiedCapture, String> {
-    capture_with_deadline_and_job(path, limits, hard_deadline, seam, None)
+    capture_with_deadline_and_access(path, limits, hard_deadline, seam, None)
 }
-fn capture_with_deadline_and_job(
+fn capture_with_deadline_and_access(
     path: &Path,
     limits: Limits,
     hard_deadline: Option<Instant>,
     mut seam: impl FnMut(&str),
-    job: Option<&mut newchan_rust::s_content::job::Job>,
+    job: Option<&mut dyn newchan_rust::s_content::access::Access>,
 ) -> Result<VerifiedCapture, String> {
     limits.validate()?;
     let capture_deadline = until(limits.capture_deadline_ms)?;
@@ -850,7 +850,7 @@ fn verify_image_metered(
     image: Image,
     deadline: Instant,
     max_capture_bytes: u64,
-    job: Option<&mut newchan_rust::s_content::job::Job>,
+    job: Option<&mut dyn newchan_rust::s_content::access::Access>,
 ) -> Result<VerifiedCapture, String> {
     check(deadline, "Verify")?;
     let mut db = Connection::open_in_memory().map_err(sql_err)?;
@@ -912,7 +912,7 @@ fn verify_image_metered(
         let tx = db.transaction().map_err(sql_err)?;
         if let Some(job) = job {
             let (state, receipt) =
-                state::audit_with_job(&tx, Some(deadline), Some(max_capture_bytes), job)?;
+                state::audit_with_access(&tx, Some(deadline), Some(max_capture_bytes), job)?;
             (state, Some(receipt))
         } else {
             (
@@ -974,10 +974,10 @@ impl AuditReader {
     pub(super) fn with_capture<T>(
         &mut self,
         resources: &q_resources::QResources,
-        job: &mut newchan_rust::s_content::job::Job,
+        job: &mut dyn newchan_rust::s_content::access::Access,
         action: impl FnOnce(
             &mut ConfiguredCapture<'_>,
-            &mut newchan_rust::s_content::job::Job,
+            &mut dyn newchan_rust::s_content::access::Access,
         ) -> Result<T, String>,
     ) -> Result<T, String> {
         self.with_seam(resources, job, |_| {}, action)
@@ -985,18 +985,18 @@ impl AuditReader {
     fn with_seam<T>(
         &mut self,
         resources: &q_resources::QResources,
-        job: &mut newchan_rust::s_content::job::Job,
+        job: &mut dyn newchan_rust::s_content::access::Access,
         mut seam: impl FnMut(&str),
         action: impl FnOnce(
             &mut ConfiguredCapture<'_>,
-            &mut newchan_rust::s_content::job::Job,
+            &mut dyn newchan_rust::s_content::access::Access,
         ) -> Result<T, String>,
     ) -> Result<T, String> {
         if resources.digest() != self.resources_digest {
             self.close();
             return Err(err("reader资源与启动冻结配置不同"));
         }
-        let hard = job.first_read_deadline().map_err(err)?;
+        let hard = job.read_deadline().map_err(err)?;
         let result = self.prepare(resources, job, hard, &mut seam);
         let (mut packed, cache_version, verify_deadline) = match result {
             Ok(v) => v,
@@ -1032,13 +1032,14 @@ impl AuditReader {
     fn prepare(
         &mut self,
         resources: &q_resources::QResources,
-        job: &mut newchan_rust::s_content::job::Job,
-        hard: Instant,
+        job: &mut dyn newchan_rust::s_content::access::Access,
+        hard: Option<Instant>,
         seam: &mut impl FnMut(&str),
     ) -> Result<(retained::Packed, Option<i64>, Instant), String> {
         use q_resources::Limit as Q;
         let limits = resources.capture_limits();
-        let deadline = until(limits.capture_deadline_ms)?.min(hard);
+        let local = until(limits.capture_deadline_ms)?;
+        let deadline = hard.map_or(local, |d| d.min(local));
         for attempt in 0..2 {
             job.charge_requests(1).map_err(err)?;
             check(deadline, "Capture")?;
@@ -1091,7 +1092,8 @@ impl AuditReader {
                 .map_err(sql_err)?;
             let (candidate, image, versions) =
                 captured.map_err(|e| phase_error(e, deadline, "Capture"))?;
-            let verify_deadline = until(limits.verify_deadline_ms)?.min(hard);
+            let local = until(limits.verify_deadline_ms)?;
+            let verify_deadline = hard.map_or(local, |d| d.min(local));
             if candidate && versions.iter().all(|v| *v == versions[0]) {
                 let (_, packed) = self.cached.take().ok_or_else(|| err("缓存候选消失"))?;
                 self.stats.cached_bytes = 0;

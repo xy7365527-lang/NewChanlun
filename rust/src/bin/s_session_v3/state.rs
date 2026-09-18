@@ -67,14 +67,17 @@ pub(super) fn audit_bounded(
     audit_with_budget(tx, deadline, max_render_bytes, None)
 }
 /// 计费只覆盖实际访问；完整成功后才能留作同一不可变捕获的私有用量收据。
-pub(super) fn audit_with_job(
+pub(super) fn audit_with_access(
     tx: &Transaction<'_>,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
-    job: &mut sc::job::Job,
+    job: &mut dyn sc::access::Access,
 ) -> Result<(AuditedState, audit_budget::Receipt), String> {
-    let hard = job.first_read_deadline().map_err(err)?;
-    let deadline = Some(deadline.map_or(hard, |d| d.min(hard)));
+    let hard = job.read_deadline().map_err(err)?;
+    let deadline = match (deadline, hard) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    };
     let meter = audit_budget::AuditJob::new(job);
     let state = audit_with_budget(tx, deadline, max_render_bytes, Some(&meter))?;
     audit_budget::Budget::precheck(&meter).map_err(err)?;

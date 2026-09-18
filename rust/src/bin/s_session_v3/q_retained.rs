@@ -99,7 +99,10 @@ impl Packed {
             audit_receipt: None,
         })
     }
-    pub(super) fn replay(&self, job: &mut newchan_rust::s_content::job::Job) -> Result<(), String> {
+    pub(super) fn replay(
+        &self,
+        job: &mut dyn newchan_rust::s_content::access::Access,
+    ) -> Result<(), String> {
         self.receipt
             .as_ref()
             .ok_or_else(|| err("未计费的legacy捕获不得注册job缓存"))?

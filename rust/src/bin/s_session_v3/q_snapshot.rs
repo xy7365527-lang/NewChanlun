@@ -4,10 +4,10 @@ use super::{
     projection::{HistoryMode, Projection},
     q_resources::{Limit, QResources},
 };
-use newchan_rust::{
-    s_content::job::Job,
-    session_protocol::{canonical_json, nonnegative, positive, required, sha256_hex, strict_json},
-};
+use newchan_rust::s_content::access::Access;
+use newchan_rust::session_protocol::{canonical_json, nonnegative, positive, required, sha256_hex};
+#[cfg(test)]
+use newchan_rust::{s_content::job::Job, session_protocol::strict_json};
 use serde_json::{json, Value};
 
 const TOKEN_FIELDS: [&str; 17] = [
@@ -188,7 +188,7 @@ pub(super) fn reply(
     capture_digest: &str,
     resources: &QResources,
     producer_epoch: &str,
-    job: &mut Job,
+    job: &mut dyn Access,
 ) -> Result<Vec<u8>, String> {
     request.validate_resources(resources)?;
     positive(producer_epoch, "Q producer_epoch")?;

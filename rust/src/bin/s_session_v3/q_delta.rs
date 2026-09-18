@@ -1,9 +1,11 @@
 //! #1394 C §5.6.1：完整实际 Delta 的三项原子限额。
 //! 调用者先绑定已发布历史；本层不凭裸根授权，也不以片段proof代替完整闭包。
 use super::q_resources::{Limit, QResources};
+use newchan_rust::s_content::access::Access;
+#[cfg(test)]
+use newchan_rust::s_content::job::Job;
 use newchan_rust::s_content::{
     self as sc,
-    job::Job,
     path::{lookup_path, PathStep},
     CodecError, ContentRef, Kind, NodeDigest, NodeRead, NodeSource,
 };
@@ -29,7 +31,7 @@ pub(super) fn measure(
     source: &mut dyn NodeSource,
     delta: &ContentRef,
     resources: &QResources,
-    job: &mut Job,
+    job: &mut dyn Access,
 ) -> Result<Usage, String> {
     if delta.kind != Kind::Object || delta.extent != Some(17) {
         return Err("QDeltaInvalid：完整Delta须为D十字段与七变化集合".into());
@@ -89,7 +91,7 @@ fn limit(name: &str) -> CodecError {
 }
 struct Meter<'a> {
     source: &'a mut dyn NodeSource,
-    job: &'a mut Job,
+    job: &'a mut dyn Access,
     seen: BTreeSet<NodeDigest>,
     nodes: u64,
     bytes: u64,

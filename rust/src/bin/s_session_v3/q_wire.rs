@@ -1,9 +1,7 @@
 //! #1394：Q v3共用的完整请求校验与完整回复编码；不执行HTTP或虚构wire账。
 use super::q_resources::{Limit, QResources};
-use newchan_rust::{
-    s_content::job::Job,
-    session_protocol::{positive, reply_envelope, strict_json, validate_envelope},
-};
+use newchan_rust::s_content::access::Access;
+use newchan_rust::session_protocol::{positive, reply_envelope, strict_json, validate_envelope};
 use serde_json::Value;
 use std::io::{self, Write};
 
@@ -21,7 +19,7 @@ pub(super) fn reply(
     incarnation: &str,
     epoch: &str,
     resources: &QResources,
-    job: &mut Job,
+    job: &mut dyn Access,
 ) -> Result<Vec<u8>, String> {
     try_reply(
         request,
@@ -42,7 +40,7 @@ pub(super) fn try_reply(
     incarnation: &str,
     epoch: &str,
     resources: &QResources,
-    job: &mut Job,
+    job: &mut dyn Access,
 ) -> Result<Option<Vec<u8>>, String> {
     positive(epoch, "Q producer_epoch")?;
     if encode(&payload, resources.limit(Limit::ReplyBytes), job)?.is_none() {
@@ -64,11 +62,11 @@ fn err(e: impl std::fmt::Display) -> String {
     format!("QReplyInvalid：{e}")
 }
 
-fn encode(value: &Value, limit: u64, job: &mut Job) -> Result<Option<Vec<u8>>, String> {
+fn encode(value: &Value, limit: u64, job: &mut dyn Access) -> Result<Option<Vec<u8>>, String> {
     struct Buffer<'a> {
         bytes: Vec<u8>,
         limit: u64,
-        job: &'a mut Job,
+        job: &'a mut dyn Access,
         exceeded: bool,
     }
     impl Write for Buffer<'_> {

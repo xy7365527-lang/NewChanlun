@@ -3,9 +3,11 @@
 //! 六族按现有 s_query._order/_key 排序；S发布数组自身的顺序不是Q顺序。
 
 use super::*;
+use newchan_rust::s_content::access::Access;
+#[cfg(test)]
+use newchan_rust::s_content::job::Job;
 use newchan_rust::s_content::{
     self as sc,
-    job::Job,
     path::{lookup_path, PathStep},
     ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource, Value as V,
 };
@@ -57,7 +59,7 @@ pub(super) fn build(
     generation: i64,
     mode: HistoryMode,
     max_metadata_bytes: u64,
-    job: &mut Job,
+    job: &mut dyn Access,
 ) -> Result<Projection, String> {
     if max_metadata_bytes == 0 || max_metadata_bytes > sc::MAX_FRAME_LEN {
         return Err(err("元数据物化上界必须显式给出且在规范数域内"));
@@ -377,7 +379,7 @@ fn build_catalog(
 
 struct Metered<'a, 'b> {
     graph: &'a mut history::HashReader<'b>,
-    job: &'a mut Job,
+    job: &'a mut dyn Access,
     metadata_remaining: u64,
 }
 impl NodeSource for Metered<'_, '_> {

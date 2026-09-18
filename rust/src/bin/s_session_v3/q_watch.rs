@@ -8,10 +8,13 @@ use super::{
     q_resources::{Limit, QResources},
     q_snapshot, q_wire,
 };
+use newchan_rust::s_content::access::Access;
+#[cfg(test)]
+use newchan_rust::s_content::job::Job;
 use newchan_rust::{
     s_content::{
         self as sc,
-        job::{Job, JobNodeSource},
+        access::MeteredSource,
         path::{lookup_path, PathStep},
         NodeSource,
     },
@@ -127,7 +130,7 @@ pub(super) fn prepare(
     resources: &QResources,
     leases: &ClientLeases,
     epoch: &str,
-    job: &mut Job,
+    job: &mut dyn Access,
 ) -> Result<Reply, String> {
     request.validate_resources(resources)?;
     if leases.resource_digest() != resources.digest() {
@@ -259,9 +262,9 @@ pub(super) fn prepare(
 fn delta_wire(
     source: &mut dyn NodeSource,
     cut: &PublishedCut,
-    job: &mut Job,
+    job: &mut dyn Access,
 ) -> Result<Value, String> {
-    let mut source = JobNodeSource::new(job, source);
+    let mut source = MeteredSource::new(job, source);
     let mut wire = json!({});
     for key in [
         "generation",
@@ -309,6 +312,12 @@ impl Reply {
             write_ms: resources.limit(Limit::SocketWriteMs),
         }
     }
+    pub(super) fn plain(body: Vec<u8>, resources: &QResources) -> Result<Self, String> {
+        if body.len() as u128 > u128::from(resources.limit(Limit::ReplyBytes)) {
+            return Err(err("完整Q回复超过max_reply_bytes"));
+        }
+        Ok(Self::new(body, None, resources))
+    }
     pub(super) fn body(&self) -> &[u8] {
         &self.body
     }
@@ -317,7 +326,7 @@ impl Reply {
         self,
         writer: &mut W,
         leases: &ClientLeases,
-        job: &mut Job,
+        job: &mut dyn Access,
     ) -> Result<(), String> {
         if leases.resource_digest() != self.resource_digest {
             return Err(err("送达租约与编码时资源不同"));
@@ -325,7 +334,10 @@ impl Reply {
         let local = Instant::now()
             .checked_add(Duration::from_millis(self.write_ms))
             .ok_or_else(|| err("写期限溢出"))?;
-        let deadline = local.min(job.first_read_deadline().map_err(err)?);
+        let deadline = job
+            .read_deadline()
+            .map_err(err)?
+            .map_or(local, |d| local.min(d));
         let mut offset = 0;
         while offset < self.body.len() {
             job.pre_io_check().map_err(err)?;
@@ -458,7 +470,7 @@ mod tests {
         cursor: &Value,
         n: u64,
         client: &str,
-        job: &mut Job,
+        job: &mut dyn Access,
     ) -> Result<Reply, String> {
         capture_configured(&f.db_path(), r, job)?.watch(
             &request(cursor, n, client, r),
@@ -474,7 +486,7 @@ mod tests {
         assert_eq!(v["payload"].as_object().unwrap().len(), 8);
         v
     }
-    fn send(reply: Reply, leases: &ClientLeases, job: &mut Job) -> Vec<u8> {
+    fn send(reply: Reply, leases: &ClientLeases, job: &mut dyn Access) -> Vec<u8> {
         let (mut out, mut input) = UnixStream::pair().unwrap();
         let reader = std::thread::spawn(move || {
             let mut bytes = Vec::new();

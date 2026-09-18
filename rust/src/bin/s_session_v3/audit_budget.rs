@@ -5,10 +5,10 @@
 //! 期限、停止、节点额度和记录额度门。
 
 use newchan_rust::s_content as sc;
-use newchan_rust::s_content::{
-    job::{CheckedNodeUsage, Job},
-    NodeDigest,
-};
+#[cfg(test)]
+use newchan_rust::s_content::job::Job;
+use newchan_rust::s_content::{job::CheckedNodeUsage, NodeDigest};
+use sc::access::Access;
 use std::{cell::RefCell, collections::BTreeMap, mem::size_of};
 
 pub(super) trait Budget {
@@ -18,13 +18,13 @@ pub(super) trait Budget {
 }
 
 pub(super) struct AuditJob<'j> {
-    job: RefCell<&'j mut Job>,
+    job: RefCell<&'j mut dyn Access>,
     nodes: RefCell<BTreeMap<NodeDigest, CheckedNodeUsage>>,
     records: RefCell<u64>,
 }
 
 impl<'j> AuditJob<'j> {
-    pub(super) fn new(job: &'j mut Job) -> Self {
+    pub(super) fn new(job: &'j mut dyn Access) -> Self {
         Self {
             job: RefCell::new(job),
             nodes: RefCell::new(BTreeMap::new()),
@@ -83,7 +83,11 @@ pub(super) struct Receipt {
 }
 
 impl Receipt {
-    pub(super) fn replay(&self, job: &mut Job) -> Result<(), String> {
+    pub(super) fn replay(&self, job: &mut dyn Access) -> Result<(), String> {
+        // 仅回放消费者累计账；Q服务端的各阶段/单包门在调用方执法，不能伪造一份Job。
+        if job.owner_job().is_none() {
+            return Ok(());
+        }
         job.pre_io_check().map_err(codec_string)?;
         for usage in &self.nodes {
             job.accept_checked_usage(usage).map_err(codec_string)?;
