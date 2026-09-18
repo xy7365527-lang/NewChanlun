@@ -163,6 +163,11 @@ pub struct InputContext {
     clock: ClockPlan,
 }
 impl InputContext {
+    /// #1394 C：S3（`s-session/3`）在自核域与自身业务形状后复用同一上下文类型与同一批机械规则；
+    /// 只最小开放构造，字段语义不变。
+    pub(super) fn new(envelope: Value, clock: ClockPlan) -> Self {
+        Self { envelope, clock }
+    }
     fn id(&self) -> &str {
         self.envelope["payload"]["clock_event_id"].as_str().unwrap()
     }
@@ -183,7 +188,8 @@ fn active(conn: &Connection) -> Result<bool, String> {
         _ => Err(err("协议标记/控制表缺失或不支持")),
     }
 }
-fn stored_clock(conn: &Connection) -> Result<ClockPlan, String> {
+/// 从 `s_protocol_meta` 回读并重算 clock 计划（唯一解析入口；v2 与 S3 共用）。
+pub(super) fn stored_clock(conn: &Connection) -> Result<ClockPlan, String> {
     let (raw, hash): (String, String) = conn
         .query_row(
             "SELECT clock_plan_json,clock_plan_hash FROM s_protocol_meta WHERE singleton=1",
@@ -197,7 +203,8 @@ fn stored_clock(conn: &Connection) -> Result<ClockPlan, String> {
     }
     Ok(clock)
 }
-fn check_clock(conn: &Connection, clock: &ClockPlan) -> Result<(), String> {
+/// 持久 clock 计划绑定核验（唯一判据；v2 与 S3 共用，不另立第二份）。
+pub(super) fn check_clock(conn: &Connection, clock: &ClockPlan) -> Result<(), String> {
     if stored_clock(conn)?.hash != clock.hash {
         return Err("IdentityConflict：clock计划与持久绑定不同".into());
     }
@@ -243,6 +250,16 @@ pub fn record_accept(
         return Ok(());
     }
     let c = c.ok_or("MissingDependency：v2接纳必须带持久message身份和clock")?;
+    record_accept_context(conn, c, results)
+}
+
+/// #1394 C：v2 与 S3 共用的**接纳机械规则**（调用方已核自身域、身份与 clock 上下文）。
+/// 只写接纳控制行与 accept clock 事件；不核根状态、不代做完整 state 审计。
+pub(super) fn record_accept_context(
+    conn: &Connection,
+    c: &InputContext,
+    results: &[Value],
+) -> Result<(), String> {
     if results.len() != 1 {
         return Err("InvalidDomain：v2每次只接纳单事件".into());
     }
@@ -283,6 +300,19 @@ pub fn record_begin(
         return Ok(make_token());
     }
     let c = c.ok_or("MissingDependency：v2推进缺message/clock上下文")?;
+    record_begin_context(conn, c, gen, frontier, base, epoch)
+}
+
+/// #1394 C：v2 与 S3 共用的 **Begin 机械规则**：真实持久 attempt/ordinal、同一 token 配方、
+/// begin clock 事件与相位前沿一并入调用方事务；不核根状态。
+pub(super) fn record_begin_context(
+    conn: &Connection,
+    c: &InputContext,
+    gen: i64,
+    frontier: i64,
+    base: &str,
+    epoch: &str,
+) -> Result<String, String> {
     let index:i64=conn.query_row("SELECT attempt_count FROM s_input_messages WHERE clock_event_id=?1 AND status='AcceptedPending'",params![c.id()],|r|r.get(0)).map_err(err)?;
     let (ordinal, inc): (i64, String) = conn
         .query_row(
@@ -338,6 +368,14 @@ pub fn commit_time(conn: &Connection, c: Option<&InputContext>) -> Result<Option
         return Ok(None);
     }
     let c = c.ok_or("MissingDependency：新笔获知时点缺本次上下文")?;
+    commit_time_context(conn, c)
+}
+
+/// #1394 C：v2 与 S3 共用的提交时刻读取（只读本次已持久 Begin 对应的 attempt）。
+pub(super) fn commit_time_context(
+    conn: &Connection,
+    c: &InputContext,
+) -> Result<Option<String>, String> {
     let index: i64 = conn
         .query_row(
             "SELECT attempt_count-1 FROM s_input_messages WHERE clock_event_id=?1",
@@ -374,6 +412,17 @@ pub fn record_commit(
         return Ok(());
     }
     let c = c.ok_or("MissingDependency：缺v2提交上下文")?;
+    record_commit_context(conn, c, gen, frontier)
+}
+
+/// #1394 C：v2 与 S3 共用的 **Commit 机械规则**：commit clock 事件、status/first_published_generation
+/// 推进与 delivery refs/policy（含保留窗口）在调用方同一事务内完成；不核根状态。
+pub(super) fn record_commit_context(
+    conn: &Connection,
+    c: &InputContext,
+    gen: i64,
+    frontier: i64,
+) -> Result<(), String> {
     let (index,ordinal):(i64,i64)=conn.query_row("SELECT m.attempt_count-1,e.attempt_ordinal FROM s_input_messages m JOIN s_clock_events e ON e.clock_event_id=m.clock_event_id AND e.phase='begin' AND e.attempt_index=m.attempt_count-1 WHERE m.clock_event_id=?1",params![c.id()],|r|Ok((r.get(0)?,r.get(1)?))).map_err(err)?;
     record_phase(
         conn,
@@ -416,6 +465,17 @@ pub fn record_recover(
         return Ok(now_nanos());
     }
     let (clock, id) = clock.ok_or("MissingDependency：v2 recover需要clock-plan及clock-event-id")?;
+    record_recover_context(conn, clock, id, generation)
+}
+
+/// #1394 C：v2 与 S3 共用的 **recover 机械规则**（只写 recover clock 事件与相位前沿；
+/// writer 换代/历史等自身状态由调用方在同一事务内完成）。
+pub(super) fn record_recover_context(
+    conn: &Connection,
+    clock: &ClockPlan,
+    id: &str,
+    generation: &str,
+) -> Result<String, String> {
     record_phase(
         conn,
         clock,
@@ -1112,9 +1172,40 @@ pub(super) fn protocol_identity(conn: &Connection) -> Result<(String, String, St
         meta_get_opt(conn, "writer_epoch")?.ok_or_else(|| err("缺epoch"))?,
     ))
 }
-fn lookup(conn: &Connection, ns: &str, se: &str, id: &str, hash: &str) -> Result<Value, String> {
-    let row:Option<(String,String,i64,String,Option<i64>)>=conn.query_row("SELECT payload_hash,receipt_id,accepted_seq,status,first_published_generation FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3",params![ns,se,id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional().map_err(err)?;
-    let Some((stored, receipt, seq, status, g)) = row else {
+/// 持久 message 行的机械读取（唯一查询/状态口径；v2 的 `lookup` 与 S3 域核验共用）。
+pub(super) struct MessageRow {
+    pub(super) payload_hash: String,
+    pub(super) receipt_id: String,
+    pub(super) accepted_seq: i64,
+    pub(super) status: String,
+    pub(super) first_published_generation: Option<i64>,
+    pub(super) clock_event_id: String,
+}
+pub(super) fn message_row(
+    conn: &Connection,
+    ns: &str,
+    se: &str,
+    id: &str,
+) -> Result<Option<MessageRow>, String> {
+    conn.query_row("SELECT payload_hash,receipt_id,accepted_seq,status,first_published_generation,clock_event_id FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3",params![ns,se,id],|r|Ok(MessageRow{payload_hash:r.get(0)?,receipt_id:r.get(1)?,accepted_seq:r.get(2)?,status:r.get(3)?,first_published_generation:r.get(4)?,clock_event_id:r.get(5)?})).optional().map_err(err)
+}
+/// 持久回执视图（唯一形状与 hash 判据；v2 `handle` 与 S3 域共用）。
+pub(super) fn lookup(
+    conn: &Connection,
+    ns: &str,
+    se: &str,
+    id: &str,
+    hash: &str,
+) -> Result<Value, String> {
+    let Some(MessageRow {
+        payload_hash: stored,
+        receipt_id: receipt,
+        accepted_seq: seq,
+        status,
+        first_published_generation: g,
+        ..
+    }) = message_row(conn, ns, se, id)?
+    else {
         return Ok(json!({"ok":true,"kind":"Unknown","original_message_id":id}));
     };
     if stored != hash {
@@ -1137,7 +1228,8 @@ fn ready(conn: &Connection) -> Result<Value, String> {
         json!({"ok":true,"kind":"Ready","schema_revision":"s-session/2","session_id":sid,"session_generation":inc,"writer_epoch":epoch,"profile_id":meta_get_opt(conn,"profile_id")?,"profile_hash":meta_get_opt(conn,"profile_hash")?,"clock_plan_hash":clock.hash,"advance_state":meta_get_opt(conn,"advance_state")?,"generation":meta_get_opt(conn,"generation")?,"structure_cut":meta_get_opt(conn,"structure_cut")?,"index_frontier":meta_get_opt(conn,"index_frontier")?,"delivery_frontier":{"first_available_generation":first.to_string(),"head_generation":head.to_string(),"min_valid_after_generation":(first-1).to_string(),"retain_generations":keep.to_string()}}),
     )
 }
-fn validate_ingest(e: &Value) -> Result<(), String> {
+/// `ingest` payload 的业务形状（唯一判据；v2 `handle` 与 S3 域共用，不另写第二份宽/严副本）。
+pub(super) fn validate_ingest(e: &Value) -> Result<(), String> {
     let p = &e["payload"];
     let keys = [
         "op",

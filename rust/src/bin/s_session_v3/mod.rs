@@ -33,6 +33,9 @@ use newchan_rust::session_transport;
 use rusqlite::OpenFlags;
 use std::collections::BTreeSet;
 
+mod control;
+mod object_records;
+
 /// 本模块唯一负责的协议版本。
 pub(super) const PROTOCOL_REVISION: &str = "s-session/3";
 /// 旧 v2 合同版本号；显式给出时仍由既有 v2 初始化入口执行。
