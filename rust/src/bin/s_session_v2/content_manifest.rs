@@ -11,6 +11,8 @@ use newchan_rust::s_content::{
     Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, NumberToken, Value as V,
 };
 use newchan_rust::session_protocol::{nonnegative, positive};
+use std::collections::BTreeMap;
+type Fields = BTreeMap<String, ContentRef>;
 
 const GENERATED_FIELDS: &[&str] = &[
     "generation",
@@ -123,15 +125,21 @@ pub(super) fn assemble_unpublished(
     s_content::verify(store, &metadata.scope)?;
     require_kind(&metadata.scope, Kind::Object, "scope")?;
     s_content::verify(store, &roots.generated_state)?;
-    s_content::verify_template(store, &roots.publication_template)?;
-    s_content::verify_template(store, &roots.delta_template)?;
-    exact_object(store, &roots.generated_state, GENERATED_FIELDS, true)?;
-    exact_object(store, &roots.publication_template, SNAPSHOT_FIELDS, false)?;
-    exact_object(store, &roots.delta_template, DELTA_FIELDS, false)?;
+    s_content::verify_template_many(
+        store,
+        [
+            roots.publication_template.clone(),
+            roots.delta_template.clone(),
+        ],
+    )?;
+    let generated_fields = exact_object(store, &roots.generated_state, GENERATED_FIELDS, true)?;
+    let publication_fields =
+        exact_object(store, &roots.publication_template, SNAPSHOT_FIELDS, false)?;
+    let delta_fields = exact_object(store, &roots.delta_template, DELTA_FIELDS, false)?;
 
-    let generated = &roots.generated_state;
-    let publication = &roots.publication_template;
-    let delta = &roots.delta_template;
+    let generated = &generated_fields;
+    let publication = &publication_fields;
+    let delta = &delta_fields;
     // 保留旧生成态的 JSON number；公开 snapshot/Delta 控制量则继续是规范十进制字符串。
     match_value(store, generated, "generation", number(metadata.generation)?)?;
     match_value(
@@ -171,14 +179,8 @@ pub(super) fn assemble_unpublished(
             Kind::TemplateBatch,
             "index_frontier",
         )?;
-        let evidence_batch = lookup_path(
-            store,
-            root,
-            &[
-                PathStep::Field("catalog_evidence".into()),
-                PathStep::Field("batch_id".into()),
-            ],
-        )?;
+        let evidence = field(store, root, "catalog_evidence")?;
+        let evidence_batch = lookup_path(store, &evidence, &[PathStep::Field("batch_id".into())])?;
         require_kind(
             &evidence_batch,
             Kind::TemplateBatch,
@@ -295,12 +297,18 @@ pub(super) fn assemble_unpublished(
             ("rule_revision".into(), text(&metadata.rule_revision)),
             ("catalog_revision".into(), text(&metadata.catalog_revision)),
             ("scope".into(), V::Edge(metadata.scope.digest()?)),
-            ("generated_state".into(), V::Edge(generated.digest()?)),
+            (
+                "generated_state".into(),
+                V::Edge(roots.generated_state.digest()?),
+            ),
             (
                 "publication_template".into(),
-                V::Edge(publication.digest()?),
+                V::Edge(roots.publication_template.digest()?),
             ),
-            ("delta_template".into(), V::Edge(delta.digest()?)),
+            (
+                "delta_template".into(),
+                V::Edge(roots.delta_template.digest()?),
+            ),
         ]),
     )?;
     let identity = s_content::frame(0x21, &value.digest);
@@ -377,12 +385,10 @@ fn require_kind(value: &ContentRef, kind: Kind, name: &str) -> Result<(), CodecE
     Ok(())
 }
 
-fn field(
-    store: &mut dyn NodeStore,
-    root: &ContentRef,
-    name: &str,
-) -> Result<ContentRef, CodecError> {
-    lookup_path(store, root, &[PathStep::Field(name.to_string())])
+fn field(_store: &mut dyn NodeStore, root: &Fields, name: &str) -> Result<ContentRef, CodecError> {
+    root.get(name)
+        .cloned()
+        .ok_or_else(|| CodecError::new("manifest_schema", format!("根缺字段{name}")))
 }
 
 fn exact_object(
@@ -390,7 +396,7 @@ fn exact_object(
     root: &ContentRef,
     fields: &[&str],
     allow_axes: bool,
-) -> Result<(), CodecError> {
+) -> Result<Fields, CodecError> {
     require_kind(root, Kind::Object, "根")?;
     let n = fields.len() as u64;
     let has_axes = allow_axes && root.extent == Some(n + 1);
@@ -400,22 +406,20 @@ fn exact_object(
             "顶层 exact 字段数量不符",
         ));
     }
-    for key in fields {
-        field(store, root, key)?;
-    }
+    let mut names = fields.to_vec();
     if has_axes {
-        require_kind(
-            &field(store, root, "catalog_axes")?,
-            Kind::Object,
-            "catalog_axes",
-        )?;
+        names.push("catalog_axes");
     }
-    Ok(())
+    let values = s_content::path::lookup_object_fields(store, root, &names)?;
+    if has_axes {
+        require_kind(&values["catalog_axes"], Kind::Object, "catalog_axes")?;
+    }
+    Ok(values)
 }
 
 fn match_digest(
     store: &mut dyn NodeStore,
-    root: &ContentRef,
+    root: &Fields,
     key: &str,
     expected: NodeDigest,
 ) -> Result<(), CodecError> {
@@ -430,7 +434,7 @@ fn match_digest(
 
 fn match_value(
     store: &mut dyn NodeStore,
-    root: &ContentRef,
+    root: &Fields,
     key: &str,
     expected: V,
 ) -> Result<(), CodecError> {

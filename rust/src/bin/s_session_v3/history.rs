@@ -86,8 +86,14 @@ pub(super) fn read_indexed_history(
         max_render_bytes,
         budget,
     };
+    #[cfg(test)]
+    super::state::trace_event("history_aux_index", None);
     let auxiliary = aux_index::load(tx, &mut store, meta_i64(tx, "generation")?)?;
+    #[cfg(test)]
+    super::state::trace_event("history_object_index", None);
     let objects = object_index::load(tx, &mut store, meta_i64(tx, "generation")?)?;
+    #[cfg(test)]
+    super::state::trace_event("history_raw_hashes", None);
     store.overlay.clear();
     let raw_nodes = raw
         .iter()
@@ -102,6 +108,8 @@ pub(super) fn read_indexed_history(
         .collect::<Result<Vec<_>, _>>()?;
     // 同一事务、同一公开上下文下全核所有历史公开根，共享子图在这一调用内只核一次。
     // manifest仍走Template判据；下方每代的源绑定、配方、变化集合和记录计费不变。
+    #[cfg(test)]
+    super::state::trace_event("history_public_closures", None);
     let public_roots = {
         let mut stmt=tx.prepare("SELECT p.snapshot_root,p.delta_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
         let mut rows = stmt.query([]).map_err(err)?;
@@ -114,20 +122,38 @@ pub(super) fn read_indexed_history(
         roots
     };
     sc::verify_many(&mut store, public_roots).map_err(err)?;
+    // manifest原件共享子图只在这一事务/模板上下文中去重；各代重建/来源校验仍执行。
+    let template_roots = {
+        let mut stmt = tx.prepare("SELECT p.manifest_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
+        let mut rows = stmt.query([]).map_err(err)?;
+        let mut roots = Vec::new();
+        while let Some(row) = rows.next().map_err(err)? {
+            check_deadline(deadline)?;
+            roots.push(root(&mut store, row.get::<_, Vec<u8>>(0).map_err(err)?)?);
+        }
+        roots
+    };
+    sc::verify_template_many(&mut store, template_roots).map_err(err)?;
     let mut effective = BTreeMap::<i64, NodeDigest>::new();
     let mut previous = -1i64;
     let mut output = Vec::new();
+    let mut resolved_roots = Vec::new();
     let mut stmt = tx.prepare("SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
     let mut rows = stmt.query([]).map_err(err)?;
     while let Some(row) = rows.next().map_err(err)? {
         check_deadline(deadline)?;
         let generation: i64 = row.get(0).map_err(err)?;
+        #[cfg(test)]
+        super::state::trace_event("history_template_closure", Some(generation));
         let batch_id: String = row.get(1).map_err(err)?;
         let manifest = root(&mut store, row.get::<_, Vec<u8>>(2).map_err(err)?)?;
         let snapshot = root(&mut store, row.get::<_, Vec<u8>>(3).map_err(err)?)?;
         let delta = root(&mut store, row.get::<_, Vec<u8>>(4).map_err(err)?)?;
-        sc::verify_template(&mut store, &manifest).map_err(err)?;
+        #[cfg(test)]
+        super::state::trace_event("history_decode_manifest", Some(generation));
         let (m, roots) = decode_manifest(&mut store, &manifest)?;
+        #[cfg(test)]
+        super::state::trace_event("history_assemble_manifest", Some(generation));
         // 重用唯一 manifest 构造/跨根判据；写口仅计算摘要，不写 SQLite。
         let rebuilt =
             content_manifest::assemble_unpublished(&mut store, &m, &roots).map_err(err)?;
@@ -137,12 +163,18 @@ pub(super) fn read_indexed_history(
         {
             return Err(err("持久 manifest 原件/身份/代号不一致"));
         }
-        let resolved = content_publication::resolve_indexed_templates(
+        #[cfg(test)]
+        super::state::trace_event("history_resolve_publication", Some(generation));
+        let resolved = content_publication::resolve_indexed_templates_pending(
             tx, &mut store, &m, &roots, &batch_id, previous,
         )?;
         if resolved.snapshot != snapshot || resolved.delta != delta {
             return Err(err("实际发布根不是 manifest 模板按独立出生索引解析的结果"));
         }
+        resolved_roots.push(resolved.snapshot);
+        resolved_roots.push(resolved.delta);
+        #[cfg(test)]
+        super::state::trace_event("history_object_members", Some(generation));
         object_index::verify_generated_members(
             &mut store,
             &objects,
@@ -189,6 +221,8 @@ pub(super) fn read_indexed_history(
                 )?;
             }
         }
+        #[cfg(test)]
+        super::state::trace_event("history_metadata_source", Some(generation));
         for (key, actual) in [
             ("session_id", &m.session_id),
             ("profile_id", &m.profile_id),
@@ -225,6 +259,8 @@ pub(super) fn read_indexed_history(
         {
             return Err(err("发布原始前沿无新增、越界或倒退"));
         }
+        #[cfg(test)]
+        super::state::trace_event("history_aux_members", Some(generation));
         aux_index::verify_generated_members(
             &mut store,
             &auxiliary,
@@ -233,6 +269,8 @@ pub(super) fn read_indexed_history(
             &raw[..=frontier as usize],
             generation,
         )?;
+        #[cfg(test)]
+        super::state::trace_event("history_raw_members", Some(generation));
         for n in (previous + 1)..=frontier {
             check_deadline(deadline)?;
             let event = &raw[n as usize];
@@ -280,6 +318,8 @@ pub(super) fn read_indexed_history(
                 true,
             )?,
         )?;
+        #[cfg(test)]
+        super::state::trace_event("history_public_fields", Some(generation));
         let seq_range = json!({"from":(previous+1).to_string(),"to":frontier.to_string()});
         for public in [&snapshot, &delta] {
             same_json(
@@ -380,6 +420,8 @@ pub(super) fn read_indexed_history(
         // 中间路径节点只服务本代重算；已发布闭包始终从同一 SQLite 快照读取。
         store.overlay.clear();
     }
+    // Pending派生根在返回任何历史之前全部通过同一Public判据；非法嵌套占位仍拒绝。
+    sc::verify_many(&mut store, resolved_roots).map_err(err)?;
     control.finish()?;
     if meta_i64(tx, "last_advance_frontier")? != previous {
         return Err(err("根前沿与完整发布史不符"));

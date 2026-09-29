@@ -202,7 +202,7 @@ thread_local! {
     static AUDIT_TRACE: std::cell::RefCell<Option<AuditTrace>> = const { std::cell::RefCell::new(None) };
 }
 #[cfg(test)]
-fn trace_event(phase: &'static str, generation: Option<i64>) {
+pub(super) fn trace_event(phase: &'static str, generation: Option<i64>) {
     AUDIT_TRACE.with(|trace| {
         if let Some(trace) = trace.borrow_mut().as_mut() {
             trace

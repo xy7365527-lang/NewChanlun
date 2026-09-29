@@ -95,6 +95,104 @@ pub fn lookup_path(
     })
 }
 
+/// 在一次规范序列遍历中读取固定 exact 字段集。各键按 UTF-8 字节顺序逐字对拍，
+/// 根的四字段、每层 k 分解、字段节点及值头均沿既有判据核验；不展开值的子图。
+/// 只按调用方字段清单分配，不按来源声明长度分配；结果不跨调用缓存。
+/// 本口不代替全闭包或字段业务语义核验。
+pub fn lookup_object_fields(
+    source: &mut dyn NodeSource,
+    reference: &ContentRef,
+    names: &[&str],
+) -> Result<std::collections::BTreeMap<String, ContentRef>, CodecError> {
+    object_fields(source, reference, names, true)
+}
+
+/// 一次遍历对象字段序列，取出指定的小字段集合。其它字段保留但不展开其值。
+/// 返回规模只由请求字段清单决定；这不是 exact schema 或完整闭包证明。
+pub fn lookup_object_fields_subset(
+    source: &mut dyn NodeSource,
+    reference: &ContentRef,
+    names: &[&str],
+) -> Result<std::collections::BTreeMap<String, ContentRef>, CodecError> {
+    object_fields(source, reference, names, false)
+}
+
+fn object_fields(
+    source: &mut dyn NodeSource,
+    reference: &ContentRef,
+    names: &[&str],
+    exact: bool,
+) -> Result<std::collections::BTreeMap<String, ContentRef>, CodecError> {
+    let node = navigate(source, reference, &[], false)?;
+    if node.tag != tag::OBJECT {
+        return Err(step_kind_error("对象字段集", "0x06 对象", node.tag));
+    }
+    let count = framed_len(&node.body, "对象")?;
+    if exact && count != names.len() as u64 {
+        return Err(sequence_shape_error("对象字段数与固定 exact 清单不同"));
+    }
+    let mut keys = names.to_vec();
+    keys.sort_unstable();
+    if keys.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(CodecError::new(code::DUPLICATE_KEY, "exact 清单重复键"));
+    }
+    let mut result = std::collections::BTreeMap::new();
+    let mut stack = vec![(digest_at(&node.body, 8), count)];
+    let mut at = 0;
+    let mut previous_key = None;
+    while let Some((digest, count)) = stack.pop() {
+        match read_seq_node(source, &digest, count)? {
+            SeqNode::Empty => {}
+            SeqNode::Branch { k, left, right } => {
+                // 后续实际读到两子树并逐层检查期望数量；不用为每个字段再下行一遍。
+                stack.push((right, count - k));
+                stack.push((left, k));
+            }
+            SeqNode::Leaf(field) => {
+                let (key, value) = read_field(source, &field)?;
+                if let Some(previous) = previous_key.filter(|_| !exact) {
+                    match cmp_key_nodes(source, &previous, &key)? {
+                        Ordering::Less => {}
+                        Ordering::Equal => {
+                            return Err(CodecError::new(code::DUPLICATE_KEY, "对象重复键"))
+                        }
+                        Ordering::Greater => {
+                            return Err(CodecError::new(
+                                code::OBJECT_KEY_ORDER,
+                                "对象键未按UTF-8顺序",
+                            ))
+                        }
+                    }
+                }
+                previous_key = Some(key);
+                if !exact {
+                    let Some(expected) = keys.get(at) else {
+                        continue;
+                    };
+                    match cmp_key_bytes(source, &key, expected.as_bytes())? {
+                        Ordering::Less => continue,
+                        Ordering::Greater => return Err(field_missing_error(expected)),
+                        Ordering::Equal => {}
+                    }
+                }
+                let expected = keys
+                    .get(at)
+                    .ok_or_else(|| sequence_shape_error("字段超出清单"))?;
+                if cmp_key_bytes(source, &key, expected.as_bytes())? != Ordering::Equal {
+                    return Err(field_missing_error(expected));
+                }
+                let reference = super::content_ref_of(source, &root_string(&value))?;
+                result.insert((*expected).into(), reference);
+                at += 1;
+            }
+        }
+    }
+    if at != keys.len() {
+        return Err(sequence_shape_error("字段序列长度与清单不符"));
+    }
+    Ok(result)
+}
+
 /// 片段读取共用的序列头检查；不把未读取的子图当作已完整验证。
 pub(super) fn check_range_root(
     source: &mut dyn NodeSource,

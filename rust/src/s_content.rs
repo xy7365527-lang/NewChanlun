@@ -2228,7 +2228,24 @@ pub fn verify_many(
     source: &mut dyn NodeSource,
     references: impl IntoIterator<Item = ContentRef>,
 ) -> Result<usize, CodecError> {
-    let mut verifier = Verifier::new(source, Mode::Public);
+    verify_many_with_mode(source, references, Mode::Public)
+}
+
+/// 同一次一致读集中全核多个模板根；各根声明逐项重核，json_text内部仍不允许占位。
+/// 不带出核验记忆，也不授予公开发布资格。
+pub fn verify_template_many(
+    source: &mut dyn NodeSource,
+    references: impl IntoIterator<Item = ContentRef>,
+) -> Result<usize, CodecError> {
+    verify_many_with_mode(source, references, Mode::Template)
+}
+
+fn verify_many_with_mode(
+    source: &mut dyn NodeSource,
+    references: impl IntoIterator<Item = ContentRef>,
+    mode: Mode,
+) -> Result<usize, CodecError> {
+    let mut verifier = Verifier::new(source, mode);
     for reference in references {
         verifier.verify_reference(&reference)?;
     }

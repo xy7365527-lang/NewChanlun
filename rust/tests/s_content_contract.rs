@@ -22,6 +22,25 @@ const EXPECTED_NODES: usize = 123;
 const EXPECTED_REACHABLE: usize = 96;
 const EXPECTED_RENDERABLE: usize = 22;
 
+#[test]
+fn template_batch_rechecks_root_claims_and_json_inner_flavor() {
+    use s_content::NodeSink;
+    let mut nodes = MemoryNodes::new();
+    let root = s_content::write_template(&mut nodes, &Value::Object(vec![
+        ("batch".into(), Value::BatchSelf),
+    ])).unwrap().content_ref();
+    s_content::verify_template_many(&mut nodes, [root.clone(), root.clone()]).unwrap();
+    assert!(s_content::verify_many(&mut nodes, [root.clone()]).is_err());
+    let wrong = ContentRef { extent: Some(2), ..root.clone() };
+    assert!(s_content::verify_template_many(&mut nodes, [root.clone(), wrong]).is_err());
+    let batch = s_content::write_template(&mut nodes, &Value::BatchSelf).unwrap();
+    let digest = s_content::frame(s_content::tag::JSON_TEXT, &batch.digest);
+    nodes.put(digest, s_content::tag::JSON_TEXT, &batch.digest).unwrap();
+    let inner = s_content::content_ref_of(&mut nodes, &s_content::root_string(&digest)).unwrap();
+    // 第一次Value上下文通过不能让第二次JsonInner上下文复用成通过。
+    assert!(s_content::verify_template_many(&mut nodes, [batch.content_ref(), inner]).is_err());
+}
+
 fn vectors_path() -> PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
         "../.chanlun/review-results/issue1394-content-v3-20260916/inputs/content-format-vectors.json",

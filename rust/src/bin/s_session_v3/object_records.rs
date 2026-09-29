@@ -69,7 +69,7 @@ use std::fmt;
 
 /// 泛型六字段对象的内部辅助记录字段集：十项旧生成态字段 + 三条内容边
 /// （`content_producer::TypedObject::record` 的唯一形状）。
-const TYPED_RECORD_FIELDS: [&str; 13] = [
+pub(super) const TYPED_RECORD_FIELDS: [&str; 13] = [
     "object_id",
     "object_revision",
     "kind",
@@ -85,7 +85,7 @@ const TYPED_RECORD_FIELDS: [&str; 13] = [
     "published_generation",
 ];
 /// 原 sealed `generated_state.objects` 单条（泛型）：旧行的十列。
-const TYPED_SEALED_FIELDS: [&str; 10] = [
+pub(super) const TYPED_SEALED_FIELDS: [&str; 10] = [
     "object_id",
     "object_revision",
     "kind",
@@ -98,7 +98,7 @@ const TYPED_SEALED_FIELDS: [&str; 10] = [
     "published_generation",
 ];
 /// 公开 wire 单条（泛型）：`tb02a::project` 的十五项。
-const TYPED_WIRE_FIELDS: [&str; 15] = [
+pub(super) const TYPED_WIRE_FIELDS: [&str; 15] = [
     "object_id",
     "object_revision",
     "kind",
@@ -116,7 +116,7 @@ const TYPED_WIRE_FIELDS: [&str; 15] = [
     "lifecycle",
 ];
 /// CC-006 内部辅助记录字段集：旧行字段 + 三条内容边（`comparisons` 取代 `comparisons_json`）。
-const SHAPE_RECORD_FIELDS: [&str; 17] = [
+pub(super) const SHAPE_RECORD_FIELDS: [&str; 17] = [
     "object_id",
     "object_revision",
     "kind",
@@ -136,7 +136,7 @@ const SHAPE_RECORD_FIELDS: [&str; 17] = [
     "published_generation",
 ];
 /// 原 sealed `generated_state.objects` 单条（CC-006）：旧行的十五列。
-const SHAPE_SEALED_FIELDS: [&str; 15] = [
+pub(super) const SHAPE_SEALED_FIELDS: [&str; 15] = [
     "object_id",
     "object_revision",
     "kind",
@@ -154,7 +154,7 @@ const SHAPE_SEALED_FIELDS: [&str; 15] = [
     "published_generation",
 ];
 /// 公开 wire 单条（CC-006）：`project_object_wire` 的二十项。
-const SHAPE_WIRE_FIELDS: [&str; 20] = [
+pub(super) const SHAPE_WIRE_FIELDS: [&str; 20] = [
     "object_id",
     "object_revision",
     "kind",
@@ -838,14 +838,14 @@ pub(super) fn reproject_stored_wire(
     } else {
         &TYPED_WIRE_FIELDS
     };
-    expect_object_shape(store, birth, what, names)?;
+    let values = sc::path::lookup_object_fields(store, birth, names)?;
     let lifecycle = life_fields(life);
     let mut fields = Vec::new();
     for name in names {
         if *name == "batch_id" || lifecycle.iter().any(|(key, _)| key == name) {
             continue;
         }
-        let value = lookup_path(store, birth, &[PathStep::Field((*name).into())])?;
+        let value = &values[*name];
         fields.push(((*name).into(), CValue::Edge(value.digest()?)));
     }
     fields.push(("batch_id".into(), batch_value(&life.batch)));

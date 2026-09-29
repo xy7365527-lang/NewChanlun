@@ -24,9 +24,6 @@ fn f(k: &str) -> PathStep {
 fn field(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<ContentRef, String> {
     lookup_path(s, r, &[f(k)]).map_err(err)
 }
-fn inner(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<ContentRef, String> {
-    lookup_path(s, r, &[f(k), PathStep::JsonText]).map_err(err)
-}
 fn scalar(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<Value, String> {
     let r = field(s, r, k)?;
     if !matches!(
@@ -126,7 +123,7 @@ struct Source {
 struct Object {
     id: String,
     kind: String,
-    record: ContentRef,
+    fields: super::object_index::Fields,
     refs: ContentRef,
     sources: Vec<i64>,
 }
@@ -153,22 +150,32 @@ fn references(
     r: &ContentRef,
     raw: &BTreeMap<i64, Source>,
     numeric: bool,
+    checked: &mut BTreeMap<(NodeDigest, bool), i64>,
 ) -> Result<Vec<i64>, String> {
     let mut out = Vec::new();
     for item in elements(s, r)? {
-        let coord = decimal(&text(s, &item, "source_coord")?)?;
-        let expected = raw
-            .get(&coord)
-            .ok_or_else(|| err("引用不是本cut生效来源"))?;
-        if digest(&item)?
-            != if numeric {
-                expected.numeric
-            } else {
-                expected.wire
+        // elements每次仍核实际成员头；仅本次已全核state、固定raw读集内复用
+        // 首次完整八字段原件匹配。未知引用仍走原坐标读取及独立原件对拍。
+        let key = (digest(&item)?, numeric);
+        let coord = if let Some(coord) = checked.get(&key) {
+            *coord
+        } else {
+            let coord = decimal(&text(s, &item, "source_coord")?)?;
+            let expected = raw
+                .get(&coord)
+                .ok_or_else(|| err("引用不是本cut生效来源"))?;
+            if key.0
+                != if numeric {
+                    expected.numeric
+                } else {
+                    expected.wire
+                }
+            {
+                return Err(err("源引用不是本cut的真实完整八字段原件"));
             }
-        {
-            return Err(err("源引用不是本cut的真实完整八字段原件"));
-        }
+            checked.insert(key, coord);
+            coord
+        };
         if out.last().is_some_and(|prev| *prev >= coord) {
             return Err(err("源引用不是严格升序"));
         }
@@ -206,7 +213,11 @@ pub(super) fn audit_generated_metered(
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<Counts, String> {
     super::history::check_deadline(deadline)?;
+    #[cfg(test)]
+    super::state::trace_event("source_closure", None);
     sc::verify(s, state).map_err(err)?;
+    #[cfg(test)]
+    super::state::trace_event("source_raw", None);
     if profile != tb02a::PROFILE {
         return Err(err(
             "当前来源审计仅实现OHLC档；其他档仍待接线，拒绝按此口径放行",
@@ -232,18 +243,53 @@ pub(super) fn audit_generated_metered(
         );
     }
     let object_array = field(s, state, "objects")?;
+    #[cfg(test)]
+    super::state::trace_event("source_objects", None);
+    // 活期只覆盖当前一次audit_generated；不在代际、事务或源修订之间带出。
+    let mut checked_refs = BTreeMap::new();
     let mut objects = Vec::new();
     let mut ids = BTreeSet::new();
     let mut groups = BTreeMap::new();
     for record in elements(s, &object_array)? {
         super::history::check_deadline(deadline)?;
-        let id = text(s, &record, "object_id")?;
         let kind = text(s, &record, "kind")?;
-        if !ids.insert(id.clone()) || number(s, &record, "object_revision")? != 1 {
+        let mut names = vec![
+            "object_id",
+            "kind",
+            "object_revision",
+            "input_refs_json",
+            "source_coords_json",
+        ];
+        if kind == CC006_SHAPE_KIND {
+            names.extend([
+                "branch",
+                "dir_ab",
+                "dir_bc",
+                "comparisons_json",
+                "window_start",
+                "window_mid",
+                "window_end",
+            ]);
+        } else {
+            names.extend(["payload_json", "fact_key"]);
+        }
+        let fields = super::object_index::Fields::read_subset(s, &record, &names).map_err(err)?;
+        let id = fields.text(s, "object_id").map_err(err)?;
+        if !ids.insert(id.clone()) || fields.integer(s, "object_revision").map_err(err)? != 1 {
             return Err(err("对象身份重复或修订不符"));
         }
-        let refs = inner(s, &record, "input_refs_json")?;
-        let source_ref = inner(s, &record, "source_coords_json")?;
+        let refs = lookup_path(
+            s,
+            fields.get("input_refs_json").map_err(err)?,
+            &[PathStep::JsonText],
+        )
+        .map_err(err)?;
+        let source_ref = lookup_path(
+            s,
+            fields.get("source_coords_json").map_err(err)?,
+            &[PathStep::JsonText],
+        )
+        .map_err(err)?;
         let sources = coords(s, &source_ref)?;
         if kind == CC006_SHAPE_KIND {
             exact(&record, Kind::Object, 15)?;
@@ -260,14 +306,19 @@ pub(super) fn audit_generated_metered(
             {
                 return Err(err("未声明typed事实种类"));
             }
-            let payload = inner(s, &record, "payload_json")?;
+            let payload = lookup_path(
+                s,
+                fields.get("payload_json").map_err(err)?,
+                &[PathStep::JsonText],
+            )
+            .map_err(err)?;
             if payload.kind != Kind::Object {
                 return Err(err("typed载荷不是对象"));
             }
-            if references(s, &refs, &raw, false)? != sources {
+            if references(s, &refs, &raw, false, &mut checked_refs)? != sources {
                 return Err(err("typed引用与source_coords不同"));
             }
-            let key = text(s, &record, "fact_key")?;
+            let key = fields.text(s, "fact_key").map_err(err)?;
             let parsed = newchan_rust::session_protocol::strict_json(key.as_bytes())?;
             if canonical_json(&parsed) != key
                 || parsed.as_array().is_none_or(|a| a.len() != 2)
@@ -344,7 +395,7 @@ pub(super) fn audit_generated_metered(
         objects.push(Object {
             id,
             kind,
-            record,
+            fields,
             refs,
             sources,
         });
@@ -366,6 +417,8 @@ pub(super) fn audit_generated_metered(
         return Err(err("同cut组未完整覆盖生效原始账"));
     }
     let mut shapes = BTreeMap::new();
+    #[cfg(test)]
+    super::state::trace_event("source_shapes", None);
     for object in objects.iter().filter(|o| o.kind == CC006_SHAPE_KIND) {
         super::history::check_deadline(deadline)?;
         exact(&object.refs, Kind::Array, 3)?;
@@ -386,12 +439,12 @@ pub(super) fn audit_generated_metered(
                 .get(&index)
                 .ok_or_else(|| err("形态引用没有同cut组事实"))?;
             let raw_refs = field(s, &part, "raw_refs")?;
-            let members = references(s, &raw_refs, &raw, true)?;
+            let members = references(s, &raw_refs, &raw, true, &mut checked_refs)?;
             if members != group.members {
                 return Err(err("形态raw_refs不是同cut组成员"));
             }
             let deps = field(s, &part, "dependency_refs")?;
-            let dependency = references(s, &deps, &raw, true)?;
+            let dependency = references(s, &deps, &raw, true, &mut checked_refs)?;
             let member_set = members.iter().copied().collect::<BTreeSet<_>>();
             let expected = group
                 .sources
@@ -404,12 +457,11 @@ pub(super) fn audit_generated_metered(
             }
             source_union.extend(members);
             source_union.extend(dependency);
-            windows[slot] = number(
-                s,
-                &object.record,
-                ["window_start", "window_mid", "window_end"][slot],
-            )?
-            .to_string();
+            windows[slot] = object
+                .fields
+                .integer(s, ["window_start", "window_mid", "window_end"][slot])
+                .map_err(err)?
+                .to_string();
             if windows[slot] != group.anchor.to_string() {
                 return Err(err("形态窗口不等于同cut组锚"));
             }
@@ -419,10 +471,10 @@ pub(super) fn audit_generated_metered(
         if source_union.into_iter().collect::<Vec<_>>() != object.sources {
             return Err(err("形态source_coords不是完整来源并集"));
         }
-        let branch = text(s, &object.record, "branch")?;
-        let dir_ab = text(s, &object.record, "dir_ab")?;
-        let dir_bc = text(s, &object.record, "dir_bc")?;
-        let comparison_text = text(s, &object.record, "comparisons_json")?;
+        let branch = object.fields.text(s, "branch").map_err(err)?;
+        let dir_ab = object.fields.text(s, "dir_ab").map_err(err)?;
+        let dir_bc = object.fields.text(s, "dir_bc").map_err(err)?;
+        let comparison_text = object.fields.text(s, "comparisons_json").map_err(err)?;
         let comparisons = newchan_rust::session_protocol::strict_json(comparison_text.as_bytes())?;
         if canonical_json(&comparisons) != comparison_text
             || comparisons.as_array().is_none_or(|v| v.len() != 4)
@@ -453,13 +505,31 @@ pub(super) fn audit_generated_metered(
         shapes.insert(object.id.clone(), Shape { groups: indices });
     }
     let witness_array = field(s, state, "witnesses")?;
+    #[cfg(test)]
+    super::state::trace_event("source_witnesses", None);
     let mut seen = BTreeSet::new();
     for witness in elements(s, &witness_array)? {
         super::history::check_deadline(deadline)?;
         exact(&witness, Kind::Object, 9)?;
-        let id = text(s, &witness, "witness_id")?;
-        let object_id = text(s, &witness, "object_id")?;
-        let slot = number(s, &witness, "slot")?;
+        let fields = super::object_index::Fields::read_subset(
+            s,
+            &witness,
+            &[
+                "witness_id",
+                "object_id",
+                "slot",
+                "merged_source_index",
+                "merged_high",
+                "merged_low",
+                "merged_open",
+                "merged_close",
+                "raw_bars",
+            ],
+        )
+        .map_err(err)?;
+        let id = fields.text(s, "witness_id").map_err(err)?;
+        let object_id = fields.text(s, "object_id").map_err(err)?;
+        let slot = fields.integer(s, "slot").map_err(err)?;
         if !(0..3).contains(&slot) || !seen.insert((object_id.clone(), slot)) {
             return Err(err("见证槽位重复/越界"));
         }
@@ -468,7 +538,7 @@ pub(super) fn audit_generated_metered(
             .ok_or_else(|| err("见证没有同cut形态对象"))?;
         let mi = shape.groups[slot as usize];
         let group = &groups[&mi];
-        if number(s, &witness, "merged_source_index")? != group.anchor {
+        if fields.integer(s, "merged_source_index").map_err(err)? != group.anchor {
             return Err(err("见证锚与同cut组不同"));
         }
         for (merged, field_name) in [
@@ -477,11 +547,11 @@ pub(super) fn audit_generated_metered(
             ("merged_open", "open"),
             ("merged_close", "close"),
         ] {
-            if field(s, &witness, merged)? != field(s, &group.payload, field_name)? {
+            if fields.get(merged).map_err(err)? != &field(s, &group.payload, field_name)? {
                 return Err(err("见证合并值不是同cut组事实"));
             }
         }
-        let bars = field(s, &witness, "raw_bars")?;
+        let bars = fields.get("raw_bars").map_err(err)?.clone();
         let items = elements(s, &bars)?;
         if items.len() != group.members.len() {
             return Err(err("见证raw_bars成员数不同"));
@@ -507,6 +577,8 @@ pub(super) fn audit_generated_metered(
         return Err(err("形态缺完整三槽见证"));
     }
     let observations = field(s, state, "observations")?;
+    #[cfg(test)]
+    super::state::trace_event("source_observations", None);
     let mut insufficient = 0;
     let mut outside_domain = 0;
     for item in elements(s, &observations)? {

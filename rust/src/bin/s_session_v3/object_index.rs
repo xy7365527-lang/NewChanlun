@@ -50,12 +50,93 @@ fn built(r: ContentRef) -> Result<Built, String> {
 }
 fn scalar(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<Value, String> {
     let r = field(s, r, k)?;
+    scalar_value(s, &r)
+}
+fn scalar_value(s: &mut dyn NodeSource, r: &ContentRef) -> Result<Value, String> {
     if !matches!(r.kind, Kind::Number | Kind::String | Kind::Null) {
         return Err(err("预期有界标量"));
     }
     let mut out = Vec::new();
-    sc::render_canonical(s, &r, &mut out).map_err(err)?;
+    sc::render_canonical(s, r, &mut out).map_err(err)?;
     newchan_rust::session_protocol::strict_json(&out)
+}
+
+/// 同一原件绑定调用中的固定小字段；大载荷只保存引用，不持久缓存或信任摘要替代闭包。
+pub(super) struct Fields(BTreeMap<String, ContentRef>);
+impl Fields {
+    fn read(s: &mut dyn NodeStore, root: &ContentRef, names: &[&str]) -> Result<Self, String> {
+        sc::path::lookup_object_fields(s, root, names)
+            .map(Self)
+            .map_err(err)
+    }
+    pub(super) fn read_subset(
+        s: &mut dyn NodeStore,
+        root: &ContentRef,
+        names: &[&str],
+    ) -> Result<Self, String> {
+        sc::path::lookup_object_fields_subset(s, root, names)
+            .map(Self)
+            .map_err(err)
+    }
+    pub(super) fn get(&self, name: &str) -> Result<&ContentRef, String> {
+        self.0
+            .get(name)
+            .ok_or_else(|| err(format!("原件缺字段{name}")))
+    }
+    pub(super) fn text(&self, s: &mut dyn NodeStore, name: &str) -> Result<String, String> {
+        scalar_value(s, self.get(name)?)?
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| err(format!("{name}不是文本")))
+    }
+    pub(super) fn integer(&self, s: &mut dyn NodeStore, name: &str) -> Result<i64, String> {
+        scalar_value(s, self.get(name)?)?
+            .as_i64()
+            .ok_or_else(|| err(format!("{name}不是i64")))
+    }
+    fn equal(&self, key: &str, other: &Self, other_key: &str) -> Result<(), String> {
+        if self.get(key)? != other.get(other_key)? {
+            return Err(err(format!("{key}/{other_key}内容边不同")));
+        }
+        Ok(())
+    }
+    fn slot(&self, s: &mut dyn NodeStore, kind: &str) -> Result<Slot, String> {
+        if kind == SHAPE {
+            Ok(Slot::Shape([
+                self.integer(s, "window_start")?,
+                self.integer(s, "window_mid")?,
+                self.integer(s, "window_end")?,
+            ]))
+        } else {
+            Ok(Slot::Typed {
+                kind: kind.into(),
+                fact_key: self.text(s, "fact_key")?,
+            })
+        }
+    }
+    fn immutable(&self, s: &mut dyn NodeStore, shape: bool) -> Result<Built, String> {
+        let names = if shape {
+            SHAPE_IMMUTABLE
+        } else {
+            TYPED_IMMUTABLE
+        };
+        let mut fields = Vec::new();
+        for name in names {
+            let child = self.get(name)?;
+            if child.kind == Kind::Null {
+                return Err(err("不可变字段不得为空"));
+            }
+            fields.push(((*name).into(), V::Edge(digest(child)?)));
+        }
+        sc::write_value(s, &V::Object(fields)).map_err(err)
+    }
+    fn bind_json_text(&self, s: &mut dyn NodeStore, json: &str, value: &str) -> Result<(), String> {
+        let parsed = lookup_path(s, self.get(json)?, &[PathStep::JsonText]).map_err(err)?;
+        if &parsed != self.get(value)? {
+            return Err(err("内部JSON视图与值边不同"));
+        }
+        Ok(())
+    }
 }
 fn text(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<String, String> {
     scalar(s, r, k)?
@@ -150,20 +231,16 @@ fn slot(s: &mut dyn NodeSource, r: &ContentRef, kind: &str) -> Result<Slot, Stri
     }
 }
 fn immutable(s: &mut dyn NodeStore, r: &ContentRef, is_shape: bool) -> Result<Built, String> {
-    let names = if is_shape {
-        SHAPE_IMMUTABLE
-    } else {
-        TYPED_IMMUTABLE
-    };
-    let mut fields = Vec::new();
-    for name in names {
-        let child = field(s, r, name)?;
-        if child.kind == Kind::Null {
-            return Err(err("不可变字段不得为空"));
-        }
-        fields.push(((*name).into(), V::Edge(digest(&child)?)));
-    }
-    sc::write_value(s, &V::Object(fields)).map_err(err)
+    Fields::read(
+        s,
+        r,
+        if is_shape {
+            &object_records::SHAPE_SEALED_FIELDS
+        } else {
+            &object_records::TYPED_SEALED_FIELDS
+        },
+    )?
+    .immutable(s, is_shape)
 }
 fn raw_withdrawal(e: &Entry, reason: &str, sup: Option<&str>) -> Value {
     match &e.slot {
@@ -415,43 +492,36 @@ pub(super) fn plan(
     })
 }
 
-fn equal_field(
-    s: &mut dyn NodeStore,
-    a: &ContentRef,
-    ka: &str,
-    b: &ContentRef,
-    kb: &str,
-) -> Result<(), String> {
-    if field(s, a, ka)? != field(s, b, kb)? {
-        return Err(err(format!("{ka}/{kb}内容边不同")));
-    }
-    Ok(())
-}
-fn bind_json_text(
-    s: &mut dyn NodeStore,
-    internal: &ContentRef,
-    json: &str,
-    value: &str,
-) -> Result<(), String> {
-    let parsed = lookup_path(s, internal, &[f(json), PathStep::JsonText]).map_err(err)?;
-    if parsed != field(s, internal, value)? {
-        return Err(err("内部JSON视图与值边不同"));
-    }
-    Ok(())
-}
 /// 对持久三种记录逐字段对拍，不展开 payload/input_refs/source_coords 大载荷。
 fn bind_originals(s: &mut dyn NodeStore, e: &Entry) -> Result<(), String> {
-    let r = e.generated.content_ref();
-    let i = e.internal.content_ref();
-    let w = &e.birth_wire;
     let shape = e.slot.is_shape();
-    if r.kind != Kind::Object
-        || r.extent != Some(if shape { 15 } else { 10 })
-        || i.kind != Kind::Object
-        || i.extent != Some(if shape { 17 } else { 13 })
-    {
-        return Err(err("内部/生成态字段集不符"));
-    }
+    let r = Fields::read(
+        s,
+        &e.generated.content_ref(),
+        if shape {
+            &object_records::SHAPE_SEALED_FIELDS
+        } else {
+            &object_records::TYPED_SEALED_FIELDS
+        },
+    )?;
+    let i = Fields::read(
+        s,
+        &e.internal.content_ref(),
+        if shape {
+            &object_records::SHAPE_RECORD_FIELDS
+        } else {
+            &object_records::TYPED_RECORD_FIELDS
+        },
+    )?;
+    let w = Fields::read(
+        s,
+        &e.birth_wire,
+        if shape {
+            &object_records::SHAPE_WIRE_FIELDS
+        } else {
+            &object_records::TYPED_WIRE_FIELDS
+        },
+    )?;
     for key in [
         "object_id",
         "object_revision",
@@ -460,7 +530,7 @@ fn bind_originals(s: &mut dyn NodeStore, e: &Entry) -> Result<(), String> {
         "first_known_cut",
         "published_generation",
     ] {
-        equal_field(s, &r, key, &i, key)?;
+        r.equal(key, &i, key)?;
     }
     for key in if shape {
         &SHAPE_IMMUTABLE[1..]
@@ -470,21 +540,21 @@ fn bind_originals(s: &mut dyn NodeStore, e: &Entry) -> Result<(), String> {
         if *key == "comparisons_json" {
             continue;
         }
-        equal_field(s, &r, key, &i, key)?;
+        r.equal(key, &i, key)?;
     }
-    if text(s, &r, "object_id")? != e.id
-        || integer(s, &r, "object_revision")? != e.revision
-        || text(s, &r, "kind")? != e.kind
-        || slot(s, &r, &e.kind)? != e.slot
+    if r.text(s, "object_id")? != e.id
+        || r.integer(s, "object_revision")? != e.revision
+        || r.text(s, "kind")? != e.kind
+        || r.slot(s, &e.kind)? != e.slot
     {
         return Err(err("对象索引与生成原件不符"));
     }
     for key in ["first_known_generation", "published_generation"] {
-        if integer(s, &r, key)? != e.life.first_known_generation {
+        if r.integer(s, key)? != e.life.first_known_generation {
             return Err(err("出生生成代号不符"));
         }
     }
-    if text(s, &r, "first_known_cut")? != e.life.first_known_cut
+    if r.text(s, "first_known_cut")? != e.life.first_known_cut
         || e.life.published_generation != e.life.first_known_generation
     {
         return Err(err("出生cut/发布代不符"));
@@ -493,41 +563,41 @@ fn bind_originals(s: &mut dyn NodeStore, e: &Entry) -> Result<(), String> {
         ("input_refs_json", "input_refs"),
         ("source_coords_json", "source_coords"),
     ] {
-        bind_json_text(s, &i, json, value)?;
+        i.bind_json_text(s, json, value)?;
     }
-    equal_field(s, &i, "source_coords", w, "source_coords")?;
+    i.equal("source_coords", &w, "source_coords")?;
     if shape {
         for key in ["branch", "dir_ab", "dir_bc"] {
-            equal_field(s, &i, key, w, key)?;
+            i.equal(key, &w, key)?;
         }
         for key in ["window_start", "window_mid", "window_end"] {
-            if text(s, w, key)? != integer(s, &i, key)?.to_string() {
+            if w.text(s, key)? != i.integer(s, key)?.to_string() {
                 return Err(err("窗口公开投影不符"));
             }
         }
-        let comparison = field(s, &i, "comparisons")?;
+        let comparison = i.get("comparisons")?;
         let mut out = Vec::new();
-        sc::render_canonical(s, &comparison, &mut out).map_err(err)?;
-        if text(s, &r, "comparisons_json")?.as_bytes() != out {
+        sc::render_canonical(s, comparison, &mut out).map_err(err)?;
+        if r.text(s, "comparisons_json")?.as_bytes() != out {
             return Err(err("comparisons文本与内部值不符"));
         }
-        equal_field(s, &i, "comparisons", w, "comparisons")?;
-        let generated_refs = field(s, &i, "input_refs")?;
-        let wire_refs = field(s, w, "input_refs")?;
-        bind_shape_refs(s, &generated_refs, &wire_refs)?;
+        i.equal("comparisons", &w, "comparisons")?;
+        let generated_refs = i.get("input_refs")?;
+        let wire_refs = w.get("input_refs")?;
+        bind_shape_refs(s, generated_refs, wire_refs)?;
     } else {
-        bind_json_text(s, &i, "payload_json", "payload")?;
+        i.bind_json_text(s, "payload_json", "payload")?;
         for key in ["fact_key", "payload", "input_refs"] {
-            equal_field(s, &i, key, w, key)?;
+            i.equal(key, &w, key)?;
         }
     }
-    if text(s, w, "object_id")? != e.id
-        || text(s, w, "kind")? != e.kind
-        || text(s, w, "object_revision")? != e.revision.to_string()
+    if w.text(s, "object_id")? != e.id
+        || w.text(s, "kind")? != e.kind
+        || w.text(s, "object_revision")? != e.revision.to_string()
     {
         return Err(err("出生公开身份不符"));
     }
-    if immutable(s, &r, shape)? != e.immutable {
+    if r.immutable(s, shape)? != e.immutable {
         return Err(err("不可变内容根不符"));
     }
     if wire_at(s, e, e.life.first_known_generation)? != e.birth_wire {
@@ -568,6 +638,18 @@ fn bind_shape_refs(
                 if ar.extent != Some(8) || br.extent != Some(8) {
                     return Err(err("来源字段集不符"));
                 }
+                let names = [
+                    "identity_key",
+                    "payload_hash",
+                    "receipt_id",
+                    "event_id",
+                    "input_revision",
+                    "source_coord",
+                    "revision",
+                    "seq",
+                ];
+                let a_fields = Fields::read(s, &ar, &names)?;
+                let b_fields = Fields::read(s, &br, &names)?;
                 for field_name in [
                     "identity_key",
                     "payload_hash",
@@ -576,10 +658,11 @@ fn bind_shape_refs(
                     "input_revision",
                     "source_coord",
                 ] {
-                    equal_field(s, &ar, field_name, &br, field_name)?;
+                    a_fields.equal(field_name, &b_fields, field_name)?;
                 }
                 for field_name in ["revision", "seq"] {
-                    if text(s, &br, field_name)? != integer(s, &ar, field_name)?.to_string() {
+                    if b_fields.text(s, field_name)? != a_fields.integer(s, field_name)?.to_string()
+                    {
                         return Err(err("来源数字公开投影不符"));
                     }
                 }
@@ -650,6 +733,8 @@ pub(super) fn load(
         out.push(e);
     }
     // 一次调用复用codec既有的上下文记忆；每根声明仍核，所有来源/生命周期绑定仍逐行执行。
+    #[cfg(test)]
+    super::state::trace_event("object_index_closures", None);
     sc::verify_many(
         s,
         out.iter().flat_map(|e| {
@@ -663,7 +748,14 @@ pub(super) fn load(
     )
     .map_err(err)?;
     for e in &out {
+        #[cfg(test)]
+        super::state::trace_event(
+            "object_index_bind_originals",
+            Some(e.life.first_known_generation),
+        );
         bind_originals(s, e)?;
+        #[cfg(test)]
+        super::state::trace_event("object_index_wire_at", Some(e.life.first_known_generation));
         wire_at(s, e, latest)?;
         if let Some(death) = e.life.withdrawn_generation {
             match (
@@ -693,6 +785,8 @@ pub(super) fn load(
             }
         }
     }
+    #[cfg(test)]
+    super::state::trace_event("object_index_done", None);
     Ok(out)
 }
 /// 内部 prior 只来自上代活动CC010/CC056；调用者保持本Vec活到generate结束。
@@ -791,15 +885,24 @@ pub(super) fn verify_generated_members(
         let e = by_id
             .get(id.as_str())
             .ok_or_else(|| err("生成对象不在独立身份史内"))?;
+        let fields = Fields::read(
+            s,
+            &object,
+            if e.slot.is_shape() {
+                &object_records::SHAPE_SEALED_FIELDS
+            } else {
+                &object_records::TYPED_SEALED_FIELDS
+            },
+        )?;
         if object.kind != Kind::Object
             || object.extent != Some(if e.slot.is_shape() { 15 } else { 10 })
-            || integer(s, &object, "first_known_generation")? != g
-            || integer(s, &object, "published_generation")? != g
-            || text(s, &object, "first_known_cut")? != format!("cut-{g}")
+            || fields.integer(s, "first_known_generation")? != g
+            || fields.integer(s, "published_generation")? != g
+            || fields.text(s, "first_known_cut")? != format!("cut-{g}")
         {
             return Err(err("生成对象字段/当代元数据不符"));
         }
-        if immutable(s, &object, e.slot.is_shape())? != e.immutable {
+        if fields.immutable(s, e.slot.is_shape())? != e.immutable {
             return Err(err("生成集同身份内容与独立原件不同"));
         }
         if e.life.first_known_generation == g && object != e.generated.content_ref() {

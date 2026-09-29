@@ -25,6 +25,12 @@ pub(super) struct ResolvedTemplates {
     pub delta: ContentRef,
 }
 
+/// 同一占位许可核的构造结果，尚无Public闭包证明；不得用于发布或作为已核历史返回。
+pub(super) struct PendingTemplates {
+    pub snapshot: ContentRef,
+    pub delta: ContentRef,
+}
+
 pub(super) fn resolve_current_births(
     tx: &Transaction<'_>,
     begin_token: &str,
@@ -63,6 +69,24 @@ pub(super) fn resolve_indexed_templates(
     batch_id: &str,
     previous_frontier: i64,
 ) -> Result<ResolvedTemplates, String> {
+    let result =
+        resolve_indexed_templates_pending(tx, store, metadata, roots, batch_id, previous_frontier)?;
+    sc::verify_many(store, [result.snapshot.clone(), result.delta.clone()]).map_err(err)?;
+    Ok(ResolvedTemplates {
+        snapshot: result.snapshot,
+        delta: result.delta,
+    })
+}
+
+/// 历史只读调用可以把全部Pending根放入同一次Public核验；发布入口仍立即核两根。
+pub(super) fn resolve_indexed_templates_pending(
+    tx: &Transaction<'_>,
+    store: &mut dyn NodeStore,
+    metadata: &ManifestMetadata,
+    roots: &ManifestRoots,
+    batch_id: &str,
+    previous_frontier: i64,
+) -> Result<PendingTemplates, String> {
     let objects = object_births(tx, metadata)?;
     let observations = observation_births(tx, metadata)?;
     let mut snapshot = roots.publication_template.clone();
@@ -135,9 +159,7 @@ pub(super) fn resolve_indexed_templates(
             *root = replace_batch_placeholder(store, root, &path, batch_id).map_err(err)?;
         }
     }
-    // 未列入schema的嵌套占位仍由Public全闭包拒绝；两根只在本调用内共享codec记忆。
-    sc::verify_many(store, [snapshot.clone(), delta.clone()]).map_err(err)?;
-    Ok(ResolvedTemplates { snapshot, delta })
+    Ok(PendingTemplates { snapshot, delta })
 }
 
 fn err(e: impl std::fmt::Display) -> String {
@@ -442,6 +464,9 @@ fn member(b: &ObjectBirth, m: &ManifestMetadata, f: ObjectFamily) -> bool {
 }
 fn array_len(store: &mut dyn NodeStore, root: &ContentRef, name: &str) -> Result<u64, String> {
     let r = lookup_path(store, root, &[field(name)]).map_err(err)?;
+    array_reference_len(&r, name)
+}
+fn array_reference_len(r: &ContentRef, name: &str) -> Result<u64, String> {
     if r.kind != Kind::Array {
         return Err(err(format!("{name} 不是数组")));
     }
@@ -487,18 +512,35 @@ fn resolve_objects(
         .filter(|(_, b)| member(b, m, family))
         .map(|(id, _)| *id)
         .collect();
-    let n = array_len(store, root, name)?;
+    // 本轮只修改其它成员的batch标量；未处理成员仍来自同一不可变模板数组。
+    let array = lookup_path(store, root, &[field(name)]).map_err(err)?;
+    let n = array_reference_len(&array, name)?;
     if n != expected.len() as u64 {
         return Err(err(format!("{name} 与独立索引成员数不符")));
     }
     let mut seen = BTreeSet::new();
     for i in 0..n {
         let path = [field(name), PathStep::Index(i)];
-        let record = lookup_path(store, root, &path).map_err(err)?;
-        let id = lookup_path(store, &record, &[field("object_id")])
-            .map_err(err)?
-            .digest()
-            .map_err(err)?;
+        let record = lookup_path(store, &array, &[PathStep::Index(i)]).map_err(err)?;
+        // 本模块通用于既有记录与S3记录，只取其共同控制字段，不裁载荷字段schema。
+        let fields = sc::path::lookup_object_fields_subset(
+            store,
+            &record,
+            &[
+                "object_id",
+                "kind",
+                "object_revision",
+                "first_known_generation",
+                "first_known_cut",
+                "published_generation",
+                "withdrawn_generation",
+                "withdrawal_reason",
+                "superseded_by",
+                "lifecycle",
+            ],
+        )
+        .map_err(err)?;
+        let id = fields["object_id"].digest().map_err(err)?;
         if !expected.contains(&id) || !seen.insert(id) {
             return Err(err(format!("{name} 存在越界/重复身份")));
         }
@@ -530,7 +572,9 @@ fn resolve_objects(
                 }),
             ),
         ] {
-            match_field(store, &record, k, v)?;
+            if fields[k].digest().map_err(err)? != hash(v)? {
+                return Err(err(format!("{k} 与独立记录不同")));
+            }
         }
         resolve_record_batch(store, root, &path, &record, b.first, &b.batch, m, batch)?;
     }

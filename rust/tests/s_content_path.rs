@@ -8,7 +8,7 @@
 //! 就必须过 `verify`（Public）——单占位用例的替换结果正是走这条末级判据。
 
 use newchan_rust::s_content::path::{
-    lookup_path, path_code, replace_batch_placeholder, PathStep,
+    lookup_object_fields, lookup_path, path_code, replace_batch_placeholder, PathStep,
 };
 use newchan_rust::s_content::{
     checked_frame_len, code, frame, render_canonical, sequence_concat, tag, verify,
@@ -18,6 +18,99 @@ use newchan_rust::s_content::{
 
 /// 仪表码：只用于测试资源门（不是生产码）。
 const BUDGET_CODE: &str = "test_budget";
+
+#[test]
+fn exact_field_set_matches_individual_paths_with_bounded_reads() {
+    let mut store = MeteredStore::new();
+    let names = (0..20).map(|n| format!("field-{n:02}")).collect::<Vec<_>>();
+    let root = write_value(
+        &mut store,
+        &Value::Object(
+            names
+                .iter()
+                .map(|k| (k.clone(), Value::Array(vec![Value::string("shared"); 1024])))
+                .collect(),
+        ),
+    )
+    .unwrap()
+    .content_ref();
+    let keys = names.iter().map(String::as_str).collect::<Vec<_>>();
+    store.reads = 0;
+    let singles = keys
+        .iter()
+        .map(|k| lookup_path(&mut store, &root, &[PathStep::Field((*k).into())]).unwrap())
+        .collect::<Vec<_>>();
+    let individual_reads = store.reads;
+    store.reads = 0;
+    let fields = lookup_object_fields(&mut store, &root, &keys).unwrap();
+    assert_eq!(fields.values().cloned().collect::<Vec<_>>(), singles);
+    eprintln!("field reads: individual={individual_reads}, exact={}", store.reads);
+    // 根、每个序列节点、字段、键与值头；不得展开1024元素的值子树。
+    assert!(store.reads <= 12 * keys.len() + 4, "{} reads", store.reads);
+    assert!(store.reads * 4 < individual_reads);
+    let subset = newchan_rust::s_content::path::lookup_object_fields_subset(
+        &mut store, &root, &[keys[19], keys[0]],
+    ).unwrap();
+    assert_eq!(subset.len(), 2);
+    assert_eq!(subset[keys[0]], singles[0]);
+    assert_eq!(subset[keys[19]], singles[19]);
+    assert!(newchan_rust::s_content::path::lookup_object_fields_subset(
+        &mut store, &root, &["absent"],
+    ).is_err());
+    assert!(lookup_object_fields(&mut store, &root, &keys[..19]).is_err());
+    let mut wrong = keys.clone();
+    wrong[0] = "wrong";
+    assert!(lookup_object_fields(&mut store, &root, &wrong).is_err());
+    let mut duplicate = keys.clone();
+    duplicate[0] = keys[1];
+    assert!(lookup_object_fields(&mut store, &root, &duplicate).is_err());
+    for bad in [
+        ContentRef {
+            kind: Kind::Array,
+            ..root.clone()
+        },
+        ContentRef {
+            extent: Some(21),
+            ..root.clone()
+        },
+        ContentRef {
+            format: "bad".into(),
+            ..root.clone()
+        },
+    ] {
+        assert!(lookup_object_fields(&mut store, &bad, &keys).is_err());
+    }
+    store.read_cap = Some(store.reads + 5);
+    assert_eq!(lookup_object_fields(&mut store, &root, &keys).unwrap_err().code(), BUDGET_CODE);
+}
+
+#[test]
+fn bulk_fields_reject_hash_valid_but_noncanonical_sequence() {
+    let mut store = MeteredStore::new();
+    let names = (0..20).map(|n| format!("key-{n:02}")).collect::<Vec<_>>();
+    let root = write_value(&mut store, &Value::Object(names.iter().map(|k|
+        (k.clone(), Value::Null)).collect())).unwrap().content_ref();
+    let (_, object_body) = store.inner.get(&root.digest().unwrap()).unwrap();
+    let mut object_body = object_body.to_vec();
+    let seq: NodeDigest = object_body[8..40].try_into().unwrap();
+    let (_, seq_body) = store.inner.get(&seq).unwrap();
+    let mut wrong_seq = seq_body.to_vec();
+    // n=20要求左16/右4，交换仍有合法摘要却违反唯一分解。
+    wrong_seq[8..40].copy_from_slice(&seq_body[40..72]);
+    wrong_seq[40..72].copy_from_slice(&seq_body[8..40]);
+    let digest = frame(tag::SEQ_BRANCH, &wrong_seq);
+    store.put(digest, tag::SEQ_BRANCH, &wrong_seq).unwrap();
+    object_body[8..40].copy_from_slice(&digest);
+    let digest = frame(tag::OBJECT, &object_body);
+    store.put(digest, tag::OBJECT, &object_body).unwrap();
+    let bad = ContentRef { root: newchan_rust::s_content::root_string(&digest), ..root };
+    let keys = names.iter().map(String::as_str).collect::<Vec<_>>();
+    assert!(lookup_object_fields(&mut store, &bad, &keys).is_err());
+    assert!(newchan_rust::s_content::path::lookup_object_fields_subset(
+        &mut store, &bad, &[keys[0], keys[19]],
+    ).is_err());
+}
+
 
 fn hex_of(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
