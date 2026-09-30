@@ -37,11 +37,46 @@ pub(super) fn validate_request(envelope: Value) -> Result<Value, String> {
     Ok(envelope)
 }
 
+/// 对当前持久原件作只读准入；预检与持锁后复核共用此判据。
+/// 这里故意不推进 pending，冲突请求不得借 Driver::open 的恢复产生写入。
+pub(super) fn check_request_before_resume(
+    conn: &Connection,
+    control: &control::S3Control<'_>,
+    request: &Value,
+) -> Result<(), String> {
+    let request = validate_request(request.clone())?;
+    let (session, incarnation, _) = control.identity();
+    if required(&request, "session_id")? != session
+        || required(&request, "session_generation")? != incarnation
+    {
+        return Err("IdentityConflict：请求不属于本会话/化身".into());
+    }
+    let payload = &request["payload"];
+    match required(payload, "op")? {
+        "ingest" => {
+            control.inspect_ingest(request)?;
+        }
+        "receipt" => {
+            v2::lookup(
+                conn,
+                required(payload, "original_source_namespace")?,
+                required(payload, "original_source_epoch")?,
+                required(payload, "original_message_id")?,
+                required(payload, "original_payload_hash")?,
+            )?;
+        }
+        "ready" => {}
+        _ => unreachable!("validate_request already rejected unknown S3 op"),
+    }
+    Ok(())
+}
+
 pub(super) struct Driver {
     conn: Connection,
     runtime: prepared::Runtime,
     clock: v2::ClockPlan,
     epoch: String,
+    volume_unit: Option<String>,
     _lock: File,
     #[cfg(test)]
     stop_after: Option<&'static str>,
@@ -91,6 +126,17 @@ impl Driver {
         epoch: &str,
         clock: v2::ClockPlan,
     ) -> Result<Self, String> {
+        Self::open_with_request(db, profile, epoch, clock, None)
+    }
+
+    /// 输入请求在同一写者进程锁内、任何 pending 自动恢复之前再核一次。
+    pub(super) fn open_with_request(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        request: Option<&Value>,
+    ) -> Result<Self, String> {
         parse_writer_epoch(epoch, "configured writer_epoch")?;
         if !db.is_file() {
             return Err("StorageUnavailable：S3驱动只打开已初始化库".into());
@@ -101,24 +147,31 @@ impl Driver {
         state::audit(&tx)?;
         verify_writer_epoch(&tx, epoch)?;
         let control = control::S3Control::attach(&tx, &clock)?;
-        let (_, profile_id, profile_hash) = load_profile(profile)?;
+        let (profile_value, profile_id, profile_hash) = load_profile(profile)?;
         if profile_id != tb02a::PROFILE {
             return Err("VersionUnsupported：S3驱动尚未实现非OHLC生成，拒绝接纳".into());
         }
         if meta_get_opt(&tx, "profile_hash")?.as_deref() != Some(profile_hash.as_str()) {
             return Err("IdentityConflict：S3驱动profile与冻结档案不符".into());
         }
+        // 与旧 accept_core 共用冻结 profile 的可选 volume_unit 口径，绝不借 writer epoch 充当成交量。
+        let volume_unit = profile_value
+            .get("volume_unit")
+            .and_then(Value::as_str)
+            .map(str::to_string);
         if meta_get_opt(&tx, "advance_state")?.as_deref() != Some("idle") {
             return Err("StaleWriter：未完成Begin须先由监督器recover".into());
         }
-        // 借用只用于核持久身份；不以配置中的身份覆盖已核事实。
-        let _ = control.identity();
+        if let Some(request) = request {
+            check_request_before_resume(&tx, &control, request)?;
+        }
         drop(tx);
         let mut driver = Self {
             conn,
             runtime: prepared::Runtime::new(),
             clock,
             epoch: epoch.into(),
+            volume_unit,
             _lock: lock,
             #[cfg(test)]
             stop_after: None,
@@ -173,7 +226,8 @@ impl Driver {
                     self.clock.phase(clock_event, "begin", 0)?;
                     self.clock.phase(clock_event, "commit", 0)?;
                     let input = tb02a::parse_input(&payload["raw_input"])?;
-                    let accepted = raw_input::accept_events(&tx, &input, Some(&self.epoch))?;
+                    let accepted =
+                        raw_input::accept_events(&tx, &input, self.volume_unit.as_deref())?;
                     control.accept(&view, &accepted)?;
                     tx.commit().map_err(err)?;
                     #[cfg(test)]
@@ -416,6 +470,111 @@ mod tests {
             f.path.join("clock.json").to_string_lossy().into_owned(),
         ]
         .to_vec()
+    }
+
+    fn one_shot(f: &Fixture, request: &Value, epoch: &str) -> Result<Option<Value>, String> {
+        let path = f.path.join("one-shot.json");
+        let bytes = canonical_json(request);
+        std::fs::write(&path, &bytes).unwrap();
+        let mut args = cli(f, "advance", "--writer-epoch", epoch);
+        args.extend([
+            "--profile".into(),
+            f.profile.to_string_lossy().into_owned(),
+            "--input".into(),
+            path.to_string_lossy().into_owned(),
+            "--max-input-bytes".into(),
+            bytes.len().to_string(),
+        ]);
+        super::super::writer_cli::run(&args)
+    }
+
+    fn pending_state(f: &Fixture) -> (i64, i64, i64, String) {
+        let conn = open_db(&f.db).unwrap();
+        let original: String = conn
+            .query_row(
+                "SELECT canonical_envelope FROM s_input_messages WHERE message_id='message-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        (
+            meta_i64(&conn, "generation").unwrap(),
+            count(&conn, "s_clock_events"),
+            count(&conn, "s_input_messages"),
+            original,
+        )
+    }
+
+    #[test]
+    fn one_shot_conflicting_ingest_does_not_publish_prior_pending() {
+        let f = Fixture::new();
+        let mut d = f.open("1").unwrap();
+        d.stop_after = Some("accept");
+        let original = Fixture::ingest(1);
+        assert!(d
+            .handle(original.clone())
+            .unwrap_err()
+            .contains("stop_after_accept"));
+        drop(d);
+        let before = pending_state(&f);
+        let mut conflict = original;
+        conflict["payload"]["raw_input"]["events"][0]["raw_text"] = json!("changed-source");
+        conflict["payload_hash"] =
+            json!(sha256_hex(canonical_json(&conflict["payload"]).as_bytes()));
+        assert!(one_shot(&f, &conflict, "1")
+            .unwrap_err()
+            .contains("IdentityConflict"));
+        assert_eq!(pending_state(&f), before);
+    }
+
+    #[test]
+    fn one_shot_conflicting_receipt_hash_does_not_publish_prior_pending() {
+        let f = Fixture::new();
+        let mut d = f.open("1").unwrap();
+        d.stop_after = Some("accept");
+        let original = Fixture::ingest(1);
+        assert!(d
+            .handle(original.clone())
+            .unwrap_err()
+            .contains("stop_after_accept"));
+        drop(d);
+        let before = pending_state(&f);
+        let mut receipt = receipt_request(&original);
+        receipt["payload"]["original_payload_hash"] = json!("different-original-hash");
+        receipt["payload_hash"] = json!(sha256_hex(canonical_json(&receipt["payload"]).as_bytes()));
+        assert!(one_shot(&f, &receipt, "1")
+            .unwrap_err()
+            .contains("IdentityConflict"));
+        assert_eq!(pending_state(&f), before);
+    }
+
+    #[test]
+    fn recovered_epoch_two_uses_frozen_profile_volume_unit_for_new_ingest() {
+        let f = Fixture::new();
+        let mut first = f.open("1").unwrap();
+        assert_eq!(
+            first.handle(Fixture::ingest(1)).unwrap()["kind"],
+            "Committed"
+        );
+        drop(first);
+        recover(&f.db, "2", &f.clock, "recover-1").unwrap();
+        let mut invalid = Fixture::ingest(2);
+        invalid["payload"]["writer_epoch"] = json!("2");
+        invalid["payload"]["raw_input"]["events"][0]["volume"] = json!("2");
+        invalid["payload_hash"] = json!(sha256_hex(canonical_json(&invalid["payload"]).as_bytes()));
+        assert!(one_shot(&f, &invalid, "2")
+            .unwrap_err()
+            .contains("volume_unit"));
+        let mut valid = Fixture::ingest(2);
+        valid["payload"]["writer_epoch"] = json!("2");
+        valid["payload_hash"] = json!(sha256_hex(canonical_json(&valid["payload"]).as_bytes()));
+        assert_eq!(
+            one_shot(&f, &valid, "2").unwrap().unwrap()["kind"],
+            "Committed"
+        );
+        let conn = open_db(&f.db).unwrap();
+        assert_eq!(meta_i64(&conn, "generation").unwrap(), 2);
+        assert_eq!(count(&conn, "raw_events"), 2);
     }
 
     #[test]

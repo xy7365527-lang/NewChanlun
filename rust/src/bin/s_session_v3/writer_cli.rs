@@ -19,6 +19,7 @@ use super::*;
 use newchan_rust::session_protocol::{positive, validate_envelope};
 use newchan_rust::session_transport::{serve_unix, TransportBounds};
 use std::io::Read;
+use std::os::unix::fs::OpenOptionsExt;
 use std::time::Duration;
 
 /// 资源档文件上限；与 Q21 同口径，超过即拒绝，不做截断解析。
@@ -131,9 +132,16 @@ impl SResources {
     /// 读整个文件；超过上限的文件由 `parse` 拒绝，不做截断解析。
     pub(super) fn load(path: &Path) -> Result<Self, String> {
         let mut bytes = Vec::new();
-        std::fs::File::open(path)
-            .map_err(|e| err(format!("资源档不可读：{e}")))?
-            .take((RESOURCE_FILE_BYTES + 1) as u64)
+        // O_NONBLOCK 避免路径核验后被替换成 FIFO 时永久卡在 open；打开后再核 fd 类型。
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(path)
+            .map_err(|e| err(format!("资源档不可读：{e}")))?;
+        if !file.metadata().map_err(err)?.is_file() {
+            return Err(err("资源档须为普通文件"));
+        }
+        file.take((RESOURCE_FILE_BYTES + 1) as u64)
             .read_to_end(&mut bytes)
             .map_err(err)?;
         Self::parse(&bytes)
@@ -316,7 +324,10 @@ impl ServeOptions {
             )?,
             clock: existing_file(required(&values, "serve", "--clock-plan")?, "--clock-plan")?,
             socket: socket_path(required(&values, "serve", "--socket")?)?,
-            resources: PathBuf::from(required(&values, "serve", "--resource-config")?),
+            resources: existing_file(
+                required(&values, "serve", "--resource-config")?,
+                "--resource-config",
+            )?,
         })
     }
 }
@@ -401,6 +412,7 @@ fn preflight_input(
             clock.phase(event, phase, attempt)?;
         }
     }
+    driver::check_request_before_resume(&tx, &control, input)?;
     Ok(())
 }
 
@@ -527,7 +539,13 @@ fn advance(options: AdvanceOptions) -> Result<Option<Value>, String> {
     if let Some(ref envelope) = input {
         preflight_input(&options, &clock, envelope)?;
     }
-    let mut driver = Driver::open(&options.db, &options.profile, &options.epoch, clock)?;
+    let mut driver = Driver::open_with_request(
+        &options.db,
+        &options.profile,
+        &options.epoch,
+        clock,
+        input.as_ref(),
+    )?;
     match input {
         Some(envelope) => Ok(Some(driver.handle(envelope)?)),
         None => Ok(Some(driver.state_summary("advance")?)),
@@ -544,4 +562,53 @@ fn recover(options: RecoverOptions) -> Result<Option<Value>, String> {
         &clock,
         &options.clock_event,
     )?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn fifo_resource_config_is_rejected_before_opening_it() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("s3-writer-fifo-{}-{nonce}", std::process::id()));
+        std::fs::create_dir(&dir).unwrap();
+        let db = dir.join("db.sqlite");
+        let profile = dir.join("profile.json");
+        let clock = dir.join("clock.json");
+        for file in [&db, &profile, &clock] {
+            std::fs::write(file, "{}").unwrap();
+        }
+        let fifo = dir.join("resources.fifo");
+        let c_path = CString::new(fifo.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) }, 0);
+        let args = vec![
+            "s_structure_session".into(),
+            "serve".into(),
+            SELECTOR.into(),
+            PROTOCOL_REVISION.into(),
+            "--db".into(),
+            db.to_string_lossy().into_owned(),
+            "--profile".into(),
+            profile.to_string_lossy().into_owned(),
+            "--writer-epoch".into(),
+            "1".into(),
+            "--clock-plan".into(),
+            clock.to_string_lossy().into_owned(),
+            "--socket".into(),
+            dir.join("s.sock").to_string_lossy().into_owned(),
+            "--resource-config".into(),
+            fifo.to_string_lossy().into_owned(),
+        ];
+        assert!(ServeOptions::parse(&args).is_err());
+        assert!(SResources::load(&fifo).is_err());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }
