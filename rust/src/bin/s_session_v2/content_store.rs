@@ -78,6 +78,19 @@ fn check_digest(digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecEr
 }
 
 fn read_node(conn: &Connection, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+    match read_checked_node(conn, digest)? {
+        None => Ok(NodeRead::Missing),
+        Some(frame) => {
+            let (tag, body) = frame.into_parts();
+            Ok(NodeRead::Found { tag, body })
+        }
+    }
+}
+
+fn read_checked_node(
+    conn: &Connection,
+    digest: &NodeDigest,
+) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
     // 只复用SQL语句，不缓存节点行或核验结果；每次仍读取当前事务原件并核摘要。
     let row: Option<(i64, Vec<u8>)> = conn
         .prepare_cached("SELECT tag, body FROM s_content_nodes WHERE digest=?1")
@@ -86,12 +99,11 @@ fn read_node(conn: &Connection, digest: &NodeDigest) -> Result<NodeRead, CodecEr
         .optional()
         .map_err(storage_error)?;
     let Some((stored_tag, body)) = row else {
-        return Ok(NodeRead::Missing);
+        return Ok(None);
     };
     let tag = u8::try_from(stored_tag)
         .map_err(|_| CodecError::new(code::NODE_DIGEST, "节点 tag 超过一个字节"))?;
-    check_digest(digest, tag, &body)?;
-    Ok(NodeRead::Found { tag, body })
+    s_content::job::CheckedFrame::checked(digest, tag, body).map(Some)
 }
 
 pub(super) struct TxStore<'a, 'conn> {
@@ -108,6 +120,13 @@ impl<'a, 'conn> TxStore<'a, 'conn> {
 impl NodeSource for TxStore<'_, '_> {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
         read_node(self.tx, digest)
+    }
+
+    fn checked_read(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+        read_checked_node(self.tx, digest)
     }
 }
 
@@ -156,11 +175,85 @@ impl NodeSource for ReadStore<'_> {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
         read_node(self.conn, digest)
     }
+
+    fn checked_read(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
+        read_checked_node(self.conn, digest)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn checked_sqlite_read_hashes_once_and_rechecks_current_row() {
+        let mut conn = database("s-session/3");
+        let tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        let digest = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+        TxStore::new(&tx)
+            .unwrap()
+            .put(digest, s_content::tag::BOOL_TRUE, &[])
+            .unwrap();
+        let mut reader = ReadStore::new(&tx).unwrap();
+        for _ in 0..2 {
+            let before = s_content::frame_calls_on_thread();
+            let checked = reader.checked_read(&digest).unwrap().unwrap();
+            assert_eq!(checked.digest(), &digest);
+            assert_eq!(s_content::frame_calls_on_thread() - before, 1);
+        }
+        tx.execute(
+            "UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",
+            params![&digest[..]],
+        )
+        .unwrap();
+        assert_eq!(
+            reader.checked_read(&digest).err().unwrap().code(),
+            code::NODE_DIGEST
+        );
+        tx.execute(
+            "UPDATE s_content_nodes SET tag=?1,body=x'' WHERE digest=?2",
+            params![s_content::tag::BOOL_FALSE, &digest[..]],
+        )
+        .unwrap();
+        assert_eq!(
+            reader.checked_read(&digest).err().unwrap().code(),
+            code::NODE_DIGEST
+        );
+        tx.execute(
+            "DELETE FROM s_content_nodes WHERE digest=?1",
+            params![&digest[..]],
+        )
+        .unwrap();
+        let before = s_content::frame_calls_on_thread();
+        assert!(reader.checked_read(&digest).unwrap().is_none());
+        assert_eq!(s_content::frame_calls_on_thread(), before);
+    }
+
+    #[test]
+    fn checked_txstore_read_hashes_once_without_retaining_a_frame() {
+        let mut conn = database("s-session/3");
+        let tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        let digest = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+        let mut store = TxStore::new(&tx).unwrap();
+        store.put(digest, s_content::tag::BOOL_TRUE, &[]).unwrap();
+        let before = s_content::frame_calls_on_thread();
+        assert_eq!(
+            store.checked_read(&digest).unwrap().unwrap().digest(),
+            &digest
+        );
+        assert_eq!(s_content::frame_calls_on_thread() - before, 1);
+        tx.execute(
+            "DELETE FROM s_content_nodes WHERE digest=?1",
+            params![&digest[..]],
+        )
+        .unwrap();
+        assert!(store.checked_read(&digest).unwrap().is_none());
+    }
 
     // 使用 S 的实际协议元数据表形状；本夹具只证明节点存储，不证明完整 clock/session 初始化。
     fn database(protocol: &str) -> Connection {

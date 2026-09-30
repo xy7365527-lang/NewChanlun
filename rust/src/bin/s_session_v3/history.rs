@@ -775,15 +775,35 @@ impl NodeSource for HashReader<'_> {
         Ok(value)
     }
 
-    fn checked_read(&mut self, d: &NodeDigest) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+    fn checked_read(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
         check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
         if let Some(b) = self.budget {
             b.precheck()?;
         }
+        if self.budget.is_none() && !self.overlay.contains_key(d) {
+            #[cfg(test)]
+            super::state::trace_read(false);
+            // 仅透传本次真实读取的已核帧；不跨read保存，不改变计费分支的原门序。
+            let frame = self.source.checked_read(d)?;
+            if frame.as_ref().is_some_and(|f| f.digest() != d) {
+                return Err(sc::CodecError::new(
+                    sc::code::NODE_DIGEST,
+                    "本次已核帧不属于请求摘要",
+                ));
+            }
+            check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
+            return Ok(frame);
+        }
         let value = if let Some((tag, body)) = self.overlay.get(d) {
             #[cfg(test)]
             super::state::trace_read(true);
-            NodeRead::Found { tag: *tag, body: body.clone() }
+            NodeRead::Found {
+                tag: *tag,
+                body: body.clone(),
+            }
         } else {
             #[cfg(test)]
             super::state::trace_read(false);
@@ -824,6 +844,247 @@ impl NodeSink for HashReader<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn metered_sqlite_and_memory_bad_frames_keep_the_original_prepare_order() {
+        #[derive(Default)]
+        struct Meter {
+            prepared: std::cell::Cell<usize>,
+            accepted: std::cell::Cell<usize>,
+        }
+        impl super::super::audit_budget::Budget for Meter {
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+            fn prepare_node(&self) -> Result<(), sc::CodecError> {
+                self.prepared.set(self.prepared.get() + 1);
+                Ok(())
+            }
+            fn accept_prepared_frame(
+                &self,
+                _: &sc::job::CheckedFrame,
+            ) -> Result<(), sc::CodecError> {
+                self.accepted.set(self.accepted.get() + 1);
+                Ok(())
+            }
+            fn node(&self, _: &NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
+                unreachable!()
+            }
+            fn record(&self) -> Result<(), sc::CodecError> {
+                unreachable!()
+            }
+        }
+        let mut fixture = commit::tests::fixture();
+        let tx = fixture.conn.transaction().unwrap();
+        let digest = sc::frame(sc::tag::BOOL_TRUE, &[]);
+        content_store::TxStore::new(&tx)
+            .unwrap()
+            .put(digest, sc::tag::BOOL_TRUE, &[])
+            .unwrap();
+        let meter = Meter::default();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        {
+            let mut reader = HashReader::metered(&mut source, None, None, Some(&meter));
+            let before = sc::frame_calls_on_thread();
+            assert!(reader.checked_read(&digest).unwrap().is_some());
+            // 此小补修不改变已有计费路径的双F与prepare/accept顺序。
+            assert_eq!(sc::frame_calls_on_thread() - before, 2);
+        }
+        assert_eq!((meter.prepared.get(), meter.accepted.get()), (1, 1));
+        tx.execute(
+            "UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",
+            params![&digest[..]],
+        )
+        .unwrap();
+        let sqlite_meter = Meter::default();
+        {
+            let mut reader = HashReader::metered(&mut source, None, None, Some(&sqlite_meter));
+            assert_eq!(
+                reader.checked_read(&digest).err().unwrap().code(),
+                sc::code::NODE_DIGEST
+            );
+        }
+        assert_eq!(
+            (sqlite_meter.prepared.get(), sqlite_meter.accepted.get()),
+            (0, 0)
+        );
+        struct BadMemory;
+        impl NodeSource for BadMemory {
+            fn read(&mut self, _: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+                Ok(NodeRead::Found {
+                    tag: sc::tag::BOOL_TRUE,
+                    body: vec![1],
+                })
+            }
+        }
+        let memory_meter = Meter::default();
+        let mut memory = BadMemory;
+        let mut reader = HashReader::metered(&mut memory, None, None, Some(&memory_meter));
+        assert_eq!(
+            reader.checked_read(&digest).err().unwrap().code(),
+            sc::code::NODE_DIGEST
+        );
+        assert_eq!(
+            (memory_meter.prepared.get(), memory_meter.accepted.get()),
+            (1, 0)
+        );
+    }
+
+    #[test]
+    fn same_read_frame_keeps_template_public_and_json_inner_rules() {
+        let mut fixture = commit::tests::fixture();
+        let tx = fixture.conn.transaction().unwrap();
+        let mut store = content_store::TxStore::new(&tx).unwrap();
+        let placeholder = sc::write_template(&mut store, &sc::Value::BatchSelf).unwrap();
+        sc::verify_template(&mut store, &placeholder.content_ref()).unwrap();
+        assert!(sc::verify(&mut store, &placeholder.content_ref()).is_err());
+        let nested = sc::write_value(
+            &mut store,
+            &sc::Value::JsonText(Box::new(sc::JsonValue::Bool(true))),
+        )
+        .unwrap();
+        sc::verify(&mut store, &nested.content_ref()).unwrap();
+        // 注入合法F、非法JsonInner角色的实际SQL节点，不能由类型安全JsonValue构造器伪造。
+        let invalid_digest = sc::frame(sc::tag::JSON_TEXT, &nested.digest);
+        store
+            .put(invalid_digest, sc::tag::JSON_TEXT, &nested.digest)
+            .unwrap();
+        let mut invalid_inner = nested.content_ref();
+        invalid_inner.root = sc::root_string(&invalid_digest);
+        assert!(sc::verify(&mut store, &invalid_inner).is_err());
+        let mut wrong = nested.content_ref();
+        wrong.kind = sc::Kind::Bool;
+        assert!(sc::verify(&mut store, &wrong).is_err());
+    }
+
+    #[test]
+    fn unbudgeted_sqlite_hash_reader_passes_the_same_read_frame_once() {
+        let mut fixture = commit::tests::fixture();
+        let tx = fixture.conn.transaction().unwrap();
+        let digest = sc::frame(sc::tag::BOOL_TRUE, &[]);
+        content_store::TxStore::new(&tx)
+            .unwrap()
+            .put(digest, sc::tag::BOOL_TRUE, &[])
+            .unwrap();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = HashReader::new(&mut source);
+        let before = sc::frame_calls_on_thread();
+        assert_eq!(
+            reader.checked_read(&digest).unwrap().unwrap().digest(),
+            &digest
+        );
+        assert_eq!(sc::frame_calls_on_thread() - before, 1);
+        tx.execute(
+            "UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",
+            params![&digest[..]],
+        )
+        .unwrap();
+        assert_eq!(
+            reader.checked_read(&digest).err().unwrap().code(),
+            sc::code::NODE_DIGEST
+        );
+    }
+
+    #[test]
+    fn unbudgeted_hash_reader_does_not_reuse_a_previous_success_on_source_error() {
+        struct Source {
+            calls: usize,
+        }
+        impl NodeSource for Source {
+            fn read(&mut self, _: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+                self.calls += 1;
+                if self.calls == 1 {
+                    Ok(NodeRead::Found {
+                        tag: sc::tag::BOOL_TRUE,
+                        body: vec![],
+                    })
+                } else {
+                    Err(sc::CodecError::new(
+                        "second_source_error",
+                        "second real read failed",
+                    ))
+                }
+            }
+        }
+        let digest = sc::frame(sc::tag::BOOL_TRUE, &[]);
+        let mut source = Source { calls: 0 };
+        let mut reader = HashReader::new(&mut source);
+        assert!(reader.checked_read(&digest).unwrap().is_some());
+        assert_eq!(
+            reader.checked_read(&digest).err().unwrap().code(),
+            "second_source_error"
+        );
+        assert_eq!(source.calls, 2);
+    }
+
+    #[test]
+    fn unbudgeted_hash_reader_rejects_a_valid_frame_for_another_requested_digest() {
+        struct Source;
+        impl NodeSource for Source {
+            fn read(&mut self, _: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+                Ok(NodeRead::Found {
+                    tag: sc::tag::BOOL_TRUE,
+                    body: vec![],
+                })
+            }
+            fn checked_read(
+                &mut self,
+                _: &NodeDigest,
+            ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+                let other = sc::frame(sc::tag::BOOL_FALSE, &[]);
+                sc::job::CheckedFrame::checked(&other, sc::tag::BOOL_FALSE, vec![]).map(Some)
+            }
+        }
+        let requested = sc::frame(sc::tag::BOOL_TRUE, &[]);
+        let mut source = Source;
+        let mut reader = HashReader::new(&mut source);
+        assert_eq!(
+            reader.checked_read(&requested).err().unwrap().code(),
+            sc::code::NODE_DIGEST
+        );
+    }
+
+    #[test]
+    fn unbudgeted_hash_reader_enforces_deadline_before_and_after_the_real_read() {
+        struct Source {
+            calls: usize,
+            delay: std::time::Duration,
+        }
+        impl NodeSource for Source {
+            fn read(&mut self, _: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+                self.calls += 1;
+                std::thread::sleep(self.delay);
+                Ok(NodeRead::Found {
+                    tag: sc::tag::BOOL_TRUE,
+                    body: vec![],
+                })
+            }
+        }
+        let digest = sc::frame(sc::tag::BOOL_TRUE, &[]);
+        let mut source = Source {
+            calls: 0,
+            delay: std::time::Duration::from_millis(25),
+        };
+        {
+            let mut reader = HashReader::until(&mut source, Some(std::time::Instant::now()));
+            assert_eq!(
+                reader.checked_read(&digest).err().unwrap().code(),
+                "verify_deadline"
+            );
+        }
+        assert_eq!(source.calls, 0);
+        {
+            let mut reader = HashReader::until(
+                &mut source,
+                Some(std::time::Instant::now() + std::time::Duration::from_millis(10)),
+            );
+            assert_eq!(
+                reader.checked_read(&digest).err().unwrap().code(),
+                "verify_deadline"
+            );
+        }
+        assert_eq!(source.calls, 1);
+    }
 
     fn published() -> commit::tests::Fixture {
         let mut f = commit::tests::fixture();
