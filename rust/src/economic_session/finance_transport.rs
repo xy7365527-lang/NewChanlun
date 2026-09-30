@@ -240,6 +240,28 @@ pub(super) fn financial_reader(
     job: &mut Job,
     operation_deadline: Instant,
 ) -> Result<Value, String> {
+    financial_reader_with_parser(
+        binary,
+        args,
+        request,
+        resources,
+        job,
+        operation_deadline,
+        |reply| {
+            strict_json(reply).map_err(|_| "SchemaUnsupported：财务 reader 回复非严格JSON".into())
+        },
+    )
+}
+
+fn financial_reader_with_parser(
+    binary: &str,
+    args: &[&str],
+    request: &Value,
+    resources: &FinancialReaderResources,
+    job: &mut Job,
+    operation_deadline: Instant,
+    parse: impl FnOnce(&[u8]) -> Result<Value, String>,
+) -> Result<Value, String> {
     resources.validate()?;
     if job.snapshot().limits != resources.job_limits {
         return Err("IdentityConflict：财务 reader job 限额与冻结资源不符".into());
@@ -284,9 +306,13 @@ pub(super) fn financial_reader(
     if !status.success() {
         return Err("MissingDependency：财务 reader 非成功退出".into());
     }
-    let parsed =
-        strict_json(&reply).map_err(|_| "SchemaUnsupported：财务 reader 回复非严格JSON")?;
+    let parsed = parse(&reply)?;
     job.pre_io_check().map_err(|e| e.to_string())?;
+    // pre_io_check 的 Job Clock 本身也会耗时；经济操作与单次 reader 的
+    // 更早绝对期限必须在成功交还已解析结果的最后一刻再次核验。
+    if Instant::now() >= deadline {
+        return Err("Incomplete：财务 reader 在解析完成后达到绝对期限".into());
+    }
     Ok(parsed)
 }
 
@@ -754,6 +780,46 @@ mod financial_reader_tests {
         .unwrap_err()
         .contains("期限"));
         assert!(start.elapsed() < Duration::from_millis(650));
+    }
+
+    #[test]
+    fn complete_large_reply_cannot_pass_when_json_parsing_expires_operation_deadline() {
+        // 先落完整 JSON 文件；reader 仅 cat 已有原件，避免把构造时间算进本次期限。
+        let script = Script::new("/bin/cat >/dev/null; exec /bin/cat \"$1\"");
+        let response = format!("[{}{{}}]", "{},".repeat(500_000));
+        let path = script.dir.join("reply.json");
+        std::fs::write(&path, &response).unwrap();
+        let mut r = resources();
+        r.max_reply_bytes = response.len() as u64 + 1;
+        r.request_timeout_ms = 5_000;
+        r.job_limits.max_total_wire_bytes = response.len() as u64 + 4096;
+        r.job_limits.max_elapsed_ms = 10_000;
+        let mut job = new_job(r.job_limits);
+        let request = request();
+        let start = Instant::now();
+        let result = financial_reader_with_parser(
+            script.binary(),
+            &[path.to_str().unwrap()],
+            &request,
+            &r,
+            &mut job,
+            start + Duration::from_secs(2),
+            |bytes| {
+                let parsed = strict_json(bytes).map_err(|e| e.to_string())?;
+                // 真实大 JSON 已完整传输和解析；模拟同一解析阶段的额外 CPU 时间。
+                std::thread::sleep(Duration::from_millis(2_200));
+                Ok(parsed)
+            },
+        );
+        assert_eq!(
+            job.snapshot().wire_bytes,
+            (response.len() + canonical_json(&request).len()) as u128,
+            "期限必须在完整读取并进入解析后触发：{result:?}"
+        );
+        assert!(
+            result.unwrap_err().contains("解析完成后达到绝对期限"),
+            "必须验证返回前的期限，不以管道超时充数"
+        );
     }
 
     #[test]
