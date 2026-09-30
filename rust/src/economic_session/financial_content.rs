@@ -435,15 +435,16 @@ fn read_once(
             &map_ref(&snapshot_fields, "index_frontier")?)?,
         "commit_ns":reply["commit_ns"],"basis_ref":reply["basis_ref"]});
     import_proof(&proof, stage, job)?;
-    // A complete, already owned local subgraph may be reused. The final whole-root
-    // verification and six-family record charge still run below.
-    if let Err(error) = full_verify(stage, &root, job) {
-        if !error.contains(sc::code::NODE_MISSING) {
-            return Err(error);
+    // One complete check on a cached root. Missing nodes trigger retrieval and
+    // a new check; any rows visited by the failed attempt stay charged.
+    let mut result = match verify_local(pins, &evidence, &mut StoreSource(stage), job) {
+        Ok(verified) => verified,
+        Err(error) if error.contains(sc::code::NODE_MISSING) => {
+            download(pins, &root, &anchor, job, deadline, stage)?;
+            verify_local(pins, &evidence, &mut StoreSource(stage), job)?
         }
-        download(pins, &root, &anchor, job, deadline, stage)?;
-    }
-    let mut result = verify_local(pins, &evidence, &mut StoreSource(stage), job)?;
+        Err(error) => return Err(error),
+    };
     if result.snapshot_ref != snapshot {
         return Err("IdentityConflict：本地 snapshot 与 transport 不同".into());
     }
@@ -553,15 +554,11 @@ fn scalar_value(source: &mut dyn NodeSource, reference: &ContentRef) -> Result<V
     if !matches!(
         reference.kind,
         Kind::String | Kind::Number | Kind::Bool | Kind::Null
-    ) || reference.extent.is_some_and(|n| n > 4096)
-    {
-        return Err(invalid("预期有界标量"));
+    ) {
+        return Err(invalid("预期标量"));
     }
     let mut bytes = Vec::new();
     sc::render_canonical(source, reference, &mut bytes).map_err(codec)?;
-    if bytes.len() > 8192 {
-        return Err(invalid("标量渲染超限"));
-    }
     strict_json(&bytes)
 }
 fn scalar_string(source: &mut dyn NodeSource, reference: &ContentRef) -> Result<String, String> {
@@ -657,31 +654,93 @@ fn check_selected(
     Ok(())
 }
 
-fn full_verify(
-    stage: &mut dyn FinancialStage,
-    root: &ContentRef,
-    job: &mut Job,
-) -> Result<(), String> {
-    struct Metered<'a> {
-        source: &'a mut dyn NodeSource,
-        job: &'a mut Job,
+/// One source wrapper for the whole verification pass. Unique nodes stay deduplicated
+/// within the Job; logical record visits are charged separately at their access point.
+struct MeteredSource<'a> {
+    source: &'a mut dyn NodeSource,
+    job: &'a mut Job,
+}
+impl NodeSource for MeteredSource<'_> {
+    fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+        self.job.pre_io_check()?;
+        let node = self.source.read(digest)?;
+        if let NodeRead::Found { tag, body } = &node {
+            self.job.accept_node(digest, *tag, body)?;
+        }
+        Ok(node)
     }
-    impl NodeSource for Metered<'_> {
-        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-            self.job.pre_io_check()?;
-            let node = self.source.read(digest)?;
-            if let NodeRead::Found { tag, body } = &node {
-                self.job.accept_node(digest, *tag, body)?;
-            }
-            Ok(node)
+    fn max_render_bytes(&self) -> Option<u64> {
+        // A JSON string can expand a raw byte to six ASCII escape bytes.
+        // Derive the scratch rendering ceiling from the frozen node budget,
+        // rather than imposing a separate scalar length policy.
+        Some(
+            self.job
+                .snapshot()
+                .limits
+                .max_total_node_bytes
+                .saturating_mul(6)
+                .saturating_add(2),
+        )
+    }
+}
+
+fn charge_array_rows(source: &mut MeteredSource<'_>, array: &ContentRef) -> Result<(), String> {
+    if array.kind != Kind::Array {
+        return Err(invalid("六族记录集合非数组"));
+    }
+    let count = array.extent.ok_or_else(|| invalid("六族数组缺 extent"))?;
+    for index in 0..count {
+        // A failed record access is still an attempted top-level record visit.
+        source.job.charge_records(1).map_err(codec)?;
+        path::lookup_path(source, array, &[PathStep::Index(index)]).map_err(codec)?;
+    }
+    Ok(())
+}
+
+/// Charge the actual semantic record slots visited by this codec pass, including
+/// a prefix if a missing or corrupt node stops the pass. Reusing node digests does
+/// not waive a new full-check or a repeated record-context check.
+fn charge_scope_rows(
+    source: &mut MeteredSource<'_>,
+    reference: &ContentRef,
+    steps: &[PathStep],
+) -> Result<(), String> {
+    let is_snapshot = |step: &PathStep| matches!(step, PathStep::Field(name) if name == "snapshot");
+    let in_family = steps.len() >= 2
+        && matches!(&steps[1], PathStep::Field(name) if FAMILIES.contains(&name.as_str()));
+    if steps.is_empty() || (steps.len() == 1 && is_snapshot(&steps[0])) {
+        let snapshot = if steps.is_empty() {
+            path::lookup_path(source, reference, &[field("snapshot")]).map_err(codec)?
+        } else {
+            reference.clone()
+        };
+        let fields = path::lookup_object_fields(source, &snapshot, &SNAPSHOT).map_err(codec)?;
+        for name in FAMILIES {
+            charge_array_rows(source, &map_ref(&fields, name)?)?;
+        }
+    } else if in_family && is_snapshot(&steps[0]) {
+        if steps.len() == 2 {
+            charge_array_rows(source, reference)?;
+        } else if matches!(&steps[2], PathStep::Index(_)) {
+            source.job.charge_records(1).map_err(codec)?;
         }
     }
-    let mut store_source = StoreSource(stage);
-    let mut source = Metered {
-        source: &mut store_source,
+    Ok(())
+}
+
+fn full_verify(
+    stage: &mut dyn FinancialStage,
+    reference: &ContentRef,
+    steps: &[PathStep],
+    job: &mut Job,
+) -> Result<(), String> {
+    let mut adapter = StoreSource(stage);
+    let mut source = MeteredSource {
+        source: &mut adapter,
         job,
     };
-    sc::verify(&mut source, root).map_err(codec)?;
+    charge_scope_rows(&mut source, reference, steps)?;
+    sc::verify(&mut source, reference).map_err(codec)?;
     Ok(())
 }
 fn verify_local(
@@ -691,33 +750,10 @@ fn verify_local(
     job: &mut Job,
 ) -> Result<VerifiedBasis, String> {
     let root = from_ref(&evidence["basis_ref"])?;
-    struct Metered<'a> {
-        source: &'a mut dyn NodeSource,
-        job: &'a mut Job,
-    }
-    impl NodeSource for Metered<'_> {
-        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-            self.job.pre_io_check()?;
-            let node = self.source.read(digest)?;
-            if let NodeRead::Found { tag, body } = &node {
-                self.job.accept_node(digest, *tag, body)?;
-            }
-            Ok(node)
-        }
-    }
-    let mut metered = Metered { source, job };
+    let mut metered = MeteredSource { source, job };
+    charge_scope_rows(&mut metered, &root, &[])?;
     sc::verify(&mut metered, &root).map_err(codec)?;
-    let (snapshot, fields) = validate_headers(pins, evidence, &mut metered)?;
-    for name in FAMILIES {
-        let family = map_ref(&fields, name)?;
-        if family.kind != Kind::Array {
-            return Err(invalid(format!("snapshot.{name} 非数组")));
-        }
-        let count = family
-            .extent
-            .ok_or_else(|| invalid(format!("snapshot.{name} 缺长度")))?;
-        metered.job.charge_records(count).map_err(codec)?;
-    }
+    let (snapshot, _) = validate_headers(pins, evidence, &mut metered)?;
     metered.job.pre_io_check().map_err(codec)?;
     Ok(VerifiedBasis {
         evidence: evidence.clone(),
@@ -848,10 +884,12 @@ fn download(
         if !visited.insert(reference.root.clone()) {
             continue;
         }
-        match full_verify(stage, &reference, job) {
-            Ok(()) => continue,
-            Err(error) if error.contains(sc::code::NODE_MISSING) => (),
-            Err(error) => return Err(error),
+        if !path.is_empty() {
+            match full_verify(stage, &reference, &path, job) {
+                Ok(()) => continue,
+                Err(error) if error.contains(sc::code::NODE_MISSING) => (),
+                Err(error) => return Err(error),
+            }
         }
         let unit = match reference.kind {
             Kind::Object | Kind::Array => Unit::Items,
@@ -924,7 +962,13 @@ fn download(
                         .items
                         .as_array()
                         .ok_or_else(|| invalid("数组 items 非数组"))?;
+                    let family_page = path.len() == 2
+                        && matches!(&path[0], PathStep::Field(name) if name == "snapshot")
+                        && matches!(&path[1], PathStep::Field(name) if FAMILIES.contains(&name.as_str()));
                     for (index, item) in items.iter().enumerate() {
+                        if family_page {
+                            job.charge_records(1).map_err(codec)?;
+                        }
                         let child = from_ref(item)?;
                         let mut child_path = path.clone();
                         child_path.push(PathStep::Index(offset + index as u64));
@@ -981,7 +1025,7 @@ fn download(
             offset = fragment.end;
         }
     }
-    full_verify(stage, root, job)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1435,9 +1479,162 @@ mod fresh_small_tests {
             usage.staged.exposure,
             usage.store.exposure
         );
+        // A second complete check is a second visit to each logical row even
+        // when every content node is already in the local store.
+        let root = from_ref(&result.evidence["basis_ref"]).unwrap();
+        let victim_ref = path::lookup_path(
+            &mut stage,
+            &result.snapshot_ref,
+            &[field("raw_history"), PathStep::Index(0)],
+        )
+        .unwrap();
+        let victim = victim_ref.digest().unwrap();
+        let mut partial = Stage(MemoryNodes::new());
+        let mut partial_baseline = 0u64;
+        for (digest, tag, body) in stage.0.iter() {
+            if *digest != victim {
+                partial.0.put(*digest, tag, body).unwrap();
+                partial_baseline += body.len() as u64 + 128;
+            }
+        }
+        let mut failed_job = Job::new(
+            limits,
+            Existing {
+                store_bytes: partial_baseline,
+                staged_bytes: 0,
+            },
+            Box::new(Instant::now),
+        )
+        .unwrap();
+        let failed = full_verify(&mut partial, &root, &[], &mut failed_job).unwrap_err();
+        assert!(failed.contains(sc::code::NODE_MISSING), "{failed}");
+        assert!(
+            failed_job.snapshot().records > 0,
+            "失败前已访问的六族记录不可免计"
+        );
+        println!(
+            "failed_prefix records={} error={}",
+            failed_job.snapshot().records,
+            failed
+        );
+        let mut record_total = 0u64;
+        for name in FAMILIES {
+            let family =
+                path::lookup_path(&mut stage, &result.snapshot_ref, &[field(name)]).unwrap();
+            record_total += family.extent.unwrap();
+        }
+        let mut narrow_limits = resources["job_limits"].clone();
+        narrow_limits["max_total_records"] = json!(record_total.to_string());
+        let mut record_job = Job::new(
+            JobLimits::from_canonical_json(&narrow_limits).unwrap(),
+            Existing {
+                store_bytes: usage.store.exposure as u64,
+                staged_bytes: 0,
+            },
+            Box::new(Instant::now),
+        )
+        .unwrap();
+        full_verify(&mut stage, &root, &[], &mut record_job).unwrap();
+        assert_eq!(record_job.snapshot().records, record_total);
+        let second = full_verify(&mut stage, &root, &[], &mut record_job).unwrap_err();
+        assert!(second.contains("job_limit_exceeded"), "{second}");
+        println!(
+            "revisit_gate rows={} cap={} second={}",
+            record_job.snapshot().records,
+            record_total,
+            second
+        );
+
         assert_eq!(
             Sha256::digest(std::fs::read(db).unwrap()).as_slice(),
             original_db.as_slice()
         );
+    }
+    #[test]
+    #[ignore = "requires the independent real S3 4097-byte session fixture"]
+    fn real_long_session_current_basis_and_offline_verify() {
+        let db = std::env::var("FINANCIAL_LONG_DB").expect("real S3 long DB");
+        let input_path = std::env::var("FINANCIAL_SMALL_INPUTS").expect("small INPUTS path");
+        let resource_path =
+            std::env::var("FINANCIAL_SMALL_RESOURCES").expect("small RESOURCES path");
+        let inputs = strict_json(&std::fs::read(input_path).unwrap()).unwrap();
+        let resources = strict_json(&std::fs::read(resource_path).unwrap()).unwrap();
+        let long_id = "a".repeat(4097);
+        let structure = json!({"binary":inputs["binary"],"binary_sha256":inputs["binary_sha256"],
+            "db":db,"session_id":long_id,"session_generation":"1","writer_epoch":"1",
+            "reader_revision":"s-financial-basis/3","content_format":"s-content/1",
+            "reader_resources":resources});
+        let original_db = Sha256::digest(std::fs::read(&db).unwrap());
+        let conn =
+            rusqlite::Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
+        let mut stage = Stage(MemoryNodes::new());
+        let mut baseline = 0u64;
+        let mut query = conn
+            .prepare("SELECT digest,tag,body FROM s_content_nodes")
+            .unwrap();
+        for row in query
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, Vec<u8>>(0)?,
+                    row.get::<_, u8>(1)?,
+                    row.get::<_, Vec<u8>>(2)?,
+                ))
+            })
+            .unwrap()
+        {
+            let (raw, tag, body) = row.unwrap();
+            stage.0.put(raw.try_into().unwrap(), tag, &body).unwrap();
+            baseline += body.len() as u64 + 128;
+        }
+        let limits = JobLimits::from_canonical_json(&resources["job_limits"]).unwrap();
+        let mut job = Job::new(
+            limits,
+            Existing {
+                store_bytes: baseline,
+                staged_bytes: 0,
+            },
+            Box::new(Instant::now),
+        )
+        .unwrap();
+        let basis = read_current(
+            &structure,
+            &[],
+            &mut job,
+            Instant::now() + Duration::from_secs(120),
+            &mut stage,
+        )
+        .unwrap();
+        assert_eq!(basis.evidence["session_id"], long_id);
+        let offline =
+            verify_evidence(&structure, &basis.evidence, &mut stage, &mut job, None).unwrap();
+        assert_eq!(offline.snapshot_ref, basis.snapshot_ref);
+        assert_eq!(
+            Sha256::digest(std::fs::read(&db).unwrap()).as_slice(),
+            original_db.as_slice()
+        );
+        println!(
+            "long_session len={} requests={} records={} nodes={}",
+            long_id.len(),
+            job.snapshot().requests,
+            job.snapshot().records,
+            job.snapshot().nodes
+        );
+    }
+}
+
+#[cfg(test)]
+mod scalar_regression_tests {
+    use super::*;
+    use crate::s_content::{MemoryNodes, NodeSink};
+
+    #[test]
+    fn legitimate_session_scalar_over_4096_bytes_is_accepted() {
+        let mut source = MemoryNodes::new();
+        let session_id = "a".repeat(4097);
+        let reference = sc::write_value(&mut source, &sc::Value::string(&session_id))
+            .unwrap()
+            .content_ref();
+        assert_eq!(scalar_string(&mut source, &reference).unwrap(), session_id);
     }
 }
