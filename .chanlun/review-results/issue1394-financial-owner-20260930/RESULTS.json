@@ -1,0 +1,159 @@
+{
+  "schema_revision": "issue1394-financial-owner-evidence/1",
+  "ticket": 1394,
+  "graph": 1323,
+  "status": "BOUNDED_BACKEND_PROGRESS_NOT_JOINT_ACCEPTANCE",
+  "goal_status": "active",
+  "base": "7ec958012401acd0515f8be558ae13e925473685",
+  "product_head": "6dcee4da72873ab323132cf2fd64271702a1d8c3",
+  "reviewed_source": "d8b4b713e4645d4b7833aca0705b4e35f22ab198",
+  "rust_trees_equal": true,
+  "main_merged": false,
+  "pushed": false,
+  "frontend_graph": 1460,
+  "review": {
+    "client_spec": "PASS",
+    "client_standards": "PASS",
+    "owner_spec": "PASS",
+    "owner_standards": "PASS",
+    "known_high_closed": true
+  },
+  "checks": {
+    "root_client_index_regression": {
+      "exit": 0,
+      "passed": 1
+    },
+    "sigkill_matrix": {
+      "passed": 24,
+      "failed": 0,
+      "pairs": 12,
+      "scope": "cache reused real S3, six operations before/after x two fresh processes"
+    },
+    "actual_half_import": {
+      "exit": 0,
+      "passed": 1,
+      "seconds": 2.14,
+      "durable_stage_rows_at_kill": 1,
+      "after_recovery": 0,
+      "prepared_or_grant_created": false
+    },
+    "formal_cli": {
+      "exit": 0,
+      "passed": 1,
+      "seconds": 36.16,
+      "owners": 3,
+      "grants": [
+        "30",
+        "40"
+      ],
+      "retained_liability": "90",
+      "setup": "library/TestOnly Capture/Apply/BindVoice/existing20",
+      "financial_steps": "official E/B CLI serve Unix Prepare/Reserve/Commit, original-ID resend and queries"
+    },
+    "formal_cli_offline_recover": {
+      "owners": 3,
+      "all_exit_zero": true,
+      "writer_epoch": "2",
+      "staging_zero": true
+    }
+  },
+  "failure_records": [
+    "first fixture subset gate and legitimate empty body input corrected with bounds retained; first actual setup failed 0.49s before kill, source DB/genesis retained",
+    "hdiutil -format UDRW rejected for blank image; local help corrected -type UDIF, original failure retained",
+    "first formal CLI startup rejected too-long Unix socket path; no financial requests entered; new instance via frozen short path alias passed"
+  ],
+  "scope_limits": [
+    "controlled Voice authority/operation results and cash policy are TestOnly; not formal gamma or production funds policy",
+    "matrix and formal CLI use preloaded verified source cache; actual cold half-import separately tested",
+    "no new venue capability or real orders",
+    "S3 FIFO/serve resource gates, all history/resources/source-change/ENOSPC obligations and 9011 double-run remain",
+    "remaining TB and original six Destinations are not closed; product frontend stays independent 1460"
+  ],
+  "files": [
+    {
+      "path": "inputs/MATRIX-ACCEPTANCE.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/fault-matrix-remaining-20260930/MATRIX-ACCEPTANCE.json",
+      "bytes": 153720,
+      "sha256": "b3544cbdf6e42152c5bce2df72ff1f0fc2018f56bfa7aefe576133e35cec4a6e"
+    },
+    {
+      "path": "inputs/ROOT-MATRIX-AUDIT.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/ROOT-MATRIX-AUDIT.json",
+      "bytes": 6095,
+      "sha256": "1affbdc09732c6852503c541a09451a4cc5dd36c96cfde7368305ea99311bc27"
+    },
+    {
+      "path": "inputs/HALF-IMPORT-RESULT.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/half-import-actual-20260930/evidence/half-import-result.json",
+      "bytes": 1067,
+      "sha256": "be6baa36af3f768171723982a19516278355e9d3d350e3ffe6c0a5a081f5697b"
+    },
+    {
+      "path": "inputs/FORMAL-CLI-RUNTIME.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/formal-cli-actual-20260930-attempt2/evidence/formal-cli-runtime.json",
+      "bytes": 581,
+      "sha256": "5e6dbe52390922878c2b61b4852d5ff010ccbee3174ecbb21ec8cda28bb30b3c"
+    },
+    {
+      "path": "inputs/FORMAL-CLI-RESULTS.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/formal-cli-actual-20260930-attempt2/evidence/formal-cli-results.json",
+      "bytes": 2110071,
+      "sha256": "00c22e8281ee54f23ffb5ab663ae80865fc0c88fb3f8f1164e625c4c6ac772d5"
+    },
+    {
+      "path": "inputs/FORMAL-CLI-PROCESSES.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/formal-cli-actual-20260930-attempt2/evidence/formal-cli-processes.json",
+      "bytes": 2273,
+      "sha256": "02b8299c6fea361c49bc28773ae3dc5e2b42bee1285d9af79a128851f19793d7"
+    },
+    {
+      "path": "inputs/FORMAL-CLI-OFFLINE-RECOVERY.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/formal-cli-actual-20260930-attempt2/evidence/formal-cli-offline-recovery.json",
+      "bytes": 4605,
+      "sha256": "5e9a5b302498a00a0c827de698e6069ec1fbb50c96ac17f7587c3d4cb876ff3a"
+    },
+    {
+      "path": "inputs/FAULT-ACCEPTANCE-source.rs",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/FAULT-ACCEPTANCE-source.rs",
+      "bytes": 36842,
+      "sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8"
+    },
+    {
+      "path": "inputs/FORMAL-CLI-ACCEPTANCE-insert.rs",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/FORMAL-CLI-ACCEPTANCE-insert.rs",
+      "bytes": 15929,
+      "sha256": "69bca03208f1a0e0c6d6c88348c060ccaa862d948c9a2289019a2b145caed3f0"
+    },
+    {
+      "path": "inputs/HALF-IMPORT-ACCEPTANCE-insert.rs",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/HALF-IMPORT-ACCEPTANCE-insert.rs",
+      "bytes": 14512,
+      "sha256": "6d81cf0e62e62f7d2d08c4da811d9f459e4a4f96d291be44383d84eca386e5b8"
+    },
+    {
+      "path": "inputs/SMALL-SOURCE-INPUTS.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/INPUTS.json",
+      "bytes": 4504,
+      "sha256": "5a7280178e45f6728c3d4afa9d313b98664af8c4141cccac10c99df639dfa82f"
+    },
+    {
+      "path": "inputs/READER-RESOURCES.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/RESOURCES.json",
+      "bytes": 415,
+      "sha256": "f8e9e3ca737b3c232c0c62bf748f524badeed575646c53338dca35b1804953dc"
+    },
+    {
+      "path": "inputs/PUBLISHED-CACHE-PROVENANCE.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/acceptance-raw/published-cache-provenance.json",
+      "bytes": 1175,
+      "sha256": "a82c44725c4599d84261e2fa9253b5f49c2e7358538dab2b96d4c372cf2ed2c6"
+    },
+    {
+      "path": "inputs/TASK-MOUNTS-FINAL.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/TASK-MOUNTS-FINAL.json",
+      "bytes": 150,
+      "sha256": "00625ebadc8e29d84275fd197d80dc77c8c0da85f56377e05c8ea827df1abde2"
+    }
+  ],
+  "all_task_images_currently_detached": true
+}
