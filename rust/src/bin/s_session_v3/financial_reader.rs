@@ -95,6 +95,15 @@ fn db_arg(args: &[String]) -> Result<&Path, String> {
 
 pub(super) fn run(args: &[String]) -> Result<(), String> {
     let db = db_arg(args)?;
+    // A FIFO can block SQLite's open even after stdin reaches EOF. Reject all
+    // non-regular paths before touching stdin; the later read-only open/audit
+    // remains authoritative if the path changes after this preflight.
+    let file_type = std::fs::symlink_metadata(db)
+        .map_err(|e| invalid(format!("--db必须指向已存在的普通文件：{e}")))?
+        .file_type();
+    if !file_type.is_file() {
+        return Err(invalid("--db必须指向已存在的普通文件"));
+    }
     let mut bytes = Vec::new();
     std::io::stdin().read_to_end(&mut bytes).map_err(invalid)?;
     let request = strict_json(&bytes).map_err(invalid)?;
