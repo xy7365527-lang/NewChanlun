@@ -33,3 +33,10 @@ Owner初评三条HIGH：审计重开Job、提交期限未贯穿、失败stage未
 实际观察随后在初始化前增加独立只读Q源的新域完成。另一独立会话核47个封包引用、6真实HTTP标准库重Hash/cause/replyID、token、三域native image/cut/root对拍、12变化image Hash及2Original全对象等价，给限定事实PASS。它区分case1长canonical socket的PartialVector及Q writeDenied负控与case2同权限继承的成功，未计第二次写负控。资源Q19逐字与旧具名fixture相同，8经济限额不变；进程与6卷均回收。
 
 现有封包扩至41份inputs，全部bytes/SHA已核；实际HTTP与独评仅覆盖具名TestOnly样本。browser、独立完整内容闭包、全部资源/历史/9011及其它TB仍未由此证据结清。详见inputs/ECONOMIC-HTTP-INDEPENDENT-REVIEW.md；没有重跑已通过案例。
+
+
+## 严格经济 /2 测试客户端与真实浏览器
+
+固定9f923的四文件经独立Spec与Standards PASS，精确整合3b53744。旧/1空作用域、Evidence会话/化身、决定与完整历史/权利、Reserve/grant/捕获E及原输入生成式的全部明确HIGH/MEDIUM均闭合；最终Close原因仅复用原非空text门，不trim、排序或改变跨请求重复规则。256完整向量与最后25定向向量组合复用，不相加称281。全部旧FAIL/原反例保持，见inputs/ECONOMIC-CLIENT-RAW.zip及最终独评。
+
+实际浏览器由另一管理会话运行，独立事实会话再核418个文件、12真实HTTP、三域current/Prepared85/Watch、四Original、两截图和fresh回收状态；PASS_BOUNDED_ACTUAL_BROWSER_FACTS，findings空。首个离线审查脚本误用domain/id而非实际domain_id/object_id，改审查读者后通过，不当成产品缺陷。经济API不提供节点闭包及无前根顶层root的独立证明；没有把本域通过扩大为controller/Q3、9011、主线或整图。

@@ -19,7 +19,10 @@
     "known_high_closed": true,
     "supplement_spec": "PASS_BOUNDED",
     "supplement_standards": "PASS_BOUNDED",
-    "actual_economic_http_facts": "PASS_BOUNDED"
+    "actual_economic_http_facts": "PASS_BOUNDED",
+    "economic_testclient_spec": "PASS",
+    "economic_testclient_standards": "PASS",
+    "actual_economic_browser_facts": "PASS_BOUNDED_ACTUAL_BROWSER_FACTS"
   },
   "checks": {
     "root_client_index_regression": {
@@ -203,6 +206,46 @@
       "failure_case_preserved": "case1 PartialVector due Q canonical resolution of long symlink socket paths, no product or limit change; case2 uses short real directory",
       "scope": "actual economic/2 API on new readonly-authorized TestOnly financial domain; not browser/frontend/independent full source closure/9011/whole graph",
       "independent_fact_review": "PASS_BOUNDED_NAMED_DOMAIN"
+    },
+    "economic_testclient_v2": {
+      "fixed_candidate": "9f923877e7d2dd9bb9c0a8cfe0c065bbfbda38da",
+      "integration_head": "3b53744be109aa18932bdc50d3590e10dde9b32d",
+      "four_files_equal": true,
+      "full_input_candidate": "a67bad583ad5ed59e219c54c3ada0e70e1f4f7b3",
+      "full_input_suite_passed": 256,
+      "final_close_targeted_passed": 25,
+      "overlap_not_additive": true,
+      "zero_skips": true,
+      "all_known_high_medium_closed": true,
+      "code_review_spec": "PASS",
+      "code_review_standards": "PASS"
+    },
+    "economic_readonly_v2_actual_browser": {
+      "status": "PASS_BOUNDED_ACTUAL_BROWSER_FACTS",
+      "current_two_committed": true,
+      "as_known_ns": "85",
+      "past_two_prepared": true,
+      "watch_same_three_cut_image_hash_commit_ns": true,
+      "http_status_200_count": 12,
+      "economic_post_count": 11,
+      "snapshot_posts": 6,
+      "watch_posts": 1,
+      "original_posts": 4,
+      "original_full_objects_equal_native": true,
+      "max_actual_post_response_bytes": 922213,
+      "responsibility_total": "90",
+      "locked_amounts": {
+        "alpha": "30",
+        "beta": "40"
+      },
+      "execution_eligibility": "None",
+      "owner_logical_and_saved_three_db_sha_unchanged": true,
+      "whole_copy_dmg_bytes_unchanged": false,
+      "original_three_dmg_unchanged": true,
+      "all_processes_reaped": true,
+      "all_copy_volumes_detached": true,
+      "independent_fact_reviewed_file_count": 418,
+      "scope": "new readonly-authorized named TestOnly /2 browser, not node closure/top-level root/controller/Q3/resources9011/frontend1460/joint"
     }
   },
   "failure_records": [
@@ -219,7 +262,7 @@
     "matrix and formal CLI use preloaded verified source cache; actual cold half-import separately tested",
     "no new venue capability or real orders",
     "S3 named writer resource enforcement, all history/resources and 9011 double-run remain; conditional FIFO/stable-point is already-decided #1416 with its own native prerequisites",
-    "Economic readonly /2 code and actual HTTP are accepted in named domain; current browser test client still needs strict /2 and native identity adaptation, no independent full content closure or economic root replay claim",
+    "Economic readonly /2 adapter, strict test client and actual browser are accepted in named TestOnly domain; no independent FinancialBasis node closure/seven-field body/top-level economic root/controller/Q3/full resources/9011 or product frontend claim",
     "Final ENOSPC probe injects external competing pressure beyond normal exclusive-volume prepaid success domain; no promotion to all configurations or availability guarantee",
     "remaining TB and original six Destinations are not closed; product frontend stays independent 1460"
   ],
@@ -469,8 +512,93 @@
       "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-HTTP-INDEPENDENT-REVIEW.md",
       "bytes": 8018,
       "sha256": "8ead0753a9f01049a99ba38e585afab0762a2c0e6cb26adf5b1dbfeceb8c5466"
+    },
+    {
+      "path": "inputs/ECONOMIC-CLIENT-DELIVERY.md",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-economic-testclient-v2-20260930/.scratch/issue1394-economic-testclient-v2-20260930/DELIVERY-RESULTS.md",
+      "bytes": 1525,
+      "sha256": "80ca94c7160b8a910e3e1b639cdbef505ed2c7ad6604f695102f2523d73a4fd5"
+    },
+    {
+      "path": "inputs/ECONOMIC-CLIENT-ARTIFACTS.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-economic-testclient-v2-20260930/.scratch/issue1394-economic-testclient-v2-20260930/DELIVERY-ARTIFACTS.json",
+      "bytes": 4196,
+      "sha256": "139841ca16cfd3d8f0b950e75428191ac7f4549884af14b966471c73178d0504"
+    },
+    {
+      "path": "inputs/ECONOMIC-CLIENT-INPUT-CHECKLIST.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-economic-testclient-v2-20260930/.scratch/issue1394-economic-testclient-v2-20260930/INPUT-CHECKLIST.json",
+      "bytes": 6290,
+      "sha256": "885886ff86a020d83ef8f666712ee9510b726f6a1b1451c9a4dcad8312429f95"
+    },
+    {
+      "path": "inputs/ECONOMIC-CLIENT-INDEPENDENT-REVIEW.md",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-economic-testclient-v2-20260930/.scratch/issue1394-economic-testclient-v2-20260930/INPUT-FINAL-INDEPENDENT-REVIEW.md",
+      "bytes": 4863,
+      "sha256": "244b5617bb9381919328a820351965c4d68a22b07e85a05c92605aabdc6db5a1"
+    },
+    {
+      "path": "inputs/ECONOMIC-CLIENT-INDEPENDENT-REVIEW.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-economic-testclient-v2-20260930/.scratch/issue1394-economic-testclient-v2-20260930/INPUT-FINAL-INDEPENDENT-REVIEW.json",
+      "bytes": 2785,
+      "sha256": "91805564dc3adc561aa9747d61c2155434b9854c753c3626715ccb7e283b9e03"
+    },
+    {
+      "path": "inputs/ECONOMIC-BROWSER-MANIFEST.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-ACTUAL-MANIFEST.json",
+      "bytes": 141791,
+      "sha256": "d7881aa37db27ab206e5a8c8046c916608fde8eb78dc9a3b67783d7d193a5a82"
+    },
+    {
+      "path": "inputs/ECONOMIC-BROWSER-RESULTS.md",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-ACTUAL-RESULTS.md",
+      "bytes": 2420,
+      "sha256": "1c33e23d67efedbd0092719b75838544af48b65ac4b66e143a7d6b1d9052aa07"
+    },
+    {
+      "path": "inputs/ECONOMIC-BROWSER-FACT-CHECK.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-FACT-CHECK.json",
+      "bytes": 3867,
+      "sha256": "bf3877a980c84e9b52619c2e0561d74924786fbeecd0d6ca94800104f6aff4f7"
+    },
+    {
+      "path": "inputs/ECONOMIC-BROWSER-INDEPENDENT-REVIEW.md",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-INDEPENDENT-FACT-REVIEW.md",
+      "bytes": 7954,
+      "sha256": "4d0b4a1b0bddf26bb263e965559df31f6f3dedd9dabb4e8fb767d9d4a75abd10"
+    },
+    {
+      "path": "inputs/ECONOMIC-BROWSER-INDEPENDENT-REVIEW.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/BROWSER-INDEPENDENT-FACT-REVIEW.json",
+      "bytes": 14704,
+      "sha256": "dbac5dca3bb7ddca87968ca9089768fd055e51d9f7871023fe305c5bf12de16a"
+    },
+    {
+      "path": "inputs/ROOT-ECONOMIC-CLIENT-AUDIT.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/ROOT-FINAL-CLIENT-AUDIT.json",
+      "bytes": 9335,
+      "sha256": "4c8b2215153a73dfedf3cdb5cd04edec96629565e20fa2029041e5d1e73d46e6"
+    },
+    {
+      "path": "inputs/ECONOMIC-SELECTIVE-ARCHIVES.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/ROOT-SELECTIVE-ARCHIVES.json",
+      "bytes": 947,
+      "sha256": "6e4627e63e5a69b2701031543cea7e7518bf55c743a262bfbb6c0b8f11451653"
+    },
+    {
+      "path": "inputs/ECONOMIC-CLIENT-RAW.zip",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/ROOT-SELECTIVE-ARCHIVES.json",
+      "bytes": 167076,
+      "sha256": "ebbf0b6dd36f7212680d24883b33c6754cb4b583ed2f6c24762206741034287d"
+    },
+    {
+      "path": "inputs/ECONOMIC-BROWSER-RAW.zip",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/ROOT-SELECTIVE-ARCHIVES.json",
+      "bytes": 4725189,
+      "sha256": "18535c6dd29f3876ea3dc6a7f4808f7f047f96483f9665107ca755196e6f4e77"
     }
   ],
   "all_archived_case_images_detached": true,
-  "latest_test_lock_integration_head": "dfab63cd95b0d0cfdd28520c2360e6678baf8e2b"
+  "latest_test_lock_integration_head": "dfab63cd95b0d0cfdd28520c2360e6678baf8e2b",
+  "latest_client_integration_head": "3b53744be109aa18932bdc50d3590e10dde9b32d"
 }

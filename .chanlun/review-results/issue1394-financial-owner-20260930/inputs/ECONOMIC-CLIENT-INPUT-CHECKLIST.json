@@ -1,0 +1,123 @@
+{
+  "final_candidate": "9f923877e7d2dd9bb9c0a8cfe0c065bbfbda38da",
+  "input_candidate": "a67bad583ad5ed59e219c54c3ada0e70e1f4f7b3",
+  "checks": [
+    {
+      "group": "raw bytes and parsing",
+      "rust": "finance.rs:173-183",
+      "conditions": "strict JSON, original 16 MiB UTF8 bound; exact root nine fields; nonempty source_id/source_epoch",
+      "implementation": "inputWitness",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "revision and scope",
+      "rust": "finance.rs:192-199",
+      "conditions": "input revision equals session revision; kind TestOnly",
+      "implementation": "inputWitness",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "policy exact and scalar fields",
+      "rust": "finance.rs:200-235",
+      "conditions": "exact ten fields; policy/currency/units/capability nonempty; cap/valid_through_ns canonical nonnegative i64",
+      "implementation": "inputWitness",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "policy supported domain",
+      "rust": "finance.rs:222-230",
+      "conditions": "model TestOnlyUnleveragedCashBuy, quantum 1, allocation policy #1349 fixed",
+      "implementation": "inputWitness",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "baseline and coverage",
+      "rust": "finance.rs:236-255",
+      "conditions": "exact baseline four fields, amount nonnegative; coverage exact triples/digests/nonempty token/unique fact_key",
+      "implementation": "inputWitness",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "private rights",
+      "rust": "finance.rs:256-280",
+      "conditions": "exact six fields; version positive/amount nonnegative; unique right_id and owner; policy currency; B owner in discovery domains",
+      "implementation": "inputWitness, inputSlots",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "plans and references",
+      "rust": "finance.rs:283-374",
+      "conditions": "exact 19 fields, source/identity text, positive quantities/versions/epochs, nonnegative fee; unique decision/owner-attempt/plan; original S/O exact shapes and bindings; rights owner/version; full liability overflow check",
+      "implementation": "planShape, inputWitness",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "slot complete input",
+      "rust": "finance.rs:378-418",
+      "conditions": "exact slot and input_end; unique slot; source IDs match; ControlledInputEnd, positive watermark, hash of actual applicants; nonempty applicants; plan slot/unique assignment/owner within slot; all plans assigned",
+      "implementation": "inputSlots",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "operation scope and lease",
+      "rust": "finance.rs:832-835",
+      "conditions": "E Import/Reserve/Close and B Prepare/Commit/Abort; lease valid through commit inclusive except Abort/Close",
+      "implementation": "eventBinding",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "import original formula",
+      "rust": "finance.rs:838-850",
+      "conditions": "full original equals baseline ID/amount/source with owner E:baseline and original policy; request, record, original and source IDs bind",
+      "implementation": "eventBinding",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "prepare uses original policy",
+      "rust": "finance.rs:765-814",
+      "conditions": "original cut quantity/Q/units, own rights/CAS/lock, original Long Voice; policy currency/money_unit/quantity_unit equal actual book",
+      "implementation": "preparedBinding, decision",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "reserve and commit uses original input",
+      "rust": "finance.rs:907-1109",
+      "conditions": "original complete slot/request set, captured current Prepared/epoch/seq, grant plan/units/full amount/e_epoch/policy; cap and captured current E slot/closed/Pending coverage",
+      "implementation": "reservePrepared, grantBinding, commitScope",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "abort exception and identity",
+      "rust": "finance.rs:1115-1143",
+      "conditions": "original plan hash/owner, prior Prepared, nonempty reason, Abort history/clock; keep lock and liability; lease expiration exempt",
+      "implementation": "eventBinding, decision, financeCoverage",
+      "status": "verified by native positives and relevant protocol vectors"
+    },
+    {
+      "group": "close request and formula",
+      "rust": "finance.rs:1142-1170; session_protocol.rs:77-82",
+      "conditions": "nonempty string reason, original slot and full closed tuple membership, owner unique only within request; keep original order and allow owner reuse across distinct requests; lease expiration exempt",
+      "implementation": "eventBinding, inputSlots, financeCoverage",
+      "status": "verified by native positives and relevant protocol vectors"
+    }
+  ],
+  "unavailable_and_not_claimed": [
+    {
+      "rust": "finance.rs:173-179",
+      "condition": "enabled config and frozen input_sha256 authority",
+      "reason": "discovery exposes finance revision/configured, not finance.input_sha256 or authority directory; no new API or independent reauthentication claim"
+    },
+    {
+      "condition": "content node closure and FinancialBasis logical header binding",
+      "reason": "no content node API"
+    },
+    {
+      "condition": "S trusted writer_epoch equality and later E current epoch equality",
+      "reason": "no trusted S epoch in discovery; E grant binds original Reserve writer_epoch, not arbitrary Q or later E epoch"
+    },
+    {
+      "condition": "top-level economic root recomputation",
+      "reason": "top-level has no previous_root; only captured proofs with previous_root recompute"
+    }
+  ]
+}

@@ -28,6 +28,8 @@
 | 冷审计行为锁 | 独占分支1836d3c38e9，仅state/driver cfg(test)两文件，独评PASS后整合dfab63cd95且两文件逐字相同。两条精确锁实际通过：同连接结果销毁后重审、重开连接和存活Driver请求均重读，损坏已发布节点后拒绝、恢复后通过；旧审计memo在正容量启用时retained/capture0且旧计数不增。提供旧计量映射依据，不等于七字段serve限额执法 |
 | 经济只读/2代码适配 | 固定d34dd1e0d2e的3后台Python文件及1测试文件整合为4325ab248b/219c4f2ab1，四文件与独审源码同字节。36协议/单元测试通过，初评新增函数类型注解缺口经仅签名/import返修解除，独立模块导入/注解求值及Spec/Standards通过；不代替正式Q/B实跑 |
 | 新只读Q授权真实经济HTTP | 新manifest初始化前冻结独立七读Q源；正式E/B服务产生非空Prepared→Reserve→Committed，实际HTTP的current/token/fixed/Watch/decision Original/grant Original共6次全部200。三域CompleteVector、/2公头Hash/因果、固定cut、责任90/locked30-40/无外效资格与Unix原件一致，原件full objects逐字段相同，owner before==after。最慢Watch15.569s、最大回复1078412B，均受原冻结10s单RPC/30s操作/2MiB回复约束；非browser或结构Q3路径 |
+| 严格经济 /2 测试客户端 | 固定9f923877e7d2的四文件已整合3b53744be1，逐字节相同，独立Spec/Standards PASS。修复旧/1作用域、Evidence会话绑定、决定/权利/原历史双向覆盖、完整grant和捕获E关联、原输入解析/政策期限量纲/完整baseline公式与Close类型。a67完整256项及最后Close定向25项通过；两组有重叠，不称最终SHA执行281项。全部失败反例及返修原件保留 |
+| 真实经济 /2 浏览器 | 同一case2归档的三独占副本、四正式后台与Chrome CDP；current双Committed→as-known85双Prepared→Watch逐域回同current→全部两decision及两grant Original。12实际HTTP回包全部200，其中6 snapshot、1 Watch、4 Original及1 discovery；最大实际POST回复922213B，完整四原件与正式Unix值相同。owner逻辑状态和三DB字节未变、全部进程reap、三副本普通detach、原归档未变。实际运行及独立事实补审PASS；不是controller/Q3/9011或新产品前端 |
 
 Book、Voice和已有20责任的 setup 仍为明确 library/TestOnly 前置，包含受控权威/操作结果。实际金融步骤没有伪造 grant或手工置 Committed；本证据不成为形式化γ、完整经营模型或生产资金政策。CLI运行原件、原始结果及SHA清单见 [RESULTS.json](RESULTS.json)。
 
@@ -51,6 +53,14 @@ Q探针首次把wire的hex tag按十进制读取，并把TCP TIME_WAIT误作监�
 
 独立manifest/resource/hash、实际CLI与HTTP请求/响应、失败诊断和回收记录见inputs/ECONOMIC-HTTP-MANIFEST.json及ECONOMIC-HTTP-RAW.zip。根核47个原件引用与6条真实HTTP公头/Hash/因果、三个latest cut/finance2及readonly before==after；源码与运行器没有为新case放宽。Q/E/B四进程全部停止/reap，两个case六卷普通detach，短目录回收；根live hdiutil核本任务挂载0。独立事实补审PASS，另离线重算token、6公头、12变化image Hash与native原件等价，见inputs/ECONOMIC-HTTP-INDEPENDENT-REVIEW.md。新HTTP不是任意路径可用性、全资源峰值、browser资产、新结构/3或独立完整证据闭包验证。
 
+## 本轮严格客户端与浏览器补验
+
+客户端代码及输入/历史关联审查见 [独评](inputs/ECONOMIC-CLIENT-INDEPENDENT-REVIEW.md)、[可见输入核对表](inputs/ECONOMIC-CLIENT-INPUT-CHECKLIST.json)。旧四组HIGH、完整原policy/baseline/Close余缺均经具体反例返修；完整256与最后定向25组合复核，不重复无关既有案例。原资金政策、grant身份派生的旧REV以及不可见来源认证边界保持，未新增内容节点API。
+
+真实浏览器原件见 [manifest](inputs/ECONOMIC-BROWSER-MANIFEST.json)、[结果](inputs/ECONOMIC-BROWSER-RESULTS.md)和[独立事实复核](inputs/ECONOMIC-BROWSER-INDEPENDENT-REVIEW.md)。独立标准库重算11POST公头、两端payloadHash、replyID及因果、9份imageHash，核当前/历史/Watch与全部四Original，418个运行及来源文件摘要一致，fresh进程/监听/挂载核对通过。三DB保存字节未变；可写HFS副本DMG整体物理字节改变，原归档未变，不扩大为所有WAL/SHM不变。
+
+两份选择性原件ZIP保留31个客户端原件与72个浏览器原件；新Chrome profile、pycache及镜像保留专属scratch，不入仓。整合前ROOT审计中的PENDING是当时状态；最终固定9f923两轴PASS、精确代码整合3b53744与实际运行补审见上述最终报告。全部55份归档inputs的bytes/SHA已由根逐一核验。
+
 ## 仍未完成
 
-本片仍需S3 writer具名资源与七字段实际执法、现有验收测试客户端严格消费/2及实际browser/controller、完整同源查询及累计历史/全资源和9011双跑。当前客户端仍只接受finance/1且没有独立证据闭包节点入口，不能仅放开版本就宣称全消费；现有页面与测试脚本的限定兼容归后台验收，产品新前端仍归#1460。条件FIFO/稳定点归已裁定的#1416，依其原生前置推进，不当成#1394的新政策待裁。其它TB与六Destination仍未验收。未跑远端CI或本轮DevSkim，不把既有告警或其它票扫描归零。没有改变1349未定公用资金/cap政策与真实场所权限。
+本片仍需S3 writer具名资源与七字段实际执法、controller、完整同源查询及累计历史/全资源和9011双跑。现有验收客户端已严格支持finance/2并完成上述实际浏览器路径，但经济HTTP没有独立证据闭包节点入口；本次不独立证明FinancialBasis节点闭包/七字段正文，亦不重算没有前根的顶层经济root。现有页面与脚本归后台验收，产品新前端仍归#1460。条件FIFO/稳定点归已裁定的#1416，依#1407与#1361原生前置推进，不反挂成本片开工门或新政策待裁。其它TB与六Destination仍未验收。未跑本票远端CI或本票DevSkim，不把#1392扫描归成本票扫描。没有改变1349未定公用资金/cap政策与真实场所权限。
