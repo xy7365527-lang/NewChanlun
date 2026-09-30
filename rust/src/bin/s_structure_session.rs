@@ -4926,7 +4926,7 @@ fn recover_core(
 // ────────────────────────────────────────────────────────────────────────────
 
 fn usage() -> String {
-    "用法：s_structure_session <init|accept|advance|catalog|snapshot|meta|watch|recover|reset|query-serve> [参数]\n\
+    "用法：s_structure_session <init|accept|advance|catalog|snapshot|meta|watch|recover|reset|serve|query-serve> [参数]\n\
      \x20 init      --db <路径> --session <id> --catalog <catalog.json>      （只允许不存在的目标）\n\
      \x20 accept    --db <路径> --input <输入.json> --profile <profile.json> [--writer-epoch <n>]\n\
      \x20 advance   --db <路径> [--writer-epoch <n>]\n\
@@ -4936,6 +4936,9 @@ fn usage() -> String {
      \x20 pragma    --db <路径>\n\
      \x20 query     --db <路径> --identity-key <k>\n\
      \x20 query-serve --protocol-revision s-session/3 --db <已有库> --resource-config <Q21.json> --producer-epoch <n> [--host <IPv4主机>] [--port <n>]（Unix；启用前须具名实测资源）\n\
+     \x20 serve --protocol-revision s-session/3 --db <已有库> --profile <profile.json> --writer-epoch <n> --clock-plan <clock.json> --socket <路径> --resource-config <S资源.json>（资源及C09条件队列资格未满足时拒绝监听）\n\
+     \x20 advance --protocol-revision s-session/3 --db <已有库> --profile <profile.json> --writer-epoch <n> --clock-plan <clock.json> [--input <单份envelope.json> --max-input-bytes <显式上限>]（无input仅恢复已持久接纳的原消息）\n\
+     \x20 recover --protocol-revision s-session/3 --db <已有库> --new-epoch <n> --clock-plan <clock.json> --clock-event-id <id>（监督器换代）\n\
      \x20 watch     --db <路径> --after-generation <n>\n\
      \x20 recover   --db <路径> --new-epoch <n>\n\
      \x20 reset     --db <路径> --session <id> --catalog <catalog.json>      （一次性试验：删除并重建）\n"

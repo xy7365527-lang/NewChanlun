@@ -1,10 +1,41 @@
 //! #1394：S3 消息到真实接纳、Begin 和发布的同步驱动。
-//! 传输层须先执行资源/帧约束；本模块暂不注册 CLI 或监听服务。
+//! 传输层须先执行资源/帧约束；CLI 由 writer_cli 接线，监听保持启动资格闭门。
 //! 同一实例持有原进程锁；每次读取/写入都在当前事务调用同一完整状态审计。
 
 use super::*;
 use newchan_rust::session_protocol::{required, validate_envelope};
 use std::fs::File;
+
+/// CLI 预检与运行中 handler 共用的唯一 typed 请求判据。
+pub(super) fn validate_request(envelope: Value) -> Result<Value, String> {
+    let envelope = validate_envelope(envelope, PROTOCOL_REVISION)?;
+    let payload = &envelope["payload"];
+    let keys: &[&str] = match required(payload, "op")? {
+        "ready" => &["op"],
+        "receipt" => &[
+            "op",
+            "original_source_namespace",
+            "original_source_epoch",
+            "original_message_id",
+            "original_payload_hash",
+        ],
+        "ingest" => {
+            v2::validate_ingest(&envelope)?;
+            return Ok(envelope);
+        }
+        _ => return Err("SchemaUnsupported：未知S3 op；recover只属于监督器".into()),
+    };
+    let object = payload
+        .as_object()
+        .ok_or("SchemaUnsupported：payload必须对象")?;
+    if object.len() != keys.len() || object.keys().any(|key| !keys.contains(&key.as_str())) {
+        return Err("SchemaUnsupported：S3 typed payload 字段不完整或多余".into());
+    }
+    for key in keys {
+        required(payload, key)?;
+    }
+    Ok(envelope)
+}
 
 pub(super) struct Driver {
     conn: Connection,
@@ -17,6 +48,43 @@ pub(super) struct Driver {
 }
 
 impl Driver {
+    /// 服务回复只绑定经过当前持久审计的身份，不另建一份控制状态。
+    pub(super) fn identity(&self) -> Result<(String, String, String), String> {
+        let tx = self.conn.unchecked_transaction().map_err(err)?;
+        state::audit(&tx)?;
+        verify_writer_epoch(&tx, &self.epoch)?;
+        let control = control::S3Control::attach(&tx, &self.clock)?;
+        let (session, generation, epoch) = control.identity();
+        Ok((session.into(), generation.into(), epoch.into()))
+    }
+
+    /// one-shot 返回已实际推进后的持久前沿；不把“启动成功”当作发布收据。
+    pub(super) fn state_summary(&self, command: &str) -> Result<Value, String> {
+        let tx = self.conn.unchecked_transaction().map_err(err)?;
+        state::audit(&tx)?;
+        verify_writer_epoch(&tx, &self.epoch)?;
+        let control = control::S3Control::attach(&tx, &self.clock)?;
+        let (session, incarnation, epoch) = control.identity();
+        let pending: i64 = tx
+            .query_row(
+                "SELECT COUNT(*) FROM s_input_messages WHERE status='AcceptedPending'",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(err)?;
+        Ok(json!({
+            "ok": true,
+            "command": command,
+            "session_id": session,
+            "session_generation": incarnation,
+            "writer_epoch": epoch,
+            "generation": meta_get_opt(&tx, "generation")?,
+            "structure_cut": meta_get_opt(&tx, "structure_cut")?,
+            "index_frontier": meta_get_opt(&tx, "index_frontier")?,
+            "accepted_pending": pending.to_string(),
+        }))
+    }
+
     pub(super) fn open(
         db: &Path,
         profile: &Path,
@@ -60,7 +128,7 @@ impl Driver {
     }
 
     pub(super) fn handle(&mut self, envelope: Value) -> Result<Value, String> {
-        let envelope = validate_envelope(envelope, PROTOCOL_REVISION)?;
+        let envelope = validate_request(envelope)?;
         let tx = self.conn.transaction().map_err(err)?;
         state::audit(&tx)?;
         verify_writer_epoch(&tx, &self.epoch)?;
@@ -332,6 +400,217 @@ mod tests {
     fn count(c: &Connection, t: &str) -> i64 {
         c.query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| r.get(0))
             .unwrap()
+    }
+
+    fn cli(f: &Fixture, command: &str, epoch_flag: &str, epoch: &str) -> Vec<String> {
+        [
+            "s_structure_session".into(),
+            command.into(),
+            "--protocol-revision".into(),
+            PROTOCOL_REVISION.into(),
+            "--db".into(),
+            f.db.to_string_lossy().into_owned(),
+            epoch_flag.into(),
+            epoch.into(),
+            "--clock-plan".into(),
+            f.path.join("clock.json").to_string_lossy().into_owned(),
+        ]
+        .to_vec()
+    }
+
+    #[test]
+    fn explicit_s3_cli_advances_stored_pending_and_preserves_receipt() {
+        let f = Fixture::new();
+        let original = Fixture::ingest(1);
+        let input = f.path.join("ingest.json");
+        let bytes = canonical_json(&original);
+        std::fs::write(&input, &bytes).unwrap();
+        let mut args = cli(&f, "advance", "--writer-epoch", "1");
+        args.extend([
+            "--profile".into(),
+            f.profile.to_string_lossy().into_owned(),
+            "--input".into(),
+            input.to_string_lossy().into_owned(),
+            "--max-input-bytes".into(),
+            bytes.len().to_string(),
+        ]);
+        assert!(super::super::dispatch(&args).unwrap());
+        let receipt = receipt_request(&original);
+        let receipt_file = f.path.join("receipt.json");
+        let receipt_bytes = canonical_json(&receipt);
+        std::fs::write(&receipt_file, &receipt_bytes).unwrap();
+        let mut receipt_args = cli(&f, "advance", "--writer-epoch", "1");
+        receipt_args.extend([
+            "--profile".into(),
+            f.profile.to_string_lossy().into_owned(),
+            "--input".into(),
+            receipt_file.to_string_lossy().into_owned(),
+            "--max-input-bytes".into(),
+            receipt_bytes.len().to_string(),
+        ]);
+        let received = super::super::writer_cli::run(&receipt_args)
+            .unwrap()
+            .unwrap();
+        assert_eq!(received["kind"], "Committed");
+        assert_eq!(received["original_message_id"], original["message_id"]);
+        let reopened = f.open("1").unwrap();
+        assert_eq!(meta_i64(&reopened.conn, "generation").unwrap(), 1);
+        assert_eq!(count(&reopened.conn, "s_input_messages"), 1);
+        assert_eq!(count(&reopened.conn, "raw_events"), 1);
+        let saved: String = reopened
+            .conn
+            .query_row(
+                "SELECT canonical_envelope FROM s_input_messages WHERE message_id='message-1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(saved, bytes);
+    }
+
+    #[test]
+    fn invalid_one_shot_input_does_not_resume_existing_pending() {
+        let f = Fixture::new();
+        let mut d = f.open("1").unwrap();
+        d.stop_after = Some("accept");
+        assert!(d
+            .handle(Fixture::ingest(1))
+            .unwrap_err()
+            .contains("stop_after_accept"));
+        drop(d);
+        let mut bad_hash = Fixture::ingest(2);
+        bad_hash["payload_hash"] = json!("bad");
+        let bad_ready = envelope("bad-ready", json!({"op":"ready","extra":"x"}));
+        let bad_receipt = envelope(
+            "bad-receipt",
+            json!({"op":"receipt","original_message_id":"message-1"}),
+        );
+        let mut wrong_session = envelope("wrong-session", json!({"op":"ready"}));
+        wrong_session["session_id"] = json!("other-session");
+        let mut wrong_clock = Fixture::ingest(2);
+        wrong_clock["payload"]["clock_event_id"] = json!("missing-clock-event");
+        wrong_clock["payload_hash"] = json!(sha256_hex(
+            canonical_json(&wrong_clock["payload"]).as_bytes()
+        ));
+        let input = f.path.join("invalid.json");
+        for invalid in [bad_hash, bad_ready, bad_receipt, wrong_session, wrong_clock] {
+            let bytes = canonical_json(&invalid);
+            std::fs::write(&input, &bytes).unwrap();
+            let mut args = cli(&f, "advance", "--writer-epoch", "1");
+            args.extend([
+                "--profile".into(),
+                f.profile.to_string_lossy().into_owned(),
+                "--input".into(),
+                input.to_string_lossy().into_owned(),
+                "--max-input-bytes".into(),
+                bytes.len().to_string(),
+            ]);
+            assert!(super::super::dispatch(&args).is_err());
+        }
+        let valid_bytes = canonical_json(&Fixture::ingest(2));
+        std::fs::write(&input, &valid_bytes).unwrap();
+        let mut too_small = cli(&f, "advance", "--writer-epoch", "1");
+        too_small.extend([
+            "--profile".into(),
+            f.profile.to_string_lossy().into_owned(),
+            "--input".into(),
+            input.to_string_lossy().into_owned(),
+            "--max-input-bytes".into(),
+            (valid_bytes.len() - 1).to_string(),
+        ]);
+        assert!(super::super::dispatch(&too_small)
+            .unwrap_err()
+            .contains("输入字节超过"));
+        let conn = open_db(&f.db).unwrap();
+        assert_eq!(meta_i64(&conn, "generation").unwrap(), 0);
+        assert_eq!(count(&conn, "s_input_messages"), 1);
+        assert_eq!(count(&conn, "s_clock_events"), 1);
+    }
+
+    #[test]
+    fn explicit_s3_cli_recover_requires_higher_epoch_then_advances_original() {
+        let f = Fixture::new();
+        let mut d = f.open("1").unwrap();
+        let original = Fixture::ingest(1);
+        d.stop_after = Some("begin");
+        assert!(d
+            .handle(original.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(d);
+        let mut recover_args = cli(&f, "recover", "--new-epoch", "1");
+        recover_args.extend(["--clock-event-id".into(), "recover-1".into()]);
+        assert!(super::super::dispatch(&recover_args).is_err());
+        recover_args[7] = "2".into();
+        assert!(super::super::dispatch(&recover_args).unwrap());
+        let mut advance_args = cli(&f, "advance", "--writer-epoch", "2");
+        advance_args.extend(["--profile".into(), f.profile.to_string_lossy().into_owned()]);
+        assert!(super::super::dispatch(&advance_args).unwrap());
+        let mut reopened = f.open("2").unwrap();
+        assert_eq!(
+            reopened.handle(receipt_request(&original)).unwrap()["kind"],
+            "Committed"
+        );
+        assert_eq!(count(&reopened.conn, "writer_epoch_history"), 1);
+        assert_eq!(meta_i64(&reopened.conn, "generation").unwrap(), 1);
+    }
+
+    #[test]
+    fn malformed_s3_cli_refuses_before_creating_database_or_writer_lock() {
+        let dir =
+            std::env::temp_dir().join(format!("s1394-cli-{}-{}", std::process::id(), now_nanos()));
+        std::fs::create_dir(&dir).unwrap();
+        let db = dir.join("missing.sqlite");
+        let args = vec![
+            "s_structure_session".into(),
+            "advance".into(),
+            "--protocol-revision".into(),
+            PROTOCOL_REVISION.into(),
+            "--db".into(),
+            db.to_string_lossy().into_owned(),
+            "--writer-epoch".into(),
+            "1".into(),
+            "--writer-epoch".into(),
+            "2".into(),
+        ];
+        assert!(super::super::dispatch(&args).is_err());
+        assert!(!db.exists());
+        assert!(!PathBuf::from(format!("{}.writer.lock", db.display())).exists());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn explicit_s3_serve_with_complete_test_resources_refuses_before_lock_or_listen() {
+        let f = Fixture::new();
+        let resources = f.path.join("s-resources.json");
+        let mut limits = serde_json::Map::new();
+        for key in super::super::writer_cli::GATE_FIELDS {
+            limits.insert(key.into(), json!("1"));
+        }
+        std::fs::write(
+            &resources,
+            canonical_json(&json!({
+                "schema_revision": "s-structure-resources/1",
+                "s_resources": limits,
+            })),
+        )
+        .unwrap();
+        let socket = f.path.join("s.sock");
+        let _held = session_transport::process_lock(&f.db, "S").unwrap();
+        let mut args = cli(&f, "serve", "--writer-epoch", "1");
+        args.extend([
+            "--profile".into(),
+            f.profile.to_string_lossy().into_owned(),
+            "--socket".into(),
+            socket.to_string_lossy().into_owned(),
+            "--resource-config".into(),
+            resources.to_string_lossy().into_owned(),
+        ]);
+        let error = super::super::dispatch(&args).unwrap_err();
+        assert!(error.contains("AwaitingPolicy"), "{error}");
+        assert!(!socket.exists());
+        let db = open_db(&f.db).unwrap();
+        assert_eq!(meta_i64(&db, "generation").unwrap(), 0);
     }
 
     #[test]
