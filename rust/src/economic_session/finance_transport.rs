@@ -1,8 +1,11 @@
 //! #1394：财务模块内部的有界输送。响应未知只能查原身份，不铸造新许可。
+use super::financial_reader_resources::FinancialReaderResources;
 use super::store::{Config, SCHEMA};
+use crate::s_content::job::Job;
 use crate::session_protocol::{canonical_json, positive, reply_envelope, required, strict_json};
 use serde_json::Value;
 use std::io::{Read, Write};
+use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -225,6 +228,216 @@ pub(super) fn reader(binary: &str, args: &[&str], limit: usize) -> Result<Value,
     strict_json(&b)
 }
 
+/// 新财务内容 reader：一次调用就是同一经济 job 的一次真实请求。
+/// `operation_deadline` 由经济 owner 提供；三种绝对期限取最早者。
+/// 本口只负责运输，不授予 S 内容根权限，也不改变旧整份 reader。
+#[allow(dead_code)] // 待 tb03b-finance/2 consumer 接线
+pub(super) fn financial_reader(
+    binary: &str,
+    args: &[&str],
+    request: &Value,
+    resources: &FinancialReaderResources,
+    job: &mut Job,
+    operation_deadline: Instant,
+) -> Result<Value, String> {
+    resources.validate()?;
+    if job.snapshot().limits != resources.job_limits {
+        return Err("IdentityConflict：财务 reader job 限额与冻结资源不符".into());
+    }
+    let bytes = canonical_json(request).into_bytes();
+    strict_json(&bytes).map_err(|_| "SchemaUnsupported：财务 reader 请求非严格JSON")?;
+    // 被拒的尝试也消耗 request 次数；只有真实写入/读到的字节才计 wire。
+    job.charge_requests(1).map_err(|e| e.to_string())?;
+    if bytes.len() as u128 > u128::from(resources.max_request_bytes) {
+        return Err("Incomplete：财务 reader 请求超过冻结字节上限".into());
+    }
+    let started = Instant::now();
+    let per_request = started
+        .checked_add(Duration::from_millis(resources.request_timeout_ms))
+        .ok_or("InvalidDomain：财务 reader 单次期限溢出")?;
+    let deadline = per_request
+        .min(operation_deadline)
+        .min(job.first_read_deadline().map_err(|e| e.to_string())?);
+    if Instant::now() >= deadline {
+        return Err("Incomplete：财务 reader 绝对期限已过".into());
+    }
+    let mut child = Command::new(binary)
+        .args(args)
+        .env_clear()
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|_| "MissingDependency：财务 reader 无法启动")?;
+    let outcome = financial_reader_io(&mut child, &bytes, resources, job, deadline);
+    if outcome.is_err() {
+        let _ = child.kill();
+    }
+    // 所有结果路径都回收本次启动的 child；不保留可能阻塞的 pipe 读取线程。
+    let status = child
+        .wait()
+        .map_err(|_| "MissingDependency：财务 reader 无法回收")?;
+    let reply = outcome?;
+    if Instant::now() >= deadline {
+        return Err("Incomplete：财务 reader 在回收前达到绝对期限".into());
+    }
+    if !status.success() {
+        return Err("MissingDependency：财务 reader 非成功退出".into());
+    }
+    let parsed =
+        strict_json(&reply).map_err(|_| "SchemaUnsupported：财务 reader 回复非严格JSON")?;
+    job.pre_io_check().map_err(|e| e.to_string())?;
+    Ok(parsed)
+}
+
+fn financial_reader_io(
+    child: &mut std::process::Child,
+    request: &[u8],
+    resources: &FinancialReaderResources,
+    job: &mut Job,
+    deadline: Instant,
+) -> Result<Vec<u8>, String> {
+    let mut stdin = child.stdin.take();
+    let mut stdout = child.stdout.take();
+    let mut stderr = child.stderr.take();
+    for fd in [
+        stdin.as_ref().map(AsRawFd::as_raw_fd),
+        stdout.as_ref().map(AsRawFd::as_raw_fd),
+        stderr.as_ref().map(AsRawFd::as_raw_fd),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        nonblocking(fd)?;
+    }
+    let mut written = 0;
+    let mut reply = Vec::new();
+    let mut stderr_bytes = 0u128;
+    loop {
+        job.pre_io_check().map_err(|e| e.to_string())?;
+        let left = deadline
+            .checked_duration_since(Instant::now())
+            .filter(|d| !d.is_zero())
+            .ok_or("Incomplete：财务 reader 达到绝对期限")?;
+        if written == request.len() {
+            stdin.take(); // EOF 是单份严格 JSON 请求的边界。
+        }
+        if stdin.is_none() && stdout.is_none() && stderr.is_none() {
+            if child
+                .try_wait()
+                .map_err(|_| "MissingDependency：财务 reader 状态不可读")?
+                .is_some()
+            {
+                return Ok(reply);
+            }
+        }
+        let mut fds = Vec::with_capacity(3);
+        let mut kinds = Vec::with_capacity(3);
+        if let Some(pipe) = stdin.as_ref() {
+            fds.push(libc::pollfd {
+                fd: pipe.as_raw_fd(),
+                events: libc::POLLOUT,
+                revents: 0,
+            });
+            kinds.push(0);
+        }
+        if let Some(pipe) = stdout.as_ref() {
+            fds.push(libc::pollfd {
+                fd: pipe.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            });
+            kinds.push(1);
+        }
+        if let Some(pipe) = stderr.as_ref() {
+            fds.push(libc::pollfd {
+                fd: pipe.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            });
+            kinds.push(2);
+        }
+        let timeout = left.as_millis().min(20).max(1) as i32;
+        let n = unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, timeout) };
+        if n < 0 {
+            if std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err("MissingDependency：财务 reader 管道轮询失败".into());
+        }
+        for (fd, kind) in fds.iter().zip(kinds) {
+            if fd.revents == 0 {
+                continue;
+            }
+            match kind {
+                0 => {
+                    job.pre_io_check().map_err(|e| e.to_string())?;
+                    let pipe = stdin.as_mut().expect("已注册stdin");
+                    match pipe.write(&request[written..]) {
+                        Ok(0) => return Err("MissingDependency：财务 reader 提前关闭stdin".into()),
+                        Ok(n) => {
+                            written += n;
+                            job.charge_wire_bytes(n as u64).map_err(|e| e.to_string())?;
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => (),
+                        Err(_) => return Err("MissingDependency：财务 reader 请求写入失败".into()),
+                    }
+                }
+                1 => {
+                    job.pre_io_check().map_err(|e| e.to_string())?;
+                    let mut chunk = [0u8; 4096];
+                    match stdout.as_mut().expect("已注册stdout").read(&mut chunk) {
+                        Ok(0) => {
+                            stdout.take();
+                        }
+                        Ok(n) => {
+                            job.charge_wire_bytes(n as u64).map_err(|e| e.to_string())?;
+                            if reply.len() as u128 + n as u128
+                                > u128::from(resources.max_reply_bytes)
+                            {
+                                return Err("Incomplete：财务 reader 回复超过冻结字节上限".into());
+                            }
+                            reply.extend_from_slice(&chunk[..n]);
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => (),
+                        Err(_) => return Err("MissingDependency：财务 reader 回复读取失败".into()),
+                    }
+                }
+                _ => {
+                    job.pre_io_check().map_err(|e| e.to_string())?;
+                    let mut chunk = [0u8; 4096];
+                    match stderr.as_mut().expect("已注册stderr").read(&mut chunk) {
+                        Ok(0) => {
+                            stderr.take();
+                        }
+                        Ok(n) => {
+                            job.charge_wire_bytes(n as u64).map_err(|e| e.to_string())?;
+                            stderr_bytes += n as u128;
+                            if stderr_bytes > u128::from(resources.max_stderr_bytes) {
+                                return Err(
+                                    "Incomplete：财务 reader stderr 超过冻结字节上限".into()
+                                );
+                            }
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => (),
+                        Err(_) => {
+                            return Err("MissingDependency：财务 reader stderr 读取失败".into())
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn nonblocking(fd: std::os::fd::RawFd) -> Result<(), String> {
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+    if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
+        return Err("MissingDependency：财务 reader 无法设置有界管道".into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,5 +508,271 @@ mod tests {
             }
             task.join().unwrap();
         }
+    }
+}
+
+#[cfg(test)]
+mod financial_reader_tests {
+    use super::*;
+    use crate::s_content::job::{Existing, JobLimits};
+    use serde_json::json;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+
+    struct Script {
+        dir: PathBuf,
+        path: PathBuf,
+    }
+    impl Script {
+        fn new(body: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "financial-reader-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir(&dir).unwrap();
+            let path = dir.join("reader.sh");
+            std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+            Self { dir, path }
+        }
+        fn binary(&self) -> &str {
+            self.path.to_str().unwrap()
+        }
+    }
+    impl Drop for Script {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    fn resources() -> FinancialReaderResources {
+        let json = json!({
+            "schema_revision":"s-financial-reader-resources/1",
+            "max_request_bytes":"4096", "max_reply_bytes":"4096",
+            "max_stderr_bytes":"4096", "request_timeout_ms":"2000",
+            "job_limits":{
+                "max_total_wire_bytes":"65536", "max_total_node_bytes":"65536",
+                "max_total_nodes":"100", "max_total_records":"100",
+                "max_total_requests":"10", "max_elapsed_ms":"5000",
+                "max_staged_bytes":"65536", "max_store_bytes":"65536"
+            }
+        });
+        FinancialReaderResources::from_json(&json).unwrap()
+    }
+    fn new_job(limits: JobLimits) -> Job {
+        Job::new(
+            limits,
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(Instant::now),
+        )
+        .unwrap()
+    }
+    fn request() -> Value {
+        json!({"schema_revision":"s-financial-query/1","message":"凭证"})
+    }
+
+    #[test]
+    fn strict_request_reply_and_two_attempts_share_real_wire_and_request_budget() {
+        let script = Script::new("exec /bin/cat");
+        let request = request();
+        let bytes = canonical_json(&request).len() as u128;
+        let r = resources();
+        let mut job = new_job(r.job_limits);
+        for _ in 0..2 {
+            assert_eq!(
+                financial_reader(
+                    script.binary(),
+                    &[],
+                    &request,
+                    &r,
+                    &mut job,
+                    Instant::now() + Duration::from_secs(2)
+                )
+                .unwrap(),
+                request
+            );
+        }
+        let used = job.snapshot();
+        assert_eq!(used.requests, 2);
+        assert_eq!(used.wire_bytes, bytes * 4);
+    }
+
+    #[test]
+    fn oversize_request_is_rejected_before_spawn_but_attempt_is_counted() {
+        let script = Script::new("printf spawned > \"$1\"; exec /bin/cat");
+        let marker = script.dir.join("spawned");
+        let mut r = resources();
+        r.max_request_bytes = 1;
+        let mut job = new_job(r.job_limits);
+        let error = financial_reader(
+            script.binary(),
+            &[marker.to_str().unwrap()],
+            &request(),
+            &r,
+            &mut job,
+            Instant::now() + Duration::from_secs(2),
+        )
+        .unwrap_err();
+        assert!(error.contains("请求超过"));
+        assert!(!marker.exists());
+        assert_eq!(job.snapshot().requests, 1);
+        assert_eq!(job.snapshot().wire_bytes, 0);
+    }
+
+    #[test]
+    fn reader_rejects_a_job_with_wider_limits_before_spawn() {
+        let script = Script::new("printf spawned > \"$1\"; exec /bin/cat");
+        let marker = script.dir.join("spawned");
+        let r = resources();
+        let mut wider = r.job_limits;
+        wider.max_total_wire_bytes += 1;
+        let mut job = new_job(wider);
+        let error = financial_reader(
+            script.binary(),
+            &[marker.to_str().unwrap()],
+            &request(),
+            &r,
+            &mut job,
+            Instant::now() + Duration::from_secs(2),
+        )
+        .unwrap_err();
+        assert!(error.contains("限额与冻结资源不符"));
+        assert!(!marker.exists());
+        assert_eq!(job.snapshot().requests, 0);
+    }
+
+    #[test]
+    fn reply_and_stderr_caps_stop_running_child_without_disclosing_stderr() {
+        let large = Script::new("/bin/cat >/dev/null; i=0; while [ \"$i\" -lt 1000 ]; do printf x; i=$((i+1)); done; exec /bin/sleep 5");
+        let mut r = resources();
+        r.max_reply_bytes = 10;
+        let mut job = new_job(r.job_limits);
+        let started = Instant::now();
+        assert!(financial_reader(
+            large.binary(),
+            &[],
+            &request(),
+            &r,
+            &mut job,
+            started + Duration::from_secs(2)
+        )
+        .unwrap_err()
+        .contains("回复超过"));
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(job.snapshot().wire_bytes > canonical_json(&request()).len() as u128);
+
+        let noisy = Script::new("printf 'PRIVATE_SECRET_123456789' >&2; exec /bin/sleep 5");
+        let mut r = resources();
+        r.max_stderr_bytes = 5;
+        let mut job = new_job(r.job_limits);
+        let error = financial_reader(
+            noisy.binary(),
+            &[],
+            &request(),
+            &r,
+            &mut job,
+            Instant::now() + Duration::from_secs(2),
+        )
+        .unwrap_err();
+        assert!(error.contains("stderr 超过"));
+        assert!(!error.contains("PRIVATE_SECRET"));
+        assert!(job.snapshot().wire_bytes > canonical_json(&request()).len() as u128);
+    }
+
+    #[test]
+    fn earliest_absolute_deadline_kills_and_reaps_the_child() {
+        let script = Script::new("printf '%s' \"$$\" > \"$1\"; exec /bin/sleep 5");
+        let pid_file = script.dir.join("pid");
+        let mut r = resources();
+        r.request_timeout_ms = 1200;
+        let mut job = new_job(r.job_limits);
+        let start = Instant::now();
+        let error = financial_reader(
+            script.binary(),
+            &[pid_file.to_str().unwrap()],
+            &request(),
+            &r,
+            &mut job,
+            start + Duration::from_millis(500),
+        )
+        .unwrap_err();
+        assert!(error.contains("期限"));
+        assert!(start.elapsed() < Duration::from_millis(900));
+        let pid: i32 = std::fs::read_to_string(pid_file).unwrap().parse().unwrap();
+        assert_eq!(unsafe { libc::kill(pid, 0) }, -1, "child须被回收");
+        assert_eq!(
+            std::io::Error::last_os_error().raw_os_error(),
+            Some(libc::ESRCH)
+        );
+    }
+
+    #[test]
+    fn per_request_timeout_and_failed_retry_keep_same_job_account() {
+        let script = Script::new("/bin/cat >/dev/null; printf private-error >&2; exit 7");
+        let request = request();
+        let mut r = resources();
+        r.request_timeout_ms = 1000;
+        let mut job = new_job(r.job_limits);
+        for _ in 0..2 {
+            let error = financial_reader(
+                script.binary(),
+                &[],
+                &request,
+                &r,
+                &mut job,
+                Instant::now() + Duration::from_secs(2),
+            )
+            .unwrap_err();
+            assert!(error.contains("非成功退出"), "{error}");
+            assert!(!error.contains("private-error"));
+        }
+        assert_eq!(job.snapshot().requests, 2);
+        assert_eq!(
+            job.snapshot().wire_bytes,
+            (canonical_json(&request).len() + "private-error".len()) as u128 * 2
+        );
+
+        r.request_timeout_ms = 200;
+        let slow = Script::new("exec /bin/sleep 5");
+        let mut fresh = new_job(r.job_limits);
+        let start = Instant::now();
+        assert!(financial_reader(
+            slow.binary(),
+            &[],
+            &request,
+            &r,
+            &mut fresh,
+            start + Duration::from_secs(2)
+        )
+        .unwrap_err()
+        .contains("期限"));
+        assert!(start.elapsed() < Duration::from_millis(650));
+    }
+
+    #[test]
+    fn resource_contract_rejects_extra_field_and_noncanonical_number() {
+        let mut value = json!({
+            "schema_revision":"s-financial-reader-resources/1",
+            "max_request_bytes":"1", "max_reply_bytes":"1", "max_stderr_bytes":"1",
+            "request_timeout_ms":"1", "job_limits":{
+                "max_total_wire_bytes":"1", "max_total_node_bytes":"1", "max_total_nodes":"1",
+                "max_total_records":"1", "max_total_requests":"1", "max_elapsed_ms":"1",
+                "max_staged_bytes":"1", "max_store_bytes":"1" }
+        });
+        assert!(FinancialReaderResources::from_json(&value).is_ok());
+        value["unexpected"] = json!("1");
+        assert!(FinancialReaderResources::from_json(&value).is_err());
+        value.as_object_mut().unwrap().remove("unexpected");
+        value["max_reply_bytes"] = json!("01");
+        assert!(FinancialReaderResources::from_json(&value).is_err());
+        value["max_reply_bytes"] = json!(1);
+        assert!(FinancialReaderResources::from_json(&value).is_err());
     }
 }

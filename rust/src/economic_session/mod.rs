@@ -4,6 +4,7 @@ mod book;
 mod evidence;
 mod finance;
 mod finance_transport;
+mod financial_reader_resources;
 mod service;
 mod store;
 mod voice;
