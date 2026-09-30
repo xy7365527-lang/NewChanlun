@@ -47,6 +47,7 @@ mod state;
 mod driver;
 mod writer_cli;
 mod reader;
+mod financial_reader;
 mod projection;
 mod q_resources;
 mod q_delta;
@@ -115,6 +116,9 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
         }
     }
     if positions.is_empty() {
+        if matches!(cmd, "financial-basis-ref" | "financial-content") {
+            return Err("VersionUnsupported：新财务命令必须显式选择 s-session/3".into());
+        }
         return Ok(false);
     }
     if positions.len() > 1 {
@@ -139,9 +143,13 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
         }
         return Ok(true);
     }
+    if matches!(cmd, "financial-basis-ref" | "financial-content") && value == PROTOCOL_REVISION {
+        financial_reader::run(args)?;
+        return Ok(true);
+    }
     if cmd != "init" {
         return Err(format!(
-            "VersionUnsupported：{SELECTOR} 目前只适用于 init 或 s-session/3 query-serve/serve/advance/recover；`{cmd}` 尚未接线，拒绝执行"
+            "VersionUnsupported：{SELECTOR} 目前只适用于 init 或 s-session/3 query-serve/serve/advance/recover/financial-basis-ref/financial-content；`{cmd}` 尚未接线，拒绝执行"
         ));
     }
     if value == PROTOCOL_REVISION {
