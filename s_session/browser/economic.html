@@ -72,10 +72,9 @@ function financialDetails(card, state, domain, finance) {
 function originalButton(parent,state,domain,kind,id) {
   if(state.completeness!=="CompleteVector")return;
   const button=el("button","查询原件 · "+id),result=el("pre");result.hidden=true;
+  button.dataset.originalKind=kind;button.dataset.originalDomain=domain;button.dataset.originalId=id;
   button.onclick=async()=>{button.disabled=true;try{
-    const cuts=Object.fromEntries(Object.entries(state.domains).map(([d,v])=>[d,v.cut]));
-    const reply=await client.query({op:"original",kind,domain_id:domain,object_id:id,cuts});
-    if(TB03A.canonical(reply.cuts)!==TB03A.canonical(cuts)||reply.domain_id!==domain)throw new Error("原件返回的域切面不符");
+    const reply=await client.original(state,domain,kind,id);
     result.textContent=JSON.stringify(reply,null,2);result.hidden=false;
   }catch(error){result.textContent=error.message;result.hidden=false;}finally{button.disabled=false;}};
   parent.append(button,result);
