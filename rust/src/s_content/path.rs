@@ -204,6 +204,13 @@ pub(super) fn check_range_root(
         Kind::String | Kind::Number => {
             framed_len(&node.body, "字节值")?.div_ceil(CHUNK_BYTES as u64)
         }
+        Kind::JsonText => {
+            // value 的 items 仍是 07；证明须带真实直接 inner header，供后续显式路径选 unit。
+            // 只核此头的 F、JsonInner 角色和 extent，不展开其序列或正文。
+            let (t, body) = read_value_node(source, &digest_at(&node.body, 0), true)?;
+            header_extent(t, &body)?;
+            return Ok(());
+        }
         _ => return Ok(()),
     };
     let root = digest_at(&node.body, 8);

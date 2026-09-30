@@ -466,16 +466,63 @@ class Controller:
         return {**self.wait_ready("s", writer_epoch, deadline=deadline), "initialization": initialization,
                 "socket_cleanup": cleanup}
 
+    def query_resource_revision(self, deadline):
+        # 读取和严格解码均在本次直接子进程内完成；父进程只收固定的小型分派标记。
+        reader = (
+            "import os,stat,sys\n"
+            "fd=os.open(sys.argv[1],os.O_RDONLY|os.O_NONBLOCK)\n"
+            "if not stat.S_ISREG(os.fstat(fd).st_mode):\n"
+            "    os.close(fd)\n"
+            "    sys.exit(2)\n"
+            "sys.path.insert(0,sys.argv[2])\n"
+            "from s_socket_client import decode_frame\n"
+            "with os.fdopen(fd,'rb') as source:\n"
+            "    resources=decode_frame(source.read())\n"
+            "if type(resources) is not dict:\n"
+            "    sys.exit(3)\n"
+            "revision=('s-query-resources/3' if resources.get('schema_revision')=='s-query-resources/3'\n"
+            "          else 'unsupported' if 'schema_revision' in resources else 'legacy/2')\n"
+            "sys.stdout.write(revision)\n"
+        )
+        try:
+            result = subprocess.run([sys.executable, "-c", reader, self.config["query_resource_config"],
+                                     str(Path(__file__).resolve().parent)],
+                                    capture_output=True, check=True, timeout=remaining(deadline))
+        except subprocess.CalledProcessError as exc:
+            if exc.returncode == 2:
+                raise ValueError("查询资源必须是可读取的普通文件") from exc
+            raise ValueError("查询资源读取或严格解码失败") from exc
+        remaining(deadline)
+        if result.stdout not in (b"s-query-resources/3", b"legacy/2", b"unsupported"):
+            raise ValueError("查询资源分派回执无效")
+        return result.stdout.decode("ascii")
+
     def start_q(self, query_epoch):
         config = self.config
         deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
-        script = Path(__file__).with_name("s_readonly_server.py")
-        command = [config["python"], str(script), "--db", config["db"], "--port", config["port"],
-                   "--browser", config["browser"], "--resource-config", config["query_resource_config"],
-                   "--producer-epoch", query_epoch]
-        if config.get("economic_query_config"):
-            command += ["--economic-config", config["economic_query_config"]]
-        self.start_process("q", command, deadline=deadline)
+        remaining(deadline)
+        revision = self.query_resource_revision(deadline)
+        environment = None
+        if revision == "s-query-resources/3":
+            # #1394：由已有资源文件的显式版本选择正式入口；21项限额仍由Q3冻结并校验。
+            if config.get("economic_query_config"):
+                raise ValueError("Q3结构入口不承载economic_query_config，不得静默丢弃")
+            command = [config["binary"], "query-serve", "--protocol-revision", "s-session/3",
+                       "--db", config["db"], "--resource-config", config["query_resource_config"],
+                       "--producer-epoch", query_epoch, "--host", "127.0.0.1", "--port", config["port"]]
+            environment = self.runtime_environment(deadline)
+        elif revision == "legacy/2":
+            # 旧十九字段文件保留Python入口及其严格验证，不接纳新版值或token。
+            script = Path(__file__).with_name("s_readonly_server.py")
+            command = [config["python"], str(script), "--db", config["db"], "--port", config["port"],
+                       "--browser", config["browser"], "--resource-config", config["query_resource_config"],
+                       "--producer-epoch", query_epoch]
+            if config.get("economic_query_config"):
+                command += ["--economic-config", config["economic_query_config"]]
+        else:
+            raise ValueError("查询资源版本未实现，拒绝换旧入口重试")
+        remaining(deadline)
+        self.start_process("q", command, environment, deadline=deadline)
         return self.wait_ready("q", query_epoch=query_epoch, deadline=deadline)
 
     def stop(self, service, requested_signal):

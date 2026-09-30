@@ -26,6 +26,291 @@ fn job() -> Job {
 fn f(s: &str) -> PathStep {
     PathStep::Field(s.into())
 }
+
+#[test]
+fn json_text_value_proof_has_direct_inner_header_without_expanding_it() {
+    for inner in [
+        JsonValue::Null,
+        JsonValue::Bool(true),
+        JsonValue::String("large header only".repeat(1000)),
+        JsonValue::Number(NumberToken::parse("1.0").unwrap()),
+        JsonValue::Array(vec![JsonValue::Null, JsonValue::Bool(false)]),
+        JsonValue::Object(vec![("key".into(), JsonValue::Bool(true))]),
+    ] {
+        let mut source = MemoryNodes::new();
+        let root = sc::write_value(&mut source, &Value::JsonText(Box::new(inner)))
+            .unwrap()
+            .content_ref();
+        let inner_ref = sc::path::lookup_path(&mut source, &root, &[PathStep::JsonText]).unwrap();
+        for offset in [0, 1] {
+            let mut producer = job();
+            let part = fragment::read(
+                &mut source,
+                &root,
+                &[],
+                Unit::Value,
+                offset,
+                1,
+                REPLY,
+                &mut producer,
+            )
+            .unwrap();
+            assert_eq!(
+                part.nodes.len(),
+                2,
+                "only 07 and its direct inner header are needed"
+            );
+            assert!(part.nodes.iter().any(|n| n.root == inner_ref.root));
+            assert!(part.nodes.windows(2).all(|n| n[0].root < n[1].root));
+            assert_eq!(
+                part.items,
+                if offset == 0 {
+                    json!([root.to_transport_json()])
+                } else {
+                    json!([])
+                }
+            );
+            let expected_bytes: u64 = part
+                .nodes
+                .iter()
+                .map(|n| 31 + n.body_hex.len() as u64 / 2)
+                .sum();
+            assert_eq!(producer.snapshot().nodes, 2);
+            assert_eq!(producer.snapshot().node_bytes, expected_bytes);
+            let mut consumer = job();
+            fragment::verify(
+                &root,
+                &[],
+                Unit::Value,
+                offset,
+                1,
+                &part,
+                REPLY,
+                &mut consumer,
+            )
+            .unwrap();
+            assert_eq!(consumer.snapshot().nodes, 2);
+            assert_eq!(consumer.snapshot().node_bytes, expected_bytes);
+        }
+    }
+}
+
+#[test]
+fn json_text_value_missing_inner_fails_in_producer_and_independent_proof() {
+    let mut source = MemoryNodes::new();
+    let root = sc::write_value(
+        &mut source,
+        &Value::JsonText(Box::new(JsonValue::Array(vec![JsonValue::Null]))),
+    )
+    .unwrap()
+    .content_ref();
+    let mut part = fragment::read(
+        &mut source,
+        &root,
+        &[],
+        Unit::Value,
+        0,
+        1,
+        REPLY,
+        &mut job(),
+    )
+    .unwrap();
+    part.nodes.retain(|n| n.root == root.root);
+    assert!(fragment::verify(&root, &[], Unit::Value, 0, 1, &part, REPLY, &mut job()).is_err());
+    let NodeRead::Found { tag, body } = source.read(&root.digest().unwrap()).unwrap() else {
+        panic!("root")
+    };
+    let mut missing = MemoryNodes::new();
+    missing.put(root.digest().unwrap(), tag, &body).unwrap();
+    assert!(fragment::read(
+        &mut missing,
+        &root,
+        &[],
+        Unit::Value,
+        0,
+        1,
+        REPLY,
+        &mut job()
+    )
+    .is_err());
+}
+
+#[test]
+fn json_text_value_inner_header_obeys_node_and_reply_budgets() {
+    let mut source = MemoryNodes::new();
+    let root = sc::write_value(&mut source, &Value::JsonText(Box::new(JsonValue::Null)))
+        .unwrap()
+        .content_ref();
+    let part = fragment::read(
+        &mut source,
+        &root,
+        &[],
+        Unit::Value,
+        0,
+        1,
+        REPLY,
+        &mut job(),
+    )
+    .unwrap();
+    for (node_cap, byte_cap) in [(1, 94), (2, 93)] {
+        let limits = JobLimits {
+            max_total_nodes: node_cap,
+            max_total_node_bytes: byte_cap,
+            ..job().snapshot().limits
+        };
+        let mut producer = Job::new(
+            limits,
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(Instant::now),
+        )
+        .unwrap();
+        assert!(fragment::read(
+            &mut source,
+            &root,
+            &[],
+            Unit::Value,
+            0,
+            1,
+            REPLY,
+            &mut producer
+        )
+        .is_err());
+        assert!(producer.snapshot().stopped.is_some());
+        let mut consumer = Job::new(
+            limits,
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(Instant::now),
+        )
+        .unwrap();
+        assert!(
+            fragment::verify(&root, &[], Unit::Value, 0, 1, &part, REPLY, &mut consumer).is_err()
+        );
+        assert!(consumer.snapshot().stopped.is_some());
+    }
+    let bytes = serde_json::to_vec(&J::Object(part.fields())).unwrap().len() as u64;
+    assert!(fragment::read(
+        &mut source,
+        &root,
+        &[],
+        Unit::Value,
+        0,
+        1,
+        bytes,
+        &mut job()
+    )
+    .is_ok());
+    assert_eq!(
+        fragment::read(
+            &mut source,
+            &root,
+            &[],
+            Unit::Value,
+            0,
+            1,
+            bytes - 1,
+            &mut job()
+        )
+        .unwrap_err()
+        .code(),
+        fragment::REPLY_LIMIT
+    );
+}
+
+#[test]
+fn json_text_value_rejects_bad_inner_hash_role_shape_and_context() {
+    for (inner_tag, body) in [
+        (tag::JSON_TEXT, vec![0; 32]),
+        (tag::BATCH_SELF, vec![]),
+        (tag::SEQ_EMPTY, vec![]),
+        (tag::ARRAY, vec![0; 39]),
+        (tag::NULL, vec![0]),
+    ] {
+        let mut source = MemoryNodes::new();
+        let inner = frame(inner_tag, &body);
+        source.put(inner, inner_tag, &body).unwrap();
+        let digest = frame(tag::JSON_TEXT, &inner);
+        source.put(digest, tag::JSON_TEXT, &inner).unwrap();
+        let root = ContentRef::new(Kind::JsonText, &digest, None);
+        let proof = |digest: &NodeDigest, t, bytes: &[u8]| fragment::ProofNode {
+            root: root_string(digest),
+            tag: format!("{t:02x}"),
+            body_hex: bytes.iter().map(|b| format!("{b:02x}")).collect(),
+        };
+        let mut nodes = vec![
+            proof(&digest, tag::JSON_TEXT, &inner),
+            proof(&inner, inner_tag, &body),
+        ];
+        nodes.sort_by(|a, b| a.root.cmp(&b.root));
+        let part = Fragment {
+            target_ref: root.clone(),
+            unit: Unit::Value,
+            offset: 0,
+            end: 1,
+            total: 1,
+            items: json!([root.to_transport_json()]),
+            nodes,
+            done: true,
+        };
+        assert!(
+            fragment::read(
+                &mut source,
+                &root,
+                &[],
+                Unit::Value,
+                0,
+                1,
+                REPLY,
+                &mut job()
+            )
+            .is_err(),
+            "inner tag {inner_tag:02x}"
+        );
+        assert!(
+            fragment::verify(&root, &[], Unit::Value, 0, 1, &part, REPLY, &mut job()).is_err(),
+            "proof inner tag {inner_tag:02x}"
+        );
+    }
+    let mut source = MemoryNodes::new();
+    let root = sc::write_value(&mut source, &Value::JsonText(Box::new(JsonValue::Null)))
+        .unwrap()
+        .content_ref();
+    let inner = sc::path::lookup_path(&mut source, &root, &[PathStep::JsonText]).unwrap();
+    let mut part = fragment::read(
+        &mut source,
+        &root,
+        &[],
+        Unit::Value,
+        0,
+        1,
+        REPLY,
+        &mut job(),
+    )
+    .unwrap();
+    part.nodes
+        .iter_mut()
+        .find(|n| n.root == inner.root)
+        .unwrap()
+        .tag = "02".into();
+    assert!(fragment::verify(&root, &[], Unit::Value, 0, 1, &part, REPLY, &mut job()).is_err());
+    source.insert_unchecked(inner.digest().unwrap(), tag::BOOL_TRUE, vec![]);
+    assert!(fragment::read(
+        &mut source,
+        &root,
+        &[],
+        Unit::Value,
+        0,
+        1,
+        REPLY,
+        &mut job()
+    )
+    .is_err());
+}
 fn roundtrip(
     s: &mut MemoryNodes,
     r: &ContentRef,
@@ -125,6 +410,9 @@ fn all_units_paths_and_empty_ranges_match_independent_values() {
     assert!(tail.done);
     let view = roundtrip(&mut s, &root, &[f("view")], Unit::Value, 0, 1);
     assert_eq!(view.items[0]["kind"], "json_text");
+    let inner_header =
+        sc::path::lookup_path(&mut s, &root, &[f("view"), PathStep::JsonText]).unwrap();
+    assert!(view.nodes.iter().any(|n| n.root == inner_header.root));
     let inner = roundtrip(
         &mut s,
         &root,
