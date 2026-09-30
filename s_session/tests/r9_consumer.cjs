@@ -14,7 +14,7 @@ async function runR10() {
  function differences(a,b,path=''){if(JSON.stringify(a)===JSON.stringify(b))return [];if(a&&b&&typeof a==='object'&&typeof b==='object')return [...new Set([...Object.keys(a),...Object.keys(b)])].flatMap(k=>differences(a[k],b[k],path+'/'+k));return [path]}
  for(const field of [null,'profile_hash','profile_id']) {
    const {c,els}=context(), name=field||'healthy';const initial=await get('/api/state?as_of=1');c.initial=initial;
-   vm.runInContext('validateState(initial);rebuildCommittedFromState(initial);renderAllFromState(initial)',c);
+   await vm.runInContext('validateState(initial)',c); vm.runInContext('rebuildCommittedFromState(initial);renderAllFromState(initial)',c);
    const before=stateOf(c);const trace=[];
    c.fetch=async path=>{
      let body=await get(path);const original=structuredClone(body);
@@ -35,7 +35,7 @@ async function runR10() {
    else{assert.equal(after.cursor,'2');assert(message.includes('ok-box'))}
  }
  // cut0完整健康返回必须能在当前HTML中正常加载。
- const {c}=context();c.zero=await get('/api/state?as_of=0');vm.runInContext('validateState(zero)',c);
+ const {c}=context();c.zero=await get('/api/state?as_of=0');await vm.runInContext('validateState(zero)',c);
  fs.writeFileSync(out,JSON.stringify(results,null,2));console.log('R10 actual HTTP + HTML函数断言通过（非GUI）');
 }
 // #1371 R11：请求上下文绑定。真实HTTP源 + 模拟DOM/TestOnly交付，不代表GUI/TCP故障。
@@ -72,7 +72,7 @@ async function runR11() {
       return {ok:true,status:200,json:async()=>structuredClone(delivered)};
     };
   }
-  function seed(c,st) {c.seed=st;vm.runInContext('validateState(seed); rebuildCommittedFromState(seed); syncModeUI("asof",seed.snapshot); renderAllFromState(seed)',c);}
+  async function seed(c,st) {c.seed=st;await vm.runInContext('validateState(seed)',c); vm.runInContext(' rebuildCommittedFromState(seed); syncModeUI("asof",seed.snapshot); renderAllFromState(seed)',c);}
   async function record(name,fn) {
     const r={};evidence.cases[name]=r;
     try {await fn(r);r.passed=true;} catch(e) {r.passed=false;r.error=String(e);r.stack=e.stack;}
@@ -108,7 +108,7 @@ async function runR11() {
   }
   for(const kind of ['healthy','mode_pair','wrong_cut','profile','request_failure','session_mismatch']) {
     await record('stream_'+kind,async r=>{
-      const {c,els}=context();seed(c,s3);r.before=snapshot(c);r.before_ui=ui(els);r.trace=[];
+      const {c,els}=context();await seed(c,s3);r.before=snapshot(c);r.before_ui=ui(els);r.trace=[];
       const transform=async(path,v)=>{
         if(path.startsWith('/api/delta'))return {...v,generation:'4',structure_cut:'cut-4',session_id:kind==='session_mismatch'?'different-session':v.session_id,deltas:v.deltas.filter(d=>BigInt(d.generation)<=4n)};
         assert.equal(path,'/api/state?as_of=4');
@@ -134,7 +134,7 @@ async function runR11() {
   const gap=await get('/api/delta?after_generation=99'), gapGen=gap.gap.rebuild_cut.slice(4), gapState=await get('/api/state?as_of='+gapGen);
   for(const kind of ['healthy','mode_pair','wrong_cut','request_failure']) {
     await record('gap_'+kind,async r=>{
-      const {c,els}=context();seed(c,s3);r.before=snapshot(c);r.before_ui=ui(els);r.trace=[];
+      const {c,els}=context();await seed(c,s3);r.before=snapshot(c);r.before_ui=ui(els);r.trace=[];
       install(c,async(path,v)=>{
         if(path.startsWith('/api/delta'))return gap;
         assert.equal(path,'/api/state?as_of='+gapGen);
@@ -214,7 +214,7 @@ function stateFetch(url){const match=url.match(/^\/api\/state\?as_of=(\d+)$/);as
 const output={};
 async function test(name,fn){await fn();output[name]='断言通过';}
 (async()=>{
- await test('gen0',async()=>{let {c}=ctx();c.s=states['0'];vm.runInContext('validateState(s)',c)});
+ await test('gen0',async()=>{let {c}=ctx();c.s=states['0'];await vm.runInContext('validateState(s)',c)});
  await test('seven_cut_incremental',async()=>{
    const {c,els}=ctx();
    for(let g=1;g<=7;g++){
@@ -235,7 +235,7 @@ async function test(name,fn){await fn();output[name]='断言通过';}
  });
  for(const field of ['index_frontier','scope','input_frontier','seq_range','catalog_run_status','catalog_evidence','session_id','generation','structure_cut','catalog_revision']){
    await test('tuple_'+field,async()=>{
-     const {c,els}=ctx();c.s=states['1'];vm.runInContext('validateState(s); rebuildCommittedFromState(s); renderAllFromState(s)',c);
+     const {c,els}=ctx();c.s=states['1'];await vm.runInContext('validateState(s)',c); vm.runInContext(' rebuildCommittedFromState(s); renderAllFromState(s)',c);
      const before=vm.runInContext('JSON.stringify([currentState,[...appliedObjects],sessionBinding])',c);
      const bad=structuredClone(states['2']);bad.snapshot[field]='bad';
      fetcher(c,url=>url.startsWith('/api/delta')?{...watch,generation:'2',deltas:[watch.deltas[1]]}:bad);
@@ -260,7 +260,7 @@ async function test(name,fn){await fn();output[name]='断言通过';}
    }
  });
  await test('duplicate_empty_failed_gap_late',async()=>{
-   const {c,els}=ctx();c.s=states['7'];vm.runInContext('validateState(s); rebuildCommittedFromState(s); renderAllFromState(s)',c);
+   const {c,els}=ctx();c.s=states['7'];await vm.runInContext('validateState(s)',c); vm.runInContext(' rebuildCommittedFromState(s); renderAllFromState(s)',c);
    const before=vm.runInContext('JSON.stringify(sessionBinding)',c);
    for(const deltas of [watch.deltas,[]]) {
      fetcher(c,url=>url.startsWith('/api/delta')?{...watch,deltas}:stateFetch(url));await vm.runInContext('applyStream()',c);
