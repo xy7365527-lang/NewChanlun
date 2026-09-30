@@ -43,6 +43,23 @@ def verify_cut(cut, domain):
     return cut
 
 
+def economic_revisions(manifest):
+    """按冻结 manifest 分派，与 Rust Config 域选择同义；不从响应猜版本。"""
+    protocol = manifest.get("protocol_revision")
+    if protocol is None:
+        protocol = "economic-session/1"
+    if type(protocol) is not str or protocol not in ("economic-session/1", "economic-session/2"):
+        raise EconomicQueryError("未知经济会话版本")
+    finance_revision = "tb03b-finance/2" if protocol == "economic-session/2" else "tb03b-finance/1"
+    finance = manifest.get("finance")
+    if finance is None:
+        if protocol == "economic-session/2":
+            raise EconomicQueryError("economic-session/2 必须冻结 tb03b-finance/2")
+    elif type(finance) is not dict or finance.get("schema_revision") != finance_revision:
+        raise EconomicQueryError("经济会话与财务版本混搭或未知")
+    return protocol, finance_revision
+
+
 class EconomicQuery:
     """一个 Q 配置固定可信 owner；固定向量缓存只留完整已核图像。"""
 
@@ -58,6 +75,7 @@ class EconomicQuery:
             raise EconomicQueryError("需要绑定 economic-manifest/1")
         if digest(manifest) != config.get("manifest_hash"):
             raise EconomicQueryError("manifest 与已配置摘要不同")
+        self.protocol_revision, self.finance_revision = economic_revisions(manifest)
         self.manifest = manifest
         self.manifest_hash = config["manifest_hash"]
         self.session = text(manifest.get("session_id"), "session_id")
@@ -140,7 +158,7 @@ class EconomicQuery:
 
     def request(self, payload):
         return {
-            "schema_revision": "economic-session/1", "session_id": self.session,
+            "schema_revision": self.protocol_revision, "session_id": self.session,
             "session_generation": self.generation, **self.source,
             "message_id": "query-" + uuid.uuid4().hex, "payload_hash": digest(payload),
             "causal_refs": [], "payload": payload,
@@ -186,7 +204,7 @@ class EconomicQuery:
             finance = image["finance"]
             fields = {"schema_revision", "rights", "decisions", "slots", "responsibilities"}
             if (type(finance) is not dict or set(finance) not in (fields, fields | {"closed_applicants"})
-                    or finance.get("schema_revision") != "tb03b-finance/1"
+                    or finance.get("schema_revision") != self.finance_revision
                     or any(type(finance[k]) is not list for k in set(finance) - {"schema_revision"})):
                 raise EconomicQueryError("财务图像字段、版本或类型错误")
         if response.get("image_hash") != digest(image):

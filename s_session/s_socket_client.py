@@ -79,7 +79,10 @@ def validate_reply(request, response, *, producer, producer_epoch, allow_control
     for key in ("schema_revision", "session_id", "session_generation"):
         if response[key] != request[key]:
             raise ValueError("响应身份不属于原请求：" + key)
-    economic = request.get("schema_revision") == "economic-session/1"
+    revision = request.get("schema_revision")
+    economic = revision in ("economic-session/1", "economic-session/2")
+    if not economic and revision not in ("s-session/2", "s-session/3"):
+        raise ValueError("未知响应协议版本")
     economic_book = (type(producer) is str and producer.startswith("B:")
                      and bool(producer[2:]) and not any(c.isspace() for c in producer))
     allowed = ((producer in ("E", "Q") or economic_book)
