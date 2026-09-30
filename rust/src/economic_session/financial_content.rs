@@ -980,13 +980,7 @@ fn download(
                         .items
                         .as_array()
                         .ok_or_else(|| invalid("数组 items 非数组"))?;
-                    let family_page = path.len() == 2
-                        && matches!(&path[0], PathStep::Field(name) if name == "snapshot")
-                        && matches!(&path[1], PathStep::Field(name) if FAMILIES.contains(&name.as_str()));
                     for (index, item) in items.iter().enumerate() {
-                        if family_page {
-                            job.charge_records(1).map_err(codec)?;
-                        }
                         let child = from_ref(item)?;
                         let mut child_path = path.clone();
                         child_path.push(PathStep::Index(offset + index as u64));
@@ -1141,6 +1135,238 @@ mod tests {
         );
         assert_eq!(anchor["basis_ref"], root.to_transport_json());
     }
+    #[test]
+    fn financial_fragment_records_charge_at_real_index_before_failure() {
+        let mut source = MemoryNodes::new();
+        let row = sc::Value::Object(vec![("object_id".into(), sc::Value::string("obj3-test"))]);
+        let root = sc::write_value(
+            &mut source,
+            &sc::Value::Object(vec![(
+                "snapshot".into(),
+                sc::Value::Object(vec![("objects".into(), sc::Value::Array(vec![row]))]),
+            )]),
+        )
+        .unwrap()
+        .content_ref();
+        let path = [field("snapshot"), field("objects")];
+        let anchor = json!({"session_id":"s","session_generation":"1","writer_epoch":"1",
+            "structure_cut":"c","index_frontier":"b","commit_ns":"1","basis_ref":root.to_transport_json()});
+        let mut creation = test_job(0);
+        let good = fragment::read(
+            &mut source,
+            &root,
+            &path,
+            Unit::Items,
+            0,
+            1,
+            1048576,
+            &mut creation,
+        )
+        .unwrap();
+        let reply = json!({"anchor":anchor,"path":path_json(&path),
+            "target_ref":good.target_ref.to_transport_json(),"unit":"items",
+            "offset":"0","end":"1","total":"1","items":good.items,
+            "nodes":good.nodes.iter().map(ProofNode::to_json).collect::<Vec<_>>(),
+            "done":true,"ok":true});
+        let resources =
+            SourcePins::from_structure(&structure("/frozen/s", "/frozen/db", &"0".repeat(64)))
+                .unwrap()
+                .resources;
+        let new_job = |cap| {
+            let mut limits = resources.job_limits;
+            limits.max_total_records = cap;
+            Job::new(
+                limits,
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(Instant::now),
+            )
+            .unwrap()
+        };
+        let mut stage = TestStage(MemoryNodes::new());
+        let mut bad_items = reply.clone();
+        bad_items["items"] = json!([]);
+        let mut retries = new_job(4);
+        for visit in 1..=3 {
+            let error = accept_page_reply(
+                &bad_items,
+                &resources,
+                &root,
+                &anchor,
+                &path,
+                Some(&good.target_ref),
+                Unit::Items,
+                0,
+                1,
+                &mut retries,
+                &mut stage,
+            )
+            .unwrap_err();
+            assert!(error.contains("content_fragment_invalid"), "{error}");
+            assert_eq!(retries.snapshot().records, visit);
+        }
+        accept_page_reply(
+            &reply,
+            &resources,
+            &root,
+            &anchor,
+            &path,
+            Some(&good.target_ref),
+            Unit::Items,
+            0,
+            1,
+            &mut retries,
+            &mut stage,
+        )
+        .unwrap();
+        assert_eq!(retries.snapshot().records, 4);
+        let mut cap_one = new_job(1);
+        assert!(accept_page_reply(
+            &bad_items,
+            &resources,
+            &root,
+            &anchor,
+            &path,
+            Some(&good.target_ref),
+            Unit::Items,
+            0,
+            1,
+            &mut cap_one,
+            &mut stage
+        )
+        .is_err());
+        assert_eq!(cap_one.snapshot().records, 1);
+        let second = accept_page_reply(
+            &bad_items,
+            &resources,
+            &root,
+            &anchor,
+            &path,
+            Some(&good.target_ref),
+            Unit::Items,
+            0,
+            1,
+            &mut cap_one,
+            &mut stage,
+        )
+        .unwrap_err();
+        assert!(second.contains("job_limit_exceeded"), "{second}");
+        assert_eq!(cap_one.snapshot().records, 1);
+
+        let mut without_ancestor = reply.clone();
+        without_ancestor["nodes"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|n| n["root"] != root.root);
+        let mut ancestor_job = new_job(4);
+        assert!(accept_page_reply(
+            &without_ancestor,
+            &resources,
+            &root,
+            &anchor,
+            &path,
+            Some(&good.target_ref),
+            Unit::Items,
+            0,
+            1,
+            &mut ancestor_job,
+            &mut stage
+        )
+        .is_err());
+        assert_eq!(ancestor_job.snapshot().records, 0);
+
+        let row_ref = path::lookup_path(
+            &mut source,
+            &root,
+            &[field("snapshot"), field("objects"), PathStep::Index(0)],
+        )
+        .unwrap();
+        let mut without_row = reply.clone();
+        without_row["nodes"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|n| n["root"] != row_ref.root);
+        let mut row_job = new_job(4);
+        assert!(accept_page_reply(
+            &without_row,
+            &resources,
+            &root,
+            &anchor,
+            &path,
+            Some(&good.target_ref),
+            Unit::Items,
+            0,
+            1,
+            &mut row_job,
+            &mut stage
+        )
+        .is_err());
+        assert_eq!(row_job.snapshot().records, 1);
+
+        let descendant = [
+            field("snapshot"),
+            field("objects"),
+            PathStep::Index(0),
+            field("object_id"),
+        ];
+        let text_ref = path::lookup_path(&mut source, &root, &descendant).unwrap();
+        let part = fragment::read(
+            &mut source,
+            &root,
+            &descendant,
+            Unit::Bytes,
+            0,
+            text_ref.extent.unwrap(),
+            1048576,
+            &mut creation,
+        )
+        .unwrap();
+        let descendant_reply = json!({"anchor":anchor,"path":path_json(&descendant),
+            "target_ref":part.target_ref.to_transport_json(),"unit":"bytes",
+            "offset":"0","end":part.end.to_string(),"total":part.total.to_string(),
+            "items":part.items,"nodes":part.nodes.iter().map(ProofNode::to_json).collect::<Vec<_>>(),
+            "done":true,"ok":true});
+        let mut bad_text = descendant_reply.clone();
+        bad_text["items"] = json!("");
+        let mut descendant_job = new_job(4);
+        assert!(accept_page_reply(
+            &bad_text,
+            &resources,
+            &root,
+            &anchor,
+            &descendant,
+            Some(&text_ref),
+            Unit::Bytes,
+            0,
+            text_ref.extent.unwrap(),
+            &mut descendant_job,
+            &mut stage
+        )
+        .is_err());
+        assert_eq!(descendant_job.snapshot().records, 1);
+        accept_page_reply(
+            &descendant_reply,
+            &resources,
+            &root,
+            &anchor,
+            &descendant,
+            Some(&text_ref),
+            Unit::Bytes,
+            0,
+            text_ref.extent.unwrap(),
+            &mut descendant_job,
+            &mut stage,
+        )
+        .unwrap();
+        assert_eq!(descendant_job.snapshot().records, 2);
+        println!("fragment_meter bad_retries={} cap1={} missing_ancestor={} missing_row={} descendant={}",
+            retries.snapshot().records, cap_one.snapshot().records,
+            ancestor_job.snapshot().records, row_job.snapshot().records,
+            descendant_job.snapshot().records);
+    }
+
     #[test]
     fn financial_page_exact_binding_and_independent_proof() {
         let mut source = MemoryNodes::new();
@@ -1380,7 +1606,7 @@ fn accept_page_reply(
         nodes,
         done: end == total,
     };
-    fragment::verify(
+    fragment::verify_with_record_filter(
         root,
         path,
         unit,
@@ -1389,6 +1615,7 @@ fn accept_page_reply(
         &fragment,
         resources.max_reply_bytes,
         job,
+        financial_record_path,
     )
     .map_err(codec)?;
     import_proof(&fragment.nodes, stage, job)?;
@@ -1770,4 +1997,12 @@ mod scalar_regression_tests {
             .content_ref();
         assert_eq!(scalar_string(&mut source, &reference).unwrap(), session_id);
     }
+}
+
+/// A financial row is an Index directly under snapshot's six exact families.
+/// Descendant paths still cross that same Index and pay on every actual traversal.
+fn financial_record_path(prefix: &[PathStep]) -> bool {
+    prefix.len() == 2
+        && matches!(&prefix[0], PathStep::Field(name) if name == "snapshot")
+        && matches!(&prefix[1], PathStep::Field(name) if FAMILIES.contains(&name.as_str()))
 }

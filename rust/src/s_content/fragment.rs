@@ -163,6 +163,30 @@ pub fn read(
     max_reply_bytes: u64,
     access: &mut dyn Access,
 ) -> Result<Fragment, CodecError> {
+    read_with_filter(
+        source,
+        root,
+        path,
+        unit,
+        offset,
+        limit,
+        max_reply_bytes,
+        access,
+        None,
+    )
+}
+
+fn read_with_filter(
+    source: &mut dyn NodeSource,
+    root: &ContentRef,
+    path: &[PathStep],
+    unit: Unit,
+    offset: u64,
+    limit: u64,
+    max_reply_bytes: u64,
+    access: &mut dyn Access,
+    record_filter: Option<fn(&[PathStep]) -> bool>,
+) -> Result<Fragment, CodecError> {
     access.begin_first_read()?;
     if limit == 0
         || offset > MAX_FRAME_LEN
@@ -181,6 +205,7 @@ pub fn read(
         nodes: BTreeMap::new(),
         reply_bytes: 0,
         max_reply_bytes,
+        record_filter,
     };
     let target = path::lookup_path(&mut source, root, path)?;
     let total = match (target.kind, unit) {
@@ -295,6 +320,56 @@ pub fn verify(
     max_reply_bytes: u64,
     job: &mut Job,
 ) -> Result<(), CodecError> {
+    verify_impl(
+        root,
+        path,
+        unit,
+        offset,
+        limit,
+        fragment,
+        max_reply_bytes,
+        job,
+        None,
+    )
+}
+
+/// 同一严格范围核验，额外在真实路径遍历到数组 Index 前由调用方指定
+/// 哪些语义路径属于需计费的顶层记录。无额外读取，不按回复声称的 items 计。
+pub fn verify_with_record_filter(
+    root: &ContentRef,
+    path: &[PathStep],
+    unit: Unit,
+    offset: u64,
+    limit: u64,
+    fragment: &Fragment,
+    max_reply_bytes: u64,
+    job: &mut Job,
+    record_filter: fn(&[PathStep]) -> bool,
+) -> Result<(), CodecError> {
+    verify_impl(
+        root,
+        path,
+        unit,
+        offset,
+        limit,
+        fragment,
+        max_reply_bytes,
+        job,
+        Some(record_filter),
+    )
+}
+
+fn verify_impl(
+    root: &ContentRef,
+    path: &[PathStep],
+    unit: Unit,
+    offset: u64,
+    limit: u64,
+    fragment: &Fragment,
+    max_reply_bytes: u64,
+    job: &mut Job,
+    record_filter: Option<fn(&[PathStep]) -> bool>,
+) -> Result<(), CodecError> {
     job.begin_first_read()?;
     if max_reply_bytes == 0 || max_reply_bytes > MAX_FRAME_LEN {
         return Err(err("回复上界越域"));
@@ -314,7 +389,7 @@ pub fn verify(
         nodes.put(digest, tag, &body)?;
         previous = Some(digest);
     }
-    let expected = read(
+    let expected = read_with_filter(
         &mut nodes,
         root,
         path,
@@ -323,6 +398,7 @@ pub fn verify(
         limit,
         max_reply_bytes,
         job,
+        record_filter,
     )?;
     if fragment.target_ref != expected.target_ref
         || fragment.unit != expected.unit
@@ -343,6 +419,7 @@ struct Recorder<'a> {
     nodes: BTreeMap<NodeDigest, (u8, Vec<u8>)>,
     reply_bytes: u64,
     max_reply_bytes: u64,
+    record_filter: Option<fn(&[PathStep]) -> bool>,
 }
 impl Recorder<'_> {
     fn read_key(&mut self, reference: &ContentRef) -> Result<String, CodecError> {
@@ -398,6 +475,12 @@ impl Recorder<'_> {
     }
 }
 impl NodeSource for Recorder<'_> {
+    fn before_path_index(&mut self, prefix: &[PathStep], _index: u64) -> Result<(), CodecError> {
+        if self.record_filter.is_some_and(|filter| filter(prefix)) {
+            self.access.charge_records(1)?;
+        }
+        Ok(())
+    }
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
         self.access.pre_io_check()?;
         let read = self.source.read(digest)?;
@@ -439,7 +522,8 @@ impl NodeSource for Recorder<'_> {
                         body_hex: hex(frame.body()),
                     };
                     self.reserve_reply(encoded_len(&proof)? + u64::from(!self.nodes.is_empty()))?;
-                    self.nodes.insert(*digest, (frame.tag(), frame.body().to_vec()));
+                    self.nodes
+                        .insert(*digest, (frame.tag(), frame.body().to_vec()));
                 }
                 Some(frame)
             }
@@ -452,7 +536,11 @@ impl NodeSource for Recorder<'_> {
 #[cfg(test)]
 mod checked_frame_tests {
     use super::*;
-    use crate::s_content::{frame_calls_on_thread, job::{Existing, JobLimits, DEADLINE}, MemoryNodes};
+    use crate::s_content::{
+        frame_calls_on_thread,
+        job::{Existing, JobLimits, DEADLINE},
+        MemoryNodes,
+    };
     use std::time::{Duration, Instant};
 
     #[test]
@@ -464,15 +552,22 @@ mod checked_frame_tests {
             "max_total_wire_bytes":"1024", "max_total_node_bytes":"1024",
             "max_total_nodes":"8", "max_total_records":"8", "max_total_requests":"8",
             "max_elapsed_ms":"1", "max_staged_bytes":"1024", "max_store_bytes":"1024"
-        })).unwrap();
+        }))
+        .unwrap();
         for checked in [false, true] {
             let before = frame_calls_on_thread();
             let now = Instant::now();
             let mut job = Job::new(
                 limits,
-                Existing { store_bytes: 0, staged_bytes: 0 },
-                Box::new(move || now + Duration::from_millis(u64::from(frame_calls_on_thread() > before))),
-            ).unwrap();
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(move || {
+                    now + Duration::from_millis(u64::from(frame_calls_on_thread() > before))
+                }),
+            )
+            .unwrap();
             {
                 let mut recorder = Recorder {
                     source: &mut source,
@@ -480,10 +575,18 @@ mod checked_frame_tests {
                     nodes: BTreeMap::new(),
                     reply_bytes: 0,
                     max_reply_bytes: 1024,
+                    record_filter: None,
                 };
-                let result = if checked { recorder.checked_read(&digest).map(|_| ()) }
-                    else { recorder.read(&digest).map(|_| ()) };
-                assert_eq!(result.unwrap_err().code(), DEADLINE, "旧 post precheck 行为");
+                let result = if checked {
+                    recorder.checked_read(&digest).map(|_| ())
+                } else {
+                    recorder.read(&digest).map(|_| ())
+                };
+                assert_eq!(
+                    result.unwrap_err().code(),
+                    DEADLINE,
+                    "旧 post precheck 行为"
+                );
                 assert_eq!(recorder.nodes.len(), 1, "原证明收集已完成");
             }
             assert_eq!(frame_calls_on_thread() - before, 1);

@@ -412,6 +412,12 @@ pub enum NodeRead {
 pub trait NodeSource {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError>;
 
+    // Reached a checked array and an in-range index, immediately before descent.
+    // Default leaves existing callers and storage sources unchanged.
+    fn before_path_index(&mut self, _prefix: &[path::PathStep], _index: u64) -> Result<(), CodecError> {
+        Ok(())
+    }
+
     /// 同次读取的已核帧。旧 NodeSource 无须覆写：默认先读取原 Vec，再核一次 F。
     /// 包装器可覆写以沿同一调用栈传递证明，不能跨读取缓存帧。
     fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<job::CheckedFrame>, CodecError> {

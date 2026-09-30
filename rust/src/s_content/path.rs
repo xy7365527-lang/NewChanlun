@@ -451,7 +451,7 @@ fn navigate(
     // json_text 上下文：进入文本视图后不再复位（其内部任意深度都受同一禁令）。
     let mut json_inner = false;
     let mut ancestors: Vec<Ancestor> = Vec::with_capacity(path.len().min(64));
-    for step in path {
+    for (step_position, step) in path.iter().enumerate() {
         match step {
             PathStep::Field(name) => {
                 if cur_tag != tag::OBJECT {
@@ -476,6 +476,7 @@ fn navigate(
                 if *index >= declared {
                     return Err(index_range_error(*index, declared));
                 }
+                source.before_path_index(&path[..step_position], *index)?;
                 let elements_root = digest_at(&cur_body, 8);
                 let (branches, leaf) = descend_seq(source, &elements_root, declared, *index)?;
                 ancestors.push(Ancestor::Array { declared, branches });
