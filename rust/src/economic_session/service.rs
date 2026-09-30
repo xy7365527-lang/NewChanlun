@@ -3,15 +3,19 @@ use super::store::*;
 use crate::session_protocol::{
     canonical_json, nonnegative, positive, reply_envelope, required, sha256_hex, validate_envelope,
 };
-use crate::session_transport::{process_lock, serve_unix, TransportBounds};
+use crate::session_transport::{process_lock, serve_unix, EnvelopeValidator, TransportBounds};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-fn validate(v: Value) -> Result<Value, String> {
-    validate_envelope(v, SCHEMA)
+/// `/1` 与 `/2` 的信封校验各一份，派发只按 `Config::revision()`；没有第三档、没有宽松兜底。
+fn validate_v1(v: Value) -> Result<Value, String> {
+    validate_envelope(v, SCHEMA_V1)
+}
+fn validate_v2(v: Value) -> Result<Value, String> {
+    validate_envelope(v, SCHEMA_V2)
 }
 fn exact(v: &Value, keys: &[&str]) -> Result<(), String> {
     let m = v.as_object().ok_or("SchemaUnsupported：请求须对象")?;
@@ -559,16 +563,19 @@ pub(super) fn handle(
         Ok(v) => v,
         Err(error) => json!({"kind":"Error","domain_id":config.domain,"error":error}),
     };
-    reply_envelope(
-        e,
-        payload,
-        SCHEMA,
-        &config.session,
-        &config.generation,
-        "economic-session/replies",
-        &config.producer,
-        &epoch.to_string(),
-    )
+    match config.revision() {
+        Ok(revision) => reply_envelope(
+            e,
+            payload,
+            revision,
+            &config.session,
+            &config.generation,
+            "economic-session/replies",
+            &config.producer,
+            &epoch.to_string(),
+        ),
+        Err(error) => json!({"kind":"Error","domain_id":config.domain,"error":error}),
+    }
 }
 /// 正式 owner 入口。init/recover/serve 共用同一域独占锁；不给客户端创建替代权威路径。
 pub fn cli(is_b: bool) -> Result<(), String> {
@@ -627,7 +634,13 @@ pub fn cli(is_b: bool) -> Result<(), String> {
                 queue: n("queue_capacity")?,
                 connections: n("max_connections")?,
             };
-            serve_unix(&config.socket, bounds, validate, |e| {
+            // 信封校验按本域登记的版本派发；未知版本在 Config::load 就已拒绝。
+            let validator: EnvelopeValidator = if config.revision()? == SCHEMA_V2 {
+                validate_v2
+            } else {
+                validate_v1
+            };
+            serve_unix(&config.socket, bounds, validator, |e| {
                 handle(&mut c, &config, epoch, e_epoch, &runtime, &e)
             })?;
         }

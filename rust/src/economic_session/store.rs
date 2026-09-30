@@ -12,7 +12,18 @@ use std::time::Duration;
 pub(crate) fn err(e: impl std::fmt::Display) -> String {
     format!("StorageUnavailable：{e}")
 }
-pub(crate) const SCHEMA: &str = "economic-session/1";
+/// #1394 §5.1：E/B 域版本（信封与持久域）的唯一登记点。
+///
+/// `economic-session/1` 是现役旧域；`economic-session/2` 只给全新测试会话，
+/// 旧域不原地升级、不混写，未知值当场拒绝（§5.8）。
+pub(crate) const SCHEMA_V1: &str = "economic-session/1";
+pub(crate) const SCHEMA_V2: &str = "economic-session/2";
+/// 旧调用点（含本票禁改的 `finance_transport.rs` 与既有单位测试）继续按 `/1` 读取；
+/// 新增调用点一律走 `Config::revision()`。
+pub(crate) const SCHEMA: &str = SCHEMA_V1;
+/// manifest 顶层的版本选择子：缺省 `/1`（旧 manifest 逐字仍可读），显式只认两个已知值。
+/// 外层 `economic-manifest/1` 不因此改变。
+const REVISION_FIELD: &str = "protocol_revision";
 const TABLES: [&str; 10] = [
     "meta",
     "epochs",
@@ -25,6 +36,9 @@ const TABLES: [&str; 10] = [
     "messages",
     "receipts",
 ];
+/// `/2` 域的本地内容节点表：格式登记、公开节点、暂存节点。
+/// 与 `TABLES` 分开登记：`/1` 域的「恰好 10 表」判据不随新域扩容（§5.8 旧域不混写）。
+pub(crate) const CONTENT_TABLES: [&str; 3] = ["content_meta", "content_nodes", "content_staging"];
 const SQL: &str = r#"
 CREATE TABLE meta(k TEXT PRIMARY KEY,v TEXT NOT NULL) STRICT;
 CREATE TABLE epochs(epoch INTEGER PRIMARY KEY,phase TEXT NOT NULL,at_ns TEXT NOT NULL) STRICT;
@@ -37,6 +51,34 @@ CREATE TABLE book(k TEXT PRIMARY KEY CHECK(k='book'),json TEXT NOT NULL) STRICT;
 CREATE TABLE messages(k TEXT PRIMARY KEY,payload_hash TEXT NOT NULL,receipt_key TEXT NOT NULL,request_json TEXT NOT NULL) STRICT;
 CREATE TABLE receipts(k TEXT PRIMARY KEY,json TEXT NOT NULL) STRICT;
 "#;
+/// `/2` 域新增的内容表。公开节点的身份就是 §5.2 的 F(tag,body) 摘要，不可变；
+/// 暂存按 `stage` 分组，只由 content_store 的发布钩子在同一经济事务内搬入公开表。
+pub(crate) const CONTENT_SQL: &str = r#"
+CREATE TABLE content_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),content_format TEXT NOT NULL) STRICT;
+CREATE TABLE content_nodes(digest BLOB PRIMARY KEY CHECK(typeof(digest)='blob' AND length(digest)=32),tag INTEGER NOT NULL CHECK(tag>=0 AND tag<=255),body BLOB NOT NULL) STRICT;
+CREATE TABLE content_staging(digest BLOB PRIMARY KEY CHECK(typeof(digest)='blob' AND length(digest)=32),tag INTEGER NOT NULL CHECK(tag>=0 AND tag<=255),body BLOB NOT NULL,stage TEXT NOT NULL) STRICT;
+"#;
+/// 域版本分派：唯一入口。缺省 `/1`，显式 `/2`，其余值与形状一律拒绝。
+pub(crate) fn domain_revision(manifest: &Value) -> Result<&'static str, String> {
+    match manifest.get(REVISION_FIELD) {
+        None | Some(Value::Null) => Ok(SCHEMA_V1),
+        Some(value) => {
+            let text = value
+                .as_str()
+                .ok_or("SchemaUnsupported：E/B 域版本必须是文本")?;
+            if text == SCHEMA_V1 {
+                Ok(SCHEMA_V1)
+            } else if text == SCHEMA_V2 {
+                Ok(SCHEMA_V2)
+            } else {
+                Err(
+                    "SchemaUnsupported：E/B 域版本只有 economic-session/1 与 economic-session/2"
+                        .into(),
+                )
+            }
+        }
+    }
+}
 
 #[derive(Clone)]
 pub(crate) struct Config {
@@ -50,11 +92,18 @@ pub(crate) struct Config {
     pub socket: PathBuf,
 }
 impl Config {
+    /// 本域实际登记的版本（由 manifest 顶层 `protocol_revision` 显式选择）。
+    /// 所有持久域判据、信封校验与内部身份都从这一处取版本，不得各写一份。
+    pub(crate) fn revision(&self) -> Result<&'static str, String> {
+        domain_revision(&self.manifest)
+    }
     pub fn load(path: &Path, db: &Path, chong: Option<&str>) -> Result<Self, String> {
         let manifest = strict_json(&std::fs::read(path).map_err(err)?)?;
         if manifest["schema_revision"] != "economic-manifest/1" {
             return Err("SchemaUnsupported：manifest版本".into());
         }
+        // 域版本先判：未知值/混写不得进入任何后续配置校验。
+        domain_revision(&manifest)?;
         super::evidence::validate_config(&manifest)?;
         super::finance::validate_config(&manifest)?;
         let session = required(&manifest, "session_id")?.to_owned();
@@ -550,11 +599,15 @@ pub(crate) fn init(config: &Config) -> Result<Value, String> {
     if config.db.exists() {
         return Err("IdentityConflict：init拒绝覆盖已有库".into());
     }
+    let revision = config.revision()?;
     let (mut c, runtime) = open(&config.db, false)?;
     let tx = c.transaction().map_err(err)?;
     tx.execute_batch(SQL).map_err(err)?;
+    if revision == SCHEMA_V2 {
+        tx.execute_batch(CONTENT_SQL).map_err(err)?;
+    }
     for (k, v) in [
-        ("schema_revision", SCHEMA),
+        ("schema_revision", revision),
         ("domain_id", config.domain.as_str()),
         ("session_id", config.session.as_str()),
         ("session_generation", config.generation.as_str()),
@@ -563,13 +616,21 @@ pub(crate) fn init(config: &Config) -> Result<Value, String> {
     ] {
         set_meta(&tx, k, v)?;
     }
+    if revision == SCHEMA_V2 {
+        // §5.2 内容格式登记只由 init 显式绑定；recover 不暗迁移。
+        tx.execute(
+            "INSERT INTO content_meta VALUES(1,?)",
+            params![crate::s_content::CONTENT_FORMAT],
+        )
+        .map_err(err)?;
+    }
     if super::evidence::enabled(config) {
         set_meta(&tx, "voice_binding_revision", "voice-binding/1")?;
     }
     let ns = config.clock(None, "init_ns", 0)?;
     tx.execute("INSERT INTO epochs VALUES(1,'init',?)", [&ns])
         .map_err(err)?;
-    let cut = append(&tx, config, 0, "", &ns, &super::finance::empty(config))?;
+    let cut = append(&tx, config, 0, "", &ns, &super::finance::empty(config)?)?;
     tx.commit().map_err(err)?;
     Ok(
         json!({"kind":"Initialized","domain_id":config.domain,"writer_epoch":"1","cut":cut,"runtime":runtime}),
@@ -581,8 +642,12 @@ fn sorted(mut a: Vec<Value>) -> Vec<String> {
 }
 /// 全域审计：表集合、meta、全历史根、来源原件、每步重放、当前物化表与永久回执关系。
 pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
+    let revision = config.revision()?;
     let expected = Connection::open_in_memory().map_err(err)?;
     expected.execute_batch(SQL).map_err(err)?;
+    if revision == SCHEMA_V2 {
+        expected.execute_batch(CONTENT_SQL).map_err(err)?;
+    }
     let schema_dump = |db: &Connection| -> Result<Vec<(String, String, String)>, String> {
         let mut q = db
             .prepare(
@@ -608,7 +673,16 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
         let r = q.query_map([], |r| r.get(0)).map_err(err)?;
         r.collect::<Result<_, _>>().map_err(err)?
     };
-    let mut want = TABLES.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    // 表集合按域版本登记：`/1` 恰好 10 表，`/2` 另加内容三表（§5.8 旧域不混写）。
+    let mut want: Vec<String> = if revision == SCHEMA_V2 {
+        TABLES
+            .iter()
+            .chain(CONTENT_TABLES.iter())
+            .map(|s| s.to_string())
+            .collect()
+    } else {
+        TABLES.iter().map(|s| s.to_string()).collect()
+    };
     want.sort();
     if names != want {
         return Err("StorageUnavailable：域损坏：表集合变化".into());
@@ -624,7 +698,7 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
         return Err("StorageUnavailable：域损坏：非预期触发器/视图".into());
     }
     for (k, v) in [
-        ("schema_revision", SCHEMA),
+        ("schema_revision", revision),
         ("domain_id", config.domain.as_str()),
         ("session_id", config.session.as_str()),
         ("session_generation", config.generation.as_str()),
@@ -653,6 +727,29 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
             "IdentityConflict：Voice 存储版本未由 init 显式绑定；不得在 recover 暗迁移".into(),
         );
     }
+    // 内容格式登记与 Voice 版本同一条纪律：只认 init 显式绑定，recover 不暗迁移。
+    let content_format: Option<String> = if revision == SCHEMA_V2 {
+        c.query_row(
+            "SELECT content_format FROM content_meta WHERE singleton=1",
+            [],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(err)?
+    } else {
+        None
+    };
+    if content_format.as_deref()
+        != if revision == SCHEMA_V2 {
+            Some(crate::s_content::CONTENT_FORMAT)
+        } else {
+            None
+        }
+    {
+        return Err(
+            "IdentityConflict：内容存储格式未由 init 显式绑定；不得在 recover 暗迁移".into(),
+        );
+    }
     let epoch = positive(&meta(c, "writer_epoch")?, "writer_epoch")?;
     let (count, max): (i64, i64) = c
         .query_row("SELECT count(*),max(epoch) FROM epochs", [], |r| {
@@ -677,7 +774,7 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
         })
         .map_err(err)?;
     let mut previous = String::new();
-    let mut previous_image = super::finance::empty(config);
+    let mut previous_image = super::finance::empty(config)?;
     let mut last_ns = -1;
     let mut seen = 0i64;
     for r in rs {
@@ -692,7 +789,7 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
             return Err("StorageUnavailable：域损坏：提交链/时间/根不一致".into());
         }
         if seq == 0 {
-            if image != super::finance::empty(config) {
+            if image != super::finance::empty(config)? {
                 return Err("StorageUnavailable：域损坏：创世图像非空".into());
             }
         } else if image["history"]
@@ -930,7 +1027,7 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
     for m in messages {
         let (k, h, rk, s) = m.map_err(err)?;
         let request =
-            crate::session_protocol::validate_envelope(strict_json(s.as_bytes())?, SCHEMA)?;
+            crate::session_protocol::validate_envelope(strict_json(s.as_bytes())?, revision)?;
         config.authorized(&request)?;
         if k != hash(&json!([
             request["source_namespace"],
@@ -1011,7 +1108,10 @@ fn verify_original_message(c: &Connection, record: &Value, config: &Config) -> R
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
         .map_err(|_| "StorageUnavailable：域损坏：已提交事实的原消息绑定丢失".to_owned())?;
-    let request = crate::session_protocol::validate_envelope(strict_json(raw.as_bytes())?, SCHEMA)?;
+    // 信封版本与本域登记一致：`/1` 与 `/2` 各读自己的原消息，不互相解释。
+    let revision = config.revision()?;
+    let request =
+        crate::session_protocol::validate_envelope(strict_json(raw.as_bytes())?, revision)?;
     let actual = json!({"source_namespace":request["source_namespace"],"source_epoch":request["source_epoch"],"message_id":request["message_id"],"payload_hash":request["payload_hash"]});
     let expected_key = if is_e {
         required(record, "fact_key")?

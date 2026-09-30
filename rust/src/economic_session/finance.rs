@@ -15,6 +15,33 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 const REV: &str = "tb03b-finance/1";
+/// #1394 §5.7：新财务子合同。没有 `/2` 域，`/1` 的子合同也不得靠改名接管新域。
+const REV_V2: &str = "tb03b-finance/2";
+/// §5.7 `s_ref/2` 的 exact 四字段版本值。
+const S_REF_V2: &str = "s-object-ref/2";
+/// 财务子合同版本的唯一登记点：缺省 `/1`（旧 manifest 逐字仍可读），显式只认 `/2`。
+///
+/// 与 E/B 域版本（`store::domain_revision`）必须同版；未知值与混写当场拒绝（§5.8）。
+fn revision(m: &Value) -> Result<&'static str, String> {
+    let domain = super::store::domain_revision(m)?;
+    let want = if domain == super::store::SCHEMA_V2 {
+        REV_V2
+    } else {
+        REV
+    };
+    let Some(f) = m.get("finance").filter(|f| !f.is_null()) else {
+        return Ok(want);
+    };
+    match f.get("schema_revision") {
+        Some(Value::String(text)) if text == want => Ok(want),
+        Some(Value::String(text)) if text == REV || text == REV_V2 => {
+            Err("IdentityConflict：财务子合同版本与 E/B 域版本混写".into())
+        }
+        _ => Err(
+            "SchemaUnsupported：财务子合同只有 tb03b-finance/1 与 tb03b-finance/2".into(),
+        ),
+    }
+}
 const LIMIT: usize = 16 * 1024 * 1024;
 pub(super) fn enabled(config: &Config) -> bool {
     config.manifest.get("finance").is_some_and(|v| !v.is_null())
@@ -23,6 +50,7 @@ pub(super) fn validate_config(m: &Value) -> Result<(), String> {
     let Some(f) = m.get("finance").filter(|f| !f.is_null()) else {
         return Ok(());
     };
+    // 外层 `economic-manifest/1` 与 finance 顶层 exact 五字段不随版本变化（§5.7 冻结）。
     exact(
         f,
         &[
@@ -33,7 +61,8 @@ pub(super) fn validate_config(m: &Value) -> Result<(), String> {
             "structure",
         ],
     )?;
-    if f["schema_revision"] != REV || m["clock"]["kind"] != "TestOnly" {
+    let revision = revision(m)?;
+    if m["clock"]["kind"] != "TestOnly" {
         return Err("UnsupportedCapability：仅显式 TestOnly 财务输入域".into());
     }
     digest(required(f, "input_sha256")?)?;
@@ -49,8 +78,8 @@ pub(super) fn validate_config(m: &Value) -> Result<(), String> {
             "producer_epoch",
         ],
     )?;
-    exact(
-        &f["structure"],
+    // structure 的 exact 形状按子合同版本分派：`/1` 六字段逐字保持，`/2` 九字段。
+    let structure: &[&str] = if revision == REV_V2 {
         &[
             "binary",
             "binary_sha256",
@@ -58,8 +87,21 @@ pub(super) fn validate_config(m: &Value) -> Result<(), String> {
             "session_id",
             "session_generation",
             "writer_epoch",
-        ],
-    )?;
+            "reader_revision",
+            "content_format",
+            "reader_resources",
+        ]
+    } else {
+        &[
+            "binary",
+            "binary_sha256",
+            "db",
+            "session_id",
+            "session_generation",
+            "writer_epoch",
+        ]
+    };
+    exact(&f["structure"], structure)?;
     for k in ["binary", "db"] {
         if !Path::new(required(&f["structure"], k)?).is_absolute() {
             return Err("InvalidDomain：S 固定路径须绝对".into());
@@ -72,14 +114,28 @@ pub(super) fn validate_config(m: &Value) -> Result<(), String> {
         return Err("IdentityConflict：S 与经济会话不同".into());
     }
     positive(required(&f["structure"], "writer_epoch")?, "S epoch")?;
+    if revision == REV_V2 {
+        if f["structure"]["reader_revision"] != "s-financial-basis/3" {
+            return Err("SchemaUnsupported：结构 reader_revision 须 s-financial-basis/3".into());
+        }
+        if f["structure"]["content_format"] != crate::s_content::CONTENT_FORMAT {
+            return Err("SchemaUnsupported：结构 content_format 须 s-content/1".into());
+        }
+        // §5.6.1 冻结的六字段资源合同（含八字段 job_limits）；本层只解析，不填默认值。
+        super::financial_reader_resources::FinancialReaderResources::from_json(
+            &f["structure"]["reader_resources"],
+        )?;
+    }
     Ok(())
 }
-pub(super) fn empty(config: &Config) -> Value {
+/// 创世图像：财务子对象的版本登记与 `validate_config` 同源，不另立一份判断。
+pub(super) fn empty(config: &Config) -> Result<Value, String> {
     let mut image = super::book::empty_image();
     if enabled(config) {
-        image["finance"] = json!({"schema_revision":REV,"rights":[],"decisions":[],"slots":[],"responsibilities":[]});
+        let revision = revision(&config.manifest)?;
+        image["finance"] = json!({"schema_revision":revision,"rights":[],"decisions":[],"slots":[],"responsibilities":[]});
     }
-    image
+    Ok(image)
 }
 fn list<'a>(v: &'a Value, key: &str) -> Result<&'a Vec<Value>, String> {
     v[key]
@@ -137,7 +193,8 @@ fn input(config: &Config, raw: &str) -> Result<Value, String> {
             "slots",
         ],
     )?;
-    if d["schema_revision"] != REV || d["kind"] != "TestOnly" {
+    // 输入原件的版本与子合同同版：`/2` 的原始 SHA 必须重新冻结。
+    if d["schema_revision"] != revision(&config.manifest)? || d["kind"] != "TestOnly" {
         return Err("UnsupportedCapability：财务输入非具名 TestOnly".into());
     }
     required(&d, "source_id")?;
@@ -275,7 +332,17 @@ fn input(config: &Config, raw: &str) -> Result<Value, String> {
         {
             return Err("IdentityConflict：决定/attempt/plan 身份重复".into());
         }
-        exact(&q["s_ref"], &["object_id", "object_hash", "profile_id"])?;
+        // §5.7：`s_ref/2` 的 exact 四字段（新增 schema_revision）；`/1` 域逐字保持三字段。
+        let s_ref2 = revision(&config.manifest)? == REV_V2;
+        let s_ref: &[&str] = if s_ref2 {
+            &["schema_revision", "object_id", "object_hash", "profile_id"]
+        } else {
+            &["object_id", "object_hash", "profile_id"]
+        };
+        exact(&q["s_ref"], s_ref)?;
+        if s_ref2 && q["s_ref"]["schema_revision"] != S_REF_V2 {
+            return Err("SchemaUnsupported：s_ref/2 必须显式 schema_revision=s-object-ref/2".into());
+        }
         digest(required(&q["s_ref"], "object_hash")?)?;
         required(&q["s_ref"], "object_id")?;
         required(&q["s_ref"], "profile_id")?;
@@ -380,16 +447,22 @@ fn plan<'a>(d: &'a Value, p: &Value) -> Result<&'a Value, String> {
         required(p, "decision_id")?,
     )
 }
-fn finance(image: &Value) -> Result<&Value, String> {
+/// 图像级版本判据：与 `Config::revision()` 同源，`/1` 与 `/2` 各有自己的一份，
+/// 不靠「接受两版」放宽（§5.8 旧域不混写）。
+fn finance<'a>(config: &Config, image: &'a Value) -> Result<&'a Value, String> {
     let f = &image["finance"];
-    if f["schema_revision"] != REV {
+    if f["schema_revision"] != revision(&config.manifest)? {
         Err("StorageUnavailable：财务图像版本不同".into())
     } else {
         Ok(f)
     }
 }
-fn decision<'a>(image: &'a Value, id: &str) -> Result<&'a Value, String> {
-    item(list(finance(image)?, "decisions")?, "decision_id", id)
+fn decision<'a>(
+    config: &Config,
+    image: &'a Value,
+    id: &str,
+) -> Result<&'a Value, String> {
+    item(list(finance(config, image)?, "decisions")?, "decision_id", id)
 }
 fn push(v: &mut Value, k: &str, x: Value) {
     v[k].as_array_mut().unwrap().push(x)
@@ -552,7 +625,8 @@ fn verify_proof(config: &Config, p: &Value, domain: &str) -> Result<(), String> 
     }
     Ok(())
 }
-// 只读 S 正式入口；输出由 S 自己核完整可达根和当前 Begin 门。
+// 只读 S 正式入口（只服务 `/1` 子合同；`/2` 由 `write` 的版本门在到达这里之前拒绝）。
+// 输出由 S 自己核完整可达根和当前 Begin 门。
 fn structure(config: &Config) -> Result<Value, String> {
     let s = &config.manifest["finance"]["structure"];
     let binary = required(s, "binary")?;
@@ -618,7 +692,7 @@ fn knowledge_floor(witness: &Value, first: &str) -> Result<(), String> {
     }
     Ok(())
 }
-fn own_lock(image: &Value, d: &Value, p: &Value, seq: i64, ns: &str) -> Result<Value, String> {
+fn own_lock(config: &Config, image: &Value, d: &Value, p: &Value, seq: i64, ns: &str) -> Result<Value, String> {
     if image["book"].is_null() {
         return Err("MissingDependency：实际非空重尚未建立".into());
     }
@@ -631,7 +705,7 @@ fn own_lock(image: &Value, d: &Value, p: &Value, seq: i64, ns: &str) -> Result<V
         return Err("InvalidDomain：账本 CAS 版本陈旧".into());
     }
     let r = item(list(d, "rights")?, "right_id", required(p, "right_id")?)?;
-    let f = finance(image)?;
+    let f = finance(config, image)?;
     let current_right = list(f, "rights")?
         .iter()
         .find(|x| x["right_id"] == r["right_id"]);
@@ -691,14 +765,14 @@ fn reduce(
         return Err("MissingDependency：共同界/能力证据过期".into());
     }
     let mut next = previous.clone();
-    finance(previous)?;
+    finance(config, previous)?;
     let record = match op {
         "ImportResponsibility" => {
             if config.domain != "E" || p["responsibility_id"] != d["baseline"]["responsibility_id"]
             {
                 return Err("IdentityConflict：既有责任原身份/owner 不符".into());
             }
-            if !list(finance(previous)?, "responsibilities")?.is_empty() {
+            if !list(finance(config, previous)?, "responsibilities")?.is_empty() {
                 return Err("IdentityConflict：既有责任已导入，不能重置公共余额".into());
             }
             let r = json!({"responsibility_id":d["baseline"]["responsibility_id"],"owner":"E:baseline","amount":d["baseline"]["amount"],"source":d["baseline"],"policy":d["policy"]});
@@ -713,14 +787,14 @@ fn reduce(
             if plan["applicant_epoch"] != p["writer_epoch"] {
                 return Err("StaleWriter：旧申请者 epoch 不得创建新 Prepared".into());
             }
-            if list(finance(previous)?, "decisions")?.iter().any(|x| {
+            if list(finance(config, previous)?, "decisions")?.iter().any(|x| {
                 x["decision_id"] == p["decision_id"]
                     || x["prepared"]["plan"]["attempt_id"] == plan["attempt_id"]
             }) {
                 return Err("IdentityConflict：决定或 attempt 已使用".into());
             }
             verify_structure(config, &w["structure"], Some(plan))?;
-            let prepared = own_lock(previous, &d, plan, seq, ns)?;
+            let prepared = own_lock(config, previous, &d, plan, seq, ns)?;
             let r = json!({"decision_id":p["decision_id"],"state":"Prepared","prepared":prepared,"structure_evidence":w["structure"],"grant":null,"local_commit_receipt":null,"execution_eligibility":"None"});
             let f = &mut next["finance"];
             if !list(f, "rights")?
@@ -755,7 +829,7 @@ fn reduce(
             if p["request_set_hash"] != hash(&slot["applicants"]) {
                 return Err("IdentityConflict：完整 slot 请求内容不同".into());
             }
-            let f = finance(previous)?;
+            let f = finance(config, previous)?;
             if list(f, "slots")?
                 .iter()
                 .any(|s| s["state"] == "AwaitingAllocationPolicy")
@@ -813,7 +887,7 @@ fn reduce(
                 }
                 verify_proof(config, pf, required(q, "owner")?)?;
                 let original = &pf["receipt"]["record"];
-                let current = decision(&pf["current_image"], id)?;
+                let current = decision(config, &pf["current_image"], id)?;
                 if pf["receipt"]["kind"] != "PreparedReceipt"
                     || original["prepared"]["plan"] != **q
                     || current["state"] != "Prepared"
@@ -879,7 +953,7 @@ fn reduce(
         "CommitDecision" => {
             let q = plan(&d, p)?;
             let id = required(q, "decision_id")?;
-            let old = decision(previous, id)?;
+            let old = decision(config, previous, id)?;
             if q["owner"] != config.domain
                 || p["plan_hash"] != hash(q)
                 || old["prepared"]["plan"] != *q
@@ -896,7 +970,7 @@ fn reduce(
             verify_proof(config, gp, "E")?;
             let slot = &gp["receipt"]["record"];
             let current_slot = item(
-                list(finance(&gp["current_image"])?, "slots")?,
+                list(finance(config, &gp["current_image"])?, "slots")?,
                 "slot_id",
                 required(q, "slot_id")?,
             )?;
@@ -909,7 +983,7 @@ fn reduce(
             for pending in list(&gp["current_image"], "pending")? {
                 covered_pending(&gp["current_image"], coverage, pending)?;
             }
-            let closed = finance(&gp["current_image"])?
+            let closed = finance(config, &gp["current_image"])?
                 .get("closed_applicants")
                 .and_then(Value::as_array)
                 .cloned()
@@ -933,7 +1007,7 @@ fn reduce(
                 return Err("IdentityConflict：grant 不属于原 Prepared/量/代际".into());
             }
             let liability = item(
-                list(finance(&gp["current_image"])?, "responsibilities")?,
+                list(finance(config, &gp["current_image"])?, "responsibilities")?,
                 "responsibility_id",
                 required(g, "grant_id")?,
             )?;
@@ -955,7 +1029,7 @@ fn reduce(
         "AbortDecision" => {
             let q = plan(&d, p)?;
             let id = required(q, "decision_id")?;
-            let old = decision(previous, id)?;
+            let old = decision(config, previous, id)?;
             if p["plan_hash"] != hash(q) || q["owner"] != config.domain {
                 return Err("IdentityConflict：Abort 计划不符".into());
             }
@@ -1033,7 +1107,7 @@ pub(super) fn receipt(config: &Config, event: &Value, cut: Value) -> Result<Valu
     )
 }
 fn original(c: &Connection, event: &Value, config: &Config) -> Result<Value, String> {
-    let e = validate_envelope(event["request"].clone(), SCHEMA)?;
+    let e = validate_envelope(event["request"].clone(), config.revision()?)?;
     config.authorized(&e)?;
     let r =
         super::service::previous_message(c, &e)?.ok_or("StorageUnavailable：财务原消息绑定缺失")?;
@@ -1140,6 +1214,16 @@ pub(super) fn write(
     epoch: i64,
     e: &Value,
 ) -> Result<Value, String> {
+    // §5.7：`/2` 的写入必须先由 financial-content owner 取得并核验完整证据闭包
+    // （basis_ref/snapshot_ref/selected_objects/proof_nodes），本轮只登记版本、exact 形状、
+    // 本地不可变内容存储与发布钩子。此处显式拒绝：不得用旧 `financial-basis` 整份读取
+    // 冒充新子合同，也不产生任何 Prepared／grant／责任。
+    if revision(&config.manifest)? == REV_V2 {
+        return Err(
+            "MissingDependency：tb03b-finance/2 经济写入尚需 financial-content owner 接线完整证据闭包"
+                .into(),
+        );
+    }
     let p = &e["payload"];
     validate_request(p)?;
     let k = key(p)?;
@@ -1171,7 +1255,7 @@ pub(super) fn write(
         "Reserve" => {
             let slot = item(list(&d, "slots")?, "slot_id", required(p, "slot_id")?)?;
             let (_, _, _, i) = latest(c)?;
-            let closed = finance(&i)?
+            let closed = finance(config, &i)?
                 .get("closed_applicants")
                 .and_then(Value::as_array)
                 .cloned()
@@ -1260,7 +1344,7 @@ pub(super) fn query(c: &Connection, config: &Config, p: &Value) -> Result<Value,
     let op = required(p, "op")?;
     if op == "QueryDecision" {
         exact(p, &["op", "decision_id", "cut", "as_known_ns"])?;
-        let d = decision(&image, required(p, "decision_id")?)?;
+        let d = decision(config, &image, required(p, "decision_id")?)?;
         let mut receipts = vec![];
         for event in list(&image, "history")?
             .iter()
@@ -1276,7 +1360,7 @@ pub(super) fn query(c: &Connection, config: &Config, p: &Value) -> Result<Value,
         )
     } else {
         exact(p, &["op", "grant_id", "cut", "as_known_ns"])?;
-        for slot in list(finance(&image)?, "slots")? {
+        for slot in list(finance(config, &image)?, "slots")? {
             if let Some(g) = list(slot, "grants")?
                 .iter()
                 .find(|g| g["grant_id"] == p["grant_id"])
@@ -1400,7 +1484,7 @@ fn internal(config: &Config, payload: Value) -> Result<Value, String> {
         .as_object_mut()
         .ok_or("MissingDependency：模块协议身份缺失")?;
     for (k, v) in [
-        ("schema_revision", json!(SCHEMA)),
+        ("schema_revision", json!(config.revision()?)),
         ("session_id", json!(config.session)),
         ("session_generation", json!(config.generation)),
         (
@@ -1417,7 +1501,7 @@ fn internal(config: &Config, payload: Value) -> Result<Value, String> {
     ] {
         m.insert(k.into(), v);
     }
-    validate_envelope(e, SCHEMA)
+    validate_envelope(e, config.revision()?)
 }
 
 #[cfg(test)]

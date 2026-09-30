@@ -435,7 +435,7 @@ fn stale_grant_first_commit_blocked_by_new_uncovered_pending_and_receipt_not_rew
     let again = f.step(1, "CommitDecision", "alpha");
     assert_eq!(again, committed);
     assert_eq!(
-        decision(&latest(&f.dbs[1]).unwrap().3, "alpha").unwrap()["state"],
+        decision(&f.configs[1], &latest(&f.dbs[1]).unwrap().3, "alpha").unwrap()["state"],
         "Committed"
     );
     let err = f
@@ -443,7 +443,7 @@ fn stale_grant_first_commit_blocked_by_new_uncovered_pending_and_receipt_not_rew
         .unwrap_err();
     assert!(err.contains("MissingDependency"), "{err}");
     assert_eq!(
-        decision(&latest(&f.dbs[2]).unwrap().3, "beta").unwrap()["state"],
+        decision(&f.configs[2], &latest(&f.dbs[2]).unwrap().3, "beta").unwrap()["state"],
         "Prepared"
     );
     assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 90);
@@ -706,12 +706,12 @@ fn version_cas_and_incomplete_slot_rejections_leave_old_responsibility() {
     let mut f = Fixture::new("100");
     let image = latest(&f.dbs[1]).unwrap().3;
     let p = &f.data["plans"][0];
-    assert!(own_lock(&image, &f.data, p, 4, "80")
+    assert!(own_lock(&f.configs[1], &image, &f.data, p, 4, "80")
         .unwrap_err()
         .contains("CAS"));
     let mut changed = p.clone();
     changed["expected_rights_version"] = json!("2");
-    assert!(own_lock(&image, &f.data, &changed, 3, "80")
+    assert!(own_lock(&f.configs[1], &image, &f.data, &changed, 3, "80")
         .unwrap_err()
         .contains("CAS"));
     f.prepare();
@@ -756,8 +756,74 @@ fn closed_generation_rejects_commit_and_recovery_knowledge_is_never_backdated() 
         .unwrap_err()
         .contains("恢复代际"));
     assert_eq!(
-        decision(&latest(&g.dbs[2]).unwrap().3, "beta").unwrap()["state"],
+        decision(&g.configs[2], &latest(&g.dbs[2]).unwrap().3, "beta").unwrap()["state"],
         "Prepared"
     );
     g.audit();
+}
+
+#[test]
+fn versioned_new_domain_is_explicit_and_does_not_rewrite_old_tables() {
+    let f = Fixture::new("100");
+    let mut m = f.configs[0].manifest.clone();
+    assert_eq!(super::super::store::domain_revision(&m).unwrap(), SCHEMA_V1);
+    let old_schema: Vec<String> = {
+        let mut q = f.dbs[0]
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+            .unwrap();
+        q.query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    };
+    assert_eq!(old_schema.len(), 10);
+
+    m["protocol_revision"] = json!(SCHEMA_V2);
+    assert!(validate_config(&m).unwrap_err().contains("混写"));
+    m["finance"]["schema_revision"] = json!(REV_V2);
+    let structure = &mut m["finance"]["structure"];
+    structure["reader_revision"] = json!("s-financial-basis/3");
+    structure["content_format"] = json!("s-content/1");
+    structure["reader_resources"] = json!({
+        "schema_revision":"s-financial-reader-resources/1",
+        "max_request_bytes":"1048576",
+        "max_reply_bytes":"1048576",
+        "max_stderr_bytes":"1048576",
+        "request_timeout_ms":"1000",
+        "job_limits":{
+            "max_total_wire_bytes":"1048576",
+            "max_total_node_bytes":"1048576",
+            "max_total_nodes":"1000",
+            "max_total_records":"1000",
+            "max_total_requests":"1000",
+            "max_elapsed_ms":"1000",
+            "max_staged_bytes":"1048576",
+            "max_store_bytes":"10485760"
+        }
+    });
+    assert!(validate_config(&m).is_ok());
+    let new_db = f.dir.join("new-e.db");
+    m["e"]["db"] = json!(new_db);
+    let (manifest_path, _) = save(&f.dir, "new-manifest.json", &m);
+    let config = Config::load(Path::new(&manifest_path), &new_db, None).unwrap();
+    let initialized = init(&config).unwrap();
+    assert_eq!(initialized["kind"], "Initialized");
+    let (new_conn, _) = open(&new_db, true).unwrap();
+    audit(&new_conn, &config).unwrap();
+    let new_schema: Vec<String> = {
+        let mut q = new_conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+            .unwrap();
+        q.query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    };
+    assert_eq!(new_schema.len(), 13);
+    assert_eq!(old_schema.len(), 10);
+    m["protocol_revision"] = json!("economic-session/unknown");
+    let (unknown_path, _) = save(&f.dir, "unknown-manifest.json", &m);
+    assert!(Config::load(Path::new(&unknown_path), &new_db, None)
+        .err().unwrap()
+        .contains("SchemaUnsupported"));
 }
