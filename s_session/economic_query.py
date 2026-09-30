@@ -1,6 +1,7 @@
 """#1374：只读组合独立 E/B 权威图像，不持写连接、不运行经济 reducer。"""
 
 from collections import OrderedDict
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 import copy
 import json
@@ -43,7 +44,7 @@ def verify_cut(cut, domain):
     return cut
 
 
-def economic_revisions(manifest):
+def economic_revisions(manifest: Mapping[str, object]) -> tuple[str, str]:
     """按冻结 manifest 分派，与 Rust Config 域选择同义；不从响应猜版本。"""
     protocol = manifest.get("protocol_revision")
     if protocol is None:
