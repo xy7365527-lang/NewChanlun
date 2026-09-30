@@ -19,3 +19,9 @@ Owner初评三条HIGH：审计重开Job、提交期限未贯穿、失败stage未
 ## 事实封包复核
 
 独立会话核对初版13份原件的全部 bytes/SHA、24case/12pairs、半导入、3CLI与3离线recover，确认票仍OPEN且未扩证明域。唯一LOW“只有ignored夹具追加”已改为“仅追加验收及输入回归测试，经济运行入口保持ignored”。之后增入的第14份根挂载核对原件已由根验证：本票剩余映像为0、原件保留。没有重跑已通过案例。
+
+随后追加最终COMMIT真实ENOSPC的10份归档原件，由根复核原执行文件、binding、manifest、源码与输出SHA，核实唯一hook返回false、真实errno28、实际disk full错误及原子失败断言。原始测试成功并recover epoch2，3新卷已回收；清理后的SQLite错误码0没有被写成13。产品Rust无新增修改，本次不是第二份产品独评或整票关票证明。归档共24份inputs，全部bytes/SHA已核。
+
+补充独立会话随后对冷审计1836d3c38e9、当前产品来源变化attempt4和正式Q HTTP进行Spec/Standards两轴审查，均PASS且无需整改缺陷。声明域只含cold source memo未用/实际重读与损坏拒绝、subset400/1307变化重读累计及已完成请求后的信号收尾，不扩大为所有memo容量、跨期限拒绝、成功后即时stage0或完整consumer/controller/browser。报告见inputs/INDEPENDENT-SUPPLEMENT-REVIEW.md。
+
+冷审计两文件cfg(test)已整合为dfab63cd95，与受审1836的两文件逐字一致，复用该固定源的两条实际通过检查。新证据归档共32份inputs，全部bytes/SHA已核；Q ZIP内72份成功原件和冷审计ZIP内原stdout/库副本均保持原字节。实际生产代码、main/CI和整票/整图完成不由新增测试或限定补审替代。

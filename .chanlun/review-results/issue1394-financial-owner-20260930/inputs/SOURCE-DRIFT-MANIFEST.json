@@ -1,0 +1,225 @@
+{
+  "all_task_hfs_volumes_detached": true,
+  "attempts": [
+    {
+      "id": 1,
+      "mounts_state": {
+        "bytes": 6056,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930/mounts-state.json",
+        "sha256": "bda9540dc01ce8e3f4176b1364e800e756db036ae4d02cdf648ca5bc31519c30"
+      },
+      "reason": "manifest changed after persisted initialization; no S advance",
+      "status": "INVALID_SETUP",
+      "test_stderr": {
+        "bytes": 21962,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930/test.stderr",
+        "sha256": "80264b557951c85949078ae481a513540d043406ef2871f6b91a98c87861076a"
+      }
+    },
+    {
+      "id": 2,
+      "mounts_state": {
+        "bytes": 6272,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt2/mounts-state.json",
+        "sha256": "1af332a3202f0abd0cbca909515b744b86fe3b48ab6610f9ef78604a54850568"
+      },
+      "observation": {
+        "bytes": 940,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt2/economic/observed-before-assert.json",
+        "sha256": "8abb1bf1c6bb4ebfac3779f7a44d77dfd5a85670491ca81d5ee9dcbbfdcbd2af"
+      },
+      "reason": "all 1307 cache nodes removed; economic operation expired at original 60-second deadline",
+      "status": "INCONCLUSIVE_OLD_PRODUCT_SNAPSHOT"
+    },
+    {
+      "id": 3,
+      "mounts_state": {
+        "bytes": 6272,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt3/mounts-state.json",
+        "sha256": "59209f58c299528f1292c4608bbb781a000538cca4342d818c5e38d80a2665a7"
+      },
+      "observation": {
+        "bytes": 5334,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt3/economic/observed-before-assert.json",
+        "sha256": "b98adc71c905f9619d3091133f0ad2f04344e415b8a5bf9e18a0285c09261957"
+      },
+      "reason": "compiled old fault-compile sources, not HEAD 909ccff; no current-product conclusion",
+      "status": "INVALID_OLD_PRODUCT_SNAPSHOT"
+    },
+    {
+      "economic_result": {
+        "bytes": 2149,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt4/economic/result.json",
+        "sha256": "3b839c855f4d6cb1055d5b7792ed5df2e1c8082137e460ae28201d629f75cc95"
+      },
+      "id": 4,
+      "mounts_state": {
+        "bytes": 6272,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt4/mounts-state.json",
+        "sha256": "a8079b6e2f5b1203e1830bde22f7bab4bcae44bd141925e0ea97ec7781c71bba"
+      },
+      "result": {
+        "bytes": 5316,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt4/source-drift-result.json",
+        "sha256": "0bda820fbf3eefe6fd7145f0acbb75f0b2e2909406bae99cdbee3dc660a5b9d7"
+      },
+      "same_job_result": {
+        "bytes": 3048,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt4/same-job/result.json",
+        "sha256": "a0f0d696e710bbfddee82751e4cd8e6342153968222e7f479ea09d87ccfe11a3"
+      },
+      "status": "PASS_CURRENT_PRODUCT",
+      "test_stderr": {
+        "bytes": 21570,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt4/test.stderr",
+        "sha256": "6768c32060fb706f2d59cef0efdf425a1cb6e314c819edeacd9622f33bdff2ee"
+      },
+      "test_stdout": {
+        "bytes": 441,
+        "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt4/test.stdout",
+        "sha256": "17b13cb0da400d5be4676b9ceb48bb9206fb91ee810b8fbd96b8a59aec8ddba4"
+      }
+    }
+  ],
+  "binding": {
+    "bytes": 3171,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt4/binding.json",
+    "sha256": "47adb1130c89d158d4cc3f52926167f81e3e9b9c1e95e106755561cf737a34ae"
+  },
+  "build_binding": {
+    "bytes": 1850,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-current/build-binding.json",
+    "sha256": "8b35a61754dffd26d090797aa25ad3193c20d4682a5bcb031567b53f49085ca1"
+  },
+  "compile_command": [
+    "cargo",
+    "test",
+    "--lib",
+    "--features",
+    "s_session",
+    "--no-run"
+  ],
+  "final_elapsed_seconds": 108.34,
+  "final_exit_code": 0,
+  "frozen_inputs": {
+    "assembled_test_source": {
+      "bytes": 55294,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-current/SOURCE-DRIFT-combined.rs",
+      "sha256": "c5080d50632614d95a877f8c01e1a68f567f5b815dc9911e93e4f0f6eb937342"
+    },
+    "clock": {
+      "bytes": 290,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930/clock.json",
+      "sha256": "cd65fa6caa3d33591ba331bed0e6491555db2732c7c8c1155ecd5457fcd1f31d"
+    },
+    "drop_subset_400": {
+      "bytes": 27113,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930/drop-digests-400.json",
+      "sha256": "30d464867996ad44f94dad999d0e75ab03150ff1a2f04621ff26de1d07b89664"
+    },
+    "generation1_selected_basis": {
+      "bytes": 48498,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930/generation1-selected-basis.json",
+      "sha256": "acc4c4765eb9ca6cb399e4a2f12f9b89817519f5dde798fc2f79289060268eb2"
+    },
+    "generation2_selected_basis": {
+      "bytes": 49366,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930/generation2-selected-basis.json",
+      "sha256": "569369c70328fcbfb75388b8236c48c39f779ca91389da0f517a41ee416d6edd"
+    },
+    "input2": {
+      "bytes": 890,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930/input-2.json",
+      "sha256": "b1585d0a62ab530e23a4d30469f9dd23decae6106d3bc82cf53d0438d048017e"
+    },
+    "insert_source": {
+      "bytes": 18450,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/SOURCE-DRIFT-ACCEPTANCE-insert.rs",
+      "sha256": "55d5de07b744109d55bc23c9a19af553ab01bfe8767ec88ab048cdeeb480fe27"
+    },
+    "original_fault_source": {
+      "bytes": 36842,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/FAULT-ACCEPTANCE-source.rs",
+      "sha256": "70b6619d8bca1f98c239c505ef0b0ada7171d2741c7406b746dadb5ab0f25fc8"
+    },
+    "original_s_db": {
+      "bytes": 499712,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-financial-reader-small-20260930/s.sqlite",
+      "sha256": "08c9d59456cc3eeede74650fad8597ad2743b5acbdf198c7b0b43b64537ec4ad"
+    }
+  },
+  "issue": "#1394",
+  "limitations": [
+    "400-node subset of 1307-node complete S closure, not full cold download",
+    "second read is an explicit invocation with the same Job, separate from internal drift retry",
+    "Rust test-child on real release S3 and HFS+; no formal E/B CLI or Unix transport claim"
+  ],
+  "outcome": {
+    "deadline_expired": false,
+    "economic_basis_root": "sc1-2a3de3c9230be29f03cf2c0fbf32e55a09ca61f38dfe3100bc161629f2d41ff7",
+    "economic_commit_delta": "1",
+    "economic_commit_ns": "22",
+    "economic_prepared_receipt": true,
+    "economic_stage_at_advance": "300",
+    "economic_staging_after_recovery": "0",
+    "economic_staging_before_recovery": "21",
+    "economic_status": "PASS_REBASED_PREPARE",
+    "read_basis_root": "sc1-2a3de3c9230be29f03cf2c0fbf32e55a09ca61f38dfe3100bc161629f2d41ff7",
+    "read_first_ok": true,
+    "read_second_ok": true,
+    "read_stage_at_advance": "300",
+    "read_staging_after_recovery": "0",
+    "read_staging_before_recovery": "1161",
+    "read_status": "PASS",
+    "same_absolute_deadline": true,
+    "same_job_elapsed_ms": [
+      52301,
+      52833
+    ],
+    "same_job_records": [
+      "900",
+      "918"
+    ],
+    "same_job_requests": [
+      "197",
+      "198"
+    ],
+    "same_job_wire_bytes": [
+      "6577398",
+      "6615805"
+    ]
+  },
+  "product_files_modified_by_probe": false,
+  "product_head": "909ccff13abaed83be3c939ab7459d52ff4afee5",
+  "product_rust_diffs": [
+    {
+      "path": "rust/src/economic_session/finance_tests.rs",
+      "product_sha256": "ebad3e5a811850114a3fef3baab70e7a89262408f1c982464499b6c097261ac3",
+      "test_copy_sha256": "f0bb22032bfa1efaf5eb86f912c698227ff6748b4030ed5d5bbb8724293f7b13"
+    }
+  ],
+  "product_s_session_diffs": [],
+  "product_tracked_rust_files_compared": 523,
+  "product_tracked_s_session_files_compared": 79,
+  "schema_revision": "testonly-1394-source-drift-acceptance-manifest/1",
+  "scope": "real S source advance, Rust test-child, independent six HFS+ owner volumes per attempt; no formal E/B Unix CLI claim",
+  "task_processes_remaining": false,
+  "test_command": [
+    "cargo",
+    "test",
+    "--lib",
+    "--features",
+    "s_session",
+    "economic_session::finance::tests::v2_fault_acceptance::source_drift_acceptance::real_s_source_advance_during_prepare_and_same_job_read",
+    "--",
+    "--exact",
+    "--ignored",
+    "--nocapture"
+  ],
+  "test_copy_allowed_change": "finance_tests.rs only adds scratch include and blank separators; product files untouched",
+  "test_executable": {
+    "bytes": 82536768,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-current/rust/target/debug/deps/newchan_rust-959aa50d9c32faa1",
+    "sha256": "41e7389fbc05c8a8fe9b521095592dd2a6f3561636ef1adfabdb570dc3030850"
+  }
+}

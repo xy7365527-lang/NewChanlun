@@ -16,7 +16,9 @@
     "client_standards": "PASS",
     "owner_spec": "PASS",
     "owner_standards": "PASS",
-    "known_high_closed": true
+    "known_high_closed": true,
+    "supplement_spec": "PASS_BOUNDED",
+    "supplement_standards": "PASS_BOUNDED"
   },
   "checks": {
     "root_client_index_regression": {
@@ -55,18 +57,119 @@
       "all_exit_zero": true,
       "writer_epoch": "2",
       "staging_zero": true
+    },
+    "actual_final_commit_enospc": {
+      "exit": 0,
+      "passed": 1,
+      "rust_seconds": 2.23,
+      "actual_os_errno": 28,
+      "hook_returned_rollback": false,
+      "hook_calls": 1,
+      "old_seq": 2,
+      "after_seq": 2,
+      "public_nodes_retained": 1307,
+      "stage_rows_after": 0,
+      "public_liability": 20,
+      "recover_writer_epoch": "2",
+      "sqlite_primary_after_cleanup": 0,
+      "sqlite_extended_after_cleanup": 0,
+      "scope": "one cached Prepare on fresh HFS, external pressure consumes case-volume free space at observed final COMMIT; original image/message/receipt atomic rollback; not all configs or formal CLI"
+    },
+    "source_drift_current_product": {
+      "exit": 0,
+      "passed": 1,
+      "rust_seconds": 108.34,
+      "source_head": "909ccff13abaed83be3c939ab7459d52ff4afee5",
+      "attempt": 4,
+      "cache_holes": 400,
+      "original_cached_closure_nodes": 1307,
+      "economic_prepare": "PASS_REBASED_PREPARE",
+      "commit_delta": 1,
+      "selected_object_unchanged": true,
+      "new_basis_commit_ns": "22",
+      "same_job_first": {
+        "elapsed_ms": 52301,
+        "max_elapsed_ms": "43110000",
+        "max_total_requests": "958",
+        "nodes": "2026",
+        "records": "900",
+        "requests": "197",
+        "staged_exposure": "147456",
+        "started": true,
+        "stopped": null,
+        "wire_bytes": "6577398"
+      },
+      "same_job_second": {
+        "elapsed_ms": 52833,
+        "max_elapsed_ms": "43110000",
+        "max_total_requests": "958",
+        "nodes": "2026",
+        "records": "918",
+        "requests": "198",
+        "staged_exposure": "147456",
+        "started": true,
+        "stopped": null,
+        "wire_bytes": "6615805"
+      },
+      "same_absolute_deadline": true,
+      "staging_before_recovery": {
+        "economic": 21,
+        "reader": 1161
+      },
+      "staging_after_recovery": 0,
+      "scope": "real S advance at stage300, Rust test-child/HFS; subset cache holes, not full-cold or official E/B Unix/CLI"
+    },
+    "formal_q3_http": {
+      "fresh_processes": 2,
+      "all_exit_zero": true,
+      "signals": [
+        15,
+        2
+      ],
+      "snapshot_pages_each": [
+        7,
+        7
+      ],
+      "nonempty_rows_each": 7,
+      "content_node_hashes_each": 37,
+      "watch_deltas_each": 1,
+      "independent_qcut_recompute": true,
+      "listeners_rebind_after_reap": true,
+      "source_db_unchanged": true,
+      "scope": "actual query-serve official CLI/HTTP on frozen one-bar source, same Q21 file; not controller/browser/full consumer/inflight-stop/9011"
+    },
+    "cold_audit_test_candidate": {
+      "commit": "1836d3c38e9036a193322e1a47634097ffb17306",
+      "base": "909ccff13abaed83be3c939ab7459d52ff4afee5",
+      "files": 2,
+      "cfg_test_only": true,
+      "new_exact_tests_passed": 2,
+      "state_seconds": 10.54,
+      "driver_seconds": 13.81,
+      "old_memo_enabled": true,
+      "old_memo_retained_and_capture_source_bytes": 0,
+      "old_memo_counters_unchanged": true,
+      "generation_lane_zero_claim": false,
+      "independent_review": "Spec PASS, Standards PASS within declared test domain",
+      "integrated": true,
+      "scope": "same/reopened connection and live Driver source rereads; damage reject then restore; post-operation sampling, not peak/wire/seven-writer-field acceptance",
+      "integration_commit": "dfab63cd95b0d0cfdd28520c2360e6678baf8e2b"
     }
   },
   "failure_records": [
     "first fixture subset gate and legitimate empty body input corrected with bounds retained; first actual setup failed 0.49s before kill, source DB/genesis retained",
     "hdiutil -format UDRW rejected for blank image; local help corrected -type UDIF, original failure retained",
-    "first formal CLI startup rejected too-long Unix socket path; no financial requests entered; new instance via frozen short path alias passed"
+    "first formal CLI startup rejected too-long Unix socket path; no financial requests entered; new instance via frozen short path alias passed",
+    "source drift attempt1 invalid manifest mutation before reader; attempts2/3 compiled old product snapshot and are not current product proof; fresh current attempt4 uses subset400/1307 cache holes; all old raw failures retained",
+    "Q HTTP probe first failed its own hex tag interpretation/time-wait rebind, second SIGINT failed reading a partial log announcement; source scripts/failures retained; prior successful SIGTERM reused"
   ],
   "scope_limits": [
     "controlled Voice authority/operation results and cash policy are TestOnly; not formal gamma or production funds policy",
     "matrix and formal CLI use preloaded verified source cache; actual cold half-import separately tested",
     "no new venue capability or real orders",
-    "S3 FIFO/serve resource gates, all history/resources/source-change/ENOSPC obligations and 9011 double-run remain",
+    "S3 named writer resource enforcement, all history/resources and 9011 double-run remain; conditional FIFO/stable-point is already-decided #1416 with its own native prerequisites",
+    "Economic read-only HTTP/controller/client still bound to old /1; new /2 observer adaptation is separate in-progress implementation within #1394 backend obligations",
+    "Final ENOSPC probe injects external competing pressure beyond normal exclusive-volume prepaid success domain; no promotion to all configurations or availability guarantee",
     "remaining TB and original six Destinations are not closed; product frontend stays independent 1460"
   ],
   "files": [
@@ -153,7 +256,116 @@
       "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/TASK-MOUNTS-FINAL.json",
       "bytes": 150,
       "sha256": "00625ebadc8e29d84275fd197d80dc77c8c0da85f56377e05c8ea827df1abde2"
+    },
+    {
+      "path": "inputs/FINAL-ENOSPC-RESULT.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/evidence/final-enospc-result.json",
+      "bytes": 1337,
+      "sha256": "374b234edbd4a4106f43e81c874f73fe2ba32239ad64f7fd7c5ecca697cf110a"
+    },
+    {
+      "path": "inputs/FINAL-ENOSPC-OBSERVED.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/evidence/final-enospc-observed.json",
+      "bytes": 21322,
+      "sha256": "c52fe98ea8168b3f8dc3f8a6aee6b2ceab2ba79f547f1ae572edcba3e9f19355"
+    },
+    {
+      "path": "inputs/FINAL-ENOSPC-BEFORE.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/evidence/final-enospc-before.json",
+      "bytes": 33634,
+      "sha256": "ebbfa16db913c0b3246550d5f759af2186e319631eb57d2512a370dce9509f35"
+    },
+    {
+      "path": "inputs/FINAL-ENOSPC-RUNTIME.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/RUNTIME-BINDING.json",
+      "bytes": 863,
+      "sha256": "e984358fc42f89b6ddedacaef46a2cd3d1840b20fa6e4a0500ea38bdccdd7903"
+    },
+    {
+      "path": "inputs/FINAL-ENOSPC-RUN.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/run-result.json",
+      "bytes": 251,
+      "sha256": "bbb832040a85cf0a46a1ee69cf7bc7c7dc346f0af05e29202eb4299e77e5bdcb"
+    },
+    {
+      "path": "inputs/FINAL-ENOSPC-DETACHED.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/DETACHED.json",
+      "bytes": 1626,
+      "sha256": "d26f54c117c6156aa41914ab597b12d72e6789d46ce7b0ac520b249926906752"
+    },
+    {
+      "path": "inputs/FINAL-ENOSPC-PROCESS-CLEAR.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/final-enospc-actual-20260930/PROCESS-CLEAR.json",
+      "bytes": 77,
+      "sha256": "2f8ba80130133a63a71eac5b910c9cab31daf9b2ac51fa6cbaf26dbb7e46784e"
+    },
+    {
+      "path": "inputs/FINAL-ENOSPC-CHECK.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/FINAL-ENOSPC-ACCEPTANCE-CHECK.json",
+      "bytes": 6175,
+      "sha256": "dc5b38c570689f9bee072502c9f0b826ceb41854b067d119ea421b21d5e4d448"
+    },
+    {
+      "path": "inputs/FINAL-ENOSPC-ACCEPTANCE-insert.rs",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/FINAL-ENOSPC-ACCEPTANCE-insert.rs",
+      "bytes": 11997,
+      "sha256": "7bc005707a9fd347998a751ba6cdf152fbe7f2b14da2f59c0a1a22bf056c247e"
+    },
+    {
+      "path": "inputs/ROOT-FINAL-ENOSPC-AUDIT.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/ROOT-FINAL-ENOSPC-AUDIT.json",
+      "bytes": 4924,
+      "sha256": "c8347fd4edf979e38c5cabc8d5fb551db827cdcf2a579d8d3005e4bd5bbf9e40"
+    },
+    {
+      "path": "inputs/ROOT-FINAL-ENOSPC-SOURCE-BINDING.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/ROOT-FINAL-ENOSPC-SOURCE-BINDING.json",
+      "bytes": 144303,
+      "sha256": "c8145128abb4c760fe36cb457d62cfc4041fe76a5b38d0ec772e84cb52a667d1"
+    },
+    {
+      "path": "inputs/SOURCE-DRIFT-MANIFEST.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/SOURCE-DRIFT-ACCEPTANCE-MANIFEST.json",
+      "bytes": 10667,
+      "sha256": "6e4264ba8a6b682794ca5445dcef111c3c0d77be5b742f3850a832835e34e2e1"
+    },
+    {
+      "path": "inputs/SOURCE-DRIFT-RESULT.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/source-drift-probe-20260930-attempt4/source-drift-result.json",
+      "bytes": 5316,
+      "sha256": "0bda820fbf3eefe6fd7145f0acbb75f0b2e2909406bae99cdbee3dc660a5b9d7"
+    },
+    {
+      "path": "inputs/ROOT-SOURCE-DRIFT-AUDIT.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-eb-content-owner-20260930/ROOT-SOURCE-DRIFT-AUDIT.json",
+      "bytes": 1623,
+      "sha256": "723b5a74f995f65068bc302c799edf95e507ac1958b1f89c8e368ba0fd4695c0"
+    },
+    {
+      "path": "inputs/Q3-HTTP-EVIDENCE.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-http-runtime-20260930/ROOT-HTTP-EVIDENCE.json",
+      "bytes": 25073,
+      "sha256": "b3a4fdab4a8549560e6597ae4a67da964751f6ece6d9918a9593ecde7bf56dde"
+    },
+    {
+      "path": "inputs/Q3-HTTP-RAW.zip",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-http-runtime-20260930/RAW-HTTP-EVIDENCE.zip",
+      "bytes": 75117,
+      "sha256": "9d259b7626be874e0216458ea41320432d0cfe1b6cba3a5a07eb02bbc6200d2e"
+    },
+    {
+      "path": "inputs/COLD-AUDIT-RAW.zip",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-cold-audit-20260930/rust/.scratch/issue1394-cold-audit-20260930/RAW-COLD-AUDIT.zip",
+      "bytes": 712931,
+      "sha256": "3d7efec7f5be88b1b78926d41ff7fbbf09eb2b60b5ba7aec20eaef1bbac31e6e"
+    },
+    {
+      "path": "inputs/INDEPENDENT-SUPPLEMENT-REVIEW.md",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.chanlun/review-results/issue1394-financial-owner-20260930/inputs/INDEPENDENT-SUPPLEMENT-REVIEW.md",
+      "bytes": 5705,
+      "sha256": "12044f6224fe53a96dcd8d3ef01dc0c146466672a22ea6fcd4f61b18bd13c8f0"
     }
   ],
-  "all_task_images_currently_detached": true
+  "all_archived_case_images_detached": true,
+  "latest_test_lock_integration_head": "dfab63cd95b0d0cfdd28520c2360e6678baf8e2b"
 }

@@ -22,6 +22,10 @@
 | 真半导入 | 新实例删除仅未引用的 setup cache；实际 Prepare 读取真实S，持久 staging=1且commit不增时SIG9。S副本离线，fresh recover后stage0、pub0、经济原像不变、责任20、无Prepared/grant，旧请求StaleWriter。1/1，2.14s |
 | 正式CLI/Unix | 固定e_economic_session/b_chong_session的3个serve进程；Prepareα/β→E Reserve→B Commitα/β、同ID重发、QueryDecision/QueryGrant/ReadView/Watch全经单LF+EOF Unix请求。grant30/40、责任90、B Committed/locked30/40、无外效资格；1/1，36.16s |
 | 正式离线recover | 三个serve均已停止/reap；仅本实例S binary/DB改名离线，三个正式recover命令均exit0、epoch2、stage0，manifest字节不变 |
+| 最终COMMIT真实磁盘满 | 独立新3卷、真实S缓存Prepare；唯一commit hook已观察commits/receipt/message写入且只读连接仍见旧image，再写本卷pressure到真实errno28；hook返回false后SQLite实际COMMIT报disk full。1/1、2.23s，旧seq2/root/image、公责20、receipt/message不变，pub1307保留、stage0，audit和recover epoch2通过 |
+| 来源变化与同Job重读 | 当前产品副本、独立两组S/HFS，删400/1307可达缓存节点；staging=300时正式S advance到新basis/commit22。对象仍有效，Prepare合法提交一次并绑定新basis；另一组同Job两次读取成功，requests197→198、wire6577398→6615805、records900→918、elapsed52301→52833ms，同一绝对期限未过。1/1、108.34s；成功Prepare剩stage21、只读probe剩1161，均在recover后归0，不冒称提交即stage0 |
+| 正式Q3 HTTP与信号 | 当前产品release CLI query-serve，两鲜进程分别SIGTERM/SIGINT。每次7页/7非空行、独立qcut重算、37返回节点Hash和Watch1，均exit0且监听端口可重绑定；同一Q21档、S单bar副本不变。不是controller、浏览器、完整正文语义或在途停机验收 |
+| 冷审计行为锁 | 独占分支1836d3c38e9，仅state/driver cfg(test)两文件，独评PASS后整合dfab63cd95且两文件逐字相同。两条精确锁实际通过：同连接结果销毁后重审、重开连接和存活Driver请求均重读，损坏已发布节点后拒绝、恢复后通过；旧审计memo在正容量启用时retained/capture0且旧计数不增。提供旧计量映射依据，不等于七字段serve限额执法 |
 
 Book、Voice和已有20责任的 setup 仍为明确 library/TestOnly 前置，包含受控权威/操作结果。实际金融步骤没有伪造 grant或手工置 Committed；本证据不成为形式化γ、完整经营模型或生产资金政策。CLI运行原件、原始结果及SHA清单见 [RESULTS.json](RESULTS.json)。
 
@@ -29,8 +33,16 @@ Book、Voice和已有20责任的 setup 仍为明确 library/TestOnly 前置，�
 
 首初始化在合法空hex body处失败，只有E genesis、pub0/stage0，尚未SIGKILL；修夹具后新卷重跑成功。首CLI在socket路径超过SUN_LEN时启动失败，尚未接财务请求；新实例以短别名冻结manifest后成功。全部失败库/映像/日志保留，不覆盖，也不把编译红当行为红。
 
-矩阵工蜂69卷及根成功/失败实例均普通detach、保留dmg；正式3服务明确stop/reap。根已实际执行 hdiutil info 核对，本票新旧所有映像均已卸载，原件保留；核对原件见 inputs/TASK-MOUNTS-FINAL.json。临时验收工位独立于产品，仅追加验收及输入回归测试；经济运行入口保持 ignored，不入产品。
+矩阵工蜂69卷及根成功/失败实例均普通detach、保留dmg；正式3服务明确stop/reap。原封包挂载核对见 inputs/TASK-MOUNTS-FINAL.json；新增磁盘满探针3卷也已普通detach并由根重新核对，原件保留。此处只覆盖已归档案例，不把仍在运行的新探针算作已回收。临时验收工位独立于产品，仅追加验收及输入回归测试；经济运行入口保持 ignored，不入产品。
+
+磁盘满根复核比对14份原件的binding、manifest、测试源码、执行文件和输出SHA及关键字段；没有重跑已通过案例。生产清理后的原始SQLite primary/extended code均为0，错误原件仍为disk full；不能把SQLITE_FULL常量13说成清理后实测错误码。这是外部压力抢占本卷空闲的故障注入，超出正常独占预付成功域；只覆盖该次Prepare最终事务的原子失败，不推广为全资源、全部操作或可用性保证。
+
+源绑定另核磁盘满的502份Rust源码/Cargo文件：只有finance_tests末尾测试include例外。来源探针核523份tracked rust、79份s_session文件，仅测试include例外；根再核manifest内24份原件SHA。来源变化首次manifest初始化错误、随后两个旧源码副本的无效/期限不确定结果均保留，不用于当前产品结论；最终当前版本新实例通过，四次共24卷已回收。它是具名缓存缺口读取，不是全冷下载或正式E/B Unix路径。
+
+Q探针首次把wire的hex tag按十进制读取，并把TCP TIME_WAIT误作监听未释放；第二个SIGINT探针曾解析半条日志。仅修测试读者，失败原件保留，已通过的SIGTERM复用，新的SIGINT案例成功。72份成功请求/响应/信号原件SHA与源码、失败记录集中保存在inputs/Q3-HTTP-RAW.zip，摘要见inputs/Q3-HTTP-EVIDENCE.json。
+
+冷审计源读114094是HashReader回落到SQLite的实际调用数，不是磁盘I/O或唯一节点数；F调用266797覆盖本线程全部Hash，也不是独占审计Hash账。库/WAL/SHM只在操作后采样，未声称峰值。生成器LANE、SQLite和OS缓存均不在旧审计memo零保留声明内；原输入、clock、阶段数据和两份恢复后的库副本在inputs/COLD-AUDIT-RAW.zip。新增测试及来源/Q原件限定独评Spec/Standards PASS，见inputs/INDEPENDENT-SUPPLEMENT-REVIEW.md；无新改动或疑点，未重跑已通过案例。
 
 ## 仍未完成
 
-S3条件FIFO与serve具名资源/旧缓存门映射、完整来源变化重读与真实ENOSPC最终事务等余项、累计历史/全资源和9011双跑、其它TB与六Destination仍未验收。未跑远端CI或本轮DevSkim，不把既有告警或其它票扫描归零。没有改变1349未定公用资金/cap政策与真实场所权限。
+本片仍需S3 writer具名资源与七字段实际执法、经济只读查询从旧/1到新/2的严格接线、controller/完整同源查询及累计历史/全资源和9011双跑。条件FIFO/稳定点归已裁定的#1416，依其原生前置推进，不当成#1394的新政策待裁。其它TB与六Destination仍未验收。未跑远端CI或本轮DevSkim，不把既有告警或其它票扫描归零。没有改变1349未定公用资金/cap政策与真实场所权限。
