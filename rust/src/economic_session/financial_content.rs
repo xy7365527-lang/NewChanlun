@@ -426,7 +426,14 @@ fn read_once(
         return Err("IdentityConflict：snapshot_ref 非 basis 子值".into());
     }
     for item in &selected {
-        check_selected(&mut independent, &root, &snapshot, &snapshot_fields, item)?;
+        check_selected(
+            &mut independent,
+            job,
+            &root,
+            &snapshot,
+            &snapshot_fields,
+            item,
+        )?;
     }
     let anchor = json!({"session_id":pins.session_id,"session_generation":pins.session_generation,
         "writer_epoch":pins.writer_epoch,"structure_cut":scalar_string(&mut independent,
@@ -451,12 +458,12 @@ fn read_once(
     for item in &selected {
         check_selected(
             &mut StoreSource(stage),
+            job,
             &root,
             &snapshot,
             &snapshot_fields,
             item,
         )?;
-        job.charge_records(1).map_err(codec)?;
     }
     result.selected_objects = selected;
     job.pre_io_check().map_err(codec)?;
@@ -621,6 +628,7 @@ fn validate_headers(
 }
 fn check_selected(
     source: &mut dyn NodeSource,
+    job: &mut Job,
     basis: &ContentRef,
     snapshot: &ContentRef,
     fields: &BTreeMap<String, ContentRef>,
@@ -630,6 +638,9 @@ fn check_selected(
     if objects.kind != Kind::Array || item.snapshot_index >= objects.extent.unwrap_or(0) {
         return Err("IdentityConflict：selected snapshot 位置越界".into());
     }
+    // Charge the selected top-level row before its position, ID or F23 is read.
+    // A later identity failure cannot erase this completed access.
+    job.charge_records(1).map_err(codec)?;
     let path = [
         field("snapshot"),
         field("objects"),
@@ -818,7 +829,14 @@ pub(super) fn verify_evidence(
             }
         }
         let selected = found.ok_or_else(|| missing("s_ref 对象不在当前活动快照"))?;
-        check_selected(source, &root, &verified.snapshot_ref, &fields, &selected)?;
+        check_selected(
+            source,
+            shared_job,
+            &root,
+            &verified.snapshot_ref,
+            &fields,
+            &selected,
+        )?;
         verified.selected_objects.push(selected);
     }
     shared_job.pre_io_check().map_err(codec)?;
@@ -1482,6 +1500,121 @@ mod fresh_small_tests {
         // A second complete check is a second visit to each logical row even
         // when every content node is already in the local store.
         let root = from_ref(&result.evidence["basis_ref"]).unwrap();
+        // These are negative/edge probes derived from the frozen TestOnly resource
+        // object; the on-disk resource file and the successful job remain unchanged.
+        for (cap, succeeds) in [(8u64, false), (9, true)] {
+            let mut probe = structure.clone();
+            probe["reader_resources"]["job_limits"]["max_total_records"] = json!(cap.to_string());
+            let probe_limits =
+                JobLimits::from_canonical_json(&probe["reader_resources"]["job_limits"]).unwrap();
+            let mut probe_job = Job::new(
+                probe_limits,
+                Existing {
+                    store_bytes: usage.store.exposure as u64,
+                    staged_bytes: 0,
+                },
+                Box::new(Instant::now),
+            )
+            .unwrap();
+            let current = read_current(
+                &probe,
+                &[id.clone()],
+                &mut probe_job,
+                Instant::now() + Duration::from_secs(120),
+                &mut stage,
+            );
+            assert_eq!(
+                current.is_ok(),
+                succeeds,
+                "read_current cap={cap}: {current:?}"
+            );
+            assert_eq!(probe_job.snapshot().records, cap);
+            if !succeeds {
+                assert!(current.unwrap_err().contains("job_limit_exceeded"));
+            }
+            println!(
+                "selected_current cap={} ok={} charged={}",
+                cap,
+                succeeds,
+                probe_job.snapshot().records
+            );
+        }
+        let objects_ref =
+            path::lookup_path(&mut stage, &result.snapshot_ref, &[field("objects")]).unwrap();
+        let family_total: u64 = FAMILIES
+            .iter()
+            .map(|name| {
+                path::lookup_path(&mut stage, &result.snapshot_ref, &[field(name)])
+                    .unwrap()
+                    .extent
+                    .unwrap()
+            })
+            .sum();
+        let offline_total = family_total + objects_ref.extent.unwrap() + 1;
+        for (cap, succeeds) in [(offline_total - 1, false), (offline_total, true)] {
+            let mut probe = structure.clone();
+            probe["reader_resources"]["job_limits"]["max_total_records"] = json!(cap.to_string());
+            let probe_limits =
+                JobLimits::from_canonical_json(&probe["reader_resources"]["job_limits"]).unwrap();
+            let mut offline_job = Job::new(
+                probe_limits,
+                Existing {
+                    store_bytes: usage.store.exposure as u64,
+                    staged_bytes: 0,
+                },
+                Box::new(Instant::now),
+            )
+            .unwrap();
+            let offline = verify_evidence(
+                &probe,
+                &result.evidence,
+                &mut stage,
+                &mut offline_job,
+                Some(&s_ref),
+            );
+            assert_eq!(offline.is_ok(), succeeds, "offline cap={cap}: {offline:?}");
+            assert_eq!(offline_job.snapshot().records, cap);
+            if !succeeds {
+                assert!(offline.unwrap_err().contains("job_limit_exceeded"));
+            }
+            println!(
+                "selected_offline cap={} ok={} charged={} (families={} scanned={} selected=1)",
+                cap,
+                succeeds,
+                offline_job.snapshot().records,
+                family_total,
+                objects_ref.extent.unwrap()
+            );
+        }
+        let mut forged = result.selected_objects[0].clone();
+        forged.object_hash = "0".repeat(64);
+        let snapshot_fields =
+            path::lookup_object_fields(&mut stage, &result.snapshot_ref, &SNAPSHOT).unwrap();
+        let mut forged_job = Job::new(
+            limits,
+            Existing {
+                store_bytes: usage.store.exposure as u64,
+                staged_bytes: 0,
+            },
+            Box::new(Instant::now),
+        )
+        .unwrap();
+        let error = check_selected(
+            &mut stage,
+            &mut forged_job,
+            &root,
+            &result.snapshot_ref,
+            &snapshot_fields,
+            &forged,
+        )
+        .unwrap_err();
+        assert!(error.contains("object_hash"), "{error}");
+        assert_eq!(forged_job.snapshot().records, 1);
+        println!(
+            "selected_bad_hash charged={} error={}",
+            forged_job.snapshot().records,
+            error
+        );
         let victim_ref = path::lookup_path(
             &mut stage,
             &result.snapshot_ref,
