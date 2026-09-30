@@ -1,0 +1,55 @@
+{
+  "ticket": 1394,
+  "axis": "Spec",
+  "verdict": "PASS",
+  "concept_layer": "PASS",
+  "findings": [],
+  "base": "51855354d06e2e84aa697f1a1772de15af2fc769",
+  "candidate": "c8d850af7c3adab7e9b9c36c270f3cae92f84101",
+  "scope": [
+    "rust/src/bin/s_session_v2/content_store.rs",
+    "rust/src/bin/s_session_v3/history.rs",
+    ".chanlun/agent-roster-codex-20261001-same-read-frame.md"
+  ],
+  "authority": {
+    "approved_source_sha256": "fab912c6ebe3613969d65fc924368a1d5c9b343f0c3f7a123241645413771d30",
+    "sections": [
+      "5.6",
+      "5.6.1"
+    ],
+    "diagnosis_sha256": "6aa05bac0f1eb6b8e2a93a6594e498fec1e619b81a35b9fe5169a7b6f6364a96",
+    "same_read_api": "rust/src/s_content.rs:421-427"
+  },
+  "integrity_all_pass": true,
+  "reused_tests": {
+    "history": 15,
+    "store": 6,
+    "budget": 6,
+    "distinct_total": 27,
+    "non_test_cargo_check": "PASS_LOG_REUSED"
+  },
+  "new_runtime_tests": 0,
+  "product_modified": false,
+  "target_modified": false,
+  "engineering_review": "OUT_OF_SCOPE",
+  "performance": "NOT_MEASURED",
+  "prefix16": "NOT_RUN",
+  "full9011": "NOT_RUN",
+  "services_started": false,
+  "merge_authorized": false,
+  "notes": [
+    "error detail changed to existing CheckedFrame wording; stable error code preserved",
+    "strict whitespace-only static tail comparison initially failed on legal trailing comma; corrected after inspecting exact difference",
+    "no conceptual contradiction found; genealogy contradiction lookup not triggered"
+  ],
+  "evidence": {
+    "SPEC-REVIEW.md": {
+      "bytes": 3231,
+      "sha256": "3314ac3dc767f809a15142642b758d813991f4e091bb767638a33b12d2ef1ec3"
+    },
+    "SPEC-probes-static.json": {
+      "bytes": 31999,
+      "sha256": "71d015ec430f6f843eff2c06b20e83f63ded286568884a814673356d1b71f98b"
+    }
+  }
+}

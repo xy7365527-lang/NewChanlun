@@ -1,0 +1,61 @@
+{
+  "ticket": "#1394",
+  "axis": "Standards",
+  "engineering_acceptance": "PASS",
+  "concept": "PASS",
+  "candidate": "00b15b08bcd8d8e33406e29b8c7136bdef6b8513",
+  "base": "54a6e5fd3df4e14a5e38edc9da39cfb6359ffc15",
+  "full_scope_predecessor": "9b595454f972bd86043032202e4eede0209eb3be",
+  "input_patch_sha256": "abb93663b028ad61b95ada77350ce5696633e5ffd4f3cc41862993b369e72ca5",
+  "findings": [],
+  "closed_findings": [
+    "E1",
+    "E2",
+    "E3"
+  ],
+  "checks": {
+    "retained_committed_details_children": 9,
+    "retained_committed_export_picker_calls": 1,
+    "live_control_hidden": false,
+    "watch_requests": 1,
+    "poll_rearmed_exactly": 1,
+    "stop_rejects_old_timer": true,
+    "old_catalog_render_new_commit_rows_before": 116,
+    "old_catalog_render_new_commit_rows_after": 116,
+    "legacy_snapshot_race_turns": [],
+    "legacy_stream_race_turns": [],
+    "old54_snapshot_race_turns": [
+      7,
+      8
+    ],
+    "old54_stream_race_turns": [
+      15,
+      16,
+      17
+    ],
+    "bundle_check": "PASS",
+    "product_sha_count": 18,
+    "author_receipt_sha_count": 6
+  },
+  "artifacts": {
+    "STANDARDS-REVIEW.md": "bbce45029d21c595702741df9f93020ad02c7a18e79c24f902d4d757a9715800",
+    "STANDARDS-REVIEW.inputs.json": "da0d745f44af8dae7dbd98abe2d47898b2bc95a2bb8346436abe416456e70923",
+    "STANDARDS-probes-page.cjs": "31cd1fe97d0414de9a9397d2f3b27fad6b5d22c6177ed451d96861aaaca6e2ec",
+    "STANDARDS-probes-page.json": "08dc3d32a117d4083c2f9644af892d71db24ae33a6b1566983f6b847e0cc4304",
+    "STANDARDS-probes-legacy.cjs": "50542b13358e190b9885fcf2967e79536ff3db76bf2401b8c46a5ac6c06d95ce",
+    "STANDARDS-probes-legacy.json": "f3aa970b7056bab9bebf88d25b04896e952a14bc3bd67dfd1e10d6c19fa3de11"
+  },
+  "inherited_evidence": {
+    "../revision2/STANDARDS-REVIEW.SHA256": "bedcc1efc1e721af27c7b8f2edfd8717e75974857af7eabeeaf90255892e3d98",
+    "SPEC-REVIEW.SHA256": "f12e90efa77b1efcd36f4bcb217264ec74265344e91a58a739bad6305cfda277"
+  },
+  "limits": [
+    "actual Browser bundle and Client with frozen source oracle",
+    "TestOnly DOM/timer/HTTP/allocation/file sink",
+    "no true Browser, physical allocation, service, S16 Q, 9011 or whole graph verification",
+    "no new resource domain or budget defaults",
+    "no main merge or push"
+  ],
+  "final_head": "00b15b08bcd8d8e33406e29b8c7136bdef6b8513",
+  "tracked_clean": true
+}

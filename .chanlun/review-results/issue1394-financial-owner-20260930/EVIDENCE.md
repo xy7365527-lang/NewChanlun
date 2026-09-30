@@ -65,3 +65,14 @@ Q探针首次把wire的hex tag按十进制读取，并把TCP TIME_WAIT误作监�
 ## 仍未完成
 
 本片仍需S3 writer具名资源与七字段实际执法、正式start_q的Q3接线、完整Q3结构客户端及同源查询、累计历史/全资源和9011双跑。现有Controller过程核心已实跑通过，不替代正式入口接线。现有验收客户端已严格支持finance/2并完成上述实际浏览器路径，但经济HTTP没有独立证据闭包节点入口；本次不独立证明FinancialBasis节点闭包/七字段正文，亦不重算没有前根的顶层经济root。现有页面与脚本归后台验收，产品新前端仍归#1460。条件FIFO/稳定点归已裁定的#1416，依#1407与#1361原生前置推进，不反挂成本片开工门或新政策待裁。其它TB与六Destination仍未验收。未跑本票远端CI或本票DevSkim，不把#1392扫描归成本票扫描。没有改变1349未定公用资金/cap政策与真实场所权限。
+
+
+## 2026-10-01 Q3完整消费者与正式入口增量
+
+当前产品集成为 `5ffac0506b054e9dc8f08287f3f4133247efa5e5`，未main/push。07直接inner头、纯Job及完整真实Client调用、正式start_q与原页面控件均已接入；完整代码两轴PASS。保留原候选三轮Spec/工程红与修复轨迹，未删除或降格原判据。根验证同字节18个session文件、bundle生成输入及原消费者1个TAP下42案例、当前页面4项。
+
+正式start_q只在此前具名single-bar Q21域以两新进程实跑，真实Ready/身份/nonce及v3Snapshot成立，SIGTERM/SIGINT退出0并回收/重绑；67原件与36独立事实检查通过。此运行绑定的是性能小修前a174 Rust树，当前全部Rust新树未作为相同binary实测。
+
+S16两次shadow仅作成本诊断，24应用表及48403行逐字段同旧原件，三audit约占末handle88%、实际SQL COMMIT37–41ms；RSS采样下界与未测全render/Valueheap边界保留。无Budget同次SQL已核帧传递小修两轴通过并集成，27靶向和non-testcheck通过，仍真重读且无跨read缓存；仅F次数锁，尚未测其S16耗时。
+
+消费者实际协议/语义测试使用封存HTTP与S16cut3/4/5源oracle，DOM/HTTP与分配适配器模拟。真实Browser及物理分配、S16正式Q的新资源域、9011双跑与完整crosswalk/资源、S3和其余六Destination仍未验。#1460产品前端独立。新增inputs均绑定原件路径、bytes和SHA，原旧60份inputs完全未变。

@@ -1,0 +1,74 @@
+{
+  "ticket": 1394,
+  "status": "AUTHOR_FROZEN_PENDING_INDEPENDENT_REVIEWS",
+  "base": "51855354d06e2e84aa697f1a1772de15af2fc769",
+  "scope": "same real read proof propagation only, unbudgeted HashReader; no跨read cache/new resources/newpolicy",
+  "files": {
+    "rust/src/bin/s_session_v2/content_store.rs": "3a0c3a6ed443541154b672a1ecb32bcf7924ca6e5d21347b80a1f2aaebaf78f1",
+    "rust/src/bin/s_session_v3/history.rs": "e859176388294e368b16aa943c6b759873be2d85e26242e40546d867ee5f0a5a"
+  },
+  "checks": {
+    "history_pass": 15,
+    "store_pass": 6,
+    "budget_pass": 6,
+    "total_distinct_tests": 27,
+    "non_test_check_exit": 0,
+    "diff_check_exit": 0
+  },
+  "binary": "/Users/silencehan/Projects/NewChanlun-1394-q3-jsontext-header-20261001/rust/target/debug/deps/s_structure_session-135041ca6a495c0c",
+  "binary_sha256": "65afcdc838e628fd95fc1d38c401688f934fad6f5a67684ecd6bf416fcd78cbb",
+  "original_frozen_formal_binary_sha_unchanged": "991dd18dd0239b4d234a1f607cf72b405b79ec2a75ee7a3350c33d7a7cfca5b4",
+  "prefix16_performance": "NOT_RUN",
+  "full9011": "NOT_RUN",
+  "main_or_push": false,
+  "evidence": {
+    "RED-CHECKED.txt": {
+      "bytes": 20813,
+      "sha256": "f8574d00a3c07569c3a0c94bf68c420d2c1d5bbbd1c9ccad1de8dd7483605eb1"
+    },
+    "API.md": {
+      "bytes": 1340,
+      "sha256": "84e5c1f3ad03939d77c21ebda658496eb19369efd6c492c6d6dda33a86242e40"
+    },
+    "GREEN-HISTORY-attempt2.txt": {
+      "bytes": 24660,
+      "sha256": "d6f4494060d57912b10062daca814d56346a256e073b8fca09b4c6852bd1c5b9"
+    },
+    "RED-CHECKED-attempt3.txt": {
+      "bytes": 23979,
+      "sha256": "cf750f2ac82ca3beb30d2f7def6067d86491c33047de995fe49a63d51108eac2"
+    },
+    "RED-CHECKED-attempt2.txt": {
+      "bytes": 19923,
+      "sha256": "7a7f1fd312048390d43b877c16059e8021bfd1142e256f664255f980dae29200"
+    },
+    "GREEN-UNBUDGETED.txt": {
+      "bytes": 23061,
+      "sha256": "72980eff15674d9108929f3555e29b0f2c08e9a379eab640845178b6e79e1413"
+    },
+    "GREEN-HISTORY.txt": {
+      "bytes": 20808,
+      "sha256": "ce0a3eb98b9b3e503307af3545d1b0788fd3e6167053a40627854ccef055fcfe"
+    },
+    "GREEN-BUDGET.txt": {
+      "bytes": 23110,
+      "sha256": "cd24880efb7e10e050d3e091510b6f34c970441663a9ab3e9f2cb1b9ad3a6822"
+    },
+    "NON-TEST-CHECK.txt": {
+      "bytes": 30384,
+      "sha256": "d668a6a76a11f38720a0f920aea3978165bad5a83789dd8ba25786b94b8f997c"
+    },
+    "RED-UNBUDGETED.txt": {
+      "bytes": 24038,
+      "sha256": "51df9c64c88825b5d290a735607a1d3e0c0b1bed894ee8a611ae1e736e58d5a9"
+    },
+    "GREEN-HISTORY-final.txt": {
+      "bytes": 24093,
+      "sha256": "3c7c67f936f5b9cd961ae18feffe367fd6ef5e30935538ec907fb99cad1c06f7"
+    },
+    "GREEN-STORE.txt": {
+      "bytes": 23110,
+      "sha256": "714f8ffa77250ea03bcdd53679b3d63729c0cf1d55de92aa81085c22d733f954"
+    }
+  }
+}

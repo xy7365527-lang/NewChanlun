@@ -1,0 +1,55 @@
+{
+  "ticket": 1394,
+  "axis": "STANDARDS",
+  "reviewer_independent_of": [
+    "author",
+    "spec"
+  ],
+  "utc": "2026-09-30T22:39:51.918841+00:00",
+  "base": "51855354d06e2e84aa697f1a1772de15af2fc769",
+  "candidate": "c8d850af7c3adab7e9b9c36c270f3cae92f84101",
+  "concept_result": "PASS",
+  "engineering_result": "PASS",
+  "findings": [],
+  "severity_counts": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 0
+  },
+  "integrity": {
+    "files_checked": 22,
+    "all_expected_sha_match": true,
+    "product_candidate_blobs_match": true,
+    "staged_diff_empty": true,
+    "unstaged_diff_empty": true,
+    "diff_check_exit": 0
+  },
+  "tests": {
+    "mode": "reused_same_byte_author_evidence",
+    "executed_by_reviewer": false,
+    "history_pass": 15,
+    "store_pass": 6,
+    "budget_pass": 6,
+    "distinct_total_pass": 27,
+    "non_test_check_exit": 0
+  },
+  "raw_evidence": {
+    "file": "STANDARDS-probes-static.json",
+    "sha256": "9e1d540085d2f7f8b331c66fa0cc89400c5d425d07626495f945b8b673476da2"
+  },
+  "boundaries": {
+    "product_write": false,
+    "target_write": false,
+    "runtime_probe": false,
+    "service": false,
+    "s16_performance": false,
+    "full9011": false,
+    "full_suite": false,
+    "new_resources": false,
+    "github_write": false,
+    "main_write": false,
+    "merge_approval": false
+  },
+  "detail_compatibility": "stable node_digest code unchanged; full candidate tree search found no caller matching old detail"
+}
