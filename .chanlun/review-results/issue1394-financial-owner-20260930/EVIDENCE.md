@@ -25,6 +25,7 @@
 | 最终COMMIT真实磁盘满 | 独立新3卷、真实S缓存Prepare；唯一commit hook已观察commits/receipt/message写入且只读连接仍见旧image，再写本卷pressure到真实errno28；hook返回false后SQLite实际COMMIT报disk full。1/1、2.23s，旧seq2/root/image、公责20、receipt/message不变，pub1307保留、stage0，audit和recover epoch2通过 |
 | 来源变化与同Job重读 | 当前产品副本、独立两组S/HFS，删400/1307可达缓存节点；staging=300时正式S advance到新basis/commit22。对象仍有效，Prepare合法提交一次并绑定新basis；另一组同Job两次读取成功，requests197→198、wire6577398→6615805、records900→918、elapsed52301→52833ms，同一绝对期限未过。1/1、108.34s；成功Prepare剩stage21、只读probe剩1161，均在recover后归0，不冒称提交即stage0 |
 | 正式Q3 HTTP与信号 | 当前产品release CLI query-serve，两鲜进程分别SIGTERM/SIGINT。每次7页/7非空行、独立qcut重算、37返回节点Hash和Watch1，均exit0且监听端口可重绑定；同一Q21档、S单bar副本不变。不是controller、浏览器、完整正文语义或在途停机验收 |
+| Q3现有Controller核心实跑 | 两fresh Rust Q3进程真实经Controller.start_process→wait_ready→status→stop，S15/S2各exit0并reap，HTTP Ready与控制回执同值，nonce/PID/epoch/session绑定及端口释放通过。原DB/WAL/SHM bytes/SHA/mtime未变；独立98原件/36检查PASS。旧整体binary仅对应909ccff，当前三条精确source同字节；正式start_q仍Python/2，无S3七门或全资源宣称 |
 | 冷审计行为锁 | 独占分支1836d3c38e9，仅state/driver cfg(test)两文件，独评PASS后整合dfab63cd95且两文件逐字相同。两条精确锁实际通过：同连接结果销毁后重审、重开连接和存活Driver请求均重读，损坏已发布节点后拒绝、恢复后通过；旧审计memo在正容量启用时retained/capture0且旧计数不增。提供旧计量映射依据，不等于七字段serve限额执法 |
 | 经济只读/2代码适配 | 固定d34dd1e0d2e的3后台Python文件及1测试文件整合为4325ab248b/219c4f2ab1，四文件与独审源码同字节。36协议/单元测试通过，初评新增函数类型注解缺口经仅签名/import返修解除，独立模块导入/注解求值及Spec/Standards通过；不代替正式Q/B实跑 |
 | 新只读Q授权真实经济HTTP | 新manifest初始化前冻结独立七读Q源；正式E/B服务产生非空Prepared→Reserve→Committed，实际HTTP的current/token/fixed/Watch/decision Original/grant Original共6次全部200。三域CompleteVector、/2公头Hash/因果、固定cut、责任90/locked30-40/无外效资格与Unix原件一致，原件full objects逐字段相同，owner before==after。最慢Watch15.569s、最大回复1078412B，均受原冻结10s单RPC/30s操作/2MiB回复约束；非browser或结构Q3路径 |
@@ -59,8 +60,8 @@ Q探针首次把wire的hex tag按十进制读取，并把TCP TIME_WAIT误作监�
 
 真实浏览器原件见 [manifest](inputs/ECONOMIC-BROWSER-MANIFEST.json)、[结果](inputs/ECONOMIC-BROWSER-RESULTS.md)和[独立事实复核](inputs/ECONOMIC-BROWSER-INDEPENDENT-REVIEW.md)。独立标准库重算11POST公头、两端payloadHash、replyID及因果、9份imageHash，核当前/历史/Watch与全部四Original，418个运行及来源文件摘要一致，fresh进程/监听/挂载核对通过。三DB保存字节未变；可写HFS副本DMG整体物理字节改变，原归档未变，不扩大为所有WAL/SHM不变。
 
-两份选择性原件ZIP保留31个客户端原件与72个浏览器原件；新Chrome profile、pycache及镜像保留专属scratch，不入仓。整合前ROOT审计中的PENDING是当时状态；最终固定9f923两轴PASS、精确代码整合3b53744与实际运行补审见上述最终报告。全部55份归档inputs的bytes/SHA已由根逐一核验。
+两份选择性原件ZIP保留31个客户端原件与72个浏览器原件；新Chrome profile、pycache及镜像保留专属scratch，不入仓。整合前ROOT审计中的PENDING是当时状态；最终固定9f923两轴PASS、精确代码整合3b53744与实际运行补审见上述最终报告。此前55份及新增5份Controller归档inputs的bytes/SHA均已由根逐一核验。
 
 ## 仍未完成
 
-本片仍需S3 writer具名资源与七字段实际执法、controller、完整同源查询及累计历史/全资源和9011双跑。现有验收客户端已严格支持finance/2并完成上述实际浏览器路径，但经济HTTP没有独立证据闭包节点入口；本次不独立证明FinancialBasis节点闭包/七字段正文，亦不重算没有前根的顶层经济root。现有页面与脚本归后台验收，产品新前端仍归#1460。条件FIFO/稳定点归已裁定的#1416，依#1407与#1361原生前置推进，不反挂成本片开工门或新政策待裁。其它TB与六Destination仍未验收。未跑本票远端CI或本票DevSkim，不把#1392扫描归成本票扫描。没有改变1349未定公用资金/cap政策与真实场所权限。
+本片仍需S3 writer具名资源与七字段实际执法、正式start_q的Q3接线、完整Q3结构客户端及同源查询、累计历史/全资源和9011双跑。现有Controller过程核心已实跑通过，不替代正式入口接线。现有验收客户端已严格支持finance/2并完成上述实际浏览器路径，但经济HTTP没有独立证据闭包节点入口；本次不独立证明FinancialBasis节点闭包/七字段正文，亦不重算没有前根的顶层经济root。现有页面与脚本归后台验收，产品新前端仍归#1460。条件FIFO/稳定点归已裁定的#1416，依#1407与#1361原生前置推进，不反挂成本片开工门或新政策待裁。其它TB与六Destination仍未验收。未跑本票远端CI或本票DevSkim，不把#1392扫描归成本票扫描。没有改变1349未定公用资金/cap政策与真实场所权限。

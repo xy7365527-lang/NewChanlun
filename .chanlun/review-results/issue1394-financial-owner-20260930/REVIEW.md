@@ -40,3 +40,8 @@ Owner初评三条HIGH：审计重开Job、提交期限未贯穿、失败stage未
 固定9f923的四文件经独立Spec与Standards PASS，精确整合3b53744。旧/1空作用域、Evidence会话/化身、决定与完整历史/权利、Reserve/grant/捕获E及原输入生成式的全部明确HIGH/MEDIUM均闭合；最终Close原因仅复用原非空text门，不trim、排序或改变跨请求重复规则。256完整向量与最后25定向向量组合复用，不相加称281。全部旧FAIL/原反例保持，见inputs/ECONOMIC-CLIENT-RAW.zip及最终独评。
 
 实际浏览器由另一管理会话运行，独立事实会话再核418个文件、12真实HTTP、三域current/Prepared85/Watch、四Original、两截图和fresh回收状态；PASS_BOUNDED_ACTUAL_BROWSER_FACTS，findings空。首个离线审查脚本误用domain/id而非实际domain_id/object_id，改审查读者后通过，不当成产品缺陷。经济API不提供节点闭包及无前根顶层root的独立证明；没有把本域通过扩大为controller/Q3、9011、主线或整图。
+
+
+## Q3现有控制核心限定补验
+
+两个fresh query-serve实例复用原Controller过程/nonce核验/stop，独立98个file byte/SHA及36检查通过，实际Ready body一致并fresh证实两个PID和LISTEN均无、端口可bind、原DB/WAL/SHM未变。首次bytecopy没execute bit而Popen前失败，无QPID；copy2修harness后两次成功，失败原件保留。事件中初始manifest SHA与之后追加边界的最终manifest SHA分别列明；旧整体binary与当前三精确source兼容不等整体HEAD构建。没有冻结全继承env值，不输出secret。正式start_q仍Python/2、完整Q3消费者正在单独实施，不据此宣布其通过。

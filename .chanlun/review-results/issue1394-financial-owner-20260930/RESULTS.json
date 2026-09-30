@@ -22,7 +22,8 @@
     "actual_economic_http_facts": "PASS_BOUNDED",
     "economic_testclient_spec": "PASS",
     "economic_testclient_standards": "PASS",
-    "actual_economic_browser_facts": "PASS_BOUNDED_ACTUAL_BROWSER_FACTS"
+    "actual_economic_browser_facts": "PASS_BOUNDED_ACTUAL_BROWSER_FACTS",
+    "q3_controller_actual_facts": "PASS_BOUNDED"
   },
   "checks": {
     "root_client_index_regression": {
@@ -246,6 +247,30 @@
       "all_copy_volumes_detached": true,
       "independent_fact_reviewed_file_count": 418,
       "scope": "new readonly-authorized named TestOnly /2 browser, not node closure/top-level root/controller/Q3/resources9011/frontend1460/joint"
+    },
+    "q3_existing_controller_core_actual": {
+      "status": "PASS_BOUNDED",
+      "fresh_processes": 2,
+      "signals": [
+        "SIGTERM",
+        "SIGINT"
+      ],
+      "all_exit_zero": true,
+      "ready_http_nonce_pid_epoch_session_verified": true,
+      "listeners_rebind_after_reap": true,
+      "original_db_wal_shm_byte_sha_mtime_unchanged": true,
+      "all_manifest_files_checked": 98,
+      "independent_targeted_checks": 36,
+      "formal_start_q_v3": false,
+      "s3_gate_executed": false,
+      "whole_binary_current_head_bound": false,
+      "exact_source_compatibility": [
+        "q_serve.rs",
+        "q_runtime.rs",
+        "s_service_control.py"
+      ],
+      "inherited_environment_values_frozen": false,
+      "scope": "existing Controller typed process/ready/status/stop core with named old binary/current exact three source unchanged; not formal start_q, full browser, resources9011 or graph"
     }
   },
   "failure_records": [
@@ -596,6 +621,38 @@
       "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-browser-actual-20260930/ROOT-SELECTIVE-ARCHIVES.json",
       "bytes": 4725189,
       "sha256": "18535c6dd29f3876ea3dc6a7f4808f7f047f96483f9665107ca755196e6f4e77"
+    },
+    {
+      "path": "inputs/Q3-CONTROLLER-MANIFEST.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-controller-actual-20260930/ACTUAL-CONTROLLER-MANIFEST.json",
+      "bytes": 25907,
+      "sha256": "1c5a1018b76dc4fbdb1b896862f837ea09217f6acdfbe946daa7cd4d74c8ba2d"
+    },
+    {
+      "path": "inputs/Q3-CONTROLLER-RESULTS.md",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-controller-actual-20260930/RESULTS.md",
+      "bytes": 2421,
+      "sha256": "9d8a45983e51f4daf869f34541c3b312e395060dd1a1a3dd6f720c69156643f7"
+    },
+    {
+      "path": "inputs/Q3-CONTROLLER-INDEPENDENT-REVIEW.md",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-controller-actual-20260930/INDEPENDENT-CONTROLLER-REVIEW.md",
+      "bytes": 5560,
+      "sha256": "7b06a68746cdf706e689c8349f2477df44442330f04e4cd1e8243f2cee95eb79"
+    },
+    {
+      "path": "inputs/Q3-CONTROLLER-INDEPENDENT-REVIEW.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-controller-actual-20260930/INDEPENDENT-CONTROLLER-REVIEW.json",
+      "bytes": 50115,
+      "sha256": "eb912d74455279fbbecf78263f1e7ca72c47a1cab3fb23257c6c513af8101b93"
+    },
+    {
+      "path": "inputs/Q3-CONTROLLER-RAW.zip",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-q3-controller-actual-20260930/ACTUAL-CONTROLLER-MANIFEST.json",
+      "bytes": 354001,
+      "sha256": "f2f135abb0637f2f8ce96bb1b16d85a7e73ada16644dd0dce8c84d923718f829",
+      "archive_members": 94,
+      "excluded": "binary/SQLite/WAL/SHM/pycache retained in original scratch"
     }
   ],
   "all_archived_case_images_detached": true,
