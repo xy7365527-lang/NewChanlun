@@ -93,25 +93,47 @@ fn db_arg(args: &[String]) -> Result<&Path, String> {
     db.map(Path::new).ok_or_else(|| invalid("缺--db"))
 }
 
+#[cfg(unix)]
+fn db_identity(db: &Path) -> std::io::Result<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    let metadata = std::fs::symlink_metadata(db)?;
+    if !metadata.file_type().is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "--db必须指向已存在的普通文件",
+        ));
+    }
+    Ok((metadata.dev(), metadata.ino()))
+}
+
+#[cfg(not(unix))]
+fn db_identity(_db: &Path) -> std::io::Result<(u64, u64)> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "当前平台缺少DB文件身份核验",
+    ))
+}
+
 pub(super) fn run(args: &[String]) -> Result<(), String> {
     let db = db_arg(args)?;
-    // A FIFO can block SQLite's open even after stdin reaches EOF. Reject all
-    // non-regular paths before touching stdin; the later read-only open/audit
-    // remains authoritative if the path changes after this preflight.
-    let file_type = std::fs::symlink_metadata(db)
-        .map_err(|e| invalid(format!("--db必须指向已存在的普通文件：{e}")))?
-        .file_type();
-    if !file_type.is_file() {
-        return Err(invalid("--db必须指向已存在的普通文件"));
-    }
-    let mut bytes = Vec::new();
-    std::io::stdin().read_to_end(&mut bytes).map_err(invalid)?;
-    let request = strict_json(&bytes).map_err(invalid)?;
-    // Read-only SQLite open cannot create the path or mutate an S publication.
+    // Open only a regular file before waiting for stdin, otherwise a later
+    // path swap to FIFO can block SQLite open after the request is complete.
+    // No read transaction is held across stdin. The same connection performs
+    // the fresh current-state audit after EOF.
+    let identity = db_identity(db).map_err(invalid)?;
     let mut conn =
         Connection::open_with_flags(db, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(invalid)?;
     conn.execute_batch("PRAGMA query_only=ON")
         .map_err(invalid)?;
+    if db_identity(db).map_err(missing)? != identity {
+        return Err(missing("SQLite打开期间--db文件身份改变"));
+    }
+    let mut bytes = Vec::new();
+    std::io::stdin().read_to_end(&mut bytes).map_err(invalid)?;
+    if db_identity(db).map_err(missing)? != identity {
+        return Err(missing("读取请求期间--db文件身份改变"));
+    }
+    let request = strict_json(&bytes).map_err(invalid)?;
     let tx = conn.transaction().map_err(invalid)?;
     // The CLI is a typed S3 endpoint. Both persisted protocol markers must
     // identify this domain before any financial request reaches the auditor.
@@ -776,5 +798,151 @@ mod tests {
             .concat()
         )
         .is_ok());
+    }
+
+    /// Requires a separately built product binary named by S3_FINANCIAL_CLI_BIN.
+    /// The ignored gate exercises actual stdin and a writer commit while the
+    /// already opened read-only connection waits without a read transaction.
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "build s_structure_session and set S3_FINANCIAL_CLI_BIN for CLI smoke"]
+    fn real_cli_reads_current_cut_after_stdin_wait() {
+        use std::io::{Read, Write};
+        use std::path::PathBuf;
+        use std::process::{Command, Stdio};
+        use std::time::{Duration, Instant};
+
+        fn cli(
+            binary: &Path,
+            db: &Path,
+            command: &str,
+            request: &Value,
+            before_eof: impl FnOnce(),
+        ) -> Value {
+            let mut child = Command::new(binary)
+                .args([
+                    command,
+                    "--protocol-revision",
+                    "s-session/3",
+                    "--db",
+                    db.to_str().unwrap(),
+                ])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut stdout = child.stdout.take().unwrap();
+            let mut stderr = child.stderr.take().unwrap();
+            let out_reader = std::thread::spawn(move || {
+                let mut bytes = Vec::new();
+                stdout.read_to_end(&mut bytes).unwrap();
+                bytes
+            });
+            let err_reader = std::thread::spawn(move || {
+                let mut bytes = Vec::new();
+                stderr.read_to_end(&mut bytes).unwrap();
+                bytes
+            });
+            let mut opened = false;
+            for _ in 0..80 {
+                let files = Command::new("/usr/sbin/lsof")
+                    .args(["-p", &child.id().to_string()])
+                    .output()
+                    .unwrap();
+                if String::from_utf8_lossy(&files.stdout).contains(db.to_str().unwrap()) {
+                    opened = true;
+                    break;
+                }
+                assert!(
+                    child.try_wait().unwrap().is_none(),
+                    "reader exited before stdin EOF"
+                );
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            assert!(
+                opened,
+                "reader never opened its DB connection before stdin EOF"
+            );
+            before_eof();
+            child
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(canonical_json(request).as_bytes())
+                .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(45);
+            let status = loop {
+                if let Some(status) = child.try_wait().unwrap() {
+                    break status;
+                }
+                if Instant::now() >= deadline {
+                    child.kill().unwrap();
+                    child.wait().unwrap();
+                    panic!("reader exceeded finite CLI test deadline");
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            };
+            let out = out_reader.join().unwrap();
+            let err = err_reader.join().unwrap();
+            assert!(
+                status.success(),
+                "reader failed: {}",
+                String::from_utf8_lossy(&err)
+            );
+            strict_json(&out).unwrap()
+        }
+
+        let binary = PathBuf::from(std::env::var("S3_FINANCIAL_CLI_BIN").unwrap());
+        let mut f = Fixture::new();
+        publish(&mut f, 1);
+        let (first_snapshot, first_cut) = {
+            let tx = f.conn.transaction().unwrap();
+            let audited = state::audit(&tx).unwrap();
+            let cut = audited.cuts.last().unwrap();
+            (
+                cut.snapshot.to_transport_json(),
+                cut.metadata.structure_cut.clone(),
+            )
+        };
+        let first = cli(
+            &binary,
+            &f.db_path(),
+            "financial-basis-ref",
+            &query(vec![]),
+            || {},
+        );
+        assert_eq!(first["snapshot_ref"], first_snapshot);
+        let second = cli(
+            &binary,
+            &f.db_path(),
+            "financial-basis-ref",
+            &query(vec![]),
+            || publish(&mut f, 2),
+        );
+        let (snapshot, cut, frontier) = {
+            let tx = f.conn.transaction().unwrap();
+            let audited = state::audit(&tx).unwrap();
+            let cut = audited.cuts.last().unwrap();
+            (
+                cut.snapshot.to_transport_json(),
+                cut.metadata.structure_cut.clone(),
+                cut.batch_id.clone(),
+            )
+        };
+        assert_ne!(first_cut, cut);
+        assert_eq!(second["snapshot_ref"], snapshot);
+        let anchor = json!({"session_id":second["session_id"],"session_generation":second["session_generation"],
+            "writer_epoch":second["writer_epoch"],"structure_cut":cut,"index_frontier":frontier,
+            "commit_ns":second["commit_ns"],"basis_ref":second["basis_ref"]});
+        let fragment = cli(
+            &binary,
+            &f.db_path(),
+            "financial-content",
+            &ask(anchor, "0"),
+            || {},
+        );
+        assert_eq!(fragment["ok"], true);
+        assert_eq!(fragment["end"], "1");
     }
 }
