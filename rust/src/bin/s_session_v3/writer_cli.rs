@@ -412,7 +412,7 @@ fn preflight_input(
             clock.phase(event, phase, attempt)?;
         }
     }
-    driver::check_request_before_resume(&tx, &control, input)?;
+    driver::check_request_before_resume(&tx, &control, input, &profile_id)?;
     Ok(())
 }
 

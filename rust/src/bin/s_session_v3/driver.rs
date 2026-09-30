@@ -43,6 +43,7 @@ pub(super) fn check_request_before_resume(
     conn: &Connection,
     control: &control::S3Control<'_>,
     request: &Value,
+    profile_id: &str,
 ) -> Result<(), String> {
     let request = validate_request(request.clone())?;
     let (session, incarnation, _) = control.identity();
@@ -54,6 +55,8 @@ pub(super) fn check_request_before_resume(
     let payload = &request["payload"];
     match required(payload, "op")? {
         "ingest" => {
+            let input = tb02a::parse_input(&payload["raw_input"])?;
+            raw_input::validate_profile_binding(&input, profile_id)?;
             control.inspect_ingest(request)?;
         }
         "receipt" => {
@@ -76,6 +79,7 @@ pub(super) struct Driver {
     runtime: prepared::Runtime,
     clock: v2::ClockPlan,
     epoch: String,
+    profile_id: String,
     volume_unit: Option<String>,
     _lock: File,
     #[cfg(test)]
@@ -163,7 +167,7 @@ impl Driver {
             return Err("StaleWriter：未完成Begin须先由监督器recover".into());
         }
         if let Some(request) = request {
-            check_request_before_resume(&tx, &control, request)?;
+            check_request_before_resume(&tx, &control, request, &profile_id)?;
         }
         drop(tx);
         let mut driver = Self {
@@ -171,6 +175,7 @@ impl Driver {
             runtime: prepared::Runtime::new(),
             clock,
             epoch: epoch.into(),
+            profile_id,
             volume_unit,
             _lock: lock,
             #[cfg(test)]
@@ -203,6 +208,8 @@ impl Driver {
                 required(payload, "original_payload_hash")?,
             ),
             "ingest" => {
+                let input = tb02a::parse_input(&payload["raw_input"])?;
+                raw_input::validate_profile_binding(&input, &self.profile_id)?;
                 let view = control.inspect_ingest(envelope.clone())?;
                 if view.is_committed() {
                     return Ok(view.receipt().clone());
@@ -225,7 +232,6 @@ impl Driver {
                     self.clock.phase(clock_event, "accept", -1)?;
                     self.clock.phase(clock_event, "begin", 0)?;
                     self.clock.phase(clock_event, "commit", 0)?;
-                    let input = tb02a::parse_input(&payload["raw_input"])?;
                     let accepted =
                         raw_input::accept_events(&tx, &input, self.volume_unit.as_deref())?;
                     control.accept(&view, &accepted)?;
@@ -575,6 +581,33 @@ mod tests {
         let conn = open_db(&f.db).unwrap();
         assert_eq!(meta_i64(&conn, "generation").unwrap(), 2);
         assert_eq!(count(&conn, "raw_events"), 2);
+    }
+
+    #[test]
+    fn old_tick_schema_cannot_enter_frozen_ohlc_s3_domain() {
+        let f = Fixture::new();
+        let mut request = Fixture::ingest(1);
+        request["payload"]["raw_input"] = json!({
+            "schema_revision":"1", "session_id":"s-session-testonly-001",
+            "source_namespace":"testonly.ohlc", "source_epoch":"1",
+            "instrument":"TEST.OHLC", "profile":"testonly_tick_1_1_ohlc",
+            "events":[{"event_id":"a","revision":"1","seq":"0",
+                "received_at":"2026-09-13T00:00:00Z","raw_text":"7",
+                "price":"7","timestamp":"0","volume":"1"}]
+        });
+        request["payload_hash"] = json!(sha256_hex(canonical_json(&request["payload"]).as_bytes()));
+        let mut direct = f.open("1").unwrap();
+        assert!(direct
+            .handle(request.clone())
+            .unwrap_err()
+            .contains("profile"));
+        drop(direct);
+        assert!(one_shot(&f, &request, "1").is_err());
+        let conn = open_db(&f.db).unwrap();
+        assert_eq!(count(&conn, "raw_events"), 0);
+        assert_eq!(count(&conn, "s_input_messages"), 0);
+        assert_eq!(count(&conn, "s_clock_events"), 0);
+        assert_eq!(meta_i64(&conn, "generation").unwrap(), 0);
     }
 
     #[test]

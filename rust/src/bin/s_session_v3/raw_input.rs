@@ -5,6 +5,23 @@
 use super::*;
 use rusqlite::Transaction;
 
+/// S2/S3 共用冻结输入 profile 与原始 schema 的绑定门；接纳任何原始事件前调用。
+pub(super) fn validate_profile_binding(
+    input: &RawInputFile,
+    profile_id: &str,
+) -> Result<(), String> {
+    if (input.schema_revision == tb02a::RAW_SCHEMA) != (profile_id == tb02a::PROFILE) {
+        return Err("SchemaUnsupported：绑定profile/schema不一致".into());
+    }
+    if input.profile != profile_id {
+        return Err(format!(
+            "InvalidDomain：输入 profile=`{}` 与 --profile 的 profile_id=`{profile_id}` 不一致",
+            input.profile
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn accept_events(
     tx: &Transaction<'_>,
     input: &RawInputFile,

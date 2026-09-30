@@ -1885,15 +1885,7 @@ fn accept_core(
     let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
     let input = tb02a::parse_input(&v2::strict_json(text.as_bytes())?)?;
     let (profile, profile_id, profile_hash) = load_profile(profile_path)?;
-    if (input.schema_revision == tb02a::RAW_SCHEMA) != (profile_id == tb02a::PROFILE) {
-        return Err("SchemaUnsupported：绑定profile/schema不一致".into());
-    }
-    if input.profile != profile_id {
-        return Err(format!(
-            "InvalidDomain：输入 profile=`{}` 与 --profile 的 profile_id=`{profile_id}` 不一致",
-            input.profile
-        ));
-    }
+    raw_input::validate_profile_binding(&input, &profile_id)?;
     let volume_unit = profile
         .get("volume_unit")
         .and_then(Value::as_str)
