@@ -462,6 +462,103 @@ mod tests {
             .unwrap()
     }
 
+    #[test]
+    fn cold_audit_live_driver_requests_re_read_and_reject_current_node_damage() {
+        use super::super::state::cold_audit_probe as probe;
+        let f = Fixture::new();
+        let first = Fixture::ingest(1);
+        let second = Fixture::ingest(2);
+        let inputs = json!([first, second]);
+        let cap = probe::begin(&inputs);
+        let mut d = f.open("1").unwrap();
+        let mut phases = Vec::new();
+        for (i, input) in inputs.as_array().unwrap().iter().enumerate() {
+            let (result, mut phase) = probe::observe(&format!("actual_ingest_{}", i + 1), || {
+                d.handle(input.clone())
+            });
+            assert_eq!(result.unwrap()["kind"], "Committed");
+            let bytes = canonical_json(input);
+            phase["input_frame"] = json!({"canonical_body_bytes":bytes.len(),"lf_frame_bytes":bytes.len()+1,
+                "body_sha256":sha256_hex(bytes.as_bytes()),"actual_transport_io":false});
+            phase["storage_after"] = probe::storage(&d.conn, &f.db);
+            phases.push(phase);
+        }
+        let binding = probe::binding(&d.conn, &inputs, cap);
+        let mut original_ready = None;
+        for label in [
+            "live_driver_ready_first",
+            "live_driver_ready_after_prior_result_dropped",
+        ] {
+            let request = envelope(label, json!({"op":"ready"}));
+            let (result, mut phase) = probe::observe(label, || d.handle(request.clone()));
+            let ready = result.unwrap();
+            assert_eq!(ready["kind"], "Ready");
+            if let Some(ref prior) = original_ready {
+                assert_eq!(&ready, prior)
+            } else {
+                original_ready = Some(ready.clone())
+            }
+            assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
+            let bytes = canonical_json(&request);
+            phase["input_frame"] = json!({"canonical_body_bytes":bytes.len(),"lf_frame_bytes":bytes.len()+1,
+                "body_sha256":sha256_hex(bytes.as_bytes()),"actual_transport_io":false});
+            phase["ready_payload_canonical_bytes"] = json!(canonical_json(&ready).len());
+            drop(ready);
+            phase["storage_after"] = probe::storage(&d.conn, &f.db);
+            phases.push(phase);
+        }
+        let (digest,body):(Vec<u8>,Vec<u8>)=d.conn.query_row(
+            "SELECT n.digest,n.body FROM s_content_nodes n JOIN s_content_publications p ON n.digest=p.snapshot_root ORDER BY p.generation LIMIT 1",
+            [],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        let mut damaged = body.clone();
+        damaged[0] ^= 1;
+        d.conn
+            .execute(
+                "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+                params![damaged, &digest],
+            )
+            .unwrap();
+        let (result, mut phase) = probe::observe("live_driver_damaged_published_node", || {
+            d.handle(envelope("damaged-ready", json!({"op":"ready"})))
+        });
+        assert!(result.is_err());
+        assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
+        phase["storage_after"] = probe::storage(&d.conn, &f.db);
+        phases.push(phase);
+        d.conn
+            .execute(
+                "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+                params![body, &digest],
+            )
+            .unwrap();
+        let (result, mut phase) = probe::observe("live_driver_restored_original_node", || {
+            d.handle(envelope("restored-ready", json!({"op":"ready"})))
+        });
+        assert_eq!(result.unwrap(), *original_ready.as_ref().unwrap());
+        assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
+        phase["storage_after"] = probe::storage(&d.conn, &f.db);
+        phases.push(phase);
+        drop(d);
+        let (result, mut phase) = probe::observe("driver_reopen_current_history", || f.open("1"));
+        assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
+        phase["storage_after"] = probe::storage(&result.as_ref().unwrap().conn, &f.db);
+        phases.push(phase);
+        let mut reopened = result.unwrap();
+        let (result, mut phase) = probe::observe("reopened_driver_ready", || {
+            reopened.handle(envelope("reopened-ready", json!({"op":"ready"})))
+        });
+        assert_eq!(result.unwrap(), original_ready.unwrap());
+        assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
+        phase["storage_after"] = probe::storage(&reopened.conn, &f.db);
+        phases.push(phase);
+        probe::archive(
+            &reopened.conn,
+            &f.db,
+            "driver-cold-audit",
+            &json!({"binding":binding,"phases":phases}),
+        );
+    }
+
     fn cli(f: &Fixture, command: &str, epoch_flag: &str, epoch: &str) -> Vec<String> {
         [
             "s_structure_session".into(),

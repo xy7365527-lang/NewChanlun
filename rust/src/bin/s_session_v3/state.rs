@@ -308,6 +308,140 @@ fn field(s: &mut dyn NodeStore, r: &ContentRef, key: &str) -> Result<ContentRef,
     sc::path::lookup_path(s, r, &[sc::path::PathStep::Field(key.into())]).map_err(err)
 }
 
+/// #1394 TestOnly observation, not a writer resource policy or a memo substitute.
+#[cfg(test)]
+pub(super) mod cold_audit_probe {
+    use super::*;
+
+    pub(crate) fn begin(inputs: &Value) -> usize {
+        // Positive capacity derived from this fixture's canonical inputs. Keeping
+        // the old memo enabled ensures zero retention is not caused by disabling it.
+        let source_bytes = canonical_json(inputs).len();
+        assert!(source_bytes > 0);
+        cache::configure(source_bytes);
+        assert!(cache::retention_enabled());
+        cache::counters_reset();
+        source_bytes
+    }
+
+    fn legacy_state() -> Value {
+        let (root, handles, originals) = cache::retained_breakdown();
+        json!({"retention_enabled":cache::retention_enabled(),"retained_source_bytes":cache::retained_bytes(),
+            "capture_source_bytes":cache::capture_bytes_now(),
+            "root_walk_source_bytes":root,"handle_source_bytes":handles,
+            "original_cert_source_bytes":originals,"batch_header_source_bytes":cache::batch_header_bytes(),
+            "counters":cache::counters_snapshot()})
+    }
+
+    pub(crate) fn observe<T>(
+        label: &str,
+        action: impl FnOnce() -> Result<T, String>,
+    ) -> (Result<T, String>, Value) {
+        let before = legacy_state();
+        let frames = sc::frame_calls_on_thread();
+        let started = std::time::Instant::now();
+        let (result, events, work) = traced(true, action);
+        let after = legacy_state();
+        assert_eq!(after["retained_source_bytes"], json!(0));
+        assert_eq!(after["capture_source_bytes"], json!(0));
+        assert_eq!(
+            before, after,
+            "S3 must not mutate or use the old source audit memo"
+        );
+        let report = json!({"phase":label,"elapsed_ns":started.elapsed().as_nanos().to_string(),
+            "work":work,"s_content_f_calls":sc::frame_calls_on_thread()-frames,
+            "legacy_before":before,"legacy_after":after,"ok":result.is_ok(),
+            "error":result.as_ref().err(),"audit_events":events});
+        println!("S3_COLD_AUDIT_PHASE {}", canonical_json(&report));
+        (result, report)
+    }
+
+    pub(crate) fn storage(c: &Connection, db: &Path) -> Value {
+        use std::os::unix::fs::MetadataExt;
+        let (nodes, bodies): (i64, i64) = c
+            .query_row(
+                "SELECT count(*),coalesce(sum(length(body)),0) FROM s_content_nodes",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        let files: Vec<Value> = ["", "-wal", "-shm"]
+            .into_iter()
+            .map(|suffix| {
+                let p = PathBuf::from(format!("{}{suffix}", db.display()));
+                match std::fs::metadata(&p) {
+                    Ok(m) => json!({"path":p,"bytes":m.len(),"allocated_bytes":m.blocks()*512}),
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                        json!({"path":p,"absent":true})
+                    }
+                    Err(e) => panic!("{}: {e}", p.display()),
+                }
+            })
+            .collect();
+        json!({"files":files,"stored_nodes":nodes,
+            "stored_node_framed_bytes":bodies as u128+nodes as u128*(sc::DOMAIN_SEPARATOR.len()+9) as u128,
+            "sampling":"after operation; not peak, actual wire traffic or a per-job node read count"})
+    }
+
+    pub(crate) fn binding(c: &Connection, inputs: &Value, memo_cap: usize) -> Value {
+        let clock = v2::stored_clock(c).unwrap();
+        json!({"scope":"TestOnly two-input real OHLC production paths; no serve, no writer limits acceptance, no full9011",
+            "inputs":inputs,"inputs_sha256":sha256_hex(canonical_json(inputs).as_bytes()),
+            "clock":clock.value,"clock_sha256":clock.hash,
+            "profile_hash":meta_get_opt(c,"profile_hash").unwrap(),
+            "catalog_hash":meta_get_opt(c,"catalog_hash").unwrap(),
+            "state_source_sha256":sha256_hex(include_bytes!("state.rs")),
+            "driver_source_sha256":sha256_hex(include_bytes!("driver.rs")),
+            "reported_code_revision":std::env::var("S3_COLD_AUDIT_CODE_REVISION").ok(),
+            "legacy_memo_test_cap_source_bytes":memo_cap,
+            "cap_scope":"test observer only; not s_resources or Q/job limit mapping",
+            "seven_writer_fields_changed":false,"server_started":false,
+            "source_reads_scope":"actual HashReader fallback reads to SQLite; excludes control/raw SQL and generator TxStore",
+            "f_calls_scope":"all measured-thread F calls, including generated/derived hashes; not unique nodes",
+            "generator_lane_zero_claim":false,"rss_zero_claim":false})
+    }
+
+    pub(crate) fn archive(c: &Connection, db: &Path, label: &str, report: &Value) {
+        println!("S3_COLD_AUDIT_RESULT {}", canonical_json(report));
+        let Ok(root) = std::env::var("S3_COLD_AUDIT_OUTPUT_DIR") else {
+            return;
+        };
+        let dir = PathBuf::from(root).join(label);
+        std::fs::create_dir_all(dir.parent().unwrap()).unwrap();
+        std::fs::create_dir(&dir).expect("fresh evidence directory required");
+        let (busy, _, _): (i64, i64, i64) = c
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+            })
+            .unwrap();
+        assert_eq!(
+            busy, 0,
+            "artifact checkpoint must not hide an active reader"
+        );
+        std::fs::copy(db, dir.join("s.sqlite")).unwrap();
+        let mut evidence = report.clone();
+        evidence["archive"] = json!({"database_sha256":sha256_hex(&std::fs::read(dir.join("s.sqlite")).unwrap()),
+            "checkpoint":"after all measured phases; not included in their timing/peak claim"});
+        use std::io::Write;
+        let mut out = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(dir.join("evidence.json"))
+            .unwrap();
+        out.write_all(canonical_json(&evidence).as_bytes()).unwrap();
+        out.sync_all().unwrap();
+    }
+
+    pub(crate) fn fingerprint(s: &AuditedState) -> Value {
+        json!({"raw_sha256":sha256_hex(canonical_json(&json!(s.raw)).as_bytes()),
+            "cuts":s.cuts.iter().map(|cut|json!({"generation":cut.metadata.generation,
+                "batch_id":cut.batch_id,"snapshot":cut.snapshot.to_transport_json(),
+                "delta":cut.delta.to_transport_json()})).collect::<Vec<_>>(),
+            "objects":s.objects.len(),"witnesses":s.auxiliary.witnesses.len(),
+            "relations":s.auxiliary.relations.len(),"observations":s.auxiliary.observations.len()})
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -346,6 +480,83 @@ mod tests {
     fn publish_one(f: &mut Fixture) {
         let (e, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
         assert_eq!(f.publish(&e, &token).unwrap().generation, 1);
+    }
+
+    #[test]
+    fn cold_audit_re_reads_after_drop_reopen_and_node_damage() {
+        use super::cold_audit_probe as probe;
+        let mut f = Fixture::new();
+        let (a, t) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        f.publish(&a, &t).unwrap();
+        let (b, t) = f.accept_begin(2, ("b", 10, 8, 16, 6, 12), 1);
+        f.publish(&b, &t).unwrap();
+        let inputs = json!([a, b]);
+        let cap = probe::begin(&inputs);
+        let binding = probe::binding(&f.conn, &inputs, cap);
+        let mut phases = Vec::new();
+        let mut expected = None;
+        for label in ["first_same_connection", "same_connection_after_drop"] {
+            let tx = f.conn.transaction().unwrap();
+            let (result, mut phase) = probe::observe(label, || audit(&tx));
+            assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
+            let audited = result.unwrap();
+            let current = probe::fingerprint(&audited);
+            if let Some(ref prior) = expected {
+                assert_eq!(&current, prior)
+            } else {
+                expected = Some(current)
+            }
+            drop(audited);
+            drop(tx);
+            phase["storage_after"] = probe::storage(&f.conn, &f.db_path());
+            phases.push(phase);
+        }
+        let mut reopened = Connection::open(f.db_path()).unwrap();
+        reopened.pragma_update(None, "query_only", true).unwrap();
+        let tx = reopened.transaction().unwrap();
+        let (result, mut phase) = probe::observe("new_query_only_connection", || audit(&tx));
+        assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
+        assert_eq!(
+            probe::fingerprint(&result.unwrap()),
+            *expected.as_ref().unwrap()
+        );
+        drop(tx);
+        drop(reopened);
+        phase["storage_after"] = probe::storage(&f.conn, &f.db_path());
+        phases.push(phase);
+        let (digest,body):(Vec<u8>,Vec<u8>) = f.conn.query_row(
+            "SELECT n.digest,n.body FROM s_content_nodes n JOIN s_content_publications p ON n.digest=p.snapshot_root ORDER BY p.generation LIMIT 1",
+            [],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        let mut damaged = body.clone();
+        damaged[0] ^= 1;
+        f.conn
+            .execute(
+                "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+                params![damaged, &digest],
+            )
+            .unwrap();
+        let (result, mut phase) = probe::observe("damaged_published_node", || audit_now(&mut f));
+        assert!(result.is_err());
+        assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
+        phase["storage_after"] = probe::storage(&f.conn, &f.db_path());
+        phases.push(phase);
+        f.conn
+            .execute(
+                "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+                params![body, &digest],
+            )
+            .unwrap();
+        let (result, mut phase) = probe::observe("restored_original_node", || audit_now(&mut f));
+        assert_eq!(probe::fingerprint(&result.unwrap()), expected.unwrap());
+        assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
+        phase["storage_after"] = probe::storage(&f.conn, &f.db_path());
+        phases.push(phase);
+        probe::archive(
+            &f.conn,
+            &f.db_path(),
+            "state-cold-audit",
+            &json!({"binding":binding,"phases":phases}),
+        );
     }
 
     /// generation=0 的空初态也必须被真实核过：控制域/原始账/目录都读，空初态不是「什么都不查」。
