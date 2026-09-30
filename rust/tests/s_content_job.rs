@@ -15,7 +15,8 @@ use newchan_rust::s_content::job::{
     LIMIT_DOMAIN, LIMIT_EXCEEDED, LIMIT_FIELD, LIMIT_FIELDS, RECLAIM, RECONCILE, RESERVATION,
 };
 use newchan_rust::s_content::{
-    code, frame, tag, CodecError, MemoryNodes, NodeRead, NodeSink, NodeSource, DOMAIN_SEPARATOR,
+    access::MeteredSource, code, frame, frame_calls_on_thread, tag, CodecError, MemoryNodes,
+    NodeRead, NodeSink, NodeSource, DOMAIN_SEPARATOR,
 };
 use serde_json::{json, Value as J};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -88,6 +89,46 @@ fn job_with_existing(limits: JobLimits, existing: Existing) -> (Arc<AtomicU64>, 
 /// §5.6.1 的节点分帧字节：`len(D) + 1 + 8 + len(body)`。
 fn framed(body_len: usize) -> u64 {
     DOMAIN_SEPARATOR.len() as u64 + 1 + 8 + body_len as u64
+}
+
+#[test]
+fn checked_read_matches_old_acceptance_at_f_deadline_boundary() {
+    let digest = frame(tag::NULL, &[]);
+    let mut source = MemoryNodes::new();
+    source.insert_unchecked(digest, tag::NULL, vec![]);
+    for checked in [false, true] {
+        for metered in [false, true] {
+            let before = frame_calls_on_thread();
+            let now = Instant::now();
+            let mut job = Job::new(
+                limits_with(|limits| limits.max_elapsed_ms = 1),
+                existing(200, 0),
+                Box::new(move || {
+                    now + Duration::from_millis(u64::from(frame_calls_on_thread() > before))
+                }),
+            ).unwrap();
+            let outcome = if metered {
+                let mut reader = MeteredSource::new(&mut job, &mut source);
+                if checked { reader.checked_read(&digest).map(|_| ()) }
+                else { reader.read(&digest).map(|_| ()) }
+            } else {
+                let mut reader = JobNodeSource::new(&mut job, &mut source);
+                if checked { reader.checked_read(&digest).map(|_| ()) }
+                else { reader.read(&digest).map(|_| ()) }
+            };
+            assert_eq!(frame_calls_on_thread() - before, 1, "每次读取只核一次 F");
+            let snapshot = job.snapshot();
+            assert_eq!(snapshot.nodes, 1, "旧读与已核读都须在 F 后保留计账");
+            assert_eq!(snapshot.node_bytes, framed(0));
+            if metered {
+                assert_eq!(outcome.unwrap_err().code(), DEADLINE, "post precheck 旧行为");
+                assert_eq!(snapshot.stopped, Some(DEADLINE));
+            } else {
+                outcome.unwrap();
+                assert_eq!(snapshot.stopped, None, "F 后不可多加一次期限门");
+            }
+        }
+    }
 }
 
 #[test]

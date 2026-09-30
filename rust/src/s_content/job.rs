@@ -678,6 +678,21 @@ impl Job {
         self.accept_checked_usage_inner(&usage)
     }
 
+    /// 同一次读取的已核帧：保持 `accept_node` 的起钟/门 → F → 入账顺序，
+    /// 并把原 Vec 连同证明交给消费端。`accept_checked_usage` 的重放门不用于此处，
+    /// 否则会在 F 后额外检查一次期限，改变旧读取的接纳结果。
+    pub fn accept_frame(
+        &mut self,
+        digest: &NodeDigest,
+        tag: u8,
+        body: Vec<u8>,
+    ) -> Result<CheckedFrame, CodecError> {
+        self.begin_first_read()?;
+        let checked = CheckedFrame::checked(digest, tag, body)?;
+        self.accept_checked_usage_inner(checked.usage())?;
+        Ok(checked)
+    }
+
     /// 重放一个已经由 [`CheckedNodeUsage::checked`] 从真实原件核出的不可变计费值。
     ///
     /// 这里仍执行本 Job 的期限、停止状态、去重和节点预算门；它不重新声称核验了
@@ -1124,7 +1139,7 @@ impl NodeSource for JobNodeSource<'_> {
     /// 核验读口：起钟 → 内层原始读 → 读后期限门 → 核 F → 记账。
     ///
     /// 与 [`NodeSource::read`] 的顺序对应关系：`accept_node`（核 F ＋ 记账）换成
-    /// `CheckedFrame::checked` 只核一次，再由 `usage` 记账；期限在读取期间
+    /// `Job::accept_frame` 在原 `accept_node` 的位置核 F 一次并记账；期限在读取期间
     /// 过掉时先拒，连 F 也不算。
     fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<CheckedFrame>, CodecError> {
         self.job.begin_first_read()?;
@@ -1133,8 +1148,7 @@ impl NodeSource for JobNodeSource<'_> {
         match read {
             NodeRead::Missing => Ok(None),
             NodeRead::Found { tag, body } => {
-                let frame = CheckedFrame::checked(digest, tag, body)?;
-                self.job.accept_checked_usage(frame.usage())?;
+                let frame = self.job.accept_frame(digest, tag, body)?;
                 Ok(Some(frame))
             }
         }

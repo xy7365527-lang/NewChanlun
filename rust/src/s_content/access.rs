@@ -75,6 +75,19 @@ pub trait Access {
         }
     }
 
+    /// 在旧 `accept_node` 时点核真实 Vec 并记账，返回可沿同次读取下传的帧。
+    fn accept_frame(
+        &mut self,
+        digest: &NodeDigest,
+        tag: u8,
+        body: Vec<u8>,
+    ) -> Result<CheckedFrame, CodecError> {
+        match self.owner_job() {
+            Some(job) => job.accept_frame(digest, tag, body),
+            None => CheckedFrame::checked(digest, tag, body),
+        }
+    }
+
     /// 将已从真实原件核出的不可变用量重放到账本；这只是记账，不能替代
     /// 当前内容验证。
     fn accept_checked_usage(
@@ -135,11 +148,7 @@ impl NodeSource for MeteredSource<'_> {
         let checked = match read {
             NodeRead::Missing => None,
             NodeRead::Found { tag, body } => {
-                // 旧 accept_node 在读后、F 前再检查 Job；读取期间过期不可先算 F。
-                self.access.pre_io_check()?;
-                let frame = CheckedFrame::checked(digest, tag, body)?;
-                self.access.accept_checked_usage(frame.usage())?;
-                Some(frame)
+                Some(self.access.accept_frame(digest, tag, body)?)
             }
         };
         self.access.pre_io_check()?;

@@ -427,10 +427,7 @@ impl NodeSource for Recorder<'_> {
         let checked = match read {
             NodeRead::Missing => None,
             NodeRead::Found { tag, body } => {
-                // 旧 accept_node 在读取后、核 F 前起钟并复核停止/期限。
-                self.access.begin_first_read()?;
-                let frame = CheckedFrame::checked(digest, tag, body)?;
-                self.access.accept_checked_usage(frame.usage())?;
+                let frame = self.access.accept_frame(digest, tag, body)?;
                 if let Some(old) = self.nodes.get(digest) {
                     if old.0 != frame.tag() || old.1 != frame.body() {
                         return Err(err("同根不同原件"));
@@ -449,6 +446,49 @@ impl NodeSource for Recorder<'_> {
         };
         self.access.pre_io_check()?;
         Ok(checked)
+    }
+}
+
+#[cfg(test)]
+mod checked_frame_tests {
+    use super::*;
+    use crate::s_content::{frame_calls_on_thread, job::{Existing, JobLimits, DEADLINE}, MemoryNodes};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn recorder_keeps_old_accounting_when_deadline_lands_during_f() {
+        let digest = frame(tag::NULL, &[]);
+        let mut source = MemoryNodes::new();
+        source.insert_unchecked(digest, tag::NULL, vec![]);
+        let limits = JobLimits::from_canonical_json(&json!({
+            "max_total_wire_bytes":"1024", "max_total_node_bytes":"1024",
+            "max_total_nodes":"8", "max_total_records":"8", "max_total_requests":"8",
+            "max_elapsed_ms":"1", "max_staged_bytes":"1024", "max_store_bytes":"1024"
+        })).unwrap();
+        for checked in [false, true] {
+            let before = frame_calls_on_thread();
+            let now = Instant::now();
+            let mut job = Job::new(
+                limits,
+                Existing { store_bytes: 0, staged_bytes: 0 },
+                Box::new(move || now + Duration::from_millis(u64::from(frame_calls_on_thread() > before))),
+            ).unwrap();
+            {
+                let mut recorder = Recorder {
+                    source: &mut source,
+                    access: &mut job,
+                    nodes: BTreeMap::new(),
+                    reply_bytes: 0,
+                    max_reply_bytes: 1024,
+                };
+                let result = if checked { recorder.checked_read(&digest).map(|_| ()) }
+                    else { recorder.read(&digest).map(|_| ()) };
+                assert_eq!(result.unwrap_err().code(), DEADLINE, "旧 post precheck 行为");
+                assert_eq!(recorder.nodes.len(), 1, "原证明收集已完成");
+            }
+            assert_eq!(frame_calls_on_thread() - before, 1);
+            assert_eq!(job.snapshot().nodes, 1, "F 后不得多加计账前期限门");
+        }
     }
 }
 fn public_header(r: &ContentRef) -> Result<(), CodecError> {
