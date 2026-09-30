@@ -12,3 +12,5 @@ pub use service::cli;
 
 #[cfg(test)]
 mod voice_tests;
+
+mod financial_content;
