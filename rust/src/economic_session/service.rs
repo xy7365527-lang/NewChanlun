@@ -4,7 +4,9 @@ use crate::s_content::job::Job;
 use crate::session_protocol::{
     canonical_json, nonnegative, positive, reply_envelope, required, sha256_hex, validate_envelope,
 };
-use crate::session_transport::{process_lock, serve_unix, EnvelopeValidator, TransportBounds};
+use crate::session_transport::{
+    process_lock, serve_unix, serve_unix_with_deadline, EnvelopeValidator, TransportBounds,
+};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -123,7 +125,13 @@ fn record_from_payload(config: &Config, e: &Value) -> Result<Value, String> {
         json!({"fact_key":fact_key(&event)?,"fact_hash":fact_hash,"raw_sha256":raw_hash,"raw_utf8":raw,"json_pointer":pointer,"event":event,"token":required(p,"token")?,"target_domain":format!("B:{id}"),"source_event_time":p["source_event_time"],"source_received_time":event["source"]["received_time"],"source_producer":{"producer_id":e["producer_id"],"producer_epoch":e["producer_epoch"]},"origin_message":{"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]},"origin_request_hash":hash(e)}),
     )
 }
-fn capture(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Result<Value, String> {
+fn capture(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e: &Value,
+    ingress_response_deadline: Option<std::time::Instant>,
+) -> Result<Value, String> {
     let mut record = record_from_payload(config, e)?;
     let key = required(&record, "fact_key")?.to_owned();
     let tx = immediate(c)?;
@@ -150,6 +158,7 @@ fn capture(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Result
         tx.commit().map_err(err)?;
         return Ok(receipt);
     }
+    check_operation_deadline(None, ingress_response_deadline)?;
     let token = required(&record, "token")?;
     if rows(&tx, "pending")?.iter().any(|r| r["token"] == token) {
         return Err("IdentityConflict：token已绑定另一原事实".into());
@@ -188,6 +197,7 @@ fn capture(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Result
     put(&tx, "receipts", &key, &receipt)?;
     bind_message(&tx, e, &key)?;
     config.pause(required(e, "message_id")?, "before_commit")?;
+    check_operation_deadline(None, ingress_response_deadline)?;
     tx.commit().map_err(err)?;
     config.pause(required(e, "message_id")?, "after_commit")?;
     Ok(receipt)
@@ -255,8 +265,18 @@ fn apply_allocation(
     e_epoch: i64,
     e: &Value,
 ) -> Result<Value, String> {
+    apply_allocation_with_ingress(c, config, epoch, e_epoch, e, None)
+}
+fn apply_allocation_with_ingress(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e_epoch: i64,
+    e: &Value,
+    ingress_response_deadline: Option<std::time::Instant>,
+) -> Result<Value, String> {
     let mut audited = false;
-    match apply_allocation_inner(c, config, epoch, e_epoch, e, &mut audited) {
+    match apply_allocation_inner(c, config, epoch, e_epoch, e, &mut audited, ingress_response_deadline) {
         Ok(receipt) => Ok(receipt),
         Err(error) if config.revision()? == SCHEMA_V2 && audited => {
             match super::content_store::discard_unpublished(c, &config.db) {
@@ -274,6 +294,7 @@ fn apply_allocation_inner(
     e_epoch: i64,
     e: &Value,
     audited: &mut bool,
+    ingress_response_deadline: Option<std::time::Instant>,
 ) -> Result<Value, String> {
     let p = &e["payload"];
     exact(
@@ -289,7 +310,7 @@ fn apply_allocation_inner(
         None
     };
     let deadline = if let Some(job) = import_job.as_mut() {
-        Some(operation_deadline(config, job)?)
+        Some(operation_deadline(config, job, ingress_response_deadline)?)
     } else {
         None
     };
@@ -297,7 +318,7 @@ fn apply_allocation_inner(
     {
         let tx = immediate(c)?;
         check_epoch(&tx, epoch)?;
-        audit_with_deadline(&tx, config, import_job.as_mut(), deadline)?;
+        audit_with_job(&tx, config, import_job.as_mut())?;
         *audited = true;
         if let Some(r) = previous_message(&tx, e)? {
             return Ok(r);
@@ -314,6 +335,7 @@ fn apply_allocation_inner(
             return Err("IdentityConflict：原事实已被别的allocation消费".into());
         }
     }
+    check_operation_deadline(import_job.as_mut(), deadline)?;
     // 固定 E 只读审计发生在 B 写事务之外；无跨域写锁、无 ATTACH。
     // 新域在同一只读捕获内把该 E 提交图像全部历史引用导入本 B owner。
     let mut record = if let Some(job) = import_job.as_mut() {
@@ -415,7 +437,13 @@ fn apply_allocation_inner(
     config.pause(required(e, "message_id")?, "after_commit")?;
     Ok(receipt)
 }
-fn bind_voice(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Result<Value, String> {
+fn bind_voice(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e: &Value,
+    ingress_response_deadline: Option<std::time::Instant>,
+) -> Result<Value, String> {
     let p = &e["payload"];
     super::voice::validate_request(p)?;
     let binding = required(p, "binding_id")?;
@@ -444,6 +472,7 @@ fn bind_voice(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Res
             return Err("IdentityConflict：Voice 回执键已属于另一业务".into());
         }
     }
+    check_operation_deadline(None, ingress_response_deadline)?;
     // 读取固定证据在 B 写事务之外，绝不持生命周期控制锁等待外部依据。
     let verified = super::evidence::load(
         config,
@@ -453,6 +482,7 @@ fn bind_voice(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Res
     let tx = immediate(c)?;
     check_epoch(&tx, epoch)?;
     audit(&tx, config)?;
+    check_operation_deadline(None, ingress_response_deadline)?;
     let (seq, previous_root, last_ns, image) = latest(&tx)?;
     let seq = seq.checked_add(1).ok_or("InvalidDomain：commit seq 溢出")?;
     if super::voice::find_binding(&image, binding)?.is_some()
@@ -492,6 +522,7 @@ fn bind_voice(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Res
     put(&tx, "receipts", &key, &receipt)?;
     bind_message(&tx, e, &key)?;
     config.pause(required(e, "message_id")?, "before_commit")?;
+    check_operation_deadline(None, ingress_response_deadline)?;
     tx.commit().map_err(err)?;
     config.pause(required(e, "message_id")?, "after_commit")?;
     Ok(receipt)
@@ -636,6 +667,17 @@ pub(super) fn handle(
     runtime: &Value,
     e: &Value,
 ) -> Value {
+    handle_with_deadline(c, config, epoch, e_epoch, runtime, e, None)
+}
+fn handle_with_deadline(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e_epoch: i64,
+    runtime: &Value,
+    e: &Value,
+    ingress_response_deadline: Option<std::time::Instant>,
+) -> Value {
     let result = (|| {
         config.authorized(e)?;
         if config.revision()? == SCHEMA_V2 {
@@ -647,20 +689,35 @@ pub(super) fn handle(
         }
         let op = required(&e["payload"], "op")?;
         match op {
-            "ChongAdvance" if config.domain == "E" => super::finance::advance(c, config, epoch, e),
+            "ChongAdvance" if config.domain == "E" => {
+                // Once admitted, the multi-owner responsibility workflow may
+                // continue after the reply times out. An already expired
+                // queued request must not start new cross-domain work.
+                check_operation_deadline(None, ingress_response_deadline)?;
+                super::finance::advance(c, config, epoch, e)
+            }
             "PrepareDecision" | "CommitDecision" | "AbortDecision"
                 if config.domain.starts_with("B:") =>
             {
-                super::finance::write(c, config, epoch, e)
+                super::finance::write_with_ingress(c, config, epoch, e, ingress_response_deadline)
             }
             "ImportResponsibility" | "Reserve" | "CloseApplicants" if config.domain == "E" => {
-                super::finance::write(c, config, epoch, e)
+                super::finance::write_with_ingress(c, config, epoch, e, ingress_response_deadline)
             }
-            "CaptureExternal" if config.domain == "E" => capture(c, config, epoch, e),
-            "ApplyAllocation" if config.domain.starts_with("B:") => {
-                apply_allocation(c, config, epoch, e_epoch, e)
+            "CaptureExternal" if config.domain == "E" => {
+                capture(c, config, epoch, e, ingress_response_deadline)
             }
-            "BindVoice" if config.domain.starts_with("B:") => bind_voice(c, config, epoch, e),
+            "ApplyAllocation" if config.domain.starts_with("B:") => apply_allocation_with_ingress(
+                c,
+                config,
+                epoch,
+                e_epoch,
+                e,
+                ingress_response_deadline,
+            ),
+            "BindVoice" if config.domain.starts_with("B:") => {
+                bind_voice(c, config, epoch, e, ingress_response_deadline)
+            }
             "ReadView" | "Watch" | "QueryFact" | "QueryAllocation" | "QueryVoice"
             | "QueryDecision" | "QueryGrant" => read(c, config, epoch, runtime, &e["payload"]),
             _ => Err("SchemaUnsupported：操作不属于本域".into()),
@@ -747,9 +804,23 @@ pub fn cli(is_b: bool) -> Result<(), String> {
             } else {
                 validate_v1
             };
-            serve_unix(&config.socket, bounds, validator, |e| {
-                handle(&mut c, &config, epoch, e_epoch, &runtime, &e)
-            })?;
+            if config.revision()? == SCHEMA_V2 {
+                serve_unix_with_deadline(&config.socket, bounds, validator, |e, deadline| {
+                    handle_with_deadline(
+                        &mut c,
+                        &config,
+                        epoch,
+                        e_epoch,
+                        &runtime,
+                        e,
+                        Some(deadline),
+                    )
+                })?;
+            } else {
+                serve_unix(&config.socket, bounds, validator, |e| {
+                    handle(&mut c, &config, epoch, e_epoch, &runtime, e)
+                })?;
+            }
         }
         _ => return Err("InvalidDomain：未知子命令".into()),
     }

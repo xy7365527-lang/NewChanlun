@@ -704,16 +704,19 @@ pub(crate) fn new_content_job(
 pub(crate) fn operation_deadline(
     config: &Config,
     job: &mut crate::s_content::job::Job,
+    ingress_response_deadline: Option<std::time::Instant>,
 ) -> Result<std::time::Instant, String> {
-    let started = std::time::Instant::now();
     let ms = u64::try_from(positive(
         required(&config.manifest["resources"], "response_timeout_ms")?,
         "response_timeout_ms",
     )?)
     .map_err(err)?;
-    let response = started
-        .checked_add(std::time::Duration::from_millis(ms))
-        .ok_or("InvalidDomain：经济响应绝对期限溢出")?;
+    let response = match ingress_response_deadline {
+        Some(trusted) => trusted,
+        None => std::time::Instant::now()
+            .checked_add(std::time::Duration::from_millis(ms))
+            .ok_or("InvalidDomain：内部经济响应绝对期限溢出")?,
+    };
     Ok(response.min(job.first_read_deadline().map_err(|e| e.to_string())?))
 }
 pub(crate) fn check_operation_deadline(

@@ -824,3 +824,34 @@ fn versioned_new_domain_is_explicit_and_does_not_rewrite_old_tables() {
         .unwrap()
         .contains("SchemaUnsupported"));
 }
+
+#[test]
+fn trusted_ingress_deadline_is_not_restarted_by_economic_job() {
+    use crate::s_content::job::{Existing, Job, JobLimits};
+    let fixture = Fixture::new("100");
+    let limits = JobLimits {
+        max_total_wire_bytes: 1000,
+        max_total_node_bytes: 1000,
+        max_total_nodes: 100,
+        max_total_records: 100,
+        max_total_requests: 100,
+        max_elapsed_ms: 1000,
+        max_staged_bytes: 1000,
+        max_store_bytes: 1000,
+    };
+    let mut job = Job::new(
+        limits,
+        Existing {
+            store_bytes: 0,
+            staged_bytes: 0,
+        },
+        Box::new(std::time::Instant::now),
+    )
+    .unwrap();
+    let ingress = std::time::Instant::now() - std::time::Duration::from_millis(20);
+    let effective = operation_deadline(&fixture.configs[0], &mut job, Some(ingress)).unwrap();
+    assert_eq!(effective, ingress);
+    assert!(check_operation_deadline(Some(&mut job), Some(effective))
+        .unwrap_err()
+        .contains("最早绝对期限"));
+}

@@ -1300,6 +1300,15 @@ pub(super) fn write(
     epoch: i64,
     e: &Value,
 ) -> Result<Value, String> {
+    write_with_ingress(c, config, epoch, e, None)
+}
+pub(super) fn write_with_ingress(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e: &Value,
+    ingress_response_deadline: Option<std::time::Instant>,
+) -> Result<Value, String> {
     let p = &e["payload"];
     validate_request(p)?;
     let k = key_for(config, p)?;
@@ -1309,7 +1318,7 @@ pub(super) fn write(
         None
     };
     let deadline = if let Some(job) = shared_job.as_mut() {
-        Some(operation_deadline(config, job)?)
+        Some(operation_deadline(config, job, ingress_response_deadline)?)
     } else {
         None
     };
@@ -1317,7 +1326,10 @@ pub(super) fn write(
     {
         let tx = immediate(c)?;
         check_epoch(&tx, epoch)?;
-        audit_with_deadline(&tx, config, shared_job.as_mut(), deadline)?;
+        // A queued retry may already be past its ingress response window.
+        // Audit local committed truth and return its original receipt first;
+        // only a genuinely new admission is subject to that deadline.
+        audit_with_job(&tx, config, shared_job.as_mut())?;
         if let Some(r) = super::service::previous_message(&tx, e)? {
             return Ok(r);
         }
@@ -1331,6 +1343,7 @@ pub(super) fn write(
     if p["writer_epoch"] != epoch.to_string() {
         return Err("StaleWriter：财务请求 writer_epoch 陈旧".into());
     }
+    check_operation_deadline(shared_job.as_mut(), deadline)?;
     if revision(&config.manifest)? == REV_V2 {
         return write_v2(
             c,

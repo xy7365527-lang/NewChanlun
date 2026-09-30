@@ -70,6 +70,38 @@ pub struct Job {
     pub envelope: Value,
     pub result: mpsc::SyncSender<Value>,
 }
+/// Trusted in-process metadata from the I/O thread. Never serialized into the
+/// public envelope, payload hash, request bytes, receipt or economic image.
+struct TimedJob {
+    job: Job,
+    response_deadline: Instant,
+}
+trait QueuedJob: Send {
+    fn result(&self) -> &mpsc::SyncSender<Value>;
+}
+impl QueuedJob for Job {
+    fn result(&self) -> &mpsc::SyncSender<Value> {
+        &self.result
+    }
+}
+impl QueuedJob for TimedJob {
+    fn result(&self) -> &mpsc::SyncSender<Value> {
+        &self.job.result
+    }
+}
+fn legacy_job(envelope: Value, result: mpsc::SyncSender<Value>, _: Instant) -> Job {
+    Job { envelope, result }
+}
+fn timed_job(
+    envelope: Value,
+    result: mpsc::SyncSender<Value>,
+    response_deadline: Instant,
+) -> TimedJob {
+    TimedJob {
+        job: Job { envelope, result },
+        response_deadline,
+    }
+}
 // #1374 TestOnly：默认完全关闭，记录输送阶段且不进入公共回复或权威数据库。
 // 每连接最多2048条读事件；只存长度/摘要/OS状态，不存原始业务内容。
 struct ReadTrace {
@@ -447,9 +479,12 @@ pub fn write_frame_observed(
     Ok(())
 }
 
-pub fn enqueue_before_deadline(
-    tx: &mpsc::SyncSender<Job>,
-    mut job: Job,
+pub fn enqueue_before_deadline(tx: &mpsc::SyncSender<Job>, job: Job, deadline: Instant) -> bool {
+    enqueue_before_deadline_inner(tx, job, deadline)
+}
+fn enqueue_before_deadline_inner<T>(
+    tx: &mpsc::SyncSender<T>,
+    mut job: T,
     deadline: Instant,
 ) -> bool {
     loop {
@@ -472,11 +507,30 @@ pub fn enqueue_before_deadline(
 }
 
 pub fn io_connection(
-    mut stream: UnixStream,
+    stream: UnixStream,
     tx: mpsc::SyncSender<Job>,
     bounds: TransportBounds,
     count: Arc<AtomicUsize>,
     validate: EnvelopeValidator,
+) {
+    io_connection_inner(stream, tx, bounds, count, validate, legacy_job)
+}
+fn io_connection_with_deadline(
+    stream: UnixStream,
+    tx: mpsc::SyncSender<TimedJob>,
+    bounds: TransportBounds,
+    count: Arc<AtomicUsize>,
+    validate: EnvelopeValidator,
+) {
+    io_connection_inner(stream, tx, bounds, count, validate, timed_job)
+}
+fn io_connection_inner<T: Send + 'static>(
+    mut stream: UnixStream,
+    tx: mpsc::SyncSender<T>,
+    bounds: TransportBounds,
+    count: Arc<AtomicUsize>,
+    validate: EnvelopeValidator,
+    make_job: fn(Value, mpsc::SyncSender<Value>, Instant) -> T,
 ) {
     struct Release(Arc<AtomicUsize>);
     impl Drop for Release {
@@ -491,11 +545,8 @@ pub fn io_connection(
         Ok(e) => {
             let response_deadline = Instant::now() + bounds.response;
             let (reply_tx, reply_rx) = mpsc::sync_channel(1);
-            let job = Job {
-                envelope: e,
-                result: reply_tx,
-            };
-            if !enqueue_before_deadline(&tx, job, response_deadline) {
+            let job = make_job(e, reply_tx, response_deadline);
+            if !enqueue_before_deadline_inner(&tx, job, response_deadline) {
                 return;
             }
             // 已入actor后，回包超期只结束此连接；不能撤销/重复权威工作。
@@ -534,10 +585,33 @@ pub fn serve_unix(
     validate: EnvelopeValidator,
     mut handler: impl FnMut(&Value) -> Value,
 ) -> Result<(), String> {
+    serve_unix_inner(socket, bounds, validate, legacy_job, |job: &Job| {
+        handler(&job.envelope)
+    })
+}
+/// New economic domain only: deliver the I/O thread's original response
+/// deadline to the actor as trusted memory context. It is never wire data.
+pub fn serve_unix_with_deadline(
+    socket: &Path,
+    bounds: TransportBounds,
+    validate: EnvelopeValidator,
+    mut handler: impl FnMut(&Value, Instant) -> Value,
+) -> Result<(), String> {
+    serve_unix_inner(socket, bounds, validate, timed_job, |job: &TimedJob| {
+        handler(&job.job.envelope, job.response_deadline)
+    })
+}
+fn serve_unix_inner<T: QueuedJob + 'static>(
+    socket: &Path,
+    bounds: TransportBounds,
+    validate: EnvelopeValidator,
+    make_job: fn(Value, mpsc::SyncSender<Value>, Instant) -> T,
+    mut handler: impl FnMut(&T) -> Value,
+) -> Result<(), String> {
     // 不擅自unlink既有socket：SIGKILL残留由监督器核路径/PID后清理。
     let listener = UnixListener::bind(socket)
         .map_err(|e| format!("TransportUnavailable：socket绑定失败 {e}"))?;
-    let (tx, rx) = mpsc::sync_channel::<Job>(bounds.queue);
+    let (tx, rx) = mpsc::sync_channel::<T>(bounds.queue);
     let count = Arc::new(AtomicUsize::new(0));
     let accept_bounds = bounds.clone();
     std::thread::spawn(move || {
@@ -559,12 +633,12 @@ pub fn serve_unix(
             let t = tx.clone();
             let b = accept_bounds.clone();
             let c = count.clone();
-            std::thread::spawn(move || io_connection(stream, t, b, c, validate));
+            std::thread::spawn(move || io_connection_inner(stream, t, b, c, validate, make_job));
         }
     });
     for job in rx {
-        let out = handler(&job.envelope);
-        let _ = job.result.try_send(out);
+        let out = handler(&job);
+        let _ = job.result().try_send(out);
     }
     Ok(())
 }
@@ -625,5 +699,35 @@ mod tests {
         assert!(started.elapsed() >= Duration::from_millis(30));
         assert!(started.elapsed() < Duration::from_millis(500));
         sender.shutdown(std::net::Shutdown::Write).unwrap();
+    }
+
+    #[test]
+    fn queued_unix_job_keeps_ingress_response_deadline_in_actor() {
+        let bounds = TransportBounds {
+            frame: 4096,
+            read: Duration::from_millis(100),
+            write: Duration::from_millis(100),
+            response: Duration::from_millis(10),
+            queue: 1,
+            connections: 1,
+        };
+        let (mut client, server) = UnixStream::pair().unwrap();
+        let (tx, rx) = mpsc::sync_channel::<TimedJob>(1);
+        let count = Arc::new(AtomicUsize::new(1));
+        let thread = std::thread::spawn(move || {
+            io_connection_with_deadline(server, tx, bounds, count, value_only)
+        });
+        client.write_all(b"{\"op\":\"probe\"}\n").unwrap();
+        client.shutdown(std::net::Shutdown::Write).unwrap();
+        let job = rx.recv_timeout(Duration::from_millis(100)).unwrap();
+        assert_eq!(job.job.envelope["op"], "probe");
+        // Receipt proves enqueue completed. Delay handler work for twice the
+        // response window after admission; a fresh now()+10ms would be wrong.
+        std::thread::sleep(Duration::from_millis(20));
+        assert!(Instant::now() >= job.response_deadline);
+        let local_reset = Instant::now() + Duration::from_millis(10);
+        assert!(local_reset > Instant::now());
+        assert!(job.job.result.try_send(json!({"ok":true})).is_err());
+        thread.join().unwrap();
     }
 }
