@@ -529,13 +529,14 @@ fn validate_request(p: &Value) -> Result<(), String> {
     Ok(())
 }
 fn proof(config: &Config, domain: &str, key: &str) -> Result<Value, String> {
-    proof_inner(config, domain, key, None)
+    proof_inner(config, domain, key, None, None)
 }
 fn proof_inner(
     config: &Config,
     domain: &str,
     key: &str,
     mut import: Option<(&mut super::content_store::Stage<'_>, &mut Job)>,
+    deadline: Option<std::time::Instant>,
 ) -> Result<Value, String> {
     if let Some((_, job)) = import.as_mut() {
         job.charge_requests(1).map_err(|e| e.to_string())?;
@@ -543,7 +544,11 @@ fn proof_inner(
     let other = domain_config(config, domain)?;
     let (mut c, _) = open(&other.db, true)?;
     let tx = c.transaction().map_err(err)?;
-    audit(&tx, &other)?;
+    if let Some((_, job)) = import.as_mut() {
+        audit_with_deadline(&tx, &other, Some(&mut **job), deadline)?;
+    } else {
+        audit(&tx, &other)?;
+    }
     let receipt = row(&tx, "receipts", key)?.ok_or("MissingDependency：原身份尚未持久")?;
     let seq = positive(required(&receipt["cut"], "commit_seq")?, "proof seq")?;
     let (prev, ns, raw): (String, String, String) = tx
@@ -563,6 +568,7 @@ fn proof_inner(
         .map_err(err)?;
     let result = json!({"current_cut":cut(&other,current_seq,&current_root),"current_previous_root":current_prev,"current_commit_ns":current_ns,"domain_id":domain,"receipt":receipt,"previous_root":prev,"commit_ns":ns,"image":strict_json(raw.as_bytes())?,"current_image":current_image,"current_epoch":meta(&tx,"writer_epoch")?,"current_epoch_at_ns":tx.query_row("SELECT at_ns FROM epochs ORDER BY epoch DESC LIMIT 1",[],|r|r.get::<_,String>(0)).map_err(err)?});
     if let Some((stage, job)) = import {
+        check_operation_deadline(Some(&mut *job), deadline)?;
         job.charge_wire_bytes(u64::try_from(canonical_json(&result).len()).map_err(err)?)
             .map_err(|e| e.to_string())?;
         let mut refs =
@@ -1297,11 +1303,21 @@ pub(super) fn write(
     let p = &e["payload"];
     validate_request(p)?;
     let k = key_for(config, p)?;
+    let mut shared_job = if revision(&config.manifest)? == REV_V2 {
+        Some(new_content_job(c, config)?)
+    } else {
+        None
+    };
+    let deadline = if let Some(job) = shared_job.as_mut() {
+        Some(operation_deadline(config, job)?)
+    } else {
+        None
+    };
     // DeliveryUnknown 原身份优先查回，外部证据不可读不能推翻已提交结果。
     {
         let tx = immediate(c)?;
         check_epoch(&tx, epoch)?;
-        audit(&tx, config)?;
+        audit_with_deadline(&tx, config, shared_job.as_mut(), deadline)?;
         if let Some(r) = super::service::previous_message(&tx, e)? {
             return Ok(r);
         }
@@ -1316,7 +1332,16 @@ pub(super) fn write(
         return Err("StaleWriter：财务请求 writer_epoch 陈旧".into());
     }
     if revision(&config.manifest)? == REV_V2 {
-        return write_v2(c, config, epoch, e);
+        return write_v2(
+            c,
+            config,
+            epoch,
+            e,
+            shared_job
+                .as_mut()
+                .ok_or("MissingDependency：新域操作 job 缺失")?,
+            deadline.ok_or("MissingDependency：新域最早期限缺失")?,
+        );
     }
     let raw = pinned_raw(config)?;
     let d = input(config, &raw)?;
@@ -1367,28 +1392,38 @@ pub(super) fn write(
     }
     persist(c, config, epoch, e, w)
 }
-fn write_v2(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Result<Value, String> {
+fn write_v2(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e: &Value,
+    job: &mut Job,
+    deadline: std::time::Instant,
+) -> Result<Value, String> {
+    // The initial published-history audit in `write` already succeeded under
+    // this owner lock. A stopped/expired Job cannot gate cleanup, so failure
+    // cleanup uses only the fixed carrier envelope and touches staging rows.
+    match write_v2_inner(c, config, epoch, e, job, deadline) {
+        Ok(receipt) => Ok(receipt),
+        Err(error) => match super::content_store::discard_unpublished(c, &config.db) {
+            Ok((removed, before, after)) => Err(format!("{error}; staged_cleanup rows={removed} allocated_before={before} allocated_after={after}")),
+            Err(cleanup) => Err(format!("{error}; staged_cleanup_pending_recover={cleanup}")),
+        },
+    }
+}
+fn write_v2_inner(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e: &Value,
+    job: &mut Job,
+    deadline: std::time::Instant,
+) -> Result<Value, String> {
     let p = &e["payload"];
     let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
         &config.manifest["finance"]["structure"]["reader_resources"],
     )?;
-    let existing = super::content_store::existing(c, &config.db).map_err(|e| e.to_string())?;
-    let mut job = Job::new(
-        resources.job_limits,
-        existing,
-        Box::new(std::time::Instant::now),
-    )
-    .map_err(|e| format!("Incomplete：E/B job 初始化失败：{e}"))?;
-    let job_deadline = job.first_read_deadline().map_err(|e| e.to_string())?;
-    let response_ms = u64::try_from(positive(
-        required(&config.manifest["resources"], "response_timeout_ms")?,
-        "response_timeout_ms",
-    )?)
-    .map_err(err)?;
-    let response_deadline = std::time::Instant::now()
-        .checked_add(std::time::Duration::from_millis(response_ms))
-        .ok_or("InvalidDomain：经济操作绝对期限溢出")?;
-    let deadline = job_deadline.min(response_deadline);
+    check_operation_deadline(Some(&mut *job), Some(deadline))?;
     let raw = pinned_raw(config)?;
     let d = input(config, &raw)?;
     let mut witness = json!({"input_raw":raw});
@@ -1442,7 +1477,14 @@ fn write_v2(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Resul
         "ImportResponsibility" | "AbortDecision" | "CloseApplicants" => (),
         _ => return Err("SchemaUnsupported：财务操作未知".into()),
     }
-    let token = format!("{}:{}:{}", config.domain, epoch, required(e, "message_id")?);
+    let token = format!(
+        "stg-{}",
+        hash(&json!([
+            config.domain,
+            epoch.to_string(),
+            required(e, "message_id")?
+        ]))
+    );
     let mut stage =
         super::content_store::Stage::new(c, &config.db, resources.job_limits, token.clone())
             .map_err(|e| format!("Incomplete：E/B 暂存不可用：{e}"))?;
@@ -1453,7 +1495,8 @@ fn write_v2(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Resul
                 config,
                 domain,
                 receipt_key,
-                Some((&mut stage, &mut job)),
+                Some((&mut stage, job)),
+                Some(deadline),
             )?);
         }
         if p["op"] == "Reserve" {
@@ -1472,14 +1515,23 @@ fn write_v2(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Resul
         let basis = super::financial_content::read_current(
             &config.manifest["finance"]["structure"],
             &object_ids,
-            &mut job,
+            job,
             deadline,
             &mut stage,
         )?;
         witness["structure"] = basis.evidence;
     }
     drop(stage);
-    persist_with_job(c, config, epoch, e, witness, Some(&mut job), Some(&token))
+    persist_with_job(
+        c,
+        config,
+        epoch,
+        e,
+        witness,
+        Some(job),
+        Some(&token),
+        Some(deadline),
+    )
 }
 fn persist(
     c: &mut Connection,
@@ -1488,7 +1540,7 @@ fn persist(
     e: &Value,
     w: Value,
 ) -> Result<Value, String> {
-    persist_with_job(c, config, epoch, e, w, None, None)
+    persist_with_job(c, config, epoch, e, w, None, None, None)
 }
 fn persist_with_job(
     c: &mut Connection,
@@ -1498,6 +1550,7 @@ fn persist_with_job(
     w: Value,
     mut job: Option<&mut Job>,
     stage_token: Option<&str>,
+    deadline: Option<std::time::Instant>,
 ) -> Result<Value, String> {
     let final_budget = if revision(&config.manifest)? == REV_V2 {
         let shared = job
@@ -1512,7 +1565,7 @@ fn persist_with_job(
     };
     let tx = immediate(c)?;
     check_epoch(&tx, epoch)?;
-    audit(&tx, config)?;
+    audit_with_deadline(&tx, config, job.as_deref_mut(), deadline)?;
     if e["payload"]["writer_epoch"] != epoch.to_string() {
         return Err("StaleWriter：财务 writer 已换代".into());
     }
@@ -1559,6 +1612,7 @@ fn persist_with_job(
     put(&tx, "receipts", &k, &r)?;
     super::service::bind_message(&tx, e, &k)?;
     config.pause(required(e, "message_id")?, "before_commit")?;
+    check_operation_deadline(job.as_deref_mut(), deadline)?;
     tx.commit().map_err(err)?;
     if let Some((grant, before, ceiling)) = final_budget {
         super::content_store::reconcile_final(

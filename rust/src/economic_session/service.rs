@@ -193,13 +193,14 @@ fn capture(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Result
     Ok(receipt)
 }
 fn authoritative_fact(config: &Config, key: &str, expected_epoch: i64) -> Result<Value, String> {
-    authoritative_fact_inner(config, key, expected_epoch, None)
+    authoritative_fact_inner(config, key, expected_epoch, None, None)
 }
 fn authoritative_fact_inner(
     config: &Config,
     key: &str,
     expected_epoch: i64,
     mut import: Option<(&mut super::content_store::Stage<'_>, &mut Job)>,
+    deadline: Option<std::time::Instant>,
 ) -> Result<Value, String> {
     if let Some((_, job)) = import.as_mut() {
         job.charge_requests(1).map_err(|e| e.to_string())?;
@@ -212,7 +213,11 @@ fn authoritative_fact_inner(
     let (mut c, _) = open(&ec.db, true)?;
     let tx = c.transaction().map_err(err)?;
     check_epoch(&tx, expected_epoch)?;
-    audit(&tx, &ec)?;
+    if let Some((_, job)) = import.as_mut() {
+        audit_with_deadline(&tx, &ec, Some(&mut **job), deadline)?;
+    } else {
+        audit(&tx, &ec)?;
+    }
     let mut f = row(&tx, "facts", key)?.ok_or("MissingDependency：固定E权威不存在该原事实")?;
     let r = row(&tx, "receipts", key)?.ok_or("StorageUnavailable：域损坏：固定E缺原回执")?;
     verify_record(&f)?;
@@ -232,6 +237,7 @@ fn authoritative_fact_inner(
     f["e_commit_proof"] = json!({"previous_root":previous_root,"commit_ns":commit_ns,"image":crate::session_protocol::strict_json(image.as_bytes())?});
     verify_e_copy(&f, config)?;
     if let Some((stage, job)) = import {
+        check_operation_deadline(Some(&mut *job), deadline)?;
         job.charge_wire_bytes(u64::try_from(canonical_json(&f).len()).map_err(err)?)
             .map_err(|e| e.to_string())?;
         let refs = super::content_store::image_refs(&f["e_commit_proof"]["image"])
@@ -249,6 +255,26 @@ fn apply_allocation(
     e_epoch: i64,
     e: &Value,
 ) -> Result<Value, String> {
+    let mut audited = false;
+    match apply_allocation_inner(c, config, epoch, e_epoch, e, &mut audited) {
+        Ok(receipt) => Ok(receipt),
+        Err(error) if config.revision()? == SCHEMA_V2 && audited => {
+            match super::content_store::discard_unpublished(c, &config.db) {
+                Ok((removed, before, after)) => Err(format!("{error}; staged_cleanup rows={removed} allocated_before={before} allocated_after={after}")),
+                Err(cleanup) => Err(format!("{error}; staged_cleanup_pending_recover={cleanup}")),
+            }
+        }
+        Err(error) => Err(error),
+    }
+}
+fn apply_allocation_inner(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e_epoch: i64,
+    e: &Value,
+    audited: &mut bool,
+) -> Result<Value, String> {
     let p = &e["payload"];
     exact(
         p,
@@ -257,11 +283,22 @@ fn apply_allocation(
     let key = required(p, "fact_key")?;
     let allocation = required(p, "allocation_id")?;
     required(p, "expected_fact_hash")?;
+    let mut import_job = if config.revision()? == SCHEMA_V2 {
+        Some(new_content_job(c, config)?)
+    } else {
+        None
+    };
+    let deadline = if let Some(job) = import_job.as_mut() {
+        Some(operation_deadline(config, job)?)
+    } else {
+        None
+    };
     // #1374：已提交身份先从本域查回，不让当前E故障抹掉原成功。
     {
         let tx = immediate(c)?;
         check_epoch(&tx, epoch)?;
-        audit(&tx, config)?;
+        audit_with_deadline(&tx, config, import_job.as_mut(), deadline)?;
+        *audited = true;
         if let Some(r) = previous_message(&tx, e)? {
             return Ok(r);
         }
@@ -279,29 +316,16 @@ fn apply_allocation(
     }
     // 固定 E 只读审计发生在 B 写事务之外；无跨域写锁、无 ATTACH。
     // 新域在同一只读捕获内把该 E 提交图像全部历史引用导入本 B owner。
-    let mut import_job = if config.revision()? == SCHEMA_V2 {
-        let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
-            &config.manifest["finance"]["structure"]["reader_resources"],
-        )?;
-        let existing = super::content_store::existing(c, &config.db).map_err(|e| e.to_string())?;
-        Some(
-            Job::new(
-                resources.job_limits,
-                existing,
-                Box::new(std::time::Instant::now),
-            )
-            .map_err(|e| format!("Incomplete：ApplyAllocation job 初始化失败：{e}"))?,
-        )
-    } else {
-        None
-    };
     let mut record = if let Some(job) = import_job.as_mut() {
         job.begin_first_read().map_err(|e| e.to_string())?;
-        let token = format!("apply:{}:{}", config.domain, allocation);
+        let token = format!(
+            "stg-{}",
+            hash(&json!([config.domain, epoch.to_string(), allocation]))
+        );
         let mut stage =
             super::content_store::Stage::new(c, &config.db, job.snapshot().limits, token)
                 .map_err(|e| format!("Incomplete：B 内容暂存不可用：{e}"))?;
-        authoritative_fact_inner(config, key, e_epoch, Some((&mut stage, job)))?
+        authoritative_fact_inner(config, key, e_epoch, Some((&mut stage, job)), deadline)?
     } else {
         authoritative_fact(config, key, e_epoch)?
     };
@@ -321,7 +345,7 @@ fn apply_allocation(
     };
     let tx = immediate(c)?;
     check_epoch(&tx, epoch)?;
-    audit(&tx, config)?;
+    audit_with_deadline(&tx, config, import_job.as_mut(), deadline)?;
     if row(&tx, "facts", key)?.is_some() || row(&tx, "receipts", allocation)?.is_some() {
         return Err("IdentityConflict：事实已消费".into());
     }
@@ -373,6 +397,7 @@ fn apply_allocation(
     put(&tx, "receipts", allocation, &receipt)?;
     bind_message(&tx, e, allocation)?;
     config.pause(required(e, "message_id")?, "before_commit")?;
+    check_operation_deadline(import_job.as_mut(), deadline)?;
     tx.commit().map_err(err)?;
     if let Some((grant, before, ceiling)) = final_budget {
         super::content_store::reconcile_final(

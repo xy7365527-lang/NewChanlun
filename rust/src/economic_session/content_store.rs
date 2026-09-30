@@ -137,6 +137,38 @@ fn pragma_i64(c: &Connection, name: &str) -> Result<i64, CodecError> {
     c.query_row(&format!("PRAGMA {name}"), [], |row| row.get(0))
         .map_err(io)
 }
+/// Leave two bounded full-page WAL/checkpoint envelopes unused for deletion
+/// after a failed stage, including a killed process resumed by recover.
+/// This intentionally narrows the named 16 MiB HFS trial's usable DB pages.
+fn cleanup_room(c: &Connection, db: &Path, include_next_write: bool) -> Result<(), CodecError> {
+    let pages = u128::from(u64::try_from(pragma_i64(c, "max_page_count")?).map_err(io)?);
+    let size = u128::from(u64::try_from(pragma_i64(c, "page_size")?).map_err(io)?);
+    let one = pages * (size + 24) + 65536;
+    let needed = if include_next_write { 4 * one } else { 2 * one };
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let parent = db.parent().ok_or_else(|| error("DB has no parent"))?;
+        let path = std::ffi::CString::new(parent.as_os_str().as_bytes()).map_err(io)?;
+        let mut vfs = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+        if unsafe { libc::statvfs(path.as_ptr(), vfs.as_mut_ptr()) } != 0 {
+            return Err(io(std::io::Error::last_os_error()));
+        }
+        let vfs = unsafe { vfs.assume_init() };
+        let free = u128::from(vfs.f_bavail) * u128::from(vfs.f_frsize);
+        if free < needed {
+            return Err(error(format!(
+                "fixed carrier lacks prepaid cleanup room: free={free}, needed={needed}"
+            )));
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (db, needed);
+        Err(error("cleanup room requires fixed HFS carrier"))
+    }
+}
 fn format_guard(c: &Connection) -> Result<(), CodecError> {
     let revision: String = c
         .query_row("SELECT v FROM meta WHERE k='schema_revision'", [], |r| {
@@ -244,7 +276,9 @@ pub(super) fn configure(c: &Connection, db: &Path, limits: JobLimits) -> Result<
                 "fixed carrier capacity exceeds frozen staged/store limits",
             ));
         }
-        let max_pages = capacity / page_size;
+        // A page cap derived from this carrier, with room for a complete
+        // failed transaction and a separate cleanup/checkpoint transaction.
+        let max_pages = capacity / (8 * (page_size + 24));
         if max_pages == 0 || u64::try_from(pragma_i64(c, "page_count")?).map_err(io)? > max_pages {
             return Err(error("current economic DB cannot fit fixed carrier"));
         }
@@ -367,7 +401,9 @@ impl FinancialStage for Stage<'_> {
             }
             return Ok(());
         }
+        cleanup_room(self.c, &self.db, true)?;
         charged_checkpoint(self.c, &self.db, job, self.ceiling, true)?;
+        cleanup_room(self.c, &self.db, true)?;
         let before = allocated(&self.db)?;
         let worst = self
             .ceiling
@@ -393,6 +429,7 @@ impl FinancialStage for Stage<'_> {
         job.reconcile(&reservation, after.saturating_sub(before))?;
         check?;
         wal_empty(&self.db)?;
+        cleanup_room(self.c, &self.db, false)?;
         if after > self.ceiling {
             return Err(error(
                 "actual SQLite allocation exceeded fixed carrier capacity",
@@ -500,8 +537,8 @@ fn evidence_root(value: &serde_json::Value) -> Result<ContentRef, CodecError> {
 }
 /// Enumerate only the schema paths sanctioned by C5.7. Peer images are walked
 /// as captured, without changing their bytes or searching arbitrary field names.
-pub(super) fn image_refs(image: &serde_json::Value) -> Result<Vec<ContentRef>, CodecError> {
-    let mut refs = Vec::new();
+fn image_evidence(image: &serde_json::Value) -> Result<Vec<&serde_json::Value>, CodecError> {
+    let mut evidence = Vec::new();
     let mut images = vec![image];
     while let Some(i) = images.pop() {
         let history = i["history"]
@@ -510,7 +547,7 @@ pub(super) fn image_refs(image: &serde_json::Value) -> Result<Vec<ContentRef>, C
         for event in history {
             if let Some(witness) = event.get("witness") {
                 if let Some(structure) = witness.get("structure") {
-                    refs.push(evidence_root(structure)?);
+                    evidence.push(structure);
                 }
                 if let Some(proofs) = witness.get("prepared_proofs") {
                     for proof in proofs
@@ -546,7 +583,7 @@ pub(super) fn image_refs(image: &serde_json::Value) -> Result<Vec<ContentRef>, C
                 .get("record")
                 .and_then(|r| r.get("structure_evidence"))
             {
-                refs.push(evidence_root(structure)?);
+                evidence.push(structure);
             }
         }
         if let Some(finance) = i.get("finance") {
@@ -555,7 +592,7 @@ pub(super) fn image_refs(image: &serde_json::Value) -> Result<Vec<ContentRef>, C
                 .ok_or_else(|| error("finance decisions is not array"))?
             {
                 if let Some(structure) = decision.get("structure_evidence") {
-                    refs.push(evidence_root(structure)?);
+                    evidence.push(structure);
                 }
             }
         }
@@ -572,17 +609,28 @@ pub(super) fn image_refs(image: &serde_json::Value) -> Result<Vec<ContentRef>, C
             }
         }
     }
-    Ok(refs)
+    Ok(evidence)
+}
+pub(super) fn image_refs(image: &serde_json::Value) -> Result<Vec<ContentRef>, CodecError> {
+    image_evidence(image)?
+        .into_iter()
+        .map(evidence_root)
+        .collect()
 }
 /// Offline closure audit reads only this owner's immutable table. It never
 /// asks S or a peer, and a missing nested historical node rejects recovery.
 pub(super) fn verify_image(
     c: &Connection,
     image: &serde_json::Value,
+    structure: &serde_json::Value,
     job: &mut Job,
 ) -> Result<(), CodecError> {
     format_guard(c)?;
-    let refs = image_refs(image)?;
+    let evidence = image_evidence(image)?;
+    let refs: Vec<ContentRef> = evidence
+        .iter()
+        .map(|e| evidence_root(e))
+        .collect::<Result<_, _>>()?;
     if refs.is_empty() {
         return Ok(());
     }
@@ -593,6 +641,13 @@ pub(super) fn verify_image(
     };
     let mut metered = s_content::job::JobNodeSource::new(job, &mut source);
     s_content::verify_many(&mut metered, refs)?;
+    // The codec proves anonymous reachable nodes. Each actual six-family row
+    // visit is separately checked and charged by the financial validator.
+    for item in evidence {
+        let mut local = PublishedSource { c };
+        super::financial_content::verify_evidence(structure, item, &mut local, job, None)
+            .map_err(error)?;
+    }
     Ok(())
 }
 
@@ -659,7 +714,9 @@ pub(super) fn reserve_final(
     job: &mut Job,
 ) -> Result<(crate::s_content::job::Grant, u64, u64), CodecError> {
     let ceiling = configure(c, db, job.snapshot().limits)?;
+    cleanup_room(c, db, true)?;
     charged_checkpoint(c, db, job, ceiling, false)?;
+    cleanup_room(c, db, true)?;
     let before = allocated(db)?;
     let worst = ceiling
         .checked_sub(before)
@@ -689,4 +746,36 @@ pub(super) fn reconcile_final(
         ));
     }
     Ok(actual)
+}
+
+/// Drop only unreachable staging rows after this owner has already audited all
+/// committed image roots against `content_nodes` under its single-writer lock.
+/// This cleanup deliberately does not consult a stopped Job or delete a
+/// published node. The fixed HFS carrier remains the prepaid hard envelope.
+pub(super) fn discard_unpublished(
+    c: &mut Connection,
+    db: &Path,
+) -> Result<(i64, u64, u64), CodecError> {
+    format_guard(c)?;
+    let ceiling = carrier_capacity(db)?;
+    let before = allocated(db)?;
+    let tx = c.transaction().map_err(io)?;
+    let removed = discard_in_transaction(&tx)?;
+    tx.commit().map_err(io)?;
+    let after = allocated(db)?;
+    if after > ceiling {
+        return Err(error("failed-job cleanup exceeded fixed carrier"));
+    }
+    Ok((removed, before, after))
+}
+/// Recovery calls this only after its independent full published-history audit.
+pub(super) fn discard_in_transaction(tx: &Transaction<'_>) -> Result<i64, CodecError> {
+    format_guard(tx)?;
+    let count: i64 = tx
+        .query_row("SELECT count(*) FROM content_staging", [], |r| r.get(0))
+        .map_err(io)?;
+    if count > 0 {
+        tx.execute("DELETE FROM content_staging", []).map_err(io)?;
+    }
+    Ok(count)
 }

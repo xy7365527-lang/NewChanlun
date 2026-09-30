@@ -678,7 +678,87 @@ fn sorted(mut a: Vec<Value>) -> Vec<String> {
 }
 /// 全域审计：表集合、meta、全历史根、来源原件、每步重放、当前物化表与永久回执关系。
 pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
+    let mut independent = if config.revision()? == SCHEMA_V2 {
+        Some(new_content_job(c, config)?)
+    } else {
+        None
+    };
+    audit_with_job(c, config, independent.as_mut())
+}
+pub(crate) fn new_content_job(
+    c: &Connection,
+    config: &Config,
+) -> Result<crate::s_content::job::Job, String> {
+    let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
+        &config.manifest["finance"]["structure"]["reader_resources"],
+    )?;
+    let existing = super::content_store::existing(c, &config.db)
+        .map_err(|e| format!("StorageUnavailable：内容资源基线：{e}"))?;
+    crate::s_content::job::Job::new(
+        resources.job_limits,
+        existing,
+        Box::new(std::time::Instant::now),
+    )
+    .map_err(|e| format!("Incomplete：内容 job：{e}"))
+}
+pub(crate) fn operation_deadline(
+    config: &Config,
+    job: &mut crate::s_content::job::Job,
+) -> Result<std::time::Instant, String> {
+    let started = std::time::Instant::now();
+    let ms = u64::try_from(positive(
+        required(&config.manifest["resources"], "response_timeout_ms")?,
+        "response_timeout_ms",
+    )?)
+    .map_err(err)?;
+    let response = started
+        .checked_add(std::time::Duration::from_millis(ms))
+        .ok_or("InvalidDomain：经济响应绝对期限溢出")?;
+    Ok(response.min(job.first_read_deadline().map_err(|e| e.to_string())?))
+}
+pub(crate) fn check_operation_deadline(
+    mut job: Option<&mut crate::s_content::job::Job>,
+    deadline: Option<std::time::Instant>,
+) -> Result<(), String> {
+    if let Some(job) = job.as_deref_mut() {
+        job.pre_io_check()
+            .map_err(|e| format!("Incomplete：经济job已停止：{e}"))?;
+    }
+    if deadline.is_some_and(|at| std::time::Instant::now() >= at) {
+        return Err("Incomplete：经济操作最早绝对期限已过".into());
+    }
+    Ok(())
+}
+/// The caller's one operation Job covers local history and peer audits.
+/// Only independent recovery/read work creates its own Job via `audit`.
+pub(crate) fn audit_with_job(
+    c: &Connection,
+    config: &Config,
+    shared_job: Option<&mut crate::s_content::job::Job>,
+) -> Result<(), String> {
+    audit_with_deadline(c, config, shared_job, None)
+}
+pub(crate) fn audit_with_deadline(
+    c: &Connection,
+    config: &Config,
+    mut shared_job: Option<&mut crate::s_content::job::Job>,
+    deadline: Option<std::time::Instant>,
+) -> Result<(), String> {
     let revision = config.revision()?;
+    if revision == SCHEMA_V2 {
+        let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
+            &config.manifest["finance"]["structure"]["reader_resources"],
+        )?;
+        let job = shared_job
+            .as_deref_mut()
+            .ok_or("MissingDependency：新域审计缺共同 job")?;
+        if job.snapshot().limits != resources.job_limits {
+            return Err("IdentityConflict：新域审计 job 限额与冻结 manifest 不同".into());
+        }
+        job.begin_first_read()
+            .map_err(|e| format!("Incomplete：审计起钟：{e}"))?;
+    }
+    check_operation_deadline(shared_job.as_deref_mut(), deadline)?;
     let expected = Connection::open_in_memory().map_err(err)?;
     expected.execute_batch(SQL).map_err(err)?;
     if revision == SCHEMA_V2 {
@@ -813,24 +893,8 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
     let mut previous_image = super::finance::empty(config)?;
     let mut last_ns = -1;
     let mut seen = 0i64;
-    let mut audit_job = if revision == SCHEMA_V2 {
-        let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
-            &config.manifest["finance"]["structure"]["reader_resources"],
-        )?;
-        let existing = super::content_store::existing(c, &config.db)
-            .map_err(|e| format!("StorageUnavailable：审计资源基线：{e}"))?;
-        Some(
-            crate::s_content::job::Job::new(
-                resources.job_limits,
-                existing,
-                Box::new(std::time::Instant::now),
-            )
-            .map_err(|e| format!("Incomplete：审计 job：{e}"))?,
-        )
-    } else {
-        None
-    };
     for r in rs {
+        check_operation_deadline(shared_job.as_deref_mut(), deadline)?;
         let (seq, prev, h, ns, raw) = r.map_err(err)?;
         let image = strict_json(raw.as_bytes())?;
         let n = nonnegative(&ns, "commit_ns")?;
@@ -845,8 +909,9 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
             super::content_store::verify_image(
                 c,
                 &image,
-                audit_job
-                    .as_mut()
+                &config.manifest["finance"]["structure"],
+                shared_job
+                    .as_deref_mut()
                     .ok_or("MissingDependency：审计 job 缺失")?,
             )
             .map_err(|e| format!("StorageUnavailable：本地内容闭包审计失败：{e}"))?;
@@ -869,7 +934,7 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
                     event,
                     seq,
                     &ns,
-                    audit_job.as_mut(),
+                    shared_job.as_deref_mut(),
                 )?
             {
                 return Err("StorageUnavailable：财务重放不等于完整提交图像".into());
@@ -925,6 +990,7 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
         last_ns = n;
         seen += 1;
     }
+    check_operation_deadline(shared_job.as_deref_mut(), deadline)?;
     if seen == 0 {
         return Err("StorageUnavailable：域损坏：无创世提交".into());
     }
@@ -1279,8 +1345,19 @@ pub(crate) fn verify_record(r: &Value) -> Result<(), String> {
 }
 pub(crate) fn recover(config: &Config) -> Result<Value, String> {
     let (mut c, runtime) = open(&config.db, false)?;
+    if config.revision()? == SCHEMA_V2 {
+        let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
+            &config.manifest["finance"]["structure"]["reader_resources"],
+        )?;
+        super::content_store::configure(&c, &config.db, resources.job_limits)
+            .map_err(|e| format!("Incomplete：恢复载体配置失败：{e}"))?;
+    }
     let tx = c.transaction().map_err(err)?;
     audit(&tx, config)?;
+    if config.revision()? == SCHEMA_V2 {
+        super::content_store::discard_in_transaction(&tx)
+            .map_err(|e| format!("Incomplete：恢复清理未发布节点失败：{e}"))?;
+    }
     let old = positive(&meta(&tx, "writer_epoch")?, "writer_epoch")?;
     let ns = config.clock(None, "recover_ns", (old - 1) as usize)?;
     let (_, _, last_ns, _) = latest(&tx)?;
