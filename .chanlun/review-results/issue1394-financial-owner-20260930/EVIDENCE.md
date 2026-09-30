@@ -26,6 +26,7 @@
 | 来源变化与同Job重读 | 当前产品副本、独立两组S/HFS，删400/1307可达缓存节点；staging=300时正式S advance到新basis/commit22。对象仍有效，Prepare合法提交一次并绑定新basis；另一组同Job两次读取成功，requests197→198、wire6577398→6615805、records900→918、elapsed52301→52833ms，同一绝对期限未过。1/1、108.34s；成功Prepare剩stage21、只读probe剩1161，均在recover后归0，不冒称提交即stage0 |
 | 正式Q3 HTTP与信号 | 当前产品release CLI query-serve，两鲜进程分别SIGTERM/SIGINT。每次7页/7非空行、独立qcut重算、37返回节点Hash和Watch1，均exit0且监听端口可重绑定；同一Q21档、S单bar副本不变。不是controller、浏览器、完整正文语义或在途停机验收 |
 | 冷审计行为锁 | 独占分支1836d3c38e9，仅state/driver cfg(test)两文件，独评PASS后整合dfab63cd95且两文件逐字相同。两条精确锁实际通过：同连接结果销毁后重审、重开连接和存活Driver请求均重读，损坏已发布节点后拒绝、恢复后通过；旧审计memo在正容量启用时retained/capture0且旧计数不增。提供旧计量映射依据，不等于七字段serve限额执法 |
+| 经济只读/2代码适配 | 固定d34dd1e0d2e的3后台Python文件及1测试文件整合为4325ab248b/219c4f2ab1，四文件与独审源码同字节。36协议/单元测试通过，初评新增函数类型注解缺口经仅签名/import返修解除，独立模块导入/注解求值及Spec/Standards通过；不代替正式Q/B实跑 |
 
 Book、Voice和已有20责任的 setup 仍为明确 library/TestOnly 前置，包含受控权威/操作结果。实际金融步骤没有伪造 grant或手工置 Committed；本证据不成为形式化γ、完整经营模型或生产资金政策。CLI运行原件、原始结果及SHA清单见 [RESULTS.json](RESULTS.json)。
 
@@ -43,6 +44,8 @@ Q探针首次把wire的hex tag按十进制读取，并把TCP TIME_WAIT误作监�
 
 冷审计源读114094是HashReader回落到SQLite的实际调用数，不是磁盘I/O或唯一节点数；F调用266797覆盖本线程全部Hash，也不是独占审计Hash账。库/WAL/SHM只在操作后采样，未声称峰值。生成器LANE、SQLite和OS缓存均不在旧审计memo零保留声明内；原输入、clock、阶段数据和两份恢复后的库副本在inputs/COLD-AUDIT-RAW.zip。新增测试及来源/Q原件限定独评Spec/Standards PASS，见inputs/INDEPENDENT-SUPPLEMENT-REVIEW.md；无新改动或疑点，未重跑已通过案例。
 
+只读适配按冻结manifest的显式protocol_revision分派，absent/null继续/1，不从finance或响应猜版本；/2必须配finance/2，未知/混搭拒绝。E/B/Q回执沿同一严格namespace、原请求Hash与因果绑定核心；HTTP既有discovery字段集合与版号保持，只让原finance_revision值准确反映/2。只读Q源的原白名单门没有放宽，不允许借具备写操作的source冒用。原模板仅有写source，实际新Q运行需要初始化前冻结独立只读源和新manifest，不能热改原库。红/绿与返修原件集中在inputs/READONLY-V2-RAW.zip；缺少ruff/mypy/pylint/black/bandit的事实保留，未称这些工具通过或已运行正式服务。
+
 ## 仍未完成
 
-本片仍需S3 writer具名资源与七字段实际执法、经济只读查询从旧/1到新/2的严格接线、controller/完整同源查询及累计历史/全资源和9011双跑。条件FIFO/稳定点归已裁定的#1416，依其原生前置推进，不当成#1394的新政策待裁。其它TB与六Destination仍未验收。未跑远端CI或本轮DevSkim，不把既有告警或其它票扫描归零。没有改变1349未定公用资金/cap政策与真实场所权限。
+本片仍需S3 writer具名资源与七字段实际执法、独立只读Q授权新域的真实/2 HTTP观察路径、controller/完整同源查询及累计历史/全资源和9011双跑。条件FIFO/稳定点归已裁定的#1416，依其原生前置推进，不当成#1394的新政策待裁。其它TB与六Destination仍未验收。未跑远端CI或本轮DevSkim，不把既有告警或其它票扫描归零。没有改变1349未定公用资金/cap政策与真实场所权限。

@@ -1,0 +1,34 @@
+{
+  "ticket": 1394,
+  "base_commit": "909ccff13abaed83be3c939ab7459d52ff4afee5",
+  "implementation_commit": "abada33caefef1e3e03d1592352101b99c03ca1e",
+  "final_commit": "d34dd1e0d2e4600e460d8d13e158a3a2cdaea3f1",
+  "original_results": "RESULTS.json",
+  "original_patch": "PATCH.diff",
+  "original_hashes": "SHA256SUMS",
+  "minimal_review_fix": {
+    "reviewer": "/root/economic_v2_python_review",
+    "role": "python-reviewer",
+    "file": "s_session/economic_query.py",
+    "change": "仅新增Mapping import与economic_revisions真实输入/返回注解；不改既有函数或行为",
+    "signature": "economic_revisions(manifest: Mapping[str, object]) -> tuple[str, str]",
+    "source_sha256": "b785373284ee7aac5c786dfb0acc39ce0bff5c40ddf197f4c647c1a3d5b09b1e",
+    "py_compile_exit": 0,
+    "stdout": "type-fix-compile.stdout",
+    "stderr": "type-fix-compile.stderr",
+    "behavior_tests_reused": "原实现36项通过；注解不改变运行行为，按Root指令不重复全套"
+  },
+  "unchanged_source_sha256": {
+    "s_session/s_socket_client.py": "8fb63a14d131452e09b2ab3e4aeddef1c1cbf922ca641ec5a13a7db729b4a1e2",
+    "s_session/economic_http.py": "1c88fac07338258fae1b18cf9e13e8eed5d0b6e4c38fe1393ac9f7ebc275fedd",
+    "s_session/tests/test_tb03b_query.py": "de8770fe1776ac77d28e7d983e031ffab101cd077da51d8bf918bef5f4800653"
+  },
+  "final_patch": "FINAL-PATCH.diff",
+  "final_hashes": "FINAL-SHA256SUMS",
+  "formal_q_b_runtime_claim": false,
+  "browser_asset_changes": false,
+  "rust_changes": false,
+  "policy_or_resource_defaults_added": false,
+  "main_merged": false,
+  "pushed": false
+}
