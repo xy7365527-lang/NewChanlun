@@ -458,6 +458,10 @@ fn read_once(
         job.charge_records(1).map_err(codec)?;
     }
     result.selected_objects = selected;
+    job.pre_io_check().map_err(codec)?;
+    if Instant::now() >= deadline {
+        return Err("Incomplete：经济操作在财务校验完成前到期".into());
+    }
     Ok(result)
 }
 
@@ -864,24 +868,39 @@ fn download(
         };
         let mut offset = 0;
         loop {
-            let limit = if unit == Unit::Value {
+            let mut limit = if unit == Unit::Value {
                 1
             } else {
                 page_limit(&pins.resources, reference.kind).min(sc::MAX_FRAME_LEN - offset)
             };
-            let fragment = fetch_page(
-                pins,
-                root,
-                anchor,
-                &path,
-                Some(&reference),
-                unit,
-                offset,
-                limit,
-                job,
-                deadline,
-                stage,
-            )?;
+            let fragment = loop {
+                match fetch_page(
+                    pins,
+                    root,
+                    anchor,
+                    &path,
+                    Some(&reference),
+                    unit,
+                    offset,
+                    limit,
+                    job,
+                    deadline,
+                    stage,
+                ) {
+                    Ok(fragment) => break fragment,
+                    Err(error)
+                        if limit > 1
+                            && (error
+                                .starts_with("Incomplete：财务 reader 回复超过冻结字节上限")
+                                || error
+                                    .starts_with("MissingDependency：财务 reader 非成功退出")) =>
+                    {
+                        // A smaller range still uses the same strict proof and the same Job.
+                        limit = limit.div_ceil(2);
+                    }
+                    Err(error) => return Err(error),
+                }
+            };
             if fragment.total != total {
                 return Err("IdentityConflict：同一目标 total 改变".into());
             }
@@ -1312,4 +1331,113 @@ fn accept_page_reply(
     .map_err(codec)?;
     import_proof(&fragment.nodes, stage, job)?;
     Ok(fragment)
+}
+
+#[cfg(test)]
+mod fresh_small_tests {
+    use super::*;
+    use crate::s_content::{
+        job::{Existing, JobLimits},
+        MemoryNodes, NodeSink,
+    };
+    use std::time::Duration;
+
+    struct Stage(MemoryNodes);
+    impl NodeSource for Stage {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+            self.0.read(digest)
+        }
+    }
+    impl FinancialStage for Stage {
+        fn put_budgeted(
+            &mut self,
+            job: &mut Job,
+            digest: NodeDigest,
+            tag: u8,
+            body: &[u8],
+        ) -> Result<(), CodecError> {
+            // TestOnly approximation; this does not certify owner physical allocation.
+            let bytes = body.len() as u64 + 128;
+            let grant = job.reserve_staged(bytes)?;
+            self.0.put(digest, tag, body)?;
+            job.reconcile(&grant, bytes)
+        }
+    }
+    #[test]
+    #[ignore = "requires the frozen TestOnly single-bar S3 fixture"]
+    fn empty_stage_full_download_and_offline_restore() {
+        let input_path = std::env::var("FINANCIAL_SMALL_INPUTS").expect("small INPUTS path");
+        let resource_path =
+            std::env::var("FINANCIAL_SMALL_RESOURCES").expect("small RESOURCES path");
+        let inputs = strict_json(&std::fs::read(input_path).unwrap()).unwrap();
+        let resources = strict_json(&std::fs::read(resource_path).unwrap()).unwrap();
+        let db = inputs["source_db"].as_str().unwrap();
+        let original_db = Sha256::digest(std::fs::read(db).unwrap());
+        assert_eq!(
+            format!("{original_db:x}"),
+            inputs["source_db_sha256"].as_str().unwrap()
+        );
+        let structure = json!({"binary":inputs["binary"],"binary_sha256":inputs["binary_sha256"],
+            "db":inputs["source_db"],"session_id":inputs["session_id"],
+            "session_generation":inputs["session_generation"],"writer_epoch":inputs["writer_epoch"],
+            "reader_revision":"s-financial-basis/3","content_format":"s-content/1",
+            "reader_resources":resources});
+        let limits = JobLimits::from_canonical_json(&resources["job_limits"]).unwrap();
+        let mut job = Job::new(
+            limits,
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(Instant::now),
+        )
+        .unwrap();
+        let mut stage = Stage(MemoryNodes::new());
+        let id = inputs["object_id"].as_str().unwrap().to_owned();
+        let result = read_current(
+            &structure,
+            &[id.clone()],
+            &mut job,
+            Instant::now() + Duration::from_secs(180),
+            &mut stage,
+        )
+        .unwrap();
+        assert_eq!(result.evidence["basis_ref"], inputs["basis_ref"]);
+        assert_eq!(
+            result.snapshot_ref.to_transport_json(),
+            inputs["snapshot_ref"]
+        );
+        let profile_ref =
+            path::lookup_path(&mut stage, &result.snapshot_ref, &[field("profile_id")]).unwrap();
+        let profile = scalar_string(&mut stage, &profile_ref).unwrap();
+        let s_ref = json!({"schema_revision":"s-object-ref/2","object_id":id,
+            "object_hash":result.selected_objects[0].object_hash,"profile_id":profile});
+        let restored = verify_evidence(
+            &structure,
+            &result.evidence,
+            &mut stage,
+            &mut job,
+            Some(&s_ref),
+        )
+        .unwrap();
+        assert_eq!(restored.snapshot_ref, result.snapshot_ref);
+        assert_eq!(restored.selected_objects.len(), 1);
+        let usage = job.snapshot();
+        assert!(usage.requests > 1, "空暂存必须实际读取 financial-content");
+        assert!(usage.nodes >= 1307, "完整 basis 闭包未接纳");
+        println!(
+            "fresh_small requests={} wire={} nodes={} node_bytes={} records={} staged={} store={}",
+            usage.requests,
+            usage.wire_bytes,
+            usage.nodes,
+            usage.node_bytes,
+            usage.records,
+            usage.staged.exposure,
+            usage.store.exposure
+        );
+        assert_eq!(
+            Sha256::digest(std::fs::read(db).unwrap()).as_slice(),
+            original_db.as_slice()
+        );
+    }
 }
