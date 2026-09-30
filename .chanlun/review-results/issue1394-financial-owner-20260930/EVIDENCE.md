@@ -27,6 +27,7 @@
 | 正式Q3 HTTP与信号 | 当前产品release CLI query-serve，两鲜进程分别SIGTERM/SIGINT。每次7页/7非空行、独立qcut重算、37返回节点Hash和Watch1，均exit0且监听端口可重绑定；同一Q21档、S单bar副本不变。不是controller、浏览器、完整正文语义或在途停机验收 |
 | 冷审计行为锁 | 独占分支1836d3c38e9，仅state/driver cfg(test)两文件，独评PASS后整合dfab63cd95且两文件逐字相同。两条精确锁实际通过：同连接结果销毁后重审、重开连接和存活Driver请求均重读，损坏已发布节点后拒绝、恢复后通过；旧审计memo在正容量启用时retained/capture0且旧计数不增。提供旧计量映射依据，不等于七字段serve限额执法 |
 | 经济只读/2代码适配 | 固定d34dd1e0d2e的3后台Python文件及1测试文件整合为4325ab248b/219c4f2ab1，四文件与独审源码同字节。36协议/单元测试通过，初评新增函数类型注解缺口经仅签名/import返修解除，独立模块导入/注解求值及Spec/Standards通过；不代替正式Q/B实跑 |
+| 新只读Q授权真实经济HTTP | 新manifest初始化前冻结独立七读Q源；正式E/B服务产生非空Prepared→Reserve→Committed，实际HTTP的current/token/fixed/Watch/decision Original/grant Original共6次全部200。三域CompleteVector、/2公头Hash/因果、固定cut、责任90/locked30-40/无外效资格与Unix原件一致，原件full objects逐字段相同，owner before==after。最慢Watch15.569s、最大回复1078412B，均受原冻结10s单RPC/30s操作/2MiB回复约束；非browser或结构Q3路径 |
 
 Book、Voice和已有20责任的 setup 仍为明确 library/TestOnly 前置，包含受控权威/操作结果。实际金融步骤没有伪造 grant或手工置 Committed；本证据不成为形式化γ、完整经营模型或生产资金政策。CLI运行原件、原始结果及SHA清单见 [RESULTS.json](RESULTS.json)。
 
@@ -46,6 +47,10 @@ Q探针首次把wire的hex tag按十进制读取，并把TCP TIME_WAIT误作监�
 
 只读适配按冻结manifest的显式protocol_revision分派，absent/null继续/1，不从finance或响应猜版本；/2必须配finance/2，未知/混搭拒绝。E/B/Q回执沿同一严格namespace、原请求Hash与因果绑定核心；HTTP既有discovery字段集合与版号保持，只让原finance_revision值准确反映/2。只读Q源的原白名单门没有放宽，不允许借具备写操作的source冒用。原模板仅有写source，实际新Q运行需要初始化前冻结独立只读源和新manifest，不能热改原库。红/绿与返修原件集中在inputs/READONLY-V2-RAW.zip；缺少ruff/mypy/pylint/black/bandit的事实保留，未称这些工具通过或已运行正式服务。
 
+后续已在新隔离域完成真实HTTP。case1七类只读Unix测量成功，Q写请求实际被授权门拒绝且经济状态不变；首次HTTP只得到PartialVector，三个域因短socket别名被Q.resolve展开到129–133B而无法连接，错误原件保留，未改资源或产品。case2在初始化前使用真实短目录，canonical socket为32/36/35B，复用相同七读授权与原Q19/八项经济限额，必要新金融前置35.71s通过后6HTTP请求成功。case2没有重复case1的写负控，不将继承同权限说成第二次实测。
+
+独立manifest/resource/hash、实际CLI与HTTP请求/响应、失败诊断和回收记录见inputs/ECONOMIC-HTTP-MANIFEST.json及ECONOMIC-HTTP-RAW.zip。根核47个原件引用与6条真实HTTP公头/Hash/因果、三个latest cut/finance2及readonly before==after；源码与运行器没有为新case放宽。Q/E/B四进程全部停止/reap，两个case六卷普通detach，短目录回收；根live hdiutil核本任务挂载0。独立事实补审PASS，另离线重算token、6公头、12变化image Hash与native原件等价，见inputs/ECONOMIC-HTTP-INDEPENDENT-REVIEW.md。新HTTP不是任意路径可用性、全资源峰值、browser资产、新结构/3或独立完整证据闭包验证。
+
 ## 仍未完成
 
-本片仍需S3 writer具名资源与七字段实际执法、独立只读Q授权新域的真实/2 HTTP观察路径、controller/完整同源查询及累计历史/全资源和9011双跑。条件FIFO/稳定点归已裁定的#1416，依其原生前置推进，不当成#1394的新政策待裁。其它TB与六Destination仍未验收。未跑远端CI或本轮DevSkim，不把既有告警或其它票扫描归零。没有改变1349未定公用资金/cap政策与真实场所权限。
+本片仍需S3 writer具名资源与七字段实际执法、现有验收测试客户端严格消费/2及实际browser/controller、完整同源查询及累计历史/全资源和9011双跑。当前客户端仍只接受finance/1且没有独立证据闭包节点入口，不能仅放开版本就宣称全消费；现有页面与测试脚本的限定兼容归后台验收，产品新前端仍归#1460。条件FIFO/稳定点归已裁定的#1416，依其原生前置推进，不当成#1394的新政策待裁。其它TB与六Destination仍未验收。未跑远端CI或本轮DevSkim，不把既有告警或其它票扫描归零。没有改变1349未定公用资金/cap政策与真实场所权限。

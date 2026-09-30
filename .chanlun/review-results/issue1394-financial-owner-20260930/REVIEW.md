@@ -29,3 +29,7 @@ Owner初评三条HIGH：审计重开Job、提交期限未贯穿、失败stage未
 随后后台/2观察适配abada33cae由独立python-reviewer审查：Spec没有行为缺陷；按该工位类型标准，新增公共economic_revisions缺注解列为HIGH。最小d34dd1e0d2e仅补Mapping import与真实tuple[str,str]签名；独评对函数body AST、实际模块导入/typing.get_type_hints及四SHA复核，初版报告不改，最终Spec/Standards PASS。整合4325ab248b/219c4f2ab1的四文件与受审d34逐字相同，复用36项通过，不重复全套。
 
 两份Python独评及原红/绿和返修证据已加入封包，共36份inputs全部bytes/SHA已核。未安装或运行不可用的静态工具；原manifest仅有包含写操作的source，因此尚未进行正式Q/B观察，须另冻结新域的独立只读源。代码评审与单元向量不替代实际HTTP或浏览器路径。
+
+实际观察随后在初始化前增加独立只读Q源的新域完成。另一独立会话核47个封包引用、6真实HTTP标准库重Hash/cause/replyID、token、三域native image/cut/root对拍、12变化image Hash及2Original全对象等价，给限定事实PASS。它区分case1长canonical socket的PartialVector及Q writeDenied负控与case2同权限继承的成功，未计第二次写负控。资源Q19逐字与旧具名fixture相同，8经济限额不变；进程与6卷均回收。
+
+现有封包扩至41份inputs，全部bytes/SHA已核；实际HTTP与独评仅覆盖具名TestOnly样本。browser、独立完整内容闭包、全部资源/历史/9011及其它TB仍未由此证据结清。详见inputs/ECONOMIC-HTTP-INDEPENDENT-REVIEW.md；没有重跑已通过案例。

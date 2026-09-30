@@ -18,7 +18,8 @@
     "owner_standards": "PASS",
     "known_high_closed": true,
     "supplement_spec": "PASS_BOUNDED",
-    "supplement_standards": "PASS_BOUNDED"
+    "supplement_standards": "PASS_BOUNDED",
+    "actual_economic_http_facts": "PASS_BOUNDED"
   },
   "checks": {
     "root_client_index_regression": {
@@ -167,11 +168,41 @@
         "standards": "PASS",
         "initial_type_annotation_high_closed": true
       },
-      "formal_q_b_runtime": false,
+      "formal_q_b_runtime": true,
       "browser_assets_changed": false,
       "new_discovery_fields": false,
       "policy_or_resource_defaults_added": false,
       "scope": "explicit frozen manifest protocol/finance pairing; strict /2 E/B/Q namespace and hash/cause; old /1 absent/null/explicit remains; unit/code proof only"
+    },
+    "economic_readonly_v2_actual_http": {
+      "status": "PASS_BOUNDED",
+      "http_requests_passed": 6,
+      "all_http_status_200": true,
+      "case_manifest_sha256": "bb44978f91d9f3086d244e166d706abcd5a4b4488b1b0cbb1cc6ff73191a0602",
+      "economic_config_sha256": "9d43e290c9d1d53865a8ea45e3c7113bc1ea9bad1ca81d76655794390b06fe49",
+      "q19_resource_sha256": "36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64",
+      "max_elapsed_ms": 15568.529,
+      "max_reply_bytes_actual": 1078412,
+      "latest_vector": "CompleteVector E B:alpha B:beta",
+      "responsibility_total": "90",
+      "locked_amounts": {
+        "alpha": "30",
+        "beta": "40"
+      },
+      "execution_eligibility": "None",
+      "same_token_replay": true,
+      "fixed_cut_and_nonempty_watch": true,
+      "original_decision_and_grant_equal_native": true,
+      "readonly_q_auth_source": true,
+      "owner_before_equals_after": true,
+      "browser_verified": false,
+      "structure_q3_verified": false,
+      "source_memo_or_full_resource_claim": false,
+      "all_case_processes_reaped": true,
+      "all_case_volumes_detached": true,
+      "failure_case_preserved": "case1 PartialVector due Q canonical resolution of long symlink socket paths, no product or limit change; case2 uses short real directory",
+      "scope": "actual economic/2 API on new readonly-authorized TestOnly financial domain; not browser/frontend/independent full source closure/9011/whole graph",
+      "independent_fact_review": "PASS_BOUNDED_NAMED_DOMAIN"
     }
   },
   "failure_records": [
@@ -180,14 +211,15 @@
     "first formal CLI startup rejected too-long Unix socket path; no financial requests entered; new instance via frozen short path alias passed",
     "source drift attempt1 invalid manifest mutation before reader; attempts2/3 compiled old product snapshot and are not current product proof; fresh current attempt4 uses subset400/1307 cache holes; all old raw failures retained",
     "Q HTTP probe first failed its own hex tag interpretation/time-wait rebind, second SIGINT failed reading a partial log announcement; source scripts/failures retained; prior successful SIGTERM reused",
-    "Readonly /2 implementation red tests and initial missing public function type annotation kept; minimal typing-only repair independently verified with unchanged function AST and three unchanged source files; runtime tests reused"
+    "Readonly /2 implementation red tests and initial missing public function type annotation kept; minimal typing-only repair independently verified with unchanged function AST and three unchanged source files; runtime tests reused",
+    "First real economic /2 HTTP returned PartialVector because symlink sockets resolved to overlong canonical AF_UNIX paths; new initialized case uses real short directory with same product/resources; original case and unchanged owner-state failure retained"
   ],
   "scope_limits": [
     "controlled Voice authority/operation results and cash policy are TestOnly; not formal gamma or production funds policy",
     "matrix and formal CLI use preloaded verified source cache; actual cold half-import separately tested",
     "no new venue capability or real orders",
     "S3 named writer resource enforcement, all history/resources and 9011 double-run remain; conditional FIFO/stable-point is already-decided #1416 with its own native prerequisites",
-    "Economic read-only /2 code adapter passed independent review and is integrated; fresh read-only Q-authorized domain and actual HTTP runtime are being prepared; controller/browser/full content consumer remain",
+    "Economic readonly /2 code and actual HTTP are accepted in named domain; current browser test client still needs strict /2 and native identity adaptation, no independent full content closure or economic root replay claim",
     "Final ENOSPC probe injects external competing pressure beyond normal exclusive-volume prepaid success domain; no promotion to all configurations or availability guarantee",
     "remaining TB and original six Destinations are not closed; product frontend stays independent 1460"
   ],
@@ -407,6 +439,36 @@
       "source": "/Users/silencehan/Projects/NewChanlun-1394-economic-readonly-v2-20260930/.scratch/issue1394-economic-readonly-v2-20260930/RAW-READONLY-V2.zip",
       "bytes": 27342,
       "sha256": "4b52173378eb6e93440e3237d9a771053deb2dd06f81839f269c244cc73a943c"
+    },
+    {
+      "path": "inputs/ECONOMIC-HTTP-MANIFEST.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/ECONOMIC-OBSERVER-ACTUAL-MANIFEST.json",
+      "bytes": 19193,
+      "sha256": "53fe8cda6fa5fae453ac36b1d7a24e35027994973b6dd63068fffd6f2e8b4523"
+    },
+    {
+      "path": "inputs/ECONOMIC-HTTP-RESULT.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/case-2/http-actual/http-result.json",
+      "bytes": 5982,
+      "sha256": "f5efe798bce78af95ddd442e3e5a5d8e53eb6944e425b3727649275bcb7ac596"
+    },
+    {
+      "path": "inputs/ROOT-ECONOMIC-HTTP-AUDIT.json",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/ROOT-OBSERVER-AUDIT.json",
+      "bytes": 2664,
+      "sha256": "4e729c3e5d107dccfb7943a99e7e120bf601e147ef9dab9f36ec66543ed24d99"
+    },
+    {
+      "path": "inputs/ECONOMIC-HTTP-RAW.zip",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-economic-observer-actual-20260930/RAW-ECONOMIC-HTTP.zip",
+      "bytes": 458893,
+      "sha256": "cb7d27a9fcdc9da3d7b5d1f683ee73aee7d3d55ca9e8d3fd275951893dd38edf"
+    },
+    {
+      "path": "inputs/ECONOMIC-HTTP-INDEPENDENT-REVIEW.md",
+      "source": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.chanlun/review-results/issue1394-financial-owner-20260930/inputs/ECONOMIC-HTTP-INDEPENDENT-REVIEW.md",
+      "bytes": 8018,
+      "sha256": "8ead0753a9f01049a99ba38e585afab0762a2c0e6cb26adf5b1dbfeceb8c5466"
     }
   ],
   "all_archived_case_images_detached": true,
