@@ -3,7 +3,7 @@
 use super::book::hash;
 use super::store::*;
 use super::voice::{digest, exact};
-#[cfg(test)]
+use crate::s_content::job::Job;
 use crate::session_protocol::canonical_json;
 use crate::session_protocol::{
     nonnegative, positive, required, sha256_hex, strict_json, validate_envelope,
@@ -37,9 +37,7 @@ fn revision(m: &Value) -> Result<&'static str, String> {
         Some(Value::String(text)) if text == REV || text == REV_V2 => {
             Err("IdentityConflict：财务子合同版本与 E/B 域版本混写".into())
         }
-        _ => Err(
-            "SchemaUnsupported：财务子合同只有 tb03b-finance/1 与 tb03b-finance/2".into(),
-        ),
+        _ => Err("SchemaUnsupported：财务子合同只有 tb03b-finance/1 与 tb03b-finance/2".into()),
     }
 }
 const LIMIT: usize = 16 * 1024 * 1024;
@@ -341,7 +339,9 @@ fn input(config: &Config, raw: &str) -> Result<Value, String> {
         };
         exact(&q["s_ref"], s_ref)?;
         if s_ref2 && q["s_ref"]["schema_revision"] != S_REF_V2 {
-            return Err("SchemaUnsupported：s_ref/2 必须显式 schema_revision=s-object-ref/2".into());
+            return Err(
+                "SchemaUnsupported：s_ref/2 必须显式 schema_revision=s-object-ref/2".into(),
+            );
         }
         digest(required(&q["s_ref"], "object_hash")?)?;
         required(&q["s_ref"], "object_id")?;
@@ -457,18 +457,25 @@ fn finance<'a>(config: &Config, image: &'a Value) -> Result<&'a Value, String> {
         Ok(f)
     }
 }
-fn decision<'a>(
-    config: &Config,
-    image: &'a Value,
-    id: &str,
-) -> Result<&'a Value, String> {
-    item(list(finance(config, image)?, "decisions")?, "decision_id", id)
+fn decision<'a>(config: &Config, image: &'a Value, id: &str) -> Result<&'a Value, String> {
+    item(
+        list(finance(config, image)?, "decisions")?,
+        "decision_id",
+        id,
+    )
 }
 fn push(v: &mut Value, k: &str, x: Value) {
     v[k].as_array_mut().unwrap().push(x)
 }
 fn receipt_key(op: &str, id: &str) -> String {
     format!("{REV}:{op}:{}", hash(&json!(id)))
+}
+fn receipt_key_for(config: &Config, op: &str, id: &str) -> Result<String, String> {
+    if revision(&config.manifest)? == REV {
+        Ok(receipt_key(op, id))
+    } else {
+        Ok(format!("{REV_V2}:{op}:{}", hash(&json!(id))))
+    }
 }
 pub(super) fn is_event(v: &Value) -> bool {
     matches!(
@@ -495,6 +502,10 @@ fn operation_id<'a>(p: &'a Value) -> Result<&'a str, String> {
         },
     )
 }
+fn key_for(config: &Config, p: &Value) -> Result<String, String> {
+    receipt_key_for(config, required(p, "op")?, operation_id(p)?)
+}
+#[cfg(test)]
 fn key(p: &Value) -> Result<String, String> {
     Ok(receipt_key(required(p, "op")?, operation_id(p)?))
 }
@@ -518,6 +529,17 @@ fn validate_request(p: &Value) -> Result<(), String> {
     Ok(())
 }
 fn proof(config: &Config, domain: &str, key: &str) -> Result<Value, String> {
+    proof_inner(config, domain, key, None)
+}
+fn proof_inner(
+    config: &Config,
+    domain: &str,
+    key: &str,
+    mut import: Option<(&mut super::content_store::Stage<'_>, &mut Job)>,
+) -> Result<Value, String> {
+    if let Some((_, job)) = import.as_mut() {
+        job.charge_requests(1).map_err(|e| e.to_string())?;
+    }
     let other = domain_config(config, domain)?;
     let (mut c, _) = open(&other.db, true)?;
     let tx = c.transaction().map_err(err)?;
@@ -540,6 +562,18 @@ fn proof(config: &Config, domain: &str, key: &str) -> Result<Value, String> {
         )
         .map_err(err)?;
     let result = json!({"current_cut":cut(&other,current_seq,&current_root),"current_previous_root":current_prev,"current_commit_ns":current_ns,"domain_id":domain,"receipt":receipt,"previous_root":prev,"commit_ns":ns,"image":strict_json(raw.as_bytes())?,"current_image":current_image,"current_epoch":meta(&tx,"writer_epoch")?,"current_epoch_at_ns":tx.query_row("SELECT at_ns FROM epochs ORDER BY epoch DESC LIMIT 1",[],|r|r.get::<_,String>(0)).map_err(err)?});
+    if let Some((stage, job)) = import {
+        job.charge_wire_bytes(u64::try_from(canonical_json(&result).len()).map_err(err)?)
+            .map_err(|e| e.to_string())?;
+        let mut refs =
+            super::content_store::image_refs(&result["image"]).map_err(|e| e.to_string())?;
+        refs.extend(
+            super::content_store::image_refs(&result["current_image"])
+                .map_err(|e| e.to_string())?,
+        );
+        super::content_store::import_peer_refs(&tx, &refs, stage, job)
+            .map_err(|e| format!("MissingDependency：peer closed refs 导入失败：{e}"))?;
+    }
     tx.commit().map_err(err)?;
     Ok(result)
 }
@@ -668,6 +702,27 @@ fn verify_structure(config: &Config, v: &Value, p: Option<&Value>) -> Result<(),
     }
     Ok(())
 }
+fn verify_structure_for_domain(
+    c: &Connection,
+    config: &Config,
+    job: Option<&mut Job>,
+    evidence: &Value,
+    plan: Option<&Value>,
+) -> Result<(), String> {
+    if revision(&config.manifest)? == REV {
+        return verify_structure(config, evidence, plan);
+    }
+    let job = job.ok_or("MissingDependency：新域缺统一证据 job")?;
+    let mut source = super::content_store::LocalSource { c };
+    super::financial_content::verify_evidence(
+        &config.manifest["finance"]["structure"],
+        evidence,
+        &mut source,
+        job,
+        plan.map(|p| &p["s_ref"]),
+    )?;
+    Ok(())
+}
 fn knowledge_floor(witness: &Value, first: &str) -> Result<(), String> {
     let known = nonnegative(first, "first_known_ns")?;
     if witness.get("structure").is_some_and(|v| !v.is_null())
@@ -692,7 +747,14 @@ fn knowledge_floor(witness: &Value, first: &str) -> Result<(), String> {
     }
     Ok(())
 }
-fn own_lock(config: &Config, image: &Value, d: &Value, p: &Value, seq: i64, ns: &str) -> Result<Value, String> {
+fn own_lock(
+    config: &Config,
+    image: &Value,
+    d: &Value,
+    p: &Value,
+    seq: i64,
+    ns: &str,
+) -> Result<Value, String> {
     if image["book"].is_null() {
         return Err("MissingDependency：实际非空重尚未建立".into());
     }
@@ -748,12 +810,14 @@ fn own_lock(config: &Config, image: &Value, d: &Value, p: &Value, seq: i64, ns: 
 }
 /// 生产写与离线审计共用本地转换。oracle 在测试侧独立计算，不调用本函数。
 fn reduce(
+    c: &Connection,
     config: &Config,
     previous: &Value,
     request: &Value,
     w: &Value,
     seq: i64,
     ns: &str,
+    mut job: Option<&mut Job>,
 ) -> Result<(Value, Value), String> {
     let p = &request["payload"];
     validate_request(p)?;
@@ -787,13 +851,22 @@ fn reduce(
             if plan["applicant_epoch"] != p["writer_epoch"] {
                 return Err("StaleWriter：旧申请者 epoch 不得创建新 Prepared".into());
             }
-            if list(finance(config, previous)?, "decisions")?.iter().any(|x| {
-                x["decision_id"] == p["decision_id"]
-                    || x["prepared"]["plan"]["attempt_id"] == plan["attempt_id"]
-            }) {
+            if list(finance(config, previous)?, "decisions")?
+                .iter()
+                .any(|x| {
+                    x["decision_id"] == p["decision_id"]
+                        || x["prepared"]["plan"]["attempt_id"] == plan["attempt_id"]
+                })
+            {
                 return Err("IdentityConflict：决定或 attempt 已使用".into());
             }
-            verify_structure(config, &w["structure"], Some(plan))?;
+            verify_structure_for_domain(
+                c,
+                config,
+                job.as_deref_mut(),
+                &w["structure"],
+                Some(plan),
+            )?;
             let prepared = own_lock(config, previous, &d, plan, seq, ns)?;
             let r = json!({"decision_id":p["decision_id"],"state":"Prepared","prepared":prepared,"structure_evidence":w["structure"],"grant":null,"local_commit_receipt":null,"execution_eligibility":"None"});
             let f = &mut next["finance"];
@@ -903,7 +976,13 @@ fn reduce(
                 if latest_proof_seq(pf)? != expected_version {
                     return Err("InvalidDomain：Prepared 后本地账本版本已改变".into());
                 }
-                verify_structure(config, &w["structure"], Some(q))?;
+                verify_structure_for_domain(
+                    c,
+                    config,
+                    job.as_deref_mut(),
+                    &w["structure"],
+                    Some(q),
+                )?;
                 if bound(q)? != number(&original["prepared"], "locked_amount")? {
                     return Err("IdentityConflict：私有锁不是原计划全额".into());
                 }
@@ -1017,7 +1096,7 @@ fn reduce(
             if number(slot, "reserve_ns")? > nonnegative(ns, "commit_ns")? {
                 return Err("InvalidDomain：B Commit 早于 E 增责".into());
             }
-            verify_structure(config, &w["structure"], Some(q))?;
+            verify_structure_for_domain(c, config, job.as_deref_mut(), &w["structure"], Some(q))?;
             let mut r = old.clone();
             r["state"] = json!("Committed");
             r["grant"] = json!({"original":g,"e_cut":gp["receipt"]["cut"]});
@@ -1103,7 +1182,7 @@ pub(super) fn receipt(config: &Config, event: &Value, cut: Value) -> Result<Valu
         _ => return Err("SchemaUnsupported：未知财务事件".into()),
     };
     Ok(
-        json!({"kind":kind,"domain_id":config.domain,"record":event["record"],"first_known_ns":event["first_known_ns"],"commit_ns":event["commit_ns"],"cut":cut,"receipt_key":key(&event["request"]["payload"])?}),
+        json!({"kind":kind,"domain_id":config.domain,"record":event["record"],"first_known_ns":event["first_known_ns"],"commit_ns":event["commit_ns"],"cut":cut,"receipt_key":key_for(config, &event["request"]["payload"])?}),
     )
 }
 fn original(c: &Connection, event: &Value, config: &Config) -> Result<Value, String> {
@@ -1111,7 +1190,7 @@ fn original(c: &Connection, event: &Value, config: &Config) -> Result<Value, Str
     config.authorized(&e)?;
     let r =
         super::service::previous_message(c, &e)?.ok_or("StorageUnavailable：财务原消息绑定缺失")?;
-    if r["receipt_key"] != key(&e["payload"])? {
+    if r["receipt_key"] != key_for(config, &e["payload"])? {
         return Err("IdentityConflict：财务原身份/回执绑定不同".into());
     }
     Ok(e)
@@ -1123,6 +1202,7 @@ pub(super) fn replay(
     event: &Value,
     seq: i64,
     ns: &str,
+    job: Option<&mut Job>,
 ) -> Result<Value, String> {
     exact(
         event,
@@ -1161,7 +1241,7 @@ pub(super) fn replay(
         return Err("StorageUnavailable：财务事件早于 writer/原账前沿".into());
     }
     knowledge_floor(&event["witness"], required(event, "first_known_ns")?)?;
-    let (mut next, r) = reduce(config, previous, &e, &event["witness"], seq, ns)?;
+    let (mut next, r) = reduce(c, config, previous, &e, &event["witness"], seq, ns, job)?;
     if r != event["record"] {
         return Err("StorageUnavailable：原财务事件重放不同".into());
     }
@@ -1191,7 +1271,7 @@ pub(super) fn audit_message(
     r: &Value,
 ) -> Result<(), String> {
     validate_request(&request["payload"])?;
-    if r["receipt_key"] != key(&request["payload"])? {
+    if r["receipt_key"] != key_for(config, &request["payload"])? {
         return Err("StorageUnavailable：财务消息/回执键不符".into());
     }
     let seq = positive(required(&r["cut"], "commit_seq")?, "receipt seq")?;
@@ -1214,19 +1294,9 @@ pub(super) fn write(
     epoch: i64,
     e: &Value,
 ) -> Result<Value, String> {
-    // §5.7：`/2` 的写入必须先由 financial-content owner 取得并核验完整证据闭包
-    // （basis_ref/snapshot_ref/selected_objects/proof_nodes），本轮只登记版本、exact 形状、
-    // 本地不可变内容存储与发布钩子。此处显式拒绝：不得用旧 `financial-basis` 整份读取
-    // 冒充新子合同，也不产生任何 Prepared／grant／责任。
-    if revision(&config.manifest)? == REV_V2 {
-        return Err(
-            "MissingDependency：tb03b-finance/2 经济写入尚需 financial-content owner 接线完整证据闭包"
-                .into(),
-        );
-    }
     let p = &e["payload"];
     validate_request(p)?;
-    let k = key(p)?;
+    let k = key_for(config, p)?;
     // DeliveryUnknown 原身份优先查回，外部证据不可读不能推翻已提交结果。
     {
         let tx = immediate(c)?;
@@ -1244,6 +1314,9 @@ pub(super) fn write(
     }
     if p["writer_epoch"] != epoch.to_string() {
         return Err("StaleWriter：财务请求 writer_epoch 陈旧".into());
+    }
+    if revision(&config.manifest)? == REV_V2 {
+        return write_v2(c, config, epoch, e);
     }
     let raw = pinned_raw(config)?;
     let d = input(config, &raw)?;
@@ -1274,7 +1347,7 @@ pub(super) fn write(
                 proofs.push(proof(
                     config,
                     required(q, "owner")?,
-                    &receipt_key("PrepareDecision", required(q, "decision_id")?),
+                    &receipt_key_for(config, "PrepareDecision", required(q, "decision_id")?)?,
                 )?);
             }
             w["prepared_proofs"] = json!(proofs);
@@ -1285,7 +1358,7 @@ pub(super) fn write(
             w["grant_proof"] = proof(
                 config,
                 "E",
-                &receipt_key("Reserve", required(q, "slot_id")?),
+                &receipt_key_for(config, "Reserve", required(q, "slot_id")?)?,
             )?;
             w["structure"] = structure(config)?;
         }
@@ -1294,6 +1367,120 @@ pub(super) fn write(
     }
     persist(c, config, epoch, e, w)
 }
+fn write_v2(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Result<Value, String> {
+    let p = &e["payload"];
+    let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
+        &config.manifest["finance"]["structure"]["reader_resources"],
+    )?;
+    let existing = super::content_store::existing(c, &config.db).map_err(|e| e.to_string())?;
+    let mut job = Job::new(
+        resources.job_limits,
+        existing,
+        Box::new(std::time::Instant::now),
+    )
+    .map_err(|e| format!("Incomplete：E/B job 初始化失败：{e}"))?;
+    let job_deadline = job.first_read_deadline().map_err(|e| e.to_string())?;
+    let response_ms = u64::try_from(positive(
+        required(&config.manifest["resources"], "response_timeout_ms")?,
+        "response_timeout_ms",
+    )?)
+    .map_err(err)?;
+    let response_deadline = std::time::Instant::now()
+        .checked_add(std::time::Duration::from_millis(response_ms))
+        .ok_or("InvalidDomain：经济操作绝对期限溢出")?;
+    let deadline = job_deadline.min(response_deadline);
+    let raw = pinned_raw(config)?;
+    let d = input(config, &raw)?;
+    let mut witness = json!({"input_raw":raw});
+    let mut peer_requests: Vec<(String, String)> = Vec::new();
+    let mut object_ids = Vec::<String>::new();
+    match required(p, "op")? {
+        "PrepareDecision" => {
+            let q = plan(&d, p)?;
+            object_ids.push(required(&q["s_ref"], "object_id")?.to_owned());
+        }
+        "Reserve" => {
+            let slot = item(list(&d, "slots")?, "slot_id", required(p, "slot_id")?)?;
+            let (_, _, _, image) = latest(c)?;
+            let closed = finance(config, &image)?
+                .get("closed_applicants")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            for id in list(slot, "applicants")? {
+                let q = item(
+                    list(&d, "plans")?,
+                    "decision_id",
+                    id.as_str().ok_or("SchemaUnsupported：applicant 非文本")?,
+                )?;
+                if closed.iter().any(|x| {
+                    x["slot_id"] == q["slot_id"]
+                        && x["owner"] == q["owner"]
+                        && x["applicant_epoch"] == q["applicant_epoch"]
+                        && x["applicant_generation"] == q["applicant_generation"]
+                }) {
+                    continue;
+                }
+                let object_id = required(&q["s_ref"], "object_id")?.to_owned();
+                if !object_ids.contains(&object_id) {
+                    object_ids.push(object_id);
+                }
+                peer_requests.push((
+                    required(q, "owner")?.to_owned(),
+                    receipt_key_for(config, "PrepareDecision", required(q, "decision_id")?)?,
+                ));
+            }
+        }
+        "CommitDecision" => {
+            let q = plan(&d, p)?;
+            object_ids.push(required(&q["s_ref"], "object_id")?.to_owned());
+            peer_requests.push((
+                "E".into(),
+                receipt_key_for(config, "Reserve", required(q, "slot_id")?)?,
+            ));
+        }
+        "ImportResponsibility" | "AbortDecision" | "CloseApplicants" => (),
+        _ => return Err("SchemaUnsupported：财务操作未知".into()),
+    }
+    let token = format!("{}:{}:{}", config.domain, epoch, required(e, "message_id")?);
+    let mut stage =
+        super::content_store::Stage::new(c, &config.db, resources.job_limits, token.clone())
+            .map_err(|e| format!("Incomplete：E/B 暂存不可用：{e}"))?;
+    if !peer_requests.is_empty() {
+        let mut proofs = Vec::with_capacity(peer_requests.len());
+        for (domain, receipt_key) in &peer_requests {
+            proofs.push(proof_inner(
+                config,
+                domain,
+                receipt_key,
+                Some((&mut stage, &mut job)),
+            )?);
+        }
+        if p["op"] == "Reserve" {
+            witness["prepared_proofs"] = json!(proofs);
+        } else {
+            witness["grant_proof"] = proofs
+                .into_iter()
+                .next()
+                .ok_or("MissingDependency：grant proof 缺失")?;
+        }
+    }
+    if matches!(
+        p["op"].as_str(),
+        Some("PrepareDecision" | "Reserve" | "CommitDecision")
+    ) {
+        let basis = super::financial_content::read_current(
+            &config.manifest["finance"]["structure"],
+            &object_ids,
+            &mut job,
+            deadline,
+            &mut stage,
+        )?;
+        witness["structure"] = basis.evidence;
+    }
+    drop(stage);
+    persist_with_job(c, config, epoch, e, witness, Some(&mut job), Some(&token))
+}
 fn persist(
     c: &mut Connection,
     config: &Config,
@@ -1301,6 +1488,28 @@ fn persist(
     e: &Value,
     w: Value,
 ) -> Result<Value, String> {
+    persist_with_job(c, config, epoch, e, w, None, None)
+}
+fn persist_with_job(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e: &Value,
+    w: Value,
+    mut job: Option<&mut Job>,
+    stage_token: Option<&str>,
+) -> Result<Value, String> {
+    let final_budget = if revision(&config.manifest)? == REV_V2 {
+        let shared = job
+            .as_deref_mut()
+            .ok_or("MissingDependency：新域缺统一证据 job")?;
+        Some(
+            super::content_store::reserve_final(c, &config.db, shared)
+                .map_err(|e| format!("Incomplete：最终经济写入物理预留失败：{e}"))?,
+        )
+    } else {
+        None
+    };
     let tx = immediate(c)?;
     check_epoch(&tx, epoch)?;
     audit(&tx, config)?;
@@ -1324,18 +1533,45 @@ fn persist(
         .to_string();
     let (received, first, ns) = super::service::clocks(config, e, &floor, epoch)?;
     knowledge_floor(&w, &first)?;
-    let (mut next, record) = reduce(config, &image, e, &w, seq, &ns)?;
+    let (mut next, record) = reduce(&tx, config, &image, e, &w, seq, &ns, job.as_deref_mut())?;
     // C06.5：已核覆盖 token 的清除须与 E 本事务持久状态一致，不能只改返回 JSON。
     super::store::sync_pending(&tx, &next)?;
     let event = json!({"kind":e["payload"]["op"],"record":record,"request":e,"witness":w,"received_ns":received,"first_known_ns":first,"commit_ns":ns,"commit_seq":seq.to_string()});
     push(&mut next, "history", event.clone());
+    if revision(&config.manifest)? == REV_V2 {
+        let refs = super::content_store::image_refs(&next)
+            .map_err(|e| format!("MissingDependency：经济图像引用路径非法：{e}"))?;
+        super::content_store::publish(
+            &tx,
+            &refs,
+            job.as_deref_mut()
+                .ok_or("MissingDependency：新域缺统一证据 job")?,
+        )
+        .map_err(|e| format!("MissingDependency：本地内容闭包未完整持久：{e}"))?;
+        job.as_deref_mut()
+            .ok_or("MissingDependency：新域缺统一证据 job")?
+            .pre_io_check()
+            .map_err(|e| format!("Incomplete：经济提交前 job 期限：{e}"))?;
+    }
     let cut = append(&tx, config, seq, &prev, &ns, &next)?;
     let r = receipt(config, &event, cut)?;
-    let k = key(&e["payload"])?;
+    let k = key_for(config, &e["payload"])?;
     put(&tx, "receipts", &k, &r)?;
     super::service::bind_message(&tx, e, &k)?;
     config.pause(required(e, "message_id")?, "before_commit")?;
     tx.commit().map_err(err)?;
+    if let Some((grant, before, ceiling)) = final_budget {
+        super::content_store::reconcile_final(
+            c,
+            &config.db,
+            job.as_deref_mut()
+                .ok_or("DeliveryUnknown：已提交但 job 丢失")?,
+            &grant,
+            before,
+            ceiling,
+        )
+        .map_err(|e| format!("DeliveryUnknown：经济提交已发生，物理对账/回收待核：{e}"))?;
+    }
     config.pause(required(e, "message_id")?, "after_commit")?;
     Ok(r)
 }
@@ -1351,8 +1587,12 @@ pub(super) fn query(c: &Connection, config: &Config, p: &Value) -> Result<Value,
             .filter(|x| is_event(x) && x["record"]["decision_id"] == p["decision_id"])
         {
             receipts.push(
-                row(c, "receipts", &key(&event["request"]["payload"])?)?
-                    .ok_or("StorageUnavailable：决定缺原回执")?,
+                row(
+                    c,
+                    "receipts",
+                    &key_for(config, &event["request"]["payload"])?,
+                )?
+                .ok_or("StorageUnavailable：决定缺原回执")?,
             );
         }
         Ok(
@@ -1366,7 +1606,7 @@ pub(super) fn query(c: &Connection, config: &Config, p: &Value) -> Result<Value,
                 .find(|g| g["grant_id"] == p["grant_id"])
             {
                 return Ok(
-                    json!({"kind":"EconomicGrant","domain_id":config.domain,"grant":g,"receipt":row(c,"receipts",&receipt_key("Reserve",required(slot,"slot_id")?))?.ok_or("StorageUnavailable：grant 缺原回执")?}),
+                    json!({"kind":"EconomicGrant","domain_id":config.domain,"grant":g,"receipt":row(c,"receipts",&receipt_key_for(config,"Reserve",required(slot,"slot_id")?)?)?.ok_or("StorageUnavailable：grant 缺原回执")?}),
                 );
             }
         }
@@ -1420,7 +1660,7 @@ pub(super) fn advance(
     let reserved = row(
         c,
         "receipts",
-        &receipt_key("Reserve", required(slot, "slot_id")?),
+        &receipt_key_for(config, "Reserve", required(slot, "slot_id")?)?,
     )?;
     if reserved.is_none() {
         for id in list(slot, "applicants")? {

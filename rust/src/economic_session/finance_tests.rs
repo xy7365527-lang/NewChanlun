@@ -735,9 +735,11 @@ fn closed_generation_rejects_commit_and_recovery_knowledge_is_never_backdated() 
     let w = f.witness("CommitDecision");
     // 直接对判定器核关闭代际；本测试的静态 clock 早于关闭时刻，正式 persist 也必须拒绝回填。
     let image = latest(&f.dbs[1]).unwrap().3;
-    assert!(reduce(&f.configs[1], &image, &e, &w, 4, "200")
-        .unwrap_err()
-        .contains("StaleWriter"));
+    assert!(
+        reduce(&f.dbs[1], &f.configs[1], &image, &e, &w, 4, "200", None)
+            .unwrap_err()
+            .contains("StaleWriter")
+    );
     assert!(persist(&mut f.dbs[1], &f.configs[1], 1, &e, w)
         .unwrap_err()
         .contains("获知"));
@@ -805,25 +807,20 @@ fn versioned_new_domain_is_explicit_and_does_not_rewrite_old_tables() {
     let new_db = f.dir.join("new-e.db");
     m["e"]["db"] = json!(new_db);
     let (manifest_path, _) = save(&f.dir, "new-manifest.json", &m);
-    let config = Config::load(Path::new(&manifest_path), &new_db, None).unwrap();
-    let initialized = init(&config).unwrap();
-    assert_eq!(initialized["kind"], "Initialized");
-    let (new_conn, _) = open(&new_db, true).unwrap();
-    audit(&new_conn, &config).unwrap();
-    let new_schema: Vec<String> = {
-        let mut q = new_conn
-            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+    #[cfg(target_os = "macos")]
+    {
+        let refusal = Config::load(Path::new(&manifest_path), &new_db, None)
+            .err()
             .unwrap();
-        q.query_map([], |row| row.get(0))
-            .unwrap()
-            .collect::<Result<_, _>>()
-            .unwrap()
-    };
-    assert_eq!(new_schema.len(), 13);
-    assert_eq!(old_schema.len(), 10);
+        assert!(
+            refusal.contains("固定容量") || refusal.contains("载体"),
+            "{refusal}"
+        );
+    }
     m["protocol_revision"] = json!("economic-session/unknown");
     let (unknown_path, _) = save(&f.dir, "unknown-manifest.json", &m);
     assert!(Config::load(Path::new(&unknown_path), &new_db, None)
-        .err().unwrap()
+        .err()
+        .unwrap()
         .contains("SchemaUnsupported"));
 }

@@ -103,7 +103,11 @@ impl Config {
             return Err("SchemaUnsupported：manifest版本".into());
         }
         // 域版本先判：未知值/混写不得进入任何后续配置校验。
-        domain_revision(&manifest)?;
+        if domain_revision(&manifest)? == SCHEMA_V2
+            && !manifest.get("finance").is_some_and(|v| !v.is_null())
+        {
+            return Err("SchemaUnsupported：economic-session/2 必须冻结 tb03b-finance/2".into());
+        }
         super::evidence::validate_config(&manifest)?;
         super::finance::validate_config(&manifest)?;
         let session = required(&manifest, "session_id")?.to_owned();
@@ -132,6 +136,38 @@ impl Config {
                 || !sockets.insert(absolute(required(c, "socket")?)?)
             {
                 return Err("IdentityConflict：重身份/语义/数据库/socket重复".into());
+            }
+        }
+        if domain_revision(&manifest)? == SCHEMA_V2 {
+            let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
+                &manifest["finance"]["structure"]["reader_resources"],
+            )?;
+            #[cfg(target_os = "macos")]
+            {
+                use std::os::unix::fs::MetadataExt;
+                let mut devices = std::collections::BTreeSet::new();
+                for path in &paths {
+                    let parent = path
+                        .parent()
+                        .ok_or("InvalidDomain：新域数据库缺父目录")?
+                        .canonicalize()
+                        .map_err(err)?;
+                    if !devices.insert(parent.metadata().map_err(err)?.dev()) {
+                        return Err("IdentityConflict：E/B 新域必须各占独立固定容量卷".into());
+                    }
+                    let capacity = super::content_store::carrier_capacity(path)
+                        .map_err(|e| format!("Incomplete：新域固定容量载体：{e}"))?;
+                    if capacity > resources.job_limits.max_store_bytes
+                        || capacity > resources.job_limits.max_staged_bytes
+                    {
+                        return Err("Incomplete：新域载体总容量超过冻结 staged/store 上限".into());
+                    }
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = resources;
+                return Err("Incomplete：新域固定容量载体仅在 macOS HFS+ 已证明".into());
             }
         }
         let auth = manifest["authorized_sources"]
@@ -777,6 +813,23 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
     let mut previous_image = super::finance::empty(config)?;
     let mut last_ns = -1;
     let mut seen = 0i64;
+    let mut audit_job = if revision == SCHEMA_V2 {
+        let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
+            &config.manifest["finance"]["structure"]["reader_resources"],
+        )?;
+        let existing = super::content_store::existing(c, &config.db)
+            .map_err(|e| format!("StorageUnavailable：审计资源基线：{e}"))?;
+        Some(
+            crate::s_content::job::Job::new(
+                resources.job_limits,
+                existing,
+                Box::new(std::time::Instant::now),
+            )
+            .map_err(|e| format!("Incomplete：审计 job：{e}"))?,
+        )
+    } else {
+        None
+    };
     for r in rs {
         let (seq, prev, h, ns, raw) = r.map_err(err)?;
         let image = strict_json(raw.as_bytes())?;
@@ -788,6 +841,16 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
         {
             return Err("StorageUnavailable：域损坏：提交链/时间/根不一致".into());
         }
+        if revision == SCHEMA_V2 {
+            super::content_store::verify_image(
+                c,
+                &image,
+                audit_job
+                    .as_mut()
+                    .ok_or("MissingDependency：审计 job 缺失")?,
+            )
+            .map_err(|e| format!("StorageUnavailable：本地内容闭包审计失败：{e}"))?;
+        }
         if seq == 0 {
             if image != super::finance::empty(config)? {
                 return Err("StorageUnavailable：域损坏：创世图像非空".into());
@@ -798,7 +861,17 @@ pub(crate) fn audit(c: &Connection, config: &Config) -> Result<(), String> {
             .is_some_and(super::finance::is_event)
         {
             let event = image["history"].as_array().unwrap().last().unwrap();
-            if image != super::finance::replay(c, config, &previous_image, event, seq, &ns)? {
+            if image
+                != super::finance::replay(
+                    c,
+                    config,
+                    &previous_image,
+                    event,
+                    seq,
+                    &ns,
+                    audit_job.as_mut(),
+                )?
+            {
                 return Err("StorageUnavailable：财务重放不等于完整提交图像".into());
             }
         } else if image["history"]

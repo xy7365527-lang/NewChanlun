@@ -1,5 +1,6 @@
 use super::book::{apply, decode, fact_key, hash, target};
 use super::store::*;
+use crate::s_content::job::Job;
 use crate::session_protocol::{
     canonical_json, nonnegative, positive, reply_envelope, required, sha256_hex, validate_envelope,
 };
@@ -192,6 +193,17 @@ fn capture(c: &mut Connection, config: &Config, epoch: i64, e: &Value) -> Result
     Ok(receipt)
 }
 fn authoritative_fact(config: &Config, key: &str, expected_epoch: i64) -> Result<Value, String> {
+    authoritative_fact_inner(config, key, expected_epoch, None)
+}
+fn authoritative_fact_inner(
+    config: &Config,
+    key: &str,
+    expected_epoch: i64,
+    mut import: Option<(&mut super::content_store::Stage<'_>, &mut Job)>,
+) -> Result<Value, String> {
+    if let Some((_, job)) = import.as_mut() {
+        job.charge_requests(1).map_err(|e| e.to_string())?;
+    }
     let mut ec = config.clone();
     ec.domain = "E".into();
     ec.producer = format!("E:{}", ec.session);
@@ -219,6 +231,14 @@ fn authoritative_fact(config: &Config, key: &str, expected_epoch: i64) -> Result
         .map_err(err)?;
     f["e_commit_proof"] = json!({"previous_root":previous_root,"commit_ns":commit_ns,"image":crate::session_protocol::strict_json(image.as_bytes())?});
     verify_e_copy(&f, config)?;
+    if let Some((stage, job)) = import {
+        job.charge_wire_bytes(u64::try_from(canonical_json(&f).len()).map_err(err)?)
+            .map_err(|e| e.to_string())?;
+        let refs = super::content_store::image_refs(&f["e_commit_proof"]["image"])
+            .map_err(|e| e.to_string())?;
+        super::content_store::import_peer_refs(&tx, &refs, stage, job)
+            .map_err(|e| format!("MissingDependency：E 历史引用导入失败：{e}"))?;
+    }
     tx.commit().map_err(err)?;
     Ok(f)
 }
@@ -258,13 +278,47 @@ fn apply_allocation(
         }
     }
     // 固定 E 只读审计发生在 B 写事务之外；无跨域写锁、无 ATTACH。
-    let mut record = authoritative_fact(config, key, e_epoch)?;
+    // 新域在同一只读捕获内把该 E 提交图像全部历史引用导入本 B owner。
+    let mut import_job = if config.revision()? == SCHEMA_V2 {
+        let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
+            &config.manifest["finance"]["structure"]["reader_resources"],
+        )?;
+        let existing = super::content_store::existing(c, &config.db).map_err(|e| e.to_string())?;
+        Some(
+            Job::new(
+                resources.job_limits,
+                existing,
+                Box::new(std::time::Instant::now),
+            )
+            .map_err(|e| format!("Incomplete：ApplyAllocation job 初始化失败：{e}"))?,
+        )
+    } else {
+        None
+    };
+    let mut record = if let Some(job) = import_job.as_mut() {
+        job.begin_first_read().map_err(|e| e.to_string())?;
+        let token = format!("apply:{}:{}", config.domain, allocation);
+        let mut stage =
+            super::content_store::Stage::new(c, &config.db, job.snapshot().limits, token)
+                .map_err(|e| format!("Incomplete：B 内容暂存不可用：{e}"))?;
+        authoritative_fact_inner(config, key, e_epoch, Some((&mut stage, job)))?
+    } else {
+        authoritative_fact(config, key, e_epoch)?
+    };
     if record["fact_hash"] != p["expected_fact_hash"]
         || record["event"]["allocation_id"] != allocation
         || record["target_domain"] != config.domain
     {
         return Err("IdentityConflict：实读E事实/金额/归属与请求不匹配".into());
     }
+    let final_budget = if let Some(job) = import_job.as_mut() {
+        Some(
+            super::content_store::reserve_final(c, &config.db, job)
+                .map_err(|e| format!("Incomplete：ApplyAllocation 物理预留失败：{e}"))?,
+        )
+    } else {
+        None
+    };
     let tx = immediate(c)?;
     check_epoch(&tx, epoch)?;
     audit(&tx, config)?;
@@ -288,6 +342,14 @@ fn apply_allocation(
     record["b_origin_message"] = json!({"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]});
     record["b_origin_request_hash"] = json!(hash(e));
     let (next, unmatched) = apply(&image, &record, seq, &ns)?;
+    if let Some(job) = import_job.as_mut() {
+        let refs = super::content_store::image_refs(&next)
+            .map_err(|e| format!("MissingDependency：ApplyAllocation 引用路径非法：{e}"))?;
+        super::content_store::publish(&tx, &refs, job)
+            .map_err(|e| format!("MissingDependency：B 缺完整 E 历史闭包：{e}"))?;
+        job.pre_io_check()
+            .map_err(|e| format!("Incomplete：ApplyAllocation 提交前期限：{e}"))?;
+    }
     let applied = next["applied"].as_array().unwrap().last().unwrap();
     put(&tx, "facts", key, &record)?;
     tx.execute(
@@ -312,6 +374,19 @@ fn apply_allocation(
     bind_message(&tx, e, allocation)?;
     config.pause(required(e, "message_id")?, "before_commit")?;
     tx.commit().map_err(err)?;
+    if let Some((grant, before, ceiling)) = final_budget {
+        super::content_store::reconcile_final(
+            c,
+            &config.db,
+            import_job
+                .as_mut()
+                .ok_or("DeliveryUnknown：Apply 已提交但 job 缺失")?,
+            &grant,
+            before,
+            ceiling,
+        )
+        .map_err(|e| format!("DeliveryUnknown：Apply 已提交，物理对账待核：{e}"))?;
+    }
     config.pause(required(e, "message_id")?, "after_commit")?;
     Ok(receipt)
 }
@@ -538,6 +613,13 @@ pub(super) fn handle(
 ) -> Value {
     let result = (|| {
         config.authorized(e)?;
+        if config.revision()? == SCHEMA_V2 {
+            let resources = super::financial_reader_resources::FinancialReaderResources::from_json(
+                &config.manifest["finance"]["structure"]["reader_resources"],
+            )?;
+            super::content_store::configure(c, &config.db, resources.job_limits)
+                .map_err(|error| format!("Incomplete：新域物理存储门未成立：{error}"))?;
+        }
         let op = required(&e["payload"], "op")?;
         match op {
             "ChongAdvance" if config.domain == "E" => super::finance::advance(c, config, epoch, e),
