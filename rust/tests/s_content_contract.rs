@@ -10,6 +10,7 @@
 use newchan_rust::s_content::{
     self, code, ContentRef, JsonValue, Kind, MemoryNodes, NodeRead, NodeSource, NumberToken, Value,
 };
+use newchan_rust::s_content::job::CheckedFrame;
 use serde_json::Value as J;
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -21,6 +22,46 @@ const EXPECTED_INVALID: usize = 10;
 const EXPECTED_NODES: usize = 123;
 const EXPECTED_REACHABLE: usize = 96;
 const EXPECTED_RENDERABLE: usize = 22;
+
+#[test]
+fn checked_frame_rejects_bad_bytes_and_read_gate_binds_requested_digest() {
+    let requested = s_content::frame(s_content::tag::NULL, &[]);
+    let other = s_content::frame(s_content::tag::BOOL_TRUE, &[]);
+    assert_eq!(
+        CheckedFrame::checked(&requested, s_content::tag::BOOL_TRUE, vec![])
+            .expect_err("合法 body 配错声称摘要须拒")
+            .code(),
+        code::NODE_DIGEST
+    );
+    let reference = ContentRef {
+        format: "s-content/1".into(),
+        root: s_content::root_string(&requested),
+        kind: Kind::Null,
+        extent: None,
+    };
+    let mut corrupted = MemoryNodes::new();
+    corrupted.insert_unchecked(requested, s_content::tag::NULL, vec![1]);
+    assert_eq!(
+        s_content::verify(&mut corrupted, &reference).expect_err("坏原件须拒").code(),
+        code::NODE_DIGEST
+    );
+
+    struct WrongValidProof(s_content::NodeDigest);
+    impl NodeSource for WrongValidProof {
+        fn read(&mut self, _: &s_content::NodeDigest) -> Result<NodeRead, s_content::CodecError> {
+            Ok(NodeRead::Missing)
+        }
+        fn checked_read(&mut self, _: &s_content::NodeDigest) -> Result<Option<CheckedFrame>, s_content::CodecError> {
+            Ok(Some(CheckedFrame::checked(&self.0, s_content::tag::BOOL_TRUE, vec![])?))
+        }
+    }
+    assert_eq!(
+        s_content::verify(&mut WrongValidProof(other), &reference)
+            .expect_err("另一个合法 proof 仍须按请求摘要拒绝")
+            .code(),
+        code::NODE_DIGEST
+    );
+}
 
 #[test]
 fn template_batch_rechecks_root_claims_and_json_inner_flavor() {

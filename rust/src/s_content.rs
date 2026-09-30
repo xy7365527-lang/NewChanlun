@@ -254,8 +254,24 @@ pub fn checked_frame_len(n: u64) -> Result<[u8; 8], CodecError> {
     Ok(n.to_be_bytes())
 }
 
+std::thread_local! {
+    /// 本线程内 `frame` 的实际调用次数（诊断探针，见 [`frame_calls_on_thread`]）。
+    static FRAME_CALLS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// 诊断探针：**本线程**内 [`frame`] 的实际计算次数（只增；跨线程不聚合）。
+///
+/// 唯一用途是让测试（含二进制 crate 的计费读测试）能对「一次计费读只算一次 `F`」
+/// 这类**计数本身**做断言，而不是只能断言间接调用次数。定位如实：**不是**资源判据、
+/// 不进任何 Job 账、不参与准入或授权；它不影响 `F` 的结果，也不构成内容核验。
+#[doc(hidden)]
+pub fn frame_calls_on_thread() -> u64 {
+    FRAME_CALLS.with(std::cell::Cell::get)
+}
+
 /// F(tag, body) = SHA256(D || one_byte(tag) || U64(len(body)) || body)。
 pub fn frame(t: u8, body: &[u8]) -> NodeDigest {
+    FRAME_CALLS.with(|calls| calls.set(calls.get().wrapping_add(1)));
     let mut h = Sha256::new();
     h.update(DOMAIN_SEPARATOR);
     h.update([t]);
@@ -395,6 +411,15 @@ pub enum NodeRead {
 /// 本轮核验；`Err` 原样上抛，不会变成「部分通过」。
 pub trait NodeSource {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError>;
+
+    /// 同次读取的已核帧。旧 NodeSource 无须覆写：默认先读取原 Vec，再核一次 F。
+    /// 包装器可覆写以沿同一调用栈传递证明，不能跨读取缓存帧。
+    fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<job::CheckedFrame>, CodecError> {
+        match self.read(digest)? {
+            NodeRead::Missing => Ok(None),
+            NodeRead::Found { tag, body } => job::CheckedFrame::checked(digest, tag, body).map(Some),
+        }
+    }
 
     /// 审计源可显式限制单次渲染物化；普通流式源不擅自填默认上限。
     fn max_render_bytes(&self) -> Option<u64> { None }
@@ -1187,24 +1212,23 @@ fn read_checked(
     source: &mut dyn NodeSource,
     digest: &NodeDigest,
 ) -> Result<(u8, Vec<u8>), CodecError> {
-    match source.read(digest)? {
-        NodeRead::Missing => Err(CodecError::new(
+    match source.checked_read(digest)? {
+        None => Err(CodecError::new(
             code::NODE_MISSING,
             format!("节点缺失：{}", root_string(digest)),
         )),
-        NodeRead::Found { tag, body } => {
-            let actual = frame(tag, &body);
-            if actual != *digest {
+        Some(checked) => {
+            if checked.digest() != digest {
                 return Err(CodecError::new(
                     code::NODE_DIGEST,
                     format!(
-                        "节点摘要与 (tag, body) 重算不符：声称 {}，实算 {}",
+                        "已核节点摘要与本次请求不符：请求 {}，实算 {}",
                         root_string(digest),
-                        root_string(&actual)
+                        root_string(checked.digest())
                     ),
                 ));
             }
-            Ok((tag, body))
+            Ok(checked.into_parts())
         }
     }
 }

@@ -334,9 +334,9 @@ pub enum NodeAcceptance {
 
 /// 已由本次真实 `F(tag, body)` 核出的不可变节点计费信息。
 ///
-/// 字段保持私有；除 [`CheckedNodeUsage::checked`] 外没有构造入口，因此它只能来自
-/// 当前字节原件的摘要核对。这个值可以由内部审计 receipt 重放到另一个 Job，但不
-/// 代替该 Job 对内容、上下文或可达性的核验。
+/// 字段保持私有；除 [`CheckedNodeUsage::checked`] 与已核帧 [`CheckedFrame::usage`] 外没有
+/// 构造入口，因此它只能来自当前字节原件的摘要核对。这个值可以由内部审计 receipt 重放到
+/// 另一个 Job，但不代替该 Job 对内容、上下文或可达性的核验。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CheckedNodeUsage {
     digest: NodeDigest,
@@ -364,6 +364,80 @@ impl CheckedNodeUsage {
 
     pub fn digest(&self) -> &NodeDigest {
         &self.digest
+    }
+}
+
+/// 已核验的节点帧：`(tag, body)` 与**声称摘要**当场重算 `F(tag, body)` 相符的不可变原件。
+///
+/// 构造面只有 [`CheckedFrame::checked`] 一条：字段私有、不实现 `Deserialize`、不提供
+/// `&mut body` 入口，也没有未核构造。它证明的是「帧与构造时那枚摘要相符」，**不**证明
+/// 「帧正是调用方本次请求的那枚摘要」——请求侧仍须逐次核对 [`CheckedFrame::digest`]。
+///
+/// 它同时携带同一次核验导出的 [`CheckedNodeUsage`]，让记账层（[`Job::accept_checked_usage`]）
+/// 直接重放已核用量，不必对同一份字节再算一次 `F`。
+pub struct CheckedFrame {
+    tag: u8,
+    body: Vec<u8>,
+    usage: CheckedNodeUsage,
+}
+
+impl CheckedFrame {
+    /// 唯一的合法构造路径：对实际 `(tag, body)` 算一次 `F`，与声称摘要比较；不符即拒绝。
+    pub fn checked(digest: &NodeDigest, tag: u8, body: Vec<u8>) -> Result<Self, CodecError> {
+        let actual = frame(tag, &body);
+        if actual != *digest {
+            return Err(CodecError::new(
+                code::NODE_DIGEST,
+                format!(
+                    "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不成帧",
+                    root_string(digest),
+                    root_string(&actual)
+                ),
+            ));
+        }
+        let framed = framed_bytes(body.len());
+        Ok(Self {
+            tag,
+            body,
+            usage: CheckedNodeUsage {
+                digest: *digest,
+                framed_bytes: framed,
+            },
+        })
+    }
+
+    /// 本帧核出相符的那枚摘要（不是「本次请求的摘要」；请求侧须自行对照）。
+    pub fn digest(&self) -> &NodeDigest {
+        &self.usage.digest
+    }
+
+    pub fn tag(&self) -> u8 {
+        self.tag
+    }
+
+    pub fn body(&self) -> &[u8] {
+        &self.body
+    }
+
+    /// 同一次核验导出的不可变计费值；重放它不代替对当前字节的核验。
+    pub fn usage(&self) -> &CheckedNodeUsage {
+        &self.usage
+    }
+
+    /// 取出已核原件（所有权转移；帧本身被消费，不留下可变入口）。
+    pub fn into_parts(self) -> (u8, Vec<u8>) {
+        (self.tag, self.body)
+    }
+}
+
+impl fmt::Debug for CheckedFrame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // 不打印 body 内容：帧可能很大，调试输出只给身份与体量。
+        f.debug_struct("CheckedFrame")
+            .field("digest", &root_string(&self.usage.digest))
+            .field("tag", &self.tag)
+            .field("body_len", &self.body.len())
+            .finish()
     }
 }
 
@@ -1043,6 +1117,25 @@ impl NodeSource for JobNodeSource<'_> {
             NodeRead::Found { tag, body } => {
                 self.job.accept_node(digest, tag, &body)?;
                 Ok(NodeRead::Found { tag, body })
+            }
+        }
+    }
+
+    /// 核验读口：起钟 → 内层原始读 → 读后期限门 → 核 F → 记账。
+    ///
+    /// 与 [`NodeSource::read`] 的顺序对应关系：`accept_node`（核 F ＋ 记账）换成
+    /// `CheckedFrame::checked` 只核一次，再由 `usage` 记账；期限在读取期间
+    /// 过掉时先拒，连 F 也不算。
+    fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<CheckedFrame>, CodecError> {
+        self.job.begin_first_read()?;
+        let read = self.inner.read(digest)?;
+        self.job.check_deadline()?;
+        match read {
+            NodeRead::Missing => Ok(None),
+            NodeRead::Found { tag, body } => {
+                let frame = CheckedFrame::checked(digest, tag, body)?;
+                self.job.accept_checked_usage(frame.usage())?;
+                Ok(Some(frame))
             }
         }
     }

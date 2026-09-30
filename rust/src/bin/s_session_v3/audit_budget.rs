@@ -7,12 +7,16 @@
 use newchan_rust::s_content as sc;
 #[cfg(test)]
 use newchan_rust::s_content::job::Job;
-use newchan_rust::s_content::{job::CheckedNodeUsage, NodeDigest};
+use newchan_rust::s_content::{job::{CheckedFrame, CheckedNodeUsage}, NodeDigest};
 use sc::access::Access;
 use std::{cell::RefCell, collections::BTreeMap, mem::size_of};
 
 pub(super) trait Budget {
     fn precheck(&self) -> Result<(), sc::CodecError>;
+    /// Found 后、计算 F 前；Missing 不调用。
+    fn prepare_node(&self) -> Result<(), sc::CodecError>;
+    /// 只接纳本次读取当场形成的帧；调用方已完成 prepare_node。
+    fn accept_prepared_frame(&self, frame: &CheckedFrame) -> Result<(), sc::CodecError>;
     fn node(&self, digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError>;
     fn record(&self) -> Result<(), sc::CodecError>;
 }
@@ -39,19 +43,10 @@ impl<'j> AuditJob<'j> {
             records: self.records.into_inner(),
         }
     }
-}
 
-impl Budget for AuditJob<'_> {
-    fn precheck(&self) -> Result<(), sc::CodecError> {
-        self.job.borrow_mut().pre_io_check().map_err(codec)
-    }
-
-    fn node(&self, digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
-        // 期限门先于摘要计算，保持 accept_node 的旧顺序；RefCell 借用不跨 F 核或 Job 调用。
-        self.precheck()?;
-        self.job.borrow_mut().begin_first_read()?;
-        let usage = CheckedNodeUsage::checked(digest, tag, body)?;
+    fn record_usage(&self, usage: CheckedNodeUsage, body_len: usize) -> Result<(), sc::CodecError> {
         self.job.borrow_mut().accept_checked_usage(&usage)?;
+        let digest = usage.digest();
         let mut nodes = self.nodes.borrow_mut();
         #[cfg(test)]
         let mut unique = false;
@@ -65,13 +60,35 @@ impl Budget for AuditJob<'_> {
         } else {
             nodes.insert(*digest, usage);
             #[cfg(test)]
-            {
-                unique = true;
-            }
+            { unique = true; }
         }
         #[cfg(test)]
-        super::state::trace_checked_node(unique, sc::DOMAIN_SEPARATOR.len() + 1 + 8 + body.len());
+        super::state::trace_checked_node(unique, sc::DOMAIN_SEPARATOR.len() + 1 + 8 + body_len);
+        #[cfg(not(test))]
+        let _ = body_len;
         Ok(())
+    }
+}
+
+impl Budget for AuditJob<'_> {
+    fn precheck(&self) -> Result<(), sc::CodecError> {
+        self.job.borrow_mut().pre_io_check().map_err(codec)
+    }
+
+    fn prepare_node(&self) -> Result<(), sc::CodecError> {
+        self.precheck()?;
+        self.job.borrow_mut().begin_first_read()
+    }
+
+    fn accept_prepared_frame(&self, frame: &CheckedFrame) -> Result<(), sc::CodecError> {
+        self.record_usage(*frame.usage(), frame.body().len())
+    }
+
+    fn node(&self, digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+        // 期限门先于摘要计算，保持 accept_node 的旧顺序；RefCell 借用不跨 F 核或 Job 调用。
+        self.prepare_node()?;
+        let usage = CheckedNodeUsage::checked(digest, tag, body)?;
+        self.record_usage(usage, body.len())
     }
 
     fn record(&self) -> Result<(), sc::CodecError> {
@@ -156,6 +173,105 @@ mod tests {
             Box::new(Instant::now),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn metered_hash_read_checks_f_once_and_keeps_receipt_accounting() {
+        use newchan_rust::s_content::{MemoryNodes, NodeSource};
+        let digest = sc::frame(sc::tag::NULL, &[]);
+        let mut source = MemoryNodes::new();
+        source.insert_unchecked(digest, sc::tag::NULL, vec![]);
+        let mut job = make_job(1024, 8, 8);
+        let receipt = {
+            let audit = AuditJob::new(&mut job);
+            let before = sc::frame_calls_on_thread();
+            {
+                let mut reader = super::super::history::HashReader::metered(&mut source, None, None, Some(&audit));
+                let frame = reader.checked_read(&digest).unwrap().expect("节点存在");
+                assert_eq!(frame.digest(), &digest);
+            }
+            assert_eq!(sc::frame_calls_on_thread() - before, 1, "一次实际计费读只计算一次 F");
+            audit.record().unwrap();
+            audit.finish()
+        };
+        let snapshot = job.snapshot();
+        assert!(snapshot.started);
+        assert_eq!(snapshot.nodes, 1);
+        assert_eq!(snapshot.node_bytes, (sc::DOMAIN_SEPARATOR.len() + 1 + 8) as u64);
+        assert_eq!(snapshot.records, 1);
+        let mut replay = make_job(1024, 8, 8);
+        receipt.replay(&mut replay).unwrap();
+        assert_eq!(replay.snapshot().nodes, snapshot.nodes);
+        assert_eq!(replay.snapshot().node_bytes, snapshot.node_bytes);
+        assert_eq!(replay.snapshot().records, snapshot.records);
+    }
+
+    #[test]
+    fn metered_hash_read_preserves_pre_io_missing_and_bad_frame_gates() {
+        use newchan_rust::s_content::{MemoryNodes, NodeSource};
+        let digest = sc::frame(sc::tag::NULL, &[]);
+        let mut empty = MemoryNodes::new();
+        let mut missing_job = make_job(1024, 8, 8);
+        {
+            let audit = AuditJob::new(&mut missing_job);
+            let mut reader = super::super::history::HashReader::metered(&mut empty, None, None, Some(&audit));
+            assert!(reader.checked_read(&digest).unwrap().is_none());
+        }
+        assert!(!missing_job.snapshot().started, "Missing 不伪造首读起钟");
+        assert_eq!(missing_job.snapshot().nodes, 0);
+
+        let mut broken = MemoryNodes::new();
+        broken.insert_unchecked(digest, sc::tag::NULL, vec![9]);
+        let mut bad_job = make_job(1024, 8, 8);
+        {
+            let audit = AuditJob::new(&mut bad_job);
+            let mut reader = super::super::history::HashReader::metered(&mut broken, None, None, Some(&audit));
+            assert_eq!(reader.checked_read(&digest).unwrap_err().code(), sc::code::NODE_DIGEST);
+        }
+        assert!(bad_job.snapshot().started, "Found 首读在 F 前起钟");
+        assert_eq!(bad_job.snapshot().nodes, 0, "坏帧不入账");
+        assert_eq!(bad_job.snapshot().node_bytes, 0);
+
+        struct CountReads(usize, bool);
+        impl NodeSource for CountReads {
+            fn read(&mut self, _: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+                self.0 += 1;
+                Ok(if self.1 {
+                    sc::NodeRead::Found { tag: sc::tag::NULL, body: vec![] }
+                } else {
+                    sc::NodeRead::Missing
+                })
+            }
+        }
+        let mut source = CountReads(0, false);
+        let mut stopped = make_job(1024, 8, 8);
+        assert!(stopped.charge_wire_bytes(1_048_577).is_err());
+        {
+            let audit = AuditJob::new(&mut stopped);
+            let mut reader = super::super::history::HashReader::metered(&mut source, None, None, Some(&audit));
+            assert!(reader.checked_read(&digest).is_err());
+        }
+        assert_eq!(source.0, 0, "停止门须先于 IO");
+
+        use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+        let now = Instant::now();
+        let advanced = Arc::new(AtomicBool::new(false));
+        let clock = Arc::clone(&advanced);
+        let mut deadline_job = Job::new(
+            job_limits(1024, 8, 8, 1),
+            Existing { store_bytes: 0, staged_bytes: 0 },
+            Box::new(move || now + Duration::from_millis(u64::from(clock.load(Ordering::SeqCst)) * 2)),
+        ).unwrap();
+        let mut source = CountReads(0, true);
+        {
+            let audit = AuditJob::new(&mut deadline_job);
+            let mut reader = super::super::history::HashReader::metered(&mut source, None, None, Some(&audit));
+            assert!(reader.checked_read(&digest).unwrap().is_some());
+            advanced.store(true, Ordering::SeqCst);
+            assert!(reader.checked_read(&digest).is_err(), "首次读取不能为第二次续期");
+        }
+        assert_eq!(source.0, 1, "期限门须在第二次 IO 前拒绝");
+        assert_eq!(deadline_job.snapshot().stopped, Some(sc::job::DEADLINE));
     }
 
     #[test]

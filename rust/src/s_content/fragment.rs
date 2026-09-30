@@ -5,7 +5,7 @@
 
 use super::{
     access::Access,
-    job::Job,
+    job::{CheckedFrame, Job},
     path::{self, PathStep},
     *,
 };
@@ -419,6 +419,36 @@ impl NodeSource for Recorder<'_> {
         }
         self.access.pre_io_check()?;
         Ok(read)
+    }
+
+    fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<CheckedFrame>, CodecError> {
+        self.access.pre_io_check()?;
+        let read = self.source.read(digest)?;
+        let checked = match read {
+            NodeRead::Missing => None,
+            NodeRead::Found { tag, body } => {
+                // 旧 accept_node 在读取后、核 F 前起钟并复核停止/期限。
+                self.access.begin_first_read()?;
+                let frame = CheckedFrame::checked(digest, tag, body)?;
+                self.access.accept_checked_usage(frame.usage())?;
+                if let Some(old) = self.nodes.get(digest) {
+                    if old.0 != frame.tag() || old.1 != frame.body() {
+                        return Err(err("同根不同原件"));
+                    }
+                } else {
+                    let proof = ProofNode {
+                        root: root_string(digest),
+                        tag: format!("{:02x}", frame.tag()),
+                        body_hex: hex(frame.body()),
+                    };
+                    self.reserve_reply(encoded_len(&proof)? + u64::from(!self.nodes.is_empty()))?;
+                    self.nodes.insert(*digest, (frame.tag(), frame.body().to_vec()));
+                }
+                Some(frame)
+            }
+        };
+        self.access.pre_io_check()?;
+        Ok(checked)
     }
 }
 fn public_header(r: &ContentRef) -> Result<(), CodecError> {

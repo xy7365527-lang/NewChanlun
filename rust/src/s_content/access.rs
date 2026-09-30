@@ -5,7 +5,7 @@
 //! 冻结的 frame、捕获、期限、Delta 与回复资源。
 
 use super::{
-    job::{CheckedNodeUsage, Job, NodeAcceptance},
+    job::{CheckedFrame, CheckedNodeUsage, Job, NodeAcceptance},
     CodecError, NodeDigest, NodeRead, NodeSource,
 };
 use std::time::Instant;
@@ -127,6 +127,23 @@ impl NodeSource for MeteredSource<'_> {
         }
         self.access.pre_io_check()?;
         Ok(read)
+    }
+
+    fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<CheckedFrame>, CodecError> {
+        self.access.begin_first_read()?;
+        let read = self.source.read(digest)?;
+        let checked = match read {
+            NodeRead::Missing => None,
+            NodeRead::Found { tag, body } => {
+                // 旧 accept_node 在读后、F 前再检查 Job；读取期间过期不可先算 F。
+                self.access.pre_io_check()?;
+                let frame = CheckedFrame::checked(digest, tag, body)?;
+                self.access.accept_checked_usage(frame.usage())?;
+                Some(frame)
+            }
+        };
+        self.access.pre_io_check()?;
+        Ok(checked)
     }
 }
 

@@ -774,6 +774,39 @@ impl NodeSource for HashReader<'_> {
         }
         Ok(value)
     }
+
+    fn checked_read(&mut self, d: &NodeDigest) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+        check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
+        if let Some(b) = self.budget {
+            b.precheck()?;
+        }
+        let value = if let Some((tag, body)) = self.overlay.get(d) {
+            #[cfg(test)]
+            super::state::trace_read(true);
+            NodeRead::Found { tag: *tag, body: body.clone() }
+        } else {
+            #[cfg(test)]
+            super::state::trace_read(false);
+            self.source.read(d)?
+        };
+        let checked = match value {
+            NodeRead::Missing => None,
+            NodeRead::Found { tag, body } => {
+                if let Some(b) = self.budget {
+                    b.prepare_node()?;
+                }
+                let frame = sc::job::CheckedFrame::checked(d, tag, body)?;
+                if let Some(b) = self.budget {
+                    b.accept_prepared_frame(&frame)?;
+                }
+                Some(frame)
+            }
+        };
+        if let Some(b) = self.budget {
+            b.precheck()?;
+        }
+        Ok(checked)
+    }
 }
 impl NodeSink for HashReader<'_> {
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
