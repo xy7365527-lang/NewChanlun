@@ -1,0 +1,54 @@
+{
+  "candidate_head": "c6255d308fc69d94178916a1dc5534546fb77591",
+  "sources": [
+    {
+      "path": "rust/src/s_content/job.rs",
+      "sha256": "e10073af1c734df9640273ba17b9e9c2b0caa2055f64b16f59ede6508a8e89d9",
+      "author_sha_equal": true,
+      "head_blob_equal": true
+    },
+    {
+      "path": "rust/src/s_content.rs",
+      "sha256": "0d9b2aaef32ae1ba36643c7dc130cd11bd6cbf9bceb63d0391fbb4700332c013",
+      "author_sha_equal": true,
+      "head_blob_equal": true
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/content_store.rs",
+      "sha256": "185799c4c832993e55980f9b4163e5e452ac57fd76a76a567bb865a2bc30509e",
+      "author_sha_equal": true,
+      "head_blob_equal": true
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/history.rs",
+      "sha256": "37d4b07309d1047d48540a536f03737fabce7395ba7fcb3082f464d3c477da3e",
+      "author_sha_equal": true,
+      "head_blob_equal": true
+    },
+    {
+      "path": "rust/src/bin/s_session_v3/state.rs",
+      "sha256": "7c5b2bdc92e6336449d89eb6fc69df078ffbc3d0eccd9912f734bb79d31b53d0",
+      "author_sha_equal": true,
+      "head_blob_equal": true
+    }
+  ],
+  "reports": {
+    "SPEC-REVIEW.md": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/SPEC-REVIEW.md",
+      "bytes": 6187,
+      "sha256": "0cc522686fe6c09c1c1b64c0ae7cd90535de11202514708a430988cb934aa16f",
+      "expected_equal": true
+    },
+    "SPEC-REVIEW.json": {
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/SPEC-REVIEW.json",
+      "bytes": 11563,
+      "sha256": "3c1cac51607a5e19f402037650119ff186f37c4bd0933d67f06a7c0d12a32619",
+      "expected_equal": true
+    }
+  },
+  "patch_sha256": "677164b5a0ca4e43ab325502853f3ea72d4ad01313fb43a5fe8152124f19068e",
+  "patch_equal": true,
+  "binary_sha256": "c098bf76bb7870443b7564714ba2f9110f2c5593a3180ca13f9888c01ee16d17",
+  "binary_author_equal": true,
+  "result": "PASS_FIXED_CANDIDATE_AND_SPEC_ARTIFACT_BINDING"
+}
