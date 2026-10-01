@@ -1,0 +1,18 @@
+{
+  "固定HEAD": "e4ea36fbd16c3784b846092b6c28b976ff6343a5",
+  "基线RustTree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "候选RustTree虚拟SHA": "c60452f606202ed6b4754ce29bd17698d115ed32",
+  "未写Git对象或提交": true,
+  "候选patch_sha256": "8e67ee4fe48625e61e83a6bb56fe18743774784df40c908db7cfe554222034c9",
+  "files_sha256": {
+    "rust/src/s_content/path.rs": "ab82fda2bbcc663d9ab78f56f71ba56964f1d33eff25af9b73a3ac0e73c1bb38",
+    "rust/src/s_content.rs": "1033f6e720487ac31fd609278ec7951a2b4c5010fae3b381eacabdc16758350a",
+    "rust/src/bin/s_session_v3/history.rs": "034295412af204e077d353be1df95230d633e4ebc3a8d10ef07890beee9f8c69",
+    "rust/src/bin/s_session_v3/source_audit.rs": "024eccf990fed89b48d65d13495465cfc6af80563bdf00c2512bc01a94470b89",
+    "rust/src/bin/s_session_v3/object_index.rs": "3809dc6205bb6249ee1e87f2bfc59a96b8058b895d84a2e3d4a6c022d39c8810",
+    "rust/tests/s_content_array_scan.rs": "a9ca4c23a6b2db8fa05354703dafd98f6d4945f881f557ccbb923cbd4fa6245f"
+  },
+  "测量探针sha256": "fcf2df8d5bdad1194ffe5c3a0e373dd18fd8e99c244db81da03769eace182470",
+  "测量说明": "归档S16诊断的候选二进制SHA未及时保存；后续同材料pending27 pilot在独立scratch源码副本中注入相同cfg(test)探针，两个二进制SHA、输入SHA及全部原始结果完整记录在pending/。交付生产逻辑与该候选副本一致，交付未新增ignore或环境依赖诊断测试。",
+  "交付测试二进制sha256": "931d66d206502c915c634438d237715892adb12fb52408542d860a2f3a44ae2d"
+}
