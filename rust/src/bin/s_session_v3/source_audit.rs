@@ -123,14 +123,15 @@ pub(super) fn elements(s: &mut dyn NodeSource, r: &ContentRef) -> Result<Vec<Con
         .collect()
 }
 
-/// 活期仅为本次完整来源审计；Some 强制原路径，即便底层曾显式申请线性遍历。
+/// 活期仅为本次完整来源审计；预算/期限 Some 强制原路径。
 struct ArrayAuditSource<'a> {
     source: &'a mut dyn NodeStore,
     full_arrays: bool,
+    deadline: Option<std::time::Instant>,
 }
 impl NodeSource for ArrayAuditSource<'_> {
     fn audit_full_array_scan(&self) -> bool {
-        self.full_arrays
+        self.full_arrays && self.deadline.is_none()
     }
     fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
         self.source.read(d)
@@ -274,6 +275,7 @@ pub(super) fn audit_generated_metered(
     let mut array_source = ArrayAuditSource {
         source: s,
         full_arrays: budget.is_none(),
+        deadline,
     };
     let s: &mut dyn NodeStore = &mut array_source;
     #[cfg(test)]
@@ -985,6 +987,7 @@ mod tests {
                 let mut s = ArrayAuditSource {
                     source: &mut reader,
                     full_arrays: true,
+                    deadline: None,
                 };
                 let result = read_local(&mut s, root, names, legacy).unwrap();
                 (
@@ -1071,6 +1074,7 @@ mod tests {
                 let mut s = ArrayAuditSource {
                     source: &mut reader,
                     full_arrays: false,
+                    deadline,
                 };
                 let result = read_local(&mut s, root, names, legacy);
                 (
@@ -1109,6 +1113,104 @@ mod tests {
             assert!(expired.0.unwrap_err().contains("verify_deadline"));
             assert_eq!((expired.1, expired.2), (0, 0));
             assert!(expired.3.is_empty(), "期限门先于预算门与SQL");
+        }
+    }
+    #[test]
+    fn local_subset_budget_and_deadline_opt_in_keep_legacy_sql_f_and_gate_order() {
+        let mut db = super::super::commit::tests::fixture();
+        let tx = db.conn.transaction().unwrap();
+        let names = (0..15).map(|i| format!("field-{i:02}")).collect::<Vec<_>>();
+        let keys = names[..10].iter().map(String::as_str).collect::<Vec<_>>();
+        let root = sc::write_value(
+            &mut crate::content_store::TxStore::new(&tx).unwrap(),
+            &V::Object(names.iter().map(|k| (k.clone(), V::Null)).collect()),
+        )
+        .unwrap()
+        .content_ref();
+        let run = |legacy, budget_some, deadline, stop_at| {
+            let meter = Meter {
+                stop_at,
+                ..Meter::default()
+            };
+            let mut source = crate::content_store::ReadStore::new(&tx).unwrap();
+            source.enable_audit_same_material();
+            let mut reads = Reads {
+                source: &mut source,
+                digests: vec![],
+            };
+            let sql = crate::content_store::sql_reads_on_thread();
+            let frames = sc::frame_calls_on_thread();
+            let mut reader = super::super::history::HashReader::metered(
+                &mut reads,
+                deadline,
+                None,
+                if budget_some { Some(&meter) } else { None },
+            );
+            reader.enable_full_arrays_for_test();
+            assert!(!reader.audit_full_array_scan());
+            let mut s = ArrayAuditSource {
+                source: &mut reader,
+                full_arrays: !budget_some,
+                deadline,
+            };
+            assert!(!s.audit_full_array_scan());
+            let fields = if legacy {
+                sc::path::lookup_object_fields_subset(&mut s, &root, &keys).map_err(err)
+            } else {
+                // 上层保留逐字段业务顺序；同时锁低层 Subset 不受本次优化影响。
+                assert!(local_fields(&mut s, &root, &keys).unwrap().is_none());
+                sc::path::lookup_object_fields_subset(&mut s, &root, &keys).map_err(err)
+            };
+            (
+                fields,
+                crate::content_store::sql_reads_on_thread() - sql,
+                sc::frame_calls_on_thread() - frames,
+                reads.digests,
+                meter.events.into_inner(),
+            )
+        };
+        for (budget, deadline) in [
+            (true, None),
+            (
+                false,
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(3600)),
+            ),
+            (
+                true,
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(3600)),
+            ),
+        ] {
+            let old = run(true, budget, deadline, None);
+            assert_eq!(run(false, budget, deadline, None), old);
+            assert!(old.0.is_ok(), "Some 原 Subset 结果：{:?}", old.0);
+            eprintln!(
+                "SUBSET_GATE budget={budget} deadline={} SQL={} F={} reads={}",
+                deadline.is_some(),
+                old.1,
+                old.2,
+                old.3.len()
+            );
+            assert_eq!(old.1, 199, "Some 的真实 SQL 读取保持原 15取10");
+            // 期限 Some/预算 None 的旧源仍逐次 SQL 读，但同素材仅核 91 次纯 F。
+            assert_eq!(old.2, if budget { 398 } else { 91 });
+            if budget {
+                for (at, event) in old.4.iter().enumerate() {
+                    if event == "precheck" {
+                        assert_eq!(
+                            run(false, budget, deadline, Some(at + 1)),
+                            run(true, budget, deadline, Some(at + 1))
+                        );
+                    }
+                }
+            }
+        }
+        let expired = Some(std::time::Instant::now());
+        for budget in [false, true] {
+            let old = run(true, budget, expired, None);
+            assert_eq!(run(false, budget, expired, None), old);
+            assert!(old.0.unwrap_err().contains("verify_deadline"));
+            assert_eq!((old.1, old.2), (0, 0));
+            assert!(old.3.is_empty() && old.4.is_empty());
         }
     }
     #[test]

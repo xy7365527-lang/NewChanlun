@@ -87,7 +87,15 @@ pub(super) fn read_indexed_history_for_audit(
     max_render_bytes: Option<u64>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<IndexedHistory, String> {
-    read_indexed_history_inner(tx, raw, control, deadline, max_render_bytes, budget, budget.is_none())
+    read_indexed_history_inner(
+        tx,
+        raw,
+        control,
+        deadline,
+        max_render_bytes,
+        budget,
+        budget.is_none(),
+    )
 }
 
 fn read_indexed_history_inner(
@@ -770,13 +778,19 @@ impl<'a> HashReader<'a> {
         }
     }
 }
+#[cfg(test)]
+impl HashReader<'_> {
+    pub(super) fn enable_full_arrays_for_test(&mut self) {
+        self.audit_full_arrays = true;
+    }
+}
 pub(super) fn check_deadline(deadline: Option<std::time::Instant>) -> Result<(), String> {
     crate::check_read_deadline(deadline)
 }
 
 impl NodeSource for HashReader<'_> {
     fn audit_full_array_scan(&self) -> bool {
-        self.audit_full_arrays && self.budget.is_none()
+        self.audit_full_arrays && self.budget.is_none() && self.deadline.is_none()
     }
     fn max_render_bytes(&self) -> Option<u64> {
         match (self.max_render_bytes, self.source.max_render_bytes()) {
@@ -1143,10 +1157,22 @@ mod tests {
         let mut reader = HashReader::new(&mut source);
         sc::verify_template(&mut reader, &placeholder.content_ref()).unwrap();
         let before = sc::frame_calls_on_thread();
-        assert_eq!(sc::verify(&mut reader, &placeholder.content_ref()).unwrap_err().code(), sc::code::TEMPLATE_PLACEHOLDER);
-        assert_eq!(sc::frame_calls_on_thread(), before, "纯F复用不放行当前Public判据");
+        assert_eq!(
+            sc::verify(&mut reader, &placeholder.content_ref())
+                .unwrap_err()
+                .code(),
+            sc::code::TEMPLATE_PLACEHOLDER
+        );
+        assert_eq!(
+            sc::frame_calls_on_thread(),
+            before,
+            "纯F复用不放行当前Public判据"
+        );
         sc::verify(&mut reader, &nested.content_ref()).unwrap();
-        assert_eq!(sc::verify(&mut reader, &invalid_inner).unwrap_err().code(), sc::code::JSON_TEXT_INTERNAL_KIND);
+        assert_eq!(
+            sc::verify(&mut reader, &invalid_inner).unwrap_err().code(),
+            sc::code::JSON_TEXT_INTERNAL_KIND
+        );
         assert!(sc::verify(&mut reader, &wrong).is_err());
     }
 

@@ -186,6 +186,10 @@ fn object_fields(
     let mut stack = vec![(digest_at(&node.body, 8), count)];
     let mut at = 0;
     let mut previous_key = None;
+    // #1394 C §5：仅完整审计 None 的 Subset，在本次 DFS 中保留前/当前两短键。
+    // 字节来自本位置实际读取且完整核验；不按摘要复用，也不携带值/闭包证明。
+    let short_keys = !exact && source.audit_full_array_scan();
+    let mut previous_bytes: Option<Vec<u8>> = None;
     while let Some((digest, count)) = stack.pop() {
         match read_seq_node(source, &digest, count)? {
             SeqNode::Empty => {}
@@ -196,8 +200,17 @@ fn object_fields(
             }
             SeqNode::Leaf(field) => {
                 let (key, value) = read_field(source, &field)?;
+                let current_bytes = if short_keys {
+                    read_short_key(source, &key)?
+                } else {
+                    None
+                };
                 if let Some(previous) = previous_key.filter(|_| !exact) {
-                    match cmp_key_nodes(source, &previous, &key)? {
+                    let order = match (&previous_bytes, &current_bytes) {
+                        (Some(a), Some(b)) => a.cmp(b),
+                        _ => cmp_key_nodes(source, &previous, &key)?,
+                    };
+                    match order {
                         Ordering::Less => {}
                         Ordering::Equal => {
                             return Err(CodecError::new(code::DUPLICATE_KEY, "对象重复键"))
@@ -211,11 +224,12 @@ fn object_fields(
                     }
                 }
                 previous_key = Some(key);
+                previous_bytes = current_bytes;
                 if !exact {
                     let Some(expected) = keys.get(at) else {
                         continue;
                     };
-                    match cmp_key_bytes(source, &key, expected.as_bytes())? {
+                    match cmp_field_key(source, &key, previous_bytes.as_deref(), expected)? {
                         Ordering::Less => continue,
                         Ordering::Greater => return Err(field_missing_error(expected)),
                         Ordering::Equal => {}
@@ -224,7 +238,9 @@ fn object_fields(
                 let expected = keys
                     .get(at)
                     .ok_or_else(|| sequence_shape_error("字段超出清单"))?;
-                if cmp_key_bytes(source, &key, expected.as_bytes())? != Ordering::Equal {
+                if cmp_field_key(source, &key, previous_bytes.as_deref(), expected)?
+                    != Ordering::Equal
+                {
                     return Err(field_missing_error(expected));
                 }
                 let reference = super::content_ref_of(source, &root_string(&value))?;
@@ -237,6 +253,44 @@ fn object_fields(
         return Err(sequence_shape_error("字段序列长度与清单不符"));
     }
     Ok(result)
+}
+
+/// 长键不具资格，仍交给既有流式比较；短键必须核唯一空/单叶分解、
+/// 实际块角色、精确声明长度和全部 UTF-8。每个逻辑位置重新读当次 F。
+fn read_short_key(
+    source: &mut dyn NodeSource,
+    key: &NodeDigest,
+) -> Result<Option<Vec<u8>>, CodecError> {
+    let (root, declared) = read_string_header(source, key)?;
+    if declared > CHUNK_BYTES as u64 {
+        return Ok(None);
+    }
+    let bytes = match read_seq_node(source, &root, u64::from(declared != 0))? {
+        SeqNode::Empty => Vec::new(),
+        SeqNode::Leaf(leaf) => {
+            let (t, bytes) = read_checked(source, &leaf)?;
+            check_chunk(t, &bytes)?;
+            if bytes.len() as u64 != declared {
+                return Err(byte_extent_error(bytes.len() as u64, declared));
+            }
+            bytes
+        }
+        SeqNode::Branch { .. } => unreachable!("短键期望块数只能是 0 或 1"),
+    };
+    std::str::from_utf8(&bytes).map_err(|_| super::utf8_error())?;
+    Ok(Some(bytes))
+}
+
+fn cmp_field_key(
+    source: &mut dyn NodeSource,
+    key: &NodeDigest,
+    bytes: Option<&[u8]>,
+    expected: &str,
+) -> Result<Ordering, CodecError> {
+    match bytes {
+        Some(bytes) => Ok(bytes.cmp(expected.as_bytes())),
+        None => cmp_key_bytes(source, key, expected.as_bytes()),
+    }
 }
 
 /// 片段读取共用的序列头检查；不把未读取的子图当作已完整验证。
