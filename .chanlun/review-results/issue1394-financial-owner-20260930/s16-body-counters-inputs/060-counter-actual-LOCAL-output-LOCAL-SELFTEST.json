@@ -1,0 +1,18 @@
+{
+  "audit_executed": false,
+  "cases": [
+    "old_probe_bool_count",
+    "candidate_bool_capacity",
+    "missing_reuse_field",
+    "float_elapsed",
+    "stale_comparison",
+    "false_exit",
+    "owned_shm_mtime_only_allowed",
+    "owned_shm_byte_change_rejected",
+    "owned_db_mtime_change_rejected",
+    "modified_raw_log"
+  ],
+  "positive_repeats": 2,
+  "status": "PASS",
+  "wrapper_sha256": "1222ffcd766d91a599ad2c7ecc199d57cb8f3f2edd72d265cc95d16f7f34009c"
+}

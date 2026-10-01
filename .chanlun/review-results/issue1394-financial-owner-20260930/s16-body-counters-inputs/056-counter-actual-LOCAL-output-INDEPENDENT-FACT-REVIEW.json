@@ -1,0 +1,52 @@
+{
+  "status": "PASS_BOUNDED",
+  "scope": "Existing S16 owned DB/WAL/SHM clones; two paired state::audit repeats; no rerun",
+  "candidate_head": "c6255d308fc69d94178916a1dc5534546fb77591",
+  "candidate_rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "root_integration_checkout": "/Users/silencehan/Projects/NewChanlun-1394-content-v3",
+  "root_integration_head": "8fb179091a81e274214056603171b759decfdd08",
+  "root_integration_rust_tree_equals_frozen_candidate": true,
+  "five_production_sources_root_frozen_candidate_binding_equal": true,
+  "pilot_sources_have_diagnostic_instrumentation": true,
+  "wrapper_sha256": "1222ffcd766d91a599ad2c7ecc199d57cb8f3f2edd72d265cc95d16f7f34009c",
+  "diagnostic_patch_sha256": "e18ffbaefceb9c577f00c92bfed9edb8821e498afce481f9a90011f0f8d13ff3",
+  "candidate_test_binary_sha256": "5f9ef56e7cd0ee27dd00094faaf5c73821d6501fe38b4783c238c67d80cb286f",
+  "report_sha256": {
+    "LOCAL-REPORT.json": "8d02859b50aa5db816dfcaec2879e8c6560130f20f850f7d4d27131faf96f026",
+    "LOCAL-REPORT.md": "d5d06a96778bae87c5ea6aa583164e10aebf5058bd5c620ce10cf064c92643f5"
+  },
+  "returned_state_exact_across_old_probe_baseline_candidate": true,
+  "returned_members": ["raw", "cuts", "objects", "auxiliary"],
+  "raw_count": 16,
+  "cut_count": 16,
+  "cut_fields_exact": ["metadata", "roots", "batch_id", "snapshot", "delta"],
+  "fingerprint_recomputed_sha256": "1de8cc89baf383fc18db84c1ed68bec633fa4887ce21f9b1fc2aa9ce13b6659f",
+  "ordered_markers_per_repeat": 578,
+  "full_db": {
+    "sha256": "8a7f8f248d1ffad4081555d2900bfd9bc73fb32971167edb544cb15292ea8174",
+    "canonical_sha256": "76d25b386cee9e11b3cc0e29461a9d3a1d175238ae86550931ede9a3e5a9762a",
+    "tables": 24,
+    "rows": 48403,
+    "blob_cells": 96397,
+    "per_table_row_hashes_valid": true
+  },
+  "repeats": [
+    {"index": 0, "old_probe_audit_ns": 4004281208, "baseline_audit_ns": 4117122791, "candidate_audit_ns": 3803846416, "f_old": 4406786, "f_candidate": 1386860, "f_reduction": 3019926, "reuse_hits": 3019926, "reuse_misses": 62537, "source_reads": 3082463, "unique_source_digests": 35272, "parse_calls": 1, "parse_event_checks": 9011, "stored_clock_calls": 1, "reuse_mismatches": 0, "admission_reject_total": 0, "retained_entries_peak": 35272, "retained_capacity_peak_bytes": 2025582, "public_role_success_roots": 32, "template_role_success_roots": 16},
+    {"index": 1, "old_probe_audit_ns": 3961961084, "baseline_audit_ns": 4112855125, "candidate_audit_ns": 3769924541, "f_old": 4406786, "f_candidate": 1386860, "f_reduction": 3019926, "reuse_hits": 3019926, "reuse_misses": 62537, "source_reads": 3082463, "unique_source_digests": 35272, "parse_calls": 1, "parse_event_checks": 9011, "stored_clock_calls": 1, "reuse_mismatches": 0, "admission_reject_total": 0, "retained_entries_peak": 35272, "retained_capacity_peak_bytes": 2025582, "public_role_success_roots": 32, "template_role_success_roots": 16}
+  ],
+  "build_exit_zero_reaped": true,
+  "audit_exit_zero_reaped": {"baseline": true, "candidate": true},
+  "plan_probe_log_binary_sha_chain_verified": true,
+  "source_binding_six_files_verified": true,
+  "current_clone_source_sha_size_device_inode_verified": true,
+  "original_source_current_sha_inode_mtime_verified": true,
+  "original_target_589_before_after_manifest_exact": true,
+  "original_target_589_current_content_rehashed": false,
+  "owned_shm_mtime_changed_but_sha_inode_stable": true,
+  "rss_sampled_max_bytes": {"baseline": 66043904, "candidate": 75497472},
+  "rss_is_true_peak": false,
+  "heap_peak": "UNMEASURED",
+  "full9011": "NOT_RUN",
+  "whole_graph": "NOT_RUN",
+  "new_audit_or_build_or_service_run_by_reviewer": false
+}
