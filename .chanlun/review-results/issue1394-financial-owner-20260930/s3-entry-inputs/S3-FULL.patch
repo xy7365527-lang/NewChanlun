@@ -1,0 +1,1168 @@
+diff --git a/.chanlun/agent-roster-codex-20261001-s3-formal-entry.md b/.chanlun/agent-roster-codex-20261001-s3-formal-entry.md
+new file mode 100644
+index 0000000000..cdfbe1db2d
+--- /dev/null
++++ b/.chanlun/agent-roster-codex-20261001-s3-formal-entry.md
+@@ -0,0 +1,9 @@
++# #1394 S3 正式入口修复工位
++
++本文件是 open #1394 的在跑工位登记，属于工作草稿。基线为 `7d6dd63aeb6bb6861a9b91d794225d93818ad317`，分支为 `codex/1394-s3-formal-entry-20261001`，工位为 `/Users/silencehan/Projects/NewChanlun-1394-s3-formal-entry-20261001`。
++
++根管理者负责批准源对齐、资源输入复核、独立评审与隔离集成。`/root/s3_formal_entry_implementation` 负责既有 Controller 的显式 S3 初始化、启动及 Ready，Rust 普通结构服务资格和原七资源门的最小修复。`/root/s3_named_resources_preparation` 在根工位的独立 scratch 目录准备冻结测试输入与实测资源档，不修改产品。
++
++用户已批准本片隔离实施、必要验证、独立评审、本地提交与集成。本登记不授权 main、push、新资源量纲、新宿主端点或真实场所动作。产品前端 #1460 独立；本片仅使用现有后台验收入口。
++
++当前状态为实施与具名资源准备并行。真实 S3 服务验收须先接回具名资源输入；条件执行及持久 FIFO 仍属 #1416 原验收域，不能以普通 Ready、receipt、ingest 销项。旧封存原件和主仓未提交面保持。
+diff --git a/rust/src/bin/s_session_v3/driver.rs b/rust/src/bin/s_session_v3/driver.rs
+index 4ad273a3e3..1a348129bd 100644
+--- a/rust/src/bin/s_session_v3/driver.rs
++++ b/rust/src/bin/s_session_v3/driver.rs
+@@ -1,5 +1,5 @@
+ //! #1394：S3 消息到真实接纳、Begin 和发布的同步驱动。
+-//! 传输层须先执行资源/帧约束；CLI 由 writer_cli 接线，监听保持启动资格闭门。
++//! 传输层须先执行资源/帧约束；CLI 由 writer_cli 接线。
+ //! 同一实例持有原进程锁；每次读取/写入都在当前事务调用同一完整状态审计。
+ 
+ use super::*;
+@@ -81,12 +81,26 @@ pub(super) struct Driver {
+     epoch: String,
+     profile_id: String,
+     volume_unit: Option<String>,
++    /// 只保留显式预算数值，不保留 AuditedState、源节点或审计结果；每次 handle 仍 fresh audit。
++    audit_cache_source_bytes: Option<usize>,
+     _lock: File,
+     #[cfg(test)]
+     stop_after: Option<&'static str>,
+ }
+ 
+ impl Driver {
++    pub(super) fn open_for_serve(
++        db: &Path,
++        profile: &Path,
++        epoch: &str,
++        clock: v2::ClockPlan,
++        audit_cache_source_bytes: usize,
++    ) -> Result<Self, String> {
++        state::check_audit_source_retention(audit_cache_source_bytes)?;
++        let mut driver = Self::open(db, profile, epoch, clock)?;
++        driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
++        Ok(driver)
++    }
+     /// 服务回复只绑定经过当前持久审计的身份，不另建一份控制状态。
+     pub(super) fn identity(&self) -> Result<(String, String, String), String> {
+         let tx = self.conn.unchecked_transaction().map_err(err)?;
+@@ -177,6 +191,7 @@ impl Driver {
+             epoch: epoch.into(),
+             profile_id,
+             volume_unit,
++            audit_cache_source_bytes: None,
+             _lock: lock,
+             #[cfg(test)]
+             stop_after: None,
+@@ -187,6 +202,9 @@ impl Driver {
+ 
+     pub(super) fn handle(&mut self, envelope: Value) -> Result<Value, String> {
+         let envelope = validate_request(envelope)?;
++        if let Some(cap) = self.audit_cache_source_bytes {
++            state::check_audit_source_retention(cap)?;
++        }
+         let tx = self.conn.transaction().map_err(err)?;
+         state::audit(&tx)?;
+         verify_writer_epoch(&tx, &self.epoch)?;
+@@ -470,7 +488,9 @@ mod tests {
+         let second = Fixture::ingest(2);
+         let inputs = json!([first, second]);
+         let cap = probe::begin(&inputs);
+-        let mut d = f.open("1").unwrap();
++        let mut d = Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1).unwrap();
++        assert_eq!(d.audit_cache_source_bytes, Some(1));
++        assert_eq!(state::AUDIT_SOURCE_RETAINED_BYTES, 0);
+         let mut phases = Vec::new();
+         for (i, input) in inputs.as_array().unwrap().iter().enumerate() {
+             let (result, mut phase) = probe::observe(&format!("actual_ingest_{}", i + 1), || {
+@@ -539,7 +559,9 @@ mod tests {
+         phase["storage_after"] = probe::storage(&d.conn, &f.db);
+         phases.push(phase);
+         drop(d);
+-        let (result, mut phase) = probe::observe("driver_reopen_current_history", || f.open("1"));
++        let (result, mut phase) = probe::observe("driver_reopen_current_history", || {
++            Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1)
++        });
+         assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
+         phase["storage_after"] = probe::storage(&result.as_ref().unwrap().conn, &f.db);
+         phases.push(phase);
+@@ -869,7 +891,7 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn explicit_s3_serve_with_complete_test_resources_refuses_before_lock_or_listen() {
++    fn explicit_s3_serve_with_complete_resources_reaches_real_writer_lock_before_listen() {
+         let f = Fixture::new();
+         let resources = f.path.join("s-resources.json");
+         let mut limits = serde_json::Map::new();
+@@ -896,12 +918,71 @@ mod tests {
+             resources.to_string_lossy().into_owned(),
+         ]);
+         let error = super::super::dispatch(&args).unwrap_err();
+-        assert!(error.contains("AwaitingPolicy"), "{error}");
++        assert!(error.contains("StaleWriter") && error.contains("独占进程锁不可得"), "{error}");
+         assert!(!socket.exists());
+         let db = open_db(&f.db).unwrap();
+         assert_eq!(meta_i64(&db, "generation").unwrap(), 0);
+     }
+ 
++    #[test]
++    fn invalid_s3_serve_resources_refuse_before_writer_lock_database_write_or_listen() {
++        let f = Fixture::new();
++        let resources = f.path.join("invalid-s-resources.json");
++        let socket = f.path.join("s.sock");
++        let lock = PathBuf::from(format!("{}.writer.lock", f.db.display()));
++        // init 的自有锁已释放；移除本夹具旧空锁，才能检验非法 serve 不会创建新锁。
++        std::fs::remove_file(&lock).unwrap();
++        assert!(!lock.exists());
++        let original_db = std::fs::read(&f.db).unwrap();
++        let mut limits = serde_json::Map::new();
++        for key in super::super::writer_cli::GATE_FIELDS {
++            limits.insert(key.into(), json!("1"));
++        }
++        let valid = json!({"schema_revision":"s-structure-resources/1","s_resources":limits});
++        let mut missing = valid.clone();
++        missing["s_resources"].as_object_mut().unwrap().remove("audit_cache_source_bytes");
++        let mut extra = valid.clone();
++        extra["s_resources"]["job_limits"] = json!("1");
++        let mut zero = valid.clone();
++        zero["s_resources"]["audit_cache_source_bytes"] = json!("0");
++        let mut numeric = valid.clone();
++        numeric["s_resources"]["queue_capacity"] = json!(1);
++        let mut wrong_version = valid.clone();
++        wrong_version["schema_revision"] = json!("s-structure-resources/2");
++        let mut args = cli(&f, "serve", "--writer-epoch", "1");
++        args.extend([
++            "--profile".into(), f.profile.to_string_lossy().into_owned(),
++            "--socket".into(), socket.to_string_lossy().into_owned(),
++            "--resource-config".into(), resources.to_string_lossy().into_owned(),
++        ]);
++        for invalid in [missing, extra, zero, numeric, wrong_version] {
++            std::fs::write(&resources, canonical_json(&invalid)).unwrap();
++            let error = super::super::dispatch(&args).unwrap_err();
++            assert!(error.contains("S3WriterResourcesInvalid"), "{error}");
++            assert!(!lock.exists());
++            assert!(!socket.exists());
++            assert_eq!(std::fs::read(&f.db).unwrap(), original_db);
++        }
++        let error = Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 0)
++            .err().unwrap();
++        assert!(error.contains("audit_cache_source_bytes"), "{error}");
++        assert!(!lock.exists());
++        assert_eq!(std::fs::read(&f.db).unwrap(), original_db);
++    }
++
++    #[test]
++    fn s3_serve_driver_rejects_unimplemented_condition_ops_before_admission() {
++        let f = Fixture::new();
++        let mut driver = Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1).unwrap();
++        for op in ["condition", "execute_conditional", "recover"] {
++            let error = driver.handle(envelope(op, json!({"op":op}))).unwrap_err();
++            assert!(error.contains("未知S3 op"), "{error}");
++        }
++        assert_eq!(count(&driver.conn, "raw_events"), 0);
++        assert_eq!(count(&driver.conn, "s_input_messages"), 0);
++        assert_eq!(meta_i64(&driver.conn, "generation").unwrap(), 0);
++    }
++
+     #[test]
+     fn message_driver_publishes_and_returns_original_receipt_on_duplicate() {
+         let f = Fixture::new();
+diff --git a/rust/src/bin/s_session_v3/state.rs b/rust/src/bin/s_session_v3/state.rs
+index f6e7917751..2a9de9642c 100644
+--- a/rust/src/bin/s_session_v3/state.rs
++++ b/rust/src/bin/s_session_v3/state.rs
+@@ -47,6 +47,22 @@ pub(super) struct AuditedState {
+     pub auxiliary: aux_index::Index,
+ }
+ 
++/// #1394：第七资源门仍计跨请求审计源保留字节。
++/// HashReader/overlay、source_audit producer 均是 audit 调用局部；AuditedState 不存入
++/// Driver/prepared Runtime。当前这条路径的跨请求保留因此为 0，生成缓存和临时 heap 不在此量纲。
++/// 若以后增加审计源 keeper，必须在此按原源成本计量并驱逐，不能继续宣称结构零保留。
++pub(super) const AUDIT_SOURCE_RETAINED_BYTES: usize = 0;
++
++pub(super) fn check_audit_source_retention(cap: usize) -> Result<(), String> {
++    if cap == 0 {
++        return Err("S3WriterResourcesInvalid：audit_cache_source_bytes 必须为显式正预算".into());
++    }
++    if AUDIT_SOURCE_RETAINED_BYTES > cap {
++        return Err("S3WriterResourcesInvalid：跨请求审计源保留超过 audit_cache_source_bytes".into());
++    }
++    Ok(())
++}
++
+ /// 只读完整状态审计：提交口与只读入口共用这一份判据。
+ pub(super) fn audit(tx: &Transaction<'_>) -> Result<AuditedState, String> {
+     audit_until(tx, None)
+diff --git a/rust/src/bin/s_session_v3/writer_cli.rs b/rust/src/bin/s_session_v3/writer_cli.rs
+index 0bd68c7bee..06d58bfb71 100644
+--- a/rust/src/bin/s_session_v3/writer_cli.rs
++++ b/rust/src/bin/s_session_v3/writer_cli.rs
+@@ -1,18 +1,9 @@
+ //! #1394：S3 正式写入口（`s-session/3`）的 CLI 接线：`serve` / 一次性 `advance` / 监督 `recover`。
+ //!
+-//! 三件事分开写清，免得被读成「服务已启用」：
+-//!
+-//! 1. **唯一状态机**：三个命令只用既有 [`Driver`]（唯一 `handle`、私有 `advance`、`recover`）与
+-//!    `control::S3Control`；锁冲突、旧 writer、未完成 Begin、epoch 严格上升、profile/clock 拒绝、
+-//!    已接纳 pending 按原身份推进与回执幂等全部沿用 Driver 既有判据，不另写第二套推进路径。
+-//! 2. **禁改前拒绝**：重复、变形（`--flag=value`）、未知、缺参、非规范正整数，在任何文件创建、
+-//!    进程锁、数据库打开/写入与监听之前拒绝——本模块先走完参数与文件类型校验，再交给 Driver。
+-//! 3. **启动资格闸**：[`serve_authorization`] 在参数/资源档/类型/库路径全部核过之后、持锁与开库
+-//!    之前拒绝启动。理由与缺口逐条写在那个函数上；本切片不拿测试夹具数值冒称部署资源。
+-//!
+-//! 边界如实：本片只做 CLI 接线与启动资格判定，未启动常驻服务、未冻结首批具名资源档、未运行
+-//! 9011 双跑或联合验收；`serve` 资格闸以下的真实流程（`Driver::open` → `serve_unix`）在同一
+-//! 冻结档与第七项处置落地前不可达、未执行、未验证。
++//! 参数与 exact 七字段资源档先核验，随后用同一 Driver 持锁、审计并监听。
++//! 普通 ready/receipt/ingest 沿用 typed 判据；C09 持久条件 FIFO 仍属 #1416，未知 op 拒绝。
++//! 第七资源门按 state 的跨请求审计源零保留不变式核显式正 cap，不计生成缓存或临时 heap。
++//! 本模块不提供默认数值；实际服务验收由调用方冻结具名资源输入并绑定当前二进制。
+ 
+ use super::driver::Driver;
+ use super::*;
+@@ -157,7 +148,7 @@ impl SResources {
+     pub(super) fn digest(&self) -> &str {
+         &self.digest
+     }
+-    /// 六个旧门字段到保留下来的 `session_transport` 界限的逐项映射；第七项见资格闸。
++    /// 六个旧门字段到保留下来的 `session_transport` 界限的逐项映射；第七项由跨请求审计源零保留不变式核预算。
+     fn transport_bounds(&self) -> TransportBounds {
+         TransportBounds {
+             frame: self.limit("max_frame_bytes"),
+@@ -435,49 +426,59 @@ impl RecoverOptions {
+     }
+ }
+ 
+-/// 启动资格闸：**当前源事实下必须 Err**，且发生在持锁/开库/写库/监听之前。
+-///
+-/// 保留的是旧服务资源门的完整七字段（`s_session/s_service_control.py` 的 `s_resources`）：
+-/// `max_frame_bytes`、`read_timeout_ms`、`write_timeout_ms`、`response_timeout_ms`、
+-/// `queue_capacity`、`max_connections` 六项逐项映射到保留下来的 `session_transport` 界限。
+-/// 缺口落在第七项 `audit_cache_source_bytes`：
+-///
+-/// - 它在旧服务里是**证据审计的保留预算**（`cache::configure` → `evidence_store::Reader`）；
+-///   `s-session/3` 写路径经 `content_store`（s-content 图）读取已发布内容，仓内没有该审计缓存的
+-///   对应读取面，也没有任何经批准的替换口径；
+-/// - §5.6.1 的八字段 `job_limits` 是 Q/客户端与 E/B reader 的**新 job 计费**合同（已分别在
+-///   `s-query-resources/3`、`s-financial-reader-resources/1` 落地），不是 S writer serve 的资源档；
+-///   更不得用内容图 framed bytes 顶替旧 logical 门；
+-/// - 批准正本 §5.6.1 与 `S3-RUNTIME-20260918.md` 结论同时要求：首批数值须由冻结内容规模与实测
+-///   形成**具名输入**，「形成首批具名实测资源档之前不能先填默认数值开启新服务」；仓内现有
+-///   `s_resources` 数值全部出自测试夹具（其自身声明 `not_claimed: production capacity`）。
+-/// - R2 C09.5–6 的持久条件请求身份、FIFO占槽及 Commit 后/下一 Begin 前服务路径当前不在
+-///   `Driver::handle` 的 typed op 集合（现为 ready/receipt/ingest）；不能把 ready 或 ingest
+-///   冒称条件执行，也不能让缺队列的服务先对外宣告可用。
+-///
+-/// 因此这里不接受「先跑起来再说」：宁可让 serve 正确拒绝，也不静默丢弃第七项、不拿测试数值或
+-/// Q 数值冒称部署资源。具名冻结档与第七项处置裁定落地后，删去本闸即开放下面已接线的真实流程。
++/// 原第七门：当前审计路径不跨请求保留源，以结构 0 <= 显式正 cap 核验。
++/// 普通结构服务不依赖 C09 持久条件 FIFO；Driver 仍只接纳既有 typed op。
+ fn serve_authorization(resources: &SResources) -> Result<(), String> {
+-    Err(format!(
+-        "AwaitingPolicy：S3写服务启动资格未满足——旧服务资源门第七项 `audit_cache_source_bytes` \
+-         （证据审计保留预算）在 s-session/3 写路径没有对应读取面（本域经 content_store 读取），\
+-         无经批准替换口径；且正本 §5.6.1 要求首批数值由冻结内容规模与实测形成具名输入，\
+-         仓内无该具名冻结档；R2 C09.5–6 的持久条件请求FIFO/稳定点生产接线尚缺。已核并冻结资源档：schema={RESOURCES_REVISION} sha256={}（七字段全部\
+-         显式、无默认值，其中 {} 项已映射、1 项见上）。本命令不持锁、不开库、不写库、不监听。",
+-        resources.digest(),
+-        GATE_FIELDS.len() - 1
+-    ))
++    state::check_audit_source_retention(resources.limit("audit_cache_source_bytes")).map_err(|error| {
++        format!("{error}；资源档 schema={RESOURCES_REVISION} sha256={}", resources.digest())
++    })
++}
++
++/// Controller 的私有环境声明绑定 child 实际 load 的规范字节，防止文件检查间改值又恢复。
++/// 独立 CLI 未声明时仍按其显式资源文件；此声明不引入资源默认值或新公开配置字段。
++fn verify_control_resource_digest(
++    resources: &SResources,
++    expected: Option<&str>,
++) -> Result<(), String> {
++    let Some(expected) = expected else {
++        return Ok(());
++    };
++    if expected.len() != 64
++        || !expected
++            .bytes()
++            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
++    {
++        return Err(err("S_CONTROL_RESOURCE_SHA256 必须为规范小写 SHA256"));
++    }
++    if resources.digest() != expected {
++        return Err(err(
++            "实际加载的资源规范 SHA256 与 S_CONTROL_RESOURCE_SHA256 不匹配",
++        ));
++    }
++    Ok(())
+ }
+ 
+-/// S writer serve：全部校验通过后，按「先开唯一 Driver（单写进程锁、完整状态审计、profile/clock
+-/// 绑定、pending 原身份推进），再监听」的次序接线；资格闸未过时在上一步之前即拒绝。
++/// 全部参数/资源核验后，先持唯一写锁、完整审计/profile/clock/pending，再监听。
+ fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
+     let resources = SResources::load(&options.resources)?;
++    let expected = match std::env::var("S_CONTROL_RESOURCE_SHA256") {
++        Ok(value) => Some(value),
++        Err(std::env::VarError::NotPresent) => None,
++        Err(std::env::VarError::NotUnicode(_)) => {
++            return Err(err("S_CONTROL_RESOURCE_SHA256 必须为规范 UTF-8 SHA256"));
++        }
++    };
++    verify_control_resource_digest(&resources, expected.as_deref())?;
+     let clock = v2::ClockPlan::load(&options.clock)?;
+     checked_profile(&options.profile)?;
+     serve_authorization(&resources)?;
+-    // —— 资格闸以下的真实流程：具名冻结档形成前不可达，不得据此声称服务已启用 ——
+-    let mut driver = Driver::open(&options.db, &options.profile, &options.epoch, clock)?;
++    let mut driver = Driver::open_for_serve(
++        &options.db,
++        &options.profile,
++        &options.epoch,
++        clock,
++        resources.limit("audit_cache_source_bytes"),
++    )?;
+     let identity = driver.identity()?;
+     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
+     let bounds = resources.transport_bounds();
+@@ -571,6 +572,63 @@ mod tests {
+     use std::os::unix::ffi::OsStrExt;
+     use std::time::{SystemTime, UNIX_EPOCH};
+ 
++    #[test]
++    fn private_control_digest_binds_loaded_canonical_resources_and_rejects_invalid_declarations() {
++        let limits: serde_json::Map<String, Value> = GATE_FIELDS
++            .into_iter()
++            .map(|key| (key.into(), json!("1")))
++            .collect();
++        let wire = json!({"schema_revision":RESOURCES_REVISION,"s_resources":limits});
++        let resources = SResources::parse(canonical_json(&wire).as_bytes()).unwrap();
++        verify_control_resource_digest(&resources, None).unwrap();
++        verify_control_resource_digest(&resources, Some(resources.digest())).unwrap();
++        let pretty = serde_json::to_string_pretty(&wire).unwrap();
++        let same = SResources::parse(pretty.as_bytes()).unwrap();
++        verify_control_resource_digest(&same, Some(resources.digest())).unwrap();
++        for invalid in [
++            "".to_string(),
++            "0".repeat(63),
++            "0".repeat(65),
++            "g".repeat(64),
++            "A".repeat(64),
++        ] {
++            let error = verify_control_resource_digest(&resources, Some(&invalid)).unwrap_err();
++            assert!(error.contains("规范小写 SHA256"), "{error}");
++        }
++        let mut changed = wire;
++        changed["s_resources"]["queue_capacity"] = json!("2");
++        let changed = SResources::parse(canonical_json(&changed).as_bytes()).unwrap();
++        let error = verify_control_resource_digest(&changed, Some(resources.digest())).unwrap_err();
++        assert!(error.contains("不匹配"), "{error}");
++    }
++
++    #[test]
++    fn ready_nonce_is_in_hashed_s3_payload_and_preserves_full_reply_identity() {
++        let payload = json!({"op":"ready"});
++        let request = json!({"schema_revision":PROTOCOL_REVISION,"session_id":"owned",
++            "session_generation":"1","source_namespace":"owned.test","source_epoch":"1",
++            "message_id":"ready-owned","producer_id":"owned-client","producer_epoch":"1",
++            "payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload});
++        let identity = ("owned".into(), "1".into(), "2".into());
++        let a = reply(&request, Ok(json!({"kind":"Ready"})), &identity, Some("current"));
++        let b = reply(&request, Ok(json!({"kind":"Ready"})), &identity, Some("other"));
++        // validate_envelope 是请求判据，要求 op；响应仍按原公共回复的摘要/因果身份合同核。
++        assert_eq!(a.as_object().unwrap().len(), 11);
++        assert_eq!(a["schema_revision"], PROTOCOL_REVISION);
++        assert_eq!(a["payload_hash"], sha256_hex(canonical_json(&a["payload"]).as_bytes()));
++        assert!(a.get("control_instance_id").is_none());
++        assert_eq!(a["payload"]["control_instance_id"], "current");
++        assert_eq!(a["session_id"], "owned");
++        assert_eq!(a["session_generation"], "1");
++        assert_eq!(a["producer_id"], "S:owned");
++        assert_eq!(a["producer_epoch"], "2");
++        assert_eq!(a["source_epoch"], "2");
++        assert_eq!(a["source_namespace"], "s-session/replies");
++        assert_eq!(a["causal_refs"][0]["payload_hash"], request["payload_hash"]);
++        assert_ne!(a["payload_hash"], b["payload_hash"]);
++        assert_ne!(a["message_id"], b["message_id"]);
++    }
++
+     #[test]
+     fn fifo_resource_config_is_rejected_before_opening_it() {
+         let nonce = SystemTime::now()
+diff --git a/s_session/s_service_control.py b/s_session/s_service_control.py
+index 9e6e4446b9..c597d1e293 100644
+--- a/s_session/s_service_control.py
++++ b/s_session/s_service_control.py
+@@ -19,6 +19,28 @@ from pathlib import Path
+ 
+ from s_socket_client import decode_frame, exchange, validate_reply
+ 
++S_RESOURCE_FIELDS = {"max_frame_bytes", "read_timeout_ms", "write_timeout_ms", "response_timeout_ms",
++                     "audit_cache_source_bytes", "queue_capacity", "max_connections"}
++
++
++def launcher_revision(config):
++    # 直接构造 Controller 的旧内部调用没有版本字段；具名文件仍须显式给版本。
++    revision = config.get("schema_revision", "s-launcher/2")
++    if revision not in ("s-launcher/2", "s-launcher/3"):
++        raise ValueError("未知启动配置版本")
++    return revision
++
++
++def validate_s_resources(config):
++    resources = config.get("s_resources")
++    if type(resources) is not dict:
++        raise ValueError("s_resources 必须为资源对象")
++    if launcher_revision(config) == "s-launcher/3" and set(resources) != S_RESOURCE_FIELDS:
++        raise ValueError("s-launcher/3 s_resources 必须 exact 原七字段")
++    for field in S_RESOURCE_FIELDS:
++        positive(resources.get(field), "s_resources." + field)
++    return resources
++
+ 
+ def canonical(value):
+     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+@@ -36,8 +58,8 @@ def positive(value, field):
+ 
+ def read_config(path):
+     config = decode_frame(path.read_bytes())
+-    if config.get("schema_revision") != "s-launcher/2":
+-        raise ValueError("启动配置必须显式为 s-launcher/2")
++    if config.get("schema_revision") not in ("s-launcher/2", "s-launcher/3"):
++        raise ValueError("启动配置必须显式为 s-launcher/2 或 s-launcher/3")
+     for field in ("session_id", "session_generation", "source_namespace", "source_epoch",
+                   "producer_id", "producer_epoch", "writer_epoch"):
+         if type(config.get(field)) is not str or not config[field]:
+@@ -59,11 +81,7 @@ def read_config(path):
+         config["economic_query_config"] = str((path.parent / value).resolve())
+     if len(os.fsencode(config["socket"])) > 100:
+         raise ValueError("Unix socket 路径超过本 launcher 的跨平台 100 字节上限")
+-    for field in ("max_frame_bytes", "read_timeout_ms", "write_timeout_ms", "response_timeout_ms",
+-                  "audit_cache_source_bytes", "queue_capacity", "max_connections"):
+-        if type(config.get("s_resources")) is not dict:
+-            raise ValueError("s_resources 必须为资源对象")
+-        positive(config["s_resources"].get(field), "s_resources." + field)
++    validate_s_resources(config)
+     return config
+ 
+ 
+@@ -151,6 +169,10 @@ def process_identity(pid, command=None, *, deadline=None):
+         return None
+     # stat 会随正常运行在 S/R 间变化，不属于进程身份。
+     identity = columns[0] + " " + columns[2]
++    if command and not re.fullmatch(r"[Pp]ython(?:[0-9]+(?:\.[0-9]+)*)?", Path(command[0]).name):
++        timestamp_and_command = columns[2].split(None, 5)
++        if len(timestamp_and_command) != 6 or timestamp_and_command[5] != " ".join(command):
++            raise ValueError("服务完整参数与本次启动命令不符")
+     if command and re.fullmatch(r"[Pp]ython(?:[0-9]+(?:\.[0-9]+)*)?", Path(command[0]).name):
+         timestamp_and_command = columns[2].split(None, 5)
+         if len(timestamp_and_command) != 6:
+@@ -171,6 +193,7 @@ def process_identity(pid, command=None, *, deadline=None):
+ class Controller:
+     def __init__(self, config, state_dir):
+         self.config = config
++        launcher_revision(config)
+         self.socket_service = config.get("socket_service", "s")
+         if self.socket_service not in ("s", "owner"):
+             raise ValueError("未知 socket 服务类型")
+@@ -211,19 +234,27 @@ class Controller:
+     def record_path(self, service):
+         return self.state_dir / (service + ".process.json")
+ 
+-    def status(self, service):
++    def status(self, service, *, deadline=None):
++        if deadline is not None:
++            remaining(deadline)
+         path = self.record_path(service)
+         if not path.exists():
+             return {"service": service, "state": "not_started"}
+         record = decode_frame(path.read_bytes())
+         fields = {"service", "pid", "db", "process_identity", "command", "control_instance_id"}
+-        if (not fields.issubset(record) or not set(record).issubset(fields | {"socket_identity"})
++        if (not fields.issubset(record) or not set(record).issubset(fields | {"socket_identity", "resource_identity"})
+                 or type(record.get("pid")) is not int or record["pid"] <= 1
+                 or any(type(record.get(k)) is not str or not record[k]
+                        for k in ("service", "db", "process_identity", "control_instance_id"))
+                 or type(record.get("command")) is not list or not record["command"]
+                 or any(type(arg) is not str or not arg for arg in record["command"])):
+             raise ValueError("进程记录字段不完整或类型无效，状态未知")
++        if "resource_identity" in record:
++            if service != "s" or launcher_revision(self.config) != "s-launcher/3":
++                raise ValueError("资源冻结身份不属于本次 S3 服务")
++            self.validate_resource_identity(record["resource_identity"], record["command"], deadline)
++        elif service == "s" and launcher_revision(self.config) == "s-launcher/3":
++            raise ValueError("S3 进程记录缺少本次资源冻结身份")
+         if "socket_identity" in record:
+             identity = record["socket_identity"]
+             if (service != self.socket_service or type(identity) is not dict
+@@ -233,14 +264,14 @@ class Controller:
+                 raise ValueError("已登记 socket 身份无效或不属于本次配置")
+         if record.get("db") != self.config["db"] or record.get("service") != service:
+             raise ValueError("进程记录不属于本次启动配置")
+-        identity = process_identity(record.get("pid"), record.get("command"))
++        identity = process_identity(record.get("pid"), record.get("command"), deadline=deadline)
+         if identity is None:
+             return {**record, "state": "stopped"}
+         if identity != record.get("process_identity"):
+             raise ValueError("PID 已复用或进程命令改变，拒绝采用旧记录")
+         return {**record, "state": "running"}
+ 
+-    def record(self, service, pid, command, instance_id, *, child=None, deadline=None):
++    def record(self, service, pid, command, instance_id, *, child=None, deadline=None, resource_identity=None):
+         if child is not None and (pid != child.pid or deadline is None):
+             raise ValueError("初始登记必须绑定本次直接子进程及启动总期限")
+         observed_start = None
+@@ -271,8 +302,71 @@ class Controller:
+             break
+         record = {"service": service, "pid": pid, "db": self.config["db"],
+                   "process_identity": identity, "command": command, "control_instance_id": instance_id}
++        if resource_identity is not None:
++            self.validate_resource_identity(resource_identity, command, deadline, require_current=True)
++            record["resource_identity"] = resource_identity
+         self.save_record(service, record)
+ 
++    def freeze_s_resources(self, deadline):
++        """仅复制显式七值；私有冻结文件随本次启动具名，不采用任何已有文件。"""
++        remaining(deadline)
++        body = canonical({"schema_revision": "s-structure-resources/1",
++                          "s_resources": validate_s_resources(self.config)})
++        nonce = str(uuid.uuid4())
++        path = self.state_dir / ("s-resources-" + nonce + ".json")
++        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
++        with os.fdopen(descriptor, "wb") as output:
++            output.write(body)
++            output.flush()
++            os.fsync(output.fileno())
++            identity = os.fstat(output.fileno())
++        remaining(deadline)
++        return {"path": str(path), "nonce": nonce, "sha256": hashlib.sha256(body).hexdigest(),
++                "device": identity.st_dev, "inode": identity.st_ino, "uid": identity.st_uid}
++
++    def validate_resource_identity(self, identity, command, deadline=None, *, require_current=False):
++        fields = {"path", "nonce", "sha256", "device", "inode", "uid"}
++        if (type(identity) is not dict or set(identity) != fields
++                or any(type(identity[k]) is not str for k in ("path", "nonce", "sha256"))
++                or any(type(identity[k]) is not int for k in ("device", "inode", "uid"))):
++            raise ValueError("S3 资源冻结身份字段无效")
++        nonce = identity["nonce"]
++        if str(uuid.UUID(nonce)) != nonce:
++            raise ValueError("S3 资源冻结 nonce 无效")
++        path = self.state_dir / ("s-resources-" + nonce + ".json")
++        if (identity["path"] != str(path) or command.count("--resource-config") != 1
++                or command[command.index("--resource-config") + 1:] == []
++                or command[command.index("--resource-config") + 1] != str(path)
++                or command.count("--protocol-revision") != 1
++                or command[command.index("--protocol-revision") + 1:] == []
++                or command[command.index("--protocol-revision") + 1] != "s-session/3"):
++            raise ValueError("S3 资源冻结文件未绑定本次完整启动参数")
++        if deadline is not None:
++            remaining(deadline)
++        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
++        with os.fdopen(descriptor, "rb") as source:
++            current = os.fstat(source.fileno())
++            if (not stat.S_ISREG(current.st_mode) or stat.S_IMODE(current.st_mode) != 0o600
++                    or current.st_uid != os.getuid()
++                    or (current.st_dev, current.st_ino, current.st_uid)
++                    != (identity["device"], identity["inode"], identity["uid"])):
++                raise ValueError("S3 资源冻结文件身份或私有权限改变")
++            body = source.read(65537)
++        if len(body) > 65536 or hashlib.sha256(body).hexdigest() != identity["sha256"]:
++            raise ValueError("S3 资源冻结内容或 hash 改变")
++        frozen = decode_frame(body)
++        if set(frozen) != {"schema_revision", "s_resources"} or frozen["schema_revision"] != "s-structure-resources/1":
++            raise ValueError("S3 资源冻结外壳无效")
++        validate_s_resources({"schema_revision": "s-launcher/3", "s_resources": frozen["s_resources"]})
++        if body != canonical(frozen):
++            raise ValueError("S3 资源冻结内容不是原规范字节")
++        # 旧进程按自己的冻结原件核身份，允许停止后用新的显式预算再次启动。
++        # 只有本次新 child 必须绑定当前配置，不能把旧预算偷偷用作新启动预算。
++        if require_current and frozen["s_resources"] != validate_s_resources(self.config):
++            raise ValueError("S3 资源冻结预算不属于本次显式启动配置")
++        if deadline is not None:
++            remaining(deadline)
++
+     def save_record(self, service, record):
+         target = self.record_path(service)
+         temporary = target.with_suffix(".tmp")
+@@ -290,7 +384,7 @@ class Controller:
+         path = Path(self.config["socket"])
+         if not os.path.lexists(path):
+             return None
+-        record = self.status(self.socket_service)
++        record = self.status(self.socket_service, deadline=deadline)
+         if record["state"] != "stopped" or record.get("socket_identity") is None:
+             raise ValueError("已有 socket 缺少已确认停止的原 owner 及其就绪时身份，不接管未知路径")
+         expected = record["socket_identity"]
+@@ -311,14 +405,20 @@ class Controller:
+         path.unlink()
+         return {"removed_stopped_service_socket": expected, "old_pid": record["pid"]}
+ 
+-    def start_process(self, service, command, environment=None, *, deadline=None):
++    def start_process(self, service, command, environment=None, *, deadline=None, resource_identity=None):
+         if deadline is None:
+             deadline = time.monotonic() + int(self.config["startup_timeout_ms"]) / 1000
+         remaining(deadline)
+-        if self.status(service)["state"] == "running":
++        if self.status(service, deadline=deadline)["state"] == "running":
+             raise ValueError(service + " 已在运行，不覆盖 PID 记录")
++        if resource_identity is not None:
++            self.validate_resource_identity(resource_identity, command, deadline, require_current=True)
+         instance_id = str(uuid.uuid4())
+         environment = dict(os.environ if environment is None else environment)
++        # 私有声明只由本次已核冻结原件产生，ambient 值不能替代它或串到旧服务/Q。
++        environment.pop("S_CONTROL_RESOURCE_SHA256", None)
++        if resource_identity is not None:
++            environment["S_CONTROL_RESOURCE_SHA256"] = resource_identity["sha256"]
+         instance_key = "SESSION_CONTROL_INSTANCE_ID" if self.socket_service == "owner" else "S_CONTROL_INSTANCE_ID"
+         environment[instance_key] = instance_id
+         with (self.state_dir / (service + ".log")).open("ab") as log:
+@@ -326,7 +426,8 @@ class Controller:
+             process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+                                        start_new_session=True, env=environment)
+         try:
+-            self.record(service, process.pid, command, instance_id, child=process, deadline=deadline)
++            self.record(service, process.pid, command, instance_id, child=process, deadline=deadline,
++                        resource_identity=resource_identity)
+         except Exception as exc:
+             # 仅善后本次尚未登记的直接子进程，不触碰其他已运行服务。
+             if process.poll() is None:
+@@ -347,6 +448,7 @@ class Controller:
+         )
+         result = subprocess.run([python, "-c", probe],
+                                 capture_output=True, check=True, timeout=remaining(deadline))
++        remaining(deadline)
+         library_dir, library_name, framework, framework_prefix = json.loads(result.stdout)
+         # #1373：同一显式 Python 声明的两种安装布局，各自核真实文件。
+         # Framework 的 LDLIBRARY 相对于 PYTHONFRAMEWORKPREFIX，而不是 LIBDIR。
+@@ -368,10 +470,14 @@ class Controller:
+ 
+     def ready_request(self, writer_epoch):
+         config = self.config
++        revision = launcher_revision(config)
+         payload = {"op": "ready", "target_session_id": config["session_id"],
+                    "target_session_generation": config["session_generation"],
+                    "writer_epoch": writer_epoch}
+-        return {"schema_revision": "s-session/2", "session_id": config["session_id"],
++        if revision == "s-launcher/3":
++            payload = {"op": "ready"}
++        return {"schema_revision": "s-session/3" if revision == "s-launcher/3" else "s-session/2",
++                "session_id": config["session_id"],
+                 "session_generation": config["session_generation"],
+                 "source_namespace": config["source_namespace"], "source_epoch": config["source_epoch"],
+                 "message_id": "launcher-ready-" + writer_epoch,
+@@ -382,10 +488,10 @@ class Controller:
+     def wait_ready(self, service, writer_epoch=None, query_epoch=None, deadline=None):
+         if deadline is None:
+             deadline = time.monotonic() + int(self.config["startup_timeout_ms"]) / 1000
+-        expected = self.status(service)
++        expected = self.status(service, deadline=deadline)
+         detail = "启动尚无健康回执"
+         while time.monotonic() < deadline:
+-            if self.status(service)["state"] != "running":
++            if self.status(service, deadline=deadline)["state"] != "running":
+                 raise ValueError(service + " 已退出；请查 " + str(self.state_dir / (service + ".log")))
+             remaining_ms = max(1, int((deadline - time.monotonic()) * 1000))
+             if service == "s":
+@@ -397,16 +503,18 @@ class Controller:
+                 response = response if type(response) is dict else {}
+                 payload = response.get("payload")
+                 payload = payload if type(payload) is dict else {}
++                s3 = launcher_revision(self.config) == "s-launcher/3"
++                nonce = payload.get("control_instance_id") if s3 else response.get("control_instance_id")
+                 # 字段与 S v2 正式响应一致后才将进程文件存在提升为 ready。
+                 if (reply["transport"] == "Received" and payload.get("kind") == "Ready"
+                         and response.get("session_id") == self.config["session_id"]
+                         and response.get("session_generation") == self.config["session_generation"]
+-                        and response.get("control_instance_id") == expected.get("control_instance_id")):
++                        and nonce == expected.get("control_instance_id")):
+                     validate_reply(request, response, producer="S", producer_epoch=writer_epoch,
+-                                   allow_control_instance=True)
++                                   allow_control_instance=not s3)
+                     self.confirm_ready_process(service, expected, deadline)
+                     # 只有正式Ready nonce与本次活PID同时成立，才登记此路径的清理资格。
+-                    record = {k: v for k, v in self.status("s").items() if k != "state"}
++                    record = {k: v for k, v in self.status("s", deadline=deadline).items() if k != "state"}
+                     record["socket_identity"] = self.socket_identity()
+                     self.save_record("s", record)
+                     remaining(deadline)
+@@ -433,7 +541,7 @@ class Controller:
+ 
+     def confirm_ready_process(self, service, expected, deadline):
+         remaining(deadline)
+-        current = self.status(service)
++        current = self.status(service, deadline=deadline)
+         if (current["state"] != "running" or current.get("pid") != expected.get("pid")
+                 or current.get("process_identity") != expected.get("process_identity")
+                 or not expected.get("control_instance_id")):
+@@ -443,26 +551,40 @@ class Controller:
+     def start_s(self, writer_epoch):
+         config = self.config
+         deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
++        s3 = launcher_revision(config) == "s-launcher/3"
++        validate_s_resources(config)
++        positive(writer_epoch, "writer_epoch")
+         environment = self.runtime_environment(deadline)
++        remaining(deadline)
++        resource_identity = self.freeze_s_resources(deadline) if s3 else None
+         cleanup = self.prepare_socket(deadline)
+         initialization = None
+         if not Path(config["db"]).exists():
+-            init = subprocess.run([config["binary"], "init", "--db", config["db"], "--session", config["session_id"],
++            init_command = [config["binary"], "init", "--db", config["db"], "--session", config["session_id"],
+                                    "--catalog", config["catalog"], "--profile", config["profile"],
+                                    "--session-generation", config["session_generation"], "--clock-plan", config["clock_plan"],
+-                                   "--delivery-retain-generations", config["delivery_retain_generations"]],
++                                   "--delivery-retain-generations", config["delivery_retain_generations"]]
++            if s3:
++                init_command += ["--protocol-revision", "s-session/3"]
++            init = subprocess.run(init_command,
+                                   capture_output=True, check=True, env=environment, timeout=remaining(deadline))
+             initialization = decode_frame(init.stdout)
+             remaining(deadline)
+         command = [config["binary"], "serve", "--db", config["db"], "--socket", config["socket"],
+                    "--writer-epoch", writer_epoch, "--profile", config["profile"], "--clock-plan", config["clock_plan"]]
+-        for option, field in (("max-frame-bytes", "max_frame_bytes"), ("read-timeout-ms", "read_timeout_ms"),
++        if s3:
++            command += ["--protocol-revision", "s-session/3", "--resource-config", resource_identity["path"]]
++        else:
++            for option, field in (("max-frame-bytes", "max_frame_bytes"), ("read-timeout-ms", "read_timeout_ms"),
+                               ("write-timeout-ms", "write_timeout_ms"), ("queue-capacity", "queue_capacity"),
+                               ("max-connections", "max_connections"), ("response-timeout-ms", "response_timeout_ms"),
+                               ("audit-cache-source-bytes", "audit_cache_source_bytes")):
+-            command += ["--" + option, config["s_resources"][field]]
++                command += ["--" + option, config["s_resources"][field]]
+         remaining(deadline)
+-        self.start_process("s", command, environment, deadline=deadline)
++        if s3:
++            self.start_process("s", command, environment, deadline=deadline, resource_identity=resource_identity)
++        else:
++            self.start_process("s", command, environment, deadline=deadline)
+         return {**self.wait_ready("s", writer_epoch, deadline=deadline), "initialization": initialization,
+                 "socket_cleanup": cleanup}
+ 
+@@ -502,6 +624,8 @@ class Controller:
+         deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
+         remaining(deadline)
+         revision = self.query_resource_revision(deadline)
++        if launcher_revision(config) == "s-launcher/3" and revision != "s-query-resources/3":
++            raise ValueError("S3 启动配置须显式提供 Q3 查询资源，拒绝版本错配")
+         environment = None
+         if revision == "s-query-resources/3":
+             # #1394：由已有资源文件的显式版本选择正式入口；21项限额仍由Q3冻结并校验。
+@@ -558,8 +682,11 @@ class Controller:
+         config = self.config
+         deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
+         environment = self.runtime_environment(deadline)
+-        recovery = subprocess.run([config["binary"], "recover", "--db", config["db"], "--new-epoch", new_epoch,
+-                                   "--clock-plan", config["clock_plan"], "--clock-event-id", clock_event_id],
++        command = [config["binary"], "recover", "--db", config["db"], "--new-epoch", new_epoch,
++                   "--clock-plan", config["clock_plan"], "--clock-event-id", clock_event_id]
++        if launcher_revision(config) == "s-launcher/3":
++            command += ["--protocol-revision", "s-session/3"]
++        recovery = subprocess.run(command,
+                                   capture_output=True, check=True, env=environment, timeout=remaining(deadline))
+         reply = decode_frame(recovery.stdout)
+         remaining(deadline)
+diff --git a/s_session/tests/test_tb01c_s3_service_control.py b/s_session/tests/test_tb01c_s3_service_control.py
+new file mode 100644
+index 0000000000..2deb39e9e6
+--- /dev/null
++++ b/s_session/tests/test_tb01c_s3_service_control.py
+@@ -0,0 +1,391 @@
++"""#1394：S3 生命周期选择、冻结资源和 Ready 身份；unit 不冒称真实服务验收。"""
++
++import hashlib
++import json
++import os
++import socket
++import stat
++import sys
++import tempfile
++import time
++import unittest
++from pathlib import Path
++from unittest.mock import Mock, patch
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++import s_service_control as control
++from s_socket_client import reply_envelope
++
++
++class S3LifecycleTests(unittest.TestCase):
++    @staticmethod
++    def config(directory, revision="s-launcher/3"):
++        root = Path(directory)
++        resources = {key: str(index + 1) for index, key in enumerate(sorted(control.S_RESOURCE_FIELDS))}
++        resources["max_frame_bytes"] = "8192"
++        return {"schema_revision": revision, "db": str(root / "owned.sqlite"),
++                "socket": str(root / "s.sock"), "binary": "/owned/s_structure_session",
++                "python": sys.executable, "catalog": str(root / "catalog.json"),
++                "profile": str(root / "profile.json"), "clock_plan": str(root / "clock.json"),
++                "browser": str(root / "browser"), "query_resource_config": str(root / "q.json"),
++                "session_id": "owned-session", "session_generation": "1",
++                "source_namespace": "owned.test", "source_epoch": "1", "producer_id": "owned-launcher",
++                "producer_epoch": "1", "writer_epoch": "1", "query_epoch": "1", "port": "12345",
++                "delivery_retain_generations": "1", "startup_timeout_ms": "25", "s_resources": resources}
++
++    @staticmethod
++    def response(request, nonce="current"):
++        return reply_envelope(request, {"kind": "Ready", "control_instance_id": nonce},
++                              session_id=request["session_id"], session_generation=request["session_generation"],
++                              namespace="s-session/replies", producer_id="S:" + request["session_id"],
++                              producer_epoch="1")
++
++    def test_named_configuration_selects_exact_version_and_resources(self):
++        with tempfile.TemporaryDirectory(prefix="s3-cfg-") as directory:
++            path = Path(directory) / "launcher.json"
++            for revision in ("s-launcher/2", "s-launcher/3"):
++                config = self.config(directory, revision)
++                path.write_text(json.dumps(config))
++                self.assertEqual(control.read_config(path)["schema_revision"], revision)
++            for revision in (None, "s-launcher/4", "s-launcher/03"):
++                config = self.config(directory, revision)
++                path.write_text(json.dumps(config))
++                with self.assertRaises(ValueError):
++                    control.read_config(path)
++            for invalid in ({}, {**self.config(directory)["s_resources"], "extra": "1"},
++                            {**self.config(directory)["s_resources"], "queue_capacity": "0"},
++                            {**self.config(directory)["s_resources"], "max_connections": 1}):
++                config = self.config(directory)
++                config["s_resources"] = invalid
++                path.write_text(json.dumps(config))
++                with self.assertRaises(ValueError):
++                    control.read_config(path)
++
++    def test_start_s3_init_serve_and_ready_use_one_deadline_and_unchanged_seven_values(self):
++        with tempfile.TemporaryDirectory(prefix="s3-select-") as directory:
++            config = self.config(directory)
++            original = control.canonical(config["s_resources"])
++            controller = control.Controller(config, Path(directory) / "state")
++            clock = [0.0]
++            def environment(deadline):
++                self.assertEqual(deadline, 0.025)
++                clock[0] = 0.010
++                return {"owned": "environment"}
++            def initialize(command, **kwargs):
++                self.assertEqual(command[-2:], ["--protocol-revision", "s-session/3"])
++                self.assertAlmostEqual(kwargs["timeout"], 0.015)
++                clock[0] = 0.020
++                return control.subprocess.CompletedProcess(command, 0, b'{"initialized":true}', b"")
++            try:
++                with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
++                     patch.object(controller, "runtime_environment", side_effect=environment), \
++                     patch.object(controller, "prepare_socket", return_value=None), \
++                     patch.object(control.subprocess, "run", side_effect=initialize), \
++                     patch.object(controller, "start_process") as start, \
++                     patch.object(controller, "wait_ready", return_value={"state": "ready"}) as ready:
++                    result = controller.start_s("1")
++                command = start.call_args.args[1]
++                self.assertEqual(command[command.index("--protocol-revision") + 1], "s-session/3")
++                self.assertNotIn("--audit-cache-source-bytes", command)
++                identity = start.call_args.kwargs["resource_identity"]
++                self.assertEqual(command[command.index("--resource-config") + 1], identity["path"])
++                self.assertEqual(start.call_args.kwargs["deadline"], 0.025)
++                frozen = Path(identity["path"]).read_bytes()
++                self.assertEqual(json.loads(frozen), {"schema_revision": "s-structure-resources/1",
++                                                     "s_resources": config["s_resources"]})
++                self.assertEqual(hashlib.sha256(frozen).hexdigest(), identity["sha256"])
++                self.assertEqual(stat.S_IMODE(Path(identity["path"]).stat().st_mode), 0o600)
++                ready.assert_called_once_with("s", "1", deadline=0.025)
++                self.assertEqual(result["initialization"], {"initialized": True})
++                self.assertEqual(control.canonical(config["s_resources"]), original)
++                request = controller.ready_request("1")
++                self.assertEqual(request["schema_revision"], "s-session/3")
++                self.assertEqual(request["payload"], {"op": "ready"})
++                self.assertEqual(request["payload_hash"], hashlib.sha256(control.canonical({"op": "ready"})).hexdigest())
++            finally:
++                controller.close()
++
++    def test_expired_environment_or_init_never_resets_budget_or_spawns(self):
++        for stage in ("environment", "init"):
++            with self.subTest(stage=stage), tempfile.TemporaryDirectory(prefix="s3-budget-") as directory:
++                controller = control.Controller(self.config(directory), Path(directory) / "state")
++                clock = [0.0]
++                def environment(deadline):
++                    if stage == "environment":
++                        clock[0] = deadline
++                    return {}
++                def initialize(*args, **kwargs):
++                    clock[0] = 0.025
++                    return control.subprocess.CompletedProcess([], 0, b'{"initialized":true}', b"")
++                try:
++                    with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
++                         patch.object(controller, "runtime_environment", side_effect=environment), \
++                         patch.object(controller, "prepare_socket", return_value=None), \
++                         patch.object(control.subprocess, "run", side_effect=initialize) as init, \
++                         patch.object(controller, "start_process") as start, \
++                         patch.object(controller, "wait_ready") as ready:
++                        with self.assertRaises(TimeoutError):
++                            controller.start_s("1")
++                    start.assert_not_called()
++                    ready.assert_not_called()
++                    if stage == "environment":
++                        init.assert_not_called()
++                finally:
++                    controller.close()
++
++    def test_frozen_resource_file_cannot_be_adopted_changed_or_unbound(self):
++        with tempfile.TemporaryDirectory(prefix="s3-freeze-") as directory:
++            controller = control.Controller(self.config(directory), Path(directory) / "state")
++            deadline = time.monotonic() + 2
++            try:
++                identity = controller.freeze_s_resources(deadline)
++                path = Path(identity["path"])
++                command = ["/owned/s_structure_session", "serve", "--protocol-revision", "s-session/3",
++                           "--resource-config", str(path)]
++                controller.validate_resource_identity(identity, command, deadline)
++                with self.assertRaises(ValueError):
++                    controller.validate_resource_identity(identity, command[:-1] + [str(path) + "other"])
++                original = path.read_bytes()
++                path.write_bytes(original + b" ")
++                with self.assertRaisesRegex(ValueError, "内容或 hash 改变"):
++                    controller.validate_resource_identity(identity, command)
++                path.write_bytes(original)
++                path.chmod(0o644)
++                with self.assertRaisesRegex(ValueError, "权限改变"):
++                    controller.validate_resource_identity(identity, command)
++                path.chmod(0o600)
++                external = Path(directory) / "external.json"
++                external.write_bytes(original)
++                path.unlink()
++                path.symlink_to(external)
++                with self.assertRaises(OSError):
++                    controller.validate_resource_identity(identity, command)
++                self.assertEqual(external.read_bytes(), original)
++                nonce = "00000000-0000-0000-0000-000000000001"
++                occupied = controller.state_dir / ("s-resources-" + nonce + ".json")
++                occupied.write_bytes(b"preserve")
++                with patch.object(control.uuid, "uuid4", return_value=nonce):
++                    with self.assertRaises(FileExistsError):
++                        controller.freeze_s_resources(deadline)
++                self.assertEqual(occupied.read_bytes(), b"preserve")
++            finally:
++                controller.close()
++
++    def test_resource_identity_is_saved_with_pid_nonce_and_exact_argv(self):
++        with tempfile.TemporaryDirectory(prefix="s3-record-") as directory:
++            config = self.config(directory)
++            controller = control.Controller(config, Path(directory) / "state")
++            deadline = time.monotonic() + 2
++            try:
++                identity = controller.freeze_s_resources(deadline)
++                command = [config["binary"], "serve", "--protocol-revision", "s-session/3",
++                           "--resource-config", identity["path"]]
++                with patch.object(control, "process_identity", return_value="owned exact argv"):
++                    controller.record("s", 123456, command, "current", resource_identity=identity)
++                    record = controller.status("s")
++                self.assertEqual(record["resource_identity"], identity)
++                self.assertEqual(record["command"], command)
++                self.assertEqual(record["control_instance_id"], "current")
++                Path(identity["path"]).write_bytes(b"{}")
++                with patch.object(control, "process_identity") as process:
++                    with self.assertRaises(ValueError):
++                        controller.status("s")
++                process.assert_not_called()
++            finally:
++                controller.close()
++
++    def test_s3_ready_validates_payload_nonce_complete_reply_and_live_process(self):
++        with tempfile.TemporaryDirectory(prefix="s3-ready-") as directory:
++            config = self.config(directory)
++            controller = control.Controller(config, Path(directory) / "state")
++            request = controller.ready_request("1")
++            record = {"state": "running", "service": "s", "pid": 123456,
++                      "process_identity": "exact current", "control_instance_id": "current"}
++            identity = {"path": config["socket"], "device": 1, "inode": 2, "uid": os.getuid()}
++            try:
++                response = self.response(request)
++                with patch.object(controller, "status", return_value=record), \
++                     patch.object(control, "exchange", return_value={"transport": "Received", "response": response}), \
++                     patch.object(controller, "socket_identity", return_value=identity):
++                    result = controller.wait_ready("s", "1")
++                self.assertEqual(result["state"], "ready")
++                self.assertEqual(json.loads(controller.record_path("s").read_text())["socket_identity"], identity)
++                for field, value in (("schema_revision", "s-session/2"), ("producer_epoch", "2"),
++                                     ("producer_id", "S:other"), ("payload_hash", "0" * 64),
++                                     ("causal_refs", [])):
++                    bad = {**response, field: value}
++                    with self.subTest(field=field), \
++                         patch.object(controller, "status", return_value=record), \
++                         patch.object(control, "exchange", return_value={"transport": "Received", "response": bad}):
++                        with self.assertRaises(ValueError):
++                            controller.wait_ready("s", "1")
++                bad = {**self.response(request, "old"), "control_instance_id": "current"}
++                with patch.object(controller, "status", return_value=record), \
++                     patch.object(control, "exchange", return_value={"transport": "Received", "response": bad}):
++                    with self.assertRaises(TimeoutError):
++                        controller.wait_ready("s", "1")
++                with patch.object(controller, "status", side_effect=[record, record, {"state": "stopped"}]), \
++                     patch.object(control, "exchange", return_value={"transport": "Received", "response": response}):
++                    with self.assertRaisesRegex(ValueError, "已失效"):
++                        controller.wait_ready("s", "1")
++            finally:
++                controller.close()
++
++    def test_nonpython_argv_is_exact_and_process_probe_uses_remaining_deadline(self):
++        command = ["/owned/s_structure_session", "serve", "--protocol-revision", "s-session/3"]
++        for suffix in ("", " --other argument"):
++            result = control.subprocess.CompletedProcess([], 0,
++                f"{os.getuid()} S Sun Sep 13 16:17:43 2026 {' '.join(command)}{suffix}\n", "")
++            with patch.object(control.subprocess, "run", return_value=result) as query:
++                if suffix:
++                    with self.assertRaisesRegex(ValueError, "完整参数"):
++                        control.process_identity(123456, command, deadline=time.monotonic() + 0.025)
++                else:
++                    self.assertIn(" ".join(command), control.process_identity(123456, command,
++                                                                               deadline=time.monotonic() + 0.025))
++            self.assertGreater(query.call_args.kwargs["timeout"], 0)
++            self.assertLessEqual(query.call_args.kwargs["timeout"], 0.025)
++
++    def test_s3_recover_selects_new_domain_and_never_falls_back(self):
++        with tempfile.TemporaryDirectory(prefix="s3-recover-") as directory:
++            controller = control.Controller(self.config(directory), Path(directory) / "state")
++            try:
++                with patch.object(controller, "status", return_value={"state": "stopped"}), \
++                     patch.object(controller, "runtime_environment", return_value={}), \
++                     patch.object(control.subprocess, "run", return_value=control.subprocess.CompletedProcess(
++                         [], 0, b'{"recovered":true}', b"")) as recover:
++                    self.assertEqual(controller.recover("2", "recover-owned")["state"], "recovered")
++                self.assertEqual(recover.call_args.args[0][-2:], ["--protocol-revision", "s-session/3"])
++                with patch.object(controller, "status", return_value={"state": "stopped"}), \
++                     patch.object(controller, "runtime_environment", return_value={}), \
++                     patch.object(control.subprocess, "run", side_effect=control.subprocess.CalledProcessError(
++                         1, ["recover"])) as recover:
++                    with self.assertRaises(control.subprocess.CalledProcessError):
++                        controller.recover("2", "recover-owned")
++                recover.assert_called_once()
++            finally:
++                controller.close()
++
++    def test_s3_q_rejects_old_resource_version_before_spawn(self):
++        with tempfile.TemporaryDirectory(prefix="s3-q-mismatch-") as directory:
++            controller = control.Controller(self.config(directory), Path(directory) / "state")
++            try:
++                with patch.object(controller, "query_resource_revision", return_value="legacy/2"), \
++                     patch.object(controller, "runtime_environment") as environment, \
++                     patch.object(controller, "start_process") as start:
++                    with self.assertRaisesRegex(ValueError, "版本错配"):
++                        controller.start_q("1")
++                environment.assert_not_called()
++                start.assert_not_called()
++            finally:
++                controller.close()
++
++    def test_stopped_s3_record_allows_new_explicit_budget_but_live_or_tampered_owner_refuses(self):
++        for case in ("stopped", "live", "tampered"):
++            with self.subTest(case=case), tempfile.TemporaryDirectory(prefix="s3-restart-") as directory:
++                config = self.config(directory)
++                config["startup_timeout_ms"] = "2000"
++                Path(config["db"]).touch()
++                state_dir = Path(directory) / "state"
++                controller = control.Controller(config, state_dir)
++                old = controller.freeze_s_resources(time.monotonic() + 2)
++                command = [config["binary"], "serve", "--protocol-revision", "s-session/3",
++                           "--resource-config", old["path"]]
++                with patch.object(control, "process_identity", return_value="old identity"):
++                    controller.record("s", 123456, command, "old nonce", resource_identity=old)
++                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as owned_socket:
++                    owned_socket.bind(config["socket"])
++                old_socket = controller.socket_identity()
++                record = json.loads(controller.record_path("s").read_text())
++                record["socket_identity"] = old_socket
++                controller.save_record("s", record)
++                controller.close()
++                updated = {**config, "s_resources": {**config["s_resources"], "max_frame_bytes": "16384"}}
++                controller = control.Controller(updated, state_dir)
++                if case == "tampered":
++                    Path(old["path"]).write_bytes(b"{}")
++                def observation(pid, command=None, *, deadline=None):
++                    if pid == 123456:
++                        return "old identity" if case == "live" else None
++                    self.assertEqual(pid, 234567)
++                    return "new identity"
++                child = Mock(pid=234567, **{"poll.return_value": None})
++                try:
++                    with patch.object(control, "process_identity", side_effect=observation), \
++                         patch.object(controller, "runtime_environment", return_value={}), \
++                         patch.object(control.subprocess, "Popen", return_value=child) as spawn, \
++                         patch.object(controller, "wait_ready", return_value={"state": "ready"}):
++                        if case != "stopped":
++                            with self.assertRaises(ValueError):
++                                controller.start_s("1")
++                            spawn.assert_not_called()
++                            self.assertEqual(controller.socket_identity(), old_socket)
++                        else:
++                            result = controller.start_s("1")
++                            self.assertEqual(result["state"], "ready")
++                            spawn.assert_called_once()
++                            self.assertFalse(Path(config["socket"]).exists())
++                            new_record = controller.status("s")
++                            self.assertEqual(new_record["pid"], 234567)
++                            self.assertNotEqual(new_record["resource_identity"], old)
++                            frozen = json.loads(Path(new_record["resource_identity"]["path"]).read_text())
++                            self.assertEqual(frozen["s_resources"], updated["s_resources"])
++                            self.assertEqual(result["socket_cleanup"]["removed_stopped_service_socket"], old_socket)
++                finally:
++                    controller.close()
++
++    def test_new_child_cannot_reuse_old_frozen_budget_after_configuration_change(self):
++        with tempfile.TemporaryDirectory(prefix="s3-budget-binding-") as directory:
++            config = self.config(directory)
++            controller = control.Controller(config, Path(directory) / "state")
++            deadline = time.monotonic() + 2
++            try:
++                old = controller.freeze_s_resources(deadline)
++                command = [config["binary"], "serve", "--protocol-revision", "s-session/3",
++                           "--resource-config", old["path"]]
++                with patch.object(control, "process_identity", return_value="old identity"):
++                    controller.record("s", 123456, command, "old nonce", resource_identity=old)
++                original_record = controller.record_path("s").read_bytes()
++                config["s_resources"]["max_frame_bytes"] = "16384"
++                with patch.object(control, "process_identity", return_value=None), \
++                     patch.object(control.subprocess, "Popen") as spawn:
++                    self.assertEqual(controller.status("s")["state"], "stopped")
++                    with self.assertRaisesRegex(ValueError, "不属于本次显式启动配置"):
++                        controller.start_process("s", command, deadline=deadline, resource_identity=old)
++                spawn.assert_not_called()
++                self.assertEqual(controller.record_path("s").read_bytes(), original_record)
++            finally:
++                controller.close()
++
++    def test_private_resource_digest_comes_only_from_verified_s3_identity_and_never_old_launcher(self):
++        for revision in ("s-launcher/3", "s-launcher/2"):
++            with self.subTest(revision=revision), tempfile.TemporaryDirectory(prefix="s3-child-digest-") as directory:
++                config = self.config(directory, revision)
++                controller = control.Controller(config, Path(directory) / "state")
++                deadline = time.monotonic() + 2
++                environment = {"S_CONTROL_RESOURCE_SHA256": "f" * 64, "PRESERVE": "owned"}
++                identity = controller.freeze_s_resources(deadline) if revision == "s-launcher/3" else None
++                command = [config["binary"], "serve"]
++                if identity is not None:
++                    command += ["--protocol-revision", "s-session/3", "--resource-config", identity["path"]]
++                child = Mock(pid=234567, **{"poll.return_value": None})
++                try:
++                    with patch.object(control, "process_identity", return_value="owned argv"), \
++                         patch.object(control.subprocess, "Popen", return_value=child) as spawn:
++                        controller.start_process("s", command, environment, deadline=deadline,
++                                                 resource_identity=identity)
++                    actual = spawn.call_args.kwargs["env"]
++                    self.assertEqual(actual["PRESERVE"], "owned")
++                    self.assertEqual(environment["S_CONTROL_RESOURCE_SHA256"], "f" * 64)
++                    if identity is None:
++                        self.assertNotIn("S_CONTROL_RESOURCE_SHA256", actual)
++                    else:
++                        self.assertEqual(actual["S_CONTROL_RESOURCE_SHA256"], identity["sha256"])
++                        record = json.loads(controller.record_path("s").read_text())
++                        self.assertEqual(record["resource_identity"]["sha256"], actual["S_CONTROL_RESOURCE_SHA256"])
++                finally:
++                    controller.close()
++
++
++if __name__ == "__main__":
++    unittest.main()
