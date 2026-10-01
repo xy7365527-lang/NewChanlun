@@ -632,9 +632,24 @@ fn bind_shape_refs(
             if aa.kind != Kind::Array || bb.kind != Kind::Array || aa.extent != bb.extent {
                 return Err(err("来源数组长度不符"));
             }
+            let items = if s.audit_full_array_scan() {
+                Some((
+                    sc::path::lookup_array_items(s, &aa).map_err(err)?,
+                    sc::path::lookup_array_items(s, &bb).map_err(err)?,
+                ))
+            } else {
+                None
+            };
             for k in 0..aa.extent.ok_or_else(|| err("来源缺长度"))? {
-                let ar = lookup_path(s, &aa, &[PathStep::Index(k)]).map_err(err)?;
-                let br = lookup_path(s, &bb, &[PathStep::Index(k)]).map_err(err)?;
+                let (ar, br) = if let Some((a, b)) = &items {
+                    (a[k as usize].clone(), b[k as usize].clone())
+                } else {
+                    // Some 仍逐位置交错原件读取与字段/业务检查，预算与期限门顺序不变。
+                    (
+                        lookup_path(s, &aa, &[PathStep::Index(k)]).map_err(err)?,
+                        lookup_path(s, &bb, &[PathStep::Index(k)]).map_err(err)?,
+                    )
+                };
                 if ar.extent != Some(8) || br.extent != Some(8) {
                     return Err(err("来源字段集不符"));
                 }
@@ -876,8 +891,17 @@ pub(super) fn verify_generated_members(
     }
     let mut seen = BTreeSet::new();
     let mut new = Vec::new();
+    let items = if s.audit_full_array_scan() {
+        Some(sc::path::lookup_array_items(s, &objects).map_err(err)?)
+    } else {
+        None
+    };
     for n in 0..objects.extent.ok_or_else(|| err("生成集缺长度"))? {
-        let object = lookup_path(s, &objects, &[PathStep::Index(n)]).map_err(err)?;
+        let object = if let Some(items) = &items {
+            items[n as usize].clone()
+        } else {
+            lookup_path(s, &objects, &[PathStep::Index(n)]).map_err(err)?
+        };
         let id = text(s, &object, "object_id")?;
         if !seen.insert(id.clone()) {
             return Err(err("生成集重复对象身份"));

@@ -20,7 +20,8 @@
 //!   根还逐项对 `ContentRef` 的 kind / extent / format / root 文本；
 //! - 只沿路径触碰 O(树深 + 步骤数) 的节点：数组按 §5.2 的 k 规则下行，对象按 UTF-8 键序
 //!   二分下行（每层用左右子树边界键核一遍规范键序，O(树深²) 读，仍与逻辑叶数无关）；
-//!   从不物化整份 JSON／整条逻辑数组，也不按声明长度预分配，也不递归；
+//!   普通定位不物化完整逻辑值；私有完整 root[] 枚举只收集成员 ContentRef，
+//!   不按声明长度预分配，也不递归；
 //! - 对象字段查找只读字段节点（0x14，64 字节 body）与键的字节块，不展开字段值子图；
 //! - 替换只重写路径上的标量与祖先，共享子树（同摘要）逐位保留：未指定路径的节点摘要不变，
 //!   旧根与其闭包不被改动；
@@ -93,6 +94,51 @@ pub fn lookup_path(
         kind,
         extent,
     })
+}
+
+/// 私有审计用的完整 root[] 枚举（#1394）：与旧逐 Index 的 Value 角色一致。
+/// 每个逻辑序列位置核 count/k、每个实际读取核本次 F；同摘要的重复位置仍逐次读。
+/// 栈只保存摘要、期望数量和基准位置，不保存 body、不跨调用复用、不展开成员子图。
+/// Ref 不携带 JsonInner 上下文：此口不接完整 path，也不代替上层 public/template verify。
+/// 调用方只可在明确的完整审计 BudgetNone 分支启用；Some/fragment 保留原读取门序。
+#[doc(hidden)]
+pub fn lookup_array_items(
+    source: &mut dyn NodeSource,
+    reference: &ContentRef,
+) -> Result<Vec<ContentRef>, CodecError> {
+    let (count, root) = {
+        let node = navigate(source, reference, &[], false)?;
+        if node.tag != tag::ARRAY {
+            return Err(step_kind_error("完整数组", "0x05 数组", node.tag));
+        }
+        (framed_len(&node.body, "数组")?, digest_at(&node.body, 8))
+    };
+    let mut stack = vec![(root, count, 0u64)];
+    let mut result = Vec::new();
+    while let Some((digest, count, base_index)) = stack.pop() {
+        match read_seq_node(source, &digest, count)? {
+            SeqNode::Empty => {}
+            SeqNode::Branch { k, left, right } => {
+                // 两侧实际出栈时各核期望数量；完整遍历不为每个 item 重读共同祖先。
+                stack.push((right, count - k, base_index + k));
+                stack.push((left, k, base_index));
+            }
+            SeqNode::Leaf(value) => {
+                source.before_path_index(&[], base_index)?;
+                let (t, body) = read_checked(source, &value)?;
+                // 保留 descend_seq 的 M 叶拒绝码；其它内部节点沿旧 Value 角色拒绝。
+                if is_sequence_tag(t) {
+                    return Err(sequence_shape_error(format!(
+                        "元素序列的叶不能又是序列节点（tag={t:02x}）"
+                    )));
+                }
+                let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
+                let extent = header_extent(t, &body)?;
+                result.push(ContentRef::new(kind, &value, extent));
+            }
+        }
+    }
+    Ok(result)
 }
 
 /// 在一次规范序列遍历中读取固定 exact 字段集。各键按 UTF-8 字节顺序逐字对拍，

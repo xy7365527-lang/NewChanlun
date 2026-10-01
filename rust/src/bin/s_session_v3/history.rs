@@ -111,6 +111,7 @@ fn read_indexed_history_inner(
         deadline,
         max_render_bytes,
         budget,
+        audit_full_arrays: audit_same_material && budget.is_none(),
     };
     #[cfg(test)]
     super::state::trace_event("history_aux_index", None);
@@ -712,6 +713,7 @@ pub(super) struct HashReader<'a> {
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
     budget: Option<&'a dyn super::audit_budget::Budget>,
+    audit_full_arrays: bool,
 }
 impl<'a> HashReader<'a> {
     /// 派生节点只留在内存，用于写入前审计，绝不通过 NodeSink 改 SQLite。
@@ -722,6 +724,7 @@ impl<'a> HashReader<'a> {
             deadline: None,
             max_render_bytes: None,
             budget: None,
+            audit_full_arrays: false,
         }
     }
     pub(super) fn until(
@@ -734,6 +737,7 @@ impl<'a> HashReader<'a> {
             deadline,
             max_render_bytes: None,
             budget: None,
+            audit_full_arrays: false,
         }
     }
     pub(super) fn bounded(
@@ -747,6 +751,7 @@ impl<'a> HashReader<'a> {
             deadline,
             max_render_bytes,
             budget: None,
+            audit_full_arrays: false,
         }
     }
     pub(super) fn metered(
@@ -761,6 +766,7 @@ impl<'a> HashReader<'a> {
             deadline,
             max_render_bytes,
             budget,
+            audit_full_arrays: false,
         }
     }
 }
@@ -769,6 +775,9 @@ pub(super) fn check_deadline(deadline: Option<std::time::Instant>) -> Result<(),
 }
 
 impl NodeSource for HashReader<'_> {
+    fn audit_full_array_scan(&self) -> bool {
+        self.audit_full_arrays && self.budget.is_none()
+    }
     fn max_render_bytes(&self) -> Option<u64> {
         match (self.max_render_bytes, self.source.max_render_bytes()) {
             (Some(a), Some(b)) => Some(a.min(b)),
@@ -870,6 +879,154 @@ impl NodeSink for HashReader<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn full_array_sql_reads_are_linear_and_never_reuse_previous_bodies() {
+        let mut fixture = commit::tests::fixture();
+        let tx = fixture.conn.transaction().unwrap();
+        let root = sc::write_value(
+            &mut content_store::TxStore::new(&tx).unwrap(),
+            &V::Array(vec![V::Null; 65]),
+        )
+        .unwrap()
+        .content_ref();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let before = content_store::sql_reads_on_thread();
+        let expected = (0..65)
+            .map(|i| lookup_path(&mut source, &root, &[PathStep::Index(i)]).unwrap())
+            .collect::<Vec<_>>();
+        let old_reads = content_store::sql_reads_on_thread() - before;
+        for _ in 0..2 {
+            let before = content_store::sql_reads_on_thread();
+            let actual = sc::path::lookup_array_items(&mut source, &root).unwrap();
+            let reads = content_store::sql_reads_on_thread() - before;
+            assert_eq!(actual, expected);
+            assert_eq!(reads, 195, "重复子图的每个逻辑位置仍读SQL并核本次F");
+            eprintln!("ARRAY_SQL n=65 old={old_reads} linear={reads}");
+        }
+        let null = sc::frame(sc::tag::NULL, &[]);
+        tx.execute(
+            "UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",
+            params![&null[..]],
+        )
+        .unwrap();
+        assert_eq!(
+            sc::path::lookup_array_items(&mut source, &root)
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_DIGEST
+        );
+        tx.execute(
+            "DELETE FROM s_content_nodes WHERE digest=?1",
+            params![&null[..]],
+        )
+        .unwrap();
+        assert_eq!(
+            sc::path::lookup_array_items(&mut source, &root)
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_MISSING
+        );
+    }
+
+    #[test]
+    fn full_array_some_keeps_old_sql_reads_double_f_and_budget_gate_order() {
+        #[derive(Default)]
+        struct Meter {
+            events: std::cell::RefCell<Vec<String>>,
+            stop_at: Option<usize>,
+        }
+        impl super::super::audit_budget::Budget for Meter {
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.events.borrow_mut().push("precheck".into());
+                if self.stop_at == Some(self.events.borrow().len()) {
+                    Err(sc::CodecError::new("array_stop", "当前预算门拒绝"))
+                } else {
+                    Ok(())
+                }
+            }
+            fn prepare_node(&self) -> Result<(), sc::CodecError> {
+                self.events.borrow_mut().push("prepare".into());
+                Ok(())
+            }
+            fn accept_prepared_frame(
+                &self,
+                f: &sc::job::CheckedFrame,
+            ) -> Result<(), sc::CodecError> {
+                self.events.borrow_mut().push(sc::root_string(f.digest()));
+                Ok(())
+            }
+            fn node(&self, _: &NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
+                unreachable!()
+            }
+            fn record(&self) -> Result<(), sc::CodecError> {
+                unreachable!()
+            }
+        }
+        let mut fixture = commit::tests::fixture();
+        let tx = fixture.conn.transaction().unwrap();
+        let root = sc::write_value(
+            &mut content_store::TxStore::new(&tx).unwrap(),
+            &V::Array(vec![V::Null; 17]),
+        )
+        .unwrap()
+        .content_ref();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        source.enable_audit_same_material();
+        for stop_at in [None, Some(1), Some(4), Some(33)] {
+            let run = |source: &mut dyn NodeSource, legacy: bool| {
+                let meter = Meter {
+                    stop_at,
+                    ..Meter::default()
+                };
+                let reads = content_store::sql_reads_on_thread();
+                let frames = sc::frame_calls_on_thread();
+                let mut reader = HashReader::metered(source, None, None, Some(&meter));
+                // 即使显式申请，Some 仍必须拒绝启用。
+                reader.audit_full_arrays = true;
+                assert!(!reader.audit_full_array_scan());
+                let result = if legacy {
+                    (0..17)
+                        .map(|i| {
+                            lookup_path(&mut reader, &root, &[PathStep::Index(i)])
+                                .map_err(|e| format!("SourceAuditInvalid：{e}"))
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                } else {
+                    source_audit::elements(&mut reader, &root)
+                };
+                let reads = content_store::sql_reads_on_thread() - reads;
+                let frames = sc::frame_calls_on_thread() - frames;
+                (result, reads, frames, meter.events.into_inner())
+            };
+            let old = run(&mut source, true);
+            let actual = run(&mut source, false);
+            assert_eq!(
+                actual, old,
+                "stop_at={stop_at:?}：Ref/错误、SQL、F及每个预算门逐项一致"
+            );
+            if stop_at.is_none() {
+                assert_eq!(actual.2, actual.1 * 2);
+            }
+        }
+        let sql = content_store::sql_reads_on_thread();
+        let meter = Meter::default();
+        let mut reader = HashReader::metered(
+            &mut source,
+            Some(std::time::Instant::now()),
+            None,
+            Some(&meter),
+        );
+        reader.audit_full_arrays = true;
+        assert!(source_audit::elements(&mut reader, &root)
+            .unwrap_err()
+            .contains("verify_deadline"));
+        assert_eq!(content_store::sql_reads_on_thread(), sql);
+        assert!(
+            meter.events.borrow().is_empty(),
+            "期限门仍先于预算前门与SQL"
+        );
+    }
 
     #[test]
     fn metered_sqlite_and_memory_bad_frames_keep_the_original_prepare_order() {

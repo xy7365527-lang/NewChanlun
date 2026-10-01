@@ -90,13 +90,47 @@ fn exact(r: &ContentRef, kind: Kind, n: u64) -> Result<(), String> {
         Ok(())
     }
 }
-fn elements(s: &mut dyn NodeSource, r: &ContentRef) -> Result<Vec<ContentRef>, String> {
+pub(super) fn elements(s: &mut dyn NodeSource, r: &ContentRef) -> Result<Vec<ContentRef>, String> {
     if r.kind != Kind::Array {
         return Err(err("预期数组"));
+    }
+    if s.audit_full_array_scan() {
+        return sc::path::lookup_array_items(s, r).map_err(err);
     }
     (0..r.extent.ok_or_else(|| err("数组缺长度"))?)
         .map(|i| lookup_path(s, r, &[PathStep::Index(i)]).map_err(err))
         .collect()
+}
+
+/// 活期仅为本次完整来源审计；Some 强制原路径，即便底层曾显式申请线性遍历。
+struct ArrayAuditSource<'a> {
+    source: &'a mut dyn NodeStore,
+    full_arrays: bool,
+}
+impl NodeSource for ArrayAuditSource<'_> {
+    fn audit_full_array_scan(&self) -> bool {
+        self.full_arrays
+    }
+    fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+        self.source.read(d)
+    }
+    fn checked_read(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+        self.source.checked_read(d)
+    }
+    fn before_path_index(&mut self, p: &[PathStep], i: u64) -> Result<(), sc::CodecError> {
+        self.source.before_path_index(p, i)
+    }
+    fn max_render_bytes(&self) -> Option<u64> {
+        self.source.max_render_bytes()
+    }
+}
+impl NodeSink for ArrayAuditSource<'_> {
+    fn put(&mut self, d: NodeDigest, t: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+        self.source.put(d, t, body)
+    }
 }
 fn coords(s: &mut dyn NodeSource, r: &ContentRef) -> Result<Vec<i64>, String> {
     let mut out = Vec::new();
@@ -216,6 +250,11 @@ pub(super) fn audit_generated_metered(
     #[cfg(test)]
     super::state::trace_event("source_closure", None);
     sc::verify(s, state).map_err(err)?;
+    let mut array_source = ArrayAuditSource {
+        source: s,
+        full_arrays: budget.is_none(),
+    };
+    let s: &mut dyn NodeStore = &mut array_source;
     #[cfg(test)]
     super::state::trace_event("source_raw", None);
     if profile != tb02a::PROFILE {

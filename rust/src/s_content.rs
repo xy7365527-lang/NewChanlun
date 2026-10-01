@@ -418,6 +418,12 @@ pub trait NodeSource {
         Ok(())
     }
 
+    /// 仅完整审计 BudgetNone 显式选择 root[] 线性枚举；默认保持旧逐 Index 读取。
+    /// 不影响 lookup_path/fragment，不承诺闭包或 JsonInner 上下文已核验。
+    fn audit_full_array_scan(&self) -> bool {
+        false
+    }
+
     /// 同次读取的已核帧。旧 NodeSource 无须覆写：默认先读取原 Vec，再核一次 F。
     /// 包装器可沿同一调用栈传递证明；作用域内也可先实际重读全部原件，在请求摘要、tag
     /// 与完整 body 逐字相同后仅复用纯 F 证明。不得按摘要跳过真实读取，不得以旧成功
