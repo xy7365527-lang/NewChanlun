@@ -369,7 +369,8 @@ impl CheckedNodeUsage {
 
 /// 已核验的节点帧：`(tag, body)` 与**声称摘要**当场重算 `F(tag, body)` 相符的不可变原件。
 ///
-/// 构造面只有 [`CheckedFrame::checked`] 一条：字段私有、不实现 `Deserialize`、不提供
+/// 新原件经 [`CheckedFrame::checked`] 核验；逐字相同原件可受控重绑定证明。字段私有、不实现
+/// `Deserialize`、不提供
 /// `&mut body` 入口，也没有未核构造。它证明的是「帧与构造时那枚摘要相符」，**不**证明
 /// 「帧正是调用方本次请求的那枚摘要」——请求侧仍须逐次核对 [`CheckedFrame::digest`]。
 ///
@@ -382,7 +383,7 @@ pub struct CheckedFrame {
 }
 
 impl CheckedFrame {
-    /// 唯一的合法构造路径：对实际 `(tag, body)` 算一次 `F`，与声称摘要比较；不符即拒绝。
+    /// 对新原件 `(tag, body)` 算一次 `F`，与声称摘要比较；不符即拒绝。
     pub fn checked(digest: &NodeDigest, tag: u8, body: Vec<u8>) -> Result<Self, CodecError> {
         let actual = frame(tag, &body);
         if actual != *digest {
@@ -404,6 +405,25 @@ impl CheckedFrame {
                 framed_bytes: framed,
             },
         })
+    }
+
+    /// 仅当摘要、tag 与完整 body 逐字相同，才将纯 F 证明重绑定到当前 owned Vec。
+    /// 任一不同均重新核验当前原件；本方法不证明 SQL 来源、角色或业务准入。
+    pub fn checked_same_material(
+        &self,
+        digest: &NodeDigest,
+        tag: u8,
+        body: Vec<u8>,
+    ) -> Result<Self, CodecError> {
+        if self.digest() == digest && self.tag == tag && self.body == body {
+            Ok(Self {
+                tag,
+                body,
+                usage: self.usage,
+            })
+        } else {
+            Self::checked(digest, tag, body)
+        }
     }
 
     /// 本帧核出相符的那枚摘要（不是「本次请求的摘要」；请求侧须自行对照）。
@@ -1152,5 +1172,50 @@ impl NodeSource for JobNodeSource<'_> {
                 Ok(Some(frame))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod same_material_tests {
+    use super::*;
+
+    #[test]
+    fn checked_same_material_requires_exact_digest_tag_body_and_moves_current_vec() {
+        let body = vec![1, 2, 3];
+        let tag = super::super::tag::BYTES_CHUNK;
+        let digest = frame(tag, &body);
+        let original = CheckedFrame::checked(&digest, tag, body).unwrap();
+        let current = vec![1, 2, 3];
+        let ptr = current.as_ptr();
+        let before = super::super::frame_calls_on_thread();
+        let rebound = original
+            .checked_same_material(&digest, tag, current)
+            .unwrap();
+        assert_eq!(rebound.body().as_ptr(), ptr);
+        assert_eq!(rebound.usage(), original.usage());
+        assert_eq!(super::super::frame_calls_on_thread(), before);
+        for (d, t, b) in [
+            (digest, tag, vec![1, 2, 4]),
+            (digest, 0, vec![1, 2, 3]),
+            ([0; 32], tag, vec![1, 2, 3]),
+        ] {
+            let before = super::super::frame_calls_on_thread();
+            assert_eq!(
+                original.checked_same_material(&d, t, b).unwrap_err().code(),
+                code::NODE_DIGEST
+            );
+            assert_eq!(super::super::frame_calls_on_thread() - before, 1);
+        }
+        let new_body = vec![9];
+        let new_digest = frame(tag, &new_body);
+        let before = super::super::frame_calls_on_thread();
+        assert_eq!(
+            original
+                .checked_same_material(&new_digest, tag, new_body)
+                .unwrap()
+                .digest(),
+            &new_digest
+        );
+        assert_eq!(super::super::frame_calls_on_thread() - before, 1);
     }
 }

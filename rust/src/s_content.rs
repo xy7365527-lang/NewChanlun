@@ -419,7 +419,9 @@ pub trait NodeSource {
     }
 
     /// 同次读取的已核帧。旧 NodeSource 无须覆写：默认先读取原 Vec，再核一次 F。
-    /// 包装器可覆写以沿同一调用栈传递证明，不能跨读取缓存帧。
+    /// 包装器可沿同一调用栈传递证明；作用域内也可先实际重读全部原件，在请求摘要、tag
+    /// 与完整 body 逐字相同后仅复用纯 F 证明。不得按摘要跳过真实读取，不得以旧成功
+    /// 兜底错误、Missing 或变化的原件；来源、角色、闭包与业务准入仍须逐次核验。
     fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<job::CheckedFrame>, CodecError> {
         match self.read(digest)? {
             NodeRead::Missing => Ok(None),

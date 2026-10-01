@@ -124,7 +124,7 @@ fn audit_with_budget(
         cuts,
         objects,
         auxiliary,
-    } = history::read_indexed_history(tx, &raw, control, deadline, max_render_bytes, budget)?;
+    } = history::read_indexed_history_for_audit(tx, &raw, control, deadline, max_render_bytes, budget)?;
     #[cfg(test)]
     trace_event("catalog_metadata", None);
     // 4. 从未运行的目录行：空初态（generation=0）要求全部行都仍是未运行。
@@ -139,6 +139,9 @@ fn audit_with_budget(
     }
     // 只读源 + 内存派生层：overlay 随本函数内的 store 一起销毁，不是 SQLite 写入通道。
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
+    if budget.is_none() {
+        reader.enable_audit_same_material();
+    }
     let mut store = history::HashReader::metered(&mut reader, deadline, max_render_bytes, budget);
     // 7a. 当前代对象索引已在同次history中完整加载并绑定原件；继续用它核逐代变化。
     let mut previous = -1i64;

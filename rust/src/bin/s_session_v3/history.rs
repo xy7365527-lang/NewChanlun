@@ -71,14 +71,40 @@ pub(super) fn read_history_metered(
 pub(super) fn read_indexed_history(
     tx: &Transaction<'_>,
     raw: &[Value],
-    mut control: v2::ControlHistory,
+    control: v2::ControlHistory,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<IndexedHistory, String> {
+    read_indexed_history_inner(tx, raw, control, deadline, max_render_bytes, budget, false)
+}
+
+pub(super) fn read_indexed_history_for_audit(
+    tx: &Transaction<'_>,
+    raw: &[Value],
+    control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<IndexedHistory, String> {
+    read_indexed_history_inner(tx, raw, control, deadline, max_render_bytes, budget, budget.is_none())
+}
+
+fn read_indexed_history_inner(
+    tx: &Transaction<'_>,
+    raw: &[Value],
+    mut control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    audit_same_material: bool,
+) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
     verify_required_meta(tx)?;
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
+    if audit_same_material {
+        reader.enable_audit_same_material();
+    }
     let mut store = HashReader {
         source: &mut reader,
         overlay: BTreeMap::new(),
@@ -786,7 +812,7 @@ impl NodeSource for HashReader<'_> {
         if self.budget.is_none() && !self.overlay.contains_key(d) {
             #[cfg(test)]
             super::state::trace_read(false);
-            // 仅透传本次真实读取的已核帧；不跨read保存，不改变计费分支的原门序。
+            // 透传本次真实读取的已核帧；仅源层可逐字比较复用纯F，计费分支门序不变。
             let frame = self.source.checked_read(d)?;
             if frame.as_ref().is_some_and(|f| f.digest() != d) {
                 return Err(sc::CodecError::new(
@@ -955,6 +981,16 @@ mod tests {
         let mut wrong = nested.content_ref();
         wrong.kind = sc::Kind::Bool;
         assert!(sc::verify(&mut store, &wrong).is_err());
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        source.enable_audit_same_material();
+        let mut reader = HashReader::new(&mut source);
+        sc::verify_template(&mut reader, &placeholder.content_ref()).unwrap();
+        let before = sc::frame_calls_on_thread();
+        assert_eq!(sc::verify(&mut reader, &placeholder.content_ref()).unwrap_err().code(), sc::code::TEMPLATE_PLACEHOLDER);
+        assert_eq!(sc::frame_calls_on_thread(), before, "纯F复用不放行当前Public判据");
+        sc::verify(&mut reader, &nested.content_ref()).unwrap();
+        assert_eq!(sc::verify(&mut reader, &invalid_inner).unwrap_err().code(), sc::code::JSON_TEXT_INTERNAL_KIND);
+        assert!(sc::verify(&mut reader, &wrong).is_err());
     }
 
     #[test]
@@ -1084,6 +1120,182 @@ mod tests {
             );
         }
         assert_eq!(source.calls, 1);
+    }
+
+    #[test]
+    fn same_material_warm_source_keeps_budget_double_f_and_gate_order() {
+        #[derive(Default)]
+        struct Meter {
+            events: std::cell::RefCell<Vec<&'static str>>,
+            stop_at: Option<usize>,
+        }
+        impl super::super::audit_budget::Budget for Meter {
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.events.borrow_mut().push("precheck");
+                if self.stop_at == Some(self.events.borrow().len()) {
+                    Err(sc::CodecError::new("test_budget_stop", "当前预算门拒绝"))
+                } else {
+                    Ok(())
+                }
+            }
+            fn prepare_node(&self) -> Result<(), sc::CodecError> {
+                self.events.borrow_mut().push("prepare");
+                Ok(())
+            }
+            fn accept_prepared_frame(
+                &self,
+                _: &sc::job::CheckedFrame,
+            ) -> Result<(), sc::CodecError> {
+                self.events.borrow_mut().push("accept");
+                Ok(())
+            }
+            fn node(&self, _: &NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
+                unreachable!()
+            }
+            fn record(&self) -> Result<(), sc::CodecError> {
+                unreachable!()
+            }
+        }
+        let mut fixture = commit::tests::fixture();
+        let tx = fixture.conn.transaction().unwrap();
+        let digest = sc::frame(sc::tag::BOOL_TRUE, &[]);
+        content_store::TxStore::new(&tx)
+            .unwrap()
+            .put(digest, sc::tag::BOOL_TRUE, &[])
+            .unwrap();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        source.enable_audit_same_material();
+        assert!(source.checked_read(&digest).unwrap().is_some());
+        for _ in 0..2 {
+            let meter = Meter::default();
+            let before = sc::frame_calls_on_thread();
+            let mut reader = HashReader::metered(&mut source, None, None, Some(&meter));
+            assert!(reader.checked_read(&digest).unwrap().is_some());
+            assert_eq!(sc::frame_calls_on_thread() - before, 2);
+            assert_eq!(
+                *meter.events.borrow(),
+                ["precheck", "prepare", "accept", "precheck"]
+            );
+        }
+        let meter = Meter {
+            stop_at: Some(1),
+            ..Meter::default()
+        };
+        let before = sc::frame_calls_on_thread();
+        let sql_before = content_store::sql_reads_on_thread();
+        assert_eq!(
+            HashReader::metered(&mut source, None, None, Some(&meter))
+                .checked_read(&digest)
+                .unwrap_err()
+                .code(),
+            "test_budget_stop"
+        );
+        assert_eq!(sc::frame_calls_on_thread(), before);
+        assert_eq!(
+            content_store::sql_reads_on_thread(),
+            sql_before,
+            "预算前门拒绝不读SQL"
+        );
+        assert_eq!(*meter.events.borrow(), ["precheck"]);
+        let meter = Meter {
+            stop_at: Some(4),
+            ..Meter::default()
+        };
+        assert_eq!(
+            HashReader::metered(&mut source, None, None, Some(&meter))
+                .checked_read(&digest)
+                .unwrap_err()
+                .code(),
+            "test_budget_stop"
+        );
+        assert_eq!(
+            *meter.events.borrow(),
+            ["precheck", "prepare", "accept", "precheck"]
+        );
+        tx.execute(
+            "UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",
+            params![&digest[..]],
+        )
+        .unwrap();
+        let meter = Meter::default();
+        assert_eq!(
+            HashReader::metered(&mut source, None, None, Some(&meter))
+                .checked_read(&digest)
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_DIGEST
+        );
+        assert_eq!(
+            *meter.events.borrow(),
+            ["precheck"],
+            "坏SQL原件在prepare前拒绝"
+        );
+    }
+
+    #[test]
+    fn same_material_warm_sql_reader_keeps_deadline_before_and_after_read() {
+        struct Delayed<'a> {
+            source: content_store::ReadStore<'a>,
+            calls: usize,
+            delay: std::time::Duration,
+        }
+        impl NodeSource for Delayed<'_> {
+            fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+                self.source.read(d)
+            }
+            fn checked_read(
+                &mut self,
+                d: &NodeDigest,
+            ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+                self.calls += 1;
+                let frame = self.source.checked_read(d)?;
+                std::thread::sleep(self.delay);
+                Ok(frame)
+            }
+        }
+        let mut fixture = commit::tests::fixture();
+        let tx = fixture.conn.transaction().unwrap();
+        let digest = sc::frame(sc::tag::BOOL_TRUE, &[]);
+        content_store::TxStore::new(&tx)
+            .unwrap()
+            .put(digest, sc::tag::BOOL_TRUE, &[])
+            .unwrap();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        source.enable_audit_same_material();
+        assert!(source.checked_read(&digest).unwrap().is_some());
+        let mut delayed = Delayed {
+            source,
+            calls: 0,
+            delay: std::time::Duration::from_millis(25),
+        };
+        let before = sc::frame_calls_on_thread();
+        let sql_before = content_store::sql_reads_on_thread();
+        assert_eq!(
+            HashReader::until(&mut delayed, Some(std::time::Instant::now()))
+                .checked_read(&digest)
+                .unwrap_err()
+                .code(),
+            "verify_deadline"
+        );
+        assert_eq!(delayed.calls, 0);
+        assert_eq!(content_store::sql_reads_on_thread(), sql_before);
+        assert_eq!(
+            HashReader::until(
+                &mut delayed,
+                Some(std::time::Instant::now() + std::time::Duration::from_millis(10))
+            )
+            .checked_read(&digest)
+            .unwrap_err()
+            .code(),
+            "verify_deadline"
+        );
+        assert_eq!(delayed.calls, 1);
+        assert_eq!(content_store::sql_reads_on_thread() - sql_before, 1);
+        assert_eq!(
+            sc::frame_calls_on_thread(),
+            before,
+            "确实命中纯F复用，读后期限仍拒绝"
+        );
     }
 
     fn published() -> commit::tests::Fixture {
