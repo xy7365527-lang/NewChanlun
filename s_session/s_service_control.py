@@ -303,7 +303,7 @@ class Controller:
         record = {"service": service, "pid": pid, "db": self.config["db"],
                   "process_identity": identity, "command": command, "control_instance_id": instance_id}
         if resource_identity is not None:
-            self.validate_resource_identity(resource_identity, command, deadline)
+            self.validate_resource_identity(resource_identity, command, deadline, require_current=True)
             record["resource_identity"] = resource_identity
         self.save_record(service, record)
 
@@ -324,7 +324,7 @@ class Controller:
         return {"path": str(path), "nonce": nonce, "sha256": hashlib.sha256(body).hexdigest(),
                 "device": identity.st_dev, "inode": identity.st_ino, "uid": identity.st_uid}
 
-    def validate_resource_identity(self, identity, command, deadline=None):
+    def validate_resource_identity(self, identity, command, deadline=None, *, require_current=False):
         fields = {"path", "nonce", "sha256", "device", "inode", "uid"}
         if (type(identity) is not dict or set(identity) != fields
                 or any(type(identity[k]) is not str for k in ("path", "nonce", "sha256"))
@@ -352,10 +352,18 @@ class Controller:
                     != (identity["device"], identity["inode"], identity["uid"])):
                 raise ValueError("S3 资源冻结文件身份或私有权限改变")
             body = source.read(65537)
-        expected = canonical({"schema_revision": "s-structure-resources/1",
-                              "s_resources": validate_s_resources(self.config)})
-        if len(body) > 65536 or body != expected or hashlib.sha256(body).hexdigest() != identity["sha256"]:
+        if len(body) > 65536 or hashlib.sha256(body).hexdigest() != identity["sha256"]:
             raise ValueError("S3 资源冻结内容或 hash 改变")
+        frozen = decode_frame(body)
+        if set(frozen) != {"schema_revision", "s_resources"} or frozen["schema_revision"] != "s-structure-resources/1":
+            raise ValueError("S3 资源冻结外壳无效")
+        validate_s_resources({"schema_revision": "s-launcher/3", "s_resources": frozen["s_resources"]})
+        if body != canonical(frozen):
+            raise ValueError("S3 资源冻结内容不是原规范字节")
+        # 旧进程按自己的冻结原件核身份，允许停止后用新的显式预算再次启动。
+        # 只有本次新 child 必须绑定当前配置，不能把旧预算偷偷用作新启动预算。
+        if require_current and frozen["s_resources"] != validate_s_resources(self.config):
+            raise ValueError("S3 资源冻结预算不属于本次显式启动配置")
         if deadline is not None:
             remaining(deadline)
 
@@ -404,7 +412,7 @@ class Controller:
         if self.status(service, deadline=deadline)["state"] == "running":
             raise ValueError(service + " 已在运行，不覆盖 PID 记录")
         if resource_identity is not None:
-            self.validate_resource_identity(resource_identity, command, deadline)
+            self.validate_resource_identity(resource_identity, command, deadline, require_current=True)
         instance_id = str(uuid.uuid4())
         environment = dict(os.environ if environment is None else environment)
         instance_key = "SESSION_CONTROL_INSTANCE_ID" if self.socket_service == "owner" else "S_CONTROL_INSTANCE_ID"

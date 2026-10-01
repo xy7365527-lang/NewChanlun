@@ -3,13 +3,14 @@
 import hashlib
 import json
 import os
+import socket
 import stat
 import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import s_service_control as control
@@ -276,6 +277,83 @@ class S3LifecycleTests(unittest.TestCase):
                         controller.start_q("1")
                 environment.assert_not_called()
                 start.assert_not_called()
+            finally:
+                controller.close()
+
+    def test_stopped_s3_record_allows_new_explicit_budget_but_live_or_tampered_owner_refuses(self):
+        for case in ("stopped", "live", "tampered"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory(prefix="s3-restart-") as directory:
+                config = self.config(directory)
+                config["startup_timeout_ms"] = "2000"
+                Path(config["db"]).touch()
+                state_dir = Path(directory) / "state"
+                controller = control.Controller(config, state_dir)
+                old = controller.freeze_s_resources(time.monotonic() + 2)
+                command = [config["binary"], "serve", "--protocol-revision", "s-session/3",
+                           "--resource-config", old["path"]]
+                with patch.object(control, "process_identity", return_value="old identity"):
+                    controller.record("s", 123456, command, "old nonce", resource_identity=old)
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as owned_socket:
+                    owned_socket.bind(config["socket"])
+                old_socket = controller.socket_identity()
+                record = json.loads(controller.record_path("s").read_text())
+                record["socket_identity"] = old_socket
+                controller.save_record("s", record)
+                controller.close()
+                updated = {**config, "s_resources": {**config["s_resources"], "max_frame_bytes": "16384"}}
+                controller = control.Controller(updated, state_dir)
+                if case == "tampered":
+                    Path(old["path"]).write_bytes(b"{}")
+                def observation(pid, command=None, *, deadline=None):
+                    if pid == 123456:
+                        return "old identity" if case == "live" else None
+                    self.assertEqual(pid, 234567)
+                    return "new identity"
+                child = Mock(pid=234567, **{"poll.return_value": None})
+                try:
+                    with patch.object(control, "process_identity", side_effect=observation), \
+                         patch.object(controller, "runtime_environment", return_value={}), \
+                         patch.object(control.subprocess, "Popen", return_value=child) as spawn, \
+                         patch.object(controller, "wait_ready", return_value={"state": "ready"}):
+                        if case != "stopped":
+                            with self.assertRaises(ValueError):
+                                controller.start_s("1")
+                            spawn.assert_not_called()
+                            self.assertEqual(controller.socket_identity(), old_socket)
+                        else:
+                            result = controller.start_s("1")
+                            self.assertEqual(result["state"], "ready")
+                            spawn.assert_called_once()
+                            self.assertFalse(Path(config["socket"]).exists())
+                            new_record = controller.status("s")
+                            self.assertEqual(new_record["pid"], 234567)
+                            self.assertNotEqual(new_record["resource_identity"], old)
+                            frozen = json.loads(Path(new_record["resource_identity"]["path"]).read_text())
+                            self.assertEqual(frozen["s_resources"], updated["s_resources"])
+                            self.assertEqual(result["socket_cleanup"]["removed_stopped_service_socket"], old_socket)
+                finally:
+                    controller.close()
+
+    def test_new_child_cannot_reuse_old_frozen_budget_after_configuration_change(self):
+        with tempfile.TemporaryDirectory(prefix="s3-budget-binding-") as directory:
+            config = self.config(directory)
+            controller = control.Controller(config, Path(directory) / "state")
+            deadline = time.monotonic() + 2
+            try:
+                old = controller.freeze_s_resources(deadline)
+                command = [config["binary"], "serve", "--protocol-revision", "s-session/3",
+                           "--resource-config", old["path"]]
+                with patch.object(control, "process_identity", return_value="old identity"):
+                    controller.record("s", 123456, command, "old nonce", resource_identity=old)
+                original_record = controller.record_path("s").read_bytes()
+                config["s_resources"]["max_frame_bytes"] = "16384"
+                with patch.object(control, "process_identity", return_value=None), \
+                     patch.object(control.subprocess, "Popen") as spawn:
+                    self.assertEqual(controller.status("s")["state"], "stopped")
+                    with self.assertRaisesRegex(ValueError, "不属于本次显式启动配置"):
+                        controller.start_process("s", command, deadline=deadline, resource_identity=old)
+                spawn.assert_not_called()
+                self.assertEqual(controller.record_path("s").read_bytes(), original_record)
             finally:
                 controller.close()
 
