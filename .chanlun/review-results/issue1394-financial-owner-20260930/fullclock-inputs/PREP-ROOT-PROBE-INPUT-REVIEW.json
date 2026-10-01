@@ -1,0 +1,23 @@
+{
+  "ticket": 1394,
+  "status": "ROOT_VERIFIED_FINITE_PROBE_INPUTS",
+  "manifest_files_checked": 29,
+  "resource_sha256": "b3d8b67b723d881a98dd0f4116fdc9651cf05b207111b19dad26fa69c2c54e69",
+  "full_clock_sha256": "b02ac2444161e1e7e327fcf2a2bb79b294356a3dd95a59a6404c5b92deb04f01",
+  "consumed_prefix": 16,
+  "source_total": 9011,
+  "prior_prefix16_envelopes_exact": true,
+  "new_scope_or_policy_ruling": false,
+  "meaning": "explicit finite measurement budget inside existing approved full-source scope; not deployed production capacity or all9011 success",
+  "resource_units_unchanged": true,
+  "client_storage_decision_dependency": false,
+  "values": {
+    "audit_cache_source_bytes": "1",
+    "max_connections": "1",
+    "max_frame_bytes": "4096",
+    "queue_capacity": "1",
+    "read_timeout_ms": "1000",
+    "response_timeout_ms": "30000",
+    "write_timeout_ms": "1000"
+  }
+}
