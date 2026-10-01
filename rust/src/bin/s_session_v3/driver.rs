@@ -1,5 +1,5 @@
 //! #1394：S3 消息到真实接纳、Begin 和发布的同步驱动。
-//! 传输层须先执行资源/帧约束；CLI 由 writer_cli 接线，监听保持启动资格闭门。
+//! 传输层须先执行资源/帧约束；CLI 由 writer_cli 接线。
 //! 同一实例持有原进程锁；每次读取/写入都在当前事务调用同一完整状态审计。
 
 use super::*;
@@ -81,12 +81,26 @@ pub(super) struct Driver {
     epoch: String,
     profile_id: String,
     volume_unit: Option<String>,
+    /// 只保留显式预算数值，不保留 AuditedState、源节点或审计结果；每次 handle 仍 fresh audit。
+    audit_cache_source_bytes: Option<usize>,
     _lock: File,
     #[cfg(test)]
     stop_after: Option<&'static str>,
 }
 
 impl Driver {
+    pub(super) fn open_for_serve(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+    ) -> Result<Self, String> {
+        state::check_audit_source_retention(audit_cache_source_bytes)?;
+        let mut driver = Self::open(db, profile, epoch, clock)?;
+        driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+        Ok(driver)
+    }
     /// 服务回复只绑定经过当前持久审计的身份，不另建一份控制状态。
     pub(super) fn identity(&self) -> Result<(String, String, String), String> {
         let tx = self.conn.unchecked_transaction().map_err(err)?;
@@ -177,6 +191,7 @@ impl Driver {
             epoch: epoch.into(),
             profile_id,
             volume_unit,
+            audit_cache_source_bytes: None,
             _lock: lock,
             #[cfg(test)]
             stop_after: None,
@@ -187,6 +202,9 @@ impl Driver {
 
     pub(super) fn handle(&mut self, envelope: Value) -> Result<Value, String> {
         let envelope = validate_request(envelope)?;
+        if let Some(cap) = self.audit_cache_source_bytes {
+            state::check_audit_source_retention(cap)?;
+        }
         let tx = self.conn.transaction().map_err(err)?;
         state::audit(&tx)?;
         verify_writer_epoch(&tx, &self.epoch)?;
@@ -470,7 +488,9 @@ mod tests {
         let second = Fixture::ingest(2);
         let inputs = json!([first, second]);
         let cap = probe::begin(&inputs);
-        let mut d = f.open("1").unwrap();
+        let mut d = Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1).unwrap();
+        assert_eq!(d.audit_cache_source_bytes, Some(1));
+        assert_eq!(state::AUDIT_SOURCE_RETAINED_BYTES, 0);
         let mut phases = Vec::new();
         for (i, input) in inputs.as_array().unwrap().iter().enumerate() {
             let (result, mut phase) = probe::observe(&format!("actual_ingest_{}", i + 1), || {
@@ -539,7 +559,9 @@ mod tests {
         phase["storage_after"] = probe::storage(&d.conn, &f.db);
         phases.push(phase);
         drop(d);
-        let (result, mut phase) = probe::observe("driver_reopen_current_history", || f.open("1"));
+        let (result, mut phase) = probe::observe("driver_reopen_current_history", || {
+            Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1)
+        });
         assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
         phase["storage_after"] = probe::storage(&result.as_ref().unwrap().conn, &f.db);
         phases.push(phase);
@@ -869,7 +891,7 @@ mod tests {
     }
 
     #[test]
-    fn explicit_s3_serve_with_complete_test_resources_refuses_before_lock_or_listen() {
+    fn explicit_s3_serve_with_complete_resources_reaches_real_writer_lock_before_listen() {
         let f = Fixture::new();
         let resources = f.path.join("s-resources.json");
         let mut limits = serde_json::Map::new();
@@ -896,10 +918,69 @@ mod tests {
             resources.to_string_lossy().into_owned(),
         ]);
         let error = super::super::dispatch(&args).unwrap_err();
-        assert!(error.contains("AwaitingPolicy"), "{error}");
+        assert!(error.contains("StaleWriter") && error.contains("独占进程锁不可得"), "{error}");
         assert!(!socket.exists());
         let db = open_db(&f.db).unwrap();
         assert_eq!(meta_i64(&db, "generation").unwrap(), 0);
+    }
+
+    #[test]
+    fn invalid_s3_serve_resources_refuse_before_writer_lock_database_write_or_listen() {
+        let f = Fixture::new();
+        let resources = f.path.join("invalid-s-resources.json");
+        let socket = f.path.join("s.sock");
+        let lock = PathBuf::from(format!("{}.writer.lock", f.db.display()));
+        // init 的自有锁已释放；移除本夹具旧空锁，才能检验非法 serve 不会创建新锁。
+        std::fs::remove_file(&lock).unwrap();
+        assert!(!lock.exists());
+        let original_db = std::fs::read(&f.db).unwrap();
+        let mut limits = serde_json::Map::new();
+        for key in super::super::writer_cli::GATE_FIELDS {
+            limits.insert(key.into(), json!("1"));
+        }
+        let valid = json!({"schema_revision":"s-structure-resources/1","s_resources":limits});
+        let mut missing = valid.clone();
+        missing["s_resources"].as_object_mut().unwrap().remove("audit_cache_source_bytes");
+        let mut extra = valid.clone();
+        extra["s_resources"]["job_limits"] = json!("1");
+        let mut zero = valid.clone();
+        zero["s_resources"]["audit_cache_source_bytes"] = json!("0");
+        let mut numeric = valid.clone();
+        numeric["s_resources"]["queue_capacity"] = json!(1);
+        let mut wrong_version = valid.clone();
+        wrong_version["schema_revision"] = json!("s-structure-resources/2");
+        let mut args = cli(&f, "serve", "--writer-epoch", "1");
+        args.extend([
+            "--profile".into(), f.profile.to_string_lossy().into_owned(),
+            "--socket".into(), socket.to_string_lossy().into_owned(),
+            "--resource-config".into(), resources.to_string_lossy().into_owned(),
+        ]);
+        for invalid in [missing, extra, zero, numeric, wrong_version] {
+            std::fs::write(&resources, canonical_json(&invalid)).unwrap();
+            let error = super::super::dispatch(&args).unwrap_err();
+            assert!(error.contains("S3WriterResourcesInvalid"), "{error}");
+            assert!(!lock.exists());
+            assert!(!socket.exists());
+            assert_eq!(std::fs::read(&f.db).unwrap(), original_db);
+        }
+        let error = Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 0)
+            .err().unwrap();
+        assert!(error.contains("audit_cache_source_bytes"), "{error}");
+        assert!(!lock.exists());
+        assert_eq!(std::fs::read(&f.db).unwrap(), original_db);
+    }
+
+    #[test]
+    fn s3_serve_driver_rejects_unimplemented_condition_ops_before_admission() {
+        let f = Fixture::new();
+        let mut driver = Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1).unwrap();
+        for op in ["condition", "execute_conditional", "recover"] {
+            let error = driver.handle(envelope(op, json!({"op":op}))).unwrap_err();
+            assert!(error.contains("未知S3 op"), "{error}");
+        }
+        assert_eq!(count(&driver.conn, "raw_events"), 0);
+        assert_eq!(count(&driver.conn, "s_input_messages"), 0);
+        assert_eq!(meta_i64(&driver.conn, "generation").unwrap(), 0);
     }
 
     #[test]

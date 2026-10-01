@@ -1,18 +1,9 @@
 //! #1394：S3 正式写入口（`s-session/3`）的 CLI 接线：`serve` / 一次性 `advance` / 监督 `recover`。
 //!
-//! 三件事分开写清，免得被读成「服务已启用」：
-//!
-//! 1. **唯一状态机**：三个命令只用既有 [`Driver`]（唯一 `handle`、私有 `advance`、`recover`）与
-//!    `control::S3Control`；锁冲突、旧 writer、未完成 Begin、epoch 严格上升、profile/clock 拒绝、
-//!    已接纳 pending 按原身份推进与回执幂等全部沿用 Driver 既有判据，不另写第二套推进路径。
-//! 2. **禁改前拒绝**：重复、变形（`--flag=value`）、未知、缺参、非规范正整数，在任何文件创建、
-//!    进程锁、数据库打开/写入与监听之前拒绝——本模块先走完参数与文件类型校验，再交给 Driver。
-//! 3. **启动资格闸**：[`serve_authorization`] 在参数/资源档/类型/库路径全部核过之后、持锁与开库
-//!    之前拒绝启动。理由与缺口逐条写在那个函数上；本切片不拿测试夹具数值冒称部署资源。
-//!
-//! 边界如实：本片只做 CLI 接线与启动资格判定，未启动常驻服务、未冻结首批具名资源档、未运行
-//! 9011 双跑或联合验收；`serve` 资格闸以下的真实流程（`Driver::open` → `serve_unix`）在同一
-//! 冻结档与第七项处置落地前不可达、未执行、未验证。
+//! 参数与 exact 七字段资源档先核验，随后用同一 Driver 持锁、审计并监听。
+//! 普通 ready/receipt/ingest 沿用 typed 判据；C09 持久条件 FIFO 仍属 #1416，未知 op 拒绝。
+//! 第七资源门按 state 的跨请求审计源零保留不变式核显式正 cap，不计生成缓存或临时 heap。
+//! 本模块不提供默认数值；实际服务验收由调用方冻结具名资源输入并绑定当前二进制。
 
 use super::driver::Driver;
 use super::*;
@@ -157,7 +148,7 @@ impl SResources {
     pub(super) fn digest(&self) -> &str {
         &self.digest
     }
-    /// 六个旧门字段到保留下来的 `session_transport` 界限的逐项映射；第七项见资格闸。
+    /// 六个旧门字段到保留下来的 `session_transport` 界限的逐项映射；第七项由跨请求审计源零保留不变式核预算。
     fn transport_bounds(&self) -> TransportBounds {
         TransportBounds {
             frame: self.limit("max_frame_bytes"),
@@ -435,49 +426,27 @@ impl RecoverOptions {
     }
 }
 
-/// 启动资格闸：**当前源事实下必须 Err**，且发生在持锁/开库/写库/监听之前。
-///
-/// 保留的是旧服务资源门的完整七字段（`s_session/s_service_control.py` 的 `s_resources`）：
-/// `max_frame_bytes`、`read_timeout_ms`、`write_timeout_ms`、`response_timeout_ms`、
-/// `queue_capacity`、`max_connections` 六项逐项映射到保留下来的 `session_transport` 界限。
-/// 缺口落在第七项 `audit_cache_source_bytes`：
-///
-/// - 它在旧服务里是**证据审计的保留预算**（`cache::configure` → `evidence_store::Reader`）；
-///   `s-session/3` 写路径经 `content_store`（s-content 图）读取已发布内容，仓内没有该审计缓存的
-///   对应读取面，也没有任何经批准的替换口径；
-/// - §5.6.1 的八字段 `job_limits` 是 Q/客户端与 E/B reader 的**新 job 计费**合同（已分别在
-///   `s-query-resources/3`、`s-financial-reader-resources/1` 落地），不是 S writer serve 的资源档；
-///   更不得用内容图 framed bytes 顶替旧 logical 门；
-/// - 批准正本 §5.6.1 与 `S3-RUNTIME-20260918.md` 结论同时要求：首批数值须由冻结内容规模与实测
-///   形成**具名输入**，「形成首批具名实测资源档之前不能先填默认数值开启新服务」；仓内现有
-///   `s_resources` 数值全部出自测试夹具（其自身声明 `not_claimed: production capacity`）。
-/// - R2 C09.5–6 的持久条件请求身份、FIFO占槽及 Commit 后/下一 Begin 前服务路径当前不在
-///   `Driver::handle` 的 typed op 集合（现为 ready/receipt/ingest）；不能把 ready 或 ingest
-///   冒称条件执行，也不能让缺队列的服务先对外宣告可用。
-///
-/// 因此这里不接受「先跑起来再说」：宁可让 serve 正确拒绝，也不静默丢弃第七项、不拿测试数值或
-/// Q 数值冒称部署资源。具名冻结档与第七项处置裁定落地后，删去本闸即开放下面已接线的真实流程。
+/// 原第七门：当前审计路径不跨请求保留源，以结构 0 <= 显式正 cap 核验。
+/// 普通结构服务不依赖 C09 持久条件 FIFO；Driver 仍只接纳既有 typed op。
 fn serve_authorization(resources: &SResources) -> Result<(), String> {
-    Err(format!(
-        "AwaitingPolicy：S3写服务启动资格未满足——旧服务资源门第七项 `audit_cache_source_bytes` \
-         （证据审计保留预算）在 s-session/3 写路径没有对应读取面（本域经 content_store 读取），\
-         无经批准替换口径；且正本 §5.6.1 要求首批数值由冻结内容规模与实测形成具名输入，\
-         仓内无该具名冻结档；R2 C09.5–6 的持久条件请求FIFO/稳定点生产接线尚缺。已核并冻结资源档：schema={RESOURCES_REVISION} sha256={}（七字段全部\
-         显式、无默认值，其中 {} 项已映射、1 项见上）。本命令不持锁、不开库、不写库、不监听。",
-        resources.digest(),
-        GATE_FIELDS.len() - 1
-    ))
+    state::check_audit_source_retention(resources.limit("audit_cache_source_bytes")).map_err(|error| {
+        format!("{error}；资源档 schema={RESOURCES_REVISION} sha256={}", resources.digest())
+    })
 }
 
-/// S writer serve：全部校验通过后，按「先开唯一 Driver（单写进程锁、完整状态审计、profile/clock
-/// 绑定、pending 原身份推进），再监听」的次序接线；资格闸未过时在上一步之前即拒绝。
+/// 全部参数/资源核验后，先持唯一写锁、完整审计/profile/clock/pending，再监听。
 fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
     let resources = SResources::load(&options.resources)?;
     let clock = v2::ClockPlan::load(&options.clock)?;
     checked_profile(&options.profile)?;
     serve_authorization(&resources)?;
-    // —— 资格闸以下的真实流程：具名冻结档形成前不可达，不得据此声称服务已启用 ——
-    let mut driver = Driver::open(&options.db, &options.profile, &options.epoch, clock)?;
+    let mut driver = Driver::open_for_serve(
+        &options.db,
+        &options.profile,
+        &options.epoch,
+        clock,
+        resources.limit("audit_cache_source_bytes"),
+    )?;
     let identity = driver.identity()?;
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
     let bounds = resources.transport_bounds();
@@ -570,6 +539,33 @@ mod tests {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn ready_nonce_is_in_hashed_s3_payload_and_preserves_full_reply_identity() {
+        let payload = json!({"op":"ready"});
+        let request = json!({"schema_revision":PROTOCOL_REVISION,"session_id":"owned",
+            "session_generation":"1","source_namespace":"owned.test","source_epoch":"1",
+            "message_id":"ready-owned","producer_id":"owned-client","producer_epoch":"1",
+            "payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload});
+        let identity = ("owned".into(), "1".into(), "2".into());
+        let a = reply(&request, Ok(json!({"kind":"Ready"})), &identity, Some("current"));
+        let b = reply(&request, Ok(json!({"kind":"Ready"})), &identity, Some("other"));
+        // validate_envelope 是请求判据，要求 op；响应仍按原公共回复的摘要/因果身份合同核。
+        assert_eq!(a.as_object().unwrap().len(), 11);
+        assert_eq!(a["schema_revision"], PROTOCOL_REVISION);
+        assert_eq!(a["payload_hash"], sha256_hex(canonical_json(&a["payload"]).as_bytes()));
+        assert!(a.get("control_instance_id").is_none());
+        assert_eq!(a["payload"]["control_instance_id"], "current");
+        assert_eq!(a["session_id"], "owned");
+        assert_eq!(a["session_generation"], "1");
+        assert_eq!(a["producer_id"], "S:owned");
+        assert_eq!(a["producer_epoch"], "2");
+        assert_eq!(a["source_epoch"], "2");
+        assert_eq!(a["source_namespace"], "s-session/replies");
+        assert_eq!(a["causal_refs"][0]["payload_hash"], request["payload_hash"]);
+        assert_ne!(a["payload_hash"], b["payload_hash"]);
+        assert_ne!(a["message_id"], b["message_id"]);
+    }
 
     #[test]
     fn fifo_resource_config_is_rejected_before_opening_it() {

@@ -47,6 +47,22 @@ pub(super) struct AuditedState {
     pub auxiliary: aux_index::Index,
 }
 
+/// #1394：第七资源门仍计跨请求审计源保留字节。
+/// HashReader/overlay、source_audit producer 均是 audit 调用局部；AuditedState 不存入
+/// Driver/prepared Runtime。当前这条路径的跨请求保留因此为 0，生成缓存和临时 heap 不在此量纲。
+/// 若以后增加审计源 keeper，必须在此按原源成本计量并驱逐，不能继续宣称结构零保留。
+pub(super) const AUDIT_SOURCE_RETAINED_BYTES: usize = 0;
+
+pub(super) fn check_audit_source_retention(cap: usize) -> Result<(), String> {
+    if cap == 0 {
+        return Err("S3WriterResourcesInvalid：audit_cache_source_bytes 必须为显式正预算".into());
+    }
+    if AUDIT_SOURCE_RETAINED_BYTES > cap {
+        return Err("S3WriterResourcesInvalid：跨请求审计源保留超过 audit_cache_source_bytes".into());
+    }
+    Ok(())
+}
+
 /// 只读完整状态审计：提交口与只读入口共用这一份判据。
 pub(super) fn audit(tx: &Transaction<'_>) -> Result<AuditedState, String> {
     audit_until(tx, None)
