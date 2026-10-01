@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-current-build-manager-20261002/FAILED-PROBE-RESIDUE-RECEIPT.json",
+  "source_bytes": 949,
+  "source_sha256": "dc841af0382642949c8acaf03340a9cb966c0ef31f2a45fb7f00c0bd697b1cae",
+  "content_utf8": "{\n  \"original_path\": \"/Users/silencehan/Projects/NewChanlun-1394-full9011-current-20261002/.scratch/full9011-current-build-20261002/target/.rustc_info.json\",\n  \"original_inode\": 324961683,\n  \"original_mtime_ns\": 1790894208947369552,\n  \"bytes\": 483,\n  \"sha256\": \"d764ea4afa1b1b2e3f178d4a5dbf2aa7823a3ab14600d45f954826f816c2c934\",\n  \"preserved_path\": \"/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-current-build-manager-20261002/FAILED-PROBE-RESIDUE/rustc_info.json\",\n  \"target_path\": \"/Users/silencehan/Projects/NewChanlun-1394-full9011-current-20261002/.scratch/full9011-current-build-20261002/target\",\n  \"target_inode_unchanged\": 324961549,\n  \"scope\": \"only current owned failed probe metadata; no product compiled; all run1 originals unchanged\",\n  \"action\": \"preserved metadata then unlinked this single file; sole target directory remains\",\n  \"target_empty_after\": true,\n  \"recorded_ns\": 1790894777943921000\n}\n"
+}

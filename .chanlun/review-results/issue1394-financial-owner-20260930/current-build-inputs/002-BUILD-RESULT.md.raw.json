@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-full9011-current-20261002/.scratch/full9011-current-build-20261002/attempt-2/BUILD-RESULT.md",
+  "source_bytes": 482,
+  "source_sha256": "2bb50fcf6d0cc6347711239d9e7969359573f8da9258e40615f596196d3039c1",
+  "content_utf8": "# #1394 单次构建结果\n\n状态：completed；cargo 退出码：0。\n\n固定 HEAD：abbc8ddbde4b50bf6c9268aec0f69fe315fe132a。完整源清单与累计七文件变更清单分别保全。\n\n真实非 test、opt-level=3 链接事件与 Cargo artifact 已严格绑定；二进制、源归档及编译记录全部 SHA 校验通过；只删除本次自有 target。\n\n未运行产品测试、clippy、服务、SQLite/Driver、正式全9011 gate/run；正式 6GiB 门保持未满足。\n"
+}
