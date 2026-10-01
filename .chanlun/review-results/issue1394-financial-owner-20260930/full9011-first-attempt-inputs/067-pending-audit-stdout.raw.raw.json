@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-pending-audit-20261002/stdout.raw",
+  "source_bytes": 325,
+  "source_sha256": "c198dd13b6d1bcbea59d0caec59ca8a7129398afa9ea415e2e4c3534de37550b",
+  "content_utf8": "\nrunning 1 test\ntest v3::state::readonly_reuse_pilot::readonly_audit_reuse_pilot ... READONLY_AUDIT_REPEAT repeat=0 elapsed_ns=11468526542 cuts=27 raw=28\nREADONLY_AUDIT_REPEAT repeat=1 elapsed_ns=11495750583 cuts=27 raw=28\nok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 422 filtered out; finished in 23.01s\n\n"
+}

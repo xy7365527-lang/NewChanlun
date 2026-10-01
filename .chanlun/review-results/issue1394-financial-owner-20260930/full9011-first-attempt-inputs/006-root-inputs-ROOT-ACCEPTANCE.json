@@ -1,0 +1,79 @@
+{
+  "C_complete": false,
+  "S7": {
+    "bytes": 241,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-root-inputs-20261001/TestOnly-frozen9011-fullclock-serial-first-attempt.s-resources.json",
+    "sha256": "b3d8b67b723d881a98dd0f4116fdc9651cf05b207111b19dad26fa69c2c54e69"
+  },
+  "actual_services_started": false,
+  "binary": {
+    "bytes": 7180704,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/target/release/s_structure_session",
+    "sha256": "c098bf76bb7870443b7564714ba2f9110f2c5593a3180ca13f9888c01ee16d17"
+  },
+  "binary_source_binding": {
+    "bytes": 2502,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-same-material-20261001/.scratch/issue1394-same-material-20261001/SOURCE-BINARY-BINDING.json",
+    "sha256": "0d8594699b519d318b074ee66fd28d21d2057b20a3bc76165990917e421c781f"
+  },
+  "caller_observation": {
+    "bytes": 1369,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-root-inputs-20261001/CALLER-OBSERVATION.json",
+    "sha256": "145874d694753b248c18cd199da6b8d5aa3cff145d1344df7f090c22fbf79378"
+  },
+  "clock": {
+    "bytes": 790213,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/inputs/clock-plan.full9011.draft.json",
+    "sha256": "b02ac2444161e1e7e327fcf2a2bb79b294356a3dd95a59a6404c5b92deb04f01"
+  },
+  "controllers": {
+    "A": {
+      "bytes": 1661,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-root-inputs-20261001/Controller-A.json",
+      "sha256": "cf418b17554308595517f7b1a5a612deb1a719c9fad311673df5445db0cc7d40"
+    },
+    "B": {
+      "bytes": 1661,
+      "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-root-inputs-20261001/Controller-B.json",
+      "sha256": "30e2471ea36276e7fddb55781777ad15782caa2be4f3c11601eb635e579af28c"
+    }
+  },
+  "envelopes": {
+    "bytes": 9235548,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/inputs/envelopes.draft.jsonl",
+    "sha256": "cd69fef24d6e05a9950e14131095eef40dd9c9f16738958ea89d4900a8462283"
+  },
+  "full9011_runtime": "NOT_RUN",
+  "fullinput_check": {
+    "bytes": 2451259,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full9011-root-inputs-20261001/FULL9011-INPUT-CHECK.json",
+    "sha256": "9beca12b65d538c45518ee7540581e8ca08cc15a08b50024d6bc09f8d67c0e95"
+  },
+  "main_merged": false,
+  "map": 1323,
+  "old_prefix16_resource_scope_not_implicitly_promoted": true,
+  "pushed": false,
+  "raw_inputs": {
+    "bytes": 4786328,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/inputs/raw-inputs.draft.jsonl",
+    "sha256": "3c5d17844c933a9879c37f4621d10f918f1f8c37a733013fa159bcb28dd20b8d"
+  },
+  "root_current_HEAD": "3e5a5ba31dbe5c59beeee03de227fd8408eaac55",
+  "run_gate": "Runner review, offline counterexamples, exact source/config hashes, fresh exclusive physical paths, original preservation baseline and usable cleanup must PASS before Root executes. Strict unmeasured peak items cannot be reported passed.",
+  "rust_tree": "7196a77fef56cf87cbe91dc4b135326a142e2395",
+  "schedule": {
+    "bytes": 2987645,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/inputs/schedule.full9011.draft.json",
+    "sha256": "4ea1625c312cf5c63666b37dbedbb70f2f15ffe2f5a2fce1306dd61f0146039b"
+  },
+  "scope": "target all frozen9011, same fullclock, serial A then B fresh formal S3; failure stops without shortened success",
+  "selection_rationale": "All seven existing S resource values explicitly retained for first complete-target attempt; known S16 measurements justify only an attempt. Unknown later cost may fail. Private owner duration/storage ceilings protect current local host and are not new server/client limits, capacity promise or forecast. Q21 unchanged and no new Client/job/reader numeric defaults.",
+  "source": {
+    "bytes": 1006026,
+    "path": "/Users/silencehan/Projects/NewChanlun-1394-content-v3/.scratch/issue1394-full-history-formal-prep-20261001/inputs/source.bars.frozen.json",
+    "sha256": "76472995cbf0825ceeeaa94e89bd60d1b1416d6c7e0a7ec3a1b0ec5a90c60087"
+  },
+  "status": "ROOT_CHOSEN_EXPLICIT_FINITE_FULL9011_FIRST_ATTEMPT_INPUTS_NOT_RUNTIME_PASS",
+  "ticket": 1394,
+  "wholegoal_complete": false
+}
