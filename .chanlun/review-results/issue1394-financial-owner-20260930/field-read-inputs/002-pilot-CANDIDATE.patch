@@ -1,0 +1,584 @@
+diff --git a/rust/src/bin/s_session_v3/source_audit.rs b/rust/src/bin/s_session_v3/source_audit.rs
+index 286d863a3d..ad60bdb973 100644
+--- a/rust/src/bin/s_session_v3/source_audit.rs
++++ b/rust/src/bin/s_session_v3/source_audit.rs
+@@ -26,6 +26,9 @@ fn field(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<ContentRef,
+ }
+ fn scalar(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<Value, String> {
+     let r = field(s, r, k)?;
++    scalar_value(s, &r)
++}
++fn scalar_value(s: &mut dyn NodeSource, r: &ContentRef) -> Result<Value, String> {
+     if !matches!(
+         r.kind,
+         Kind::Number | Kind::String | Kind::Bool | Kind::Null
+@@ -33,11 +36,29 @@ fn scalar(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<Value, Stri
+         return Err(err("预期标量"));
+     }
+     let mut b = Vec::new();
+-    sc::render_canonical(s, &r, &mut b).map_err(err)?;
++    sc::render_canonical(s, r, &mut b).map_err(err)?;
+     newchan_rust::session_protocol::strict_json(&b)
+ }
++/// 仅当前 part/payload 的固定小字段；Some 由 ArrayAuditSource 关闭批读。
++fn local_fields(
++    s: &mut dyn NodeStore,
++    r: &ContentRef,
++    names: &[&str],
++) -> Result<Option<super::object_index::Fields>, String> {
++    if s.audit_full_array_scan() {
++        super::object_index::Fields::read_subset(s, r, names)
++            .map(Some)
++            .map_err(err)
++    } else {
++        Ok(None)
++    }
++}
+ fn text(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<String, String> {
+-    scalar(s, r, k)?
++    let r = field(s, r, k)?;
++    text_value(s, &r, k)
++}
++fn text_value(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<String, String> {
++    scalar_value(s, r)?
+         .as_str()
+         .map(str::to_owned)
+         .ok_or_else(|| err(format!("{k}不是文本")))
+@@ -469,7 +490,15 @@ pub(super) fn audit_generated_metered(
+         for (slot, part) in elements(s, &object.refs)?.into_iter().enumerate() {
+             super::history::check_deadline(deadline)?;
+             exact(&part, Kind::Object, 3)?;
+-            let index = number(s, &part, "merged_index")?;
++            let part_fields =
++                local_fields(s, &part, &["merged_index", "raw_refs", "dependency_refs"])?;
++            let index = if let Some(fields) = &part_fields {
++                scalar_value(s, fields.get("merged_index").map_err(err)?)?
++                    .as_i64()
++                    .ok_or_else(|| err("merged_index不是整数"))?
++            } else {
++                number(s, &part, "merged_index")?
++            };
+             indices[slot] = index;
+             if slot > 0 && index != indices[slot - 1] + 1 {
+                 return Err(err("形态来源组不是连续三组"));
+@@ -477,12 +506,20 @@ pub(super) fn audit_generated_metered(
+             let group = groups
+                 .get(&index)
+                 .ok_or_else(|| err("形态引用没有同cut组事实"))?;
+-            let raw_refs = field(s, &part, "raw_refs")?;
++            let raw_refs = if let Some(fields) = &part_fields {
++                fields.get("raw_refs").map_err(err)?.clone()
++            } else {
++                field(s, &part, "raw_refs")?
++            };
+             let members = references(s, &raw_refs, &raw, true, &mut checked_refs)?;
+             if members != group.members {
+                 return Err(err("形态raw_refs不是同cut组成员"));
+             }
+-            let deps = field(s, &part, "dependency_refs")?;
++            let deps = if let Some(fields) = &part_fields {
++                fields.get("dependency_refs").map_err(err)?.clone()
++            } else {
++                field(s, &part, "dependency_refs")?
++            };
+             let dependency = references(s, &deps, &raw, true, &mut checked_refs)?;
+             let member_set = members.iter().copied().collect::<BTreeSet<_>>();
+             let expected = group
+@@ -504,8 +541,13 @@ pub(super) fn audit_generated_metered(
+             if windows[slot] != group.anchor.to_string() {
+                 return Err(err("形态窗口不等于同cut组锚"));
+             }
+-            highs[slot] = text(s, &group.payload, "high")?;
+-            lows[slot] = text(s, &group.payload, "low")?;
++            if let Some(fields) = local_fields(s, &group.payload, &["high", "low"])? {
++                highs[slot] = text_value(s, fields.get("high").map_err(err)?, "high")?;
++                lows[slot] = text_value(s, fields.get("low").map_err(err)?, "low")?;
++            } else {
++                highs[slot] = text(s, &group.payload, "high")?;
++                lows[slot] = text(s, &group.payload, "low")?;
++            }
+         }
+         if source_union.into_iter().collect::<Vec<_>>() != object.sources {
+             return Err(err("形态source_coords不是完整来源并集"));
+@@ -580,13 +622,20 @@ pub(super) fn audit_generated_metered(
+         if fields.integer(s, "merged_source_index").map_err(err)? != group.anchor {
+             return Err(err("见证锚与同cut组不同"));
+         }
++        let payload_fields = local_fields(s, &group.payload, &["high", "low", "open", "close"])?;
+         for (merged, field_name) in [
+             ("merged_high", "high"),
+             ("merged_low", "low"),
+             ("merged_open", "open"),
+             ("merged_close", "close"),
+         ] {
+-            if fields.get(merged).map_err(err)? != &field(s, &group.payload, field_name)? {
++            let actual = fields.get(merged).map_err(err)?;
++            let expected = if let Some(fields) = &payload_fields {
++                fields.get(field_name).map_err(err)?.clone()
++            } else {
++                field(s, &group.payload, field_name)?
++            };
++            if actual != &expected {
+                 return Err(err("见证合并值不是同cut组事实"));
+             }
+         }
+@@ -790,6 +839,459 @@ mod tests {
+             ),
+         )
+     }
++    struct Reads<'a> {
++        source: &'a mut dyn NodeSource,
++        digests: Vec<NodeDigest>,
++    }
++    impl NodeSource for Reads<'_> {
++        fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
++            self.digests.push(*d);
++            self.source.read(d)
++        }
++        fn checked_read(
++            &mut self,
++            d: &NodeDigest,
++        ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
++            self.digests.push(*d);
++            self.source.checked_read(d)
++        }
++    }
++    #[derive(Default)]
++    struct Meter {
++        events: std::cell::RefCell<Vec<String>>,
++        stop_at: Option<usize>,
++    }
++    impl super::super::audit_budget::Budget for Meter {
++        fn precheck(&self) -> Result<(), sc::CodecError> {
++            self.events.borrow_mut().push("precheck".into());
++            if self.stop_at == Some(self.events.borrow().len()) {
++                Err(sc::CodecError::new("field_stop", "当前预算门拒绝"))
++            } else {
++                Ok(())
++            }
++        }
++        fn prepare_node(&self) -> Result<(), sc::CodecError> {
++            self.precheck()?;
++            self.events.borrow_mut().push("prepare".into());
++            Ok(())
++        }
++        fn accept_prepared_frame(
++            &self,
++            frame: &sc::job::CheckedFrame,
++        ) -> Result<(), sc::CodecError> {
++            self.events
++                .borrow_mut()
++                .push(sc::root_string(frame.digest()));
++            Ok(())
++        }
++        fn node(&self, d: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
++            self.prepare_node()?;
++            self.accept_prepared_frame(&sc::job::CheckedFrame::checked(d, tag, body.to_vec())?)
++        }
++        fn record(&self) -> Result<(), sc::CodecError> {
++            self.precheck()?;
++            self.events.borrow_mut().push("record".into());
++            Ok(())
++        }
++    }
++    // 与生产顺序一致：part 先整数，再两内容边；shape payload 先 high 文本再 low；
++    // witness payload 只逐项 Ref 对拍，不额外 render。
++    fn read_local(
++        s: &mut dyn NodeStore,
++        root: &ContentRef,
++        names: &[&str],
++        legacy: bool,
++    ) -> Result<Vec<(ContentRef, Option<Value>)>, String> {
++        let fields = if legacy {
++            None
++        } else {
++            local_fields(s, root, names)?
++        };
++        names
++            .iter()
++            .map(|name| {
++                let r = if let Some(fields) = &fields {
++                    fields.get(name).map_err(err)?.clone()
++                } else {
++                    field(s, root, name)?
++                };
++                let value = if *name == "merged_index" || names.len() == 2 {
++                    let value = scalar_value(s, &r)?;
++                    if *name == "merged_index" {
++                        value.as_i64().ok_or_else(|| err("merged_index不是整数"))?;
++                    } else {
++                        value
++                            .as_str()
++                            .ok_or_else(|| err(format!("{name}不是文本")))?;
++                    }
++                    Some(value)
++                } else {
++                    None
++                };
++                Ok((r, value))
++            })
++            .collect()
++    }
++    fn local_roots(s: &mut MemoryNodes, state: &ContentRef) -> (ContentRef, ContentRef) {
++        let objects = field(s, state, "objects").unwrap();
++        let objects = elements(s, &objects).unwrap();
++        let shape = objects
++            .iter()
++            .find(|r| text(s, r, "kind").unwrap() == CC006_SHAPE_KIND)
++            .unwrap();
++        let refs = field(s, shape, "input_refs_json").unwrap();
++        let refs = lookup_path(s, &refs, &[PathStep::JsonText]).unwrap();
++        let part = elements(s, &refs).unwrap().remove(0);
++        let index = number(s, &part, "merged_index").unwrap();
++        let payload = objects
++            .iter()
++            .find_map(|r| {
++                if text(s, r, "kind").unwrap() == CC005_GROUP_KIND {
++                    let payload = field(s, r, "payload_json").unwrap();
++                    let payload = lookup_path(s, &payload, &[PathStep::JsonText]).unwrap();
++                    if text(s, &payload, "group_index").unwrap() == index.to_string() {
++                        return Some(payload);
++                    }
++                }
++                None
++            })
++            .unwrap();
++        (part, payload)
++    }
++    #[test]
++    fn local_none_subsets_keep_ordered_refs_types_values_and_reduce_real_reads() {
++        let (mut nodes, state, _, _) = fixture();
++        let (part, payload) = local_roots(&mut nodes, &state);
++        let mut db = super::super::commit::tests::fixture();
++        let tx = db.conn.transaction().unwrap();
++        let mut sink = crate::content_store::TxStore::new(&tx).unwrap();
++        for (d, tag, body) in nodes.iter() {
++            sink.put(*d, tag, body).unwrap();
++        }
++        for (root, names) in [
++            (&part, &["merged_index", "raw_refs", "dependency_refs"][..]),
++            (&payload, &["high", "low"][..]),
++            (&payload, &["high", "low", "open", "close"][..]),
++        ] {
++            let run = |legacy| {
++                let mut source = crate::content_store::ReadStore::new(&tx).unwrap();
++                let mut reads = Reads {
++                    source: &mut source,
++                    digests: vec![],
++                };
++                let sql = crate::content_store::sql_reads_on_thread();
++                let frames = sc::frame_calls_on_thread();
++                let mut reader = super::super::history::HashReader::new(&mut reads);
++                let mut s = ArrayAuditSource {
++                    source: &mut reader,
++                    full_arrays: true,
++                };
++                let result = read_local(&mut s, root, names, legacy).unwrap();
++                (
++                    result,
++                    crate::content_store::sql_reads_on_thread() - sql,
++                    sc::frame_calls_on_thread() - frames,
++                    reads.digests,
++                )
++            };
++            let old = run(true);
++            let actual = run(false);
++            assert_eq!(
++                actual.0, old.0,
++                "顺序、ContentRef、kind、extent及render值一致"
++            );
++            let root_digest = digest(root).unwrap();
++            let roots = |ds: &[NodeDigest]| ds.iter().filter(|d| **d == root_digest).count();
++            assert_eq!(roots(&old.3), names.len(), "旧路径每字段重复根寻路");
++            eprintln!(
++                "local {names:?}: SQL {} -> {}, F {} -> {}, root {} -> {}",
++                old.1,
++                actual.1,
++                old.2,
++                actual.2,
++                roots(&old.3),
++                roots(&actual.3)
++            );
++            assert_eq!(roots(&actual.3), 1, "None 同一局部根只批读一次");
++            assert!(actual.1 < old.1, "必须减少真实SQL读取");
++            assert_eq!(actual.2, actual.1, "每个实际节点读仍核本次F");
++        }
++    }
++    #[test]
++    fn local_some_keeps_sql_f_budget_error_order_and_deadline_before_sql() {
++        let (mut nodes, state, _, _) = fixture();
++        let (part, payload) = local_roots(&mut nodes, &state);
++        let wrong_index = sc::write_value(
++            &mut nodes,
++            &V::Object(vec![
++                ("merged_index".into(), V::String("not-an-integer".into())),
++                ("raw_refs".into(), V::Null),
++                ("dependency_refs".into(), V::Null),
++            ]),
++        )
++        .unwrap()
++        .content_ref();
++        let wrong_high_missing_low =
++            sc::write_value(&mut nodes, &V::Object(vec![("high".into(), V::Bool(true))]))
++                .unwrap()
++                .content_ref();
++        sc::verify(&mut nodes, &wrong_index).unwrap();
++        sc::verify(&mut nodes, &wrong_high_missing_low).unwrap();
++        let mut db = super::super::commit::tests::fixture();
++        let tx = db.conn.transaction().unwrap();
++        let mut sink = crate::content_store::TxStore::new(&tx).unwrap();
++        for (d, tag, body) in nodes.iter() {
++            sink.put(*d, tag, body).unwrap();
++        }
++        for (root, names) in [
++            (&part, &["merged_index", "raw_refs", "dependency_refs"][..]),
++            (&payload, &["high", "low"][..]),
++            (&payload, &["high", "low", "open", "close"][..]),
++            (
++                &wrong_index,
++                &["merged_index", "raw_refs", "dependency_refs"][..],
++            ),
++            (&wrong_high_missing_low, &["high", "low"][..]),
++        ] {
++            let run = |legacy, stop_at, deadline| {
++                let meter = Meter {
++                    stop_at,
++                    ..Meter::default()
++                };
++                let mut source = crate::content_store::ReadStore::new(&tx).unwrap();
++                source.enable_audit_same_material();
++                let sql = crate::content_store::sql_reads_on_thread();
++                let frames = sc::frame_calls_on_thread();
++                let mut reader = super::super::history::HashReader::metered(
++                    &mut source,
++                    deadline,
++                    None,
++                    Some(&meter),
++                );
++                let mut s = ArrayAuditSource {
++                    source: &mut reader,
++                    full_arrays: false,
++                };
++                let result = read_local(&mut s, root, names, legacy);
++                (
++                    result,
++                    crate::content_store::sql_reads_on_thread() - sql,
++                    sc::frame_calls_on_thread() - frames,
++                    meter.events.into_inner(),
++                )
++            };
++            let old = run(true, None, None);
++            assert_eq!(run(false, None, None), old);
++            if root == &wrong_index {
++                assert_eq!(old.0, Err(err("merged_index不是整数")));
++            } else if root == &wrong_high_missing_low {
++                assert_eq!(
++                    old.0,
++                    Err(err("high不是文本")),
++                    "Some须先拒绝high类型，不能提前读取缺失的low"
++                );
++            }
++            assert_eq!(old.2, old.1 * 2, "Some 保持旧SQL源F和HashReader F");
++            // 遍历旧成功轨迹的每一道预算前门，包含跨字段/render的即时读取交错。
++            for (at, event) in old.3.iter().enumerate() {
++                if event == "precheck" {
++                    assert_eq!(
++                        run(false, Some(at + 1), None),
++                        run(true, Some(at + 1), None),
++                        "Some stop_at={} 必须保持Ref/错误、SQL、F和预算门顺序",
++                        at + 1
++                    );
++                }
++            }
++            let deadline = Some(std::time::Instant::now());
++            let expired = run(false, None, deadline);
++            assert_eq!(expired, run(true, None, deadline));
++            assert!(expired.0.unwrap_err().contains("verify_deadline"));
++            assert_eq!((expired.1, expired.2), (0, 0));
++            assert!(expired.3.is_empty(), "期限门先于预算门与SQL");
++        }
++    }
++    #[test]
++    fn full_some_audit_keeps_frozen_read_and_budget_trace() {
++        let (mut nodes, state, raw, rule) = fixture();
++        let mut reads = Reads {
++            source: &mut nodes,
++            digests: vec![],
++        };
++        let meter = Meter::default();
++        let frames = sc::frame_calls_on_thread();
++        let mut reader =
++            super::super::history::HashReader::metered(&mut reads, None, None, Some(&meter));
++        let counts = audit_generated_metered(
++            &mut reader,
++            &state,
++            &raw,
++            tb02a::PROFILE,
++            &rule,
++            None,
++            Some(&meter),
++        )
++        .unwrap();
++        let frames = sc::frame_calls_on_thread() - frames;
++        let roots = reads
++            .digests
++            .iter()
++            .map(sc::root_string)
++            .collect::<Vec<_>>();
++        let read_hash = crate::sha256_hex(canonical_json(&json!(roots)).as_bytes());
++        let budget_hash =
++            crate::sha256_hex(canonical_json(&json!(meter.events.into_inner())).as_bytes());
++        eprintln!("Some full: counts={counts:?}, reads={}, F={frames}, read_hash={read_hash}, budget_hash={budget_hash}", roots.len());
++        // dc425df7 固定fixture的旧路径实测；不是由候选路径重算期望。
++        assert_eq!(
++            (
++                counts.objects,
++                counts.groups,
++                counts.windows,
++                counts.effective,
++                counts.insufficient,
++                counts.outside_domain
++            ),
++            (76, 13, 11, 14, 0, 0)
++        );
++        assert_eq!(roots.len(), 151351, "固定基线的完整Some读取轨迹");
++        assert_eq!(frames, 170797, "固定基线的完整Some F次数");
++        assert_eq!(
++            read_hash,
++            "668e022e318e445f163d23036d33cccefb5e735a82ae97ce6db8b453b936d69a"
++        );
++        assert_eq!(
++            budget_hash,
++            "dc5c1b67c63046ecb4edf84c12e84c784793112fff94bc4a449cef1c8befd1b2"
++        );
++    }
++    fn json_text_edge(s: &mut dyn NodeStore, value: &ContentRef) -> ContentRef {
++        let body = digest(value).unwrap();
++        let d = sc::frame(sc::tag::JSON_TEXT, &body);
++        s.put(d, sc::tag::JSON_TEXT, &body).unwrap();
++        ContentRef::new(Kind::JsonText, &d, None)
++    }
++    fn assert_rejected_in_both_modes(
++        s: &mut MemoryNodes,
++        state: &ContentRef,
++        raw: &[Value],
++        rule: &str,
++        reason: &str,
++    ) {
++        sc::verify(s, state).unwrap();
++        let none = audit_generated(s, state, raw, tb02a::PROFILE, rule).unwrap_err();
++        let meter = Meter::default();
++        let mut reader = super::super::history::HashReader::metered(s, None, None, Some(&meter));
++        let some = audit_generated_metered(
++            &mut reader,
++            state,
++            raw,
++            tb02a::PROFILE,
++            rule,
++            None,
++            Some(&meter),
++        )
++        .unwrap_err();
++        assert!(none.contains(reason), "{none}");
++        assert_eq!(none, some, "合法Merkle畸形在None/Some均须由原业务判据拒绝");
++    }
++    #[test]
++    fn valid_merkle_shape_dependency_forgery_is_rejected_after_none_subset() {
++        let (mut s, state, raw, rule) = fixture();
++        let objects = field(&mut s, &state, "objects").unwrap();
++        let objects = elements(&mut s, &objects).unwrap();
++        let shape = objects
++            .iter()
++            .position(|r| text(&mut s, r, "kind").unwrap() == CC006_SHAPE_KIND)
++            .unwrap();
++        let refs = field(&mut s, &objects[shape], "input_refs_json").unwrap();
++        let refs = lookup_path(&mut s, &refs, &[PathStep::JsonText]).unwrap();
++        let mut parts = elements(&mut s, &refs).unwrap();
++        let members = field(&mut s, &parts[0], "raw_refs").unwrap();
++        // 真成员不是来源差集；不引入坏节点/缺节点，必须由差集判据拒绝。
++        parts[0] = replace_field(
++            &mut s,
++            &parts[0],
++            &["merged_index", "raw_refs", "dependency_refs"],
++            "dependency_refs",
++            V::Edge(digest(&members).unwrap()),
++        );
++        let refs = sc::write_value(
++            &mut s,
++            &V::Array(parts.iter().map(|r| V::Edge(digest(r).unwrap())).collect()),
++        )
++        .unwrap()
++        .content_ref();
++        let refs = json_text_edge(&mut s, &refs);
++        let changed = replace_field(
++            &mut s,
++            &objects[shape],
++            SHAPE_FIELDS,
++            "input_refs_json",
++            V::Edge(digest(&refs).unwrap()),
++        );
++        let forged = replace_member(&mut s, &state, "objects", shape, changed);
++        assert_rejected_in_both_modes(
++            &mut s,
++            &forged,
++            &raw,
++            &rule,
++            "dependency_refs不是组事实来源差集",
++        );
++    }
++    #[test]
++    fn valid_merkle_reidentified_group_high_still_breaks_shape_identity() {
++        let (mut s, state, raw, rule) = fixture();
++        let (_, payload) = local_roots(&mut s, &state);
++        let objects = field(&mut s, &state, "objects").unwrap();
++        let objects = elements(&mut s, &objects).unwrap();
++        let group = objects
++            .iter()
++            .position(|r| {
++                if text(&mut s, r, "kind").unwrap() != CC005_GROUP_KIND {
++                    return false;
++                }
++                let p = field(&mut s, r, "payload_json").unwrap();
++                lookup_path(&mut s, &p, &[PathStep::JsonText]).unwrap() == payload
++            })
++            .unwrap();
++        let mut bytes = Vec::new();
++        sc::render_canonical(&mut s, &payload, &mut bytes).unwrap();
++        let mut value: Value = newchan_rust::session_protocol::strict_json(&bytes).unwrap();
++        value["high"] = json!("999999");
++        let changed_payload = sc::write_value(&mut s, &cv(&value).unwrap())
++            .unwrap()
++            .content_ref();
++        let refs = field(&mut s, &objects[group], "input_refs_json").unwrap();
++        let refs = lookup_path(&mut s, &refs, &[PathStep::JsonText]).unwrap();
++        let key = text(&mut s, &objects[group], "fact_key").unwrap();
++        let id = Cc004Producer::new(tb02a::PROFILE, &rule)
++            .typed_object_id(
++                CC005_GROUP_KIND,
++                &key,
++                &built(changed_payload.clone()).unwrap(),
++                &built(refs).unwrap(),
++            )
++            .unwrap();
++        let payload_json = json_text_edge(&mut s, &changed_payload);
++        let changed = replace_field(
++            &mut s,
++            &objects[group],
++            TYPED,
++            "payload_json",
++            V::Edge(digest(&payload_json).unwrap()),
++        );
++        let changed = replace_field(&mut s, &changed, TYPED, "object_id", V::String(id));
++        let forged = replace_member(&mut s, &state, "objects", group, changed);
++        // 连typed身份都重算成合法，仍须在shape high/low配方拒绝，而不是提前撞typed ID。
++        assert_rejected_in_both_modes(
++            &mut s,
++            &forged,
++            &raw,
++            &rule,
++            "CC006 obj3与同cut组事实身份不符",
++        );
++    }
+     #[test]
+     fn real_ohlc_objects_and_witnesses_bind_to_sources_without_reclassification() {
+         let (mut s, state, raw, rule) = fixture();

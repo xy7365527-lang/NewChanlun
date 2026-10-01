@@ -1,0 +1,7 @@
+{
+  "schema_revision": "issue1394-verbatim-utf8-artifact/1",
+  "source_path": "/Users/silencehan/Projects/NewChanlun-1394-field-audit-20261002/.scratch/field-release-owned-20261002/bad-frames.log",
+  "source_bytes": 215,
+  "source_sha256": "874e8fe2ab07178962c2104bcd38fadf680cbecb768fb7c0742471bf5da80787",
+  "content_utf8": "\nrunning 1 test\ntest v3::history::tests::metered_sqlite_and_memory_bad_frames_keep_the_original_prepare_order ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 428 filtered out; finished in 0.08s\n\n"
+}
