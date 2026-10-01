@@ -415,6 +415,10 @@ class Controller:
             self.validate_resource_identity(resource_identity, command, deadline, require_current=True)
         instance_id = str(uuid.uuid4())
         environment = dict(os.environ if environment is None else environment)
+        # 私有声明只由本次已核冻结原件产生，ambient 值不能替代它或串到旧服务/Q。
+        environment.pop("S_CONTROL_RESOURCE_SHA256", None)
+        if resource_identity is not None:
+            environment["S_CONTROL_RESOURCE_SHA256"] = resource_identity["sha256"]
         instance_key = "SESSION_CONTROL_INSTANCE_ID" if self.socket_service == "owner" else "S_CONTROL_INSTANCE_ID"
         environment[instance_key] = instance_id
         with (self.state_dir / (service + ".log")).open("ab") as log:

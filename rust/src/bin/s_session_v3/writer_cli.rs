@@ -434,9 +434,41 @@ fn serve_authorization(resources: &SResources) -> Result<(), String> {
     })
 }
 
+/// Controller 的私有环境声明绑定 child 实际 load 的规范字节，防止文件检查间改值又恢复。
+/// 独立 CLI 未声明时仍按其显式资源文件；此声明不引入资源默认值或新公开配置字段。
+fn verify_control_resource_digest(
+    resources: &SResources,
+    expected: Option<&str>,
+) -> Result<(), String> {
+    let Some(expected) = expected else {
+        return Ok(());
+    };
+    if expected.len() != 64
+        || !expected
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+    {
+        return Err(err("S_CONTROL_RESOURCE_SHA256 必须为规范小写 SHA256"));
+    }
+    if resources.digest() != expected {
+        return Err(err(
+            "实际加载的资源规范 SHA256 与 S_CONTROL_RESOURCE_SHA256 不匹配",
+        ));
+    }
+    Ok(())
+}
+
 /// 全部参数/资源核验后，先持唯一写锁、完整审计/profile/clock/pending，再监听。
 fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
     let resources = SResources::load(&options.resources)?;
+    let expected = match std::env::var("S_CONTROL_RESOURCE_SHA256") {
+        Ok(value) => Some(value),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(std::env::VarError::NotUnicode(_)) => {
+            return Err(err("S_CONTROL_RESOURCE_SHA256 必须为规范 UTF-8 SHA256"));
+        }
+    };
+    verify_control_resource_digest(&resources, expected.as_deref())?;
     let clock = v2::ClockPlan::load(&options.clock)?;
     checked_profile(&options.profile)?;
     serve_authorization(&resources)?;
@@ -539,6 +571,36 @@ mod tests {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn private_control_digest_binds_loaded_canonical_resources_and_rejects_invalid_declarations() {
+        let limits: serde_json::Map<String, Value> = GATE_FIELDS
+            .into_iter()
+            .map(|key| (key.into(), json!("1")))
+            .collect();
+        let wire = json!({"schema_revision":RESOURCES_REVISION,"s_resources":limits});
+        let resources = SResources::parse(canonical_json(&wire).as_bytes()).unwrap();
+        verify_control_resource_digest(&resources, None).unwrap();
+        verify_control_resource_digest(&resources, Some(resources.digest())).unwrap();
+        let pretty = serde_json::to_string_pretty(&wire).unwrap();
+        let same = SResources::parse(pretty.as_bytes()).unwrap();
+        verify_control_resource_digest(&same, Some(resources.digest())).unwrap();
+        for invalid in [
+            "".to_string(),
+            "0".repeat(63),
+            "0".repeat(65),
+            "g".repeat(64),
+            "A".repeat(64),
+        ] {
+            let error = verify_control_resource_digest(&resources, Some(&invalid)).unwrap_err();
+            assert!(error.contains("规范小写 SHA256"), "{error}");
+        }
+        let mut changed = wire;
+        changed["s_resources"]["queue_capacity"] = json!("2");
+        let changed = SResources::parse(canonical_json(&changed).as_bytes()).unwrap();
+        let error = verify_control_resource_digest(&changed, Some(resources.digest())).unwrap_err();
+        assert!(error.contains("不匹配"), "{error}");
+    }
 
     #[test]
     fn ready_nonce_is_in_hashed_s3_payload_and_preserves_full_reply_identity() {

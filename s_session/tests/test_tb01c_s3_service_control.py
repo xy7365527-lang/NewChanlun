@@ -357,6 +357,35 @@ class S3LifecycleTests(unittest.TestCase):
             finally:
                 controller.close()
 
+    def test_private_resource_digest_comes_only_from_verified_s3_identity_and_never_old_launcher(self):
+        for revision in ("s-launcher/3", "s-launcher/2"):
+            with self.subTest(revision=revision), tempfile.TemporaryDirectory(prefix="s3-child-digest-") as directory:
+                config = self.config(directory, revision)
+                controller = control.Controller(config, Path(directory) / "state")
+                deadline = time.monotonic() + 2
+                environment = {"S_CONTROL_RESOURCE_SHA256": "f" * 64, "PRESERVE": "owned"}
+                identity = controller.freeze_s_resources(deadline) if revision == "s-launcher/3" else None
+                command = [config["binary"], "serve"]
+                if identity is not None:
+                    command += ["--protocol-revision", "s-session/3", "--resource-config", identity["path"]]
+                child = Mock(pid=234567, **{"poll.return_value": None})
+                try:
+                    with patch.object(control, "process_identity", return_value="owned argv"), \
+                         patch.object(control.subprocess, "Popen", return_value=child) as spawn:
+                        controller.start_process("s", command, environment, deadline=deadline,
+                                                 resource_identity=identity)
+                    actual = spawn.call_args.kwargs["env"]
+                    self.assertEqual(actual["PRESERVE"], "owned")
+                    self.assertEqual(environment["S_CONTROL_RESOURCE_SHA256"], "f" * 64)
+                    if identity is None:
+                        self.assertNotIn("S_CONTROL_RESOURCE_SHA256", actual)
+                    else:
+                        self.assertEqual(actual["S_CONTROL_RESOURCE_SHA256"], identity["sha256"])
+                        record = json.loads(controller.record_path("s").read_text())
+                        self.assertEqual(record["resource_identity"]["sha256"], actual["S_CONTROL_RESOURCE_SHA256"])
+                finally:
+                    controller.close()
+
 
 if __name__ == "__main__":
     unittest.main()
