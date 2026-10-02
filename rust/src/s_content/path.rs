@@ -1430,3 +1430,12 @@ pub(super) fn replace_batch_placeholder_owned_ctx(
 ) -> Result<RefOwner, CodecError> {
     replace_output(&mut CodecContext::Closed(store), reference, path, batch)
 }
+
+/// normal动态来源的借用数组枚举；同核返回普通ContentRef，不选择Owned或另一份预算。
+#[doc(hidden)]
+pub fn lookup_array_items_refview(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+) -> Result<Vec<ContentRef>, CodecError> {
+    lookup_array_output(&mut CodecContext::Source(source), reference)?.into_plain()
+}
