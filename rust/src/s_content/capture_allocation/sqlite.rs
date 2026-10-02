@@ -392,7 +392,7 @@ mod tests {
             unsafe {
                 ffi::sqlite3_prepare_v2(
                     c.handle(),
-                    b"SELECT 987654321123456789\0".as_ptr().cast(),
+                    b"SELECT zeroblob(65536)\0".as_ptr().cast(),
                     -1,
                     &mut statement,
                     ptr::null_mut(),
@@ -403,7 +403,7 @@ mod tests {
         assert_eq!(unsafe { ffi::sqlite3_step(statement) }, ffi::SQLITE_ROW);
         assert_eq!(
             unsafe { ffi::sqlite3_column_type(statement, 0) },
-            ffi::SQLITE_INTEGER
+            ffi::SQLITE_BLOB
         );
         guard.set_remaining_for_testonly(0);
         let before_text = budget.snapshot();
