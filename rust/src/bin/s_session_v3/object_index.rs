@@ -14,6 +14,7 @@ use newchan_rust::s_content::{
     self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeSource, NodeStore,
     Value as V,
 };
+use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -778,17 +779,16 @@ fn load_in_store(
     s: &mut super::audit_store::StoreView<'_, '_>,
     latest: i64,
 ) -> Result<sc::CodecVec<Entry>, String> {
-    let mut stmt=tx.prepare("SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects ORDER BY rowid").map_err(err)?;
-    let mut rows = stmt.query([]).map_err(err)?;
+    let mut stmt=CheckedStatement::prepare(tx,c"SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects ORDER BY rowid").map_err(err)?;
     let allocation = s.allocation_budget();
     let mut out = bj::new_work(allocation.as_ref());
-    while let Some(row) = rows.next().map_err(err)? {
-        let kind = TextValue::from_sql(row, 2, allocation.as_ref()).map_err(err)?;
-        let fact_key = TextValue::optional_sql(row, 3, allocation.as_ref()).map_err(err)?;
+    while let Some(mut row) = stmt.next().map_err(err)? {
+        let kind = TextValue::from_sql(&mut row, 2, allocation.as_ref()).map_err(err)?;
+        let fact_key = TextValue::optional_sql(&mut row, 3, allocation.as_ref()).map_err(err)?;
         let coords = [
-            row.get::<_, Option<i64>>(4).map_err(err)?,
-            row.get(5).map_err(err)?,
-            row.get(6).map_err(err)?,
+            row.optional_integer(4).map_err(err)?,
+            row.optional_integer(5).map_err(err)?,
+            row.optional_integer(6).map_err(err)?,
         ];
         let slot = if kind == SHAPE {
             if fact_key.is_some() {
@@ -809,25 +809,26 @@ fn load_in_store(
             }
         };
         let e = Entry {
-            id: TextValue::from_sql(row, 0, allocation.as_ref()).map_err(err)?,
-            revision: row.get(1).map_err(err)?,
+            id: TextValue::from_sql(&mut row, 0, allocation.as_ref()).map_err(err)?,
+            revision: row.integer(1).map_err(err)?,
             kind,
             slot,
-            generated: root_header_bytes(s, row.get_ref(7).map_err(err)?.as_blob().map_err(err)?)?,
-            internal: root_header_bytes(s, row.get_ref(8).map_err(err)?.as_blob().map_err(err)?)?,
-            immutable: root_header_bytes(s, row.get_ref(9).map_err(err)?.as_blob().map_err(err)?)?,
-            birth_wire: root_ref_bytes(s, row.get_ref(10).map_err(err)?.as_blob().map_err(err)?)?,
+            generated: root_header_bytes(s, row.blob(7).map_err(err)?)?,
+            internal: root_header_bytes(s, row.blob(8).map_err(err)?)?,
+            immutable: root_header_bytes(s, row.blob(9).map_err(err)?)?,
+            birth_wire: root_ref_bytes(s, row.blob(10).map_err(err)?)?,
             life: LifeOwner {
                 batch: BatchOwner::Existing(
-                    TextValue::from_sql(row, 11, allocation.as_ref()).map_err(err)?,
+                    TextValue::from_sql(&mut row, 11, allocation.as_ref()).map_err(err)?,
                 ),
-                first_known_generation: row.get(12).map_err(err)?,
-                first_known_cut: TextValue::from_sql(row, 13, allocation.as_ref()).map_err(err)?,
-                published_generation: row.get(14).map_err(err)?,
-                withdrawn_generation: row.get(15).map_err(err)?,
-                withdrawal_reason: TextValue::optional_sql(row, 16, allocation.as_ref())
+                first_known_generation: row.integer(12).map_err(err)?,
+                first_known_cut: TextValue::from_sql(&mut row, 13, allocation.as_ref())
                     .map_err(err)?,
-                superseded_by: TextValue::optional_sql(row, 17, allocation.as_ref())
+                published_generation: row.integer(14).map_err(err)?,
+                withdrawn_generation: row.optional_integer(15).map_err(err)?,
+                withdrawal_reason: TextValue::optional_sql(&mut row, 16, allocation.as_ref())
+                    .map_err(err)?,
+                superseded_by: TextValue::optional_sql(&mut row, 17, allocation.as_ref())
                     .map_err(err)?,
             },
         };
@@ -838,6 +839,7 @@ fn load_in_store(
         }
         out.try_push(e).map_err(err)?;
     }
+    stmt.finalize().map_err(err)?;
     // 一次调用复用codec既有的上下文记忆；每根声明仍核，所有来源/生命周期绑定仍逐行执行。
     #[cfg(test)]
     super::state::trace_event("object_index_closures", None);

@@ -1060,14 +1060,14 @@ fn verify_profile_binding_with_owner(
         // 以同一声明档案核规范hash。这是旧格式取证，不在失败后换宽松判据。
         // #1394：物理域可能是旧整块也可能是新节点图，故按已发布代序逐代展开选取首个带
         // profile 的可达批次；不再用 SQL 直接读整块列（图域该列为长度占位）。
-        let mut stmt=conn.prepare("SELECT b.batch_id FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id ORDER BY d.generation ASC").map_err(|e|e.to_string())?;
-        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+        let mut stmt=newchan_rust::sqlite_checked::CheckedStatement::prepare(conn,c"SELECT b.batch_id FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id ORDER BY d.generation ASC").map_err(|e|e.to_string())?;
         let mut sealed_ids = v3::business_json::new_work(owner);
-        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        while let Some(mut row) = stmt.next().map_err(|e| e.to_string())? {
             sealed_ids
-                .try_push(TextValue::from_sql(row, 0, owner)?)
+                .try_push(TextValue::from_sql(&mut row,0,owner)?)
                 .map_err(|e| e.to_string())?;
         }
+        stmt.finalize().map_err(|e|e.to_string())?;
         let mut sealed_found = false;
         let mut reader = evidence_store::Reader::new(conn, EVIDENCE_READ_BUDGET);
         for batch_id in &sealed_ids {

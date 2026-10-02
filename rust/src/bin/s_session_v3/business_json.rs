@@ -2,6 +2,7 @@
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
 use newchan_rust::s_content as sc;
+use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use sha2::{Digest, Sha256};
 use std::time::Instant;
@@ -414,9 +415,8 @@ pub(crate) fn read_owned(
 ) -> Result<RawEvents, String> {
     check_read_deadline(deadline)?;
     let mut tree = aj::OwnedJson::array(b).map_err(|e| e.to_string())?;
-    let mut stmt=conn.prepare("SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace,source_epoch, instrument, event_id, received_at, raw_text, price,ts, volume, source_coord, supersedes_revision FROM raw_events ORDER BY seq ASC").map_err(|e|format!("prepare 读取失败：{e}"))?;
-    let mut rows = stmt.query([]).map_err(|e| format!("query 失败：{e}"))?;
-    while let Some(row) = rows.next().map_err(|e| format!("collect 失败：{e}"))? {
+    let mut stmt=CheckedStatement::prepare(conn,c"SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace,source_epoch, instrument, event_id, received_at, raw_text, price,ts, volume, source_coord, supersedes_revision FROM raw_events ORDER BY seq ASC").map_err(|e|format!("prepare 读取失败：{e}"))?;
+    while let Some(mut row) = stmt.next().map_err(|e| format!("collect 失败：{e}"))? {
         check_read_deadline(deadline)?;
         tree.append_object(|o| {
             for (i, k) in [
@@ -435,25 +435,27 @@ pub(crate) fn read_owned(
                 (14, "volume"),
                 (15, "source_coord"),
             ] {
-                let value = row
-                    .get_ref(i)
-                    .map_err(|_| sc::CodecError::new("StorageUnavailable", "SQL raw列读取失败"))?
-                    .as_str()
-                    .map_err(|_| {
-                        sc::CodecError::new("StorageUnavailable", "SQL raw文本列类型非法")
-                    })?;
+                let value = row.text(i).map_err(|e| {
+                    sc::CodecError::new("StorageUnavailable", format!("SQL raw文本列读取失败：{e}"))
+                })?;
                 o.insert_str(k, value)?;
             }
             for (i, k) in [(1, "revision"), (5, "seq")] {
                 o.insert_i64(
                     k,
-                    row.get(i).map_err(|_| {
-                        sc::CodecError::new("StorageUnavailable", "SQL raw整数列类型非法")
+                    row.integer(i).map_err(|e| {
+                        sc::CodecError::new(
+                            "StorageUnavailable",
+                            format!("SQL raw整数列读取失败：{e}"),
+                        )
                     })?,
                 )?;
             }
-            match row.get::<_, Option<i64>>(16).map_err(|_| {
-                sc::CodecError::new("StorageUnavailable", "SQL raw supersedes列类型非法")
+            match row.optional_integer(16).map_err(|e| {
+                sc::CodecError::new(
+                    "StorageUnavailable",
+                    format!("SQL raw supersedes列读取失败：{e}"),
+                )
             })? {
                 Some(v) => o.insert_i64("supersedes_revision", v)?,
                 None => o.insert_null("supersedes_revision")?,
@@ -462,6 +464,8 @@ pub(crate) fn read_owned(
         })
         .map_err(|e| e.to_string())?;
     }
+    stmt.finalize()
+        .map_err(|e| format!("finalize 读取失败：{e}"))?;
     crate::tb02a::enrich_raw_owned(conn, &mut tree, deadline)?;
     let result = RawEvents::Owned(tree);
     validate_raw(result.view(), deadline)?;
@@ -749,27 +753,22 @@ impl TextValue {
         Ok(Self::Plain(s.to_owned()))
     }
     pub fn from_sql(
-        row: &rusqlite::Row<'_>,
+        row: &mut CheckedRow<'_>,
         i: usize,
         b: Option<&OwnedBudget>,
     ) -> Result<Self, String> {
-        #[cfg(feature = "s_allocation_json_testonly")]
-        if let Some(b) = b {
-            let r = row.get_ref(i).map_err(|e| e.to_string())?;
-            return Self::from_str(r.as_str().map_err(|e| e.to_string())?, Some(b));
-        }
-        let _ = b;
-        row.get(i).map(Self::Plain).map_err(|e| e.to_string())
+        let value = row.text(i).map_err(|e| e.to_string())?;
+        Self::from_str(value, b)
     }
     pub fn optional_sql(
-        row: &rusqlite::Row<'_>,
+        row: &mut CheckedRow<'_>,
         i: usize,
         b: Option<&OwnedBudget>,
     ) -> Result<Option<Self>, String> {
-        match row.get_ref(i).map_err(|e| e.to_string())? {
-            rusqlite::types::ValueRef::Null => Ok(None),
-            _ => Self::from_sql(row, i, b).map(Some),
-        }
+        row.optional_text(i)
+            .map_err(|e| e.to_string())?
+            .map(|value| Self::from_str(value, b))
+            .transpose()
     }
 }
 impl std::borrow::Borrow<str> for TextValue {
@@ -1195,5 +1194,54 @@ mod collection_owner_tests {
         assert!(TextValue::from_owned_bytes(invalid).is_err());
         assert_eq!(budget.snapshot().allocation_attempts, attempts);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+mod checked_sql_owner_tests {
+    use super::*;
+
+    #[test]
+    fn checked_sql_text_owners_match_legacy_types_null_utf8_and_order() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE conversion_rows(position INTEGER, text_value, optional_value, integer_value, optional_integer, blob_value); INSERT INTO conversion_rows VALUES(2,'中文😀',NULL,9223372036854775807,NULL,x'00ff'); INSERT INTO conversion_rows VALUES(1,'é','é',-9223372036854775808,7,x'');").unwrap();
+        let ordinary=conn.prepare("SELECT text_value,optional_value,integer_value,optional_integer,blob_value FROM conversion_rows ORDER BY position").unwrap().query_map([],|r|Ok((r.get::<_,String>(0)?,r.get::<_,Option<String>>(1)?,r.get::<_,i64>(2)?,r.get::<_,Option<i64>>(3)?,r.get::<_,Vec<u8>>(4)?))).unwrap().collect::<Result<Vec<_>,_>>().unwrap();
+        let budget = OwnedBudget::new(1_000_000);
+        for owned in [false, true] {
+            let mut stmt=CheckedStatement::prepare(&conn,c"SELECT text_value,optional_value,integer_value,optional_integer,blob_value FROM conversion_rows ORDER BY position").unwrap();
+            let mut ordinal = 0;
+            while let Some(mut row) = stmt.next().unwrap() {
+                let owner = owned.then_some(&budget);
+                let text = TextValue::from_sql(&mut row, 0, owner).unwrap();
+                let optional = TextValue::optional_sql(&mut row, 1, owner).unwrap();
+                assert_eq!(text.as_str(), ordinary[ordinal].0);
+                assert_eq!(
+                    optional.as_ref().map(TextValue::as_str),
+                    ordinary[ordinal].1.as_deref()
+                );
+                assert_eq!(row.integer(2).unwrap(), ordinary[ordinal].2);
+                assert_eq!(row.optional_integer(3).unwrap(), ordinary[ordinal].3);
+                assert_eq!(row.blob(4).unwrap(), &ordinary[ordinal].4);
+                assert_eq!(matches!(text, TextValue::Owned(_)), owned);
+                ordinal += 1;
+            }
+            assert_eq!(ordinal, ordinary.len());
+            stmt.finalize().unwrap();
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+        let mut stmt =
+            CheckedStatement::prepare(&conn, c"SELECT NULL,7,x'ff',CAST(x'ff' AS TEXT)").unwrap();
+        let mut row = stmt.next().unwrap().unwrap();
+        assert!(TextValue::from_sql(&mut row, 0, Some(&budget)).is_err());
+        assert!(TextValue::optional_sql(&mut row, 0, Some(&budget))
+            .unwrap()
+            .is_none());
+        for column in [1, 2, 3] {
+            assert!(TextValue::from_sql(&mut row, column, Some(&budget)).is_err());
+            assert!(TextValue::optional_sql(&mut row, column, Some(&budget)).is_err());
+        }
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        drop(row);
+        stmt.finalize().unwrap();
     }
 }

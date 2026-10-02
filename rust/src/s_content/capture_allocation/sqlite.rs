@@ -293,37 +293,8 @@ impl RefusalControl {
     }
 }
 
-/// Read converted TEXT and check NOMEM before interpreting NULL or constructing a slice.
-/// # Safety
-/// stmt must be a live, stepped SQLITE_ROW statement; column must be in range.
-/// The returned borrow expires before any step/reset/finalize or conversion of this column.
-/// Caller must tie 'a to that statement/row lifetime; it may not outlive the SQLite connection.
-pub unsafe fn checked_column_text<'a>(
-    stmt: *mut ffi::sqlite3_stmt,
-    column: i32,
-) -> Result<Option<&'a [u8]>, rusqlite::Error> {
-    let db = unsafe { ffi::sqlite3_db_handle(stmt) };
-    let p = unsafe { ffi::sqlite3_column_text(stmt, column) };
-    // Must immediately check after a failed conversion; column_bytes may clear later evidence.
-    let code = unsafe { ffi::sqlite3_errcode(db) };
-    if code == ffi::SQLITE_NOMEM {
-        return Err(sql_error(code));
-    }
-    let bytes = unsafe { ffi::sqlite3_column_bytes(stmt, column) };
-    let code = unsafe { ffi::sqlite3_errcode(db) };
-    if code == ffi::SQLITE_NOMEM {
-        return Err(sql_error(code));
-    }
-    if bytes < 0 || (p.is_null() && bytes != 0) {
-        return Err(sql_error(ffi::SQLITE_MISUSE));
-    }
-    if p.is_null() {
-        return Ok(None);
-    }
-    Ok(Some(unsafe {
-        std::slice::from_raw_parts(p, bytes as usize)
-    }))
-}
+/// #1394：旧 TestOnly 调用口只转导始终 s_session 可用的同一 checked TEXT 核。
+pub use crate::sqlite_checked::checked_column_text;
 
 #[cfg(test)]
 mod tests {

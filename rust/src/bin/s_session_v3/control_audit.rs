@@ -31,6 +31,7 @@
 use super::*;
 use crate::v3::business_json::{self as control_json, TextValue};
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
+use newchan_rust::sqlite_checked::CheckedStatement;
 
 /// S3 控制历史审计入口（只读）。
 ///
@@ -66,25 +67,24 @@ fn verify_s3_markers_with_owner(
     owner: Option<&OwnedBudget>,
 ) -> Result<(), String> {
     let meta_marker = v2::control_meta_text(conn, "protocol_revision", owner)?;
-    let mut stmt = conn
-        .prepare("SELECT protocol_revision FROM s_protocol_meta WHERE singleton=1")
-        .map_err(|e| {
-            format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
-        })?;
-    let mut rows = stmt.query([]).map_err(|e| {
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT protocol_revision FROM s_protocol_meta WHERE singleton=1",
+    )
+    .map_err(|e| {
         format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
     })?;
-    let table_marker = rows
-        .next()
-        .map_err(|e| {
+    let table_marker = match stmt.next().map_err(|e| {
+        format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
+    })? {
+        Some(mut row) => Some(TextValue::from_sql(&mut row, 0, owner).map_err(|e| {
             format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
-        })?
-        .map(|r| {
-            TextValue::from_sql(r, 0, owner).map_err(|e| {
-                format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
-            })
-        })
-        .transpose()?;
+        })?),
+        None => None,
+    };
+    stmt.finalize().map_err(|e| {
+        format!("StorageUnavailable：读 s_protocol_meta 标记失败（控制域不可判定）：{e}")
+    })?;
     if meta_marker.as_deref() != Some(PROTOCOL_REVISION)
         || table_marker.as_deref() != Some(PROTOCOL_REVISION)
     {
@@ -181,34 +181,33 @@ fn verify_s3_publications_with_owner(
             "IdentityConflict：S3 发布索引/结构 Delta 与根代号不闭合（generation={generation}，发布行={count}，发布最大代={head}，Delta行={delta_count}）"
         ));
     }
-    let mut q = conn
-        .prepare(
-            "SELECT p.generation,p.batch_id,d.index_frontier,
+    let mut q = CheckedStatement::prepare(
+        conn,
+        c"SELECT p.generation,p.batch_id,d.index_frontier,
                     length(p.manifest_root),length(p.snapshot_root),length(p.delta_root)
              FROM s_content_publications p
              LEFT JOIN structure_deltas d ON d.generation=p.generation
              ORDER BY p.generation",
-        )
-        .map_err(|e| format!("StorageUnavailable：prepare 发布索引核验失败：{e}"))?;
-    let mut rows = q
-        .query([])
-        .map_err(|e| format!("StorageUnavailable：查询发布索引失败：{e}"))?;
+    )
+    .map_err(|e| format!("StorageUnavailable：prepare 发布索引核验失败：{e}"))?;
     let mut expected_generation = 1i64;
-    while let Some(r) = rows
+    while let Some(mut r) = q
         .next()
         .map_err(|e| format!("StorageUnavailable：读发布索引行失败：{e}"))?
     {
-        let g: i64 = r.get(0).map_err(|e| format!("StorageUnavailable：{e}"))?;
-        let batch_id =
-            TextValue::from_sql(r, 1, owner).map_err(|e| format!("StorageUnavailable：{e}"))?;
-        let delta_batch =
-            TextValue::optional_sql(r, 2, owner).map_err(|e| format!("StorageUnavailable：{e}"))?;
+        let g: i64 = r
+            .integer(0)
+            .map_err(|e| format!("StorageUnavailable：{e}"))?;
+        let batch_id = TextValue::from_sql(&mut r, 1, owner)
+            .map_err(|e| format!("StorageUnavailable：{e}"))?;
+        let delta_batch = TextValue::optional_sql(&mut r, 2, owner)
+            .map_err(|e| format!("StorageUnavailable：{e}"))?;
         let root_lens = [
-            r.get::<_, Option<i64>>(3)
+            r.optional_integer(3)
                 .map_err(|e| format!("StorageUnavailable：{e}"))?,
-            r.get::<_, Option<i64>>(4)
+            r.optional_integer(4)
                 .map_err(|e| format!("StorageUnavailable：{e}"))?,
-            r.get::<_, Option<i64>>(5)
+            r.optional_integer(5)
                 .map_err(|e| format!("StorageUnavailable：{e}"))?,
         ];
         if g != expected_generation
@@ -221,6 +220,8 @@ fn verify_s3_publications_with_owner(
         }
         expected_generation += 1;
     }
+    q.finalize()
+        .map_err(|e| format!("StorageUnavailable：读发布索引行失败：{e}"))?;
     Ok(())
 }
 

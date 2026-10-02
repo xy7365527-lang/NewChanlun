@@ -732,28 +732,26 @@ fn verify_current_in_store<'r>(
     let entries = axes_entries(store, axes)?;
     let budget = store.allocation_budget();
     for entry in &entries {
-        let row = tx
-            .query_row(
-                "SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1",
-                params![entry.id],
-                |r| {
-                    Ok((|| -> Result<_, String> {
-                        Ok((
-                            TextValue::from_sql(r, 0, budget.as_ref())?,
-                            TextValue::from_sql(r, 1, budget.as_ref())?,
-                            TextValue::from_sql(r, 2, budget.as_ref())?,
-                            TextValue::from_sql(r, 3, budget.as_ref())?,
-                        ))
-                    })())
-                },
-            )
-            .optional()
-            .map_err(|e| err(format!("读 catalog[{}] 失败：{e}", entry.id)))?;
-        let Some(row) = row else {
+        let read_error = |e| err(format!("读 catalog[{}] 失败：{e}", entry.id));
+        let mut query = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+            tx, c"SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1",
+        ).map_err(|e| read_error(e.to_string()))?;
+        query
+            .bind_text(1, entry.id)
+            .map_err(|e| read_error(e.to_string()))?;
+        let row = match query.next().map_err(|e| read_error(e.to_string()))? {
+            Some(mut row) => Some((
+                TextValue::from_sql(&mut row, 0, budget.as_ref()).map_err(read_error)?,
+                TextValue::from_sql(&mut row, 1, budget.as_ref()).map_err(read_error)?,
+                TextValue::from_sql(&mut row, 2, budget.as_ref()).map_err(read_error)?,
+                TextValue::from_sql(&mut row, 3, budget.as_ref()).map_err(read_error)?,
+            )),
+            None => None,
+        };
+        query.finalize().map_err(|e| read_error(e.to_string()))?;
+        let Some((impl_status, proof_status, run_status, evidence_json)) = row else {
             return Err(err(format!("catalog[{}] 缺行", entry.id)));
         };
-        let (impl_status, proof_status, run_status, evidence_json) =
-            row.map_err(|e| err(format!("读 catalog[{}] 失败：{e}", entry.id)))?;
         if impl_status != entry.impl_status
             || proof_status != entry.proof_status
             || run_status != entry.run_status

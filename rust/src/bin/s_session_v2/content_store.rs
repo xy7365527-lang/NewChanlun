@@ -11,52 +11,37 @@ fn storage_error(error: impl std::fmt::Display) -> CodecError {
     CodecError::new(code::SOURCE, format!("S3 内容存储：{error}"))
 }
 
-/// 常量比较只借当前 SQL 列，并在 get_ref 返回后检查连接 NOMEM。
-/// 当前 UTF-8 受测域不分配转换文本；rusqlite 内部列转换先于此检查，
-/// 因此这里不声明 UTF-16→UTF-8 等转换型 OOM 的完整资格。
-fn row_text_equals(
+/// 实际 SELECT 自有 guard 在文本转换内部先核 NOMEM，再开放借用。
+fn query_text_equals(
     conn: &Connection,
-    row: &rusqlite::Row<'_>,
+    sql: &std::ffi::CStr,
+    column_name: &'static str,
     expected: &str,
-) -> rusqlite::Result<bool> {
-    let column = row.get_ref(0);
-    // SAFETY: row来自此活连接的query_row；仅查询错误码，不修改连接或延长列借用。
-    let status = unsafe { rusqlite::ffi::sqlite3_errcode(conn.handle()) };
-    if status == rusqlite::ffi::SQLITE_NOMEM {
-        return Err(rusqlite::Error::SqliteFailure(
-            rusqlite::ffi::Error::new(status),
-            None,
-        ));
-    }
-    let column = column?;
-    match column.as_str() {
-        Ok(text) => Ok(text == expected),
-        // 错误路径保持旧row.get::<String>的类别和列上下文；成功比较不创建String。
-        Err(rusqlite::types::FromSqlError::InvalidType) => Err(rusqlite::Error::InvalidColumnType(
-            0,
-            row.as_ref().column_name(0)?.into(),
-            column.data_type(),
-        )),
-        Err(rusqlite::types::FromSqlError::Utf8Error(error)) => {
-            Err(rusqlite::Error::Utf8Error(0, error))
-        }
-        Err(error) => Err(rusqlite::Error::FromSqlConversionFailure(
-            0,
-            column.data_type(),
-            Box::new(error),
-        )),
-    }
+) -> rusqlite::Result<Option<bool>> {
+    let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(conn, sql)?;
+    let result = match stmt.next()? {
+        Some(mut row) => Some(
+            row.text(0).map_err(|cause| match cause {
+                rusqlite::Error::InvalidColumnType(index, _, kind) => {
+                    rusqlite::Error::InvalidColumnType(index, column_name.to_owned(), kind)
+                }
+                cause => cause,
+            })? == expected,
+        ),
+        None => None,
+    };
+    stmt.finalize()?;
+    Ok(result)
 }
 
 fn ensure_domain(conn: &Connection) -> Result<(), CodecError> {
-    let protocol: Option<bool> = conn
-        .query_row(
-            "SELECT protocol_revision FROM s_protocol_meta WHERE singleton=1",
-            [],
-            |row| row_text_equals(conn, row, "s-session/3"),
-        )
-        .optional()
-        .map_err(storage_error)?;
+    let protocol = query_text_equals(
+        conn,
+        c"SELECT protocol_revision FROM s_protocol_meta WHERE singleton=1",
+        "protocol_revision",
+        "s-session/3",
+    )
+    .map_err(storage_error)?;
     if protocol != Some(true) {
         return Err(CodecError::new(
             code::FORMAT,
@@ -68,14 +53,13 @@ fn ensure_domain(conn: &Connection) -> Result<(), CodecError> {
 
 pub(super) fn ensure_format(conn: &Connection) -> Result<(), CodecError> {
     ensure_domain(conn)?;
-    let format: Option<bool> = conn
-        .query_row(
-            "SELECT content_format FROM s_content_meta WHERE singleton=1",
-            [],
-            |row| row_text_equals(conn, row, s_content::CONTENT_FORMAT),
-        )
-        .optional()
-        .map_err(storage_error)?;
+    let format = query_text_equals(
+        conn,
+        c"SELECT content_format FROM s_content_meta WHERE singleton=1",
+        "content_format",
+        s_content::CONTENT_FORMAT,
+    )
+    .map_err(storage_error)?;
     if format != Some(true) {
         return Err(CodecError::new(
             code::FORMAT,

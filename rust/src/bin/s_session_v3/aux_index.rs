@@ -10,6 +10,7 @@ use bj::TextValue;
 use newchan_rust::s_content::{
     self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeStore,
 };
+use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use sc::{CodecVec, ValueView as VV};
@@ -1248,16 +1249,15 @@ pub(super) fn load(
     let owned_budget = s.allocation_budget();
     let mut out = Index::new(owned_budget.clone());
     let mut rt = Runtime::default();
-    let mut stmt=tx.prepare("SELECT witness_id,object_id,slot,generated_root,wire_root,published_generation,merged_index FROM s_content_witnesses ORDER BY rowid").map_err(err)?;
-    let mut rows = stmt.query([]).map_err(err)?;
-    while let Some(row) = rows.next().map_err(err)? {
-        let id = TextValue::from_sql(row, 0, owned_budget.as_ref()).map_err(err)?;
-        let object_id = TextValue::from_sql(row, 1, owned_budget.as_ref()).map_err(err)?;
-        let slot: i64 = row.get(2).map_err(err)?;
-        let merged_index: i64 = row.get(6).map_err(err)?;
-        let generated = root(s, row.get_ref(3).map_err(err)?.as_blob().map_err(err)?)?;
-        let wire = root(s, row.get_ref(4).map_err(err)?.as_blob().map_err(err)?)?;
-        let first: i64 = row.get(5).map_err(err)?;
+    let mut stmt=CheckedStatement::prepare(tx,c"SELECT witness_id,object_id,slot,generated_root,wire_root,published_generation,merged_index FROM s_content_witnesses ORDER BY rowid").map_err(err)?;
+    while let Some(mut row) = stmt.next().map_err(err)? {
+        let id = TextValue::from_sql(&mut row, 0, owned_budget.as_ref()).map_err(err)?;
+        let object_id = TextValue::from_sql(&mut row, 1, owned_budget.as_ref()).map_err(err)?;
+        let slot: i64 = row.integer(2).map_err(err)?;
+        let merged_index: i64 = row.integer(6).map_err(err)?;
+        let generated = root(s, row.blob(3).map_err(err)?)?;
+        let wire = root(s, row.blob(4).map_err(err)?)?;
+        let first: i64 = row.integer(5).map_err(err)?;
         check_generation(first, latest)?;
         exact(&generated, 9)?;
         if text(s, &generated, "witness_id")? != id
@@ -1283,33 +1283,33 @@ pub(super) fn load(
             })
             .map_err(err)?;
     }
-    let mut stmt=tx.prepare("SELECT relation_id,subject,relation_type,object,generated_root,published_generation FROM s_content_relations ORDER BY rowid").map_err(err)?;
-    let mut rows = stmt.query([]).map_err(err)?;
-    while let Some(row) = rows.next().map_err(err)? {
-        let first: i64 = row.get(5).map_err(err)?;
+    stmt.finalize().map_err(err)?;
+    let mut stmt=CheckedStatement::prepare(tx,c"SELECT relation_id,subject,relation_type,object,generated_root,published_generation FROM s_content_relations ORDER BY rowid").map_err(err)?;
+    while let Some(mut row) = stmt.next().map_err(err)? {
+        let first: i64 = row.integer(5).map_err(err)?;
         check_generation(first, latest)?;
-        let generated = root(s, row.get_ref(4).map_err(err)?.as_blob().map_err(err)?)?;
+        let generated = root(s, row.blob(4).map_err(err)?)?;
         let r = relation(s, generated, first)?;
-        if r.id != row.get_ref(0).map_err(err)?.as_str().map_err(err)?
-            || r.subject != row.get_ref(1).map_err(err)?.as_str().map_err(err)?
-            || r.relation_type != row.get_ref(2).map_err(err)?.as_str().map_err(err)?
-            || r.object != row.get_ref(3).map_err(err)?.as_str().map_err(err)?
+        if r.id != row.text(0).map_err(err)?
+            || r.subject != row.text(1).map_err(err)?
+            || r.relation_type != row.text(2).map_err(err)?
+            || r.object != row.text(3).map_err(err)?
         {
             return Err(err("关系索引与原件不符"));
         }
         out.relations.try_push(r).map_err(err)?;
     }
-    let mut stmt=tx.prepare("SELECT observation_id,kind,window_start,batch_id,generated_root,birth_wire_root,published_generation FROM s_content_observations ORDER BY rowid").map_err(err)?;
-    let mut rows = stmt.query([]).map_err(err)?;
-    while let Some(row) = rows.next().map_err(err)? {
-        let id = TextValue::from_sql(row, 0, owned_budget.as_ref()).map_err(err)?;
-        let kind = TextValue::from_sql(row, 1, owned_budget.as_ref()).map_err(err)?;
-        let window_start: Option<i64> = row.get(2).map_err(err)?;
-        let batch = TextValue::from_sql(row, 3, owned_budget.as_ref()).map_err(err)?;
+    stmt.finalize().map_err(err)?;
+    let mut stmt=CheckedStatement::prepare(tx,c"SELECT observation_id,kind,window_start,batch_id,generated_root,birth_wire_root,published_generation FROM s_content_observations ORDER BY rowid").map_err(err)?;
+    while let Some(mut row) = stmt.next().map_err(err)? {
+        let id = TextValue::from_sql(&mut row, 0, owned_budget.as_ref()).map_err(err)?;
+        let kind = TextValue::from_sql(&mut row, 1, owned_budget.as_ref()).map_err(err)?;
+        let window_start: Option<i64> = row.optional_integer(2).map_err(err)?;
+        let batch = TextValue::from_sql(&mut row, 3, owned_budget.as_ref()).map_err(err)?;
         check_batch(&batch)?;
-        let generated = root(s, row.get_ref(4).map_err(err)?.as_blob().map_err(err)?)?;
-        let wire = root(s, row.get_ref(5).map_err(err)?.as_blob().map_err(err)?)?;
-        let first: i64 = row.get(6).map_err(err)?;
+        let generated = root(s, row.blob(4).map_err(err)?)?;
+        let wire = root(s, row.blob(5).map_err(err)?)?;
+        let first: i64 = row.integer(6).map_err(err)?;
         check_generation(first, latest)?;
         exact(&generated, 6)?;
         if text(s, &generated, "kind")? != kind
@@ -1331,6 +1331,7 @@ pub(super) fn load(
             })
             .map_err(err)?;
     }
+    stmt.finalize().map_err(err)?;
     Ok(out)
 }
 fn check_generation(first: i64, latest: i64) -> Result<(), String> {

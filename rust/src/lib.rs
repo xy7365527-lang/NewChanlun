@@ -88,6 +88,8 @@ pub mod lav_seal;
 pub mod session_protocol;
 #[cfg(feature = "s_session")]
 pub mod s_content;
+#[cfg(feature = "s_session")]
+pub mod sqlite_checked;
 #[cfg(all(feature = "s_session", unix))]
 pub mod session_transport;
 

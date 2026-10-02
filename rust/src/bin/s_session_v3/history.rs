@@ -8,6 +8,7 @@ use super::audit_header::{AuditMetadata, AuditRoots, AuditSourceCommit};
 use super::audit_store::RefValue;
 use super::business_json::TextValue;
 use super::business_json::{self as bj, RawEventsView};
+use super::business_json::{BusinessMap, JsonOwner};
 use super::*;
 use crate::v3::audit_store::{CodecRead, CodecStore};
 use content_manifest::{ManifestMetadata, ManifestRoots, SourceCommit};
@@ -16,7 +17,12 @@ use newchan_rust::s_content::{
     path::{lookup_path, PathStep},
     ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource, Value as V,
 };
+use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::Transaction;
+use sc::capture_allocation::{
+    audit_json::{JsonView, OwnedJson},
+    OwnedBudget,
+};
 
 pub(super) struct PublishedCut {
     pub metadata: AuditMetadata,
@@ -156,83 +162,95 @@ fn read_indexed_history_inner(
         None => HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
     };
     store.audit_full_arrays = audit_same_material && budget.is_none();
+    let allocation = history_allocation(&store)?;
     #[cfg(test)]
     super::state::trace_event("history_aux_index", None);
-    let auxiliary = aux_index::load(tx, &mut store, meta_i64(tx, "generation")?)?;
+    let auxiliary = aux_index::load(
+        tx,
+        &mut store,
+        v2::control_meta_i64(tx, "generation", allocation.as_ref())?,
+    )?;
     #[cfg(test)]
     super::state::trace_event("history_object_index", None);
-    let objects = object_index::load_for_audit(tx, &mut store, meta_i64(tx, "generation")?)?;
+    let objects = object_index::load_for_audit(
+        tx,
+        &mut store,
+        v2::control_meta_i64(tx, "generation", allocation.as_ref())?,
+    )?;
     #[cfg(test)]
     super::state::trace_event("history_raw_hashes", None);
     store.clear_overlay();
-    let raw_nodes = raw
-        .iter()
-        .map(|v| hash_json_in_store(&store, v, deadline, budget))
-        .collect::<Result<Vec<_>, _>>()?;
-    let raw_wire_nodes = raw
-        .iter()
-        .map(|event| {
-            check_deadline(deadline)?;
-            hash_json_in_store(&store, bj::RawWire::new(event)?.view(), deadline, budget)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut raw_nodes = bj::new_work(allocation.as_ref());
+    for v in raw.iter() {
+        raw_nodes
+            .try_push(hash_json_in_store(&store, v, deadline, budget)?)
+            .map_err(err)?;
+    }
+    let mut raw_wire_nodes = bj::new_work(allocation.as_ref());
+    for event in raw.iter() {
+        check_deadline(deadline)?;
+        raw_wire_nodes
+            .try_push(hash_json_in_store(
+                &store,
+                bj::RawWire::new(event)?.view(),
+                deadline,
+                budget,
+            )?)
+            .map_err(err)?;
+    }
     // 同一事务、同一公开上下文下全核所有历史公开根，共享子图在这一调用内只核一次。
-    // manifest仍走Template判据；下方每代的源绑定、配方、变化集合和记录计费不变。
     #[cfg(test)]
     super::state::trace_event("history_public_closures", None);
     let public_roots = {
-        let mut stmt=tx.prepare("SELECT p.snapshot_root,p.delta_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
-        let mut rows = stmt.query([]).map_err(err)?;
-        let mut roots = Vec::new();
-        while let Some(row) = rows.next().map_err(err)? {
+        let mut stmt = CheckedStatement::prepare(tx, c"SELECT p.snapshot_root,p.delta_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
+        let mut roots = bj::new_work(allocation.as_ref());
+        while let Some(mut row) = stmt.next().map_err(err)? {
             check_deadline(deadline)?;
-            roots.push(root(&mut store, row.get::<_, Vec<u8>>(0).map_err(err)?)?);
-            roots.push(root(&mut store, row.get::<_, Vec<u8>>(1).map_err(err)?)?);
+            roots
+                .try_push(root_ref_bytes(&mut store, row.blob(0).map_err(err)?)?)
+                .map_err(err)?;
+            roots
+                .try_push(root_ref_bytes(&mut store, row.blob(1).map_err(err)?)?)
+                .map_err(err)?;
         }
+        stmt.finalize().map_err(err)?;
         roots
     };
     store
-        .verify_many(public_roots, sc::Mode::Public)
+        .verify_many_ref(public_roots.iter().map(RefValue::view), sc::Mode::Public)
         .map_err(err)?;
-    // manifest原件共享子图只在这一事务/模板上下文中去重；各代重建/来源校验仍执行。
     let template_roots = {
-        let mut stmt = tx.prepare("SELECT p.manifest_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
-        let mut rows = stmt.query([]).map_err(err)?;
-        let mut roots = Vec::new();
-        while let Some(row) = rows.next().map_err(err)? {
+        let mut stmt = CheckedStatement::prepare(tx, c"SELECT p.manifest_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
+        let mut roots = bj::new_work(allocation.as_ref());
+        while let Some(mut row) = stmt.next().map_err(err)? {
             check_deadline(deadline)?;
-            roots.push(root(&mut store, row.get::<_, Vec<u8>>(0).map_err(err)?)?);
+            roots
+                .try_push(root_ref_bytes(&mut store, row.blob(0).map_err(err)?)?)
+                .map_err(err)?;
         }
+        stmt.finalize().map_err(err)?;
         roots
     };
     store
-        .verify_many(template_roots, sc::Mode::Template)
+        .verify_many_ref(
+            template_roots.iter().map(RefValue::view),
+            sc::Mode::Template,
+        )
         .map_err(err)?;
-    let mut effective = BTreeMap::<i64, NodeDigest>::new();
+    let mut effective = bj::new_map::<i64, NodeDigest>(allocation.as_ref());
     let mut previous = -1i64;
-    let allocation = store.allocation_budget();
     let mut output = bj::new_work(allocation.as_ref());
     let mut resolved_roots = bj::new_work(allocation.as_ref());
-    let mut stmt = tx.prepare("SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
-    let mut rows = stmt.query([]).map_err(err)?;
-    while let Some(row) = rows.next().map_err(err)? {
+    let mut stmt = CheckedStatement::prepare(tx, c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
+    while let Some(mut row) = stmt.next().map_err(err)? {
         check_deadline(deadline)?;
-        let generation: i64 = row.get(0).map_err(err)?;
+        let generation: i64 = row.integer(0).map_err(err)?;
         #[cfg(test)]
         super::state::trace_event("history_template_closure", Some(generation));
-        let batch_id = TextValue::from_sql(row, 1, allocation.as_ref()).map_err(err)?;
-        let manifest = root_ref_bytes(
-            &mut store,
-            row.get_ref(2).map_err(err)?.as_blob().map_err(err)?,
-        )?;
-        let snapshot = root_ref_bytes(
-            &mut store,
-            row.get_ref(3).map_err(err)?.as_blob().map_err(err)?,
-        )?;
-        let delta = root_ref_bytes(
-            &mut store,
-            row.get_ref(4).map_err(err)?.as_blob().map_err(err)?,
-        )?;
+        let batch_id = TextValue::from_sql(&mut row, 1, allocation.as_ref()).map_err(err)?;
+        let manifest = root_ref_bytes(&mut store, row.blob(2).map_err(err)?)?;
+        let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?)?;
+        let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?)?;
         #[cfg(test)]
         super::state::trace_event("history_decode_manifest", Some(generation));
         let (m, roots) = decode_manifest(&mut store, manifest.view())?;
@@ -328,7 +346,13 @@ fn read_indexed_history_inner(
                     &mut store,
                     public,
                     name,
-                    hash_array_metered(&nodes, deadline, budget, false)?,
+                    hash_array_metered_with_owner(
+                        &nodes,
+                        deadline,
+                        budget,
+                        false,
+                        allocation.as_ref(),
+                    )?,
                 )?;
             }
         }
@@ -341,19 +365,21 @@ fn read_indexed_history_inner(
             ("rule_revision", &m.rule_revision),
             ("catalog_revision", &m.catalog_revision),
         ] {
-            if meta_get_opt(tx, key)?.as_deref() != Some(actual.as_str()) {
+            if v2::control_meta_text(tx, key, allocation.as_ref())?.as_deref()
+                != Some(actual.as_str())
+            {
                 return Err(err(format!("manifest.{key} 与冻结域不符")));
             }
         }
-        let scope = strict_json(
-            meta_get_opt(tx, "scope")?
-                .ok_or_else(|| err("缺scope"))?
-                .as_bytes(),
-        )?;
-        if m.scope.digest().map_err(err)? != hash_json_in_store(&store, &scope, deadline, budget)? {
+        let scope_text = v2::control_meta_text(tx, "scope", allocation.as_ref())?
+            .ok_or_else(|| err("缺scope"))?;
+        let scope = history_decode(scope_text.as_bytes(), allocation.as_ref())?;
+        if m.scope.digest().map_err(err)?
+            != hash_json_in_store(&store, scope.view(), deadline, budget)?
+        {
             return Err(err("manifest.scope 与冻结域不符"));
         }
-        verify_source(tx, &m)?;
+        verify_source(tx, &m, allocation.as_ref())?;
         control.consume_header(
             generation,
             &batch_id,
@@ -388,45 +414,56 @@ fn read_indexed_history_inner(
             if bj::field(event, "seq").as_i64() != Some(n) {
                 return Err(err("真实原始账序与数组位置不符"));
             }
-            effective.insert(bj::coord(event)?, raw_nodes[n as usize]);
+            effective
+                .insert(bj::coord(event)?, raw_nodes[n as usize])
+                .map_err(err)?;
         }
         same_digest(
             &mut store,
             roots.generated_state.view(),
             "raw_events",
-            hash_array_metered(&raw_nodes[..=frontier as usize], deadline, budget, false)?,
+            hash_array_metered_with_owner(
+                &raw_nodes[..=frontier as usize],
+                deadline,
+                budget,
+                false,
+                allocation.as_ref(),
+            )?,
         )?;
         same_digest(
             &mut store,
             roots.generated_state.view(),
             "effective_events",
-            hash_array_metered(
-                &effective.values().copied().collect::<Vec<_>>(),
+            hash_array_metered_with_owner(
+                &ordered_effective_nodes(&effective, allocation.as_ref())?,
                 deadline,
                 budget,
                 false,
+                allocation.as_ref(),
             )?,
         )?;
         same_digest(
             &mut store,
             &snapshot,
             "raw_history",
-            hash_array_metered(
+            hash_array_metered_with_owner(
                 &raw_wire_nodes[..=frontier as usize],
                 deadline,
                 budget,
                 true,
+                allocation.as_ref(),
             )?,
         )?;
         same_digest(
             &mut store,
             &delta,
             "raw_history_added",
-            hash_array_metered(
+            hash_array_metered_with_owner(
                 &raw_wire_nodes[(previous + 1) as usize..=frontier as usize],
                 deadline,
                 budget,
                 true,
+                allocation.as_ref(),
             )?,
         )?;
         #[cfg(test)]
@@ -490,13 +527,17 @@ fn read_indexed_history_inner(
             (8, m.structure_cut.as_str()),
             (10, batch_id.as_str()),
         ] {
-            if row.get::<_, String>(column).map_err(err)? != actual {
+            if TextValue::from_sql(&mut row, column, allocation.as_ref())
+                .map_err(err)?
+                .as_str()
+                != actual
+            {
                 return Err(err("Delta 独立控制列与 manifest 不符"));
             }
         }
-        let stored_range: String = row.get(9).map_err(err)?;
-        if stored_range != canonical_json(&seq_range)
-            || row.get::<_, i64>(11).map_err(err)? != frontier
+        let stored_range = TextValue::from_sql(&mut row, 9, allocation.as_ref()).map_err(err)?;
+        if !history_canonical_equal((&seq_range).into(), &stored_range, allocation.as_ref())?
+            || row.integer(11).map_err(err)? != frontier
         {
             return Err(err("Delta 独立前沿不符"));
         }
@@ -504,14 +545,15 @@ fn read_indexed_history_inner(
             &mut store,
             &delta,
             "catalog_run_status",
-            json!(row.get::<_, String>(12).map_err(err)?),
+            json!(TextValue::from_sql(&mut row, 12, allocation.as_ref()).map_err(err)?),
         )?;
         let evidence = field(&mut store, &delta, "catalog_evidence")?;
         for (column, want) in [(13, &evidence), (14, &delta)] {
-            let encoded: String = row.get(column).map_err(err)?;
-            let parsed = strict_json(encoded.as_bytes())?;
-            if canonical_json(&parsed) != encoded
-                || RefValue::Plain(ContentRef::from_transport_json(&parsed).map_err(err)?) != *want
+            let encoded =
+                TextValue::from_sql(&mut row, column, allocation.as_ref()).map_err(err)?;
+            let parsed = history_decode(encoded.as_bytes(), allocation.as_ref())?;
+            if !history_canonical_equal(parsed.view(), &encoded, allocation.as_ref())?
+                || !transport_equal(parsed.view(), want)?
             {
                 return Err(err("Delta 持久引用与实际内容根不同"));
             }
@@ -533,16 +575,19 @@ fn read_indexed_history_inner(
         // 中间路径节点只服务本代重算；已发布闭包始终从同一 SQLite 快照读取。
         store.clear_overlay();
     }
+    stmt.finalize().map_err(err)?;
     // Pending派生根在返回任何历史之前全部通过同一Public判据；非法嵌套占位仍拒绝。
     store
         .verify_many_ref(resolved_roots.iter().map(RefValue::view), sc::Mode::Public)
         .map_err(err)?;
     control.finish()?;
-    if meta_i64(tx, "last_advance_frontier")? != previous {
+    if v2::control_meta_i64(tx, "last_advance_frontier", allocation.as_ref())? != previous {
         return Err(err("根前沿与完整发布史不符"));
     }
     if let Some(last) = output.last() {
-        if meta_get_opt(tx, "index_frontier")?.as_deref() != Some(last.batch_id.as_str()) {
+        if v2::control_meta_text(tx, "index_frontier", allocation.as_ref())?.as_deref()
+            != Some(last.batch_id.as_str())
+        {
             return Err(err("根批次与完整发布史末代不符"));
         }
     }
@@ -553,12 +598,29 @@ fn read_indexed_history_inner(
     })
 }
 
-fn verify_source(tx: &Transaction<'_>, m: &AuditMetadata) -> Result<(), String> {
+fn verify_source(
+    tx: &Transaction<'_>,
+    m: &AuditMetadata,
+    allocation: Option<&OwnedBudget>,
+) -> Result<(), String> {
     let s = &m.source_commit;
-    let raw:String=tx.query_row("SELECT canonical_envelope FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3",params![s.source_namespace,s.source_epoch,s.message_id],|r|r.get(0)).map_err(err)?;
-    let e = newchan_rust::session_protocol::validate_envelope(
-        strict_json(raw.as_bytes())?,
+    let mut stmt = CheckedStatement::prepare(tx, c"SELECT canonical_envelope FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3").map_err(err)?;
+    stmt.bind_text(1, &s.source_namespace).map_err(err)?;
+    stmt.bind_text(2, &s.source_epoch).map_err(err)?;
+    stmt.bind_text(3, &s.message_id).map_err(err)?;
+    let raw = {
+        let mut row = stmt
+            .next()
+            .map_err(err)?
+            .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
+        TextValue::from_sql(&mut row, 0, allocation).map_err(err)?
+    };
+    stmt.finalize().map_err(err)?;
+    let envelope = history_decode(raw.as_bytes(), allocation)?;
+    let e = newchan_rust::session_protocol::validate_envelope_view_with_owner(
+        envelope.view(),
         PROTOCOL_REVISION,
+        allocation,
     )?;
     for (key, want) in [
         ("session_id", &m.session_id),
@@ -570,33 +632,50 @@ fn verify_source(tx: &Transaction<'_>, m: &AuditMetadata) -> Result<(), String> 
         ("producer_id", &s.producer_id),
         ("producer_epoch", &s.producer_epoch),
     ] {
-        if e[key].as_str() != Some(want.as_str()) {
+        if bj::field(e, key).as_str() != Some(want.as_str()) {
             return Err(err(format!("source_commit.{key} 不符")));
         }
     }
-    if e["payload"]["clock_event_id"].as_str() != Some(s.clock_event_id.as_str()) {
+    if bj::field(bj::field(e, "payload"), "clock_event_id").as_str()
+        != Some(s.clock_event_id.as_str())
+    {
         return Err(err("manifest clock 与真实消息不符"));
     }
-    // 已接纳原件保留接纳时的请求epoch；真正执行本代的写者由已核换代史定位。
-    if writer_for_generation(tx, m.generation)? != m.writer_epoch {
+    if writer_for_generation(tx, m.generation, allocation)? != m.writer_epoch {
         return Err(err("manifest写者与本代实际换代史不同"));
     }
-    let (g,ns):(i64,String)=tx.query_row("SELECT generation,semantic_ns FROM s_clock_events WHERE clock_event_id=?1 AND phase='commit' AND attempt_index=?2",params![s.clock_event_id,s.attempt_index],|r|Ok((r.get(0)?,r.get(1)?))).map_err(err)?;
+    let mut stmt = CheckedStatement::prepare(tx, c"SELECT generation,semantic_ns FROM s_clock_events WHERE clock_event_id=?1 AND phase='commit' AND attempt_index=?2").map_err(err)?;
+    stmt.bind_text(1, &s.clock_event_id).map_err(err)?;
+    stmt.bind_integer(2, s.attempt_index).map_err(err)?;
+    let (g, ns) = {
+        let mut row = stmt
+            .next()
+            .map_err(err)?
+            .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
+        (
+            row.integer(0).map_err(err)?,
+            TextValue::from_sql(&mut row, 1, allocation).map_err(err)?,
+        )
+    };
+    stmt.finalize().map_err(err)?;
     if g != m.generation || ns != m.semantic_commit_ns {
         return Err(err("manifest source attempt 不是本代真实 Commit"));
     }
     Ok(())
 }
 
-/// 调用前全局控制审计已经验证换代史接续、clock和代号。本代发布之后的换代不改旧归属。
-fn writer_for_generation(tx: &Transaction<'_>, generation: i64) -> Result<String, String> {
-    let mut stmt = tx.prepare("SELECT from_epoch,to_epoch,generation_at_transition FROM writer_epoch_history ORDER BY ordinal").map_err(err)?;
-    let mut rows = stmt.query([]).map_err(err)?;
+/// 已核换代史的本代归属；allocator由actualstore显式传入，空历史也不猜metadata预算。
+fn writer_for_generation(
+    tx: &Transaction<'_>,
+    generation: i64,
+    allocation: Option<&OwnedBudget>,
+) -> Result<TextValue, String> {
+    let mut stmt = CheckedStatement::prepare(tx, c"SELECT from_epoch,to_epoch,generation_at_transition FROM writer_epoch_history ORDER BY ordinal").map_err(err)?;
     let mut result = None;
-    while let Some(row) = rows.next().map_err(err)? {
-        let from: String = row.get(0).map_err(err)?;
-        let to: String = row.get(1).map_err(err)?;
-        let at: String = row.get(2).map_err(err)?;
+    while let Some(mut row) = stmt.next().map_err(err)? {
+        let from = TextValue::from_sql(&mut row, 0, allocation).map_err(err)?;
+        let to = TextValue::from_sql(&mut row, 1, allocation).map_err(err)?;
+        let at = TextValue::from_sql(&mut row, 2, allocation).map_err(err)?;
         if result.is_none() {
             result = Some(from);
         }
@@ -608,9 +687,99 @@ fn writer_for_generation(tx: &Transaction<'_>, generation: i64) -> Result<String
             break;
         }
     }
-    result
-        .map(Ok)
-        .unwrap_or_else(|| meta_get_opt(tx, "writer_epoch")?.ok_or_else(|| err("缺writer_epoch")))
+    stmt.finalize().map_err(err)?;
+    result.map(Ok).unwrap_or_else(|| {
+        v2::control_meta_text(tx, "writer_epoch", allocation)?.ok_or_else(|| err("缺writer_epoch"))
+    })
+}
+fn history_allocation(s: &(impl CodecRead + ?Sized)) -> Result<Option<OwnedBudget>, String> {
+    let allocation = s.allocation_budget();
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    if allocation.is_some() {
+        return Err(err("owned历史集合入口未启用"));
+    }
+    Ok(allocation)
+}
+fn history_decode(bytes: &[u8], allocation: Option<&OwnedBudget>) -> Result<JsonOwner, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = allocation {
+        return OwnedJson::parse(bytes, b)
+            .map(JsonOwner::Owned)
+            .map_err(|e| e.to_string());
+    }
+    if allocation.is_some() {
+        return Err(err("owned历史JSON入口未启用"));
+    }
+    strict_json(bytes).map(JsonOwner::Plain)
+}
+fn history_canonical_equal(
+    view: JsonView<'_>,
+    raw: &str,
+    allocation: Option<&OwnedBudget>,
+) -> Result<bool, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = allocation {
+        return sc::capture_allocation::audit_json::canonical_bytes(view, b)
+            .map(|bytes| &*bytes == raw.as_bytes())
+            .map_err(|e| e.to_string());
+    }
+    if allocation.is_some() {
+        return Err(err("owned历史规范文本入口未启用"));
+    }
+    struct Compare<'a> {
+        expected: &'a [u8],
+        at: usize,
+        equal: bool,
+    }
+    impl std::io::Write for Compare<'_> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            let end = self.at.saturating_add(bytes.len());
+            if self.expected.get(self.at..end) != Some(bytes) {
+                self.equal = false;
+            }
+            self.at = end;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut compare = Compare {
+        expected: raw.as_bytes(),
+        at: 0,
+        equal: true,
+    };
+    serde_json::to_writer(&mut compare, &view).map_err(|e| e.to_string())?;
+    Ok(compare.equal && compare.at == raw.len())
+}
+fn transport_equal(view: JsonView<'_>, want: &RefValue) -> Result<bool, String> {
+    let claim = sc::TransportRef::from_json_view(view).map_err(err)?;
+    let want = want.view();
+    // 此处原先只比较四字段；不提前调用digest来改变非法format/root的失败门。
+    Ok(claim.format() == want.format()
+        && claim.root() == want.root()
+        && claim.kind() == want.kind()
+        && claim.extent() == want.extent())
+}
+fn ordered_effective_nodes(
+    effective: &BusinessMap<i64, NodeDigest>,
+    allocation: Option<&OwnedBudget>,
+) -> Result<sc::CodecVec<NodeDigest>, String> {
+    let mut keys = bj::new_work(allocation);
+    for (key, _) in effective.iter() {
+        keys.try_push(key).map_err(err)?;
+    }
+    keys.sort_unstable();
+    let mut out = bj::new_work(allocation);
+    for key in &keys {
+        out.try_push(
+            *effective
+                .get(*key)
+                .expect("borrowed effective key remains present"),
+        )
+        .map_err(err)?;
+    }
+    Ok(out)
 }
 
 fn decode_manifest(
@@ -816,22 +985,45 @@ fn hash_array_metered(
     budget: Option<&dyn super::audit_budget::Budget>,
     records: bool,
 ) -> Result<NodeDigest, String> {
-    let edges = nodes
-        .iter()
-        .map(|d| {
-            check_deadline(deadline)?;
-            if records {
-                if let Some(b) = budget {
-                    b.record().map_err(err)?;
-                }
+    hash_array_metered_with_owner(nodes, deadline, budget, records, None)
+}
+fn hash_array_metered_with_owner(
+    nodes: &[NodeDigest],
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    records: bool,
+    allocation: Option<&OwnedBudget>,
+) -> Result<NodeDigest, String> {
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    if allocation.is_some() {
+        return Err(err("owned历史摘要入口未启用"));
+    }
+    let mut edges = bj::new_work(allocation);
+    for d in nodes {
+        check_deadline(deadline)?;
+        if records {
+            if let Some(b) = budget {
+                b.record().map_err(err)?;
             }
-            Ok(V::Edge(*d))
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    sc::write_value(&mut Discard(deadline, budget), &V::Array(edges))
-        .map(|b| b.digest)
+        }
+        edges.try_push(sc::ValueView::Edge(*d)).map_err(err)?;
+    }
+    let value = sc::ValueView::Array(&edges);
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = allocation {
+        return sc::write_value_view_for_allocation_prototype(
+            &mut Discard(deadline, budget),
+            value,
+            b,
+        )
+        .map(|built| built.digest)
+        .map_err(err);
+    }
+    sc::write_value_view(&mut Discard(deadline, budget), value)
+        .map(|built| built.digest)
         .map_err(err)
 }
+
 enum ReadOwner<'a> {
     Dynamic(&'a mut dyn NodeSource),
     Captured(&'a sc::AuditCapture),
@@ -2740,7 +2932,7 @@ mod tests {
         let mut cuts = audit(&mut f.conn).unwrap();
         cuts[0].metadata.source_commit.attempt_index = 1;
         let tx = f.conn.transaction().unwrap();
-        assert!(verify_source(&tx, &cuts[0].metadata).is_err());
+        assert!(verify_source(&tx, &cuts[0].metadata, None).is_err());
     }
 
     #[test]
@@ -3243,6 +3435,58 @@ fn root_ref_bytes(s: &mut (impl CodecRead + ?Sized), bytes: &[u8]) -> Result<Ref
 #[cfg(all(test, feature = "s_allocation_json_testonly"))]
 mod explicit_empty_json_budget_probe {
     use super::*;
+    #[test]
+    fn owned_history_digest_empty_array_uses_actual_zero_budget_and_refuses() {
+        let budget = OwnedBudget::new(0);
+        let slab = sc::capture_allocation::CaptureSlab::new(0, 0, &budget)
+            .unwrap()
+            .finish()
+            .unwrap();
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab);
+        let result =
+            super::super::audit_store::with_owned_store_probe(&capture, &budget, 0, 0, |s| {
+                let actual = history_allocation(s)?;
+                assert!(actual.as_ref().unwrap().same_ledger(&budget));
+                hash_array_metered_with_owner(&[], None, None, false, actual.as_ref())
+            });
+        assert!(result.unwrap_err().contains(sc::capture_allocation::LIMIT));
+        assert!(budget.snapshot().rejected_layouts > 0);
+        assert_eq!(budget.snapshot().allocation_attempts, 0);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_history_digest_sorted_effective_array_matches_plain_and_releases() {
+        let budget = OwnedBudget::new(1_000_000);
+        let slab = sc::capture_allocation::CaptureSlab::new(0, 0, &budget)
+            .unwrap()
+            .finish()
+            .unwrap();
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab);
+        super::super::audit_store::with_owned_store_probe(&capture, &budget, 0, 0, |s| {
+            let actual = history_allocation(s)?;
+            assert!(actual.as_ref().unwrap().same_ledger(&budget));
+            let mut effective = bj::new_map(actual.as_ref());
+            for n in [7i64, 1, 11, 0, 3] {
+                effective.insert(n, [n as u8; 32]).map_err(err)?;
+            }
+            let ordered = ordered_effective_nodes(&effective, actual.as_ref())?;
+            assert!(ordered.allocation_budget().unwrap().same_ledger(&budget));
+            assert_eq!(
+                &*ordered,
+                &[[0u8; 32], [1u8; 32], [3u8; 32], [7u8; 32], [11u8; 32]]
+            );
+            let normal = hash_array_metered(&ordered, None, None, false)?;
+            let owned =
+                hash_array_metered_with_owner(&ordered, None, None, false, actual.as_ref())?;
+            assert_eq!(owned, normal);
+            assert!(budget.snapshot().live_requested_layout_bytes > 0);
+            Ok::<_, String>(())
+        })
+        .unwrap();
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
     #[test]
     fn actual_owned_store_empty_array_hash_refuses_before_any_write() {
         let b = sc::capture_allocation::OwnedBudget::new(0);

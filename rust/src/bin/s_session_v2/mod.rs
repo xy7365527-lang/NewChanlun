@@ -1,12 +1,14 @@
 //! #1372：本地单写者传输、语义时钟和独立普通投递保留；结构判断仍由父模块唯一核心完成。
 use super::*;
+use crate::v3::business_json::{self as control_json, BusinessMap, JsonOwner, TextValue};
+use newchan_rust::s_content::capture_allocation::audit_json::{self as control_aj, JsonView};
+use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 pub use newchan_rust::session_protocol::strict_json;
 use newchan_rust::session_protocol::{nonnegative, positive, required, validate_envelope};
 use newchan_rust::session_transport::{self, serve_unix, TransportBounds};
+use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
+use std::ffi::CStr;
 use std::fmt;
-use crate::v3::business_json::{self as control_json,TextValue,JsonOwner,BusinessMap};
-use newchan_rust::s_content::{CodecVec,capture_allocation::OwnedBudget};
-use newchan_rust::s_content::capture_allocation::audit_json::{self as control_aj,JsonView};
 use std::fs::File;
 use std::time::Duration;
 #[cfg(test)]
@@ -210,16 +212,19 @@ fn stored_control_clock(
     if owner.is_some() {
         return Err("prototype_audit_allocation_incomplete：owned控制clock未启用".into());
     }
-    let mut stmt = conn
-        .prepare("SELECT clock_plan_json,clock_plan_hash FROM s_protocol_meta WHERE singleton=1")
-        .map_err(err)?;
-    let mut rows = stmt.query([]).map_err(err)?;
-    let row = rows
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT clock_plan_json,clock_plan_hash FROM s_protocol_meta WHERE singleton=1",
+    )
+    .map_err(err)?;
+    let mut row = stmt
         .next()
         .map_err(err)?
         .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
-    let raw = TextValue::from_sql(row, 0, owner).map_err(err)?;
-    let stored_hash = TextValue::from_sql(row, 1, owner).map_err(err)?;
+    let raw = TextValue::from_sql(&mut row, 0, owner).map_err(err)?;
+    let stored_hash = TextValue::from_sql(&mut row, 1, owner).map_err(err)?;
+    drop(row);
+    stmt.finalize().map_err(err)?;
     let value = control_decode(raw.as_str(), owner, false).map_err(err)?;
     let view = newchan_rust::session_protocol::ClockView::parse(value.view()).map_err(err)?;
     let hash = view.hash_fixed_with_owner(owner).map_err(err)?;
@@ -250,13 +255,12 @@ fn record_phase(
 ) -> Result<String, String> {
     check_clock(conn, clock)?;
     let ns = clock.phase(id, phase, index)?;
-    let old: String = conn
-        .query_row(
-            "SELECT logical_phase_frontier FROM s_protocol_meta WHERE singleton=1",
-            [],
-            |r| r.get(0),
-        )
-        .map_err(err)?;
+    let old = control_query_row(
+        conn,
+        c"SELECT logical_phase_frontier FROM s_protocol_meta WHERE singleton=1",
+        &[],
+        |r| r.text(0).map(str::to_owned).map_err(|e| e.to_string()),
+    )?;
     if parse_canonical_i64(&ns, "clock")? < parse_canonical_i64(&old, "clock frontier")? {
         return Err("InvalidDomain：实际语义clock倒退".into());
     }
@@ -342,13 +346,16 @@ pub(super) fn record_begin_context(
     epoch: &str,
 ) -> Result<String, String> {
     let index:i64=conn.query_row("SELECT attempt_count FROM s_input_messages WHERE clock_event_id=?1 AND status='AcceptedPending'",params![c.id()],|r|r.get(0)).map_err(err)?;
-    let (ordinal, inc): (i64, String) = conn
-        .query_row(
-            "SELECT next_attempt_ordinal,session_generation FROM s_protocol_meta WHERE singleton=1",
-            [],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
-        .map_err(err)?;
+    let (ordinal, inc) = control_query_row(
+        conn,
+        c"SELECT next_attempt_ordinal,session_generation FROM s_protocol_meta WHERE singleton=1",
+        &[],
+        |r| {
+            let ordinal = r.integer(0).map_err(|e| e.to_string())?;
+            let inc = r.text(1).map_err(|e| e.to_string())?.to_owned();
+            Ok((ordinal, inc))
+        },
+    )?;
     let next = ordinal
         .checked_add(1)
         .ok_or("InvalidDomain：attempt ordinal溢出")?;
@@ -423,7 +430,7 @@ pub fn seal_batch(
         return Ok(());
     }
     let c = c.ok_or("MissingDependency：缺v2上下文")?;
-    let (inc,index):(String,i64)=conn.query_row("SELECT p.session_generation,m.attempt_count-1 FROM s_protocol_meta p JOIN s_input_messages m ON m.clock_event_id=?1 WHERE p.singleton=1",params![c.id()],|r|Ok((r.get(0)?,r.get(1)?))).map_err(err)?;
+    let (inc,index)=control_query_row(conn,c"SELECT p.session_generation,m.attempt_count-1 FROM s_protocol_meta p JOIN s_input_messages m ON m.clock_event_id=?1 WHERE p.singleton=1",&[ControlBind::Text(c.id())],|r|{let inc=r.text(0).map_err(|e|e.to_string())?.to_owned();let index=r.integer(1).map_err(|e|e.to_string())?;Ok((inc,index))})?;
     batch["protocol_revision"] = json!("s-session/2");
     batch["session_generation"] = json!(inc);
     batch["clock_plan_hash"] = json!(c.clock.hash);
@@ -559,19 +566,23 @@ pub(super) fn control_meta_text(
     if owner.is_some() {
         return Err("prototype_audit_allocation_incomplete：owned控制文本未启用".into());
     }
-    if owner.is_none() {
-        return meta_get_opt(conn, key).map(|v| v.map(TextValue::Plain));
-    }
-    let mut stmt = conn
-        .prepare("SELECT value FROM meta WHERE key = ?1")
+    let mut stmt = CheckedStatement::prepare(conn, c"SELECT value FROM meta WHERE key = ?1")
         .map_err(|e| format!("读 meta.{key} 失败：{e}"))?;
-    let mut rows = stmt
-        .query(params![key])
+    stmt.bind_text(1, key)
         .map_err(|e| format!("读 meta.{key} 失败：{e}"))?;
-    rows.next()
+    let value = match stmt
+        .next()
         .map_err(|e| format!("读 meta.{key} 失败：{e}"))?
-        .map(|r| TextValue::from_sql(r, 0, owner).map_err(|e| format!("读 meta.{key} 失败：{e}")))
-        .transpose()
+    {
+        Some(mut row) => Some(
+            TextValue::from_sql(&mut row, 0, owner)
+                .map_err(|e| format!("读 meta.{key} 失败：{e}"))?,
+        ),
+        None => None,
+    };
+    stmt.finalize()
+        .map_err(|e| format!("读 meta.{key} 失败：{e}"))?;
+    Ok(value)
 }
 pub(super) fn control_meta_i64(
     conn: &Connection,
@@ -690,17 +701,16 @@ pub(super) fn verify_control_schema(
 }
 fn verify_schema_read(conn: &Connection, expected: SchemaRead<'_>) -> Result<(), String> {
     let owner = expected.owner();
-    let mut q = conn
-        .prepare(
-            "SELECT type,name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name",
-        )
-        .map_err(err)?;
-    let mut rows = q.query([]).map_err(err)?;
+    let mut q = CheckedStatement::prepare(
+        conn,
+        c"SELECT type,name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name",
+    )
+    .map_err(err)?;
     let mut seen = control_json::new_map::<TextValue, bool>(owner);
-    while let Some(r) = rows.next().map_err(err)? {
-        let kind = TextValue::from_sql(r, 0, owner).map_err(err)?;
-        let name = TextValue::from_sql(r, 1, owner).map_err(err)?;
-        let sql = TextValue::from_sql(r, 2, owner).map_err(err)?;
+    while let Some(mut r) = q.next().map_err(err)? {
+        let kind = TextValue::from_sql(&mut r, 0, owner).map_err(err)?;
+        let name = TextValue::from_sql(&mut r, 1, owner).map_err(err)?;
+        let sql = TextValue::from_sql(&mut r, 2, owner).map_err(err)?;
         if kind != "table" {
             return Err(err(format!("模式/约束不匹配 {kind}/{name}")));
         }
@@ -710,46 +720,57 @@ fn verify_schema_read(conn: &Connection, expected: SchemaRead<'_>) -> Result<(),
         }
         seen.insert(name, true).map_err(err)?;
     }
+    q.finalize().map_err(err)?;
     if seen.len() != expected.len() {
         return Err(err("缺必需表/约束"));
     }
     for table in &expected.sorted_names()? {
-        let mut columns = conn
-            .prepare("SELECT type,\"notnull\",pk FROM pragma_table_info(?1) ORDER BY cid")
-            .map_err(err)?;
-        let mut declrows = columns.query(params![table]).map_err(err)?;
+        let mut columns = CheckedStatement::prepare(
+            conn,
+            c"SELECT type,\"notnull\",pk FROM pragma_table_info(?1) ORDER BY cid",
+        )
+        .map_err(err)?;
+        columns.bind_text(1, table).map_err(err)?;
         let mut declarations = control_json::new_work(owner);
-        while let Some(r) = declrows.next().map_err(err)? {
+        while let Some(mut r) = columns.next().map_err(err)? {
             declarations
                 .try_push((
-                    TextValue::from_sql(r, 0, owner).map_err(err)?,
-                    r.get::<_, i64>(1).map_err(err)?,
-                    r.get::<_, i64>(2).map_err(err)?,
+                    TextValue::from_sql(&mut r, 0, owner).map_err(err)?,
+                    r.integer(1).map_err(err)?,
+                    r.integer(2).map_err(err)?,
                 ))
                 .map_err(err)?;
         }
+        columns.finalize().map_err(err)?;
         let mut sql = control_json::new_work(owner);
         sql.try_extend_bytes(b"SELECT * FROM ").map_err(err)?;
         sql.try_extend_bytes(table.as_bytes()).map_err(err)?;
-        let sql = TextValue::from_bytes(sql).map_err(err)?;
-        let mut query = conn.prepare(sql.as_str()).map_err(err)?;
-        let mut values = query.query([]).map_err(err)?;
-        while let Some(row) = values.next().map_err(err)? {
+        // Only the C ABI terminator is added; the SQL text and its bindings are unchanged.
+        sql.try_push(0).map_err(err)?;
+        let sql = CStr::from_bytes_with_nul(&sql).map_err(err)?;
+        let mut query = CheckedStatement::prepare(conn, sql).map_err(err)?;
+        while let Some(mut row) = query.next().map_err(err)? {
             for (i, (kind, notnull, pk)) in declarations.iter().enumerate() {
-                use rusqlite::types::ValueRef;
-                let value = row.get_ref(i).map_err(err)?;
-                let valid = match value {
-                    ValueRef::Null => *notnull == 0 && *pk == 0,
-                    ValueRef::Integer(_) => kind == "INTEGER",
-                    ValueRef::Text(bytes) => kind == "TEXT" && std::str::from_utf8(bytes).is_ok(),
-                    ValueRef::Blob(_) => kind == "BLOB",
-                    ValueRef::Real(_) => false,
+                use rusqlite::types::Type;
+                let valid = match row.column_type(i).map_err(err)? {
+                    Type::Null => *notnull == 0 && *pk == 0,
+                    Type::Integer => kind == "INTEGER",
+                    Type::Text => {
+                        let bytes = row.text_bytes(i).map_err(err)?;
+                        kind == "TEXT" && std::str::from_utf8(bytes).is_ok()
+                    }
+                    Type::Blob => {
+                        row.blob(i).map_err(err)?;
+                        kind == "BLOB"
+                    }
+                    Type::Real => false,
                 };
                 if !valid {
                     return Err(err(format!("{table} 第{i}列实际类型/非空约束损坏")));
                 }
             }
         }
+        query.finalize().map_err(err)?;
     }
     Ok(())
 }
@@ -834,27 +855,29 @@ pub(super) fn verify_epoch_history_with_owner(
         "meta.writer_epoch",
     )
     .map_err(err)?;
-    let mut query=conn.prepare("SELECT ordinal,from_epoch,to_epoch,generation_at_transition,advance_state_at_transition,transitioned_at FROM writer_epoch_history ORDER BY ordinal").map_err(err)?;
-    let mut rows = query.query([]).map_err(err)?;
+    let mut query=CheckedStatement::prepare(conn,c"SELECT ordinal,from_epoch,to_epoch,generation_at_transition,advance_state_at_transition,transitioned_at FROM writer_epoch_history ORDER BY ordinal").map_err(err)?;
     let (mut previous_epoch, mut previous_generation, mut ordinal) = (None, 0, 0i64);
     let mut facts = control_json::new_work(owner);
-    while let Some(r) = rows.next().map_err(err)? {
+    while let Some(mut r) = query.next().map_err(err)? {
         ordinal += 1;
-        let actual: i64 = r.get(0).map_err(err)?;
+        let actual: i64 = r.integer(0).map_err(err)?;
         let from = parse_writer_epoch(
-            &TextValue::from_sql(r, 1, owner).map_err(err)?,
+            &TextValue::from_sql(&mut r, 1, owner).map_err(err)?,
             "epoch.from",
         )
         .map_err(err)?;
-        let to = parse_writer_epoch(&TextValue::from_sql(r, 2, owner).map_err(err)?, "epoch.to")
-            .map_err(err)?;
+        let to = parse_writer_epoch(
+            &TextValue::from_sql(&mut r, 2, owner).map_err(err)?,
+            "epoch.to",
+        )
+        .map_err(err)?;
         let at = nonnegative(
-            &TextValue::from_sql(r, 3, owner).map_err(err)?,
+            &TextValue::from_sql(&mut r, 3, owner).map_err(err)?,
             "epoch.generation",
         )
         .map_err(err)?;
-        let state = TextValue::from_sql(r, 4, owner).map_err(err)?;
-        let ns = TextValue::from_sql(r, 5, owner).map_err(err)?;
+        let state = TextValue::from_sql(&mut r, 4, owner).map_err(err)?;
+        let ns = TextValue::from_sql(&mut r, 5, owner).map_err(err)?;
         nonnegative(&ns, "epoch.transitioned_at").map_err(err)?;
         if actual != ordinal
             || previous_epoch.is_some_and(|p| p != from)
@@ -869,6 +892,7 @@ pub(super) fn verify_epoch_history_with_owner(
         previous_generation = at;
         facts.try_push((ns, at)).map_err(err)?;
     }
+    query.finalize().map_err(err)?;
     if previous_epoch.is_some_and(|last| last != current) {
         return Err(err("writer_epoch与最后换代结果不一致"));
     }
@@ -1025,19 +1049,32 @@ pub(super) fn validate_control_history(
     validate_control_history_with_owner(conn, protocol_revision, facts, None)
 }
 
+enum ControlBind<'a> {
+    Text(&'a str),
+    Integer(i64),
+}
 fn control_query_row<T>(
     conn: &Connection,
-    sql: &str,
-    params: impl rusqlite::Params,
-    read: impl FnOnce(&rusqlite::Row<'_>) -> Result<T, String>,
+    sql: &CStr,
+    params: &[ControlBind<'_>],
+    read: impl FnOnce(&mut CheckedRow<'_>) -> Result<T, String>,
 ) -> Result<T, String> {
-    let mut q = conn.prepare(sql).map_err(err)?;
-    let mut rows = q.query(params).map_err(err)?;
-    let row = rows
+    let mut stmt = CheckedStatement::prepare(conn, sql).map_err(err)?;
+    for (i, p) in params.iter().enumerate() {
+        match p {
+            ControlBind::Text(v) => stmt.bind_text(i as i32 + 1, v),
+            ControlBind::Integer(v) => stmt.bind_integer(i as i32 + 1, *v),
+        }
+        .map_err(err)?;
+    }
+    let mut row = stmt
         .next()
         .map_err(err)?
         .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
-    read(row).map_err(err)
+    let value = read(&mut row).map_err(err)?;
+    drop(row);
+    stmt.finalize().map_err(err)?;
+    Ok(value)
 }
 fn control_canonical_text(
     v: JsonView<'_>,
@@ -1190,7 +1227,7 @@ pub(super) fn validate_control_history_with_owner(
     )
     .map_err(err)?;
     let clock = stored_control_clock(conn, owner)?;
-    let (protocol, inc, next, frontier) = control_query_row(conn, "SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", [], |r| Ok((TextValue::from_sql(r,0,owner)?,TextValue::from_sql(r,1,owner)?,r.get::<_,i64>(2).map_err(|e|e.to_string())?,TextValue::from_sql(r,3,owner)?)))?;
+    let (protocol, inc, next, frontier) = control_query_row(conn,c"SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", &[], |r| Ok((TextValue::from_sql(r,0,owner)?,TextValue::from_sql(r,1,owner)?,r.integer(2).map_err(|e|e.to_string())?,TextValue::from_sql(r,3,owner)?)))?;
     if protocol != protocol_revision || next < 1 {
         return Err(err("协议版本/attempt域错误"));
     }
@@ -1226,8 +1263,8 @@ pub(super) fn validate_control_history_with_owner(
     for item in items.iter() {
         let actual = control_query_row(
             conn,
-            "SELECT kind,title,domain,branches_json FROM catalog WHERE catalog_id=?1",
-            params![required_view(item, "id").map_err(err)?],
+            c"SELECT kind,title,domain,branches_json FROM catalog WHERE catalog_id=?1",
+            &[ControlBind::Text(required_view(item, "id").map_err(err)?)],
             |r| {
                 Ok((
                     TextValue::from_sql(r, 0, owner)?,
@@ -1246,7 +1283,7 @@ pub(super) fn validate_control_history_with_owner(
             return Err(err("目录静态内容与来源不同"));
         }
     }
-    let (ps,pi,pr,keep,first,head) = control_query_row(conn, "SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", [], |r| Ok((TextValue::from_sql(r,0,owner)?,TextValue::from_sql(r,1,owner)?,TextValue::from_sql(r,2,owner)?,r.get::<_,i64>(3).map_err(|e|e.to_string())?,r.get::<_,i64>(4).map_err(|e|e.to_string())?,r.get::<_,i64>(5).map_err(|e|e.to_string())?)))?;
+    let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql(r,0,owner)?,TextValue::from_sql(r,1,owner)?,TextValue::from_sql(r,2,owner)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
     if ps != sid
         || pi != inc
         || pr != "generation-window/1"
@@ -1291,22 +1328,21 @@ pub(super) fn validate_control_history_with_owner(
     if publication_frontiers.windows(2).any(|w| w[0].1 > w[1].1) {
         return Err(err("发布前沿倒退"));
     }
-    let mut stmt = conn.prepare("SELECT source_namespace,source_epoch,message_id,payload_hash,canonical_envelope,receipt_id,accepted_seq,status,first_published_generation,clock_event_id,attempt_count FROM s_input_messages ORDER BY accepted_seq,message_id").map_err(err)?;
-    let mut rows = stmt.query([]).map_err(err)?;
+    let mut stmt=CheckedStatement::prepare(conn,c"SELECT source_namespace,source_epoch,message_id,payload_hash,canonical_envelope,receipt_id,accepted_seq,status,first_published_generation,clock_event_id,attempt_count FROM s_input_messages ORDER BY accepted_seq,message_id").map_err(err)?;
     let mut messages = control_json::new_map(owner);
     let mut message_sequences = control_json::new_map::<i64, ()>(owner);
-    while let Some(r) = rows.next().map_err(err)? {
-        let ns = TextValue::from_sql(r, 0, owner).map_err(err)?;
-        let se = TextValue::from_sql(r, 1, owner).map_err(err)?;
-        let id = TextValue::from_sql(r, 2, owner).map_err(err)?;
-        let hash = TextValue::from_sql(r, 3, owner).map_err(err)?;
-        let raw = TextValue::from_sql(r, 4, owner).map_err(err)?;
-        let receipt = TextValue::from_sql(r, 5, owner).map_err(err)?;
-        let seq = r.get::<_, i64>(6).map_err(err)?;
-        let status = TextValue::from_sql(r, 7, owner).map_err(err)?;
-        let published = r.get::<_, Option<i64>>(8).map_err(err)?;
-        let event = TextValue::from_sql(r, 9, owner).map_err(err)?;
-        let count = r.get::<_, i64>(10).map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let ns = TextValue::from_sql(&mut r, 0, owner).map_err(err)?;
+        let se = TextValue::from_sql(&mut r, 1, owner).map_err(err)?;
+        let id = TextValue::from_sql(&mut r, 2, owner).map_err(err)?;
+        let hash = TextValue::from_sql(&mut r, 3, owner).map_err(err)?;
+        let raw = TextValue::from_sql(&mut r, 4, owner).map_err(err)?;
+        let receipt = TextValue::from_sql(&mut r, 5, owner).map_err(err)?;
+        let seq = r.integer(6).map_err(err)?;
+        let status = TextValue::from_sql(&mut r, 7, owner).map_err(err)?;
+        let published = r.optional_integer(8).map_err(err)?;
+        let event = TextValue::from_sql(&mut r, 9, owner).map_err(err)?;
+        let count = r.integer(10).map_err(err)?;
         let envelope = control_decode(&raw, owner, false).map_err(err)?;
         let e = validate_envelope_view_with_owner(envelope.view(), protocol_revision, owner)
             .map_err(err)?;
@@ -1333,14 +1369,14 @@ pub(super) fn validate_control_history_with_owner(
         let ik = control_identity(&input, ev, owner)?;
         let actual = control_query_row(
             conn,
-            "SELECT receipt_id,payload_hash,identity_key,revision FROM raw_events WHERE seq=?1",
-            params![seq],
-            |r| {
+            c"SELECT receipt_id,payload_hash,identity_key,revision FROM raw_events WHERE seq=?1",
+            &[ControlBind::Integer(seq)],
+            |mut r| {
                 Ok((
-                    TextValue::from_sql(r, 0, owner)?,
-                    TextValue::from_sql(r, 1, owner)?,
-                    TextValue::from_sql(r, 2, owner)?,
-                    r.get::<_, i64>(3).map_err(|e| e.to_string())?,
+                    TextValue::from_sql(&mut r, 0, owner)?,
+                    TextValue::from_sql(&mut r, 1, owner)?,
+                    TextValue::from_sql(&mut r, 2, owner)?,
+                    r.integer(3).map_err(|e| e.to_string())?,
                 ))
             },
         )?;
@@ -1380,6 +1416,7 @@ pub(super) fn validate_control_history_with_owner(
             return Err(err("重复clock消息身份"));
         }
     }
+    stmt.finalize().map_err(err)?;
     let raw_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
         .map_err(err)?;
@@ -1391,8 +1428,7 @@ pub(super) fn validate_control_history_with_owner(
     {
         return Err(err("v2原始接纳序缺持久消息承接"));
     }
-    let mut stmt=conn.prepare("SELECT clock_event_id,phase,attempt_index,semantic_ns,message_key,attempt_ordinal,generation FROM s_clock_events ORDER BY semantic_ns,clock_event_id,phase,attempt_index").map_err(err)?;
-    let mut rows = stmt.query([]).map_err(err)?;
+    let mut stmt=CheckedStatement::prepare(conn,c"SELECT clock_event_id,phase,attempt_index,semantic_ns,message_key,attempt_ordinal,generation FROM s_clock_events ORDER BY semantic_ns,clock_event_id,phase,attempt_index").map_err(err)?;
     let mut seen = control_json::new_map(owner);
     let mut ordinals = control_json::new_map(owner);
     let mut commits_by_generation = control_json::new_map(owner);
@@ -1400,14 +1436,14 @@ pub(super) fn validate_control_history_with_owner(
         control_json::new_map(owner);
     let mut recover_facts = control_json::new_work(owner);
     let mut max_ns = -1;
-    while let Some(r) = rows.next().map_err(err)? {
-        let id = TextValue::from_sql(r, 0, owner).map_err(err)?;
-        let phase = TextValue::from_sql(r, 1, owner).map_err(err)?;
-        let index = r.get::<_, i64>(2).map_err(err)?;
-        let ns = TextValue::from_sql(r, 3, owner).map_err(err)?;
-        let key = TextValue::from_sql(r, 4, owner).map_err(err)?;
-        let ord = r.get::<_, Option<i64>>(5).map_err(err)?;
-        let g = r.get::<_, i64>(6).map_err(err)?;
+    while let Some(mut r) = stmt.next().map_err(err)? {
+        let id = TextValue::from_sql(&mut r, 0, owner).map_err(err)?;
+        let phase = TextValue::from_sql(&mut r, 1, owner).map_err(err)?;
+        let index = r.integer(2).map_err(err)?;
+        let ns = TextValue::from_sql(&mut r, 3, owner).map_err(err)?;
+        let key = TextValue::from_sql(&mut r, 4, owner).map_err(err)?;
+        let ord = r.optional_integer(5).map_err(err)?;
+        let g = r.integer(6).map_err(err)?;
         if clock.phase(&id, &phase, index).map_err(err)? != ns.as_str() || g < 0 || g > next_g {
             return Err(err("phase时间/代际与计划不一致"));
         }
@@ -1480,6 +1516,7 @@ pub(super) fn validate_control_history_with_owner(
             return Err(err("重复phase"));
         }
     }
+    stmt.finalize().map_err(err)?;
     if parse_canonical_i64(&frontier, "logical_phase_frontier").map_err(err)? != max_ns
         || next as i128 != ordinals.len() as i128 + 1
         || control_sorted_keys(&ordinals, owner)?
@@ -1534,14 +1571,15 @@ pub(super) fn validate_control_history_with_owner(
     if *epoch_facts != *recover_facts {
         return Err(err("recover phase与writer换代时间/代际不闭合"));
     }
-    let mut q = conn
-        .prepare("SELECT generation,index_frontier FROM structure_deltas ORDER BY generation")
-        .map_err(err)?;
-    let mut rows = q.query([]).map_err(err)?;
+    let mut q = CheckedStatement::prepare(
+        conn,
+        c"SELECT generation,index_frontier FROM structure_deltas ORDER BY generation",
+    )
+    .map_err(err)?;
     let mut remaining = control_json::new_map(owner);
-    while let Some(r) = rows.next().map_err(err)? {
-        let g = r.get::<_, i64>(0).map_err(err)?;
-        let batch_id = TextValue::from_sql(r, 1, owner).map_err(err)?;
+    while let Some(mut r) = q.next().map_err(err)? {
+        let g = r.integer(0).map_err(err)?;
+        let batch_id = TextValue::from_sql(&mut r, 1, owner).map_err(err)?;
         let (id, index) = commits_by_generation
             .get(&g)
             .ok_or_else(|| err("v2发布缺真实Commit phase"))?;
@@ -1553,6 +1591,7 @@ pub(super) fn validate_control_history_with_owner(
             )
             .map_err(err)?;
     }
+    q.finalize().map_err(err)?;
     Ok(ControlHistory {
         session_generation: inc,
         clock_plan_hash: clock.hash,
@@ -1685,7 +1724,8 @@ fn ready(conn: &Connection) -> Result<Value, String> {
 /// 控制就绪头共用机械字段；调用方已完成相应版本的完整状态核验。
 pub(super) fn ready_for_protocol(conn: &Connection, protocol: &str) -> Result<Value, String> {
     if !matches!(protocol, "s-session/2" | "s-session/3")
-        || meta_get_opt(conn, "protocol_revision")?.as_deref() != Some(protocol) {
+        || meta_get_opt(conn, "protocol_revision")?.as_deref() != Some(protocol)
+    {
         return Err("SchemaUnsupported：Ready协议与持久域不同".into());
     }
     let (sid, inc, epoch) = protocol_identity(conn)?;
@@ -2281,7 +2321,8 @@ mod tests {
                 "{:.3}",
                 (after.commit_ns - before.commit_ns) as f64 / 1e6
             ));
-            per_generation_node_rows.push((after.node_rows_read - before.node_rows_read).to_string());
+            per_generation_node_rows
+                .push((after.node_rows_read - before.node_rows_read).to_string());
             per_generation_batch_expansions
                 .push((after.batch_expansions - before.batch_expansions).to_string());
             per_generation_batch_hits
@@ -3191,7 +3232,10 @@ mod tests {
     #[test]
     fn v2_ready_nonce_is_only_transport_diagnostics() {
         let f = Fixture::new(8, 2);
-        assert_eq!(ready(&open_db(&f.db).unwrap()).unwrap()["schema_revision"], "s-session/2");
+        assert_eq!(
+            ready(&open_db(&f.db).unwrap()).unwrap()["schema_revision"],
+            "s-session/2"
+        );
         assert!(ready_for_protocol(&open_db(&f.db).unwrap(), "s-session/3").is_err());
         assert!(ready_for_protocol(&open_db(&f.db).unwrap(), "s-session/4").is_err());
         let e = f.wrap(json!({"op":"ready"}), "ready-1");

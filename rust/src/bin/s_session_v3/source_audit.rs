@@ -2,6 +2,7 @@
 //! 只读事实及其引用，不重新运行包含、分型或新笔判定。原始账必须先经 read_raw_events 核验。
 use super::audit_store::RefValue;
 use super::audit_store::{CodecRead, CodecStore};
+use super::business_json::BusinessMap;
 use super::business_json::{self as bj, RawEventsView};
 use crate::{
     canonical_json,
@@ -17,7 +18,6 @@ use newchan_rust::s_content::{
     Built, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
 use serde_json::{json, Value};
-use std::collections::{BTreeMap, BTreeSet};
 fn err(e: impl std::fmt::Display) -> String {
     format!("SourceAuditInvalid：{e}")
 }
@@ -444,8 +444,19 @@ impl CodecStore for ArrayAuditSource<'_, '_, '_> {
     }
 }
 
-fn coords(s: &mut (impl CodecRead + ?Sized), r: &RefValue) -> Result<Vec<i64>, String> {
-    let mut out = Vec::new();
+fn source_allocation(
+    s: &(impl CodecRead + ?Sized),
+) -> Result<Option<sc::capture_allocation::OwnedBudget>, String> {
+    let allocation = s.allocation_budget();
+    #[cfg(not(feature = "s_allocation_json_testonly"))]
+    if allocation.is_some() {
+        return Err(err("owned来源集合入口未启用"));
+    }
+    Ok(allocation)
+}
+fn coords(s: &mut (impl CodecRead + ?Sized), r: &RefValue) -> Result<sc::CodecVec<i64>, String> {
+    let allocation = source_allocation(s)?;
+    let mut out = bj::new_work(allocation.as_ref());
     for item in elements(s, r)? {
         if item.kind() != Kind::String {
             return Err(err("源坐标必须为文本"));
@@ -455,7 +466,7 @@ fn coords(s: &mut (impl CodecRead + ?Sized), r: &RefValue) -> Result<Vec<i64>, S
         if out.last().is_some_and(|prev| *prev >= n) {
             return Err(err("源坐标不是严格升序"));
         }
-        out.push(n);
+        out.try_push(n).map_err(err)?;
     }
     Ok(out)
 }
@@ -469,12 +480,12 @@ struct Object {
     kind: bj::TextValue,
     fields: SourceFields<'static>,
     refs: RefValue,
-    sources: Vec<i64>,
+    sources: sc::CodecVec<i64>,
 }
 struct Group {
     payload: RefValue,
-    members: Vec<i64>,
-    sources: Vec<i64>,
+    members: sc::CodecVec<i64>,
+    sources: sc::CodecVec<i64>,
     anchor: i64,
 }
 struct Shape {
@@ -492,11 +503,12 @@ pub(super) struct Counts {
 fn references(
     s: &mut (impl CodecRead + ?Sized),
     r: &RefValue,
-    raw: &BTreeMap<i64, Source>,
+    raw: &BusinessMap<i64, Source>,
     numeric: bool,
-    checked: &mut BTreeMap<(NodeDigest, bool), i64>,
-) -> Result<Vec<i64>, String> {
-    let mut out = Vec::new();
+    checked: &mut BusinessMap<(NodeDigest, bool), i64>,
+) -> Result<sc::CodecVec<i64>, String> {
+    let allocation = source_allocation(s)?;
+    let mut out = bj::new_work(allocation.as_ref());
     for item in elements(s, r)? {
         // elements每次仍核实际成员头；仅本次已全核state、固定raw读集内复用
         // 首次完整八字段原件匹配。未知引用仍走原坐标读取及独立原件对拍。
@@ -517,16 +529,107 @@ fn references(
             {
                 return Err(err("源引用不是本cut的真实完整八字段原件"));
             }
-            checked.insert(key, coord);
+            checked.insert(key, coord).map_err(err)?;
             coord
         };
         if out.last().is_some_and(|prev| *prev >= coord) {
             return Err(err("源引用不是严格升序"));
         }
-        out.push(coord);
+        out.try_push(coord).map_err(err)?;
     }
     Ok(out)
 }
+/// 仅复制i64；从实际读取源取allocator，不开放普通深Clone或空树后补账。
+fn copy_coords(s: &(impl CodecRead + ?Sized), values: &[i64]) -> Result<sc::CodecVec<i64>, String> {
+    let allocation = source_allocation(s)?;
+    let mut out = bj::new_work(allocation.as_ref());
+    out.try_reserve_exact(values.len()).map_err(err)?;
+    for &value in values {
+        out.try_push(value).map_err(err)?;
+    }
+    Ok(out)
+}
+/// 两个严格升序坐标集的线性并集；旧集合在新集合成功完成前始终活着。
+fn union_coords(
+    s: &(impl CodecRead + ?Sized),
+    left: &[i64],
+    right: &[i64],
+) -> Result<sc::CodecVec<i64>, String> {
+    let allocation = source_allocation(s)?;
+    let mut out = bj::new_work(allocation.as_ref());
+    let (mut i, mut j) = (0, 0);
+    while i < left.len() || j < right.len() {
+        let value = if j == right.len() || (i < left.len() && left[i] < right[j]) {
+            let v = left[i];
+            i += 1;
+            v
+        } else if i == left.len() || right[j] < left[i] {
+            let v = right[j];
+            j += 1;
+            v
+        } else {
+            let v = left[i];
+            i += 1;
+            j += 1;
+            v
+        };
+        out.try_push(value).map_err(err)?;
+    }
+    Ok(out)
+}
+fn difference_coords(
+    s: &(impl CodecRead + ?Sized),
+    all: &[i64],
+    members: &[i64],
+) -> Result<sc::CodecVec<i64>, String> {
+    let allocation = source_allocation(s)?;
+    let mut out = bj::new_work(allocation.as_ref());
+    let mut j = 0;
+    for &value in all {
+        while j < members.len() && members[j] < value {
+            j += 1;
+        }
+        if members.get(j) != Some(&value) {
+            out.try_push(value).map_err(err)?;
+        }
+    }
+    Ok(out)
+}
+fn sorted_numeric_entries<'a, V>(
+    s: &(impl CodecRead + ?Sized),
+    map: &'a BusinessMap<i64, V>,
+) -> Result<sc::CodecVec<(i64, &'a V)>, String> {
+    let allocation = source_allocation(s)?;
+    let mut out = bj::new_work(allocation.as_ref());
+    for (key, value) in map.iter() {
+        out.try_push((*key, value)).map_err(err)?;
+    }
+    out.sort_unstable_by_key(|(key, _)| *key);
+    Ok(out)
+}
+const SHAPE_SOURCE_FIELDS: [&str; 12] = [
+    "object_id",
+    "kind",
+    "object_revision",
+    "input_refs_json",
+    "source_coords_json",
+    "branch",
+    "dir_ab",
+    "dir_bc",
+    "comparisons_json",
+    "window_start",
+    "window_mid",
+    "window_end",
+];
+const TYPED_SOURCE_FIELDS: [&str; 7] = [
+    "object_id",
+    "kind",
+    "object_revision",
+    "input_refs_json",
+    "source_coords_json",
+    "payload_json",
+    "fact_key",
+];
 /// raw_prefix 是同一次读集、截至本代 input_frontier 的独立原始账，不是manifest自己提供的值。
 pub(super) fn audit_generated<'a>(
     s: &mut dyn NodeStore,
@@ -613,7 +716,8 @@ fn audit_generated_in_store(
     }
     let producer = Cc004Producer::new(profile, rule);
     let effective = bj::effective(raw_prefix, deadline)?;
-    let mut raw = BTreeMap::new();
+    let allocation = source_allocation(s)?;
+    let mut raw = bj::new_map(allocation.as_ref());
     for event in effective.iter() {
         super::history::check_deadline(deadline)?;
         let coord = bj::coord(event)?;
@@ -626,42 +730,30 @@ fn audit_generated_in_store(
                 numeric: super::history::hash_json_in_store(s, numeric.view(), deadline, budget)?,
                 raw: super::history::hash_json_in_store(s, event, deadline, budget)?,
             },
-        );
+        )
+        .map_err(err)?;
     }
     let object_array = s.lookup_ref(state, &[f("objects")]).map_err(err)?;
     #[cfg(test)]
     super::state::trace_event("source_objects", None);
     // 活期只覆盖当前一次audit_generated；不在代际、事务或源修订之间带出。
-    let mut checked_refs = BTreeMap::new();
-    let mut objects = Vec::new();
-    let mut ids = BTreeSet::new();
-    let mut groups = BTreeMap::new();
+    let mut checked_refs = bj::new_map(allocation.as_ref());
+    let mut objects = bj::new_work(allocation.as_ref());
+    let mut ids = bj::new_map(allocation.as_ref());
+    let mut groups = bj::new_map(allocation.as_ref());
     for record in elements_ref(s, object_array.view())? {
         super::history::check_deadline(deadline)?;
         let kind = text(s, &record, "kind")?;
-        let mut names = vec![
-            "object_id",
-            "kind",
-            "object_revision",
-            "input_refs_json",
-            "source_coords_json",
-        ];
-        if kind == CC006_SHAPE_KIND {
-            names.extend([
-                "branch",
-                "dir_ab",
-                "dir_bc",
-                "comparisons_json",
-                "window_start",
-                "window_mid",
-                "window_end",
-            ]);
+        let names: &[&'static str] = if kind == CC006_SHAPE_KIND {
+            &SHAPE_SOURCE_FIELDS
         } else {
-            names.extend(["payload_json", "fact_key"]);
-        }
-        let fields = SourceFields::read_subset(s, record.view(), &names).map_err(err)?;
+            &TYPED_SOURCE_FIELDS
+        };
+        let fields = SourceFields::read_subset(s, record.view(), names).map_err(err)?;
         let id = fields.text(s, "object_id").map_err(err)?;
-        if !ids.insert(id.try_clone()?) || fields.integer(s, "object_revision").map_err(err)? != 1 {
+        if ids.insert(id.try_clone()?, ()).map_err(err)?.is_some()
+            || fields.integer(s, "object_revision").map_err(err)? != 1
+        {
             return Err(err("对象身份重复或修订不符"));
         }
         let refs = s
@@ -762,16 +854,17 @@ fn audit_generated_in_store(
                 {
                     return Err(err("组成员/锚/序号不符"));
                 }
-                let mut union = members.iter().copied().collect::<BTreeSet<_>>();
+                let mut union = copy_coords(s, &members)?;
                 for key in ["direction_evidence", "confirmation_evidence"] {
                     super::history::check_deadline(deadline)?;
                     let evidence = field(s, &payload, key)?;
                     if evidence.kind() != Kind::Null {
                         let list = field(s, &evidence, "source_coords")?;
-                        union.extend(coords(s, &list)?);
+                        let evidence_coords = coords(s, &list)?;
+                        union = union_coords(s, &union, &evidence_coords)?;
                     }
                 }
-                if union.into_iter().collect::<Vec<_>>() != sources {
+                if union != sources {
                     return Err(err("组来源不等于成员及方向/封口依据的并集"));
                 }
                 if groups
@@ -780,41 +873,46 @@ fn audit_generated_in_store(
                         Group {
                             payload: payload.clone(),
                             members,
-                            sources: sources.clone(),
+                            sources: copy_coords(s, &sources)?,
                             anchor,
                         },
                     )
+                    .map_err(err)?
                     .is_some()
                 {
                     return Err(err("同cut组合并序号重复"));
                 }
             }
         }
-        objects.push(Object {
-            id,
-            kind,
-            fields,
-            refs,
-            sources,
-        });
+        objects
+            .try_push(Object {
+                id,
+                kind,
+                fields,
+                refs,
+                sources,
+            })
+            .map_err(err)?;
     }
-    let mut partition = BTreeSet::new();
-    for (expected, (index, group)) in groups.iter().enumerate() {
+    let mut partition = bj::new_map(allocation.as_ref());
+    let ordered_groups = sorted_numeric_entries(s, &groups)?;
+    for (expected, (index, group)) in ordered_groups.iter().enumerate() {
         super::history::check_deadline(deadline)?;
         if *index != expected as i64 {
             return Err(err("组合并序号不连续"));
         }
         for c in &group.members {
             super::history::check_deadline(deadline)?;
-            if !partition.insert(*c) {
+            if partition.insert(*c, ()).map_err(err)?.is_some() {
                 return Err(err("同cut组成员重叠"));
             }
         }
     }
-    if partition != raw.keys().copied().collect() {
+    drop(ordered_groups);
+    if partition.len() != raw.len() || partition.iter().any(|(coord, _)| !raw.contains_key(coord)) {
         return Err(err("同cut组未完整覆盖生效原始账"));
     }
-    let mut shapes = BTreeMap::new();
+    let mut shapes = bj::new_map(allocation.as_ref());
     #[cfg(test)]
     super::state::trace_event("source_shapes", None);
     for object in objects.iter().filter(|o| o.kind == CC006_SHAPE_KIND) {
@@ -827,7 +925,7 @@ fn audit_generated_in_store(
             std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
         let mut windows =
             std::array::from_fn::<_, 3, _>(|_| crate::content_manifest::Decimal::new(0));
-        let mut source_union = BTreeSet::new();
+        let mut source_union = bj::new_work(allocation.as_ref());
         for (slot, part) in elements(s, &object.refs)?.into_iter().enumerate() {
             super::history::check_deadline(deadline)?;
             exact(&part, Kind::Object, 3)?;
@@ -863,18 +961,12 @@ fn audit_generated_in_store(
                 field(s, &part, "dependency_refs")?
             };
             let dependency = references(s, &deps, &raw, true, &mut checked_refs)?;
-            let member_set = members.iter().copied().collect::<BTreeSet<_>>();
-            let expected = group
-                .sources
-                .iter()
-                .filter(|c| !member_set.contains(c))
-                .copied()
-                .collect::<Vec<_>>();
+            let expected = difference_coords(s, &group.sources, &members)?;
             if dependency != expected {
                 return Err(err("形态dependency_refs不是组事实来源差集"));
             }
-            source_union.extend(members);
-            source_union.extend(dependency);
+            source_union = union_coords(s, &source_union, &members)?;
+            source_union = union_coords(s, &source_union, &dependency)?;
             windows[slot] = crate::content_manifest::Decimal::new(
                 object
                     .fields
@@ -894,7 +986,7 @@ fn audit_generated_in_store(
                 lows[slot] = text(s, &group.payload, "low")?;
             }
         }
-        if source_union.into_iter().collect::<Vec<_>>() != object.sources {
+        if source_union != object.sources {
             return Err(err("形态source_coords不是完整来源并集"));
         }
         let branch = object.fields.text(s, "branch").map_err(err)?;
@@ -929,12 +1021,14 @@ fn audit_generated_in_store(
         if content_producer::object_id_of(&identity) != object.id {
             return Err(err("CC006 obj3与同cut组事实身份不符"));
         }
-        shapes.insert(object.id.try_clone()?, Shape { groups: indices });
+        shapes
+            .insert(object.id.try_clone()?, Shape { groups: indices })
+            .map_err(err)?;
     }
     let witness_array = field_ref(s, state, "witnesses")?;
     #[cfg(test)]
     super::state::trace_event("source_witnesses", None);
-    let mut seen = BTreeSet::new();
+    let mut seen = bj::new_map(allocation.as_ref());
     for witness in elements(s, &witness_array)? {
         super::history::check_deadline(deadline)?;
         exact(&witness, Kind::Object, 9)?;
@@ -957,14 +1051,19 @@ fn audit_generated_in_store(
         let id = fields.text(s, "witness_id").map_err(err)?;
         let object_id = fields.text(s, "object_id").map_err(err)?;
         let slot = fields.integer(s, "slot").map_err(err)?;
-        if !(0..3).contains(&slot) || !seen.insert((object_id.try_clone()?, slot)) {
+        if !(0..3).contains(&slot)
+            || seen
+                .insert((object_id.try_clone()?, slot), ())
+                .map_err(err)?
+                .is_some()
+        {
             return Err(err("见证槽位重复/越界"));
         }
         let shape = shapes
-            .get(&object_id)
+            .get(object_id.as_str())
             .ok_or_else(|| err("见证没有同cut形态对象"))?;
         let mi = shape.groups[slot as usize];
-        let group = &groups[&mi];
+        let group = groups.get(&mi).expect("shape was bound to existing groups");
         if fields.integer(s, "merged_source_index").map_err(err)? != group.anchor {
             return Err(err("见证锚与同cut组不同"));
         }
@@ -992,7 +1091,7 @@ fn audit_generated_in_store(
         }
         for (bar, coord) in items.iter().zip(&group.members) {
             super::history::check_deadline(deadline)?;
-            if digest(bar)? != raw[coord].raw {
+            if digest(bar)? != raw.get(coord).expect("group members were bound to raw").raw {
                 return Err(err("见证raw_bars不是同cut真实原始成员"));
             }
         }
@@ -1863,6 +1962,200 @@ mod closed_array_role_probe {
     };
     use super::*;
     use sc::capture_allocation::{CaptureSlab, OwnedBudget};
+    #[cfg(feature = "s_allocation_json_testonly")]
+    fn owned_coordinate_source() -> (sc::AuditCapture, OwnedBudget, ContentRef, ContentRef) {
+        let mut nodes = sc::MemoryNodes::new();
+        let valid = sc::write_value(
+            &mut nodes,
+            &V::Array(
+                [0, 2, 3, 7, 11, 15, 17, 20, 21, 25]
+                    .into_iter()
+                    .map(|n| V::String(n.to_string()))
+                    .collect(),
+            ),
+        )
+        .unwrap()
+        .content_ref();
+        let invalid = sc::write_value(
+            &mut nodes,
+            &V::Array(vec![
+                V::String("0".into()),
+                V::String("2".into()),
+                V::String("2".into()),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        let count = nodes.len();
+        let bytes = nodes.iter().map(|(_, _, body)| body.len()).sum();
+        let base = CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let budget = OwnedBudget::new(base + 1_000_000);
+        let mut slab = CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (digest, tag, body) in nodes.iter() {
+            slab.push(*digest, tag, body).unwrap();
+        }
+        (
+            sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap()),
+            budget,
+            valid,
+            invalid,
+        )
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    fn role_coordinates(
+        reader: &mut HashReader<'_>,
+        root: &ContentRef,
+    ) -> Result<sc::CodecVec<i64>, String> {
+        let mut view = StoreView::for_audit(reader);
+        let mut source = ArrayAuditSource {
+            source: &mut view,
+            full_arrays: true,
+            deadline: None,
+        };
+        coords(&mut source, &RefValue::Plain(root.clone()))
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_source_collections_clone_union_difference_and_numeric_order_release() {
+        let (capture, budget, valid, _) = owned_coordinate_source();
+        let base = budget.snapshot().live_requested_layout_bytes;
+        with_overlay_prototype(
+            OverlayPrototype {
+                slots: 4,
+                bytes: 32,
+                budget: budget.clone(),
+                peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
+            },
+            || {
+                let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+                let values = role_coordinates(&mut reader, &valid).unwrap();
+                assert!(values.allocation_budget().is_some());
+                assert_eq!(&*values, &[0, 2, 3, 7, 11, 15, 17, 20, 21, 25]);
+                assert!(!reader.audit_full_array_scan());
+                let live = budget.snapshot().live_requested_layout_bytes;
+                let cloned = copy_coords(&reader, &values).unwrap();
+                assert_eq!(cloned, values);
+                assert!(cloned.allocation_budget().is_some());
+                assert!(budget.snapshot().live_requested_layout_bytes > live);
+                let union = union_coords(&reader, &values, &[1, 2, 10, 25, 26]).unwrap();
+                assert_eq!(&*union, &[0, 1, 2, 3, 7, 10, 11, 15, 17, 20, 21, 25, 26]);
+                let difference = difference_coords(&reader, &union, &values).unwrap();
+                assert_eq!(&*difference, &[1, 10, 26]);
+                let allocation = reader.allocation_budget();
+                let mut groups = bj::new_map(allocation.as_ref());
+                for n in [7, 1, 11, 0, 3] {
+                    groups
+                        .insert(n, copy_coords(&reader, &[n]).unwrap())
+                        .unwrap();
+                }
+                let ordered = sorted_numeric_entries(&reader, &groups).unwrap();
+                assert_eq!(
+                    ordered.iter().map(|(n, _)| *n).collect::<Vec<_>>(),
+                    [0, 1, 3, 7, 11]
+                );
+                for (n, values) in &ordered {
+                    assert_eq!(&***values, &[*n]);
+                }
+            },
+        );
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_source_collections_clone_and_map_growth_one_byte_short_keep_values() {
+        let (capture, budget, valid, _) = owned_coordinate_source();
+        let base = budget.snapshot().live_requested_layout_bytes;
+        with_overlay_prototype(
+            OverlayPrototype {
+                slots: 4,
+                bytes: 32,
+                budget: budget.clone(),
+                peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
+            },
+            || {
+                let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+                let values = role_coordinates(&mut reader, &valid).unwrap();
+                let request = values.len() * std::mem::size_of::<i64>();
+                let live = budget.snapshot().live_requested_layout_bytes;
+                let fill = CaptureSlab::new(
+                    0,
+                    budget.snapshot().limit_bytes - live - request + 1,
+                    &budget,
+                )
+                .unwrap();
+                let error = copy_coords(&reader, &values).unwrap_err();
+                assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+                assert_eq!(&*values, &[0, 2, 3, 7, 11, 15, 17, 20, 21, 25]);
+                drop(fill);
+                assert_eq!(copy_coords(&reader, &values).unwrap(), values);
+                let allocation = reader.allocation_budget();
+                let mut cache = bj::new_map(allocation.as_ref());
+                cache.insert(([0u8; 32], false), 0i64).unwrap();
+                let count = cache.capacity();
+                for n in 1..count {
+                    cache.insert(([n as u8; 32], false), n as i64).unwrap();
+                }
+                let mut probe = bj::new_map(allocation.as_ref());
+                for n in 0..count {
+                    probe.insert(([n as u8; 32], false), n as i64).unwrap();
+                }
+                probe.insert(([255u8; 32], true), 999).unwrap();
+                let request = budget.allocation_request_probe().last_request_bytes;
+                drop(probe);
+                let live = budget.snapshot().live_requested_layout_bytes;
+                let fill = CaptureSlab::new(
+                    0,
+                    budget.snapshot().limit_bytes - live - request + 1,
+                    &budget,
+                )
+                .unwrap();
+                let error = cache.insert(([255u8; 32], true), 999).unwrap_err();
+                assert_eq!(error.code(), sc::capture_allocation::LIMIT);
+                assert_eq!(cache.len(), count);
+                assert!(!cache.contains_key(&([255u8; 32], true)));
+                for n in 0..count {
+                    assert_eq!(cache.get(&([n as u8; 32], false)), Some(&(n as i64)));
+                }
+                drop(fill);
+            },
+        );
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_source_collections_false_reader_role_failure_restores_and_drops_partial_coords() {
+        let (capture, budget, valid, invalid) = owned_coordinate_source();
+        let base = budget.snapshot().live_requested_layout_bytes;
+        with_overlay_prototype(
+            OverlayPrototype {
+                slots: 4,
+                bytes: 32,
+                budget: budget.clone(),
+                peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
+            },
+            || {
+                let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+                assert!(!reader.audit_full_array_scan());
+                let error = role_coordinates(&mut reader, &invalid).unwrap_err();
+                assert!(error.contains("源坐标不是严格升序"), "{error}");
+                assert!(!reader.audit_full_array_scan());
+                let values = role_coordinates(&mut reader, &valid).unwrap();
+                assert_eq!(&*values, &[0, 2, 3, 7, 11, 15, 17, 20, 21, 25]);
+                assert!(!reader.audit_full_array_scan());
+            },
+        );
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
     #[test]
     fn closed_owned_second_hashreader_false_preserves_array_wrapper_true_role_and_restore() {
         let mut nodes = sc::MemoryNodes::new();
