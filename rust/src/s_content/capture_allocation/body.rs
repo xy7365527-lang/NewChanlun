@@ -6,7 +6,7 @@ pub(crate) struct MeteredBody {
     owner: OwnedLayout,
 }
 impl MeteredBody {
-    pub(super) fn copy_from(bytes: &[u8], budget: &OwnedBudget) -> Result<Self, CodecError> {
+    pub(crate) fn copy_from(bytes: &[u8], budget: &OwnedBudget) -> Result<Self, CodecError> {
         let layout = Layout::array::<u8>(bytes.len()).map_err(|_| refused())?;
         // OwnedLayout 在实际 alloc_zeroed 前核额度并借记同一计数器。
         let owner = OwnedLayout::new(layout, budget)?;

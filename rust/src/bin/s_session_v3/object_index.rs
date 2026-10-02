@@ -5,11 +5,11 @@ use super::{
     generation::ProducedObject,
     object_records::{self, BatchRef, BorrowedObject, PublicationLife},
 };
+use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::{canonical_json, content_store, object_diff};
 use newchan_rust::s_content::{
-    self as sc,
-    path::{lookup_path, replace_batch_placeholder, PathStep},
-    Built, ContentRef, Kind, NodeDigest, NodeSource, NodeStore, Value as V,
+    self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeSource, NodeStore,
+    Value as V,
 };
 use rusqlite::{params, Transaction};
 use serde_json::{json, Value};
@@ -35,8 +35,8 @@ fn err(e: impl std::fmt::Display) -> String {
 fn f(k: &str) -> PathStep {
     PathStep::Field(k.into())
 }
-fn field(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<ContentRef, String> {
-    lookup_path(s, r, &[f(k)]).map_err(err)
+fn field(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<ContentRef, String> {
+    s.lookup_path(r, &[f(k)]).map_err(err)
 }
 fn digest(r: &ContentRef) -> Result<NodeDigest, String> {
     r.digest().map_err(err)
@@ -48,33 +48,35 @@ fn built(r: ContentRef) -> Result<Built, String> {
         extent: r.extent,
     })
 }
-fn scalar(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<Value, String> {
+fn scalar(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<Value, String> {
     let r = field(s, r, k)?;
     scalar_value(s, &r)
 }
-fn scalar_value(s: &mut dyn NodeSource, r: &ContentRef) -> Result<Value, String> {
+fn scalar_value(s: &mut (impl CodecRead + ?Sized), r: &ContentRef) -> Result<Value, String> {
     if !matches!(r.kind, Kind::Number | Kind::String | Kind::Null) {
         return Err(err("预期有界标量"));
     }
     let mut out = Vec::new();
-    sc::render_canonical(s, r, &mut out).map_err(err)?;
+    s.render_canonical(r, &mut out).map_err(err)?;
     newchan_rust::session_protocol::strict_json(&out)
 }
 
 /// 同一原件绑定调用中的固定小字段；大载荷只保存引用，不持久缓存或信任摘要替代闭包。
 pub(super) struct Fields(BTreeMap<String, ContentRef>);
 impl Fields {
-    fn read(s: &mut dyn NodeStore, root: &ContentRef, names: &[&str]) -> Result<Self, String> {
-        sc::path::lookup_object_fields(s, root, names)
-            .map(Self)
-            .map_err(err)
-    }
-    pub(super) fn read_subset(
-        s: &mut dyn NodeStore,
+    fn read(
+        s: &mut (impl CodecStore + ?Sized),
         root: &ContentRef,
         names: &[&str],
     ) -> Result<Self, String> {
-        sc::path::lookup_object_fields_subset(s, root, names)
+        s.lookup_object_fields(root, names).map(Self).map_err(err)
+    }
+    pub(super) fn read_subset(
+        s: &mut (impl CodecStore + ?Sized),
+        root: &ContentRef,
+        names: &[&str],
+    ) -> Result<Self, String> {
+        s.lookup_object_fields_subset(root, names)
             .map(Self)
             .map_err(err)
     }
@@ -83,13 +85,21 @@ impl Fields {
             .get(name)
             .ok_or_else(|| err(format!("原件缺字段{name}")))
     }
-    pub(super) fn text(&self, s: &mut dyn NodeStore, name: &str) -> Result<String, String> {
+    pub(super) fn text(
+        &self,
+        s: &mut (impl CodecStore + ?Sized),
+        name: &str,
+    ) -> Result<String, String> {
         scalar_value(s, self.get(name)?)?
             .as_str()
             .map(str::to_owned)
             .ok_or_else(|| err(format!("{name}不是文本")))
     }
-    pub(super) fn integer(&self, s: &mut dyn NodeStore, name: &str) -> Result<i64, String> {
+    pub(super) fn integer(
+        &self,
+        s: &mut (impl CodecStore + ?Sized),
+        name: &str,
+    ) -> Result<i64, String> {
         scalar_value(s, self.get(name)?)?
             .as_i64()
             .ok_or_else(|| err(format!("{name}不是i64")))
@@ -100,7 +110,7 @@ impl Fields {
         }
         Ok(())
     }
-    fn slot(&self, s: &mut dyn NodeStore, kind: &str) -> Result<Slot, String> {
+    fn slot(&self, s: &mut (impl CodecStore + ?Sized), kind: &str) -> Result<Slot, String> {
         if kind == SHAPE {
             Ok(Slot::Shape([
                 self.integer(s, "window_start")?,
@@ -114,7 +124,7 @@ impl Fields {
             })
         }
     }
-    fn immutable(&self, s: &mut dyn NodeStore, shape: bool) -> Result<Built, String> {
+    fn immutable(&self, s: &mut (impl CodecStore + ?Sized), shape: bool) -> Result<Built, String> {
         let names = if shape {
             SHAPE_IMMUTABLE
         } else {
@@ -128,31 +138,38 @@ impl Fields {
             }
             fields.push(((*name).into(), V::Edge(digest(child)?)));
         }
-        sc::write_value(s, &V::Object(fields)).map_err(err)
+        s.write_value(&V::Object(fields)).map_err(err)
     }
-    fn bind_json_text(&self, s: &mut dyn NodeStore, json: &str, value: &str) -> Result<(), String> {
-        let parsed = lookup_path(s, self.get(json)?, &[PathStep::JsonText]).map_err(err)?;
+    fn bind_json_text(
+        &self,
+        s: &mut (impl CodecStore + ?Sized),
+        json: &str,
+        value: &str,
+    ) -> Result<(), String> {
+        let parsed = s
+            .lookup_path(self.get(json)?, &[PathStep::JsonText])
+            .map_err(err)?;
         if &parsed != self.get(value)? {
             return Err(err("内部JSON视图与值边不同"));
         }
         Ok(())
     }
 }
-fn text(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<String, String> {
+fn text(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<String, String> {
     scalar(s, r, k)?
         .as_str()
         .map(str::to_owned)
         .ok_or_else(|| err(format!("{k}不是文本")))
 }
-fn integer(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<i64, String> {
+fn integer(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<i64, String> {
     scalar(s, r, k)?
         .as_i64()
         .ok_or_else(|| err(format!("{k}不是i64")))
 }
 /// 本口只取真实节点头；load返回前统一验证这些根的全部闭包。
-fn root_header(s: &mut dyn NodeSource, b: Vec<u8>) -> Result<Built, String> {
+fn root_header(s: &mut (impl CodecRead + ?Sized), b: Vec<u8>) -> Result<Built, String> {
     let d: NodeDigest = b.try_into().map_err(|_| err("根不是32字节"))?;
-    let r = sc::content_ref_of(s, &sc::root_string(&d)).map_err(err)?;
+    let r = s.content_ref_of(&sc::root_string(&d)).map_err(err)?;
     built(r)
 }
 const SHAPE: &str = "CC-006.local_shape";
@@ -216,7 +233,7 @@ pub(super) struct Plan {
     pub withdrawn: Built,
     pub upserts: Built,
 }
-fn slot(s: &mut dyn NodeSource, r: &ContentRef, kind: &str) -> Result<Slot, String> {
+fn slot(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, kind: &str) -> Result<Slot, String> {
     if kind == SHAPE {
         Ok(Slot::Shape([
             integer(s, r, "window_start")?,
@@ -230,7 +247,11 @@ fn slot(s: &mut dyn NodeSource, r: &ContentRef, kind: &str) -> Result<Slot, Stri
         })
     }
 }
-fn immutable(s: &mut dyn NodeStore, r: &ContentRef, is_shape: bool) -> Result<Built, String> {
+fn immutable(
+    s: &mut (impl CodecStore + ?Sized),
+    r: &ContentRef,
+    is_shape: bool,
+) -> Result<Built, String> {
     Fields::read(
         s,
         r,
@@ -277,9 +298,14 @@ fn ordering(a: &Entry, b: &Entry, dead: bool) -> std::cmp::Ordering {
         ) => (ka, fa, &a.id, a.revision).cmp(&(kb, fb, &b.id, b.revision)),
     }
 }
-fn candidate(s: &mut dyn NodeStore, o: &ProducedObject, g: i64) -> Result<Entry, String> {
+fn candidate(
+    s: &mut (impl CodecStore + ?Sized),
+    o: &ProducedObject,
+    g: i64,
+) -> Result<Entry, String> {
     let generated = o.generated().clone();
-    sc::audit_verify_public(s, &generated.content_ref()).map_err(err)?;
+    s.verify_audit_fresh(&generated.content_ref(), sc::Mode::Public)
+        .map_err(err)?;
     if integer(s, &generated.content_ref(), "first_known_generation")? != g
         || integer(s, &generated.content_ref(), "published_generation")? != g
         || text(s, &generated.content_ref(), "first_known_cut")? != format!("cut-{g}")
@@ -306,7 +332,10 @@ fn candidate(s: &mut dyn NodeStore, o: &ProducedObject, g: i64) -> Result<Entry,
         superseded_by: None,
         batch: BatchRef::CurrentBatch,
     };
-    let birth_wire = o.wire_template(s, &life, g).map_err(err)?.content_ref();
+    let birth_wire = o
+        .wire_template(s.generic_store(), &life, g)
+        .map_err(err)?
+        .content_ref();
     let immutable = immutable(s, &generated.content_ref(), slot.is_shape())?;
     Ok(Entry {
         id: o.object_id().into(),
@@ -321,7 +350,7 @@ fn candidate(s: &mut dyn NodeStore, o: &ProducedObject, g: i64) -> Result<Entry,
     })
 }
 /// 返回本代模板：新生维持08，已有记录只借出生字段并改写小生命周期元数据。
-fn wire_at(s: &mut dyn NodeStore, e: &Entry, g: i64) -> Result<ContentRef, String> {
+fn wire_at(s: &mut (impl CodecStore + ?Sized), e: &Entry, g: i64) -> Result<ContentRef, String> {
     if e.life.first_known_generation > g {
         return Err(err("对象尚未出生"));
     }
@@ -340,28 +369,30 @@ fn wire_at(s: &mut dyn NodeStore, e: &Entry, g: i64) -> Result<ContentRef, Strin
         .content_ref();
     if e.life.first_known_generation == g {
         if let BatchRef::Existing(batch) = saved {
-            wire = replace_batch_placeholder(s, &wire, &[f("batch_id")], &batch).map_err(err)?;
+            wire = s
+                .replace_batch_placeholder(&wire, &[f("batch_id")], &batch)
+                .map_err(err)?;
         }
     }
     Ok(wire)
 }
-fn array(s: &mut dyn NodeStore, refs: &[ContentRef]) -> Result<Built, String> {
+fn array(s: &mut (impl CodecStore + ?Sized), refs: &[ContentRef]) -> Result<Built, String> {
     let xs = refs
         .iter()
         .map(|r| Ok(V::Edge(digest(r)?)))
         .collect::<Result<_, String>>()?;
-    sc::write_template(s, &V::Array(xs)).map_err(err)
+    s.write_template(&V::Array(xs)).map_err(err)
 }
 /// 完整历史索引按目标代投影。Delta 出生序保留行插入序；活动/撤回各遵旧公开主序。
 pub(super) fn at_cut(
-    s: &mut dyn NodeStore,
+    s: &mut (impl CodecStore + ?Sized),
     index: &[Entry],
     g: i64,
 ) -> Result<(Built, Built, Built), String> {
     at_cut_metered(s, index, g, None)
 }
 pub(super) fn at_cut_metered(
-    s: &mut dyn NodeStore,
+    s: &mut (impl CodecStore + ?Sized),
     index: &[Entry],
     g: i64,
     budget: Option<&dyn super::audit_budget::Budget>,
@@ -397,7 +428,7 @@ pub(super) fn at_cut_metered(
     Ok((collect(active)?, collect(dead)?, collect(births)?))
 }
 pub(super) fn plan(
-    s: &mut dyn NodeStore,
+    s: &mut (impl CodecStore + ?Sized),
     objects: &[ProducedObject],
     old: &[Entry],
     g: i64,
@@ -493,7 +524,7 @@ pub(super) fn plan(
 }
 
 /// 对持久三种记录逐字段对拍，不展开 payload/input_refs/source_coords 大载荷。
-fn bind_originals(s: &mut dyn NodeStore, e: &Entry) -> Result<(), String> {
+fn bind_originals(s: &mut (impl CodecStore + ?Sized), e: &Entry) -> Result<(), String> {
     let shape = e.slot.is_shape();
     let r = Fields::read(
         s,
@@ -577,7 +608,7 @@ fn bind_originals(s: &mut dyn NodeStore, e: &Entry) -> Result<(), String> {
         }
         let comparison = i.get("comparisons")?;
         let mut out = Vec::new();
-        sc::render_canonical(s, comparison, &mut out).map_err(err)?;
+        s.render_canonical(comparison, &mut out).map_err(err)?;
         if r.text(s, "comparisons_json")?.as_bytes() != out {
             return Err(err("comparisons文本与内部值不符"));
         }
@@ -606,7 +637,7 @@ fn bind_originals(s: &mut dyn NodeStore, e: &Entry) -> Result<(), String> {
     Ok(())
 }
 fn bind_shape_refs(
-    s: &mut dyn NodeStore,
+    s: &mut (impl CodecStore + ?Sized),
     generated: &ContentRef,
     wire: &ContentRef,
 ) -> Result<(), String> {
@@ -618,8 +649,10 @@ fn bind_shape_refs(
         return Err(err("形态来源不是三组"));
     }
     for n in 0..3 {
-        let a = lookup_path(s, generated, &[PathStep::Index(n)]).map_err(err)?;
-        let b = lookup_path(s, wire, &[PathStep::Index(n)]).map_err(err)?;
+        let a = s
+            .lookup_path(generated, &[PathStep::Index(n)])
+            .map_err(err)?;
+        let b = s.lookup_path(wire, &[PathStep::Index(n)]).map_err(err)?;
         if a.extent != Some(3)
             || b.extent != Some(3)
             || text(s, &b, "merged_index")? != integer(s, &a, "merged_index")?.to_string()
@@ -634,8 +667,8 @@ fn bind_shape_refs(
             }
             let items = if s.audit_full_array_scan() {
                 Some((
-                    sc::path::lookup_array_items(s, &aa).map_err(err)?,
-                    sc::path::lookup_array_items(s, &bb).map_err(err)?,
+                    s.lookup_array_items(&aa).map_err(err)?,
+                    s.lookup_array_items(&bb).map_err(err)?,
                 ))
             } else {
                 None
@@ -646,8 +679,8 @@ fn bind_shape_refs(
                 } else {
                     // Some 仍逐位置交错原件读取与字段/业务检查，预算与期限门顺序不变。
                     (
-                        lookup_path(s, &aa, &[PathStep::Index(k)]).map_err(err)?,
-                        lookup_path(s, &bb, &[PathStep::Index(k)]).map_err(err)?,
+                        s.lookup_path(&aa, &[PathStep::Index(k)]).map_err(err)?,
+                        s.lookup_path(&bb, &[PathStep::Index(k)]).map_err(err)?,
                     )
                 };
                 if ar.extent != Some(8) || br.extent != Some(8) {
@@ -839,7 +872,7 @@ pub(super) fn prior_records(index: &[Entry]) -> Result<(Vec<Built>, Option<Built
 }
 pub(super) fn stage(
     tx: &Transaction<'_>,
-    s: &mut dyn NodeStore,
+    s: &mut (impl CodecStore + ?Sized),
     p: &Plan,
     batch: &str,
 ) -> Result<(), String> {
@@ -847,9 +880,10 @@ pub(super) fn stage(
         if e.life.first_known_generation != p.generation || e.life.batch != BatchRef::CurrentBatch {
             return Err(err("新生上下文不符"));
         }
-        let wire =
-            replace_batch_placeholder(s, &e.birth_wire, &[f("batch_id")], batch).map_err(err)?;
-        sc::audit_verify_public(s, &wire).map_err(err)?;
+        let wire = s
+            .replace_batch_placeholder(&e.birth_wire, &[f("batch_id")], batch)
+            .map_err(err)?;
+        s.verify_audit_fresh(&wire, sc::Mode::Public).map_err(err)?;
         let (fact, w) = match &e.slot {
             Slot::Shape(w) => (None, Some(*w)),
             Slot::Typed { fact_key, .. } => (Some(fact_key.as_str()), None),
@@ -889,7 +923,7 @@ pub(super) fn changes_at(index: &[Entry], g: i64) -> Result<(Vec<Value>, Vec<Val
 }
 /// 按该代真实候选序复用同一diff判据，再对拍独立生命周期；不假定候选槽位唯一。
 pub(super) fn verify_generated_members(
-    s: &mut dyn NodeStore,
+    s: &mut (impl CodecStore + ?Sized),
     index: &[Entry],
     state: &ContentRef,
     g: i64,
@@ -906,7 +940,7 @@ pub(super) fn verify_generated_members(
     let mut seen = BTreeSet::new();
     let mut new = Vec::new();
     let items = if s.audit_full_array_scan() {
-        Some(sc::path::lookup_array_items(s, &objects).map_err(err)?)
+        Some(s.lookup_array_items(&objects).map_err(err)?)
     } else {
         None
     };
@@ -914,7 +948,8 @@ pub(super) fn verify_generated_members(
         let object = if let Some(items) = &items {
             items[n as usize].clone()
         } else {
-            lookup_path(s, &objects, &[PathStep::Index(n)]).map_err(err)?
+            s.lookup_path(&objects, &[PathStep::Index(n)])
+                .map_err(err)?
         };
         let id = text(s, &object, "object_id")?;
         if !seen.insert(id.clone()) {

@@ -53,6 +53,7 @@
 
 #![allow(dead_code)]
 
+use super::audit_store::CodecRead;
 use super::object_records;
 use crate::content_bi::{BiBuildInput, ContentBi, PriorState};
 use crate::content_producer::{
@@ -1132,7 +1133,7 @@ fn shape_witnesses(
 /// SHA256 的规范 JSON 输入**流式**写入哈希器：`raw_bars` 直接渲染既有数组根，
 /// 不先 materialize 成整份字符串/`Value`。
 pub(super) fn witness_identity(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecRead + ?Sized),
     object_id: &str,
     slot: usize,
     mi: usize,
@@ -1147,7 +1148,8 @@ pub(super) fn witness_identity(
     hasher.update(format!(r#"{{"mi":{mi},"object_id":"{object_id}","raw_bars":"#).as_bytes());
     {
         let mut writer = DigestWriter(&mut hasher);
-        sc::render_canonical(&mut *store, &raw_bars.content_ref(), &mut writer)
+        store
+            .render_canonical(&raw_bars.content_ref(), &mut writer)
             .map_err(|error| format!("GenError：见证输入流式渲染失败：{error}"))?;
     }
     hasher.update(format!(r#","slot":{slot}}}"#).as_bytes());

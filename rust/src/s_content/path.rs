@@ -43,9 +43,9 @@
 use super::{
     be_u64, body_shape_error, byte_chunk_shape_error, byte_extent_error, checked_frame_len, code,
     digest_at, frame, framed_len, header_extent, is_sequence_tag, length_overflow_error,
-    read_checked, root_string, sequence_shape_error, split_index, tag, unsupported_value_tag_error,
-    write_string_node, CodecError, ContentRef, Kind, LeafIter, NodeDigest, NodeSource, NodeStore,
-    CHUNK_BYTES, CONTENT_FORMAT, MAX_FRAME_LEN,
+    root_string, sequence_shape_error, split_index, tag, unsupported_value_tag_error,
+    write_string_node, CodecContext, CodecError, ContentRef, Kind, LeafIter, NodeDigest,
+    NodeSource, NodeStore, VerifierBody, CHUNK_BYTES, CONTENT_FORMAT, MAX_FRAME_LEN,
 };
 use std::cmp::Ordering;
 
@@ -79,8 +79,8 @@ pub enum PathStep {
 /// 返回的目标 `ContentRef` 由**实际节点**的 tag/body 决定（kind、extent、root 逐项重算）；
 /// 根另核调用方声明的四字段。只核路径触碰到的节点与序列形状：**不是全闭包核验**，
 /// 也不是 publish-valid 证明（同 `content_ref_of` 的口径）。
-pub fn lookup_path(
-    source: &mut dyn NodeSource,
+pub(super) fn lookup_path_ctx(
+    source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
     path: &[PathStep],
 ) -> Result<ContentRef, CodecError> {
@@ -102,8 +102,8 @@ pub fn lookup_path(
 /// Ref 不携带 JsonInner 上下文：此口不接完整 path，也不代替上层 public/template verify。
 /// 调用方只可在明确的完整审计 BudgetNone 分支启用；Some/fragment 保留原读取门序。
 #[doc(hidden)]
-pub fn lookup_array_items(
-    source: &mut dyn NodeSource,
+pub(super) fn lookup_array_items_ctx(
+    source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
 ) -> Result<Vec<ContentRef>, CodecError> {
     let (count, root) = {
@@ -125,7 +125,7 @@ pub fn lookup_array_items(
             }
             SeqNode::Leaf(value) => {
                 source.before_path_index(&[], base_index)?;
-                let (t, body) = read_checked(source, &value)?;
+                let (t, body) = source.read(&value)?;
                 // 保留 descend_seq 的 M 叶拒绝码；其它内部节点沿旧 Value 角色拒绝。
                 if is_sequence_tag(t) {
                     return Err(sequence_shape_error(format!(
@@ -145,8 +145,8 @@ pub fn lookup_array_items(
 /// 根的四字段、每层 k 分解、字段节点及值头均沿既有判据核验；不展开值的子图。
 /// 只按调用方字段清单分配，不按来源声明长度分配；结果不跨调用缓存。
 /// 本口不代替全闭包或字段业务语义核验。
-pub fn lookup_object_fields(
-    source: &mut dyn NodeSource,
+pub(super) fn lookup_object_fields_ctx(
+    source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
     names: &[&str],
 ) -> Result<std::collections::BTreeMap<String, ContentRef>, CodecError> {
@@ -155,8 +155,8 @@ pub fn lookup_object_fields(
 
 /// 一次遍历对象字段序列，取出指定的小字段集合。其它字段保留但不展开其值。
 /// 返回规模只由请求字段清单决定；这不是 exact schema 或完整闭包证明。
-pub fn lookup_object_fields_subset(
-    source: &mut dyn NodeSource,
+pub(super) fn lookup_object_fields_subset_ctx(
+    source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
     names: &[&str],
 ) -> Result<std::collections::BTreeMap<String, ContentRef>, CodecError> {
@@ -164,7 +164,7 @@ pub fn lookup_object_fields_subset(
 }
 
 fn object_fields(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
     names: &[&str],
     exact: bool,
@@ -189,7 +189,7 @@ fn object_fields(
     // #1394 C §5：仅完整审计 None 的 Subset，在本次 DFS 中保留前/当前两短键。
     // 字节来自本位置实际读取且完整核验；不按摘要复用，也不携带值/闭包证明。
     let short_keys = !exact && source.audit_full_array_scan();
-    let mut previous_bytes: Option<Vec<u8>> = None;
+    let mut previous_bytes: Option<VerifierBody> = None;
     while let Some((digest, count)) = stack.pop() {
         match read_seq_node(source, &digest, count)? {
             SeqNode::Empty => {}
@@ -207,7 +207,7 @@ fn object_fields(
                 };
                 if let Some(previous) = previous_key.filter(|_| !exact) {
                     let order = match (&previous_bytes, &current_bytes) {
-                        (Some(a), Some(b)) => a.cmp(b),
+                        (Some(a), Some(b)) => a[..].cmp(&b[..]),
                         _ => cmp_key_nodes(source, &previous, &key)?,
                     };
                     match order {
@@ -243,7 +243,7 @@ fn object_fields(
                 {
                     return Err(field_missing_error(expected));
                 }
-                let reference = super::content_ref_of(source, &root_string(&value))?;
+                let reference = super::content_ref_ctx(source, &root_string(&value))?;
                 result.insert((*expected).into(), reference);
                 at += 1;
             }
@@ -258,17 +258,17 @@ fn object_fields(
 /// 长键不具资格，仍交给既有流式比较；短键必须核唯一空/单叶分解、
 /// 实际块角色、精确声明长度和全部 UTF-8。每个逻辑位置重新读当次 F。
 fn read_short_key(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     key: &NodeDigest,
-) -> Result<Option<Vec<u8>>, CodecError> {
+) -> Result<Option<VerifierBody>, CodecError> {
     let (root, declared) = read_string_header(source, key)?;
     if declared > CHUNK_BYTES as u64 {
         return Ok(None);
     }
     let bytes = match read_seq_node(source, &root, u64::from(declared != 0))? {
-        SeqNode::Empty => Vec::new(),
+        SeqNode::Empty => VerifierBody::empty(),
         SeqNode::Leaf(leaf) => {
-            let (t, bytes) = read_checked(source, &leaf)?;
+            let (t, bytes) = source.read(&leaf)?;
             check_chunk(t, &bytes)?;
             if bytes.len() as u64 != declared {
                 return Err(byte_extent_error(bytes.len() as u64, declared));
@@ -282,7 +282,7 @@ fn read_short_key(
 }
 
 fn cmp_field_key(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     key: &NodeDigest,
     bytes: Option<&[u8]>,
     expected: &str,
@@ -294,8 +294,8 @@ fn cmp_field_key(
 }
 
 /// 片段读取共用的序列头检查；不把未读取的子图当作已完整验证。
-pub(super) fn check_range_root(
-    source: &mut dyn NodeSource,
+pub(super) fn check_range_root_ctx(
+    source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
 ) -> Result<(), CodecError> {
     let node = navigate(source, reference, &[], false)?;
@@ -321,8 +321,8 @@ pub(super) fn check_range_root(
 }
 
 /// 按原规范序列位置定位对象键；调用方须有界展开键，值仍按完整路径核上下文。
-pub(super) fn object_key_at(
-    source: &mut dyn NodeSource,
+pub(super) fn object_key_at_ctx(
+    source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
     index: u64,
 ) -> Result<ContentRef, CodecError> {
@@ -354,7 +354,7 @@ pub(super) fn object_key_at(
             }
         }
     }
-    let reference = super::content_ref_of(source, &root_string(&key))?;
+    let reference = super::content_ref_ctx(source, &root_string(&key))?;
     if reference.kind != Kind::String {
         return Err(step_kind_error("对象键", "0x03 字符串", node.tag));
     }
@@ -362,8 +362,8 @@ pub(super) fn object_key_at(
 }
 
 /// 只读取覆盖所求区间的规范字节块；不会线性扫描 offset 之前的叶。
-pub(super) fn bytes_between(
-    source: &mut dyn NodeSource,
+pub(super) fn bytes_between_ctx(
+    source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
     offset: u64,
     end: u64,
@@ -378,14 +378,14 @@ pub(super) fn bytes_between(
     }
     let count = total.div_ceil(CHUNK_BYTES as u64);
     let root = digest_at(&node.body, 8);
-    check_range_root(source, reference)?;
+    check_range_root_ctx(source, reference)?;
     let mut output = Vec::new();
     if offset == end {
         return Ok(output);
     }
     for index in offset / CHUNK_BYTES as u64..=(end - 1) / CHUNK_BYTES as u64 {
         let (_, leaf) = descend_seq(source, &root, count, index)?;
-        let (tag, body) = read_checked(source, &leaf)?;
+        let (tag, body) = source.read(&leaf)?;
         check_chunk(tag, &body)?;
         let start = index * CHUNK_BYTES as u64;
         let expected = (total - start).min(CHUNK_BYTES as u64);
@@ -408,8 +408,8 @@ pub(super) fn bytes_between(
 ///
 /// 返回新根 `ContentRef`。**写成功不是 publish-valid**：请在调用方事务内对结果再跑完整闭包
 /// 核验（`verify_template`）与跨根绑定核对。
-pub fn replace_batch_placeholder(
-    store: &mut dyn NodeStore,
+pub(super) fn replace_batch_placeholder_ctx(
+    store: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
     path: &[PathStep],
     batch_id: &str,
@@ -447,14 +447,12 @@ pub fn replace_batch_placeholder(
     for ancestor in descent.ancestors.iter().rev() {
         match ancestor {
             Ancestor::Array { declared, branches } => {
-                let leaf = frame(tag::SEQ_LEAF, &digest);
-                store.put(leaf, tag::SEQ_LEAF, &digest)?;
+                let leaf = store.emit(tag::SEQ_LEAF, &digest)?;
                 let fields = rebuild_sequence(store, branches, leaf)?;
                 let mut body = Vec::with_capacity(40);
                 body.extend_from_slice(&checked_frame_len(*declared)?);
                 body.extend_from_slice(&fields);
-                digest = frame(tag::ARRAY, &body);
-                store.put(digest, tag::ARRAY, &body)?;
+                digest = store.emit(tag::ARRAY, &body)?;
                 kind = Kind::Array;
                 extent = Some(*declared);
             }
@@ -466,16 +464,13 @@ pub fn replace_batch_placeholder(
                 let mut field_body = [0u8; 64];
                 field_body[..32].copy_from_slice(key);
                 field_body[32..].copy_from_slice(&digest);
-                let field = frame(tag::OBJECT_FIELD, &field_body);
-                store.put(field, tag::OBJECT_FIELD, &field_body)?;
-                let leaf = frame(tag::SEQ_LEAF, &field);
-                store.put(leaf, tag::SEQ_LEAF, &field)?;
+                let field = store.emit(tag::OBJECT_FIELD, &field_body)?;
+                let leaf = store.emit(tag::SEQ_LEAF, &field)?;
                 let fields = rebuild_sequence(store, branches, leaf)?;
                 let mut body = Vec::with_capacity(40);
                 body.extend_from_slice(&checked_frame_len(*declared)?);
                 body.extend_from_slice(&fields);
-                digest = frame(tag::OBJECT, &body);
-                store.put(digest, tag::OBJECT, &body)?;
+                digest = store.emit(tag::OBJECT, &body)?;
                 kind = Kind::Object;
                 extent = Some(*declared);
             }
@@ -519,19 +514,19 @@ struct BranchFrame {
 struct Descent {
     digest: NodeDigest,
     tag: u8,
-    body: Vec<u8>,
+    body: VerifierBody,
     ancestors: Vec<Ancestor>,
 }
 
 /// 沿 path 下行。`forbid_json_text` 为真时（替换）当场拒绝 json_text 步骤。
 fn navigate(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     reference: &ContentRef,
     path: &[PathStep],
     forbid_json_text: bool,
 ) -> Result<Descent, CodecError> {
     let root = reference.digest()?;
-    let (mut cur_tag, mut cur_body) = read_checked(source, &root)?;
+    let (mut cur_tag, mut cur_body) = source.read(&root)?;
     let root_kind = Kind::from_tag(cur_tag).ok_or_else(|| unsupported_value_tag_error(cur_tag))?;
     if root_kind != reference.kind {
         return Err(CodecError::new(
@@ -631,11 +626,11 @@ fn navigate(
 /// `json_inner` 为真表示该位置在某个 json_text 文本视图内部：此处任意深度都不允
 /// 0x07（嵌套文本视图）与 0x08（批次占位）——与 `verify` 的 `Flavor::JsonInner` 同口径。
 fn read_value_node(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     digest: &NodeDigest,
     json_inner: bool,
-) -> Result<(u8, Vec<u8>), CodecError> {
-    let (t, body) = read_checked(source, digest)?;
+) -> Result<(u8, VerifierBody), CodecError> {
+    let (t, body) = source.read(digest)?;
     if Kind::from_tag(t).is_none() {
         return Err(unsupported_value_tag_error(t));
     }
@@ -699,7 +694,7 @@ enum SeqNode {
 /// 单节点核验：摘要↔(tag, body) 重算、tag/长度与期望叶数、分支声明 n 等于期望叶数。
 /// 只核这一个节点（同 `sequence.rs` 的触碰边界口径；更深子树不在本层核）。
 fn read_seq_node(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     digest: &NodeDigest,
     count: u64,
 ) -> Result<SeqNode, CodecError> {
@@ -712,7 +707,7 @@ fn read_seq_node(
         // 空节点由规范唯一确定，但**不能拿摘要代原件**：已触碰的位置仍须读出实际节点，
         // 逐项核 (tag, body) 与摘要——缺原件一律拒绝（同 read_checked 口径）。
         let empty = frame(tag::SEQ_EMPTY, &[]);
-        let (t, body) = read_checked(source, digest)?;
+        let (t, body) = source.read(digest)?;
         if t != tag::SEQ_EMPTY || *digest != empty {
             return Err(sequence_shape_error(format!(
                 "叶数为 0 的序列根必须是空序列节点 {}，实得 tag=0x{t:02x}（{}）",
@@ -725,7 +720,7 @@ fn read_seq_node(
         }
         return Ok(SeqNode::Empty);
     }
-    let (t, body) = read_checked(source, digest)?;
+    let (t, body) = source.read(digest)?;
     if count == 1 {
         if t != tag::SEQ_LEAF {
             return Err(sequence_shape_error(format!(
@@ -778,7 +773,7 @@ fn read_seq_node(
 
 /// 核分支两侧的直接子节点各自应有的叶数（k 规则在本地边界的实例）。
 fn check_branch_children(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     left: &NodeDigest,
     right: &NodeDigest,
     n: u64,
@@ -791,7 +786,7 @@ fn check_branch_children(
 
 /// 按 §5.2 的 k 规则下行到叶位置 `index`（只走一条路径，不展开叶）。
 fn descend_seq(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     root: &NodeDigest,
     count: u64,
     index: u64,
@@ -808,7 +803,7 @@ fn descend_seq(
             SeqNode::Empty => return Err(index_range_error(index, count)),
             SeqNode::Leaf(leaf) => {
                 // 叶本身若是序列节点，规范分解就已被破坏（与 verify 同口径）。
-                let (t, _body) = read_checked(source, &leaf)?;
+                let (t, _body) = source.read(&leaf)?;
                 if is_sequence_tag(t) {
                     return Err(sequence_shape_error(format!(
                         "元素序列的叶不能又是序列节点（tag={t:02x}）"
@@ -845,7 +840,7 @@ fn descend_seq(
 
 /// 沿 k 规则下行到最左（`right=false`）／最右（`right=true`）叶。
 fn boundary_leaf(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     root: &NodeDigest,
     count: u64,
     right: bool,
@@ -880,10 +875,10 @@ fn boundary_leaf(
 
 /// 读 0x14 字段节点，返回 (键摘要, 值摘要)。
 fn read_field(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     digest: &NodeDigest,
 ) -> Result<(NodeDigest, NodeDigest), CodecError> {
-    let (t, body) = read_checked(source, digest)?;
+    let (t, body) = source.read(digest)?;
     if t != tag::OBJECT_FIELD || body.len() != 64 {
         return Err(sequence_shape_error(format!(
             "对象字段序列的叶必须是 0x14 字段节点（64 字节 body），读到 tag={t:02x}（{} 字节）",
@@ -898,7 +893,7 @@ fn read_field(
 /// 每层用左子树末键与右子树首键核一遍规范键序（左 < 右），再以左子树末键决定去向：
 /// `wanted <= 左末键` 走左，否则走右。查找不到即 `path_field_missing`。
 fn find_field(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     root: &NodeDigest,
     count: u64,
     name: &str,
@@ -967,10 +962,10 @@ fn find_field(
 
 /// 读字符串节点 header，返回 (字节序列根, 声明字节数)。
 fn read_string_header(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     digest: &NodeDigest,
 ) -> Result<(NodeDigest, u64), CodecError> {
-    let (t, body) = read_checked(source, digest)?;
+    let (t, body) = source.read(digest)?;
     if t != tag::STRING {
         return Err(CodecError::new(
             code::VALUE_KIND,
@@ -984,7 +979,7 @@ fn read_string_header(
 /// 键与目标字段名的字节序比较：首个差异即定序，不收集整串。
 /// 读到全部字节且长度一致才算相等；键更长为 Greater、更短为 Less。
 fn cmp_key_bytes(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     key: &NodeDigest,
     wanted: &[u8],
 ) -> Result<Ordering, CodecError> {
@@ -992,7 +987,7 @@ fn cmp_key_bytes(
     let mut iter = LeafIter::new(bytes_root);
     let mut pos = 0usize;
     let mut total: u64 = 0;
-    while let Some((lt, _leaf, chunk)) = iter.next(source)? {
+    while let Some((lt, _leaf, chunk)) = iter.next_context(source)? {
         if lt != tag::BYTES_CHUNK {
             return Err(byte_chunk_shape_error(format!(
                 "字节序列的叶必须是 0x10 块节点，读到 tag={lt:02x}"
@@ -1005,7 +1000,7 @@ fn cmp_key_bytes(
             )));
         }
         total += chunk.len() as u64;
-        for &byte in &chunk {
+        for &byte in chunk.iter() {
             if pos == wanted.len() {
                 return Ok(Ordering::Greater);
             }
@@ -1027,7 +1022,7 @@ fn cmp_key_bytes(
 
 /// 两个键摘要的字节序比较（规范键序判定用）：同摘要即同键，不读内容。
 fn cmp_key_nodes(
-    source: &mut dyn NodeSource,
+    source: &mut CodecContext<'_, '_>,
     a: &NodeDigest,
     b: &NodeDigest,
 ) -> Result<Ordering, CodecError> {
@@ -1038,15 +1033,15 @@ fn cmp_key_nodes(
     let (root_b, declared_b) = read_string_header(source, b)?;
     let mut iter_a = LeafIter::new(root_a);
     let mut iter_b = LeafIter::new(root_b);
-    let mut buf_a: Vec<u8> = Vec::new();
-    let mut buf_b: Vec<u8> = Vec::new();
+    let mut buf_a = VerifierBody::empty();
+    let mut buf_b = VerifierBody::empty();
     let mut pos_a = 0usize;
     let mut pos_b = 0usize;
     let mut total_a: u64 = 0;
     let mut total_b: u64 = 0;
     loop {
         if pos_a == buf_a.len() {
-            match iter_a.next(source)? {
+            match iter_a.next_context(source)? {
                 Some((lt, _leaf, chunk)) => {
                     check_chunk(lt, &chunk)?;
                     total_a += chunk.len() as u64;
@@ -1057,7 +1052,7 @@ fn cmp_key_nodes(
             }
         }
         if pos_b == buf_b.len() {
-            match iter_b.next(source)? {
+            match iter_b.next_context(source)? {
                 Some((lt, _leaf, chunk)) => {
                     check_chunk(lt, &chunk)?;
                     total_b += chunk.len() as u64;
@@ -1136,7 +1131,7 @@ fn check_batch_id(batch_id: &str) -> Result<(), CodecError> {
 
 /// 写 batch_id 字符串值：复用编码面的字符串节点写法（0x03 = U64 长度 + 字节序列根）。
 fn write_batch_string(
-    store: &mut dyn NodeStore,
+    store: &mut CodecContext<'_, '_>,
     text: &str,
 ) -> Result<(NodeDigest, Kind, Option<u64>), CodecError> {
     let n = u64::try_from(text.len())
@@ -1147,7 +1142,7 @@ fn write_batch_string(
 
 /// 自内向外重建分支链：每层写入同一 n 的新 0x13 节点，另一侧子树原样引用。
 fn rebuild_sequence(
-    store: &mut dyn NodeStore,
+    store: &mut CodecContext<'_, '_>,
     branches: &[BranchFrame],
     mut child: NodeDigest,
 ) -> Result<NodeDigest, CodecError> {
@@ -1161,9 +1156,62 @@ fn rebuild_sequence(
             body[8..40].copy_from_slice(&f.left);
             body[40..72].copy_from_slice(&child);
         }
-        let digest = frame(tag::SEQ_BRANCH, &body);
-        store.put(digest, tag::SEQ_BRANCH, &body)?;
+        let digest = store.emit(tag::SEQ_BRANCH, &body)?;
         child = digest;
     }
     Ok(child)
+}
+
+pub fn lookup_path(
+    s: &mut dyn NodeSource,
+    r: &ContentRef,
+    p: &[PathStep],
+) -> Result<ContentRef, CodecError> {
+    lookup_path_ctx(&mut CodecContext::Source(s), r, p)
+}
+pub fn lookup_array_items(
+    s: &mut dyn NodeSource,
+    r: &ContentRef,
+) -> Result<Vec<ContentRef>, CodecError> {
+    lookup_array_items_ctx(&mut CodecContext::Source(s), r)
+}
+pub fn lookup_object_fields(
+    s: &mut dyn NodeSource,
+    r: &ContentRef,
+    n: &[&str],
+) -> Result<std::collections::BTreeMap<String, ContentRef>, CodecError> {
+    lookup_object_fields_ctx(&mut CodecContext::Source(s), r, n)
+}
+pub fn lookup_object_fields_subset(
+    s: &mut dyn NodeSource,
+    r: &ContentRef,
+    n: &[&str],
+) -> Result<std::collections::BTreeMap<String, ContentRef>, CodecError> {
+    lookup_object_fields_subset_ctx(&mut CodecContext::Source(s), r, n)
+}
+pub fn replace_batch_placeholder(
+    s: &mut dyn NodeStore,
+    r: &ContentRef,
+    p: &[PathStep],
+    b: &str,
+) -> Result<ContentRef, CodecError> {
+    replace_batch_placeholder_ctx(&mut CodecContext::Store(s), r, p, b)
+}
+pub(super) fn check_range_root(s: &mut dyn NodeSource, r: &ContentRef) -> Result<(), CodecError> {
+    check_range_root_ctx(&mut CodecContext::Source(s), r)
+}
+pub(super) fn object_key_at(
+    s: &mut dyn NodeSource,
+    r: &ContentRef,
+    i: u64,
+) -> Result<ContentRef, CodecError> {
+    object_key_at_ctx(&mut CodecContext::Source(s), r, i)
+}
+pub(super) fn bytes_between(
+    s: &mut dyn NodeSource,
+    r: &ContentRef,
+    o: u64,
+    e: u64,
+) -> Result<Vec<u8>, CodecError> {
+    bytes_between_ctx(&mut CodecContext::Source(s), r, o, e)
 }

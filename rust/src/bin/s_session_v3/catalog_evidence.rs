@@ -20,6 +20,7 @@
 
 #![allow(dead_code)] // S3 发布/历史接线由主控在下游切片落地；本模块 API 现由本文件测试消费。
 
+use super::audit_store::CodecRead;
 use crate::{
     canonical_json, content_manifest, content_manifest::ManifestMetadata, tb02a, tb02a_facts,
 };
@@ -73,11 +74,19 @@ fn f(key: &str) -> PathStep {
     PathStep::Field(key.into())
 }
 
-fn field(s: &mut dyn NodeSource, root: &ContentRef, key: &str) -> Result<ContentRef, String> {
-    lookup_path(s, root, &[f(key)]).map_err(err)
+fn field(
+    s: &mut (impl CodecRead + ?Sized),
+    root: &ContentRef,
+    key: &str,
+) -> Result<ContentRef, String> {
+    s.lookup_path(root, &[f(key)]).map_err(err)
 }
 
-fn scalar(s: &mut dyn NodeSource, root: &ContentRef, key: &str) -> Result<Value, String> {
+fn scalar(
+    s: &mut (impl CodecRead + ?Sized),
+    root: &ContentRef,
+    key: &str,
+) -> Result<Value, String> {
     let child = field(s, root, key)?;
     if !matches!(
         child.kind,
@@ -86,18 +95,22 @@ fn scalar(s: &mut dyn NodeSource, root: &ContentRef, key: &str) -> Result<Value,
         return Err(err(format!("{key} 不是标量")));
     }
     let mut bytes = Vec::new();
-    sc::render_canonical(s, &child, &mut bytes).map_err(err)?;
+    s.render_canonical(&child, &mut bytes).map_err(err)?;
     strict_json(&bytes).map_err(err)
 }
 
-fn text(s: &mut dyn NodeSource, root: &ContentRef, key: &str) -> Result<String, String> {
+fn text(s: &mut (impl CodecRead + ?Sized), root: &ContentRef, key: &str) -> Result<String, String> {
     scalar(s, root, key)?
         .as_str()
         .map(str::to_owned)
         .ok_or_else(|| err(format!("{key} 不是文本")))
 }
 
-fn array_field(s: &mut dyn NodeSource, root: &ContentRef, key: &str) -> Result<ContentRef, String> {
+fn array_field(
+    s: &mut (impl CodecRead + ?Sized),
+    root: &ContentRef,
+    key: &str,
+) -> Result<ContentRef, String> {
     let child = field(s, root, key)?;
     if child.kind != Kind::Array {
         return Err(err(format!("{key} 不是数组")));
@@ -106,7 +119,7 @@ fn array_field(s: &mut dyn NodeSource, root: &ContentRef, key: &str) -> Result<C
 }
 
 /// 精确十进制计数（证据里按规范十进制文本声明）。
-fn count(s: &mut dyn NodeSource, root: &ContentRef, key: &str) -> Result<i64, String> {
+fn count(s: &mut (impl CodecRead + ?Sized), root: &ContentRef, key: &str) -> Result<i64, String> {
     parse_canonical_i64(&text(s, root, key)?, key).map_err(err)
 }
 
@@ -154,7 +167,7 @@ fn require_ohlc(profile_id: &str) -> Result<(), String> {
 
 /// 生成态最终 `catalog_axes` 值边；未 finish 的草案（无该字段）即拒绝，不假空。
 fn generated_axes(
-    s: &mut dyn NodeSource,
+    s: &mut (impl CodecRead + ?Sized),
     generated_state: &ContentRef,
 ) -> Result<ContentRef, String> {
     if generated_state.kind != Kind::Object {
@@ -205,7 +218,10 @@ struct AxisState {
 }
 
 /// 13 轴字段集合与小状态形状核验；返回每轴的状态文本与 evidence 值边。
-fn axes_entries(s: &mut dyn NodeSource, axes: &ContentRef) -> Result<Vec<AxisState>, String> {
+fn axes_entries(
+    s: &mut (impl CodecRead + ?Sized),
+    axes: &ContentRef,
+) -> Result<Vec<AxisState>, String> {
     if axes.kind != Kind::Object || axes.extent != Some(AXIS_IDS.len() as u64) {
         return Err(err(format!(
             "目录轴根不是13轴对象（extent={:?}）",

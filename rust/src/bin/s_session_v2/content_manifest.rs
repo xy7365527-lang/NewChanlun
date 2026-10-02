@@ -5,10 +5,10 @@
 //! 模板内 0x08 的业务许可、对象/来源/Delta 对拍仍由正式发布者核验。
 #![allow(dead_code)]
 
+use crate::v3::audit_store::{CodecRead, CodecStore};
 use newchan_rust::s_content::{
-    self,
-    path::{lookup_path, PathStep},
-    Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, NumberToken, Value as V,
+    self, path::PathStep, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, NumberToken,
+    Value as V,
 };
 use newchan_rust::session_protocol::{nonnegative, positive};
 use std::collections::BTreeMap;
@@ -191,7 +191,7 @@ pub(crate) fn assemble_unpublished_in_store(
             "index_frontier",
         )?;
         let evidence = field(store, root, "catalog_evidence")?;
-        let evidence_batch = lookup_path(store, &evidence, &[PathStep::Field("batch_id".into())])?;
+        let evidence_batch = store.lookup_path(&evidence, &[PathStep::Field("batch_id".into())])?;
         require_kind(
             &evidence_batch,
             Kind::TemplateBatch,
@@ -278,50 +278,47 @@ pub(crate) fn assemble_unpublished_in_store(
             text(source.attempt_index.to_string()),
         ),
     ]);
-    let value = s_content::write_template(
-        store,
-        &V::Object(vec![
-            ("schema_revision".into(), text("s-batch-manifest/1")),
-            ("content_format".into(), text(s_content::CONTENT_FORMAT)),
-            ("protocol_revision".into(), text("s-session/3")),
-            ("session_id".into(), text(&metadata.session_id)),
-            (
-                "session_generation".into(),
-                text(&metadata.session_generation),
-            ),
-            ("writer_epoch".into(), text(&metadata.writer_epoch)),
-            ("generation".into(), text(metadata.generation.to_string())),
-            ("base_cut".into(), text(&metadata.base_cut)),
-            ("structure_cut".into(), text(&metadata.structure_cut)),
-            (
-                "input_frontier".into(),
-                text(metadata.input_frontier.to_string()),
-            ),
-            ("source_commit".into(), source_commit),
-            ("clock_plan_hash".into(), text(&metadata.clock_plan_hash)),
-            (
-                "semantic_commit_ns".into(),
-                text(&metadata.semantic_commit_ns),
-            ),
-            ("profile_id".into(), text(&metadata.profile_id)),
-            ("profile_hash".into(), text(&metadata.profile_hash)),
-            ("rule_revision".into(), text(&metadata.rule_revision)),
-            ("catalog_revision".into(), text(&metadata.catalog_revision)),
-            ("scope".into(), V::Edge(metadata.scope.digest()?)),
-            (
-                "generated_state".into(),
-                V::Edge(roots.generated_state.digest()?),
-            ),
-            (
-                "publication_template".into(),
-                V::Edge(roots.publication_template.digest()?),
-            ),
-            (
-                "delta_template".into(),
-                V::Edge(roots.delta_template.digest()?),
-            ),
-        ]),
-    )?;
+    let value = store.write_template(&V::Object(vec![
+        ("schema_revision".into(), text("s-batch-manifest/1")),
+        ("content_format".into(), text(s_content::CONTENT_FORMAT)),
+        ("protocol_revision".into(), text("s-session/3")),
+        ("session_id".into(), text(&metadata.session_id)),
+        (
+            "session_generation".into(),
+            text(&metadata.session_generation),
+        ),
+        ("writer_epoch".into(), text(&metadata.writer_epoch)),
+        ("generation".into(), text(metadata.generation.to_string())),
+        ("base_cut".into(), text(&metadata.base_cut)),
+        ("structure_cut".into(), text(&metadata.structure_cut)),
+        (
+            "input_frontier".into(),
+            text(metadata.input_frontier.to_string()),
+        ),
+        ("source_commit".into(), source_commit),
+        ("clock_plan_hash".into(), text(&metadata.clock_plan_hash)),
+        (
+            "semantic_commit_ns".into(),
+            text(&metadata.semantic_commit_ns),
+        ),
+        ("profile_id".into(), text(&metadata.profile_id)),
+        ("profile_hash".into(), text(&metadata.profile_hash)),
+        ("rule_revision".into(), text(&metadata.rule_revision)),
+        ("catalog_revision".into(), text(&metadata.catalog_revision)),
+        ("scope".into(), V::Edge(metadata.scope.digest()?)),
+        (
+            "generated_state".into(),
+            V::Edge(roots.generated_state.digest()?),
+        ),
+        (
+            "publication_template".into(),
+            V::Edge(roots.publication_template.digest()?),
+        ),
+        (
+            "delta_template".into(),
+            V::Edge(roots.delta_template.digest()?),
+        ),
+    ]))?;
     let identity = s_content::frame(0x21, &value.digest);
     let batch_id = format!("batch3-{}", &s_content::root_string(&identity)[4..]);
     Ok(UnpublishedManifest { value, batch_id })
@@ -396,14 +393,18 @@ fn require_kind(value: &ContentRef, kind: Kind, name: &str) -> Result<(), CodecE
     Ok(())
 }
 
-fn field(_store: &mut dyn NodeStore, root: &Fields, name: &str) -> Result<ContentRef, CodecError> {
+fn field(
+    _store: &mut (impl CodecStore + ?Sized),
+    root: &Fields,
+    name: &str,
+) -> Result<ContentRef, CodecError> {
     root.get(name)
         .cloned()
         .ok_or_else(|| CodecError::new("manifest_schema", format!("根缺字段{name}")))
 }
 
 fn exact_object(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     root: &ContentRef,
     fields: &[&str],
     allow_axes: bool,
@@ -421,7 +422,7 @@ fn exact_object(
     if has_axes {
         names.push("catalog_axes");
     }
-    let values = s_content::path::lookup_object_fields(store, root, &names)?;
+    let values = store.lookup_object_fields(root, &names)?;
     if has_axes {
         require_kind(&values["catalog_axes"], Kind::Object, "catalog_axes")?;
     }
@@ -429,7 +430,7 @@ fn exact_object(
 }
 
 fn match_digest(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     root: &Fields,
     key: &str,
     expected: NodeDigest,
@@ -444,12 +445,12 @@ fn match_digest(
 }
 
 fn match_value(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     root: &Fields,
     key: &str,
     expected: V,
 ) -> Result<(), CodecError> {
-    let expected = s_content::write_value(store, &expected)?.digest;
+    let expected = store.write_value(&expected)?.digest;
     match_digest(store, root, key, expected)
 }
 

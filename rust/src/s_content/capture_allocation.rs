@@ -266,3 +266,9 @@ impl CaptureSlab {
         body::MeteredBody::copy_from(bytes, &self.body.budget)
     }
 }
+
+impl CaptureSlab {
+    pub(super) fn owned_budget(&self) -> OwnedBudget {
+        self.body.budget.clone()
+    }
+}

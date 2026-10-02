@@ -34,6 +34,10 @@ pub const MAX_FRAME_LEN: u64 = (1u64 << 63) - 1;
 pub mod access;
 #[doc(hidden)]
 pub mod capture_allocation;
+mod closed;
+#[doc(hidden)]
+pub use closed::ClosedCapturedOwner;
+use closed::CodecContext;
 /// 整次操作的累计资源与期限（#1394 采纳 C §5.6.1）。
 pub mod job;
 
@@ -798,28 +802,37 @@ fn parse_canonical_u64(text: &str, what: &str) -> Result<u64, CodecError> {
 
 /// 写入字节序列 B：落块节点与序列节点，返回根摘要。
 pub fn write_bytes(sink: &mut dyn NodeSink, bytes: &[u8]) -> Result<NodeDigest, CodecError> {
-    if bytes.is_empty() {
-        let digest = frame(tag::SEQ_EMPTY, &[]);
-        sink.put(digest, tag::SEQ_EMPTY, &[])?;
-        return Ok(digest);
-    }
-    let mut leaves = Vec::with_capacity(bytes.len().div_ceil(CHUNK_BYTES));
-    for chunk in bytes.chunks(CHUNK_BYTES) {
-        let digest = frame(tag::BYTES_CHUNK, chunk);
-        sink.put(digest, tag::BYTES_CHUNK, chunk)?;
-        leaves.push(digest);
-    }
-    write_sequence(sink, &leaves)
+    write_bytes_ctx(&mut CodecContext::Sink(sink), bytes)
 }
-
-/// 写入序列节点 M(leaves)：空 → 0x11；单叶 → 0x12；其余按 k 规则分解。
 pub fn write_sequence(
     sink: &mut dyn NodeSink,
     leaves: &[NodeDigest],
 ) -> Result<NodeDigest, CodecError> {
+    write_sequence_ctx(&mut CodecContext::Sink(sink), leaves)
+}
+fn write_bytes_ctx(
+    sink: &mut CodecContext<'_, '_>,
+    bytes: &[u8],
+) -> Result<NodeDigest, CodecError> {
+    if bytes.is_empty() {
+        let digest = put_node(sink, tag::SEQ_EMPTY, &[])?;
+        return Ok(digest);
+    }
+    let mut leaves = Vec::with_capacity(bytes.len().div_ceil(CHUNK_BYTES));
+    for chunk in bytes.chunks(CHUNK_BYTES) {
+        let digest = put_node(sink, tag::BYTES_CHUNK, chunk)?;
+        leaves.push(digest);
+    }
+    write_sequence_ctx(sink, &leaves)
+}
+
+/// 写入序列节点 M(leaves)：空 → 0x11；单叶 → 0x12；其余按 k 规则分解。
+fn write_sequence_ctx(
+    sink: &mut CodecContext<'_, '_>,
+    leaves: &[NodeDigest],
+) -> Result<NodeDigest, CodecError> {
     if leaves.is_empty() {
-        let digest = frame(tag::SEQ_EMPTY, &[]);
-        sink.put(digest, tag::SEQ_EMPTY, &[])?;
+        let digest = put_node(sink, tag::SEQ_EMPTY, &[])?;
         return Ok(digest);
     }
     if u64::try_from(leaves.len()).map_err(|_| {
@@ -836,8 +849,7 @@ pub fn write_sequence(
     }
     let mut stack: Vec<(u64, NodeDigest)> = Vec::new();
     for leaf in leaves {
-        let leaf_node = frame(tag::SEQ_LEAF, leaf);
-        sink.put(leaf_node, tag::SEQ_LEAF, leaf)?;
+        let leaf_node = put_node(sink, tag::SEQ_LEAF, leaf)?;
         stack.push((1, leaf_node));
         while stack.len() >= 2 {
             let (n1, d1) = stack[stack.len() - 1];
@@ -869,7 +881,7 @@ pub fn write_sequence(
 }
 
 fn put_branch(
-    sink: &mut dyn NodeSink,
+    sink: &mut CodecContext<'_, '_>,
     left: &NodeDigest,
     right: &NodeDigest,
     n: u64,
@@ -878,8 +890,7 @@ fn put_branch(
     body[..8].copy_from_slice(&checked_frame_len(n)?);
     body[8..40].copy_from_slice(left);
     body[40..72].copy_from_slice(right);
-    let digest = frame(tag::SEQ_BRANCH, &body);
-    sink.put(digest, tag::SEQ_BRANCH, &body)?;
+    let digest = put_node(sink, tag::SEQ_BRANCH, &body)?;
     Ok(digest)
 }
 
@@ -888,15 +899,19 @@ fn put_branch(
 /// 写入 ≠ publish-valid：`Value::Edge` 指向的子根不在本次写入的核验范围内，
 /// 也可能指向缺失节点；publish 前必须过 `verify`。
 pub fn write_value(sink: &mut dyn NodeSink, value: &Value) -> Result<Built, CodecError> {
-    write_in_mode(sink, value, Mode::Public)
+    write_in_mode(&mut CodecContext::Sink(sink), value, Mode::Public)
 }
 
 /// 写入值树（显式模板上下文）：允许 `Value::BatchSelf`。
 pub fn write_template(sink: &mut dyn NodeSink, value: &Value) -> Result<Built, CodecError> {
-    write_in_mode(sink, value, Mode::Template)
+    write_in_mode(&mut CodecContext::Sink(sink), value, Mode::Template)
 }
 
-fn write_in_mode(sink: &mut dyn NodeSink, value: &Value, mode: Mode) -> Result<Built, CodecError> {
+fn write_in_mode(
+    sink: &mut CodecContext<'_, '_>,
+    value: &Value,
+    mode: Mode,
+) -> Result<Built, CodecError> {
     let (kind, extent) = value_kind_extent(value, mode)?;
     let mut steps = vec![WStep::Value(value)];
     let mut done: Vec<NodeDigest> = Vec::new();
@@ -907,7 +922,7 @@ fn write_in_mode(sink: &mut dyn NodeSink, value: &Value, mode: Mode) -> Result<B
             WStep::FinishArray { base } => {
                 let children = &done[base..];
                 let n = u64::try_from(children.len()).expect("元素数可表达");
-                let fields = write_sequence(sink, children)?;
+                let fields = write_sequence_ctx(sink, children)?;
                 let mut body = Vec::with_capacity(40);
                 body.extend_from_slice(&checked_frame_len(n)?);
                 body.extend_from_slice(&fields);
@@ -941,7 +956,7 @@ fn write_in_mode(sink: &mut dyn NodeSink, value: &Value, mode: Mode) -> Result<B
                     body[32..].copy_from_slice(&done[base + i]);
                     field_digests.push(put_node(sink, tag::OBJECT_FIELD, &body)?);
                 }
-                let fields = write_sequence(sink, &field_digests)?;
+                let fields = write_sequence_ctx(sink, &field_digests)?;
                 let mut body = Vec::with_capacity(40);
                 body.extend_from_slice(&checked_frame_len(n)?);
                 body.extend_from_slice(&fields);
@@ -978,15 +993,16 @@ enum WStep<'a> {
     FinishJsonText { base: usize },
 }
 
-fn put_node(sink: &mut dyn NodeSink, t: u8, body: &[u8]) -> Result<NodeDigest, CodecError> {
-    let digest = frame(t, body);
-    sink.put(digest, t, body)?;
-    Ok(digest)
+fn put_node(sink: &mut CodecContext<'_, '_>, t: u8, body: &[u8]) -> Result<NodeDigest, CodecError> {
+    sink.emit(t, body)
 }
 
-fn write_string_node(sink: &mut dyn NodeSink, text: &str) -> Result<NodeDigest, CodecError> {
+fn write_string_node(
+    sink: &mut CodecContext<'_, '_>,
+    text: &str,
+) -> Result<NodeDigest, CodecError> {
     let bytes = text.as_bytes();
-    let root = write_bytes(sink, bytes)?;
+    let root = write_bytes_ctx(sink, bytes)?;
     let mut body = Vec::with_capacity(40);
     body.extend_from_slice(&checked_frame_len(
         u64::try_from(bytes.len()).expect("字节数可表达"),
@@ -995,8 +1011,12 @@ fn write_string_node(sink: &mut dyn NodeSink, text: &str) -> Result<NodeDigest, 
     put_node(sink, tag::STRING, &body)
 }
 
-fn write_byte_node(sink: &mut dyn NodeSink, t: u8, bytes: &[u8]) -> Result<NodeDigest, CodecError> {
-    let root = write_bytes(sink, bytes)?;
+fn write_byte_node(
+    sink: &mut CodecContext<'_, '_>,
+    t: u8,
+    bytes: &[u8],
+) -> Result<NodeDigest, CodecError> {
+    let root = write_bytes_ctx(sink, bytes)?;
     let mut body = Vec::with_capacity(40);
     body.extend_from_slice(&checked_frame_len(
         u64::try_from(bytes.len()).expect("字节数可表达"),
@@ -1034,7 +1054,7 @@ fn value_kind_extent(value: &Value, mode: Mode) -> Result<(Kind, Option<u64>), C
 }
 
 fn write_value_step<'a>(
-    sink: &mut dyn NodeSink,
+    sink: &mut CodecContext<'_, '_>,
     value: &'a Value,
     mode: Mode,
     steps: &mut Vec<WStep<'a>>,
@@ -1080,7 +1100,7 @@ fn write_value_step<'a>(
 }
 
 fn write_json_step<'a>(
-    sink: &mut dyn NodeSink,
+    sink: &mut CodecContext<'_, '_>,
     value: &'a JsonValue,
     steps: &mut Vec<WStep<'a>>,
     done: &mut Vec<NodeDigest>,
@@ -1520,6 +1540,12 @@ impl LeafIter {
     ) -> Result<Option<(u8, NodeDigest, VerifierBody)>, CodecError> {
         self.next_with(|d| read_body_checked(source, capture, d))
     }
+    fn next_context(
+        &mut self,
+        source: &mut CodecContext<'_, '_>,
+    ) -> Result<Option<(u8, NodeDigest, VerifierBody)>, CodecError> {
+        self.next_with(|d| source.read(d))
+    }
     fn next_with<B: std::ops::Deref<Target = [u8]>>(
         &mut self,
         mut read: impl FnMut(&NodeDigest) -> Result<(u8, B), CodecError>,
@@ -1697,9 +1723,8 @@ impl NodeSource for CaptureReader<'_> {
     }
 }
 
-struct Verifier<'a> {
-    closed_body_capture: Option<&'a AuditCapture>,
-    source: &'a mut dyn NodeSource,
+struct Verifier<'a, 'capture> {
+    source: CodecContext<'a, 'capture>,
     mode: Mode,
     /// 已核过的 (摘要, 上下文)。
     seen: HashSet<(NodeDigest, Flavor)>,
@@ -1714,20 +1739,16 @@ struct Verifier<'a> {
     key_cmp: HashMap<(NodeDigest, NodeDigest), std::cmp::Ordering>,
 }
 
-impl<'a> Verifier<'a> {
-    // 私有且只接具体 CaptureReader。来源和 capture 引用来自同一 owner。
+impl<'a, 'capture> Verifier<'a, 'capture> {
+    // #1394 Root 内部实施裁定：具体capture与私有context闭合，不接受dyn成功token。
     fn with_memo_capture(source: &'a mut CaptureReader<'_>, mode: Mode, memo: AuditMemo) -> Self {
-        let capture = source.0;
-        let mut verifier = Self::with_memo(source, mode, memo);
-        if matches!(capture.nodes, CaptureNodes::AllocationPrototype(_)) {
-            verifier.closed_body_capture = Some(capture);
-        }
-        verifier
+        Self::with_context(CodecContext::Capture(source.0), mode, memo)
     }
-
     fn with_memo(source: &'a mut dyn NodeSource, mode: Mode, memo: AuditMemo) -> Self {
+        Self::with_context(CodecContext::Source(source), mode, memo)
+    }
+    fn with_context(source: CodecContext<'a, 'capture>, mode: Mode, memo: AuditMemo) -> Self {
         Self {
-            closed_body_capture: None,
             source,
             mode,
             seen: memo.seen,
@@ -1754,24 +1775,11 @@ impl<'a> Verifier<'a> {
     }
 
     fn new(source: &'a mut dyn NodeSource, mode: Mode) -> Self {
-        Self {
-            closed_body_capture: None,
-            source,
-            mode,
-            seen: HashSet::new(),
-            pushed: HashSet::new(),
-            todo: Vec::new(),
-            read_digests: HashSet::new(),
-            bytes_memo: HashMap::new(),
-            elem_memo: HashMap::new(),
-            field_memo: HashMap::new(),
-            key_cmp: HashMap::new(),
-        }
+        Self::with_context(CodecContext::Source(source), mode, AuditMemo::default())
     }
-
     /// 读节点 + 核摘要 + 记唯一节点。
     fn read_node(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
-        let got = read_body_checked(self.source, self.closed_body_capture, digest)?;
+        let got = self.source.read(digest)?;
         self.read_digests.insert(*digest);
         Ok(got)
     }
@@ -2269,7 +2277,7 @@ impl<'a> Verifier<'a> {
         let mut dig_b: Option<NodeDigest> = None;
         loop {
             if pos_a == buf_a.len() {
-                match iter_a.next_body(self.source, self.closed_body_capture)? {
+                match iter_a.next_context(&mut self.source)? {
                     Some((t, d, body)) => {
                         if t != tag::BYTES_CHUNK {
                             return Err(byte_chunk_shape_error(format!(
@@ -2287,7 +2295,7 @@ impl<'a> Verifier<'a> {
                 }
             }
             if pos_b == buf_b.len() {
-                match iter_b.next_body(self.source, self.closed_body_capture)? {
+                match iter_b.next_context(&mut self.source)? {
                     Some((t, d, body)) => {
                         if t != tag::BYTES_CHUNK {
                             return Err(byte_chunk_shape_error(format!(
@@ -2479,8 +2487,14 @@ impl<'a> Verifier<'a> {
 /// 只核该节点自身与摘要：**不是 publish-valid 证明**（闭包未核、也没有来源一致性证明）；
 /// publish 前必须再过 `verify`。
 pub fn content_ref_of(source: &mut dyn NodeSource, root: &str) -> Result<ContentRef, CodecError> {
+    content_ref_ctx(&mut CodecContext::Source(source), root)
+}
+fn content_ref_ctx(
+    source: &mut CodecContext<'_, '_>,
+    root: &str,
+) -> Result<ContentRef, CodecError> {
     let digest = parse_root(root)?;
-    let (t, body) = read_checked(source, &digest)?;
+    let (t, body) = source.read(&digest)?;
     let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
     let extent = header_extent(t, &body)?;
     Ok(ContentRef {
@@ -2673,14 +2687,14 @@ enum RTask {
     },
 }
 
-struct Renderer<'a> {
-    source: &'a mut dyn NodeSource,
+struct Renderer<'a, 'capture> {
+    source: CodecContext<'a, 'capture>,
     out: &'a mut dyn Write,
     escaping: bool,
     esc_decoder: Utf8Decoder,
 }
 
-impl Renderer<'_> {
+impl Renderer<'_, '_> {
     /// 写出字节：处于转义层时逐字符转义，否则原样写出。
     fn emit(&mut self, bytes: &[u8]) -> Result<(), CodecError> {
         let Renderer {
@@ -2730,7 +2744,7 @@ impl Renderer<'_> {
                         continue;
                     }
                     let (lt, leaf, _body) = iter
-                        .next(&mut *self.source)?
+                        .next_context(&mut self.source)?
                         .ok_or_else(|| sequence_shape_error("元素序列提前结束"))?;
                     if Kind::from_tag(lt).is_none() {
                         return Err(unsupported_value_tag_error(lt));
@@ -2757,7 +2771,7 @@ impl Renderer<'_> {
                         continue;
                     }
                     let (ft, _field, fbody) = iter
-                        .next(&mut *self.source)?
+                        .next_context(&mut self.source)?
                         .ok_or_else(|| sequence_shape_error("字段序列提前结束"))?;
                     if ft != tag::OBJECT_FIELD || fbody.len() != 64 {
                         return Err(sequence_shape_error(format!(
@@ -2780,7 +2794,7 @@ impl Renderer<'_> {
                     }
                 }
                 RTask::Value(digest, flavor) => {
-                    let (t, body) = read_checked(self.source, &digest)?;
+                    let (t, body) = self.source.read(&digest)?;
                     match t {
                         tag::NULL => tasks.push(RTask::Emit(b"null")),
                         tag::BOOL_FALSE => tasks.push(RTask::Emit(b"false")),
@@ -2851,7 +2865,7 @@ impl Renderer<'_> {
 
     /// 字符串内容：按块惰性取出、跨块增量解码、本层转义后经当前转义层写出。
     fn write_string_body(&mut self, digest: &NodeDigest) -> Result<(), CodecError> {
-        let (t, body) = read_checked(self.source, digest)?;
+        let (t, body) = self.source.read(digest)?;
         if t != tag::STRING {
             return Err(CodecError::new(
                 code::VALUE_KIND,
@@ -2866,7 +2880,7 @@ impl Renderer<'_> {
         loop {
             let next = {
                 let Renderer { source, .. } = self;
-                iter.next(&mut **source)?
+                iter.next_context(source)?
             };
             let Some((lt, _leaf, lbody)) = next else {
                 break;
@@ -2912,7 +2926,7 @@ impl Renderer<'_> {
 
     /// 数字 token：流式推进文法状态并原样写出，不收集整条 token。
     fn write_token_body(&mut self, digest: &NodeDigest) -> Result<(), CodecError> {
-        let (t, body) = read_checked(self.source, digest)?;
+        let (t, body) = self.source.read(digest)?;
         if t != tag::NUMBER {
             return Err(CodecError::new(
                 code::VALUE_KIND,
@@ -2926,7 +2940,7 @@ impl Renderer<'_> {
         loop {
             let next = {
                 let Renderer { source, .. } = self;
-                iter.next(&mut **source)?
+                iter.next_context(source)?
             };
             let Some((lt, _leaf, lbody)) = next else {
                 break;
@@ -2979,6 +2993,13 @@ pub fn render_canonical(
     reference: &ContentRef,
     out: &mut dyn Write,
 ) -> Result<(), CodecError> {
+    render_ctx(CodecContext::Source(source), reference, out)
+}
+fn render_ctx(
+    mut source: CodecContext<'_, '_>,
+    reference: &ContentRef,
+    out: &mut dyn Write,
+) -> Result<(), CodecError> {
     struct Bounded<'a> {
         inner: &'a mut dyn Write,
         limit: Option<u64>,
@@ -3007,14 +3028,18 @@ pub fn render_canonical(
         limit: source.max_render_bytes(),
         written: 0,
     };
-    let verified = verify(source, reference)?;
+    let digest = {
+        let mut verifier =
+            Verifier::with_context(source.reborrow(), Mode::Public, AuditMemo::default());
+        verifier.verify_reference(reference)?.0
+    };
     let mut renderer = Renderer {
-        source,
+        source: source.reborrow(),
         out: &mut bounded,
         escaping: false,
         esc_decoder: Utf8Decoder::default(),
     };
-    renderer.run(verified.digest)
+    renderer.run(digest)
 }
 
 #[cfg(test)]
@@ -3761,7 +3786,7 @@ mod metered_key_body_tests {
                 reject,
             };
             let mut verifier = Verifier::new(&mut dynamic, Mode::Public);
-            assert!(verifier.closed_body_capture.is_none());
+            assert!(matches!(verifier.source, CodecContext::Source(_)));
             let error = verifier
                 .compare_key_streams(&a.digest, &b.digest)
                 .unwrap_err();

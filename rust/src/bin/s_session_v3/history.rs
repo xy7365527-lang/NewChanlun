@@ -5,6 +5,7 @@
 //! 返回本结构不等于完整业务历史验收。
 
 use super::*;
+use crate::v3::audit_store::{CodecRead, CodecStore};
 use content_manifest::{ManifestMetadata, ManifestRoots, SourceCommit};
 use newchan_rust::s_content::{
     self as sc,
@@ -159,7 +160,7 @@ fn read_indexed_history_inner(
     let objects = object_index::load_for_audit(tx, &mut store, meta_i64(tx, "generation")?)?;
     #[cfg(test)]
     super::state::trace_event("history_raw_hashes", None);
-    store.overlay.clear();
+    store.clear_overlay();
     let raw_nodes = raw
         .iter()
         .map(|v| hash_json_metered(v, deadline, budget))
@@ -491,7 +492,7 @@ fn read_indexed_history_inner(
             delta,
         });
         // 中间路径节点只服务本代重算；已发布闭包始终从同一 SQLite 快照读取。
-        store.overlay.clear();
+        store.clear_overlay();
     }
     // Pending派生根在返回任何历史之前全部通过同一Public判据；非法嵌套占位仍拒绝。
     store
@@ -574,7 +575,7 @@ fn writer_for_generation(tx: &Transaction<'_>, generation: i64) -> Result<String
 }
 
 fn decode_manifest(
-    s: &mut dyn NodeSource,
+    s: &mut (impl CodecRead + ?Sized),
     r: &ContentRef,
 ) -> Result<(ManifestMetadata, ManifestRoots), String> {
     if r.kind != Kind::Object || r.extent != Some(21) {
@@ -629,33 +630,33 @@ fn decode_manifest(
     ))
 }
 
-fn root(s: &mut dyn NodeSource, bytes: Vec<u8>) -> Result<ContentRef, String> {
+fn root(s: &mut (impl CodecRead + ?Sized), bytes: Vec<u8>) -> Result<ContentRef, String> {
     let digest: NodeDigest = bytes.try_into().map_err(|_| err("根不是32字节"))?;
-    sc::content_ref_of(s, &sc::root_string(&digest)).map_err(err)
+    s.content_ref_of(&sc::root_string(&digest)).map_err(err)
 }
-fn field(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<ContentRef, String> {
-    lookup_path(s, r, &[PathStep::Field(k.into())]).map_err(err)
+fn field(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<ContentRef, String> {
+    s.lookup_path(r, &[PathStep::Field(k.into())]).map_err(err)
 }
-fn text(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<String, String> {
+fn text(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<String, String> {
     let f = field(s, r, k)?;
     if f.kind != Kind::String {
         return Err(err(format!("{k}不是文本")));
     }
     let mut bytes = Vec::new();
-    sc::render_canonical(s, &f, &mut bytes).map_err(err)?;
+    s.render_canonical(&f, &mut bytes).map_err(err)?;
     strict_json(&bytes)?
         .as_str()
         .map(str::to_owned)
         .ok_or_else(|| err("文本渲染类型不同"))
 }
-fn integer(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<i64, String> {
+fn integer(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<i64, String> {
     newchan_rust::session_protocol::parse_canonical_i64(&text(s, r, k)?, k)
 }
 fn err(e: impl std::fmt::Display) -> String {
     format!("HistoryInvalid：{e}")
 }
 fn same_digest(
-    s: &mut dyn NodeSource,
+    s: &mut (impl CodecRead + ?Sized),
     r: &ContentRef,
     k: &str,
     want: NodeDigest,
@@ -860,6 +861,7 @@ impl Drop for OverlayOwner {
 pub(crate) struct HashReader<'a> {
     source: ReadOwner<'a>,
     overlay: OverlayOwner,
+    owned: Option<sc::ClosedCapturedOwner<'a>>,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
     budget: Option<&'a dyn super::audit_budget::Budget>,
@@ -870,6 +872,28 @@ impl<'a> HashReader<'a> {
         capture: &'a sc::AuditCapture,
         max_render_bytes: Option<u64>,
     ) -> Result<Self, sc::CodecError> {
+        if capture.is_allocation_prototype() {
+            #[cfg(test)]
+            if let Some(c) = OVERLAY_PROTOTYPE.with(|v| v.borrow().clone()) {
+                let mut reader = Self::captured(capture, max_render_bytes);
+                let mut owned = capture.closed_codec_for_allocation_prototype(
+                    c.slots,
+                    c.bytes,
+                    max_render_bytes,
+                )?;
+                owned.set_trace_callbacks(
+                    Some(super::state::trace_read),
+                    Some(super::state::trace_put),
+                );
+                owned.set_overlay_peak_callback(Some(report_owned_overlay_peak));
+                reader.owned = Some(owned);
+                return Ok(reader);
+            }
+            return Err(sc::CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "allocation capture缺显式overlay配置",
+            ));
+        }
         #[cfg(test)]
         if let Some(c) = OVERLAY_PROTOTYPE.with(|v| v.borrow().clone()) {
             return Self::captured_bounded(capture, max_render_bytes, c.slots, c.bytes, &c.budget);
@@ -896,16 +920,49 @@ impl<'a> HashReader<'a> {
         Self {
             source: ReadOwner::Captured(capture),
             overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            owned: None,
             deadline: None,
             max_render_bytes,
             budget: None,
             audit_full_arrays: false,
         }
     }
+    #[cfg(test)]
+    pub(super) fn source_capture_for_role_probe(&self) -> Option<&sc::AuditCapture> {
+        match self.source {
+            ReadOwner::Captured(c) => Some(c),
+            ReadOwner::Dynamic(_) => None,
+        }
+    }
+    pub(crate) fn owned_codec_active(&self) -> bool {
+        self.owned.is_some()
+    }
+    pub(crate) fn swap_codec_full_array_role(&mut self, enabled: bool) -> bool {
+        let previous = std::mem::replace(&mut self.audit_full_arrays, enabled);
+        self.sync_owned();
+        previous
+    }
+    fn sync_owned(&mut self) {
+        let full = self.audit_full_arrays && self.budget.is_none() && self.deadline.is_none();
+        if let Some(owner) = &mut self.owned {
+            owner.set_audit_full_array_scan(full);
+        }
+    }
+    pub(crate) fn clear_overlay(&mut self) {
+        if let Some(owner) = &mut self.owned {
+            owner.clear_overlay();
+        } else {
+            self.overlay.clear();
+        }
+    }
     pub(crate) fn verify_public(&mut self, r: &ContentRef) -> Result<(), sc::CodecError> {
         self.verify_mode(r, sc::Mode::Public)
     }
     fn verify_mode(&mut self, r: &ContentRef, mode: sc::Mode) -> Result<(), sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            return owner.verify_cached(r, mode);
+        }
         if self.budget.is_none() && self.deadline.is_none() {
             if let ReadOwner::Captured(c) = &self.source {
                 if c.contains(&r.digest()?) {
@@ -920,6 +977,10 @@ impl<'a> HashReader<'a> {
         refs: impl IntoIterator<Item = ContentRef>,
         mode: sc::Mode,
     ) -> Result<(), sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            return owner.verify_many_cached(refs, mode);
+        }
         if matches!(self.source, ReadOwner::Dynamic(_))
             || self.budget.is_some()
             || self.deadline.is_some()
@@ -937,6 +998,7 @@ impl<'a> HashReader<'a> {
         Self {
             source: ReadOwner::Dynamic(source),
             overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            owned: None,
             deadline: None,
             max_render_bytes: None,
             budget: None,
@@ -950,6 +1012,7 @@ impl<'a> HashReader<'a> {
         Self {
             source: ReadOwner::Dynamic(source),
             overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            owned: None,
             deadline,
             max_render_bytes: None,
             budget: None,
@@ -964,6 +1027,7 @@ impl<'a> HashReader<'a> {
         Self {
             source: ReadOwner::Dynamic(source),
             overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            owned: None,
             deadline,
             max_render_bytes,
             budget: None,
@@ -979,6 +1043,7 @@ impl<'a> HashReader<'a> {
         Self {
             source: ReadOwner::Dynamic(source),
             overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            owned: None,
             deadline,
             max_render_bytes,
             budget,
@@ -1007,6 +1072,12 @@ impl NodeSource for HashReader<'_> {
         }
     }
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+        if self.owned.is_some() {
+            return Err(sc::CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "closed codec不能擦除为动态NodeSource",
+            ));
+        }
         check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
         if let Some(b) = self.budget {
             b.precheck()?;
@@ -1036,6 +1107,12 @@ impl NodeSource for HashReader<'_> {
         &mut self,
         d: &NodeDigest,
     ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+        if self.owned.is_some() {
+            return Err(sc::CodecError::new(
+                sc::capture_allocation::INCOMPLETE,
+                "closed codec不能擦除为动态NodeSource",
+            ));
+        }
         check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
         if let Some(b) = self.budget {
             b.precheck()?;
@@ -1087,6 +1164,9 @@ impl NodeSource for HashReader<'_> {
 }
 impl NodeSink for HashReader<'_> {
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+        if let Some(owner) = &mut self.owned {
+            return owner.raw_put(digest, tag, body);
+        }
         check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
         if let Some(b) = self.budget {
             b.node(&digest, tag, body)?;
@@ -1107,9 +1187,383 @@ impl NodeSink for HashReader<'_> {
     }
 }
 
+impl CodecRead for HashReader<'_> {
+    fn generic_source(&mut self) -> &mut dyn NodeSource {
+        self
+    }
+    fn content_ref_of(&mut self, root: &str) -> Result<ContentRef, sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.content_ref_of(root)
+        } else {
+            sc::content_ref_of(self, root)
+        }
+    }
+    fn lookup_path(
+        &mut self,
+        r: &ContentRef,
+        p: &[PathStep],
+    ) -> Result<ContentRef, sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.lookup_path(r, p)
+        } else {
+            sc::path::lookup_path(self, r, p)
+        }
+    }
+    fn lookup_array_items(&mut self, r: &ContentRef) -> Result<Vec<ContentRef>, sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.lookup_array_items(r)
+        } else {
+            sc::path::lookup_array_items(self, r)
+        }
+    }
+    fn lookup_object_fields(
+        &mut self,
+        r: &ContentRef,
+        n: &[&str],
+    ) -> Result<BTreeMap<String, ContentRef>, sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.lookup_object_fields(r, n)
+        } else {
+            sc::path::lookup_object_fields(self, r, n)
+        }
+    }
+    fn lookup_object_fields_subset(
+        &mut self,
+        r: &ContentRef,
+        n: &[&str],
+    ) -> Result<BTreeMap<String, ContentRef>, sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.lookup_object_fields_subset(r, n)
+        } else {
+            sc::path::lookup_object_fields_subset(self, r, n)
+        }
+    }
+    fn render_canonical(
+        &mut self,
+        r: &ContentRef,
+        w: &mut dyn std::io::Write,
+    ) -> Result<(), sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.render_canonical(r, w)
+        } else {
+            sc::render_canonical(self, r, w)
+        }
+    }
+    fn verify_fresh(&mut self, r: &ContentRef, mode: sc::Mode) -> Result<(), sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.verify_fresh(r, mode)
+        } else {
+            match mode {
+                sc::Mode::Public => sc::verify(self, r).map(|_| ()),
+                sc::Mode::Template => sc::verify_template(self, r).map(|_| ()),
+            }
+        }
+    }
+    fn verify_audit_fresh(&mut self, r: &ContentRef, mode: sc::Mode) -> Result<(), sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.verify_fresh(r, mode)
+        } else {
+            match mode {
+                sc::Mode::Public => sc::audit_verify_public(self, r),
+                sc::Mode::Template => sc::audit_verify(self, r, mode),
+            }
+        }
+    }
+    fn verify_audit_many_fresh(
+        &mut self,
+        r: impl IntoIterator<Item = ContentRef>,
+        mode: sc::Mode,
+    ) -> Result<(), sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.verify_many_fresh(r, mode)
+        } else {
+            sc::audit_verify_many(self, r, mode)
+        }
+    }
+    fn verify_many_fresh(
+        &mut self,
+        r: impl IntoIterator<Item = ContentRef>,
+        mode: sc::Mode,
+    ) -> Result<(), sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.verify_many_fresh(r, mode)
+        } else {
+            match mode {
+                sc::Mode::Public => sc::verify_many(self, r).map(|_| ()),
+                sc::Mode::Template => sc::verify_template_many(self, r).map(|_| ()),
+            }
+        }
+    }
+    fn verify_cached(&mut self, r: &ContentRef, mode: sc::Mode) -> Result<(), sc::CodecError> {
+        self.verify_mode(r, mode)
+    }
+    fn verify_many_cached(
+        &mut self,
+        r: impl IntoIterator<Item = ContentRef>,
+        mode: sc::Mode,
+    ) -> Result<(), sc::CodecError> {
+        self.verify_many(r, mode)
+    }
+}
+impl CodecStore for HashReader<'_> {
+    fn generic_store(&mut self) -> &mut dyn sc::NodeStore {
+        self
+    }
+    fn write_value(&mut self, v: &V) -> Result<sc::Built, sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.write_value(v)
+        } else {
+            sc::write_value(self, v)
+        }
+    }
+    fn write_template(&mut self, v: &V) -> Result<sc::Built, sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.write_template(v)
+        } else {
+            sc::write_template(self, v)
+        }
+    }
+    fn replace_batch_placeholder(
+        &mut self,
+        r: &ContentRef,
+        p: &[PathStep],
+        batch: &str,
+    ) -> Result<ContentRef, sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.replace_batch_placeholder(r, p, batch)
+        } else {
+            sc::path::replace_batch_placeholder(self, r, p, batch)
+        }
+    }
+}
+#[cfg(test)]
+fn report_owned_overlay_peak((x, y): (usize, usize)) {
+    OVERLAY_PROTOTYPE.with(|v| {
+        if let Some(c) = &*v.borrow() {
+            let (a, b) = c.peaks.get();
+            c.peaks.set((a.max(x), b.max(y)));
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn allocation_owned_history_root_field_text_red() {
+        use sc::capture_allocation::{CaptureSlab, OwnedBudget};
+        #[derive(Default)]
+        struct Collect(BTreeMap<NodeDigest, (u8, Vec<u8>)>);
+        impl NodeSink for Collect {
+            fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
+                self.0.insert(d, (t, b.to_vec()));
+                Ok(())
+            }
+        }
+        let mut collect = Collect::default();
+        let built = sc::write_value(
+            &mut collect,
+            &V::Object(vec![("name".into(), V::String("x".repeat(4096)))]),
+        )
+        .unwrap();
+        let count = collect.0.len();
+        let bytes = collect.0.values().map(|(_, b)| b.len()).sum();
+        let base = CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let overlay = sc::capture_allocation::overlay::OverlaySlab::requested_bytes(1, 1).unwrap();
+        let budget = OwnedBudget::new(base + overlay);
+        let mut slab = CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, (t, b)) in collect.0 {
+            slab.push(d, t, &b).unwrap();
+        }
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        let (before, got_root, got_field, got_text) = with_overlay_prototype(
+            OverlayPrototype {
+                slots: 1,
+                bytes: 1,
+                budget: budget.clone(),
+                peaks: std::rc::Rc::new(std::cell::Cell::new((0, 0))),
+            },
+            || {
+                let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+                let before = budget.snapshot();
+                let got_root = root(&mut reader, built.digest.to_vec());
+                let got_field = field(&mut reader, &built.content_ref(), "name");
+                let got_text = text(&mut reader, &built.content_ref(), "name");
+                // 动态读取拒绝只检查遗漏；绿判据必须来自实际opaque codec资源门。
+                assert_eq!(
+                    reader.read(&built.digest).unwrap_err().code(),
+                    sc::capture_allocation::INCOMPLETE
+                );
+                (before, got_root, got_field, got_text)
+            },
+        );
+        for e in [
+            got_root.as_ref().unwrap_err(),
+            got_field.as_ref().unwrap_err(),
+            got_text.as_ref().unwrap_err(),
+        ] {
+            assert!(
+                e.contains(sc::capture_allocation::LIMIT),
+                "必须实际body门拒绝：{e}"
+            );
+        }
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        assert_eq!(
+            budget.snapshot().allocated_layouts,
+            before.allocated_layouts
+        );
+        println!("root_ok={} field_ok={} text_ok={} live_before={} live_after={} allocations_before={} allocations_after={}", got_root.is_ok(), got_field.is_ok(), got_text.is_ok(), before.live_requested_layout_bytes, budget.snapshot().live_requested_layout_bytes, before.allocated_layouts, budget.snapshot().allocated_layouts);
+        assert!(
+            got_root.is_err() && got_field.is_err() && got_text.is_err(),
+            "capture+overlay exhausted quota must reject root/field/text before allocating a body"
+        );
+    }
+
+    #[test]
+    fn closed_owner_bin_facade_dispatches_complete_codec_surface() {
+        use sc::capture_allocation::{CaptureSlab, OwnedBudget};
+        #[derive(Default)]
+        struct Collect(BTreeMap<NodeDigest, (u8, Vec<u8>)>);
+        impl NodeSink for Collect {
+            fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
+                self.0.insert(d, (t, b.to_vec()));
+                Ok(())
+            }
+        }
+        let mut nodes = Collect::default();
+        let original = sc::write_value(
+            &mut nodes,
+            &V::Object(vec![
+                ("items".into(), V::Array(vec![V::Null])),
+                ("name".into(), V::String("source".into())),
+            ]),
+        )
+        .unwrap()
+        .content_ref();
+        let template = sc::write_template(
+            &mut nodes,
+            &V::Object(vec![("batch_id".into(), V::BatchSelf)]),
+        )
+        .unwrap()
+        .content_ref();
+        let count = nodes.0.len();
+        let bytes = nodes.0.values().map(|(_, b)| b.len()).sum();
+        let base = CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let overlay =
+            sc::capture_allocation::overlay::OverlaySlab::requested_bytes(64, 8192).unwrap();
+        let budget = OwnedBudget::new(base + overlay + 8192);
+        let mut slab = CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, (t, b)) in nodes.0 {
+            slab.push(d, t, &b).unwrap();
+        }
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        let peaks = std::rc::Rc::new(std::cell::Cell::new((0, 0)));
+        with_overlay_prototype(
+            OverlayPrototype {
+                slots: 64,
+                bytes: 8192,
+                budget: budget.clone(),
+                peaks: peaks.clone(),
+            },
+            || {
+                let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
+                reader.enable_full_arrays_for_test();
+                let r = root(&mut reader, original.digest().unwrap().to_vec()).unwrap();
+                assert_eq!(r, original);
+                assert_eq!(text(&mut reader, &r, "name").unwrap(), "source");
+                let selected = reader.lookup_object_fields(&r, &["items", "name"]).unwrap();
+                assert_eq!(
+                    reader.lookup_object_fields_subset(&r, &["name"]).unwrap()["name"],
+                    selected["name"]
+                );
+                assert_eq!(
+                    reader.lookup_array_items(&selected["items"]).unwrap().len(),
+                    1
+                );
+                reader.verify_fresh(&r, sc::Mode::Public).unwrap();
+                reader.verify_audit_fresh(&r, sc::Mode::Public).unwrap();
+                reader
+                    .verify_many_fresh([r.clone()], sc::Mode::Public)
+                    .unwrap();
+                reader
+                    .verify_audit_many_fresh([r.clone()], sc::Mode::Public)
+                    .unwrap();
+                reader.verify_cached(&r, sc::Mode::Public).unwrap();
+                reader
+                    .verify_many_cached([r.clone()], sc::Mode::Public)
+                    .unwrap();
+                let mut view = super::super::audit_store::StoreView::for_audit(&mut reader);
+                let changed = view
+                    .replace_batch_placeholder(
+                        &template,
+                        &[PathStep::Field("batch_id".into())],
+                        &format!("batch3-{}", "a".repeat(64)),
+                    )
+                    .unwrap();
+                view.verify_fresh(&changed, sc::Mode::Public).unwrap();
+                let leaf = view
+                    .lookup_path(&changed, &[PathStep::Field("batch_id".into())])
+                    .unwrap();
+                let mut rendered = Vec::new();
+                view.render_canonical(&leaf, &mut rendered).unwrap();
+                assert_eq!(
+                    strict_json(&rendered).unwrap().as_str().unwrap(),
+                    format!("batch3-{}", "a".repeat(64))
+                );
+                let before = sc::frame_calls_on_thread();
+                let generated = view.write_value(&V::Bool(false)).unwrap();
+                assert_eq!(
+                    sc::frame_calls_on_thread() - before,
+                    1,
+                    "真实encoder只做单次F"
+                );
+                view.verify_fresh(&generated.content_ref(), sc::Mode::Public)
+                    .unwrap();
+                let generated_template = view.write_template(&V::BatchSelf).unwrap();
+                view.verify_fresh(&generated_template.content_ref(), sc::Mode::Template)
+                    .unwrap();
+                let d = sc::frame(sc::tag::BOOL_TRUE, &[]);
+                let before = sc::frame_calls_on_thread();
+                view.put(d, sc::tag::BOOL_TRUE, &[]).unwrap();
+                assert_eq!(sc::frame_calls_on_thread() - before, 1, "raw put严格F");
+                assert_eq!(
+                    view.read(&d).unwrap_err().code(),
+                    sc::capture_allocation::INCOMPLETE
+                );
+                drop(view);
+                reader.clear_overlay();
+                assert_eq!(
+                    reader
+                        .content_ref_of(&sc::root_string(&d))
+                        .unwrap_err()
+                        .code(),
+                    sc::code::NODE_MISSING
+                );
+                reader.verify_fresh(&original, sc::Mode::Public).unwrap();
+            },
+        );
+        assert!(
+            peaks.get().0 > 0 && peaks.get().1 > 0,
+            "纯统计callback读取真实owner overlay峰值"
+        );
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
 
     #[test]
     fn overlay_bounded_limits_replace_clear_and_shared_live() {
@@ -1165,7 +1619,7 @@ mod tests {
         assert!(matches!(a.read(&e).unwrap(),NodeRead::Found{body,..} if body==b"cd"));
         a.put(d, sc::tag::STRING, b"ab").unwrap();
         a.checked_read(&d).unwrap();
-        a.overlay.clear();
+        a.clear_overlay();
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 2 * required);
         assert!(matches!(a.read(&d).unwrap(), NodeRead::Missing));
         a.put(e, sc::tag::STRING, b"cd").unwrap();
@@ -2204,7 +2658,7 @@ mod audit_capture_prototype_tests {
         )
         .unwrap();
         store.verify_public(&added.content_ref()).unwrap();
-        store.overlay.clear();
+        store.clear_overlay();
         assert!(store.verify_public(&added.content_ref()).is_err());
         // Generic mutable ingress never gets capture/memo: second read Err must surface.
         struct Fails {

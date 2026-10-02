@@ -61,6 +61,7 @@
 use crate::content_producer::{
     Cc006Object, Cc007Object, TypedObject, CC006_SHAPE_KIND, CC007_FRACTAL_KIND,
 };
+use crate::v3::audit_store::{CodecRead, CodecStore};
 use newchan_rust::s_content::path::{lookup_path, path_code, PathStep};
 use newchan_rust::s_content::{
     self as sc, Built, CodecError, ContentRef, Kind, NodeStore, NumberToken, Value as CValue,
@@ -824,7 +825,7 @@ fn life_fields(life: &PublicationLife) -> Vec<(String, CValue)> {
 /// 已持久出生 wire 的历史/当前生命周期投影。只更换小元数据，所有大字段继续借原值边。
 /// 出生根与生成原件的完整绑定由对象索引核验；生命周期规则仍复用本模块唯一判据。
 pub(super) fn reproject_stored_wire(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     birth: &ContentRef,
     life: &PublicationLife,
     current_generation: i64,
@@ -838,7 +839,7 @@ pub(super) fn reproject_stored_wire(
     } else {
         &TYPED_WIRE_FIELDS
     };
-    let values = sc::path::lookup_object_fields(store, birth, names)?;
+    let values = store.lookup_object_fields(birth, names)?;
     let lifecycle = life_fields(life);
     let mut fields = Vec::new();
     for name in names {
@@ -850,7 +851,7 @@ pub(super) fn reproject_stored_wire(
     }
     fields.push(("batch_id".into(), batch_value(&life.batch)));
     fields.extend(lifecycle);
-    Ok(sc::write_template(store, &CValue::Object(fields))?)
+    Ok(store.write_template(&CValue::Object(fields))?)
 }
 
 /// producer 同次构造的公开 `input_refs`（原 generic 字符串源叶 + 共享序列，`merged_index`
@@ -1146,28 +1147,30 @@ fn expect_object_shape(
 
 /// 路径定位（只沿路径触碰节点）：缺字段/越界映射为 `Source`，其余编码错误原样上报。
 fn resolve(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecRead + ?Sized),
     root: &ContentRef,
     path: &[PathStep],
     what: &'static str,
     label: &str,
 ) -> Result<ContentRef, RecordError> {
-    lookup_path(&mut *store, root, path).map_err(|error| match error.code() {
-        path_code::PATH_FIELD_MISSING => RecordError::Source {
-            what,
-            detail: format!("缺字段 `{label}`"),
-        },
-        path_code::PATH_INDEX_RANGE => RecordError::Source {
-            what,
-            detail: format!("`{label}` 下标越界"),
-        },
-        _ => RecordError::Codec(error),
-    })
+    store
+        .lookup_path(root, path)
+        .map_err(|error| match error.code() {
+            path_code::PATH_FIELD_MISSING => RecordError::Source {
+                what,
+                detail: format!("缺字段 `{label}`"),
+            },
+            path_code::PATH_INDEX_RANGE => RecordError::Source {
+                what,
+                detail: format!("`{label}` 下标越界"),
+            },
+            _ => RecordError::Codec(error),
+        })
 }
 
 /// 字符串叶精确读：定位 → 类型核 → 只渲染该叶。
 fn read_text(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecRead + ?Sized),
     root: &ContentRef,
     name: &str,
     what: &'static str,
@@ -1245,7 +1248,7 @@ fn read_edge(
 
 /// 小值规范渲染为 JSON 值（只对小字段/小固定结构；不用于大载荷）。
 fn render_json(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecRead + ?Sized),
     reference: &ContentRef,
     what: &'static str,
     label: &str,
@@ -1270,9 +1273,12 @@ fn render_canonical_text(
     })
 }
 
-fn render_bytes(store: &mut dyn NodeStore, reference: &ContentRef) -> Result<Vec<u8>, RecordError> {
+fn render_bytes(
+    store: &mut (impl CodecRead + ?Sized),
+    reference: &ContentRef,
+) -> Result<Vec<u8>, RecordError> {
     let mut out: Vec<u8> = Vec::new();
-    sc::render_canonical(&mut *store, reference, &mut out)?;
+    store.render_canonical(reference, &mut out)?;
     Ok(out)
 }
 

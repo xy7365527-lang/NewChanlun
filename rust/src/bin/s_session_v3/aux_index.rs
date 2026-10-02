@@ -2,13 +2,14 @@
 //! plan 先产生含本批占位的值根；manifest 求出 batch3 后 stage 同事务暂写出生记录。
 //! 观察 detail 与来源数组保留为边；仅单条原始事件沿既有投影转换。索引不替代来源业务审计。
 use super::generation::{Generated, SequenceMemo, WitnessRecord};
+use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::{canonical_json, content_store, meta_get_opt, sha256_hex};
 use newchan_rust::s_content::{
-    self as sc,
-    path::{lookup_path, replace_batch_placeholder, PathStep},
-    Built, ContentRef, Kind, NodeDigest, NodeSource, NodeStore, Value as V,
+    self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeStore, Value as V,
 };
 use rusqlite::{params, Transaction};
+#[cfg(test)]
+use sc::path::replace_batch_placeholder;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -41,13 +42,13 @@ fn err(e: impl std::fmt::Display) -> String {
 fn f(k: &str) -> PathStep {
     PathStep::Field(k.into())
 }
-fn field(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<ContentRef, String> {
-    lookup_path(s, r, &[f(k)]).map_err(err)
+fn field(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<ContentRef, String> {
+    s.lookup_path(r, &[f(k)]).map_err(err)
 }
 fn digest(r: &ContentRef) -> Result<NodeDigest, String> {
     r.digest().map_err(err)
 }
-fn scalar(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<Value, String> {
+fn scalar(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<Value, String> {
     let leaf = field(s, r, k)?;
     if !matches!(
         leaf.kind,
@@ -57,20 +58,20 @@ fn scalar(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<Value, Stri
     }
     render(s, &leaf)
 }
-fn text(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<String, String> {
+fn text(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<String, String> {
     scalar(s, r, k)?
         .as_str()
         .map(str::to_owned)
         .ok_or_else(|| err(format!("{k}不是文本")))
 }
-fn integer(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<i64, String> {
+fn integer(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<i64, String> {
     scalar(s, r, k)?
         .as_i64()
         .ok_or_else(|| err(format!("{k}不是i64")))
 }
-fn render(s: &mut dyn NodeSource, r: &ContentRef) -> Result<Value, String> {
+fn render(s: &mut (impl CodecRead + ?Sized), r: &ContentRef) -> Result<Value, String> {
     let mut b = Vec::new();
-    sc::render_canonical(s, r, &mut b).map_err(err)?;
+    s.render_canonical(r, &mut b).map_err(err)?;
     newchan_rust::session_protocol::strict_json(&b)
 }
 fn cv(v: &Value) -> Result<V, String> {
@@ -87,24 +88,27 @@ fn cv(v: &Value) -> Result<V, String> {
         ),
     })
 }
-fn write_json(s: &mut dyn NodeStore, v: &Value) -> Result<Built, String> {
-    sc::write_value(s, &cv(v)?).map_err(err)
+fn write_json(s: &mut (impl CodecStore + ?Sized), v: &Value) -> Result<Built, String> {
+    s.write_value(&cv(v)?).map_err(err)
 }
-fn edge(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<V, String> {
+fn edge(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<V, String> {
     Ok(V::Edge(digest(&field(s, r, k)?)?))
 }
-fn array_elements(s: &mut dyn NodeSource, r: &ContentRef) -> Result<Vec<ContentRef>, String> {
+fn array_elements(
+    s: &mut (impl CodecRead + ?Sized),
+    r: &ContentRef,
+) -> Result<Vec<ContentRef>, String> {
     if r.kind != Kind::Array {
         return Err(err("预期数组"));
     }
     (0..r.extent.ok_or_else(|| err("数组缺长度"))?)
-        .map(|i| lookup_path(s, r, &[PathStep::Index(i)]).map_err(err))
+        .map(|i| s.lookup_path(r, &[PathStep::Index(i)]).map_err(err))
         .collect()
 }
-fn root(s: &mut dyn NodeSource, b: Vec<u8>) -> Result<ContentRef, String> {
+fn root(s: &mut (impl CodecRead + ?Sized), b: Vec<u8>) -> Result<ContentRef, String> {
     let d: NodeDigest = b.try_into().map_err(|_| err("根不是32字节"))?;
-    let r = sc::content_ref_of(s, &sc::root_string(&d)).map_err(err)?;
-    sc::verify(s, &r).map_err(err)?;
+    let r = s.content_ref_of(&sc::root_string(&d)).map_err(err)?;
+    s.verify_fresh(&r, sc::Mode::Public).map_err(err)?;
     Ok(r)
 }
 fn exact(r: &ContentRef, n: u64) -> Result<(), String> {
@@ -180,13 +184,13 @@ impl Runtime {
 
     fn witness(
         &mut self,
-        s: &mut dyn NodeStore,
+        s: &mut (impl CodecStore + ?Sized),
         w: &WitnessRecord,
         merged_index: i64,
         g: i64,
     ) -> Result<Witness, String> {
         let generated = w.built.content_ref();
-        sc::verify(s, &generated).map_err(err)?;
+        s.verify_fresh(&generated, sc::Mode::Public).map_err(err)?;
         exact(&generated, 9)?;
         let object_id = text(s, &generated, "object_id")?;
         let slot = integer(s, &generated, "slot")?;
@@ -220,7 +224,7 @@ impl Runtime {
     }
     fn witness_wire(
         &mut self,
-        s: &mut dyn NodeStore,
+        s: &mut (impl CodecStore + ?Sized),
         r: &ContentRef,
     ) -> Result<ContentRef, String> {
         let bars = field(s, r, "raw_bars")?;
@@ -254,18 +258,18 @@ impl Runtime {
             fields.push((key.into(), V::String(integer(s, r, key)?.to_string())));
         }
         fields.push(("raw_bars".into(), V::Array(values)));
-        Ok(sc::write_value(s, &V::Object(fields))
+        Ok(s.write_value(&V::Object(fields))
             .map_err(err)?
             .content_ref())
     }
     fn observation(
         &mut self,
-        s: &mut dyn NodeStore,
+        s: &mut (impl CodecStore + ?Sized),
         b: &Built,
         g: i64,
     ) -> Result<Observation, String> {
         let generated = b.content_ref();
-        sc::verify(s, &generated).map_err(err)?;
+        s.verify_fresh(&generated, sc::Mode::Public).map_err(err)?;
         exact(&generated, 6)?;
         let kind = text(s, &generated, "kind")?;
         let window_start = window(s, &generated, "window_start")?;
@@ -290,7 +294,7 @@ impl Runtime {
 
     pub(super) fn plan(
         &mut self,
-        s: &mut dyn NodeStore,
+        s: &mut (impl CodecStore + ?Sized),
         old: &Index,
         generated: &Generated<'_>,
         replaces: &[Value],
@@ -320,16 +324,16 @@ impl Runtime {
                 .iter()
                 .find(|o| o.object_id() == w.object_id)
                 .ok_or_else(|| err("见证对象不在本代生成态"))?;
-            let group = lookup_path(
-                s,
-                &object.generated().content_ref(),
-                &[
-                    f("input_refs_json"),
-                    PathStep::JsonText,
-                    PathStep::Index(w.slot as u64),
-                ],
-            )
-            .map_err(err)?;
+            let group = s
+                .lookup_path(
+                    &object.generated().content_ref(),
+                    &[
+                        f("input_refs_json"),
+                        PathStep::JsonText,
+                        PathStep::Index(w.slot as u64),
+                    ],
+                )
+                .map_err(err)?;
             // 身份配方用合并序号 mi；公开 merged_source_index 是原始坐标，二者不可互换。
             let merged_index = integer(s, &group, "merged_index")?;
             let row = self.witness(s, w, merged_index, g)?;
@@ -464,7 +468,7 @@ impl Runtime {
 }
 
 fn public_sets(
-    s: &mut dyn NodeStore,
+    s: &mut (impl CodecStore + ?Sized),
     i: &Index,
     raw: &[NodeDigest],
     memo: &mut [SequenceMemo],
@@ -485,13 +489,17 @@ fn public_sets(
         .map(|r| digest(&r.wire))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(PublicSets {
-        witnesses: memo[0].sync(s, &w, "见证快照")?,
-        relations: memo[1].sync(s, &r, "关系快照")?,
-        observations: memo[2].sync(s, &o, "观察快照")?,
-        raw_history: memo[3].sync(s, raw, "原始历史")?,
+        witnesses: memo[0].sync(s.generic_store(), &w, "见证快照")?,
+        relations: memo[1].sync(s.generic_store(), &r, "关系快照")?,
+        observations: memo[2].sync(s.generic_store(), &o, "观察快照")?,
+        raw_history: memo[3].sync(s.generic_store(), raw, "原始历史")?,
     })
 }
-fn window(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<Option<i64>, String> {
+fn window(
+    s: &mut (impl CodecRead + ?Sized),
+    r: &ContentRef,
+    k: &str,
+) -> Result<Option<i64>, String> {
     let v = scalar(s, r, k)?;
     if v.is_null() {
         Ok(None)
@@ -500,7 +508,7 @@ fn window(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<Option<i64>
     }
 }
 fn observation_wire(
-    s: &mut dyn NodeStore,
+    s: &mut (impl CodecStore + ?Sized),
     r: &ContentRef,
     id: &str,
     batch: Option<&str>,
@@ -523,12 +531,16 @@ fn observation_wire(
                 .unwrap_or(V::Null),
         ));
     }
-    Ok(sc::write_template(s, &V::Object(fields))
+    Ok(s.write_template(&V::Object(fields))
         .map_err(err)?
         .content_ref())
 }
-fn relation(s: &mut dyn NodeStore, generated: ContentRef, g: i64) -> Result<Relation, String> {
-    sc::verify(s, &generated).map_err(err)?;
+fn relation(
+    s: &mut (impl CodecStore + ?Sized),
+    generated: ContentRef,
+    g: i64,
+) -> Result<Relation, String> {
+    s.verify_fresh(&generated, sc::Mode::Public).map_err(err)?;
     exact(&generated, 3)?;
     let subject = text(s, &generated, "subject")?;
     let relation_type = text(s, &generated, "relation_type")?;
@@ -557,13 +569,13 @@ impl std::io::Write for HashWriter {
         Ok(())
     }
 }
-fn stream_hash(s: &mut dyn NodeSource, r: &ContentRef) -> Result<String, String> {
+fn stream_hash(s: &mut (impl CodecRead + ?Sized), r: &ContentRef) -> Result<String, String> {
     let mut out = HashWriter(Sha256::new());
-    sc::render_canonical(s, r, &mut out).map_err(err)?;
+    s.render_canonical(r, &mut out).map_err(err)?;
     Ok(format!("{:x}", out.0.finalize()))
 }
 fn verify_witness_id(
-    s: &mut dyn NodeStore,
+    s: &mut (impl CodecStore + ?Sized),
     r: &ContentRef,
     id: &str,
     object: &str,
@@ -580,18 +592,21 @@ fn verify_witness_id(
         ("slot".into(), cv(&json!(slot))?),
         ("raw_bars".into(), bars),
     ]);
-    let recipe = sc::write_value(s, &recipe).map_err(err)?.content_ref();
+    let recipe = s.write_value(&recipe).map_err(err)?.content_ref();
     if id != format!("wit-{}", &stream_hash(s, &recipe)?[..16]) {
         return Err(err("见证身份配方不符"));
     }
     Ok(())
 }
-fn observation_identity_value(s: &mut dyn NodeStore, r: &ContentRef) -> Result<ContentRef, String> {
+fn observation_identity_value(
+    s: &mut (impl CodecStore + ?Sized),
+    r: &ContentRef,
+) -> Result<ContentRef, String> {
     let detail = field(s, r, "detail")?;
     if detail.kind != Kind::Object {
         return Err(err("观察detail不是对象"));
     }
-    let tb = match lookup_path(s, &detail, &[f("tb02a")]) {
+    let tb = match s.lookup_path(&detail, &[f("tb02a")]) {
         Ok(value) => value.kind == Kind::Bool && render(s, &value)? == json!(true),
         Err(e) if e.code() == sc::path::path_code::PATH_FIELD_MISSING => false,
         Err(e) => return Err(err(e)),
@@ -603,11 +618,11 @@ fn observation_identity_value(s: &mut dyn NodeStore, r: &ContentRef) -> Result<C
     for k in ["kind", "reason", "window_start", "window_mid", "window_end"] {
         fields.push((k.into(), edge(s, r, k)?));
     }
-    Ok(sc::write_value(s, &V::Object(fields))
+    Ok(s.write_value(&V::Object(fields))
         .map_err(err)?
         .content_ref())
 }
-fn observation_id(s: &mut dyn NodeStore, r: &ContentRef) -> Result<String, String> {
+fn observation_id(s: &mut (impl CodecStore + ?Sized), r: &ContentRef) -> Result<String, String> {
     let recipe = observation_identity_value(s, r)?;
     let hash = stream_hash(s, &recipe)?;
     Ok(format!(
@@ -621,7 +636,7 @@ fn observation_id(s: &mut dyn NodeStore, r: &ContentRef) -> Result<String, Strin
 }
 
 fn state_members(
-    s: &mut dyn NodeSource,
+    s: &mut (impl CodecRead + ?Sized),
     state: &ContentRef,
     name: &str,
 ) -> Result<Vec<ContentRef>, String> {
@@ -635,7 +650,7 @@ fn state_members(
 /// 的整段 JSON。生成态当前成员必须能在独立索引找到并逐根相等；本代首次成员则另核
 /// 独立索引的首次插入顺序，避免只凭索引自洽放过出生漏项、幽灵行或错绑原件。
 pub(super) fn verify_generated_members(
-    s: &mut dyn NodeStore,
+    s: &mut (impl CodecStore + ?Sized),
     index: &Index,
     state: &ContentRef,
     replaces: &[Value],
@@ -807,7 +822,7 @@ pub(super) fn verify_generated_members(
 /// 完整生成来源/跨代成员审计仍由上层完成，索引自洽不能证明来源真实。
 pub(super) fn load(
     tx: &Transaction<'_>,
-    s: &mut dyn NodeStore,
+    s: &mut (impl CodecStore + ?Sized),
     latest: i64,
 ) -> Result<Index, String> {
     let mut out = Index::default();
@@ -992,7 +1007,7 @@ fn check_batch(batch: &str) -> Result<(), String> {
 /// manifest 已得到真实身份之后调用；任何后续错误由调用方回滚整个事务。无 INSERT OR IGNORE。
 pub(super) fn stage(
     tx: &Transaction<'_>,
-    s: &mut dyn NodeStore,
+    s: &mut (impl CodecStore + ?Sized),
     p: &Plan,
     batch: &str,
 ) -> Result<(), String> {
@@ -1036,8 +1051,10 @@ pub(super) fn stage(
         if o.first != p.generation || o.batch.is_some() {
             return Err(err("观察出生代/模板错绑"));
         }
-        let wire = replace_batch_placeholder(s, &o.wire, &[f("batch_id")], batch).map_err(err)?;
-        sc::verify(s, &wire).map_err(err)?;
+        let wire = s
+            .replace_batch_placeholder(&o.wire, &[f("batch_id")], batch)
+            .map_err(err)?;
+        s.verify_fresh(&wire, sc::Mode::Public).map_err(err)?;
         tx.execute(
             "INSERT INTO s_content_observations VALUES(?1,?2,?3,?4,?5,?6,?7)",
             params![

@@ -409,8 +409,13 @@ fn err(e: impl std::fmt::Display) -> String {
     format!("S3StateInvalid：{e}")
 }
 
-fn field(s: &mut dyn NodeStore, r: &ContentRef, key: &str) -> Result<ContentRef, String> {
-    sc::path::lookup_path(s, r, &[sc::path::PathStep::Field(key.into())]).map_err(err)
+fn field(
+    s: &mut (impl super::audit_store::CodecStore + ?Sized),
+    r: &ContentRef,
+    key: &str,
+) -> Result<ContentRef, String> {
+    s.lookup_path(r, &[sc::path::PathStep::Field(key.into())])
+        .map_err(err)
 }
 
 /// #1394 TestOnly observation, not a writer resource policy or a memo substitute.

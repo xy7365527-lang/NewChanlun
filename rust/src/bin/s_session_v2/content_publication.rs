@@ -9,11 +9,10 @@
 #![allow(dead_code)]
 
 use super::{canonical_json, content_manifest, content_store, meta_get_opt, sha256_hex, v2};
+use crate::v3::audit_store::CodecStore;
 use content_manifest::{ManifestMetadata, ManifestRoots, UnpublishedManifest};
 use newchan_rust::s_content::{
-    self as sc,
-    path::{lookup_path, replace_batch_placeholder, PathStep},
-    ContentRef, Kind, NodeDigest, NodeSink, NodeStore, Value as V,
+    self as sc, path::PathStep, ContentRef, Kind, NodeDigest, NodeSink, Value as V,
 };
 use newchan_rust::session_protocol::{parse_canonical_i64, strict_json, validate_envelope};
 use rusqlite::{params, Transaction};
@@ -63,7 +62,7 @@ pub(super) fn resolve_current_births(
 /// 独立索引按目标代投影，未来出生/撤回不得改变旧 cut。此口不授予新的 Commit 权限。
 pub(super) fn resolve_indexed_templates(
     tx: &Transaction<'_>,
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     metadata: &ManifestMetadata,
     roots: &ManifestRoots,
     batch_id: &str,
@@ -71,7 +70,12 @@ pub(super) fn resolve_indexed_templates(
 ) -> Result<ResolvedTemplates, String> {
     let result =
         resolve_indexed_templates_pending(tx, store, metadata, roots, batch_id, previous_frontier)?;
-    sc::verify_many(store, [result.snapshot.clone(), result.delta.clone()]).map_err(err)?;
+    store
+        .verify_many_fresh(
+            [result.snapshot.clone(), result.delta.clone()],
+            sc::Mode::Public,
+        )
+        .map_err(err)?;
     Ok(ResolvedTemplates {
         snapshot: result.snapshot,
         delta: result.delta,
@@ -81,7 +85,7 @@ pub(super) fn resolve_indexed_templates(
 /// 历史只读调用可以把全部Pending根放入同一次Public核验；发布入口仍立即核两根。
 pub(super) fn resolve_indexed_templates_pending(
     tx: &Transaction<'_>,
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     metadata: &ManifestMetadata,
     roots: &ManifestRoots,
     batch_id: &str,
@@ -156,7 +160,9 @@ pub(super) fn resolve_indexed_templates_pending(
             vec![field("index_frontier")],
             vec![field("catalog_evidence"), field("batch_id")],
         ] {
-            *root = replace_batch_placeholder(store, root, &path, batch_id).map_err(err)?;
+            *root = store
+                .replace_batch_placeholder(root, &path, batch_id)
+                .map_err(err)?;
         }
     }
     Ok(PendingTemplates { snapshot, delta })
@@ -186,12 +192,13 @@ fn text(s: impl ToString) -> V {
     V::String(s.to_string())
 }
 fn match_field(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     root: &ContentRef,
     key: &str,
     v: V,
 ) -> Result<(), String> {
-    let actual = lookup_path(store, root, &[field(key)])
+    let actual = store
+        .lookup_path(root, &[field(key)])
         .map_err(err)?
         .digest()
         .map_err(err)?;
@@ -462,8 +469,12 @@ fn member(b: &ObjectBirth, m: &ManifestMetadata, f: ObjectFamily) -> bool {
         ObjectFamily::Born => b.first == m.generation,
     }
 }
-fn array_len(store: &mut dyn NodeStore, root: &ContentRef, name: &str) -> Result<u64, String> {
-    let r = lookup_path(store, root, &[field(name)]).map_err(err)?;
+fn array_len(
+    store: &mut (impl CodecStore + ?Sized),
+    root: &ContentRef,
+    name: &str,
+) -> Result<u64, String> {
+    let r = store.lookup_path(root, &[field(name)]).map_err(err)?;
     array_reference_len(&r, name)
 }
 fn array_reference_len(r: &ContentRef, name: &str) -> Result<u64, String> {
@@ -473,7 +484,7 @@ fn array_reference_len(r: &ContentRef, name: &str) -> Result<u64, String> {
     r.extent.ok_or_else(|| err("缺数组长度"))
 }
 fn resolve_record_batch(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     root: &mut ContentRef,
     path: &[PathStep],
     record: &ContentRef,
@@ -482,14 +493,18 @@ fn resolve_record_batch(
     m: &ManifestMetadata,
     batch: &str,
 ) -> Result<(), String> {
-    let value = lookup_path(store, record, &[field("batch_id")]).map_err(err)?;
+    let value = store
+        .lookup_path(record, &[field("batch_id")])
+        .map_err(err)?;
     if first == m.generation {
         if stored_batch != batch || value.kind != Kind::TemplateBatch {
             return Err(err("本批出生索引/占位不符"));
         }
         let mut p = path.to_vec();
         p.push(field("batch_id"));
-        *root = replace_batch_placeholder(store, root, &p, batch).map_err(err)?;
+        *root = store
+            .replace_batch_placeholder(root, &p, batch)
+            .map_err(err)?;
     } else {
         if stored_batch == batch {
             return Err(err("旧出生记录不得换成本批身份"));
@@ -499,7 +514,7 @@ fn resolve_record_batch(
     Ok(())
 }
 fn resolve_objects(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     root: &mut ContentRef,
     name: &str,
     births: &BTreeMap<NodeDigest, ObjectBirth>,
@@ -513,7 +528,7 @@ fn resolve_objects(
         .map(|(id, _)| *id)
         .collect();
     // 本轮只修改其它成员的batch标量；未处理成员仍来自同一不可变模板数组。
-    let array = lookup_path(store, root, &[field(name)]).map_err(err)?;
+    let array = store.lookup_path(root, &[field(name)]).map_err(err)?;
     let n = array_reference_len(&array, name)?;
     if n != expected.len() as u64 {
         return Err(err(format!("{name} 与独立索引成员数不符")));
@@ -521,25 +536,27 @@ fn resolve_objects(
     let mut seen = BTreeSet::new();
     for i in 0..n {
         let path = [field(name), PathStep::Index(i)];
-        let record = lookup_path(store, &array, &[PathStep::Index(i)]).map_err(err)?;
+        let record = store
+            .lookup_path(&array, &[PathStep::Index(i)])
+            .map_err(err)?;
         // 本模块通用于既有记录与S3记录，只取其共同控制字段，不裁载荷字段schema。
-        let fields = sc::path::lookup_object_fields_subset(
-            store,
-            &record,
-            &[
-                "object_id",
-                "kind",
-                "object_revision",
-                "first_known_generation",
-                "first_known_cut",
-                "published_generation",
-                "withdrawn_generation",
-                "withdrawal_reason",
-                "superseded_by",
-                "lifecycle",
-            ],
-        )
-        .map_err(err)?;
+        let fields = store
+            .lookup_object_fields_subset(
+                &record,
+                &[
+                    "object_id",
+                    "kind",
+                    "object_revision",
+                    "first_known_generation",
+                    "first_known_cut",
+                    "published_generation",
+                    "withdrawn_generation",
+                    "withdrawal_reason",
+                    "superseded_by",
+                    "lifecycle",
+                ],
+            )
+            .map_err(err)?;
         let id = fields["object_id"].digest().map_err(err)?;
         if !expected.contains(&id) || !seen.insert(id) {
             return Err(err(format!("{name} 存在越界/重复身份")));
@@ -581,7 +598,7 @@ fn resolve_objects(
     Ok(())
 }
 fn resolve_observations(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     root: &mut ContentRef,
     births: &BTreeMap<NodeDigest, ObservationBirth>,
     m: &ManifestMetadata,
@@ -600,8 +617,9 @@ fn resolve_observations(
     let mut seen = BTreeSet::new();
     for i in 0..n {
         let path = [field("observations"), PathStep::Index(i)];
-        let record = lookup_path(store, root, &path).map_err(err)?;
-        let id = lookup_path(store, &record, &[field("observation_id")])
+        let record = store.lookup_path(root, &path).map_err(err)?;
+        let id = store
+            .lookup_path(&record, &[field("observation_id")])
             .map_err(err)?
             .digest()
             .map_err(err)?;
