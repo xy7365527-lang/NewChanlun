@@ -7,7 +7,10 @@
 use newchan_rust::s_content as sc;
 #[cfg(test)]
 use newchan_rust::s_content::job::Job;
-use newchan_rust::s_content::{job::{CheckedFrame, CheckedNodeUsage}, NodeDigest};
+use newchan_rust::s_content::{
+    job::{CheckedFrame, CheckedNodeUsage},
+    NodeDigest,
+};
 use sc::access::Access;
 use std::{cell::RefCell, collections::BTreeMap, mem::size_of};
 
@@ -60,7 +63,9 @@ impl<'j> AuditJob<'j> {
         } else {
             nodes.insert(*digest, usage);
             #[cfg(test)]
-            { unique = true; }
+            {
+                unique = true;
+            }
         }
         #[cfg(test)]
         super::state::trace_checked_node(unique, sc::DOMAIN_SEPARATOR.len() + 1 + 8 + body_len);
@@ -186,18 +191,30 @@ mod tests {
             let audit = AuditJob::new(&mut job);
             let before = sc::frame_calls_on_thread();
             {
-                let mut reader = super::super::history::HashReader::metered(&mut source, None, None, Some(&audit));
+                let mut reader = super::super::history::HashReader::metered(
+                    &mut source,
+                    None,
+                    None,
+                    Some(&audit),
+                );
                 let frame = reader.checked_read(&digest).unwrap().expect("节点存在");
                 assert_eq!(frame.digest(), &digest);
             }
-            assert_eq!(sc::frame_calls_on_thread() - before, 1, "一次实际计费读只计算一次 F");
+            assert_eq!(
+                sc::frame_calls_on_thread() - before,
+                1,
+                "一次实际计费读只计算一次 F"
+            );
             audit.record().unwrap();
             audit.finish()
         };
         let snapshot = job.snapshot();
         assert!(snapshot.started);
         assert_eq!(snapshot.nodes, 1);
-        assert_eq!(snapshot.node_bytes, (sc::DOMAIN_SEPARATOR.len() + 1 + 8) as u64);
+        assert_eq!(
+            snapshot.node_bytes,
+            (sc::DOMAIN_SEPARATOR.len() + 1 + 8) as u64
+        );
         assert_eq!(snapshot.records, 1);
         let mut replay = make_job(1024, 8, 8);
         receipt.replay(&mut replay).unwrap();
@@ -214,7 +231,8 @@ mod tests {
         let mut missing_job = make_job(1024, 8, 8);
         {
             let audit = AuditJob::new(&mut missing_job);
-            let mut reader = super::super::history::HashReader::metered(&mut empty, None, None, Some(&audit));
+            let mut reader =
+                super::super::history::HashReader::metered(&mut empty, None, None, Some(&audit));
             assert!(reader.checked_read(&digest).unwrap().is_none());
         }
         assert!(!missing_job.snapshot().started, "Missing 不伪造首读起钟");
@@ -225,8 +243,12 @@ mod tests {
         let mut bad_job = make_job(1024, 8, 8);
         {
             let audit = AuditJob::new(&mut bad_job);
-            let mut reader = super::super::history::HashReader::metered(&mut broken, None, None, Some(&audit));
-            assert_eq!(reader.checked_read(&digest).unwrap_err().code(), sc::code::NODE_DIGEST);
+            let mut reader =
+                super::super::history::HashReader::metered(&mut broken, None, None, Some(&audit));
+            assert_eq!(
+                reader.checked_read(&digest).unwrap_err().code(),
+                sc::code::NODE_DIGEST
+            );
         }
         assert!(bad_job.snapshot().started, "Found 首读在 F 前起钟");
         assert_eq!(bad_job.snapshot().nodes, 0, "坏帧不入账");
@@ -237,7 +259,10 @@ mod tests {
             fn read(&mut self, _: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
                 self.0 += 1;
                 Ok(if self.1 {
-                    sc::NodeRead::Found { tag: sc::tag::NULL, body: vec![] }
+                    sc::NodeRead::Found {
+                        tag: sc::tag::NULL,
+                        body: vec![],
+                    }
                 } else {
                     sc::NodeRead::Missing
                 })
@@ -248,27 +273,41 @@ mod tests {
         assert!(stopped.charge_wire_bytes(1_048_577).is_err());
         {
             let audit = AuditJob::new(&mut stopped);
-            let mut reader = super::super::history::HashReader::metered(&mut source, None, None, Some(&audit));
+            let mut reader =
+                super::super::history::HashReader::metered(&mut source, None, None, Some(&audit));
             assert!(reader.checked_read(&digest).is_err());
         }
         assert_eq!(source.0, 0, "停止门须先于 IO");
 
-        use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+        use std::sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        };
         let now = Instant::now();
         let advanced = Arc::new(AtomicBool::new(false));
         let clock = Arc::clone(&advanced);
         let mut deadline_job = Job::new(
             job_limits(1024, 8, 8, 1),
-            Existing { store_bytes: 0, staged_bytes: 0 },
-            Box::new(move || now + Duration::from_millis(u64::from(clock.load(Ordering::SeqCst)) * 2)),
-        ).unwrap();
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(move || {
+                now + Duration::from_millis(u64::from(clock.load(Ordering::SeqCst)) * 2)
+            }),
+        )
+        .unwrap();
         let mut source = CountReads(0, true);
         {
             let audit = AuditJob::new(&mut deadline_job);
-            let mut reader = super::super::history::HashReader::metered(&mut source, None, None, Some(&audit));
+            let mut reader =
+                super::super::history::HashReader::metered(&mut source, None, None, Some(&audit));
             assert!(reader.checked_read(&digest).unwrap().is_some());
             advanced.store(true, Ordering::SeqCst);
-            assert!(reader.checked_read(&digest).is_err(), "首次读取不能为第二次续期");
+            assert!(
+                reader.checked_read(&digest).is_err(),
+                "首次读取不能为第二次续期"
+            );
         }
         assert_eq!(source.0, 1, "期限门须在第二次 IO 前拒绝");
         assert_eq!(deadline_job.snapshot().stopped, Some(sc::job::DEADLINE));

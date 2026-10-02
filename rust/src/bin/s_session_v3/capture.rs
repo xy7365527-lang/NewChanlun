@@ -58,11 +58,46 @@ struct Image {
 pub(super) struct VerifiedCapture {
     db: Connection,
     audited: state::AuditedState,
-    digest: String,
+    digest: CaptureDigest,
     pub captured_bytes: u64,
     pub source_versions: [i64; 3],
     verify_deadline: Instant,
     audit_receipt: Option<audit_budget::Receipt>,
+}
+/// #1394：已计算捕获摘要采用固定规范十六进制，不为长期持有与借出再分配字符串。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) struct CaptureDigest([u8; 64]);
+impl CaptureDigest {
+    fn from_str(value: &str) -> Result<Self, String> {
+        if value.len() != 64
+            || !value
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(err("捕获摘要不是规范64位十六进制"));
+        }
+        let mut bytes = [0; 64];
+        bytes.copy_from_slice(value.as_bytes());
+        Ok(Self(bytes))
+    }
+    pub(super) fn as_str(&self) -> &str {
+        // 所有构造均核过ASCII；数组不开放修改。
+        std::str::from_utf8(&self.0).expect("规范捕获摘要ASCII")
+    }
+    pub(super) fn capacity(&self) -> usize {
+        0
+    }
+}
+impl std::ops::Deref for CaptureDigest {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.as_str()
+    }
+}
+impl std::fmt::Display for CaptureDigest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 impl VerifiedCapture {
     pub(super) fn digest(&self) -> &str {
@@ -206,7 +241,7 @@ impl ConfiguredCapture<'_> {
                     job,
                 )?;
                 reader::check_projection_anchor(&actual, request.anchor())?;
-                actual.root
+                super::audit_store::RefValue::Plain(actual.root)
             }
             q_content::Anchor::Delta => {
                 let cut = reader::validated_delta(&tx, &self.capture.audited, request.anchor())?;
@@ -316,7 +351,7 @@ impl ConfiguredCapture<'_> {
             usage,
             through_generation: through,
             has_more: through < head,
-            validated_capture_digest: self.capture.digest.clone(),
+            validated_capture_digest: self.capture.digest.to_string(),
         })
     }
 }
@@ -928,7 +963,7 @@ fn verify_image_metered(
         return Err(err("捕获内容外键闭合失败"));
     }
     tx.commit().map_err(sql_err)?;
-    let digest = image.digest.clone();
+    let digest = CaptureDigest::from_str(&image.digest)?;
     let captured_bytes = image.captured_bytes;
     drop(image);
     db.pragma_update(None, "query_only", true)
@@ -1827,7 +1862,7 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
     }
     fn public_history_records(proof: &mut VerifiedCapture) -> u64 {
         // 独立从已发布实际根的13个公共集合读取extent；不复用审计计费回调或内部索引计数。
-        use sc::path::{lookup_path, PathStep};
+        use sc::path::{lookup_path_refview, PathStep};
         let tx = proof.db.transaction().unwrap();
         let mut source = content_store::ReadStore::new(&tx).unwrap();
         let mut count = 0;
@@ -1858,8 +1893,12 @@ print(q.capture_digest(dict(schema=schema,schema_rows=rows,tables=tables)))
                 ),
             ] {
                 for field in fields {
-                    let array = lookup_path(&mut source, root, &[PathStep::Field((*field).into())])
-                        .unwrap();
+                    let array = lookup_path_refview(
+                        &mut source,
+                        root.view(),
+                        &[PathStep::Field((*field).into())],
+                    )
+                    .unwrap();
                     assert_eq!(array.kind, sc::Kind::Array);
                     count += array.extent.unwrap();
                 }

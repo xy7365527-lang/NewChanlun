@@ -1,11 +1,13 @@
 //! #1394 C §5.2–5.4：绑定同 cut 来源原件、typed/CC006 身份和见证。
 //! 只读事实及其引用，不重新运行包含、分型或新笔判定。原始账必须先经 read_raw_events 核验。
+use super::audit_store::RefValue;
 use super::audit_store::{CodecRead, CodecStore};
+use super::business_json::{self as bj, RawEventsView};
 use crate::{
     canonical_json,
     content_producer::{
-        self, Cc004Producer, ShapeIdentity, CC004_STEP_KIND, CC005_GROUP_KIND, CC006_SHAPE_KIND,
-        CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
+        self, Cc004Producer, ShapeIdentityView, CC004_STEP_KIND, CC005_GROUP_KIND,
+        CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
     },
     read_effective_events, stored_source_coord, tb02a, tb02a_facts, tb02b,
 };
@@ -22,68 +24,112 @@ fn err(e: impl std::fmt::Display) -> String {
 fn f(k: &str) -> PathStep {
     PathStep::Field(k.into())
 }
-fn field(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<ContentRef, String> {
-    s.lookup_path(r, &[f(k)]).map_err(err)
+struct SourceFields<'names>(super::audit_store::RefFields<'names>);
+impl<'names> SourceFields<'names> {
+    fn read_subset(
+        s: &mut (impl CodecStore + ?Sized),
+        r: sc::RefView<'_>,
+        names: &[&'names str],
+    ) -> Result<Self, String> {
+        s.lookup_subset_ref(r, names).map(Self).map_err(err)
+    }
+    fn get(&self, k: &str) -> Result<RefValue, String> {
+        self.0.get(k).ok_or_else(|| err(format!("原件缺字段{k}")))
+    }
+    fn text(&self, s: &mut (impl CodecRead + ?Sized), k: &str) -> Result<bj::TextValue, String> {
+        let r = self.get(k)?;
+        text_value(s, r.view(), k)
+    }
+    fn integer(&self, s: &mut (impl CodecRead + ?Sized), k: &str) -> Result<i64, String> {
+        let r = self.get(k)?;
+        scalar_value(s, r.view())?
+            .view()
+            .as_i64()
+            .ok_or_else(|| err(format!("{k}不是i64")))
+    }
 }
-fn scalar(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<Value, String> {
+fn field<'a>(
+    s: &mut (impl CodecRead + ?Sized),
+    r: impl Into<sc::RefView<'a>>,
+    k: &str,
+) -> Result<RefValue, String> {
+    field_ref(s, r.into(), k)
+}
+fn scalar<'a>(
+    s: &mut (impl CodecRead + ?Sized),
+    r: impl Into<sc::RefView<'a>>,
+    k: &str,
+) -> Result<bj::JsonOwner, String> {
     let r = field(s, r, k)?;
-    scalar_value(s, &r)
+    scalar_value(s, r.view())
 }
-fn scalar_value(s: &mut (impl CodecRead + ?Sized), r: &ContentRef) -> Result<Value, String> {
+fn scalar_value<'a>(
+    s: &mut (impl CodecRead + ?Sized),
+    r: impl Into<sc::RefView<'a>>,
+) -> Result<bj::JsonOwner, String> {
+    let r = r.into();
     if !matches!(
-        r.kind,
+        r.kind(),
         Kind::Number | Kind::String | Kind::Bool | Kind::Null
     ) {
         return Err(err("预期标量"));
     }
-    let mut b = Vec::new();
-    s.render_canonical(r, &mut b).map_err(err)?;
-    newchan_rust::session_protocol::strict_json(&b)
+    bj::render_json(s, r)
 }
 /// 仅当前 part/payload 的固定小字段；Some 由 ArrayAuditSource 关闭批读。
-fn local_fields(
+fn local_fields<'a, 'names>(
     s: &mut (impl CodecStore + ?Sized),
-    r: &ContentRef,
-    names: &[&str],
-) -> Result<Option<super::object_index::Fields>, String> {
+    r: impl Into<sc::RefView<'a>>,
+    names: &[&'names str],
+) -> Result<Option<SourceFields<'names>>, String> {
     if s.audit_full_array_scan() {
-        super::object_index::Fields::read_subset(s, r, names)
+        SourceFields::read_subset(s, r.into(), names)
             .map(Some)
             .map_err(err)
     } else {
         Ok(None)
     }
 }
-fn text(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<String, String> {
-    let r = field(s, r, k)?;
-    text_value(s, &r, k)
-}
-fn text_value(
+fn text<'a>(
     s: &mut (impl CodecRead + ?Sized),
-    r: &ContentRef,
+    r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<String, String> {
-    scalar_value(s, r)?
-        .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| err(format!("{k}不是文本")))
+) -> Result<bj::TextValue, String> {
+    let r = field(s, r, k)?;
+    text_value(s, r.view(), k)
 }
-fn number(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<i64, String> {
+fn text_value<'a>(
+    s: &mut (impl CodecRead + ?Sized),
+    r: impl Into<sc::RefView<'a>>,
+    k: &str,
+) -> Result<bj::TextValue, String> {
+    let value = scalar_value(s, r)?;
+    let v = value.view();
+    let text = v.as_str().ok_or_else(|| err(format!("{k}不是文本")))?;
+    bj::TextValue::from_str(text, s.allocation_budget().as_ref())
+}
+fn number<'a>(
+    s: &mut (impl CodecRead + ?Sized),
+    r: impl Into<sc::RefView<'a>>,
+    k: &str,
+) -> Result<i64, String> {
     scalar(s, r, k)?
+        .view()
         .as_i64()
         .ok_or_else(|| err(format!("{k}不是整数")))
 }
 fn decimal(v: &str) -> Result<i64, String> {
     newchan_rust::session_protocol::parse_canonical_i64(v, "source coordinate").map_err(err)
 }
-fn digest(r: &ContentRef) -> Result<NodeDigest, String> {
-    r.digest().map_err(err)
+fn digest<'a>(r: impl Into<sc::RefView<'a>>) -> Result<NodeDigest, String> {
+    r.into().digest().map_err(err)
 }
-fn built(r: ContentRef) -> Result<Built, String> {
+fn built<'a>(r: impl Into<sc::RefView<'a>>) -> Result<Built, String> {
+    let r = r.into();
     Ok(Built {
-        digest: digest(&r)?,
-        kind: r.kind,
-        extent: r.extent,
+        digest: r.digest().map_err(err)?,
+        kind: r.kind(),
+        extent: r.extent(),
     })
 }
 fn cv(v: &Value) -> Result<V, String> {
@@ -107,34 +153,51 @@ impl NodeSink for HashOnly {
     }
 }
 fn hash(v: &Value) -> Result<NodeDigest, String> {
-    Ok(sc::write_value(&mut HashOnly, &cv(v)?).map_err(err)?.digest)
+    Ok(sc::write_json_view(&mut HashOnly, v.into())
+        .map_err(err)?
+        .digest)
 }
-fn exact(r: &ContentRef, kind: Kind, n: u64) -> Result<(), String> {
-    if r.kind != kind || r.extent != Some(n) {
+fn parsed_json(s: &(impl CodecRead + ?Sized), bytes: &[u8]) -> Result<bj::JsonOwner, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = s.allocation_budget() {
+        return sc::capture_allocation::audit_json::OwnedJson::parse(bytes, &b)
+            .map(bj::JsonOwner::Owned)
+            .map_err(err);
+    }
+    newchan_rust::session_protocol::strict_json(bytes).map(bj::JsonOwner::Plain)
+}
+fn canonical_matches(
+    s: &(impl CodecRead + ?Sized),
+    v: sc::capture_allocation::audit_json::JsonView<'_>,
+    bytes: &[u8],
+) -> Result<bool, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = s.allocation_budget() {
+        return sc::capture_allocation::audit_json::canonical_bytes(v, &b)
+            .map(|out| &*out == bytes)
+            .map_err(err);
+    }
+    match v {
+        sc::capture_allocation::audit_json::JsonView::Plain(v) => {
+            Ok(canonical_json(v).as_bytes() == bytes)
+        }
+        _ => Err(err("owned JSON组合缺实际账本")),
+    }
+}
+fn exact<'a>(r: impl Into<sc::RefView<'a>>, kind: Kind, n: u64) -> Result<(), String> {
+    let r = r.into();
+    if r.kind() != kind || r.extent() != Some(n) {
         Err(err(format!("字段/成员形状不符：预期{kind:?}/{n}")))
     } else {
         Ok(())
     }
 }
-pub(super) fn elements(
+pub(super) fn elements<'a>(
     s: &mut (impl CodecRead + ?Sized),
-    r: &ContentRef,
-) -> Result<sc::CodecVec<ContentRef>, String> {
-    if r.kind != Kind::Array {
-        return Err(err("预期数组"));
-    }
-    if s.audit_full_array_scan() {
-        return s.lookup_array_items(r).map_err(err);
-    }
-    let count = r.extent.ok_or_else(|| err("数组缺长度"))?;
-    let mut result = s.new_ref_result();
-    for i in 0..count {
-        let item = s.lookup_path(r, &[PathStep::Index(i)]).map_err(err)?;
-        result.try_push(item).map_err(err)?;
-    }
-    Ok(result)
+    r: impl Into<sc::RefView<'a>>,
+) -> Result<sc::CodecVec<RefValue>, String> {
+    elements_ref(s, r.into())
 }
-
 /// 活期仅为本次完整来源审计；预算/期限 Some 强制原路径。
 struct ArrayAuditSource<'a, 'borrow, 'source> {
     source: &'a mut super::audit_store::StoreView<'borrow, 'source>,
@@ -182,6 +245,77 @@ impl<'a, 'borrow, 'source> ArrayAuditSource<'a, 'borrow, 'source> {
     }
 }
 impl CodecRead for ArrayAuditSource<'_, '_, '_> {
+    fn content_ref_view(&mut self, r: &str) -> Result<RefValue, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            self.owned_role(|s| s.content_ref_view(r))
+        } else {
+            sc::content_ref_of(self, r).map(RefValue::Plain)
+        }
+    }
+    fn lookup_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        p: &[PathStep],
+    ) -> Result<RefValue, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            self.owned_role(|s| s.lookup_ref(r, p))
+        } else {
+            sc::path::lookup_path_refview(self, r, p).map(RefValue::Plain)
+        }
+    }
+    fn lookup_fields_ref<'a>(
+        &mut self,
+        r: sc::RefView<'_>,
+        n: &[&'a str],
+    ) -> Result<super::audit_store::RefFields<'a>, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            self.owned_role(|s| s.lookup_fields_ref(r, n))
+        } else {
+            sc::path::lookup_fields_refview(self, r, n, false)
+                .map(super::audit_store::RefFields::Plain)
+        }
+    }
+    fn lookup_subset_ref<'a>(
+        &mut self,
+        r: sc::RefView<'_>,
+        n: &[&'a str],
+    ) -> Result<super::audit_store::RefFields<'a>, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            self.owned_role(|s| s.lookup_subset_ref(r, n))
+        } else {
+            sc::path::lookup_fields_refview(self, r, n, true)
+                .map(super::audit_store::RefFields::Plain)
+        }
+    }
+    fn lookup_array_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+    ) -> Result<sc::CodecVec<RefValue>, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            self.owned_role(|s| s.lookup_array_ref(r))
+        } else {
+            let plain = sc::path::lookup_array_items_refview(self, r)?;
+            let mut out = bj::new_work(None);
+            for r in plain {
+                out.try_push(RefValue::Plain(r))?;
+            }
+            Ok(out)
+        }
+    }
+    fn render_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        o: &mut dyn std::io::Write,
+    ) -> Result<(), sc::CodecError> {
+        if self.source.owned_codec_active() {
+            self.owned_role(|s| s.render_ref(r, o))
+        } else {
+            sc::render_refview(self, r, o)
+        }
+    }
+    fn allocation_budget(&self) -> Option<sc::capture_allocation::OwnedBudget> {
+        self.source.allocation_budget()
+    }
     fn new_ref_result(&mut self) -> sc::CodecVec<ContentRef> {
         if self.source.owned_codec_active() {
             self.source.new_ref_result()
@@ -255,6 +389,30 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_> {
     }
 }
 impl CodecStore for ArrayAuditSource<'_, '_, '_> {
+    fn write_json_view(
+        &mut self,
+        v: sc::capture_allocation::audit_json::JsonView<'_>,
+    ) -> Result<Built, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            self.owned_role(|s| s.write_json_view(v))
+        } else {
+            sc::write_json_view(self, v)
+        }
+    }
+    fn write_value_view(&mut self, v: sc::ValueView<'_>) -> Result<Built, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            self.owned_role(|s| s.write_value_view(v))
+        } else {
+            sc::write_value_view(self, v)
+        }
+    }
+    fn write_template_view(&mut self, v: sc::ValueView<'_>) -> Result<Built, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            self.owned_role(|s| s.write_template_view(v))
+        } else {
+            sc::write_template_view(self, v)
+        }
+    }
     fn generic_store(&mut self) -> &mut dyn NodeStore {
         self
     }
@@ -286,16 +444,14 @@ impl CodecStore for ArrayAuditSource<'_, '_, '_> {
     }
 }
 
-fn coords(s: &mut (impl CodecRead + ?Sized), r: &ContentRef) -> Result<Vec<i64>, String> {
+fn coords(s: &mut (impl CodecRead + ?Sized), r: &RefValue) -> Result<Vec<i64>, String> {
     let mut out = Vec::new();
     for item in elements(s, r)? {
-        if item.kind != Kind::String {
+        if item.kind() != Kind::String {
             return Err(err("源坐标必须为文本"));
         }
-        let mut bytes = Vec::new();
-        s.render_canonical(&item, &mut bytes).map_err(err)?;
-        let v: Value = newchan_rust::session_protocol::strict_json(&bytes)?;
-        let n = decimal(v.as_str().ok_or_else(|| err("坐标不是文本"))?)?;
+        let value = bj::read_text(s, item.view())?;
+        let n = decimal(value.as_str())?;
         if out.last().is_some_and(|prev| *prev >= n) {
             return Err(err("源坐标不是严格升序"));
         }
@@ -309,14 +465,14 @@ struct Source {
     raw: NodeDigest,
 }
 struct Object {
-    id: String,
-    kind: String,
-    fields: super::object_index::Fields,
-    refs: ContentRef,
+    id: bj::TextValue,
+    kind: bj::TextValue,
+    fields: SourceFields<'static>,
+    refs: RefValue,
     sources: Vec<i64>,
 }
 struct Group {
-    payload: ContentRef,
+    payload: RefValue,
     members: Vec<i64>,
     sources: Vec<i64>,
     anchor: i64,
@@ -335,7 +491,7 @@ pub(super) struct Counts {
 }
 fn references(
     s: &mut (impl CodecRead + ?Sized),
-    r: &ContentRef,
+    r: &RefValue,
     raw: &BTreeMap<i64, Source>,
     numeric: bool,
     checked: &mut BTreeMap<(NodeDigest, bool), i64>,
@@ -372,29 +528,29 @@ fn references(
     Ok(out)
 }
 /// raw_prefix 是同一次读集、截至本代 input_frontier 的独立原始账，不是manifest自己提供的值。
-pub(super) fn audit_generated(
+pub(super) fn audit_generated<'a>(
     s: &mut dyn NodeStore,
-    state: &ContentRef,
-    raw_prefix: &[Value],
+    state: impl Into<sc::RefView<'a>>,
+    raw_prefix: impl Into<RawEventsView<'a>>,
     profile: &str,
     rule: &str,
 ) -> Result<Counts, String> {
     audit_generated_metered(s, state, raw_prefix, profile, rule, None, None)
 }
-pub(super) fn audit_generated_until(
+pub(super) fn audit_generated_until<'a>(
     s: &mut dyn NodeStore,
-    state: &ContentRef,
-    raw_prefix: &[Value],
+    state: impl Into<sc::RefView<'a>>,
+    raw_prefix: impl Into<RawEventsView<'a>>,
     profile: &str,
     rule: &str,
     deadline: Option<std::time::Instant>,
 ) -> Result<Counts, String> {
     audit_generated_metered(s, state, raw_prefix, profile, rule, deadline, None)
 }
-pub(super) fn audit_generated_metered(
+pub(super) fn audit_generated_metered<'a>(
     s: &mut dyn NodeStore,
-    state: &ContentRef,
-    raw_prefix: &[Value],
+    state: impl Into<sc::RefView<'a>>,
+    raw_prefix: impl Into<RawEventsView<'a>>,
     profile: &str,
     rule: &str,
     deadline: Option<std::time::Instant>,
@@ -402,18 +558,18 @@ pub(super) fn audit_generated_metered(
 ) -> Result<Counts, String> {
     audit_generated_in_store(
         &mut super::audit_store::StoreView::generic(s),
-        state,
-        raw_prefix,
+        state.into(),
+        raw_prefix.into(),
         profile,
         rule,
         deadline,
         budget,
     )
 }
-pub(super) fn audit_generated_for_audit(
+pub(super) fn audit_generated_for_audit<'a>(
     s: &mut super::history::HashReader<'_>,
-    state: &ContentRef,
-    raw_prefix: &[Value],
+    state: impl Into<sc::RefView<'a>>,
+    raw_prefix: impl Into<RawEventsView<'a>>,
     profile: &str,
     rule: &str,
     deadline: Option<std::time::Instant>,
@@ -421,8 +577,8 @@ pub(super) fn audit_generated_for_audit(
 ) -> Result<Counts, String> {
     audit_generated_in_store(
         &mut super::audit_store::StoreView::for_audit(s),
-        state,
-        raw_prefix,
+        state.into(),
+        raw_prefix.into(),
         profile,
         rule,
         deadline,
@@ -431,8 +587,8 @@ pub(super) fn audit_generated_for_audit(
 }
 fn audit_generated_in_store(
     s: &mut super::audit_store::StoreView<'_, '_>,
-    state: &ContentRef,
-    raw_prefix: &[Value],
+    state: sc::RefView<'_>,
+    raw_prefix: RawEventsView<'_>,
     profile: &str,
     rule: &str,
     deadline: Option<std::time::Instant>,
@@ -441,7 +597,7 @@ fn audit_generated_in_store(
     super::history::check_deadline(deadline)?;
     #[cfg(test)]
     super::state::trace_event("source_closure", None);
-    s.verify_public(state).map_err(err)?;
+    s.verify_ref(state, sc::Mode::Public).map_err(err)?;
     let mut array_source = ArrayAuditSource {
         source: s,
         full_arrays: budget.is_none(),
@@ -456,25 +612,23 @@ fn audit_generated_in_store(
         ));
     }
     let producer = Cc004Producer::new(profile, rule);
-    let effective = crate::read_effective_events_until(raw_prefix, deadline)?;
+    let effective = bj::effective(raw_prefix, deadline)?;
     let mut raw = BTreeMap::new();
-    for event in &effective {
+    for event in effective.iter() {
         super::history::check_deadline(deadline)?;
-        let coord = stored_source_coord(event)?;
-        let wire = tb02a_facts::raw_ref(event);
-        let mut numeric = wire.clone();
-        numeric["revision"] = event["revision"].clone();
-        numeric["seq"] = event["seq"].clone();
+        let coord = bj::coord(event)?;
+        let wire = bj::RawReference::new(event, false)?;
+        let numeric = bj::RawReference::new(event, true)?;
         raw.insert(
             coord,
             Source {
-                wire: super::history::hash_json_metered(&wire, deadline, budget)?,
-                numeric: super::history::hash_json_metered(&numeric, deadline, budget)?,
-                raw: super::history::hash_json_metered(event, deadline, budget)?,
+                wire: super::history::hash_json_in_store(s, wire.view(), deadline, budget)?,
+                numeric: super::history::hash_json_in_store(s, numeric.view(), deadline, budget)?,
+                raw: super::history::hash_json_in_store(s, event, deadline, budget)?,
             },
         );
     }
-    let object_array = field(s, state, "objects")?;
+    let object_array = s.lookup_ref(state, &[f("objects")]).map_err(err)?;
     #[cfg(test)]
     super::state::trace_event("source_objects", None);
     // 活期只覆盖当前一次audit_generated；不在代际、事务或源修订之间带出。
@@ -482,7 +636,7 @@ fn audit_generated_in_store(
     let mut objects = Vec::new();
     let mut ids = BTreeSet::new();
     let mut groups = BTreeMap::new();
-    for record in elements(s, &object_array)? {
+    for record in elements_ref(s, object_array.view())? {
         super::history::check_deadline(deadline)?;
         let kind = text(s, &record, "kind")?;
         let mut names = vec![
@@ -505,20 +659,20 @@ fn audit_generated_in_store(
         } else {
             names.extend(["payload_json", "fact_key"]);
         }
-        let fields = super::object_index::Fields::read_subset(s, &record, &names).map_err(err)?;
+        let fields = SourceFields::read_subset(s, record.view(), &names).map_err(err)?;
         let id = fields.text(s, "object_id").map_err(err)?;
-        if !ids.insert(id.clone()) || fields.integer(s, "object_revision").map_err(err)? != 1 {
+        if !ids.insert(id.try_clone()?) || fields.integer(s, "object_revision").map_err(err)? != 1 {
             return Err(err("对象身份重复或修订不符"));
         }
         let refs = s
-            .lookup_path(
-                fields.get("input_refs_json").map_err(err)?,
+            .lookup_ref(
+                fields.get("input_refs_json").map_err(err)?.view(),
                 &[PathStep::JsonText],
             )
             .map_err(err)?;
         let source_ref = s
-            .lookup_path(
-                fields.get("source_coords_json").map_err(err)?,
+            .lookup_ref(
+                fields.get("source_coords_json").map_err(err)?.view(),
                 &[PathStep::JsonText],
             )
             .map_err(err)?;
@@ -539,27 +693,32 @@ fn audit_generated_in_store(
                 return Err(err("未声明typed事实种类"));
             }
             let payload = s
-                .lookup_path(
-                    fields.get("payload_json").map_err(err)?,
+                .lookup_ref(
+                    fields.get("payload_json").map_err(err)?.view(),
                     &[PathStep::JsonText],
                 )
                 .map_err(err)?;
-            if payload.kind != Kind::Object {
+            if payload.kind() != Kind::Object {
                 return Err(err("typed载荷不是对象"));
             }
             if references(s, &refs, &raw, false, &mut checked_refs)? != sources {
                 return Err(err("typed引用与source_coords不同"));
             }
             let key = fields.text(s, "fact_key").map_err(err)?;
-            let parsed = newchan_rust::session_protocol::strict_json(key.as_bytes())?;
-            if canonical_json(&parsed) != key
+            let parsed_owner = parsed_json(s, key.as_bytes())?;
+            let parsed = parsed_owner.view();
+            if !canonical_matches(s, parsed, key.as_bytes())?
                 || parsed.as_array().is_none_or(|a| a.len() != 2)
-                || parsed[0] != kind
+                || parsed
+                    .index(0)
+                    .unwrap_or(sc::capture_allocation::audit_json::JsonView::Null)
+                    .as_str()
+                    != Some(kind.as_str())
             {
                 return Err(err("typed槽位种类/规范文本不符"));
             }
             let expected = producer
-                .typed_object_id(&kind, &key, &built(payload.clone())?, &built(refs.clone())?)
+                .typed_object_id(&kind, &key, &built(payload.view())?, &built(refs.view())?)
                 .map_err(err)?;
             if id != expected {
                 return Err(err("typed obj3身份与来源/载荷原件不符"));
@@ -579,7 +738,14 @@ fn audit_generated_in_store(
                     }
                 }
                 if digest(&field(s, &payload, "slot")?)?
-                    != super::history::hash_json_metered(&parsed[1], deadline, budget)?
+                    != super::history::hash_json_in_store(
+                        s,
+                        parsed
+                            .index(1)
+                            .unwrap_or(sc::capture_allocation::audit_json::JsonView::Null),
+                        deadline,
+                        budget,
+                    )?
                 {
                     return Err(err("新笔payload槽位与fact_key不同"));
                 }
@@ -600,7 +766,7 @@ fn audit_generated_in_store(
                 for key in ["direction_evidence", "confirmation_evidence"] {
                     super::history::check_deadline(deadline)?;
                     let evidence = field(s, &payload, key)?;
-                    if evidence.kind != Kind::Null {
+                    if evidence.kind() != Kind::Null {
                         let list = field(s, &evidence, "source_coords")?;
                         union.extend(coords(s, &list)?);
                     }
@@ -655,9 +821,12 @@ fn audit_generated_in_store(
         super::history::check_deadline(deadline)?;
         exact(&object.refs, Kind::Array, 3)?;
         let mut indices = [0; 3];
-        let mut highs: [String; 3] = Default::default();
-        let mut lows: [String; 3] = Default::default();
-        let mut windows: [String; 3] = Default::default();
+        let mut highs: [bj::TextValue; 3] =
+            std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
+        let mut lows: [bj::TextValue; 3] =
+            std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
+        let mut windows =
+            std::array::from_fn::<_, 3, _>(|_| crate::content_manifest::Decimal::new(0));
         let mut source_union = BTreeSet::new();
         for (slot, part) in elements(s, &object.refs)?.into_iter().enumerate() {
             super::history::check_deadline(deadline)?;
@@ -665,7 +834,8 @@ fn audit_generated_in_store(
             let part_fields =
                 local_fields(s, &part, &["merged_index", "raw_refs", "dependency_refs"])?;
             let index = if let Some(fields) = &part_fields {
-                scalar_value(s, fields.get("merged_index").map_err(err)?)?
+                scalar_value(s, fields.get("merged_index").map_err(err)?.view())?
+                    .view()
                     .as_i64()
                     .ok_or_else(|| err("merged_index不是整数"))?
             } else {
@@ -679,7 +849,7 @@ fn audit_generated_in_store(
                 .get(&index)
                 .ok_or_else(|| err("形态引用没有同cut组事实"))?;
             let raw_refs = if let Some(fields) = &part_fields {
-                fields.get("raw_refs").map_err(err)?.clone()
+                fields.get("raw_refs").map_err(err)?
             } else {
                 field(s, &part, "raw_refs")?
             };
@@ -688,7 +858,7 @@ fn audit_generated_in_store(
                 return Err(err("形态raw_refs不是同cut组成员"));
             }
             let deps = if let Some(fields) = &part_fields {
-                fields.get("dependency_refs").map_err(err)?.clone()
+                fields.get("dependency_refs").map_err(err)?
             } else {
                 field(s, &part, "dependency_refs")?
             };
@@ -705,17 +875,20 @@ fn audit_generated_in_store(
             }
             source_union.extend(members);
             source_union.extend(dependency);
-            windows[slot] = object
-                .fields
-                .integer(s, ["window_start", "window_mid", "window_end"][slot])
-                .map_err(err)?
-                .to_string();
-            if windows[slot] != group.anchor.to_string() {
+            windows[slot] = crate::content_manifest::Decimal::new(
+                object
+                    .fields
+                    .integer(s, ["window_start", "window_mid", "window_end"][slot])
+                    .map_err(err)?,
+            );
+            if windows[slot].as_str()
+                != crate::content_manifest::Decimal::new(group.anchor).as_str()
+            {
                 return Err(err("形态窗口不等于同cut组锚"));
             }
             if let Some(fields) = local_fields(s, &group.payload, &["high", "low"])? {
-                highs[slot] = text_value(s, fields.get("high").map_err(err)?, "high")?;
-                lows[slot] = text_value(s, fields.get("low").map_err(err)?, "low")?;
+                highs[slot] = text_value(s, fields.get("high").map_err(err)?.view(), "high")?;
+                lows[slot] = text_value(s, fields.get("low").map_err(err)?.view(), "low")?;
             } else {
                 highs[slot] = text(s, &group.payload, "high")?;
                 lows[slot] = text(s, &group.payload, "low")?;
@@ -728,26 +901,27 @@ fn audit_generated_in_store(
         let dir_ab = object.fields.text(s, "dir_ab").map_err(err)?;
         let dir_bc = object.fields.text(s, "dir_bc").map_err(err)?;
         let comparison_text = object.fields.text(s, "comparisons_json").map_err(err)?;
-        let comparisons = newchan_rust::session_protocol::strict_json(comparison_text.as_bytes())?;
-        if canonical_json(&comparisons) != comparison_text
+        let comparisons_owner = parsed_json(s, comparison_text.as_bytes())?;
+        let comparisons = comparisons_owner.view();
+        if !canonical_matches(s, comparisons, comparison_text.as_bytes())?
             || comparisons.as_array().is_none_or(|v| v.len() != 4)
         {
             return Err(err("形态比较不是规范四项"));
         }
         let comparisons = Built {
-            digest: super::history::hash_json_metered(&comparisons, deadline, budget)?,
+            digest: super::history::hash_json_in_store(s, comparisons, deadline, budget)?,
             kind: Kind::Array,
             extent: Some(4),
         };
-        let input_refs = built(object.refs.clone())?;
+        let input_refs = built(object.refs.view())?;
         let identity = producer
-            .shape_identity(ShapeIdentity {
+            .shape_identity_borrowed(ShapeIdentityView {
                 branch: &branch,
                 dir_ab: &dir_ab,
                 dir_bc: &dir_bc,
-                window: windows,
-                highs,
-                lows,
+                window: windows.each_ref().map(|v| v.as_str()),
+                highs: highs.each_ref().map(|v| v.as_str()),
+                lows: lows.each_ref().map(|v| v.as_str()),
                 comparisons: &comparisons,
                 input_refs: &input_refs,
             })
@@ -755,18 +929,18 @@ fn audit_generated_in_store(
         if content_producer::object_id_of(&identity) != object.id {
             return Err(err("CC006 obj3与同cut组事实身份不符"));
         }
-        shapes.insert(object.id.clone(), Shape { groups: indices });
+        shapes.insert(object.id.try_clone()?, Shape { groups: indices });
     }
-    let witness_array = field(s, state, "witnesses")?;
+    let witness_array = field_ref(s, state, "witnesses")?;
     #[cfg(test)]
     super::state::trace_event("source_witnesses", None);
     let mut seen = BTreeSet::new();
     for witness in elements(s, &witness_array)? {
         super::history::check_deadline(deadline)?;
         exact(&witness, Kind::Object, 9)?;
-        let fields = super::object_index::Fields::read_subset(
+        let fields = SourceFields::read_subset(
             s,
-            &witness,
+            witness.view(),
             &[
                 "witness_id",
                 "object_id",
@@ -783,7 +957,7 @@ fn audit_generated_in_store(
         let id = fields.text(s, "witness_id").map_err(err)?;
         let object_id = fields.text(s, "object_id").map_err(err)?;
         let slot = fields.integer(s, "slot").map_err(err)?;
-        if !(0..3).contains(&slot) || !seen.insert((object_id.clone(), slot)) {
+        if !(0..3).contains(&slot) || !seen.insert((object_id.try_clone()?, slot)) {
             return Err(err("见证槽位重复/越界"));
         }
         let shape = shapes
@@ -803,15 +977,15 @@ fn audit_generated_in_store(
         ] {
             let actual = fields.get(merged).map_err(err)?;
             let expected = if let Some(fields) = &payload_fields {
-                fields.get(field_name).map_err(err)?.clone()
+                fields.get(field_name).map_err(err)?
             } else {
                 field(s, &group.payload, field_name)?
             };
-            if actual != &expected {
+            if actual != expected {
                 return Err(err("见证合并值不是同cut组事实"));
             }
         }
-        let bars = fields.get("raw_bars").map_err(err)?.clone();
+        let bars = fields.get("raw_bars").map_err(err)?;
         let items = elements(s, &bars)?;
         if items.len() != group.members.len() {
             return Err(err("见证raw_bars成员数不同"));
@@ -827,7 +1001,7 @@ fn audit_generated_in_store(
             &object_id,
             slot as usize,
             mi as usize,
-            &built(bars)?,
+            &built(bars.view())?,
         )?;
         if id != want {
             return Err(err("见证ID不符"));
@@ -836,7 +1010,7 @@ fn audit_generated_in_store(
     if seen.len() != shapes.len() * 3 {
         return Err(err("形态缺完整三槽见证"));
     }
-    let observations = field(s, state, "observations")?;
+    let observations = field_ref(s, state, "observations")?;
     #[cfg(test)]
     super::state::trace_event("source_observations", None);
     let mut insufficient = 0;
@@ -944,8 +1118,8 @@ mod tests {
             &rule,
         );
         let input = GenerationInput {
-            all_events: &raw,
-            effective: &effective,
+            all_events: (&raw).into(),
+            effective: (&effective).into(),
             generation: 1,
             structure_cut: "cut-1",
             input_frontier: raw.len() as i64 - 1,
@@ -964,13 +1138,14 @@ mod tests {
         let root = generated.generated_state.clone();
         (store, root, raw, rule)
     }
-    fn replace_field(
+    fn replace_field<'a>(
         s: &mut dyn NodeStore,
-        r: &ContentRef,
+        r: impl Into<sc::RefView<'a>>,
         names: &[&str],
         key: &str,
         replacement: V,
     ) -> ContentRef {
+        let r = r.into();
         let fields = names
             .iter()
             .map(|name| {
@@ -997,7 +1172,7 @@ mod tests {
     ) -> ContentRef {
         let values = field(s, state, collection).unwrap();
         let mut elements = elements(s, &values).unwrap();
-        elements[index] = record;
+        elements[index] = RefValue::Plain(record);
         replace_field(
             s,
             state,
@@ -1090,9 +1265,13 @@ mod tests {
                 let value = if *name == "merged_index" || names.len() == 2 {
                     let value = scalar_value(s, &r)?;
                     if *name == "merged_index" {
-                        value.as_i64().ok_or_else(|| err("merged_index不是整数"))?;
+                        value
+                            .view()
+                            .as_i64()
+                            .ok_or_else(|| err("merged_index不是整数"))?;
                     } else {
                         value
+                            .view()
                             .as_str()
                             .ok_or_else(|| err(format!("{name}不是文本")))?;
                     }
@@ -1100,7 +1279,19 @@ mod tests {
                 } else {
                     None
                 };
-                Ok((r, value))
+                let reference = ContentRef {
+                    format: r.view().format().to_owned(),
+                    root: r.root().to_owned(),
+                    kind: r.kind(),
+                    extent: r.extent(),
+                };
+                let value = value.map(|v| match v {
+                    bj::JsonOwner::Plain(v) => v,
+                    #[cfg(feature = "s_allocation_json_testonly")]
+                    bj::JsonOwner::Owned(v) => serde_json::to_value(v.view())
+                        .expect("test-only logical oracle serialization"),
+                });
+                Ok((reference, value))
             })
             .collect()
     }
@@ -1109,10 +1300,10 @@ mod tests {
         let objects = elements(s, &objects).unwrap();
         let shape = objects
             .iter()
-            .find(|r| text(s, r, "kind").unwrap() == CC006_SHAPE_KIND)
+            .find(|r| text(s, *r, "kind").unwrap() == CC006_SHAPE_KIND)
             .unwrap();
         let refs = field(s, shape, "input_refs_json").unwrap();
-        let refs = lookup_path(s, &refs, &[PathStep::JsonText]).unwrap();
+        let refs = sc::path::lookup_path_refview(s, refs.view(), &[PathStep::JsonText]).unwrap();
         let part = elements(s, &refs).unwrap().into_iter().next().unwrap();
         let index = number(s, &part, "merged_index").unwrap();
         let payload = objects
@@ -1120,7 +1311,9 @@ mod tests {
             .find_map(|r| {
                 if text(s, r, "kind").unwrap() == CC005_GROUP_KIND {
                     let payload = field(s, r, "payload_json").unwrap();
-                    let payload = lookup_path(s, &payload, &[PathStep::JsonText]).unwrap();
+                    let payload =
+                        sc::path::lookup_path_refview(s, payload.view(), &[PathStep::JsonText])
+                            .unwrap();
                     if text(s, &payload, "group_index").unwrap() == index.to_string() {
                         return Some(payload);
                     }
@@ -1128,7 +1321,15 @@ mod tests {
                 None
             })
             .unwrap();
-        (part, payload)
+        (
+            ContentRef {
+                format: part.view().format().to_owned(),
+                root: part.root().to_owned(),
+                kind: part.kind(),
+                extent: part.extent(),
+            },
+            payload,
+        )
     }
     #[test]
     fn local_none_subsets_keep_ordered_refs_types_values_and_reduce_real_reads() {
@@ -1480,17 +1681,18 @@ mod tests {
             .position(|r| text(&mut s, r, "kind").unwrap() == CC006_SHAPE_KIND)
             .unwrap();
         let refs = field(&mut s, &objects[shape], "input_refs_json").unwrap();
-        let refs = lookup_path(&mut s, &refs, &[PathStep::JsonText]).unwrap();
+        let refs =
+            sc::path::lookup_path_refview(&mut s, refs.view(), &[PathStep::JsonText]).unwrap();
         let mut parts = elements(&mut s, &refs).unwrap();
         let members = field(&mut s, &parts[0], "raw_refs").unwrap();
         // 真成员不是来源差集；不引入坏节点/缺节点，必须由差集判据拒绝。
-        parts[0] = replace_field(
+        parts[0] = RefValue::Plain(replace_field(
             &mut s,
             &parts[0],
             &["merged_index", "raw_refs", "dependency_refs"],
             "dependency_refs",
             V::Edge(digest(&members).unwrap()),
-        );
+        ));
         let refs = sc::write_value(
             &mut s,
             &V::Array(parts.iter().map(|r| V::Edge(digest(r).unwrap())).collect()),
@@ -1527,7 +1729,9 @@ mod tests {
                     return false;
                 }
                 let p = field(&mut s, r, "payload_json").unwrap();
-                lookup_path(&mut s, &p, &[PathStep::JsonText]).unwrap() == payload
+                RefValue::Plain(
+                    sc::path::lookup_path_refview(&mut s, p.view(), &[PathStep::JsonText]).unwrap(),
+                ) == RefValue::Plain(payload.clone())
             })
             .unwrap();
         let mut bytes = Vec::new();
@@ -1538,14 +1742,15 @@ mod tests {
             .unwrap()
             .content_ref();
         let refs = field(&mut s, &objects[group], "input_refs_json").unwrap();
-        let refs = lookup_path(&mut s, &refs, &[PathStep::JsonText]).unwrap();
+        let refs =
+            sc::path::lookup_path_refview(&mut s, refs.view(), &[PathStep::JsonText]).unwrap();
         let key = text(&mut s, &objects[group], "fact_key").unwrap();
         let id = Cc004Producer::new(tb02a::PROFILE, &rule)
             .typed_object_id(
                 CC005_GROUP_KIND,
                 &key,
-                &built(changed_payload.clone()).unwrap(),
-                &built(refs).unwrap(),
+                &built(&changed_payload).unwrap(),
+                &built(&refs).unwrap(),
             )
             .unwrap();
         let payload_json = json_text_edge(&mut s, &changed_payload);
@@ -1732,4 +1937,30 @@ mod closed_array_role_probe {
         drop(owned);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
+}
+
+fn field_ref(
+    s: &mut (impl CodecRead + ?Sized),
+    r: sc::RefView<'_>,
+    k: &str,
+) -> Result<RefValue, String> {
+    s.lookup_ref(r, &[f(k)]).map_err(err)
+}
+fn elements_ref(
+    s: &mut (impl CodecRead + ?Sized),
+    r: sc::RefView<'_>,
+) -> Result<sc::CodecVec<RefValue>, String> {
+    if r.kind() != Kind::Array {
+        return Err(err("预期数组"));
+    }
+    if s.audit_full_array_scan() {
+        return s.lookup_array_ref(r).map_err(err);
+    }
+    let b = s.allocation_budget();
+    let mut out = bj::new_work(b.as_ref());
+    for i in 0..r.extent().ok_or_else(|| err("数组缺长度"))? {
+        let v = s.lookup_ref(r, &[PathStep::Index(i)]).map_err(err)?;
+        out.try_push(v).map_err(err)?;
+    }
+    Ok(out)
 }

@@ -15,7 +15,7 @@ use newchan_rust::{
     s_content::{
         self as sc,
         access::MeteredSource,
-        path::{lookup_path, PathStep},
+        path::{lookup_path_refview, PathStep},
         NodeSource,
     },
     session_protocol::{nonnegative, positive, required, strict_json},
@@ -102,15 +102,15 @@ pub(super) fn cursor_at(
 ) -> Result<Value, String> {
     let fixed = &current.wire["fixed_cut"];
     let (base, index, last) = if generation == 0 {
-        ("cut-0".into(), String::new(), "-1".into())
+        ("cut-0", "", "-1".into())
     } else {
         let cut = cuts
             .iter()
             .find(|c| c.metadata.generation == generation)
             .ok_or_else(|| err("cursor代号未发布"))?;
         (
-            cut.metadata.structure_cut.clone(),
-            cut.batch_id.clone(),
+            cut.metadata.structure_cut.as_str(),
+            cut.batch_id.as_str(),
             cut.metadata.input_frontier.to_string(),
         )
     };
@@ -278,8 +278,12 @@ fn delta_wire(
         "catalog_run_status",
         "catalog_evidence",
     ] {
-        let field =
-            lookup_path(&mut source, &cut.delta, &[PathStep::Field(key.into())]).map_err(err)?;
+        let field = lookup_path_refview(
+            &mut source,
+            cut.delta.view(),
+            &[PathStep::Field(key.into())],
+        )
+        .map_err(err)?;
         wire[key] = if key == "catalog_evidence" {
             field.to_transport_json()
         } else {
@@ -288,7 +292,7 @@ fn delta_wire(
             strict_json(&bytes)?
         };
     }
-    wire["delta"] = cut.delta.to_transport_json();
+    wire["delta"] = serde_json::to_value(&cut.delta).map_err(err)?;
     Ok(wire)
 }
 struct Delivery {

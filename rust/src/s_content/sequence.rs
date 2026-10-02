@@ -242,9 +242,7 @@ pub fn sequence_concat(
 ) -> Result<SequenceRef, CodecError> {
     checked_input(store, left)?;
     checked_input(store, right)?;
-    if left.count.checked_add(right.count).is_none()
-        || left.count + right.count > MAX_FRAME_LEN
-    {
+    if left.count.checked_add(right.count).is_none() || left.count + right.count > MAX_FRAME_LEN {
         return Err(length_overflow_error(format!(
             "合并后叶数 {} + {} 超过 2^63-1",
             left.count, right.count

@@ -1,0 +1,897 @@
+//! #1394 业务原始账的入口存储选择与同一借用判据。Owned失败直接Err，不转回std。
+use super::*;
+use aj::{ArrayIter, ArrayView, JsonView};
+use newchan_rust::s_content as sc;
+use sc::capture_allocation::{audit_json as aj, OwnedBudget};
+use sha2::{Digest, Sha256};
+use std::time::Instant;
+
+pub(crate) enum RawEvents {
+    Plain(Vec<Value>),
+    #[cfg(feature = "s_allocation_json_testonly")]
+    Owned(aj::OwnedJson),
+}
+impl Default for RawEvents {
+    fn default() -> Self {
+        Self::Plain(Vec::new())
+    }
+}
+impl RawEvents {
+    pub fn view(&self) -> RawEventsView<'_> {
+        match self {
+            Self::Plain(v) => RawEventsView::plain(v),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(v) => RawEventsView {
+                storage: RawStorage::Arena(v.view().as_array().unwrap()),
+                len: v.view().as_array().unwrap().len(),
+                budget: Some(v.budget()),
+            },
+        }
+    }
+    pub fn budget(&self) -> Option<&OwnedBudget> {
+        self.view().budget()
+    }
+    pub fn len(&self) -> usize {
+        self.view().len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    pub fn iter(&self) -> RawIter<'_> {
+        self.view().iter()
+    }
+    pub fn plain(&self) -> Result<&[Value], String> {
+        match self {
+            Self::Plain(v) => Ok(v),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(_) => {
+                Err("prototype_audit_allocation_incomplete：owned原始账不可擦除为std值".into())
+            }
+        }
+    }
+}
+impl serde::Serialize for RawEvents {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeSeq;
+        let mut a = s.serialize_seq(Some(self.len()))?;
+        for v in self.iter() {
+            a.serialize_element(&v)?;
+        }
+        a.end()
+    }
+}
+impl std::fmt::Debug for RawEvents {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.iter()).finish()
+    }
+}
+#[derive(Clone, Copy)]
+enum RawStorage<'a> {
+    Plain(&'a [Value]),
+    Arena(ArrayView<'a>),
+    Borrowed(&'a [JsonView<'a>]),
+}
+#[derive(Clone, Copy)]
+pub(crate) struct RawEventsView<'a> {
+    storage: RawStorage<'a>,
+    len: usize,
+    budget: Option<&'a OwnedBudget>,
+}
+impl<'a> RawEventsView<'a> {
+    pub fn plain(v: &'a [Value]) -> Self {
+        Self {
+            storage: RawStorage::Plain(v),
+            len: v.len(),
+            budget: None,
+        }
+    }
+    pub fn len(self) -> usize {
+        self.len
+    }
+    pub fn is_empty(self) -> bool {
+        self.len == 0
+    }
+    pub fn prefix(self, n: usize) -> Result<Self, String> {
+        if n > self.len {
+            return Err("StorageUnavailable：原始账前缀越界".into());
+        }
+        Ok(Self { len: n, ..self })
+    }
+    pub fn get(self, i: usize) -> Option<JsonView<'a>> {
+        if i >= self.len {
+            return None;
+        }
+        match self.storage {
+            RawStorage::Plain(v) => Some((&v[i]).into()),
+            RawStorage::Arena(v) => v.get(i),
+            RawStorage::Borrowed(v) => v.get(i).copied(),
+        }
+    }
+    pub fn iter(self) -> RawIter<'a> {
+        RawIter {
+            storage: match self.storage {
+                RawStorage::Plain(v) => RawIterStorage::Plain(v.iter()),
+                RawStorage::Arena(v) => RawIterStorage::Arena(v.iter()),
+                RawStorage::Borrowed(v) => RawIterStorage::Borrowed(v.iter()),
+            },
+            left: self.len,
+        }
+    }
+    pub fn budget(self) -> Option<&'a OwnedBudget> {
+        self.budget
+    }
+}
+impl<'a> From<&'a [Value]> for RawEventsView<'a> {
+    fn from(v: &'a [Value]) -> Self {
+        Self::plain(v)
+    }
+}
+impl<'a> From<&'a Vec<Value>> for RawEventsView<'a> {
+    fn from(v: &'a Vec<Value>) -> Self {
+        Self::plain(v)
+    }
+}
+impl<'a> From<&'a RawEvents> for RawEventsView<'a> {
+    fn from(v: &'a RawEvents) -> Self {
+        v.view()
+    }
+}
+impl<'a> IntoIterator for RawEventsView<'a> {
+    type Item = JsonView<'a>;
+    type IntoIter = RawIter<'a>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+enum RawIterStorage<'a> {
+    Plain(std::slice::Iter<'a, Value>),
+    Arena(ArrayIter<'a>),
+    Borrowed(std::slice::Iter<'a, JsonView<'a>>),
+}
+pub(crate) struct RawIter<'a> {
+    storage: RawIterStorage<'a>,
+    left: usize,
+}
+impl<'a> Iterator for RawIter<'a> {
+    type Item = JsonView<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.left == 0 {
+            return None;
+        }
+        self.left -= 1;
+        match &mut self.storage {
+            RawIterStorage::Plain(i) => i.next().map(JsonView::Plain),
+            RawIterStorage::Arena(i) => i.next(),
+            RawIterStorage::Borrowed(i) => i.next().copied(),
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.left, Some(self.left))
+    }
+}
+impl ExactSizeIterator for RawIter<'_> {}
+pub(crate) fn field<'a>(v: JsonView<'a>, k: &str) -> JsonView<'a> {
+    v.get(k).unwrap_or(JsonView::Null)
+}
+pub(crate) fn text<'a>(v: JsonView<'a>, k: &str) -> Result<&'a str, String> {
+    field(v, k)
+        .as_str()
+        .ok_or_else(|| format!("StorageUnavailable：{k}非文本"))
+}
+pub(crate) fn coord(v: JsonView<'_>) -> Result<i64, String> {
+    crate::parse_source_coord(text(v, "source_coord")?)
+        .map_err(|e| format!("StorageUnavailable：{e}"))
+}
+pub(crate) fn new_work<T>(b: Option<&OwnedBudget>) -> sc::CodecVec<T> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = b {
+        return aj::owned_vec(b);
+    }
+    let _ = b;
+    sc::CodecVec::from_plain(Vec::new())
+}
+fn workmap<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> aj::BusinessMap<K, V> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = b {
+        return aj::BusinessMap::owned(b);
+    }
+    let _ = b;
+    aj::BusinessMap::plain()
+}
+pub(crate) struct Effective<'a> {
+    values: sc::CodecVec<JsonView<'a>>,
+    budget: Option<&'a OwnedBudget>,
+}
+impl<'a> Effective<'a> {
+    pub fn raw_view(&self) -> RawEventsView<'_> {
+        RawEventsView {
+            storage: RawStorage::Borrowed(&self.values),
+            len: self.values.len(),
+            budget: self.budget,
+        }
+    }
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+    pub fn iter(&self) -> impl Iterator<Item = JsonView<'a>> + '_ {
+        self.values.iter().copied()
+    }
+    pub fn view(&self) -> JsonView<'_> {
+        JsonView::ArraySlice(&self.values)
+    }
+}
+pub(crate) fn effective<'a>(
+    all: RawEventsView<'a>,
+    deadline: Option<Instant>,
+) -> Result<Effective<'a>, String> {
+    check_read_deadline(deadline)?;
+    // Same max-revision/first-on-tie decision, ordered in O(n log n); no payload/key clones.
+    let mut candidates = new_work::<(&str, i64, usize, JsonView<'a>)>(all.budget());
+    for (ordinal, ev) in all.iter().enumerate() {
+        check_read_deadline(deadline)?;
+        candidates
+            .try_push((
+                field(ev, "identity_key").as_str().unwrap_or(""),
+                field(ev, "revision").as_i64().unwrap_or(0),
+                ordinal,
+                ev,
+            ))
+            .map_err(|e| e.to_string())?;
+    }
+    candidates.sort_unstable_by(|a, b| {
+        a.0.cmp(b.0)
+            .then_with(|| b.1.cmp(&a.1))
+            .then_with(|| a.2.cmp(&b.2))
+    });
+    let mut ordered = new_work::<(i64, JsonView<'a>)>(all.budget());
+    let mut last = None;
+    for (identity, _, _, v) in candidates {
+        check_read_deadline(deadline)?;
+        if last == Some(identity) {
+            continue;
+        }
+        last = Some(identity);
+        ordered
+            .try_push((coord(v)?, v))
+            .map_err(|e| e.to_string())?;
+    }
+    ordered.sort_unstable_by_key(|(c, _)| *c);
+    if ordered.windows(2).any(|v| v[0].0 == v[1].0) {
+        return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".into());
+    }
+    let mut values = new_work(all.budget());
+    for (_, v) in ordered {
+        values.try_push(v).map_err(|e| e.to_string())?;
+    }
+    Ok(Effective {
+        values,
+        budget: all.budget(),
+    })
+}
+
+fn hex(bytes: &[u8; 32]) -> [u8; 64] {
+    const H: &[u8; 16] = b"0123456789abcdef";
+    let mut out = [0; 64];
+    for (i, v) in bytes.iter().enumerate() {
+        out[2 * i] = H[(v >> 4) as usize];
+        out[2 * i + 1] = H[(v & 15) as usize];
+    }
+    out
+}
+pub(crate) fn sha_json(v: JsonView<'_>, b: Option<&OwnedBudget>) -> Result<[u8; 32], String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = b {
+        let out = aj::canonical_bytes(v, b).map_err(|e| e.to_string())?;
+        return Ok(Sha256::digest(&*out).into());
+    }
+    let _ = b;
+    let out = serde_json::to_vec(&v).map_err(|e| e.to_string())?;
+    Ok(Sha256::digest(&out).into())
+}
+pub(crate) fn validate_raw(
+    rows: RawEventsView<'_>,
+    deadline: Option<Instant>,
+) -> Result<(), String> {
+    let mut owners = workmap::<i64, &str>(rows.budget());
+    let mut positions = workmap::<&str, i64>(rows.budget());
+    let mut prior = workmap::<&str, i64>(rows.budget());
+    for (expected_seq, event) in rows.iter().enumerate() {
+        check_read_deadline(deadline)?;
+        let c = coord(event)?;
+        let identity = text(event, "identity_key")?;
+        if owners
+            .insert(c, identity)
+            .map_err(|e| e.to_string())?
+            .is_some_and(|old| old != identity)
+            || positions
+                .insert(identity, c)
+                .map_err(|e| e.to_string())?
+                .is_some_and(|old| old != c)
+        {
+            return Err("StorageUnavailable：原始源坐标与业务身份的唯一归属被破坏".into());
+        }
+        let price = text(event, "price")?;
+        let volume = text(event, "volume")?;
+        let ohlc = crate::tb02a::stored_prices_view(event)?;
+        crate::tb02a::validate_prices_view(price, volume, ohlc)
+            .map_err(|e| format!("StorageUnavailable：{e}"))?;
+        let input_rev = text(event, "input_revision")?;
+        let revision = parse_canonical_i64(input_rev, "input_revision")
+            .map_err(|e| format!("StorageUnavailable：{e}"))?;
+        let previous = prior
+            .insert(identity, revision)
+            .map_err(|e| e.to_string())?;
+        let mut fields = [("", JsonView::Null); 12];
+        let mut used = 0;
+        for (key, raw_key) in [
+            ("event_id", "event_id"),
+            ("revision", "input_revision"),
+            ("seq", "source_coord"),
+            ("received_at", "received_at"),
+            ("raw_text", "raw_text"),
+            ("timestamp", "ts"),
+            ("volume", "volume"),
+        ] {
+            fields[used] = (key, field(event, raw_key));
+            used += 1;
+        }
+        if let Some(p) = ohlc {
+            for (k, v) in [
+                ("open", p.open),
+                ("high", p.high),
+                ("low", p.low),
+                ("close", p.close),
+            ] {
+                fields[used] = (k, JsonView::String(v));
+                used += 1;
+            }
+        } else {
+            fields[used] = ("price", JsonView::String(price));
+            used += 1;
+        }
+        let content = JsonView::object_fields(&fields[..used]).map_err(|e| e.to_string())?;
+        let payload = hex(&sha_json(content, rows.budget())?);
+        let payload = std::str::from_utf8(&payload).unwrap();
+        let mut h = Sha256::new();
+        h.update(identity.as_bytes());
+        h.update(b"|");
+        h.update(payload.as_bytes());
+        let receipt_hex = hex(&h.finalize().into());
+        let mut receipt = [0; 21];
+        receipt[..5].copy_from_slice(b"rcpt-");
+        receipt[5..].copy_from_slice(&receipt_hex[..16]);
+        let receipt = std::str::from_utf8(&receipt).unwrap();
+        let ns = text(event, "source_namespace")?;
+        let epoch = text(event, "source_epoch")?;
+        let instrument = text(event, "instrument")?;
+        let event_id = text(event, "event_id")?;
+        let expected_id = ns
+            .bytes()
+            .chain([b'|'])
+            .chain(epoch.bytes())
+            .chain([b'|'])
+            .chain(instrument.bytes())
+            .chain([b'|'])
+            .chain(event_id.bytes());
+        let supersedes = field(event, "supersedes_revision");
+        let sup_matches = match previous {
+            None => supersedes.is_null(),
+            Some(v) => supersedes.as_i64() == Some(v),
+        };
+        if field(event, "seq").as_i64() != i64::try_from(expected_seq).ok()
+            || revision < 1
+            || field(event, "revision").as_i64() != Some(revision)
+            || previous.is_some_and(|p| p >= revision)
+            || !sup_matches
+            || !identity.bytes().eq(expected_id)
+            || text(event, "payload_hash")? != payload
+            || text(event, "receipt_id")? != receipt
+        {
+            return Err("StorageUnavailable：原始身份/接纳序/修订链/内容hash/receipt矛盾".into());
+        }
+        for (name, value) in [
+            ("price", price),
+            ("timestamp", text(event, "ts")?),
+            ("volume", volume),
+        ] {
+            parse_canonical_i64(value, name).map_err(|e| format!("StorageUnavailable：{e}"))?;
+        }
+    }
+    check_read_deadline(deadline)
+}
+#[cfg(feature = "s_allocation_json_testonly")]
+pub(crate) fn read_owned(
+    conn: &Connection,
+    deadline: Option<Instant>,
+    b: &OwnedBudget,
+) -> Result<RawEvents, String> {
+    check_read_deadline(deadline)?;
+    let mut tree = aj::OwnedJson::array(b).map_err(|e| e.to_string())?;
+    let mut stmt=conn.prepare("SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace,source_epoch, instrument, event_id, received_at, raw_text, price,ts, volume, source_coord, supersedes_revision FROM raw_events ORDER BY seq ASC").map_err(|e|format!("prepare 读取失败：{e}"))?;
+    let mut rows = stmt.query([]).map_err(|e| format!("query 失败：{e}"))?;
+    while let Some(row) = rows.next().map_err(|e| format!("collect 失败：{e}"))? {
+        check_read_deadline(deadline)?;
+        tree.append_object(|o| {
+            for (i, k) in [
+                (0, "identity_key"),
+                (2, "input_revision"),
+                (3, "payload_hash"),
+                (4, "receipt_id"),
+                (6, "source_namespace"),
+                (7, "source_epoch"),
+                (8, "instrument"),
+                (9, "event_id"),
+                (10, "received_at"),
+                (11, "raw_text"),
+                (12, "price"),
+                (13, "ts"),
+                (14, "volume"),
+                (15, "source_coord"),
+            ] {
+                let value = row
+                    .get_ref(i)
+                    .map_err(|_| sc::CodecError::new("StorageUnavailable", "SQL raw列读取失败"))?
+                    .as_str()
+                    .map_err(|_| {
+                        sc::CodecError::new("StorageUnavailable", "SQL raw文本列类型非法")
+                    })?;
+                o.insert_str(k, value)?;
+            }
+            for (i, k) in [(1, "revision"), (5, "seq")] {
+                o.insert_i64(
+                    k,
+                    row.get(i).map_err(|_| {
+                        sc::CodecError::new("StorageUnavailable", "SQL raw整数列类型非法")
+                    })?,
+                )?;
+            }
+            match row.get::<_, Option<i64>>(16).map_err(|_| {
+                sc::CodecError::new("StorageUnavailable", "SQL raw supersedes列类型非法")
+            })? {
+                Some(v) => o.insert_i64("supersedes_revision", v)?,
+                None => o.insert_null("supersedes_revision")?,
+            }
+            Ok(())
+        })
+        .map_err(|e| e.to_string())?;
+    }
+    crate::tb02a::enrich_raw_owned(conn, &mut tree, deadline)?;
+    let result = RawEvents::Owned(tree);
+    validate_raw(result.view(), deadline)?;
+    Ok(result)
+}
+
+pub(crate) struct Decimal {
+    bytes: [u8; 20],
+    len: usize,
+}
+impl std::fmt::Write for Decimal {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        let end = self.len + s.len();
+        if end > self.bytes.len() {
+            return Err(std::fmt::Error);
+        }
+        self.bytes[self.len..end].copy_from_slice(s.as_bytes());
+        self.len = end;
+        Ok(())
+    }
+}
+impl Decimal {
+    pub(crate) fn new(v: i64) -> Self {
+        use std::fmt::Write;
+        let mut out = Self {
+            bytes: [0; 20],
+            len: 0,
+        };
+        write!(&mut out, "{v}").expect("i64 at most20 ASCII bytes");
+        out
+    }
+    pub(crate) fn text(&self) -> &str {
+        std::str::from_utf8(&self.bytes[..self.len]).unwrap()
+    }
+}
+/// 源引用wire/numeric共用字段投影，只让revision/seq的值出现差异。
+pub(crate) struct RawReference<'a> {
+    event: JsonView<'a>,
+    revision: Decimal,
+    seq: Decimal,
+    numeric: bool,
+}
+impl<'a> RawReference<'a> {
+    pub fn new(event: JsonView<'a>, numeric: bool) -> Result<Self, String> {
+        Ok(Self {
+            event,
+            revision: Decimal::new(
+                field(event, "revision")
+                    .as_i64()
+                    .ok_or("StorageUnavailable：revision非i64")?,
+            ),
+            seq: Decimal::new(
+                field(event, "seq")
+                    .as_i64()
+                    .ok_or("StorageUnavailable：seq非i64")?,
+            ),
+            numeric,
+        })
+    }
+    pub fn view(&self) -> JsonView<'_> {
+        JsonView::borrowed_object(self).expect("fixed unique raw-reference keys")
+    }
+}
+impl aj::JsonObject for RawReference<'_> {
+    fn len(&self) -> usize {
+        8
+    }
+    fn field(&self, index: usize) -> Option<(&str, JsonView<'_>)> {
+        let k = *[
+            "identity_key",
+            "payload_hash",
+            "receipt_id",
+            "event_id",
+            "input_revision",
+            "revision",
+            "seq",
+            "source_coord",
+        ]
+        .get(index)?;
+        let v = match k {
+            "revision" if !self.numeric => JsonView::String(self.revision.text()),
+            "seq" if !self.numeric => JsonView::String(self.seq.text()),
+            _ => field(self.event, k),
+        };
+        Some((k, v))
+    }
+}
+pub(crate) struct RawWire<'a> {
+    event: JsonView<'a>,
+    revision: Decimal,
+    seq: Decimal,
+    supersedes: Option<Decimal>,
+    ohlc: bool,
+}
+impl<'a> RawWire<'a> {
+    pub fn new(event: JsonView<'a>) -> Result<Self, String> {
+        Ok(Self {
+            event,
+            revision: Decimal::new(
+                field(event, "revision")
+                    .as_i64()
+                    .ok_or("StorageUnavailable：revision非i64")?,
+            ),
+            seq: Decimal::new(
+                field(event, "seq")
+                    .as_i64()
+                    .ok_or("StorageUnavailable：seq非i64")?,
+            ),
+            supersedes: field(event, "supersedes_revision")
+                .as_i64()
+                .map(Decimal::new),
+            ohlc: field(event, "schema_revision").as_str() == Some(tb02a::RAW_SCHEMA),
+        })
+    }
+    pub fn view(&self) -> JsonView<'_> {
+        JsonView::borrowed_object(self).expect("fixed unique raw-wire keys")
+    }
+}
+impl aj::JsonObject for RawWire<'_> {
+    fn len(&self) -> usize {
+        if self.ohlc {
+            21
+        } else {
+            17
+        }
+    }
+    fn field(&self, index: usize) -> Option<(&str, JsonView<'_>)> {
+        const BASE: [&str; 17] = [
+            "identity_key",
+            "revision",
+            "input_revision",
+            "payload_hash",
+            "receipt_id",
+            "seq",
+            "source_namespace",
+            "source_epoch",
+            "instrument",
+            "event_id",
+            "received_at",
+            "raw_text",
+            "price",
+            "ts",
+            "volume",
+            "source_coord",
+            "supersedes_revision",
+        ];
+        let k = if self.ohlc {
+            let mut position = 0;
+            let mut found = None;
+            for name in BASE.iter().copied().filter(|k| *k != "price").chain([
+                "schema_revision",
+                "open",
+                "high",
+                "low",
+                "close",
+            ]) {
+                if position == index {
+                    found = Some(name);
+                    break;
+                }
+                position += 1;
+            }
+            found?
+        } else {
+            *BASE.get(index)?
+        };
+        let v = match k {
+            "revision" => JsonView::String(self.revision.text()),
+            "seq" => JsonView::String(self.seq.text()),
+            "supersedes_revision" => self
+                .supersedes
+                .as_ref()
+                .map(|v| JsonView::String(v.text()))
+                .unwrap_or(JsonView::Null),
+            _ => field(self.event, k),
+        };
+        Some((k, v))
+    }
+}
+pub(crate) struct ReferenceArray<'a>(pub sc::CodecVec<RawReference<'a>>);
+impl aj::JsonArray for ReferenceArray<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get(&self, index: usize) -> Option<JsonView<'_>> {
+        self.0.get(index).map(RawReference::view)
+    }
+}
+pub(crate) struct ValuesArray<'a>(pub &'a [Value]);
+impl aj::JsonArray for ValuesArray<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn get(&self, index: usize) -> Option<JsonView<'_>> {
+        self.0.get(index).map(JsonView::Plain)
+    }
+}
+
+impl aj::JsonArray for RawEventsView<'_> {
+    fn len(&self) -> usize {
+        self.len
+    }
+    fn get(&self, index: usize) -> Option<JsonView<'_>> {
+        (*self).get(index)
+    }
+}
+
+impl serde::Serialize for RawReference<'_> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.view().serialize(s)
+    }
+}
+
+impl<'a, const N: usize> From<&'a [Value; N]> for RawEventsView<'a> {
+    fn from(v: &'a [Value; N]) -> Self {
+        Self::plain(v)
+    }
+}
+
+/// 新业务返回文本的入口存储选择。Owned实际字节持续持账；Clone只开放fallible深复制。
+pub(crate) enum TextValue {
+    Plain(String),
+    Owned(aj::TextOwner),
+}
+impl TextValue {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Plain(s) => s,
+            Self::Owned(s) => s.as_str(),
+        }
+    }
+    pub fn capacity(&self) -> usize {
+        match self {
+            Self::Plain(s) => s.capacity(),
+            Self::Owned(s) => s.capacity(),
+        }
+    }
+    pub fn try_clone(&self) -> Result<Self, String> {
+        match self {
+            Self::Plain(s) => Ok(Self::Plain(s.clone())),
+            Self::Owned(s) => {
+                #[cfg(feature = "s_allocation_json_testonly")]
+                {
+                    Ok(Self::Owned(s.try_clone().map_err(|e| e.to_string())?))
+                }
+                #[cfg(not(feature = "s_allocation_json_testonly"))]
+                {
+                    let _ = s;
+                    Err("prototype_audit_allocation_incomplete：owned text clone未启用".into())
+                }
+            }
+        }
+    }
+    pub fn from_str(s: &str, b: Option<&OwnedBudget>) -> Result<Self, String> {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        if let Some(b) = b {
+            return Ok(Self::Owned(
+                aj::TextOwner::copy_from(s, b).map_err(|e| e.to_string())?,
+            ));
+        }
+        let _ = b;
+        Ok(Self::Plain(s.to_owned()))
+    }
+    pub fn from_sql(
+        row: &rusqlite::Row<'_>,
+        i: usize,
+        b: Option<&OwnedBudget>,
+    ) -> Result<Self, String> {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        if let Some(b) = b {
+            let r = row.get_ref(i).map_err(|e| e.to_string())?;
+            return Self::from_str(r.as_str().map_err(|e| e.to_string())?, Some(b));
+        }
+        let _ = b;
+        row.get(i).map(Self::Plain).map_err(|e| e.to_string())
+    }
+    pub fn optional_sql(
+        row: &rusqlite::Row<'_>,
+        i: usize,
+        b: Option<&OwnedBudget>,
+    ) -> Result<Option<Self>, String> {
+        match row.get_ref(i).map_err(|e| e.to_string())? {
+            rusqlite::types::ValueRef::Null => Ok(None),
+            _ => Self::from_sql(row, i, b).map(Some),
+        }
+    }
+}
+impl std::ops::Deref for TextValue {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.as_str()
+    }
+}
+impl std::fmt::Debug for TextValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+impl std::fmt::Display for TextValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+impl serde::Serialize for TextValue {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.as_str())
+    }
+}
+impl PartialEq for TextValue {
+    fn eq(&self, o: &Self) -> bool {
+        self.as_str() == o.as_str()
+    }
+}
+impl Eq for TextValue {}
+impl PartialEq<str> for TextValue {
+    fn eq(&self, o: &str) -> bool {
+        self.as_str() == o
+    }
+}
+impl PartialEq<&str> for TextValue {
+    fn eq(&self, o: &&str) -> bool {
+        self.as_str() == *o
+    }
+}
+impl PartialEq<String> for TextValue {
+    fn eq(&self, o: &String) -> bool {
+        self.as_str() == o
+    }
+}
+impl PartialOrd for TextValue {
+    fn partial_cmp(&self, o: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(o))
+    }
+}
+impl Ord for TextValue {
+    fn cmp(&self, o: &Self) -> std::cmp::Ordering {
+        self.as_str().cmp(o.as_str())
+    }
+}
+impl std::hash::Hash for TextValue {
+    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+        self.as_str().hash(h)
+    }
+}
+impl From<String> for TextValue {
+    fn from(s: String) -> Self {
+        Self::Plain(s)
+    }
+}
+impl From<&str> for TextValue {
+    fn from(s: &str) -> Self {
+        Self::Plain(s.to_owned())
+    }
+}
+
+pub(crate) enum JsonOwner {
+    Plain(Value),
+    #[cfg(feature = "s_allocation_json_testonly")]
+    Owned(aj::OwnedJson),
+}
+impl JsonOwner {
+    pub fn view(&self) -> JsonView<'_> {
+        match self {
+            Self::Plain(v) => v.into(),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(v) => v.view(),
+        }
+    }
+}
+/// 同一读取/渲染/严格解码核；预算随实际store选择，拒绝后没有Plain分支。
+pub(crate) fn render_json(
+    s: &mut (impl super::audit_store::CodecRead + ?Sized),
+    r: sc::RefView<'_>,
+) -> Result<JsonOwner, String> {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = s.allocation_budget() {
+        struct Out {
+            bytes: sc::CodecVec<u8>,
+            error: Option<sc::CodecError>,
+        }
+        impl std::io::Write for Out {
+            fn write(&mut self, v: &[u8]) -> std::io::Result<usize> {
+                match aj::extend_bytes(&mut self.bytes, v) {
+                    Ok(()) => Ok(v.len()),
+                    Err(e) => {
+                        self.error = Some(e);
+                        Err(std::io::ErrorKind::Other.into())
+                    }
+                }
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let mut out = Out {
+            bytes: aj::owned_vec(&b),
+            error: None,
+        };
+        let result = s.render_ref(r, &mut out);
+        if let Some(e) = out.error {
+            return Err(e.to_string());
+        }
+        result.map_err(|e| e.to_string())?;
+        return aj::OwnedJson::parse(&out.bytes, &b)
+            .map(JsonOwner::Owned)
+            .map_err(|e| e.to_string());
+    }
+    let mut out = Vec::new();
+    s.render_ref(r, &mut out).map_err(|e| e.to_string())?;
+    newchan_rust::session_protocol::strict_json(&out).map(JsonOwner::Plain)
+}
+pub(crate) fn read_text(
+    s: &mut (impl super::audit_store::CodecRead + ?Sized),
+    r: sc::RefView<'_>,
+) -> Result<TextValue, String> {
+    let value = render_json(s, r)?;
+    let text = value
+        .view()
+        .as_str()
+        .ok_or("StorageUnavailable：预期文本")?;
+    TextValue::from_str(text, s.allocation_budget().as_ref())
+}
+impl PartialEq<TextValue> for String {
+    fn eq(&self, o: &TextValue) -> bool {
+        self.as_str() == o.as_str()
+    }
+}
+impl PartialEq<TextValue> for str {
+    fn eq(&self, o: &TextValue) -> bool {
+        self == o.as_str()
+    }
+}
+
+impl rusqlite::ToSql for TextValue {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        Ok(rusqlite::types::ToSqlOutput::Borrowed(
+            rusqlite::types::ValueRef::Text(self.as_str().as_bytes()),
+        ))
+    }
+}

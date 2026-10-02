@@ -918,7 +918,10 @@ mod tests {
             resources.to_string_lossy().into_owned(),
         ]);
         let error = super::super::dispatch(&args).unwrap_err();
-        assert!(error.contains("StaleWriter") && error.contains("独占进程锁不可得"), "{error}");
+        assert!(
+            error.contains("StaleWriter") && error.contains("独占进程锁不可得"),
+            "{error}"
+        );
         assert!(!socket.exists());
         let db = open_db(&f.db).unwrap();
         assert_eq!(meta_i64(&db, "generation").unwrap(), 0);
@@ -940,7 +943,10 @@ mod tests {
         }
         let valid = json!({"schema_revision":"s-structure-resources/1","s_resources":limits});
         let mut missing = valid.clone();
-        missing["s_resources"].as_object_mut().unwrap().remove("audit_cache_source_bytes");
+        missing["s_resources"]
+            .as_object_mut()
+            .unwrap()
+            .remove("audit_cache_source_bytes");
         let mut extra = valid.clone();
         extra["s_resources"]["job_limits"] = json!("1");
         let mut zero = valid.clone();
@@ -951,9 +957,12 @@ mod tests {
         wrong_version["schema_revision"] = json!("s-structure-resources/2");
         let mut args = cli(&f, "serve", "--writer-epoch", "1");
         args.extend([
-            "--profile".into(), f.profile.to_string_lossy().into_owned(),
-            "--socket".into(), socket.to_string_lossy().into_owned(),
-            "--resource-config".into(), resources.to_string_lossy().into_owned(),
+            "--profile".into(),
+            f.profile.to_string_lossy().into_owned(),
+            "--socket".into(),
+            socket.to_string_lossy().into_owned(),
+            "--resource-config".into(),
+            resources.to_string_lossy().into_owned(),
         ]);
         for invalid in [missing, extra, zero, numeric, wrong_version] {
             std::fs::write(&resources, canonical_json(&invalid)).unwrap();
@@ -964,7 +973,8 @@ mod tests {
             assert_eq!(std::fs::read(&f.db).unwrap(), original_db);
         }
         let error = Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 0)
-            .err().unwrap();
+            .err()
+            .unwrap();
         assert!(error.contains("audit_cache_source_bytes"), "{error}");
         assert!(!lock.exists());
         assert_eq!(std::fs::read(&f.db).unwrap(), original_db);
@@ -973,7 +983,8 @@ mod tests {
     #[test]
     fn s3_serve_driver_rejects_unimplemented_condition_ops_before_admission() {
         let f = Fixture::new();
-        let mut driver = Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1).unwrap();
+        let mut driver =
+            Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1).unwrap();
         for op in ["condition", "execute_conditional", "recover"] {
             let error = driver.handle(envelope(op, json!({"op":op}))).unwrap_err();
             assert!(error.contains("未知S3 op"), "{error}");

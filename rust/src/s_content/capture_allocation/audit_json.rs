@@ -1,11 +1,13 @@
 //! #1394 非 default 实验业务 JSON。节点、边、键、字符串、解析/编码栈与输出共用实际 Layout 账本。
 //! arena 内只存偏移；move 不退账，clone 复制全部 arena 且旧新并存。无 std Value 深复制兜底。
-use super::work::CodecVec;
+use super::work::{CodecVec, LedgerAllocator};
 use super::OwnedBudget;
 use crate::s_content::CodecError;
 use serde_json::{Number, Value};
+use std::collections::hash_map::RandomState;
 use std::io::Write;
 
+#[cfg(feature = "s_allocation_json_testonly")]
 mod number;
 const SCHEMA: &str = "SchemaUnsupported";
 fn invalid(detail: &'static str) -> CodecError {
@@ -39,11 +41,13 @@ struct Edge {
     value: usize,
     next: Option<usize>,
 }
+type ArrayIndex = hashbrown::HashMap<(usize, usize), usize, RandomState, LedgerAllocator>;
 pub struct OwnedJson {
     nodes: CodecVec<Node>,
     edges: CodecVec<Edge>,
     text: CodecVec<u8>,
     root: usize,
+    array_index: ArrayIndex,
     budget: OwnedBudget,
 }
 impl OwnedJson {
@@ -53,6 +57,10 @@ impl OwnedJson {
             edges: CodecVec::new(Some(budget)),
             text: CodecVec::new(Some(budget)),
             root: 0,
+            array_index: ArrayIndex::with_hasher_in(
+                RandomState::new(),
+                LedgerAllocator::new_tag(budget, "JSON array indexed edges"),
+            ),
             budget: budget.clone(),
         }
     }
@@ -74,11 +82,23 @@ impl OwnedJson {
     }
     fn attach(&mut self, parent: usize, key: Span, value: usize) -> Result<(), CodecError> {
         let id = self.edges.len();
+        let array_len = match self.nodes[parent] {
+            Node::Array { len, .. } => Some(len),
+            _ => None,
+        };
+        if array_len.is_some() {
+            self.array_index
+                .try_reserve(1)
+                .map_err(|_| super::work::allocation_error())?;
+        }
         self.edges.try_push(Edge {
             key,
             value,
             next: None,
         })?;
+        if let Some(len) = array_len {
+            self.array_index.insert((parent, len), id);
+        }
         match &mut self.nodes[parent] {
             Node::Array { first, last, len } | Node::Object { first, last, len } => {
                 if let Some(last) = *last {
@@ -102,24 +122,39 @@ impl OwnedJson {
     pub fn budget(&self) -> &OwnedBudget {
         &self.budget
     }
+    #[cfg(feature = "s_allocation_json_testonly")]
     pub fn try_clone(&self) -> Result<Self, CodecError> {
         // Node::Number is serde_json's finite inline number under the locked std-only feature set.
+        let mut array_index = ArrayIndex::with_hasher_in(
+            RandomState::new(),
+            LedgerAllocator::new_tag(&self.budget, "JSON array indexed edges"),
+        );
+        array_index
+            .try_reserve(self.array_index.len())
+            .map_err(|_| super::work::allocation_error())?;
+        for (k, v) in &self.array_index {
+            array_index.insert(*k, *v);
+        }
         Ok(Self {
             nodes: self.nodes.try_clone()?,
+            array_index,
             edges: self.edges.try_clone()?,
             text: self.text.try_clone()?,
             root: self.root,
             budget: self.budget.clone(),
         })
     }
+    #[cfg(feature = "s_allocation_json_testonly")]
     pub fn parse(bytes: &[u8], budget: &OwnedBudget) -> Result<Self, CodecError> {
         Parser::new(bytes, budget).parse()
     }
+    #[cfg(feature = "s_allocation_json_testonly")]
     pub fn from_view(view: JsonView<'_>, budget: &OwnedBudget) -> Result<Self, CodecError> {
         let mut tree = Self::empty(budget);
         tree.root = tree.copy_view(view)?;
         Ok(tree)
     }
+    #[cfg(feature = "s_allocation_json_testonly")]
     pub fn object(budget: &OwnedBudget) -> Result<Self, CodecError> {
         let mut t = Self::empty(budget);
         t.root = t.add_node(Node::Object {
@@ -129,6 +164,7 @@ impl OwnedJson {
         })?;
         Ok(t)
     }
+    #[cfg(feature = "s_allocation_json_testonly")]
     pub fn array(budget: &OwnedBudget) -> Result<Self, CodecError> {
         let mut t = Self::empty(budget);
         t.root = t.add_node(Node::Array {
@@ -138,12 +174,14 @@ impl OwnedJson {
         })?;
         Ok(t)
     }
+    #[cfg(feature = "s_allocation_json_testonly")]
     pub fn string(s: &str, budget: &OwnedBudget) -> Result<Self, CodecError> {
         let mut t = Self::empty(budget);
         let s = t.copy_text(s)?;
         t.root = t.add_node(Node::String(s))?;
         Ok(t)
     }
+    #[cfg(feature = "s_allocation_json_testonly")]
     pub fn insert_field(&mut self, key: &str, value: JsonView<'_>) -> Result<(), CodecError> {
         let object = self
             .view()
@@ -160,6 +198,7 @@ impl OwnedJson {
         self.sort_fields(self.root);
         Ok(())
     }
+    #[cfg(feature = "s_allocation_json_testonly")]
     pub fn push(&mut self, value: JsonView<'_>) -> Result<(), CodecError> {
         if self.view().as_array().is_none() {
             return Err(invalid("JSON push requires array"));
@@ -270,6 +309,14 @@ pub enum JsonKind {
 pub enum JsonView<'a> {
     Plain(&'a Value),
     Owned(OwnedView<'a>),
+    Null,
+    Bool(bool),
+    String(&'a str),
+    Number(&'a Number),
+    ArraySlice(&'a [JsonView<'a>]),
+    BorrowedArray(&'a dyn JsonArray),
+    BorrowedObject(BorrowedObject<'a>),
+    ObjectSlice(BorrowedFields<'a>),
 }
 /// 只由 arena 的有效节点产生。索引及所有者不可由 safe 外部调用者构造或改写。
 /// ```compile_fail
@@ -282,6 +329,23 @@ pub enum JsonView<'a> {
 pub struct OwnedView<'a> {
     tree: &'a OwnedJson,
     id: usize,
+}
+/// 校过唯一键的借用字段组合；不复制key或子树，迭代沿UTF8键排序，无sort scratch。
+#[derive(Clone, Copy)]
+pub struct BorrowedFields<'a> {
+    fields: &'a [(&'a str, JsonView<'a>)],
+}
+impl<'a> JsonView<'a> {
+    pub fn object_fields(fields: &'a [(&'a str, JsonView<'a>)]) -> Result<Self, CodecError> {
+        for i in 0..fields.len() {
+            for j in 0..i {
+                if fields[i].0 == fields[j].0 {
+                    return Err(invalid("duplicate key"));
+                }
+            }
+        }
+        Ok(Self::ObjectSlice(BorrowedFields { fields }))
+    }
 }
 impl<'a> From<&'a Value> for JsonView<'a> {
     fn from(v: &'a Value) -> Self {
@@ -299,6 +363,13 @@ impl<'a> JsonView<'a> {
                 Value::Array(_) => JsonKind::Array,
                 Value::Object(_) => JsonKind::Object,
             },
+            Self::Null => JsonKind::Null,
+            Self::Bool(_) => JsonKind::Bool,
+            Self::String(_) => JsonKind::String,
+            Self::Number(_) => JsonKind::Number,
+            Self::ArraySlice(_) | Self::BorrowedArray(_) => JsonKind::Array,
+            Self::BorrowedObject(_) => JsonKind::Object,
+            Self::ObjectSlice(_) => JsonKind::Object,
             Self::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
                 Node::Null => JsonKind::Null,
                 Node::Bool(_) => JsonKind::Bool,
@@ -327,24 +398,29 @@ impl<'a> JsonView<'a> {
     pub fn as_bool(self) -> Option<bool> {
         match self {
             Self::Plain(v) => v.as_bool(),
+            Self::Bool(v) => Some(v),
             Self::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
                 Node::Bool(b) => Some(b),
                 _ => None,
             },
+            _ => None,
         }
     }
     pub fn as_str(self) -> Option<&'a str> {
         match self {
             Self::Plain(v) => v.as_str(),
+            Self::String(v) => Some(v),
             Self::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
                 Node::String(s) => Some(tree.text(s)),
                 _ => None,
             },
+            _ => None,
         }
     }
     pub fn number(self) -> Option<&'a Number> {
         match self {
             Self::Plain(Value::Number(n)) => Some(n),
+            Self::Number(n) => Some(n),
             Self::Owned(OwnedView { tree, id }) => match &tree.nodes[id] {
                 Node::Number(n) => Some(n),
                 _ => None,
@@ -428,6 +504,8 @@ impl<'a> ArrayView<'a> {
     pub fn len(self) -> usize {
         match self.0 {
             JsonView::Plain(Value::Array(a)) => a.len(),
+            JsonView::ArraySlice(a) => a.len(),
+            JsonView::BorrowedArray(a) => a.len(),
             JsonView::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
                 Node::Array { len, .. } => len,
                 _ => unreachable!(),
@@ -439,11 +517,29 @@ impl<'a> ArrayView<'a> {
         self.len() == 0
     }
     pub fn get(self, i: usize) -> Option<JsonView<'a>> {
-        self.iter().nth(i)
+        if i >= self.len() {
+            return None;
+        }
+        match self.0 {
+            JsonView::Plain(Value::Array(a)) => a.get(i).map(JsonView::Plain),
+            JsonView::ArraySlice(a) => a.get(i).copied(),
+            JsonView::BorrowedArray(a) => a.get(i),
+            JsonView::Owned(OwnedView { tree, id }) => tree.array_index.get(&(id, i)).map(|e| {
+                JsonView::Owned(OwnedView {
+                    tree,
+                    id: tree.edges[*e].value,
+                })
+            }),
+            _ => unreachable!(),
+        }
     }
     pub fn iter(self) -> ArrayIter<'a> {
         match self.0 {
             JsonView::Plain(Value::Array(a)) => ArrayIter::Plain(a.iter()),
+            JsonView::ArraySlice(a) => ArrayIter::Slice(a.iter()),
+            JsonView::BorrowedArray(a) => {
+                ArrayIter::Borrowed(BorrowedArrayIter { owner: a, index: 0 })
+            }
             JsonView::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
                 Node::Array { first, .. } => ArrayIter::Owned(OwnedArrayIter { tree, next: first }),
                 _ => unreachable!(),
@@ -454,6 +550,8 @@ impl<'a> ArrayView<'a> {
 }
 pub enum ArrayIter<'a> {
     Plain(std::slice::Iter<'a, Value>),
+    Slice(std::slice::Iter<'a, JsonView<'a>>),
+    Borrowed(BorrowedArrayIter<'a>),
     Owned(OwnedArrayIter<'a>),
 }
 /// 只由 ArrayView::iter 产生，私有游标沿真实 arena 边移动。
@@ -472,6 +570,15 @@ impl<'a> Iterator for ArrayIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Self::Plain(i) => i.next().map(JsonView::Plain),
+            Self::Slice(i) => i.next().copied(),
+            Self::Borrowed(i) => {
+                if i.index >= i.owner.len() {
+                    return None;
+                }
+                let v = i.owner.get(i.index);
+                i.index += 1;
+                v
+            }
             Self::Owned(OwnedArrayIter { tree, next }) => {
                 let e = tree.edges[(*next)?];
                 *next = e.next;
@@ -493,6 +600,8 @@ impl<'a> ObjectView<'a> {
     pub fn len(self) -> usize {
         match self.0 {
             JsonView::Plain(Value::Object(a)) => a.len(),
+            JsonView::ObjectSlice(a) => a.fields.len(),
+            JsonView::BorrowedObject(a) => a.owner.len(),
             JsonView::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
                 Node::Object { len, .. } => len,
                 _ => unreachable!(),
@@ -522,12 +631,18 @@ impl<'a> ObjectView<'a> {
     pub fn get(self, key: &str) -> Option<JsonView<'a>> {
         match self.0 {
             JsonView::Plain(v) => v.get(key).map(JsonView::Plain),
+            JsonView::BorrowedObject(a) => (0..a.owner.len())
+                .filter_map(|i| a.owner.field(i))
+                .find(|(k, _)| *k == key)
+                .map(|(_, v)| v),
+            JsonView::ObjectSlice(a) => a.fields.iter().find(|(k, _)| *k == key).map(|(_, v)| *v),
             JsonView::Owned(OwnedView { tree, .. }) => self.owned_edge(key).map(|e| {
                 JsonView::Owned(OwnedView {
                     tree,
                     id: tree.edges[e].value,
                 })
             }),
+            _ => unreachable!(),
         }
     }
     pub fn keys(self) -> impl Iterator<Item = &'a str> {
@@ -536,6 +651,14 @@ impl<'a> ObjectView<'a> {
     pub fn iter(self) -> ObjectIter<'a> {
         match self.0 {
             JsonView::Plain(Value::Object(a)) => ObjectIter::Plain(a.iter()),
+            JsonView::BorrowedObject(a) => ObjectIter::Borrowed(BorrowedObjectIter {
+                owner: a.owner,
+                last: None,
+            }),
+            JsonView::ObjectSlice(a) => ObjectIter::Slice(BorrowedFieldsIter {
+                fields: a.fields,
+                last: None,
+            }),
             JsonView::Owned(OwnedView { tree, id }) => match tree.nodes[id] {
                 Node::Object { first, .. } => {
                     ObjectIter::Owned(OwnedObjectIter { tree, next: first })
@@ -548,7 +671,13 @@ impl<'a> ObjectView<'a> {
 }
 pub enum ObjectIter<'a> {
     Plain(serde_json::map::Iter<'a>),
+    Slice(BorrowedFieldsIter<'a>),
+    Borrowed(BorrowedObjectIter<'a>),
     Owned(OwnedObjectIter<'a>),
+}
+pub struct BorrowedFieldsIter<'a> {
+    fields: &'a [(&'a str, JsonView<'a>)],
+    last: Option<&'a str>,
 }
 /// 只由 ObjectView::iter 产生，私有游标沿真实 arena 边移动。
 /// ```compile_fail
@@ -566,6 +695,23 @@ impl<'a> Iterator for ObjectIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Self::Plain(i) => i.next().map(|(k, v)| (k.as_str(), JsonView::Plain(v))),
+            Self::Borrowed(i) => {
+                let next = (0..i.owner.len())
+                    .filter_map(|n| i.owner.field(n))
+                    .filter(|(k, _)| i.last.is_none_or(|last| *k > last))
+                    .min_by_key(|(k, _)| *k)?;
+                i.last = Some(next.0);
+                Some(next)
+            }
+            Self::Slice(i) => {
+                let next = i
+                    .fields
+                    .iter()
+                    .filter(|(k, _)| i.last.is_none_or(|last| *k > last))
+                    .min_by_key(|(k, _)| *k)?;
+                i.last = Some(next.0);
+                Some(*next)
+            }
             Self::Owned(OwnedObjectIter { tree, next }) => {
                 let e = tree.edges[(*next)?];
                 *next = e.next;
@@ -592,17 +738,20 @@ impl<'a> Iterator for Children<'a> {
 }
 
 #[derive(Clone, Copy)]
+#[cfg(feature = "s_allocation_json_testonly")]
 struct ParseFrame {
     node: usize,
     object: bool,
     state: u8,
 }
+#[cfg(feature = "s_allocation_json_testonly")]
 struct Parser<'a> {
     input: &'a [u8],
     pos: usize,
     tree: OwnedJson,
     stack: CodecVec<ParseFrame>,
 }
+#[cfg(feature = "s_allocation_json_testonly")]
 impl<'a> Parser<'a> {
     fn new(input: &'a [u8], b: &OwnedBudget) -> Self {
         Self {
@@ -841,7 +990,54 @@ impl<'a> Parser<'a> {
         }
     }
 }
-fn quoted(out: &mut CodecVec<u8>, s: &str) -> Result<(), CodecError> {
+trait JsonBytes {
+    fn try_push(&mut self, b: u8) -> Result<(), CodecError>;
+    fn extend_from_slice(&mut self, b: &[u8]) -> Result<(), CodecError>;
+}
+impl JsonBytes for CodecVec<u8> {
+    fn try_push(&mut self, b: u8) -> Result<(), CodecError> {
+        CodecVec::try_push(self, b)
+    }
+    fn extend_from_slice(&mut self, b: &[u8]) -> Result<(), CodecError> {
+        CodecVec::extend_from_slice(self, b)
+    }
+}
+#[cfg(feature = "s_allocation_json_testonly")]
+struct BoundedJsonOutput<F> {
+    bytes: CodecVec<u8>,
+    max: u64,
+    precheck: F,
+}
+#[cfg(feature = "s_allocation_json_testonly")]
+impl<F: FnMut() -> Result<(), CodecError>> JsonBytes for BoundedJsonOutput<F> {
+    fn try_push(&mut self, b: u8) -> Result<(), CodecError> {
+        self.extend_from_slice(&[b])
+    }
+    fn extend_from_slice(&mut self, b: &[u8]) -> Result<(), CodecError> {
+        (self.precheck)()?;
+        if (self.bytes.len() as u128) + (b.len() as u128) > self.max as u128 {
+            return Err(CodecError::static_detail(
+                "Incomplete/CaptureBytes",
+                "内容编码超过显式物化上限",
+            ));
+        }
+        // Retained容量门约束实际新Layout，不能logical len合格后先amortized分配8字节。
+        // allocator grow仍在旧Layout活着时预留完整新Layout，同账保old+new峰值。
+        let end = self
+            .bytes
+            .len()
+            .checked_add(b.len())
+            .ok_or_else(super::work::allocation_error)?;
+        if end > self.bytes.capacity() {
+            let max = usize::try_from(self.max).unwrap_or(usize::MAX);
+            let geometric = self.bytes.capacity().max(4).saturating_mul(2);
+            let target = end.max(geometric).min(max);
+            self.bytes.reserve_exact(target - self.bytes.len())?;
+        }
+        self.bytes.extend_from_slice(b)
+    }
+}
+fn quoted(out: &mut impl JsonBytes, s: &str) -> Result<(), CodecError> {
     out.try_push(b'"')?;
     let mut start = 0;
     for (i, b) in s.bytes().enumerate() {
@@ -895,20 +1091,54 @@ impl Write for NumberBuffer {
         Ok(())
     }
 }
+/// serde_json 锁定的有限 Number formatter；返回固定栈所有者，不分配 String。
+pub struct FormattedNumber(NumberBuffer);
+impl FormattedNumber {
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0.bytes[..self.0.used]
+    }
+    pub fn as_str(&self) -> &str {
+        std::str::from_utf8(self.as_bytes()).expect("number formatter ASCII")
+    }
+}
+pub fn formatted_number(n: &Number) -> FormattedNumber {
+    let mut b = NumberBuffer {
+        bytes: [0; 64],
+        used: 0,
+    };
+    serde_json::to_writer(&mut b, n).expect("finite inline Number to infallible stack writer");
+    FormattedNumber(b)
+}
 /// 与 ordinary canonical_json 共用 serde_json 的有限数字 formatter；额度错误只在 fallible 输出处产生。
+#[cfg(feature = "s_allocation_json_testonly")]
 pub fn canonical_bytes(
     view: JsonView<'_>,
     budget: &OwnedBudget,
+) -> Result<CodecVec<u8>, CodecError> {
+    canonical_bytes_bounded(view, budget, u64::MAX, || Ok(()))
+}
+/// 每个编码chunk在max/deadline/真实Layout增长前检查；不通过serde的boxed IO Error桥。
+#[cfg(feature = "s_allocation_json_testonly")]
+pub fn canonical_bytes_bounded(
+    view: JsonView<'_>,
+    budget: &OwnedBudget,
+    max: u64,
+    precheck: impl FnMut() -> Result<(), CodecError>,
 ) -> Result<CodecVec<u8>, CodecError> {
     struct Frame<'a> {
         children: Children<'a>,
         object: bool,
         first: bool,
     }
-    let mut out = CodecVec::new(Some(budget));
+    let mut out = BoundedJsonOutput {
+        bytes: CodecVec::new(Some(budget)),
+        max,
+        precheck,
+    };
     let mut stack = CodecVec::new(Some(budget));
     let mut current = Some(view);
     loop {
+        (out.precheck)()?;
         if let Some(v) = current.take() {
             match v.kind() {
                 JsonKind::Null => out.extend_from_slice(b"null")?,
@@ -956,7 +1186,7 @@ pub fn canonical_bytes(
             stack.pop();
         }
     }
-    Ok(out)
+    Ok(out.bytes)
 }
 
 impl std::fmt::Debug for OwnedJson {
@@ -965,8 +1195,8 @@ impl std::fmt::Debug for OwnedJson {
     }
 }
 
-#[cfg(test)]
-mod tests {
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+pub(crate) mod tests {
     use super::*;
     use crate::session_protocol::{canonical_json, strict_json};
     // Observation only: every requested allocation is forwarded unchanged to System.
@@ -1004,7 +1234,7 @@ mod tests {
             unsafe { std::alloc::System.dealloc(p, layout) }
         }
     }
-    fn observed<T>(f: impl FnOnce() -> T) -> (T, u64) {
+    pub(crate) fn observed<T>(f: impl FnOnce() -> T) -> (T, u64) {
         struct Reset;
         impl Drop for Reset {
             fn drop(&mut self) {
@@ -1055,6 +1285,48 @@ mod tests {
         assert_eq!(calls, 0);
         drop((bytes, copy, tree));
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn owned_bounded_number_one_byte_capacity_gate() {
+        let budget = OwnedBudget::new(1000);
+        let zero = Value::from(0);
+        let bytes = canonical_bytes_bounded((&zero).into(), &budget, 1, || Ok(())).unwrap();
+        assert_eq!(&*bytes, b"0");
+        assert_eq!(bytes.capacity(), 1);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 1);
+        drop(bytes);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let no_room = OwnedBudget::new(1000);
+        let before = no_room.snapshot().allocation_attempts;
+        let e = canonical_bytes_bounded((&zero).into(), &no_room, 0, || Ok(())).unwrap_err();
+        assert_eq!(e.code(), "Incomplete/CaptureBytes");
+        assert_eq!(no_room.snapshot().allocation_attempts, before);
+        assert_eq!(no_room.snapshot().live_requested_layout_bytes, 0);
+        let blocked = OwnedBudget::new(1000);
+        let _ = blocked.snapshot();
+        let e = canonical_bytes_bounded((&zero).into(), &blocked, 1, || {
+            Err(CodecError::static_detail(
+                "Incomplete/VerifyTimeout",
+                "original absolute deadline",
+            ))
+        })
+        .unwrap_err();
+        assert_eq!(e.code(), "Incomplete/VerifyTimeout");
+        assert_eq!(blocked.snapshot().allocation_attempts, 0);
+    }
+    #[test]
+    fn bounded_escaping_geometric_layouts_stay_within_retained_cap() {
+        let v = Value::String("\\".repeat(20000));
+        let b = OwnedBudget::new(1_000_000);
+        let out = canonical_bytes_bounded((&v).into(), &b, 40002, || Ok(())).unwrap();
+        assert_eq!(out.len(), 40002);
+        assert!(out.capacity() <= 40002);
+        assert!(
+            b.snapshot().allocation_attempts < 64,
+            "geometric growth must not copy once per escape"
+        );
+        drop(out);
+        assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
     }
     fn parity(input: &[u8]) {
         let ordinary = strict_json(input);
@@ -1260,5 +1532,285 @@ mod tests {
         assert_eq!(low.snapshot().allocation_attempts, 0);
         drop((s, arr, tree));
         assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+/// 窄实验构造器；无Plain选择或额度失败后fallback。
+#[cfg(feature = "s_allocation_json_testonly")]
+pub fn owned_vec<T>(b: &OwnedBudget) -> CodecVec<T> {
+    CodecVec::new(Some(b))
+}
+#[cfg(feature = "s_allocation_json_testonly")]
+pub fn clone_bytes(v: &CodecVec<u8>) -> Result<CodecVec<u8>, CodecError> {
+    v.try_clone()
+}
+#[cfg(feature = "s_allocation_json_testonly")]
+pub fn extend_bytes(v: &mut CodecVec<u8>, bytes: &[u8]) -> Result<(), CodecError> {
+    v.extend_from_slice(bytes)
+}
+
+/// SQL等借用输入直接写同一arena；不先构造ordinary Value/String再复制。
+#[cfg(feature = "s_allocation_json_testonly")]
+pub struct ObjectMut<'a> {
+    tree: &'a mut OwnedJson,
+    id: usize,
+}
+#[cfg(feature = "s_allocation_json_testonly")]
+impl ObjectMut<'_> {
+    pub fn view(&self) -> JsonView<'_> {
+        JsonView::Owned(OwnedView {
+            tree: self.tree,
+            id: self.id,
+        })
+    }
+    fn insert_node(&mut self, key: &str, node: Node) -> Result<(), CodecError> {
+        let existing = self.view().as_object().unwrap().owned_edge(key);
+        let value = self.tree.add_node(node)?;
+        if let Some(e) = existing {
+            self.tree.edges[e].value = value;
+            return Ok(());
+        }
+        let key = self.tree.copy_text(key)?;
+        self.tree.attach(self.id, key, value)
+    }
+    pub fn insert_str(&mut self, key: &str, value: &str) -> Result<(), CodecError> {
+        let span = self.tree.copy_text(value)?;
+        self.insert_node(key, Node::String(span))
+    }
+    pub fn insert_i64(&mut self, key: &str, value: i64) -> Result<(), CodecError> {
+        self.insert_node(key, Node::Number(Number::from(value)))
+    }
+    pub fn insert_null(&mut self, key: &str) -> Result<(), CodecError> {
+        self.insert_node(key, Node::Null)
+    }
+}
+#[cfg(feature = "s_allocation_json_testonly")]
+impl OwnedJson {
+    pub fn append_object(
+        &mut self,
+        build: impl FnOnce(&mut ObjectMut<'_>) -> Result<(), CodecError>,
+    ) -> Result<(), CodecError> {
+        if self.view().as_array().is_none() {
+            return Err(invalid("append_object requires array"));
+        }
+        let id = self.add_node(Node::Object {
+            first: None,
+            last: None,
+            len: 0,
+        })?;
+        build(&mut ObjectMut { tree: self, id })?;
+        self.sort_fields(id);
+        self.attach(self.root, Span::default(), id)
+    }
+    pub fn object_at_mut(&mut self, index: usize) -> Result<ObjectMut<'_>, CodecError> {
+        let v = self
+            .view()
+            .index(index)
+            .ok_or_else(|| invalid("array index absent"))?;
+        let JsonView::Owned(OwnedView { id, .. }) = v else {
+            unreachable!()
+        };
+        if v.as_object().is_none() {
+            return Err(invalid("array element must object"));
+        }
+        Ok(ObjectMut { tree: self, id })
+    }
+}
+impl serde::Serialize for JsonView<'_> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{SerializeMap, SerializeSeq};
+        match self.kind() {
+            JsonKind::Null => s.serialize_unit(),
+            JsonKind::Bool => s.serialize_bool(self.as_bool().unwrap()),
+            JsonKind::String => s.serialize_str(self.as_str().unwrap()),
+            JsonKind::Number => self.number().unwrap().serialize(s),
+            JsonKind::Array => {
+                let a = self.as_array().unwrap();
+                let mut seq = s.serialize_seq(Some(a.len()))?;
+                for v in a.iter() {
+                    seq.serialize_element(&v)?;
+                }
+                seq.end()
+            }
+            JsonKind::Object => {
+                let a = self.as_object().unwrap();
+                let mut map = s.serialize_map(Some(a.len()))?;
+                for (k, v) in a.iter() {
+                    map.serialize_entry(k, &v)?;
+                }
+                map.end()
+            }
+        }
+    }
+}
+
+#[cfg(feature = "s_allocation_json_testonly")]
+impl Drop for ObjectMut<'_> {
+    fn drop(&mut self) {
+        self.tree.sort_fields(self.id);
+    }
+}
+
+/// 同账fallible业务映射，键/值的内部分配必须由其各自owner承担；本表不调用Clone。
+pub struct BusinessMap<K, V>(super::work::WorkMap<K, V>);
+impl<K: Eq + std::hash::Hash, V> BusinessMap<K, V> {
+    pub fn plain() -> Self {
+        Self(super::work::WorkMap::new(None))
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    pub fn owned(b: &OwnedBudget) -> Self {
+        Self(super::work::WorkMap::new(Some(b)))
+    }
+    pub fn get(&self, k: &K) -> Option<&V> {
+        self.0.get(k)
+    }
+    pub fn insert(&mut self, k: K, v: V) -> Result<Option<V>, CodecError> {
+        self.0.insert(k, v)
+    }
+}
+
+/// 生命周期只借真实所有者，组合投影不复制key或payload。
+pub trait JsonArray {
+    fn len(&self) -> usize;
+    fn get(&self, index: usize) -> Option<JsonView<'_>>;
+}
+pub trait JsonObject {
+    fn len(&self) -> usize;
+    fn field(&self, index: usize) -> Option<(&str, JsonView<'_>)>;
+}
+#[derive(Clone, Copy)]
+pub struct BorrowedObject<'a> {
+    owner: &'a dyn JsonObject,
+}
+pub struct BorrowedArrayIter<'a> {
+    owner: &'a dyn JsonArray,
+    index: usize,
+}
+pub struct BorrowedObjectIter<'a> {
+    owner: &'a dyn JsonObject,
+    last: Option<&'a str>,
+}
+impl<'a> JsonView<'a> {
+    pub fn borrowed_object(owner: &'a dyn JsonObject) -> Result<Self, CodecError> {
+        for i in 0..owner.len() {
+            let (k, _) = owner
+                .field(i)
+                .ok_or_else(|| invalid("borrowed object field absent"))?;
+            for j in 0..i {
+                if owner.field(j).is_some_and(|(prior, _)| prior == k) {
+                    return Err(invalid("duplicate key"));
+                }
+            }
+        }
+        Ok(Self::BorrowedObject(BorrowedObject { owner }))
+    }
+    /// 只选输入已持有的同一账本；组合不同账本拒绝，不另造budget或fallback。
+    pub fn allocation_budget(self) -> Result<Option<&'a OwnedBudget>, CodecError> {
+        let direct = match self {
+            Self::Owned(OwnedView { tree, .. }) => return Ok(Some(tree.budget())),
+            _ => None,
+        };
+        let mut found = direct;
+        if let Some(children) = self.children() {
+            for (_, child) in children {
+                if let Some(b) = child.allocation_budget()? {
+                    if found.is_some_and(|old: &OwnedBudget| !std::sync::Arc::ptr_eq(&old.0, &b.0))
+                    {
+                        return Err(CodecError::static_detail(
+                            super::INCOMPLETE,
+                            "借用JSON组合含不同owned账本",
+                        ));
+                    }
+                    found = Some(b);
+                }
+            }
+        }
+        Ok(found)
+    }
+}
+
+#[cfg(feature = "s_allocation_json_testonly")]
+pub fn owned_bytes(bytes: &[u8], budget: &OwnedBudget) -> Result<CodecVec<u8>, CodecError> {
+    let mut out = owned_vec(budget);
+    extend_bytes(&mut out, bytes)?;
+    Ok(out)
+}
+
+#[cfg(feature = "s_allocation_json_testonly")]
+#[doc(hidden)]
+pub fn static_error(code: &'static str, detail: &'static str) -> CodecError {
+    CodecError::static_detail(code, detail)
+}
+
+/// 内部业务文本真实字节所有者；move保账、深clone fallible、没有Clone/std擦除接口。
+pub struct TextOwner {
+    bytes: CodecVec<u8>,
+}
+impl TextOwner {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    pub fn copy_from(value: &str, budget: &OwnedBudget) -> Result<Self, CodecError> {
+        Ok(Self {
+            bytes: owned_bytes(value.as_bytes(), budget)?,
+        })
+    }
+    pub fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.bytes).expect("private text copied from UTF8")
+    }
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
+    pub fn capacity(&self) -> usize {
+        self.bytes.capacity()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+    #[cfg(feature = "s_allocation_json_testonly")]
+    pub fn try_clone(&self) -> Result<Self, CodecError> {
+        Ok(Self {
+            bytes: self.bytes.try_clone()?,
+        })
+    }
+}
+impl std::ops::Deref for TextOwner {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.as_str()
+    }
+}
+impl std::fmt::Debug for TextOwner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+impl std::fmt::Display for TextOwner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+impl serde::Serialize for TextOwner {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.as_str())
+    }
+}
+impl PartialEq for TextOwner {
+    fn eq(&self, o: &Self) -> bool {
+        self.as_str() == o.as_str()
+    }
+}
+impl Eq for TextOwner {}
+impl PartialOrd for TextOwner {
+    fn partial_cmp(&self, o: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(o))
+    }
+}
+impl Ord for TextOwner {
+    fn cmp(&self, o: &Self) -> std::cmp::Ordering {
+        self.as_str().cmp(o.as_str())
+    }
+}
+impl std::hash::Hash for TextOwner {
+    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+        self.as_str().hash(h)
     }
 }

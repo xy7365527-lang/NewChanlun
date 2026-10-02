@@ -12,7 +12,7 @@ use newchan_rust::{
     s_content::{
         fragment::{self, Fragment, Unit},
         path::PathStep,
-        ContentRef,
+        ContentRef, RefView,
     },
     session_protocol::{canonical_json, nonnegative, positive, required, sha256_hex},
 };
@@ -169,16 +169,16 @@ impl Request {
         }
         Ok(())
     }
-    pub(super) fn read(
+    pub(super) fn read<'a>(
         &self,
         source: &mut dyn newchan_rust::s_content::NodeSource,
-        root: &ContentRef,
+        root: impl Into<RefView<'a>>,
         resources: &QResources,
         job: &mut dyn Access,
     ) -> Result<Fragment, String> {
-        let fragment = fragment::read(
+        let fragment = fragment::read_refview(
             source,
-            root,
+            root.into(),
             &self.path,
             self.unit,
             self.offset,

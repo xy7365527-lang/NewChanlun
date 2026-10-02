@@ -162,13 +162,13 @@ pub(super) fn run(args: &[String]) -> Result<(), String> {
 
 struct Basis {
     root: ContentRef,
-    snapshot: ContentRef,
+    snapshot: super::audit_store::RefValue,
     session_id: String,
     session_generation: String,
     writer_epoch: String,
-    structure_cut: String,
-    index_frontier: String,
-    commit_ns: String,
+    structure_cut: super::business_json::TextValue,
+    index_frontier: super::business_json::TextValue,
+    commit_ns: super::business_json::TextValue,
 }
 
 impl Basis {
@@ -210,10 +210,10 @@ fn current_basis(
     if accepted != cut.metadata.input_frontier {
         return Err(missing("有尚未发布的已接纳修订"));
     }
-    let commit_ns = cut.metadata.semantic_commit_ns.clone();
+    let commit_ns = cut.metadata.semantic_commit_ns.try_clone()?;
     nonnegative(&commit_ns, "commit_ns")?;
     let snapshot = cut.snapshot.clone();
-    if snapshot.kind != Kind::Object || snapshot.extent != Some(20) {
+    if snapshot.kind() != Kind::Object || snapshot.extent() != Some(20) {
         return Err(invalid("已发布快照不是完整二十字段对象"));
     }
     // history/state have already validated the whole published snapshot in this
@@ -227,7 +227,7 @@ fn current_basis(
             ("session_generation".into(), V::string(&session_generation)),
             ("writer_epoch".into(), V::string(&writer_epoch)),
             ("pending_revision".into(), V::Bool(false)),
-            ("commit_ns".into(), V::string(&commit_ns)),
+            ("commit_ns".into(), V::string(commit_ns.as_str())),
             (
                 "snapshot".into(),
                 V::Edge(snapshot.digest().map_err(invalid)?),
@@ -242,8 +242,8 @@ fn current_basis(
         session_id,
         session_generation,
         writer_epoch,
-        structure_cut: cut.metadata.structure_cut.clone(),
-        index_frontier: cut.batch_id.clone(),
+        structure_cut: cut.metadata.structure_cut.try_clone()?,
+        index_frontier: cut.batch_id.try_clone()?,
         commit_ns,
     })
 }
@@ -473,7 +473,7 @@ fn basis_ref(tx: &Transaction<'_>, request: &Value) -> Result<Value, String> {
         json!({"schema_revision":"s-financial-basis/3","content_format":"s-content/1","kind":"FinancialBasisRef",
         "session_id":basis.session_id,"session_generation":basis.session_generation,"writer_epoch":basis.writer_epoch,
         "pending_revision":false,"commit_ns":basis.commit_ns,"basis_ref":basis.root.to_transport_json(),
-        "snapshot_ref":basis.snapshot.to_transport_json(),"selected_objects":selected,
+        "snapshot_ref":basis.snapshot,"selected_objects":selected,
         "proof_nodes":nodes.into_values().map(|n| n.to_json()).collect::<Vec<_>>() }),
     )
 }
@@ -615,7 +615,7 @@ mod tests {
         publish(&mut f, 1);
         let tx = f.conn.transaction().unwrap();
         let state = state::audit(&tx).unwrap();
-        let id = state.objects[0].id.clone();
+        let id = state.objects[0].id.to_string();
         let reply = basis_ref(&tx, &query(vec![id.clone()])).unwrap();
         assert_eq!(reply["schema_revision"], "s-financial-basis/3");
         assert_eq!(reply["selected_objects"][0]["object_id"], id);
@@ -734,7 +734,7 @@ mod tests {
         let mut f = Fixture::new();
         publish(&mut f, 1);
         let tx = f.conn.transaction().unwrap();
-        let id = state::audit(&tx).unwrap().objects[0].id.clone();
+        let id = state::audit(&tx).unwrap().objects[0].id.to_string();
         assert!(basis_ref(&tx, &query(vec![id.clone(), id]))
             .unwrap_err()
             .contains("重复"));
@@ -900,10 +900,7 @@ mod tests {
             let tx = f.conn.transaction().unwrap();
             let audited = state::audit(&tx).unwrap();
             let cut = audited.cuts.last().unwrap();
-            (
-                cut.snapshot.to_transport_json(),
-                cut.metadata.structure_cut.clone(),
-            )
+            (json!(cut.snapshot), cut.metadata.structure_cut.to_string())
         };
         let first = cli(
             &binary,
@@ -925,9 +922,9 @@ mod tests {
             let audited = state::audit(&tx).unwrap();
             let cut = audited.cuts.last().unwrap();
             (
-                cut.snapshot.to_transport_json(),
-                cut.metadata.structure_cut.clone(),
-                cut.batch_id.clone(),
+                json!(cut.snapshot),
+                cut.metadata.structure_cut.to_string(),
+                cut.batch_id.to_string(),
             )
         };
         assert_ne!(first_cut, cut);

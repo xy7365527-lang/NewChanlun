@@ -163,6 +163,30 @@ pub fn read(
     max_reply_bytes: u64,
     access: &mut dyn Access,
 ) -> Result<Fragment, CodecError> {
+    read_refview(
+        source,
+        root.into(),
+        path,
+        unit,
+        offset,
+        limit,
+        max_reply_bytes,
+        access,
+    )
+}
+
+/// 普通查询路径的借用引用入口，与 `read` 共用范围/证明核；不授予 Closed 分配资格。
+#[doc(hidden)]
+pub fn read_refview(
+    source: &mut dyn NodeSource,
+    root: RefView<'_>,
+    path: &[PathStep],
+    unit: Unit,
+    offset: u64,
+    limit: u64,
+    max_reply_bytes: u64,
+    access: &mut dyn Access,
+) -> Result<Fragment, CodecError> {
     read_with_filter(
         source,
         root,
@@ -178,7 +202,7 @@ pub fn read(
 
 fn read_with_filter(
     source: &mut dyn NodeSource,
-    root: &ContentRef,
+    root: RefView<'_>,
     path: &[PathStep],
     unit: Unit,
     offset: u64,
@@ -207,7 +231,7 @@ fn read_with_filter(
         max_reply_bytes,
         record_filter,
     };
-    let target = path::lookup_path(&mut source, root, path)?;
+    let target = path::lookup_path_refview(&mut source, root, path)?;
     let total = match (target.kind, unit) {
         (Kind::Array | Kind::Object, Unit::Items) | (Kind::String | Kind::Number, Unit::Bytes) => {
             target.extent.ok_or_else(|| err("目标缺extent"))?
@@ -243,7 +267,7 @@ fn read_with_filter(
             for i in offset..end {
                 let mut steps = path.to_vec();
                 steps.push(PathStep::Index(i));
-                let child = path::lookup_path(&mut source, root, &steps)?;
+                let child = path::lookup_path_refview(&mut source, root, &steps)?;
                 public_header(&child)?;
                 let item = child.to_transport_json();
                 source.reserve_reply(encoded_len(&item)? + u64::from(!result.is_empty()))?;
@@ -258,7 +282,7 @@ fn read_with_filter(
                 let key = source.read_key(&key_ref)?;
                 let mut steps = path.to_vec();
                 steps.push(PathStep::Field(key.clone()));
-                let child = path::lookup_path(&mut source, root, &steps)?;
+                let child = path::lookup_path_refview(&mut source, root, &steps)?;
                 public_header(&child)?;
                 let item = json!({"key":key,"value_ref":child.to_transport_json()});
                 source.reserve_reply(encoded_len(&item)? + u64::from(!result.is_empty()))?;
@@ -391,7 +415,7 @@ fn verify_impl(
     }
     let expected = read_with_filter(
         &mut nodes,
-        root,
+        root.into(),
         path,
         unit,
         offset,

@@ -126,6 +126,11 @@ impl OwnedBudget {
             copied_body_bytes: m.copied_bytes,
         }
     }
+    /// #1394：只比较同一实际计量核心；数值相同的两个预算不是同一账本。
+    #[doc(hidden)]
+    pub fn same_ledger(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
     #[doc(hidden)]
     pub fn ledger_health(&self) -> LedgerHealth {
         let m = Self::lock(&self.0);
@@ -521,7 +526,6 @@ pub struct RequestProbe {
 #[doc(hidden)]
 pub mod sqlite;
 
-#[cfg(feature = "s_allocation_json_testonly")]
 #[doc(hidden)]
 pub mod audit_json;
 

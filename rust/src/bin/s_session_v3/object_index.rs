@@ -1,6 +1,9 @@
 //! #1394 C：对象独立出生/撤回索引与历史投影。变化判据复用 object_diff::plan。
 //! 保存内部记录、生成态、不可变内容和出生 wire 四根；所有来源/载荷保持内容边。
 //! 本层证明索引与这些原件互相绑定；原件是否由真实源按正确业务规则产生仍归来源审计。
+use super::audit_store::RefValue;
+use super::business_json::{self as bj, TextValue};
+use super::object_records::{BatchOwner, BatchView, LifeOwner};
 use super::{
     generation::ProducedObject,
     object_records::{self, BatchRef, BorrowedObject, PublicationLife},
@@ -120,7 +123,7 @@ impl Fields {
         } else {
             Ok(Slot::Typed {
                 kind: kind.into(),
-                fact_key: self.text(s, "fact_key")?,
+                fact_key: self.text(s, "fact_key")?.into(),
             })
         }
     }
@@ -195,10 +198,13 @@ const SHAPE_IMMUTABLE: &[&str] = &[
     "source_coords_json",
 ];
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub(super) enum Slot {
     Shape([i64; 3]),
-    Typed { kind: String, fact_key: String },
+    Typed {
+        kind: TextValue,
+        fact_key: TextValue,
+    },
 }
 impl Slot {
     fn key(&self) -> String {
@@ -211,17 +217,17 @@ impl Slot {
         matches!(self, Self::Shape(_))
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(super) struct Entry {
-    pub id: String,
+    pub id: TextValue,
     pub revision: i64,
-    pub kind: String,
+    pub kind: TextValue,
     pub slot: Slot,
     pub generated: Built,
     pub internal: Built,
     pub immutable: Built,
-    pub birth_wire: ContentRef,
-    pub life: PublicationLife,
+    pub birth_wire: RefValue,
+    pub life: LifeOwner,
 }
 pub(super) struct Plan {
     pub generation: i64,
@@ -243,7 +249,7 @@ fn slot(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, kind: &str) -> Result
     } else {
         Ok(Slot::Typed {
             kind: kind.into(),
-            fact_key: text(s, r, "fact_key")?,
+            fact_key: text(s, r, "fact_key")?.into(),
         })
     }
 }
@@ -340,48 +346,64 @@ fn candidate(
     Ok(Entry {
         id: o.object_id().into(),
         revision,
-        kind,
+        kind: kind.into(),
         slot,
         generated,
         internal,
         immutable,
-        birth_wire,
-        life,
+        birth_wire: birth_wire.into(),
+        life: LifeOwner::from_normal(life),
     })
 }
 /// 返回本代模板：新生维持08，已有记录只借出生字段并改写小生命周期元数据。
-fn wire_at(s: &mut (impl CodecStore + ?Sized), e: &Entry, g: i64) -> Result<ContentRef, String> {
+fn wire_at(s: &mut (impl CodecStore + ?Sized), e: &Entry, g: i64) -> Result<RefValue, String> {
     if e.life.first_known_generation > g {
         return Err(err("对象尚未出生"));
     }
-    let mut life = e.life.clone();
-    if life.withdrawn_generation.is_some_and(|v| v > g) {
+    let mut life = e.life.view();
+    if life.withdrawn_generation.is_some_and(|d| d > g) {
         life.withdrawn_generation = None;
         life.withdrawal_reason = None;
         life.superseded_by = None;
     }
-    let saved = life.batch.clone();
+    let saved = life.batch;
     if life.first_known_generation == g {
-        life.batch = BatchRef::CurrentBatch;
+        life.batch = BatchView::CurrentBatch;
     }
-    let mut wire = object_records::reproject_stored_wire(s, &e.birth_wire, &life, g)
-        .map_err(err)?
-        .content_ref();
+    let built =
+        object_records::reproject_stored_wire_view(s, e.birth_wire.view(), life, g).map_err(err)?;
+    let mut wire = if s.allocation_budget().is_some() {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        {
+            RefValue::Owned(built.owned_ref())
+        }
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        {
+            return Err(err("owned引用执行未启用"));
+        }
+    } else {
+        RefValue::Plain(built.content_ref())
+    };
     if e.life.first_known_generation == g {
-        if let BatchRef::Existing(batch) = saved {
+        if let BatchView::Existing(batch) = saved {
             wire = s
-                .replace_batch_placeholder(&wire, &[f("batch_id")], &batch)
+                .replace_ref(wire.view(), &[f("batch_id")], batch)
                 .map_err(err)?;
         }
     }
     Ok(wire)
 }
-fn array(s: &mut (impl CodecStore + ?Sized), refs: &[ContentRef]) -> Result<Built, String> {
-    let xs = refs
-        .iter()
-        .map(|r| Ok(V::Edge(digest(r)?)))
-        .collect::<Result<_, String>>()?;
-    s.write_template(&V::Array(xs)).map_err(err)
+
+fn array(s: &mut (impl CodecStore + ?Sized), refs: &[RefValue]) -> Result<Built, String> {
+    let allocation = s.allocation_budget();
+    let mut views = bj::new_work(allocation.as_ref());
+    for r in refs {
+        views
+            .try_push(sc::ValueView::Edge(r.digest().map_err(err)?))
+            .map_err(err)?;
+    }
+    s.write_template_view(sc::ValueView::Array(&views))
+        .map_err(err)
 }
 /// 完整历史索引按目标代投影。Delta 出生序保留行插入序；活动/撤回各遵旧公开主序。
 pub(super) fn at_cut(
@@ -442,7 +464,7 @@ pub(super) fn plan(
         .collect::<Result<Vec<_>, _>>()?;
     let mut ids = BTreeSet::new();
     for e in &new {
-        if !ids.insert(e.id.clone()) {
+        if !ids.insert(e.id.try_clone()?) {
             return Err(err("生成集重复对象身份"));
         }
     }
@@ -454,7 +476,7 @@ pub(super) fn plan(
             let e = &old[*i];
             object_diff::Existing {
                 key: object_diff::Key {
-                    object_id: e.id.clone(),
+                    object_id: e.id.as_str().to_owned(),
                     slot: e.slot.key(),
                     immutable: object_diff::Ready(e.immutable.digest),
                 },
@@ -465,13 +487,16 @@ pub(super) fn plan(
     let keys = new
         .iter()
         .map(|e| object_diff::Key {
-            object_id: e.id.clone(),
+            object_id: e.id.as_str().to_owned(),
             slot: e.slot.key(),
             immutable: object_diff::Ready(e.immutable.digest),
         })
         .collect::<Vec<_>>();
     let changes = object_diff::plan(&keys, &old_keys)?;
-    let mut index = old.to_vec();
+    let mut index = Vec::new();
+    for e in old {
+        index.push(e.try_clone()?);
+    }
     let mut withdrawals = Vec::new();
     let mut replaces = Vec::new();
     for w in changes.withdrawals {
@@ -490,7 +515,7 @@ pub(super) fn plan(
                 Some(
                     new[w.new_index.ok_or_else(|| err("替代缺新对象"))?]
                         .id
-                        .clone(),
+                        .try_clone()?,
                 ),
             ),
         };
@@ -507,9 +532,11 @@ pub(super) fn plan(
     let births = changes
         .births
         .into_iter()
-        .map(|i| new[i].clone())
-        .collect::<Vec<_>>();
-    index.extend(births.iter().cloned());
+        .map(|i| new[i].try_clone())
+        .collect::<Result<Vec<_>, String>>()?;
+    for e in &births {
+        index.push(e.try_clone()?);
+    }
     let (active, withdrawn, upserts) = at_cut(s, &index, g)?;
     Ok(Plan {
         generation: g,
@@ -526,27 +553,29 @@ pub(super) fn plan(
 /// 对持久三种记录逐字段对拍，不展开 payload/input_refs/source_coords 大载荷。
 fn bind_originals(s: &mut (impl CodecStore + ?Sized), e: &Entry) -> Result<(), String> {
     let shape = e.slot.is_shape();
-    let r = Fields::read(
+    let generated_ref = built_ref(s, &e.generated);
+    let internal_ref = built_ref(s, &e.internal);
+    let r = OwnerFields::read(
         s,
-        &e.generated.content_ref(),
+        generated_ref.view(),
         if shape {
             &object_records::SHAPE_SEALED_FIELDS
         } else {
             &object_records::TYPED_SEALED_FIELDS
         },
     )?;
-    let i = Fields::read(
+    let i = OwnerFields::read(
         s,
-        &e.internal.content_ref(),
+        internal_ref.view(),
         if shape {
             &object_records::SHAPE_RECORD_FIELDS
         } else {
             &object_records::TYPED_RECORD_FIELDS
         },
     )?;
-    let w = Fields::read(
+    let w = OwnerFields::read(
         s,
-        &e.birth_wire,
+        e.birth_wire.view(),
         if shape {
             &object_records::SHAPE_WIRE_FIELDS
         } else {
@@ -608,14 +637,14 @@ fn bind_originals(s: &mut (impl CodecStore + ?Sized), e: &Entry) -> Result<(), S
         }
         let comparison = i.get("comparisons")?;
         let mut out = Vec::new();
-        s.render_canonical(comparison, &mut out).map_err(err)?;
+        s.render_ref(comparison.view(), &mut out).map_err(err)?;
         if r.text(s, "comparisons_json")?.as_bytes() != out {
             return Err(err("comparisons文本与内部值不符"));
         }
         i.equal("comparisons", &w, "comparisons")?;
         let generated_refs = i.get("input_refs")?;
         let wire_refs = w.get("input_refs")?;
-        bind_shape_refs(s, generated_refs, wire_refs)?;
+        bind_shape_refs_view(s, generated_refs.view(), wire_refs.view())?;
     } else {
         i.bind_json_text(s, "payload_json", "payload")?;
         for key in ["fact_key", "payload", "input_refs"] {
@@ -641,49 +670,59 @@ fn bind_shape_refs(
     generated: &ContentRef,
     wire: &ContentRef,
 ) -> Result<(), String> {
-    if generated.kind != Kind::Array
-        || generated.extent != Some(3)
-        || wire.kind != Kind::Array
-        || wire.extent != Some(3)
+    bind_shape_refs_view(s, generated.into(), wire.into())
+}
+fn bind_shape_refs_view(
+    s: &mut (impl CodecStore + ?Sized),
+    generated: sc::RefView<'_>,
+    wire: sc::RefView<'_>,
+) -> Result<(), String> {
+    if generated.kind() != Kind::Array
+        || generated.extent() != Some(3)
+        || wire.kind() != Kind::Array
+        || wire.extent() != Some(3)
     {
         return Err(err("形态来源不是三组"));
     }
     for n in 0..3 {
         let a = s
-            .lookup_path(generated, &[PathStep::Index(n)])
+            .lookup_ref(generated, &[PathStep::Index(n)])
             .map_err(err)?;
-        let b = s.lookup_path(wire, &[PathStep::Index(n)]).map_err(err)?;
-        if a.extent != Some(3)
-            || b.extent != Some(3)
-            || text(s, &b, "merged_index")? != integer(s, &a, "merged_index")?.to_string()
+        let b = s.lookup_ref(wire, &[PathStep::Index(n)]).map_err(err)?;
+        if a.extent() != Some(3)
+            || b.extent() != Some(3)
+            || text_ref(s, b.view(), "merged_index")?
+                != integer_ref(s, a.view(), "merged_index")?.to_string()
         {
             return Err(err("合并序号公开投影不符"));
         }
         for key in ["raw_refs", "dependency_refs"] {
-            let aa = field(s, &a, key)?;
-            let bb = field(s, &b, key)?;
-            if aa.kind != Kind::Array || bb.kind != Kind::Array || aa.extent != bb.extent {
+            let aa = field_ref(s, a.view(), key)?;
+            let bb = field_ref(s, b.view(), key)?;
+            if aa.kind() != Kind::Array || bb.kind() != Kind::Array || aa.extent() != bb.extent() {
                 return Err(err("来源数组长度不符"));
             }
             let items = if s.audit_full_array_scan() {
                 Some((
-                    s.lookup_array_items(&aa).map_err(err)?,
-                    s.lookup_array_items(&bb).map_err(err)?,
+                    s.lookup_array_ref(aa.view()).map_err(err)?,
+                    s.lookup_array_ref(bb.view()).map_err(err)?,
                 ))
             } else {
                 None
             };
-            for k in 0..aa.extent.ok_or_else(|| err("来源缺长度"))? {
+            for k in 0..aa.extent().ok_or_else(|| err("来源缺长度"))? {
                 let (ar, br) = if let Some((a, b)) = &items {
                     (a[k as usize].clone(), b[k as usize].clone())
                 } else {
                     // Some 仍逐位置交错原件读取与字段/业务检查，预算与期限门顺序不变。
                     (
-                        s.lookup_path(&aa, &[PathStep::Index(k)]).map_err(err)?,
-                        s.lookup_path(&bb, &[PathStep::Index(k)]).map_err(err)?,
+                        s.lookup_ref(aa.view(), &[PathStep::Index(k)])
+                            .map_err(err)?,
+                        s.lookup_ref(bb.view(), &[PathStep::Index(k)])
+                            .map_err(err)?,
                     )
                 };
-                if ar.extent != Some(8) || br.extent != Some(8) {
+                if ar.extent() != Some(8) || br.extent() != Some(8) {
                     return Err(err("来源字段集不符"));
                 }
                 let names = [
@@ -696,8 +735,8 @@ fn bind_shape_refs(
                     "revision",
                     "seq",
                 ];
-                let a_fields = Fields::read(s, &ar, &names)?;
-                let b_fields = Fields::read(s, &br, &names)?;
+                let a_fields = OwnerFields::read(s, ar.view(), &names)?;
+                let b_fields = OwnerFields::read(s, br.view(), &names)?;
                 for field_name in [
                     "identity_key",
                     "payload_hash",
@@ -724,27 +763,28 @@ pub(super) fn load(
     tx: &Transaction<'_>,
     s: &mut dyn NodeStore,
     latest: i64,
-) -> Result<Vec<Entry>, String> {
+) -> Result<sc::CodecVec<Entry>, String> {
     load_in_store(tx, &mut super::audit_store::StoreView::generic(s), latest)
 }
 pub(super) fn load_for_audit(
     tx: &Transaction<'_>,
     s: &mut super::history::HashReader<'_>,
     latest: i64,
-) -> Result<Vec<Entry>, String> {
+) -> Result<sc::CodecVec<Entry>, String> {
     load_in_store(tx, &mut super::audit_store::StoreView::for_audit(s), latest)
 }
 fn load_in_store(
     tx: &Transaction<'_>,
     s: &mut super::audit_store::StoreView<'_, '_>,
     latest: i64,
-) -> Result<Vec<Entry>, String> {
+) -> Result<sc::CodecVec<Entry>, String> {
     let mut stmt=tx.prepare("SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects ORDER BY rowid").map_err(err)?;
     let mut rows = stmt.query([]).map_err(err)?;
-    let mut out = Vec::new();
+    let allocation = s.allocation_budget();
+    let mut out = bj::new_work(allocation.as_ref());
     while let Some(row) = rows.next().map_err(err)? {
-        let kind: String = row.get(2).map_err(err)?;
-        let fact_key: Option<String> = row.get(3).map_err(err)?;
+        let kind = TextValue::from_sql(row, 2, allocation.as_ref()).map_err(err)?;
+        let fact_key = TextValue::optional_sql(row, 3, allocation.as_ref()).map_err(err)?;
         let coords = [
             row.get::<_, Option<i64>>(4).map_err(err)?,
             row.get(5).map_err(err)?,
@@ -764,27 +804,31 @@ fn load_in_store(
                 return Err(err("typed不得带形态窗口"));
             }
             Slot::Typed {
-                kind: kind.clone(),
+                kind: kind.try_clone()?,
                 fact_key: fact_key.ok_or_else(|| err("缺typed槽位"))?,
             }
         };
         let e = Entry {
-            id: row.get(0).map_err(err)?,
+            id: TextValue::from_sql(row, 0, allocation.as_ref()).map_err(err)?,
             revision: row.get(1).map_err(err)?,
             kind,
             slot,
-            generated: root_header(s, row.get(7).map_err(err)?)?,
-            internal: root_header(s, row.get(8).map_err(err)?)?,
-            immutable: root_header(s, row.get(9).map_err(err)?)?,
-            birth_wire: root_header(s, row.get(10).map_err(err)?)?.content_ref(),
-            life: PublicationLife {
-                batch: BatchRef::Existing(row.get(11).map_err(err)?),
+            generated: root_header_bytes(s, row.get_ref(7).map_err(err)?.as_blob().map_err(err)?)?,
+            internal: root_header_bytes(s, row.get_ref(8).map_err(err)?.as_blob().map_err(err)?)?,
+            immutable: root_header_bytes(s, row.get_ref(9).map_err(err)?.as_blob().map_err(err)?)?,
+            birth_wire: root_ref_bytes(s, row.get_ref(10).map_err(err)?.as_blob().map_err(err)?)?,
+            life: LifeOwner {
+                batch: BatchOwner::Existing(
+                    TextValue::from_sql(row, 11, allocation.as_ref()).map_err(err)?,
+                ),
                 first_known_generation: row.get(12).map_err(err)?,
-                first_known_cut: row.get(13).map_err(err)?,
+                first_known_cut: TextValue::from_sql(row, 13, allocation.as_ref()).map_err(err)?,
                 published_generation: row.get(14).map_err(err)?,
                 withdrawn_generation: row.get(15).map_err(err)?,
-                withdrawal_reason: row.get(16).map_err(err)?,
-                superseded_by: row.get(17).map_err(err)?,
+                withdrawal_reason: TextValue::optional_sql(row, 16, allocation.as_ref())
+                    .map_err(err)?,
+                superseded_by: TextValue::optional_sql(row, 17, allocation.as_ref())
+                    .map_err(err)?,
             },
         };
         if e.life.first_known_generation > latest
@@ -792,23 +836,22 @@ fn load_in_store(
         {
             return Err(err("出生代超过已发布代"));
         }
-        out.push(e);
+        out.try_push(e).map_err(err)?;
     }
     // 一次调用复用codec既有的上下文记忆；每根声明仍核，所有来源/生命周期绑定仍逐行执行。
     #[cfg(test)]
     super::state::trace_event("object_index_closures", None);
-    s.verify_many(
-        out.iter().flat_map(|e| {
-            [
-                e.generated.content_ref(),
-                e.internal.content_ref(),
-                e.immutable.content_ref(),
-                e.birth_wire.clone(),
-            ]
-        }),
-        sc::Mode::Public,
-    )
-    .map_err(err)?;
+    let allocation = s.allocation_budget();
+    let mut refs = bj::new_work(allocation.as_ref());
+    for e in &out {
+        for b in [&e.generated, &e.internal, &e.immutable] {
+            refs.try_push(built_ref(s, b)).map_err(err)?;
+        }
+        refs.try_push(e.birth_wire.clone()).map_err(err)?;
+    }
+    s.verify_many_ref(refs.iter().map(RefValue::view), sc::Mode::Public)
+        .map_err(err)?;
+
     for e in &out {
         #[cfg(test)]
         super::state::trace_event(
@@ -877,18 +920,20 @@ pub(super) fn stage(
     batch: &str,
 ) -> Result<(), String> {
     for e in &p.births {
-        if e.life.first_known_generation != p.generation || e.life.batch != BatchRef::CurrentBatch {
+        if e.life.first_known_generation != p.generation || e.life.batch != BatchOwner::CurrentBatch
+        {
             return Err(err("新生上下文不符"));
         }
         let wire = s
-            .replace_batch_placeholder(&e.birth_wire, &[f("batch_id")], batch)
+            .replace_ref(e.birth_wire.view(), &[f("batch_id")], batch)
             .map_err(err)?;
-        s.verify_audit_fresh(&wire, sc::Mode::Public).map_err(err)?;
+        s.verify_many_ref_fresh([wire.view()], sc::Mode::Public)
+            .map_err(err)?;
         let (fact, w) = match &e.slot {
             Slot::Shape(w) => (None, Some(*w)),
             Slot::Typed { fact_key, .. } => (Some(fact_key.as_str()), None),
         };
-        tx.execute("INSERT INTO s_content_objects VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?13,NULL,NULL,NULL)",params![e.id,e.revision,e.kind,fact,w.map(|v|v[0]),w.map(|v|v[1]),w.map(|v|v[2]),e.generated.digest.as_slice(),e.internal.digest.as_slice(),e.immutable.digest.as_slice(),digest(&wire)?.as_slice(),batch,p.generation,format!("cut-{}",p.generation)]).map_err(err)?;
+        tx.execute("INSERT INTO s_content_objects VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?13,NULL,NULL,NULL)",params![e.id,e.revision,e.kind,fact,w.map(|v|v[0]),w.map(|v|v[1]),w.map(|v|v[2]),e.generated.digest.as_slice(),e.internal.digest.as_slice(),e.immutable.digest.as_slice(),wire.digest().map_err(err)?.as_slice(),batch,p.generation,format!("cut-{}",p.generation)]).map_err(err)?;
     }
     for w in &p.withdrawals {
         let changed=tx.execute("UPDATE s_content_objects SET withdrawn_generation=?1,withdrawal_reason=?2,superseded_by=?3 WHERE object_id=?4 AND withdrawn_generation IS NULL",params![p.generation,w["reason"].as_str(),w["superseded_by"].as_str(),w["object_id"].as_str()]).map_err(err)?;
@@ -922,53 +967,54 @@ pub(super) fn changes_at(index: &[Entry], g: i64) -> Result<(Vec<Value>, Vec<Val
     Ok((withdrawals, replaces))
 }
 /// 按该代真实候选序复用同一diff判据，再对拍独立生命周期；不假定候选槽位唯一。
-pub(super) fn verify_generated_members(
+pub(super) fn verify_generated_members<'a>(
     s: &mut (impl CodecStore + ?Sized),
     index: &[Entry],
-    state: &ContentRef,
+    state: impl Into<sc::RefView<'a>>,
     g: i64,
 ) -> Result<(), String> {
+    let state = state.into();
     let by_id = index
         .iter()
         .filter(|e| e.life.first_known_generation <= g)
         .map(|e| (e.id.as_str(), e))
         .collect::<BTreeMap<_, _>>();
-    let objects = field(s, state, "objects")?;
-    if objects.kind != Kind::Array {
+    let objects = field_ref(s, state, "objects")?;
+    if objects.kind() != Kind::Array {
         return Err(err("生成对象集不是数组"));
     }
     let mut seen = BTreeSet::new();
     let mut new = Vec::new();
     let items = if s.audit_full_array_scan() {
-        Some(s.lookup_array_items(&objects).map_err(err)?)
+        Some(s.lookup_array_ref(objects.view()).map_err(err)?)
     } else {
         None
     };
-    for n in 0..objects.extent.ok_or_else(|| err("生成集缺长度"))? {
+    for n in 0..objects.extent().ok_or_else(|| err("生成集缺长度"))? {
         let object = if let Some(items) = &items {
             items[n as usize].clone()
         } else {
-            s.lookup_path(&objects, &[PathStep::Index(n)])
+            s.lookup_ref(objects.view(), &[PathStep::Index(n)])
                 .map_err(err)?
         };
-        let id = text(s, &object, "object_id")?;
-        if !seen.insert(id.clone()) {
+        let id = text_ref(s, object.view(), "object_id")?;
+        if !seen.insert(id.try_clone()?) {
             return Err(err("生成集重复对象身份"));
         }
         let e = by_id
             .get(id.as_str())
             .ok_or_else(|| err("生成对象不在独立身份史内"))?;
-        let fields = Fields::read(
+        let fields = OwnerFields::read(
             s,
-            &object,
+            object.view(),
             if e.slot.is_shape() {
                 &object_records::SHAPE_SEALED_FIELDS
             } else {
                 &object_records::TYPED_SEALED_FIELDS
             },
         )?;
-        if object.kind != Kind::Object
-            || object.extent != Some(if e.slot.is_shape() { 15 } else { 10 })
+        if object.kind() != Kind::Object
+            || object.extent() != Some(if e.slot.is_shape() { 15 } else { 10 })
             || fields.integer(s, "first_known_generation")? != g
             || fields.integer(s, "published_generation")? != g
             || fields.text(s, "first_known_cut")? != format!("cut-{g}")
@@ -978,11 +1024,11 @@ pub(super) fn verify_generated_members(
         if fields.immutable(s, e.slot.is_shape())? != e.immutable {
             return Err(err("生成集同身份内容与独立原件不同"));
         }
-        if e.life.first_known_generation == g && object != e.generated.content_ref() {
+        if e.life.first_known_generation == g && object != built_ref(s, &e.generated) {
             return Err(err("出生原件不等于真实首次生成记录"));
         }
         new.push(object_diff::Key {
-            object_id: id,
+            object_id: id.as_str().to_owned(),
             slot: e.slot.key(),
             immutable: object_diff::Ready(e.immutable.digest),
         });
@@ -996,7 +1042,7 @@ pub(super) fn verify_generated_members(
         .iter()
         .map(|e| object_diff::Existing {
             key: object_diff::Key {
-                object_id: e.id.clone(),
+                object_id: e.id.as_str().to_owned(),
                 slot: e.slot.key(),
                 immutable: object_diff::Ready(e.immutable.digest),
             },
@@ -1076,15 +1122,18 @@ mod tests {
         c
     }
     fn value(s: &mut dyn NodeSource, r: &ContentRef) -> Value {
+        value_ref(s, r.into())
+    }
+    fn value_ref(s: &mut dyn NodeSource, r: sc::RefView<'_>) -> Value {
         let mut b = Vec::new();
-        sc::render_canonical(s, r, &mut b).unwrap();
+        sc::render_refview(s, r, &mut b).unwrap();
         serde_json::from_slice(&b).unwrap()
     }
     fn legacy_value(s: &mut dyn NodeSource, e: &Entry) -> Value {
         let mut v = value(s, &e.generated.content_ref());
         v["batch_id"] = match &e.life.batch {
-            BatchRef::Existing(b) => json!(b),
-            BatchRef::CurrentBatch => Value::Null,
+            BatchOwner::Existing(b) => json!(b),
+            BatchOwner::CurrentBatch => Value::Null,
         };
         v["withdrawn_generation"] = json!(e.life.withdrawn_generation);
         v["withdrawal_reason"] = json!(e.life.withdrawal_reason);
@@ -1131,8 +1180,8 @@ mod tests {
                 &rule,
             );
             let input = GenerationInput {
-                all_events: &raw,
-                effective: &effective,
+                all_events: (&raw).into(),
+                effective: (&effective).into(),
                 generation: g,
                 structure_cut: &cut,
                 input_frontier: raw.len() as i64 - 1,
@@ -1156,8 +1205,8 @@ mod tests {
                     &rule,
                 );
                 let earlier_input = GenerationInput {
-                    all_events: &previous_raw,
-                    effective: &earlier_effective,
+                    all_events: (&previous_raw).into(),
+                    effective: (&earlier_effective).into(),
                     generation: g,
                     structure_cut: &cut,
                     input_frontier: previous_raw.len() as i64 - 1,
@@ -1206,7 +1255,7 @@ mod tests {
             let active = ordered.iter().map(|e| legacy_value(&mut s, e)).collect();
             let identities = old
                 .iter()
-                .map(|e| (e.id.clone(), legacy_value(&mut s, e)))
+                .map(|e| (e.id.as_str().to_owned(), legacy_value(&mut s, e)))
                 .collect();
             let new = generated
                 .objects
@@ -1261,7 +1310,7 @@ mod tests {
             for r in &stored {
                 let actual = wire_at(&mut s, r, g).unwrap();
                 let expected = crate::project_object_wire(&legacy_value(&mut s, r)).unwrap();
-                assert_eq!(value(&mut s, &actual), expected);
+                assert_eq!(value_ref(&mut s, actual.view()), expected);
             }
             let historical = at_cut(&mut s, &stored, 1).unwrap();
             let roots = (
@@ -1280,9 +1329,18 @@ mod tests {
             if g == 2 {
                 let common = old
                     .iter()
-                    .position(|e| generated.objects.iter().any(|o| o.object_id() == e.id))
+                    .position(|e| {
+                        generated
+                            .objects
+                            .iter()
+                            .any(|o| o.object_id() == e.id.as_str())
+                    })
                     .expect("应有沿用身份");
-                let mut wrong = old.clone();
+                let allocation = s.allocation_budget();
+                let mut wrong = bj::new_work(allocation.as_ref());
+                for e in old.iter() {
+                    wrong.try_push(e.try_clone().unwrap()).unwrap();
+                }
                 wrong[common].immutable =
                     sc::write_value(&mut s, &V::String("corrupt".into())).unwrap();
                 assert!(plan(&mut s, &generated.objects, &wrong, g)
@@ -1328,4 +1386,157 @@ mod tests {
         let mut s = content_store::TxStore::new(&tx).unwrap();
         assert!(load(&tx, &mut s, 0).is_err());
     }
+}
+
+impl Slot {
+    fn try_clone(&self) -> Result<Self, String> {
+        Ok(match self {
+            Self::Shape(v) => Self::Shape(*v),
+            Self::Typed { kind, fact_key } => Self::Typed {
+                kind: kind.try_clone()?,
+                fact_key: fact_key.try_clone()?,
+            },
+        })
+    }
+}
+impl Entry {
+    pub fn try_clone(&self) -> Result<Self, String> {
+        Ok(Self {
+            id: self.id.try_clone()?,
+            revision: self.revision,
+            kind: self.kind.try_clone()?,
+            slot: self.slot.try_clone()?,
+            generated: self.generated.clone(),
+            internal: self.internal.clone(),
+            immutable: self.immutable.clone(),
+            birth_wire: self.birth_wire.clone(),
+            life: self.life.try_clone()?,
+        })
+    }
+}
+fn root_ref_bytes(s: &mut (impl CodecRead + ?Sized), bytes: &[u8]) -> Result<RefValue, String> {
+    let digest: NodeDigest = bytes.try_into().map_err(|_| err("根不是32字节"))?;
+    s.content_ref_view(sc::FixedRoot::new(&digest).as_str())
+        .map_err(err)
+}
+fn root_header_bytes(s: &mut (impl CodecRead + ?Sized), bytes: &[u8]) -> Result<Built, String> {
+    let r = root_ref_bytes(s, bytes)?;
+    Ok(Built {
+        digest: r.digest().map_err(err)?,
+        kind: r.kind(),
+        extent: r.extent(),
+    })
+}
+
+/// 同一字段读取核的owned借用结果；引用的root/format不补造String。
+struct OwnerFields<'a>(super::audit_store::RefFields<'a>);
+impl<'a> OwnerFields<'a> {
+    fn read(
+        s: &mut (impl CodecStore + ?Sized),
+        r: sc::RefView<'_>,
+        names: &[&'a str],
+    ) -> Result<Self, String> {
+        s.lookup_fields_ref(r, names).map(Self).map_err(err)
+    }
+    fn get(&self, k: &str) -> Result<RefValue, String> {
+        self.0.get(k).ok_or_else(|| err(format!("原件缺字段{k}")))
+    }
+    fn text(&self, s: &mut (impl CodecRead + ?Sized), k: &str) -> Result<TextValue, String> {
+        let r = self.get(k)?;
+        bj::read_text(s, r.view()).map_err(err)
+    }
+    fn integer(&self, s: &mut (impl CodecRead + ?Sized), k: &str) -> Result<i64, String> {
+        let r = self.get(k)?;
+        bj::render_json(s, r.view())?
+            .view()
+            .as_i64()
+            .ok_or_else(|| err(format!("{k}不是i64")))
+    }
+    fn equal(&self, k: &str, o: &Self, j: &str) -> Result<(), String> {
+        if self.get(k)? != o.get(j)? {
+            Err(err(format!("{k}/{j}内容边不同")))
+        } else {
+            Ok(())
+        }
+    }
+    fn slot(&self, s: &mut (impl CodecStore + ?Sized), kind: &str) -> Result<Slot, String> {
+        if kind == SHAPE {
+            Ok(Slot::Shape([
+                self.integer(s, "window_start")?,
+                self.integer(s, "window_mid")?,
+                self.integer(s, "window_end")?,
+            ]))
+        } else {
+            Ok(Slot::Typed {
+                kind: TextValue::from_str(kind, s.allocation_budget().as_ref())?,
+                fact_key: self.text(s, "fact_key")?,
+            })
+        }
+    }
+    fn immutable(&self, s: &mut (impl CodecStore + ?Sized), shape: bool) -> Result<Built, String> {
+        let names = if shape {
+            SHAPE_IMMUTABLE
+        } else {
+            TYPED_IMMUTABLE
+        };
+        let mut fields = [("", sc::ValueView::BatchSelf); 12];
+        for (i, name) in names.iter().enumerate() {
+            let child = self.get(name)?;
+            if child.kind() == Kind::Null {
+                return Err(err("不可变字段不得为空"));
+            }
+            fields[i] = (*name, sc::ValueView::Edge(child.digest().map_err(err)?));
+        }
+        s.write_value_view(sc::ValueView::Object(&fields[..names.len()]))
+            .map_err(err)
+    }
+    fn bind_json_text(
+        &self,
+        s: &mut (impl CodecRead + ?Sized),
+        json: &str,
+        value: &str,
+    ) -> Result<(), String> {
+        let input = self.get(json)?;
+        let parsed = s
+            .lookup_ref(input.view(), &[PathStep::JsonText])
+            .map_err(err)?;
+        if parsed != self.get(value)? {
+            return Err(err("内部JSON视图与值边不同"));
+        }
+        Ok(())
+    }
+}
+fn built_ref(s: &(impl CodecRead + ?Sized), b: &Built) -> RefValue {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if s.allocation_budget().is_some() {
+        return RefValue::Owned(b.owned_ref());
+    }
+    RefValue::Plain(b.content_ref())
+}
+
+fn field_ref(
+    s: &mut (impl CodecRead + ?Sized),
+    r: sc::RefView<'_>,
+    k: &str,
+) -> Result<RefValue, String> {
+    s.lookup_ref(r, &[f(k)]).map_err(err)
+}
+fn text_ref(
+    s: &mut (impl CodecRead + ?Sized),
+    r: sc::RefView<'_>,
+    k: &str,
+) -> Result<TextValue, String> {
+    let v = field_ref(s, r, k)?;
+    bj::read_text(s, v.view()).map_err(err)
+}
+fn integer_ref(
+    s: &mut (impl CodecRead + ?Sized),
+    r: sc::RefView<'_>,
+    k: &str,
+) -> Result<i64, String> {
+    let v = field_ref(s, r, k)?;
+    bj::render_json(s, v.view())?
+        .view()
+        .as_i64()
+        .ok_or_else(|| err(format!("{k}不是i64")))
 }

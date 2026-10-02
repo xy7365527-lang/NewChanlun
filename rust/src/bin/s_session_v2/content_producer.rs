@@ -500,6 +500,18 @@ pub(super) struct ShapeIdentity<'a> {
     pub input_refs: &'a Built,
 }
 
+/// 十二字段身份的无复制视图；字段来源核验仍由调用方承担。
+pub(super) struct ShapeIdentityView<'a> {
+    pub branch: &'a str,
+    pub dir_ab: &'a str,
+    pub dir_bc: &'a str,
+    pub window: [&'a str; 3],
+    pub highs: [&'a str; 3],
+    pub lows: [&'a str; 3],
+    pub comparisons: &'a Built,
+    pub input_refs: &'a Built,
+}
+
 impl TypedObject {
     /// 旧逻辑字段名到新内容边的对应（供调用方/测试核对，不参与身份）。
     pub fn content_edges(&self) -> [(&'static str, &Built); 3] {
@@ -991,33 +1003,42 @@ impl Cc004Producer {
         &self,
         part: ShapeIdentity<'_>,
     ) -> Result<NodeDigest, ProducerError> {
-        let fields = CValue::Object(vec![
-            ("branch".into(), CValue::String(part.branch.into())),
-            ("dir_ab".into(), CValue::String(part.dir_ab.into())),
-            ("dir_bc".into(), CValue::String(part.dir_bc.into())),
-            (
-                "window_start".into(),
-                CValue::String(part.window[0].clone()),
-            ),
-            ("window_mid".into(), CValue::String(part.window[1].clone())),
-            ("window_end".into(), CValue::String(part.window[2].clone())),
-            (
-                "merged_highs".into(),
-                CValue::Array(part.highs.into_iter().map(CValue::String).collect()),
-            ),
-            (
-                "merged_lows".into(),
-                CValue::Array(part.lows.into_iter().map(CValue::String).collect()),
-            ),
-            ("comparisons".into(), CValue::Edge(part.comparisons.digest)),
-            ("input_refs".into(), CValue::Edge(part.input_refs.digest)),
-            (
-                "rule_revision".into(),
-                CValue::String(self.rule_revision.clone()),
-            ),
-            ("profile_id".into(), CValue::String(self.profile_id.clone())),
-        ]);
-        self.identity_summary(&fields)
+        self.shape_identity_borrowed(ShapeIdentityView {
+            branch: part.branch,
+            dir_ab: part.dir_ab,
+            dir_bc: part.dir_bc,
+            window: part.window.each_ref().map(String::as_str),
+            highs: part.highs.each_ref().map(String::as_str),
+            lows: part.lows.each_ref().map(String::as_str),
+            comparisons: part.comparisons,
+            input_refs: part.input_refs,
+        })
+    }
+
+    /// 旧入口与只读审计共用唯一十二字段值配方，不复制字段文本或先造普通 JSON。
+    pub(super) fn shape_identity_borrowed(
+        &self,
+        part: ShapeIdentityView<'_>,
+    ) -> Result<NodeDigest, ProducerError> {
+        use sc::ValueView as V;
+        let highs = part.highs.map(V::String);
+        let lows = part.lows.map(V::String);
+        let fields = [
+            ("branch", V::String(part.branch)),
+            ("dir_ab", V::String(part.dir_ab)),
+            ("dir_bc", V::String(part.dir_bc)),
+            ("window_start", V::String(part.window[0])),
+            ("window_mid", V::String(part.window[1])),
+            ("window_end", V::String(part.window[2])),
+            ("merged_highs", V::Array(&highs)),
+            ("merged_lows", V::Array(&lows)),
+            ("comparisons", V::Edge(part.comparisons.digest)),
+            ("input_refs", V::Edge(part.input_refs.digest)),
+            ("rule_revision", V::String(&self.rule_revision)),
+            ("profile_id", V::String(&self.profile_id)),
+        ];
+        let mut derived = DigestOnly;
+        Ok(sc::write_value_view(&mut derived, V::Object(&fields))?.digest)
     }
 
     fn identity_summary(&self, identity: &CValue) -> Result<NodeDigest, ProducerError> {
@@ -2787,6 +2808,84 @@ mod tests {
         let mut out: Vec<u8> = Vec::new();
         render_canonical(store, &built.content_ref(), &mut out).expect("规范渲染");
         String::from_utf8(out).expect("UTF-8")
+    }
+
+    #[test]
+    fn borrowed_shape_identity_matches_original_recipe_and_frame_count() {
+        let producer = Cc004Producer::new("档案\"x", "rule-\\v1");
+        let comparisons = Built {
+            digest: [0x11; 32],
+            kind: Kind::Array,
+            extent: Some(4),
+        };
+        let input_refs = Built {
+            digest: [0x22; 32],
+            kind: Kind::Array,
+            extent: Some(3),
+        };
+        for (branch, dir_ab, dir_bc) in [("TOP", "UP", "DOWN"), ("BOTTOM", "DOWN", "UP")] {
+            let window = ["0", "10", "9223372036854775807"];
+            let highs = ["-9223372036854775808", "0", "9223372036854775807"];
+            let lows = ["-7", "0", "2"];
+            // 冻结旧字段配方仅作测试 oracle；生产两个入口共用上面的借用核。
+            let old = CValue::Object(vec![
+                ("branch".into(), CValue::String(branch.into())),
+                ("dir_ab".into(), CValue::String(dir_ab.into())),
+                ("dir_bc".into(), CValue::String(dir_bc.into())),
+                ("window_start".into(), CValue::String(window[0].into())),
+                ("window_mid".into(), CValue::String(window[1].into())),
+                ("window_end".into(), CValue::String(window[2].into())),
+                (
+                    "merged_highs".into(),
+                    CValue::Array(highs.map(|s| CValue::String(s.into())).into()),
+                ),
+                (
+                    "merged_lows".into(),
+                    CValue::Array(lows.map(|s| CValue::String(s.into())).into()),
+                ),
+                ("comparisons".into(), CValue::Edge(comparisons.digest)),
+                ("input_refs".into(), CValue::Edge(input_refs.digest)),
+                (
+                    "rule_revision".into(),
+                    CValue::String(producer.rule_revision.clone()),
+                ),
+                (
+                    "profile_id".into(),
+                    CValue::String(producer.profile_id.clone()),
+                ),
+            ]);
+            let before = sc::frame_calls_on_thread();
+            let expected = producer.identity_summary(&old).unwrap();
+            let old_frames = sc::frame_calls_on_thread() - before;
+            let before = sc::frame_calls_on_thread();
+            let borrowed = producer
+                .shape_identity_borrowed(ShapeIdentityView {
+                    branch,
+                    dir_ab,
+                    dir_bc,
+                    window,
+                    highs,
+                    lows,
+                    comparisons: &comparisons,
+                    input_refs: &input_refs,
+                })
+                .unwrap();
+            assert_eq!(borrowed, expected);
+            assert_eq!(sc::frame_calls_on_thread() - before, old_frames);
+            let normal = producer
+                .shape_identity(ShapeIdentity {
+                    branch,
+                    dir_ab,
+                    dir_bc,
+                    window: window.map(str::to_owned),
+                    highs: highs.map(str::to_owned),
+                    lows: lows.map(str::to_owned),
+                    comparisons: &comparisons,
+                    input_refs: &input_refs,
+                })
+                .unwrap();
+            assert_eq!(normal, borrowed);
+        }
     }
 
     fn bar(coord: usize, high: i64, low: i64) -> Bar {

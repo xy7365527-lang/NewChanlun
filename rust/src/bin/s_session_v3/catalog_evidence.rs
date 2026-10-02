@@ -20,7 +20,8 @@
 
 #![allow(dead_code)] // S3 发布/历史接线由主控在下游切片落地；本模块 API 现由本文件测试消费。
 
-use super::audit_store::CodecRead;
+use super::audit_store::{CodecRead, RefValue};
+use super::business_json::{self as bj, RawEventsView};
 use crate::{
     canonical_json, content_manifest, content_manifest::ManifestMetadata, tb02a, tb02a_facts,
 };
@@ -79,7 +80,7 @@ fn field(
     root: &ContentRef,
     key: &str,
 ) -> Result<ContentRef, String> {
-    s.lookup_path(root, &[f(key)]).map_err(err)
+    normal_ref(field_ref(s, root.into(), key)?)
 }
 
 fn scalar(
@@ -87,23 +88,11 @@ fn scalar(
     root: &ContentRef,
     key: &str,
 ) -> Result<Value, String> {
-    let child = field(s, root, key)?;
-    if !matches!(
-        child.kind,
-        Kind::String | Kind::Number | Kind::Bool | Kind::Null
-    ) {
-        return Err(err(format!("{key} 不是标量")));
-    }
-    let mut bytes = Vec::new();
-    s.render_canonical(&child, &mut bytes).map_err(err)?;
-    strict_json(&bytes).map_err(err)
+    scalar_ref(s, root.into(), key)
 }
 
 fn text(s: &mut (impl CodecRead + ?Sized), root: &ContentRef, key: &str) -> Result<String, String> {
-    scalar(s, root, key)?
-        .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| err(format!("{key} 不是文本")))
+    text_ref(s, root, key)
 }
 
 fn array_field(
@@ -111,16 +100,82 @@ fn array_field(
     root: &ContentRef,
     key: &str,
 ) -> Result<ContentRef, String> {
-    let child = field(s, root, key)?;
-    if child.kind != Kind::Array {
-        return Err(err(format!("{key} 不是数组")));
-    }
-    Ok(child)
+    normal_ref(array_field_ref(s, root, key)?)
 }
 
 /// 精确十进制计数（证据里按规范十进制文本声明）。
 fn count(s: &mut (impl CodecRead + ?Sized), root: &ContentRef, key: &str) -> Result<i64, String> {
     parse_canonical_i64(&text(s, root, key)?, key).map_err(err)
+}
+
+fn field_ref(
+    s: &mut (impl CodecRead + ?Sized),
+    root: sc::RefView<'_>,
+    key: &str,
+) -> Result<RefValue, String> {
+    s.lookup_ref(root, &[f(key)]).map_err(err)
+}
+fn normal_ref(reference: RefValue) -> Result<ContentRef, String> {
+    match reference {
+        RefValue::Plain(r) => Ok(r),
+        RefValue::Owned(_) => Err(err(
+            "prototype_audit_allocation_incomplete：owned引用不得经normal DTO返回",
+        )),
+    }
+}
+fn scalar_ref(
+    s: &mut (impl CodecRead + ?Sized),
+    root: sc::RefView<'_>,
+    key: &str,
+) -> Result<Value, String> {
+    let child = field_ref(s, root, key)?;
+    if !matches!(
+        child.kind(),
+        Kind::String | Kind::Number | Kind::Bool | Kind::Null
+    ) {
+        return Err(err(format!("{key} 不是标量")));
+    }
+    // 此处元数据物化仍是待覆盖的临时工作集；引用保持实际store所有权。
+    let mut bytes = Vec::new();
+    s.render_ref(child.view(), &mut bytes).map_err(err)?;
+    strict_json(&bytes).map_err(err)
+}
+fn text_ref<'r>(
+    s: &mut (impl CodecRead + ?Sized),
+    root: impl Into<sc::RefView<'r>>,
+    key: &str,
+) -> Result<String, String> {
+    scalar_ref(s, root.into(), key)?
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| err(format!("{key} 不是文本")))
+}
+fn array_field_ref<'r>(
+    s: &mut (impl CodecRead + ?Sized),
+    root: impl Into<sc::RefView<'r>>,
+    key: &str,
+) -> Result<RefValue, String> {
+    let child = field_ref(s, root.into(), key)?;
+    if child.kind() != Kind::Array {
+        return Err(err(format!("{key} 不是数组")));
+    }
+    Ok(child)
+}
+fn generated_axes_ref(
+    s: &mut (impl CodecRead + ?Sized),
+    generated_state: sc::RefView<'_>,
+) -> Result<RefValue, String> {
+    if generated_state.kind() != Kind::Object {
+        return Err(err("生成态不是对象"));
+    }
+    let axes = field_ref(s, generated_state, "catalog_axes")?;
+    if axes.kind() != Kind::Object || axes.extent() != Some(AXIS_IDS.len() as u64) {
+        return Err(err(format!(
+            "生成态 catalog_axes 不是13轴对象（extent={:?}）",
+            axes.extent()
+        )));
+    }
+    Ok(axes)
 }
 
 struct HashOnly;
@@ -170,17 +225,7 @@ fn generated_axes(
     s: &mut (impl CodecRead + ?Sized),
     generated_state: &ContentRef,
 ) -> Result<ContentRef, String> {
-    if generated_state.kind != Kind::Object {
-        return Err(err("生成态不是对象"));
-    }
-    let axes = field(s, generated_state, "catalog_axes")?;
-    if axes.kind != Kind::Object || axes.extent != Some(AXIS_IDS.len() as u64) {
-        return Err(err(format!(
-            "生成态 catalog_axes 不是13轴对象（extent={:?}）",
-            axes.extent
-        )));
-    }
-    Ok(axes)
+    normal_ref(generated_axes_ref(s, generated_state.into())?)
 }
 
 /// 真实目录运行状态（与旧生产同一判据：有分类对象即 run）。
@@ -204,9 +249,11 @@ fn real_batch_id(id: &str) -> bool {
 }
 
 /// 规范四字段 `ContentRef` 文本（与同域 Delta 大证据同一引用形态）。
-fn reference_text(reference: &ContentRef) -> Result<String, String> {
+fn reference_text(reference: &RefValue) -> Result<String, String> {
     reference.digest().map_err(err)?;
-    Ok(canonical_json(&reference.to_transport_json()))
+    Ok(canonical_json(
+        &serde_json::to_value(reference).map_err(err)?,
+    ))
 }
 
 struct AxisState {
@@ -214,29 +261,30 @@ struct AxisState {
     impl_status: String,
     proof_status: String,
     run_status: String,
-    evidence: ContentRef,
+    evidence: RefValue,
 }
 
 /// 13 轴字段集合与小状态形状核验；返回每轴的状态文本与 evidence 值边。
-fn axes_entries(
+fn axes_entries<'r>(
     s: &mut (impl CodecRead + ?Sized),
-    axes: &ContentRef,
+    axes: impl Into<sc::RefView<'r>>,
 ) -> Result<Vec<AxisState>, String> {
-    if axes.kind != Kind::Object || axes.extent != Some(AXIS_IDS.len() as u64) {
+    let axes = axes.into();
+    if axes.kind() != Kind::Object || axes.extent() != Some(AXIS_IDS.len() as u64) {
         return Err(err(format!(
             "目录轴根不是13轴对象（extent={:?}）",
-            axes.extent
+            axes.extent()
         )));
     }
     let mut out = Vec::with_capacity(AXIS_IDS.len());
     for id in AXIS_IDS {
-        let axis = field(s, axes, id)?;
-        if axis.kind != Kind::Object || axis.extent != Some(AXIS_FIELDS.len() as u64) {
+        let axis = field_ref(s, axes, id)?;
+        if axis.kind() != Kind::Object || axis.extent() != Some(AXIS_FIELDS.len() as u64) {
             return Err(err(format!("{id} 轴不是四字段状态对象")));
         }
-        let impl_status = text(s, &axis, "impl_status")?;
-        let proof_status = text(s, &axis, "proof_status")?;
-        let run_status = text(s, &axis, "run_status")?;
+        let impl_status = text_ref(s, &axis, "impl_status")?;
+        let proof_status = text_ref(s, &axis, "proof_status")?;
+        let run_status = text_ref(s, &axis, "run_status")?;
         if impl_status != "implemented"
             || proof_status != "not_proved"
             || !matches!(run_status.as_str(), "run" | "not_run" | "waiting")
@@ -245,8 +293,8 @@ fn axes_entries(
                 "{id} 轴状态越出声明域：{impl_status}/{proof_status}/{run_status}"
             )));
         }
-        let evidence = field(s, &axis, "evidence")?;
-        if evidence.kind != Kind::Object {
+        let evidence = field_ref(s, axis.view(), "evidence")?;
+        if evidence.kind() != Kind::Object {
             return Err(err(format!("{id} 轴 evidence 不是对象")));
         }
         // 必填字段全在 + extent 相符 ⟹ 字段集合恰为声明集合（不缺、不多）。
@@ -255,21 +303,21 @@ fn axes_entries(
         } else {
             EVIDENCE_CORE_FIELDS.len()
         };
-        if evidence.extent != Some(expected as u64) {
+        if evidence.extent() != Some(expected as u64) {
             return Err(err(format!(
                 "{id} 轴 evidence 字段数不符（extent={:?}，应为 {expected}）",
-                evidence.extent
+                evidence.extent()
             )));
         }
-        if text(s, &evidence, "scope")? != "TB-02-A" {
+        if text_ref(s, &evidence, "scope")? != "TB-02-A" {
             return Err(err(format!("{id} 轴 evidence.scope 不是 TB-02-A")));
         }
         for key in EVIDENCE_CORE_FIELDS.iter().skip(1) {
-            array_field(s, &evidence, key)?;
+            array_field_ref(s, &evidence, key)?;
         }
         if id == "CC-056" {
             for key in CC056_CHANGE_FIELDS {
-                array_field(s, &evidence, key)?;
+                array_field_ref(s, &evidence, key)?;
             }
         }
         out.push(AxisState {
@@ -348,12 +396,12 @@ pub(super) fn build_template(
 /// CC-056 的 `raw_revisions`/`withdrawals`/`replaces` 必须与调用者的独立依据逐位同根。
 /// 不重跑包含、分型、新笔或其它业务判定；不替代调用方的完整历史审计。
 #[allow(clippy::too_many_arguments)]
-pub(super) fn verify_cut(
+pub(super) fn verify_cut<'a>(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     generated_state: &ContentRef,
     delta: &ContentRef,
-    raw_prefix: &[Value],
+    raw_prefix: impl Into<RawEventsView<'a>>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
     withdrawals: &[Value],
@@ -364,7 +412,7 @@ pub(super) fn verify_cut(
         metadata,
         generated_state,
         delta,
-        raw_prefix,
+        raw_prefix.into(),
         previous_frontier,
         counts,
         withdrawals,
@@ -374,12 +422,12 @@ pub(super) fn verify_cut(
     )
 }
 #[allow(clippy::too_many_arguments)]
-pub(super) fn verify_cut_until(
+pub(super) fn verify_cut_until<'a>(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     generated_state: &ContentRef,
     delta: &ContentRef,
-    raw_prefix: &[Value],
+    raw_prefix: impl Into<RawEventsView<'a>>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
     withdrawals: &[Value],
@@ -391,7 +439,7 @@ pub(super) fn verify_cut_until(
         metadata,
         generated_state,
         delta,
-        raw_prefix,
+        raw_prefix.into(),
         previous_frontier,
         counts,
         withdrawals,
@@ -401,12 +449,12 @@ pub(super) fn verify_cut_until(
     )
 }
 #[allow(clippy::too_many_arguments)]
-pub(super) fn verify_cut_metered(
+pub(super) fn verify_cut_metered<'a>(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     generated_state: &ContentRef,
     delta: &ContentRef,
-    raw_prefix: &[Value],
+    raw_prefix: impl Into<RawEventsView<'a>>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
     withdrawals: &[Value],
@@ -416,10 +464,10 @@ pub(super) fn verify_cut_metered(
 ) -> Result<(), String> {
     verify_cut_in_store(
         &mut super::audit_store::StoreView::generic(store),
-        metadata,
-        generated_state,
-        delta,
-        raw_prefix,
+        metadata.view(),
+        generated_state.into(),
+        delta.into(),
+        raw_prefix.into(),
         previous_frontier,
         counts,
         withdrawals,
@@ -429,12 +477,12 @@ pub(super) fn verify_cut_metered(
     )
 }
 #[allow(clippy::too_many_arguments)]
-pub(super) fn verify_cut_for_audit(
+pub(super) fn verify_cut_for_audit<'a, 'r>(
     store: &mut super::history::HashReader<'_>,
-    metadata: &ManifestMetadata,
-    generated_state: &ContentRef,
-    delta: &ContentRef,
-    raw_prefix: &[Value],
+    metadata: content_manifest::MetadataView<'_>,
+    generated_state: impl Into<sc::RefView<'r>>,
+    delta: impl Into<sc::RefView<'r>>,
+    raw_prefix: impl Into<RawEventsView<'a>>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
     withdrawals: &[Value],
@@ -445,9 +493,9 @@ pub(super) fn verify_cut_for_audit(
     verify_cut_in_store(
         &mut super::audit_store::StoreView::for_audit(store),
         metadata,
-        generated_state,
-        delta,
-        raw_prefix,
+        generated_state.into(),
+        delta.into(),
+        raw_prefix.into(),
         previous_frontier,
         counts,
         withdrawals,
@@ -459,10 +507,10 @@ pub(super) fn verify_cut_for_audit(
 #[allow(clippy::too_many_arguments)]
 fn verify_cut_in_store(
     store: &mut super::audit_store::StoreView<'_, '_>,
-    metadata: &ManifestMetadata,
-    generated_state: &ContentRef,
-    delta: &ContentRef,
-    raw_prefix: &[Value],
+    metadata: content_manifest::MetadataView<'_>,
+    generated_state: sc::RefView<'_>,
+    delta: sc::RefView<'_>,
+    raw_prefix: RawEventsView<'_>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
     withdrawals: &[Value],
@@ -471,46 +519,48 @@ fn verify_cut_in_store(
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<(), String> {
     super::history::check_deadline(deadline)?;
-    require_ohlc(&metadata.profile_id)?;
-    store.verify_public(generated_state).map_err(err)?;
-    store.verify_public(delta).map_err(err)?;
-    let frontier = text(store, delta, "index_frontier")?;
+    require_ohlc(metadata.profile_id)?;
+    store
+        .verify_ref(generated_state, sc::Mode::Public)
+        .map_err(err)?;
+    store.verify_ref(delta, sc::Mode::Public).map_err(err)?;
+    let frontier = text_ref(store, delta, "index_frontier")?;
     if !real_batch_id(&frontier) {
         return Err(err(format!(
             "Delta index_frontier `{frontier}` 不是 batch3 类型化身份"
         )));
     }
-    if text(store, delta, "next_cut")? != metadata.structure_cut {
+    if text_ref(store, delta, "next_cut")? != metadata.structure_cut {
         return Err(err("Delta next_cut 与冻结生成 cut 不同"));
     }
-    let run = text(store, delta, "catalog_run_status")?;
+    let run = text_ref(store, delta, "catalog_run_status")?;
     if run != declared_run(counts) {
         return Err(err(format!(
             "Delta catalog_run_status=`{run}` 与真实分类结果不符"
         )));
     }
-    let evidence = field(store, delta, "catalog_evidence")?;
-    if evidence.kind != Kind::Object || evidence.extent != Some(EVIDENCE_FIELDS.len() as u64) {
+    let evidence = field_ref(store, delta, "catalog_evidence")?;
+    if evidence.kind() != Kind::Object || evidence.extent() != Some(EVIDENCE_FIELDS.len() as u64) {
         return Err(err(format!(
             "catalog_evidence 不是16字段对象（extent={:?}）",
-            evidence.extent
+            evidence.extent()
         )));
     }
-    if text(store, &evidence, "tested_domain")? != OHLC_TESTED_DOMAIN {
+    if text_ref(store, &evidence, "tested_domain")? != OHLC_TESTED_DOMAIN {
         return Err(err("目录证据 tested_domain 不是声明 OHLC 域"));
     }
-    if text(store, &evidence, "batch_id")? != frontier {
+    if text_ref(store, &evidence, "batch_id")? != frontier {
         return Err(err("目录证据 batch_id 与 Delta index_frontier 不同"));
     }
-    if text(store, &evidence, "structure_cut")? != metadata.structure_cut {
+    if text_ref(store, &evidence, "structure_cut")? != metadata.structure_cut {
         return Err(err("目录证据 structure_cut 与冻结生成 cut 不同"));
     }
     for (key, want) in [
-        ("profile_id", &metadata.profile_id),
-        ("profile_hash", &metadata.profile_hash),
-        ("rule_revision", &metadata.rule_revision),
+        ("profile_id", metadata.profile_id),
+        ("profile_hash", metadata.profile_hash),
+        ("rule_revision", metadata.rule_revision),
     ] {
-        if text(store, &evidence, key)? != *want {
+        if text_ref(store, &evidence, key)? != want {
             return Err(err(format!("目录证据 {key} 与冻结元数据不同")));
         }
     }
@@ -524,7 +574,7 @@ fn verify_cut_in_store(
         ("insufficient_knowledge", counts.insufficient),
         ("domain_not_satisfied", counts.outside_domain),
     ] {
-        let got = count(store, &evidence, key)?;
+        let got = parse_canonical_i64(&text_ref(store, &evidence, key)?, key).map_err(err)?;
         let want = i64::try_from(want).map_err(|_| err(format!("{key} 实际计数超出 i64")))?;
         if got != want {
             return Err(err(format!(
@@ -533,19 +583,22 @@ fn verify_cut_in_store(
         }
     }
     let want_scope = metadata.scope.digest().map_err(err)?;
-    if field(store, &evidence, "scope")?.digest().map_err(err)? != want_scope
-        || field(store, generated_state, "scope")?
+    if field_ref(store, evidence.view(), "scope")?
+        .digest()
+        .map_err(err)?
+        != want_scope
+        || field_ref(store, generated_state, "scope")?
             .digest()
             .map_err(err)?
             != want_scope
     {
         return Err(err("目录证据/生成态 scope 不是同一冻结根"));
     }
-    if text(store, generated_state, "structure_cut")? != metadata.structure_cut {
+    if text_ref(store, generated_state, "structure_cut")? != metadata.structure_cut {
         return Err(err("生成态 structure_cut 与冻结生成 cut 不同"));
     }
-    let axes = field(store, &evidence, "axes")?;
-    let state_axes = generated_axes(store, generated_state)?;
+    let axes = field_ref(store, evidence.view(), "axes")?;
+    let state_axes = generated_axes_ref(store, generated_state)?;
     if axes.digest().map_err(err)? != state_axes.digest().map_err(err)? {
         return Err(err(
             "catalog_evidence.axes 不是同次最终生成态的 catalog_axes 值边",
@@ -556,17 +609,20 @@ fn verify_cut_in_store(
         .iter()
         .find(|entry| entry.id == "CC-056")
         .ok_or_else(|| err("目录轴缺 CC-056"))?;
-    let mut revisions: Vec<Value> = Vec::new();
+    let mut revisions = bj::ReferenceArray(bj::new_work(raw_prefix.budget()));
     for event in raw_prefix {
         super::history::check_deadline(deadline)?;
-        let seq = event["seq"]
+        let seq = bj::field(event, "seq")
             .as_i64()
             .ok_or_else(|| err("原始账事件缺整数 seq"))?;
-        let revision = event["revision"]
+        let revision = bj::field(event, "revision")
             .as_i64()
             .ok_or_else(|| err("原始账事件缺整数 revision"))?;
         if seq > previous_frontier && revision > 1 {
-            revisions.push(tb02a_facts::raw_ref(event));
+            revisions
+                .0
+                .try_push(bj::RawReference::new(event, false)?)
+                .map_err(err)?;
         }
     }
     let wire_withdrawals = withdrawals
@@ -577,13 +633,25 @@ fn verify_cut_in_store(
         })
         .collect::<Result<Vec<_>, String>>()
         .map_err(err)?;
+    let withdrawals_view = bj::ValuesArray(&wire_withdrawals);
+    let replaces_view = bj::ValuesArray(replaces);
     for (key, want) in [
-        ("raw_revisions", Value::Array(revisions)),
-        ("withdrawals", Value::Array(wire_withdrawals)),
-        ("replaces", Value::Array(replaces.to_vec())),
+        (
+            "raw_revisions",
+            sc::capture_allocation::audit_json::JsonView::BorrowedArray(&revisions),
+        ),
+        (
+            "withdrawals",
+            sc::capture_allocation::audit_json::JsonView::BorrowedArray(&withdrawals_view),
+        ),
+        (
+            "replaces",
+            sc::capture_allocation::audit_json::JsonView::BorrowedArray(&replaces_view),
+        ),
     ] {
-        let got = array_field(store, &cc056.evidence, key)?;
-        if got.digest().map_err(err)? != super::history::hash_json_metered(&want, deadline, budget)?
+        let got = array_field_ref(store, &cc056.evidence, key)?;
+        if got.digest().map_err(err)?
+            != super::history::hash_json_in_store(store, want, deadline, budget)?
         {
             return Err(err(format!("CC-056 {key} 与本代独立依据不同")));
         }
@@ -634,21 +702,21 @@ pub(super) fn verify_current(
 ) -> Result<(), String> {
     verify_current_in_store(tx, &mut super::audit_store::StoreView::generic(store), axes)
 }
-pub(super) fn verify_current_for_audit(
+pub(super) fn verify_current_for_audit<'r>(
     tx: &Transaction<'_>,
     store: &mut super::history::HashReader<'_>,
-    axes: &ContentRef,
+    axes: impl Into<sc::RefView<'r>>,
 ) -> Result<(), String> {
     verify_current_in_store(
         tx,
         &mut super::audit_store::StoreView::for_audit(store),
-        axes,
+        axes.into(),
     )
 }
-fn verify_current_in_store(
+fn verify_current_in_store<'r>(
     tx: &Transaction<'_>,
     store: &mut super::audit_store::StoreView<'_, '_>,
-    axes: &ContentRef,
+    axes: impl Into<sc::RefView<'r>>,
 ) -> Result<(), String> {
     let entries = axes_entries(store, axes)?;
     for entry in &entries {
@@ -712,6 +780,7 @@ mod tests {
     use crate::content_bi::PriorState;
     use crate::tests::fixture as fixture_path;
     use crate::tests::{located_ohlc_input, tb02b_oracle_rows};
+    use crate::v3::business_json::{self as bj, RawEventsView};
     use crate::{meta_get_opt, open_db, read_effective_events, read_raw_events, sha256_hex, v2};
     use newchan_rust::s_content::{MemoryNodes, NodeRead};
     use rusqlite::{Connection, TransactionBehavior};
@@ -928,8 +997,8 @@ mod tests {
             &rule,
         );
         let generation_input = GenerationInput {
-            all_events: &raw,
-            effective: &effective,
+            all_events: (&raw).into(),
+            effective: (&effective).into(),
             generation: 1,
             structure_cut: "cut-1",
             input_frontier: frontier,
@@ -1432,7 +1501,12 @@ mod tests {
         assert_eq!(staged.1, "not_proved");
         assert_eq!(
             staged.3,
-            reference_text(&axis_evidence(&mut f.store, &f.axes, "CC-001")).unwrap()
+            reference_text(&RefValue::Plain(axis_evidence(
+                &mut f.store,
+                &f.axes,
+                "CC-001"
+            )))
+            .unwrap()
         );
         tx.rollback().unwrap();
         assert_eq!(read_row(&f.conn, "CC-001"), before);
@@ -1455,7 +1529,7 @@ mod tests {
             assert!(!evidence_json.is_empty(), "{id}");
             assert_eq!(
                 evidence_json,
-                reference_text(&axis_evidence(&mut f.store, &f.axes, id)).unwrap(),
+                reference_text(&RefValue::Plain(axis_evidence(&mut f.store, &f.axes, id))).unwrap(),
                 "{id}"
             );
         }

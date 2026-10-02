@@ -35,11 +35,14 @@ pub mod access;
 #[doc(hidden)]
 pub mod capture_allocation;
 mod closed;
+mod ref_owner;
 pub use capture_allocation::work::{CodecFields, CodecVec};
 use capture_allocation::work::{WorkMap, WorkSet, WorkVec};
 #[doc(hidden)]
 pub use closed::ClosedCapturedOwner;
 use closed::CodecContext;
+#[doc(hidden)]
+pub use ref_owner::{OwnedRefFields, RefOwner, RefView};
 /// 整次操作的累计资源与期限（#1394 采纳 C §5.6.1）。
 pub mod job;
 
@@ -647,6 +650,10 @@ pub struct Built {
 }
 
 impl Built {
+    #[cfg(feature = "s_allocation_json_testonly")]
+    pub fn owned_ref(&self) -> RefOwner {
+        RefOwner::new(self.kind, self.digest, self.extent)
+    }
     pub fn root(&self) -> String {
         root_string(&self.digest)
     }
@@ -810,13 +817,13 @@ fn parse_canonical_u64(text: &str, what: &str) -> Result<u64, CodecError> {
 
 /// 写入字节序列 B：落块节点与序列节点，返回根摘要。
 pub fn write_bytes(sink: &mut dyn NodeSink, bytes: &[u8]) -> Result<NodeDigest, CodecError> {
-    write_bytes_ctx(&mut CodecContext::Sink(sink), bytes)
+    write_bytes_ctx(&mut CodecContext::Sink(sink, None), bytes)
 }
 pub fn write_sequence(
     sink: &mut dyn NodeSink,
     leaves: &[NodeDigest],
 ) -> Result<NodeDigest, CodecError> {
-    write_sequence_ctx(&mut CodecContext::Sink(sink), leaves)
+    write_sequence_ctx(&mut CodecContext::Sink(sink, None), leaves)
 }
 fn write_bytes_ctx(
     sink: &mut CodecContext<'_, '_>,
@@ -909,12 +916,12 @@ fn put_branch(
 /// 写入 ≠ publish-valid：`Value::Edge` 指向的子根不在本次写入的核验范围内，
 /// 也可能指向缺失节点；publish 前必须过 `verify`。
 pub fn write_value(sink: &mut dyn NodeSink, value: &Value) -> Result<Built, CodecError> {
-    write_in_mode(&mut CodecContext::Sink(sink), value, Mode::Public)
+    write_in_mode(&mut CodecContext::Sink(sink, None), value, Mode::Public)
 }
 
 /// 写入值树（显式模板上下文）：允许 `Value::BatchSelf`。
 pub fn write_template(sink: &mut dyn NodeSink, value: &Value) -> Result<Built, CodecError> {
-    write_in_mode(&mut CodecContext::Sink(sink), value, Mode::Template)
+    write_in_mode(&mut CodecContext::Sink(sink, None), value, Mode::Template)
 }
 
 fn write_in_mode(
@@ -923,14 +930,49 @@ fn write_in_mode(
     mode: Mode,
 ) -> Result<Built, CodecError> {
     let (kind, extent) = value_kind_extent(value, mode)?;
+    write_steps(sink, WStep::Value(value), kind, extent, mode)
+}
+fn write_steps<'a>(
+    sink: &mut CodecContext<'_, '_>,
+    initial: WStep<'a>,
+    kind: Kind,
+    extent: Option<u64>,
+    mode: Mode,
+) -> Result<Built, CodecError> {
     let budget = sink.budget();
     let mut steps = WorkVec::with_capacity(1, budget.as_ref())?;
-    steps.push(WStep::Value(value))?;
+    steps.push(initial)?;
     let mut done: WorkVec<NodeDigest> = WorkVec::new(budget.as_ref());
     while let Some(step) = steps.pop() {
         match step {
             WStep::Value(v) => write_value_step(sink, v, mode, &mut steps, &mut done)?,
+            WStep::View(v) => write_value_view_step(sink, v, mode, &mut steps, &mut done)?,
+            WStep::ViewArray(mut i) => {
+                if let Some(v) = i.next() {
+                    steps.push(WStep::ViewArray(i))?;
+                    steps.push(WStep::View(*v))?;
+                }
+            }
+            WStep::ViewObject(mut i) => {
+                if let Some((_, v)) = i.next() {
+                    steps.push(WStep::ViewObject(i))?;
+                    steps.push(WStep::View(*v))?;
+                }
+            }
             WStep::Json(v) => write_json_step(sink, v, &mut steps, &mut done)?,
+            WStep::Borrowed(v) => write_borrowed_json_step(sink, v, &mut steps, &mut done)?,
+            WStep::BorrowedArray(mut i) => {
+                if let Some(v) = i.next() {
+                    steps.push(WStep::BorrowedArray(i))?;
+                    steps.push(WStep::Borrowed(v))?;
+                }
+            }
+            WStep::BorrowedObject(mut i) => {
+                if let Some((_, v)) = i.next() {
+                    steps.push(WStep::BorrowedObject(i))?;
+                    steps.push(WStep::Borrowed(v))?;
+                }
+            }
             WStep::FinishArray { base } => {
                 let children = &done[base..];
                 let n = u64::try_from(children.len()).expect("元素数可表达");
@@ -1000,14 +1042,188 @@ fn write_in_mode(
     })
 }
 
+/// 只借用逻辑数据和已有边的内部构造视图，编码/模式判断继续共用WStep。
+#[derive(Clone, Copy)]
+pub enum ValueView<'a> {
+    Json(capture_allocation::audit_json::JsonView<'a>),
+    String(&'a str),
+    Number(BorrowedNumberToken<'a>),
+    Array(&'a [ValueView<'a>]),
+    Object(&'a [(&'a str, ValueView<'a>)]),
+    Edge(NodeDigest),
+    BatchSelf,
+}
+#[derive(Clone, Copy)]
+pub struct BorrowedNumberToken<'a>(&'a str);
+impl<'a> BorrowedNumberToken<'a> {
+    pub fn parse(token: &'a str) -> Result<Self, CodecError> {
+        if is_json_number(token) {
+            Ok(Self(token))
+        } else {
+            Err(CodecError::new(
+                code::NUMBER_TOKEN,
+                format!("`{token}` 不是合法 JSON 数字 token"),
+            ))
+        }
+    }
+}
+impl<'a> From<capture_allocation::audit_json::JsonView<'a>> for ValueView<'a> {
+    fn from(v: capture_allocation::audit_json::JsonView<'a>) -> Self {
+        Self::Json(v)
+    }
+}
 enum WStep<'a> {
     Value(&'a Value),
+    View(ValueView<'a>),
+    ViewArray(std::slice::Iter<'a, ValueView<'a>>),
+    ViewObject(std::slice::Iter<'a, (&'a str, ValueView<'a>)>),
     Json(&'a JsonValue),
+    Borrowed(capture_allocation::audit_json::JsonView<'a>),
+    BorrowedArray(capture_allocation::audit_json::ArrayIter<'a>),
+    BorrowedObject(capture_allocation::audit_json::ObjectIter<'a>),
     FinishArray { base: usize },
     FinishObject { base: usize, keys: WorkVec<&'a str> },
     FinishJsonText { base: usize },
 }
 
+/// 同一 WStep/FinishObject 核直接消费借用业务树，不构造 sc::Value 深复制。
+pub fn write_json_view(
+    sink: &mut dyn NodeSink,
+    v: capture_allocation::audit_json::JsonView<'_>,
+) -> Result<Built, CodecError> {
+    write_json_view_ctx(&mut CodecContext::Sink(sink, None), v)
+}
+#[cfg(feature = "s_allocation_json_testonly")]
+#[doc(hidden)]
+pub fn write_json_view_for_allocation_prototype(
+    sink: &mut dyn NodeSink,
+    v: capture_allocation::audit_json::JsonView<'_>,
+    b: &capture_allocation::OwnedBudget,
+) -> Result<Built, CodecError> {
+    write_json_view_ctx(&mut CodecContext::Sink(sink, Some(b.clone())), v)
+}
+fn write_json_view_ctx(
+    sink: &mut CodecContext<'_, '_>,
+    v: capture_allocation::audit_json::JsonView<'_>,
+) -> Result<Built, CodecError> {
+    let (kind, extent) = json_view_kind_extent(v)?;
+    write_steps(sink, WStep::Borrowed(v), kind, extent, Mode::Public)
+}
+fn json_view_kind_extent(
+    v: capture_allocation::audit_json::JsonView<'_>,
+) -> Result<(Kind, Option<u64>), CodecError> {
+    use capture_allocation::audit_json::JsonKind;
+    Ok(match v.kind() {
+        JsonKind::Null => (Kind::Null, None),
+        JsonKind::Bool => (Kind::Bool, None),
+        JsonKind::String => (Kind::String, Some(v.as_str().unwrap().len() as u64)),
+        JsonKind::Number => {
+            let b = capture_allocation::audit_json::formatted_number(v.number().unwrap());
+            (Kind::Number, Some(b.as_bytes().len() as u64))
+        }
+        JsonKind::Array => (Kind::Array, Some(v.as_array().unwrap().len() as u64)),
+        JsonKind::Object => (Kind::Object, Some(v.as_object().unwrap().len() as u64)),
+    })
+}
+fn write_borrowed_json_step<'a>(
+    sink: &mut CodecContext<'_, '_>,
+    v: capture_allocation::audit_json::JsonView<'a>,
+    steps: &mut WorkVec<WStep<'a>>,
+    done: &mut WorkVec<NodeDigest>,
+) -> Result<(), CodecError> {
+    use capture_allocation::audit_json::JsonKind;
+    match v.kind() {
+        JsonKind::Null => done.push(put_node(sink, tag::NULL, &[])?)?,
+        JsonKind::Bool => done.push(put_node(
+            sink,
+            if v.as_bool().unwrap() {
+                tag::BOOL_TRUE
+            } else {
+                tag::BOOL_FALSE
+            },
+            &[],
+        )?)?,
+        JsonKind::String => done.push(write_string_node(sink, v.as_str().unwrap())?)?,
+        JsonKind::Number => {
+            let b = capture_allocation::audit_json::formatted_number(v.number().unwrap());
+            done.push(write_byte_node(sink, tag::NUMBER, b.as_bytes())?)?;
+        }
+        JsonKind::Array => {
+            steps.push(WStep::FinishArray { base: done.len() })?;
+            steps.push(WStep::BorrowedArray(v.as_array().unwrap().iter()))?;
+        }
+        JsonKind::Object => {
+            let object = v.as_object().unwrap();
+            let mut keys = WorkVec::with_capacity(object.len(), sink.budget().as_ref())?;
+            for k in object.keys() {
+                keys.push(k)?;
+            }
+            steps.push(WStep::FinishObject {
+                base: done.len(),
+                keys,
+            })?;
+            steps.push(WStep::BorrowedObject(object.iter()))?;
+        }
+    }
+    Ok(())
+}
+
+pub fn write_value_view(sink: &mut dyn NodeSink, v: ValueView<'_>) -> Result<Built, CodecError> {
+    write_value_view_ctx(&mut CodecContext::Sink(sink, None), v, Mode::Public)
+}
+pub fn write_template_view(sink: &mut dyn NodeSink, v: ValueView<'_>) -> Result<Built, CodecError> {
+    write_value_view_ctx(&mut CodecContext::Sink(sink, None), v, Mode::Template)
+}
+fn view_kind_extent(v: ValueView<'_>, mode: Mode) -> Result<(Kind, Option<u64>), CodecError> {
+    match v {
+        ValueView::String(s) => Ok((Kind::String, Some(s.len() as u64))),
+        ValueView::Number(n) => Ok((Kind::Number, Some(n.0.len() as u64))),
+        ValueView::Array(a) => Ok((Kind::Array, Some(a.len() as u64))),
+        ValueView::Object(a) => Ok((Kind::Object, Some(a.len() as u64))),
+        ValueView::BatchSelf => value_kind_extent(&Value::BatchSelf, mode),
+        ValueView::Edge(d) => value_kind_extent(&Value::Edge(d), mode),
+        ValueView::Json(j) => json_view_kind_extent(j),
+    }
+}
+fn write_value_view_ctx(
+    sink: &mut CodecContext<'_, '_>,
+    v: ValueView<'_>,
+    mode: Mode,
+) -> Result<Built, CodecError> {
+    let (k, e) = view_kind_extent(v, mode)?;
+    write_steps(sink, WStep::View(v), k, e, mode)
+}
+fn write_value_view_step<'a>(
+    sink: &mut CodecContext<'_, '_>,
+    v: ValueView<'a>,
+    mode: Mode,
+    steps: &mut WorkVec<WStep<'a>>,
+    done: &mut WorkVec<NodeDigest>,
+) -> Result<(), CodecError> {
+    match v {
+        ValueView::Json(j) => write_borrowed_json_step(sink, j, steps, done)?,
+        ValueView::String(s) => done.push(write_string_node(sink, s)?)?,
+        ValueView::Number(n) => done.push(write_byte_node(sink, tag::NUMBER, n.0.as_bytes())?)?,
+        ValueView::Edge(d) => done.push(d)?,
+        ValueView::BatchSelf => write_value_step(sink, &Value::BatchSelf, mode, steps, done)?,
+        ValueView::Array(a) => {
+            steps.push(WStep::FinishArray { base: done.len() })?;
+            steps.push(WStep::ViewArray(a.iter()))?;
+        }
+        ValueView::Object(a) => {
+            let mut keys = WorkVec::with_capacity(a.len(), sink.budget().as_ref())?;
+            for (k, _) in a {
+                keys.push(*k)?;
+            }
+            steps.push(WStep::FinishObject {
+                base: done.len(),
+                keys,
+            })?;
+            steps.push(WStep::ViewObject(a.iter()))?;
+        }
+    }
+    Ok(())
+}
 fn put_node(sink: &mut CodecContext<'_, '_>, t: u8, body: &[u8]) -> Result<NodeDigest, CodecError> {
     sink.emit(t, body)
 }
@@ -1702,6 +1918,10 @@ impl AuditCapture {
         CaptureReader(self)
     }
     pub fn verify(&self, reference: &ContentRef, mode: Mode) -> Result<(), CodecError> {
+        self.verify_refview(reference.into(), mode)
+    }
+    #[doc(hidden)]
+    pub fn verify_refview(&self, reference: RefView<'_>, mode: Mode) -> Result<(), CodecError> {
         let slot = if mode == Mode::Public {
             &self.public
         } else {
@@ -1714,7 +1934,7 @@ impl AuditCapture {
         let memo = std::mem::replace(&mut *slot.borrow_mut(), AuditMemo::new(budget.as_ref()));
         let mut source = CaptureReader(self);
         let mut verifier = Verifier::with_memo_capture(&mut source, mode, memo);
-        let result = verifier.verify_reference(reference).map(|_| ());
+        let result = verifier.verify_refview(reference).map(|_| ());
         // 出错不保留 run() 提前插入的 seen/pushed，不能让下一根继承半成功。
         if result.is_ok() {
             *slot.borrow_mut() = verifier.into_memo();
@@ -2417,26 +2637,33 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         &mut self,
         reference: &ContentRef,
     ) -> Result<(NodeDigest, Kind, Option<u64>), CodecError> {
+        self.verify_refview(reference.into())
+    }
+    fn verify_refview(
+        &mut self,
+        reference: RefView<'_>,
+    ) -> Result<(NodeDigest, Kind, Option<u64>), CodecError> {
         let digest = reference.digest()?;
         let (t, body) = self.read_node(&digest)?;
         let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
-        if kind != reference.kind {
+        if kind != reference.kind() {
             return Err(CodecError::new(
                 code::KIND,
                 format!(
                     "ContentRef.kind={} 与真实节点 tag={t:02x}（{}）不符",
-                    reference.kind.name(),
+                    reference.kind().name(),
                     kind.name()
                 ),
             ));
         }
         let extent = header_extent(t, &body)?;
-        if extent != reference.extent {
+        if extent != reference.extent() {
             return Err(CodecError::new(
                 code::EXTENT,
                 format!(
                     "ContentRef.extent={:?} 与真实节点 header {:?} 不符",
-                    reference.extent, extent
+                    reference.extent(),
+                    extent
                 ),
             ));
         }
@@ -2562,9 +2789,7 @@ fn content_ref_ctx(
     root: &str,
 ) -> Result<ContentRef, CodecError> {
     let digest = parse_root(root)?;
-    let (t, body) = source.read(&digest)?;
-    let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
-    let extent = header_extent(t, &body)?;
+    let (kind, extent) = path::reference_header(source, &digest)?;
     Ok(ContentRef {
         format: CONTENT_FORMAT.to_string(),
         root: root.to_string(),
@@ -3093,8 +3318,15 @@ pub fn render_canonical(
     render_ctx(CodecContext::Source(source), reference, out)
 }
 fn render_ctx(
-    mut source: CodecContext<'_, '_>,
+    source: CodecContext<'_, '_>,
     reference: &ContentRef,
+    out: &mut dyn Write,
+) -> Result<(), CodecError> {
+    render_refview_ctx(source, reference.into(), out)
+}
+fn render_refview_ctx(
+    mut source: CodecContext<'_, '_>,
+    reference: RefView<'_>,
     out: &mut dyn Write,
 ) -> Result<(), CodecError> {
     struct Bounded<'a> {
@@ -3128,7 +3360,7 @@ fn render_ctx(
     let digest = {
         let mut verifier =
             Verifier::with_context(source.reborrow(), Mode::Public, AuditMemo::default());
-        verifier.verify_reference(reference)?.0
+        verifier.verify_refview(reference)?.0
     };
     let mut renderer = Renderer {
         source: source.reborrow(),
@@ -4262,5 +4494,67 @@ mod codec_workset_budget_probe {
         assert_eq!(cap.original(&built.digest).unwrap().0, tag::ARRAY);
         drop(cap);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[doc(hidden)]
+pub fn verify_refview(
+    source: &mut dyn NodeSource,
+    r: RefView<'_>,
+    mode: Mode,
+) -> Result<(), CodecError> {
+    Verifier::new(source, mode).verify_refview(r).map(|_| ())
+}
+#[doc(hidden)]
+pub fn render_refview(
+    source: &mut dyn NodeSource,
+    r: RefView<'_>,
+    out: &mut dyn Write,
+) -> Result<(), CodecError> {
+    render_refview_ctx(CodecContext::Source(source), r, out)
+}
+
+#[doc(hidden)]
+pub fn audit_verify_many_refview<'a>(
+    source: &mut dyn NodeSource,
+    refs: impl IntoIterator<Item = RefView<'a>>,
+    mode: Mode,
+) -> Result<(), CodecError> {
+    let mut verifier = Verifier::new(source, mode);
+    for r in refs {
+        verifier.verify_refview(r)?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "s_allocation_json_testonly")]
+#[doc(hidden)]
+pub fn write_value_view_for_allocation_prototype(
+    sink: &mut dyn NodeSink,
+    v: ValueView<'_>,
+    b: &capture_allocation::OwnedBudget,
+) -> Result<Built, CodecError> {
+    write_value_view_ctx(
+        &mut CodecContext::Sink(sink, Some(b.clone())),
+        v,
+        Mode::Public,
+    )
+}
+
+/// 只格式化摘要，不携带节点kind/extent或来源证明，不分配String。
+pub struct FixedRoot([u8; 68]);
+impl FixedRoot {
+    pub fn new(digest: &NodeDigest) -> Self {
+        const H: &[u8; 16] = b"0123456789abcdef";
+        let mut bytes = [0; 68];
+        bytes[..4].copy_from_slice(ROOT_PREFIX.as_bytes());
+        for (i, b) in digest.iter().enumerate() {
+            bytes[4 + 2 * i] = H[(b >> 4) as usize];
+            bytes[5 + 2 * i] = H[(b & 15) as usize];
+        }
+        Self(bytes)
+    }
+    pub fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.0).expect("private canonical root ASCII")
     }
 }

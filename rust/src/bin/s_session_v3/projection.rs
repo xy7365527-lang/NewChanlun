@@ -97,7 +97,7 @@ pub(super) fn build(
             text(&mut s, &cut.snapshot, "catalog_run_status")?,
             cut.metadata.input_frontier.to_string(),
             scalar_json(&mut s, &cut.snapshot, "seq_range")?,
-            cut.batch_id.clone(),
+            cut.batch_id.to_string(),
         )
     } else {
         (
@@ -404,8 +404,12 @@ impl NodeSink for Metered<'_, '_> {
 fn err(e: impl std::fmt::Display) -> String {
     format!("Q3ProjectionInvalid：{e}")
 }
-fn field(s: &mut dyn NodeSource, r: &ContentRef, k: &str) -> Result<ContentRef, String> {
-    lookup_path(s, r, &[PathStep::Field(k.into())]).map_err(err)
+fn field<'r>(
+    s: &mut dyn NodeSource,
+    r: impl Into<sc::RefView<'r>>,
+    k: &str,
+) -> Result<ContentRef, String> {
+    sc::path::lookup_path_refview(s, r.into(), &[PathStep::Field(k.into())]).map_err(err)
 }
 /// 这里只物化排序/固定头的元数据；字节预算累计，不能借共享DAG放大输出。
 /// 这是内部显式构造上界，尚不替代Q capture/cache的独立资源检查或峰值内存测量。
@@ -450,11 +454,19 @@ fn render(s: &mut Metered<'_, '_>, r: &ContentRef) -> Result<Value, String> {
     s.job.pre_io_check().map_err(err)?;
     strict_json(&out.bytes)
 }
-fn scalar_json(s: &mut Metered<'_, '_>, r: &ContentRef, k: &str) -> Result<Value, String> {
+fn scalar_json<'r>(
+    s: &mut Metered<'_, '_>,
+    r: impl Into<sc::RefView<'r>>,
+    k: &str,
+) -> Result<Value, String> {
     let child = field(s, r, k)?;
     render(s, &child)
 }
-fn text(s: &mut Metered<'_, '_>, r: &ContentRef, k: &str) -> Result<String, String> {
+fn text<'r>(
+    s: &mut Metered<'_, '_>,
+    r: impl Into<sc::RefView<'r>>,
+    k: &str,
+) -> Result<String, String> {
     scalar_json(s, r, k)?
         .as_str()
         .map(str::to_owned)
@@ -508,9 +520,12 @@ fn edge_object(
 mod tests {
     use super::*;
     const METADATA: u64 = 1_048_576;
-    fn render_fixture(s: &mut dyn NodeSource, r: &ContentRef) -> Result<Value, String> {
+    fn render_fixture<'r>(
+        s: &mut dyn NodeSource,
+        r: impl Into<sc::RefView<'r>>,
+    ) -> Result<Value, String> {
         let mut bytes = Vec::new();
-        sc::render_canonical(s, r, &mut bytes).map_err(err)?;
+        sc::render_refview(s, r.into(), &mut bytes).map_err(err)?;
         strict_json(&bytes)
     }
     use prepared::tests::Fixture;

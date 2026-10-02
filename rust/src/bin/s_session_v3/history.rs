@@ -4,6 +4,10 @@
 //! 对象及见证是否由真实来源按正确业务规则生成、完整目录语义仍由来源审计核验；
 //! 返回本结构不等于完整业务历史验收。
 
+use super::audit_header::{AuditMetadata, AuditRoots, AuditSourceCommit};
+use super::audit_store::RefValue;
+use super::business_json::TextValue;
+use super::business_json::{self as bj, RawEventsView};
 use super::*;
 use crate::v3::audit_store::{CodecRead, CodecStore};
 use content_manifest::{ManifestMetadata, ManifestRoots, SourceCommit};
@@ -15,17 +19,17 @@ use newchan_rust::s_content::{
 use rusqlite::Transaction;
 
 pub(super) struct PublishedCut {
-    pub metadata: ManifestMetadata,
-    pub roots: ManifestRoots,
-    pub batch_id: String,
-    pub snapshot: ContentRef,
-    pub delta: ContentRef,
+    pub metadata: AuditMetadata,
+    pub roots: AuditRoots,
+    pub batch_id: TextValue,
+    pub snapshot: RefValue,
+    pub delta: RefValue,
 }
 
 /// 仅本次只读事务中完成原件绑定的历史与索引，不作为跨事务/跨请求缓存。
 pub(super) struct IndexedHistory {
-    pub cuts: Vec<PublishedCut>,
-    pub objects: Vec<object_index::Entry>,
+    pub cuts: sc::CodecVec<PublishedCut>,
+    pub objects: sc::CodecVec<object_index::Entry>,
     pub auxiliary: aux_index::Index,
 }
 
@@ -34,7 +38,7 @@ pub(super) fn read_history(
     tx: &Transaction<'_>,
     raw: &[Value],
     control: v2::ControlHistory,
-) -> Result<Vec<PublishedCut>, String> {
+) -> Result<sc::CodecVec<PublishedCut>, String> {
     read_history_until(tx, raw, control, None)
 }
 
@@ -43,7 +47,7 @@ pub(super) fn read_history_until(
     raw: &[Value],
     control: v2::ControlHistory,
     deadline: Option<std::time::Instant>,
-) -> Result<Vec<PublishedCut>, String> {
+) -> Result<sc::CodecVec<PublishedCut>, String> {
     read_history_bounded(tx, raw, control, deadline, None)
 }
 
@@ -53,7 +57,7 @@ pub(super) fn read_history_bounded(
     control: v2::ControlHistory,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
-) -> Result<Vec<PublishedCut>, String> {
+) -> Result<sc::CodecVec<PublishedCut>, String> {
     read_history_metered(tx, raw, control, deadline, max_render_bytes, None)
 }
 pub(super) fn read_history_metered(
@@ -63,7 +67,7 @@ pub(super) fn read_history_metered(
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Vec<PublishedCut>, String> {
+) -> Result<sc::CodecVec<PublishedCut>, String> {
     read_indexed_history(tx, raw, control, deadline, max_render_bytes, budget)
         .map(|history| history.cuts)
 }
@@ -79,7 +83,7 @@ pub(super) fn read_indexed_history(
 ) -> Result<IndexedHistory, String> {
     read_indexed_history_inner(
         tx,
-        raw,
+        raw.into(),
         control,
         deadline,
         max_render_bytes,
@@ -99,7 +103,7 @@ pub(super) fn read_indexed_history_for_audit(
 ) -> Result<IndexedHistory, String> {
     read_indexed_history_inner(
         tx,
-        raw,
+        raw.into(),
         control,
         deadline,
         max_render_bytes,
@@ -109,9 +113,9 @@ pub(super) fn read_indexed_history_for_audit(
     )
 }
 
-pub(super) fn read_indexed_history_for_audit_captured(
+pub(super) fn read_indexed_history_for_audit_captured<'a>(
     tx: &Transaction<'_>,
-    raw: &[Value],
+    raw: impl Into<RawEventsView<'a>>,
     control: v2::ControlHistory,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
@@ -120,7 +124,7 @@ pub(super) fn read_indexed_history_for_audit_captured(
 ) -> Result<IndexedHistory, String> {
     read_indexed_history_inner(
         tx,
-        raw,
+        raw.into(),
         control,
         deadline,
         max_render_bytes,
@@ -132,7 +136,7 @@ pub(super) fn read_indexed_history_for_audit_captured(
 
 fn read_indexed_history_inner(
     tx: &Transaction<'_>,
-    raw: &[Value],
+    raw: RawEventsView<'_>,
     mut control: v2::ControlHistory,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
@@ -163,13 +167,13 @@ fn read_indexed_history_inner(
     store.clear_overlay();
     let raw_nodes = raw
         .iter()
-        .map(|v| hash_json_metered(v, deadline, budget))
+        .map(|v| hash_json_in_store(&store, v, deadline, budget))
         .collect::<Result<Vec<_>, _>>()?;
     let raw_wire_nodes = raw
         .iter()
         .map(|event| {
             check_deadline(deadline)?;
-            hash_json_metered(&project_raw_event_wire(event)?, deadline, budget)
+            hash_json_in_store(&store, bj::RawWire::new(event)?.view(), deadline, budget)
         })
         .collect::<Result<Vec<_>, _>>()?;
     // 同一事务、同一公开上下文下全核所有历史公开根，共享子图在这一调用内只核一次。
@@ -206,8 +210,9 @@ fn read_indexed_history_inner(
         .map_err(err)?;
     let mut effective = BTreeMap::<i64, NodeDigest>::new();
     let mut previous = -1i64;
-    let mut output = Vec::new();
-    let mut resolved_roots = Vec::new();
+    let allocation = store.allocation_budget();
+    let mut output = bj::new_work(allocation.as_ref());
+    let mut resolved_roots = bj::new_work(allocation.as_ref());
     let mut stmt = tx.prepare("SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
     let mut rows = stmt.query([]).map_err(err)?;
     while let Some(row) = rows.next().map_err(err)? {
@@ -215,44 +220,76 @@ fn read_indexed_history_inner(
         let generation: i64 = row.get(0).map_err(err)?;
         #[cfg(test)]
         super::state::trace_event("history_template_closure", Some(generation));
-        let batch_id: String = row.get(1).map_err(err)?;
-        let manifest = root(&mut store, row.get::<_, Vec<u8>>(2).map_err(err)?)?;
-        let snapshot = root(&mut store, row.get::<_, Vec<u8>>(3).map_err(err)?)?;
-        let delta = root(&mut store, row.get::<_, Vec<u8>>(4).map_err(err)?)?;
+        let batch_id = TextValue::from_sql(row, 1, allocation.as_ref()).map_err(err)?;
+        let manifest = root_ref_bytes(
+            &mut store,
+            row.get_ref(2).map_err(err)?.as_blob().map_err(err)?,
+        )?;
+        let snapshot = root_ref_bytes(
+            &mut store,
+            row.get_ref(3).map_err(err)?.as_blob().map_err(err)?,
+        )?;
+        let delta = root_ref_bytes(
+            &mut store,
+            row.get_ref(4).map_err(err)?.as_blob().map_err(err)?,
+        )?;
         #[cfg(test)]
         super::state::trace_event("history_decode_manifest", Some(generation));
-        let (m, roots) = decode_manifest(&mut store, &manifest)?;
+        let (m, roots) = decode_manifest(&mut store, manifest.view())?;
         #[cfg(test)]
         super::state::trace_event("history_assemble_manifest", Some(generation));
         // 重用唯一 manifest 构造/跨根判据；写口仅计算摘要，不写 SQLite。
-        let rebuilt = content_manifest::assemble_unpublished_in_store(
-            &mut super::audit_store::StoreView::for_audit(&mut store),
-            &m,
-            &roots,
-        )
-        .map_err(err)?;
-        if rebuilt.value.content_ref() != manifest
-            || rebuilt.batch_id != batch_id
+        let mut assembly = super::audit_store::StoreView::for_audit(&mut store);
+        let (value, batch_rebuilt) = match assembly.allocation_budget() {
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Some(_) => {
+                let u = content_manifest::assemble_unpublished_owned_in_store(
+                    &mut assembly,
+                    m.view(),
+                    roots.view(),
+                )
+                .map_err(err)?;
+                (u.value, TextValue::Owned(u.batch_id))
+            }
+            _ => {
+                let u = content_manifest::assemble_unpublished_view_in_store(
+                    &mut assembly,
+                    m.view(),
+                    roots.view(),
+                )
+                .map_err(err)?;
+                (u.value, TextValue::Plain(u.batch_id))
+            }
+        };
+        if value.digest != manifest.digest().map_err(err)?
+            || value.kind != manifest.kind()
+            || value.extent != manifest.extent()
+            || batch_rebuilt != batch_id
             || m.generation != generation
         {
             return Err(err("持久 manifest 原件/身份/代号不一致"));
         }
         #[cfg(test)]
         super::state::trace_event("history_resolve_publication", Some(generation));
-        let resolved = content_publication::resolve_indexed_templates_pending(
-            tx, &mut store, &m, &roots, &batch_id, previous,
+        let resolved = content_publication::resolve_indexed_templates_pending_view(
+            tx,
+            &mut store,
+            m.view(),
+            roots.view(),
+            batch_id.as_str(),
+            previous,
         )?;
         if resolved.snapshot != snapshot || resolved.delta != delta {
             return Err(err("实际发布根不是 manifest 模板按独立出生索引解析的结果"));
         }
-        resolved_roots.push(resolved.snapshot);
-        resolved_roots.push(resolved.delta);
+        resolved_roots.try_push(resolved.snapshot).map_err(err)?;
+        resolved_roots.try_push(resolved.delta).map_err(err)?;
         #[cfg(test)]
         super::state::trace_event("history_object_members", Some(generation));
         object_index::verify_generated_members(
             &mut store,
             &objects,
-            &roots.generated_state,
+            roots.generated_state.view(),
             generation,
         )?;
         let (active, withdrawn, upserts) =
@@ -313,7 +350,7 @@ fn read_indexed_history_inner(
                 .ok_or_else(|| err("缺scope"))?
                 .as_bytes(),
         )?;
-        if m.scope.digest().map_err(err)? != hash_json_metered(&scope, deadline, budget)? {
+        if m.scope.digest().map_err(err)? != hash_json_in_store(&store, &scope, deadline, budget)? {
             return Err(err("manifest.scope 与冻结域不符"));
         }
         verify_source(tx, &m)?;
@@ -340,28 +377,28 @@ fn read_indexed_history_inner(
             &auxiliary,
             &roots.generated_state,
             &replaces,
-            &raw[..=frontier as usize],
+            raw.prefix(frontier as usize + 1)?,
             generation,
         )?;
         #[cfg(test)]
         super::state::trace_event("history_raw_members", Some(generation));
         for n in (previous + 1)..=frontier {
             check_deadline(deadline)?;
-            let event = &raw[n as usize];
-            if event["seq"].as_i64() != Some(n) {
+            let event = raw.get(n as usize).ok_or_else(|| err("原始序号越界"))?;
+            if bj::field(event, "seq").as_i64() != Some(n) {
                 return Err(err("真实原始账序与数组位置不符"));
             }
-            effective.insert(stored_source_coord(event)?, raw_nodes[n as usize]);
+            effective.insert(bj::coord(event)?, raw_nodes[n as usize]);
         }
         same_digest(
             &mut store,
-            &roots.generated_state,
+            roots.generated_state.view(),
             "raw_events",
             hash_array_metered(&raw_nodes[..=frontier as usize], deadline, budget, false)?,
         )?;
         same_digest(
             &mut store,
-            &roots.generated_state,
+            roots.generated_state.view(),
             "effective_events",
             hash_array_metered(
                 &effective.values().copied().collect::<Vec<_>>(),
@@ -474,7 +511,7 @@ fn read_indexed_history_inner(
             let encoded: String = row.get(column).map_err(err)?;
             let parsed = strict_json(encoded.as_bytes())?;
             if canonical_json(&parsed) != encoded
-                || ContentRef::from_transport_json(&parsed).map_err(err)? != *want
+                || RefValue::Plain(ContentRef::from_transport_json(&parsed).map_err(err)?) != *want
             {
                 return Err(err("Delta 持久引用与实际内容根不同"));
             }
@@ -484,19 +521,21 @@ fn read_indexed_history_inner(
             same_digest(&mut store, &snapshot, key, expected)?;
         }
         previous = frontier;
-        output.push(PublishedCut {
-            metadata: m,
-            roots,
-            batch_id,
-            snapshot,
-            delta,
-        });
+        output
+            .try_push(PublishedCut {
+                metadata: m,
+                roots,
+                batch_id,
+                snapshot,
+                delta,
+            })
+            .map_err(err)?;
         // 中间路径节点只服务本代重算；已发布闭包始终从同一 SQLite 快照读取。
         store.clear_overlay();
     }
     // Pending派生根在返回任何历史之前全部通过同一Public判据；非法嵌套占位仍拒绝。
     store
-        .verify_many(resolved_roots, sc::Mode::Public)
+        .verify_many_ref(resolved_roots.iter().map(RefValue::view), sc::Mode::Public)
         .map_err(err)?;
     control.finish()?;
     if meta_i64(tx, "last_advance_frontier")? != previous {
@@ -514,7 +553,7 @@ fn read_indexed_history_inner(
     })
 }
 
-fn verify_source(tx: &Transaction<'_>, m: &ManifestMetadata) -> Result<(), String> {
+fn verify_source(tx: &Transaction<'_>, m: &AuditMetadata) -> Result<(), String> {
     let s = &m.source_commit;
     let raw:String=tx.query_row("SELECT canonical_envelope FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3",params![s.source_namespace,s.source_epoch,s.message_id],|r|r.get(0)).map_err(err)?;
     let e = newchan_rust::session_protocol::validate_envelope(
@@ -576,9 +615,9 @@ fn writer_for_generation(tx: &Transaction<'_>, generation: i64) -> Result<String
 
 fn decode_manifest(
     s: &mut (impl CodecRead + ?Sized),
-    r: &ContentRef,
-) -> Result<(ManifestMetadata, ManifestRoots), String> {
-    if r.kind != Kind::Object || r.extent != Some(21) {
+    r: sc::RefView<'_>,
+) -> Result<(AuditMetadata, AuditRoots), String> {
+    if r.kind() != Kind::Object || r.extent() != Some(21) {
         return Err(err("manifest 不是21字段对象"));
     }
     for (key, want) in [
@@ -586,46 +625,46 @@ fn decode_manifest(
         ("content_format", "s-content/1"),
         ("protocol_revision", PROTOCOL_REVISION),
     ] {
-        if text(s, r, key)? != want {
+        if text_meta(s, r, key)? != want {
             return Err(err(format!("manifest.{key} 不符")));
         }
     }
-    let source = field(s, r, "source_commit")?;
-    if source.kind != Kind::Object || source.extent != Some(8) {
+    let source = field_meta(s, r, "source_commit")?;
+    if source.kind() != Kind::Object || source.extent() != Some(8) {
         return Err(err("source_commit不是8字段对象"));
     }
-    let source_commit = SourceCommit {
-        source_namespace: text(s, &source, "source_namespace")?,
-        source_epoch: text(s, &source, "source_epoch")?,
-        message_id: text(s, &source, "message_id")?,
-        payload_hash: text(s, &source, "payload_hash")?,
-        producer_id: text(s, &source, "producer_id")?,
-        producer_epoch: text(s, &source, "producer_epoch")?,
-        clock_event_id: text(s, &source, "clock_event_id")?,
-        attempt_index: integer(s, &source, "attempt_index")?,
+    let source_commit = AuditSourceCommit {
+        source_namespace: text_meta(s, source.view(), "source_namespace")?,
+        source_epoch: text_meta(s, source.view(), "source_epoch")?,
+        message_id: text_meta(s, source.view(), "message_id")?,
+        payload_hash: text_meta(s, source.view(), "payload_hash")?,
+        producer_id: text_meta(s, source.view(), "producer_id")?,
+        producer_epoch: text_meta(s, source.view(), "producer_epoch")?,
+        clock_event_id: text_meta(s, source.view(), "clock_event_id")?,
+        attempt_index: integer_meta(s, source.view(), "attempt_index")?,
     };
     Ok((
-        ManifestMetadata {
-            session_id: text(s, r, "session_id")?,
-            session_generation: text(s, r, "session_generation")?,
-            writer_epoch: text(s, r, "writer_epoch")?,
-            generation: integer(s, r, "generation")?,
-            base_cut: text(s, r, "base_cut")?,
-            structure_cut: text(s, r, "structure_cut")?,
-            input_frontier: integer(s, r, "input_frontier")?,
+        AuditMetadata {
+            session_id: text_meta(s, r, "session_id")?,
+            session_generation: text_meta(s, r, "session_generation")?,
+            writer_epoch: text_meta(s, r, "writer_epoch")?,
+            generation: integer_meta(s, r, "generation")?,
+            base_cut: text_meta(s, r, "base_cut")?,
+            structure_cut: text_meta(s, r, "structure_cut")?,
+            input_frontier: integer_meta(s, r, "input_frontier")?,
             source_commit,
-            clock_plan_hash: text(s, r, "clock_plan_hash")?,
-            semantic_commit_ns: text(s, r, "semantic_commit_ns")?,
-            profile_id: text(s, r, "profile_id")?,
-            profile_hash: text(s, r, "profile_hash")?,
-            rule_revision: text(s, r, "rule_revision")?,
-            catalog_revision: text(s, r, "catalog_revision")?,
-            scope: field(s, r, "scope")?,
+            clock_plan_hash: text_meta(s, r, "clock_plan_hash")?,
+            semantic_commit_ns: text_meta(s, r, "semantic_commit_ns")?,
+            profile_id: text_meta(s, r, "profile_id")?,
+            profile_hash: text_meta(s, r, "profile_hash")?,
+            rule_revision: text_meta(s, r, "rule_revision")?,
+            catalog_revision: text_meta(s, r, "catalog_revision")?,
+            scope: field_meta(s, r, "scope")?,
         },
-        ManifestRoots {
-            generated_state: field(s, r, "generated_state")?,
-            publication_template: field(s, r, "publication_template")?,
-            delta_template: field(s, r, "delta_template")?,
+        AuditRoots {
+            generated_state: field_meta(s, r, "generated_state")?,
+            publication_template: field_meta(s, r, "publication_template")?,
+            delta_template: field_meta(s, r, "delta_template")?,
         },
     ))
 }
@@ -634,30 +673,34 @@ fn root(s: &mut (impl CodecRead + ?Sized), bytes: Vec<u8>) -> Result<ContentRef,
     let digest: NodeDigest = bytes.try_into().map_err(|_| err("根不是32字节"))?;
     s.content_ref_of(&sc::root_string(&digest)).map_err(err)
 }
-fn field(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<ContentRef, String> {
-    s.lookup_path(r, &[PathStep::Field(k.into())]).map_err(err)
+fn field<'a>(
+    s: &mut (impl CodecRead + ?Sized),
+    r: impl Into<sc::RefView<'a>>,
+    k: &str,
+) -> Result<RefValue, String> {
+    field_meta(s, r.into(), k)
 }
-fn text(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<String, String> {
-    let f = field(s, r, k)?;
-    if f.kind != Kind::String {
-        return Err(err(format!("{k}不是文本")));
-    }
-    let mut bytes = Vec::new();
-    s.render_canonical(&f, &mut bytes).map_err(err)?;
-    strict_json(&bytes)?
-        .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| err("文本渲染类型不同"))
+fn text<'a>(
+    s: &mut (impl CodecRead + ?Sized),
+    r: impl Into<sc::RefView<'a>>,
+    k: &str,
+) -> Result<TextValue, String> {
+    text_meta(s, r.into(), k)
 }
-fn integer(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<i64, String> {
-    newchan_rust::session_protocol::parse_canonical_i64(&text(s, r, k)?, k)
+fn integer<'a>(
+    s: &mut (impl CodecRead + ?Sized),
+    r: impl Into<sc::RefView<'a>>,
+    k: &str,
+) -> Result<i64, String> {
+    newchan_rust::session_protocol::parse_canonical_i64(text(s, r, k)?.as_str(), k)
 }
+
 fn err(e: impl std::fmt::Display) -> String {
     format!("HistoryInvalid：{e}")
 }
-fn same_digest(
+fn same_digest<'a>(
     s: &mut (impl CodecRead + ?Sized),
-    r: &ContentRef,
+    r: impl Into<sc::RefView<'a>>,
     k: &str,
     want: NodeDigest,
 ) -> Result<(), String> {
@@ -667,8 +710,13 @@ fn same_digest(
         Ok(())
     }
 }
-fn same_json(s: &mut HashReader<'_>, r: &ContentRef, k: &str, v: Value) -> Result<(), String> {
-    let expected = hash_json_metered(&v, s.deadline, s.budget)?;
+fn same_json<'a>(
+    s: &mut HashReader<'_>,
+    r: impl Into<sc::RefView<'a>>,
+    k: &str,
+    v: Value,
+) -> Result<(), String> {
+    let expected = hash_json_in_store(s, &v, s.deadline, s.budget)?;
     same_digest(s, r, k, expected)
 }
 fn cv(v: &Value) -> Result<V, String> {
@@ -715,16 +763,44 @@ pub(super) fn hash_json_until(
 ) -> Result<NodeDigest, String> {
     hash_json_metered(v, deadline, None)
 }
-pub(super) fn hash_json_metered(
-    v: &Value,
+pub(super) fn hash_json_metered<'a>(
+    v: impl Into<sc::capture_allocation::audit_json::JsonView<'a>>,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<NodeDigest, String> {
-    let value = cv_until(v, deadline)?;
-    sc::write_value(&mut Discard(deadline, budget), &value)
+    check_deadline(deadline)?;
+    let value = v.into();
+    sc::write_json_view(&mut Discard(deadline, budget), value)
         .map(|b| b.digest)
         .map_err(err)
 }
+pub(super) fn hash_json_in_store<'a>(
+    store: &(impl CodecRead + ?Sized),
+    v: impl Into<sc::capture_allocation::audit_json::JsonView<'a>>,
+    deadline: Option<std::time::Instant>,
+    job: Option<&dyn super::audit_budget::Budget>,
+) -> Result<NodeDigest, String> {
+    hash_json_with_owner(v.into(), deadline, job, store.allocation_budget().as_ref())
+}
+fn hash_json_with_owner(
+    v: sc::capture_allocation::audit_json::JsonView<'_>,
+    deadline: Option<std::time::Instant>,
+    job: Option<&dyn super::audit_budget::Budget>,
+    owner: Option<&sc::capture_allocation::OwnedBudget>,
+) -> Result<NodeDigest, String> {
+    check_deadline(deadline)?;
+    #[cfg(feature = "s_allocation_json_testonly")]
+    if let Some(b) = owner {
+        return sc::write_json_view_for_allocation_prototype(&mut Discard(deadline, job), v, b)
+            .map(|v| v.digest)
+            .map_err(err);
+    }
+    let _ = owner;
+    sc::write_json_view(&mut Discard(deadline, job), v)
+        .map(|v| v.digest)
+        .map_err(err)
+}
+
 fn hash_array(nodes: &[NodeDigest]) -> Result<NodeDigest, String> {
     hash_array_until(nodes, None)
 }
@@ -1188,6 +1264,148 @@ impl NodeSink for HashReader<'_> {
 }
 
 impl CodecRead for HashReader<'_> {
+    fn lookup_array_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+    ) -> Result<sc::CodecVec<super::audit_store::RefValue>, sc::CodecError> {
+        self.sync_owned();
+        if let Some(o) = &mut self.owned {
+            let refs = o.lookup_array_items_owned(r)?;
+            let b = o.allocation_budget();
+            let mut out = super::business_json::new_work(Some(&b));
+            for r in refs {
+                out.try_push(super::audit_store::RefValue::Owned(r))?;
+            }
+            Ok(out)
+        } else {
+            let refs = sc::path::lookup_array_items_refview(self, r)?;
+            let mut out = sc::CodecVec::from_plain(Vec::new());
+            for r in refs {
+                out.try_push(super::audit_store::RefValue::Plain(r))?;
+            }
+            Ok(out)
+        }
+    }
+    fn allocation_budget(&self) -> Option<sc::capture_allocation::OwnedBudget> {
+        self.owned.as_ref().map(|o| o.allocation_budget())
+    }
+    fn content_ref_view(
+        &mut self,
+        r: &str,
+    ) -> Result<super::audit_store::RefValue, sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(o) => o
+                .content_ref_owned(r)
+                .map(super::audit_store::RefValue::Owned),
+            None => self
+                .content_ref_of(r)
+                .map(super::audit_store::RefValue::Plain),
+        }
+    }
+    fn lookup_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        p: &[PathStep],
+    ) -> Result<super::audit_store::RefValue, sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(o) => o
+                .lookup_path_owned(r, p)
+                .map(super::audit_store::RefValue::Owned),
+            None => {
+                sc::path::lookup_path_refview(self, r, p).map(super::audit_store::RefValue::Plain)
+            }
+        }
+    }
+    fn lookup_fields_ref<'a>(
+        &mut self,
+        r: sc::RefView<'_>,
+        n: &[&'a str],
+    ) -> Result<super::audit_store::RefFields<'a>, sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(o) => o
+                .lookup_object_fields_owned(r, n)
+                .map(super::audit_store::RefFields::Owned),
+            None => sc::path::lookup_fields_refview(self, r, n, false)
+                .map(super::audit_store::RefFields::Plain),
+        }
+    }
+    fn lookup_subset_ref<'a>(
+        &mut self,
+        r: sc::RefView<'_>,
+        n: &[&'a str],
+    ) -> Result<super::audit_store::RefFields<'a>, sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(o) => o
+                .lookup_object_fields_subset_owned(r, n)
+                .map(super::audit_store::RefFields::Owned),
+            None => sc::path::lookup_fields_refview(self, r, n, true)
+                .map(super::audit_store::RefFields::Plain),
+        }
+    }
+    fn verify_ref(&mut self, r: sc::RefView<'_>, m: sc::Mode) -> Result<(), sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(o) => o.verify_cached_owned(r, m),
+            None => {
+                if self.budget.is_none() && self.deadline.is_none() {
+                    if let ReadOwner::Captured(c) = &self.source {
+                        if c.contains(&r.digest()?) {
+                            return c.verify_refview(r, m);
+                        }
+                    }
+                }
+                sc::verify_refview(self, r, m)
+            }
+        }
+    }
+    fn render_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        out: &mut dyn std::io::Write,
+    ) -> Result<(), sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(o) => o.render_canonical_owned(r, out),
+            None => sc::render_refview(self, r, out),
+        }
+    }
+    fn verify_many_ref<'a>(
+        &mut self,
+        r: impl IntoIterator<Item = sc::RefView<'a>>,
+        m: sc::Mode,
+    ) -> Result<(), sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(o) => o.verify_many_cached_owned(r, m),
+            None => {
+                if matches!(self.source, ReadOwner::Dynamic(_))
+                    || self.budget.is_some()
+                    || self.deadline.is_some()
+                {
+                    return sc::audit_verify_many_refview(self, r, m);
+                }
+                for item in r {
+                    self.verify_ref(item, m)?;
+                }
+                Ok(())
+            }
+        }
+    }
+    fn verify_many_ref_fresh<'a>(
+        &mut self,
+        r: impl IntoIterator<Item = sc::RefView<'a>>,
+        m: sc::Mode,
+    ) -> Result<(), sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(o) => o.verify_many_fresh_owned(r, m),
+            None => sc::audit_verify_many_refview(self, r, m),
+        }
+    }
     fn new_ref_result(&mut self) -> sc::CodecVec<ContentRef> {
         match &mut self.owned {
             Some(owner) => owner.new_ref_result(),
@@ -1325,8 +1543,48 @@ impl CodecRead for HashReader<'_> {
     }
 }
 impl CodecStore for HashReader<'_> {
+    fn replace_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        p: &[PathStep],
+        batch: &str,
+    ) -> Result<super::audit_store::RefValue, sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(o) => o
+                .replace_batch_placeholder_owned(r, p, batch)
+                .map(super::audit_store::RefValue::Owned),
+            None => sc::path::replace_batch_placeholder_refview(self, r, p, batch)
+                .map(super::audit_store::RefValue::Plain),
+        }
+    }
+    fn write_value_view(&mut self, v: sc::ValueView<'_>) -> Result<sc::Built, sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(o) => o.write_value_view(v),
+            None => sc::write_value_view(self, v),
+        }
+    }
+    fn write_template_view(&mut self, v: sc::ValueView<'_>) -> Result<sc::Built, sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(o) => o.write_template_view(v),
+            None => sc::write_template_view(self, v),
+        }
+    }
     fn generic_store(&mut self) -> &mut dyn sc::NodeStore {
         self
+    }
+    fn write_json_view(
+        &mut self,
+        v: sc::capture_allocation::audit_json::JsonView<'_>,
+    ) -> Result<sc::Built, sc::CodecError> {
+        self.sync_owned();
+        if let Some(owner) = &mut self.owned {
+            owner.write_json_view(v)
+        } else {
+            sc::write_json_view(self, v)
+        }
     }
     fn write_value(&mut self, v: &V) -> Result<sc::Built, sc::CodecError> {
         self.sync_owned();
@@ -1891,6 +2149,7 @@ mod tests {
                     (0..17)
                         .map(|i| {
                             lookup_path(&mut reader, &root, &[PathStep::Index(i)])
+                                .map(crate::v3::audit_store::RefValue::Plain)
                                 .map_err(|e| format!("SourceAuditInvalid：{e}"))
                         })
                         .collect::<Result<Vec<_>, _>>()
@@ -2378,7 +2637,7 @@ mod tests {
         f
     }
 
-    fn audit(conn: &mut Connection) -> Result<Vec<PublishedCut>, String> {
+    fn audit(conn: &mut Connection) -> Result<sc::CodecVec<PublishedCut>, String> {
         let tx = conn.transaction().map_err(err)?;
         let control = control_audit::prepare_s3_control_history(&tx)?;
         let raw = read_raw_events(&tx)?;
@@ -2617,7 +2876,12 @@ mod tests {
                     let value = if *name == changed_field {
                         V::Array(vec![])
                     } else {
-                        V::Edge(field(&mut store, template, name).unwrap().digest().unwrap())
+                        V::Edge(
+                            field(&mut store, &*template, name)
+                                .unwrap()
+                                .digest()
+                                .unwrap(),
+                        )
                     };
                     (name.to_string(), value)
                 })
@@ -2940,5 +3204,69 @@ mod audit_capture_closed_owner_tests {
         // 独立旧capture仍是自己的旧快照；它不能配入上面的动态store。
         captured.verify(&root, sc::Mode::Public).unwrap();
         println!("CLOSED_OWNER_GREEN: dynamic second Err and mismatched missing deep leaf reject with an unrelated successful capture alive");
+    }
+}
+
+fn field_meta(
+    s: &mut (impl CodecRead + ?Sized),
+    r: sc::RefView<'_>,
+    k: &str,
+) -> Result<RefValue, String> {
+    s.lookup_ref(r, &[PathStep::Field(k.into())]).map_err(err)
+}
+fn text_meta(
+    s: &mut (impl CodecRead + ?Sized),
+    r: sc::RefView<'_>,
+    k: &str,
+) -> Result<TextValue, String> {
+    let f = field_meta(s, r, k)?;
+    if f.kind() != Kind::String {
+        return Err(err(format!("{k}不是文本")));
+    }
+    bj::read_text(s, f.view()).map_err(err)
+}
+fn integer_meta(
+    s: &mut (impl CodecRead + ?Sized),
+    r: sc::RefView<'_>,
+    k: &str,
+) -> Result<i64, String> {
+    let n = text_meta(s, r, k)?;
+    parse_canonical_i64(n.as_str(), k).map_err(err)
+}
+
+fn root_ref_bytes(s: &mut (impl CodecRead + ?Sized), bytes: &[u8]) -> Result<RefValue, String> {
+    let digest: NodeDigest = bytes.try_into().map_err(|_| err("根不是32字节"))?;
+    s.content_ref_view(sc::FixedRoot::new(&digest).as_str())
+        .map_err(err)
+}
+
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+mod explicit_empty_json_budget_probe {
+    use super::*;
+    #[test]
+    fn actual_owned_store_empty_array_hash_refuses_before_any_write() {
+        let b = sc::capture_allocation::OwnedBudget::new(0);
+        let slab = sc::capture_allocation::CaptureSlab::new(0, 0, &b)
+            .unwrap()
+            .finish()
+            .unwrap();
+        let capture = sc::AuditCapture::from_slab_for_allocation_prototype(slab);
+        let empty = super::super::business_json::ReferenceArray(
+            super::super::business_json::new_work(Some(&b)),
+        );
+        let result = super::super::audit_store::with_owned_store_probe(&capture, &b, 0, 0, |s| {
+            assert!(s.allocation_budget().unwrap().same_ledger(&b));
+            hash_json_in_store(
+                s,
+                sc::capture_allocation::audit_json::JsonView::BorrowedArray(&empty),
+                None,
+                None,
+            )
+        });
+        assert!(result.unwrap_err().contains(sc::capture_allocation::LIMIT));
+        assert!(b.snapshot().rejected_layouts > 0);
+        assert_eq!(b.snapshot().allocation_attempts, 0);
+        drop((empty, capture));
+        assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
     }
 }

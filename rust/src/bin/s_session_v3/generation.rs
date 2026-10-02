@@ -54,8 +54,9 @@
 #![allow(dead_code)]
 
 use super::audit_store::CodecRead;
+use super::business_json::{self as bj, RawEventsView};
 use super::object_records;
-use crate::content_bi::{BiBuildInput, ContentBi, PriorState};
+use crate::content_bi::{BiBuildInputView, BiLedgerView, ContentBi, PriorState};
 use crate::content_producer::{
     array_from_sequence, group_reasons, group_window_sources, raw_prefix_coords, Cc004Producer,
     Cc006Object, Cc007Object, ProducerError, RawRefSpec, TypedObject, CC004_STEP_KIND,
@@ -75,6 +76,7 @@ use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser;
 use newchan_rust::theta_v0::parser::inclusion::{GroupEvidenceView, IncrFactsState};
 use newchan_rust::theta_v0::types::Bar;
+use sc::capture_allocation::audit_json::JsonView;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -82,9 +84,9 @@ use std::collections::BTreeMap;
 /// 生成输入：全部取调用方**同一读集**的真实值；本文不读库、不重排、不补默认。
 pub(super) struct GenerationInput<'a> {
     /// 全修订史（`read_raw_events` 的 seq 序，含历史修订）。
-    pub all_events: &'a [Value],
+    pub all_events: RawEventsView<'a>,
     /// 当前生效账（每个业务身份的最新 revision，按 source_coord 升序）。
-    pub effective: &'a [Value],
+    pub effective: RawEventsView<'a>,
     /// 本次生成态代号（进生成态标量与对象元数据投影）。
     pub generation: i64,
     /// 本次生成态 cut（旧配方 `cut-{gen}`；由调用方给出，本文不自行编造）。
@@ -230,7 +232,7 @@ pub(super) struct Generated<'a> {
     roots: StateRoots,
     /// 本代知识请求线序（仅供目录轴最小投影消费，不进生成态对象）。
     requests: Vec<Built>,
-    all_events: &'a [Value],
+    all_events: RawEventsView<'a>,
     is_ohlc: bool,
 }
 
@@ -360,13 +362,13 @@ impl GenerationRuntime {
         let config = ThetaConfig::default();
 
         // ── 原始账：生效账 → coord 表 + Bar 序列 + 事件节点；全修订史 → 事件节点 ──
-        let mut raw_by_coord: BTreeMap<i64, Value> = BTreeMap::new();
+        let mut raw_by_coord: BTreeMap<i64, JsonView<'_>> = BTreeMap::new();
         let mut raw_bars: Vec<Bar> = Vec::with_capacity(input.effective.len());
         let mut effective_nodes: Vec<NodeDigest> = Vec::with_capacity(input.effective.len());
         let mut coord_nodes: BTreeMap<i64, NodeDigest> = BTreeMap::new();
         for event in input.effective {
-            let coord = crate::stored_source_coord(event)?;
-            if raw_by_coord.insert(coord, event.clone()).is_some() {
+            let coord = bj::coord(event)?;
+            if raw_by_coord.insert(coord, event).is_some() {
                 return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖见证".to_string());
             }
             raw_bars.push(bar_of(event)?);
@@ -380,7 +382,7 @@ impl GenerationRuntime {
         }
         for (coord, event) in &raw_by_coord {
             self.producer
-                .bind_source(store, *coord, raw_ref_spec(event)?)
+                .bind_source(store, *coord, raw_ref_spec(*event)?)
                 .map_err(producer_error)?;
         }
 
@@ -657,18 +659,20 @@ impl GenerationRuntime {
         // ── TB-02-B：七个 kind 的新笔证据（上一代记录由调用方给根）──
         let bi = self
             .bi
-            .build(
+            .build_borrowed(
                 &mut self.producer,
                 store,
-                &BiBuildInput {
+                &BiBuildInputView {
                     facts: &evidence.stroke_facts,
-                    raw: &raw_by_coord,
-                    all_events: input.all_events,
+                    raw: BiLedgerView::Views(&raw_by_coord),
+                    all_events: JsonView::BorrowedArray(&input.all_events)
+                        .as_array()
+                        .unwrap(),
                     prior: &input.prior,
                     generation: gen,
                     cut,
                     frontier,
-                    semantic_commit_ns: input.semantic_commit_ns.map(str::to_string),
+                    semantic_commit_ns: input.semantic_commit_ns,
                 },
             )
             .map_err(|error| format!("GenError：TB-02-B 构造失败：{error}"))?;
@@ -1026,7 +1030,7 @@ fn parse_small_json(text: &str, what: &'static str) -> Result<Value, String> {
 fn shape_witnesses(
     store: &mut dyn NodeStore,
     event_nodes: &mut BTreeMap<(i64, i64), NodeDigest>,
-    raw_by_coord: &BTreeMap<i64, Value>,
+    raw_by_coord: &BTreeMap<i64, JsonView<'_>>,
     coord_nodes: &BTreeMap<i64, NodeDigest>,
     views: &[GroupEvidenceView<'_>; 3],
     start: usize,
@@ -1044,7 +1048,7 @@ fn shape_witnesses(
             })?;
             match coord_nodes.get(&coord) {
                 Some(node) => bar_nodes.push(*node),
-                None => bar_nodes.push(event_node(event_nodes, store, event)?),
+                None => bar_nodes.push(event_node(event_nodes, store, *event)?),
             }
         }
         let bar_array = sc::write_value(
@@ -1179,35 +1183,35 @@ impl std::io::Write for DigestWriter<'_> {
 fn event_node(
     memo: &mut BTreeMap<(i64, i64), NodeDigest>,
     store: &mut dyn NodeStore,
-    event: &Value,
+    event: JsonView<'_>,
 ) -> Result<NodeDigest, String> {
-    let coord = crate::stored_source_coord(event)?;
-    let revision = event["revision"]
+    let coord = bj::coord(event)?;
+    let revision = bj::field(event, "revision")
         .as_i64()
         .ok_or("StorageUnavailable：raw.revision 不是 i64")?;
     if let Some(node) = memo.get(&(coord, revision)) {
         return Ok(*node);
     }
-    let built = sc::write_value(&mut *store, &json_to_cvalue(event)?)
+    let built = sc::write_json_view(&mut *store, event)
         .map_err(|error| format!("GenError：原始事件节点写入失败：{error}"))?;
     memo.insert((coord, revision), built.digest);
     Ok(built.digest)
 }
 
 /// 生效账事件 → `Bar`（与旧生成段同一取法：OHLC 档案取 open/high/low/close）。
-fn bar_of(event: &Value) -> Result<Bar, String> {
+fn bar_of(event: JsonView<'_>) -> Result<Bar, String> {
     let price = |key: &str| -> Result<i64, String> {
         parse_canonical_i64(
-            event[key]
+            bj::field(event, key)
                 .as_str()
                 .ok_or_else(|| format!("StorageUnavailable：OHLC价 `{key}` 缺失"))?,
             key,
         )
     };
     Ok(Bar {
-        source_index: usize::try_from(crate::stored_source_coord(event)?)
+        source_index: usize::try_from(bj::coord(event)?)
             .map_err(|_| "StorageUnavailable：源坐标不能无损转换为 source_index".to_string())?,
-        timestamp: parse_canonical_i64(event["ts"].as_str().unwrap_or(""), "timestamp")?,
+        timestamp: parse_canonical_i64(bj::field(event, "ts").as_str().unwrap_or(""), "timestamp")?,
         open: price("open")?,
         high: price("high")?,
         low: price("low")?,
@@ -1218,9 +1222,9 @@ fn bar_of(event: &Value) -> Result<Bar, String> {
 }
 
 /// 生效账事件 → producer 的八字段源引用登记（字段只从原行取，不另判）。
-fn raw_ref_spec(event: &Value) -> Result<RawRefSpec, String> {
+fn raw_ref_spec(event: JsonView<'_>) -> Result<RawRefSpec, String> {
     let text = |key: &str| -> Result<String, String> {
-        event[key]
+        bj::field(event, key)
             .as_str()
             .map(str::to_string)
             .ok_or_else(|| format!("StorageUnavailable：raw.{key} 不是字符串"))
@@ -1231,10 +1235,10 @@ fn raw_ref_spec(event: &Value) -> Result<RawRefSpec, String> {
         receipt_id: text("receipt_id")?,
         event_id: text("event_id")?,
         input_revision: text("input_revision")?,
-        revision: event["revision"]
+        revision: bj::field(event, "revision")
             .as_i64()
             .ok_or("StorageUnavailable：raw.revision 不是 i64")?,
-        seq: event["seq"]
+        seq: bj::field(event, "seq")
             .as_i64()
             .ok_or("StorageUnavailable：raw.seq 不是 i64")?,
         source_coord: text("source_coord")?,
@@ -1426,8 +1430,8 @@ mod tests {
         prior: PriorState<'b>,
     ) -> Generated<'b> {
         let input = GenerationInput {
-            all_events: &oracle.all_events,
-            effective: &oracle.effective,
+            all_events: (&oracle.all_events).into(),
+            effective: (&oracle.effective).into(),
             generation: oracle.generation,
             structure_cut,
             input_frontier: oracle.batch["input_frontier"]
@@ -1535,7 +1539,7 @@ mod tests {
         let bars: Vec<Bar> = oracle
             .effective
             .iter()
-            .map(|event| bar_of(event).expect("有效账 bar"))
+            .map(|event| bar_of(event.into()).expect("有效账 bar"))
             .collect();
         let (layer, _) = parser::parse_layer_with_inclusion_facts(&bars, &config);
         layer

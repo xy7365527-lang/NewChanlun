@@ -147,9 +147,7 @@ impl NodeSource for MeteredSource<'_> {
         let read = self.source.read(digest)?;
         let checked = match read {
             NodeRead::Missing => None,
-            NodeRead::Found { tag, body } => {
-                Some(self.access.accept_frame(digest, tag, body)?)
-            }
+            NodeRead::Found { tag, body } => Some(self.access.accept_frame(digest, tag, body)?),
         };
         self.access.pre_io_check()?;
         Ok(checked)

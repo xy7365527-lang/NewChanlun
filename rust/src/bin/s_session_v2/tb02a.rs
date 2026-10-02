@@ -154,19 +154,16 @@ fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str, String> {
         .ok_or_else(|| format!("SchemaUnsupported：{key}必须文本"))
 }
 pub(super) fn validate_prices(event: &RawEvent) -> Result<(), String> {
-    if let Some(p) = &event.ohlc {
-        let o = parse_canonical_i64(&p.open, "open")?;
-        let h = parse_canonical_i64(&p.high, "high")?;
-        let l = parse_canonical_i64(&p.low, "low")?;
-        let c = parse_canonical_i64(&p.close, "close")?;
-        if l > o || o > h || l > c || c > h || event.price != p.close {
-            return Err("InvalidDomain：OHLC几何或close索引不一致".into());
-        }
-        if parse_canonical_i64(&event.volume, "volume")? < 0 {
-            return Err("InvalidDomain：volume为负".into());
-        }
-    }
-    Ok(())
+    validate_prices_view(
+        &event.price,
+        &event.volume,
+        event.ohlc.as_ref().map(|p| OhlcView {
+            open: &p.open,
+            high: &p.high,
+            low: &p.low,
+            close: &p.close,
+        }),
+    )
 }
 pub(super) fn canonical(event: &RawEvent, p: &Ohlc) -> String {
     canonical_json(
@@ -192,20 +189,16 @@ pub(super) fn enrich_raw(conn: &Connection, rows: &mut [Value]) -> Result<(), St
     enrich_raw_until(conn, rows, None)
 }
 
-pub(super) fn enrich_raw_until(conn: &Connection, rows: &mut [Value], deadline: Option<std::time::Instant>) -> Result<(), String> {
+pub(super) fn enrich_raw_until(
+    conn: &Connection,
+    rows: &mut [Value],
+    deadline: Option<std::time::Instant>,
+) -> Result<(), String> {
     crate::check_read_deadline(deadline)?;
     if !enabled(conn)? {
         return Ok(());
     }
-    let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM raw_ohlc", [], |r| r.get(0))
-        .map_err(|e| e.to_string())?;
-    let raw_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
-        .map_err(|e| e.to_string())?;
-    if count != raw_count {
-        return Err("StorageUnavailable：raw_ohlc与原始账不一一对应".into());
-    }
+    verify_raw_ohlc_cardinality(conn)?;
     for row in rows {
         crate::check_read_deadline(deadline)?;
         let revision = match &row["revision"] {
@@ -228,16 +221,12 @@ pub(super) fn enrich_raw_until(conn: &Connection, rows: &mut [Value], deadline: 
     Ok(())
 }
 pub(super) fn stored_prices(row: &Value) -> Result<Option<Ohlc>, String> {
-    match row.get("schema_revision") {
-        None => Ok(None),
-        Some(v) if v == RAW_SCHEMA => Ok(Some(Ohlc {
-            open: text(row, "open")?.into(),
-            high: text(row, "high")?.into(),
-            low: text(row, "low")?.into(),
-            close: text(row, "close")?.into(),
-        })),
-        _ => Err("StorageUnavailable：未知原始schema".into()),
-    }
+    Ok(stored_prices_view(row.into())?.map(|p| Ohlc {
+        open: p.open.into(),
+        high: p.high.into(),
+        low: p.low.into(),
+        close: p.close.into(),
+    }))
 }
 pub(super) fn raw_wire(wire: &mut Value, raw: &Value) {
     if raw["schema_revision"] == RAW_SCHEMA {
@@ -292,7 +281,9 @@ pub(super) fn save_fact(conn: &Connection, o: &Value, batch: &str) -> Result<(),
     let revision = o["object_revision"]
         .as_i64()
         .ok_or("StorageUnavailable：事实版本非精确整数")?;
-    let kind = o["kind"].as_str().ok_or("StorageUnavailable：事实kind缺失")?;
+    let kind = o["kind"]
+        .as_str()
+        .ok_or("StorageUnavailable：事实kind缺失")?;
     let fact_key = o["fact_key"]
         .as_str()
         .ok_or("StorageUnavailable：事实fact_key缺失")?;
@@ -465,4 +456,116 @@ pub(super) fn slot(o: &Value) -> String {
             o["window_end"]
         ]))
     }
+}
+
+/// 普通与拥有态共用借用价格判据，不复制价格文本。
+#[derive(Clone, Copy)]
+pub(super) struct OhlcView<'a> {
+    pub open: &'a str,
+    pub high: &'a str,
+    pub low: &'a str,
+    pub close: &'a str,
+}
+pub(super) fn stored_prices_view(
+    row: newchan_rust::s_content::capture_allocation::audit_json::JsonView<'_>,
+) -> Result<Option<OhlcView<'_>>, String> {
+    match row.get("schema_revision") {
+        None => Ok(None),
+        Some(v) if v.as_str() == Some(RAW_SCHEMA) => {
+            let text = |k| {
+                row.get(k)
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| format!("SchemaUnsupported：{k}必须文本"))
+            };
+            Ok(Some(OhlcView {
+                open: text("open")?,
+                high: text("high")?,
+                low: text("low")?,
+                close: text("close")?,
+            }))
+        }
+        _ => Err("StorageUnavailable：未知原始schema".into()),
+    }
+}
+pub(super) fn validate_prices_view(
+    price: &str,
+    volume: &str,
+    p: Option<OhlcView<'_>>,
+) -> Result<(), String> {
+    if let Some(p) = p {
+        let o = parse_canonical_i64(p.open, "open")?;
+        let h = parse_canonical_i64(p.high, "high")?;
+        let l = parse_canonical_i64(p.low, "low")?;
+        let c = parse_canonical_i64(p.close, "close")?;
+        if l > o || o > h || l > c || c > h || price != p.close {
+            return Err("InvalidDomain：OHLC几何或close索引不一致".into());
+        }
+        if parse_canonical_i64(volume, "volume")? < 0 {
+            return Err("InvalidDomain：volume为负".into());
+        }
+    }
+    Ok(())
+}
+#[cfg(feature = "s_allocation_json_testonly")]
+pub(super) fn enrich_raw_owned(
+    conn: &Connection,
+    tree: &mut newchan_rust::s_content::capture_allocation::audit_json::OwnedJson,
+    deadline: Option<std::time::Instant>,
+) -> Result<(), String> {
+    crate::check_read_deadline(deadline)?;
+    if !enabled(conn)? {
+        return Ok(());
+    }
+    verify_raw_ohlc_cardinality(conn)?;
+    let mut stmt=conn.prepare("SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2").map_err(|e|e.to_string())?;
+    for i in 0..tree.view().as_array().unwrap().len() {
+        crate::check_read_deadline(deadline)?;
+        let event = tree.view().index(i).unwrap();
+        let revision = event
+            .get("revision")
+            .and_then(|v| v.as_i64())
+            .ok_or("StorageUnavailable：revision非i64")?;
+        let mut rows = stmt
+            .query(params![
+                event.get("identity_key").and_then(|v| v.as_str()),
+                revision
+            ])
+            .map_err(|e| format!("StorageUnavailable：OHLC原件缺失 {e}"))?;
+        let row = rows
+            .next()
+            .map_err(|e| format!("StorageUnavailable：OHLC原件缺失 {e}"))?
+            .ok_or("StorageUnavailable：OHLC原件缺失")?;
+        let get = |i| -> Result<&str, String> {
+            row.get_ref(i)
+                .map_err(|e| format!("StorageUnavailable：OHLC原件缺失 {e}"))?
+                .as_str()
+                .map_err(|e| e.to_string())
+        };
+        if get(0)? != RAW_SCHEMA || event.get("price").and_then(|v| v.as_str()) != Some(get(4)?) {
+            return Err("StorageUnavailable：OHLC schema/close索引矛盾".into());
+        }
+        let mut object = tree.object_at_mut(i).map_err(|e| e.to_string())?;
+        for (i, k) in [
+            (0, "schema_revision"),
+            (1, "open"),
+            (2, "high"),
+            (3, "low"),
+            (4, "close"),
+        ] {
+            object.insert_str(k, get(i)?).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+fn verify_raw_ohlc_cardinality(conn: &Connection) -> Result<(), String> {
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM raw_ohlc", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    let raw_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    if count != raw_count {
+        return Err("StorageUnavailable：raw_ohlc与原始账不一一对应".into());
+    }
+    Ok(())
 }

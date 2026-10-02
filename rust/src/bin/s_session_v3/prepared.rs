@@ -179,11 +179,11 @@ impl Runtime {
             ));
             self.binding = Some(binding);
         }
-        let effective = read_effective_events(&audited.raw)?;
+        let effective = super::business_json::effective(audited.raw.view(), None)?;
         let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
         let input = GenerationInput {
-            all_events: &audited.raw,
-            effective: &effective,
+            all_events: audited.raw.view(),
+            effective: effective.raw_view(),
             generation,
             structure_cut: &metadata.structure_cut,
             input_frontier: frontier,

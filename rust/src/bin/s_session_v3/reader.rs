@@ -32,9 +32,9 @@ pub(super) fn delta_fragment(
     let cut = validated_delta(tx, &audited, anchor)?;
     let mut source = content_store::ReadStore::new(tx).map_err(err)?;
     q_delta::measure(&mut source, &cut.delta, resources, job)?;
-    fragment::read(
+    fragment::read_refview(
         &mut source,
-        &cut.delta,
+        cut.delta.view(),
         path,
         unit,
         offset,
@@ -88,7 +88,7 @@ pub(super) fn validated_delta<'a>(
         );
     }
     let expected = delta_anchor(cut);
-    if claimed != cut.delta || *anchor != expected {
+    if super::audit_store::RefValue::Plain(claimed) != cut.delta || *anchor != expected {
         return Err("IdentityConflict：anchor与当前完整核验所得的同会话已发布Delta不同".into());
     }
     Ok(cut)
@@ -96,7 +96,7 @@ pub(super) fn validated_delta<'a>(
 pub(super) fn delta_anchor(cut: &history::PublishedCut) -> Value {
     json!({"kind":"delta","session_id":cut.metadata.session_id,"session_generation":cut.metadata.session_generation,
         "generation":cut.metadata.generation.to_string(),"base_cut":cut.metadata.base_cut,"next_cut":cut.metadata.structure_cut,
-        "index_frontier":cut.batch_id,"delta_ref":cut.delta.to_transport_json()})
+        "index_frontier":cut.batch_id,"delta_ref":cut.delta})
 }
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3ContentReadInvalid：{e}")
@@ -200,7 +200,7 @@ mod tests {
         let state = state::audit(&tx).unwrap();
         let c = state.cuts.last().unwrap();
         json!({"kind":"delta","session_id":c.metadata.session_id,"session_generation":c.metadata.session_generation,
-            "generation":n.to_string(),"base_cut":c.metadata.base_cut,"next_cut":c.metadata.structure_cut,"index_frontier":c.batch_id,"delta_ref":c.delta.to_transport_json()})
+            "generation":n.to_string(),"base_cut":c.metadata.base_cut,"next_cut":c.metadata.structure_cut,"index_frontier":c.batch_id,"delta_ref":c.delta})
     }
     fn read(f: &mut Fixture, anchor: &Value) -> Result<Fragment, String> {
         let tx = f.conn.transaction().unwrap();

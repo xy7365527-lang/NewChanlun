@@ -6,8 +6,8 @@ use newchan_rust::s_content::access::Access;
 use newchan_rust::s_content::job::Job;
 use newchan_rust::s_content::{
     self as sc,
-    path::{lookup_path, PathStep},
-    CodecError, ContentRef, Kind, NodeDigest, NodeRead, NodeSource,
+    path::{lookup_path_refview, PathStep},
+    CodecError, Kind, NodeDigest, NodeRead, NodeSource, RefView,
 };
 use std::collections::BTreeSet;
 
@@ -27,13 +27,15 @@ pub(super) struct Usage {
     pub records: u64,
 }
 
-pub(super) fn measure(
+/// 普通查询源上的借用引用适配；沿原计量核执行，不赋予 Closed 分配资格。
+pub(super) fn measure<'a>(
     source: &mut dyn NodeSource,
-    delta: &ContentRef,
+    delta: impl Into<RefView<'a>>,
     resources: &QResources,
     job: &mut dyn Access,
 ) -> Result<Usage, String> {
-    if delta.kind != Kind::Object || delta.extent != Some(17) {
+    let delta = delta.into();
+    if delta.kind() != Kind::Object || delta.extent() != Some(17) {
         return Err("QDeltaInvalid：完整Delta须为D十字段与七变化集合".into());
     }
     let mut source = Meter {
@@ -49,8 +51,8 @@ pub(super) fn measure(
     let mut arrays = Vec::new();
     let mut records = 0u128;
     for name in RECORDS {
-        let array =
-            lookup_path(&mut source, delta, &[PathStep::Field(name.into())]).map_err(err)?;
+        let array = lookup_path_refview(&mut source, delta, &[PathStep::Field(name.into())])
+            .map_err(err)?;
         if array.kind != Kind::Array {
             return Err(format!("QDeltaInvalid：{name}不是数组"));
         }
@@ -64,13 +66,14 @@ pub(super) fn measure(
         arrays.push((array, n));
     }
     // 根对象、D十字段、数组/值/块/序列/字段节点均计入，包括未出现在任何片段proof中的节点。
-    sc::verify(&mut source, delta).map_err(err)?;
+    sc::verify_refview(&mut source, delta, sc::Mode::Public).map_err(err)?;
     // 通用codec校验不定义记录访问；这里逐条访问七集合，失败/重复访问同样记账。
     // 不渲染正文，不把嵌套字段、catalog项或唯一节点数量当成records。
     for (array, n) in arrays {
         for i in 0..n {
             source.job.charge_records(1).map_err(err)?;
-            lookup_path(&mut source, &array, &[PathStep::Index(i)]).map_err(err)?;
+            lookup_path_refview(&mut source, (&array).into(), &[PathStep::Index(i)])
+                .map_err(err)?;
         }
     }
     source.job.pre_io_check().map_err(err)?;
@@ -133,7 +136,7 @@ mod tests {
     use super::*;
     use sc::{
         job::{Existing, JobLimits},
-        MemoryNodes, Value as V,
+        ContentRef, MemoryNodes, Value as V,
     };
     use serde_json::{json, Value};
     fn job() -> Job {

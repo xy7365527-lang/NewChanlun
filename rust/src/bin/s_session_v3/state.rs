@@ -38,11 +38,12 @@ use rusqlite::Transaction;
 /// 完整状态审计的返回值：全部来自同一只读快照与 SQLite 已持久原件。
 pub(super) struct AuditedState {
     /// 同一快照内的真实原始账（`raw_events` 逐序回读）。
-    pub raw: Vec<Value>,
+    pub raw: super::business_json::RawEvents,
+    pub budget: Option<sc::capture_allocation::OwnedBudget>,
     /// 逐代已发布闭包（manifest、实际根、批次身份与快照/Delta 根）。
-    pub cuts: Vec<history::PublishedCut>,
+    pub cuts: sc::CodecVec<history::PublishedCut>,
     /// 当前已发布代的对象索引（独立出生/撤回行）。
-    pub objects: Vec<object_index::Entry>,
+    pub objects: sc::CodecVec<object_index::Entry>,
     /// 当前已发布代的辅助索引（见证/关系/观察）。
     pub auxiliary: aux_index::Index,
 }
@@ -175,7 +176,17 @@ fn audit_with_capture_impl(
     #[cfg(test)]
     trace_event("raw", None);
     // 2. 真实原始账：逐序回读并做身份/修订链/内容hash/receipt 自检。
-    let raw = read_raw_events_until(tx, deadline)?;
+    #[cfg(all(test, feature = "s_allocation_json_testonly"))]
+    let raw = match owned_budget.filter(|_| {
+        capture
+            .as_ref()
+            .is_some_and(sc::AuditCapture::is_allocation_prototype)
+    }) {
+        Some(b) => super::business_json::read_owned(tx, deadline, b)?,
+        None => super::business_json::RawEvents::Plain(read_raw_events_until(tx, deadline)?),
+    };
+    #[cfg(not(all(test, feature = "s_allocation_json_testonly")))]
+    let raw = super::business_json::RawEvents::Plain(read_raw_events_until(tx, deadline)?);
     #[cfg(test)]
     trace_event("history", None);
     // 3. 逐代发布闭包：消费每代控制头并核内容闭包、原始/生效账与独立变化集合（唯一判据在 history）。
@@ -185,7 +196,7 @@ fn audit_with_capture_impl(
         auxiliary,
     } = history::read_indexed_history_for_audit_captured(
         tx,
-        &raw,
+        raw.view(),
         control,
         deadline,
         max_render_bytes,
@@ -219,7 +230,9 @@ fn audit_with_capture_impl(
         #[cfg(test)]
         trace_event("generated_sources", Some(cut.metadata.generation));
         history::check_deadline(deadline)?;
-        let prefix = &raw[..=cut.metadata.input_frontier as usize];
+        let prefix = raw
+            .view()
+            .prefix(cut.metadata.input_frontier as usize + 1)?;
         // 5'. 真实源与生成对象配方逐代对拍；本层不重跑分类。
         let counts = source_audit::audit_generated_for_audit(
             &mut store,
@@ -245,7 +258,7 @@ fn audit_with_capture_impl(
         // 6'. Delta 目录证据与 CC-056 变化集合必须与本代真实来源、replaces 一致。
         catalog_evidence::verify_cut_for_audit(
             &mut store,
-            &cut.metadata,
+            cut.metadata.view(),
             &cut.roots.generated_state,
             &cut.delta,
             prefix,
@@ -279,6 +292,7 @@ fn audit_with_capture_impl(
     });
     Ok((
         AuditedState {
+            budget: raw.budget().cloned(),
             raw,
             cuts,
             objects,
@@ -413,12 +427,12 @@ fn err(e: impl std::fmt::Display) -> String {
     format!("S3StateInvalid：{e}")
 }
 
-fn field(
+fn field<'r>(
     s: &mut (impl super::audit_store::CodecStore + ?Sized),
-    r: &ContentRef,
+    r: impl Into<sc::RefView<'r>>,
     key: &str,
-) -> Result<ContentRef, String> {
-    s.lookup_path(r, &[sc::path::PathStep::Field(key.into())])
+) -> Result<super::audit_store::RefValue, String> {
+    s.lookup_ref(r.into(), &[sc::path::PathStep::Field(key.into())])
         .map_err(err)
 }
 
@@ -549,8 +563,8 @@ pub(super) mod cold_audit_probe {
     pub(crate) fn fingerprint(s: &AuditedState) -> Value {
         json!({"raw_sha256":sha256_hex(canonical_json(&json!(s.raw)).as_bytes()),
             "cuts":s.cuts.iter().map(|cut|json!({"generation":cut.metadata.generation,
-                "batch_id":cut.batch_id,"snapshot":cut.snapshot.to_transport_json(),
-                "delta":cut.delta.to_transport_json()})).collect::<Vec<_>>(),
+                "batch_id":cut.batch_id,"snapshot":cut.snapshot,
+                "delta":cut.delta})).collect::<Vec<_>>(),
             "objects":s.objects.len(),"witnesses":s.auxiliary.witnesses.len(),
             "relations":s.auxiliary.relations.len(),"observations":s.auxiliary.observations.len()})
     }
@@ -730,32 +744,38 @@ mod tests {
                 &cut.delta,
                 &cut.roots.generated_state,
             ] {
-                sc::verify(&mut persisted, root).unwrap();
+                sc::verify_refview(&mut persisted, root.view(), sc::Mode::Public).unwrap();
             }
             for root in [&cut.roots.publication_template, &cut.roots.delta_template] {
-                sc::verify_template(&mut persisted, root).unwrap();
+                sc::verify_refview(&mut persisted, root.view(), sc::Mode::Template).unwrap();
             }
         }
         for object in &audited.objects {
             for root in [
-                object.generated.content_ref(),
-                object.internal.content_ref(),
-                object.immutable.content_ref(),
+                super::audit_store::RefValue::Plain(object.generated.content_ref()),
+                super::audit_store::RefValue::Plain(object.internal.content_ref()),
+                super::audit_store::RefValue::Plain(object.immutable.content_ref()),
                 object.birth_wire.clone(),
             ] {
-                sc::verify(&mut persisted, &root).unwrap();
+                sc::verify_refview(&mut persisted, root.view(), sc::Mode::Public).unwrap();
             }
         }
         for witness in &audited.auxiliary.witnesses {
-            sc::verify(&mut persisted, &witness.generated).unwrap();
-            sc::verify(&mut persisted, &witness.wire).unwrap();
+            sc::verify_refview(&mut persisted, witness.generated.view(), sc::Mode::Public).unwrap();
+            sc::verify_refview(&mut persisted, witness.wire.view(), sc::Mode::Public).unwrap();
         }
         for relation in &audited.auxiliary.relations {
-            sc::verify(&mut persisted, &relation.generated).unwrap();
+            sc::verify_refview(&mut persisted, relation.generated.view(), sc::Mode::Public)
+                .unwrap();
         }
         for observation in &audited.auxiliary.observations {
-            sc::verify(&mut persisted, &observation.generated).unwrap();
-            sc::verify(&mut persisted, &observation.wire).unwrap();
+            sc::verify_refview(
+                &mut persisted,
+                observation.generated.view(),
+                sc::Mode::Public,
+            )
+            .unwrap();
+            sc::verify_refview(&mut persisted, observation.wire.view(), sc::Mode::Public).unwrap();
         }
     }
 
@@ -1000,7 +1020,8 @@ mod shared_sqlite_probe {
         let final_meter = budget.snapshot();
         let final_health = budget.ledger_health();
         let report = json!({
-            "scope":"selected closed codec plus SQLite requested Layout/header; JSON/business/outer diagnostics remain uncovered",
+            "scope":"selected closed codec, SQLite requested Layout/header, actual raw JSON consumers and typed audit return owners; remaining temporary collections and outer diagnostics are not qualified",
+            "uncovered":["temporary control/metadata/scalar materialization and collections","ordinary Q projection/fragment worksets","outer errors and diagnostic reports","allocator metadata/rounding and physical RSS/IO"],
             "whole_audit_allocation_admitted":false,"production_capture_enabled":false,
             "fault_injection":inject,"armed_after_real_owned_capture":armed,
             "live_at_fault_arm":ARM_LIVE.with(|a| a.get()),
@@ -1175,4 +1196,13 @@ mod audit_capture_gate_tests {
             println!("CAPTURE_GATE metered={metered} stop={stop:?} expired={expired} sql={} f={} records={} checks={} trace={}",observation.1,observation.2,observation.4,observation.5,observation.3);
         }
     }
+}
+
+/// 仅测试真实audit入口，资格仍由同一完整body判据给出；外层显式配置同账overlay。
+#[cfg(all(test, feature = "s_allocation_json_testonly"))]
+pub(super) fn audit_owned_capture_for_testonly(
+    tx: &Transaction<'_>,
+    budget: &sc::capture_allocation::OwnedBudget,
+) -> Result<AuditedState, String> {
+    audit_with_capture_impl(tx, None, None, None, true, Some(budget)).map(|(state, _)| state)
 }

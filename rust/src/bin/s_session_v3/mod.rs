@@ -35,44 +35,46 @@ use newchan_rust::session_transport;
 use rusqlite::OpenFlags;
 use std::collections::BTreeSet;
 
-mod control;
-mod object_records;
-mod commit;
-mod generation;
-mod control_audit;
-mod history;
-pub(crate) mod audit_store;
-mod catalog_evidence;
-mod prepared;
-mod state;
-mod driver;
-mod writer_cli;
-mod reader;
-mod financial_reader;
-mod projection;
-mod q_resources;
-mod q_delta;
-mod q_snapshot;
-mod q_wire;
-mod q_content;
-mod q_watch;
-mod q_lease;
 mod audit_budget;
+mod audit_header;
+pub(crate) mod audit_store;
+pub(super) mod aux_index;
+pub(super) mod business_json;
+#[cfg(unix)]
+mod capture;
+mod catalog_evidence;
+mod commit;
+mod control;
+mod control_audit;
+mod driver;
+mod financial_reader;
+mod generation;
+mod history;
+pub(super) mod object_index;
+mod object_records;
+mod prepared;
+mod projection;
+mod q_content;
+mod q_delta;
 #[cfg(unix)]
 mod q_executor;
 #[cfg(unix)]
-mod q_runtime;
-#[cfg(unix)]
 mod q_http_input;
+mod q_lease;
 #[cfg(unix)]
 mod q_listener;
+mod q_resources;
+#[cfg(unix)]
+mod q_runtime;
 #[cfg(unix)]
 mod q_serve;
-#[cfg(unix)]
-mod capture;
-pub(super) mod aux_index;
-pub(super) mod object_index;
+mod q_snapshot;
+mod q_watch;
+mod q_wire;
+mod reader;
 mod source_audit;
+mod state;
+mod writer_cli;
 
 /// 本模块唯一负责的协议版本。
 pub(super) const PROTOCOL_REVISION: &str = "s-session/3";
@@ -668,9 +670,9 @@ pub(super) fn refuse_reset_of_new_domain(db: &Path) -> Result<(), String> {
         "s_content_observations",
         "s_content_objects",
     ]
-        .into_iter()
-        .filter(|name| tables.contains(*name))
-        .collect();
+    .into_iter()
+    .filter(|name| tables.contains(*name))
+    .collect();
     let content_format = if tables.contains("s_content_meta") {
         conn.query_row(
             "SELECT content_format FROM s_content_meta WHERE singleton=1",

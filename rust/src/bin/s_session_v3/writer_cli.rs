@@ -429,9 +429,14 @@ impl RecoverOptions {
 /// 原第七门：当前审计路径不跨请求保留源，以结构 0 <= 显式正 cap 核验。
 /// 普通结构服务不依赖 C09 持久条件 FIFO；Driver 仍只接纳既有 typed op。
 fn serve_authorization(resources: &SResources) -> Result<(), String> {
-    state::check_audit_source_retention(resources.limit("audit_cache_source_bytes")).map_err(|error| {
-        format!("{error}；资源档 schema={RESOURCES_REVISION} sha256={}", resources.digest())
-    })
+    state::check_audit_source_retention(resources.limit("audit_cache_source_bytes")).map_err(
+        |error| {
+            format!(
+                "{error}；资源档 schema={RESOURCES_REVISION} sha256={}",
+                resources.digest()
+            )
+        },
+    )
 }
 
 /// Controller 的私有环境声明绑定 child 实际 load 的规范字节，防止文件检查间改值又恢复。
@@ -610,12 +615,25 @@ mod tests {
             "message_id":"ready-owned","producer_id":"owned-client","producer_epoch":"1",
             "payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload});
         let identity = ("owned".into(), "1".into(), "2".into());
-        let a = reply(&request, Ok(json!({"kind":"Ready"})), &identity, Some("current"));
-        let b = reply(&request, Ok(json!({"kind":"Ready"})), &identity, Some("other"));
+        let a = reply(
+            &request,
+            Ok(json!({"kind":"Ready"})),
+            &identity,
+            Some("current"),
+        );
+        let b = reply(
+            &request,
+            Ok(json!({"kind":"Ready"})),
+            &identity,
+            Some("other"),
+        );
         // validate_envelope 是请求判据，要求 op；响应仍按原公共回复的摘要/因果身份合同核。
         assert_eq!(a.as_object().unwrap().len(), 11);
         assert_eq!(a["schema_revision"], PROTOCOL_REVISION);
-        assert_eq!(a["payload_hash"], sha256_hex(canonical_json(&a["payload"]).as_bytes()));
+        assert_eq!(
+            a["payload_hash"],
+            sha256_hex(canonical_json(&a["payload"]).as_bytes())
+        );
         assert!(a.get("control_instance_id").is_none());
         assert_eq!(a["payload"]["control_instance_id"], "current");
         assert_eq!(a["session_id"], "owned");

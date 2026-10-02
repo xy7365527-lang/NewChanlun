@@ -830,28 +830,99 @@ pub(super) fn reproject_stored_wire(
     life: &PublicationLife,
     current_generation: i64,
 ) -> Result<Built, RecordError> {
+    reproject_stored_wire_view(store, birth.into(), life.view(), current_generation)
+}
+pub(crate) fn reproject_stored_wire_view(
+    store: &mut (impl CodecStore + ?Sized),
+    birth: sc::RefView<'_>,
+    life: LifeView<'_>,
+    current_generation: i64,
+) -> Result<Built, RecordError> {
+    use sc::{capture_allocation::audit_json::JsonView as J, ValueView as B};
     let what = "持久对象 wire";
-    let id = read_text(store, birth, "object_id", what)?;
-    let kind = read_text(store, birth, "kind", what)?;
-    validate_life(life, current_generation, &id)?;
-    let names: &[&str] = if kind == CC006_SHAPE_KIND {
+    let id_ref = store.lookup_ref(birth, &[PathStep::Field("object_id".into())])?;
+    let id = crate::v3::business_json::read_text(store, id_ref.view())
+        .map_err(|detail| RecordError::Source { what, detail })?;
+    let kind_ref = store.lookup_ref(birth, &[PathStep::Field("kind".into())])?;
+    let kind = crate::v3::business_json::read_text(store, kind_ref.view())
+        .map_err(|detail| RecordError::Source { what, detail })?;
+    validate_life_view(life, current_generation, id.as_str())?;
+    let names: &[&str] = if kind.as_str() == CC006_SHAPE_KIND {
         &SHAPE_WIRE_FIELDS
     } else {
         &TYPED_WIRE_FIELDS
     };
-    let values = store.lookup_object_fields(birth, names)?;
-    let lifecycle = life_fields(life);
-    let mut fields = Vec::new();
+    let values = store.lookup_fields_ref(birth, names)?;
+    let first = crate::v3::business_json::Decimal::new(life.first_known_generation);
+    let published = crate::v3::business_json::Decimal::new(life.published_generation);
+    let withdrawn = life
+        .withdrawn_generation
+        .map(crate::v3::business_json::Decimal::new);
+    let lifecycle = [
+        ("first_known_generation", B::String(first.text())),
+        ("first_known_cut", B::String(life.first_known_cut)),
+        ("published_generation", B::String(published.text())),
+        (
+            "withdrawn_generation",
+            withdrawn
+                .as_ref()
+                .map(|v| B::String(v.text()))
+                .unwrap_or(B::Json(J::Null)),
+        ),
+        (
+            "withdrawal_reason",
+            life.withdrawal_reason
+                .map(B::String)
+                .unwrap_or(B::Json(J::Null)),
+        ),
+        (
+            "superseded_by",
+            life.superseded_by
+                .map(B::String)
+                .unwrap_or(B::Json(J::Null)),
+        ),
+        (
+            "lifecycle",
+            B::String(if life.withdrawn_generation.is_some() {
+                "withdrawn"
+            } else {
+                "active"
+            }),
+        ),
+    ];
+    let mut fields = [("", B::Json(J::Null)); 20];
+    let mut n = 0;
     for name in names {
-        if *name == "batch_id" || lifecycle.iter().any(|(key, _)| key == name) {
+        if *name == "batch_id" || lifecycle.iter().any(|(k, _)| k == name) {
             continue;
         }
-        let value = &values[*name];
-        fields.push(((*name).into(), CValue::Edge(value.digest()?)));
+        fields[n] = (
+            *name,
+            B::Edge(
+                values
+                    .get(name)
+                    .ok_or_else(|| RecordError::Source {
+                        what,
+                        detail: format!("缺字段{name}"),
+                    })?
+                    .digest()?,
+            ),
+        );
+        n += 1;
     }
-    fields.push(("batch_id".into(), batch_value(&life.batch)));
-    fields.extend(lifecycle);
-    Ok(store.write_template(&CValue::Object(fields))?)
+    fields[n] = (
+        "batch_id",
+        match life.batch {
+            BatchView::CurrentBatch => B::BatchSelf,
+            BatchView::Existing(s) => B::String(s),
+        },
+    );
+    n += 1;
+    for v in lifecycle {
+        fields[n] = v;
+        n += 1;
+    }
+    Ok(store.write_template_view(B::Object(&fields[..n]))?)
 }
 
 /// producer 同次构造的公开 `input_refs`（原 generic 字符串源叶 + 共享序列，`merged_index`
@@ -942,6 +1013,13 @@ fn validate_life(
     current_generation: i64,
     object_id: &str,
 ) -> Result<(), RecordError> {
+    validate_life_view(life.view(), current_generation, object_id)
+}
+fn validate_life_view(
+    life: LifeView<'_>,
+    current_generation: i64,
+    object_id: &str,
+) -> Result<(), RecordError> {
     let what = "life";
     if current_generation < 1 {
         return Err(RecordError::Life {
@@ -984,8 +1062,8 @@ fn validate_life(
             ),
         });
     }
-    match &life.batch {
-        BatchRef::CurrentBatch => {
+    match life.batch {
+        BatchView::CurrentBatch => {
             if first != current_generation {
                 return Err(RecordError::Life {
                     what,
@@ -995,7 +1073,7 @@ fn validate_life(
                 });
             }
         }
-        BatchRef::Existing(id) => {
+        BatchView::Existing(id) => {
             if !is_new_batch_id(id) {
                 return Err(RecordError::Life {
                     what,
@@ -1038,7 +1116,7 @@ fn validate_life(
                     ),
                 });
             }
-            match life.withdrawal_reason.as_deref() {
+            match life.withdrawal_reason {
                 Some(reason) if !reason.is_empty() => {}
                 Some(_) => {
                     return Err(RecordError::Life {
@@ -1055,7 +1133,7 @@ fn validate_life(
             }
         }
     }
-    if let Some(superseded) = &life.superseded_by {
+    if let Some(superseded) = life.superseded_by {
         if superseded.is_empty() {
             return Err(RecordError::Life {
                 what,
@@ -2626,5 +2704,127 @@ mod tests {
                 "{label} wire 字段集"
             );
         }
+    }
+}
+
+/// 只借用生命周期字段；normal/owned只改变存储，校验与wire工厂同核。
+#[derive(Clone, Copy)]
+pub(crate) enum BatchView<'a> {
+    CurrentBatch,
+    Existing(&'a str),
+}
+#[derive(Clone, Copy)]
+pub(crate) struct LifeView<'a> {
+    pub first_known_generation: i64,
+    pub first_known_cut: &'a str,
+    pub published_generation: i64,
+    pub withdrawn_generation: Option<i64>,
+    pub withdrawal_reason: Option<&'a str>,
+    pub superseded_by: Option<&'a str>,
+    pub batch: BatchView<'a>,
+}
+impl PublicationLife {
+    pub fn view(&self) -> LifeView<'_> {
+        LifeView {
+            first_known_generation: self.first_known_generation,
+            first_known_cut: &self.first_known_cut,
+            published_generation: self.published_generation,
+            withdrawn_generation: self.withdrawn_generation,
+            withdrawal_reason: self.withdrawal_reason.as_deref(),
+            superseded_by: self.superseded_by.as_deref(),
+            batch: match &self.batch {
+                BatchRef::CurrentBatch => BatchView::CurrentBatch,
+                BatchRef::Existing(s) => BatchView::Existing(s),
+            },
+        }
+    }
+}
+#[derive(PartialEq, Eq)]
+pub(crate) enum BatchOwner {
+    CurrentBatch,
+    Existing(super::business_json::TextValue),
+}
+#[derive(PartialEq, Eq)]
+pub(crate) struct LifeOwner {
+    pub first_known_generation: i64,
+    pub first_known_cut: super::business_json::TextValue,
+    pub published_generation: i64,
+    pub withdrawn_generation: Option<i64>,
+    pub withdrawal_reason: Option<super::business_json::TextValue>,
+    pub superseded_by: Option<super::business_json::TextValue>,
+    pub batch: BatchOwner,
+}
+impl LifeOwner {
+    pub fn view(&self) -> LifeView<'_> {
+        LifeView {
+            first_known_generation: self.first_known_generation,
+            first_known_cut: self.first_known_cut.as_str(),
+            published_generation: self.published_generation,
+            withdrawn_generation: self.withdrawn_generation,
+            withdrawal_reason: self.withdrawal_reason.as_ref().map(|v| v.as_str()),
+            superseded_by: self.superseded_by.as_ref().map(|v| v.as_str()),
+            batch: match &self.batch {
+                BatchOwner::CurrentBatch => BatchView::CurrentBatch,
+                BatchOwner::Existing(s) => BatchView::Existing(s.as_str()),
+            },
+        }
+    }
+    pub fn from_normal(l: PublicationLife) -> Self {
+        Self {
+            first_known_generation: l.first_known_generation,
+            first_known_cut: l.first_known_cut.into(),
+            published_generation: l.published_generation,
+            withdrawn_generation: l.withdrawn_generation,
+            withdrawal_reason: l.withdrawal_reason.map(Into::into),
+            superseded_by: l.superseded_by.map(Into::into),
+            batch: match l.batch {
+                BatchRef::CurrentBatch => BatchOwner::CurrentBatch,
+                BatchRef::Existing(s) => BatchOwner::Existing(s.into()),
+            },
+        }
+    }
+    pub fn try_clone(&self) -> Result<Self, String> {
+        Ok(Self {
+            first_known_generation: self.first_known_generation,
+            first_known_cut: self.first_known_cut.try_clone()?,
+            published_generation: self.published_generation,
+            withdrawn_generation: self.withdrawn_generation,
+            withdrawal_reason: self
+                .withdrawal_reason
+                .as_ref()
+                .map(|s| s.try_clone())
+                .transpose()?,
+            superseded_by: self
+                .superseded_by
+                .as_ref()
+                .map(|s| s.try_clone())
+                .transpose()?,
+            batch: match &self.batch {
+                BatchOwner::CurrentBatch => BatchOwner::CurrentBatch,
+                BatchOwner::Existing(s) => BatchOwner::Existing(s.try_clone()?),
+            },
+        })
+    }
+}
+
+impl std::fmt::Debug for BatchOwner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::CurrentBatch => f.write_str("CurrentBatch"),
+            Self::Existing(s) => f.debug_tuple("Existing").field(s).finish(),
+        }
+    }
+}
+impl std::fmt::Debug for LifeOwner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PublicationLife")
+            .field("first_known_generation", &self.first_known_generation)
+            .field("first_known_cut", &self.first_known_cut)
+            .field("published_generation", &self.published_generation)
+            .field("withdrawn_generation", &self.withdrawn_generation)
+            .field("withdrawal_reason", &self.withdrawal_reason)
+            .field("superseded_by", &self.superseded_by)
+            .field("batch", &self.batch)
+            .finish()
     }
 }

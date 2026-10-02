@@ -125,7 +125,13 @@ impl UnitsCache {
     }
 
     /// 取（或按精确内容键算一次）后续 bar 的比较单元。
-    fn unit(&mut self, refs_key: &str, coord: i64, content_key: String, compute: impl FnOnce() -> UnitEntry) -> Rc<UnitEntry> {
+    fn unit(
+        &mut self,
+        refs_key: &str,
+        coord: i64,
+        content_key: String,
+        compute: impl FnOnce() -> UnitEntry,
+    ) -> Rc<UnitEntry> {
         if let Some(versions) = self
             .by_refs
             .get(refs_key)
@@ -934,13 +940,14 @@ fn raw_bar(raw: &Value) -> Value {
     json!({"source_coord":raw["source_coord"],"open":raw["open"],"high":raw["high"],"low":raw["low"],"close":raw["close"]})
 }
 
-pub(super) fn catalog_axes(
+pub(super) fn catalog_axes<'a>(
     objects: &[Value],
-    raw: &[Value],
+    raw: impl Into<crate::v3::business_json::RawEventsView<'a>>,
     previous_frontier: i64,
     withdrawals: &[Value],
     replaces: &[Value],
 ) -> Value {
+    let raw = raw.into();
     let mut axes = serde_json::Map::new();
     let knowledge = objects
         .iter()
@@ -1018,14 +1025,20 @@ pub(super) fn catalog_axes(
             "run"
         };
         if axis == "CC-056" {
-            let revisions: Vec<Value> = raw
+            let revisions = raw
                 .iter()
                 .filter(|r| {
-                    r["seq"].as_i64().unwrap() > previous_frontier
-                        && r["revision"].as_i64().unwrap() > 1
+                    crate::v3::business_json::field(*r, "seq").as_i64().unwrap() > previous_frontier
+                        && crate::v3::business_json::field(*r, "revision")
+                            .as_i64()
+                            .unwrap()
+                            > 1
                 })
-                .map(raw_ref)
-                .collect();
+                .map(|event| {
+                    crate::v3::business_json::RawReference::new(event, false)
+                        .expect("原始账已核整数revision/seq")
+                })
+                .collect::<Vec<_>>();
             run = if revisions.is_empty() && withdrawals.is_empty() && replaces.is_empty() {
                 "not_run"
             } else {
@@ -1102,14 +1115,21 @@ mod units_cache_tests {
             });
         }
         assert_eq!(cache.computed(), 7, "修订坐标 3、4 必须重算");
-        assert_eq!(cache.reused(), 3, "修订起点之前的坐标 0-2 未受影响、直接复用");
+        assert_eq!(
+            cache.reused(),
+            3,
+            "修订起点之前的坐标 0-2 未受影响、直接复用"
+        );
         // 容量不足：只失去复用（可重算），输出内容不变
         let mut tiny = UnitsCache::new(1);
         let a = tiny.unit("refs-a", 1, "k1".into(), || entry("k1"));
         let _b = tiny.unit("refs-a", 1, "k1".into(), || entry("k1"));
         let _c = tiny.unit("refs-a", 2, "k2".into(), || entry("k2"));
         let d = tiny.unit("refs-a", 1, "k1".into(), || entry("k1"));
-        assert_eq!(a.relations, d.relations, "超限清空后重算必须给出逐字段相同的原件");
+        assert_eq!(
+            a.relations, d.relations,
+            "超限清空后重算必须给出逐字段相同的原件"
+        );
         assert!(tiny.evictions() >= 1);
     }
 }
