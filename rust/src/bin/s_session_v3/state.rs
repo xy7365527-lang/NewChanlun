@@ -141,7 +141,12 @@ fn audit_with_capture_impl(
     let capture = if enable_prototype_capture && budget.is_none() && deadline.is_none() {
         Some(match owned_budget {
             Some(b) => sc::AuditCapture::from_slab_for_allocation_prototype(
-                content_store::capture_slab_for_prototype(tx, b, || false).map_err(err)?,
+                content_store::capture_slab_for_prototype(
+                    tx,
+                    b,
+                    &content_store::CaptureCancellation::never(),
+                )
+                .map_err(err)?,
             ),
             None => content_store::capture_for_prototype(tx).map_err(err)?,
         })

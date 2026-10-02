@@ -774,12 +774,46 @@ pub(crate) fn capture_for_prototype(
     Ok(s_content::AuditCapture::new(nodes))
 }
 
+/// #1394：封闭测试取消策略。只能数检查点，不能执行任意回调或持有事务。
+#[cfg(test)]
+pub(crate) struct CaptureCancellation {
+    checks: std::cell::Cell<usize>,
+    cancel_at: Option<usize>,
+}
+#[cfg(test)]
+impl CaptureCancellation {
+    pub(crate) fn never() -> Self {
+        Self {
+            checks: std::cell::Cell::new(0),
+            cancel_at: None,
+        }
+    }
+    fn at_check(check: usize) -> Self {
+        Self {
+            checks: std::cell::Cell::new(0),
+            cancel_at: Some(check),
+        }
+    }
+    fn check(&self) -> Result<(), CodecError> {
+        let checks = self.checks.get().saturating_add(1);
+        self.checks.set(checks);
+        if self.cancel_at.is_some_and(|at| checks >= at) {
+            Err(CodecError::new(
+                "prototype_capture_cancelled",
+                "测试捕获已取消",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
 /// #1394：显式测试额度，局部 capture 两个固定 Layout 的写前门。绝非全 audit 准入。
 #[cfg(test)]
 pub(crate) fn capture_slab_for_prototype(
     tx: &Transaction<'_>,
     budget: &s_content::capture_allocation::OwnedBudget,
-    mut cancelled: impl FnMut() -> bool,
+    cancellation: &CaptureCancellation,
 ) -> Result<s_content::capture_allocation::CaptureSlab, CodecError> {
     use s_content::capture_allocation::CaptureSlab;
     ensure_format(tx)?;
@@ -804,16 +838,6 @@ pub(crate) fn capture_slab_for_prototype(
             .map_err(storage_error)?;
         Ok((digest, tag, body))
     }
-    fn check_cancel(cancelled: &mut impl FnMut() -> bool) -> Result<(), CodecError> {
-        if cancelled() {
-            Err(CodecError::new(
-                "prototype_capture_cancelled",
-                "测试捕获已取消",
-            ))
-        } else {
-            Ok(())
-        }
-    }
     let mut stmt = tx
         .prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
         .map_err(storage_error)?;
@@ -822,7 +846,7 @@ pub(crate) fn capture_slab_for_prototype(
     {
         let mut rows = stmt.query([]).map_err(storage_error)?;
         while let Some(r) = rows.next().map_err(storage_error)? {
-            check_cancel(&mut cancelled)?;
+            cancellation.check()?;
             let (_, _, body) = borrowed_row(r)?;
             count = count
                 .checked_add(1)
@@ -833,17 +857,17 @@ pub(crate) fn capture_slab_for_prototype(
             budget.preflight(CaptureSlab::requested_bytes(count, bodies)?)?;
         }
     }
-    check_cancel(&mut cancelled)?;
+    cancellation.check()?;
     let mut slab = CaptureSlab::new(count, bodies, budget)?;
     {
         let mut rows = stmt.query([]).map_err(storage_error)?;
         while let Some(r) = rows.next().map_err(storage_error)? {
-            check_cancel(&mut cancelled)?;
+            cancellation.check()?;
             let (d, t, body) = borrowed_row(r)?;
             slab.push(d, t, body)?;
         }
     }
-    check_cancel(&mut cancelled)?;
+    cancellation.check()?;
     slab.finish()
 }
 
@@ -889,7 +913,7 @@ mod capture_allocation_tests {
         let mut reports = Vec::new(); // Test report outside measured capture owners.
         for cap in [min - 1, min, min + 1] {
             let budget = OwnedBudget::new(cap);
-            let capture = capture_slab_for_prototype(&tx, &budget, || false);
+            let capture = capture_slab_for_prototype(&tx, &budget, &CaptureCancellation::never());
             if cap < min {
                 assert_eq!(capture.err().unwrap().code(), LIMIT);
                 assert_eq!(budget.snapshot().copied_rows, 0);
@@ -904,7 +928,8 @@ mod capture_allocation_tests {
         }
         for cap in [2 * min - 1, 2 * min, 2 * min + 1] {
             let budget = OwnedBudget::new(cap);
-            let first = capture_slab_for_prototype(&tx, &budget, || false).unwrap();
+            let first =
+                capture_slab_for_prototype(&tx, &budget, &CaptureCancellation::never()).unwrap();
             let clone = first.try_clone();
             if cap < 2 * min {
                 assert_eq!(clone.err().unwrap().code(), LIMIT);
@@ -947,7 +972,7 @@ mod capture_allocation_tests {
         let min = required(&tx);
         for cap in [min - 1, min, min + 1] {
             let budget = OwnedBudget::new(cap);
-            let capture = capture_slab_for_prototype(&tx, &budget, || false);
+            let capture = capture_slab_for_prototype(&tx, &budget, &CaptureCancellation::never());
             if cap < min {
                 assert_eq!(capture.err().unwrap().code(), LIMIT);
                 let m = budget.snapshot();
@@ -980,7 +1005,12 @@ mod capture_allocation_tests {
                 r.get::<_, i64>(0).map(|n| usize::try_from(n).unwrap())
             })
             .unwrap();
-        assert!(capture_slab_for_prototype(&tx, &OwnedBudget::new(count), || false).is_err());
+        assert!(capture_slab_for_prototype(
+            &tx,
+            &OwnedBudget::new(count),
+            &CaptureCancellation::never()
+        )
+        .is_err());
     }
 
     #[test]
@@ -989,7 +1019,8 @@ mod capture_allocation_tests {
         let tx = c.transaction().unwrap();
         let min = required(&tx);
         let budget = OwnedBudget::new(2 * min - 1);
-        let first = capture_slab_for_prototype(&tx, &budget, || false).unwrap();
+        let first =
+            capture_slab_for_prototype(&tx, &budget, &CaptureCancellation::never()).unwrap();
         let before = budget.snapshot();
         assert_eq!(first.try_clone().err().unwrap().code(), LIMIT);
         assert_eq!(
@@ -1001,7 +1032,8 @@ mod capture_allocation_tests {
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
 
         let budget = OwnedBudget::new(2 * min);
-        let first = capture_slab_for_prototype(&tx, &budget, || false).unwrap();
+        let first =
+            capture_slab_for_prototype(&tx, &budget, &CaptureCancellation::never()).unwrap();
         let second = first.try_clone().unwrap();
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 2 * min);
         drop(first);
@@ -1018,18 +1050,29 @@ mod capture_allocation_tests {
                 r.get::<_, i64>(0).map(|n| usize::try_from(n).unwrap())
             })
             .unwrap();
-        let budget = OwnedBudget::new(min);
-        let mut checks = 0;
-        let result = capture_slab_for_prototype(&tx, &budget, || {
-            checks += 1;
-            checks == count + 3 // cancel after allocation and one copied row
-        });
-        assert_eq!(result.err().unwrap().code(), "prototype_capture_cancelled");
-        let m = budget.snapshot();
-        assert_eq!(m.copied_rows, 1);
-        assert_eq!(m.live_requested_layout_bytes, 0);
-        assert_eq!(m.allocated_layouts, m.released_layouts);
-        eprintln!("CANCEL {}", serde_json::to_string(&m).unwrap());
+        // Before either pass, before first copy, after one row, and after all rows.
+        for (at, allocations, copied_rows) in [
+            (1, 0, 0),
+            (count + 1, 0, 0),
+            (count + 2, 2, 0),
+            (count + 3, 2, 1),
+            (2 * count + 2, 2, count as u64),
+        ] {
+            let budget = OwnedBudget::new(min);
+            let cancellation = CaptureCancellation::at_check(at);
+            let result = capture_slab_for_prototype(&tx, &budget, &cancellation);
+            assert_eq!(result.err().unwrap().code(), "prototype_capture_cancelled");
+            let m = budget.snapshot();
+            assert_eq!(cancellation.checks.get(), at);
+            assert_eq!(m.copied_rows, copied_rows);
+            assert_eq!(m.allocated_layouts, allocations);
+            assert_eq!(m.live_requested_layout_bytes, 0);
+            assert_eq!(m.allocated_layouts, m.released_layouts);
+            eprintln!(
+                "CLOSED_CANCEL at={at} {}",
+                serde_json::to_string(&m).unwrap()
+            );
+        }
 
         let budget = OwnedBudget::new(1024);
         let mut slab = CaptureSlab::new(1, 1, &budget).unwrap();
@@ -1047,7 +1090,7 @@ mod capture_allocation_tests {
         tx.execute("UPDATE s_content_nodes SET body=zeroblob(1048576) WHERE digest=(SELECT min(digest) FROM s_content_nodes)", []).unwrap();
         let budget = OwnedBudget::new(4096);
         assert_eq!(
-            capture_slab_for_prototype(&tx, &budget, || false)
+            capture_slab_for_prototype(&tx, &budget, &CaptureCancellation::never())
                 .err()
                 .unwrap()
                 .code(),
@@ -1057,7 +1100,7 @@ mod capture_allocation_tests {
         assert_eq!(budget.snapshot().copied_body_bytes, 0);
         tx.execute("UPDATE s_content_nodes SET body='not-blob' WHERE digest=(SELECT min(digest) FROM s_content_nodes)", []).unwrap();
         assert_eq!(
-            capture_slab_for_prototype(&tx, &budget, || false)
+            capture_slab_for_prototype(&tx, &budget, &CaptureCancellation::never())
                 .err()
                 .unwrap()
                 .code(),
@@ -1075,7 +1118,7 @@ mod capture_allocation_tests {
         let mut c = fixture();
         let tx = c.transaction().unwrap();
         let budget = OwnedBudget::new(required(&tx));
-        let slab = capture_slab_for_prototype(&tx, &budget, || false).unwrap();
+        let slab = capture_slab_for_prototype(&tx, &budget, &CaptureCancellation::never()).unwrap();
         let legacy = capture_for_prototype(&tx).unwrap();
         let mut stmt = tx.prepare("SELECT digest FROM s_content_nodes").unwrap();
         let mut rows = stmt.query([]).unwrap();
@@ -1116,7 +1159,7 @@ mod capture_allocation_tests {
         )
         .unwrap();
         let broken = s_content::AuditCapture::from_slab_for_allocation_prototype(
-            capture_slab_for_prototype(&tx, &budget, || false).unwrap(),
+            capture_slab_for_prototype(&tx, &budget, &CaptureCancellation::never()).unwrap(),
         );
         for _ in 0..2 {
             assert_eq!(
@@ -1130,4 +1173,23 @@ mod capture_allocation_tests {
         drop(broken);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
+}
+
+// #1394 编译负例：闭包在两遍间写同事务的旧调用必须被类型边界拒绝。
+// cargo rustc --release --features s_session --bin s_structure_session -- --test --cfg issue1394_capture_callback_refusal
+#[cfg(all(test, issue1394_capture_callback_refusal))]
+fn capture_callback_must_not_compile(
+    tx: &Transaction<'_>,
+    budget: &s_content::capture_allocation::OwnedBudget,
+    n: usize,
+) {
+    let mut calls = 0;
+    let _ = capture_slab_for_prototype(tx, budget, || {
+        calls += 1;
+        if calls == n + 1 {
+            tx.execute("UPDATE s_content_nodes SET body=zeroblob(length(body))", [])
+                .unwrap();
+        }
+        false
+    });
 }
