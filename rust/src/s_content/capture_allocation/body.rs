@@ -1,4 +1,4 @@
-//! #1394 封闭 captured verifier 键读取的真实 requested Layout owner。
+//! #1394 封闭 captured verifier 全部节点读取的真实 requested Layout owner。
 //! 仅 bytes 的实际分配计费；没有 Vec/clone/into_vec 所有权逃逸。
 use super::*;
 

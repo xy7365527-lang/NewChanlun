@@ -1420,13 +1420,13 @@ struct FieldAgg {
     last: Option<NodeDigest>,
 }
 
-// #1394 仅 captured verifier 的键比较路径使用；普通源仍保留原 Vec 行为。
-// 不提供 into_vec 或 Clone，OwnedLayout 持有到最终比较消费或错误退出。
-enum KeyBody {
+// #1394 captured verifier 的全部节点body使用；普通源仍保留原 Vec 行为。
+// 不提供 into_vec 或 Clone，OwnedLayout 持有到最终消费或错误退出。
+enum VerifierBody {
     Plain(Vec<u8>),
     Metered(capture_allocation::body::MeteredBody),
 }
-impl KeyBody {
+impl VerifierBody {
     fn empty() -> Self {
         Self::Plain(Vec::new())
     }
@@ -1437,7 +1437,7 @@ impl KeyBody {
         }
     }
 }
-impl std::ops::Deref for KeyBody {
+impl std::ops::Deref for VerifierBody {
     type Target = [u8];
     fn deref(&self) -> &[u8] {
         match self {
@@ -1446,18 +1446,33 @@ impl std::ops::Deref for KeyBody {
         }
     }
 }
-fn read_key_checked(
+// #1394 只在靶向测试启用的实际捕获读取/F顺序仪表，默认无Vec且不影响准入。
+#[cfg(test)]
+thread_local! {
+    static CAPTURE_BODY_READ_TRACE: std::cell::RefCell<Option<(u64,Vec<(NodeDigest,u64)>)>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(test)]
+fn trace_capture_body_read(d: &NodeDigest) {
+    CAPTURE_BODY_READ_TRACE.with(|trace| {
+        if let Some((start, rows)) = trace.borrow_mut().as_mut() {
+            rows.push((*d, frame_calls_on_thread() - *start));
+        }
+    });
+}
+fn read_body_checked(
     source: &mut dyn NodeSource,
     capture: Option<&AuditCapture>,
     d: &NodeDigest,
-) -> Result<(u8, KeyBody), CodecError> {
+) -> Result<(u8, VerifierBody), CodecError> {
     // 具体 CaptureReader 私有构造器是唯一入口；动态 NodeSource 无法提供或覆盖 capture。
     let Some(capture) = capture else {
-        return read_checked(source, d).map(|(t, b)| (t, KeyBody::Plain(b)));
+        return read_checked(source, d).map(|(t, b)| (t, VerifierBody::Plain(b)));
     };
     let CaptureNodes::AllocationPrototype(slab) = &capture.nodes else {
         unreachable!()
     };
+    #[cfg(test)]
+    trace_capture_body_read(d);
     capture.reads.set(capture.reads.get() + 1);
     let (t, bytes) = capture.original(d).ok_or_else(|| {
         CodecError::new(code::NODE_MISSING, format!("节点缺失：{}", root_string(d)))
@@ -1475,7 +1490,7 @@ fn read_key_checked(
             ),
         ));
     }
-    Ok((t, KeyBody::Metered(body)))
+    Ok((t, VerifierBody::Metered(body)))
 }
 
 // ── 惰性叶迭代（渲染与键比较用；不预收集整棵序列） ──────────────────────────
@@ -1498,12 +1513,12 @@ impl LeafIter {
     ) -> Result<Option<(u8, NodeDigest, Vec<u8>)>, CodecError> {
         self.next_with(|d| read_checked(source, d))
     }
-    fn next_key(
+    fn next_body(
         &mut self,
         source: &mut dyn NodeSource,
         capture: Option<&AuditCapture>,
-    ) -> Result<Option<(u8, NodeDigest, KeyBody)>, CodecError> {
-        self.next_with(|d| read_key_checked(source, capture, d))
+    ) -> Result<Option<(u8, NodeDigest, VerifierBody)>, CodecError> {
+        self.next_with(|d| read_body_checked(source, capture, d))
     }
     fn next_with<B: std::ops::Deref<Target = [u8]>>(
         &mut self,
@@ -1669,6 +1684,8 @@ impl AuditCapture {
 struct CaptureReader<'a>(&'a AuditCapture);
 impl NodeSource for CaptureReader<'_> {
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, CodecError> {
+        #[cfg(test)]
+        trace_capture_body_read(d);
         self.0.reads.set(self.0.reads.get() + 1);
         Ok(match self.0.original(d) {
             Some((t, b)) => NodeRead::Found {
@@ -1681,7 +1698,7 @@ impl NodeSource for CaptureReader<'_> {
 }
 
 struct Verifier<'a> {
-    closed_key_capture: Option<&'a AuditCapture>,
+    closed_body_capture: Option<&'a AuditCapture>,
     source: &'a mut dyn NodeSource,
     mode: Mode,
     /// 已核过的 (摘要, 上下文)。
@@ -1703,14 +1720,14 @@ impl<'a> Verifier<'a> {
         let capture = source.0;
         let mut verifier = Self::with_memo(source, mode, memo);
         if matches!(capture.nodes, CaptureNodes::AllocationPrototype(_)) {
-            verifier.closed_key_capture = Some(capture);
+            verifier.closed_body_capture = Some(capture);
         }
         verifier
     }
 
     fn with_memo(source: &'a mut dyn NodeSource, mode: Mode, memo: AuditMemo) -> Self {
         Self {
-            closed_key_capture: None,
+            closed_body_capture: None,
             source,
             mode,
             seen: memo.seen,
@@ -1738,7 +1755,7 @@ impl<'a> Verifier<'a> {
 
     fn new(source: &'a mut dyn NodeSource, mode: Mode) -> Self {
         Self {
-            closed_key_capture: None,
+            closed_body_capture: None,
             source,
             mode,
             seen: HashSet::new(),
@@ -1753,8 +1770,8 @@ impl<'a> Verifier<'a> {
     }
 
     /// 读节点 + 核摘要 + 记唯一节点。
-    fn read_node(&mut self, digest: &NodeDigest) -> Result<(u8, Vec<u8>), CodecError> {
-        let got = read_checked(self.source, digest)?;
+    fn read_node(&mut self, digest: &NodeDigest) -> Result<(u8, VerifierBody), CodecError> {
+        let got = read_body_checked(self.source, self.closed_body_capture, digest)?;
         self.read_digests.insert(*digest);
         Ok(got)
     }
@@ -2244,15 +2261,15 @@ impl<'a> Verifier<'a> {
         let root_b = self.string_bytes_root(b)?;
         let mut iter_a = LeafIter::new(root_a);
         let mut iter_b = LeafIter::new(root_b);
-        let mut buf_a = KeyBody::empty();
-        let mut buf_b = KeyBody::empty();
+        let mut buf_a = VerifierBody::empty();
+        let mut buf_b = VerifierBody::empty();
         let mut pos_a = 0usize;
         let mut pos_b = 0usize;
         let mut dig_a: Option<NodeDigest> = None;
         let mut dig_b: Option<NodeDigest> = None;
         loop {
             if pos_a == buf_a.len() {
-                match iter_a.next_key(self.source, self.closed_key_capture)? {
+                match iter_a.next_body(self.source, self.closed_body_capture)? {
                     Some((t, d, body)) => {
                         if t != tag::BYTES_CHUNK {
                             return Err(byte_chunk_shape_error(format!(
@@ -2270,7 +2287,7 @@ impl<'a> Verifier<'a> {
                 }
             }
             if pos_b == buf_b.len() {
-                match iter_b.next_key(self.source, self.closed_key_capture)? {
+                match iter_b.next_body(self.source, self.closed_body_capture)? {
                     Some((t, d, body)) => {
                         if t != tag::BYTES_CHUNK {
                             return Err(byte_chunk_shape_error(format!(
@@ -3533,10 +3550,10 @@ mod metered_key_body_tests {
         assert_eq!(after.live_requested_layout_bytes, base);
         assert!(after.peak_requested_layout_bytes >= base + 4096);
         assert_eq!(after.rejected_layouts, before.rejected_layouts + 1);
-        // 两序列的32B与首块4096B实际分配；第二块的4096B在 alloc 前拒绝。
-        assert_eq!(after.allocated_layouts, before.allocated_layouts + 3);
-        assert_eq!(after.allocation_attempts, before.allocation_attempts + 3);
-        assert_eq!(after.released_layouts, before.released_layouts + 3);
+        // 两STRING头40B、两序列32B与首块4096B实际分配；第二块在alloc前拒绝。
+        assert_eq!(after.allocated_layouts, before.allocated_layouts + 5);
+        assert_eq!(after.allocation_attempts, before.allocation_attempts + 5);
+        assert_eq!(after.released_layouts, before.released_layouts + 5);
         assert_eq!(after.peak_requested_layout_bytes, base + 4096 + 32);
         println!(
             "METERED_KEY_RECEIPT {}",
@@ -3595,8 +3612,8 @@ mod metered_key_body_tests {
         assert_eq!(frame_calls_on_thread() - before_f, legacy_f);
         let after = budget.snapshot();
         assert_eq!(after.peak_requested_layout_bytes, base + 8192 + 32);
-        assert_eq!(after.allocated_layouts, before.allocated_layouts + 4);
-        assert_eq!(after.released_layouts, before.released_layouts + 4);
+        assert_eq!(after.allocated_layouts, before.allocated_layouts + 6);
+        assert_eq!(after.released_layouts, before.released_layouts + 6);
         assert_eq!(after.live_requested_layout_bytes, base);
         assert_eq!(after.rejected_layouts, 0);
         println!(
@@ -3616,12 +3633,12 @@ mod metered_key_body_tests {
         )
         .unwrap();
         let reference = ContentRef::new(object.kind, &object.digest, object.extent);
-        let (capture, budget, base) = slab_capture(nodes, 8192 + 32);
+        let (capture, budget, base) = slab_capture(nodes, 8192 + 128);
         capture.verify(&reference, Mode::Public).unwrap();
         assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
         assert_eq!(
             budget.snapshot().peak_requested_layout_bytes,
-            base + 8192 + 32
+            base + 8192 + 32 + 80
         );
         drop(capture);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
@@ -3744,7 +3761,7 @@ mod metered_key_body_tests {
                 reject,
             };
             let mut verifier = Verifier::new(&mut dynamic, Mode::Public);
-            assert!(verifier.closed_key_capture.is_none());
+            assert!(verifier.closed_body_capture.is_none());
             let error = verifier
                 .compare_key_streams(&a.digest, &b.digest)
                 .unwrap_err();
@@ -3756,5 +3773,296 @@ mod metered_key_body_tests {
         }
         drop(capture);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[cfg(test)]
+mod metered_verifier_body_tests {
+    use super::*;
+    fn captured_string(
+        text: &str,
+        extra: usize,
+    ) -> (
+        AuditCapture,
+        capture_allocation::OwnedBudget,
+        usize,
+        ContentRef,
+        NodeDigest,
+    ) {
+        let mut nodes = MemoryNodes::new();
+        let built = write_value(&mut nodes, &Value::string(text)).unwrap();
+        let seq = digest_at(nodes.get(&built.digest).unwrap().1, 8);
+        let reference = ContentRef::new(built.kind, &built.digest, built.extent);
+        let count = nodes.nodes.len();
+        let bytes = nodes.nodes.values().map(|(_, b)| b.len()).sum();
+        let base = capture_allocation::CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let budget = capture_allocation::OwnedBudget::new(base + extra);
+        let mut slab = capture_allocation::CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, (t, b)) in nodes.nodes {
+            slab.push(d, t, &b).unwrap();
+        }
+        (
+            AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap()),
+            budget,
+            base,
+            reference,
+            seq,
+        )
+    }
+    #[test]
+    fn metered_verifier_string_header_before_allocate() {
+        let (capture, budget, base, reference, _) = captured_string("a", 39);
+        let before = budget.snapshot();
+        let f = frame_calls_on_thread();
+        let result = capture.verify(&reference, Mode::Public);
+        assert!(
+            result.is_err(),
+            "真实STRING 40B header必须在alloc前拒绝，实得 {result:?}"
+        );
+        assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
+        let after = budget.snapshot();
+        assert_eq!(after.allocated_layouts, before.allocated_layouts);
+        assert_eq!(after.allocation_attempts, before.allocation_attempts);
+        assert_eq!(frame_calls_on_thread(), f);
+        assert_eq!(after.live_requested_layout_bytes, base);
+        println!(
+            "VERIFIER_HEADER_RECEIPT {}",
+            serde_json::to_string(&after).unwrap()
+        );
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn metered_verifier_byte_agg_leaf_before_allocate() {
+        let (capture, budget, base, _, seq) = captured_string(&"a".repeat(4096), 4096 + 31);
+        let before = budget.snapshot();
+        let f = frame_calls_on_thread();
+        let mut reader = CaptureReader(&capture);
+        let mut verifier =
+            Verifier::with_memo_capture(&mut reader, Mode::Public, AuditMemo::default());
+        let result = verifier.byte_agg(&seq);
+        assert!(
+            result.is_err(),
+            "真实byte_agg首个4096B叶必须与32B序列owner共享额度并拒绝"
+        );
+        assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
+        let after = budget.snapshot();
+        assert_eq!(after.allocated_layouts, before.allocated_layouts + 1);
+        assert_eq!(after.allocation_attempts, before.allocation_attempts + 1);
+        assert_eq!(frame_calls_on_thread() - f, 1);
+        assert_eq!(after.peak_requested_layout_bytes, base + 32);
+        assert_eq!(after.live_requested_layout_bytes, base);
+        println!(
+            "VERIFIER_BYTE_AGG_RECEIPT {}",
+            serde_json::to_string(&after).unwrap()
+        );
+        drop(verifier);
+        drop(reader);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    fn from_nodes(
+        nodes: MemoryNodes,
+        extra: usize,
+    ) -> (AuditCapture, capture_allocation::OwnedBudget, usize) {
+        let count = nodes.nodes.len();
+        let bytes = nodes.nodes.values().map(|(_, b)| b.len()).sum();
+        let base = capture_allocation::CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let budget = capture_allocation::OwnedBudget::new(base + extra);
+        let mut slab = capture_allocation::CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, (t, b)) in nodes.nodes {
+            slab.push(d, t, &b).unwrap();
+        }
+        (
+            AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap()),
+            budget,
+            base,
+        )
+    }
+    fn traced_verify(
+        capture: &AuditCapture,
+        reference: &ContentRef,
+        mode: Mode,
+    ) -> (Result<(), CodecError>, Vec<(NodeDigest, u64)>, u64) {
+        let f = frame_calls_on_thread();
+        CAPTURE_BODY_READ_TRACE.with(|t| {
+            assert!(t.borrow().is_none());
+            *t.borrow_mut() = Some((f, Vec::new()));
+        });
+        let result = capture.verify(reference, mode);
+        let trace = CAPTURE_BODY_READ_TRACE.with(|t| t.borrow_mut().take().unwrap().1);
+        (result, trace, frame_calls_on_thread() - f)
+    }
+    #[test]
+    fn metered_verifier_all_shapes_context_errors_and_read_f_order_match_plain() {
+        let values = vec![
+            Value::Array(vec![
+                Value::Null,
+                Value::Bool(true),
+                Value::Bool(false),
+                Value::Number(NumberToken::parse("-1.25e+8").unwrap()),
+                Value::string("汉".repeat(3000)),
+                Value::Object(vec![
+                    ("z".into(), Value::Null),
+                    ("a".into(), Value::Bool(true)),
+                ]),
+            ]),
+            Value::JsonText(Box::new(JsonValue::Object(vec![
+                (
+                    "n".into(),
+                    JsonValue::Number(NumberToken::parse("1.20").unwrap()),
+                ),
+                ("s".into(), JsonValue::String("汉x".repeat(1200))),
+            ]))),
+            Value::Array(vec![Value::BatchSelf, Value::string("ok")]),
+            Value::Object(vec![
+                ("a".repeat(8192) + "x", Value::Null),
+                ("a".repeat(8192) + "y", Value::Null),
+            ]),
+        ];
+        for (case, value) in values.into_iter().enumerate() {
+            for mode in [Mode::Public, Mode::Template] {
+                let mut nodes = MemoryNodes::new();
+                let built = write_template(&mut nodes, &value).unwrap();
+                let legacy = AuditCapture::new(nodes.clone());
+                let (owned, budget, base) = from_nodes(nodes, 32768);
+                let plain = traced_verify(&legacy, &built.content_ref(), mode);
+                let bounded = traced_verify(&owned, &built.content_ref(), mode);
+                assert_eq!(bounded, plain, "case {case}, {mode:?}");
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+                assert_eq!(owned.reads.get(), legacy.reads.get());
+                if case == 3 {
+                    // 两旧4096B buf与下一4096B真实并存，另有32B序列及两40B根头。
+                    assert_eq!(
+                        budget.snapshot().peak_requested_layout_bytes,
+                        base + 3 * 4096 + 32 + 80
+                    );
+                }
+                println!(
+                    "VERIFIER_ALL_SHAPES_RECEIPT {}",
+                    serde_json::json!({"case":case,"mode":format!("{mode:?}"),"base":base,"result":format!("{:?}",bounded.0),"reads":bounded.1.len(),"f_calls":bounded.2,"meter":budget.snapshot()})
+                );
+                drop(owned);
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            }
+        }
+        // 正确F但非法数字内容、非法UTF8、未知tag、坏原件、Missing、根kind/extent错误。
+        for case in 0..7 {
+            let mut nodes = MemoryNodes::new();
+            let (tag, bytes) = match case {
+                0 => (tag::NUMBER, b"not-a-number".to_vec()),
+                1 => (tag::STRING, vec![0xff]),
+                _ => (tag::STRING, b"abc".to_vec()),
+            };
+            let leaf = frame(tag::BYTES_CHUNK, &bytes);
+            nodes.insert_unchecked(leaf, tag::BYTES_CHUNK, bytes.clone());
+            let seq = frame(tag::SEQ_LEAF, &leaf);
+            nodes.insert_unchecked(seq, tag::SEQ_LEAF, leaf.to_vec());
+            let mut header = (bytes.len() as u64).to_be_bytes().to_vec();
+            header.extend_from_slice(&seq);
+            let root = frame(tag, &header);
+            nodes.insert_unchecked(root, tag, header);
+            if case == 2 {
+                nodes.insert_unchecked(leaf, tag::BYTES_CHUNK, b"wrong".to_vec());
+            }
+            if case == 3 {
+                nodes.nodes.remove(&leaf);
+            }
+            let mut reference = ContentRef::new(
+                Kind::from_tag(tag).unwrap(),
+                &root,
+                Some(bytes.len() as u64),
+            );
+            if case == 4 {
+                reference.kind = Kind::Array;
+            }
+            if case == 5 {
+                reference.extent = Some(99);
+            }
+            if case == 6 {
+                let d = frame(0xee, &[]);
+                nodes.insert_unchecked(d, 0xee, vec![]);
+                reference.root = root_string(&d);
+            }
+            let legacy = AuditCapture::new(nodes.clone());
+            let (owned, budget, base) = from_nodes(nodes, 8192);
+            let plain = traced_verify(&legacy, &reference, Mode::Public);
+            let bounded = traced_verify(&owned, &reference, Mode::Public);
+            assert!(plain.0.is_err());
+            assert_eq!(bounded, plain, "invalid case {case}");
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            assert!(owned.public.borrow().seen.is_empty());
+            assert!(owned.public.borrow().pushed.is_empty());
+            assert!(owned.public.borrow().bytes_memo.is_empty());
+            drop(owned);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn metered_verifier_failed_run_does_not_poison_next_root_or_context() {
+        let mut nodes = MemoryNodes::new();
+        let good = write_value(&mut nodes, &Value::string("good")).unwrap();
+        let bad = write_value(&mut nodes, &Value::string("bad")).unwrap();
+        let bad_leaf = frame(tag::BYTES_CHUNK, b"bad");
+        nodes.insert_unchecked(bad_leaf, tag::BYTES_CHUNK, b"corrupt".to_vec());
+        let array = write_value(
+            &mut nodes,
+            &Value::Array(vec![Value::Edge(bad.digest), Value::Edge(good.digest)]),
+        )
+        .unwrap();
+        let template = write_template(
+            &mut nodes,
+            &Value::Array(vec![Value::BatchSelf, Value::Edge(good.digest)]),
+        )
+        .unwrap();
+        let legacy = AuditCapture::new(nodes.clone());
+        let (owned, budget, base) = from_nodes(nodes, 8192);
+        for (reference, mode) in [
+            (array.content_ref(), Mode::Public),
+            (good.content_ref(), Mode::Public),
+            (array.content_ref(), Mode::Public),
+            (template.content_ref(), Mode::Template),
+            (template.content_ref(), Mode::Public),
+            (good.content_ref(), Mode::Public),
+        ] {
+            assert_eq!(
+                traced_verify(&owned, &reference, mode),
+                traced_verify(&legacy, &reference, mode)
+            );
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        }
+        drop(owned);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[test]
+    fn metered_verifier_nested_root_headers_and_sequence_owners_are_live_together() {
+        for extra in [4207, 4208] {
+            let (capture, budget, base, reference, _) = captured_string(&"a".repeat(4096), extra);
+            let before = budget.snapshot();
+            let f = frame_calls_on_thread();
+            let result = capture.verify(&reference, Mode::Public);
+            let after = budget.snapshot();
+            if extra == 4207 {
+                assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
+                assert_eq!(after.allocated_layouts, before.allocated_layouts + 3);
+                assert_eq!(after.allocation_attempts, before.allocation_attempts + 3);
+                assert_eq!(after.peak_requested_layout_bytes, base + 112);
+                assert_eq!(frame_calls_on_thread() - f, 3);
+                assert!(capture.public.borrow().seen.is_empty());
+            } else {
+                result.unwrap();
+                assert_eq!(after.allocated_layouts, before.allocated_layouts + 4);
+                assert_eq!(after.peak_requested_layout_bytes, base + 4208);
+                assert_eq!(frame_calls_on_thread() - f, 4);
+            }
+            assert_eq!(after.live_requested_layout_bytes, base);
+            println!(
+                "VERIFIER_NESTED_OWNER_RECEIPT {}",
+                serde_json::json!({"base":base,"extra":extra,"meter":after})
+            );
+            drop(capture);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
     }
 }
