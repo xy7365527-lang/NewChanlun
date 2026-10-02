@@ -41,6 +41,7 @@ mod commit;
 mod generation;
 mod control_audit;
 mod history;
+pub(crate) mod audit_store;
 mod catalog_evidence;
 mod prepared;
 mod state;

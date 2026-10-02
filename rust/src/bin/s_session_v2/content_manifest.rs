@@ -120,17 +120,28 @@ pub(super) fn assemble_unpublished(
     metadata: &ManifestMetadata,
     roots: &ManifestRoots,
 ) -> Result<UnpublishedManifest, CodecError> {
+    assemble_unpublished_in_store(
+        &mut crate::v3::audit_store::StoreView::generic(store),
+        metadata,
+        roots,
+    )
+}
+pub(crate) fn assemble_unpublished_in_store(
+    store: &mut crate::v3::audit_store::StoreView<'_, '_>,
+    metadata: &ManifestMetadata,
+    roots: &ManifestRoots,
+) -> Result<UnpublishedManifest, CodecError> {
     check_metadata(metadata)?;
     // 同一次读集核完整闭包；路径算子只核触碰边界，不能替代这里的全闭包校验。
-    s_content::audit_verify_public(store, &metadata.scope)?;
+    store.verify_public(&metadata.scope)?;
     require_kind(&metadata.scope, Kind::Object, "scope")?;
-    s_content::audit_verify_public(store, &roots.generated_state)?;
-    s_content::audit_verify_template_many(
-        store,
+    store.verify_public(&roots.generated_state)?;
+    store.verify_many(
         [
             roots.publication_template.clone(),
             roots.delta_template.clone(),
         ],
+        s_content::Mode::Template,
     )?;
     let generated_fields = exact_object(store, &roots.generated_state, GENERATED_FIELDS, true)?;
     let publication_fields =

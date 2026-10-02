@@ -107,17 +107,31 @@ fn audit_with_budget(
     max_render_bytes: Option<u64>,
     budget: Option<&dyn audit_budget::Budget>,
 ) -> Result<AuditedState, String> {
-    audit_with_capture(tx, deadline, max_render_bytes, budget, None)
+    audit_with_capture(tx, deadline, max_render_bytes, budget, false).map(|(state, _)| state)
 }
 fn audit_with_capture(
     tx: &Transaction<'_>,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
     budget: Option<&dyn audit_budget::Budget>,
-    capture: Option<&sc::AuditCapture>,
-) -> Result<AuditedState, String> {
-    // None/None以外完整原路，不能让捕获改变计费或期限轨迹。
-    let capture = capture.filter(|_| budget.is_none() && deadline.is_none());
+    enable_prototype_capture: bool,
+) -> Result<(AuditedState, Option<Value>), String> {
+    // 外部不能带入旧捕获；只有本次fresh audit在None/None内可新建自有读集。
+    #[cfg(test)]
+    let capture_started = std::time::Instant::now();
+    #[cfg(test)]
+    let capture = if enable_prototype_capture && budget.is_none() && deadline.is_none() {
+        Some(content_store::capture_for_prototype(tx).map_err(err)?)
+    } else {
+        None
+    };
+    #[cfg(not(test))]
+    let capture: Option<sc::AuditCapture> = {
+        let _ = enable_prototype_capture;
+        None
+    };
+    #[cfg(test)]
+    let capture_ns = capture_started.elapsed().as_nanos();
     #[cfg(test)]
     trace_event("control", None);
     history::check_deadline(deadline)?;
@@ -144,7 +158,7 @@ fn audit_with_capture(
         deadline,
         max_render_bytes,
         budget,
-        capture,
+        capture.as_ref(),
     )?;
     #[cfg(test)]
     trace_event("catalog_metadata", None);
@@ -163,12 +177,10 @@ fn audit_with_capture(
     if budget.is_none() {
         reader.enable_audit_same_material();
     }
-    let mut captured_reader = capture.map(sc::AuditCapture::reader);
-    let source: &mut dyn sc::NodeSource = match captured_reader.as_mut() {
-        Some(s) => s,
-        None => &mut reader,
+    let mut store = match capture.as_ref() {
+        Some(c) => history::HashReader::captured(c, max_render_bytes),
+        None => history::HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
     };
-    let mut store = history::HashReader::metered(source, deadline, max_render_bytes, budget);
     // 7a. 当前代对象索引已在同次history中完整加载并绑定原件；继续用它核逐代变化。
     let mut previous = -1i64;
     for cut in &cuts {
@@ -177,7 +189,7 @@ fn audit_with_capture(
         history::check_deadline(deadline)?;
         let prefix = &raw[..=cut.metadata.input_frontier as usize];
         // 5'. 真实源与生成对象配方逐代对拍；本层不重跑分类。
-        let counts = source_audit::audit_generated_metered(
+        let counts = source_audit::audit_generated_for_audit(
             &mut store,
             &cut.roots.generated_state,
             prefix,
@@ -199,7 +211,7 @@ fn audit_with_capture(
         #[cfg(test)]
         trace_event("catalog_cut", Some(cut.metadata.generation));
         // 6'. Delta 目录证据与 CC-056 变化集合必须与本代真实来源、replaces 一致。
-        catalog_evidence::verify_cut_metered(
+        catalog_evidence::verify_cut_for_audit(
             &mut store,
             &cut.metadata,
             &cut.roots.generated_state,
@@ -219,18 +231,29 @@ fn audit_with_capture(
         trace_event("catalog_current", None);
         // 6''. 当前 13 轴 catalog 行必须与本代最终生成态同根。
         let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")?;
-        catalog_evidence::verify_current(tx, &mut store, &axes)?;
+        catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
     }
     // 7b. 辅助索引也来自同次history的完整加载，既不跨事务也不减少业务来源核验。
     history::check_deadline(deadline)?;
     #[cfg(test)]
     trace_event("complete", None);
-    Ok(AuditedState {
-        raw,
-        cuts,
-        objects,
-        auxiliary,
-    })
+    let capacity = capture.as_ref().map(|c| {
+        let mut value = c.retention();
+        #[cfg(test)]
+        {
+            value["capture_ns"] = json!(capture_ns.to_string());
+        }
+        value
+    });
+    Ok((
+        AuditedState {
+            raw,
+            cuts,
+            objects,
+            auxiliary,
+        },
+        capacity,
+    ))
 }
 
 // #1394：仅ignored成本诊断开启的当前线程阶段记录，不进入生产代码或资源判据。
@@ -783,24 +806,11 @@ mod scoped_prototype_probe {
         let sql = content_store::sql_reads_on_thread();
         let f = sc::frame_calls_on_thread();
         let started = std::time::Instant::now();
-        let capture = if std::env::var_os("AUDIT_PROTOTYPE_CAPTURE").is_some() {
-            Some({
-                let c = content_store::capture_for_prototype(&tx).unwrap();
-                if std::env::var_os("AUDIT_PROTOTYPE_NO_REUSE").is_some() {
-                    c.without_reuse()
-                } else {
-                    c
-                }
-            })
-        } else {
-            None
-        };
-        let capture_ns = started.elapsed().as_nanos();
-        let (result, events, work) = traced(true, || {
-            audit_with_capture(&tx, None, None, None, capture.as_ref())
-        });
+        let enabled = std::env::var_os("AUDIT_PROTOTYPE_CAPTURE").is_some();
+        let (result, events, work) =
+            traced(true, || audit_with_capture(&tx, None, None, None, enabled));
         let elapsed = started.elapsed().as_nanos();
-        let s = result.unwrap();
+        let (s, capture) = result.unwrap();
         let cuts = s
             .cuts
             .iter()
@@ -812,7 +822,7 @@ mod scoped_prototype_probe {
             })
             .collect::<Vec<_>>();
         let complete = json!({"raw":s.raw,"cuts":cuts,"objects":format!("{:?}",s.objects),"auxiliary":format!("{:?}",s.auxiliary),"clock":v2::stored_clock(&tx).unwrap().value});
-        let report = json!({"elapsed_ns":elapsed.to_string(),"capture_ns":capture_ns.to_string(),"capture":capture.as_ref().map(sc::AuditCapture::retention),"sql_node_reads":content_store::sql_reads_on_thread()-sql,"f_calls":sc::frame_calls_on_thread()-f,"work":work,"events":events,"complete":complete,"complete_sha256":sha256_hex(canonical_json(&complete).as_bytes())});
+        let report = json!({"elapsed_ns":elapsed.to_string(),"capture_ns":capture.as_ref().and_then(|v|v.get("capture_ns")).cloned(),"capture":capture,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"f_calls":sc::frame_calls_on_thread()-f,"work":work,"events":events,"complete":complete,"complete_sha256":sha256_hex(canonical_json(&complete).as_bytes())});
         std::fs::write(
             std::env::var("AUDIT_PROTOTYPE_REPORT").unwrap(),
             canonical_json(&report),
@@ -904,7 +914,6 @@ mod audit_capture_gate_tests {
         let (e, t) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
         f.publish(&e, &t).unwrap();
         let tx = f.conn.transaction().unwrap();
-        let captured = content_store::capture_for_prototype(&tx).unwrap();
         for (metered, stop, expired) in [
             (true, None, false),
             (true, Some(333), false),
@@ -921,7 +930,7 @@ mod audit_capture_gate_tests {
                 )
             };
             let mut baseline = None;
-            for cap in [None, Some(&captured)] {
+            for enabled in [false, true] {
                 let m = Meter::new(stop);
                 let sql = content_store::sql_reads_on_thread();
                 let frames = sc::frame_calls_on_thread();
@@ -930,9 +939,15 @@ mod audit_capture_gate_tests {
                     deadline,
                     None,
                     if metered { Some(&m) } else { None },
-                    cap,
+                    enabled,
                 );
-                let output = result.as_ref().map(fingerprint).map_err(Clone::clone);
+                if let Ok((_, capacity)) = &result {
+                    assert!(capacity.is_none(), "Some/期限不创建捕获");
+                }
+                let output = result
+                    .as_ref()
+                    .map(|(state, _)| fingerprint(state))
+                    .map_err(Clone::clone);
                 let observed = (
                     output,
                     content_store::sql_reads_on_thread() - sql,
@@ -954,6 +969,5 @@ mod audit_capture_gate_tests {
             }
             println!("CAPTURE_GATE metered={metered} stop={stop:?} expired={expired} sql={} f={} records={} checks={} trace={}",observation.1,observation.2,observation.4,observation.5,observation.3);
         }
-        assert_eq!(captured.retention()["capture_reads"], json!(0));
     }
 }

@@ -145,25 +145,18 @@ fn read_indexed_history_inner(
     if audit_same_material {
         reader.enable_audit_same_material();
     }
-    let mut captured_reader = capture.map(sc::AuditCapture::reader);
-    let source: &mut dyn NodeSource = match captured_reader.as_mut() {
-        Some(s) => s,
-        None => &mut reader,
+    let capture = capture.filter(|_| budget.is_none() && deadline.is_none());
+    let mut store = match capture {
+        Some(c) => HashReader::captured(c, max_render_bytes),
+        None => HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
     };
-    let mut store = HashReader {
-        source,
-        overlay: BTreeMap::new(),
-        deadline,
-        max_render_bytes,
-        budget,
-        audit_full_arrays: audit_same_material && budget.is_none(),
-    };
+    store.audit_full_arrays = audit_same_material && budget.is_none();
     #[cfg(test)]
     super::state::trace_event("history_aux_index", None);
     let auxiliary = aux_index::load(tx, &mut store, meta_i64(tx, "generation")?)?;
     #[cfg(test)]
     super::state::trace_event("history_object_index", None);
-    let objects = object_index::load(tx, &mut store, meta_i64(tx, "generation")?)?;
+    let objects = object_index::load_for_audit(tx, &mut store, meta_i64(tx, "generation")?)?;
     #[cfg(test)]
     super::state::trace_event("history_raw_hashes", None);
     store.overlay.clear();
@@ -193,7 +186,9 @@ fn read_indexed_history_inner(
         }
         roots
     };
-    sc::audit_verify_public_many(&mut store, public_roots).map_err(err)?;
+    store
+        .verify_many(public_roots, sc::Mode::Public)
+        .map_err(err)?;
     // manifest原件共享子图只在这一事务/模板上下文中去重；各代重建/来源校验仍执行。
     let template_roots = {
         let mut stmt = tx.prepare("SELECT p.manifest_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
@@ -205,7 +200,9 @@ fn read_indexed_history_inner(
         }
         roots
     };
-    sc::audit_verify_template_many(&mut store, template_roots).map_err(err)?;
+    store
+        .verify_many(template_roots, sc::Mode::Template)
+        .map_err(err)?;
     let mut effective = BTreeMap::<i64, NodeDigest>::new();
     let mut previous = -1i64;
     let mut output = Vec::new();
@@ -227,8 +224,12 @@ fn read_indexed_history_inner(
         #[cfg(test)]
         super::state::trace_event("history_assemble_manifest", Some(generation));
         // 重用唯一 manifest 构造/跨根判据；写口仅计算摘要，不写 SQLite。
-        let rebuilt =
-            content_manifest::assemble_unpublished(&mut store, &m, &roots).map_err(err)?;
+        let rebuilt = content_manifest::assemble_unpublished_in_store(
+            &mut super::audit_store::StoreView::for_audit(&mut store),
+            &m,
+            &roots,
+        )
+        .map_err(err)?;
         if rebuilt.value.content_ref() != manifest
             || rebuilt.batch_id != batch_id
             || m.generation != generation
@@ -493,7 +494,9 @@ fn read_indexed_history_inner(
         store.overlay.clear();
     }
     // Pending派生根在返回任何历史之前全部通过同一Public判据；非法嵌套占位仍拒绝。
-    sc::audit_verify_public_many(&mut store, resolved_roots).map_err(err)?;
+    store
+        .verify_many(resolved_roots, sc::Mode::Public)
+        .map_err(err)?;
     control.finish()?;
     if meta_i64(tx, "last_advance_frontier")? != previous {
         return Err(err("根前沿与完整发布史不符"));
@@ -752,8 +755,36 @@ fn hash_array_metered(
         .map(|b| b.digest)
         .map_err(err)
 }
-pub(super) struct HashReader<'a> {
-    source: &'a mut dyn NodeSource,
+enum ReadOwner<'a> {
+    Dynamic(&'a mut dyn NodeSource),
+    Captured(&'a sc::AuditCapture),
+}
+impl NodeSource for ReadOwner<'_> {
+    fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+        match self {
+            Self::Dynamic(s) => s.read(d),
+            Self::Captured(c) => c.reader().read(d),
+        }
+    }
+    fn checked_read(
+        &mut self,
+        d: &NodeDigest,
+    ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+        match self {
+            Self::Dynamic(s) => s.checked_read(d),
+            Self::Captured(c) => c.reader().checked_read(d),
+        }
+    }
+    fn max_render_bytes(&self) -> Option<u64> {
+        match self {
+            Self::Dynamic(s) => s.max_render_bytes(),
+            Self::Captured(_) => None,
+        }
+    }
+}
+
+pub(crate) struct HashReader<'a> {
+    source: ReadOwner<'a>,
     overlay: BTreeMap<NodeDigest, (u8, Vec<u8>)>,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
@@ -761,10 +792,51 @@ pub(super) struct HashReader<'a> {
     audit_full_arrays: bool,
 }
 impl<'a> HashReader<'a> {
+    /// 唯一捕获构造器只接不可变 owner；不能同时配入另一份 dyn source。
+    pub(super) fn captured(capture: &'a sc::AuditCapture, max_render_bytes: Option<u64>) -> Self {
+        Self {
+            source: ReadOwner::Captured(capture),
+            overlay: BTreeMap::new(),
+            deadline: None,
+            max_render_bytes,
+            budget: None,
+            audit_full_arrays: false,
+        }
+    }
+    pub(crate) fn verify_public(&mut self, r: &ContentRef) -> Result<(), sc::CodecError> {
+        self.verify_mode(r, sc::Mode::Public)
+    }
+    fn verify_mode(&mut self, r: &ContentRef, mode: sc::Mode) -> Result<(), sc::CodecError> {
+        if self.budget.is_none() && self.deadline.is_none() {
+            if let ReadOwner::Captured(c) = &self.source {
+                if c.contains(&r.digest()?) {
+                    return c.verify(r, mode);
+                }
+            }
+        }
+        sc::audit_verify(self, r, mode)
+    }
+    pub(crate) fn verify_many(
+        &mut self,
+        refs: impl IntoIterator<Item = ContentRef>,
+        mode: sc::Mode,
+    ) -> Result<(), sc::CodecError> {
+        if matches!(self.source, ReadOwner::Dynamic(_))
+            || self.budget.is_some()
+            || self.deadline.is_some()
+        {
+            return sc::audit_verify_many(self, refs, mode);
+        }
+        for r in refs {
+            self.verify_mode(&r, mode)?;
+        }
+        Ok(())
+    }
+
     /// 派生节点只留在内存，用于写入前审计，绝不通过 NodeSink 改 SQLite。
     pub(super) fn new(source: &'a mut dyn NodeSource) -> Self {
         Self {
-            source,
+            source: ReadOwner::Dynamic(source),
             overlay: BTreeMap::new(),
             deadline: None,
             max_render_bytes: None,
@@ -777,7 +849,7 @@ impl<'a> HashReader<'a> {
         deadline: Option<std::time::Instant>,
     ) -> Self {
         Self {
-            source,
+            source: ReadOwner::Dynamic(source),
             overlay: BTreeMap::new(),
             deadline,
             max_render_bytes: None,
@@ -791,7 +863,7 @@ impl<'a> HashReader<'a> {
         max_render_bytes: Option<u64>,
     ) -> Self {
         Self {
-            source,
+            source: ReadOwner::Dynamic(source),
             overlay: BTreeMap::new(),
             deadline,
             max_render_bytes,
@@ -806,7 +878,7 @@ impl<'a> HashReader<'a> {
         budget: Option<&'a dyn super::audit_budget::Budget>,
     ) -> Self {
         Self {
-            source,
+            source: ReadOwner::Dynamic(source),
             overlay: BTreeMap::new(),
             deadline,
             max_render_bytes,
@@ -826,13 +898,6 @@ pub(super) fn check_deadline(deadline: Option<std::time::Instant>) -> Result<(),
 }
 
 impl NodeSource for HashReader<'_> {
-    fn audit_capture(&self) -> Option<&sc::AuditCapture> {
-        if self.budget.is_none() && self.deadline.is_none() {
-            self.source.audit_capture()
-        } else {
-            None
-        }
-    }
     fn audit_full_array_scan(&self) -> bool {
         self.audit_full_arrays && self.budget.is_none() && self.deadline.is_none()
     }
@@ -929,7 +994,7 @@ impl NodeSink for HashReader<'_> {
         }
         #[cfg(test)]
         super::state::trace_put();
-        if let Some(capture) = self.source.audit_capture() {
+        if let ReadOwner::Captured(capture) = &self.source {
             if let Some((old_tag, old_body)) = capture.original(&digest) {
                 if old_tag != tag || old_body != body {
                     return Err(sc::CodecError::new(
@@ -1844,8 +1909,9 @@ mod audit_capture_prototype_tests {
             extent: None,
         };
         let capture = sc::AuditCapture::new(nodes.clone());
-        capture
-            .verify(&normal.content_ref(), sc::Mode::Public)
+        let mut owner = HashReader::captured(&capture, None);
+        owner
+            .verify_mode(&normal.content_ref(), sc::Mode::Public)
             .unwrap();
         for (field, code) in [
             ("kind", sc::code::KIND),
@@ -1859,37 +1925,39 @@ mod audit_capture_prototype_tests {
                 _ => wrong.format = "bad".into(),
             }
             assert_eq!(
-                capture.verify(&wrong, sc::Mode::Public).unwrap_err().code(),
+                owner
+                    .verify_mode(&wrong, sc::Mode::Public)
+                    .unwrap_err()
+                    .code(),
                 code
             );
         }
-        capture
-            .verify(&placeholder.content_ref(), sc::Mode::Template)
+        owner
+            .verify_mode(&placeholder.content_ref(), sc::Mode::Template)
             .unwrap();
         for _ in 0..2 {
             assert_eq!(
-                capture
-                    .verify(&placeholder.content_ref(), sc::Mode::Public)
+                owner
+                    .verify_mode(&placeholder.content_ref(), sc::Mode::Public)
                     .unwrap_err()
                     .code(),
                 sc::code::TEMPLATE_PLACEHOLDER
             );
         }
-        capture
-            .verify(&inner.content_ref(), sc::Mode::Public)
+        owner
+            .verify_mode(&inner.content_ref(), sc::Mode::Public)
             .unwrap();
         for _ in 0..2 {
             assert_eq!(
-                capture
-                    .verify(&nested.content_ref(), sc::Mode::Public)
+                owner
+                    .verify_mode(&nested.content_ref(), sc::Mode::Public)
                     .unwrap_err()
                     .code(),
                 sc::code::JSON_TEXT_INTERNAL_KIND
             );
         }
-        let mut source = capture.reader();
-        let mut store = HashReader::new(&mut source);
-        sc::audit_verify_public(&mut store, &normal.content_ref()).unwrap();
+        let mut store = HashReader::captured(&capture, None);
+        store.verify_public(&normal.content_ref()).unwrap();
         let (d, t, b) = nodes
             .iter()
             .find(|(_, t, b)| *t == sc::tag::BYTES_CHUNK && b.len() == 4096)
@@ -1901,15 +1969,15 @@ mod audit_capture_prototype_tests {
             sc::code::NODE_DIGEST
         );
         store.put(*d, t, b).unwrap();
-        sc::audit_verify_public(&mut store, &normal.content_ref()).unwrap();
+        store.verify_public(&normal.content_ref()).unwrap();
         let added = sc::write_value(
             &mut store,
             &V::Array(vec![V::Bool(false), V::Edge(normal.digest)]),
         )
         .unwrap();
-        sc::audit_verify_public(&mut store, &added.content_ref()).unwrap();
+        store.verify_public(&added.content_ref()).unwrap();
         store.overlay.clear();
-        assert!(sc::audit_verify_public(&mut store, &added.content_ref()).is_err());
+        assert!(store.verify_public(&added.content_ref()).is_err());
         // Generic mutable ingress never gets capture/memo: second read Err must surface.
         struct Fails {
             nodes: sc::MemoryNodes,
@@ -1938,9 +2006,10 @@ mod audit_capture_prototype_tests {
         // New capture, changed source or missing deep leaf cannot inherit old success.
         let mut damaged = nodes.clone();
         damaged.insert_unchecked(*d, t, corrupt);
+        let damaged_capture = sc::AuditCapture::new(damaged);
         assert_eq!(
-            sc::AuditCapture::new(damaged)
-                .verify(&normal.content_ref(), sc::Mode::Public)
+            HashReader::captured(&damaged_capture, None)
+                .verify_public(&normal.content_ref())
                 .unwrap_err()
                 .code(),
             sc::code::NODE_DIGEST
@@ -1951,9 +2020,10 @@ mod audit_capture_prototype_tests {
                 missing.insert_unchecked(*key, t, b.to_vec());
             }
         }
+        let missing_capture = sc::AuditCapture::new(missing);
         assert_eq!(
-            sc::AuditCapture::new(missing)
-                .verify(&normal.content_ref(), sc::Mode::Public)
+            HashReader::captured(&missing_capture, None)
+                .verify_public(&normal.content_ref())
                 .unwrap_err()
                 .code(),
             sc::code::NODE_MISSING
@@ -2004,28 +2074,101 @@ mod audit_capture_prototype_tests {
     }
 }
 
-/// #1394 原型的产品化阻断反例；测试通过表示成功复现缺口，不表示边界已修好。
+/// #1394 c3e26e27 的开放 hook 红例在原提交/证据包保留；新接口必须严格拒绝。
 #[cfg(test)]
-mod audit_capture_open_trait_counterexample {
+mod audit_capture_closed_owner_tests {
     use super::*;
     #[test]
-    fn forwarded_capture_can_hide_dynamic_source_error() {
-        let mut nodes=sc::MemoryNodes::new();
-        let root=sc::write_value(&mut nodes,&V::Array(vec![V::String("deep-original".into())])).unwrap().content_ref();
-        let captured=sc::AuditCapture::new(nodes);
-        struct Forwarder<'a> { captured:&'a sc::AuditCapture, fail:bool }
-        impl NodeSource for Forwarder<'_> {
-            fn read(&mut self,d:&NodeDigest)->Result<NodeRead,sc::CodecError> {
-                if self.fail { Err(sc::CodecError::new("dynamic_read_error","second call rejects")) }
-                else { self.captured.reader().read(d) }
-            }
-            fn audit_capture(&self)->Option<&sc::AuditCapture> { Some(self.captured) }
+    fn unrelated_capture_cannot_hide_dynamic_source_error_or_missing_leaf() {
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(
+            &mut nodes,
+            &V::Array(vec![V::String("deep-original".into())]),
+        )
+        .unwrap()
+        .content_ref();
+        let captured = sc::AuditCapture::new(nodes.clone());
+        captured.verify(&root, sc::Mode::Public).unwrap();
+        struct Dynamic {
+            nodes: sc::MemoryNodes,
+            fail: bool,
         }
-        let mut source=Forwarder{captured:&captured,fail:false};
-        sc::audit_verify_public(&mut source,&root).unwrap();
-        source.fail=true;
-        assert_eq!(sc::verify(&mut source,&root).unwrap_err().code(),"dynamic_read_error");
-        assert!(sc::audit_verify_public(&mut source,&root).is_ok(),"当前原型开放hook反例必须复现；若封闭接口修复，此测试应改为拒绝锁");
-        println!("NON_PRODUCTIZABLE_COUNTEREXAMPLE: forwarded capture hides dynamic source Err; generic verify rejects, audit_verify accepts. Fixed internal capture reader has no such callback; open capability must be removed/sealed before production.");
+        impl NodeSource for Dynamic {
+            fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+                if self.fail {
+                    Err(sc::CodecError::new(
+                        "dynamic_read_error",
+                        "second call rejects",
+                    ))
+                } else {
+                    self.nodes.read(d)
+                }
+            }
+        }
+        impl NodeSink for Dynamic {
+            fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
+                self.nodes.put(d, t, b)
+            }
+        }
+        let mut source = Dynamic {
+            nodes: nodes.clone(),
+            fail: false,
+        };
+        sc::audit_verify_public(&mut source, &root).unwrap();
+        source.fail = true;
+        assert_eq!(
+            sc::verify(&mut source, &root).unwrap_err().code(),
+            "dynamic_read_error"
+        );
+        assert_eq!(
+            sc::audit_verify_public(&mut source, &root)
+                .unwrap_err()
+                .code(),
+            "dynamic_read_error"
+        );
+        let mut owner = HashReader::new(&mut source);
+        assert_eq!(
+            owner.verify_public(&root).unwrap_err().code(),
+            "dynamic_read_error"
+        );
+        assert_eq!(
+            super::super::audit_store::StoreView::for_audit(&mut owner)
+                .verify_public(&root)
+                .unwrap_err()
+                .code(),
+            "dynamic_read_error"
+        );
+        let leaf = nodes
+            .iter()
+            .find(|(_, t, _)| *t == sc::tag::BYTES_CHUNK)
+            .unwrap()
+            .0;
+        let mut missing = sc::MemoryNodes::new();
+        for (d, t, b) in nodes.iter() {
+            if d != leaf {
+                missing.insert_unchecked(*d, t, b.to_vec());
+            }
+        }
+        let mut mismatch = Dynamic {
+            nodes: missing,
+            fail: false,
+        };
+        assert_eq!(
+            super::super::audit_store::StoreView::generic(&mut mismatch)
+                .verify_public(&root)
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_MISSING
+        );
+        assert_eq!(
+            HashReader::new(&mut mismatch)
+                .verify_public(&root)
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_MISSING
+        );
+        // 独立旧capture仍是自己的旧快照；它不能配入上面的动态store。
+        captured.verify(&root, sc::Mode::Public).unwrap();
+        println!("CLOSED_OWNER_GREEN: dynamic second Err and mismatched missing deep leaf reject with an unrelated successful capture alive");
     }
 }

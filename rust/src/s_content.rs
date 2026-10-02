@@ -406,12 +406,6 @@ pub enum NodeRead {
 pub trait NodeSource {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError>;
 
-    /// #1394 原型能力：仅当前实际读取的自有不可变捕获。普通/可变源默认无能力。
-    /// 此能力只供显式 audit_verify 使用；通用 verify 从不读取它。
-    fn audit_capture(&self) -> Option<&AuditCapture> {
-        None
-    }
-
     // Reached a checked array and an in-range index, immediately before descent.
     // Default leaves existing callers and storage sources unchanged.
     fn before_path_index(
@@ -1509,21 +1503,14 @@ pub struct AuditCapture {
     public: std::cell::RefCell<AuditMemo>,
     template: std::cell::RefCell<AuditMemo>,
     reads: std::cell::Cell<u64>,
-    reuse: bool,
 }
 impl AuditCapture {
-    pub fn without_reuse(mut self) -> Self {
-        self.reuse = false;
-        self
-    }
-
     pub fn new(nodes: MemoryNodes) -> Self {
         Self {
             nodes: nodes.nodes,
             public: Default::default(),
             template: Default::default(),
             reads: Default::default(),
-            reuse: true,
         }
     }
     pub fn contains(&self, digest: &NodeDigest) -> bool {
@@ -1577,9 +1564,6 @@ impl AuditCapture {
 }
 struct CaptureReader<'a>(&'a AuditCapture);
 impl NodeSource for CaptureReader<'_> {
-    fn audit_capture(&self) -> Option<&AuditCapture> {
-        self.0.reuse.then_some(self.0)
-    }
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, CodecError> {
         self.0.reads.set(self.0.reads.get() + 1);
         Ok(match self.0.nodes.get(d) {
@@ -2436,18 +2420,12 @@ fn verify_many_with_mode(
     Ok(verifier.read_digests.len())
 }
 
-/// #1394 原型的显式闭包口；通用 verify/verify_many 不变。
-/// 可变 overlay 的适配器必须禁止异原件遮蔽捕获内节点；新增根仍走普通完整核验。
+/// 通用动态来源始终走普通完整 verifier；不接受捕获能力或跨调用成功。
 pub fn audit_verify(
     source: &mut dyn NodeSource,
     reference: &ContentRef,
     mode: Mode,
 ) -> Result<(), CodecError> {
-    if let Some(capture) = source.audit_capture() {
-        if capture.contains(&reference.digest()?) {
-            return capture.verify(reference, mode);
-        }
-    }
     verify_with_mode(source, reference, mode).map(|_| ())
 }
 pub fn audit_verify_many(
@@ -2455,13 +2433,7 @@ pub fn audit_verify_many(
     references: impl IntoIterator<Item = ContentRef>,
     mode: Mode,
 ) -> Result<(), CodecError> {
-    if source.audit_capture().is_none() {
-        return verify_many_with_mode(source, references, mode).map(|_| ());
-    }
-    for reference in references {
-        audit_verify(source, &reference, mode)?;
-    }
-    Ok(())
+    verify_many_with_mode(source, references, mode).map(|_| ())
 }
 
 pub fn audit_verify_public(s: &mut dyn NodeSource, r: &ContentRef) -> Result<(), CodecError> {

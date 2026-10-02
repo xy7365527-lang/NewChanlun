@@ -692,6 +692,20 @@ pub(super) fn load(
     s: &mut dyn NodeStore,
     latest: i64,
 ) -> Result<Vec<Entry>, String> {
+    load_in_store(tx, &mut super::audit_store::StoreView::generic(s), latest)
+}
+pub(super) fn load_for_audit(
+    tx: &Transaction<'_>,
+    s: &mut super::history::HashReader<'_>,
+    latest: i64,
+) -> Result<Vec<Entry>, String> {
+    load_in_store(tx, &mut super::audit_store::StoreView::for_audit(s), latest)
+}
+fn load_in_store(
+    tx: &Transaction<'_>,
+    s: &mut super::audit_store::StoreView<'_, '_>,
+    latest: i64,
+) -> Result<Vec<Entry>, String> {
     let mut stmt=tx.prepare("SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects ORDER BY rowid").map_err(err)?;
     let mut rows = stmt.query([]).map_err(err)?;
     let mut out = Vec::new();
@@ -750,8 +764,7 @@ pub(super) fn load(
     // 一次调用复用codec既有的上下文记忆；每根声明仍核，所有来源/生命周期绑定仍逐行执行。
     #[cfg(test)]
     super::state::trace_event("object_index_closures", None);
-    sc::audit_verify_public_many(
-        s,
+    s.verify_many(
         out.iter().flat_map(|e| {
             [
                 e.generated.content_ref(),
@@ -760,6 +773,7 @@ pub(super) fn load(
                 e.birth_wire.clone(),
             ]
         }),
+        sc::Mode::Public,
     )
     .map_err(err)?;
     for e in &out {

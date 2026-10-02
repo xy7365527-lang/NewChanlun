@@ -268,10 +268,48 @@ pub(super) fn audit_generated_metered(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<Counts, String> {
+    audit_generated_in_store(
+        &mut super::audit_store::StoreView::generic(s),
+        state,
+        raw_prefix,
+        profile,
+        rule,
+        deadline,
+        budget,
+    )
+}
+pub(super) fn audit_generated_for_audit(
+    s: &mut super::history::HashReader<'_>,
+    state: &ContentRef,
+    raw_prefix: &[Value],
+    profile: &str,
+    rule: &str,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<Counts, String> {
+    audit_generated_in_store(
+        &mut super::audit_store::StoreView::for_audit(s),
+        state,
+        raw_prefix,
+        profile,
+        rule,
+        deadline,
+        budget,
+    )
+}
+fn audit_generated_in_store(
+    s: &mut super::audit_store::StoreView<'_, '_>,
+    state: &ContentRef,
+    raw_prefix: &[Value],
+    profile: &str,
+    rule: &str,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<Counts, String> {
     super::history::check_deadline(deadline)?;
     #[cfg(test)]
     super::state::trace_event("source_closure", None);
-    sc::audit_verify_public(s, state).map_err(err)?;
+    s.verify_public(state).map_err(err)?;
     let mut array_source = ArrayAuditSource {
         source: s,
         full_arrays: budget.is_none(),

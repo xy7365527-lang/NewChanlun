@@ -398,10 +398,66 @@ pub(super) fn verify_cut_metered(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<(), String> {
+    verify_cut_in_store(
+        &mut super::audit_store::StoreView::generic(store),
+        metadata,
+        generated_state,
+        delta,
+        raw_prefix,
+        previous_frontier,
+        counts,
+        withdrawals,
+        replaces,
+        deadline,
+        budget,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+pub(super) fn verify_cut_for_audit(
+    store: &mut super::history::HashReader<'_>,
+    metadata: &ManifestMetadata,
+    generated_state: &ContentRef,
+    delta: &ContentRef,
+    raw_prefix: &[Value],
+    previous_frontier: i64,
+    counts: &super::source_audit::Counts,
+    withdrawals: &[Value],
+    replaces: &[Value],
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<(), String> {
+    verify_cut_in_store(
+        &mut super::audit_store::StoreView::for_audit(store),
+        metadata,
+        generated_state,
+        delta,
+        raw_prefix,
+        previous_frontier,
+        counts,
+        withdrawals,
+        replaces,
+        deadline,
+        budget,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn verify_cut_in_store(
+    store: &mut super::audit_store::StoreView<'_, '_>,
+    metadata: &ManifestMetadata,
+    generated_state: &ContentRef,
+    delta: &ContentRef,
+    raw_prefix: &[Value],
+    previous_frontier: i64,
+    counts: &super::source_audit::Counts,
+    withdrawals: &[Value],
+    replaces: &[Value],
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<(), String> {
     super::history::check_deadline(deadline)?;
     require_ohlc(&metadata.profile_id)?;
-    sc::audit_verify_public(store, generated_state).map_err(err)?;
-    sc::audit_verify_public(store, delta).map_err(err)?;
+    store.verify_public(generated_state).map_err(err)?;
+    store.verify_public(delta).map_err(err)?;
     let frontier = text(store, delta, "index_frontier")?;
     if !real_batch_id(&frontier) {
         return Err(err(format!(
@@ -560,6 +616,24 @@ pub(super) fn verify_current(
     store: &mut dyn NodeStore,
     axes: &ContentRef,
 ) -> Result<(), String> {
+    verify_current_in_store(tx, &mut super::audit_store::StoreView::generic(store), axes)
+}
+pub(super) fn verify_current_for_audit(
+    tx: &Transaction<'_>,
+    store: &mut super::history::HashReader<'_>,
+    axes: &ContentRef,
+) -> Result<(), String> {
+    verify_current_in_store(
+        tx,
+        &mut super::audit_store::StoreView::for_audit(store),
+        axes,
+    )
+}
+fn verify_current_in_store(
+    tx: &Transaction<'_>,
+    store: &mut super::audit_store::StoreView<'_, '_>,
+    axes: &ContentRef,
+) -> Result<(), String> {
     let entries = axes_entries(store, axes)?;
     for entry in &entries {
         let row = tx
@@ -609,7 +683,7 @@ pub(super) fn verify_current(
                 entry.id
             )));
         }
-        sc::audit_verify_public(store, &stored).map_err(err)?;
+        store.verify_public(&stored).map_err(err)?;
     }
     Ok(())
 }
