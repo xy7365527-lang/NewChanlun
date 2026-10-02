@@ -1025,7 +1025,7 @@ mod tests {
         metadata.profile_hash = "wrong".into();
         assert!(check_metadata_view(metadata.view())
             .unwrap_err()
-            .detail
+            .detail()
             .contains("代号须为正"));
         for n in [i64::MIN, -1, 0, 1, i64::MAX] {
             assert_eq!(Decimal::new(n).as_str(), n.to_string());
