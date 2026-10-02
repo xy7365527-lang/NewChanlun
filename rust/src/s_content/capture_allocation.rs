@@ -258,3 +258,11 @@ impl CaptureSlab {
 
 #[doc(hidden)]
 pub mod overlay;
+
+// #1394 有界键比较局部原型。此类型不提供 Vec 逃逸或隐式 clone。
+pub(crate) mod body;
+impl CaptureSlab {
+    pub(super) fn copy_body(&self, bytes: &[u8]) -> Result<body::MeteredBody, CodecError> {
+        body::MeteredBody::copy_from(bytes, &self.body.budget)
+    }
+}

@@ -1420,6 +1420,64 @@ struct FieldAgg {
     last: Option<NodeDigest>,
 }
 
+// #1394 仅 captured verifier 的键比较路径使用；普通源仍保留原 Vec 行为。
+// 不提供 into_vec 或 Clone，OwnedLayout 持有到最终比较消费或错误退出。
+enum KeyBody {
+    Plain(Vec<u8>),
+    Metered(capture_allocation::body::MeteredBody),
+}
+impl KeyBody {
+    fn empty() -> Self {
+        Self::Plain(Vec::new())
+    }
+    fn clear(&mut self) {
+        match self {
+            Self::Plain(v) => v.clear(),
+            Self::Metered(_) => *self = Self::empty(),
+        }
+    }
+}
+impl std::ops::Deref for KeyBody {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        match self {
+            Self::Plain(v) => v,
+            Self::Metered(v) => v,
+        }
+    }
+}
+fn read_key_checked(
+    source: &mut dyn NodeSource,
+    capture: Option<&AuditCapture>,
+    d: &NodeDigest,
+) -> Result<(u8, KeyBody), CodecError> {
+    // 具体 CaptureReader 私有构造器是唯一入口；动态 NodeSource 无法提供或覆盖 capture。
+    let Some(capture) = capture else {
+        return read_checked(source, d).map(|(t, b)| (t, KeyBody::Plain(b)));
+    };
+    let CaptureNodes::AllocationPrototype(slab) = &capture.nodes else {
+        unreachable!()
+    };
+    capture.reads.set(capture.reads.get() + 1);
+    let (t, bytes) = capture.original(d).ok_or_else(|| {
+        CodecError::new(code::NODE_MISSING, format!("节点缺失：{}", root_string(d)))
+    })?;
+    let body = slab.copy_body(bytes)?;
+    // 实际原件完整 F 校验，不复用外部成功、不吞读取错误。
+    let actual = frame(t, &body);
+    if actual != *d {
+        return Err(CodecError::new(
+            code::NODE_DIGEST,
+            format!(
+                "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不成帧",
+                root_string(d),
+                root_string(&actual)
+            ),
+        ));
+    }
+    Ok((t, KeyBody::Metered(body)))
+}
+
 // ── 惰性叶迭代（渲染与键比较用；不预收集整棵序列） ──────────────────────────
 
 /// 顺序产出序列树的叶：只需 O(树深) 栈，按消费推进。
@@ -1438,8 +1496,21 @@ impl LeafIter {
         &mut self,
         source: &mut dyn NodeSource,
     ) -> Result<Option<(u8, NodeDigest, Vec<u8>)>, CodecError> {
+        self.next_with(|d| read_checked(source, d))
+    }
+    fn next_key(
+        &mut self,
+        source: &mut dyn NodeSource,
+        capture: Option<&AuditCapture>,
+    ) -> Result<Option<(u8, NodeDigest, KeyBody)>, CodecError> {
+        self.next_with(|d| read_key_checked(source, capture, d))
+    }
+    fn next_with<B: std::ops::Deref<Target = [u8]>>(
+        &mut self,
+        mut read: impl FnMut(&NodeDigest) -> Result<(u8, B), CodecError>,
+    ) -> Result<Option<(u8, NodeDigest, B)>, CodecError> {
         while let Some(digest) = self.stack.pop() {
-            let (t, body) = read_checked(source, &digest)?;
+            let (t, body) = read(&digest)?;
             match t {
                 tag::SEQ_EMPTY => {
                     if !body.is_empty() {
@@ -1451,7 +1522,7 @@ impl LeafIter {
                         return Err(sequence_shape_error("单叶序列 body 必须是 32 字节叶摘要"));
                     }
                     let leaf = digest_at(&body, 0);
-                    let (lt, lbody) = read_checked(source, &leaf)?;
+                    let (lt, lbody) = read(&leaf)?;
                     if is_sequence_tag(lt) {
                         return Err(sequence_shape_error(format!(
                             "单叶序列的叶不能又是序列节点（tag={lt:02x}）"
@@ -1548,7 +1619,7 @@ impl AuditCapture {
         };
         let memo = std::mem::take(&mut *slot.borrow_mut());
         let mut source = CaptureReader(self);
-        let mut verifier = Verifier::with_memo(&mut source, mode, memo);
+        let mut verifier = Verifier::with_memo_capture(&mut source, mode, memo);
         let result = verifier.verify_reference(reference).map(|_| ());
         // 出错不保留 run() 提前插入的 seen/pushed，不能让下一根继承半成功。
         if result.is_ok() {
@@ -1610,6 +1681,7 @@ impl NodeSource for CaptureReader<'_> {
 }
 
 struct Verifier<'a> {
+    closed_key_capture: Option<&'a AuditCapture>,
     source: &'a mut dyn NodeSource,
     mode: Mode,
     /// 已核过的 (摘要, 上下文)。
@@ -1626,8 +1698,19 @@ struct Verifier<'a> {
 }
 
 impl<'a> Verifier<'a> {
+    // 私有且只接具体 CaptureReader。来源和 capture 引用来自同一 owner。
+    fn with_memo_capture(source: &'a mut CaptureReader<'_>, mode: Mode, memo: AuditMemo) -> Self {
+        let capture = source.0;
+        let mut verifier = Self::with_memo(source, mode, memo);
+        if matches!(capture.nodes, CaptureNodes::AllocationPrototype(_)) {
+            verifier.closed_key_capture = Some(capture);
+        }
+        verifier
+    }
+
     fn with_memo(source: &'a mut dyn NodeSource, mode: Mode, memo: AuditMemo) -> Self {
         Self {
+            closed_key_capture: None,
             source,
             mode,
             seen: memo.seen,
@@ -1655,6 +1738,7 @@ impl<'a> Verifier<'a> {
 
     fn new(source: &'a mut dyn NodeSource, mode: Mode) -> Self {
         Self {
+            closed_key_capture: None,
             source,
             mode,
             seen: HashSet::new(),
@@ -2160,15 +2244,15 @@ impl<'a> Verifier<'a> {
         let root_b = self.string_bytes_root(b)?;
         let mut iter_a = LeafIter::new(root_a);
         let mut iter_b = LeafIter::new(root_b);
-        let mut buf_a: Vec<u8> = Vec::new();
-        let mut buf_b: Vec<u8> = Vec::new();
+        let mut buf_a = KeyBody::empty();
+        let mut buf_b = KeyBody::empty();
         let mut pos_a = 0usize;
         let mut pos_b = 0usize;
         let mut dig_a: Option<NodeDigest> = None;
         let mut dig_b: Option<NodeDigest> = None;
         loop {
             if pos_a == buf_a.len() {
-                match iter_a.next(self.source)? {
+                match iter_a.next_key(self.source, self.closed_key_capture)? {
                     Some((t, d, body)) => {
                         if t != tag::BYTES_CHUNK {
                             return Err(byte_chunk_shape_error(format!(
@@ -2186,7 +2270,7 @@ impl<'a> Verifier<'a> {
                 }
             }
             if pos_b == buf_b.len() {
-                match iter_b.next(self.source)? {
+                match iter_b.next_key(self.source, self.closed_key_capture)? {
                     Some((t, d, body)) => {
                         if t != tag::BYTES_CHUNK {
                             return Err(byte_chunk_shape_error(format!(
@@ -3415,5 +3499,262 @@ mod tests {
                 "kind={kind_name}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod metered_key_body_tests {
+    use super::*;
+    #[test]
+    fn metered_key_second_chunk_before_allocate() {
+        let mut nodes = MemoryNodes::new();
+        let a = write_value(&mut nodes, &Value::string("a".repeat(4096))).unwrap();
+        let b = write_value(&mut nodes, &Value::string("b".repeat(4096))).unwrap();
+        let count = nodes.nodes.len();
+        let bytes = nodes.nodes.values().map(|(_, b)| b.len()).sum();
+        let base = capture_allocation::CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let budget = capture_allocation::OwnedBudget::new(base + 4096 + 32);
+        let mut slab = capture_allocation::CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, (t, body)) in nodes.nodes {
+            slab.push(d, t, &body).unwrap();
+        }
+        let capture = AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
+        let before = budget.snapshot();
+        let mut source = CaptureReader(&capture);
+        let mut verifier =
+            Verifier::with_memo_capture(&mut source, Mode::Public, AuditMemo::default());
+        let result = verifier.compare_key_streams(&a.digest, &b.digest);
+        assert!(
+            result.is_err(),
+            "真实第二块必须在第一块仍存活时被拒绝，实得 {result:?}"
+        );
+        assert_eq!(result.unwrap_err().code(), capture_allocation::LIMIT);
+        let after = budget.snapshot();
+        assert_eq!(after.live_requested_layout_bytes, base);
+        assert!(after.peak_requested_layout_bytes >= base + 4096);
+        assert_eq!(after.rejected_layouts, before.rejected_layouts + 1);
+        // 两序列的32B与首块4096B实际分配；第二块的4096B在 alloc 前拒绝。
+        assert_eq!(after.allocated_layouts, before.allocated_layouts + 3);
+        assert_eq!(after.allocation_attempts, before.allocation_attempts + 3);
+        assert_eq!(after.released_layouts, before.released_layouts + 3);
+        assert_eq!(after.peak_requested_layout_bytes, base + 4096 + 32);
+        println!(
+            "METERED_KEY_RECEIPT {}",
+            serde_json::to_string(&after).unwrap()
+        );
+        drop(verifier);
+        drop(source);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    fn slab_capture(
+        nodes: MemoryNodes,
+        extra: usize,
+    ) -> (AuditCapture, capture_allocation::OwnedBudget, usize) {
+        let count = nodes.nodes.len();
+        let bytes = nodes.nodes.values().map(|(_, b)| b.len()).sum();
+        let base = capture_allocation::CaptureSlab::requested_bytes(count, bytes).unwrap();
+        let budget = capture_allocation::OwnedBudget::new(base + extra);
+        let mut slab = capture_allocation::CaptureSlab::new(count, bytes, &budget).unwrap();
+        for (d, (t, b)) in nodes.nodes {
+            slab.push(d, t, &b).unwrap();
+        }
+        (
+            AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap()),
+            budget,
+            base,
+        )
+    }
+    fn captured_compare(
+        capture: &AuditCapture,
+        a: &NodeDigest,
+        b: &NodeDigest,
+    ) -> Result<std::cmp::Ordering, CodecError> {
+        let mut source = CaptureReader(capture);
+        Verifier::with_memo_capture(&mut source, Mode::Public, AuditMemo::default())
+            .compare_key_streams(a, b)
+    }
+    #[test]
+    fn metered_key_success_real_two_chunks_and_full_object_verifier() {
+        let mut nodes = MemoryNodes::new();
+        let a = write_value(&mut nodes, &Value::string("a".repeat(4096))).unwrap();
+        let b = write_value(&mut nodes, &Value::string("b".repeat(4096))).unwrap();
+        let mut legacy = nodes.clone();
+        let before_f = frame_calls_on_thread();
+        let expected = Verifier::new(&mut legacy, Mode::Public)
+            .compare_key_streams(&a.digest, &b.digest)
+            .unwrap();
+        let legacy_f = frame_calls_on_thread() - before_f;
+        let (capture, budget, base) = slab_capture(nodes, 8192 + 32);
+        let before = budget.snapshot();
+        let before_f = frame_calls_on_thread();
+        assert_eq!(
+            captured_compare(&capture, &a.digest, &b.digest).unwrap(),
+            expected
+        );
+        assert_eq!(frame_calls_on_thread() - before_f, legacy_f);
+        let after = budget.snapshot();
+        assert_eq!(after.peak_requested_layout_bytes, base + 8192 + 32);
+        assert_eq!(after.allocated_layouts, before.allocated_layouts + 4);
+        assert_eq!(after.released_layouts, before.released_layouts + 4);
+        assert_eq!(after.live_requested_layout_bytes, base);
+        assert_eq!(after.rejected_layouts, 0);
+        println!(
+            "METERED_KEY_TWO_BODY_RECEIPT {}",
+            serde_json::to_string(&after).unwrap()
+        );
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        // 真实 AuditCapture.verify 的对象字段顺序检查进入同一键比较路径。
+        let mut nodes = MemoryNodes::new();
+        let object = write_value(
+            &mut nodes,
+            &Value::Object(vec![
+                ("a".repeat(4096), Value::Null),
+                ("b".repeat(4096), Value::Null),
+            ]),
+        )
+        .unwrap();
+        let reference = ContentRef::new(object.kind, &object.digest, object.extent);
+        let (capture, budget, base) = slab_capture(nodes, 8192 + 32);
+        capture.verify(&reference, Mode::Public).unwrap();
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        assert_eq!(
+            budget.snapshot().peak_requested_layout_bytes,
+            base + 8192 + 32
+        );
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+    #[test]
+    fn metered_key_empty_order_prefix_and_multiple_chunks_preserve_results() {
+        for (case, (a, b)) in [
+            ("".to_owned(), "x".to_owned()),
+            ("x".to_owned(), "".to_owned()),
+            ("a".repeat(4096) + "x", "a".repeat(4096) + "y"),
+            ("a".repeat(4096), "a".repeat(4096) + "x"),
+            ("identical".to_owned(), "identical".to_owned()),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut nodes = MemoryNodes::new();
+            let a = write_value(&mut nodes, &Value::string(a)).unwrap();
+            let b = write_value(&mut nodes, &Value::string(b)).unwrap();
+            let mut legacy = nodes.clone();
+            let before_f = frame_calls_on_thread();
+            let expected = Verifier::new(&mut legacy, Mode::Public)
+                .compare_key_streams(&a.digest, &b.digest)
+                .unwrap();
+            let expected_f = frame_calls_on_thread() - before_f;
+            let (capture, budget, base) = slab_capture(nodes, 16384);
+            let before_f = frame_calls_on_thread();
+            assert_eq!(
+                captured_compare(&capture, &a.digest, &b.digest).unwrap(),
+                expected
+            );
+            assert_eq!(frame_calls_on_thread() - before_f, expected_f);
+            println!(
+                "METERED_KEY_CASE_RECEIPT {}",
+                serde_json::json!({"case":case,"base":base,"a_extent":a.extent,"b_extent":b.extent,"meter":budget.snapshot()})
+            );
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            drop(capture);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn metered_key_bad_original_shape_missing_and_rollback() {
+        for expected in [
+            code::NODE_DIGEST,
+            code::SEQUENCE_SHAPE,
+            code::BYTE_CHUNK_SHAPE,
+            code::NODE_MISSING,
+        ] {
+            let mut nodes = MemoryNodes::new();
+            let b = write_value(&mut nodes, &Value::string("b")).unwrap();
+            let chunk = match expected {
+                code::BYTE_CHUNK_SHAPE => {
+                    let d = frame(tag::NULL, &[]);
+                    nodes.insert_unchecked(d, tag::NULL, vec![]);
+                    d
+                }
+                code::NODE_MISSING => [0x55; 32],
+                _ => {
+                    let d = frame(tag::BYTES_CHUNK, b"a");
+                    nodes.insert_unchecked(d, tag::BYTES_CHUNK, b"a".to_vec());
+                    d
+                }
+            };
+            let sequence = if expected == code::SEQUENCE_SHAPE {
+                let d = frame(tag::SEQ_LEAF, b"bad");
+                nodes.insert_unchecked(d, tag::SEQ_LEAF, b"bad".to_vec());
+                d
+            } else {
+                let d = frame(tag::SEQ_LEAF, &chunk);
+                nodes.insert_unchecked(d, tag::SEQ_LEAF, chunk.to_vec());
+                d
+            };
+            if expected == code::NODE_DIGEST {
+                nodes.insert_unchecked(chunk, tag::BYTES_CHUNK, b"changed".to_vec());
+            }
+            let mut header = 1u64.to_be_bytes().to_vec();
+            header.extend_from_slice(&sequence);
+            let a = frame(tag::STRING, &header);
+            nodes.insert_unchecked(a, tag::STRING, header);
+            let mut legacy = nodes.clone();
+            let legacy_error = Verifier::new(&mut legacy, Mode::Public)
+                .compare_key_streams(&a, &b.digest)
+                .unwrap_err();
+            assert_eq!(legacy_error.code(), expected);
+            let (capture, budget, base) = slab_capture(nodes, 8192);
+            assert_eq!(
+                captured_compare(&capture, &a, &b.digest).unwrap_err(),
+                legacy_error
+            );
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            drop(capture);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+    }
+    #[test]
+    fn metered_key_dynamic_source_err_is_not_overridden_by_capture() {
+        struct FailOnRead {
+            nodes: MemoryNodes,
+            reads: u64,
+            reject: u64,
+        }
+        impl NodeSource for FailOnRead {
+            fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, CodecError> {
+                self.reads += 1;
+                if self.reads == self.reject {
+                    return Err(CodecError::new(code::SOURCE, "dynamic exact failure"));
+                }
+                self.nodes.read(d)
+            }
+        }
+        let mut nodes = MemoryNodes::new();
+        let a = write_value(&mut nodes, &Value::string("a".repeat(4096))).unwrap();
+        let b = write_value(&mut nodes, &Value::string("b".repeat(4096))).unwrap();
+        let (capture, budget, base) = slab_capture(nodes.clone(), 0);
+        for reject in 1..=6 {
+            let mut dynamic = FailOnRead {
+                nodes: nodes.clone(),
+                reads: 0,
+                reject,
+            };
+            let mut verifier = Verifier::new(&mut dynamic, Mode::Public);
+            assert!(verifier.closed_key_capture.is_none());
+            let error = verifier
+                .compare_key_streams(&a.digest, &b.digest)
+                .unwrap_err();
+            assert_eq!(error.code(), code::SOURCE);
+            assert_eq!(error.detail(), "dynamic exact failure");
+            assert_eq!(dynamic.reads, reject);
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+            assert_eq!(budget.snapshot().allocated_layouts, 2);
+        }
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 }
