@@ -255,3 +255,6 @@ impl CaptureSlab {
         ))
     }
 }
+
+#[doc(hidden)]
+pub mod overlay;

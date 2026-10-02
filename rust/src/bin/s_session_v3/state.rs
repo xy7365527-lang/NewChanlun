@@ -206,7 +206,7 @@ fn audit_with_capture_impl(
         reader.enable_audit_same_material();
     }
     let mut store = match capture.as_ref() {
-        Some(c) => history::HashReader::captured(c, max_render_bytes),
+        Some(c) => history::HashReader::captured_for_audit(c, max_render_bytes).map_err(err)?,
         None => history::HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
     };
     // 7a. 当前代对象索引已在同次history中完整加载并绑定原件；继续用它核逐代变化。
@@ -838,9 +838,27 @@ mod scoped_prototype_probe {
         let owned_budget = std::env::var("AUDIT_PROTOTYPE_OWNED_PAYLOAD_BYTES")
             .ok()
             .map(|v| sc::capture_allocation::OwnedBudget::new(v.parse().unwrap()));
-        let (result, events, work) = traced(true, || {
-            audit_with_capture_impl(&tx, None, None, None, enabled, owned_budget.as_ref())
-        });
+        let peaks = std::rc::Rc::new(std::cell::Cell::new((0usize, 0usize)));
+        let overlay_config = std::env::var("AUDIT_PROTOTYPE_OVERLAY_SLOTS")
+            .ok()
+            .map(|slots| history::OverlayPrototype {
+                slots: slots.parse().unwrap(),
+                bytes: std::env::var("AUDIT_PROTOTYPE_OVERLAY_BYTES")
+                    .unwrap()
+                    .parse()
+                    .unwrap(),
+                budget: owned_budget.as_ref().unwrap().clone(),
+                peaks: peaks.clone(),
+            });
+        let run = || {
+            traced(true, || {
+                audit_with_capture_impl(&tx, None, None, None, enabled, owned_budget.as_ref())
+            })
+        };
+        let (result, events, work) = match overlay_config {
+            Some(c) => history::with_overlay_prototype(c, run),
+            None => run(),
+        };
         let elapsed = started.elapsed().as_nanos();
         let (s, capture) = result.unwrap();
         let cuts = s
@@ -854,7 +872,7 @@ mod scoped_prototype_probe {
             })
             .collect::<Vec<_>>();
         let complete = json!({"raw":s.raw,"cuts":cuts,"objects":format!("{:?}",s.objects),"auxiliary":format!("{:?}",s.auxiliary),"clock":v2::stored_clock(&tx).unwrap().value});
-        let report = json!({"whole_audit_allocation_admitted":false,"capture_meter_after_drop":owned_budget.as_ref().map(|b|b.snapshot()),"elapsed_ns":elapsed.to_string(),"capture_ns":capture.as_ref().and_then(|v|v.get("capture_ns")).cloned(),"capture":capture,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"f_calls":sc::frame_calls_on_thread()-f,"work":work,"events":events,"complete":complete,"complete_sha256":sha256_hex(canonical_json(&complete).as_bytes())});
+        let report = json!({"overlay_peak_used_slots":peaks.get().0,"overlay_peak_used_body_bytes":peaks.get().1,"whole_audit_allocation_admitted":false,"capture_meter_after_drop":owned_budget.as_ref().map(|b|b.snapshot()),"elapsed_ns":elapsed.to_string(),"capture_ns":capture.as_ref().and_then(|v|v.get("capture_ns")).cloned(),"capture":capture,"sql_node_reads":content_store::sql_reads_on_thread()-sql,"f_calls":sc::frame_calls_on_thread()-f,"work":work,"events":events,"complete":complete,"complete_sha256":sha256_hex(canonical_json(&complete).as_bytes())});
         std::fs::write(
             std::env::var("AUDIT_PROTOTYPE_REPORT").unwrap(),
             canonical_json(&report),

@@ -147,7 +147,7 @@ fn read_indexed_history_inner(
     }
     let capture = capture.filter(|_| budget.is_none() && deadline.is_none());
     let mut store = match capture {
-        Some(c) => HashReader::captured(c, max_render_bytes),
+        Some(c) => HashReader::captured_for_audit(c, max_render_bytes).map_err(err)?,
         None => HashReader::metered(&mut reader, deadline, max_render_bytes, budget),
     };
     store.audit_full_arrays = audit_same_material && budget.is_none();
@@ -783,20 +783,119 @@ impl NodeSource for ReadOwner<'_> {
     }
 }
 
+enum OverlayOwner {
+    Dynamic(BTreeMap<NodeDigest, (u8, Vec<u8>)>),
+    #[cfg(test)]
+    Bounded(sc::capture_allocation::overlay::OverlaySlab),
+}
+impl OverlayOwner {
+    fn get(&self, digest: &NodeDigest) -> Option<(u8, &[u8])> {
+        match self {
+            Self::Dynamic(m) => m.get(digest).map(|(t, b)| (*t, b.as_slice())),
+            #[cfg(test)]
+            Self::Bounded(s) => s.original(digest),
+        }
+    }
+    fn contains_key(&self, d: &NodeDigest) -> bool {
+        self.get(d).is_some()
+    }
+    fn put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), sc::CodecError> {
+        match self {
+            Self::Dynamic(m) => {
+                m.insert(d, (t, b.to_vec()));
+                Ok(())
+            }
+            #[cfg(test)]
+            Self::Bounded(s) => s.put(d, t, b),
+        }
+    }
+    fn clear(&mut self) {
+        match self {
+            Self::Dynamic(m) => m.clear(),
+            #[cfg(test)]
+            Self::Bounded(s) => s.clear(),
+        }
+    }
+}
+#[cfg(test)]
+#[derive(Clone)]
+pub(super) struct OverlayPrototype {
+    pub slots: usize,
+    pub bytes: usize,
+    pub budget: sc::capture_allocation::OwnedBudget,
+    pub peaks: std::rc::Rc<std::cell::Cell<(usize, usize)>>,
+}
+#[cfg(test)]
+thread_local! { static OVERLAY_PROTOTYPE: std::cell::RefCell<Option<OverlayPrototype>> = const { std::cell::RefCell::new(None) }; }
+#[cfg(test)]
+pub(super) fn with_overlay_prototype<T>(config: OverlayPrototype, f: impl FnOnce() -> T) -> T {
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            OVERLAY_PROTOTYPE.with(|v| *v.borrow_mut() = None);
+        }
+    }
+    OVERLAY_PROTOTYPE.with(|v| {
+        assert!(v.borrow().is_none());
+        *v.borrow_mut() = Some(config);
+    });
+    let _reset = Reset;
+    f()
+}
+#[cfg(test)]
+impl Drop for OverlayOwner {
+    fn drop(&mut self) {
+        if let Self::Bounded(s) = self {
+            OVERLAY_PROTOTYPE.with(|v| {
+                if let Some(c) = &*v.borrow() {
+                    let (a, b) = c.peaks.get();
+                    let (x, y) = s.peak_used();
+                    c.peaks.set((a.max(x), b.max(y)));
+                }
+            });
+        }
+    }
+}
+
 pub(crate) struct HashReader<'a> {
     source: ReadOwner<'a>,
-    overlay: BTreeMap<NodeDigest, (u8, Vec<u8>)>,
+    overlay: OverlayOwner,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
     budget: Option<&'a dyn super::audit_budget::Budget>,
     audit_full_arrays: bool,
 }
 impl<'a> HashReader<'a> {
+    pub(super) fn captured_for_audit(
+        capture: &'a sc::AuditCapture,
+        max_render_bytes: Option<u64>,
+    ) -> Result<Self, sc::CodecError> {
+        #[cfg(test)]
+        if let Some(c) = OVERLAY_PROTOTYPE.with(|v| v.borrow().clone()) {
+            return Self::captured_bounded(capture, max_render_bytes, c.slots, c.bytes, &c.budget);
+        }
+        Ok(Self::captured(capture, max_render_bytes))
+    }
+    #[cfg(test)]
+    fn captured_bounded(
+        capture: &'a sc::AuditCapture,
+        max_render_bytes: Option<u64>,
+        slots: usize,
+        bytes: usize,
+        budget: &sc::capture_allocation::OwnedBudget,
+    ) -> Result<Self, sc::CodecError> {
+        let mut reader = Self::captured(capture, max_render_bytes);
+        reader.overlay = OverlayOwner::Bounded(sc::capture_allocation::overlay::OverlaySlab::new(
+            slots, bytes, budget,
+        )?);
+        Ok(reader)
+    }
+
     /// 唯一捕获构造器只接不可变 owner；不能同时配入另一份 dyn source。
     pub(super) fn captured(capture: &'a sc::AuditCapture, max_render_bytes: Option<u64>) -> Self {
         Self {
             source: ReadOwner::Captured(capture),
-            overlay: BTreeMap::new(),
+            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
             deadline: None,
             max_render_bytes,
             budget: None,
@@ -837,7 +936,7 @@ impl<'a> HashReader<'a> {
     pub(super) fn new(source: &'a mut dyn NodeSource) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: BTreeMap::new(),
+            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
             deadline: None,
             max_render_bytes: None,
             budget: None,
@@ -850,7 +949,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: BTreeMap::new(),
+            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
             deadline,
             max_render_bytes: None,
             budget: None,
@@ -864,7 +963,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: BTreeMap::new(),
+            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
             deadline,
             max_render_bytes,
             budget: None,
@@ -879,7 +978,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: BTreeMap::new(),
+            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
             deadline,
             max_render_bytes,
             budget,
@@ -916,8 +1015,8 @@ impl NodeSource for HashReader<'_> {
             #[cfg(test)]
             super::state::trace_read(true);
             NodeRead::Found {
-                tag: *tag,
-                body: body.clone(),
+                tag,
+                body: body.to_vec(),
             }
         } else {
             #[cfg(test)]
@@ -959,8 +1058,8 @@ impl NodeSource for HashReader<'_> {
             #[cfg(test)]
             super::state::trace_read(true);
             NodeRead::Found {
-                tag: *tag,
-                body: body.clone(),
+                tag,
+                body: body.to_vec(),
             }
         } else {
             #[cfg(test)]
@@ -1004,14 +1103,143 @@ impl NodeSink for HashReader<'_> {
                 }
             }
         }
-        self.overlay.insert(digest, (tag, body.to_vec()));
-        Ok(())
+        self.overlay.put(digest, tag, body)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn overlay_bounded_limits_replace_clear_and_shared_live() {
+        use sc::capture_allocation::{overlay::OverlaySlab, OwnedBudget, LIMIT};
+        let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
+        let d = sc::frame(sc::tag::STRING, b"ab");
+        let e = sc::frame(sc::tag::STRING, b"cd");
+        let required = OverlaySlab::requested_bytes(2, 4).unwrap();
+        for limit in [required - 1, required, required + 1] {
+            let budget = OwnedBudget::new(limit);
+            let r = HashReader::captured_bounded(&capture, None, 2, 4, &budget);
+            assert_eq!(r.is_ok(), limit >= required);
+            if let Ok(mut r) = r {
+                r.put(d, sc::tag::STRING, b"ab").unwrap();
+            }
+            assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        }
+        for slots in [1, 2, 3] {
+            for bytes in [3, 4, 5] {
+                let budget = OwnedBudget::new(1000);
+                let mut r =
+                    HashReader::captured_bounded(&capture, None, slots, bytes, &budget).unwrap();
+                r.put(d, sc::tag::STRING, b"ab").unwrap();
+                let before = budget.snapshot().copied_body_bytes;
+                let result = r.put(e, sc::tag::STRING, b"cd");
+                assert_eq!(result.is_ok(), slots >= 2 && bytes >= 4);
+                if result.is_err() {
+                    assert_eq!(budget.snapshot().copied_body_bytes, before);
+                }
+                drop(r);
+                assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+            }
+        }
+        let budget = OwnedBudget::new(2 * required);
+        let mut a = HashReader::captured_bounded(&capture, None, 2, 4, &budget).unwrap();
+        let b = HashReader::captured_bounded(&capture, None, 2, 4, &budget).unwrap();
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 2 * required);
+        assert!(HashReader::captured_bounded(&capture, None, 1, 1, &budget).is_err());
+        a.put(d, sc::tag::STRING, b"ab").unwrap();
+        a.put(e, sc::tag::STRING, b"cd").unwrap();
+        let copied = budget.snapshot().copied_body_bytes;
+        a.put(d, sc::tag::STRING, b"ab").unwrap();
+        assert_eq!(budget.snapshot().copied_body_bytes, copied);
+        assert_eq!(a.put(d, sc::tag::STRING, b"abc").unwrap_err().code(), LIMIT);
+        assert!(matches!(a.read(&d).unwrap(),NodeRead::Found{body,..} if body==b"ab"));
+        // Raw put historically permits replacement. Preserve bytes/tag and let F reject wrong digest.
+        a.put(d, sc::tag::STRING, b"z").unwrap();
+        assert!(matches!(a.read(&d).unwrap(),NodeRead::Found{body,..} if body==b"z"));
+        assert_eq!(
+            a.checked_read(&d).unwrap_err().code(),
+            sc::code::NODE_DIGEST
+        );
+        assert!(matches!(a.read(&e).unwrap(),NodeRead::Found{body,..} if body==b"cd"));
+        a.put(d, sc::tag::STRING, b"ab").unwrap();
+        a.checked_read(&d).unwrap();
+        a.overlay.clear();
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 2 * required);
+        assert!(matches!(a.read(&d).unwrap(), NodeRead::Missing));
+        a.put(e, sc::tag::STRING, b"cd").unwrap();
+        drop(a);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, required);
+        drop(b);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        println!(
+            "overlay layout={} shared_peak={} copied={}",
+            required,
+            budget.snapshot().peak_requested_layout_bytes,
+            budget.snapshot().copied_body_bytes
+        );
+    }
+
+    #[test]
+    fn overlay_bounded_capture_conflict_empty_error_and_cancel() {
+        use sc::capture_allocation::{overlay::OverlaySlab, OwnedBudget};
+        let mut nodes = sc::MemoryNodes::new();
+        let normal = sc::write_value(&mut nodes, &V::String("original".into())).unwrap();
+        let placeholder = sc::write_template(&mut nodes, &V::BatchSelf).unwrap();
+        let capture = sc::AuditCapture::new(nodes);
+        let budget = OwnedBudget::new(1000);
+        {
+            let mut r = HashReader::captured_bounded(&capture, None, 2, 64, &budget).unwrap();
+            let (tag, body) = capture.original(&normal.digest).unwrap();
+            r.put(normal.digest, tag, body).unwrap();
+            r.put(normal.digest, tag, body).unwrap();
+            let before = budget.snapshot().copied_body_bytes;
+            assert_eq!(
+                r.put(normal.digest, tag, b"tamper").unwrap_err().code(),
+                sc::code::NODE_DIGEST
+            );
+            assert_eq!(budget.snapshot().copied_body_bytes, before);
+            r.verify_public(&normal.content_ref()).unwrap();
+            r.verify_mode(&placeholder.content_ref(), sc::Mode::Template)
+                .unwrap();
+            assert!(r.verify_public(&placeholder.content_ref()).is_err());
+            r.deadline = Some(std::time::Instant::now());
+            assert_eq!(
+                r.put([1; 32], tag, b"cancel").unwrap_err().code(),
+                "verify_deadline"
+            );
+        }
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+        let zero = OwnedBudget::new(0);
+        let mut r = HashReader::captured_bounded(&capture, None, 0, 0, &zero).unwrap();
+        assert!(r.put([0; 32], sc::tag::STRING, b"").is_err());
+        drop(r);
+        assert_eq!(zero.snapshot().allocation_attempts, 0);
+        assert!(OverlaySlab::requested_bytes(usize::MAX, 0).is_err());
+        assert!(OverlaySlab::requested_bytes(0, usize::MAX).is_err());
+    }
+
+    #[test]
+    #[ignore]
+    fn overlay_legacy_zero_budget_red() {
+        let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
+        let budget = sc::capture_allocation::OwnedBudget::new(0);
+        let mut reader = HashReader::captured(&capture, None);
+        let body = b"unbounded retained body";
+        let d = sc::frame(sc::tag::STRING, body);
+        let result = reader.put(d, sc::tag::STRING, body);
+        assert!(matches!(reader.read(&d).unwrap(), NodeRead::Found { .. }));
+        println!(
+            "legacy zero budget live={} retained_body={}",
+            budget.snapshot().live_requested_layout_bytes,
+            body.len()
+        );
+        assert!(
+            result.is_err(),
+            "zero payload budget did not prevent real HashReader copy/retain"
+        );
+    }
 
     #[test]
     fn full_array_sql_reads_are_linear_and_never_reuse_previous_bodies() {
