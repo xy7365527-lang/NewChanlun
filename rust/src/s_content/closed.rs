@@ -89,6 +89,23 @@ impl ClosedCapturedOwner<'_> {
     ) -> Result<OwnedRefFields<'names>, CodecError> {
         path::lookup_object_fields_owned_ctx(self, r, n, false)
     }
+    pub fn allocation_budget(&self) -> OwnedBudget {
+        self.budget.clone()
+    }
+    pub fn write_value_view(&mut self, v: ValueView<'_>) -> Result<Built, CodecError> {
+        write_value_view_ctx(&mut CodecContext::Closed(self), v, Mode::Public)
+    }
+    pub fn write_template_view(&mut self, v: ValueView<'_>) -> Result<Built, CodecError> {
+        write_value_view_ctx(&mut CodecContext::Closed(self), v, Mode::Template)
+    }
+    pub fn replace_batch_placeholder_owned(
+        &mut self,
+        r: RefView<'_>,
+        path: &[path::PathStep],
+        batch: &str,
+    ) -> Result<RefOwner, CodecError> {
+        path::replace_batch_placeholder_owned_ctx(self, r, path, batch)
+    }
     pub fn new_owned_ref_result(&self) -> CodecVec<RefOwner> {
         WorkVec::new(Some(&self.budget))
     }

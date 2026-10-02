@@ -10,12 +10,17 @@
 
 use super::{canonical_json, content_manifest, content_store, meta_get_opt, sha256_hex, v2};
 use crate::v3::audit_store::CodecStore;
-use content_manifest::{ManifestMetadata, ManifestRoots, UnpublishedManifest};
+use crate::v3::audit_store::RefValue;
+use content_manifest::Decimal;
+use content_manifest::{
+    ManifestMetadata, ManifestRoots, MetadataView, RootsView, UnpublishedManifest,
+};
 use newchan_rust::s_content::{
     self as sc, path::PathStep, ContentRef, Kind, NodeDigest, NodeSink, Value as V,
 };
 use newchan_rust::session_protocol::{parse_canonical_i64, strict_json, validate_envelope};
 use rusqlite::{params, Transaction};
+use sc::ValueView as VV;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug)]
@@ -91,40 +96,93 @@ pub(super) fn resolve_indexed_templates_pending(
     batch_id: &str,
     previous_frontier: i64,
 ) -> Result<PendingTemplates, String> {
-    let objects = object_births(tx, metadata)?;
-    let observations = observation_births(tx, metadata)?;
-    let mut snapshot = roots.publication_template.clone();
-    let mut delta = roots.delta_template.clone();
-    match_field(
+    let result = resolve_indexed_templates_pending_view(
+        tx,
         store,
-        &snapshot,
-        "history_mode",
-        text("RecomputedWithRevision"),
+        metadata.view(),
+        roots.view(),
+        batch_id,
+        previous_frontier,
     )?;
-    match_field(store, &snapshot, "as_of_generation", V::Null)?;
+    Ok(PendingTemplates {
+        snapshot: normal_reference(result.snapshot.view()),
+        delta: normal_reference(result.delta.view()),
+    })
+}
+pub(crate) struct PendingRefTemplates {
+    pub snapshot: RefValue,
+    pub delta: RefValue,
+}
+fn normal_reference(r: sc::RefView<'_>) -> ContentRef {
+    ContentRef {
+        format: r.format().to_owned(),
+        root: r.root().to_owned(),
+        kind: r.kind(),
+        extent: r.extent(),
+    }
+}
+fn ref_value(store: &(impl CodecStore + ?Sized), r: sc::RefView<'_>) -> Result<RefValue, String> {
+    // Storage choice is made before the work, never after an allocation failure.
+    if store.allocation_budget().is_some() {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        return Ok(RefValue::Owned(
+            sc::Built {
+                digest: r.digest().map_err(err)?,
+                kind: r.kind(),
+                extent: r.extent(),
+            }
+            .owned_ref(),
+        ));
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        return Err(err("owned refs未启用TestOnly feature"));
+    }
+    Ok(RefValue::Plain(normal_reference(r)))
+}
+pub(crate) fn resolve_indexed_templates_pending_view(
+    tx: &Transaction<'_>,
+    store: &mut (impl CodecStore + ?Sized),
+    metadata: MetadataView<'_>,
+    roots: RootsView<'_>,
+    batch_id: &str,
+    previous_frontier: i64,
+) -> Result<PendingRefTemplates, String> {
+    let objects = object_births(tx, &metadata, store)?;
+    let observations = observation_births(tx, &metadata, store)?;
+    let mut snapshot = ref_value(store, roots.publication_template)?;
+    let mut delta = ref_value(store, roots.delta_template)?;
+    match_field_view(
+        store,
+        snapshot.view(),
+        "history_mode",
+        VV::String("RecomputedWithRevision"),
+    )?;
+    match_field_view(
+        store,
+        snapshot.view(),
+        "as_of_generation",
+        VV::Json(sc::capture_allocation::audit_json::JsonView::Null),
+    )?;
     let from = previous_frontier
         .checked_add(1)
         .ok_or_else(|| err("seq_range 起点溢出"))?;
     if previous_frontier < -1 || from > metadata.input_frontier {
         return Err(err("seq_range 无实际新增输入"));
     }
+    let from_text = Decimal::new(from);
+    let to_text = Decimal::new(metadata.input_frontier);
+    let seq_fields = [
+        ("from", VV::String(from_text.as_str())),
+        ("to", VV::String(to_text.as_str())),
+    ];
     for root in [&snapshot, &delta] {
-        match_field(
-            store,
-            root,
-            "seq_range",
-            V::Object(vec![
-                ("from".into(), text(from)),
-                ("to".into(), text(metadata.input_frontier)),
-            ]),
-        )?;
+        match_field_view(store, root.view(), "seq_range", VV::Object(&seq_fields))?;
     }
     resolve_objects(
         store,
         &mut snapshot,
         "objects",
         &objects,
-        metadata,
+        &metadata,
         batch_id,
         ObjectFamily::Active,
     )?;
@@ -133,7 +191,7 @@ pub(super) fn resolve_indexed_templates_pending(
         &mut snapshot,
         "withdrawn_objects",
         &objects,
-        metadata,
+        &metadata,
         batch_id,
         ObjectFamily::Withdrawn,
     )?;
@@ -142,7 +200,7 @@ pub(super) fn resolve_indexed_templates_pending(
         &mut delta,
         "upserts",
         &objects,
-        metadata,
+        &metadata,
         batch_id,
         ObjectFamily::Born,
     )?;
@@ -150,22 +208,22 @@ pub(super) fn resolve_indexed_templates_pending(
         store,
         &mut snapshot,
         &observations,
-        metadata,
+        &metadata,
         batch_id,
         false,
     )?;
-    resolve_observations(store, &mut delta, &observations, metadata, batch_id, true)?;
+    resolve_observations(store, &mut delta, &observations, &metadata, batch_id, true)?;
     for root in [&mut snapshot, &mut delta] {
         for path in [
             vec![field("index_frontier")],
             vec![field("catalog_evidence"), field("batch_id")],
         ] {
             *root = store
-                .replace_batch_placeholder(root, &path, batch_id)
+                .replace_ref(root.view(), &path, batch_id)
                 .map_err(err)?;
         }
     }
-    Ok(PendingTemplates { snapshot, delta })
+    Ok(PendingRefTemplates { snapshot, delta })
 }
 
 fn err(e: impl std::fmt::Display) -> String {
@@ -197,12 +255,46 @@ fn match_field(
     key: &str,
     v: V,
 ) -> Result<(), String> {
+    match_field_ref(store, root.into(), key, v)
+}
+fn match_field_ref(
+    store: &mut (impl CodecStore + ?Sized),
+    root: sc::RefView<'_>,
+    key: &str,
+    v: V,
+) -> Result<(), String> {
     let actual = store
-        .lookup_path(root, &[field(key)])
+        .lookup_ref(root, &[field(key)])
         .map_err(err)?
         .digest()
         .map_err(err)?;
     if actual != hash(v)? {
+        return Err(err(format!("{key} 与独立记录不同")));
+    }
+    Ok(())
+}
+fn hash_view(store: &(impl CodecStore + ?Sized), v: VV<'_>) -> Result<NodeDigest, String> {
+    let result = match store.allocation_budget() {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        Some(b) => sc::write_value_view_for_allocation_prototype(&mut HashOnly, v, &b),
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        Some(_) => return Err(err("owned hash未启用TestOnly feature")),
+        None => sc::write_value_view(&mut HashOnly, v),
+    };
+    result.map(|v| v.digest).map_err(err)
+}
+fn match_field_view(
+    store: &mut (impl CodecStore + ?Sized),
+    root: sc::RefView<'_>,
+    key: &str,
+    value: VV<'_>,
+) -> Result<(), String> {
+    let actual = store
+        .lookup_ref(root, &[field(key)])
+        .map_err(err)?
+        .digest()
+        .map_err(err)?;
+    if actual != hash_view(store, value)? {
         return Err(err(format!("{key} 与独立记录不同")));
     }
     Ok(())
@@ -230,15 +322,22 @@ pub(super) fn verify_current_begin(
     token: &str,
     m: &ManifestMetadata,
 ) -> Result<(), String> {
+    verify_current_begin_view(tx, token, m.view())
+}
+pub(crate) fn verify_current_begin_view(
+    tx: &Transaction<'_>,
+    token: &str,
+    m: MetadataView<'_>,
+) -> Result<(), String> {
     for (key, expected) in [
         ("protocol_revision", "s-session/3"),
-        ("session_id", m.session_id.as_str()),
-        ("writer_epoch", m.writer_epoch.as_str()),
-        ("structure_cut", m.base_cut.as_str()),
-        ("profile_id", m.profile_id.as_str()),
-        ("profile_hash", m.profile_hash.as_str()),
-        ("catalog_revision", m.catalog_revision.as_str()),
-        ("rule_revision", m.rule_revision.as_str()),
+        ("session_id", m.session_id),
+        ("writer_epoch", m.writer_epoch),
+        ("structure_cut", m.base_cut),
+        ("profile_id", m.profile_id),
+        ("profile_hash", m.profile_hash),
+        ("catalog_revision", m.catalog_revision),
+        ("rule_revision", m.rule_revision),
         ("begin_token", token),
     ] {
         if meta(tx, key)? != expected {
@@ -314,11 +413,11 @@ pub(super) fn verify_current_begin(
         ("producer_id", &s.producer_id),
         ("producer_epoch", &s.producer_epoch),
     ] {
-        if envelope[key].as_str() != Some(expected.as_str()) {
+        if envelope[key].as_str() != Some(*expected) {
             return Err(err(format!("封存 envelope.{key} 不符")));
         }
     }
-    if envelope["payload"]["clock_event_id"].as_str() != Some(&s.clock_event_id) {
+    if envelope["payload"]["clock_event_id"].as_str() != Some(s.clock_event_id) {
         return Err(err("envelope clock_event_id 不符"));
     }
     let (begin_ns,message_key,ordinal,generation):(String,String,i64,i64)=tx.query_row(
@@ -374,7 +473,8 @@ struct ObjectBirth {
 }
 fn object_births(
     tx: &Transaction<'_>,
-    m: &ManifestMetadata,
+    m: &MetadataView<'_>,
+    store: &(impl CodecStore + ?Sized),
 ) -> Result<BTreeMap<NodeDigest, ObjectBirth>, String> {
     let mut out = BTreeMap::new();
     let latest = super::meta_i64(tx, "generation")?.max(m.generation);
@@ -415,7 +515,7 @@ fn object_births(
                 b.reason = None;
                 b.superseded = None;
             }
-            if out.insert(hash(text(id))?, b).is_some() {
+            if out.insert(hash_view(store, VV::String(&id))?, b).is_some() {
                 return Err(err("对象身份同时存在两个独立表"));
             }
         }
@@ -429,7 +529,8 @@ struct ObservationBirth {
 }
 fn observation_births(
     tx: &Transaction<'_>,
-    m: &ManifestMetadata,
+    m: &MetadataView<'_>,
+    store: &(impl CodecStore + ?Sized),
 ) -> Result<BTreeMap<NodeDigest, ObservationBirth>, String> {
     let mut out = BTreeMap::new();
     let latest = super::meta_i64(tx, "generation")?.max(m.generation);
@@ -452,7 +553,7 @@ fn observation_births(
         if b.first > m.generation {
             continue;
         }
-        out.insert(hash(text(id))?, b);
+        out.insert(hash_view(store, VV::String(&id))?, b);
     }
     Ok(out)
 }
@@ -462,7 +563,7 @@ enum ObjectFamily {
     Withdrawn,
     Born,
 }
-fn member(b: &ObjectBirth, m: &ManifestMetadata, f: ObjectFamily) -> bool {
+fn member(b: &ObjectBirth, m: &MetadataView<'_>, f: ObjectFamily) -> bool {
     match f {
         ObjectFamily::Active => b.withdrawn.is_none(),
         ObjectFamily::Withdrawn => b.withdrawn.is_some(),
@@ -471,54 +572,52 @@ fn member(b: &ObjectBirth, m: &ManifestMetadata, f: ObjectFamily) -> bool {
 }
 fn array_len(
     store: &mut (impl CodecStore + ?Sized),
-    root: &ContentRef,
+    root: &RefValue,
     name: &str,
 ) -> Result<u64, String> {
-    let r = store.lookup_path(root, &[field(name)]).map_err(err)?;
+    let r = store.lookup_ref(root.view(), &[field(name)]).map_err(err)?;
     array_reference_len(&r, name)
 }
-fn array_reference_len(r: &ContentRef, name: &str) -> Result<u64, String> {
-    if r.kind != Kind::Array {
+fn array_reference_len(r: &RefValue, name: &str) -> Result<u64, String> {
+    if r.kind() != Kind::Array {
         return Err(err(format!("{name} 不是数组")));
     }
-    r.extent.ok_or_else(|| err("缺数组长度"))
+    r.extent().ok_or_else(|| err("缺数组长度"))
 }
 fn resolve_record_batch(
     store: &mut (impl CodecStore + ?Sized),
-    root: &mut ContentRef,
+    root: &mut RefValue,
     path: &[PathStep],
-    record: &ContentRef,
+    record: &RefValue,
     first: i64,
     stored_batch: &str,
-    m: &ManifestMetadata,
+    m: &MetadataView<'_>,
     batch: &str,
 ) -> Result<(), String> {
     let value = store
-        .lookup_path(record, &[field("batch_id")])
+        .lookup_ref(record.view(), &[field("batch_id")])
         .map_err(err)?;
     if first == m.generation {
-        if stored_batch != batch || value.kind != Kind::TemplateBatch {
+        if stored_batch != batch || value.kind() != Kind::TemplateBatch {
             return Err(err("本批出生索引/占位不符"));
         }
         let mut p = path.to_vec();
         p.push(field("batch_id"));
-        *root = store
-            .replace_batch_placeholder(root, &p, batch)
-            .map_err(err)?;
+        *root = store.replace_ref(root.view(), &p, batch).map_err(err)?;
     } else {
         if stored_batch == batch {
             return Err(err("旧出生记录不得换成本批身份"));
         }
-        match_field(store, record, "batch_id", text(stored_batch))?;
+        match_field_view(store, record.view(), "batch_id", VV::String(stored_batch))?;
     }
     Ok(())
 }
 fn resolve_objects(
     store: &mut (impl CodecStore + ?Sized),
-    root: &mut ContentRef,
+    root: &mut RefValue,
     name: &str,
     births: &BTreeMap<NodeDigest, ObjectBirth>,
-    m: &ManifestMetadata,
+    m: &MetadataView<'_>,
     batch: &str,
     family: ObjectFamily,
 ) -> Result<(), String> {
@@ -528,7 +627,7 @@ fn resolve_objects(
         .map(|(id, _)| *id)
         .collect();
     // 本轮只修改其它成员的batch标量；未处理成员仍来自同一不可变模板数组。
-    let array = store.lookup_path(root, &[field(name)]).map_err(err)?;
+    let array = store.lookup_ref(root.view(), &[field(name)]).map_err(err)?;
     let n = array_reference_len(&array, name)?;
     if n != expected.len() as u64 {
         return Err(err(format!("{name} 与独立索引成员数不符")));
@@ -537,12 +636,12 @@ fn resolve_objects(
     for i in 0..n {
         let path = [field(name), PathStep::Index(i)];
         let record = store
-            .lookup_path(&array, &[PathStep::Index(i)])
+            .lookup_ref(array.view(), &[PathStep::Index(i)])
             .map_err(err)?;
         // 本模块通用于既有记录与S3记录，只取其共同控制字段，不裁载荷字段schema。
         let fields = store
-            .lookup_object_fields_subset(
-                &record,
+            .lookup_subset_ref(
+                record.view(),
                 &[
                     "object_id",
                     "kind",
@@ -557,39 +656,57 @@ fn resolve_objects(
                 ],
             )
             .map_err(err)?;
-        let id = fields["object_id"].digest().map_err(err)?;
+        let id = fields
+            .get("object_id")
+            .ok_or_else(|| err("缺object_id"))?
+            .digest()
+            .map_err(err)?;
         if !expected.contains(&id) || !seen.insert(id) {
             return Err(err(format!("{name} 存在越界/重复身份")));
         }
         let b = &births[&id];
+        let revision = Decimal::new(b.revision);
+        let first = Decimal::new(b.first);
+        let published = Decimal::new(b.published);
+        let withdrawn = b.withdrawn.map(Decimal::new);
+        let null = VV::Json(sc::capture_allocation::audit_json::JsonView::Null);
         for (k, v) in [
-            ("kind", text(&b.kind)),
-            ("object_revision", text(b.revision)),
-            ("first_known_generation", text(b.first)),
-            ("first_known_cut", text(&b.cut)),
-            ("published_generation", text(b.published)),
+            ("kind", VV::String(&b.kind)),
+            ("object_revision", VV::String(revision.as_str())),
+            ("first_known_generation", VV::String(first.as_str())),
+            ("first_known_cut", VV::String(&b.cut)),
+            ("published_generation", VV::String(published.as_str())),
             (
                 "withdrawn_generation",
-                b.withdrawn.map(text).unwrap_or(V::Null),
+                withdrawn
+                    .as_ref()
+                    .map(|v| VV::String(v.as_str()))
+                    .unwrap_or(null),
             ),
             (
                 "withdrawal_reason",
-                b.reason.as_ref().map(text).unwrap_or(V::Null),
+                b.reason.as_deref().map(VV::String).unwrap_or(null),
             ),
             (
                 "superseded_by",
-                b.superseded.as_ref().map(text).unwrap_or(V::Null),
+                b.superseded.as_deref().map(VV::String).unwrap_or(null),
             ),
             (
                 "lifecycle",
-                text(if b.withdrawn.is_some() {
+                VV::String(if b.withdrawn.is_some() {
                     "withdrawn"
                 } else {
                     "active"
                 }),
             ),
         ] {
-            if fields[k].digest().map_err(err)? != hash(v)? {
+            if fields
+                .get(k)
+                .ok_or_else(|| err(format!("缺{k}")))?
+                .digest()
+                .map_err(err)?
+                != hash_view(store, v)?
+            {
                 return Err(err(format!("{k} 与独立记录不同")));
             }
         }
@@ -599,9 +716,9 @@ fn resolve_objects(
 }
 fn resolve_observations(
     store: &mut (impl CodecStore + ?Sized),
-    root: &mut ContentRef,
+    root: &mut RefValue,
     births: &BTreeMap<NodeDigest, ObservationBirth>,
-    m: &ManifestMetadata,
+    m: &MetadataView<'_>,
     batch: &str,
     delta: bool,
 ) -> Result<(), String> {
@@ -617,9 +734,9 @@ fn resolve_observations(
     let mut seen = BTreeSet::new();
     for i in 0..n {
         let path = [field("observations"), PathStep::Index(i)];
-        let record = store.lookup_path(root, &path).map_err(err)?;
+        let record = store.lookup_ref(root.view(), &path).map_err(err)?;
         let id = store
-            .lookup_path(&record, &[field("observation_id")])
+            .lookup_ref(record.view(), &[field("observation_id")])
             .map_err(err)?
             .digest()
             .map_err(err)?;
@@ -627,7 +744,7 @@ fn resolve_observations(
             return Err(err("观察有越界/重复身份"));
         }
         let b = &births[&id];
-        match_field(store, &record, "kind", text(&b.kind))?;
+        match_field_view(store, record.view(), "kind", VV::String(&b.kind))?;
         resolve_record_batch(store, root, &path, &record, b.first, &b.batch, m, batch)?;
     }
     Ok(())

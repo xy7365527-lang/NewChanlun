@@ -96,7 +96,7 @@ pub(super) fn lookup_path_owned_ctx(
 ) -> Result<RefOwner, CodecError> {
     lookup_path_output(&mut CodecContext::Closed(source), reference, path)
 }
-fn lookup_path_output<R: RefOutput>(
+pub(super) fn lookup_path_output<R: RefOutput>(
     source: &mut CodecContext<'_, '_>,
     reference: RefView<'_>,
     path: &[PathStep],
@@ -489,6 +489,14 @@ pub(super) fn replace_batch_placeholder_ctx(
     path: &[PathStep],
     batch_id: &str,
 ) -> Result<ContentRef, CodecError> {
+    replace_output(store, reference.into(), path, batch_id)
+}
+fn replace_output<R: RefOutput>(
+    store: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    path: &[PathStep],
+    batch_id: &str,
+) -> Result<R, CodecError> {
     check_batch_id(batch_id)?;
     if path.iter().any(|step| matches!(step, PathStep::JsonText)) {
         return Err(CodecError::new(
@@ -498,7 +506,7 @@ pub(super) fn replace_batch_placeholder_ctx(
     }
 
     // 只读通过：定位 + 全部形状核验都在写之前完成。
-    let descent = navigate(&mut *store, reference, path, true)?;
+    let descent = navigate_view(&mut *store, reference, path, true)?;
     if descent.tag != tag::BATCH_SELF {
         return Err(CodecError::new(
             code::VALUE_KIND,
@@ -553,12 +561,7 @@ pub(super) fn replace_batch_placeholder_ctx(
             }
         }
     }
-    Ok(ContentRef {
-        format: CONTENT_FORMAT.to_string(),
-        root: root_string(&digest),
-        kind,
-        extent,
-    })
+    Ok(R::from_checked(kind, digest, extent))
 }
 
 // ── 定位 ────────────────────────────────────────────────────────────────────
@@ -1388,4 +1391,42 @@ mod owned_error_order_tests {
             assert_eq!(owned.gates, normal.gates);
         }
     }
+}
+
+/// normal动态来源的借用Ref适配；不选择Owned容器或另一份预算。
+#[doc(hidden)]
+pub fn lookup_path_refview(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    path: &[PathStep],
+) -> Result<ContentRef, CodecError> {
+    lookup_path_output(&mut CodecContext::Source(source), reference, path)
+}
+#[doc(hidden)]
+pub fn lookup_fields_refview(
+    source: &mut dyn NodeSource,
+    reference: RefView<'_>,
+    names: &[&str],
+    subset: bool,
+) -> Result<CodecFields, CodecError> {
+    object_fields_output(&mut CodecContext::Source(source), reference, names, !subset)
+}
+
+/// normal动态存储的借用Ref写入适配；Owned写面仍要求实际Closed owner。
+#[doc(hidden)]
+pub fn replace_batch_placeholder_refview(
+    store: &mut dyn NodeStore,
+    reference: RefView<'_>,
+    path: &[PathStep],
+    batch: &str,
+) -> Result<ContentRef, CodecError> {
+    replace_output(&mut CodecContext::Store(store), reference, path, batch)
+}
+pub(super) fn replace_batch_placeholder_owned_ctx(
+    store: &mut super::ClosedCapturedOwner<'_>,
+    reference: RefView<'_>,
+    path: &[PathStep],
+    batch: &str,
+) -> Result<RefOwner, CodecError> {
+    replace_output(&mut CodecContext::Closed(store), reference, path, batch)
 }
